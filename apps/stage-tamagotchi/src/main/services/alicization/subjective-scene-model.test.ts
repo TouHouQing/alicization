@@ -56,6 +56,47 @@ function createContext() {
 }
 
 describe('buildSubjectiveSceneAppraisal', () => {
+  it('uses structural situated meaning when no observed thread summary exists', () => {
+    const appraisal = buildSubjectiveSceneAppraisal({
+      now: 10_000,
+      context: createContext(),
+      watchMode: 'mnemonic-passive',
+      scene: null,
+      attention: null,
+      worldModel: {
+        activeThread: null,
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'stale',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'recovery',
+          sceneAgeMs: 0,
+          attentionAgeMs: 0,
+          sameSceneAsBefore: false,
+          sameAttentionAsBefore: false,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'open',
+          burden: 'light',
+        },
+        updatedAt: 10_000,
+      },
+      recentTransition: null,
+      durabilityPulse: null,
+      workingMemoryEpisodes: [],
+    })
+
+    expect(appraisal.situatedMeaning).toBe('situated_meaning.kind=error_focus; attention=concrete_fault')
+  })
+
   it('forms a host-goal hypothesis and knot instead of only scene labels', () => {
     const worldModel = buildWorldModel({
       now: 10_000,
@@ -153,7 +194,7 @@ describe('buildSubjectiveSceneAppraisal', () => {
     })
 
     expect(appraisal.surprise).toBeGreaterThan(0.85)
-    expect(appraisal.whatChanged).toContain('崩溃')
+    expect(appraisal.whatChanged).toBe('foreground_world=crash_or_freeze_signal')
   })
 
   it('merges structured cognition over the heuristic base instead of replacing it wholesale', () => {

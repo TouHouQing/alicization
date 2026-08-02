@@ -180,90 +180,26 @@ function buildInitiativeOpportunityRecallSeedParts(initiativeOpportunity: Record
   ].filter(Boolean)
 }
 
-function continuityPriorityFromText(...values: Array<string | null | undefined>) {
-  const text = values
-    .map(value => sanitizeHumanlikeMemoryText(value, 260))
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-
-  if (!text)
-    return 0
-
-  let priority = 0
-  if (/\bsame[- ]?person\b|\bsame[- ]?her\b|\bsame living line\b|\bone continuous\b|\bcontinuous digital life\b|\btool shell\b|同一个她|同一条线|持续的人|持续人格|数字生命|工具壳/u.test(text))
-    priority += 1.2
-  if (/\bcontinuity\b|\brepair\b|\bboundary\b|\bspace\b|\broom\b|\blower-pressure\b|\bmeasured-return\b|\bnot a status report\b|\bnot .*status recap\b|连续性|修复|边界|空间|低压|不是状态汇报/u.test(text))
-    priority += 0.45
-  if (/\bprogress\b|\bstatus recap\b|\bstatus report\b|\bconcise\b|\bgeneric recap\b|进度|状态汇报|简短汇报/u.test(text))
-    priority -= 0.18
-
-  return priority
-}
-
-function relationshipIntentPriority(rawIntent: unknown) {
-  const intent = sanitizeHumanlikeMemoryText(rawIntent, 80).toLowerCase()
-  switch (intent) {
-    case 'same-person-test':
-      return 1
-    case 'mixed':
-      return 0.92
-    case 'continuity-worry':
-      return 0.78
-    case 'progress-pressure':
-      return 0.2
-    default:
-      return 0
-  }
-}
-
 function buildHumanlikeMemoryRecallSeedPriority(input: {
   candidate: Record<string, unknown>
   correction: HumanlikeMemoryRecallCorrection | null
   eventCreatedAt: number
 }) {
-  const relationshipContext = objectFromHumanlikeRecallSeed(input.candidate.relationshipContext)
-  const emotionalResidue = objectFromHumanlikeRecallSeed(input.candidate.emotionalResidue)
-  const initiativeOpportunity = objectFromHumanlikeRecallSeed(input.candidate.initiativeOpportunity)
   const recallPosture = objectFromHumanlikeRecallSeed(input.candidate.recallPosture)
   const longTermWorthiness = objectFromHumanlikeRecallSeed(input.candidate.longTermWorthiness)
   const auditTrail = objectFromHumanlikeRecallSeed(input.candidate.auditTrail)
-
-  const relationshipSummary = sanitizeHumanlikeMemoryText(relationshipContext?.summary, 260)
-  const whyRemember = sanitizeHumanlikeMemoryText(auditTrail?.whyRemember, 220)
-  const emotionalTags = stringListFromHumanlikeRecallSeed(emotionalResidue?.tags, 8)
   const recallCertainty = sanitizeHumanlikeMemoryText(recallPosture?.certainty, 40).toLowerCase()
-  const initiativeKind = sanitizeHumanlikeMemoryText(initiativeOpportunity?.kind, 80).toLowerCase()
   const longTermScore = Math.max(0, Math.min(1, numberFromHumanlikeRecallSeed(longTermWorthiness?.score, 0)))
+  const confidence = Math.max(0, Math.min(1, numberFromHumanlikeRecallSeed(auditTrail?.confidence, 0)))
+  const sourceChannels = stringListFromHumanlikeRecallSeed(input.candidate.sourceChannels, 8)
 
-  let priority = 0
-  priority += continuityPriorityFromText(
-    relationshipSummary,
-    whyRemember,
-    input.correction?.correctedValue ?? null,
-    input.correction?.reason ?? null,
-  )
-  priority += relationshipIntentPriority(relationshipContext?.primaryIntent)
-  priority += longTermScore * 0.9
-
-  if (emotionalTags.includes('protective-continuity'))
-    priority += 0.42
-  if (emotionalTags.includes('unfinishedness'))
-    priority += 0.18
-  if (emotionalTags.includes('corrected-meaning'))
-    priority += 0.26
-  if (emotionalTags.includes('tension'))
-    priority += 0.08
-
+  let priority = longTermScore * 0.8
+    + confidence * 0.6
+    + Math.min(0.2, sourceChannels.length * 0.04)
   if (recallCertainty === 'corrected')
-    priority += 0.6
+    priority += 0.4
   else if (recallCertainty === 'tentative')
-    priority += 0.08
-
-  if (initiativeKind === 'remember-without-prompt')
-    priority += 0.14
-  else if (initiativeKind === 'low-pressure-follow-up')
-    priority += 0.06
+    priority -= 0.08
 
   if (input.correction)
     priority += 1.4
@@ -471,8 +407,6 @@ function buildHumanlikeMemoryRecallSeedLine(candidate: Record<string, unknown>, 
   const initiativeOutcomeRecord = objectFromHumanlikeRecallSeed(candidate.initiativeOutcomeRecord)
   const embodimentTrace = objectFromHumanlikeRecallSeed(candidate.embodimentTrace)
   const recallPosture = objectFromHumanlikeRecallSeed(candidate.recallPosture)
-  const metabolism = objectFromHumanlikeRecallSeed(candidate.metabolism)
-  const forgettingPolicy = objectFromHumanlikeRecallSeed(metabolism?.forgettingPolicy)
   const relationshipSummary = sanitizeHumanlikeMemoryText(relationshipContext?.summary, 220)
   const emotionalTags = stringListFromHumanlikeRecallSeed(emotionalResidue?.tags, 6)
   const initiativeKind = sanitizeHumanlikeMemoryText(initiativeOpportunity?.kind, 80)
@@ -481,9 +415,6 @@ function buildHumanlikeMemoryRecallSeedLine(candidate: Record<string, unknown>, 
   const embodimentParts = buildEmbodimentRecallSeedParts(embodimentTrace)
   const affectivePerspectiveParts = buildAffectivePerspectiveRecallSeedParts(emotionalResidue)
   const recallCertainty = sanitizeHumanlikeMemoryText(recallPosture?.certainty, 40)
-  const downrankMemoryIds = stringListFromHumanlikeRecallSeed(forgettingPolicy?.downrankMemoryIds, 8)
-  const mergeMemoryIds = stringListFromHumanlikeRecallSeed(forgettingPolicy?.mergeMemoryIds, 8)
-  const forgetMemoryIds = stringListFromHumanlikeRecallSeed(forgettingPolicy?.forgetMemoryIds, 8)
 
   const parts = [
     ...buildAffectiveResidueRecallSeedParts(affectiveResidueFacts),
@@ -495,9 +426,6 @@ function buildHumanlikeMemoryRecallSeedLine(candidate: Record<string, unknown>, 
     ...initiativeOutcomeParts,
     ...embodimentParts,
     recallCertainty ? `certainty=${recallCertainty}` : null,
-    downrankMemoryIds.length > 0 ? `downrank=${downrankMemoryIds.join(',')}` : null,
-    mergeMemoryIds.length > 0 ? `merge=${mergeMemoryIds.join(',')}` : null,
-    forgetMemoryIds.length > 0 ? `forget=${forgetMemoryIds.join(',')}` : null,
   ].filter(Boolean)
   if (parts.length === 0)
     return null
@@ -547,8 +475,6 @@ export function buildHumanlikeMemoryRecallSeedFromMindTurnEvents(
         const initiativeOutcomeRecord = objectFromHumanlikeRecallSeed(normalizedCandidate.initiativeOutcomeRecord)
         const embodimentTrace = objectFromHumanlikeRecallSeed(normalizedCandidate.embodimentTrace)
         const recallPosture = objectFromHumanlikeRecallSeed(normalizedCandidate.recallPosture)
-        const metabolism = objectFromHumanlikeRecallSeed(normalizedCandidate.metabolism)
-        const forgettingPolicy = objectFromHumanlikeRecallSeed(metabolism?.forgettingPolicy)
         const emotionalTags = stringListFromHumanlikeRecallSeed(emotionalResidue?.tags, 6)
         const initiativeKind = sanitizeHumanlikeMemoryText(initiativeOpportunity?.kind, 80)
         const initiativeOpportunityParts = buildInitiativeOpportunityRecallSeedParts(initiativeOpportunity)
@@ -556,9 +482,6 @@ export function buildHumanlikeMemoryRecallSeedFromMindTurnEvents(
         const embodimentParts = buildEmbodimentRecallSeedParts(embodimentTrace)
         const affectivePerspectiveParts = buildAffectivePerspectiveRecallSeedParts(emotionalResidue)
         const recallCertainty = sanitizeHumanlikeMemoryText(recallPosture?.certainty, 40)
-        const downrankMemoryIds = stringListFromHumanlikeRecallSeed(forgettingPolicy?.downrankMemoryIds, 8)
-        const mergeMemoryIds = stringListFromHumanlikeRecallSeed(forgettingPolicy?.mergeMemoryIds, 8)
-        const forgetMemoryIds = stringListFromHumanlikeRecallSeed(forgettingPolicy?.forgetMemoryIds, 8)
         const correctedRelationshipSummary = correction.field === 'relationshipContext'
           ? normalizeHumanlikeSentenceEnding(correction.correctedValue, 220)
           : sanitizeHumanlikeMemoryText(relationshipContext?.summary, 220)
@@ -573,9 +496,6 @@ export function buildHumanlikeMemoryRecallSeedFromMindTurnEvents(
           ...initiativeOutcomeParts,
           ...embodimentParts,
           recallCertainty ? `certainty=${recallCertainty}` : null,
-          downrankMemoryIds.length > 0 ? `downrank=${downrankMemoryIds.join(',')}` : null,
-          mergeMemoryIds.length > 0 ? `merge=${mergeMemoryIds.join(',')}` : null,
-          forgetMemoryIds.length > 0 ? `forget=${forgetMemoryIds.join(',')}` : null,
         ].filter(Boolean)
         if (parts.length === 0)
           return null

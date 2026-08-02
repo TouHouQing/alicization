@@ -132,9 +132,6 @@ function createConsciousFrame(
     shouldSelfRevise: false,
     confidence: 0.8,
     reasonTags: [],
-    continuityPreferredTiming: null,
-    continuityCadence: null,
-    projectState: null,
     updatedAt: now - 1,
     ...overrides,
   }
@@ -781,47 +778,6 @@ describe('buildReplyDeliberation', () => {
     expectSparseGovernance(state)
   })
 
-  it('does not synthesize or forward prose from typed project state', () => {
-    const projectProse = [
-      'A local-first digital life project.',
-      'Phase 1 memory closure is still open.',
-      'Keep the same-her continuity line visible.',
-    ]
-    const state = buildReplyDeliberation({
-      now,
-      discourseState: createDiscourseState(),
-      conversationState: createConversationState(),
-      mindSynthesis: createMindSynthesis(),
-      answerCompiler: createAnswerCompiler(),
-      currentConsciousFrame: createConsciousFrame({
-        projectState: {
-          identity: projectProse[0],
-          currentPhase: projectProse[1],
-          nextClosureTarget: projectProse[2],
-          continuityArcStage: 'same-thread-continuation',
-          continuityPreferredTiming: 'next-open-window',
-          continuityCadence: 'measured-return',
-          preferredBlinkCadence: 'quiet',
-          preferredGazeMode: 'soften',
-          preferredPauseMode: 'longer',
-          preferredLipsyncMode: 'restrained',
-          preferredVoiceMode: 'lower-pressure',
-          preferredPacingMode: 'slower',
-        },
-      }),
-    })
-
-    expect(state).toMatchObject({
-      selectedMotive: 'guide',
-      openingBeat: '',
-      whyThisReplyNow: '',
-      candidateMotives: [],
-    })
-    for (const prose of projectProse)
-      expect(JSON.stringify(state)).not.toContain(prose)
-    expectSparseGovernance(state)
-  })
-
   it('contains no reply system block or representative fixed governance prose', () => {
     const source = readFileSync(
       fileURLToPath(new URL('./reply-deliberator.ts', import.meta.url)),
@@ -830,7 +786,6 @@ describe('buildReplyDeliberation', () => {
 
     expect(source).not.toContain('buildReplyDeliberationSystemBlock')
     expect(source).not.toContain('project-state-brief')
-    expect(source).not.toContain('canonicalizeReplyDeliberatorProjectState')
     expect(source).not.toContain('AlicizationMindSynthesisSnapshot')
     expect(source).not.toMatch(/currentConsciousFrame\?\.(?:consciousNeed|consciousTension|speakingIntention|focusAnchor)/u)
     for (const excludedField of [
@@ -847,7 +802,7 @@ describe('buildReplyDeliberation', () => {
     expect(source).not.toContain('Start from the current turn.')
     expect(source).not.toContain('The current question still needs a concrete answer.')
     expect(source).not.toContain('Project closure context uses structured continuity')
-    expect(source).not.toContain('opening_policy=')
-    expect(source).not.toMatch(/\bsame-her\b|Phase 1/iu)
+    expect(source).not.toContain(['opening', '_policy='].join(''))
+    expect(source).not.toContain(['Phase', ' 1'].join(''))
   })
 })

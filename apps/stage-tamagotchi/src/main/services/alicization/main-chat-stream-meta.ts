@@ -1,6 +1,5 @@
 import type {
   AlicizationChatMetaEvent,
-  AlicizationCurrentConsciousFrameSnapshot,
   AlicizationDialoguePerformancePayload,
   AlicizationMindTurnGovernance,
   AlicizationResidentPerformanceSnapshot,
@@ -10,6 +9,7 @@ import type {
 } from '../../../shared/eventa'
 
 import {
+  normalizeAlicizationDigitalLifeSpineDigest,
   normalizeAlicizationRuntimeDigest,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
@@ -17,77 +17,11 @@ import {
 import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-policy'
 import { buildAlicizationChatStreamEmbodimentMeta } from './runtime-governance'
 
-const legacyDialogueGovernanceKeys = new Set([
-  'activeContinuityGovernance',
-  'companionBriefingLine',
-  'companionHeadlineLine',
-  'companionNextClosureLine',
-  'continuityArcStage',
-  'continuityCadence',
-  'continuityCue',
-  'continuityDriftRisk',
-  'continuityHold',
-  'continuityPreferredTiming',
-  'continuityRestraint',
-  'emotionalClosureCue',
-  'emotionalClosureSummary',
-  'governingCommitment',
-  'governingConcern',
-  'governingFocus',
-  'governingInquiry',
-  'governingProject',
-  'mustDo',
-  'mustNotDo',
-  'memoryDeliberationProjectStateDiagnostics',
-  'memoryTuningAdvice',
-  'openingGuidanceHoldDetail',
-  'openingMove',
-  'openingPolicy',
-  'openingStyle',
-  'opening_policy',
-  'preDialogueAwareness',
-  'preDialogueAwarenessLine',
-  'preDialogueAwarenessSummary',
-  'preDialogueClosure',
-  'preDialogueSendIdentity',
-  'projectState',
-  'projectStateContinuity',
-  'projectStateEmotionalClosureCue',
-  'projectStateNextFocusSummary',
-  'projectStateOpenFocusSummary',
-  'proactiveSameHerGap',
-  'proactiveSameHerGapSummary',
-  'relationshipCadence',
-  'relationshipPosture',
-  'relationship_cadence',
-  'reasonCodes',
-  'reasonTags',
-  'sameHerCausalityRepairPressure',
-  'sameHerDriftRisk',
-  'sameHerDriftRiskLine',
-  'sameHerDriftRiskSummary',
-  'sameHerHoldDetail',
-  'sameHerInwardCarry',
-  'sameHerSelfLine',
-  'sameHerSummary',
-  'visibleReplyRealization',
-])
-
 const literalDialogueTextKeys = new Set([
   'reply',
   'replyText',
   'text',
 ])
-
-function isLegacyDialogueGovernanceKey(key: string) {
-  return legacyDialogueGovernanceKeys.has(key)
-    || key.startsWith('companion')
-    || key.startsWith('emotionalClosure')
-    || key.startsWith('opening')
-    || key.startsWith('projectState')
-    || key.startsWith('proactiveSameHer')
-    || key.startsWith('sameHer')
-}
 
 const digitalLifeArchitectureOperatingModes = new Set([
   'observing',
@@ -140,8 +74,6 @@ function sanitizeChatMetaValue<T>(
   key = '',
   seen = new WeakSet<object>(),
 ): T | null | undefined {
-  if (isLegacyDialogueGovernanceKey(key))
-    return undefined
   if (key === 'architecture')
     return sanitizeDigitalLifeArchitectureMeta(value) as T | undefined
 
@@ -166,7 +98,6 @@ function sanitizeChatMetaValue<T>(
 
   const sanitized = Object.fromEntries(
     Object.entries(value as Record<string, unknown>)
-      .filter(([entryKey]) => !isLegacyDialogueGovernanceKey(entryKey))
       .map(([entryKey, item]) => [
         entryKey,
         sanitizeChatMetaValue(item, entryKey, seen),
@@ -178,6 +109,37 @@ function sanitizeChatMetaValue<T>(
   return Object.keys(sanitized).length > 0
     ? sanitized as T
     : undefined
+}
+
+function sanitizeChatMetaGovernance(
+  value: AlicizationChatMetaEvent['governance'] | null | undefined,
+): AlicizationChatMetaEvent['governance'] {
+  const candidate = sanitizeChatMetaValue(value)
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate))
+    return null
+
+  const source = candidate as unknown as Record<string, unknown>
+  const decisionTraceId = typeof source.decisionTraceId === 'string'
+    ? sanitizeAlicizationProviderFacingText(source.decisionTraceId, 160, '')
+    : ''
+  const hadReasons = Object.hasOwn(source, 'reasons')
+  const reasons = Array.isArray(source.reasons)
+    ? source.reasons
+        .map(reason => typeof reason === 'string'
+          ? sanitizeAlicizationProviderFacingText(reason, 160, '')
+          : '')
+        .filter((reason): reason is string => Boolean(reason))
+    : []
+  const sanitized: Record<string, unknown> = {}
+
+  if (decisionTraceId)
+    sanitized.decisionTraceId = decisionTraceId
+  if (hadReasons)
+    sanitized.reasons = reasons
+
+  return Object.keys(sanitized).length > 0
+    ? sanitized as unknown as AlicizationChatMetaEvent['governance']
+    : null
 }
 
 function sanitizeRuntimeDigest(
@@ -199,21 +161,20 @@ export function sanitizeAlicizationRuntimeDigestForTransport(
 function sanitizeDigitalLifeSpine(
   digitalLifeSpine: AlicizationChatMetaEvent['digitalLifeSpine'],
 ) {
-  return sanitizeChatMetaValue(digitalLifeSpine) ?? null
+  const normalized = normalizeAlicizationDigitalLifeSpineDigest(digitalLifeSpine)
+  return sanitizeChatMetaValue(normalized) ?? null
 }
 
 function buildCurrentConsciousFrameForStreamMetaGovernance(
   runtimeDigest: AlicizationRuntimeDigest | null | undefined,
-): AlicizationCurrentConsciousFrameSnapshot | null {
+): { reasonTags: string[] } | null {
   const frame = sanitizeChatMetaValue(runtimeDigest?.currentConsciousFrame ?? null)
   if (!frame)
     return null
 
   return {
-    ...frame,
     reasonTags: Array.isArray(frame.reasonTags) ? frame.reasonTags : [],
-    projectState: null,
-  } as AlicizationCurrentConsciousFrameSnapshot
+  }
 }
 
 export function buildAlicizationChatMetaPayload(input: {
@@ -237,10 +198,8 @@ export function buildAlicizationChatMetaPayload(input: {
   return {
     cardId: input.cardId,
     turnId: input.turnId,
-    governance: sanitizeChatMetaValue(input.governance) ?? null,
+    governance: sanitizeChatMetaGovernance(input.governance),
     visibleReplyExecution: sanitizeChatMetaValue(input.visibleReplyExecution ?? null) ?? null,
-    projectState: null,
-    preDialogueAwareness: null,
     embodiment: sanitizeChatMetaValue(input.embodiment) ?? null,
     embodimentScript,
     speechTimeline: sanitizeChatMetaValue(input.speechTimeline) ?? null,
@@ -267,7 +226,7 @@ export function buildAlicizationChatMetaSignature(
   },
 ) {
   return JSON.stringify(sanitizeChatMetaValue({
-    governance: body.governance ?? null,
+    governance: sanitizeChatMetaGovernance(body.governance ?? null),
     visibleReplyExecution: body.visibleReplyExecution ?? null,
     embodiment: body.embodiment ?? null,
     embodimentScript: body.embodimentScript ?? null,
@@ -305,7 +264,7 @@ export function createAlicizationChatStreamMetaEmitter(input: {
       input.getRuntimeDigest?.() ?? null,
     )
     const meta = buildAlicizationChatStreamEmbodimentMeta({
-      governance: sanitizeChatMetaValue(input.getGovernance() ?? null),
+      governance: sanitizeChatMetaGovernance(input.getGovernance() ?? null),
       digitalLifeSpine,
       affectiveResidue: runtimeDigest?.affectiveResidue
         ?? runtimeDigest?.derivedMindStateBundle?.affectiveResidue

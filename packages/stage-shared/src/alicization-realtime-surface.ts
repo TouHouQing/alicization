@@ -51,7 +51,7 @@ export function buildAlicizationWeatherSurface(input: {
   return {
     kind: 'weather',
     title: sanitizeText(input.location, 120),
-    lead: `${sanitizeText(input.location, 120)} 现在 ${sanitizeText(input.condition, 40)}`,
+    lead: [sanitizeText(input.location, 120), sanitizeText(input.condition, 40)].filter(Boolean).join(' | '),
     fields: [
       buildField('温度', `${input.temperatureC.toFixed(1)}°C`),
       buildField('体感', `${input.apparentTemperatureC.toFixed(1)}°C`),
@@ -73,7 +73,7 @@ export function buildAlicizationNewsSurface(input: {
   return {
     kind: 'news',
     title: sanitizeText(input.query, 120),
-    lead: `${sanitizeText(input.query, 120)} 这边先落最新几条`,
+    lead: sanitizeText(input.query, 120),
     items: input.items
       .map(item => buildItem(
         item.title,
@@ -104,7 +104,7 @@ export function buildAlicizationFinanceSurface(input:
     return {
       kind: 'finance',
       title: sanitizeText(input.ticker, 24),
-      lead: `${sanitizeText(input.ticker, 24)} 现在的价格落点`,
+      lead: sanitizeText(input.ticker, 24),
       fields: [
         buildField('价格', `$${input.priceUsd.toFixed(2)}`),
         buildField('24h 变动', `${input.change24h.toFixed(2)}%`),
@@ -115,7 +115,7 @@ export function buildAlicizationFinanceSurface(input:
   return {
     kind: 'finance',
     title: sanitizeText(input.ticker, 24),
-    lead: `${sanitizeText(input.ticker, 24)} 最近收盘落点`,
+    lead: sanitizeText(input.ticker, 24),
     fields: [
       buildField('收盘价', `$${input.closePriceUsd.toFixed(2)}`),
       buildField('日期', sanitizeText(input.date, 32) || '未知'),
@@ -134,7 +134,7 @@ export function buildAlicizationSportsSurface(input: {
   return {
     kind: 'sports',
     title: sanitizeText(input.leagueLabel, 32),
-    lead: `${sanitizeText(input.leagueLabel, 32)} 这边能对上的比赛`,
+    lead: sanitizeText(input.leagueLabel, 32),
     items: input.items
       .map(item => buildItem(
         item.name,
@@ -266,8 +266,8 @@ export function composeAlicizationRealtimeReply(input: {
   const failedHint = input.failed.length > 0
     ? (
         locale === 'zh'
-          ? `\n\n另外还有 ${input.failed.map(category => category).join('、')} 这一类，这轮没拿到可靠结果。`
-          : `\n\nI still do not have a reliable result for ${input.failed.join(', ')} this turn.`
+          ? `\n\n实时数据获取失败：${input.failed.join('、')}。`
+          : `\n\nLive data retrieval failed: ${input.failed.join(', ')}.`
       )
     : ''
 

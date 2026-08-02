@@ -46,19 +46,32 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 6) {
   return result
 }
 
-const proceduralCuePattern = /execution|proposal|result|cli|codex|claude|workflow|patch|fix|repair|步骤|流程|执行|修|补丁|回调/iu
 const pitfallCuePattern = /avoid|verify|boundary|pressure|intrusive|misread|don't|不要|别|先确认|核实|打扰|误读|边界|压力/u
+const proceduralTags = new Set([
+  'execution',
+  'procedure',
+  'procedure-learning',
+  'procedural',
+  'workflow',
+  '执行',
+  '流程',
+  '程序记忆',
+])
+
+function isTypedProceduralEpisode(event: AlicizationEpisodicEventRecord) {
+  if (event.sourceKind === 'execution-proposal' || event.sourceKind === 'execution-result')
+    return true
+  if (event.derivedFrom.some(reference => reference.kind === 'execution-event' || reference.kind === 'task-thread'))
+    return true
+  return event.tags.some(tag => proceduralTags.has(tag.trim().toLowerCase()))
+}
 
 export function buildProceduralMemoryAbstractions(input: {
   intent: AlicizationMemoryRecollectionIntentSnapshot | null | undefined
   episodes?: AlicizationEpisodicEventRecord[] | null
 }): AlicizationProceduralMemoryAbstraction[] {
   const intent = input.intent ?? null
-  const episodes = (input.episodes ?? []).filter((event) => {
-    if (!proceduralCuePattern.test(`${event.sourceKind} ${event.threadAnchor ?? ''} ${event.whatHappened} ${event.lesson ?? ''}`))
-      return false
-    return true
-  })
+  const episodes = (input.episodes ?? []).filter(isTypedProceduralEpisode)
   if (!intent || !intent.searchProceduralExperience || episodes.length === 0)
     return []
 

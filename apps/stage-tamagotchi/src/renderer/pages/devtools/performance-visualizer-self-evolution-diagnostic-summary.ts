@@ -9,7 +9,6 @@ export interface PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry {
   key:
     | 'status'
     | 'persona'
-    | 'manifestation-cadence'
     | 'manifestation-bridge'
     | 'drift-start'
     | 'repair-owner'
@@ -25,6 +24,21 @@ export interface PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry {
   label: string
   value: string
   technicalValue?: string
+  layer?: string | null
+  detail?: string
+  bodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
+  rendererRejoinSurfaceKey?: 'authority:renderer-rejoin:speech' | 'authority:renderer-rejoin:live2d' | 'authority:renderer-rejoin:vrm' | null
+  survivingVisibleLane?: 'face+lipsync-only' | 'motion+lipsync-only' | 'face+lipsync+voice-only' | 'motion+lipsync+voice-only' | null
+}
+
+type AuthorityLane = 'body' | 'face' | 'motion' | 'lipsync' | 'voice'
+
+const authorityLaneLabels: Record<AuthorityLane, string> = {
+  body: '身体',
+  face: '表情',
+  motion: '动作',
+  lipsync: '口型',
+  voice: '声音',
 }
 
 function hasValue(value: string | null | undefined): value is string {
@@ -38,7 +52,21 @@ function formatList(parts: Array<string | null | undefined>) {
   return normalized.length > 0 ? normalized.join(' | ') : null
 }
 
-function formatManifestationNode(style: string | null | undefined, presence: string | null | undefined, fallback: string) {
+function firstSignal(values: Array<string | null | undefined>) {
+  return values.find(hasValue)?.trim() ?? null
+}
+
+function withTechnicalValue(value: string, technicalValue: string) {
+  return value === technicalValue
+    ? { value }
+    : { value, technicalValue }
+}
+
+function formatManifestationNode(
+  style: string | null | undefined,
+  presence: string | null | undefined,
+  fallback: string,
+) {
   const normalizedStyle = typeof style === 'string' ? style.trim() : ''
   const normalizedPresence = typeof presence === 'string' ? presence.trim() : ''
   if (!normalizedStyle && !normalizedPresence)
@@ -46,80 +74,21 @@ function formatManifestationNode(style: string | null | undefined, presence: str
   return `${normalizedStyle || 'n/a'}/${normalizedPresence || 'n/a'}`
 }
 
-function firstSignal(values: Array<string | null | undefined>) {
-  for (const value of values) {
-    if (hasValue(value))
-      return value!.trim()
-  }
-  return null
-}
-
 function toDisplayValue(value: string) {
   const normalized = value.trim()
   if (normalized.startsWith('renderer-drift:')) {
-    const displayValue = `显形漂移：${normalized.slice('renderer-drift:'.length).trim()}`
-    return displayValue === normalized
-      ? { value: displayValue }
-      : { value: displayValue, technicalValue: normalized }
+    return {
+      value: `显形漂移：${normalized.slice('renderer-drift:'.length).trim()}`,
+      technicalValue: normalized,
+    }
   }
   if (normalized.startsWith('authority-mismatch:')) {
-    const displayValue = `权威漂移：${normalized.slice('authority-mismatch:'.length).trim()}`
-    return displayValue === normalized
-      ? { value: displayValue }
-      : { value: displayValue, technicalValue: normalized }
+    return {
+      value: `权威漂移：${normalized.slice('authority-mismatch:'.length).trim()}`,
+      technicalValue: normalized,
+    }
   }
   return { value: normalized }
-}
-
-function formatRepairPathDisplayValue(value: string) {
-  const normalized = value.trim()
-  const displayValue = normalized
-    .replace(/^persona drift /, '人格漂移 ')
-    .replace(/^thought drift /, '思绪漂移 ')
-    .replace(/^resident drift /, '驻留漂移 ')
-    .replace(/^renderer drift /, '显形漂移 ')
-    .replace(' -> thought trace ', ' -> 思绪轨迹 ')
-    .replace(' -> resident trace ', ' -> 驻留轨迹 ')
-    .replace(' -> authority trace ', ' -> 权威轨迹 ')
-    .replace(' -> continuity anchor ', ' -> 连续性锚点 ')
-
-  return displayValue === normalized
-    ? { value: displayValue }
-    : { value: displayValue, technicalValue: normalized }
-}
-
-function formatRepairOwnerDisplayValue(value: string) {
-  const normalized = value.trim()
-  const displayValue = normalized
-    .replace(/\bevolution\b/, '自我演化')
-    .replace(/\bprivate thought governance\b/, '私有思绪治理')
-    .replace(/\bresident projection\b/, '驻留投影')
-    .replace(/\brenderer authority\b/, '显形权威')
-
-  return displayValue === normalized
-    ? { value: displayValue }
-    : { value: displayValue, technicalValue: normalized }
-}
-
-function formatFirstCheckDisplayValue(value: string) {
-  const normalized = value.trim()
-  const displayValue = normalized
-    .replace('self-evolution kernel', '自我演化内核')
-    .replace('active learning strategy', '主动学习策略')
-    .replace('manifestation/action-ecology/persona-bias', '显形/行动生态/人格偏置')
-    .replace('private thought governance', '私有思绪治理')
-    .replace('opening guidance', '开场指引')
-    .replace('visible reply blocking', '可见回复阻断')
-    .replace('resident performance projection', '驻留表现投影')
-    .replace('body authority', '身体权威')
-    .replace('continuity tags', '连续性标签')
-    .replace('renderer authority binding', '显形权威绑定')
-    .replace('playback cues', '回放片段')
-    .replace('driver execution', '驱动执行')
-
-  return displayValue === normalized
-    ? { value: displayValue }
-    : { value: displayValue, technicalValue: normalized }
 }
 
 function formatStatusDisplayValue(value: string) {
@@ -135,10 +104,56 @@ function formatStatusDisplayValue(value: string) {
     .replace(/\bdrift=proactive\b/, '漂移=主动性')
     .replace(/\bdrift=persona\b/, '漂移=人格')
     .replace(/\bdrift=mixed\b/, '漂移=混合')
+  return withTechnicalValue(displayValue, normalized)
+}
 
-  return displayValue === normalized
-    ? { value: displayValue }
-    : { value: displayValue, technicalValue: normalized }
+function formatPersonaDisplayValue(value: string) {
+  const normalized = value.trim()
+  const displayValue = normalized
+    .replace(/\bobserver\b/, '观察者')
+    .replace(/\bobservant\b/, '善于观察')
+    .replace(/\bsilent-observe\b/, '静默观察')
+  return withTechnicalValue(displayValue, normalized)
+}
+
+function formatProactiveDisplayValue(value: string) {
+  const normalized = value.trim()
+  const displayValue = normalized
+    .replace(/\bhold\b/, '保持')
+    .replace(/\bbirth-anchored-restraint\b/, '初始锚定克制')
+    .replace(/\brestraint-overridden\b/, '克制被覆盖')
+  return withTechnicalValue(displayValue, normalized)
+}
+
+function formatResidentDisplayValue(value: string) {
+  const normalized = value.trim()
+  const displayValue = normalized
+    .replace(/\battentive\/accompany\b/, '专注陪伴')
+    .replace(/\bthinking\/gentle\b/, '思考/温和')
+  return withTechnicalValue(displayValue, normalized)
+}
+
+function formatManifestationBridgeDisplayValue(value: string) {
+  const normalized = value.trim()
+  const displayValue = normalized
+    .replace(/\bpersona\b/g, '人格')
+    .replace(/\bthought\b/g, '思绪')
+    .replace(/\bresident\b/g, '驻留')
+    .replace(/\bsilent-observe\b/g, '静默观察')
+    .replace(/\blight-nudge\b/g, '轻提醒')
+    .replace(/\battentive\b/g, '专注')
+    .replace(/\baccompany\b/g, '陪伴')
+  return withTechnicalValue(displayValue, normalized)
+}
+
+function formatRendererDisplayValue(value: string) {
+  const normalized = value.trim()
+  const displayValue = normalized
+    .replace(/\bvrm\b/g, 'VRM')
+    .replace(/\blive2d\b/g, 'Live2D')
+    .replace(/\bbodyPhase=/g, '身体阶段=')
+    .replace(/\brejoinSurface=/g, '回接表面=')
+  return withTechnicalValue(displayValue, normalized)
 }
 
 function formatContinuityDisplayValue(value: string) {
@@ -149,491 +164,66 @@ function formatContinuityDisplayValue(value: string) {
     .replace(/\bbounded-growth\b/, '有界成长')
     .replace(/\bboundary-violation\b/, '边界越线')
     .replace(/\bremembered-familiarity-memory-first\b/, '熟悉感记忆先行')
-    .replace(/\bproject-state-identity-continuity-continuity-required\b/, '项目状态必须继续守住身份连续性')
-    .replace(/\blane=face-only\b/, '当前仅剩表情维持同一段连续性')
-    .replace(/\blane=body-only\b/, '当前仅剩身体维持同一段连续性')
-    .replace(/\blane=motion-only\b/, '当前仅剩动作维持同一段连续性')
-    .replace(/\blane=lipsync-only\b/, '当前仅剩口型维持同一段连续性')
-    .replace(/\blane=voice-only\b/, '当前仅剩声音维持同一段连续性')
-    .replace(/\blane=face\+lipsync-only\b/, '当前仅剩表情、口型维持同一段连续性')
-    .replace(/\blane=body\+lipsync-only\b/, '当前仅剩身体、口型维持同一段连续性')
-    .replace(/\blane=face\+motion-only\b/, '当前仅剩表情、动作维持同一段连续性')
-    .replace(/\blane=motion\+lipsync-only\b/, '当前仅剩动作、口型维持同一段连续性')
-    .replace(/\blane=face\+voice-only\b/, '当前仅剩表情、声音维持同一段连续性')
-    .replace(/\blane=body\+voice-only\b/, '当前仅剩身体、声音维持同一段连续性')
-    .replace(/\blane=motion\+voice-only\b/, '当前仅剩动作、声音维持同一段连续性')
-    .replace(/\blane=lipsync\+voice-only\b/, '当前仅剩口型、声音维持同一段连续性')
-    .replace(/\blane=face\+motion\+voice-only\b/, '当前仅剩表情、动作、声音维持同一段连续性')
-    .replace(/\blane=face\+lipsync\+voice-only\b/, '当前仅剩表情、口型、声音维持同一段连续性')
-    .replace(/\blane=motion\+lipsync\+voice-only\b/, '当前仅剩动作、口型、声音维持同一段连续性')
-
-  return displayValue === normalized
-    ? { value: displayValue }
-    : { value: displayValue, technicalValue: normalized }
+    .replace(/\bbodyPhase=/, '身体阶段=')
+    .replace(/\brejoinSurface=/, '回接表面=')
+  return withTechnicalValue(displayValue, normalized)
 }
 
-function resolveContinuityRendererSurface(params: {
-  runtimeContinuityProjection: SelfEvolutionEvidencePanelInput['runtimeContinuityProjection']
-  rendererTarget: string | null | undefined
-}) {
-  const runtimeRendererTarget = params.runtimeContinuityProjection?.rendererTarget
-  const rendererRejoinSurfaceKey = params.runtimeContinuityProjection?.rendererRejoinSurfaceKey
-  const resolvedRendererTarget = hasValue(params.rendererTarget)
-    ? params.rendererTarget
-    : hasValue(runtimeRendererTarget)
-      ? runtimeRendererTarget
-      : null
-
-  if (resolvedRendererTarget === 'live2d')
-    return 'Live2D'
-  if (resolvedRendererTarget === 'vrm')
-    return 'VRM'
-  if (resolvedRendererTarget === 'speech')
-    return 'speech'
-  if (rendererRejoinSurfaceKey === 'authority:renderer-rejoin:live2d')
-    return 'Live2D'
-  if (rendererRejoinSurfaceKey === 'authority:renderer-rejoin:vrm')
-    return 'VRM'
-  if (rendererRejoinSurfaceKey === 'authority:renderer-rejoin:speech')
-    return 'speech'
-  return null
-}
-
-function hasRememberedFamiliarityMemoryFirst(input: SelfEvolutionEvidencePanelInput) {
-  const lines = [
-    ...(input.proactiveDecisionConsumptionSummary?.lines ?? []),
-    ...(input.candidateTrajectorySummary?.lines ?? []),
-    ...(input.identityDriftGovernanceSummary?.lines ?? []),
-  ]
-
-  return lines.some(line =>
-    line.includes('memory-familiarity-restraint:')
-    || line.includes('remembered-familiarity-trajectory:')
-    || line.includes('remembered-familiarity-governance:'),
-  )
-}
-
-function resolveRelationshipCadenceInternalization(input: SelfEvolutionEvidencePanelInput) {
-  const learningReasons = input.selectedCandidateRuntimeAlignment?.learning?.reasons ?? []
-  const cadenceReason = learningReasons.find(reason =>
-    reason.includes('Relationship cadence internalization is active'),
-  )
-  if (cadenceReason) {
-    if (
-      cadenceReason.includes('same-turn-if-invited')
-      && cadenceReason.includes('same callback line')
-    ) {
-      return 'Relationship cadence internalization is active, so same-turn-if-invited measured-return should stay on the same callback line instead of reading like a fresh reopening.'
-    }
-    return cadenceReason
-  }
-
-  const activeFocuses = input.selectedCandidateRuntimeAlignment?.learning?.activeFocuses ?? []
-  if (activeFocuses.includes('internalize-relationship-cadence')) {
-    return 'Relationship cadence internalization is active, so measured-return reconfirmation is now being treated as durable relationship rhythm rather than temporary callback restraint.'
-  }
-
-  return null
-}
-
-function hasProjectStateContinuityDrift(input: SelfEvolutionEvidencePanelInput) {
-  return [
-    ...(input.internalizationReadinessSummary?.lines ?? []),
-    ...(input.preDialogueBriefingSummary?.lines ?? []),
-  ].some(line =>
-    line.includes('project-state continuity')
-    || line.includes('Project identity-continuity self line currently reads')
-    || line.includes('sameHer=')
-    || line.includes('project-state-identity-continuity-continuity-required')
-    || line.includes('pre-dialogue briefing drift')
-    || line.includes('briefing drift')
-    || line.includes('preDialogueBriefingDrift'),
-  )
-}
-
-function resolveProjectStateSameHerRepairEvidence(input: SelfEvolutionEvidencePanelInput) {
-  const lines = input.preDialogueBriefingSummary?.lines ?? []
-  const repairs: string[] = []
-  if (lines.some(line => line.includes('project-state-identity-continuity-continuity-required')))
-    repairs.push('project-state-identity-continuity-continuity-required')
-  return repairs
-}
-
-function resolveProjectStateOpenClosureSummary(input: SelfEvolutionEvidencePanelInput) {
-  const lines = input.preDialogueBriefingSummary?.lines ?? []
-  const openLoopLine = lines.find(line => line.includes('Primary open life loop still centers on '))
-  const nextClosureLine = lines.find(line => line.includes('Next closure target is still '))
-
-  const summaries: string[] = []
-  if (openLoopLine) {
-    const openLoop = openLoopLine
-      .replace(/^.*Primary open life loop still centers on /, '')
-      .replace(/, so the next turn should.*$/i, '')
-      .trim()
-    if (openLoop)
-      summaries.push(`当前未闭环项仍集中在 ${openLoop}`)
-  }
-  if (nextClosureLine) {
-    const nextClosure = nextClosureLine
-      .replace(/^.*Next closure target is still /, '')
-      .replace(/, so the next turn should.*$/i, '')
-      .trim()
-    if (nextClosure)
-      summaries.push(`下一步仍要继续收住 ${nextClosure}`)
-  }
-  return summaries
-}
-
-function formatPersonaDisplayValue(value: string) {
+function formatRepairOwnerDisplayValue(value: string) {
   const normalized = value.trim()
   const displayValue = normalized
-    .replace(/\bobserver\b/, '观察者')
-    .replace(/\bobservant\b/, '善于观察')
-    .replace(/\bsilent-observe\b/, '静默观察')
-
-  return displayValue === normalized
-    ? { value: displayValue }
-    : { value: displayValue, technicalValue: normalized }
+    .replace(/\bevolution\b/, '自我演化')
+    .replace(/\bresident projection\b/, '驻留投影')
+    .replace(/\brenderer authority\b/, '显形权威')
+  return withTechnicalValue(displayValue, normalized)
 }
 
-function formatProactiveDisplayValue(value: string) {
+function formatFirstCheckDisplayValue(value: string) {
   const normalized = value.trim()
   const displayValue = normalized
-    .replace(/\bhold\b/, '保持')
-    .replace(/\bopening-guidance:observe-first\b/, '开场指引：先观察')
-    .replace(/\bbirth-anchored-restraint\b/, '初始锚定克制')
-    .replace(/\brestraint-overridden\b/, '克制被覆盖')
-
-  return displayValue === normalized
-    ? { value: displayValue }
-    : { value: displayValue, technicalValue: normalized }
+    .replace('self-evolution kernel', '自我演化内核')
+    .replace('active learning strategy', '主动学习策略')
+    .replace('manifestation/action-ecology/persona-bias', '显形/行动生态/人格偏置')
+    .replace('resident performance projection', '驻留表现投影')
+    .replace('body authority', '身体权威')
+    .replace('continuity tags', '连续性标签')
+    .replace('renderer authority binding', '显形权威绑定')
+    .replace('prosody authority', '韵律权威绑定')
+    .replace('playback cues', '回放片段')
+    .replace('driver execution', '驱动执行')
+  return withTechnicalValue(displayValue, normalized)
 }
 
-function formatResidentDisplayValue(value: string) {
+function formatRepairPathDisplayValue(value: string) {
   const normalized = value.trim()
   const displayValue = normalized
-    .replace(/\battentive\/accompany\b/, '专注陪伴')
-    .replace(/\bthinking\/gentle\b/, '思考/温和')
-
-  return displayValue === normalized
-    ? { value: displayValue }
-    : { value: displayValue, technicalValue: normalized }
+    .replace(/^persona drift /, '人格漂移 ')
+    .replace(/^resident drift /, '驻留漂移 ')
+    .replace(/^renderer drift /, '显形漂移 ')
+    .replace(' -> action trace ', ' -> 行动轨迹 ')
+    .replace(' -> resident trace ', ' -> 驻留轨迹 ')
+    .replace(' -> authority trace ', ' -> 权威轨迹 ')
+    .replace(' -> continuity anchor ', ' -> 连续性锚点 ')
+  return withTechnicalValue(displayValue, normalized)
 }
 
-function formatRendererDisplayValue(value: string) {
-  const normalized = value.trim()
-  const displayValue = normalized
-    .replace(/\bvrm\b/, 'VRM')
-    .replace(/\blive2d\b/, 'Live2D')
-    .replace(/\bbody:yes face:yes motion:yes lipsync:no\b \| (?=当前仅剩身体、表情、动作维持同一段连续性，口型和声音还没有重新并回这一段)/, '')
-    .replace(/\bface:yes motion:yes lipsync:yes\b/, '表情命中/动作命中/口型命中')
-    .replace(/\bface:yes motion:yes lipsync:no\b/, '表情命中/动作命中/口型未命中')
-
-  return displayValue === normalized
-    ? { value: displayValue }
-    : { value: displayValue, technicalValue: normalized }
-}
-
-function summarizeRendererAuthorityLaneTruth(
-  rendererAuthorityProjection: SelfEvolutionEvidencePanelInput['rendererAuthorityProjection'],
+function summarizeAuthorityLaneTruth(
+  matchedSignals: string[] | null | undefined,
+  driftingSignals: string[] | null | undefined,
 ) {
-  if (!rendererAuthorityProjection)
-    return null
+  const matched = matchedSignals ?? []
+  const drifting = driftingSignals ?? []
 
-  const matchedSignals = rendererAuthorityProjection.matchedSignals ?? []
-  const driftingSignals = rendererAuthorityProjection.driftingSignals ?? []
-
-  if (matchedSignals.includes('remaining-open=lipsync+voice')
-    && matchedSignals.includes('authority-body:yes')
-    && matchedSignals.includes('authority-face:yes')
-    && matchedSignals.includes('authority-motion:yes')
-    && driftingSignals.includes('authority-lipsync:no')) {
-    return '当前仅剩身体、表情、动作维持同一段连续性，口型和声音还没有重新并回这一段'
-  }
-
-  if (matchedSignals.includes('remaining-open=body+lipsync')
-    && matchedSignals.includes('authority-face:yes')
-    && matchedSignals.includes('authority-motion:yes')
-    && matchedSignals.includes('authority-voice:yes')
-    && driftingSignals.includes('authority-body:no')
-    && driftingSignals.includes('authority-lipsync:no')) {
-    return '当前仅剩表情、动作、声音维持同一段连续性，身体和口型还没有重新并回这一段'
-  }
-
-  const resolveLane = (driver: 'face' | 'motion' | 'lipsync') => {
-    if (matchedSignals.includes(`authority-${driver}:yes`))
-      return driver === 'face' ? '表情命中' : driver === 'motion' ? '动作命中' : '口型命中'
-    if (driftingSignals.includes(`authority-${driver}:no`))
-      return driver === 'face' ? '表情未命中' : driver === 'motion' ? '动作未命中' : '口型未命中'
-    return driver === 'face' ? '表情未知' : driver === 'motion' ? '动作未知' : '口型未知'
-  }
-
-  const hasVoiceSignal = matchedSignals.includes('authority-voice:yes') || driftingSignals.includes('authority-voice:no')
-  const summary = [
-    resolveLane('face'),
-    resolveLane('motion'),
-    resolveLane('lipsync'),
-    ...(hasVoiceSignal
-      ? [matchedSignals.includes('authority-voice:yes') ? '声音命中' : '声音未命中']
-      : []),
-  ].join(' / ')
-  if (summary === '表情未知 / 动作未知 / 口型未知')
-    return null
-
-  return summary
-}
-
-function summarizeRuntimeContinuityLaneTruth(
-  runtimeContinuityProjection: SelfEvolutionEvidencePanelInput['runtimeContinuityProjection'],
-  rendererTarget: string | null | undefined,
-) {
-  if (!runtimeContinuityProjection)
-    return null
-
-  const matchedSignals = runtimeContinuityProjection.matchedSignals ?? []
-  const driftingSignals = runtimeContinuityProjection.driftingSignals ?? []
-  const reasons = runtimeContinuityProjection.reasons ?? []
-  const hasVoiceDrift = driftingSignals.includes('authority-voice:no')
-  const bodyContinuityPhase = runtimeContinuityProjection.bodyContinuityPhase ?? null
-  const rendererSurface = resolveContinuityRendererSurface({
-    runtimeContinuityProjection,
-    rendererTarget,
-  })
-
-  const hasSameSegmentCueBridgeRealignment = reasons.some(reason =>
-    reason.includes('cue-bridge same-segment realignment as unified authority')
-    || reason.includes('same-segment cue-bridge realignment as unified authority')
-    || reason.includes('same-segment cue-bridge rebind')
-    || reason.includes('same-segment recollection')
-    || reason.includes('same measured-return body line'),
-  )
-
-  const hasThinMeasuredReturnContinuity = reasons.some(reason =>
-    reason.includes('only runtime digest plus spine still expose the noisy-detour continuity line')
-    || reason.includes('thinner measured-return identity-continuity line visible')
-    || reason.includes('thinner measured-return identity-continuity line')
-    || reason.includes('thin measured-return identity-continuity line')
-    || reason.includes('较薄证据维持')
-    || reason.includes('thinner continuity evidence'),
-  )
-
-  const hasBodyLedContinuity = bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
-    || reasons.some(reason =>
-      reason.includes('body-led identity-continuity continuity')
-      || reason.includes('body-led partial recovery')
-      || reason.includes('身体线先托住')
-      || reason.includes('body still carries the living segment')
-      || reason.includes('Body continuity still carries the same living segment while'),
-    )
-  const hasBodyOnlyHoldContinuity = bodyContinuityPhase === 'body-only-hold'
-    || reasons.some(reason =>
-      reason.includes('身体独撑态')
-      || reason.includes('独自托住同一段 living segment')
-      || reason.includes('only lane carrying this same living segment')
-      || reason.includes('identity continuity being held inward'),
-    )
-  const hasCrossModalLockContinuity = bodyContinuityPhase === 'full-cross-modal-lock'
-    || reasons.some(reason =>
-      reason.includes('跨模态重锁态')
-      || reason.includes('共同锁在同一段 living segment')
-      || reason.includes('共同锁回同一段 living segment'),
-    )
-  const hasRendererRejoinWithoutBodyContinuity = bodyContinuityPhase === 'renderer-rejoin-without-body'
-    || reasons.some(reason =>
-      reason.includes('显形回接失身态')
-      || (reason.includes('显形权威已经回接') && reason.includes('身体线没有继续托住同一段 living segment'))
-      || (reason.includes('renderer recovery') && reason.includes('without body carry')),
-    )
-
-  const hasRepairBeforeClosenessContinuity = reasons.some(reason =>
-    reason.includes('repair-before-closeness')
-    && reason.includes('quieter blink')
-    && reason.includes('softened gaze'),
-  )
-
-  if (!hasVoiceDrift
-    && hasSameSegmentCueBridgeRealignment
-    && matchedSignals.includes('authority-lipsync:yes')
-    && !matchedSignals.includes('authority-face:yes')
-    && !matchedSignals.includes('authority-motion:yes')) {
-    return rendererSurface
-      ? `同段 cue-bridge 回收后，${rendererSurface} 显形已重新并回同一条连续身体线`
-      : '同段 cue-bridge 回收后，表情、动作、口型已重新并回同一条连续身体线'
-  }
-
-  if (!hasVoiceDrift && hasBodyOnlyHoldContinuity && matchedSignals.includes('authority-body:yes')) {
-    return rendererSurface
-      ? `身体线仍在独自托住同一段 living segment，当前还不能把 ${rendererSurface} 显形权威的回接视为已经成立`
-      : '身体线仍在独自托住同一段 living segment，当前还不能把显形权威的回接视为已经成立'
-  }
-
-  if (!hasVoiceDrift && hasCrossModalLockContinuity) {
-    return rendererSurface
-      ? `身体线与 ${rendererSurface} 显形权威已经共同锁回同一段 living segment`
-      : '身体线与显形权威已经共同锁回同一段 living segment'
-  }
-
-  if (!hasVoiceDrift && hasRendererRejoinWithoutBodyContinuity) {
-    return rendererSurface
-      ? `${rendererSurface} 显形权威已经回接，但身体线没有继续托住同一段 living segment`
-      : '显形权威已经回接，但身体线没有继续托住同一段 living segment'
-  }
-
-  if (!hasVoiceDrift
-    && hasThinMeasuredReturnContinuity
-    && matchedSignals.includes('authority-lipsync:yes')
-    && !matchedSignals.includes('authority-face:yes')
-    && !matchedSignals.includes('authority-motion:yes')) {
-    return '噪声 detour 后，这条 measured-return 连续身体线仍由较薄证据维持'
-  }
-
-  if (!hasVoiceDrift
-    && hasBodyLedContinuity
-    && matchedSignals.includes('authority-body:yes')
-    && !matchedSignals.includes('authority-face:yes')
-    && !matchedSignals.includes('authority-motion:yes')) {
-    return rendererSurface
-      ? `身体线已经先把这段 living segment 托住，${rendererSurface} 显形仍在补回同一条连续身体线`
-      : '身体线已经先把这段 living segment 托住，表情、动作、口型仍在补回同一条连续身体线'
-  }
-
-  if (!hasVoiceDrift
-    && hasRepairBeforeClosenessContinuity
-    && matchedSignals.includes('authority-lipsync:yes')
-    && !matchedSignals.includes('authority-face:yes')
-    && !matchedSignals.includes('authority-motion:yes')) {
-    return 'repair-before-closeness 仍停在修补线里，先守住 quieter blink / softened gaze'
-  }
-
-  if (!hasVoiceDrift
-    && matchedSignals.includes('remaining-open=lipsync+voice')
-    && matchedSignals.includes('authority-body:yes')
-    && matchedSignals.includes('authority-face:yes')
-    && matchedSignals.includes('authority-motion:yes')
-    && driftingSignals.includes('authority-lipsync:no')) {
-    return '当前仅剩身体、表情、动作维持同一段连续性，口型和声音还没有重新并回这一段'
-  }
-
-  if (!hasVoiceDrift
-    && matchedSignals.includes('remaining-open=body+lipsync')
-    && matchedSignals.includes('authority-face:yes')
-    && matchedSignals.includes('authority-motion:yes')
-    && matchedSignals.includes('authority-voice:yes')
-    && driftingSignals.includes('authority-body:no')
-    && driftingSignals.includes('authority-lipsync:no')) {
-    return '当前仅剩表情、动作、声音维持同一段连续性，身体和口型还没有重新并回这一段'
-  }
-
-  if (!hasVoiceDrift && matchedSignals.includes('lane=face+lipsync-only')) {
-    return '当前只有 face 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线'
-  }
-
-  if (!hasVoiceDrift && matchedSignals.includes('lane=motion+lipsync-only')) {
-    return '当前只有 motion 和 lipsync 这条 identity-continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线'
-  }
-
-  if (!hasVoiceDrift && matchedSignals.includes('lane=face+lipsync+voice-only')) {
-    return '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线'
-  }
-
-  if (!hasVoiceDrift && matchedSignals.includes('lane=motion+lipsync+voice-only')) {
-    return '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、face 还没有重新接回这条动作口型声音线'
-  }
-
-  const laneOnlySignal = matchedSignals.find(signal =>
-    signal === 'lane=face-only'
-    || signal === 'lane=body-only'
-    || signal === 'lane=motion-only'
-    || signal === 'lane=lipsync-only'
-    || signal === 'lane=voice-only'
-    || signal === 'lane=face+lipsync-only'
-    || signal === 'lane=body+lipsync-only'
-    || signal === 'lane=face+motion-only'
-    || signal === 'lane=motion+lipsync-only'
-    || signal === 'lane=face+voice-only'
-    || signal === 'lane=body+voice-only'
-    || signal === 'lane=motion+voice-only'
-    || signal === 'lane=lipsync+voice-only'
-    || signal === 'lane=body+lipsync+voice-only'
-    || signal === 'lane=face+motion+voice-only'
-    || signal === 'lane=face+lipsync+voice-only'
-    || signal === 'lane=motion+lipsync+voice-only',
-  )
-  if (laneOnlySignal && !hasVoiceDrift) {
-    if (laneOnlySignal === 'lane=face-only')
-      return '当前仅剩表情维持同一段连续性'
-    if (laneOnlySignal === 'lane=body-only')
-      return '当前仅剩身体维持同一段连续性'
-    if (laneOnlySignal === 'lane=motion-only')
-      return '当前仅剩动作维持同一段连续性'
-    if (laneOnlySignal === 'lane=lipsync-only')
-      return '当前仅剩口型维持同一段连续性'
-    if (laneOnlySignal === 'lane=voice-only')
-      return '当前仅剩声音维持同一段连续性'
-    if (laneOnlySignal === 'lane=face+lipsync-only')
-      return '当前仅剩表情、口型维持同一段连续性'
-    if (laneOnlySignal === 'lane=body+lipsync-only')
-      return '当前仅剩身体、口型维持同一段连续性'
-    if (laneOnlySignal === 'lane=face+motion-only')
-      return '当前仅剩表情、动作维持同一段连续性'
-    if (laneOnlySignal === 'lane=motion+lipsync-only')
-      return '当前仅剩动作、口型维持同一段连续性'
-    if (laneOnlySignal === 'lane=face+voice-only')
-      return '当前仅剩表情、声音维持同一段连续性'
-    if (laneOnlySignal === 'lane=body+voice-only')
-      return '当前仅剩身体、声音维持同一段连续性'
-    if (laneOnlySignal === 'lane=motion+voice-only')
-      return '当前仅剩动作、声音维持同一段连续性'
-    if (laneOnlySignal === 'lane=lipsync+voice-only')
-      return '当前仅剩口型、声音维持同一段连续性'
-    if (laneOnlySignal === 'lane=body+lipsync+voice-only')
-      return '当前仅剩身体、口型、声音维持同一段连续性'
-    if (laneOnlySignal === 'lane=face+motion+voice-only')
-      return '当前仅剩表情、动作、声音维持同一段连续性'
-    if (laneOnlySignal === 'lane=face+lipsync+voice-only')
-      return '当前仅剩表情、口型、声音维持同一段连续性'
-    if (laneOnlySignal === 'lane=motion+lipsync+voice-only')
-      return '当前仅剩动作、口型、声音维持同一段连续性'
-  }
-
-  const hasVoiceEvidence = matchedSignals.includes('authority-voice:yes')
-    || driftingSignals.includes('authority-voice:no')
-
-  const resolveLane = (driver: 'face' | 'motion' | 'lipsync' | 'voice') => {
-    if (matchedSignals.includes(`authority-${driver}:yes`)) {
-      return driver === 'face'
-        ? '表情命中'
-        : driver === 'motion'
-          ? '动作命中'
-          : driver === 'lipsync'
-            ? '口型命中'
-            : '声音命中'
-    }
-    if (driftingSignals.includes(`authority-${driver}:no`)) {
-      return driver === 'face'
-        ? '表情未命中'
-        : driver === 'motion'
-          ? '动作未命中'
-          : driver === 'lipsync'
-            ? '口型未命中'
-            : '声音未命中'
-    }
-    return driver === 'face'
-      ? '表情未知'
-      : driver === 'motion'
-        ? '动作未知'
-        : driver === 'lipsync'
-          ? '口型未知'
-          : '声音未知'
-  }
-
-  const summary = hasVoiceEvidence
-    ? [resolveLane('face'), resolveLane('motion'), resolveLane('lipsync'), resolveLane('voice')].join(' / ')
-    : [resolveLane('face'), resolveLane('motion'), resolveLane('lipsync')].join(' / ')
-  if (summary === '表情未知 / 动作未知 / 口型未知 / 声音未知' || summary === '表情未知 / 动作未知 / 口型未知')
-    return null
-
-  return summary
+  return (Object.keys(authorityLaneLabels) as AuthorityLane[])
+    .map((lane) => {
+      const state = matched.includes(`authority-${lane}:yes`)
+        ? '命中'
+        : drifting.includes(`authority-${lane}:no`)
+          ? '未命中'
+          : '未知'
+      return `${authorityLaneLabels[lane]}${state}`
+    })
+    .join(' / ')
 }
 
 function formatRendererProsodyAuthority(value: string | null | undefined) {
@@ -688,58 +278,22 @@ function summarizeRepairProsodyAuthority(value: string | null | undefined) {
 
   return {
     technical: `prosody authority mode=${mode ?? 'n/a'} | segment=${segment ?? 'n/a'}`,
-    display: `韵律权威 mode=${mode ?? 'n/a'} | segment=${segment ?? 'n/a'}`,
   }
 }
 
-function summarizeBaselineAnchorAudit(lines: string[] | null | undefined) {
-  if (!Array.isArray(lines) || lines.length === 0)
-    return null
-
-  const anchorLine = lines.find(line => line.startsWith('anchor:'))
-  const traceLine = lines.find(line => line.startsWith('trace:'))
-  const prosodyAuthorityLine = lines.find(line => line.startsWith('prosody-authority:'))
-  const bodyContinuityLine = lines.find(line => line.startsWith('body-continuity:'))
-
-  if (!anchorLine || !traceLine)
-    return null
-
-  const candidateId = anchorLine.replace(/^anchor:\s*/, '').replace(/\s+is still the adopted default continuity anchor$/, '').trim()
-  const snapshotMatch = traceLine.match(/snapshot=([^|]+)/)
-  const ownerMatch = traceLine.match(/owner=([^|]+)/)
-  const snapshotValue = snapshotMatch?.[1]?.trim() ?? 'n/a'
-  const ownerValue = ownerMatch?.[1]?.trim() ?? 'n/a'
-  const bodyContinuityValue = bodyContinuityLine
-    ?.replace(/^body-continuity:\s*/, '')
-    .replace(/^最新采纳说明：/, '')
-    .trim()
-
-  return {
-    value: `${candidateId || 'n/a'} | snapshot=${snapshotValue} | owner=${ownerValue}${bodyContinuityValue ? ` | ${bodyContinuityValue}` : ''}${prosodyAuthorityLine ? ' | 韵律权威已回绑' : ''}`,
-    technicalValue: `${candidateId || 'n/a'} | ${traceLine.replace(/^trace:\s*/, '').trim()}${bodyContinuityLine ? ` | ${bodyContinuityLine.trim()}` : ''}${prosodyAuthorityLine ? ` | ${prosodyAuthorityLine.trim()}` : ''}`,
-  }
-}
-
-function formatManifestationBridgeDisplayValue(value: string) {
-  const normalized = value.trim()
-  const displayValue = normalized
-    .replace(/\bpersona\b/g, '人格')
-    .replace(/\bthought\b/g, '思绪')
-    .replace(/\bresident\b/g, '驻留')
-    .replace(/\bsilent-observe\b/g, '静默观察')
-    .replace(/\blight-nudge\b/g, '轻提醒')
-    .replace(/\battentive\b/g, '专注')
-    .replace(/\baccompany\b/g, '陪伴')
-
-  return displayValue === normalized
-    ? { value: displayValue }
-    : { value: displayValue, technicalValue: normalized }
+function hasRememberedFamiliarityMemoryFirst(input: SelfEvolutionEvidencePanelInput) {
+  const lines = [
+    ...(input.proactiveDecisionConsumptionSummary?.lines ?? []),
+    ...(input.candidateTrajectorySummary?.lines ?? []),
+  ]
+  return lines.some(line =>
+    line.includes('memory-familiarity-restraint:')
+    || line.includes('remembered-familiarity-trajectory:')
+    || line.includes('remembered-familiarity-governance:'),
+  )
 }
 
 function resolveDominantDrift(input: SelfEvolutionEvidencePanelInput): string | null {
-  if (hasProjectStateContinuityDrift(input))
-    return 'project-state-continuity-drift'
-
   const runtimeRendererDrift = input.runtimeContinuityProjection?.driftingSignals
     ?.find(signal => signal.startsWith('renderer-drift:'))
   if (runtimeRendererDrift)
@@ -763,11 +317,6 @@ function resolveDominantDrift(input: SelfEvolutionEvidencePanelInput): string | 
   if (hasValue(personaDrift))
     return personaDrift
 
-  if (input.companionshipTransitionSummary?.status && input.companionshipTransitionSummary.status !== 'grounded') {
-    const companionshipMode = input.companionshipTransitionSummary.companionshipHoldMode?.trim() || 'unknown'
-    return `transition-companionship:${companionshipMode}`
-  }
-
   return null
 }
 
@@ -776,11 +325,11 @@ function resolveDriftKind(dominantDrift: string | null) {
     return 'none'
   if (dominantDrift.startsWith('renderer-drift:') || dominantDrift.startsWith('authority-mismatch:'))
     return 'renderer'
-  if (dominantDrift.startsWith('runtime-') || dominantDrift.startsWith('transition-'))
-    return 'continuity'
   if (dominantDrift.startsWith('runtime-selected-action:') || dominantDrift.startsWith('runtime-shouldSpeak:'))
     return 'proactive'
-  if (dominantDrift.startsWith('persona:') || dominantDrift.startsWith('identityKernel.'))
+  if (dominantDrift.startsWith('runtime-') || dominantDrift.startsWith('transition-'))
+    return 'continuity'
+  if (dominantDrift.startsWith('persona:'))
     return 'persona'
   return 'mixed'
 }
@@ -797,38 +346,43 @@ function normalizeStatus(values: Array<string | null | undefined>) {
   return null
 }
 
+function normalizeBodyContinuityPhase(value: string | null | undefined) {
+  if (
+    value === 'body-only-hold'
+    || value === 'body-carried-to-renderer-rejoin'
+    || value === 'full-cross-modal-lock'
+    || value === 'renderer-rejoin-without-body'
+  ) {
+    return value
+  }
+  return null
+}
+
+function normalizeRendererRejoinSurfaceKey(value: string | null | undefined) {
+  if (
+    value === 'authority:renderer-rejoin:speech'
+    || value === 'authority:renderer-rejoin:live2d'
+    || value === 'authority:renderer-rejoin:vrm'
+  ) {
+    return value
+  }
+  return null
+}
+
 function resolveDriftStart(input: SelfEvolutionEvidencePanelInput) {
   const personaDrift = firstSignal([
     input.proactiveManifestationChain?.driftingSignals?.[0],
     input.proactiveActionChain?.driftingSignals?.[0],
     input.personaBiasProvenance?.driftingSignals?.[0],
   ])
-  if (personaDrift) {
-    return {
-      layer: 'persona',
-      signal: personaDrift,
-    } as const
-  }
-
-  const thoughtDrift = firstSignal([
-    input.privateThoughtGovernanceChain?.driftingSignals?.[0],
-  ])
-  if (thoughtDrift) {
-    return {
-      layer: 'thought',
-      signal: thoughtDrift,
-    } as const
-  }
+  if (personaDrift)
+    return { layer: 'persona', signal: personaDrift } as const
 
   const residentDrift = firstSignal([
     input.residentPerformanceProjection?.driftingSignals?.[0],
   ])
-  if (residentDrift) {
-    return {
-      layer: 'resident',
-      signal: residentDrift,
-    } as const
-  }
+  if (residentDrift)
+    return { layer: 'resident', signal: residentDrift } as const
 
   const rendererDrift = firstSignal([
     input.rendererAuthorityProjection?.driftingSignals?.find(signal =>
@@ -838,12 +392,8 @@ function resolveDriftStart(input: SelfEvolutionEvidencePanelInput) {
       signal.startsWith('renderer-drift:') || signal.startsWith('authority-mismatch:'),
     ),
   ])
-  if (rendererDrift) {
-    return {
-      layer: 'renderer',
-      signal: rendererDrift,
-    } as const
-  }
+  if (rendererDrift)
+    return { layer: 'renderer', signal: rendererDrift } as const
 
   return null
 }
@@ -855,14 +405,10 @@ function resolveFirstCheck(driftStart: ReturnType<typeof resolveDriftStart>) {
   switch (driftStart.layer) {
     case 'persona':
       return 'self-evolution kernel -> active learning strategy -> manifestation/action-ecology/persona-bias'
-    case 'thought':
-      return 'private thought governance -> opening guidance -> visible reply blocking'
     case 'resident':
       return 'resident performance projection -> body authority -> continuity tags'
     case 'renderer':
       return 'renderer authority binding -> playback cues -> driver execution'
-    default:
-      return null
   }
 }
 
@@ -888,14 +434,10 @@ function resolveRepairOwner(driftStart: ReturnType<typeof resolveDriftStart>) {
   switch (driftStart.layer) {
     case 'persona':
       return 'evolution'
-    case 'thought':
-      return 'private thought governance'
     case 'resident':
       return 'resident projection'
     case 'renderer':
       return 'renderer authority'
-    default:
-      return null
   }
 }
 
@@ -906,74 +448,57 @@ function resolveRepairPath(
   if (!driftStart)
     return null
 
+  const continuityAnchor = firstSignal([
+    input.runtimeContinuityProjection?.governorIntentionId,
+    input.runtimeContinuityProjection?.traceEmbodimentDisplaySummary,
+    input.runtimeContinuityProjection?.traceEmbodimentSummary,
+  ])
+  if (!continuityAnchor)
+    return null
+
   switch (driftStart.layer) {
     case 'persona': {
-      const thoughtTrace = firstSignal([
-        input.privateThoughtGovernanceChain?.visibleReplyRealizationReason,
-        input.privateThoughtGovernanceChain?.visibleReplyBlockedReason,
+      const actionTrace = firstSignal([
+        input.proactiveActionChain?.runtimeSelectedAction,
+        input.proactiveActionChain?.matchedSignals?.[0],
       ])
-      const continuityAnchor = firstSignal([
-        input.runtimeContinuityProjection?.governorIntentionId,
-        input.runtimeContinuityProjection?.traceEmbodimentDisplaySummary,
-        input.runtimeContinuityProjection?.traceEmbodimentSummary,
-      ])
-      if (!thoughtTrace || !continuityAnchor)
-        return null
-      return `persona drift ${driftStart.signal} -> thought trace ${thoughtTrace} -> continuity anchor ${continuityAnchor}`
-    }
-    case 'thought': {
-      const residentTrace = firstSignal([
-        input.residentPerformanceProjection?.residentReasonTags?.[0],
-        input.residentPerformanceProjection?.residentStance,
-      ])
-      const continuityAnchor = firstSignal([
-        input.runtimeContinuityProjection?.governorIntentionId,
-        input.runtimeContinuityProjection?.traceEmbodimentDisplaySummary,
-        input.runtimeContinuityProjection?.traceEmbodimentSummary,
-      ])
-      if (!residentTrace || !continuityAnchor)
-        return null
-      return `thought drift ${driftStart.signal} -> resident trace ${residentTrace} -> continuity anchor ${continuityAnchor}`
+      return actionTrace
+        ? `persona drift ${driftStart.signal} -> action trace ${actionTrace} -> continuity anchor ${continuityAnchor}`
+        : null
     }
     case 'resident': {
       const authorityTrace = firstSignal([
         input.rendererAuthorityProjection?.authorityMismatchDisplay,
         input.rendererAuthorityProjection?.authorityMismatchSummary,
       ])
-      const continuityAnchor = firstSignal([
-        input.runtimeContinuityProjection?.traceEmbodimentDisplaySummary,
-        input.runtimeContinuityProjection?.traceEmbodimentSummary,
-        input.runtimeContinuityProjection?.governorIntentionId,
-      ])
-      if (!authorityTrace || !continuityAnchor)
-        return null
-      return `resident drift ${driftStart.signal} -> authority trace ${authorityTrace} -> continuity anchor ${continuityAnchor}`
+      return authorityTrace
+        ? `resident drift ${driftStart.signal} -> authority trace ${authorityTrace} -> continuity anchor ${continuityAnchor}`
+        : null
     }
     case 'renderer': {
       const prosodyAuthority = summarizeRepairProsodyAuthority(input.rendererAuthorityProjection?.prosodyAuthoritySummary)
-      const authorityTrace = firstSignal([
-        prosodyAuthority?.technical,
+      const mismatch = firstSignal([
         input.rendererAuthorityProjection?.authorityMismatchDisplay,
         input.rendererAuthorityProjection?.authorityMismatchSummary,
       ])
-      const continuityAnchor = firstSignal([
-        input.runtimeContinuityProjection?.traceEmbodimentDisplaySummary,
-        input.runtimeContinuityProjection?.traceEmbodimentSummary,
-        input.runtimeContinuityProjection?.governorIntentionId,
-      ])
-      if (!authorityTrace || !continuityAnchor)
+      const authorityTrace = prosodyAuthority?.technical ?? mismatch
+      if (!authorityTrace)
         return null
-      const authorityMismatchTrace = firstSignal([
-        input.rendererAuthorityProjection?.authorityMismatchDisplay,
-        input.rendererAuthorityProjection?.authorityMismatchSummary,
-      ])
-      if (prosodyAuthority && authorityMismatchTrace)
-        return `renderer drift ${driftStart.signal} -> authority trace ${prosodyAuthority.technical} -> ${authorityMismatchTrace} -> continuity anchor ${continuityAnchor}`
-      return `renderer drift ${driftStart.signal} -> authority trace ${authorityTrace} -> continuity anchor ${continuityAnchor}`
+      return `renderer drift ${driftStart.signal} -> authority trace ${authorityTrace}${prosodyAuthority && mismatch ? ` -> ${mismatch}` : ''} -> continuity anchor ${continuityAnchor}`
     }
-    default:
-      return null
   }
+}
+
+function pushDisplayEntry(
+  entries: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry[],
+  entry: Omit<PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry, 'value' | 'technicalValue'>,
+  summary: { value: string, technicalValue?: string },
+) {
+  entries.push({
+    ...entry,
+    value: summary.value,
+    ...(summary.technicalValue ? { technicalValue: summary.technicalValue } : {}),
+  })
 }
 
 export function buildSelfEvolutionDiagnosticSummaryEntries(
@@ -985,29 +510,25 @@ export function buildSelfEvolutionDiagnosticSummaryEntries(
   const repairOwner = resolveRepairOwner(driftStart)
   const firstCheck = resolveRendererFirstCheck(driftStart, input.rendererAuthorityProjection)
   const repairPath = resolveRepairPath(input, driftStart)
+  const bodyContinuityPhase = normalizeBodyContinuityPhase(
+    input.rendererAuthorityProjection?.bodyContinuityPhase
+    ?? input.runtimeContinuityProjection?.bodyContinuityPhase,
+  )
+  const rendererRejoinSurfaceKey = normalizeRendererRejoinSurfaceKey(
+    input.rendererAuthorityProjection?.rendererRejoinSurfaceKey
+    ?? input.runtimeContinuityProjection?.rendererRejoinSurfaceKey,
+  )
   const status = normalizeStatus([
     input.personaBiasProvenance?.status,
     input.proactiveActionChain?.status,
     input.residentPerformanceProjection?.status,
-    input.companionshipTransitionSummary?.status,
     input.rendererAuthorityProjection?.status,
     input.runtimeContinuityProjection?.status,
   ])
 
-  const statusValue = formatList([
-    status,
-    `drift=${resolveDriftKind(dominantDrift)}`,
-  ])
+  const statusValue = formatList([status, `drift=${resolveDriftKind(dominantDrift)}`])
   if (statusValue) {
-    const statusSummary = formatStatusDisplayValue(statusValue)
-    const statusEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
-      key: 'status',
-      label: '闭环状态',
-      value: statusSummary.value,
-    }
-    if (statusSummary.technicalValue)
-      statusEntry.technicalValue = statusSummary.technicalValue
-    entries.push(statusEntry)
+    pushDisplayEntry(entries, { key: 'status', label: '闭环状态' }, formatStatusDisplayValue(statusValue))
   }
 
   const personaValue = formatList([
@@ -1016,113 +537,81 @@ export function buildSelfEvolutionDiagnosticSummaryEntries(
     input.personaBiasProvenance?.preferredProactiveStyle,
   ])
   if (personaValue) {
-    const personaSummary = formatPersonaDisplayValue(personaValue)
-    const personaEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
-      key: 'persona',
-      label: '人格基线',
-      value: personaSummary.value,
-    }
-    if (personaSummary.technicalValue)
-      personaEntry.technicalValue = personaSummary.technicalValue
-    entries.push(personaEntry)
+    pushDisplayEntry(entries, { key: 'persona', label: '人格基线' }, formatPersonaDisplayValue(personaValue))
   }
 
-  const relationshipCadenceInternalization = resolveRelationshipCadenceInternalization(input)
-  const manifestationCadenceValue = formatList([
-    input.personaBiasProvenance?.manifestationCadenceSummary,
-    relationshipCadenceInternalization,
-  ])
-  if (manifestationCadenceValue) {
-    entries.push({
-      key: 'manifestation-cadence',
-      label: '显形节奏',
-      value: manifestationCadenceValue,
-    })
-  }
-
-  const manifestationBridgeValue = (() => {
-    const personaNode = formatManifestationNode(
-      input.proactiveManifestationChain?.personaPreferredStyle ?? input.personaBiasProvenance?.preferredProactiveStyle,
-      input.proactiveManifestationChain?.personaPreferredPresence,
-      'n/a/n/a',
+  const personaNode = formatManifestationNode(
+    input.proactiveManifestationChain?.personaPreferredStyle ?? input.personaBiasProvenance?.preferredProactiveStyle,
+    input.proactiveManifestationChain?.personaPreferredPresence,
+    'n/a/n/a',
+  )
+  const residentNode = formatManifestationNode(
+    input.residentPerformanceProjection?.residentEmbodiedPresence,
+    input.residentPerformanceProjection?.residentStance,
+    'n/a/n/a',
+  )
+  if (personaNode !== 'n/a/n/a' || residentNode !== 'n/a/n/a') {
+    const value = `persona ${personaNode} -> resident ${residentNode}`
+    pushDisplayEntry(
+      entries,
+      { key: 'manifestation-bridge', label: '显形链路' },
+      formatManifestationBridgeDisplayValue(value),
     )
-    const thoughtNode = formatManifestationNode(
-      input.privateThoughtGovernanceChain?.privateThoughtStyle,
-      input.privateThoughtGovernanceChain?.privateThoughtPresence,
-      'n/a/n/a',
-    )
-    const residentNode = formatManifestationNode(
-      input.residentPerformanceProjection?.residentEmbodiedPresence,
-      input.residentPerformanceProjection?.residentStance,
-      'n/a/n/a',
-    )
-    if (
-      personaNode === 'n/a/n/a'
-      && thoughtNode === 'n/a/n/a'
-      && residentNode === 'n/a/n/a'
-    ) {
-      return null
-    }
-    return `persona ${personaNode} -> thought ${thoughtNode} -> resident ${residentNode}`
-  })()
-  if (manifestationBridgeValue) {
-    const manifestationBridgeSummary = formatManifestationBridgeDisplayValue(manifestationBridgeValue)
-    const manifestationBridgeEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
-      key: 'manifestation-bridge',
-      label: '显形链路',
-      value: manifestationBridgeSummary.value,
-    }
-    if (manifestationBridgeSummary.technicalValue)
-      manifestationBridgeEntry.technicalValue = manifestationBridgeSummary.technicalValue
-    entries.push(manifestationBridgeEntry)
   }
 
   if (driftStart) {
     const driftSummary = toDisplayValue(driftStart.signal)
-    const driftStartEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
+    entries.push({
       key: 'drift-start',
       label: '起漂层',
       value: `${driftStart.layer} | ${driftSummary.value}`,
-    }
-    if (driftSummary.technicalValue)
-      driftStartEntry.technicalValue = `${driftStart.layer} | ${driftSummary.technicalValue}`
-    entries.push(driftStartEntry)
+      ...(driftSummary.technicalValue
+        ? { technicalValue: `${driftStart.layer} | ${driftSummary.technicalValue}` }
+        : {}),
+    })
   }
 
   if (driftStart && repairOwner) {
-    const repairOwnerSummary = formatRepairOwnerDisplayValue(repairOwner)
-    const repairOwnerEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
+    const summary = formatRepairOwnerDisplayValue(repairOwner)
+    entries.push({
       key: 'repair-owner',
       label: '修复归属',
-      value: `${driftStart.layer} | ${repairOwnerSummary.value}`,
-    }
-    if (repairOwnerSummary.technicalValue)
-      repairOwnerEntry.technicalValue = `${driftStart.layer} | ${repairOwnerSummary.technicalValue}`
-    entries.push(repairOwnerEntry)
+      layer: driftStart.layer,
+      detail: repairOwner,
+      bodyContinuityPhase,
+      rendererRejoinSurfaceKey,
+      value: `${driftStart.layer} | ${summary.value}`,
+      ...(summary.technicalValue
+        ? { technicalValue: `${driftStart.layer} | ${summary.technicalValue}` }
+        : {}),
+    })
   }
 
   if (driftStart && firstCheck) {
-    const firstCheckSummary = formatFirstCheckDisplayValue(firstCheck)
-    const firstCheckEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
+    const summary = formatFirstCheckDisplayValue(firstCheck)
+    entries.push({
       key: 'first-check',
       label: '首查点',
-      value: `${driftStart.layer} | ${firstCheckSummary.value}`,
-    }
-    if (firstCheckSummary.technicalValue)
-      firstCheckEntry.technicalValue = `${driftStart.layer} | ${firstCheckSummary.technicalValue}`
-    entries.push(firstCheckEntry)
+      layer: driftStart.layer,
+      detail: firstCheck,
+      bodyContinuityPhase,
+      rendererRejoinSurfaceKey,
+      value: `${driftStart.layer} | ${summary.value}`,
+      ...(summary.technicalValue
+        ? { technicalValue: `${driftStart.layer} | ${summary.technicalValue}` }
+        : {}),
+    })
   }
 
   if (repairPath) {
-    const repairPathSummary = formatRepairPathDisplayValue(repairPath)
-    const repairPathEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
+    pushDisplayEntry(entries, {
       key: 'repair-path',
       label: '修复路径',
-      value: repairPathSummary.value,
-    }
-    if (repairPathSummary.technicalValue)
-      repairPathEntry.technicalValue = repairPathSummary.technicalValue
-    entries.push(repairPathEntry)
+      layer: driftStart?.layer ?? null,
+      detail: repairPath,
+      bodyContinuityPhase,
+      rendererRejoinSurfaceKey,
+    }, formatRepairPathDisplayValue(repairPath))
   }
 
   const proactiveValue = formatList([
@@ -1130,19 +619,10 @@ export function buildSelfEvolutionDiagnosticSummaryEntries(
     typeof input.proactiveActionChain?.runtimeShouldSpeak === 'boolean'
       ? `shouldSpeak=${String(input.proactiveActionChain.runtimeShouldSpeak)}`
       : null,
-    input.proactiveActionChain?.openingGuidanceHoldReason,
     input.proactiveDecisionConsumptionSummary?.decisionMode,
   ])
   if (proactiveValue) {
-    const proactiveSummary = formatProactiveDisplayValue(proactiveValue)
-    const proactiveEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
-      key: 'proactive',
-      label: '主动落点',
-      value: proactiveSummary.value,
-    }
-    if (proactiveSummary.technicalValue)
-      proactiveEntry.technicalValue = proactiveSummary.technicalValue
-    entries.push(proactiveEntry)
+    pushDisplayEntry(entries, { key: 'proactive', label: '主动落点' }, formatProactiveDisplayValue(proactiveValue))
   }
 
   const residentValue = formatList([
@@ -1156,105 +636,63 @@ export function buildSelfEvolutionDiagnosticSummaryEntries(
     ])?.replaceAll(' | ', '/'),
   ])
   if (residentValue) {
-    const residentSummary = formatResidentDisplayValue(residentValue)
-    const residentEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
-      key: 'resident',
-      label: '驻留投影',
-      value: residentSummary.value,
-    }
-    if (residentSummary.technicalValue)
-      residentEntry.technicalValue = residentSummary.technicalValue
-    entries.push(residentEntry)
+    pushDisplayEntry(entries, { key: 'resident', label: '驻留投影' }, formatResidentDisplayValue(residentValue))
   }
 
-  if (input.rendererAuthorityProjection?.rendererTarget || input.rendererAuthorityProjection?.authorityMatchSummary) {
-    const rendererLaneTruth = summarizeRendererAuthorityLaneTruth(input.rendererAuthorityProjection)
-    const authorityMatchDisplayEntry = input.rendererAuthorityProjection?.authorityMatchSummary
-      ? toAuthorityDisplayEntry('authority-match', input.rendererAuthorityProjection.authorityMatchSummary)
+  if (input.rendererAuthorityProjection) {
+    const projection = input.rendererAuthorityProjection
+    const laneTruth = summarizeAuthorityLaneTruth(projection.matchedSignals, projection.driftingSignals)
+    const authorityMatch = projection.authorityMatchSummary
+      ? toAuthorityDisplayEntry('authority-match', projection.authorityMatchSummary)
       : null
-    const rendererDisplayValue = rendererLaneTruth
-      ? authorityMatchDisplayEntry && !authorityMatchDisplayEntry.technicalValue && authorityMatchDisplayEntry.value !== rendererLaneTruth
-        ? formatList([
-            input.rendererAuthorityProjection?.rendererTarget,
-            authorityMatchDisplayEntry.value,
-            rendererLaneTruth,
-          ])
-        : formatList([
-            input.rendererAuthorityProjection?.rendererTarget,
-            rendererLaneTruth,
-          ])
-      : formatList([
-          input.rendererAuthorityProjection?.rendererTarget,
-          input.rendererAuthorityProjection?.authorityMatchSummary,
-        ])
-    if (rendererDisplayValue) {
-      const rendererSummary = formatRendererDisplayValue(
-        rendererDisplayValue,
-      )
-      const rendererProsodyAuthority = formatRendererProsodyAuthority(
-        (input.rendererAuthorityProjection as { prosodyAuthoritySummary?: string | null } | null | undefined)?.prosodyAuthoritySummary,
-      )
-      const rendererTechnicalValue = rendererLaneTruth
-        ? formatList([
-            input.rendererAuthorityProjection?.rendererTarget,
-            input.rendererAuthorityProjection?.authorityMatchSummary,
-            rendererLaneTruth,
-          ])
-        : rendererSummary.technicalValue
-      const rendererEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
+    const rendererValue = formatList([
+      projection.rendererTarget,
+      projection.bodyContinuityPhase ? `bodyPhase=${projection.bodyContinuityPhase}` : null,
+      projection.rendererRejoinSurfaceKey ? `rejoinSurface=${projection.rendererRejoinSurfaceKey}` : null,
+      authorityMatch?.value && authorityMatch.value !== laneTruth ? authorityMatch.value : null,
+      laneTruth,
+    ])
+    if (rendererValue) {
+      const display = formatRendererDisplayValue(rendererValue)
+      const prosody = formatRendererProsodyAuthority(projection.prosodyAuthoritySummary)
+      const technicalValue = formatList([
+        projection.rendererTarget,
+        projection.bodyContinuityPhase ? `bodyPhase=${projection.bodyContinuityPhase}` : null,
+        projection.rendererRejoinSurfaceKey ? `rejoinSurface=${projection.rendererRejoinSurfaceKey}` : null,
+        projection.authorityMatchSummary,
+        laneTruth,
+        prosody?.technicalValue,
+      ])
+      entries.push({
         key: 'renderer',
         label: '显形权威',
-        value: rendererProsodyAuthority
-          ? `${rendererSummary.value} | ${rendererProsodyAuthority.value}`
-          : rendererSummary.value,
-      }
-      if (rendererProsodyAuthority) {
-        rendererEntry.technicalValue = rendererTechnicalValue
-          ? `${rendererTechnicalValue} | ${rendererProsodyAuthority.technicalValue}`
-          : `${rendererDisplayValue} | ${rendererProsodyAuthority.technicalValue}`
-      }
-      else if (rendererTechnicalValue) {
-        rendererEntry.technicalValue = rendererTechnicalValue
-      }
-      entries.push(rendererEntry)
+        value: prosody ? `${display.value} | ${prosody.value}` : display.value,
+        ...(technicalValue ? { technicalValue } : {}),
+      })
     }
   }
 
+  const continuityLaneTruth = input.runtimeContinuityProjection
+    ? summarizeAuthorityLaneTruth(
+        input.runtimeContinuityProjection.matchedSignals,
+        input.runtimeContinuityProjection.driftingSignals,
+      )
+    : null
   const continuityValue = formatList([
     input.runtimeContinuityProjection?.activeThreadId,
     input.runtimeContinuityProjection?.runtimeChannel,
     input.runtimeContinuityProjection?.runtimeScenario,
-    input.identityDriftGovernanceSummary?.governanceMode,
-    hasProjectStateContinuityDrift(input) ? 'project-state-continuity-drift' : null,
-    input.companionshipTransitionSummary?.companionshipHoldMode
-      ? `companionship-${input.companionshipTransitionSummary.companionshipHoldMode}`
+    input.runtimeContinuityProjection?.bodyContinuityPhase
+      ? `bodyPhase=${input.runtimeContinuityProjection.bodyContinuityPhase}`
       : null,
+    input.runtimeContinuityProjection?.rendererRejoinSurfaceKey
+      ? `rejoinSurface=${input.runtimeContinuityProjection.rendererRejoinSurfaceKey}`
+      : null,
+    continuityLaneTruth,
     hasRememberedFamiliarityMemoryFirst(input) ? 'remembered-familiarity-memory-first' : null,
   ])
   if (continuityValue) {
-    const continuityLaneTruth = summarizeRuntimeContinuityLaneTruth(
-      input.runtimeContinuityProjection,
-      input.rendererAuthorityProjection?.rendererTarget,
-    )
-    const sameHerRepairEvidence = resolveProjectStateSameHerRepairEvidence(input)
-    const projectStateOpenClosureSummary = resolveProjectStateOpenClosureSummary(input)
-    const continuityWithRepairEvidence = formatList([
-      continuityValue,
-      ...sameHerRepairEvidence,
-      ...projectStateOpenClosureSummary,
-      continuityLaneTruth,
-    ]) ?? continuityValue
-    const continuitySummary = formatContinuityDisplayValue(
-      continuityWithRepairEvidence,
-    )
-    const continuityEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
-      key: 'continuity',
-      label: '连续线程',
-      value: continuitySummary.value,
-    }
-    if (continuitySummary.technicalValue)
-      continuityEntry.technicalValue = continuitySummary.technicalValue
-    entries.push(continuityEntry)
+    pushDisplayEntry(entries, { key: 'continuity', label: '连续线程' }, formatContinuityDisplayValue(continuityValue))
   }
 
   const executionSafetyGateTags = Array.from(new Set([
@@ -1270,30 +708,8 @@ export function buildSelfEvolutionDiagnosticSummaryEntries(
     })
   }
 
-  const adoptedAnchorSummary = summarizeBaselineAnchorAudit(
-    (input as {
-      baselineAnchorAuditSummary?: { lines?: string[] | null } | null
-    }).baselineAnchorAuditSummary?.lines,
-  )
-  if (adoptedAnchorSummary) {
-    entries.push({
-      key: 'adopted-anchor',
-      label: '已采纳锚点',
-      value: adoptedAnchorSummary.value,
-      technicalValue: adoptedAnchorSummary.technicalValue,
-    })
-  }
-
   if (dominantDrift) {
-    const dominantDriftSummary = toDisplayValue(dominantDrift)
-    const dominantDriftEntry: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry = {
-      key: 'dominant-drift',
-      label: '主漂移',
-      value: dominantDriftSummary.value,
-    }
-    if (dominantDriftSummary.technicalValue)
-      dominantDriftEntry.technicalValue = dominantDriftSummary.technicalValue
-    entries.push(dominantDriftEntry)
+    pushDisplayEntry(entries, { key: 'dominant-drift', label: '主漂移' }, toDisplayValue(dominantDrift))
   }
 
   return entries
@@ -1302,41 +718,5 @@ export function buildSelfEvolutionDiagnosticSummaryEntries(
 export function buildSelfEvolutionDiagnosticSummaryLines(
   entries: PerformanceVisualizerSelfEvolutionDiagnosticSummaryEntry[],
 ) {
-  return entries.map((entry) => {
-    const value = entry.value
-    switch (entry.key) {
-      case 'status':
-        return `status: ${value}`
-      case 'persona':
-        return `persona: ${value}`
-      case 'manifestation-cadence':
-        return `manifestation-cadence: ${value}`
-      case 'manifestation-bridge':
-        return `manifestation-bridge: ${value}`
-      case 'drift-start':
-        return `drift-start: ${value}`
-      case 'repair-owner':
-        return `repair-owner: ${value}`
-      case 'first-check':
-        return `first-check: ${value}`
-      case 'repair-path':
-        return `repair-path: ${value}`
-      case 'proactive':
-        return `proactive: ${value}`
-      case 'resident':
-        return `resident: ${value}`
-      case 'renderer':
-        return `renderer: ${value}`
-      case 'continuity':
-        return `continuity: ${value}`
-      case 'execution-safety-gate':
-        return `execution-safety-gate: ${value}`
-      case 'adopted-anchor':
-        return `adopted-anchor: ${value}`
-      case 'dominant-drift':
-        return `dominant-drift: ${value}`
-      default:
-        return `${entry.key}: ${value}`
-    }
-  })
+  return entries.map(entry => `${entry.key}: ${entry.value}`)
 }

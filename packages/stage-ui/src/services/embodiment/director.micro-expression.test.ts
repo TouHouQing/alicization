@@ -260,8 +260,6 @@ describe('director micro-expression timing', () => {
               silenceReconnect: 'hold',
               comfortStyle: 'quiet-presence',
               preferredProactiveStyle: 'silent-observe',
-              manifestationCadenceSummary: 'persona prefers observe-first room, so visible return cadence should stay slower until the opening softens.',
-              openingGuidance: 'Open by observing first and keep the approach lighter.',
               whySummary: 'persona prefers observe-first room before a closer move.',
             },
           },
@@ -339,8 +337,6 @@ describe('director micro-expression timing', () => {
               silenceReconnect: 'direct-approach',
               comfortStyle: 'take-charge',
               preferredProactiveStyle: 'light-nudge',
-              manifestationCadenceSummary: 'persona leans toward direct reconnect once the opening is real, so the return cadence can loosen earlier.',
-              openingGuidance: 'Open directly with the live answer first and keep the approach lighter.',
               whySummary: 'persona prefers a direct reconnect once the opening is real.',
             },
           },
@@ -366,7 +362,7 @@ describe('director micro-expression timing', () => {
     expect(observeFirst.facePlan.postUtteranceCue).not.toBe(directReconnect.facePlan.postUtteranceCue)
   })
 
-  it('lets long-horizon lower-pressure relationship timing slow speaking hold and release cadence even under the same gentle answer', () => {
+  it('keeps long-horizon relationship state from changing speaking hold timing', () => {
     const lowerPressure = buildAlicizationEmbodimentScript({
       seed: {
         decisionTraceId: 'trace-lower-pressure-timing',
@@ -443,8 +439,6 @@ describe('director micro-expression timing', () => {
               silenceReconnect: 'hold',
               comfortStyle: 'quiet-presence',
               preferredProactiveStyle: 'silent-observe',
-              manifestationCadenceSummary: 'persona prefers observe-first room, so visible return cadence should stay slower until the opening softens.',
-              openingGuidance: 'Open by observing first and keep the approach lighter.',
               whySummary: 'presence fits better than a quick close-in move.',
             },
           },
@@ -557,8 +551,6 @@ describe('director micro-expression timing', () => {
               silenceReconnect: 'direct-approach',
               comfortStyle: 'take-charge',
               preferredProactiveStyle: 'light-nudge',
-              manifestationCadenceSummary: 'persona leans toward direct reconnect once the opening is real, so the return cadence can loosen earlier.',
-              openingGuidance: 'Open directly with the live answer first and keep the approach lighter.',
               whySummary: 'the opening is real enough for a clearer reconnect.',
             },
           },
@@ -580,8 +572,9 @@ describe('director micro-expression timing', () => {
       rendererTarget: 'live2d',
     })
 
-    expect(lowerPressure.facePlan.speakingCues[0]?.holdMs).toBeGreaterThan(baseline.facePlan.speakingCues[0]?.holdMs ?? 0)
-    expect(lowerPressure.motionPlan.actionBursts[0]?.holdMs).toBeGreaterThan(baseline.motionPlan.actionBursts[0]?.holdMs ?? 0)
-    expect(lowerPressure.facePlan.postUtteranceCue).toBe('soft-release')
+    expect(lowerPressure.facePlan.speakingCues[0]?.holdMs)
+      .toBe(baseline.facePlan.speakingCues[0]?.holdMs)
+    expect(lowerPressure.motionPlan.actionBursts[0]?.holdMs)
+      .toBe(baseline.motionPlan.actionBursts[0]?.holdMs)
   })
 })

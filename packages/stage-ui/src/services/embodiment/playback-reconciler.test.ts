@@ -189,7 +189,7 @@ describe('playback reconciler', () => {
           preferredExpressionAliases: ['CalmInspect'],
           preferredMotionAliases: ['ObserveFocus'],
           reasonTags: ['embodiment:still-voiced-face-line'],
-          signature: 'embodiment:audible-same-her-line',
+          signature: 'embodiment:audible-continuity-line',
         },
       }),
       driverAuthority: null,
@@ -212,7 +212,7 @@ describe('playback reconciler', () => {
       preferredExpressionAliases: ['CalmInspect'],
       preferredMotionAliases: ['ObserveFocus'],
       reasonTags: ['embodiment:still-voiced-face-line'],
-      signature: 'embodiment:audible-same-her-line',
+      signature: 'embodiment:audible-continuity-line',
     })
     expect(telemetry?.cue?.rendererHints).not.toBe(source.cue?.rendererHints)
   })

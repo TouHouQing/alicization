@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { resolveHumanlikeMemoryRecallSeedFromEventHistory } from './humanlike-memory-recall-seed'
 
 describe('humanlike memory recall seed query regression', () => {
-  it('loads both candidate and correction events so corrected same-her recall reaches the next reply seed', async () => {
+  it('loads both candidate and correction events so the corrected fact reaches the next reply seed', async () => {
     const listHumanlikeMemoryRecallEvents = vi.fn(async (input: {
       kind?: 'person-state-updated' | 'humanlike-memory-corrected'
       limit: number
@@ -20,11 +20,11 @@ describe('humanlike memory recall seed query regression', () => {
               sessionId: 'session-query-regression',
               createdAt: 42_000,
               relationshipContext: {
-                threadAnchor: 'identity-continuity',
-                summary: 'Host first looked like they were pushing for progress.',
+                threadAnchor: 'delivery-address',
+                summary: 'Building A was the delivery destination.',
               },
               emotionalResidue: {
-                tags: ['protective-continuity', 'unfinishedness'],
+                tags: ['relief', 'unfinishedness'],
               },
               initiativeOpportunity: {
                 kind: 'low-pressure-follow-up',
@@ -54,8 +54,8 @@ describe('humanlike memory recall seed query regression', () => {
           payload: {
             candidateId: 'humanlike-memory-candidate:query-regression',
             field: 'relationshipContext',
-            correctedValue: '你是在测试她是不是持续的人，不是催进度。',
-            reason: 'same-person continuity was at stake',
+            correctedValue: 'Building B is the delivery destination.',
+            reason: 'The host corrected the address.',
           },
           createdAt: 43_000,
         }]
@@ -73,7 +73,7 @@ describe('humanlike memory recall seed query regression', () => {
       [{ kind: 'person-state-updated', limit: 24 }],
       [{ kind: 'humanlike-memory-corrected', limit: 24 }],
     ])
-    expect(seed).toContain('relationship=你是在测试她是不是持续的人，不是催进度。')
+    expect(seed).toContain('relationship=Building B is the delivery destination.')
     expect(seed).not.toMatch(/\b(?:line|embodiment|self|why|reason|metabolism)=/u)
     expect(seed).not.toContain('我记得你纠正过')
   })
@@ -107,11 +107,11 @@ describe('humanlike memory recall seed query regression', () => {
                 afterglowCarry: 0.52,
                 shouldDelayWarmth: true,
                 shouldProtectRest: false,
-                reasonTags: ['same-her', 'initiative-learning'],
-                summary: 'Keep the same proactive line settling lower-pressure before warming wider.',
+                reasonTags: ['observed-affect', 'initiative-learning'],
+                summary: 'Keep the next return measured before increasing intensity.',
               },
               sourceSignals: ['proactive outcome learning'],
-              summary: 'The proactive reopening should return measured and lower-pressure on the same line.',
+              summary: 'The proactive outcome supports a measured return.',
             },
           },
           createdAt: 89_000,

@@ -38,19 +38,6 @@ function createRuntimeContext(overrides: Record<string, unknown> = {}) {
     turnId: 'turn-local-visual-runtime',
     decisionTraceId: 'trace-local-visual-runtime',
     sessionId: 'session-local-visual-runtime',
-    projectBriefing: {
-      identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
-      currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-      latestLandedProgress: 'Local-visual executor continuation now stays on the same Phase 1 project-aware desktop execution line during delegated coding and terminal investigation.',
-      primaryOpenLoop: 'Delegated desktop execution still needs stronger long-run identity-continuity',
-      nextClosureTarget: 'Keep the delegated desktop execution line project-aware before reinspection, callback return, and later host-visible closure widen outward.',
-      sameHerSelfLine: 'structured continuity digest.',
-      sameHerHoldDetail: 'identity-continuity',
-      sameHerDriftRisk: 'If delegated desktop execution drops back to a generic tool shell, treat it as unfinished identity-continuity',
-      continuityCue: 'Keep delegated desktop execution on the continuity state before local visual reinspection returns.',
-      preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Delegated desktop execution still needs stronger identity-continuity',
-      preDialogueAwarenessLine: 'pre_turn_context_digest',
-    },
     sensory: {
       collectedAt: 1_710_000_000_000,
       running: true,
@@ -62,17 +49,6 @@ function createRuntimeContext(overrides: Record<string, unknown> = {}) {
     ...overrides,
   }
 }
-
-const expectedDelegatedRuntimeProjectBriefing = expect.objectContaining({
-  identity: expect.stringContaining('local-first digital life project'),
-  currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-  latestLandedProgress: expect.stringContaining('Local-visual executor continuation now stays'),
-  primaryOpenLoop: expect.stringContaining('Delegated desktop execution still needs stronger long-run identity-continuity'),
-  nextClosureTarget: expect.stringContaining('delegated desktop execution line project-aware'),
-  sameHerSelfLine: expect.stringContaining('legacy phase-one template'),
-  sameHerDriftRisk: expect.stringContaining('generic tool shell'),
-  preDialogueAwarenessLine: expect.stringContaining('same local-first digital life project'),
-})
 
 describe('local visual task-thread adapter', () => {
   it('auto-continues browser suggested actions through local browser handlers', async () => {
@@ -1747,7 +1723,6 @@ describe('local visual task-thread adapter', () => {
             turnId: 'turn-local-visual-runtime',
             decisionTraceId: 'trace-local-visual-runtime',
             sessionId: 'session-local-visual-runtime',
-            projectBriefing: expectedDelegatedRuntimeProjectBriefing,
           }),
         }),
       }),
@@ -1871,7 +1846,6 @@ describe('local visual task-thread adapter', () => {
             turnId: 'turn-local-visual-runtime',
             decisionTraceId: 'trace-local-visual-runtime',
             sessionId: 'session-local-visual-runtime',
-            projectBriefing: expectedDelegatedRuntimeProjectBriefing,
           }),
         }),
       }),
@@ -1996,7 +1970,6 @@ describe('local visual task-thread adapter', () => {
             turnId: 'turn-local-visual-runtime',
             decisionTraceId: 'trace-local-visual-runtime',
             sessionId: 'session-local-visual-runtime',
-            projectBriefing: expectedDelegatedRuntimeProjectBriefing,
           }),
         }),
       }),

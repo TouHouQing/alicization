@@ -20,7 +20,6 @@ import type {
   AlicizationPersonStateProjection,
 } from './person-state-projection'
 import type { AlicizationPersonalityContinuityStateSnapshot } from './personality-continuity-state'
-import type { AlicizationResponseCharter } from './response-charter'
 
 import { deriveAlicizationContinuityDeliberationFromSurface } from './continuity-deliberation'
 import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
@@ -101,11 +100,11 @@ export interface CommitAlicizationDigitalLifeMindStateInput<TMindState extends A
   nextSuggestedProbeMs?: number
 }
 
-export interface AlicizationDigitalLifeRuntimeRawCarry extends Partial<AlicizationVisualPresenceStateSnapshot> {
-  projectState?: AlicizationVisualPresenceStateSnapshot['projectState'] | null
+export interface AlicizationDigitalLifeRuntimeRawCarry {
   runtime?: AlicizationVisualPresenceStateSnapshot['runtime'] | null
   runtimeDigest?: AlicizationVisualPresenceStateSnapshot['runtimeDigest'] | null
   personStateProjection?: AlicizationPersonStateProjection | null
+  residentPerformance?: AlicizationVisualPresenceStateSnapshot['residentPerformance'] | null
 }
 
 export interface AlicizationDigitalLifeRuntimeSurface {
@@ -144,7 +143,6 @@ export interface AlicizationDigitalLifeRuntimeSurface {
   dialogue: Pick<AlicizationVisualPresenceStateSnapshot, 'discourseState' | 'dialogueEncounter' | 'mindSynthesis' | 'conversationState' | 'dialogueWorldThread' | 'dialogueActKernel' | 'answerCompiler' | 'currentConsciousFrame' | 'claimEvidenceLedger' | 'replyDeliberation' | 'answerPlanner'> & {
     personStateProjection?: AlicizationPersonStateProjection | null
     sessionMirror?: AlicizationDialogueSessionMirror | null
-    responseCharter?: AlicizationResponseCharter | null
     runtimeDigest?: AlicizationVisualPresenceStateSnapshot['runtimeDigest'] | null
   }
   agency: Pick<AlicizationVisualPresenceStateSnapshot, 'selfState' | 'selfGovernor' | 'inquiryLoop' | 'deliberationState' | 'counterfactualDeliberation' | 'actionEcology' | 'initiativeArbitration' | 'initiative' | 'autonomy'> & {
@@ -196,11 +194,6 @@ export interface AlicizationDigitalLifeProactivePolicySnapshot {
   durabilityPulse: AlicizationDigitalLifeRuntimeSurface['perception']['durabilityPulse']
   personalityContinuityState: AlicizationDigitalLifeRuntimeSurface['memory']['personalityContinuityState']
   selfEvolution: AlicizationDigitalLifeRuntimeSurface['memory']['selfEvolution']
-  activeContinuityGovernance?: AlicizationDigitalLifeRuntimeSurface['memory']['derivedMindStateBundle'] extends infer T
-    ? T extends { activeContinuityGovernance?: infer G }
-      ? G | null
-      : null
-    : null
   learningExecutionState: AlicizationDigitalLifeRuntimeSurface['memory']['learningExecutionState']
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   continuityDeliberation?: AlicizationContinuityDeliberation | null
@@ -466,18 +459,17 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
   state: AlicizationVisualPresenceStateSnapshot,
 ): AlicizationDigitalLifeRuntimeSurface {
   const stateWithMemoryClosureTrace = state as VisualPresenceStateWithMemoryClosureTrace
-  const legacyRaw = state.raw ?? null
-  const liftedRuntime = state.runtime ?? legacyRaw?.runtime ?? null
+  const rawCarry = state.raw ?? null
+  const liftedRuntime = state.runtime ?? rawCarry?.runtime ?? null
   const liftedEmotionalKernel = state.emotionalKernel ?? null
-  const liftedRuntimeDigestCandidate = state.runtimeDigest ?? legacyRaw?.runtimeDigest ?? null
+  const liftedRuntimeDigestCandidate = state.runtimeDigest ?? rawCarry?.runtimeDigest ?? null
   const liftedRuntimeDigest = liftedRuntimeDigestCandidate
     ? {
         ...liftedRuntimeDigestCandidate,
         emotionalKernel: liftedEmotionalKernel,
       }
     : null
-  const liftedRawProjectState = legacyRaw?.projectState ?? liftedRuntime?.projectState ?? liftedRuntimeDigest?.projectState ?? null
-  const liftedRawPersonStateProjection = legacyRaw?.personStateProjection ?? state.personStateProjection ?? null
+  const liftedRawPersonStateProjection = rawCarry?.personStateProjection ?? state.personStateProjection ?? null
   const liftedMemoryClosureTrace = stateWithMemoryClosureTrace.memoryClosureTrace
     ?? stateWithMemoryClosureTrace.raw?.memoryClosureTrace
     ?? stateWithMemoryClosureTrace.runtime?.memoryClosureTrace
@@ -551,9 +543,8 @@ export function buildAlicizationDigitalLifeRuntimeSurface(
   return {
     version: 'digital-life-runtime-surface-v1',
     raw: {
-      ...state,
       personStateProjection: liftedRawPersonStateProjection,
-      projectState: liftedRawProjectState,
+      residentPerformance: state.residentPerformance ?? null,
       runtime: liftedRuntime,
       runtimeDigest: liftedRuntimeDigest,
     },
@@ -786,7 +777,6 @@ export function buildAlicizationDigitalLifeProactivePolicySnapshot(
     durabilityPulse: normalizedSurface.perception.durabilityPulse,
     personalityContinuityState: normalizedSurface.memory.personalityContinuityState ?? null,
     selfEvolution: normalizedSurface.memory.selfEvolution ?? normalizedSurface.memory.derivedMindStateBundle?.selfEvolution ?? null,
-    activeContinuityGovernance: normalizedSurface.memory.derivedMindStateBundle?.activeContinuityGovernance ?? null,
     learningExecutionState: normalizedSurface.memory.learningExecutionState ?? normalizedSurface.memory.derivedMindStateBundle?.learningExecutionState ?? null,
     affectiveResidue: normalizedSurface.memory.affectiveResidue ?? normalizedSurface.memory.derivedMindStateBundle?.affectiveResidue ?? null,
     continuityDeliberation: deriveAlicizationContinuityDeliberationFromSurface(normalizedSurface),

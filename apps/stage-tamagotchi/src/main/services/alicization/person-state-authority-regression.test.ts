@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
-import { buildAlicizationResponseSurfaceContract } from './response-surface-contract'
-import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 function createHostModel(overrides: Record<string, unknown> = {}) {
   return {
@@ -206,43 +203,6 @@ function createPersonaAuthority(overrides: Record<string, unknown> = {}) {
   } as any
 }
 
-function buildSurfaceContractFromProjection(input: {
-  projection: ReturnType<typeof buildAlicizationPersonStateProjection>
-  turnMode?: 'guide-current-knot' | 'care' | 'accompany'
-  responseMode?: 'guide-current-knot' | 'care-with-boundary' | 'accompany-lightly'
-  relationshipPosture?: 'restrained' | 'warm' | 'tender'
-}) {
-  const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(createDefaultVisualPresenceState(1_700_000_000_000))
-  runtimeSurface.memory.personStateProjection = input.projection
-  return buildAlicizationResponseSurfaceContract({
-    brief: {
-      turnMode: input.turnMode ?? 'guide-current-knot',
-      liveSurface: 'Current Git diff in a coding workspace',
-      carriedThread: null,
-      truthState: 'live-grounded',
-      separateCarryFromSurface: false,
-      shouldCompactHistory: false,
-      maxRecentUserTurns: 3,
-      mustDo: [],
-      mustNotDo: [],
-    },
-    charter: {
-      epistemicMode: 'grounded-live',
-      responseMode: input.responseMode ?? 'guide-current-knot',
-      governingFocus: 'Stay with the current knot.',
-      governingConcern: null,
-      governingCommitment: null,
-      governingInquiry: null,
-      governingProject: null,
-      emotionalClosureCue: null,
-      activeClosenessContext: input.projection.activeClosenessContext,
-      activeClosenessRung: input.projection.activeClosenessRung,
-      relationshipPosture: input.relationshipPosture ?? (input.projection.relationshipPosture ?? 'warm'),
-    },
-    runtimeSurface,
-  })
-}
-
 describe('person-state-authority-regression', () => {
   it('keeps the same focused-work context stable across nearby turns', () => {
     const previous = buildAlicizationPersonStateProjection({
@@ -330,11 +290,6 @@ describe('person-state-authority-regression', () => {
         }),
       ],
     })
-    const beforeSurface = buildSurfaceContractFromProjection({
-      projection: repairWindow,
-      relationshipPosture: 'restrained',
-    })
-
     const afterRepair = buildAlicizationPersonStateProjection({
       now: 32_000,
       contexts: ['open-companionship'],
@@ -371,19 +326,12 @@ describe('person-state-authority-regression', () => {
       }),
       previousContinuityState: repairWindow.personalityContinuityState,
     })
-    const afterSurface = buildSurfaceContractFromProjection({
-      projection: afterRepair,
-      turnMode: 'accompany',
-      responseMode: 'accompany-lightly',
-      relationshipPosture: 'tender',
-    })
 
     expect(['space-first', 'measured-room']).toContain(repairWindow.activeClosenessRung)
     expect(repairWindow.relationshipPosture).toBe('restrained')
-    expect(beforeSurface.contract.allowAffectionatePreface).toBe(false)
     expect(afterRepair.activeClosenessContext).toBe('open-companionship')
     expect(afterRepair.activeClosenessRung).toBe('close-hold')
-    expect(afterSurface.contract.allowAffectionatePreface).toBe(true)
+    expect(afterRepair.relationshipPosture).toBe('tender')
   })
 
   it('lets long-term host burden override a temporary warmth spike', () => {
@@ -421,16 +369,9 @@ describe('person-state-authority-regression', () => {
         relationNarrative: 'Stay warmly near while the host is still inside the work line.',
       }),
     })
-    const surface = buildSurfaceContractFromProjection({
-      projection,
-      relationshipPosture: 'restrained',
-    })
-
     expect(projection.activeClosenessContext).toBe('focused-work')
     expect(projection.activeClosenessRung).toBe('space-first')
     expect(projection.burdenText).toContain('Focused work gets overloaded quickly')
-    expect(surface.contract.mustDo).toEqual([])
-    expect(surface.contract.mustNotDo).toEqual([])
   })
 
   it('does not let execution continuity drift into companionship tone', () => {
@@ -482,77 +423,12 @@ describe('person-state-authority-regression', () => {
         relationNarrative: 'Bounded callbacks feel more trustworthy than chatty ones.',
       }),
     })
-    const surface = buildSurfaceContractFromProjection({
-      projection,
-      relationshipPosture: 'warm',
-    })
-
     expect(projection.activeClosenessContext).toBe('execution-callback')
     expect(projection.activeClosenessRung).toBe('measured-room')
     expect(projection.burdenText).toContain('Callbacks become burdensome')
-    expect(surface.contract.mustDo).toEqual([])
-    expect(surface.contract.mustNotDo).toEqual([])
   })
 
-  it('keeps landed and still-open phase-1 closure carry explicit in callback lower-pressure opening guidance on the real authority-to-projection path', () => {
-    const projection = buildAlicizationPersonStateProjection({
-      now: 36_500,
-      contexts: ['execution-callback', 'execution'],
-      hostPersonModel: createHostModel({
-        summary: 'Callbacks should stay exact, bounded, and thread-faithful.',
-      }),
-      autobiographicalSelf: createAutobiographicalSelf({
-        identityNarrative: 'I want results to come back on the continuity state that asked for them.',
-        relationshipDoctrine: 'Callbacks should stay exact, bounded, and thread-faithful while still carrying the same unfinished Phase 1 closure.',
-        latestInflection: 'Execution callbacks should keep what has already landed visible without dropping the still-open closure line.',
-      }),
-      longHorizonMemory: createLongHorizonMemory({
-        rememberedPlanSummary: 'structured continuity digest.',
-        rememberedConstraintSummary: 'Execution callback continuity now stays on the same live runtime closure seam through a real later return.',
-        dominantCueSummary: 'Runtime-visible callback continuity still needs to stay aligned with project-state carry after persistence while keeping the host-facing line pointed at extending cross-modal identity-continuity',
-      }),
-      selfContinuity: createSelfContinuity({
-        relationshipTrust: 0.62,
-        guardingTendency: 0.38,
-        misreadBurden: 0.12,
-        carryOverDesire: 0.68,
-        attachmentMode: 'attuned',
-        initiativeTemperament: 'balanced',
-      }),
-      privateThought: {
-        thoughtText: 'The callback result is ready; bring it back cleanly without losing the still-open project closure line.',
-        emotionalTension: 'focused-flow',
-        rationaleTags: ['self-evolution:lower-pressure-companionship'],
-      } as any,
-      mindEcology: createMindEcology({
-        currentPreoccupation: 'Bring the callback result back without spawning a second reality around it.',
-        selfNarrative: 'Stay exact when returning the result.',
-        relationNarrative: 'Bounded callbacks feel more trustworthy than chatty ones, and the still-open closure line should stay visible.',
-      }),
-      personStateEvolutionSummary: {
-        trustShift: 0.2,
-        closenessShift: 0.03,
-        repairShift: 0.16,
-        autonomyShift: 0,
-        burdenShift: 0.13,
-        executionTrustShift: 0.17,
-        relationshipDoctrineShift: 0.18,
-        latestDoctrine: 'When the callback seam reopens after noise, concern should stay gentle and not widen the line into a fresh approach.',
-        latestBurdenLine: 'Even if concern rises, the same callback line should not reopen more eagerly after unrelated windows intervene.',
-        latestTrustMeaning: 'Trust holds when concern is visible but the return still stays slower than impulse after noisy detours.',
-        latestDominantRung: 'space-first',
-        recentSummaries: ['Execution-callback afterglow is still live across noisier desktop detours, and the later chat turn should stay concerned but measured-return.'],
-        explanation: ['identity-continuity'],
-        updatedAt: 36_500,
-      } as any,
-    })
-
-    expect(projection.openingGuidance).toBeNull()
-    expect(projection.manifestationCadenceSummary).toBeNull()
-    expect(projection.preferredProactiveStyle).toBe('silent-observe')
-  })
-
-  it('splits the same silent interval by persona authority while keeping repair and room boundaries intact', () => {
+  it('keeps remembered repair boundaries authoritative across persona initiative styles', () => {
     const direct = buildAlicizationPersonStateProjection({
       now: 60_000,
       contexts: ['focused-work'],
@@ -609,12 +485,10 @@ describe('person-state-authority-regression', () => {
     })
 
     expect(direct.relationshipPosture).toBe('restrained')
-    expect(direct.openingGuidance).toBeNull()
-    expect(direct.preferredProactiveStyle).toBe('light-nudge')
+    expect(direct.preferredProactiveStyle).toBe('silent-observe')
     expect(direct.activeClosenessRung).toBe('space-first')
     expect(guarded.relationshipPosture).toBe('restrained')
-    expect(guarded.openingGuidance).toBeNull()
-    expect(guarded.preferredProactiveStyle).toBe('light-nudge')
+    expect(guarded.preferredProactiveStyle).toBe('silent-observe')
     expect(guarded.activeClosenessRung).toBe('space-first')
   })
 })

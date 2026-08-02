@@ -60,33 +60,15 @@ function isPrivateSource(source: { sensitivity?: string | null }) {
 }
 
 function hasFixedTemplateResidue(...values: unknown[]) {
-  return values.some(value => containsAlicizationFixedTemplateResidue(value))
+  return values.some(value => containsAlicizationFixedTemplateResidue(value, {
+    provenance: 'internal-structured-fact',
+  }))
 }
 
 function redactPersonalReferences(raw: string) {
   return normalizeText(raw, 420)
     .replace(/用户[^，。；;]*/gu, '用户')
     .replace(/我[^，。；;]*/gu, '用户')
-}
-
-function positiveExampleFor(lesson: string) {
-  const text = normalizeText(lesson, 260)
-  if (/出错|超时|失败|链路/u.test(text))
-    return 'behavior_policy=failure_transparency; reply_source=model_authored; template_policy=forbidden'
-  if (/承认错误|修复/u.test(text))
-    return 'behavior_policy=repair_then_continue; grounding=current_turn; template_policy=forbidden'
-  if (/固定模板|人格|数字生命/u.test(text))
-    return 'behavior_policy=current_intent_first; template_policy=forbidden'
-  return 'behavior_policy=ground_current_turn; source=clean_reflection'
-}
-
-function negativeExampleFor(lesson: string) {
-  const text = normalizeText(lesson, 260)
-  if (/固定模板|安抚/u.test(text))
-    return 'avoidance_policy=no_template_cover'
-  if (/错误|失败|超时/u.test(text))
-    return 'avoidance_policy=no_failure_masking'
-  return undefined
 }
 
 export function buildPersonaTrainingCandidatesFromLongTermMemory(input: {
@@ -121,8 +103,7 @@ export function buildPersonaTrainingCandidatesFromLongTermMemory(input: {
         id: `persona-candidate:${reflection.id}`,
         sourceMemoryIds,
         behaviorLesson,
-        positiveExample: positiveExampleFor(behaviorLesson),
-        negativeExample: negativeExampleFor(behaviorLesson),
+        positiveExample: behaviorLesson,
         privacyClass: reflection.sensitivity === 'public' ? 'public' : 'personal-redacted',
         status: 'candidate',
       } satisfies PersonaTrainingCandidate

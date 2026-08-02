@@ -35,10 +35,3 @@ export function deriveAlicizationDialogueMemoryCarryPolicy(
     digest,
   })
 }
-
-export function buildAlicizationDialogueMemoryCarrySystemBlock(
-  policy: AlicizationDialogueMemoryCarryPolicy,
-) {
-  void policy
-  return ''
-}

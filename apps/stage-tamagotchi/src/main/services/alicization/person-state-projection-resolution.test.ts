@@ -11,7 +11,6 @@ describe('resolvePreferredPersonStateProjection', () => {
     const preferred = resolvePreferredPersonStateProjection({
       bundleProjection: {
         summary: 'bundle summary',
-        openingGuidance: 'bundle opening',
       },
       runtimeProjection: {
         contexts: ['general', 'focused-work'],
@@ -64,7 +63,6 @@ describe('resolvePreferredPersonStateProjection', () => {
         activeClosenessRung: 'measured-room',
         relationshipPosture: 'restrained',
         summary: 'runtime with more words',
-        manifestationCadenceSummary: 'runtime cadence prose',
         preferenceText: 'runtime preference prose',
         sensitivityText: 'runtime sensitivity prose',
         relationshipDoctrine: 'runtime relationship prose',
@@ -147,7 +145,7 @@ describe('self continuity authority resolution', () => {
     expect(preferred?.selfLine).toBe('bundle self')
   })
 
-  it('filters project carry provenance from a complete preferred authority', () => {
+  it('merges structured provenance from a complete preferred authority without duplicates', () => {
     const merged = mergePreferredSelfContinuityAuthority({
       bundleAuthority: {
         selfLine: 'bundle self',
@@ -163,12 +161,12 @@ describe('self continuity authority resolution', () => {
         closenessPosture: 'space-first',
         sourceTags: [
           'runtime-owner',
-          ['project', 'state', 'carry'].join('-'),
-          ['execution', 'callback', 'project', 'carry'].join('-'),
+          'shared-memory-evidence',
+          'bundle-owner',
         ],
       },
     })
 
-    expect(merged?.sourceTags).toEqual(['runtime-owner', 'bundle-owner'])
+    expect(merged?.sourceTags).toEqual(['runtime-owner', 'shared-memory-evidence', 'bundle-owner'])
   })
 })

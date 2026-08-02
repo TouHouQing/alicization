@@ -183,8 +183,8 @@ export interface AlicizationPresenceQualityStats {
   silentPresenceNuisanceRate: number
   continuityMindCarryRate: number
   roomFirstCadenceRespectRate: number
-  longRunSameHerClosureRate?: number
-  longRunSameHerSessionClosureRate?: number
+  longRunContinuityClosureRate?: number
+  longRunContinuitySessionClosureRate?: number
 }
 
 export interface AlicizationMemoryStats {

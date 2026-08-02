@@ -17,7 +17,6 @@ export interface OrganicMemoryRecollectionPlanningStageInput {
   recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   clusterState?: MemoryClusterState | null
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
-  skipProviderPlanning?: boolean
   planMemoryRecollection?: ((input: {
     recallSeed: string
     recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']>
@@ -67,9 +66,8 @@ export interface OrganicMemoryRecollectionPlanningStageInput {
 }
 
 export async function resolveOrganicMemoryRecollectionPlanningStage(input: OrganicMemoryRecollectionPlanningStageInput) {
-  const skipProviderPlanning = input.skipProviderPlanning === true
   const plannerStartedAt = Date.now()
-  const rawRecollectionPlan = !skipProviderPlanning && input.activeRecollectionIntent && input.planMemoryRecollection && (
+  const rawRecollectionPlan = input.activeRecollectionIntent && input.planMemoryRecollection && (
     input.consolidatedMemories.length > 0
     || input.recollectedWindows.length > 0
     || input.proceduralMemories.length > 0
@@ -125,7 +123,7 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
   void input.recordMemoryPlannerLatency?.(Date.now() - plannerStartedAt).catch(() => {})
 
   const speechPlanStartedAt = Date.now()
-  const recollectionSpeechPlan = !skipProviderPlanning && input.activeRecollectionIntent && input.planRecollectionSpeech && (
+  const recollectionSpeechPlan = input.activeRecollectionIntent && input.planRecollectionSpeech && (
     plannedConsolidatedMemories.length > 0
     || plannedWindows.length > 0
     || plannedProceduralMemories.length > 0
@@ -147,7 +145,7 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
     : null
   void input.recordMemorySpeechPlanLatency?.(Date.now() - speechPlanStartedAt).catch(() => {})
 
-  const rawMemoryDeliberation = !skipProviderPlanning && input.activeRecollectionIntent && input.planMemoryDeliberation && (
+  const rawMemoryDeliberation = input.activeRecollectionIntent && input.planMemoryDeliberation && (
     plannedConsolidatedMemories.length > 0
     || plannedWindows.length > 0
     || plannedProceduralMemories.length > 0

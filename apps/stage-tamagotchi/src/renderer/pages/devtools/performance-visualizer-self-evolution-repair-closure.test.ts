@@ -13,7 +13,7 @@ describe('performance visualizer self evolution repair closure', () => {
     })).toBeNull()
   })
 
-  it('reports an open repair loop when session coverage is incomplete and no new validating snapshot exists yet', () => {
+  it('reports an open repair loop without inferring prosody relevance from legacy summary text', () => {
     expect(buildSelfEvolutionRepairClosure({
       activePatternKey: 'pattern-persona',
       activePatternContext: {
@@ -27,7 +27,7 @@ describe('performance visualizer self evolution repair closure', () => {
         completedCount: 3,
         totalCount: 7,
         completedChecklist: [
-          'evidence:private-thought-governance-chain',
+          'evidence:proactive-action-chain',
           'trace:trace-details',
           'event:takeover-audit',
         ],
@@ -55,8 +55,8 @@ describe('performance visualizer self evolution repair closure', () => {
       sessionCovered: false,
       hasFreshValidationSnapshot: false,
       samePatternStillPresent: true,
-      prosodyAuthorityRelevant: true,
-      prosodyAuthorityValidated: false,
+      prosodyAuthorityRelevant: false,
+      prosodyAuthorityValidated: null,
       bodyContinuityPhase: null,
       rendererRejoinSurfaceKey: null,
       summaryLines: [
@@ -64,12 +64,11 @@ describe('performance visualizer self evolution repair closure', () => {
         '修复检查仍未完成（3/7）。',
         '请在修复后抓取新的验证快照，确认漂移是否收敛。',
         '同一反复漂移模式仍出现在最近历史中。',
-        '韵律权威链仍未稳定回到同一片段，不应采纳为长期基线。',
       ],
     })
   })
 
-  it('reports a closed repair loop when the session is covered, a fresh snapshot exists, and the same pattern no longer recurs', () => {
+  it('closes from structured session state without inferring prosody relevance from legacy summary text', () => {
     expect(buildSelfEvolutionRepairClosure({
       activePatternKey: 'pattern-renderer',
       activePatternContext: {
@@ -110,8 +109,8 @@ describe('performance visualizer self evolution repair closure', () => {
       sessionCovered: true,
       hasFreshValidationSnapshot: true,
       samePatternStillPresent: false,
-      prosodyAuthorityRelevant: true,
-      prosodyAuthorityValidated: true,
+      prosodyAuthorityRelevant: false,
+      prosodyAuthorityValidated: null,
       bodyContinuityPhase: null,
       rendererRejoinSurfaceKey: null,
       summaryLines: [
@@ -119,7 +118,6 @@ describe('performance visualizer self evolution repair closure', () => {
         '修复检查已全部覆盖。',
         '修复后已经存在新的验证快照。',
         '已修复的反复漂移模式不再出现在最近历史中。',
-        '韵律权威链已重新绑定到当前片段，可作为采纳基线的一部分。',
       ],
     })
   })
@@ -138,7 +136,7 @@ describe('performance visualizer self evolution repair closure', () => {
         completedCount: 5,
         totalCount: 5,
         completedChecklist: [
-          'evidence:private-thought-governance-chain',
+          'evidence:proactive-action-chain',
           'evidence:runtime-continuity-projection',
           'trace:trace-details',
           'event:governance-normalized',
@@ -167,154 +165,6 @@ describe('performance visualizer self evolution repair closure', () => {
         '已修复的反复漂移模式不再出现在最近历史中。',
       ],
     })
-  })
-
-  it('treats identity-continuity', () => {
-    expect(buildSelfEvolutionRepairClosure({
-      activePatternKey: 'pattern-same-her-governance',
-      activePatternContext: {
-        currentCapturedAt: 820,
-        previousCapturedAt: 720,
-        side: 'current',
-        summaryLine: '将工作流应用到 1970-01-01T00:00:00.720Z -> 1970-01-01T00:00:00.820Z 的当前侧。',
-      },
-      repairSession: {
-        completionPercent: 100,
-        completedCount: 7,
-        totalCount: 7,
-        completedChecklist: [
-          'evidence:candidate-trajectory-summary',
-          'evidence:proactive-decision-consumption-summary',
-          'evidence:identity-drift-governance-summary',
-          'trace:trace-consumption',
-          'trace:trace-details',
-          'event:takeover-audit',
-          'event:governance-normalized',
-        ],
-        remainingChecklist: [],
-        summaryLines: [
-          '已完成 7 项中的 7 项修复检查，当前归属为连续性治理。',
-        ],
-      },
-      latestSnapshot: {
-        capturedAt: 960,
-      },
-      latestPatterns: [
-        {
-          patternKey: 'pattern-other',
-          occurrenceCount: 1,
-        },
-      ],
-    })).toEqual({
-      isClosed: true,
-      sessionCovered: true,
-      hasFreshValidationSnapshot: true,
-      samePatternStillPresent: false,
-      prosodyAuthorityRelevant: false,
-      prosodyAuthorityValidated: null,
-      bodyContinuityPhase: null,
-      rendererRejoinSurfaceKey: null,
-      summaryLines: [
-        '修复上下文已还原到目标当前侧。',
-        '修复检查已全部覆盖。',
-        '修复后已经存在新的验证快照。',
-        '已修复的反复漂移模式不再出现在最近历史中。',
-        'same-her 连续性治理已经被新的验证快照再次确认，可进入基线判断。',
-      ],
-    })
-  })
-
-  it('treats relationship cadence governance as a closed validation loop when companionship re-entry is re-confirmed by a fresh snapshot', () => {
-    expect(buildSelfEvolutionRepairClosure({
-      activePatternKey: 'pattern-relationship-cadence-governance',
-      activePatternContext: {
-        currentCapturedAt: 920,
-        previousCapturedAt: 820,
-        side: 'current',
-        summaryLine: '将工作流应用到 1970-01-01T00:00:00.820Z -> 1970-01-01T00:00:00.920Z 的当前侧。',
-      },
-      repairSession: {
-        completionPercent: 100,
-        completedCount: 8,
-        totalCount: 8,
-        completedChecklist: [
-          'evidence:companionship-transition-summary',
-          'evidence:resident-performance-projection',
-          'evidence:renderer-authority-projection',
-          'evidence:runtime-continuity-projection',
-          'trace:trace-consumption',
-          'trace:trace-details',
-          'trace:selected-trace-event',
-          'event:takeover-audit',
-        ],
-        remainingChecklist: [],
-        summaryLines: [
-          '已完成 8 项中的 8 项修复检查，当前归属为 relationship cadence governance。',
-          'companionship transition summary 已核对，当前 settle cadence 与 resident projection 仍在同一条 bounded-return 路径上。',
-        ],
-      },
-      latestSnapshot: {
-        capturedAt: 1060,
-      },
-      latestPatterns: [
-        {
-          patternKey: 'pattern-other',
-          occurrenceCount: 1,
-        },
-      ],
-    })).toEqual({
-      isClosed: true,
-      sessionCovered: true,
-      hasFreshValidationSnapshot: true,
-      samePatternStillPresent: false,
-      prosodyAuthorityRelevant: false,
-      prosodyAuthorityValidated: null,
-      bodyContinuityPhase: null,
-      rendererRejoinSurfaceKey: null,
-      summaryLines: [
-        '修复上下文已还原到目标当前侧。',
-        '修复检查已全部覆盖。',
-        '修复后已经存在新的验证快照。',
-        '已修复的反复漂移模式不再出现在最近历史中。',
-        'relationship cadence 治理已经被新的验证快照再次确认，可进入基线判断。',
-      ],
-    })
-  })
-
-  it('keeps callback-bounded relationship cadence closure wording inward when measured return is re-confirmed on the same callback line', () => {
-    expect(buildSelfEvolutionRepairClosure({
-      activePatternKey: 'pattern-relationship-cadence-governance',
-      activePatternContext: {
-        currentCapturedAt: 980,
-        previousCapturedAt: 880,
-        side: 'current',
-        summaryLine: '将工作流应用到 1970-01-01T00:00:00.880Z -> 1970-01-01T00:00:00.980Z 的当前侧。',
-      },
-      repairSession: {
-        completionPercent: 100,
-        completedCount: 8,
-        totalCount: 8,
-        completedChecklist: [
-          'evidence:companionship-transition-summary',
-          'evidence:resident-performance-projection',
-          'evidence:renderer-authority-projection',
-          'evidence:runtime-continuity-projection',
-          'trace:trace-consumption',
-          'trace:trace-details',
-          'trace:selected-trace-event',
-          'event:takeover-audit',
-        ],
-        remainingChecklist: [],
-        summaryLines: [
-          '已完成 8 项中的 8 项修复检查，当前归属为 relationship cadence governance。',
-          'companionship transition summary 已核对，当前 settle cadence 与 resident projection 仍在 same-turn-if-invited measured-return 的 same callback line 上。',
-        ],
-      },
-      latestSnapshot: {
-        capturedAt: 1100,
-      },
-      latestPatterns: [],
-    })?.summaryLines).toContain('relationship cadence 治理已经被新的验证快照再次确认，但当前仍停在 same-turn-if-invited measured-return 的同一条 callback line 上，可进入更克制的关系节律基线判断。')
   })
 
   it('keeps body-only-hold closure wording explicit so the validated baseline stays cautious about missing renderer rejoin', () => {
@@ -480,7 +330,7 @@ describe('performance visualizer self evolution repair closure', () => {
         ],
         remainingChecklist: [],
         summaryLines: [
-          '身体连续性：优先核对为什么显形已经回接、但身体线没有继续托住同一段 living segment。',
+          '当前仅剩表情、口型、声音维持同一段连续性',
         ],
         bodyContinuityPhase: 'renderer-rejoin-without-body',
         rendererRejoinSurfaceKey: null,
@@ -492,7 +342,7 @@ describe('performance visualizer self evolution repair closure', () => {
     })?.summaryLines).toContain('身体连续性已经被新的验证快照再次确认，但当前仍处于显形回接失身态（authority rejoin without same-segment body carry），不应把这条可见回接直接采纳为长期基线。')
   })
 
-  it('keeps quieter surviving-lane closure wording explicit when only face, lipsync, and voice still carry the identity-continuity', () => {
+  it('keeps quieter surviving-lane closure wording explicit when only face, lipsync, and voice remain visible', () => {
     expect(buildSelfEvolutionRepairClosure({
       activePatternKey: 'pattern-renderer-without-body',
       activePatternContext: {
@@ -515,7 +365,7 @@ describe('performance visualizer self evolution repair closure', () => {
         ],
         remainingChecklist: [],
         summaryLines: [
-          '身体连续性：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
+          '身体连续性：当前仅剩表情、口型、声音维持同一段连续性',
         ],
         bodyContinuityPhase: 'renderer-rejoin-without-body',
         rendererRejoinSurfaceKey: null,
@@ -525,62 +375,7 @@ describe('performance visualizer self evolution repair closure', () => {
         capturedAt: 1395,
       },
       latestPatterns: [],
-    })?.summaryLines).toContain('身体连续性已经被新的验证快照再次确认，但当前仍只有表情、口型、声音这条 same-her 生命线与同一段 living segment 对齐，body、motion 还没有重新接回这条表情口型声音线，不应把这次 quieter carry 直接采纳为长期基线。')
-  })
-
-  it('treats project-state continuity governance as a closed validation loop when Project identity carry, Phase 1 route carry, and Unresolved closure carry are re-confirmed by a fresh snapshot', () => {
-    expect(buildSelfEvolutionRepairClosure({
-      activePatternKey: 'pattern-project-state-continuity-governance',
-      activePatternContext: {
-        currentCapturedAt: 1020,
-        previousCapturedAt: 920,
-        side: 'current',
-        summaryLine: '将工作流应用到 1970-01-01T00:00:00.920Z -> 1970-01-01T00:00:01.020Z 的当前侧。',
-      },
-      repairSession: {
-        completionPercent: 100,
-        completedCount: 7,
-        totalCount: 7,
-        completedChecklist: [
-          'evidence:candidate-trajectory-summary',
-          'evidence:proactive-decision-consumption-summary',
-          'evidence:identity-drift-governance-summary',
-          'trace:trace-consumption',
-          'trace:trace-details',
-          'event:takeover-audit',
-          'event:governance-normalized',
-        ],
-        remainingChecklist: [],
-        summaryLines: [
-          '已完成 7 项中的 7 项修复检查，当前归属为项目状态连续性治理。',
-        ],
-      },
-      latestSnapshot: {
-        capturedAt: 1180,
-      },
-      latestPatterns: [
-        {
-          patternKey: 'pattern-other',
-          occurrenceCount: 1,
-        },
-      ],
-    })).toEqual({
-      isClosed: true,
-      sessionCovered: true,
-      hasFreshValidationSnapshot: true,
-      samePatternStillPresent: false,
-      prosodyAuthorityRelevant: false,
-      prosodyAuthorityValidated: null,
-      bodyContinuityPhase: null,
-      rendererRejoinSurfaceKey: null,
-      summaryLines: [
-        '修复上下文已还原到目标当前侧。',
-        '修复检查已全部覆盖。',
-        '修复后已经存在新的验证快照。',
-        '已修复的反复漂移模式不再出现在最近历史中。',
-        '项目状态连续性治理已经被新的验证快照再次确认，可进入基线判断。',
-      ],
-    })
+    })?.summaryLines).toContain('身体连续性已经被新的验证快照再次确认，但当前仍只有表情、口型、声音这条可见通道与同一段表达对齐，body、motion 还没有重新接回这条表情口型声音线，不应把这次较窄的可见延续直接采纳为长期基线。')
   })
 
   it('treats body continuity governance as a closed validation loop when the body line is re-confirmed by a fresh snapshot', () => {

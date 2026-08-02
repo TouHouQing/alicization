@@ -5,6 +5,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { resolveAlicizationMainChatStartResult } from './main-chat-start-result'
 
+const unknownContinuityMarker = 'unknown-continuity-marker'
+const unknownGovernanceMarker = 'unknown-governance-marker'
+
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void
   let reject!: (reason?: unknown) => void
@@ -224,11 +227,10 @@ describe('main chat start result', () => {
       preparationPromise: Promise.resolve({
         governance: {
           decisionTraceId: 'prepared-sanitized-trace',
-          governingFocus: 'project-state-governance',
+          governingFocus: unknownGovernanceMarker,
           openingStyle: 'light-accompaniment',
           relationshipPosture: 'tender',
-          emotionalClosureCue: 'repair-before-closeness',
-          reasons: ['relationship_cadence=measured-return'],
+          reasons: [],
         },
         runtimeSurface: {
           digitalLifeSpine: {
@@ -238,13 +240,13 @@ describe('main chat start result', () => {
               operatingMode: 'speaking',
               dominantSystem: 'dialogue',
               supportingSystems: [],
-              governingFocus: 'project-state-governance',
-              summary: 'relationship_cadence=measured-return',
+              governingFocus: unknownGovernanceMarker,
+              summary: unknownGovernanceMarker,
             },
             continuitySignal: {
               label: 'digital-life-line',
-              summary: 'continuityCue=hold-for-opening',
-              signature: 'legacy-continuity',
+              summary: unknownContinuityMarker,
+              signature: 'unknown-continuity-signature',
               createdAt: 1,
             },
           },
@@ -261,25 +263,20 @@ describe('main chat start result', () => {
         decisionTraceId: 'prepared-sanitized-trace',
         reasons: [],
       },
-      digitalLifeSpine: {
-        architecture: {
-          operatingMode: 'speaking',
-          dominantSystem: 'dialogue',
-        },
-      },
+      digitalLifeSpine: null,
       turnId: 'turn-1',
     })
-    expect(embodimentInput?.digitalLifeSpine).not.toHaveProperty('continuitySignal')
+    expect(embodimentInput?.digitalLifeSpine).toBeNull()
     expect(result.governance).toEqual({
       decisionTraceId: 'prepared-sanitized-trace',
       reasons: [],
     })
-    expect(JSON.stringify(result.digitalLifeSpine)).not.toMatch(
-      /project-state-governance|relationship_cadence|continuityCue|hold-for-opening/u,
-    )
+    const spineText = JSON.stringify(result.digitalLifeSpine)
+    expect(spineText).not.toContain(unknownGovernanceMarker)
+    expect(spineText).not.toContain(unknownContinuityMarker)
   })
 
-  it('sanitizes prepared runtime metadata without promoting project-state governance', async () => {
+  it('sanitizes prepared runtime metadata without promoting unknown sidecars', async () => {
     const preludeRuntimeDigest = {
       version: 'alicization-runtime-digest-v1',
       dominantChannel: 'dialogue',
@@ -287,9 +284,8 @@ describe('main chat start result', () => {
       shouldProactivelyAct: false,
       continuityPressure: 0.7,
       companionshipPressure: 0.4,
-      projectState: {
-        identity: 'prelude identity must not be merged',
-        continuityArcStage: 'same-thread-continuation',
+      unknownSidecar: {
+        marker: 'prelude-sidecar',
       },
       summary: 'prelude runtime digest',
     } as const
@@ -300,9 +296,8 @@ describe('main chat start result', () => {
       shouldProactivelyAct: false,
       continuityPressure: 0.2,
       companionshipPressure: 0.3,
-      projectState: {
-        identity: 'prepared typed runtime data',
-        continuityArcStage: null,
+      unknownSidecar: {
+        marker: 'prepared-sidecar',
       },
       summary: 'prepared runtime digest',
     } as const
@@ -344,8 +339,7 @@ describe('main chat start result', () => {
       continuityPressure: 0.2,
       summary: 'prepared runtime digest',
     })
-    expect(result.runtimeDigest).not.toHaveProperty('projectState')
-    expect(result).not.toHaveProperty('preDialogueAwareness')
+    expect(result.runtimeDigest).not.toHaveProperty('unknownSidecar')
   })
 
   it('keeps embodimentScript authority in accepted start results when top-level digitalLife is still absent', async () => {
@@ -564,7 +558,7 @@ describe('main chat start result', () => {
     })
   })
 
-  it('sanitizes the settled prelude runtime digest when preparation fails', async () => {
+  it('sanitizes unknown sidecars from the settled prelude runtime digest when preparation fails', async () => {
     const preludeRuntimeDigest = {
       version: 'alicization-runtime-digest-v1',
       dominantChannel: 'dialogue',
@@ -572,8 +566,8 @@ describe('main chat start result', () => {
       shouldProactivelyAct: false,
       continuityPressure: 0.5,
       companionshipPressure: 0.6,
-      projectState: {
-        identity: 'typed prelude runtime data',
+      unknownSidecar: {
+        marker: 'settled-prelude-sidecar',
       },
       summary: 'settled prelude runtime digest',
     } as const
@@ -606,8 +600,7 @@ describe('main chat start result', () => {
       continuityPressure: 0.5,
       summary: 'settled prelude runtime digest',
     })
-    expect(result.runtimeDigest).not.toHaveProperty('projectState')
-    expect(result).not.toHaveProperty('preDialogueAwareness')
+    expect(result.runtimeDigest).not.toHaveProperty('unknownSidecar')
   })
 
   it('returns null governance when neither preparation nor prelude settle within budget', async () => {

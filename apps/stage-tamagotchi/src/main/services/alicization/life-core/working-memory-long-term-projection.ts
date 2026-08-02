@@ -119,10 +119,7 @@ export function projectWorkingMemoryLongTermCandidate(input: {
         sourceKind: 'reply',
         targetScope: 'relationship',
         summary,
-        lesson: normalizeWorkingMemoryText(
-          'Relationship boundary transparency came from the WorkingMemory owner; visible payoff requires transparent failure handling.',
-          260,
-        ),
+        lesson: summary,
         status: 'pending',
         confidence: candidate.confidence,
         supportingFactIds: [],
@@ -146,12 +143,6 @@ export function projectWorkingMemoryLongTermCandidate(input: {
 
   if (candidate.kind !== 'correction')
     return emptyProjectionBundle()
-
-  const lesson = normalizeWorkingMemoryText(
-    'Fixed persona templates were rejected. WorkingMemory owns the short-term evidence; the provider mind or an explicit failure surface must author the visible answer. Failure transparency is required.',
-    260,
-  )
-
   return {
     memoryFacts: [{
       subject: 'user',
@@ -172,7 +163,7 @@ export function projectWorkingMemoryLongTermCandidate(input: {
       sourceKind: 'reply',
       targetScope: 'boundary',
       summary,
-      lesson,
+      lesson: summary,
       status: 'pending',
       confidence: candidate.confidence,
       supportingFactIds: [],

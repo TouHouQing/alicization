@@ -1,12 +1,9 @@
 import type { Message } from '@xsai/shared-chat'
 
-import { readFileSync } from 'node:fs'
-
 import { describe, expect, it } from 'vitest'
 
 import {
   buildAlicizationMainChatRuntimeSurface,
-  buildCardCustomDirectivesSystemBlock,
   extractCustomDirectivesFromMessages,
   extractHostNameFromMessages,
   filterAlicizationProviderSystemMessages,
@@ -83,15 +80,6 @@ function createRuntimeSurface() {
           embodiment: {
             hint: 'lipsync-only',
           },
-          dialogue: {
-            openingGuidance: 'legacy cue must not be forwarded',
-          },
-          learning: {
-            nextAction: 'legacy cue must not be forwarded',
-          },
-          governance: {
-            guard: 'legacy cue must not be forwarded',
-          },
         },
       },
     },
@@ -151,23 +139,20 @@ function findFactMessage(messages: Message[], type: string) {
 }
 
 describe('main chat runtime surface', () => {
-  it('keeps user-authored card directives verbatim in full persona mode', () => {
+  it('keeps free-text card directives out of Provider messages', () => {
     const result = buildAlicizationMainChatRuntimeSurface(createBaseInput({
       customDirectivesResolution: {
-        text: '优先诚实，不要臆测。',
+        text: 'fixture-directive-should-not-reach-provider',
         source: 'card-soul',
       },
     }))
 
-    const directiveMessage = result.messages.find(message => message.role === 'system')
-    expect(parseFact(directiveMessage?.content)).toEqual({
-      type: 'alicization-persona-directives',
-      data: {
-        text: '优先诚实，不要臆测。',
-      },
+    expect(result.customDirectivesResolution).toEqual({
+      text: 'fixture-directive-should-not-reach-provider',
+      source: 'card-soul',
     })
-    expect(String(result.messages[0]?.content)).not.toContain('high-priority persona kernel')
-    expect(String(result.messages[0]?.content)).not.toContain('Apply these directives')
+    expect(JSON.stringify(result.messages)).not.toContain('alicization-persona-directives')
+    expect(JSON.stringify(result.messages)).not.toContain('fixture-directive-should-not-reach-provider')
   })
 
   it.each(['backgrounded', 'muted'] as const)(
@@ -293,7 +278,7 @@ describe('main chat runtime surface', () => {
     })
   })
 
-  it('extracts host metadata and custom directives from SOUL-shaped messages', () => {
+  it('extracts host metadata and migration-only custom directives from SOUL-shaped messages', () => {
     const message = createSoulSystemMessage({
       customDirectives: '请先观察，再回答。',
       hostName: 'Asuna',
@@ -301,15 +286,9 @@ describe('main chat runtime surface', () => {
 
     expect(extractCustomDirectivesFromMessages([message])).toBe('请先观察，再回答。')
     expect(extractHostNameFromMessages([message])).toBe('Asuna')
-    expect(parseFact(buildCardCustomDirectivesSystemBlock('请先观察，再回答。'))).toEqual({
-      type: 'alicization-persona-directives',
-      data: {
-        text: '请先观察，再回答。',
-      },
-    })
   })
 
-  it('drops raw SOUL prose and legacy memory facts while keeping the unified memory envelope', () => {
+  it('drops raw SOUL prose and unknown system facts while keeping the unified memory envelope', () => {
     const messages: Message[] = [
       {
         role: 'system',
@@ -332,55 +311,9 @@ describe('main chat runtime surface', () => {
       {
         role: 'system',
         content: JSON.stringify({
-          type: 'alicization-organic-self-context',
-          data: { activeThoughts: ['detached one-shot self state'] },
+          type: 'unknown-sidecar',
+          data: { value: 'not-provider-facing' },
         }),
-      },
-      {
-        role: 'system',
-        content: JSON.stringify({
-          type: 'alicization-personality-state',
-          data: { obedience: 0, liveliness: 0, sensibility: 0 },
-        }),
-      },
-      {
-        role: 'system',
-        content: JSON.stringify({
-          type: 'alicization-personality-thresholds',
-          data: { lowAxes: ['obedience'] },
-        }),
-      },
-      {
-        role: 'system',
-        content: JSON.stringify({
-          type: 'alicization-execution-settlement-context',
-          data: { reply: 'detached settlement context' },
-        }),
-      },
-      {
-        role: 'system',
-        content: JSON.stringify({
-          type: 'alicization-execution-settlement-request',
-          data: { instruction: 'detached settlement request' },
-        }),
-      },
-      {
-        role: 'system',
-        content: JSON.stringify({
-          type: 'alicization-long-term-memory-recall',
-          data: { owner: 'LongTermMemoryRecall', evidence: [] },
-        }),
-      },
-      {
-        role: 'system',
-        content: JSON.stringify({
-          type: 'alicization-dialogue-session-mirror',
-          data: { instruction: 'keep the same line' },
-        }),
-      },
-      {
-        role: 'system',
-        content: '[ALICIZATION_PROJECT_STATE]\nKeep the project identity explicit.',
       },
       {
         role: 'user',
@@ -395,48 +328,7 @@ describe('main chat runtime surface', () => {
     expect(parseFact(filtered[1]?.content).type).toBe('alicization-turn-memory-context')
     expect(filtered[2]?.content).toBe('你好')
     expect(filtered.some(message => String(message.content).includes('# SOUL'))).toBe(false)
-    expect(filtered.some(message => String(message.content).includes('organic-self-context'))).toBe(false)
-    expect(filtered.some(message => String(message.content).includes('personality-state'))).toBe(false)
-    expect(filtered.some(message => String(message.content).includes('personality-thresholds'))).toBe(false)
-    expect(filtered.some(message => String(message.content).includes('execution-settlement'))).toBe(false)
-    expect(filtered.some(message => String(message.content).includes('alicization-long-term-memory-recall'))).toBe(false)
-    expect(filtered.some(message => String(message.content).includes('dialogue-session-mirror'))).toBe(false)
-    expect(filtered.some(message => String(message.content).includes('PROJECT_STATE'))).toBe(false)
-  })
-
-  it('drops legacy typed project-state facts at the provider boundary', () => {
-    const messages: Message[] = [
-      {
-        role: 'system',
-        content: JSON.stringify({
-          type: 'alicization-project-state-facts',
-          data: {
-            fields: {
-              landed: 'Legacy canonical progress.',
-              open: 'Legacy canonical open loop.',
-              next: 'Legacy canonical next target.',
-            },
-          },
-        }),
-      },
-      {
-        role: 'system',
-        content: JSON.stringify({
-          type: 'alicization-turn-memory-context',
-          data: { owner: 'WorkingMemory' },
-        }),
-      },
-      {
-        role: 'user',
-        content: '现在记忆链路怎么样？',
-      },
-    ]
-
-    const filtered = filterAlicizationProviderSystemMessages(messages)
-
-    expect(filtered).toHaveLength(2)
-    expect(parseFact(filtered[0]?.content).type).toBe('alicization-turn-memory-context')
-    expect(filtered[1]?.content).toBe('现在记忆链路怎么样？')
+    expect(filtered.some(message => String(message.content).includes('unknown-sidecar'))).toBe(false)
   })
 
   it('derives enforced tool names from a required filtered tool registry', () => {
@@ -457,18 +349,5 @@ describe('main chat runtime surface', () => {
       'executor_run_local_visual',
     ])
     expect(result.tooling.routingRequired).toBe(true)
-  })
-
-  it('does not aggregate legacy life-subsystem prompt builders', () => {
-    const source = readFileSync(new URL('./main-chat-runtime-surface.ts', import.meta.url), 'utf8')
-
-    expect(source).not.toMatch(
-      /build(?:AutobiographicalSelf|HabitPolicy|LongHorizonMemory|MindEcology|MotiveEngine)SystemBlock/iu,
-    )
-    expect(source).not.toContain('describeAlicizationMainChatProviderMindRequirement')
-    expect(source).not.toContain('buildTurnScopedPersonaKernelSystemBlock')
-    expect(source).not.toContain('effectiveOrganicMemorySystemBlocks')
-    expect(source).not.toContain('ALICIZATION_CORE_INCARNATION')
-    expect(source).toContain('buildAlicizationProviderFactBlock')
   })
 })

@@ -21,44 +21,12 @@ function createId(prefix: string) {
   return `${prefix}-${nanoid()}`
 }
 
-const legacySpeechGovernanceKeys = new Set([
-  'preDialogueSendIdentity',
-  'preDialogueAwareness',
-  'preDialogueClosure',
-  'visibleReplyRealization',
-  'preDialogueAwarenessLine',
-  'preDialogueAwarenessSummary',
-  'awarenessLine',
-  'companionHeadlineLine',
-  'companionBriefingLine',
-  'companionNextClosureLine',
-  'sameHerSelfLine',
-  'sameHerSummary',
-  'sameHerHoldDetail',
-  'sameHerDriftRisk',
-  'sameHerDriftRiskLine',
-  'sameHerDriftRiskSummary',
-  'emotionalClosureCue',
-  'emotionalClosureSummary',
-  'continuityCue',
-  'continuityAnchor',
-  'continuityHold',
-  'continuityDriftRisk',
-  'proactiveSameHerGap',
-  'proactiveSameHerGapSummary',
-])
-
-function isLegacySpeechGovernanceKey(key: string) {
-  return legacySpeechGovernanceKeys.has(key)
-}
-
 function sanitizeSpeechMetadataValue<T>(value: T): T {
   if (Array.isArray(value))
     return value.map(item => sanitizeSpeechMetadataValue(item)) as T
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
-        .filter(([key]) => !isLegacySpeechGovernanceKey(key))
         .map(([key, item]) => [key, sanitizeSpeechMetadataValue(item)]),
     ) as T
   }

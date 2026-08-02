@@ -295,8 +295,3 @@ export function buildDialogueWorldThread(input: {
     updatedAt: input.now,
   } satisfies AlicizationDialogueWorldThreadSnapshot
 }
-
-export function buildDialogueWorldThreadSystemBlock(state: AlicizationDialogueWorldThreadSnapshot | null | undefined) {
-  void state
-  return ''
-}

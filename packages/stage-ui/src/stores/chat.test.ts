@@ -10,6 +10,7 @@ import { useChatOrchestratorStore } from './chat'
 
 const hookCapture = vi.hoisted(() => ({
   beforeSendContexts: [] as any[],
+  embodimentMetas: [] as any[],
   contextsSnapshot: {} as Record<string, unknown>,
 }))
 
@@ -210,7 +211,9 @@ vi.mock('./chat/hooks', () => ({
       emitTokenLiteralHooks: noopAsync,
       emitTokenSpecialHooks: noopAsync,
       emitStreamEndHooks: noopAsync,
-      emitEmbodimentMetaHooks: noopAsync,
+      emitEmbodimentMetaHooks: async (meta: any) => {
+        hookCapture.embodimentMetas.push(meta)
+      },
       emitAssistantResponseEndHooks: noopAsync,
       emitToolCallHooks: noopAsync,
       emitAssistantMessageHooks: noopAsync,
@@ -229,15 +232,6 @@ vi.mock('./chat/hooks', () => ({
       onChatTurnComplete: () => () => {},
     }
   },
-}))
-
-vi.mock('./alicization-self-evolution-inspector', () => ({
-  useAlicizationSelfEvolutionInspectorStore: () => ({
-    refresh: vi.fn(async () => null),
-    projectStateContinuitySnapshot: null,
-    preDialogueClosureSnapshot: null,
-    preDialogueAwarenessSnapshot: null,
-  }),
 }))
 
 vi.mock('../composables/alicization-guardrails', async (importOriginal) => {
@@ -347,6 +341,7 @@ describe('chat orchestrator reply authority', () => {
     suspendKillSwitchMock.mockReset()
     resumeKillSwitchMock.mockReset()
     hookCapture.beforeSendContexts.length = 0
+    hookCapture.embodimentMetas.length = 0
     hookCapture.contextsSnapshot = {}
     executeRealtimeQueryTurnMock.mockResolvedValue({ handled: false })
     appendConversationTurnMock.mockResolvedValue(undefined)
@@ -558,83 +553,12 @@ describe('chat orchestrator reply authority', () => {
     })
   })
 
-  it('drops legacy renderer pre-dialogue identity before the main runtime boundary', async () => {
-    const reply = '这条回复只由 Provider、SOUL 与记忆证据生成。'
-    const fullText = createProviderFullText(reply)
-    const streamChat = vi.fn(async (_payload: any, options: any) => {
-      await options.onStreamEvent?.({
-        type: 'meta',
-        preDialogueAwareness: {
-          status: 'partial',
-          summaryLine: '旧 awareness 不得重新进入结构化结果。',
-          reasonPreview: ['mustDo=复述旧治理模板'],
-        },
-        preDialogueClosure: {
-          status: 'partial',
-          summaryLine: '旧 closure 不得重新进入结构化结果。',
-          briefingLines: ['openingMove=固定开场'],
-          reasons: ['fixed-reply-governance'],
-        },
-      })
-      await options.onStreamEvent?.({
-        type: 'text-delta',
-        text: reply,
-        origin: 'provider',
-        learningPolicy: providerLearningPolicy(),
-        failureSurface: null,
-      })
-      await options.onStreamEvent?.({
-        type: 'finish',
-        origin: 'provider',
-        learningPolicy: providerLearningPolicy(),
-        failureSurface: null,
-        fullText,
-        finishReason: 'stop',
-      })
-    })
-    installAlicizationBridge({ streamChat })
-
-    const store = useChatOrchestratorStore()
-    const legacyOptions: Parameters<typeof store.ingest>[1] & {
-      preDialogueSendIdentity: Record<string, unknown>
-    } = {
-      model: 'mock-model',
-      chatProvider: createChatProviderStub(),
-      origin: 'ui-user',
-      preDialogueSendIdentity: {
-        status: 'partial',
-        summaryLine: '固定开场：先强调我们是同一个她。',
-        companionHeadlineLine: '固定标题',
-        companionBriefingLine: '固定回复姿态',
-        companionNextClosureLine: '固定下一步',
-        awarenessLine: '固定 awareness',
-        emotionalClosureCue: '固定情绪 cue',
-        projectState: null,
-        emotionalKernel: null,
-        reasonPreview: ['mustDo=先复述项目状态', 'openingMove=固定开场'],
-      },
-    }
-    await store.ingest('今天想聊聊我们共同记得的事情', legacyOptions)
-
-    const payload = streamChat.mock.calls[0]?.[0]
-    expect(payload).not.toHaveProperty('preDialogueSendIdentity')
-    expect(JSON.stringify(payload)).not.toMatch(/固定开场|固定回复姿态|mustDo|openingMove/u)
-    expect(hookCapture.beforeSendContexts).toHaveLength(1)
-    expect(hookCapture.beforeSendContexts[0]).not.toHaveProperty('preDialogueSendIdentity')
-    const persistedStructured = appendConversationTurnMock.mock.calls.at(-1)?.[0]?.structured
-    expect(persistedStructured).not.toHaveProperty('preDialogueAwareness')
-    expect(persistedStructured).not.toHaveProperty('preDialogueClosure')
-  })
-
-  it('keeps accepted-start runtime digest without promoting its project state', async () => {
+  it('persists accepted-start runtime digest metadata', async () => {
     const reply = '我会根据当前对话和记忆继续回应。'
     const fullText = createProviderFullText(reply)
     const streamChat = vi.fn(async (_payload: any, options: any) => {
       await options.onStreamEvent?.({
         type: 'meta',
-        projectState: null,
-        preDialogueAwareness: null,
-        preDialogueClosure: null,
         runtimeDigest: {
           version: 'alicization-runtime-digest-v1',
           dominantChannel: 'dialogue',
@@ -642,9 +566,13 @@ describe('chat orchestrator reply authority', () => {
           shouldProactivelyAct: false,
           continuityPressure: 0.2,
           companionshipPressure: 0.4,
-          projectState: {
-            identity: 'typed accepted-start runtime state',
-            latestLandedProgress: 'typed accepted-start progress',
+          derivedMindStateBundle: {
+            structured: {
+              memoryUsage: {
+                workingMemoryVersion: 'wm-chat-test',
+                longTermEvidenceIds: ['ltm-chat-test'],
+              },
+            },
           },
         },
       })
@@ -674,11 +602,22 @@ describe('chat orchestrator reply authority', () => {
     })
 
     const persistedStructured = appendConversationTurnMock.mock.calls.at(-1)?.[0]?.structured
-    expect(persistedStructured?.runtimeDigest?.projectState).toEqual({
-      identity: 'typed accepted-start runtime state',
-      latestLandedProgress: 'typed accepted-start progress',
+    expect(persistedStructured?.runtimeDigest).toMatchObject({
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'dialogue',
+      shouldProactivelySpeak: false,
+      shouldProactivelyAct: false,
+      continuityPressure: 0.2,
+      companionshipPressure: 0.4,
     })
-    expect(persistedStructured?.projectState).toBeNull()
+    expect(persistedStructured?.runtimeDigest?.derivedMindStateBundle?.structured?.memoryUsage).toEqual({
+      workingMemoryVersion: 'wm-chat-test',
+      longTermEvidenceIds: ['ltm-chat-test'],
+    })
+    expect(hookCapture.embodimentMetas.at(-1)?.runtimeDigest?.derivedMindStateBundle?.structured?.memoryUsage).toEqual({
+      workingMemoryVersion: 'wm-chat-test',
+      longTermEvidenceIds: ['ltm-chat-test'],
+    })
   })
 
   it('accepts and persists governance meta without a recall suppression field', async () => {

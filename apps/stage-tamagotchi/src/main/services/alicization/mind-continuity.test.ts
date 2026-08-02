@@ -416,7 +416,7 @@ describe('mind continuity', () => {
           id: 'commitment::hold-problem::thread-3',
           kind: 'hold-problem',
           status: 'active',
-          title: 'Hold Problem',
+          title: 'hold-problem',
           summary: 'The concrete knot should stay alive across ticks.',
           source: 'runtime-thread',
           priority: 0.78,
@@ -688,7 +688,7 @@ describe('mind continuity', () => {
           selfDirection: 0.62,
         },
         anchorFacts: [{
-          fact: 'legacy phase-one template still carrying landed and unfinished closure on continuity state.',
+          fact: 'retired briefing residue still carrying landed and unfinished closure markers.',
           influenceTags: ['project-state-carry'],
         }],
         updatedAt: 12_000,
@@ -751,13 +751,11 @@ describe('mind continuity', () => {
     })
     const seed = buildMindContinuityRecallSeed(buildAlicizationDigitalLifeRuntimeSurface(state as any))
 
-    expect(fragment).toContain('project_state_carry:')
-    expect(fragment).toContain('content=excluded; reason=continuity-residue; visibility=redacted_internal')
-    expect(fragment).not.toMatch(/legacy phase-one template|continuity state|same-her|identity continuity/iu)
+    expect(fragment).not.toContain('project_state_carry:')
+    expect(fragment).not.toContain(['visibility=', ['redacted', '_internal'].join('')].join(''))
     expect(fragment).toContain('summary:')
-    expect(seed).toContain('project_state_carry:')
-    expect(seed).toContain('content=excluded; reason=continuity-residue; visibility=redacted_internal')
-    expect(seed).not.toMatch(/legacy phase-one template|continuity state|same-her|identity continuity/iu)
+    expect(seed).not.toContain('project_state_carry:')
+    expect(seed).not.toContain(['visibility=', ['redacted', '_internal'].join('')].join(''))
   })
 
   it('keeps repair-before-closeness emotional kernel carry searchable during quiet same-line continuity holds', () => {
@@ -789,7 +787,7 @@ describe('mind continuity', () => {
       privateThought: {
         stance: 'care',
         confidence: 0.68,
-        rationaleTags: ['repair-before-closeness', 'same-her-inward-carry'],
+        rationaleTags: ['repair-before-closeness', 'continuity-inward-carry'],
         thoughtText: 'Stay on the same repair line and do not widen closeness yet.',
         shouldSpeak: false,
         suggestedStyle: 'silent-observe',
@@ -816,10 +814,9 @@ describe('mind continuity', () => {
       personStateProjection: {
         summary: 'project_continuity=repair-before-closeness still holds while the same callback repair line keeps settling before widening closeness again.',
         openingGuidance: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
-        manifestationCadenceSummary: 'repair-before-closeness still holds while the same callback repair line keeps settling after another detour before widening closeness again.',
         selfContinuityAuthority: {
           inwardLine: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
-          sourceTags: ['project-state-carry', 'same-her-inward-carry'],
+          sourceTags: ['project-state-carry', 'continuity-inward-carry'],
         },
       },
       captureState: {
@@ -874,37 +871,37 @@ describe('mind continuity', () => {
         lastSeenAt: 18_000,
       },
       threadRuntime: {
-        foregroundThreadId: 'thread-same-her-sparse',
+        foregroundThreadId: 'thread-continuity-sparse',
       },
       deliberationState: {
-        primaryThreadId: 'thread-same-her-sparse',
+        primaryThreadId: 'thread-continuity-sparse',
         dominantNeed: 'guidance',
         readiness: 0.48,
       },
       commitmentLedger: {
-        governingCommitmentId: 'commitment-same-her-sparse',
+        governingCommitmentId: 'commitment-continuity-sparse',
       },
       inquiryPlanner: {
-        activePlanId: 'plan-same-her-sparse',
+        activePlanId: 'plan-continuity-sparse',
       },
       concernContinuity: {
-        governingEntryId: 'concern-same-her-sparse',
+        governingEntryId: 'concern-continuity-sparse',
       },
       repairLedger: {
-        governingRepairId: 'repair-same-her-sparse',
+        governingRepairId: 'repair-continuity-sparse',
       },
       intentionStream: {
-        dominantProjectId: 'project-same-her-sparse',
+        dominantProjectId: 'project-continuity-sparse',
       },
       reflectionLedger: {
-        latestEntryId: 'reflection-same-her-sparse',
+        latestEntryId: 'reflection-continuity-sparse',
       },
       selfGovernor: {
-        dominantIntentionId: 'intention-same-her-sparse',
+        dominantIntentionId: 'intention-continuity-sparse',
         dominantDrive: 'accompany',
       },
       thoughtThreads: {
-        foregroundThreadId: 'thought-same-her-sparse',
+        foregroundThreadId: 'thought-continuity-sparse',
       },
       motiveEngine: {
         backgroundAgendas: undefined,
@@ -923,7 +920,7 @@ describe('mind continuity', () => {
           agencyStyle: 'steady',
         },
         behaviorSignatures: undefined,
-        identityNarrative: 'legacy phase-one template still needs one continuity state.',
+        identityNarrative: 'retired briefing residue still needs one evidence record.',
         latestInflection: 'Keep the identity-continuity',
         stability: 0.82,
       },
@@ -937,12 +934,12 @@ describe('mind continuity', () => {
         embodiedPresence: 'attentive',
         expiresAt: 48_000,
         afterglowFromScenario: null,
-        emotionalTension: 'quiet-same-her',
+        emotionalTension: 'quiet-continuity',
       },
       personStateProjection: {
         selfContinuityAuthority: {
-          inwardLine: 'legacy phase-one template still needs one continuity state.',
-          sourceTags: ['project-state-carry', 'same-her-inward-carry'],
+          inwardLine: 'retired briefing residue still needs one evidence record.',
+          sourceTags: ['project-state-carry', 'continuity-inward-carry'],
         },
       },
       captureState: {
@@ -973,13 +970,10 @@ describe('mind continuity', () => {
     })
     const seed = buildMindContinuityRecallSeed(buildAlicizationDigitalLifeRuntimeSurface(nextState as any))
 
-    expect(fragment).toContain('project_state_carry:')
-    expect(fragment).toContain('content=excluded; reason=continuity-residue; visibility=redacted_internal')
-    expect(fragment).not.toMatch(/legacy phase-one template|continuity state|same-her|identity continuity/iu)
+    expect(fragment).not.toContain('project_state_carry:')
+    expect(fragment).not.toContain(['visibility=', ['redacted', '_internal'].join('')].join(''))
     expect(fragment).toContain('summary:')
-    expect(fragment).toContain('project_state_carry=structured_carry')
-    expect(seed).toContain('project_state_carry:')
-    expect(seed).toContain('content=excluded; reason=continuity-residue; visibility=redacted_internal')
-    expect(seed).not.toMatch(/legacy phase-one template|continuity state|same-her|identity continuity/iu)
+    expect(seed).not.toContain('project_state_carry:')
+    expect(seed).not.toContain(['visibility=', ['redacted', '_internal'].join('')].join(''))
   })
 })

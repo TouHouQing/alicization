@@ -577,7 +577,7 @@ describe('alicization agent runtime', () => {
     })
   })
 
-  it('keeps execution continuity enums while dropping runtime-surface persona prose', async () => {
+  it('does not project unknown runtime-surface sidecars into execution context', async () => {
     const runtime = createAlicizationAgentRuntime({
       getSensorySnapshot: async () => createSensorySnapshot(),
       resolveConversationSessionId: async () => 'session-execution-continuity',
@@ -592,12 +592,8 @@ describe('alicization agent runtime', () => {
       runtimeSurface: {
         raw: {
           runtimeDigest: {
-            projectState: {
-              identity: 'Project Alicization',
-              continuityArcStage: 'same-thread-continuation',
-              continuityRestraint: 'measured-return',
-              continuityPreferredTiming: 'next-open-window',
-              continuityCadence: 'quiet-return',
+            unknownSidecar: {
+              opaqueLegacyField: 'runtime-surface-only',
             },
           },
         },
@@ -606,19 +602,14 @@ describe('alicization agent runtime', () => {
         },
         memory: {
           selfEvolution: {
-            relationshipDoctrine: 'Always use a fixed relationship line.',
+            opaqueLegacyField: 'memory-surface-only',
           },
         },
         dialogue: {
           runtimeDigest: {},
           currentConsciousFrame: {
-            projectState: {
-              preferredBlinkCadence: 'quiet',
-              preferredGazeMode: 'soften',
-              preferredPauseMode: 'longer',
-              preferredLipsyncMode: 'restrained',
-              preferredVoiceMode: 'lower-pressure',
-              preferredPacingMode: 'slower',
+            unknownSidecar: {
+              opaqueLegacyField: 'dialogue-surface-only',
             },
           },
         },
@@ -633,29 +624,10 @@ describe('alicization agent runtime', () => {
 
     const runtimeContext = await turn.buildExecutionRuntimeContext()
 
-    expect(runtimeContext.projectBriefing).toEqual(expect.objectContaining({
-      identity: null,
-      currentPhase: null,
-      sameHerSelfLine: null,
-      sameHerHoldDetail: null,
-      sameHerDriftRisk: null,
-      continuityArcStage: 'same-thread-continuation',
-      continuityRestraint: 'measured-return',
-      continuityPreferredTiming: 'next-open-window',
-      continuityCadence: 'quiet-return',
-      preferredBlinkCadence: 'quiet',
-      preferredGazeMode: 'soften',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredVoiceMode: 'lower-pressure',
-      preferredPacingMode: 'slower',
-      continuityCue: null,
-      preDialogueAwarenessLine: null,
-    }))
-    expect(JSON.stringify(runtimeContext.projectBriefing)).not.toContain('fixed relationship line')
+    expect(JSON.stringify(runtimeContext)).not.toContain('surface-only')
   })
 
-  it('uses current-turn execution identity and status aliases without creating default project facts', async () => {
+  it('uses current-turn execution identity without creating project facts', async () => {
     const runtime = createAlicizationAgentRuntime({
       getSensorySnapshot: async () => createSensorySnapshot(),
       resolveConversationSessionId: async () => 'session-default',
@@ -666,34 +638,18 @@ describe('alicization agent runtime', () => {
       decisionTraceId: 'trace-default',
     })
 
-    const emptyContext = await turn.buildExecutionRuntimeContext()
     const overriddenContext = await turn.buildExecutionRuntimeContext({
       cardId: 'card-override',
       turnId: 'turn-override',
       sessionId: 'session-override',
       decisionTraceId: 'trace-override',
-      projectBriefing: {
-        landedProgressSummary: 'The execution status was restored.',
-        openClosureSummary: 'Completion evidence is still missing.',
-        nextClosureTargetSummary: 'Collect and report the execution result.',
-        sameHerSelfLine: 'Do not project this prose.',
-      },
     })
 
-    expect(emptyContext.projectBriefing).toBeNull()
     expect(overriddenContext).toMatchObject({
       cardId: 'card-override',
       turnId: 'turn-override',
       sessionId: 'session-override',
       decisionTraceId: 'trace-override',
-      projectBriefing: {
-        identity: null,
-        currentPhase: null,
-        latestLandedProgress: 'The execution status was restored.',
-        primaryOpenLoop: 'Completion evidence is still missing.',
-        nextClosureTarget: 'Collect and report the execution result.',
-        sameHerSelfLine: null,
-      },
     })
   })
 })

@@ -151,7 +151,7 @@ describe('alicization humanlike memory audit store', () => {
         whyRemember: '关系连续性需要被记住。',
         confidence: 0.7,
         recallCertainty: 'steady',
-        recallReason: '这条关系连续性仍然决定了之后的 same-her repair 顺序。',
+        recallReason: '这条关系连续性仍然决定了之后的 continuity repair 顺序。',
         userCorrectableFields: ['relationshipContext'],
         revisionMemoryIds: [],
         revisionReasons: [],

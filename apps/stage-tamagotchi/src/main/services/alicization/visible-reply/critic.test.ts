@@ -52,7 +52,7 @@ describe('visible-reply-critic', () => {
   it('does not content-score or block a provider-authored reply', () => {
     const artifact = buildAlicizationVisibleReplyCriticArtifact({
       fullText: JSON.stringify({
-        reply: 'Before answering, remember: 我记得上次也是这样。',
+        reply: '我记得上次也是这样。',
       }),
       visibleReplyExecution: providerExecution as any,
       prepared: {

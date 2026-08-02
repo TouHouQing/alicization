@@ -143,7 +143,7 @@ function summarizeRendererAuthorityLaneTruth(
 
 function collectRendererAuthorityContinuitySignals(
   rendererAuthorityProjection: SelfEvolutionRendererAuthorityProjection | null | undefined,
-  signalPrefix: 'authority-' | 'lane=' | 'remaining-open=' | 'identity-continuity-frame:' | 'identity-continuity-execution:',
+  signalPrefix: 'authority-' | 'lane=' | 'remaining-open=' | 'continuity-frame:' | 'continuity-execution:',
 ) {
   if (!rendererAuthorityProjection)
     return []
@@ -181,8 +181,8 @@ export function buildSelfEvolutionRuntimeContinuityProjection(input: {
   const rendererAuthorityContinuitySignals = collectRendererAuthorityContinuitySignals(renderer, 'authority-')
   const rendererAuthorityLaneSignals = collectRendererAuthorityContinuitySignals(renderer, 'lane=')
   const rendererAuthorityRemainingOpenSignals = collectRendererAuthorityContinuitySignals(renderer, 'remaining-open=')
-  const rendererSameHerFrameSignals = collectRendererAuthorityContinuitySignals(renderer, 'identity-continuity-frame:')
-  const rendererSameHerExecutionSignals = collectRendererAuthorityContinuitySignals(renderer, 'identity-continuity-execution:')
+  const rendererContinuityFrameSignals = collectRendererAuthorityContinuitySignals(renderer, 'continuity-frame:')
+  const rendererContinuityExecutionSignals = collectRendererAuthorityContinuitySignals(renderer, 'continuity-execution:')
   const rendererRejoinSurface = formatRendererRejoinSurfaceLabel(
     renderer?.rendererRejoinSurfaceKey ?? null,
     renderer?.rendererTarget,
@@ -231,8 +231,8 @@ export function buildSelfEvolutionRuntimeContinuityProjection(input: {
     ...rendererAuthorityContinuitySignals.filter(signal => signal.endsWith(':yes')),
     ...rendererAuthorityLaneSignals,
     ...rendererAuthorityRemainingOpenSignals,
-    ...rendererSameHerFrameSignals.filter(signal => signal.endsWith(':aligned')),
-    ...rendererSameHerExecutionSignals.filter(signal => signal.endsWith(':aligned')),
+    ...rendererContinuityFrameSignals.filter(signal => signal.endsWith(':aligned')),
+    ...rendererContinuityExecutionSignals.filter(signal => signal.endsWith(':aligned')),
   ])
 
   const missingSignals = pushUnique([
@@ -252,8 +252,8 @@ export function buildSelfEvolutionRuntimeContinuityProjection(input: {
       ? `governor-drive:${governorDrive}`
       : null,
     ...rendererAuthorityContinuitySignals.filter(signal => signal.endsWith(':no')),
-    ...rendererSameHerFrameSignals.filter(signal => !signal.endsWith(':aligned')),
-    ...rendererSameHerExecutionSignals.filter(signal => !signal.endsWith(':aligned')),
+    ...rendererContinuityFrameSignals.filter(signal => !signal.endsWith(':aligned')),
+    ...rendererContinuityExecutionSignals.filter(signal => !signal.endsWith(':aligned')),
     ...(renderer?.driftingSignals ?? []).filter(signal => signal.startsWith('renderer-drift:')),
   ])
 
@@ -306,22 +306,22 @@ export function buildSelfEvolutionRuntimeContinuityProjection(input: {
         : null,
       renderer?.bodyContinuityPhase === 'full-cross-modal-lock'
         ? rendererRejoinSurface
-          ? `Body continuity and ${rendererRejoinSurface} manifestation are now locked back onto the same living segment together, so runtime continuity can explain the renderer recovery as one explicit identity-continuity embodiment line instead of a temporary visual alignment.`
-          : 'Body continuity and manifestation authority are now locked back onto the same living segment together, so runtime continuity can explain the renderer recovery as one explicit identity-continuity embodiment line instead of a temporary visual alignment.'
+          ? `Body continuity and ${rendererRejoinSurface} manifestation are now locked back onto the same living segment together, so runtime continuity can explain the renderer recovery as one explicit continuity embodiment line instead of a temporary visual alignment.`
+          : 'Body continuity and manifestation authority are now locked back onto the same living segment together, so runtime continuity can explain the renderer recovery as one explicit continuity embodiment line instead of a temporary visual alignment.'
         : null,
       renderer?.bodyContinuityPhase === 'renderer-rejoin-without-body'
         ? rendererRejoinSurface
-          ? `Renderer lanes have rejoined on ${rendererRejoinSurface} manifestation, but the body line is no longer carrying that same living segment, so runtime continuity should keep treating the visible recovery as identity-continuity drift risk rather than a completed embodiment repair.`
-          : 'Renderer lanes have rejoined on manifestation authority, but the body line is no longer carrying that same living segment, so runtime continuity should keep treating the visible recovery as identity-continuity drift risk rather than a completed embodiment repair.'
+          ? `Renderer lanes have rejoined on ${rendererRejoinSurface} manifestation, but the body line is no longer carrying that same living segment, so runtime continuity should keep treating the visible recovery as continuity drift risk rather than a completed embodiment repair.`
+          : 'Renderer lanes have rejoined on manifestation authority, but the body line is no longer carrying that same living segment, so runtime continuity should keep treating the visible recovery as continuity drift risk rather than a completed embodiment repair.'
         : null,
       rendererAuthorityLaneTruth
         ? `Renderer authority continuity still keeps ${rendererAuthorityLaneTruth} on the same life thread, so runtime continuity can explain which embodiment lane stayed bound and which one drifted without collapsing the whole digital-life thread into a fake identity break.`
         : null,
-      rendererSameHerFrameSignals.filter(signal => !signal.endsWith(':aligned')).length > 0
-        ? `Runtime continuity still carries identity-continuity frame drift signals ${rendererSameHerFrameSignals.filter(signal => !signal.endsWith(':aligned')).join(', ')}, so the current repair loop can keep the voice/lipsync mismatch attached to one digital-life thread instead of treating it as a separate renderer branch.`
+      rendererContinuityFrameSignals.filter(signal => !signal.endsWith(':aligned')).length > 0
+        ? `Runtime continuity still carries continuity frame drift signals ${rendererContinuityFrameSignals.filter(signal => !signal.endsWith(':aligned')).join(', ')}, so the current repair loop can keep the voice/lipsync mismatch attached to one digital-life thread instead of treating it as a separate renderer branch.`
         : null,
-      rendererSameHerExecutionSignals.filter(signal => !signal.endsWith(':aligned')).length > 0
-        ? `Runtime continuity still carries identity-continuity execution drift signals ${rendererSameHerExecutionSignals.filter(signal => !signal.endsWith(':aligned')).join(', ')}, so the current repair loop can keep the Live2D execution mismatch attached to one digital-life thread instead of treating it as a separate renderer branch.`
+      rendererContinuityExecutionSignals.filter(signal => !signal.endsWith(':aligned')).length > 0
+        ? `Runtime continuity still carries continuity execution drift signals ${rendererContinuityExecutionSignals.filter(signal => !signal.endsWith(':aligned')).join(', ')}, so the current repair loop can keep the Live2D execution mismatch attached to one digital-life thread instead of treating it as a separate renderer branch.`
         : null,
       prosodyAuthorityReason,
       traceEmbodimentSummary

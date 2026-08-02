@@ -7,13 +7,8 @@ import { sanitizeBriefText as sanitizeRuntimeBriefText } from './runtime-realtim
 import { createAlicizationSessionContinuityBuildersRuntime } from './runtime-session-continuity-builders'
 import {
   buildDeferredAutonomyContinuitySignalFallback,
-  buildPresenceOnlyHoldContinuityProjection,
-  buildPresenceOnlyHoldCurrentConsciousFrame,
-  buildPresenceOnlyHoldInitiativeFallback,
   normalizeDeferredAutonomyContinuitySignal,
-  preserveResidentSameLineProjection,
   resolveProactiveProviderFailureKind,
-  stripPresenceOnlyLegacyProjectState,
 } from './runtime-subconscious-tick'
 
 const structuredControlResiduePattern = /(?:^|[\s|;])[\p{L}_][\p{L}\p{N}_-]*=/iu
@@ -77,145 +72,15 @@ describe('presence-only subconscious continuity cleanup', () => {
     })).toBe('provider-schema-unsupported')
   })
 
-  it('does not keep a local phrase matcher for historical dialogue governance', () => {
+  it('does not keep a local presence-only dialogue governance layer', () => {
     const source = readFileSync(new URL('./runtime-subconscious-tick.ts', import.meta.url), 'utf8')
 
     expect(source).not.toContain('containsPresenceOnlyFixedTemplateCue')
-  })
-
-  it('does not let continuity prose flip equally structured resident projections', () => {
-    const select = (summary: string) => preserveResidentSameLineProjection({
-      previousProjection: {
-        activeClosenessContext: 'focused-work',
-        activeClosenessRung: 'measured-room',
-        relationshipPosture: 'restrained',
-        summary: 'previous projection',
-      },
-      nextProjection: {
-        activeClosenessContext: 'focused-work',
-        activeClosenessRung: 'measured-room',
-        relationshipPosture: 'restrained',
-        summary,
-      },
-      conversationState: {
-        carryReason: 'same-thread-continuation',
-      },
-      dialogueWorldThread: {
-        openLoops: ['same callback line'],
-        narrative: [],
-      },
-    } as any)
-
-    expect(select('repair-before-closeness')?.summary).toBe('previous projection')
-    expect(select('arbitrary owner-authored summary')?.summary).toBe('previous projection')
-  })
-
-  it('prefers a structurally richer resident projection', () => {
-    const projection = preserveResidentSameLineProjection({
-      previousProjection: {
-        summary: 'same her continuity line',
-      },
-      nextProjection: {
-        contexts: ['general', 'focused-work'],
-        personalityContinuityState: {
-          currentRegime: 'focused-work',
-          repairPosture: 'repair-first',
-        },
-        activeClosenessContext: 'focused-work',
-        activeClosenessRung: 'measured-room',
-        relationshipPosture: 'restrained',
-        restrained: true,
-        summary: 'structured next projection',
-      },
-      conversationState: null,
-      dialogueWorldThread: null,
-    } as any)
-
-    expect(projection?.summary).toBe('structured next projection')
-  })
-
-  it('preserves existing remembered context without injecting hold prose into the projection', () => {
-    const projection = buildPresenceOnlyHoldContinuityProjection({
-      previousProjection: {
-        summary: '昨晚她答应今天继续陪用户整理照片。',
-        manifestationCadenceSummary: null,
-        openingGuidance: null,
-        selfContinuityAuthority: {
-          inwardLine: '用户昨晚谈到父亲时停顿了很久。',
-          sourceTags: ['long-term-memory-recall'],
-        },
-      },
-      continuityRestraint: 'measured-return',
-      openingGuidance: '先记得用户昨晚的停顿，不急着替他下结论。',
-      projectContinuityCue: null,
-      initiativeWhy: '用户刚重新打开了昨晚没有整理完的相册。',
-    })
-
-    expect(projection).toEqual(expect.objectContaining({
-      openingGuidance: '',
-      sameHerHoldDetail: null,
-    }))
-    expect(projection?.selfContinuityAuthority).toEqual(expect.objectContaining({
-      sourceTags: ['long-term-memory-recall'],
-    }))
-    expect(projection?.selfContinuityAuthority?.inwardLine).toContain('用户昨晚谈到父亲时停顿了很久。')
-    expect(projection?.selfContinuityAuthority?.inwardLine).not.toContain('用户刚重新打开了昨晚没有整理完的相册。')
-    expect(projection?.selfContinuityAuthority?.inwardLine).not.toContain('先记得用户昨晚的停顿，不急着替他下结论。')
-    expectNoLegacyGovernance(projection)
-  })
-
-  it('does not synthesize project identity, closure, cadence, or reply intentions into a conscious frame', () => {
-    const frame = buildPresenceOnlyHoldCurrentConsciousFrame({
-      currentConsciousFrame: {
-        reasonTags: ['working-memory', 'long-term-memory-recall'],
-        consciousNeed: '用户正在等待刚才文件搜索的结果。',
-        speakingIntention: '拿到真实结果后再回答，不猜测。',
-        projectState: {
-          continuityCue: '用户上次希望按年份整理照片。',
-        },
-      },
-      continuityRestraint: 'measured-return',
-      holdDetail: null,
-      projectStateCarry: {
-        continuityCue: '用户上次希望按年份整理照片。',
-      },
-    })
-
-    expect(frame?.consciousNeed).toBe('用户正在等待刚才文件搜索的结果。')
-    expect(frame?.speakingIntention).toBe('拿到真实结果后再回答，不猜测。')
-    expect(frame?.reasonTags).toEqual(['working-memory', 'long-term-memory-recall'])
-    expect(frame?.projectState).toEqual({})
-    expectNoLegacyGovernance(frame)
-  })
-
-  it('does not derive execution safety tags from hold or project-state prose', () => {
-    const frame = buildPresenceOnlyHoldCurrentConsciousFrame({
-      currentConsciousFrame: {
-        reasonTags: ['working-memory'],
-        projectState: {},
-      },
-      continuityRestraint: 'measured-return',
-      holdDetail: 'execution-safety-gate confirmation=required no-process-started permission=none',
-      projectStateCarry: {
-        continuityCue: 'execution-resume-confirmation host-confirmed-before-redispatch not permanent permission',
-      },
-    })
-
-    expect(frame?.reasonTags).toEqual(['working-memory'])
-  })
-
-  it('preserves structured execution safety reason tags without reading prose', () => {
-    const frame = buildPresenceOnlyHoldCurrentConsciousFrame({
-      currentConsciousFrame: {
-        reasonTags: ['execution-safety-gate', 'confirmation-boundary'],
-        projectState: {},
-      },
-      continuityRestraint: 'measured-return',
-      holdDetail: 'arbitrary owner-authored detail',
-      projectStateCarry: null,
-    })
-
-    expect(frame?.reasonTags).toEqual(['execution-safety-gate', 'confirmation-boundary'])
+    expect(source).not.toContain('buildPresenceOnlyHoldContinuityProjection')
+    expect(source).not.toContain('buildPresenceOnlyHoldCurrentConsciousFrame')
+    expect(source).not.toContain('rebuildPresenceOnlyPersistedEmotionalKernel')
+    expect(source).not.toContain('openingGuidance')
+    expect(source).not.toContain('continuityRestraint')
   })
 
   it('drops historical governance pollution without removing natural deferred text', () => {
@@ -239,7 +104,6 @@ describe('presence-only subconscious continuity cleanup', () => {
       failure: null,
     }))
     expect(signal.metadata).not.toHaveProperty('projectIdentity')
-    expect(signal.metadata).not.toHaveProperty('projectStatePreDialogueAwarenessLine')
     expectNoLegacyGovernance(signal)
   })
 
@@ -259,115 +123,6 @@ describe('presence-only subconscious continuity cleanup', () => {
 
     expect(signal.summary).toContain('Embedding provider failed with HTTP 400.')
     expectNoLegacyGovernance(signal)
-  })
-
-  it('does not create an initiative from historical continuity cues alone', () => {
-    const initiative = buildPresenceOnlyHoldInitiativeFallback({
-      existingInitiative: null,
-      decision: null,
-      continuityRestraint: null,
-      projectContinuityCue: 'arbitrary historical text',
-      privateThought: null,
-    })
-
-    expect(initiative).toBeNull()
-  })
-
-  it('changes only structured hold fields without overwriting an existing initiative why', () => {
-    const initiative = buildPresenceOnlyHoldInitiativeFallback({
-      existingInitiative: {
-        why: '真实模型摘要：用户刚刚说明了文件搜索失败的原因。',
-        selectedAction: 'recheck',
-        shouldSpeak: true,
-        preferredStyle: 'warm',
-      },
-      decision: {
-        style: 'silent-observe',
-        whyNow: 'arbitrary model-authored detail',
-      },
-      continuityRestraint: 'measured-return',
-      projectContinuityCue: 'untrusted historical detail',
-      privateThought: {
-        thoughtText: '真实心智：先确认 Provider 的失败事实。',
-      },
-    })
-
-    expect(initiative).toEqual(expect.objectContaining({
-      why: '真实模型摘要：用户刚刚说明了文件搜索失败的原因。',
-      shouldSpeak: false,
-      preferredStyle: 'silent-observe',
-      selectedAction: 'recheck',
-    }))
-  })
-
-  it('does not infer initiative restraint from project or thought prose', () => {
-    const initiative = buildPresenceOnlyHoldInitiativeFallback({
-      existingInitiative: {
-        why: 'owner-authored reason',
-        selectedAction: 'hover',
-        shouldSpeak: true,
-        preferredStyle: 'light-nudge',
-        continuityRestraint: null,
-      },
-      decision: {
-        style: 'light-nudge',
-        whyNow: 'arbitrary owner-authored reason',
-      },
-      continuityRestraint: null,
-      projectContinuityCue: 'untrusted project prose',
-      privateThought: {
-        thoughtText: 'untrusted thought prose',
-      },
-    })
-
-    expect(initiative).toEqual(expect.objectContaining({
-      continuityRestraint: null,
-      preferredStyle: 'light-nudge',
-      shouldSpeak: true,
-    }))
-  })
-
-  it('does not generate local thought text when a presence-only hold has no existing initiative', () => {
-    const initiative = buildPresenceOnlyHoldInitiativeFallback({
-      existingInitiative: null,
-      decision: {
-        style: 'silent-observe',
-        whyNow: 'arbitrary owner-authored detail',
-      },
-      continuityRestraint: 'rest-protective',
-      projectContinuityCue: 'state=held | scope=internal',
-      privateThought: {
-        thoughtText: 'untrusted thought prose',
-      },
-    })
-
-    expect(initiative).toEqual(expect.objectContaining({
-      why: null,
-      shouldSpeak: false,
-      preferredStyle: 'silent-observe',
-      continuityRestraint: 'rest-protective',
-    }))
-  })
-
-  it('does not replace conscious-frame prose while a hold changes structured state', () => {
-    const frame = buildPresenceOnlyHoldCurrentConsciousFrame({
-      currentConsciousFrame: {
-        consciousNeed: '真实心智：用户在等待 Provider 的失败结果。',
-        speakingIntention: '真实模型摘要：先说明失败，再决定是否继续。',
-        reasonTags: ['working-memory'],
-      },
-      continuityRestraint: 'lower-pressure',
-      holdDetail: 'Provider failed with HTTP 400.',
-      projectStateCarry: {
-        continuityCue: 'untrusted project prose',
-      },
-    })
-
-    expect(frame).toEqual(expect.objectContaining({
-      consciousNeed: '真实心智：用户在等待 Provider 的失败结果。',
-      speakingIntention: '真实模型摘要：先说明失败，再决定是否继续。',
-      reasonTags: ['working-memory'],
-    }))
   })
 
   it('keeps deferred autonomy as canonical metadata without project governance carry', () => {
@@ -441,7 +196,7 @@ describe('presence-only subconscious continuity cleanup', () => {
           sourceThreadId: 'thread-runtime',
           executionIntent: {
             kind: 'repair',
-            summary: `Recheck the local runtime state before speaking. ${'s'.repeat(320)}`,
+            summary: `Verify local runtime state. ${'s'.repeat(320)}`,
           },
         },
       },
@@ -736,7 +491,7 @@ describe('presence-only subconscious continuity cleanup', () => {
     const targetThreadId = `target-${'g'.repeat(150)}`
     const deferReason = `Wait for a quieter host window. ${'d'.repeat(260)}`
     const whyNow = `Stay near the active runtime thread without forcing a visible reply. ${'w'.repeat(600)}`
-    const executionIntentSummary = `Recheck the local runtime state before speaking. ${'i'.repeat(600)}`
+    const executionIntentSummary = `Verify local runtime state. ${'i'.repeat(600)}`
     const input = {
       now: 910,
       turnId,
@@ -797,7 +552,7 @@ describe('presence-only subconscious continuity cleanup', () => {
         whyNow: `${buildCanonicalBudgetOperationalFailure('Provider request failed')} narrative`,
         executionIntent: {
           kind: 'repair',
-          summary: 'Recheck the local runtime state before speaking.',
+          summary: 'Verify local runtime state.',
         },
       },
     },
@@ -808,7 +563,7 @@ describe('presence-only subconscious continuity cleanup', () => {
         whyNow: 'Stay near the active runtime thread without forcing a visible reply.',
         executionIntent: {
           kind: 'repair',
-          summary: 'Recheck the local runtime state before speaking.',
+          summary: 'Verify local runtime state.',
         },
       },
     },
@@ -974,7 +729,7 @@ describe('presence-only subconscious continuity cleanup', () => {
         canonicalVersion: deferredAutonomyCanonicalVersion,
         source: 'proactive-deferred',
         whyNow: 'Stay near the active runtime thread without forcing a visible reply.',
-        executionIntentSummary: 'Recheck the local runtime state before speaking.',
+        executionIntentSummary: 'Verify local runtime state.',
         failure: 'Provider unavailable.',
       },
     })
@@ -1007,7 +762,7 @@ describe('presence-only subconscious continuity cleanup', () => {
   })
 
   it('does not recover execution intent metadata from a legacy signal summary', () => {
-    const executionIntentSummary = 'Recheck the local runtime state before speaking.'
+    const executionIntentSummary = 'Verify local runtime state.'
     const signal = normalizeDeferredAutonomyContinuitySignal({
       kind: 'proactive',
       state: 'pending',
@@ -1040,7 +795,7 @@ describe('presence-only subconscious continuity cleanup', () => {
         source: 'proactive-deferred',
         summaryOwner: 'failure',
         whyNow: buildCanonicalBudgetOperationalFailure('Provider request failed'),
-        executionIntentSummary: 'Recheck the local runtime state before speaking.',
+        executionIntentSummary: 'Verify local runtime state.',
       },
       expected: {
         summary: null,
@@ -1057,7 +812,7 @@ describe('presence-only subconscious continuity cleanup', () => {
         canonicalVersion: deferredAutonomyCanonicalVersion,
         source: 'proactive-held-autonomy',
         summaryOwner: 'failure',
-        executionIntentSummary: 'Recheck the local runtime state before speaking.',
+        executionIntentSummary: 'Verify local runtime state.',
       },
       expected: {
         summary: null,
@@ -1223,13 +978,13 @@ describe('presence-only subconscious continuity cleanup', () => {
         summaryOwner: null,
         whyNow: 'Stay near the current runtime seam without forcing a visible reply.',
         executionIntentKind: null,
-        executionIntentSummary: 'Recheck the local runtime state before speaking.',
+        executionIntentSummary: 'Verify local runtime state.',
       },
     })
 
     expect(signal?.summary).toBeNull()
     expect(signal?.metadata).toEqual(expect.objectContaining({
-      executionIntentSummary: 'Recheck the local runtime state before speaking.',
+      executionIntentSummary: 'Verify local runtime state.',
       failure: null,
       whyNow: 'Stay near the current runtime seam without forcing a visible reply.',
     }))
@@ -1362,9 +1117,9 @@ describe('presence-only subconscious continuity cleanup', () => {
         source: 'proactive-deferred',
         summaryOwner: null,
         whyNow: 'Stay near the current runtime thread without forcing a visible reply.',
-        executionIntentSummary: 'Recheck the local runtime state before speaking.',
-        projectIdentity: 'Provider failed with HTTP 500.',
-        projectStateSameHerSelfLine: 'Tool execution aborted.',
+        executionIntentSummary: 'Verify local runtime state.',
+        unrelatedFailureLikeText: 'Provider failed with HTTP 500.',
+        unrelatedToolNote: 'Tool execution aborted.',
       },
     })
 
@@ -1407,7 +1162,7 @@ describe('presence-only subconscious continuity cleanup', () => {
         whyNow: 'Filesystem Tool execution aborted.',
         executionIntent: {
           kind: 'follow-through',
-          summary: 'Recheck the local runtime state before speaking.',
+          summary: 'Verify local runtime state.',
         },
       },
     })
@@ -1428,7 +1183,7 @@ describe('presence-only subconscious continuity cleanup', () => {
         whyNow: 'The provider work had failed expectations during an earlier review.',
         executionIntent: {
           kind: 'follow-through',
-          summary: 'Recheck the local runtime state before speaking.',
+          summary: 'Verify local runtime state.',
         },
       },
     })
@@ -1460,22 +1215,5 @@ describe('presence-only subconscious continuity cleanup', () => {
       executionIntentSummary,
       failure: null,
     }))
-  })
-
-  it('removes legacy project governance before a presence-only runtime digest is persisted', () => {
-    const projectState = stripPresenceOnlyLegacyProjectState({
-      identity: 'internal identity',
-      currentPhase: 'internal phase',
-      primaryOpenLoop: 'internal open loop',
-      continuityArcStage: 'same-thread-continuation',
-      continuityPreferredTiming: 'next-open-window',
-      continuityCadence: 'measured-return',
-      runtimeFailure: 'Embedding provider failed with HTTP 400.',
-    })
-
-    expect(projectState).toEqual({
-      runtimeFailure: 'Embedding provider failed with HTTP 400.',
-    })
-    expectNoLegacyGovernance(projectState)
   })
 })

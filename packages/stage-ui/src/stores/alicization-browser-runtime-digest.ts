@@ -69,6 +69,13 @@ function inferBrowserDigestScenario(snapshot: AlicizationSensoryCacheSnapshot, r
   return 'general' as const
 }
 
+function shouldKeepRecollectionInward(input: AlicizationOrganicMemorySnapshot) {
+  const speechPlan = input.recollectionSpeechPlan ?? null
+  return speechPlan?.shouldSurface === false
+    || speechPlan?.surfaceMode === 'internal-only'
+    || speechPlan?.placement === 'internal-only'
+}
+
 export function buildBrowserFallbackDigitalLifeSpineDigest(input: {
   now: () => number
   organicMemorySnapshot: AlicizationOrganicMemorySnapshot
@@ -77,6 +84,7 @@ export function buildBrowserFallbackDigitalLifeSpineDigest(input: {
   proactiveFeedback: BrowserProactiveFeedbackSummary
 }) {
   const recollection = input.organicMemorySnapshot.recollectionForeground ?? null
+  const recollectionInwardOnly = shouldKeepRecollectionInward(input.organicMemorySnapshot)
   const scenario = inferBrowserDigestScenario(input.snapshot, recollection)
   const watchMode = recollection ? 'symbiotic-vision' as const : 'mnemonic-passive' as const
   const sessionThreadSummary = input.sessionContinuity.threadSummary
@@ -85,7 +93,7 @@ export function buildBrowserFallbackDigitalLifeSpineDigest(input: {
     || sessionThreadSummary
     || input.snapshot.sample.foregroundWindow?.title
     || input.snapshot.sample.foregroundWindow?.appName
-    || 'browser fallback continuity',
+    || '',
     180,
   )
   const threadTitle = sanitizeBriefText(
@@ -94,13 +102,13 @@ export function buildBrowserFallbackDigitalLifeSpineDigest(input: {
     || input.organicMemorySnapshot.memoryConsolidations?.[0]?.summary
     || input.organicMemorySnapshot.recentEpisodicEvents?.[0]?.threadAnchor
     || input.snapshot.sample.foregroundWindow?.title
-    || 'browser fallback continuity',
+    || '',
     180,
   )
-  const preferredStyle = recollection?.surfaceSummary?.includes('surface=inward') || input.proactiveFeedback.shouldSuppressSpeak
+  const preferredStyle = recollectionInwardOnly || input.proactiveFeedback.shouldSuppressSpeak
     ? 'silent-observe'
     : 'light-nudge'
-  const shouldSpeak = !recollection?.surfaceSummary?.includes('surface=inward')
+  const shouldSpeak = !recollectionInwardOnly
     && !input.proactiveFeedback.shouldSuppressSpeak
 
   return normalizeAlicizationDigitalLifeSpineDigest({
@@ -123,9 +131,7 @@ export function buildBrowserFallbackDigitalLifeSpineDigest(input: {
       dominantSystem: recollection ? 'memory' : 'perception',
       supportingSystems: recollection ? ['perception', 'dialogue'] : ['memory'],
       governingFocus: sceneSummary,
-      summary: recollection
-        ? `Remembering mode with memory as the dominant system. Focus: ${sceneSummary}.`
-        : `Observing mode with perception as the dominant system. Focus: ${sceneSummary}.`,
+      summary: sceneSummary,
     },
     continuitySignal: {
       label: 'digital-life-line',
@@ -214,7 +220,7 @@ export function buildBrowserFallbackRuntimeDigest(input: {
   proactiveFeedback: BrowserProactiveFeedbackSummary
 }) {
   const recollection = input.organicMemorySnapshot.recollectionForeground ?? null
-  const internalOnly = recollection?.surfaceSummary?.includes('surface=inward') ?? false
+  const internalOnly = shouldKeepRecollectionInward(input.organicMemorySnapshot)
   const continuityAnchor = input.sessionContinuity.continuityAnchor
   const memoryReadiness = clamp01(
     (recollection ? (internalOnly ? 0.36 : 0.5) + recollection.confidence * 0.22 : 0.12)

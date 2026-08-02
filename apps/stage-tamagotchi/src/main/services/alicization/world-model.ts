@@ -398,22 +398,22 @@ function buildEpistemicState(input: {
     input.watchMode ? `watch-mode:${input.watchMode}` : '',
   ])
   const openQuestions = dedupeTexts([
-    certainty === 'lingering' ? '她还没重新看见这条线程，只是在沿着刚才的连续性跟着它。' : '',
-    certainty === 'uncertain' ? '前台世界还没有稳定成可确认的场景。' : '',
+    certainty === 'lingering' ? 'world-question:thread-not-regrounded' : '',
+    certainty === 'uncertain' ? 'world-question:foreground-uncertain' : '',
     input.attention?.source === 'old-anchor' || input.attention?.source === 'recent-observation'
-      ? '她还在确认当前焦点是不是上一段残留。'
+      ? 'world-question:attention-may-be-stale'
       : '',
     input.scene?.source === 'foreground-window-heuristic' && input.context.content.kind === 'unknown'
-      ? '窗口级线索只能说明表层上下文，还没到内容级理解。'
+      ? 'world-question:window-only-evidence'
       : '',
     input.currentThread?.kind === 'debugging' && (certainty === 'lingering' || certainty === 'uncertain')
-      ? '她还没有直接看见报错正文。'
+      ? 'world-question:error-body-unseen'
       : '',
   ])
   const staleRisks = dedupeTexts([
-    certainty === 'lingering' ? '当前判断带着上一段画面的残影。' : '',
+    certainty === 'lingering' ? 'world-risk:continuity-afterimage' : '',
     input.scene?.source === 'foreground-window-heuristic'
-      ? '当前只拿到了窗口级线索，还没有稳定内容级 grounding。'
+      ? 'world-risk:window-only-grounding'
       : '',
     (
       input.previousModel?.activeThread
@@ -421,7 +421,7 @@ function buildEpistemicState(input: {
       && input.previousModel.activeThread.id !== input.currentThread.id
       && certainty !== 'grounded'
     )
-      ? '旧线程可能污染这次理解。'
+      ? 'world-risk:thread-contamination'
       : '',
     (
       input.previousModel?.activeThread
@@ -429,7 +429,7 @@ function buildEpistemicState(input: {
       && input.previousModel.activeThread.id !== input.currentThread.id
       && input.currentThread.source === 'grounded-scene'
     )
-      ? '刚出现了新的 grounded scene，旧线程只能退回记忆层。'
+      ? 'world-risk:previous-thread-demoted'
       : '',
   ])
 

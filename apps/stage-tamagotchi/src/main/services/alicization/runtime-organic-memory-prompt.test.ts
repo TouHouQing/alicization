@@ -11,8 +11,6 @@ import {
 
 type OrganicMemoryPromptRuntimeOptionsFixture = {
   [Key in keyof CreateAlicizationOrganicMemoryPromptRuntimeOptions]?: any
-} & {
-  projectStateBrief?: Record<string, unknown> | null
 }
 
 const normalizeOrganicRecallText: CreateAlicizationOrganicMemoryPromptRuntimeOptions['normalizeOrganicRecallText']
@@ -40,45 +38,6 @@ function readOrganicMemoryProviderFact<T = Record<string, any>>(blocks: string[]
 }
 
 describe('runtime-organic-memory-prompt', () => {
-  it('does not inject project-state brief fields into organic memory context', async () => {
-    const runtime = createAlicizationOrganicMemoryPromptRuntime({
-      normalizeOrganicRecallText,
-      selectPromptActiveThoughts,
-      projectStateBrief: {
-        preflightSummary: 'memory owners are configured',
-        preDialogueAwarenessLine: 'continue the current project closure',
-        latestProgress: 'memory loop connected',
-        primaryOpenLoop: 'scale validation remains',
-        nextClosureTarget: 'continue validation',
-      },
-      getOrganicMemorySnapshot: async () => ({
-        hostAttitude: 'focused',
-        coreIncarnation: '',
-        activeThoughts: [],
-      }),
-      getLatestRelationshipDynamics: async () => null,
-      retrieveMemoryFacts: async () => [],
-      recallSubconsciousFragmentsWithGovernor: async () => [],
-      recallEpisodicEventsWithGovernor: async () => [],
-      buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
-      recallMemoryConsolidations: async () => [],
-      planRecollectionIntent: async () => null,
-      planMemoryRecollection: async () => null,
-      planRecollectionSpeech: async () => null,
-      planMemoryDeliberation: async () => null,
-      isPersonaResidueMemoryText: () => false,
-    })
-
-    const context = await runtime.resolveOrganicMemoryPromptContext({
-      recallSeed: '继续',
-    })
-
-    expect(context.projectStatePreflightSummary).toBeNull()
-    expect(context.projectStatePreDialogueAwarenessLine).toBeNull()
-    expect(context.projectStateContinuity).toBeNull()
-  })
-
   it('keeps working-memory active thoughts when long-term recall uses a different seed', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
@@ -177,54 +136,10 @@ describe('runtime-organic-memory-prompt', () => {
       })
 
     const neutralCarry = resolveCarry('Report the real command result.')
-    const legacyProseCarry = resolveCarry('same-her-drift-risk generic assistant task-shell')
+    const legacyProseCarry = resolveCarry('continuity-drift-risk generic assistant task-shell')
 
     expect(legacyProseCarry?.carryMode).toBe(neutralCarry?.carryMode)
     expect(legacyProseCarry?.carryMode).toBe('execution-callback')
-  })
-
-  it('does not promote recall-governor project anchors into organic memory state', async () => {
-    const runtime = createAlicizationOrganicMemoryPromptRuntime({
-      normalizeOrganicRecallText,
-      selectPromptActiveThoughts,
-      getOrganicMemorySnapshot: async () => ({
-        hostAttitude: 'focused',
-        coreIncarnation: '',
-        activeThoughts: [],
-      }),
-      getLatestRelationshipDynamics: async () => null,
-      retrieveMemoryFacts: async () => [],
-      recallSubconsciousFragmentsWithGovernor: async () => [],
-      recallEpisodicEventsWithGovernor: async () => [],
-      buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
-      recallMemoryConsolidations: async () => [],
-      planRecollectionIntent: async () => null,
-      planMemoryRecollection: async () => null,
-      planRecollectionSpeech: async () => null,
-      planMemoryDeliberation: async () => null,
-      isPersonaResidueMemoryText: () => false,
-    })
-
-    const context = await runtime.resolveOrganicMemoryPromptContext({
-      recallSeed: '继续',
-      recallGovernor: {
-        narrative: [
-          'project-preflight:project:synthetic project state | already landed | still-open closure',
-          'project-emotion:synthetic relationship rule',
-        ],
-      } as any,
-    })
-
-    expect({
-      projectStatePreflightSummary: context.projectStatePreflightSummary,
-      projectStatePreDialogueAwarenessLine: context.projectStatePreDialogueAwarenessLine,
-      projectStateContinuity: context.projectStateContinuity,
-    }).toEqual({
-      projectStatePreflightSummary: null,
-      projectStatePreDialogueAwarenessLine: null,
-      projectStateContinuity: null,
-    })
   })
 
   it('keeps benchmark ranking invariant when only focus dimensions change', () => {
@@ -392,11 +307,7 @@ describe('runtime-organic-memory-prompt', () => {
       },
       dialogue: {
         currentConsciousFrame: {
-          projectState: {
-            identity: 'Alicization desktop runtime.',
-            currentPhase: 'local runtime development',
-            primaryOpenLoop: 'Validate the active memory path.',
-          },
+          focusAnchor: 'Validate the active memory path.',
         },
       },
     } as any
@@ -493,7 +404,7 @@ describe('runtime-organic-memory-prompt', () => {
     expect(planMemoryDeliberation.mock.calls[0]?.[0]?.digitalLifeRuntimeSurface).toBe(runtimeSurface)
   })
 
-  it('keeps ordinary greeting prompt preparation from awaiting provider-side recollection planners', async () => {
+  it('keeps ordinary greetings on the same provider-side recollection planning path', async () => {
     const planMemoryRecollection = vi.fn(async () => ({
       selectedConsolidationIds: [],
       selectedWindowIds: [],
@@ -561,9 +472,9 @@ describe('runtime-organic-memory-prompt', () => {
       recallGovernor: null,
     })
 
-    expect(planMemoryRecollection).not.toHaveBeenCalled()
-    expect(planRecollectionSpeech).not.toHaveBeenCalled()
-    expect(planMemoryDeliberation).not.toHaveBeenCalled()
+    expect(planMemoryRecollection).toHaveBeenCalledOnce()
+    expect(planRecollectionSpeech).toHaveBeenCalledOnce()
+    expect(planMemoryDeliberation).toHaveBeenCalledOnce()
     expect(context.recollectionIntent).toEqual(expect.objectContaining({
       mode: 'relationship-history',
     }))
@@ -589,14 +500,14 @@ describe('runtime-organic-memory-prompt', () => {
         updatedAt: Date.UTC(2026, 5, 1, 11, 0, 0),
         sourceReportAt: Date.UTC(2026, 5, 1, 10, 55, 0),
         focusDimensions: [
-          'runtimeSameHerRepairTargets',
+          'runtimeContinuityRepairTargets',
           'runtimeMemoryClosureLongRun',
           'runtimeMemoryClosureCausalIdentity',
           'runtimeMemoryClosureLaneCarry',
           'runtimeMemoryClosureIdentityContinuity',
-          'runtimeSameHerInitiativeExecutionCausality',
-          'runtimeSameHerEmotionalCausality',
-          'runtimeSameHerEmbodimentCausality',
+          'runtimeContinuityInitiativeExecutionCausality',
+          'runtimeContinuityEmotionalCausality',
+          'runtimeContinuityEmbodimentCausality',
         ],
         retrievalAdjustments: {
           proceduralBoost: 0,
@@ -674,14 +585,14 @@ describe('runtime-organic-memory-prompt', () => {
         updatedAt: Date.UTC(2026, 5, 1, 11, 0, 0),
         sourceReportAt: Date.UTC(2026, 5, 1, 10, 55, 0),
         focusDimensions: [
-          'runtimeSameHerRepairTargets',
+          'runtimeContinuityRepairTargets',
           'runtimeMemoryClosureLongRun',
           'runtimeMemoryClosureCausalIdentity',
           'runtimeMemoryClosureLaneCarry',
           'runtimeMemoryClosureIdentityContinuity',
-          'runtimeSameHerInitiativeExecutionCausality',
-          'runtimeSameHerEmotionalCausality',
-          'runtimeSameHerEmbodimentCausality',
+          'runtimeContinuityInitiativeExecutionCausality',
+          'runtimeContinuityEmotionalCausality',
+          'runtimeContinuityEmbodimentCausality',
         ],
         retrievalAdjustments: {
           proceduralBoost: 0,
@@ -1275,9 +1186,6 @@ describe('runtime-organic-memory-prompt', () => {
         'proactive-opening after payoff',
       ]),
     }))
-    expect(context.personStateProjection?.manifestationCadenceSummary ?? '').not.toMatch(
-      /same-body cadence|measured-return/iu,
-    )
     expect(artifact.memoryClosureTrace.whySurface.map(item => item.source)).not.toContain('embodiment-cadence')
     expect(JSON.stringify(artifact.memoryClosureTrace)).not.toMatch(
       /same-body cadence|execution_callback_return=|measured-return with softened gaze/iu,
@@ -3548,6 +3456,14 @@ describe('runtime-organic-memory-prompt', () => {
       'prompt-blocks',
     ]))
     expect(stageLatencies.every(item => item.latencyMs >= 0)).toBe(true)
+    expect(context.memoryStageReplay?.stages.map(stage => stage.summary)).toEqual([
+      'memory-stage:search-prelude',
+      'memory-stage:candidate-generation',
+      'memory-stage:candidate-ranking',
+      'memory-stage:recollection-planning',
+      'memory-stage:surface-planning',
+      'memory-stage:self-evolution-integration',
+    ])
     expect(context.memoryResolutionLedger).toEqual(expect.objectContaining({
       version: 'memory-resolution-ledger-v1',
       finalSurfacePolicy: null,

@@ -1,5 +1,3 @@
-import type { Message } from '@xsai/shared-chat'
-
 import type { AlicizationSystemProbeSample } from '../../../shared/eventa'
 import type { AlicizationPerceptionSceneResidue, AlicizationPerceptionState } from './attention-anchor'
 import type { AlicizationProactivePerceptionSignals } from './proactive-policy'
@@ -11,7 +9,6 @@ import {
   extractInspectionHintTerms,
   getActiveAttentionAnchor,
   getActivePerceptionSceneResidue,
-  isInternalAlicizationRepairPrompt,
   isSelfPerceptionTarget,
 } from './attention-anchor'
 import { inferForegroundWorkloadFromWindow } from './proactive-layered-context'
@@ -41,7 +38,7 @@ export function formatObservationAge(now: number, observedAt: number) {
 
 export function isGenericScreenInspectionRequest(userText: string) {
   const normalized = userText.trim()
-  if (!normalized || isInternalAlicizationRepairPrompt(normalized))
+  if (!normalized)
     return false
 
   const mentionsScreen = /屏幕|桌面|工作区|workspace|desktop|界面|画面|screen|display/i.test(normalized)
@@ -305,43 +302,6 @@ export function resolveInspectionGroundingContinuity(input: {
   }
 }
 
-export function compactMindGovernedChatMessages(input: {
-  messages: Message[]
-  keepRecentUserTurns: number
-}) {
-  const safeKeepTurns = Math.max(1, Math.floor(input.keepRecentUserTurns))
-  const systemMessages = input.messages.filter(message => message.role === 'system')
-  const dialogueMessages = input.messages.filter(message => message.role !== 'system')
-  if (dialogueMessages.length === 0) {
-    return {
-      messages: input.messages,
-      beforeCount: input.messages.length,
-      afterCount: input.messages.length,
-    }
-  }
-
-  let userTurnsSeen = 0
-  let cutoffIndex = 0
-  for (let index = dialogueMessages.length - 1; index >= 0; index -= 1) {
-    if (dialogueMessages[index]?.role === 'user')
-      userTurnsSeen += 1
-    cutoffIndex = index
-    if (userTurnsSeen >= safeKeepTurns)
-      break
-  }
-
-  const compactedMessages = [
-    ...systemMessages,
-    ...dialogueMessages.slice(cutoffIndex),
-  ]
-
-  return {
-    messages: compactedMessages,
-    beforeCount: input.messages.length,
-    afterCount: compactedMessages.length,
-  }
-}
-
 export function buildInspectionSceneResidue(input: {
   now: number
   userText: string
@@ -450,17 +410,16 @@ export function buildPerceptionContinuityLines(input: {
   const anchor = suppressWeakGenericBrowserAnchor ? null : rawAnchor
   const lines = [
     suppressWeakGenericBrowserAnchor
-      ? 'Attention anchor: suppressed weak generic browser metadata.'
-      : `Attention anchor: ${describePerceptionTarget(anchor)}.`,
-    `Invited inspection active: ${input.state.invitedInspection && input.state.invitedInspection.activeUntil > input.now ? 'yes' : 'no'}.`,
+      ? 'attention_anchor=suppressed:weak-generic-browser'
+      : `attention_anchor=${describePerceptionTarget(anchor)}`,
+    `invited_inspection_active=${input.state.invitedInspection && input.state.invitedInspection.activeUntil > input.now ? 'true' : 'false'}`,
   ]
   const recentObservations = input.state.recentObservations
     .filter(observation => !input.suppressWeakGenericBrowserAnchor || !isWeakGenericBrowserPerceptionTarget(observation))
     .slice(-(input.maxItems ?? 3))
   if (recentObservations.length > 0) {
     lines.push(
-      'Recent observations:',
-      ...recentObservations.map(observation => `- ${formatObservationAge(input.now, observation.observedAt)} | ${describePerceptionTarget(observation)} | workload=${observation.workloadKind}`),
+      ...recentObservations.map((observation, index) => `recent_observation_${index + 1}=${formatObservationAge(input.now, observation.observedAt)} | ${describePerceptionTarget(observation)} | workload=${observation.workloadKind}`),
     )
   }
   const sceneResidue = getUsablePerceptionSceneResidue({
@@ -469,7 +428,7 @@ export function buildPerceptionContinuityLines(input: {
   })
   if (sceneResidue) {
     lines.push(
-      `Scene residue: ${describeSceneResidue(input.now, sceneResidue)}.`,
+      `scene_residue=${describeSceneResidue(input.now, sceneResidue)}`,
     )
   }
   return lines
@@ -676,17 +635,4 @@ export function resolveForegroundDecisionTarget(input: {
   }
 
   return usableSnapshot ?? usableProbe ?? (input.allowAttentionAnchorFallback ? usableAnchor ?? undefined : undefined)
-}
-
-export function buildProactivePerceptionSystemBlock(input: {
-  now: number
-  state: AlicizationPerceptionState
-}) {
-  const lines = [
-    '[ALICIZATION_PERCEPTION_CONTINUITY]',
-    'This is Alicization short-lived perceptual continuity, not a user claim.',
-    ...buildPerceptionContinuityLines(input),
-    'When wording a proactive utterance, let this continuity influence timing and relevance, but do not invent certainty beyond what these observations support.',
-  ]
-  return lines.join('\n')
 }

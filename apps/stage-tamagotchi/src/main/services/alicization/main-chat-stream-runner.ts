@@ -82,7 +82,6 @@ export interface AlicizationMainChatStreamRunnerResult {
   failureSurface: null
   visibleReplyExecution: AlicizationVisibleReplyExecution
   visibleReplyRealization: AlicizationVisibleReplyRealizationArtifact
-  visibleReplyProjectStateAudit?: Record<string, unknown> | null
 }
 
 export interface AlicizationMainChatStreamMetaController {
@@ -190,8 +189,6 @@ function buildObservedVisibleReplyRealization(input: {
     visibleReplyValidationStatus: 'approved',
     nonHumanAuthoredStatus: null,
     blockedReasons: [],
-    emotionalClosureAudit: null,
-    selfAuthorityAudit: null,
     reason: input.visibleReplyExecution.reason,
     critic: buildPublicCriticSummary(input.critic),
     closure: buildPublicClosureSummary(input.closure),

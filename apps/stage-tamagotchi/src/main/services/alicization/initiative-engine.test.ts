@@ -179,6 +179,16 @@ describe('buildInitiativeSnapshot', () => {
     expect(initiative.shouldSpeak).toBe(true)
   })
 
+  it('keeps factual structured-looking text without applying a local cue matcher', () => {
+    const initiative = buildInitiativeSnapshot(createInitiativeInput(
+      'The embedding response reports dimensions=1024 and model=BAAI/bge-m3.',
+    ))
+
+    expect(initiative.why).toBe(
+      'The embedding response reports dimensions=1024 and model=BAAI/bge-m3.',
+    )
+  })
+
   it('does not infer initiative policy from free-form long-term memory prose', () => {
     const input = createInitiativeInput('The current error has enough evidence for a direct answer.')
     input.longHorizonMemory = createLongHorizonMemory({
@@ -188,7 +198,7 @@ describe('buildInitiativeSnapshot', () => {
 
     const initiative = buildInitiativeSnapshot(input)
 
-    expect(initiative.continuityRestraint).toBeNull()
+    expect(initiative).not.toHaveProperty('continuityRestraint')
     expect(initiative.selectedAction).toBe('speak')
     expect(initiative.shouldSpeak).toBe(true)
   })
@@ -211,13 +221,13 @@ describe('buildInitiativeSnapshot', () => {
 
     const initiative = buildInitiativeSnapshot(input)
 
-    expect(initiative.continuityRestraint).toBe('lower-pressure')
+    expect(initiative).not.toHaveProperty('continuityRestraint')
     expect(initiative.selectedAction).toBe('hover')
     expect(initiative.shouldSpeak).toBe(false)
     expect(initiative.why).toBe('The current error has enough evidence for a direct answer.')
   })
 
-  it('uses the emotional kernel enum as the initiative restraint authority', () => {
+  it('uses the emotional kernel state without projecting a local restraint field', () => {
     const input = createInitiativeInput('The current scene is understood.')
     input.emotionalKernel = {
       version: 'emotional-kernel-v1',
@@ -237,13 +247,13 @@ describe('buildInitiativeSnapshot', () => {
 
     const initiative = buildInitiativeSnapshot(input)
 
-    expect(initiative.continuityRestraint).toBe('measured-return')
+    expect(initiative).not.toHaveProperty('continuityRestraint')
     expect(initiative.selectedAction).toBe('hover')
     expect(initiative.preferredStyle).toBe('silent-observe')
     expect(initiative.shouldSpeak).toBe(false)
   })
 
-  it('uses typed affective cadence instead of matching cadence prose', () => {
+  it('uses typed affective state instead of matching its prose', () => {
     const input = createInitiativeInput('The current scene is understood.')
     input.affectiveResidue = {
       version: 'affective-residue-memory-v1',
@@ -274,7 +284,7 @@ describe('buildInitiativeSnapshot', () => {
 
     const initiative = buildInitiativeSnapshot(input)
 
-    expect(initiative.continuityRestraint).toBe('measured-return')
+    expect(initiative).not.toHaveProperty('continuityRestraint')
     expect(initiative.selectedAction).toBe('hover')
     expect(initiative.shouldSpeak).toBe(false)
   })
@@ -296,7 +306,7 @@ describe('buildInitiativeSnapshot', () => {
 
     const initiative = buildInitiativeSnapshot(input)
 
-    expect(initiative.continuityRestraint).toBe('rest-protective')
+    expect(initiative).not.toHaveProperty('continuityRestraint')
     expect(initiative.selectedAction).toBe('hover')
     expect(initiative.preferredPresence).toBe('concerned')
     expect(initiative.shouldSpeak).toBe(false)

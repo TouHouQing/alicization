@@ -4,7 +4,6 @@ import {
   buildSelfEvolutionFocusHistoryPatternGuidanceDisplay,
   buildSelfEvolutionFocusSnapshotDisplay,
   buildSelfEvolutionFocusSnapshotHistoryDisplay,
-  formatSelfEvolutionRepairSurfaceLabel,
 } from './performance-visualizer-self-evolution-focus-history-display'
 
 import * as selfEvolutionDisplay from './performance-visualizer-self-evolution-focus-history-display'
@@ -55,62 +54,6 @@ describe('performance visualizer self evolution focus history display', () => {
     ])
   })
 
-  it('maps pattern guidance detail lists into Chinese-first human-facing labels', () => {
-    expect(buildSelfEvolutionFocusHistoryPatternGuidanceDisplay({
-      governanceLayer: 'persona-thought',
-      governanceLayerDisplay: '人格/思绪层',
-      repairOwnerHint: '私有思绪治理',
-      recommendedEvidencePanels: [
-        'private-thought-governance-chain',
-        'runtime-continuity-projection',
-      ],
-      recommendedTraceSections: [
-        'trace-details',
-        'selected-trace-event',
-      ],
-      recommendedEventKinds: [
-        'takeover-audit',
-        'person-state-updated',
-        'governance-normalized',
-      ],
-      summaryLine: '疑似反复出现的人格/思绪漂移。',
-    })).toEqual({
-      governanceLayerLabel: '人格/思绪层',
-      repairOwnerHintLabel: '私有思绪治理',
-      evidenceLabels: '私有思绪治理链，运行时连续性投影',
-      traceLabels: '轨迹细节，选中轨迹事件',
-      eventLabels: '接管审计，人格状态更新，治理归位',
-    })
-  })
-
-  it('maps identity-continuity', () => {
-    expect(buildSelfEvolutionFocusHistoryPatternGuidanceDisplay({
-      governanceLayer: 'same-her-continuity',
-      governanceLayerDisplay: '同一个她连续性层',
-      repairOwnerHint: '连续性治理',
-      recommendedEvidencePanels: [
-        'candidate-trajectory-summary',
-        'proactive-decision-consumption-summary',
-        'identity-drift-governance-summary',
-      ],
-      recommendedTraceSections: [
-        'trace-consumption',
-        'trace-details',
-      ],
-      recommendedEventKinds: [
-        'takeover-audit',
-        'governance-normalized',
-      ],
-      summaryLine: '这更像同一个她的连续性治理反复被确认。',
-    })).toEqual({
-      governanceLayerLabel: '同一个她连续性层',
-      repairOwnerHintLabel: '连续性治理',
-      evidenceLabels: '候选轨迹摘要，主动决策消费摘要，身份漂移治理摘要',
-      traceLabels: '轨迹消费，轨迹细节',
-      eventLabels: '接管审计，治理归位',
-    })
-  })
-
   it('maps body-continuity guidance labels into Chinese-first human-facing labels without collapsing them back into renderer authority', () => {
     expect(buildSelfEvolutionFocusHistoryPatternGuidanceDisplay({
       governanceLayer: 'body-continuity',
@@ -137,14 +80,6 @@ describe('performance visualizer self evolution focus history display', () => {
       traceLabels: '轨迹时间线，选中轨迹事件，轨迹消费',
       eventLabels: '接管审计，人格状态更新',
     })
-  })
-
-  it('adds a project-state continuity prefix to repair surface labels when the route is explicitly checking Project identity carry, Phase 1 route carry, and Unresolved closure carry', () => {
-    expect(formatSelfEvolutionRepairSurfaceLabel({
-      targetType: 'event',
-      targetId: 'takeover-audit',
-      projectStateContinuity: true,
-    })).toBe('项目状态连续性检查 / 事件 / 接管审计')
   })
 
   it('formats body-continuity governance and repair owner labels through the generic display helpers', () => {
@@ -262,7 +197,6 @@ describe('performance visualizer self evolution focus history display', () => {
     expect(formatSelfEvolutionDisplayText('warmth-may-release')).toBe('温度可释放')
     expect(formatSelfEvolutionDisplayText('hypothesis-labeling-raised')).toBe('假设标注已提升')
     expect(formatSelfEvolutionDisplayText('specificity-clamp-raised')).toBe('具体性钳制已提升')
-    expect(formatSelfEvolutionDisplayText('template-shell-suppressed')).toBe('模板外壳已抑制')
     expect(formatSelfEvolutionDisplayText('hold-likely')).toBe('可能保持')
     expect(formatSelfEvolutionDisplayText('learning-proposal-raised')).toBe('学习提案已提升')
     expect(formatSelfEvolutionDisplayText('restraint-raised')).toBe('克制已提升')
@@ -294,7 +228,6 @@ describe('performance visualizer self evolution focus history display', () => {
     expect(formatSelfEvolutionDisplayText('birth-persona-authority')).toBe('初生人格权威')
     expect(formatSelfEvolutionDisplayText('persona-authority-mapping')).toBe('人格权威映射')
     expect(formatSelfEvolutionDisplayText('personality-trajectory')).toBe('人格轨迹')
-    expect(formatSelfEvolutionDisplayText('identity-drift-governance')).toBe('身份漂移治理')
     expect(formatSelfEvolutionDisplayText('candidate-impact-summary')).toBe('候选影响摘要')
     expect(formatSelfEvolutionDisplayText('baseline-anchor-audit')).toBe('基线锚点审计')
     expect(formatSelfEvolutionDisplayText('self-evolution-summary')).toBe('自演化摘要')
@@ -496,7 +429,6 @@ describe('performance visualizer self evolution focus history display', () => {
     expect(formatSelfEvolutionTraceListValue('trace-signal', 'traceDecisionTrace:trace-other')).toBe('轨迹决策轨迹：trace-other')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'hypothesis-labeling')).toBe('假设标注')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'specificity-clamp')).toBe('具体性钳制')
-    expect(formatSelfEvolutionTraceListValue('alignment-signal', 'template-shell-suppression')).toBe('模板外壳抑制')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'planner:warm')).toBe('规划器：温暖')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'planner:restrained')).toBe('规划器：克制')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'compiler:restrained')).toBe('编译器：克制')
@@ -511,9 +443,9 @@ describe('performance visualizer self evolution focus history display', () => {
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'focus:world-model')).toBe('焦点：世界模型')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'focus:relationship')).toBe('焦点：关系')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'focus:presence')).toBe('焦点：存在显形')
-    expect(formatSelfEvolutionTraceListValue('alignment-signal', 'opening-guidance:callback-bounded')).toBe('开场引导：回调受限')
-    expect(formatSelfEvolutionTraceListValue('alignment-signal', 'identityKernel.relationshipPosture:observer')).toBe('身份内核关系姿态：观察者')
-    expect(formatSelfEvolutionTraceListValue('alignment-signal', 'identityKernel.initiativeStyle:observant')).toBe('身份内核主动风格：观察型')
+    expect(formatSelfEvolutionTraceListValue('alignment-signal', 'opening-guidance:callback-bounded')).toBe('opening-guidance:callback-bounded')
+    expect(formatSelfEvolutionTraceListValue('alignment-signal', 'identityKernel.relationshipPosture:observer')).toBe('identityKernel.relationshipPosture:observer')
+    expect(formatSelfEvolutionTraceListValue('alignment-signal', 'identityKernel.initiativeStyle:observant')).toBe('identityKernel.initiativeStyle:observant')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'initiativeBaseline.silenceReconnect:hold')).toBe('主动基线静默重连：保持')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'initiativeBaseline.comfortStyle:quiet-presence')).toBe('主动基线安抚风格：安静陪伴')
     expect(formatSelfEvolutionTraceListValue('alignment-signal', 'personStateProjection.preferredProactiveStyle:silent-observe')).toBe('人格投影偏好主动风格：静默观察')

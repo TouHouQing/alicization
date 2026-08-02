@@ -34,35 +34,13 @@ const closenessPattern = /warm|gentle|care|companionship|陪|温和|柔和|陪�
 const spacePattern = /space|boundary|lighter|light touch|quiet|room|边界|空间|轻一点|安静|留白/iu
 const positiveMemoryPolarityPattern = /trust up|closer|lighter|gentle|useful|accepted|received|repair|soft|safe|靠近|变轻|被接住|有用|接受|修复|更稳/u
 const negativeMemoryPolarityPattern = /trust down|intrusive|doubted|denied|pressure|heavy|failed|robotic|not this|boundary|down|拒绝|怀疑|压迫|打扰|失败|机械|不是这个|边界/u
-const sameHerContinuityPattern = /same[- ]?her|same[- ]?person|continuity line|one continuous|continuous digital life|project_anchor=phase1_local_digital_life|tool shell|generic shell|generic task|断线|工具壳|连续性|同一条线|持续的人|持续人格|数字生命/u
 const unfinishedLoopPattern = /unfinished|partial|open loop|not complete|closure|没收完|未完成|闭环|还缺|继续推进/u
 const embodimentStatePattern = /embodiment|body|face|gaze|blink|voice|pause|lipsync|motion|身体|表情|视线|眨眼|声音|停顿|动作/u
-const progressPressurePattern = /pressing for progress|pushing progress|progress pressure|催进度|催状态|尽快|推进|推进完|收住|收完/u
-const statusRecapPressurePattern = /status recap|status report|generic recap|generic status recap|concise status (?:update|recap|report)/u
-const progressPressureNegationPattern = /not (?:a )?pure progress request|not applying progress pressure|not progress pressure|not\s*催进度|not\s*催状态|不是在?催进度|不是在?催状态/u
-const statusRecapNegationPattern = /not asking for (?:a )?(?:raw |generic |pure )?status (?:recap|report)|not (?:a )?(?:raw |generic )?status (?:recap|report)|not a status report|not a generic status recap|not (?:a )?generic recap|not [^.。!！?？]{0,80}generic recap|not to turn .*?(?:generic )?status (?:recap|report)|not to turn .*?generic recap|instead of a status report|rather than (?:asking for )?(?:a )?(?:generic |raw )?recap|rather than (?:a )?status report|cares less about (?:a )?(?:raw |generic )?status (?:recap|report)|不是状态汇报|不是要状态汇报/u
-const continuityWorryPattern = /worr|anxious|afraid|drift|split|断线|工具壳|tool shell|generic shell|滑成|别变成/u
-const samePersonTestPattern = /testing|test|confirm|确认|确认她是不是|是不是连续性|是不是持续的人|same[- ]?person|same[- ]?her|one continuous digital life|不是状态汇报|not a status report|generic recap/u
 const tentativeRecallPattern = /may|might|perhaps|seems|seem|uncertain|not sure|似乎|可能|也许|不完全确定/u
-const tentativeContinuityWorryPattern = /(?:may|might)\s+(?:drift|split|become|turn into)|担心.*(?:断线|滑成|工具壳)|worr(?:ied|y).*(?:drift|split|tool shell|generic shell)/u
 const tentativeMemoryMeaningPattern = /(?:may|might|perhaps|seems|seem|uncertain|not sure).*(?:have been|be more about|more right|still settling|older|newer|recap|status|meaning)|似乎.*(?:更倾向于|不是|不只是|状态|意义)|不完全确定|可能.*(?:状态|意义|理解)/u
 const vulnerableHostStatePattern = /vulnerable|fragile|overloaded|overwhelmed|hurt|sad|stressed|tired|drained|exhausted|撑不住|受伤|委屈|难受|伤心|难过|低落|压力|紧绷|疲惫|累/u
 const gentleCareMemoryPattern = /protective|care-attentive|gentler? presence|lighter companionship|low-pressure|lower-pressure|rest-protective|轻一点|先陪|陪着|留白|不要分析太多|不把距离一下子拉近|do not rush closeness/u
 const analysisHeavyCarePattern = /analysis-heavy|analysis heavy|analytical|analysis-first|explain the problem|direct(?:ly)?|move closer quickly|closer quickly|rush closeness|too close|over-close|extra pressure|马上分析|先分析|分析太多|一下子拉近|太近/u
-const humanlikeMemoryGovernanceCuePatterns = [
-  /\b(?:answer|reply|respond|hold|repair|keep|stay|avoid|prefer|wait|leave|let|remember|protect|carry|reopen|return)\b[^.。!！?？]{1,180}(?:opening|cadence|continuity|future follow-ups?|tone|voice|pacing|pause|lipsync|reply|answer)/iu,
-  /\b(?:I|we|she|the assistant)\s+(?:should|must|need to|will|learned to|learned that)\b/iu,
-  /(?:^|[;|\s])(?:opening|relationship_cadence|opening_policy|initiative_visible_policy|learned_return_cadence|preferred_return_cadence|restart_policy|project-cadence)\s*[:=]/iu,
-  /\b(?:Phase\s*1\s*:\s*Local Digital Life|local-first digital life project|identity[-_ ]continuity|continuity state|same-her)\b/iu,
-  /(?:应该|应当|需要|必须|记住|保持|等待|不要|别|先)[^。！？]{0,120}(?:回复|回答|开场|主动|节奏|连续性|低压|轻一点|留白|接住)/u,
-]
-const humanlikeCadenceValuePattern
-  = /^(?:measured-return|repair-before-closeness|rest-protective|cooldown|low-pressure|lower-pressure|gentle-reopen|hold-for-opening)$/iu
-
-function containsHumanlikeMemoryGovernanceCue(text: string) {
-  return humanlikeMemoryGovernanceCuePatterns.some(pattern => pattern.test(text))
-}
-
 type AlicizationHostPersonClosenessPreference = AlicizationHostPersonModelSnapshot['preferredClosenessByContext'][number]
 
 export type AlicizationHumanlikeMemorySourceChannel
@@ -152,11 +130,6 @@ export interface AlicizationHumanlikeMemoryCandidateInput {
     currentEra?: string | null
     lesson?: string | null
   } | null
-  initiativeStrategyCarry?: string | null
-  projectStatePreferredVoiceMode?: string | null
-  projectStatePreferredPacingMode?: string | null
-  projectStatePreferredPauseMode?: string | null
-  projectStatePreferredLipsyncMode?: string | null
 }
 
 export interface AlicizationHumanlikeMemoryCandidate {
@@ -278,10 +251,7 @@ function normalizeHumanlikeMemoryRawText(raw: unknown, maxChars = 420) {
 }
 
 function sanitizeHumanlikeMemoryFactText(raw: unknown, maxChars = 420) {
-  const normalized = sanitizeAlicizationMemoryEvidenceText(raw, maxChars)
-  if (!normalized || containsHumanlikeMemoryGovernanceCue(normalized))
-    return ''
-  return normalized
+  return sanitizeAlicizationMemoryEvidenceText(raw, maxChars)
 }
 
 function sanitizeHumanlikeMemoryFactList(
@@ -312,9 +282,6 @@ function sanitizeHumanlikeAuditFactList(
   for (const value of values) {
     const normalized = normalizeHumanlikeMemoryRawText(value, maxChars)
     if (!normalized)
-      continue
-    const isExplicitHostCorrection = /^(?:host-correction|host-reason)[.:]/u.test(normalized)
-    if (!isExplicitHostCorrection && containsHumanlikeMemoryGovernanceCue(normalized))
       continue
     if (result.some(item => item.toLowerCase() === normalized.toLowerCase()))
       continue
@@ -363,24 +330,7 @@ function hasTentativeMemoryMeaningLanguage(rawText: string, relationshipSummary:
   const combined = sanitizeHumanlikeMemoryText(`${rawText} ${relationshipSummary}`, 640)
   if (!combined)
     return false
-  if (tentativeMemoryMeaningPattern.test(combined))
-    return true
-  return tentativeRecallPattern.test(combined) && !tentativeContinuityWorryPattern.test(combined)
-}
-
-function pieceHasProgressPressure(text: string) {
-  const normalized = sanitizeHumanlikeMemoryText(text, 320)
-  if (!normalized)
-    return false
-
-  const explicitProgressPressure
-    = progressPressurePattern.test(normalized)
-      && !progressPressureNegationPattern.test(normalized)
-  const statusRecapPressure
-    = statusRecapPressurePattern.test(normalized)
-      && !statusRecapNegationPattern.test(normalized)
-
-  return explicitProgressPressure || statusRecapPressure
+  return tentativeMemoryMeaningPattern.test(combined) || tentativeRecallPattern.test(combined)
 }
 
 function asHumanlikeMemoryObject(raw: unknown) {
@@ -458,8 +408,6 @@ function buildHumanlikeDialogueFactLabels(userText: string | null | undefined) {
     repairPattern.test(text) ? 'dialogue-feedback:correction' : null,
     burdenPattern.test(text) ? 'dialogue-feedback:burden' : null,
     vulnerableHostStatePattern.test(text) ? 'dialogue-feedback:vulnerable-state' : null,
-    samePersonTestPattern.test(text) ? 'relationship-fact:same-person-test' : null,
-    continuityWorryPattern.test(text) ? 'relationship-fact:continuity-worry' : null,
   ], 6, 96)
 }
 
@@ -548,7 +496,6 @@ function buildHumanlikeEmotionalResidueCorrectionProfile(corrections: ReturnType
   const removeTags = new Set<string>()
   const restProtective = /rest-protective|protect rest|先护住休息|护住休息|休息优先|先别压过来|先别压|quiet concern|gentle concern|soft concern|轻微挂念|一点点挂念|更自然的窗口|more natural window/u.test(normalized)
   const unfinishedCarry = /unfinished|still open|not fully closed|还没收完|未完成|没收完|still matters|挂念/u.test(normalized)
-  const continuityCarry = /same[- ]?her|same[- ]?person|连续性|持续的人|continuity|连续性/u.test(normalized)
   const repairCarry = /repair|repair-first|先修|接稳|修复/u.test(normalized)
   const reliefCarry = /relief|安心|松下来|踏实/u.test(normalized)
   const explicitTension = /tension|紧张|焦虑|pressure|压迫|worry|担心/u.test(normalized)
@@ -561,8 +508,6 @@ function buildHumanlikeEmotionalResidueCorrectionProfile(corrections: ReturnType
   }
   if (unfinishedCarry)
     tags.push('unfinishedness')
-  if (continuityCarry)
-    tags.push('protective-continuity')
   if (repairCarry)
     tags.push('repair-residue')
   if (reliefCarry && !restProtective)
@@ -581,13 +526,6 @@ function buildHumanlikeEmotionalResidueCorrectionProfile(corrections: ReturnType
       : repairCarry
         ? 'repair'
         : '',
-    cadenceMode: restProtective
-      ? 'cooldown'
-      : /measured-return|leave more room|more room|更自然的窗口|等窗口/u.test(normalized)
-        ? 'measured-return'
-        : repairCarry
-          ? 'repair'
-          : '',
     intensity: restProtective ? 0.44 : repairCarry ? 0.56 : reliefCarry ? 0.36 : 0.4,
     hostLabel: restProtective
       ? 'rest-protective-concern'
@@ -684,17 +622,11 @@ function buildHumanlikeMetabolismCorrectionProfile(
   const normalized = lowerHumanlikeMemoryRawText(correction.correctedValue, correction.reason)
   return {
     correction,
-    preserveContinuityAuthority: sameHerContinuityPattern.test(normalized),
     avoidDownrank: /不要.*降权|别.*降权|not downrank|不要弱化|别弱化/u.test(normalized),
     avoidMerge: /不要.*合并|别.*合并|not merge/u.test(normalized),
     avoidForget: /不要.*忘|别.*忘|not forget|不要淡掉这条线|别淡掉这条线/u.test(normalized),
     fadeTemporaryNoise: /temporary noise|情绪噪声|一时紧张|短暂波动|temporary wobble|emotional spike|passing anxiety|该淡掉|该退下去|let.*fade|fade instead/u.test(normalized),
   }
-}
-
-function isHumanlikeContinuityAuthorityMemory(summary: string) {
-  return sameHerContinuityPattern.test(summary)
-    || /corrected same-person|corrected meaning|continuity line|same thread|not becoming a tool shell|不是.*状态汇报|连续性|同一条线|工具壳/u.test(summary)
 }
 
 function isHumanlikeTemporaryNoiseMemory(summary: string) {
@@ -722,60 +654,11 @@ function buildHumanlikeRelationshipRepairLearningProfile(...rawValues: Array<str
 function buildHumanlikeRelationshipContext(input: AlicizationHumanlikeMemoryCandidateInput) {
   const corrections = normalizeHumanlikeHostCorrections(input.hostCorrections)
   const relationshipCorrection = findLatestHumanlikeHostCorrection(corrections, 'relationshipContext')
-    ?? corrections.find(correction => sameHerContinuityPattern.test(lowerHumanlikeMemoryRawText(correction.correctedValue, correction.reason)))
-  const relationshipPieces = [
-    input.relationship?.summary,
-    input.hostEmotion?.summary,
-    input.dialogue?.userText,
-    input.execution?.summary,
-  ].map(value => normalizeHumanlikeMemoryRawText(value, 640)).filter(Boolean)
-  const combined = lowerHumanlikeMemoryRawText(
-    ...relationshipPieces,
-    ...corrections.flatMap(correction => [correction.correctedValue, correction.reason]),
-  )
-  const correctedValueText = lowerHumanlikeMemoryRawText(relationshipCorrection?.correctedValue)
-  const correctedReasonText = lowerHumanlikeMemoryRawText(relationshipCorrection?.reason)
   const threadAnchor = sanitizeHumanlikeMemoryFactText(input.relationship?.threadAnchor, 120)
     || 'current-relationship-thread'
   const explicitSummary = sanitizeHumanlikeMemoryFactText(input.relationship?.summary, 420)
-  let containsProgressPressure = relationshipPieces.some(pieceHasProgressPressure)
-  let containsContinuityWorry = continuityWorryPattern.test(combined)
-  let containsSamePersonTest = samePersonTestPattern.test(combined)
-
-  if (correctedValueText) {
-    if (statusRecapNegationPattern.test(correctedValueText) || progressPressureNegationPattern.test(correctedValueText))
-      containsProgressPressure = false
-    else if (pieceHasProgressPressure(correctedValueText))
-      containsProgressPressure = true
-
-    if (continuityWorryPattern.test(correctedValueText))
-      containsContinuityWorry = true
-    if (samePersonTestPattern.test(correctedValueText))
-      containsSamePersonTest = true
-  }
-
-  if (correctedReasonText) {
-    if (!containsProgressPressure && pieceHasProgressPressure(correctedReasonText))
-      containsProgressPressure = true
-    if (!containsContinuityWorry && continuityWorryPattern.test(correctedReasonText))
-      containsContinuityWorry = true
-    if (!containsSamePersonTest && samePersonTestPattern.test(correctedReasonText))
-      containsSamePersonTest = true
-  }
-
-  const primaryIntent: AlicizationHumanlikeRelationshipPrimaryIntent = containsProgressPressure && (containsContinuityWorry || containsSamePersonTest)
-    ? 'mixed'
-    : containsSamePersonTest
-      ? 'same-person-test'
-      : containsContinuityWorry
-        ? 'continuity-worry'
-        : containsProgressPressure
-          ? 'progress-pressure'
-          : 'ordinary-relationship'
+  const primaryIntent: AlicizationHumanlikeRelationshipPrimaryIntent = 'ordinary-relationship'
   const signals = uniqueTexts([
-    containsProgressPressure ? 'progress-pressure' : null,
-    containsContinuityWorry ? 'continuity-worry' : null,
-    containsSamePersonTest ? 'same-person-test' : null,
     relationshipCorrection ? 'host-corrected' : null,
   ], 6)
   const summary = relationshipCorrection
@@ -796,9 +679,9 @@ function buildHumanlikeRelationshipContext(input: AlicizationHumanlikeMemoryCand
     ], 6, 420),
     primaryIntent,
     signals,
-    containsProgressPressure,
-    containsContinuityWorry,
-    containsSamePersonTest,
+    containsProgressPressure: false,
+    containsContinuityWorry: false,
+    containsSamePersonTest: false,
     hostCorrectionApplied: Boolean(relationshipCorrection),
   }
 }
@@ -829,19 +712,6 @@ function buildHumanlikeLongTermWorthiness(input: {
     || spacePattern.test(input.rawText)
     || gentleCareMemoryPattern.test(input.rawText)
   const hasVulnerableRelationshipMoment = hasVulnerableHostState && hasGentleCareResponse
-  const hasExplicitRelationshipDefiningContinuity = input.sourceChannels.includes('dialogue')
-    && (
-      input.relationshipContext.containsContinuityWorry
-      || input.relationshipContext.containsSamePersonTest
-    )
-    && /tool shell|generic shell|status report|status recap|not a pure progress request|not a status report|continuity line|one continuous digital life|不是催进度|不是状态汇报|工具壳|连续性|持续的人/u.test(input.rawText)
-  const hasProactiveLivedExchange
-    = input.sourceChannels.includes('dialogue')
-      && input.sourceChannels.includes('initiative')
-      && (
-        /dialogue\.user:|dialogue\.assistant:|先别催|轻一点|我没有催你|memory-led|still receiving|gentle reopening|轻轻接/u.test(input.rawText)
-        || /received this gentle reopening|重新打开这条线被接住|这次这样接回来是被接住的/u.test(input.relationshipContext.summary)
-      )
   let score = Math.min(0.36, input.sourceChannels.length * 0.08)
   if (input.sourceChannels.length >= 4) {
     score += 0.16
@@ -855,26 +725,9 @@ function buildHumanlikeLongTermWorthiness(input: {
     score += 0.22
     reasons.push('vulnerable relationship moment')
   }
-  if (hasProactiveLivedExchange) {
-    score += 0.16
-    reasons.push('proactive lived exchange')
-  }
   if (relationshipRepairLearning.detected) {
     score += relationshipRepairLearning.missed ? 0.22 : 0.18
     reasons.push('relationship repair learning')
-  }
-  if (
-    input.relationshipContext.containsContinuityWorry
-    || input.relationshipContext.containsSamePersonTest
-    || sameHerContinuityPattern.test(input.rawText)
-    || sameHerContinuityPattern.test(input.relationshipContext.summary)
-  ) {
-    score += 0.24
-    reasons.push('relationship continuity')
-  }
-  if (hasExplicitRelationshipDefiningContinuity) {
-    score = Math.max(score, 0.62)
-    reasons.push('relationship-defining continuity')
   }
   if (input.relationshipContext.hostCorrectionApplied) {
     score += 0.08
@@ -934,8 +787,6 @@ function buildHumanlikeEmotionalResidue(input: {
     tags.push('slight-guilt')
   if (unfinishedLoopPattern.test(text))
     tags.push('unfinishedness')
-  if (sameHerContinuityPattern.test(text))
-    tags.push('protective-continuity')
   if (/safe-restraint|blocked-before-dispatch|confirmation=required|no-process-started/u.test(text))
     tags.push('tension')
   if (/worr|anxious|tension|担心|紧张/u.test(text))
@@ -946,10 +797,6 @@ function buildHumanlikeEmotionalResidue(input: {
     tags.push('tension')
   if (/accepted|continue-progress|接受|继续/u.test(text) || positiveMemoryPolarityPattern.test(text))
     tags.push('relief')
-  if (input.relationshipContext.containsContinuityWorry || input.relationshipContext.containsSamePersonTest)
-    tags.push('protective-continuity')
-  if (input.relationshipContext.containsContinuityWorry)
-    tags.push('tension')
   if (input.relationshipContext.hostCorrectionApplied)
     tags.push('corrected-meaning')
   if (affectiveResidue?.dominantResidueKind === 'afterglow')
@@ -971,7 +818,6 @@ function buildHumanlikeEmotionalResidue(input: {
   const baseIntensity = clamp01(
     Math.max(0.18, Number(input.candidateInput.hostEmotion?.intensity ?? 0) * 0.46)
     + Math.max(0.12, Number(input.candidateInput.selfEmotion?.intensity ?? 0) * 0.44)
-    + (input.relationshipContext.containsContinuityWorry || input.relationshipContext.containsSamePersonTest ? 0.08 : 0)
     + (input.relationshipContext.hostCorrectionApplied ? 0.04 : 0)
     + Math.max(
       0,
@@ -1025,7 +871,7 @@ function buildHumanlikeEmotionKernelInfluence(input: {
   const residueTags = new Set(input.residue.tags)
   const dominantTilt = residueTags.has('rest-protective')
     ? 'rest-protective'
-    : residueTags.has('protective-continuity') || residueTags.has('slight-guilt')
+    : residueTags.has('slight-guilt')
       ? 'repair-protective'
       : residueTags.has('unfinishedness')
         ? 'unfinished-attentive'
@@ -1090,7 +936,7 @@ function buildHumanlikeEmbodimentTrace(input: {
   const residentActionCue = normalizeHumanlikeResidentEmbodimentValue(directResidentState?.actionCue)
   const rawResidentMode = embodimentCorrection?.residentMode
     || normalizeHumanlikeResidentEmbodimentValue(directResidentState?.mode)
-  const residentMode = humanlikeCadenceValuePattern.test(rawResidentMode) ? '' : rawResidentMode
+  const residentMode = rawResidentMode
   const residentReason = sanitizeHumanlikeMemoryFactText(directResidentState?.reason, 180)
   const consistency = normalizeHumanlikeMemoryRawText(input.candidateInput.embodiment?.modalityConsistency, 40).toLowerCase()
   const risk = consistency === 'consistent'
@@ -1134,8 +980,9 @@ function buildHumanlikeEmbodimentTrace(input: {
 }
 
 function buildHumanlikeAutobiographicalImpact(input: AlicizationHumanlikeMemoryCandidateInput) {
+  void input
   return {
-    era: sanitizeHumanlikeMemoryFactText(input.autobiographical?.currentEra, 140),
+    era: '',
     selfNarrativeDelta: '',
     stablePreferenceHint: '',
   }
@@ -1153,7 +1000,6 @@ function buildHumanlikeMemoryMetabolism(input: {
   const mergeMemoryIds: string[] = []
   const forgetMemoryIds: string[] = []
   const metabolismCorrection = buildHumanlikeMetabolismCorrectionProfile(input.hostCorrections)
-  const currentContinuity = sameHerContinuityPattern.test(input.currentText)
   const currentEmbodiment = embodimentStatePattern.test(input.currentText)
   const currentVulnerableCare = vulnerableHostStatePattern.test(input.currentText)
     && (gentleCareMemoryPattern.test(input.currentText) || closenessPattern.test(input.currentText) || spacePattern.test(input.currentText))
@@ -1166,24 +1012,17 @@ function buildHumanlikeMemoryMetabolism(input: {
     const lowSalience = Number(memory.salience ?? 0.5) < 0.5
     const memoryAgeMs = Math.max(0, input.now - Math.max(0, Number(memory.lastUpdatedAt ?? 0)))
     const staleLongAgo = memoryAgeMs > (dayMs * 0.5)
-    const genericStatus = /generic|status|recap|concise|工具|状态|复述/u.test(summary)
-    const progressPressureMemory = pieceHasProgressPressure(summary)
     const emotionalNoise = isHumanlikeTemporaryNoiseMemory(summary) || /tired|drained/u.test(summary)
-    const sameThreadContinuityEcho = currentContinuity
-      && /same[- ]?her|same[- ]?person|same thread|continuity line|continuity|not restart|from scratch|连续性|同一条线|连续性|不要重开/u.test(summary)
-    const sameThreadButWeaker = currentContinuity && (genericStatus || progressPressureMemory)
     const analysisHeavyCare = analysisHeavyCarePattern.test(summary)
       || (closenessPattern.test(summary) && /quick|quickly|fast|rush|direct|分析/u.test(summary))
       || (intrusivePattern.test(summary) && !gentleCareMemoryPattern.test(summary))
-    if (sameThreadButWeaker)
-      conflictingMemoryIds.push(memory.id)
     if (currentVulnerableCare && analysisHeavyCare)
       vulnerableCareConflictingMemoryIds.push(memory.id)
-    if (lowSalience || sameThreadButWeaker)
+    if (lowSalience)
       downrankMemoryIds.push(memory.id)
     if (currentVulnerableCare && analysisHeavyCare)
       downrankMemoryIds.push(memory.id)
-    if ((currentEmbodiment && embodimentStatePattern.test(summary)) || sameThreadContinuityEcho)
+    if (currentEmbodiment && embodimentStatePattern.test(summary))
       mergeMemoryIds.push(memory.id)
     if ((lowSalience && /noise|ephemeral|temporary|噪声|临时/u.test(summary)) || (lowSalience && emotionalNoise && staleLongAgo))
       forgetMemoryIds.push(memory.id)
@@ -1215,18 +1054,8 @@ function buildHumanlikeMemoryMetabolism(input: {
     })
   }
 
-  const shouldProtectContinuityAuthority = (id: string) => {
-    if (!metabolismCorrection?.preserveContinuityAuthority)
-      return false
-    return isHumanlikeContinuityAuthorityMemory(priorMemorySummaryById.get(id) ?? '')
-  }
-
   const nextDownrankMemoryIds = uniqueTexts(downrankMemoryIds, 8)
-    .filter((id) => {
-      if ((metabolismCorrection?.avoidDownrank || metabolismCorrection?.preserveContinuityAuthority) && shouldProtectContinuityAuthority(id))
-        return false
-      return true
-    })
+    .filter(() => !metabolismCorrection?.avoidDownrank)
   const nextMergeMemoryIds = uniqueTexts(mergeMemoryIds, 8)
     .filter(() => !metabolismCorrection?.avoidMerge)
   const nextForgetMemoryIds = uniqueTexts([
@@ -1236,20 +1065,19 @@ function buildHumanlikeMemoryMetabolism(input: {
           .filter(memory => isHumanlikeTemporaryNoiseMemory(priorMemorySummaryById.get(memory.id) ?? ''))
           .map(memory => memory.id)
       : []),
-  ], 8).filter((id) => {
-    if ((metabolismCorrection?.avoidForget || metabolismCorrection?.preserveContinuityAuthority) && shouldProtectContinuityAuthority(id))
-      return false
-    return true
-  })
+  ], 8).filter(() => !metabolismCorrection?.avoidForget)
   const correctionReasons = uniqueTexts([
-    metabolismCorrection?.preserveContinuityAuthority
-      ? 'host-correction:preserve-memory-authority'
+    metabolismCorrection?.avoidDownrank
+      ? 'host-correction:disable-automatic-downrank'
       : null,
     metabolismCorrection?.fadeTemporaryNoise
       ? 'host-correction:fade-temporary-noise'
       : null,
     metabolismCorrection?.avoidMerge
       ? 'host-correction:disable-automatic-merge'
+      : null,
+    metabolismCorrection?.avoidForget
+      ? 'host-correction:disable-automatic-forget'
       : null,
   ], 4)
 
@@ -1882,10 +1710,9 @@ function relationshipOutcomeStatements(outcomes: AlicizationRelationshipOutcomeR
 }
 
 function personaReinforcementStatements(events: AlicizationPersonaReinforcementEventRecord[]) {
-  return events.flatMap(event => sanitizeHumanlikeMemoryFactList([
-    event.summary,
+  return events.map(event =>
     `${event.dimension}:${event.valence}:${event.delta >= 0 ? '+' : ''}${event.delta.toFixed(2)}`,
-  ], 2, 180))
+  )
 }
 
 function consolidationStatements(consolidations: AlicizationMemoryConsolidationRecord[]) {
@@ -2188,7 +2015,7 @@ export function buildHostPersonModelSnapshot(input: {
       input.relationshipDynamics?.hostAttitude ?? null,
       ...consolidations.slice(0, 4).map(record => record.summary || record.periodKey),
       ...relationshipOutcomes.slice(0, 4).map(record => record.summary || record.actionSummary),
-      ...reinforcementEvents.slice(0, 4).map(record => record.summary),
+      ...reinforcementLines.slice(0, 4),
       ...preferredClosenessByContext.map(item => `${item.context}:${item.preference}`),
       ...events.slice(0, 4).map(event => event.relationshipMeaning || event.whatChanged || event.whatHappened),
     ], 8, 320),
@@ -2240,81 +2067,6 @@ function eventMemoryPolarity(event: AlicizationEpisodicEventRecord) {
   return 0
 }
 
-function buildEventSemanticConflictProfile(event: AlicizationEpisodicEventRecord) {
-  const text = lowerHumanlikeMemoryText(
-    event.threadAnchor,
-    event.whereSummary,
-    event.whatHappened,
-    event.felt,
-    event.whatChanged,
-    event.relationshipMeaning,
-    event.lesson,
-    event.sourceSummary,
-    event.latestReconsolidation?.reason ?? null,
-    event.latestReconsolidation?.relationshipMeaning ?? null,
-    event.latestReconsolidation?.lesson ?? null,
-    ...event.tags,
-    ...event.emotionTags,
-    ...(event.latestReconsolidation?.emotionTags ?? []),
-  )
-  const samePersonContinuity = sameHerContinuityPattern.test(text) || samePersonTestPattern.test(text)
-  const genericStatusRecap = pieceHasProgressPressure(text)
-  const statusRecapNegated = progressPressureNegationPattern.test(text) || statusRecapNegationPattern.test(text)
-  const correctedMeaning = /host corrected|corrected meaning|revised older memory traces|supersed(?:e|ed|es)|older status shell/u.test(text)
-  const correctedContinuityAuthority = samePersonContinuity && (correctedMeaning || statusRecapNegated)
-
-  return {
-    samePersonContinuity,
-    genericStatusRecap,
-    correctedContinuityAuthority,
-  }
-}
-
-function currentShouldYieldToCandidateSemanticAuthority(input: {
-  current: AlicizationEpisodicEventRecord
-  candidate: AlicizationEpisodicEventRecord
-  currentProfile: ReturnType<typeof buildEventSemanticConflictProfile>
-  candidateProfile: ReturnType<typeof buildEventSemanticConflictProfile>
-}) {
-  if (input.currentProfile.correctedContinuityAuthority !== input.candidateProfile.correctedContinuityAuthority) {
-    return input.candidateProfile.correctedContinuityAuthority
-  }
-
-  if (input.currentProfile.samePersonContinuity !== input.candidateProfile.samePersonContinuity)
-    return input.candidateProfile.samePersonContinuity
-
-  const currentReconsolidationCount = Math.max(0, Math.floor(Number(input.current.reconsolidationCount ?? 0)))
-  const candidateReconsolidationCount = Math.max(0, Math.floor(Number(input.candidate.reconsolidationCount ?? 0)))
-  if (currentReconsolidationCount !== candidateReconsolidationCount)
-    return candidateReconsolidationCount > currentReconsolidationCount
-
-  const currentReconsolidationConfidence = clamp01(Number(input.current.latestReconsolidation?.confidence ?? 0))
-  const candidateReconsolidationConfidence = clamp01(Number(input.candidate.latestReconsolidation?.confidence ?? 0))
-  if (Math.abs(currentReconsolidationConfidence - candidateReconsolidationConfidence) >= 0.04)
-    return candidateReconsolidationConfidence > currentReconsolidationConfidence
-
-  return Number(input.candidate.occurredAt ?? 0) > Number(input.current.occurredAt ?? 0)
-}
-
-function buildMemorySemanticConflictHaystack(event: AlicizationEpisodicEventRecord) {
-  return lowerHumanlikeMemoryText(
-    event.threadAnchor,
-    event.whereSummary,
-    event.whatHappened,
-    event.felt,
-    event.whatChanged,
-    event.relationshipMeaning,
-    event.lesson,
-    event.sourceSummary,
-    event.latestReconsolidation?.reason ?? null,
-    event.latestReconsolidation?.relationshipMeaning ?? null,
-    event.latestReconsolidation?.lesson ?? null,
-    ...event.tags,
-    ...event.emotionTags,
-    ...(event.latestReconsolidation?.emotionTags ?? []),
-  )
-}
-
 export function deriveMemorySupersessionSignal(input: {
   current: AlicizationEpisodicEventRecord
   candidate: AlicizationEpisodicEventRecord
@@ -2342,39 +2094,33 @@ export function deriveMemorySupersessionSignal(input: {
     }
   }
 
-  const currentProfile = buildEventSemanticConflictProfile(input.current)
-  const candidateProfile = buildEventSemanticConflictProfile(input.candidate)
-  const samePersonSupersedesGenericStatus = currentProfile.genericStatusRecap
-    && candidateProfile.samePersonContinuity
-    && currentShouldYieldToCandidateSemanticAuthority({
-      current: input.current,
-      candidate: input.candidate,
-      currentProfile,
-      candidateProfile,
-    })
+  const explicitlyDerivedFromCurrent = input.candidate.derivedFrom.some(reference =>
+    reference.kind === 'episodic-event' && reference.id === input.current.id,
+  )
+  const explicitObservedFeedback = input.candidate.sourceKind === 'dialogue-feedback'
+    && input.candidate.provenance === 'observed'
+  const candidateConfidence = clamp01(
+    Number(input.candidate.latestReconsolidation?.confidence ?? input.candidate.confidence ?? 0),
+  )
+  const currentConfidence = clamp01(
+    Number(input.current.latestReconsolidation?.confidence ?? input.current.confidence ?? 0),
+  )
+  const candidateIsNewer = Number(input.candidate.occurredAt ?? 0) >= Number(input.current.occurredAt ?? 0)
+  const suppressCurrent = explicitlyDerivedFromCurrent
+    && explicitObservedFeedback
+    && candidateIsNewer
+    && candidateConfidence >= currentConfidence
 
-  if (!samePersonSupersedesGenericStatus) {
+  if (!suppressCurrent) {
     return {
       suppressCurrent: false,
       reason: '',
     }
   }
 
-  const candidateHaystack = buildMemorySemanticConflictHaystack(input.candidate)
-  const candidateExplicitSupersession = /supersed|authoritative before any status recap|corrected same-person continuity|revised older memory traces|not (?:a )?(?:generic )?status (?:recap|report)|same-person continuity check/u.test(candidateHaystack)
-  const candidateReconsolidationCount = Math.max(0, Math.floor(Number(input.candidate.reconsolidationCount ?? 0)))
-  const candidateSettledEnough = candidateReconsolidationCount >= 2
-    && !hasTentativeMemoryMeaningLanguage(
-      candidateHaystack,
-      sanitizeHumanlikeMemoryText(input.candidate.relationshipMeaning, 240),
-    )
-    && clamp01(Number(input.candidate.latestReconsolidation?.confidence ?? input.candidate.confidence ?? 0)) >= 0.78
-
   return {
-    suppressCurrent: candidateExplicitSupersession && candidateSettledEnough,
-    reason: candidateExplicitSupersession && candidateSettledEnough
-      ? 'A corrected same-person continuity memory explicitly superseded this older generic status-shell variant on the same thread.'
-      : '',
+    suppressCurrent: true,
+    reason: 'memory-superseded:observed-dialogue-feedback-derived-from-current-event',
   }
 }
 
@@ -2385,10 +2131,8 @@ export function deriveMemoryContradictionSignal(input: {
   const currentAnchor = `${input.current.threadAnchor ?? ''} ${input.current.whereSummary ?? ''}`.trim().toLowerCase()
   const currentShift = eventShiftDirection(input.current)
   const currentPolarity = eventMemoryPolarity(input.current)
-  const currentSemanticProfile = buildEventSemanticConflictProfile(input.current)
   const conflictingIds: string[] = []
   let penalty = 0
-  let samePersonStatusConflict = false
 
   for (const candidate of input.strongerMatches) {
     const candidateAnchor = `${candidate.threadAnchor ?? ''} ${candidate.whereSummary ?? ''}`.trim().toLowerCase()
@@ -2412,28 +2156,17 @@ export function deriveMemoryContradictionSignal(input: {
       && currentShift * candidateShift < 0
     const candidatePolarity = eventMemoryPolarity(candidate)
     const oppositePolarity = currentPolarity !== 0 && candidatePolarity !== 0 && currentPolarity !== candidatePolarity
-    const candidateSemanticProfile = buildEventSemanticConflictProfile(candidate)
-    const semanticSamePersonStatusConflict = (
-      currentSemanticProfile.samePersonContinuity && candidateSemanticProfile.genericStatusRecap
-    ) || (
-      candidateSemanticProfile.samePersonContinuity && currentSemanticProfile.genericStatusRecap
-    )
+    const explicitSupersession = deriveMemorySupersessionSignal({
+      current: input.current,
+      candidate,
+    }).suppressCurrent
 
     if (!anchorOverlap && !sharedThread)
       continue
-    if (!oppositeShift && !oppositePolarity && !semanticSamePersonStatusConflict)
+    if (!oppositeShift && !oppositePolarity && !explicitSupersession)
       continue
 
-    if (semanticSamePersonStatusConflict) {
-      const shouldYield = currentShouldYieldToCandidateSemanticAuthority({
-        current: input.current,
-        candidate,
-        currentProfile: currentSemanticProfile,
-        candidateProfile: candidateSemanticProfile,
-      })
-      if (!shouldYield)
-        continue
-      samePersonStatusConflict = true
+    if (explicitSupersession) {
       conflictingIds.push(candidate.id)
       penalty += 0.08
       continue
@@ -2448,9 +2181,7 @@ export function deriveMemoryContradictionSignal(input: {
     penalty: clamp01(penalty),
     unresolved: conflictingIds.length > 0,
     reason: conflictingIds.length > 0
-      ? samePersonStatusConflict
-        ? 'memory-contradiction:same-thread-relationship-meaning-vs-status-summary'
-        : 'memory-contradiction:conflicting-remembered-variants'
+      ? 'memory-contradiction:conflicting-remembered-variants'
       : '',
   }
 }

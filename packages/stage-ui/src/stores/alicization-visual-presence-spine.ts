@@ -29,10 +29,6 @@ type AlicizationVisualPresenceStateWithRelationshipTiming = AlicizationVisualPre
     learningReadiness?: number | null
     source?: 'outcome-learning' | 'autobiographical-self' | null
   } | null
-  currentConsciousFrame?: {
-    reasonTags?: readonly string[] | null
-    projectState?: AlicizationDigitalLifeSpineDigest['runtime']['projectState'] | null
-  } | null
 }
 
 function resolveRelationshipTimingNextLearningAction(
@@ -91,7 +87,6 @@ export function ensureAlicizationVisualPresenceResidentPerformance(
       attention: state.attention,
       privateThought: state.privateThought,
       relationshipTimingBias: (state as AlicizationVisualPresenceStateWithRelationshipTiming).relationshipTimingBias ?? null,
-      currentConsciousFrame: (state as AlicizationVisualPresenceStateWithRelationshipTiming).currentConsciousFrame ?? null,
       captureState: state.captureState,
       updatedAt: state.updatedAt,
     }, {
@@ -152,35 +147,6 @@ function resolveVisualScenarioFromSpine(raw: unknown): NonNullable<AlicizationVi
     : 'general'
 }
 
-function includesAny(text: string, needles: readonly string[]) {
-  return needles.some(needle => text.includes(needle))
-}
-
-function hasAutobiographicalSameHerContinuityCarry(
-  digest: AlicizationDigitalLifeSpineDigest,
-) {
-  const autobiographicalSelf = digest.embodiment?.autobiographicalSelf
-  const continuityCue = sanitizeBriefText([
-    autobiographicalSelf?.relationshipDoctrine,
-    autobiographicalSelf?.identityNarrative,
-  ].filter(Boolean).join(' | '), 220).toLowerCase()
-
-  if (!continuityCue)
-    return false
-
-  return includesAny(continuityCue, [
-    'continuity drift risk',
-    'generic assistant shell',
-    'project-summary voice',
-    'detached status talk',
-    'continuity drift',
-    'drift rather than completion',
-    'continuity line',
-    'continuous identity',
-    'continuous her',
-  ])
-}
-
 function resolvePresenceAuthorityFromSpine(input: {
   digest: AlicizationDigitalLifeSpineDigest
   previous: AlicizationVisualPresenceStateSnapshot | null
@@ -218,29 +184,6 @@ function resolvePresenceAuthorityFromSpine(input: {
         || 'quiet companionship watch',
         180,
       ) || 'quiet companionship watch',
-    }
-  }
-
-  if (
-    !input.shouldSpeak
-    && previousAuthority?.currentBodyState === 'accompanying'
-    && previousAuthority?.continuityMode === 'quiet-accompaniment'
-    && Math.max(0, previousAuthority?.quietLineMs ?? 0) >= 120_000
-    && hasAutobiographicalSameHerContinuityCarry(input.digest)
-  ) {
-    return {
-      currentBodyState: 'accompanying' as const,
-      continuityMode: 'quiet-accompaniment' as const,
-      quietLineMs: Math.max(0, previousAuthority.quietLineMs ?? 0),
-      currentInwardPreoccupation: sanitizeBriefText(
-        input.digest.embodiment?.autobiographicalSelf?.identityNarrative
-        || input.digest.embodiment?.autobiographicalSelf?.relationshipDoctrine
-        || input.digest.architecture?.summary
-        || input.digest.runtime.sceneSummary
-        || previousAuthority?.currentInwardPreoccupation
-        || 'quiet continuity continuity carry',
-        180,
-      ) || 'quiet continuity continuity carry',
     }
   }
 
@@ -398,7 +341,6 @@ function buildPrivateThoughtReasonTagsFromSpine(
   digest: AlicizationDigitalLifeSpineDigest,
   memoryCarryPolicy: ReturnType<typeof deriveAlicizationDialogueMemoryCarryPolicyFromDigest>,
 ) {
-  const sameHerContinuityCarry = hasAutobiographicalSameHerContinuityCarry(digest)
   const memoryCarryTags = memoryCarryPolicy.mode === 'quiet'
     ? []
     : [
@@ -407,8 +349,6 @@ function buildPrivateThoughtReasonTagsFromSpine(
       ]
   const tags = [
     'digital-life-spine',
-    sameHerContinuityCarry ? 'continuity-inward-carry' : '',
-    sameHerContinuityCarry ? 'quiet-companionship' : '',
     ...memoryCarryTags,
     digest.architecture?.dominantSystem ? `dominant:${digest.architecture.dominantSystem}` : '',
     digest.architecture?.operatingMode ? `mode:${digest.architecture.operatingMode}` : '',
@@ -607,12 +547,6 @@ export function buildAlicizationVisualPresenceStateFromSpineDigest(input: {
           source: input.digest.outcomeLearning?.summary || input.digest.outcomeLearning?.latestInflection
             ? 'outcome-learning'
             : 'autobiographical-self',
-        }
-      : null,
-    currentConsciousFrame: input.digest.runtime.projectState?.emotionalClosureCue
-      ? {
-          reasonTags: ['runtime-conscious-frame'],
-          projectState: input.digest.runtime.projectState,
         }
       : null,
     updatedAt: input.digest.runtime.updatedAt ?? currentTs,

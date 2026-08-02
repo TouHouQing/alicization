@@ -457,7 +457,7 @@ describe('alicization digital life', () => {
     }))
   })
 
-  it('preserves structured same-her action continuity when digital-life arrives through fallback transport payload shape', () => {
+  it('preserves structured continuity action continuity when digital-life arrives through fallback transport payload shape', () => {
     const bundle = normalizeAlicizationDerivedMindStateBundle({
       source: 'main-runtime',
       producedAt: 1,
@@ -475,7 +475,7 @@ describe('alicization digital life', () => {
         },
         digitalLife: {
           version: 'digital-life-v1',
-          variationToken: 'transport-fallback-same-her-action',
+          variationToken: 'transport-fallback-continuity-action',
           emotion: 'thinking',
           mode: 'speaking',
           interruptPolicy: 'soft-interrupt',
@@ -518,7 +518,7 @@ describe('alicization digital life', () => {
             residentMode: 'same-thread-continuation',
             preferredBlinkCadence: 'linger',
             preferredGazeMode: 'soften',
-            signature: 'embodiment:audible-same-her-line',
+            signature: 'embodiment:audible-continuity-line',
             reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
           },
           face: {
@@ -530,7 +530,7 @@ describe('alicization digital life', () => {
               residentMode: 'same-thread-continuation',
               preferredBlinkCadence: 'linger',
               preferredGazeMode: 'soften',
-              signature: 'embodiment:audible-same-her-line',
+              signature: 'embodiment:audible-continuity-line',
               reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
             },
           },
@@ -543,7 +543,7 @@ describe('alicization digital life', () => {
               residentMode: 'same-thread-continuation',
               preferredBlinkCadence: 'linger',
               preferredGazeMode: 'soften',
-              signature: 'embodiment:audible-same-her-line',
+              signature: 'embodiment:audible-continuity-line',
               reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
             },
           },
@@ -556,7 +556,7 @@ describe('alicization digital life', () => {
       residentMode: 'same-thread-continuation',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      signature: 'embodiment:audible-same-her-line',
+      signature: 'embodiment:audible-continuity-line',
       reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
     }))
     expect(bundle?.structured?.digitalLife?.mode).toBe('acting')
@@ -598,7 +598,7 @@ describe('alicization digital life', () => {
       residentMode: 'same-thread-continuation',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      signature: 'embodiment:audible-same-her-line',
+      signature: 'embodiment:audible-continuity-line',
       reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
     }))
     expect(bundle?.structured?.digitalLife?.face.expressionMode).toBe('recover')
@@ -608,7 +608,7 @@ describe('alicization digital life', () => {
       residentMode: 'same-thread-continuation',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      signature: 'embodiment:audible-same-her-line',
+      signature: 'embodiment:audible-continuity-line',
       reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
     }))
     expect(bundle?.structured?.digitalLife?.action.actionMode).toBe('hold')
@@ -618,7 +618,7 @@ describe('alicization digital life', () => {
       residentMode: 'same-thread-continuation',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      signature: 'embodiment:audible-same-her-line',
+      signature: 'embodiment:audible-continuity-line',
       reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
     }))
     expect(bundle?.structured?.digitalLife?.frames[0]?.mode).toBe('acting')
@@ -643,7 +643,7 @@ describe('alicization digital life', () => {
       residentMode: 'same-thread-continuation',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      signature: 'embodiment:audible-same-her-line',
+      signature: 'embodiment:audible-continuity-line',
       reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
     }))
     expect(bundle?.structured?.digitalLife?.frames[0]?.action.actionMode).toBe('hold')
@@ -1061,8 +1061,6 @@ describe('alicization digital life', () => {
             silenceReconnect: 'hold',
             comfortStyle: 'quiet-presence',
             preferredProactiveStyle: 'silent-observe',
-            manifestationCadenceSummary: 'Observe first and keep the approach lower-pressure before leaning closer.',
-            openingGuidance: 'Open by observing first and keep the approach lighter.',
             whySummary: 'persona prefers observe-first room before a closer move.',
           },
         },
@@ -1108,8 +1106,6 @@ describe('alicization digital life', () => {
             silenceReconnect: 'direct-approach',
             comfortStyle: 'take-charge',
             preferredProactiveStyle: 'light-nudge',
-            manifestationCadenceSummary: 'Direct reconnect can move first once the opening is real enough.',
-            openingGuidance: 'Open directly with the live answer first and keep the approach lighter.',
             whySummary: 'persona prefers a direct reconnect once the opening is real.',
           },
         },
@@ -1247,9 +1243,6 @@ describe('alicization digital life', () => {
           preferredPresence: 'attentive',
           selectedAction: 'silent-observe',
           updatedAt: 1_000,
-          continuityArcStage: 'same-thread-continuation',
-          continuityPreferredTiming: 'next-open-window',
-          continuityCue: 'same callback seam, continue softly after the detour',
         },
         architecture: null,
         continuitySignal: null,
@@ -1265,15 +1258,12 @@ describe('alicization digital life', () => {
           leadingGoalId: null,
           leadingGoalSummary: 'Keep the callback return soft and continuous.',
           preferredPresence: 'attentive',
-          continuityRestraint: 'measured-return',
           personaBias: {
             relationshipPosture: 'observer',
             initiativeStyle: 'observant',
             silenceReconnect: 'hold',
             comfortStyle: 'quiet-presence',
             preferredProactiveStyle: 'silent-observe',
-            openingGuidance: 'Keep the return lower-pressure and leave more room before widening closeness.',
-            manifestationCadenceSummary: 'observe-first and stay slower until the opening softens',
             whySummary: 'The same callback seam is still warm, so the reopening should stay softer.',
           },
         },
@@ -1338,15 +1328,6 @@ describe('alicization digital life', () => {
           learningReadiness: 0.58,
           nextLearningAction: 'hold',
         },
-      },
-      projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
-        memoryClosureSummary: null,
-        primaryOpenLoop: null,
-        continuityArcStage: 'same-thread-continuation',
-        continuityPreferredTiming: 'next-open-window',
-        sameHerSelfLine: 'Keep the same Phase 1 digital life on one continuous living line.',
-        emotionalClosureCue: 'same callback seam, continue softly after the detour',
       },
       performanceManifest: {
         renderer: 'live2d',
@@ -1461,8 +1442,7 @@ describe('alicization digital life', () => {
       digitalLifeSpineDigest: {
         proactive: {
           personaBias: {
-            manifestationCadenceSummary: 'Deliver the result on the same living thread, but leave room before widening closeness.',
-            openingGuidance: 'This follow-up is reopening because the current scene feels like the same remembered relationship seam.',
+            whySummary: 'The remembered return still needs a lower-pressure opening.',
           },
         },
         embodiment: {
@@ -1519,27 +1499,27 @@ describe('alicization digital life', () => {
       segmentId: frame?.id,
     })
 
-    expect(companionshipReasonSummary).toBeNull()
+    expect(companionshipReasonSummary).toBe('The remembered return still needs a lower-pressure opening.')
     expect(voiceSummary).toContain('companion=measured-return')
     expect(voiceSummary).toContain('timing=audible-body-carry')
     expect(voiceSummary).toContain('blink=linger')
     expect(voiceSummary).toContain('gaze=soften')
-    expect(voiceSummary).not.toContain('reason=')
+    expect(voiceSummary).toContain('reason=The remembered return still needs a lower-pressure opening.')
     expect(lipsyncSummary).toContain('companion=measured-return')
     expect(lipsyncSummary).toContain('timing=audible-body-carry')
     expect(lipsyncSummary).toContain('blink=linger')
     expect(lipsyncSummary).toContain('gaze=soften')
-    expect(lipsyncSummary).not.toContain('reason=')
+    expect(lipsyncSummary).toContain('reason=The remembered return still needs a lower-pressure opening.')
     expect(faceSummary).toContain('mode=measured-return')
     expect(faceSummary).toContain('timing=audible-body-carry')
     expect(faceSummary).toContain('blink=linger')
     expect(faceSummary).toContain('gaze=soften')
-    expect(faceSummary).not.toContain('reason=')
+    expect(faceSummary).toContain('reason=The remembered return still needs a lower-pressure opening.')
     expect(motionSummary).toContain('tail=measured-return')
     expect(motionSummary).toContain('timing=audible-body-carry')
     expect(motionSummary).toContain('blink=linger')
     expect(motionSummary).toContain('gaze=soften')
-    expect(motionSummary).not.toContain('reason=')
+    expect(motionSummary).toContain('reason=The remembered return still needs a lower-pressure opening.')
   })
 
   it('keeps remembered-seam more-room measured-return frames quieter than ordinary measured-return at the final digital-life frame layer', () => {
@@ -1622,8 +1602,8 @@ describe('alicization digital life', () => {
   })
 
   it.each([
-    ['audible carry audit', { signature: 'embodiment:audible-same-her-line', reasonTags: ['embodiment:body-lipsync-voice-rejoin'] }],
-    ['body and voice audit', { signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only', reasonTags: ['embodiment:body+voice-only'] }],
+    ['audible carry audit', { signature: 'embodiment:audible-continuity-line', reasonTags: ['embodiment:body-lipsync-voice-rejoin'] }],
+    ['body and voice audit', { signature: 'resident|main-runtime|embodiment:audible_continuity_line|body+voice-only', reasonTags: ['embodiment:body+voice-only'] }],
     ['body and lipsync audit', { reasonTags: ['embodiment:body+lipsync-only'] }],
     ['still voiced face audit', { reasonTags: ['embodiment:still-voiced-face-line'] }],
     ['still voiced motion audit', { reasonTags: ['embodiment:still-voiced-motion-line'] }],
@@ -1742,10 +1722,10 @@ describe('alicization digital life', () => {
     expect(auditedSameThread!.frames[0]?.motor).toEqual(cleanSameThread!.frames[0]?.motor)
   })
 
-  it('normalizes structured same-her audible carry renderer hints through digital-life envelope ingress', () => {
+  it('normalizes structured continuity audible carry renderer hints through digital-life envelope ingress', () => {
     const envelope = normalizeAlicizationDigitalLifeEnvelope({
       version: 'digital-life-v1',
-      variationToken: 'same-her-digital-life-ingress',
+      variationToken: 'continuity-digital-life-ingress',
       emotion: 'thinking',
       mode: 'speaking',
       performance: {
@@ -1764,7 +1744,7 @@ describe('alicization digital life', () => {
         residentMode: 'same-thread-continuation',
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
-        signature: 'embodiment:audible-same-her-line',
+        signature: 'embodiment:audible-continuity-line',
         reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
       },
       face: {
@@ -1794,7 +1774,7 @@ describe('alicization digital life', () => {
         continuityHoldMs: 240,
       },
       frames: [{
-        id: 'same-her-frame',
+        id: 'continuity-frame',
         index: 0,
         startOffset: 0,
         endOffset: 15,
@@ -1811,7 +1791,7 @@ describe('alicization digital life', () => {
             residentMode: 'same-thread-continuation',
             preferredBlinkCadence: 'linger',
             preferredGazeMode: 'soften',
-            signature: 'embodiment:audible-same-her-line',
+            signature: 'embodiment:audible-continuity-line',
             reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
           },
         },
@@ -1824,7 +1804,7 @@ describe('alicization digital life', () => {
             residentMode: 'same-thread-continuation',
             preferredBlinkCadence: 'linger',
             preferredGazeMode: 'soften',
-            signature: 'embodiment:audible-same-her-line',
+            signature: 'embodiment:audible-continuity-line',
             reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
           },
         },
@@ -1848,21 +1828,21 @@ describe('alicization digital life', () => {
       residentMode: 'same-thread-continuation',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      signature: 'embodiment:audible-same-her-line',
+      signature: 'embodiment:audible-continuity-line',
       reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
     }))
     expect(envelope?.frames[0]?.face.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'same-thread-continuation',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      signature: 'embodiment:audible-same-her-line',
+      signature: 'embodiment:audible-continuity-line',
       reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
     }))
     expect(envelope?.frames[0]?.action.rendererHints).toEqual(expect.objectContaining({
       residentMode: 'same-thread-continuation',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      signature: 'embodiment:audible-same-her-line',
+      signature: 'embodiment:audible-continuity-line',
       reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
     }))
   })
@@ -1880,501 +1860,5 @@ describe('alicization digital life', () => {
     })
 
     expect(state).toBeNull()
-  })
-
-  it('keeps same-thread measured-return callback project closure from cooling the final frame voice back into thin scene cadence', () => {
-    const envelope = buildAlicizationDigitalLifeEnvelope({
-      embodiment: {
-        variationToken: 'same-thread-measured-return-frame-voice',
-        emotion: 'thinking',
-        performance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          delivery: 'hesitant',
-          emphasis: 0,
-          facialCue: 'soft-gaze',
-          actionCue: 'observe_focus',
-        },
-        postureHint: 'hesitant',
-        speechStyle: {
-          pitchDelta: -3,
-          rateMultiplier: 0.93,
-        },
-        rendererHints: {
-          residentMode: 'measured-return',
-          preferredBlinkCadence: 'linger',
-          preferredGazeMode: 'soften',
-        },
-      },
-      speechTimeline: {
-        version: 'speech-timeline-v1',
-        variationToken: 'same-thread-measured-return-frame-voice',
-        reply: '我先沿着刚才那条 callback 线轻一点跟回去，先看这一处 runtime seam 怎么继续收口。',
-        emotion: 'thinking',
-        segments: [{
-          id: 'segment-1',
-          index: 0,
-          startOffset: 0,
-          endOffset: 34,
-          text: '我先沿着刚才那条 callback 线轻一点跟回去，先看这一处 runtime seam 怎么继续收口。',
-          emotion: 'thinking',
-          gestureWeight: 0.38,
-          facialWeight: 0.46,
-          prosodyWeight: 0.44,
-          beatWeight: 0.38,
-          mouthWeight: 0.4,
-          headWeight: 0.42,
-          facialHoldMs: 320,
-          actionHoldMs: 280,
-          emotionHoldMs: 320,
-          settleMode: 'linger',
-          rendererHints: {
-            residentMode: 'measured-return',
-            preferredBlinkCadence: 'linger',
-            preferredGazeMode: 'soften',
-          },
-          actionCue: 'observe_focus',
-          facialCue: 'soft-gaze',
-          actionWindow: 'none',
-          interruptMode: 'continue',
-        }],
-      },
-      digitalLifeSpine: {
-        proactive: {
-          continuityRestraint: 'measured-return',
-        },
-      } as any,
-      projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
-        memoryClosureSummary: null,
-        primaryOpenLoop: null,
-        continuityArcStage: 'same-thread-continuation',
-        continuityPreferredTiming: 'next-open-window',
-        sameHerSelfLine: 'structured continuity digest.',
-        emotionalClosureCue: 'Keep the continuity state inward for now, and leave room before widening outward again.',
-      },
-    })
-
-    expect(envelope?.voice.energy).toBeGreaterThanOrEqual(0.48)
-    expect(envelope?.voice.cadence).toBeGreaterThanOrEqual(0.48)
-    expect(envelope?.frames[0]?.voice.energy).toBeGreaterThanOrEqual(0.49)
-    expect(envelope?.frames[0]?.voice.cadence).toBeGreaterThanOrEqual(0.49)
-  })
-
-  it.each([
-    ['continuity arc stage', {
-      continuityArcStage: 'idle' as const,
-      continuityPreferredTiming: 'next-open-window' as const,
-      continuityRestraint: 'measured-return' as const,
-    }],
-    ['continuity preferred timing', {
-      continuityArcStage: 'same-thread-continuation' as const,
-      continuityPreferredTiming: 'observe-first' as const,
-      continuityRestraint: 'measured-return' as const,
-    }],
-    ['continuity restraint', {
-      continuityArcStage: 'same-thread-continuation' as const,
-      continuityPreferredTiming: 'next-open-window' as const,
-      continuityRestraint: 'none' as const,
-    }],
-  ])('requires structured %s for measured-return frame closure', (_label, structuredState) => {
-    const envelope = buildAlicizationDigitalLifeEnvelope({
-      embodiment: {
-        variationToken: `structured-continuity-${_label}`,
-        emotion: 'thinking',
-        performance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          delivery: 'hesitant',
-          emphasis: 0,
-          facialCue: 'soft-gaze',
-          actionCue: 'observe_focus',
-        },
-        postureHint: 'hesitant',
-        speechStyle: {
-          pitchDelta: -3,
-          rateMultiplier: 0.93,
-        },
-        rendererHints: {
-          residentMode: 'measured-return',
-          preferredBlinkCadence: 'linger',
-          preferredGazeMode: 'soften',
-        },
-      },
-      speechTimeline: {
-        version: 'speech-timeline-v1',
-        variationToken: `structured-continuity-${_label}`,
-        reply: '我按结构化连续性条件决定这一帧的声音状态。',
-        emotion: 'thinking',
-        segments: [{
-          id: 'segment-1',
-          index: 0,
-          startOffset: 0,
-          endOffset: 24,
-          text: '我按结构化连续性条件决定这一帧的声音状态。',
-          emotion: 'thinking',
-          gestureWeight: 0.38,
-          facialWeight: 0.46,
-          prosodyWeight: 0.44,
-          beatWeight: 0.38,
-          mouthWeight: 0.4,
-          headWeight: 0.42,
-          facialHoldMs: 320,
-          actionHoldMs: 280,
-          emotionHoldMs: 320,
-          settleMode: 'linger',
-          rendererHints: {
-            residentMode: 'measured-return',
-            preferredBlinkCadence: 'linger',
-            preferredGazeMode: 'soften',
-          },
-          actionCue: 'observe_focus',
-          facialCue: 'soft-gaze',
-          actionWindow: 'none',
-          interruptMode: 'continue',
-        }],
-      },
-      digitalLifeSpine: {
-        proactive: structuredState.continuityRestraint === 'measured-return'
-          ? { continuityRestraint: 'measured-return' }
-          : {},
-      } as any,
-      projectState: {
-        continuityArcStage: structuredState.continuityArcStage,
-        continuityPreferredTiming: structuredState.continuityPreferredTiming,
-      } as any,
-    })
-
-    expect(envelope?.frames[0]?.voice.energy).toBeLessThan(0.49)
-    expect(envelope?.frames[0]?.voice.cadence).toBeLessThan(0.49)
-  })
-
-  it('lets rest-protective memory-owned voice and pacing preferences lower-pressure the final voice plan', () => {
-    const baseline = buildAlicizationDigitalLifeEnvelope({
-      embodiment: {
-        variationToken: 'rest-protective-voice-baseline',
-        emotion: 'concerned',
-        performance: {
-          baseEmotion: 'concerned',
-          emotion: 'concerned',
-          delivery: 'gentle',
-          emphasis: 0,
-          facialCue: 'soft-gaze',
-          actionCue: 'observe_focus',
-        },
-        postureHint: 'concerned',
-        speechStyle: {
-          pitchDelta: 1,
-          rateMultiplier: 0.96,
-        },
-        rendererHints: {
-          residentMode: 'quiet-companionship',
-          preferredBlinkCadence: 'quiet',
-          preferredGazeMode: 'soften',
-        },
-      },
-      speechTimeline: {
-        version: 'speech-timeline-v1',
-        variationToken: 'rest-protective-voice-baseline',
-        reply: '我先轻一点陪着你，把这条线慢慢接稳。',
-        emotion: 'concerned',
-        segments: [{
-          id: 'segment-1',
-          index: 0,
-          startOffset: 0,
-          endOffset: 21,
-          text: '我先轻一点陪着你，把这条线慢慢接稳。',
-          emotion: 'concerned',
-          gestureWeight: 0.34,
-          facialWeight: 0.42,
-          prosodyWeight: 0.4,
-          beatWeight: 0.34,
-          mouthWeight: 0.38,
-          headWeight: 0.36,
-          facialHoldMs: 340,
-          actionHoldMs: 260,
-          emotionHoldMs: 360,
-          settleMode: 'linger',
-          rendererHints: {
-            residentMode: 'quiet-companionship',
-            preferredBlinkCadence: 'quiet',
-            preferredGazeMode: 'soften',
-          },
-          actionCue: 'observe_focus',
-          facialCue: 'soft-gaze',
-          actionWindow: 'none',
-          interruptMode: 'continue',
-        }],
-      },
-      projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
-        continuityCadence: 'rest-protective',
-        preferredBlinkCadence: 'quiet',
-        preferredGazeMode: 'soften',
-      },
-    })
-
-    const lowered = buildAlicizationDigitalLifeEnvelope({
-      embodiment: {
-        variationToken: 'rest-protective-voice-lowered',
-        emotion: 'concerned',
-        performance: {
-          baseEmotion: 'concerned',
-          emotion: 'concerned',
-          delivery: 'gentle',
-          emphasis: 0,
-          facialCue: 'soft-gaze',
-          actionCue: 'observe_focus',
-        },
-        postureHint: 'concerned',
-        speechStyle: {
-          pitchDelta: 1,
-          rateMultiplier: 0.96,
-        },
-        rendererHints: {
-          residentMode: 'quiet-companionship',
-          preferredBlinkCadence: 'quiet',
-          preferredGazeMode: 'soften',
-        },
-      },
-      speechTimeline: {
-        version: 'speech-timeline-v1',
-        variationToken: 'rest-protective-voice-lowered',
-        reply: '我先轻一点陪着你，把这条线慢慢接稳。',
-        emotion: 'concerned',
-        segments: [{
-          id: 'segment-1',
-          index: 0,
-          startOffset: 0,
-          endOffset: 21,
-          text: '我先轻一点陪着你，把这条线慢慢接稳。',
-          emotion: 'concerned',
-          gestureWeight: 0.34,
-          facialWeight: 0.42,
-          prosodyWeight: 0.4,
-          beatWeight: 0.34,
-          mouthWeight: 0.38,
-          headWeight: 0.36,
-          facialHoldMs: 340,
-          actionHoldMs: 260,
-          emotionHoldMs: 360,
-          settleMode: 'linger',
-          rendererHints: {
-            residentMode: 'quiet-companionship',
-            preferredBlinkCadence: 'quiet',
-            preferredGazeMode: 'soften',
-          },
-          actionCue: 'observe_focus',
-          facialCue: 'soft-gaze',
-          actionWindow: 'none',
-          interruptMode: 'continue',
-        }],
-      },
-      projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
-        continuityCadence: 'rest-protective',
-        preferredBlinkCadence: 'quiet',
-        preferredGazeMode: 'soften',
-        preferredVoiceMode: 'lower-pressure',
-        preferredPacingMode: 'slower',
-      },
-    })
-
-    expect(baseline).not.toBeNull()
-    expect(lowered).not.toBeNull()
-    expect(lowered?.voice.rateMultiplier).toBeLessThan(baseline?.voice.rateMultiplier ?? 1)
-    expect(lowered?.voice.energy).toBeLessThan(baseline?.voice.energy ?? 1)
-    expect(lowered?.voice.cadence).toBeLessThan(baseline?.voice.cadence ?? 1)
-    expect(lowered?.frames[0]?.voice.rateMultiplier).toBeLessThan(baseline?.frames[0]?.voice.rateMultiplier ?? 1)
-    expect(lowered?.frames[0]?.voice.energy).toBeLessThan(baseline?.frames[0]?.voice.energy ?? 1)
-    expect(lowered?.frames[0]?.voice.cadence).toBeLessThan(baseline?.frames[0]?.voice.cadence ?? 1)
-  })
-
-  it('reuses runtime project-state continuity from the digital-life spine when measured-return closure is only carried there', () => {
-    const envelope = buildAlicizationDigitalLifeEnvelope({
-      embodiment: {
-        variationToken: 'same-thread-measured-return-frame-voice-spine-project-state',
-        emotion: 'thinking',
-        performance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          delivery: 'hesitant',
-          emphasis: 0,
-          facialCue: 'soft-gaze',
-          actionCue: 'observe_focus',
-        },
-        postureHint: 'hesitant',
-        speechStyle: {
-          pitchDelta: -3,
-          rateMultiplier: 0.93,
-        },
-        rendererHints: {
-          residentMode: 'measured-return',
-          preferredBlinkCadence: 'linger',
-          preferredGazeMode: 'soften',
-        },
-      },
-      speechTimeline: {
-        version: 'speech-timeline-v1',
-        variationToken: 'same-thread-measured-return-frame-voice-spine-project-state',
-        reply: '我先沿着刚才那条 callback 线轻一点跟回去，先看这一处 runtime seam 怎么继续收口。',
-        emotion: 'thinking',
-        segments: [{
-          id: 'segment-1',
-          index: 0,
-          startOffset: 0,
-          endOffset: 34,
-          text: '我先沿着刚才那条 callback 线轻一点跟回去，先看这一处 runtime seam 怎么继续收口。',
-          emotion: 'thinking',
-          gestureWeight: 0.38,
-          facialWeight: 0.46,
-          prosodyWeight: 0.44,
-          beatWeight: 0.38,
-          mouthWeight: 0.4,
-          headWeight: 0.42,
-          facialHoldMs: 320,
-          actionHoldMs: 280,
-          emotionHoldMs: 320,
-          settleMode: 'linger',
-          rendererHints: {
-            residentMode: 'measured-return',
-            preferredBlinkCadence: 'linger',
-            preferredGazeMode: 'soften',
-          },
-          actionCue: 'observe_focus',
-          facialCue: 'soft-gaze',
-          actionWindow: 'none',
-          interruptMode: 'continue',
-        }],
-      },
-      digitalLifeSpine: {
-        version: 'digital-life-spine-digest-v1',
-        runtime: {
-          watchMode: 'foreground-follow',
-          sceneScenario: 'coding',
-          sceneSummary: 'same callback seam still alive',
-          activeThreadId: 'thread-measured-return-hold',
-          activeThreadTitle: 'callback seam',
-          dominantMode: 'observe',
-          dominantDrive: 'understand',
-          answerIntent: 'Continue the same callback seam without crowding the return.',
-          preferredPresence: 'attentive',
-          selectedAction: 'silent-observe',
-          updatedAt: 1_000,
-          projectState: {
-            currentPhase: 'Phase 1: Local Digital Life',
-            memoryClosureSummary: null,
-            primaryOpenLoop: null,
-            continuityArcStage: 'same-thread-continuation',
-            continuityPreferredTiming: 'next-open-window',
-            sameHerSelfLine: 'structured continuity digest.',
-            emotionalClosureCue: 'Keep the continuity state inward for now, and leave room before widening outward again.',
-          },
-        },
-        architecture: null,
-        continuitySignal: null,
-        proactive: {
-          continuityRestraint: 'measured-return',
-        },
-        memory: null,
-      } as any,
-    })
-
-    expect(envelope?.frames[0]?.voice.energy).toBeGreaterThanOrEqual(0.49)
-    expect(envelope?.frames[0]?.voice.cadence).toBeGreaterThanOrEqual(0.49)
-  })
-
-  it('does not keep measured-return project closure when continuity is only carried by prose wording', () => {
-    function buildEnvelope(prose: {
-      continuityCue: string
-      emotionalClosureCue: string
-      nextClosureTarget: string
-      sameHerSelfLine: string
-    }) {
-      return buildAlicizationDigitalLifeEnvelope({
-        embodiment: {
-          variationToken: 'same-thread-measured-return-frame-voice-project-callback-cue',
-          emotion: 'thinking',
-          performance: {
-            baseEmotion: 'thinking',
-            emotion: 'thinking',
-            delivery: 'hesitant',
-            emphasis: 0,
-            facialCue: 'soft-gaze',
-            actionCue: 'observe_focus',
-          },
-          postureHint: 'hesitant',
-          speechStyle: {
-            pitchDelta: -3,
-            rateMultiplier: 0.93,
-          },
-          rendererHints: {
-            residentMode: 'measured-return',
-            preferredBlinkCadence: 'linger',
-            preferredGazeMode: 'soften',
-          },
-        },
-        speechTimeline: {
-          version: 'speech-timeline-v1',
-          variationToken: 'same-thread-measured-return-frame-voice-project-callback-cue',
-          reply: '我先把这段描述放轻一点，再看这一处 runtime seam 怎么继续收口。',
-          emotion: 'thinking',
-          segments: [{
-            id: 'segment-1',
-            index: 0,
-            startOffset: 0,
-            endOffset: 50,
-            text: '我先把这段描述放轻一点，再看这一处 runtime seam 怎么继续收口。',
-            emotion: 'thinking',
-            gestureWeight: 0.38,
-            facialWeight: 0.46,
-            prosodyWeight: 0.44,
-            beatWeight: 0.38,
-            mouthWeight: 0.4,
-            headWeight: 0.42,
-            facialHoldMs: 320,
-            actionHoldMs: 280,
-            emotionHoldMs: 320,
-            settleMode: 'linger',
-            rendererHints: {
-              residentMode: 'measured-return',
-              preferredBlinkCadence: 'linger',
-              preferredGazeMode: 'soften',
-            },
-            actionCue: 'observe_focus',
-            facialCue: 'soft-gaze',
-            actionWindow: 'none',
-            interruptMode: 'continue',
-          }],
-        },
-        digitalLifeSpine: {
-          proactive: {},
-        } as any,
-        projectState: {
-          currentPhase: 'Phase 1: Local Digital Life',
-          memoryClosureSummary: null,
-          primaryOpenLoop: null,
-          continuityArcStage: 'same-thread-continuation',
-          continuityPreferredTiming: 'next-open-window',
-          ...prose,
-        },
-      })
-    }
-    const cleanEnvelope = buildEnvelope({
-      continuityCue: 'Audit description without execution authority.',
-      emotionalClosureCue: 'Audit description without execution authority.',
-      nextClosureTarget: 'Audit description without execution authority.',
-      sameHerSelfLine: 'Audit description without execution authority.',
-    })
-    const pollutedEnvelope = buildEnvelope({
-      continuityCue: 'same callback seam and callback thread',
-      emotionalClosureCue: 'same Phase 1 digital life and same living line',
-      nextClosureTarget: 'continuous her and one continuous her',
-      sameHerSelfLine: 'same thread',
-    })
-
-    expect(pollutedEnvelope?.frames[0]?.voice).toEqual(cleanEnvelope?.frames[0]?.voice)
-    expect(pollutedEnvelope?.frames[0]?.voice.energy).toBeLessThan(0.49)
-    expect(pollutedEnvelope?.frames[0]?.voice.cadence).toBeLessThan(0.49)
   })
 })

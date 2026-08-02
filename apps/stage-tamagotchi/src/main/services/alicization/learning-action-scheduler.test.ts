@@ -8,23 +8,6 @@ import {
   deriveAlicizationLearningTaskRetryPlan,
 } from './learning-action-scheduler'
 
-function buildSameHerProjectStateContinuity() {
-  return {
-    identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
-    currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-    sameHerSummary: 'Keep one same local digital life coherent across emotion, memory, initiative, and embodiment while learning from this turn.',
-    landedProgressSummary: 'Cross-turn continuity is landing more often inside the desktop life loop.',
-    openClosureSummary: 'Learning still needs to preserve continuity pressure when verification and retries stretch across time.',
-    proactiveSameHerGap: 'Delayed learning still needs to carry the identity-continuity',
-    nextClosureTarget: 'Carry identity-continuity',
-    preDialogueAwarenessLine: 'pre_turn_context_digest',
-    emotionalClosureCue: 'identity-continuity',
-    sameHerSelfLine: 'identity continuity',
-    sameHerHoldDetail: 'identity-continuity',
-    sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the identity-continuity',
-  }
-}
-
 function buildLearningTaskRecord(input: Partial<AlicizationLearningTaskRecord> = {}): AlicizationLearningTaskRecord {
   return {
     id: input.id ?? 'row:learning',
@@ -40,7 +23,6 @@ function buildLearningTaskRecord(input: Partial<AlicizationLearningTaskRecord> =
       sourceSessionId: 'session-1',
       action: 'verify',
       reason: 'verify contradiction',
-      projectStateContinuity: buildSameHerProjectStateContinuity(),
       focuses: ['resolve-contradictions'],
       dominantTrajectory: 'Need to verify',
       sourceSignals: ['Need to verify'],
@@ -128,19 +110,6 @@ describe('learning action scheduler', () => {
     const task = await scheduler.scheduleLearningTask({
       turnId: 'turn-learning',
       context: {
-        projectStateContinuity: {
-          identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
-          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          sameHerSummary: 'Keep one same local digital life coherent across emotion, memory, initiative, and embodiment while learning from this turn.',
-          landedProgressSummary: 'Cross-turn continuity is landing more often inside the desktop life loop.',
-          openClosureSummary: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life stays coherent.',
-          proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
-          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
-          preDialogueAwarenessLine: 'pre_turn_context_digest',
-          emotionalClosureCue: 'identity-continuity',
-          sameHerSelfLine: 'identity continuity',
-          sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the identity-continuity',
-        },
         hostAttitude: '',
         coreIncarnation: '',
         activeThoughts: [],
@@ -174,7 +143,7 @@ describe('learning action scheduler', () => {
           burdenLine: null,
           trustMeaning: null,
           nextLearningAction: 'internalize',
-          nextLearningReason: 'Validated procedure carry is strong enough to promote.',
+          nextLearningReason: 'learning:internalize',
           shouldRecord: false,
           shouldReflect: false,
           shouldVerify: false,
@@ -190,38 +159,40 @@ describe('learning action scheduler', () => {
     expect(task).toEqual(expect.objectContaining({
       taskId: expect.stringContaining('learning:default:internalize:'),
       sourceTurnId: 'turn-learning',
-      message: expect.stringContaining('Learning action: internalize.'),
+      message: expect.stringContaining('learning-action:internalize'),
     }))
     expect(String(task?.message ?? '')).toBe(
-      'Learning action: internalize. Reason: Validated procedure carry is strong enough to promote. Focus: internalize-procedure.',
+      'learning-action:internalize; reason:learning:internalize; focus:internalize-procedure',
     )
-    expect(insertLearningTask).toBeCalledWith(expect.objectContaining({
+    const scheduledInput = (insertLearningTask.mock.calls as any[])[0]?.[0]
+    expect(scheduledInput).toEqual(expect.objectContaining({
       cardId: 'default',
       taskId: expect.stringContaining('learning:default:internalize:'),
       action: 'internalize',
-      message: 'Learning action: internalize. Reason: Validated procedure carry is strong enough to promote. Focus: internalize-procedure.',
+      message: 'learning-action:internalize; reason:learning:internalize; focus:internalize-procedure',
       payload: expect.objectContaining({
         sourceTurnId: 'turn-learning',
-        projectStateContinuity: null,
         supportingFactIds: ['fact-1'],
       }),
     }))
-    expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
+    expect(scheduledInput?.payload).not.toHaveProperty('runtimeContinuity')
+    const scheduledAudit = (appendAuditLog.mock.calls as any[]).find(call => call[0]?.action === 'alicization.learning.task.scheduled')?.[0]
+    expect(scheduledAudit).toEqual(expect.objectContaining({
       action: 'alicization.learning.task.scheduled',
       payload: expect.objectContaining({
-        projectStateContinuity: null,
         nextLearningAction: 'internalize',
         activeLearningFocuses: ['internalize-procedure'],
         dominantTrajectory: 'Validated procedure is stabilizing.',
         supersedeTargets: ['fact-old-style'],
         conflictTargets: ['fact-uncertain-style'],
       }),
-    }), 'default')
+    }))
+    expect(scheduledAudit?.payload).not.toHaveProperty('runtimeContinuity')
     const scheduledMessage = String(insertLearningTask.mock.calls[0]?.[0]?.message ?? '')
-    expect(scheduledMessage).not.toMatch(/same-her|identity continuity|project|stay anchored|risk is tracked|continuity progress/u)
+    expect(scheduledMessage).not.toMatch(/continuity|identity continuity|project|stay anchored|risk is tracked|continuity progress/u)
   })
 
-  it('drops project-state continuity from delayed learning payloads instead of sanitizing it into replacement templates', async () => {
+  it('omits obsolete project-state continuity from delayed learning payloads', async () => {
     const insertLearningTask = vi.fn(async (input: any): Promise<AlicizationLearningTaskRecord> => ({
       id: `row:${input.taskId}`,
       cardId: input.cardId,
@@ -271,20 +242,10 @@ describe('learning action scheduler', () => {
     })
 
     await scheduler.scheduleLearningTask({
-      turnId: 'turn-learning-thin-shell',
+      turnId: 'turn-learning-obsolete-context',
       context: {
-        projectStateContinuity: {
-          identity: 'project',
-          currentPhase: 'Phase 1',
-          sameHerSummary: 'template-residue-shell',
-          landedProgressSummary: 'Project continuity exists.',
-          openClosureSummary: 'Project continuity still needs closure.',
-          proactiveSameHerGap: 'Learning still needs to preserve identity-continuity',
-          nextClosureTarget: 'Carry project continuity forward.',
-          preDialogueAwarenessLine: 'template-residue-shell',
-          emotionalClosureCue: 'identity-continuity',
-          sameHerSelfLine: 'template-residue-shell',
-          sameHerDriftRisk: 'If this line drops into a generic assistant shell or project-summary voice during later learning passes, Alicization can sound capable while losing the identity-continuity',
+        runtimeContinuity: {
+          obsolete: true,
         },
         hostAttitude: '',
         coreIncarnation: '',
@@ -299,36 +260,35 @@ describe('learning action scheduler', () => {
           contradictionPressure: 0.1,
           revisionPressure: 0.12,
           autobiographicalStability: 0.8,
-          dominantTrajectory: 'Need to preserve identity-continuity',
+          dominantTrajectory: 'Validated workflow is ready for durable use.',
           relationshipDoctrine: null,
-          latestInflection: 'Need to preserve identity-continuity',
+          latestInflection: 'The verified procedure now has enough supporting evidence.',
           burdenLine: null,
           trustMeaning: null,
           nextLearningAction: 'internalize',
-          nextLearningReason: 'Canonical phase-1 identity-continuity',
+          nextLearningReason: 'The verified procedure is ready to internalize.',
           shouldRecord: false,
           shouldReflect: false,
           shouldVerify: false,
           shouldRevise: false,
           shouldInternalize: true,
-          activeLearningFocuses: ['same-her-continuity'],
-          sourceSignals: ['Need to preserve identity-continuity'],
-          summary: 'Need to preserve identity-continuity',
+          activeLearningFocuses: ['internalize-verified-procedure'],
+          sourceSignals: ['The verified procedure has consistent support.'],
+          summary: 'The verified procedure is ready to internalize.',
         },
       } as any,
     })
 
-    expect(insertLearningTask).toBeCalledWith(expect.objectContaining({
+    const scheduledInput = (insertLearningTask.mock.calls as any[])[0]?.[0]
+    expect(scheduledInput).toEqual(expect.objectContaining({
       payload: expect.objectContaining({
-        projectStateContinuity: null,
+        sourceTurnId: 'turn-learning-obsolete-context',
+        action: 'internalize',
+        reason: 'The verified procedure is ready to internalize.',
+        focuses: ['internalize-verified-procedure'],
       }),
-      message: expect.stringContaining('Learning action: internalize.'),
     }))
-    expect(String(insertLearningTask.mock.calls[0]?.[0]?.message ?? '')).toBe(
-      'Learning action: internalize. Reason: Canonical phase-1 identity-continuity. Focus: same-her-continuity.',
-    )
-    const scheduledPayload = insertLearningTask.mock.calls[0]?.[0]?.payload?.projectStateContinuity
-    expect(scheduledPayload).toBeNull()
+    expect(scheduledInput?.payload).not.toHaveProperty('runtimeContinuity')
   })
 
   it('claims and completes due learning tasks through executor', async () => {
@@ -445,7 +405,6 @@ describe('learning action scheduler', () => {
           responsePosture: {
             hypothesisLabelBias: 0.1,
             specificityClampBias: 0.12,
-            templateShellSuppressionBias: 0.22,
           },
           proactivePolicy: {
             restraintBias: 0.12,
@@ -473,9 +432,9 @@ describe('learning action scheduler', () => {
     }), 10_000)
     const blockedInput = (blockLearningTask.mock.calls as any[])[0]?.[1]
     expect(blockedInput?.reason).toContain('missing supporting facts and reflections')
-    expect(blockedInput?.reason).not.toMatch(/same-her=|same-her-hold=|same-her-gap=|guard=/u)
+    expect(blockedInput?.reason).not.toMatch(/continuity=|continuity-hold=|continuity-gap=|guard=/u)
     expect(blockedInput?.resultSummary).toContain('waiting for stronger support')
-    expect(blockedInput?.resultSummary).not.toMatch(/same-her=|same-her-hold=|same-her-gap=|guard=/u)
+    expect(blockedInput?.resultSummary).not.toMatch(/continuity=|continuity-hold=|continuity-gap=|guard=/u)
     expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
       action: 'alicization.learning.task.executed',
       payload: expect.objectContaining({
@@ -490,9 +449,9 @@ describe('learning action scheduler', () => {
       }),
     }), 'default')
     const executedAuditPayload = (appendAuditLog.mock.calls as any[]).find(call => call[0]?.action === 'alicization.learning.task.executed')?.[0]?.payload as any
-    expect(executedAuditPayload).not.toHaveProperty('sameHerContinuityGuard')
-    expect(executedAuditPayload?.error).not.toMatch(/same-her=|same-her-hold=|same-her-gap=|guard=/u)
-    expect(executedAuditPayload?.resultSummary).not.toMatch(/same-her=|same-her-hold=|same-her-gap=|guard=/u)
+    expect(executedAuditPayload).not.toHaveProperty('continuityGuard')
+    expect(executedAuditPayload?.error).not.toMatch(/continuity=|continuity-hold=|continuity-gap=|guard=/u)
+    expect(executedAuditPayload?.resultSummary).not.toMatch(/continuity=|continuity-hold=|continuity-gap=|guard=/u)
   })
 
   it('reopens due retryable failed or blocked tasks after backoff', async () => {
@@ -550,7 +509,7 @@ describe('learning action scheduler', () => {
     }), 200_000)
     const reopenInput = (reopenLearningTask.mock.calls as any[])[0]?.[1]
     expect(reopenInput?.reason).toContain('retryable:runtime-error:attempt 1/3')
-    expect(reopenInput?.reason).not.toMatch(/same-her=|same-her-hold=|same-her-gap=|guard=/u)
+    expect(reopenInput?.reason).not.toMatch(/continuity=|continuity-hold=|continuity-gap=|guard=/u)
     expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
       action: 'alicization.learning.task.retry.reopened',
       payload: expect.objectContaining({
@@ -561,7 +520,7 @@ describe('learning action scheduler', () => {
       }),
     }), 'default')
     const retryAuditPayload = (appendAuditLog.mock.calls as any[]).find(call => call[0]?.action === 'alicization.learning.task.retry.reopened')?.[0]?.payload as any
-    expect(retryAuditPayload).not.toHaveProperty('sameHerContinuityGuard')
-    expect(retryAuditPayload?.reason).not.toMatch(/same-her=|same-her-hold=|same-her-gap=|guard=/u)
+    expect(retryAuditPayload).not.toHaveProperty('continuityGuard')
+    expect(retryAuditPayload?.reason).not.toMatch(/continuity=|continuity-hold=|continuity-gap=|guard=/u)
   })
 })

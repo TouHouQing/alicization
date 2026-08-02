@@ -190,7 +190,7 @@ describe('recall-planner', () => {
     expect(decision.memoryDeliberation?.shouldRecall).toBe(false)
     expect(decision.memoryDeliberation?.surfacePolicy).toBe('internal-only')
     expect(decision.selectedConversationTurnIds).toEqual([])
-    expect(decision.whyNotOthers).toContain('present-facing')
+    expect(decision.whyNotOthers).toBeNull()
   })
 
   it('keeps recollection more inward when contradiction-heavy knowledge evidence is active', () => {
@@ -554,7 +554,7 @@ describe('recall-planner', () => {
 
     expect(decision.ambiguityPosture).toBe('ambiguous')
     expect(decision.uncertaintyLabel).toBe('fragmentary')
-    expect(decision.whyNotOthers).toContain('stable core')
+    expect(decision.whyNotOthers).toBeNull()
     expect(decision.unsafeDetails).toContain('The exact prior wording is unsafe to quote.')
   })
 
@@ -634,7 +634,7 @@ describe('recall-planner', () => {
     expect(decision.shouldRecall).toBe(false)
     expect(decision.recollectionPlan).toBeNull()
     expect(decision.memoryDeliberation?.surfacePolicy).toBe('internal-only')
-    expect(decision.whyNotOthers).toContain('reliability')
+    expect(decision.whyNotOthers).toBeNull()
   })
 
   it('keeps recall but restrains surfacing and confidence under medium reliability pressure', () => {
@@ -806,7 +806,7 @@ describe('recall-planner', () => {
 
     expect(decision.surfaceMode).toBe('internal-only')
     expect(decision.followUpTiming).toBe('next-open-window')
-    expect(decision.whyNotOthers).toContain('older self-story is still being revised')
+    expect(decision.whyNotOthers).toBeNull()
     expect(decision.suppressionReasons).toContain('stale-self-model')
     expect(decision.suppressionConflictVariants).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -922,7 +922,7 @@ describe('recall-planner', () => {
 
     expect(decision.surfaceMode).toBe('internal-only')
     expect(decision.followUpTiming).toBe('next-open-window')
-    expect(decision.whyNotOthers).toContain('Competing relationship eras')
+    expect(decision.whyNotOthers).toBeNull()
     expect(decision.suppressionReasons).toContain('relationship-era-confusion')
     expect(decision.suppressionConflictVariants).toEqual(expect.arrayContaining([
       expect.objectContaining({

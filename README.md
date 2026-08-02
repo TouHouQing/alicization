@@ -17,7 +17,7 @@ This repository is a fork of AIRI, but the project documented here is **Alicizat
 If you want a default-permission, opaque, cloud-first autonomous agent, this is not it.
 If you want a local-first, structured, traceable, long-lived digital life architecture, this repository is aiming directly at that problem.
 
-Before starting new development work, read the current repo truth in [`docs/project-state.md`](./docs/project-state.md). It tracks what Alicization is, what has already closed enough to build on, and which digital-life loops are still open.
+Before starting new development work, read the current repo truth in [`docs/runtime-status.md`](./docs/runtime-status.md). It tracks what Alicization is, what has already closed enough to build on, and which digital-life loops are still open.
 <p align="center">
   <img width="600" src="./docs/content/public/show1.png" alt="Project Alicization show" />
 </p>

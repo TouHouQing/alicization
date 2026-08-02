@@ -5,13 +5,13 @@ import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationMainChatMemoryContext } from './main-chat-memory-context'
 
-const authorityCue = 'fixed reply governance cue'
+const ownerInternalMetadata = 'owner-internal-metadata'
 const pendingCandidateText = 'pending review candidate must stay out'
 
 const workingMemoryFixture: WorkingMemoryOwnerContext & { authorityLine: string } = {
   version: 'working-memory-owner-context-v1',
   owner: 'working-memory',
-  authorityLine: authorityCue,
+  authorityLine: ownerInternalMetadata,
   scope: {
     cardId: 'card-1',
     sessionId: 'session-1',
@@ -149,14 +149,11 @@ describe('main chat memory context', () => {
     expect(context.providerSystemBlock).not.toContain('honor_commitment:')
   })
 
-  it('drops fixed governance residue from provider evidence while keeping confirmed memory', () => {
-    const openingPolicyCue = `${['opening', 'policy'].join('_')}=legacy`
+  it('drops generic structured residue from provider evidence while keeping confirmed memory', () => {
+    const structuredResidue = 'mode=internal; visibility=hidden'
     const contaminatedEvidence = createEvidence('memory-contaminated')
-    contaminatedEvidence.candidate.summary = [
-      'Old internal residue.',
-      openingPolicyCue,
-      'visibility=redacted_internal',
-    ].join(' | ')
+    contaminatedEvidence.candidate.summary = structuredResidue
+    contaminatedEvidence.candidate.origin = 'internal-structured-fact'
 
     const context = buildAlicizationMainChatMemoryContext({
       workingMemory: workingMemoryFixture,
@@ -170,34 +167,111 @@ describe('main chat memory context', () => {
     })
 
     const serialized = context.providerSystemBlock
-    expect(serialized).not.toContain(openingPolicyCue)
-    expect(serialized).not.toContain('visibility=redacted_internal')
+    expect(serialized).not.toContain(structuredResidue)
     expect(context.longTermRecall?.evidence.map(item => item.id)).toEqual([
       'memory-confirmed',
     ])
   })
 
-  it('keeps memory facts while removing retrieval and audit policy from the Provider envelope', () => {
+  it('drops structured source residue from internal evidence before Provider projection', () => {
+    const structuredResidue = 'source_kind=internal; visibility=hidden'
+    const contaminatedEvidence = createEvidence('memory-source-contaminated')
+    contaminatedEvidence.candidate.origin = 'internal-structured-fact'
+    contaminatedEvidence.candidate.source = structuredResidue
+
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: workingMemoryFixture,
+      longTermRecall: {
+        ...longTermRecallFixture,
+        evidence: [contaminatedEvidence],
+      },
+    })
+
+    expect(context.longTermRecall?.evidence[0]?.source).toBe('memory')
+    expect(context.providerSystemBlock).not.toContain(structuredResidue)
+  })
+
+  it('drops structured threadId residue from internal evidence before Provider projection', () => {
+    const structuredResidue = 'thread_mode=internal; lifecycle=held'
+    const contaminatedEvidence = createEvidence('memory-thread-id-contaminated')
+    contaminatedEvidence.candidate.origin = 'internal-structured-fact'
+    contaminatedEvidence.candidate.threadId = structuredResidue
+
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: workingMemoryFixture,
+      longTermRecall: {
+        ...longTermRecallFixture,
+        evidence: [contaminatedEvidence],
+      },
+    })
+
+    expect(context.longTermRecall?.evidence[0]?.threadId).toBeNull()
+    expect(context.providerSystemBlock).not.toContain(structuredResidue)
+  })
+
+  it('drops structured threadAnchor residue from internal evidence before Provider projection', () => {
+    const structuredResidue = 'anchor_mode=internal; continuity=held'
+    const contaminatedEvidence = createEvidence('memory-thread-anchor-contaminated')
+    contaminatedEvidence.candidate.origin = 'internal-structured-fact'
+    contaminatedEvidence.candidate.threadAnchor = structuredResidue
+
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: workingMemoryFixture,
+      longTermRecall: {
+        ...longTermRecallFixture,
+        evidence: [contaminatedEvidence],
+      },
+    })
+
+    expect(context.longTermRecall?.evidence[0]?.threadAnchor).toBeNull()
+    expect(context.providerSystemBlock).not.toContain(structuredResidue)
+  })
+
+  it('preserves natural-language key=value discussion from user-origin evidence', () => {
+    const naturalFieldDiscussion = '用户确认 feature_flag=enabled 是当前选择。'
+    const userEvidence = createEvidence('memory-user-field-discussion')
+    userEvidence.candidate.origin = 'user-turn'
+    userEvidence.candidate.source = 'user-turn'
+    userEvidence.candidate.summary = naturalFieldDiscussion
+
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: workingMemoryFixture,
+      longTermRecall: {
+        ...longTermRecallFixture,
+        evidence: [userEvidence],
+      },
+    })
+
+    expect(context.longTermRecall?.evidence[0]).toMatchObject({
+      source: 'user-turn',
+      summary: naturalFieldDiscussion,
+    })
+    expect(context.providerSystemBlock).toContain(naturalFieldDiscussion)
+  })
+
+  it('preserves natural-language field discussion while removing retrieval and audit policy from the Provider envelope', () => {
+    const retiredField = ['opening', 'policy'].join('_')
+    const naturalFieldDiscussion = `用户正在讨论 ${retiredField}=legacy 这个代码字段。`
     const context = buildAlicizationMainChatMemoryContext({
       workingMemory: {
         ...workingMemoryFixture,
         current: {
           ...workingMemoryFixture.current,
-          threadTitle: 'opening_policy=legacy thread title',
-          currentUserMove: '用户正在讨论 opening_policy 这个代码字段。',
+          threadTitle: naturalFieldDiscussion,
+          currentUserMove: naturalFieldDiscussion,
         },
         obligations: [
-          'opening_policy=legacy obligation',
+          `用户明确说 ${retiredField}=legacy 是待删除代码字段。`,
           'Provider timed out after 30 seconds.',
         ],
         queryHints: [
-          'relationship_cadence=legacy query hint',
+          'legacy field query hint',
           '长期记忆分页',
         ],
         audit: {
           ...workingMemoryFixture.audit,
           notes: [
-            'visibility=redacted_internal',
+            'mode=internal; visibility=hidden',
             'Provider failure remains visible.',
           ],
         },
@@ -206,23 +280,23 @@ describe('main chat memory context', () => {
         ...longTermRecallFixture,
         intent: {
           ...longTermRecallFixture.intent,
-          rationale: 'relationship_cadence=legacy rationale',
-          queryHints: ['opening_policy=legacy query'],
+          rationale: 'legacy field rationale',
+          queryHints: ['legacy field query'],
         },
         plan: {
           ...longTermRecallFixture.plan,
-          rawQuery: 'opening_policy=legacy raw query',
-          keywordQueries: ['relationship_cadence=legacy keyword'],
+          rawQuery: 'legacy field raw query',
+          keywordQueries: ['legacy field keyword'],
         },
       },
     })
     const parsed = JSON.parse(context.providerSystemBlock)
     const providerData = parsed.data
 
-    expect(providerData.workingMemory.current.threadTitle).toBeNull()
-    expect(providerData.workingMemory.current.currentUserMove)
-      .toContain('opening_policy')
+    expect(providerData.workingMemory.current.threadTitle).toBe(naturalFieldDiscussion)
+    expect(providerData.workingMemory.current.currentUserMove).toBe(naturalFieldDiscussion)
     expect(providerData.workingMemory.rememberedItems).toEqual([
+      `用户明确说 ${retiredField}=legacy 是待删除代码字段。`,
       'Provider timed out after 30 seconds.',
     ])
     expect(providerData.workingMemory).not.toHaveProperty('queryHints')
@@ -232,15 +306,13 @@ describe('main chat memory context', () => {
     expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('queryMatches')
     expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('rankReasons')
     expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('visibleMode')
-    expect(JSON.stringify(providerData.longTermRecall)).not.toMatch(
-      /opening_policy=|relationship_cadence=|visibility=redacted_internal/iu,
-    )
+    expect(JSON.stringify(providerData.longTermRecall)).not.toContain('mode=internal; visibility=hidden')
   })
 
   it('keeps a confirmed user correction that discusses fixed-template terminology', () => {
     const correctionEvidence = createEvidence('memory-correction')
-    correctionEvidence.candidate.summary = '用户明确要求不要再用 same-her 这类固定话术。'
-    correctionEvidence.queryMatches = ['same-her']
+    correctionEvidence.candidate.summary = '用户明确要求不要固定模板，并保留这句纠正原文。'
+    correctionEvidence.queryMatches = ['用户纠正']
     const pendingEvidence = createEvidence('memory-pending')
     pendingEvidence.candidate.reviewStatus = 'pending'
 
@@ -259,7 +331,7 @@ describe('main chat memory context', () => {
       'memory-correction',
     ])
     expect(context.longTermRecall?.evidence[0]?.summary)
-      .toBe('用户明确要求不要再用 same-her 这类固定话术。')
+      .toBe('用户明确要求不要固定模板，并保留这句纠正原文。')
   })
 
   it('normalizes provider evidence ids into one JSON envelope', () => {
@@ -313,7 +385,6 @@ describe('main chat memory context', () => {
         },
       },
     })
-    expect(context.providerSystemBlock).not.toContain(authorityCue)
     expect(context.providerSystemBlock).not.toContain(pendingCandidateText)
     expect(parsed.data.longTermRecall).not.toHaveProperty('intent')
     expect(parsed.data.longTermRecall).not.toHaveProperty('plan')

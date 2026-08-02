@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  buildMemorySearchGovernorSystemBlock,
   buildTurnRecallGovernor,
   createAlicizationMemorySearchRuntime,
 } from './memory-search-runtime'
@@ -65,8 +64,6 @@ describe('memory-search-runtime', () => {
       },
     })
 
-    expect(buildMemorySearchGovernorSystemBlock(governor)).toContain('[ALICIZATION_RECALL_GOVERNOR]')
-
     const context = await runtime.resolveOrganicMemoryPromptContext({
       recallSeed: [
         governor?.recallSeed ?? 'runtime seam',
@@ -79,10 +76,9 @@ describe('memory-search-runtime', () => {
     expect(context.recollectionIntent?.mode).toBe('execution-procedure')
   })
 
-  it('keeps fresher runtime self continuity carry together with richer same-her doctrine in recall governor anchors', () => {
+  it('keeps current self and relationship authority in recall governor anchors', () => {
     const governor = buildTurnRecallGovernor({
       now: 20_000,
-      projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal identity-continuity',
       dialogueWorldThread: {
         activeThread: 'same callback line still lives here',
         currentQuestion: '是不是还该沿着同一条线回来',
@@ -140,9 +136,5 @@ describe('memory-search-runtime', () => {
     expect(governor?.recallSeed).toContain('relationship:When I come back, I should reopen gently')
     expect(governor?.recallSeed).toContain('inward:Return softly first')
     expect(governor?.recallSeed).toContain('authority:I am still here in this exact return, carrying the same bond back gently')
-    expect(governor?.recallSeed).toContain('project:Alicization is a local-first digital life project')
-    expect(governor?.narrative).toEqual(expect.arrayContaining([
-      expect.stringContaining('project-preflight:project:Alicization is a local-first digital life project'),
-    ]))
   })
 })

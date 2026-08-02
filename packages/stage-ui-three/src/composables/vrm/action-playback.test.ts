@@ -27,7 +27,7 @@ describe('vrm action playback helpers', () => {
       source: 'external-vrma',
     }
 
-    const sameHerFollowThroughCue: VrmMotionExecutionCueSnapshot = {
+    const continuityFollowThroughCue: VrmMotionExecutionCueSnapshot = {
       id: 'segment-observe-soft-1',
       emotion: 'thinking',
       facialCue: 'soft-gaze',
@@ -41,8 +41,8 @@ describe('vrm action playback helpers', () => {
         preferredLipsyncMode: 'restrained',
         preferredVoiceMode: 'lower-pressure',
         preferredPacingMode: 'slower',
-        reasonTags: ['same-her-return'],
-        signature: 'same-her-hold:slower-lower-pressure',
+        reasonTags: ['continuity-return'],
+        signature: 'continuity-hold:slower-lower-pressure',
       },
       rendererSettle: {
         vrmActionFadeMs: 420,
@@ -55,10 +55,10 @@ describe('vrm action playback helpers', () => {
       segmentId: null,
       cueSnapshot: null,
     })
-    expect(resolveVrmMotionExecutionStateFromBinding(binding, 'segment-observe-soft-1', sameHerFollowThroughCue)).toEqual({
+    expect(resolveVrmMotionExecutionStateFromBinding(binding, 'segment-observe-soft-1', continuityFollowThroughCue)).toEqual({
       cue: 'ObserveSoft',
       segmentId: 'segment-observe-soft-1',
-      cueSnapshot: sameHerFollowThroughCue,
+      cueSnapshot: continuityFollowThroughCue,
     })
     expect(createSettledVrmMotionExecutionState()).toEqual({
       cue: 'settle_idle',
@@ -106,7 +106,7 @@ describe('vrm action playback helpers', () => {
       } as any,
     })
 
-    const legacySameHerKey = buildVrmTransientActionReplayKey({
+    const legacyContinuityKey = buildVrmTransientActionReplayKey({
       binding,
       fadeInput: {
         actionCueSource: 'segment',
@@ -115,14 +115,14 @@ describe('vrm action playback helpers', () => {
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
         residentMode: 'repair-before-closeness',
-        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+        signature: 'resident|main-runtime|embodiment:audible_continuity_line|body+voice-only',
         reasonTags: ['embodiment:body+voice-only'],
         bodySegmentMatched: true,
       } as any,
     })
 
     expect(auditedKey).toBe(neutralKey)
-    expect(legacySameHerKey).toBe(neutralKey)
+    expect(legacyContinuityKey).toBe(neutralKey)
   })
 
   it('builds different transient replay keys when structured driver matching changes', () => {
@@ -151,7 +151,7 @@ describe('vrm action playback helpers', () => {
     expect(buildKey(false)).not.toBe(buildKey(true))
   })
 
-  it('freezes the current same-her authority cue into vrm motion execution state when the motion actually starts', () => {
+  it('freezes the current continuity authority cue into vrm motion execution state when the motion actually starts', () => {
     const binding: VrmActionBinding = {
       id: 'observe-soft-motion',
       fileName: 'observe-soft-motion.vrma',
@@ -173,7 +173,7 @@ describe('vrm action playback helpers', () => {
         preferredBlinkCadence: 'quiet',
         preferredGazeMode: 'steady',
         reasonTags: ['older-cue'],
-        signature: 'older-same-her-line',
+        signature: 'older-continuity-line',
       },
       rendererSettle: {
         vrmActionFadeMs: 280,
@@ -196,8 +196,8 @@ describe('vrm action playback helpers', () => {
           preferredLipsyncMode: 'restrained',
           preferredVoiceMode: 'lower-pressure',
           preferredPacingMode: 'slower',
-          reasonTags: ['same-her-return'],
-          signature: 'same-her-hold:slower-lower-pressure',
+          reasonTags: ['continuity-return'],
+          signature: 'continuity-hold:slower-lower-pressure',
         },
         rendererSettle: {
           vrmActionFadeMs: 420,
@@ -229,8 +229,8 @@ describe('vrm action playback helpers', () => {
           preferredLipsyncMode: 'restrained',
           preferredVoiceMode: 'lower-pressure',
           preferredPacingMode: 'slower',
-          reasonTags: ['same-her-return'],
-          signature: 'same-her-hold:slower-lower-pressure',
+          reasonTags: ['continuity-return'],
+          signature: 'continuity-hold:slower-lower-pressure',
         },
         rendererSettle: {
           vrmActionFadeMs: 420,
@@ -256,8 +256,8 @@ describe('vrm action playback helpers', () => {
         preferredLipsyncMode: 'restrained',
         preferredVoiceMode: 'lower-pressure',
         preferredPacingMode: 'slower',
-        reasonTags: ['same-her-return'],
-        signature: 'same-her-hold:slower-lower-pressure',
+        reasonTags: ['continuity-return'],
+        signature: 'continuity-hold:slower-lower-pressure',
       },
       rendererSettle: {
         vrmActionFadeMs: 420,
@@ -511,7 +511,7 @@ describe('vrm action playback helpers', () => {
       actionIntensity: 0.52,
       fadeDurationSeconds: 0.36,
       ...structuredInput,
-      signature: ['embodiment', 'audible_same_her_line'].join(':'),
+      signature: ['embodiment', 'audible_continuity_line'].join(':'),
       reasonTags: [['embodiment', 'body+voice-only'].join(':')],
     } as any)
 

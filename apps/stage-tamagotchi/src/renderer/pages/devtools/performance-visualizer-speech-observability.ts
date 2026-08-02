@@ -422,53 +422,53 @@ function extractEmbodimentClosureStage(...summaries: Array<string | null | undef
   return null
 }
 
-function resolveCueScopedSameHerSummaries(input: {
+function resolveCueScopedContinuitySummaries(input: {
   activeSegmentId: string | null
-  sameHerEvidence?: {
+  continuityEvidence?: {
     live2dAuthorityView?: Pick<
       PerformanceVisualizerLive2DAuthorityComparisonView,
-      'sameHerExecutionAuthoritySegmentId' | 'sameHerExecutionSummary'
+      'continuityExecutionAuthoritySegmentId' | 'continuityExecutionSummary'
     > | null
     vrmAuthorityView?: Pick<
       PerformanceVisualizerVrmAuthorityComparisonView,
-      'sameHerFramePerformanceSegmentId' | 'sameHerFrameSpeechSegmentId' | 'sameHerFrameSummary'
+      'continuityFramePerformanceSegmentId' | 'continuityFrameSpeechSegmentId' | 'continuityFrameSummary'
     > | null
   }
 }) {
-  const live2dSameHerExecutionSummary = (() => {
-    const summary = normalizeText(input.sameHerEvidence?.live2dAuthorityView?.sameHerExecutionSummary)
+  const live2dContinuityExecutionSummary = (() => {
+    const summary = normalizeText(input.continuityEvidence?.live2dAuthorityView?.continuityExecutionSummary)
     if (!summary)
       return null
 
-    const authoritySegmentId = normalizeText(input.sameHerEvidence?.live2dAuthorityView?.sameHerExecutionAuthoritySegmentId)
+    const authoritySegmentId = normalizeText(input.continuityEvidence?.live2dAuthorityView?.continuityExecutionAuthoritySegmentId)
     if (!matchesScopedSegment(authoritySegmentId, input.activeSegmentId))
       return null
-    if (!structuredSameHerSummaryMatchesScopedSegment(summary, input.activeSegmentId))
+    if (!structuredContinuitySummaryMatchesScopedSegment(summary, input.activeSegmentId))
       return null
 
     return summary
   })()
 
-  const vrmSameHerFrameSummary = (() => {
-    const summary = normalizeText(input.sameHerEvidence?.vrmAuthorityView?.sameHerFrameSummary)
+  const vrmContinuityFrameSummary = (() => {
+    const summary = normalizeText(input.continuityEvidence?.vrmAuthorityView?.continuityFrameSummary)
     if (!summary)
       return null
 
-    const performanceSegmentId = normalizeText(input.sameHerEvidence?.vrmAuthorityView?.sameHerFramePerformanceSegmentId)
-    const speechSegmentId = normalizeText(input.sameHerEvidence?.vrmAuthorityView?.sameHerFrameSpeechSegmentId)
+    const performanceSegmentId = normalizeText(input.continuityEvidence?.vrmAuthorityView?.continuityFramePerformanceSegmentId)
+    const speechSegmentId = normalizeText(input.continuityEvidence?.vrmAuthorityView?.continuityFrameSpeechSegmentId)
     if (!matchesScopedSegment(performanceSegmentId, input.activeSegmentId))
       return null
     if (!matchesScopedSegment(speechSegmentId, input.activeSegmentId))
       return null
-    if (!structuredSameHerSummaryMatchesScopedSegment(summary, input.activeSegmentId))
+    if (!structuredContinuitySummaryMatchesScopedSegment(summary, input.activeSegmentId))
       return null
 
     return summary
   })()
 
   return {
-    live2dSameHerExecutionSummary,
-    vrmSameHerFrameSummary,
+    live2dContinuityExecutionSummary,
+    vrmContinuityFrameSummary,
   }
 }
 
@@ -500,7 +500,7 @@ function extractStructuredSegmentId(summary: string | null | undefined) {
   return normalizeText(match?.[1])
 }
 
-function extractStructuredSameHerSegmentIds(summary: string | null | undefined) {
+function extractStructuredContinuitySegmentIds(summary: string | null | undefined) {
   const normalized = normalizeText(summary)
   if (!normalized) {
     return {
@@ -530,8 +530,8 @@ function structuredSummaryMatchesScopedSegment(summary: string | null | undefine
   return matchesScopedSegment(structuredSegmentId, activeSegmentId)
 }
 
-function structuredSameHerSummaryMatchesScopedSegment(summary: string | null | undefined, activeSegmentId: string | null | undefined) {
-  const segmentIds = extractStructuredSameHerSegmentIds(summary)
+function structuredContinuitySummaryMatchesScopedSegment(summary: string | null | undefined, activeSegmentId: string | null | undefined) {
+  const segmentIds = extractStructuredContinuitySegmentIds(summary)
   return [
     segmentIds.authoritySegmentId,
     segmentIds.summarySegmentId,
@@ -737,14 +737,14 @@ function buildTopVisemes(
 
 export function buildSpeechObservabilityView(
   speech: StageThreeRuntimeSpeechEmbodimentDiagnostics | null | undefined,
-  sameHerEvidence?: {
+  continuityEvidence?: {
     live2dAuthorityView?: Pick<
       PerformanceVisualizerLive2DAuthorityComparisonView,
-      'sameHerExecutionAuthoritySegmentId' | 'sameHerExecutionSummary'
+      'continuityExecutionAuthoritySegmentId' | 'continuityExecutionSummary'
     > | null
     vrmAuthorityView?: Pick<
       PerformanceVisualizerVrmAuthorityComparisonView,
-      'sameHerFramePerformanceSegmentId' | 'sameHerFrameSpeechSegmentId' | 'sameHerFrameSummary'
+      'continuityFramePerformanceSegmentId' | 'continuityFrameSpeechSegmentId' | 'continuityFrameSummary'
     > | null
   },
 ): SpeechObservabilityView {
@@ -1247,16 +1247,16 @@ export function buildSpeechObservabilityView(
     })
     : null
   const {
-    live2dSameHerExecutionSummary,
-    vrmSameHerFrameSummary,
-  } = resolveCueScopedSameHerSummaries({
+    live2dContinuityExecutionSummary,
+    vrmContinuityFrameSummary,
+  } = resolveCueScopedContinuitySummaries({
     activeSegmentId: activePlaybackSegmentId,
-    sameHerEvidence,
+    continuityEvidence,
   })
   const embodimentClosureStage = resolveEmbodimentClosureStageFromConvergence(convergence)
     ?? extractEmbodimentClosureStage(
-      live2dSameHerExecutionSummary,
-      vrmSameHerFrameSummary,
+      live2dContinuityExecutionSummary,
+      vrmContinuityFrameSummary,
       authoritySummaryBindingSummary,
       authoritySummarySettleSummary,
       authorityMismatchDisplay,
@@ -1266,8 +1266,8 @@ export function buildSpeechObservabilityView(
     )
   const playbackCueAuthorityView = buildPlaybackCueAuthorityView({
     speech,
-    live2dAuthorityView: sameHerEvidence?.live2dAuthorityView ?? null,
-    vrmAuthorityView: sameHerEvidence?.vrmAuthorityView ?? null,
+    live2dAuthorityView: continuityEvidence?.live2dAuthorityView ?? null,
+    vrmAuthorityView: continuityEvidence?.vrmAuthorityView ?? null,
   })
 
   return {

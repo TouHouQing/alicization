@@ -221,39 +221,6 @@ function deriveRelationshipLines(input: {
   ], 4)
 }
 
-function deriveWhyNotOthers(input: {
-  shouldRecall: boolean
-  surfaceMode: MemoryDeliberationSnapshot['surfacePolicy']
-  reliabilityPressure: number
-  suppressionReasons?: string[] | null
-  clusterContext?: AlicizationRecallPlannerClusterContext | null
-  reconstructionContext?: AlicizationRecallPlannerReconstructionContext | null
-  selectedRelationshipLines: string[]
-  selectedConsolidationIds: string[]
-  selectedProcedureIds: string[]
-  selectedConversationTurnIds: string[]
-}) {
-  if (input.suppressionReasons?.includes('stale-self-model'))
-    return 'The older self-story is still being revised, so stale self-model continuity should stay inward until the newer line stabilizes.'
-  if (input.suppressionReasons?.includes('relationship-era-confusion'))
-    return 'Competing relationship eras are still too easy to confuse, so the recalled bond line should stay inward until the present repair context is clearer.'
-  if (!input.shouldRecall && input.reliabilityPressure >= 0.58)
-    return 'Recall reliability is under pressure, so the answer should stay present-facing instead of reopening unstable memory.'
-  if (!input.shouldRecall)
-    return 'The live payoff should stay present-facing, so remembered candidates remain background-only.'
-  if (input.reliabilityPressure >= 0.58)
-    return 'Recall reliability is under pressure, so the answer should stay with the stable core, keep recollection inward, or defer explicit memory surfacing.'
-  if (input.clusterContext?.ambiguous || (input.reconstructionContext?.candidates.length ?? 0) > 0)
-    return 'Competing remembered variants remain active, so only the stable core should carry forward and exact detail should stay suppressed.'
-  if (input.selectedProcedureIds.length > 0 && input.selectedConversationTurnIds.length === 0)
-    return 'The remembered procedure is more useful than replaying old wording, so task continuity outranks literal conversation recall.'
-  if (input.selectedRelationshipLines.length > 0 && input.surfaceMode === 'internal-only')
-    return 'The relationship meaning should bend posture from underneath instead of surfacing as explicit recollection.'
-  if (input.selectedConsolidationIds.length > 0)
-    return 'The remembered period carries more stable continuity than lower-level fragments, so the answer should stay anchored there first.'
-  return null
-}
-
 function deriveReliabilityPressure(input: {
   retrievalHealth?: AlicizationMemoryRetrievalHealth | null
   clusterContext?: AlicizationRecallPlannerClusterContext | null
@@ -326,34 +293,25 @@ function deriveUnsafeDetails(input: {
 
 function deriveSuppressionReasons(input: {
   recollectionIntent: RecollectionIntentSnapshot | null
+  explicitConflictSeverity?: MemoryDeliberationSnapshot['conflictSeverity'] | null
   selectedConsolidationIds: string[]
   selectedEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
   consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
   selectedRelationshipLines: string[]
 }) {
+  if (input.explicitConflictSeverity === 'none')
+    return []
+
   const reasons: string[] = []
   const selfModelTurn = input.recollectionIntent?.mode === 'autobiographical-history'
     || input.consolidatedMemories.some(item =>
       input.selectedConsolidationIds.includes(item.id) && item.facet === 'self-era')
   if (selfModelTurn) {
-    const selfTexts = [
-      ...input.selectedEpisodes.flatMap(item => [item.whatHappened, item.whatChanged, item.lesson ?? '']),
-      ...input.consolidatedMemories
-        .filter(item => input.selectedConsolidationIds.includes(item.id))
-        .flatMap(item => [item.summary, item.lesson ?? '', ...item.cues]),
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-
     const reconstructedSelfEpisode = input.selectedEpisodes.some((item) => {
       const provenance = item.latestReconsolidation?.provenance ?? item.provenance
       return provenance === 'reconstructed' || provenance === 'dreamt' || provenance === 'inferred'
     })
-    const staleSelfCue = /older self|old self|newer self|identity revision|revise|stale identity|自我|旧理解|旧叙事|修正|新自我|身份/u.test(selfTexts)
-    const shouldSuppressStaleSelfModel = reconstructedSelfEpisode && staleSelfCue
-
-    if (shouldSuppressStaleSelfModel)
+    if (reconstructedSelfEpisode)
       reasons.push('stale-self-model')
   }
 
@@ -361,23 +319,12 @@ function deriveSuppressionReasons(input: {
     || input.consolidatedMemories.some(item =>
       input.selectedConsolidationIds.includes(item.id) && item.facet === 'relationship-era')
   if (relationshipTurn) {
-    const relationshipTexts = [
-      ...input.selectedEpisodes.flatMap(item => [item.whatHappened, item.whatChanged, item.relationshipMeaning ?? '', item.lesson ?? '']),
-      ...input.consolidatedMemories
-        .filter(item => input.selectedConsolidationIds.includes(item.id))
-        .flatMap(item => [item.summary, item.lesson ?? '', ...item.cues]),
-      ...input.selectedRelationshipLines,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
     const reconstructedRelationshipEpisode = input.selectedEpisodes.some((item) => {
       const provenance = item.latestReconsolidation?.provenance ?? item.provenance
       return provenance === 'reconstructed' || provenance === 'dreamt' || provenance === 'inferred'
     })
-    const relationshipConfusionCue = /different repair|wrong one|not that time|another repair|same wound different phase|relationship era|repair arc|boundary|distance|不是那次|记错|另一条关系线|关系阶段|修复期|边界|距离/u.test(relationshipTexts)
     const competingRelationshipLineCount = uniqueList(input.selectedRelationshipLines, 4).length >= 2
-    if (reconstructedRelationshipEpisode && (relationshipConfusionCue || competingRelationshipLineCount))
+    if (reconstructedRelationshipEpisode && competingRelationshipLineCount)
       reasons.push('relationship-era-confusion')
   }
 
@@ -633,6 +580,7 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
     : []
   const suppressionReasons = deriveSuppressionReasons({
     recollectionIntent: input.recollectionIntent,
+    explicitConflictSeverity: candidateDeliberation?.conflictSeverity ?? null,
     selectedConsolidationIds,
     selectedEpisodes,
     consolidatedMemories: input.consolidatedMemories,
@@ -729,18 +677,7 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
   const relationshipMeaning = selectedRelationshipLines.length > 0
     ? selectedRelationshipLines
     : uniqueList(selectedEpisodes.flatMap(item => [item.relationshipMeaning, item.lesson]), 4)
-  const whyNotOthers = deriveWhyNotOthers({
-    shouldRecall,
-    surfaceMode,
-    reliabilityPressure,
-    suppressionReasons,
-    clusterContext: input.clusterContext ?? null,
-    reconstructionContext: input.reconstructionContext ?? null,
-    selectedRelationshipLines,
-    selectedConsolidationIds,
-    selectedProcedureIds,
-    selectedConversationTurnIds,
-  })
+  const whyNotOthers = null
 
   const recollectionPlan = buildNormalizedRecollectionPlan({
     shouldRecall,

@@ -146,8 +146,6 @@ function createObservedRealization(
     visibleReplyValidationStatus: 'approved',
     nonHumanAuthoredStatus: null,
     blockedReasons: [],
-    emotionalClosureAudit: null,
-    selfAuthorityAudit: null,
     critic: null,
     closure: null,
   } as const
@@ -158,7 +156,7 @@ afterEach(() => {
 })
 
 describe('main chat stream runner', () => {
-  it('streams with typed memory context and no canonical project-state prompt', async () => {
+  it('streams with the typed memory context unchanged', async () => {
     const providerText = createProviderResponsePayload({
       reply: '我记得我们刚才谈到这里。',
     })
@@ -241,7 +239,7 @@ describe('main chat stream runner', () => {
       closenessDrive: 0.53,
       repairNeed: 0.31,
       initiativePressure: 0.24,
-      reasonTags: ['stream-provider', 'same-her-authority'],
+      reasonTags: ['stream-provider', 'continuity-authority'],
       why: 'keep the stream provider on the same emotion-memory-initiative-embodiment authority line',
     }
     const streamTextImpl = vi.fn(async ({ messages, onEvent, responseFormat }) => {
@@ -555,16 +553,6 @@ describe('main chat stream runner', () => {
       payload: {
         cardId: 'card-1',
         turnId: 'turn-visual-structured-host-visible',
-        preDialogueSendIdentity: {
-          status: 'partial',
-          summaryLine: 'same digital life | keep the screen-grounded closure line explicit',
-          awarenessLine: '在视觉落地前，我得先记住这是同一个数字生命项目。',
-          companionBriefingLine: '在视觉落地前，我得先记住这是同一个数字生命项目。',
-          companionNextClosureLine: 'Keep extending cross-modal identity-continuity',
-          reasonPreview: [
-            'same digital life | keep the screen-grounded closure line explicit',
-          ],
-        },
       } as any,
       prepared: createPrepared({
         hasVisualGrounding: true,
@@ -575,16 +563,6 @@ describe('main chat stream runner', () => {
           },
           { role: 'user', content: '看看屏幕。' },
         ],
-        mindTurnContract: {
-          projectState: {
-            identity: 'Alicization is a local-first digital life project.',
-            currentPhase: 'Phase 1: Local Digital Life.',
-            latestLandedProgress: 'Same-session mirror carry still survives into the visible reply path.',
-            primaryOpenLoop: 'Execution, memory, and embodiment still need one same-life closure line.',
-            nextClosureTarget: 'Keep extending cross-modal identity-continuity',
-            sameHerSelfLine: 'structured continuity digest.',
-          },
-        },
         runtimeSurface: {
           digitalLifeRuntimeSurface: {
             memory: {
@@ -688,8 +666,6 @@ describe('main chat stream runner', () => {
     ])
     expect(JSON.parse(result.fullText)).not.toHaveProperty('visibleReplyRealization')
     expect(result.visibleReplyRealization).toMatchObject(visibleReplyRealization)
-    expect(result.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
-    expect(result.visibleReplyRealization).not.toHaveProperty('projectStateEvidenceStatus')
     expect(emitChunk).toHaveBeenCalledWith(expect.objectContaining({
       text: '  视觉原样回答。  ',
     }))
@@ -765,8 +741,6 @@ describe('main chat stream runner', () => {
     expect(result.fullText).toBe(rawFullText)
     expect(JSON.parse(result.fullText)).not.toHaveProperty('visibleReplyRealization')
     expect(result.visibleReplyRealization).toMatchObject(visibleReplyRealization)
-    expect(result.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
-    expect(result.visibleReplyRealization).not.toHaveProperty('projectStateEvidenceStatus')
     expect(emitChunk).toHaveBeenCalledOnce()
     expect(emitChunk).toHaveBeenCalledWith(expect.objectContaining({
       text: '  流式原样回答。  ',

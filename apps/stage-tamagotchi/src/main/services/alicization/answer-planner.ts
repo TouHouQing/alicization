@@ -39,12 +39,7 @@ import {
 
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 import { deriveMindTruthContract } from './mind-truth-contract'
-import {
-  mergePreferredSelfContinuityAuthority,
-  resolvePreferredPersonStateProjection,
-  resolvePreferredSelfContinuityAuthority,
-} from './person-state-projection-resolution'
-import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
+import { resolvePreferredPersonStateProjection } from './person-state-projection-resolution'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -404,25 +399,6 @@ function pickCurrentTurnAnchor(input: {
   )
 }
 
-function pickDynamicSelfAuthority(input: {
-  turnProfile: AlicizationAnswerPlannerTurnProfile
-  selfContinuityAuthority?: {
-    selfLine?: string | null
-    relationshipLine?: string | null
-    motiveLine?: string | null
-    authoritySummary?: string | null
-  } | null
-}) {
-  if (input.turnProfile.subject !== 'alicization-self' && input.turnProfile.subject !== 'relationship')
-    return ''
-  return joinDynamicText([
-    input.selfContinuityAuthority?.authoritySummary,
-    input.selfContinuityAuthority?.selfLine,
-    input.selfContinuityAuthority?.relationshipLine,
-    input.selfContinuityAuthority?.motiveLine,
-  ])
-}
-
 function resolvePlannerFocus(input: {
   turnProfile: AlicizationAnswerPlannerTurnProfile
   conversationState?: AlicizationConversationStateSnapshot | null
@@ -432,12 +408,6 @@ function resolvePlannerFocus(input: {
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
-  selfContinuityAuthority?: {
-    selfLine?: string | null
-    relationshipLine?: string | null
-    motiveLine?: string | null
-    authoritySummary?: string | null
-  } | null
   projectedFocus?: string | null
   selectedConcern?: { summary?: string | null } | null
   selectedRepair?: { summary?: string | null } | null
@@ -464,13 +434,8 @@ function resolvePlannerFocus(input: {
     input.worldModel?.activeThread?.summary,
     input.privateThought?.thoughtText,
   )
-  const selfAuthority = pickDynamicSelfAuthority({
-    turnProfile: input.turnProfile,
-    selfContinuityAuthority: input.selfContinuityAuthority,
-  })
   return joinDynamicText([
     primary,
-    selfAuthority,
     input.projectedFocus,
   ])
 }
@@ -484,12 +449,6 @@ function resolvePlannerAnswerIntent(input: {
   dialogueObligation?: AlicizationDialogueObligation | null
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
-  selfContinuityAuthority?: {
-    selfLine?: string | null
-    relationshipLine?: string | null
-    motiveLine?: string | null
-    authoritySummary?: string | null
-  } | null
   projectedAnswer?: string | null
   selectedConcern?: { summary?: string | null } | null
   selectedRepair?: { summary?: string | null } | null
@@ -506,13 +465,8 @@ function resolvePlannerAnswerIntent(input: {
     input.selectedConcern?.summary,
     input.worldModel?.activeThread?.summary,
   )
-  const selfAuthority = pickDynamicSelfAuthority({
-    turnProfile: input.turnProfile,
-    selfContinuityAuthority: input.selfContinuityAuthority,
-  })
   return joinDynamicText([
     primary,
-    selfAuthority,
     input.projectedAnswer,
   ])
 }
@@ -578,16 +532,6 @@ export function buildAnswerPlanner(input: {
     bundleProjection: runtimeSurface?.raw?.personStateProjection ?? null,
     runtimeProjection: runtimeSurface?.memory?.personStateProjection ?? null,
   })
-  const projectedSelfContinuityAuthority = resolvePreferredSelfContinuityAuthority({
-    bundleAuthority: runtimeSurface?.raw?.personStateProjection?.selfContinuityAuthority ?? null,
-    runtimeAuthority: preferredPersonStateProjection?.selfContinuityAuthority ?? null,
-  })
-  const mergedSelfContinuityAuthority = mergePreferredSelfContinuityAuthority({
-    bundleAuthority: runtimeSurface?.raw?.personStateProjection?.selfContinuityAuthority ?? null,
-    runtimeAuthority: preferredPersonStateProjection?.selfContinuityAuthority ?? null,
-  }) ?? projectedSelfContinuityAuthority
-  ?? buildSelfContinuityAuthorityFromRuntimeSurface(runtimeSurface)
-  const selfContinuityAuthority = mergedSelfContinuityAuthority
   const selectedConcern = governingConcern(concernContinuity)
   const selectedRepair = governingRepair(repairLedger)
   const selectedCommitment = governingCommitment(commitmentLedger)
@@ -616,7 +560,6 @@ export function buildAnswerPlanner(input: {
     dialogueObligation,
     dialogueWorldThread,
     replyDeliberation,
-    selfContinuityAuthority,
     projectedFocus,
     selectedConcern,
     selectedRepair,
@@ -637,7 +580,6 @@ export function buildAnswerPlanner(input: {
     dialogueObligation,
     dialogueWorldThread,
     replyDeliberation,
-    selfContinuityAuthority,
     projectedAnswer,
     selectedConcern,
     selectedRepair,

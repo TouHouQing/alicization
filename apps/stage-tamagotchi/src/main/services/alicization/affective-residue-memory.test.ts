@@ -94,7 +94,7 @@ describe('affective residue memory', () => {
     expect(residue.summary).not.toMatch(/我会一直在|慢慢来|先抱抱/u)
   })
 
-  it('turns rejected proactive strategy learning into a measured-return residue instead of leaving it as a flat boundary note', () => {
+  it('does not infer relationship cadence from strategy wording in free text', () => {
     const residue = buildAlicizationAffectiveResidueMemory({
       now: 1_700_000_100_000,
       recentRelationshipOutcomes: [{
@@ -104,12 +104,12 @@ describe('affective residue memory', () => {
         turnId: 'turn-proactive-dismissed-1',
         sessionId: 'session-proactive-dismissed-1',
         outcomeKind: 'boundary',
-        closenessDelta: -0.07,
-        trustDelta: -0.08,
-        burdenDelta: 0.08,
+        closenessDelta: 0,
+        trustDelta: 0,
+        burdenDelta: 0,
         repairDelta: 0,
-        misreadDelta: 0.08,
-        boundaryDelta: -0.12,
+        misreadDelta: 0,
+        boundaryDelta: 0,
         openLoopDelta: 0,
         summary: 'A proactive coding approach was actively rejected and likely crossed a boundary, so future follow-ups should give more space, stay lower-pressure, less eager, and wait for a clearer opening before reopening this line.',
         sourceSignals: ['lower-pressure', 'clearer opening', 'less eager'],
@@ -132,73 +132,18 @@ describe('affective residue memory', () => {
       } as any],
       personStateEvolutionSummary: {
         latestDoctrine: 'Keep future follow-ups lower-pressure, less eager, and wait for a clearer opening.',
-        latestBurdenLine: 'The line crowds easily if proactive timing returns too soon.',
-        latestTrustMeaning: 'Trust needs more room before the next reopen.',
-        repairShift: 0.12,
-        burdenShift: 0.18,
-        trustShift: 0.04,
+        latestBurdenLine: null,
+        latestTrustMeaning: null,
+        repairShift: 0,
+        burdenShift: 0,
+        trustShift: 0,
         recentSummaries: ['The reopening rhythm should cool down and reopen more carefully next time.'],
       } as any,
     })
 
-    expect(residue.relationshipCadence.cadenceMode).toBe('measured-return')
-    expect(residue.relationshipCadence.shouldDelayWarmth).toBe(true)
-    expect(residue.relationshipCadence.summary.toLowerCase()).toContain('clearer opening')
-    expect(residue.relationshipCadence.reasonTags).toContain('initiative-cautious-carry')
-    expect(residue.burdenPressure).toBeGreaterThan(residue.trustPressure)
-  })
-
-  it('turns accepted proactive strategy learning into a warm-hold residue instead of losing the gentle memory-led afterglow', () => {
-    const residue = buildAlicizationAffectiveResidueMemory({
-      now: 1_700_000_200_000,
-      recentRelationshipOutcomes: [{
-        id: 'relationship-outcome-proactive-received-1',
-        cardId: 'default',
-        decisionTraceId: 'trace-proactive-received-1',
-        turnId: 'turn-proactive-received-1',
-        sessionId: 'session-proactive-received-1',
-        outcomeKind: 'bond',
-        closenessDelta: 0.07,
-        trustDelta: 0.05,
-        burdenDelta: -0.02,
-        repairDelta: 0,
-        misreadDelta: -0.02,
-        boundaryDelta: 0.02,
-        openLoopDelta: 0.04,
-        summary: 'A low-pressure proactive general presence approach was received without obvious resistance, so future follow-ups can stay gentle, lower-pressure, and memory-led while the opening is still receiving them.',
-        sourceSignals: ['memory-led', 'gentle initiative', 'opening still receiving'],
-        createdAt: 1_700_000_200_000,
-      } as any],
-      recentMemoryReflections: [{
-        id: 'reflection-proactive-received-1',
-        cardId: 'default',
-        decisionTraceId: 'trace-proactive-received-1',
-        turnId: 'turn-proactive-received-1',
-        targetScope: 'relationship',
-        sourceKind: 'relationship-outcome',
-        status: 'confirmed',
-        summary: 'A received general presence opening can continue gently, lower-pressure, and memory-led while the window stays open.',
-        lesson: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
-        sourceSignals: ['memory-led', 'gentle'],
-        confidence: 0.88,
-        createdAt: 1_700_000_200_000,
-        updatedAt: 1_700_000_200_000,
-      } as any],
-      personStateEvolutionSummary: {
-        latestDoctrine: 'Keep future follow-ups gentle, lower-pressure, and memory-led while the opening is still receiving them.',
-        latestBurdenLine: 'Even a received opening still wants breathable pacing.',
-        latestTrustMeaning: 'The line can stay warmly near without crowding when gentle initiative is being received.',
-        repairShift: 0.06,
-        burdenShift: 0.02,
-        trustShift: 0.24,
-        recentSummaries: ['The opening stayed warm and gentle without needing to widen too fast.'],
-      } as any,
-    })
-
-    expect(residue.relationshipCadence.cadenceMode).toBe('warm-hold')
+    expect(residue.relationshipCadence.cadenceMode).toBe('ready-return')
     expect(residue.relationshipCadence.shouldDelayWarmth).toBe(false)
-    expect(residue.relationshipCadence.summary.toLowerCase()).toContain('memory-led')
-    expect(residue.relationshipCadence.reasonTags).toContain('initiative-memory-led-carry')
-    expect(residue.trustPressure).toBeGreaterThan(residue.burdenPressure)
+    expect(residue.relationshipCadence.reasonTags).not.toContain('initiative-cautious-carry')
+    expect(residue.relationshipCadence.reasonTags).not.toContain('initiative-memory-led-carry')
   })
 })

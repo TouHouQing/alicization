@@ -7,13 +7,11 @@ const realizationKeys = [
   'blockedReasons',
   'closure',
   'critic',
-  'emotionalClosureAudit',
   'expectedAuthority',
   'mode',
   'nonHumanAuthoredStatus',
   'providerMindExecuted',
   'reason',
-  'selfAuthorityAudit',
   'version',
   'visibleReplyValidationStatus',
   'visibleText',
@@ -112,7 +110,7 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
   })
 
   it('does not blacklist provider-authored wording that mentions project or personhood terms', () => {
-    const reply = 'I still remember that you called this Phase 1 work part of the same her, and I want to answer the actual question now.'
+    const reply = 'I still remember that you called this Phase 1 work part of her continuous life-line, and I want to answer the actual question now.'
     const resolved = resolveAlicizationProactiveVisibleUtterance({
       kind: 'subconscious-proactive',
       structured: {

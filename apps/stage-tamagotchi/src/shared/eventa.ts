@@ -194,7 +194,6 @@ import type {
   AlicizationRunReplayBenchmarkInput as SharedAlicizationRunReplayBenchmarkInput,
   AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
   AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
-  AlicizationRuntimeProjectStateDigest as SharedAlicizationRuntimeProjectStateDigest,
   AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfEvolutionVersionRuntimeSnapshot as SharedAlicizationSelfEvolutionVersionRuntimeSnapshot,
   AlicizationSensoryCacheSnapshot as SharedAlicizationSensoryCacheSnapshot,
@@ -1307,13 +1306,9 @@ export type AlicizationProactiveStaticReasonCode
     | 'continuity-next-open-window'
     | 'continuity-execution-callback'
     | 'continuity-execution-callback-afterglow-hold'
-    | 'continuity-execution-callback-project-carry'
+    | 'continuity-execution-callback-carry'
     | 'held-autonomy-carry'
     | 'presence-only-hold'
-    | 'project-phase1-life-loop-open'
-    | 'project-continuity-pressure'
-    | 'project-measured-return-pressure'
-    | 'project-next-closure-pressure'
     | 'relationship-cadence-residue'
     | 'relationship-residue-delay-warmth'
     | 'relationship-residue-protect-rest'
@@ -1343,7 +1338,6 @@ export type AlicizationHostGoalHypothesis
     | 'keep-going'
     | 'finish-one-more-step'
     | 'resume-work'
-    | 'continue-phase-1-line'
     | 'unknown'
 export type AlicizationRelationshipNeed = 'space' | 'companionship' | 'guidance' | 'care' | 'unclear'
 export type AlicizationConcernKind
@@ -2214,7 +2208,6 @@ export interface AlicizationExecutiveCycleSnapshot {
 
 export type AlicizationDialogueAnswerSubject
   = | 'alicization-self'
-    | 'project-state'
     | 'relationship'
     | 'host-state'
     | 'task-knot'
@@ -2424,45 +2417,6 @@ export interface AlicizationCurrentConsciousFrameSnapshot {
   shouldSelfRevise: boolean
   confidence: number
   reasonTags: string[]
-  continuityPreferredTiming?: 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window' | null
-  continuityCadence?: string | null
-  projectState?: {
-    preflightSummary?: string | null
-    preDialogueAwarenessLine?: string | null
-    preDialogueAwarenessSummary?: string | null
-    awarenessLine?: string | null
-    companionHeadlineLine?: string | null
-    companionBriefingLine?: string | null
-    identity?: string | null
-    currentPhase?: string | null
-    latestProgress?: string | null
-    latestLandedProgress?: string | null
-    landedProgressSummary?: string | null
-    memoryClosureSummary?: string | null
-    primaryOpenLoop?: string | null
-    openClosureSummary?: string | null
-    nextClosureTarget?: string | null
-    nextClosureTargetSummary?: string | null
-    sameHerSelfLine?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRisk?: string | null
-    sameHerDriftRiskSummary?: string | null
-    proactiveSameHerGap?: string | null
-    proactiveSameHerGapSummary?: string | null
-    emotionalClosureCue?: string | null
-    emotionalClosureSummary?: string | null
-    continuityRestraint?: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'single-thread' | null
-    continuityArcStage?: string | null
-    continuityCue?: string | null
-    preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
-    preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
-    preferredPauseMode?: 'longer' | 'natural' | null
-    preferredLipsyncMode?: 'restrained' | 'matched' | null
-    preferredVoiceMode?: 'lower-pressure' | 'even' | null
-    preferredPacingMode?: 'slower' | 'natural' | null
-    continuityPreferredTiming?: 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window' | null
-    continuityCadence?: string | null
-  } | null
   updatedAt: number
 }
 
@@ -2616,7 +2570,7 @@ export type AlicizationCompiledResponseMode
     | 'accompany-lightly'
     | 'answer-naturally'
 
-export type AlicizationReplyRealizationMode = 'provider-mind-required' | 'fallback-locally-allowed'
+export type AlicizationReplyRealizationMode = 'provider-mind-required'
 export type AlicizationNormalVisibleReplyAuthority = SharedAlicizationNormalVisibleReplyAuthority
 export type AlicizationInfraVisibleReplyAuthority = SharedAlicizationInfraVisibleReplyAuthority
 export type AlicizationVisibleReplyExecutionAuthority = SharedAlicizationVisibleReplyExecutionAuthority
@@ -2654,81 +2608,8 @@ export interface AlicizationAnswerCompilerSnapshot {
 
 export interface AlicizationMindTurnContractSnapshot {
   version: 'mind-turn-contract-v1'
-  answerIntent: string | null
-  answerAct: AlicizationAnswerAct | null
-  turnMode: AlicizationAnswerCompilerSnapshot['turnMode']
-  responseMode: AlicizationCompiledResponseMode
-  evidenceMode: AlicizationAnswerEvidenceMode | null
-  openingStyle: AlicizationAnswerCompilerSnapshot['openingStyle']
   expectedVisibleReplyAuthority: AlicizationNormalVisibleReplyAuthority
   replyRealizationMode: AlicizationReplyRealizationMode
-  personaKernelMode: AlicizationAnswerCompilerSnapshot['personaKernelMode']
-  activeClosenessContext: AlicizationAnswerCompilerSnapshot['activeClosenessContext']
-  activeClosenessRung: AlicizationAnswerCompilerSnapshot['activeClosenessRung']
-  relationshipPosture: AlicizationAnswerCompilerSnapshot['relationshipPosture']
-  labelCarryAsMemory: boolean
-  allowAffectionatePreface: boolean
-  allowStageDirections: boolean
-  allowBodyNarration: boolean
-  maxParagraphs: number
-  maxSentences: number
-  mustDo: string[]
-  mustNotDo: string[]
-  governingFocus: string
-  governingConcern: string | null
-  governingCommitment: string | null
-  governingInquiry: string | null
-  governingProject: string | null
-  emotionalClosureCue: string | null
-  emotionalClosureSummary?: string | null
-  relationshipTruthDoctrine?: string | null
-  projectState?: {
-    identity: string
-    currentPhase: string
-    preflightSummary?: string | null
-    preDialogueAwarenessLine?: string | null
-    preDialogueAwarenessSummary?: string | null
-    awarenessLine?: string | null
-    companionHeadlineLine?: string | null
-    companionBriefingLine?: string | null
-    latestProgress?: string | null
-    landedProgressSummary?: string | null
-    latestLandedProgress: string | null
-    memoryClosureSummary?: string | null
-    primaryOpenLoop: string | null
-    openClosureSummary?: string | null
-    nextClosureTarget: string
-    nextClosureTargetSummary?: string | null
-    sameHerSelfLine?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRisk?: string | null
-    sameHerDriftRiskSummary?: string | null
-    proactiveSameHerGap?: string | null
-    emotionalClosureCue?: string | null
-    emotionalClosureSummary?: string | null
-    continuityRestraint?: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'single-thread' | null
-    continuityArcStage?: string | null
-    continuityCue?: string | null
-    continuityPreferredTiming?: 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window' | null
-    continuityCadence?: string | null
-    preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
-    preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
-    preferredPauseMode?: 'longer' | 'natural' | null
-    preferredLipsyncMode?: 'restrained' | 'matched' | null
-    preferredVoiceMode?: 'lower-pressure' | 'even' | null
-    preferredPacingMode?: 'slower' | 'natural' | null
-  } | null
-  preDialogueClosure?: {
-    status: 'grounded' | 'partial' | 'drift'
-    summaryLine: string | null
-    companionHeadlineLine?: string | null
-    companionBriefingLine?: string | null
-    companionNextClosureLine?: string | null
-    emotionalClosureCue?: string | null
-    briefingLines: string[]
-    reasons: string[]
-  } | null
-  reasons: string[]
   updatedAt: number
 }
 
@@ -3040,7 +2921,6 @@ export interface AlicizationInitiativeSnapshot {
   silenceDrive?: number
   preferredStyle?: AlicizationProactiveStyle
   preferredPresence?: AlicizationEmbodiedPresenceState
-  continuityRestraint?: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'single-thread' | null
   why: string
   shouldSurface: boolean
   shouldSpeak: boolean
@@ -3243,7 +3123,6 @@ export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizatio
   dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   personStateProjection?: AlicizationPersonStateProjection | null
-  projectState?: AlicizationRuntimeProjectStateDigest | null
   currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
   claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
@@ -3259,11 +3138,7 @@ export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizatio
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   residentPerformance?: SharedAlicizationResidentPerformanceSnapshot | null
-  runtime?: {
-    projectState?: AlicizationRuntimeProjectStateDigest | null
-    memoryDeliberationProjectStateDiagnostics?: Record<string, unknown> | null
-    effectiveRuntimeAwarenessDiagnostics?: Record<string, unknown> | null
-  } | null
+  runtime?: Record<string, unknown> | null
   proactiveLoopState?: {
     globalCooldownUntil: number
     scenarioBias: Record<AlicizationProactiveScenario, number>
@@ -3281,9 +3156,6 @@ export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizatio
       assistantText?: string | null
       learningAction?: 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold' | null
       learningFocuses?: string[]
-      projectStateOpenFocusSummary?: string | null
-      projectStateNextFocusSummary?: string | null
-      projectStateEmotionalClosureCue?: string | null
     }>
     recentOutcomes: Array<{
       turnId: string
@@ -3294,21 +3166,13 @@ export interface AlicizationVisualPresenceStateSnapshot extends SharedAlicizatio
       assistantText?: string | null
       learningAction?: 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold' | null
       learningFocuses?: string[]
-      projectStateOpenFocusSummary?: string | null
-      projectStateNextFocusSummary?: string | null
-      projectStateEmotionalClosureCue?: string | null
     }>
     updatedAt: number
   } | null
   raw?: {
     personStateProjection?: AlicizationPersonStateProjection | null
-    projectState?: AlicizationRuntimeProjectStateDigest | null
     runtimeDigest?: AlicizationRuntimeDigest | null
-    runtime?: {
-      projectState?: AlicizationRuntimeProjectStateDigest | null
-      memoryDeliberationProjectStateDiagnostics?: Record<string, unknown> | null
-      effectiveRuntimeAwarenessDiagnostics?: Record<string, unknown> | null
-    } | null
+    runtime?: Record<string, unknown> | null
   } | null
   privateThought: AlicizationPrivateThoughtSnapshot | null
   captureState: {
@@ -3392,7 +3256,6 @@ type AlicizationLocalSelfContinuityAuthority
   }
 type AlicizationRuntimeCurrentConsciousFrameDigest
   = NonNullable<SharedAlicizationRuntimeDigest['currentConsciousFrame']> & {
-    projectState?: AlicizationRuntimeProjectStateDigest | null
     selfContinuityAuthority?: AlicizationLocalSelfContinuityAuthority | null
   }
 type AlicizationDigitalLifeSpineEmbodimentDigest
@@ -3429,19 +3292,9 @@ type AlicizationLocalEmbodimentScriptState
     residentMode: SharedAlicizationEmbodimentScriptState['residentMode'] | 'quiet-accompaniment'
   }
 
-export type AlicizationRuntimeProjectStateDigest
-  = SharedAlicizationRuntimeProjectStateDigest & {
-    continuitySummary?: string | null
-    emotionalClosureSummary?: string | null
-  }
-
 export type AlicizationDigitalLifeSpineDigest
-  = Omit<SharedAlicizationDigitalLifeSpineDigest, 'runtime' | 'embodiment'> & {
-    runtime: Omit<SharedAlicizationDigitalLifeSpineDigest['runtime'], 'projectState'> & {
-      projectState?: AlicizationRuntimeProjectStateDigest | null
-    }
+  = Omit<SharedAlicizationDigitalLifeSpineDigest, 'embodiment'> & {
     embodiment?: AlicizationDigitalLifeSpineEmbodimentDigest | null
-    selfAuthority?: AlicizationLocalSelfContinuityAuthority | null
   }
 
 export type AlicizationDigitalLifeEnvelope = Omit<SharedAlicizationDigitalLifeEnvelope, 'lipSync' | 'frames'> & {
@@ -3451,8 +3304,7 @@ export type AlicizationDigitalLifeEnvelope = Omit<SharedAlicizationDigitalLifeEn
 }
 export type AlicizationDigitalLifeSpineMemoryDigest = SharedAlicizationDigitalLifeSpineMemoryDigest
 export type AlicizationDigitalLifeSpineMemoryClosureTrace = SharedAlicizationDigitalLifeSpineMemoryClosureTrace
-export type AlicizationRuntimeDigest = Omit<SharedAlicizationRuntimeDigest, 'projectState' | 'currentConsciousFrame'> & {
-  projectState?: AlicizationRuntimeProjectStateDigest | null
+export type AlicizationRuntimeDigest = Omit<SharedAlicizationRuntimeDigest, 'currentConsciousFrame'> & {
   currentConsciousFrame?: AlicizationRuntimeCurrentConsciousFrameDigest | null
   visibleReplyRealization?: AlicizationVisibleReplyRealizationArtifact | null
 }
@@ -3485,7 +3337,6 @@ export type AlicizationDialogueStructuredPayload
     parsePath?: string | null
     contractFailed?: boolean
     visibleReplyRealization?: AlicizationVisibleReplyRealizationArtifact | null
-    preDialogueAwareness?: AlicizationChatMetaEvent['preDialogueAwareness']
     digitalLife?: AlicizationDigitalLifeEnvelope | null
     digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
     derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
@@ -3554,7 +3405,8 @@ export interface AlicizationChatStreamChunkEvent {
   failureSurface?: SharedAlicizationChatFailureSurface | null
 }
 
-export type AlicizationVisibleReplyExecutionMode = 'provider-stream' | 'provider-one-shot' | 'local-fallback'
+export type AlicizationVisibleReplyPlannedExecutionMode = 'provider-stream' | 'provider-one-shot'
+export type AlicizationVisibleReplyExecutionMode = AlicizationVisibleReplyPlannedExecutionMode | 'local-fallback'
 
 export interface AlicizationVisibleReplyExecution {
   mode: AlicizationVisibleReplyExecutionMode
@@ -3572,29 +3424,6 @@ export interface AlicizationChatMetaEvent {
   turnId: string
   governance: AlicizationMindTurnGovernance | null
   visibleReplyExecution?: AlicizationVisibleReplyExecution | null
-  projectState?: AlicizationRuntimeProjectStateDigest | null
-  preDialogueAwareness?: {
-    status: 'grounded' | 'partial' | 'drift'
-    summaryLine: string | null
-    companionHeadlineLine?: string | null
-    companionBriefingLine?: string | null
-    companionNextClosureLine?: string | null
-    awarenessLine?: string | null
-    emotionalClosureCue?: string | null
-    reasonPreview: string[]
-  } | null
-  preDialogueClosure?: {
-    status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
-    summaryLine: string | null
-    companionHeadlineLine?: string | null
-    sameHerDriftRiskLine?: string | null
-    companionshipReasonLine?: string | null
-    companionBriefingLine?: string | null
-    companionNextClosureLine?: string | null
-    emotionalClosureCue?: string | null
-    briefingLines?: string[]
-    reasons: string[]
-  } | null
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   embodimentScript?: AlicizationEmbodimentScriptV1 | null
   speechTimeline?: AlicizationDialogueSpeechTimeline | null

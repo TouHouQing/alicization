@@ -85,7 +85,6 @@ export function createAbortError(reason?: string) {
 
 type AlicizationGovernanceCurrentConsciousFrameInput = {
   reasonTags?: readonly string[] | null
-  projectState?: AlicizationCurrentConsciousFrameSnapshot['projectState']
 } | null
 
 function coerceGovernanceCurrentConsciousFrame(
@@ -102,7 +101,24 @@ function coerceGovernanceCurrentConsciousFrame(
     && typeof (candidate as AlicizationCurrentConsciousFrameSnapshot).speakingIntention === 'string'
     && typeof (candidate as AlicizationCurrentConsciousFrameSnapshot).updatedAt === 'number'
   ) {
-    return candidate as AlicizationCurrentConsciousFrameSnapshot
+    const snapshot = candidate as AlicizationCurrentConsciousFrameSnapshot
+    return {
+      subject: snapshot.subject,
+      centerOfGravity: snapshot.centerOfGravity,
+      truthDiscipline: snapshot.truthDiscipline,
+      consciousNeed: snapshot.consciousNeed,
+      consciousNeedSource: snapshot.consciousNeedSource,
+      consciousTension: snapshot.consciousTension,
+      speakingIntention: snapshot.speakingIntention,
+      focusAnchor: snapshot.focusAnchor,
+      focusAnchorSource: snapshot.focusAnchorSource,
+      withheldImpulse: snapshot.withheldImpulse,
+      shouldWithholdSpecificity: snapshot.shouldWithholdSpecificity,
+      shouldSelfRevise: snapshot.shouldSelfRevise,
+      confidence: snapshot.confidence,
+      reasonTags: snapshot.reasonTags,
+      updatedAt: snapshot.updatedAt,
+    } as AlicizationCurrentConsciousFrameSnapshot
   }
 
   const reasonTags = Array.isArray(candidate.reasonTags)
@@ -124,13 +140,8 @@ function coerceGovernanceCurrentConsciousFrame(
     shouldSelfRevise: false,
     confidence: 0,
     reasonTags,
-    continuityPreferredTiming: null,
-    continuityCadence: null,
-    projectState: null,
     updatedAt: 0,
   } satisfies AlicizationCurrentConsciousFrameSnapshot
-
-  return null
 }
 
 function normalizeGovernanceDigitalLifeSpineDigest(
@@ -756,7 +767,6 @@ export function buildAlicizationChatStreamEmbodimentMeta(input: {
     candidatePerformance: embodiment.performance,
     embodiment,
     digitalLifeSpine: input.digitalLifeSpine,
-    projectState: null,
     performanceManifest: input.performanceManifest,
   })
   const emittedDigitalLifeSpine = normalizeGovernanceDigitalLifeSpineDigest(input.digitalLifeSpine)
@@ -901,7 +911,6 @@ export function normalizeProactiveMetadata(raw: unknown): AlicizationProactiveMe
   const cooldownMs = Number(candidate.cooldownMs)
   const feedbackWindowMs = Number(candidate.feedbackWindowMs)
   const policyVersion = readStringValue(candidate.policyVersion).trim()
-  const openingGuidance = readStringValue(candidate.openingGuidance).trim()
   if (!policyVersion || !Number.isFinite(confidence) || !Number.isFinite(cooldownMs) || !Number.isFinite(feedbackWindowMs))
     return undefined
 
@@ -915,7 +924,6 @@ export function normalizeProactiveMetadata(raw: unknown): AlicizationProactiveMe
     scenario,
     policyVersion,
     feedbackWindowMs: Math.max(1_000, Math.floor(feedbackWindowMs)),
-    openingGuidance: openingGuidance || null,
   }
 }
 
@@ -1030,7 +1038,6 @@ export function normalizeMindTurnGovernance(raw: unknown): AlicizationMindTurnGo
     focusAnchor: sanitizeBriefText(readStringValue(candidate.focusAnchor), 220) || null,
     answerIntent: sanitizeBriefText(readStringValue(candidate.answerIntent), 220) || null,
     openingMove: sanitizeBriefText(readStringValue(candidate.openingMove), 220) || null,
-    emotionalClosureCue: sanitizeBriefText(readStringValue(candidate.emotionalClosureCue), 220) || null,
     carriedThread: sanitizeBriefText(readStringValue(candidate.carriedThread), 220) || null,
     labelCarryAsMemory: candidate.labelCarryAsMemory === true,
     shouldAskForGrounding: candidate.shouldAskForGrounding === true,
@@ -1151,8 +1158,6 @@ function summarizeMindTurnEventDigitalLifeSpine(raw: unknown, memoryClosureTrace
       dominantMode: spine.runtime.dominantMode,
       answerIntent: spine.runtime.answerIntent,
       selectedAction: spine.runtime.selectedAction,
-      continuityArcStage: spine.runtime.continuityArcStage,
-      continuityCue: excerptGovernedReply(spine.runtime.continuityCue, 160),
       updatedAt: spine.runtime.updatedAt,
     },
     architecture: spine.architecture
@@ -1166,7 +1171,6 @@ function summarizeMindTurnEventDigitalLifeSpine(raw: unknown, memoryClosureTrace
       ? {
           selectedAction: spine.proactive.selectedAction,
           preferredStyle: spine.proactive.preferredStyle,
-          continuityRestraint: spine.proactive.continuityRestraint,
           confidence: spine.proactive.confidence,
           shouldSpeak: spine.proactive.shouldSpeak,
           dominantConcernKind: spine.proactive.dominantConcernKind,
@@ -1198,9 +1202,7 @@ function summarizeMindTurnEventDigitalLifeSpine(raw: unknown, memoryClosureTrace
                 activeClosenessContext: personStateProjection.activeClosenessContext,
                 activeClosenessRung: personStateProjection.activeClosenessRung,
                 relationshipPosture: personStateProjection.relationshipPosture,
-                openingGuidance: excerptGovernedReply(personStateProjection.openingGuidance, 160),
                 preferredProactiveStyle: personStateProjection.preferredProactiveStyle,
-                manifestationCadenceSummary: excerptGovernedReply(personStateProjection.manifestationCadenceSummary, 160),
               }
             : null,
         }
@@ -1400,16 +1402,6 @@ function readStructuredVisibleReplyRealization(
     || typeof candidate.reason === 'string'
     || typeof candidate.providerMindExecuted === 'boolean'
     || Array.isArray(candidate.blockedReasons)
-    || (
-      candidate.emotionalClosureAudit
-      && typeof candidate.emotionalClosureAudit === 'object'
-      && !Array.isArray(candidate.emotionalClosureAudit)
-    )
-    || (
-      candidate.selfAuthorityAudit
-      && typeof candidate.selfAuthorityAudit === 'object'
-      && !Array.isArray(candidate.selfAuthorityAudit)
-    )
   )
   return hasLegacyVisibleReplyShape
     ? candidate as unknown as AlicizationConversationTurnInput['visibleReplyRealization']
@@ -1489,32 +1481,6 @@ function sanitizeVisibleReplyRealizationForProviderReply(
     || raw.visibleReplyValidationStatus === 'unknown'
     ? raw.visibleReplyValidationStatus
     : 'unknown'
-  const rawEmotionalClosureAudit = raw.emotionalClosureAudit
-  const emotionalClosureAudit = rawEmotionalClosureAudit
-    && typeof rawEmotionalClosureAudit === 'object'
-    && !Array.isArray(rawEmotionalClosureAudit)
-    ? {
-        activeCue: typeof rawEmotionalClosureAudit.activeCue === 'string'
-          ? rawEmotionalClosureAudit.activeCue
-          : null,
-        lowPressureRequired: rawEmotionalClosureAudit.lowPressureRequired === true,
-        antiRestartRequired: rawEmotionalClosureAudit.antiRestartRequired === true,
-      }
-    : null
-  const rawSelfAuthorityAudit = raw.selfAuthorityAudit
-  const selfAuthorityAudit = rawSelfAuthorityAudit
-    && typeof rawSelfAuthorityAudit === 'object'
-    && !Array.isArray(rawSelfAuthorityAudit)
-    ? {
-        authoritySummary: typeof rawSelfAuthorityAudit.authoritySummary === 'string'
-          ? rawSelfAuthorityAudit.authoritySummary
-          : null,
-        closenessPosture: typeof rawSelfAuthorityAudit.closenessPosture === 'string'
-          ? rawSelfAuthorityAudit.closenessPosture
-          : null,
-      }
-    : null
-
   return {
     version: 'visible-reply-realization-v1',
     expectedAuthority: 'llm-mind',
@@ -1529,8 +1495,6 @@ function sanitizeVisibleReplyRealizationForProviderReply(
     blockedReasons: Array.isArray(raw.blockedReasons)
       ? raw.blockedReasons.filter((reason): reason is string => typeof reason === 'string')
       : [],
-    emotionalClosureAudit,
-    selfAuthorityAudit,
     reason: typeof raw.reason === 'string' ? raw.reason : null,
     critic: sanitizeVisibleReplyCriticSummary(raw.critic),
     closure: sanitizeVisibleReplyClosureSummary(raw.closure),
@@ -1751,7 +1715,6 @@ export function coerceConversationTurnToMindGovernedPayload(
     readStringValue(structuredPayload.emotion).trim().toLowerCase(),
   )
   const candidateReply = reply
-  const companionshipHoldMode = null
   const reasons = [
     governedAnchorRepair.changed ? 'governance-anchor-coherence-repaired' : '',
     executionFirstGovernance.applied ? 'execution-first-governance-normalized' : '',
@@ -1790,11 +1753,6 @@ export function coerceConversationTurnToMindGovernedPayload(
     candidatePerformance: finalRendererNativePerformance,
     embodiment: finalEmbodiment,
     digitalLifeSpine: finalDigitalLifeSpine,
-    projectState: (
-      (normalizedCurrentConsciousFrame?.projectState
-        ?? finalDigitalLifeSpine?.runtime?.projectState
-        ?? null) as AlicizationCurrentConsciousFrameSnapshot['projectState']
-    ) ?? null,
     performanceManifest,
   })
   const finalDigitalLife = buildAlicizationDigitalLifeEnvelope({
@@ -1906,7 +1864,6 @@ export function coerceConversationTurnToMindGovernedPayload(
       reply_after_excerpt: excerptGovernedReply(finalReply),
       visible_reply_authority: 'llm-mind-structured',
       visible_reply_realization_authority: 'llm-mind',
-      companionship_hold_mode: companionshipHoldMode,
     },
   }
 }
@@ -1942,7 +1899,6 @@ export interface AlicizationMindTraceMemorySnapshot {
   activeClosenessContext?: string | null
   activeClosenessRung?: string | null
   relationshipPosture?: string | null
-  openingGuidance?: string | null
   personalityCurrentRegime?: string | null
   personalityRepairPosture?: string | null
   recollectionIntentMode?: string | null
@@ -2112,7 +2068,6 @@ function summarizeRecallAttributionPayload(snapshot: AlicizationMindTraceMemoryS
       activeClosenessContext: sanitizeMindTraceTelemetryText(snapshot.activeClosenessContext, 64) || null,
       activeClosenessRung: sanitizeMindTraceTelemetryText(snapshot.activeClosenessRung, 64) || null,
       relationshipPosture: sanitizeMindTraceTelemetryText(snapshot.relationshipPosture, 64) || null,
-      openingGuidance: sanitizeMindTraceTelemetryText(snapshot.openingGuidance, 220) || null,
       currentRegime: sanitizeMindTraceTelemetryText(snapshot.personalityCurrentRegime, 64) || null,
       repairPosture: sanitizeMindTraceTelemetryText(snapshot.personalityRepairPosture, 64) || null,
     },
@@ -2322,7 +2277,6 @@ function summarizeMemoryDeliberationJudgedPayload(snapshot: AlicizationMindTrace
       activeClosenessContext: sanitizeMindTraceTelemetryText(snapshot.activeClosenessContext, 64) || null,
       activeClosenessRung: sanitizeMindTraceTelemetryText(snapshot.activeClosenessRung, 64) || null,
       relationshipPosture: sanitizeMindTraceTelemetryText(snapshot.relationshipPosture, 64) || null,
-      openingGuidance: sanitizeMindTraceTelemetryText(snapshot.openingGuidance, 220) || null,
       currentRegime: sanitizeMindTraceTelemetryText(snapshot.personalityCurrentRegime, 64) || null,
       repairPosture: sanitizeMindTraceTelemetryText(snapshot.personalityRepairPosture, 64) || null,
     },
@@ -2506,7 +2460,6 @@ function readMindTurnEventEmbodimentAuthorityFields(input: {
     ? spineEmbodiment.autobiographicalSelf as Record<string, unknown>
     : null
   const bodyLine = digitalLifeBodyContinuity?.bodyLine
-    ?? input.digitalLifeSpine?.runtime?.continuityCue
     ?? spineSelfContinuity?.inwardLine
     ?? spineSelfContinuity?.relationshipLine
     ?? spineSelfContinuity?.selfLine
@@ -2794,20 +2747,6 @@ function buildMemoryClosureTraceDerivedMindStateBundle(input: {
               tone: null,
               reason: embodimentSummary,
             },
-            selfRevisionCandidate: {
-              shouldPropose: false,
-              domain: 'dialogue-style',
-              reasonCodes: [],
-              summary: null,
-              projectStateContinuity: {
-                sameHerSelfLine: null,
-                sameHerDriftRisk: null,
-                proactiveSameHerGap: null,
-                emotionalClosureCue: null,
-                sameHerHoldDetail: null,
-                continuityGuard: null,
-              },
-            },
             traceSummary: emotionSummary || initiativeSummary,
             replayLine: emotionSummary || initiativeSummary,
             memoryClosureCausality: buildCausality(
@@ -2840,12 +2779,6 @@ function buildMemoryClosureTraceDerivedMindStateBundle(input: {
               shouldWrite: true,
               lane: 'cross-modal-continuity',
               reason: embodimentSummary,
-            },
-            selfRevisionCandidate: {
-              shouldPropose: false,
-              domain: 'dialogue-style',
-              reasonCodes: [],
-              summary: null,
             },
             traceSummary: embodimentSummary,
             replayLine: embodimentSummary,
@@ -3159,7 +3092,6 @@ export function buildMindTurnTraceEvents(input: {
       : null
     const dialogueEmbodimentResidentMode = input.dialoguePayload.structured.embodimentScript?.state.residentMode ?? null
     const dialogueBodyLine = dialogueDigitalLifeBodyContinuity?.bodyLine
-      ?? dialogueDigitalLifeSpine?.runtime?.continuityCue
       ?? dialogueSpineSelfContinuity?.inwardLine
       ?? dialogueSpineSelfContinuity?.relationshipLine
       ?? dialogueSpineSelfContinuity?.selfLine
@@ -3350,10 +3282,6 @@ export function normalizeDialogueRespondedPayload(
   const dialogueActKernel = normalizeDialogueActKernel(
     (structuredPayload as Record<string, unknown>).dialogueActKernel ?? governance?.dialogueActKernel,
   )
-  // Project-state governance is no longer a normalized dialogue payload.
-  // Runtime diagnostics remain available through the dedicated digest fields.
-  const projectState = undefined
-  const preDialogueAwareness = null
   const runtimeDigest = normalizeAlicizationRuntimeDigest(
     (structuredPayload as Record<string, unknown>).runtimeDigest,
   ) as AlicizationRuntimeDigest | null
@@ -3378,34 +3306,6 @@ export function normalizeDialogueRespondedPayload(
     const actualAuthority = providerContractFailed
       ? 'non-human-authored-blocked'
       : rawActualAuthority
-    const emotionalClosureAudit: AlicizationVisibleReplyRealizationArtifact['emotionalClosureAudit']
-      = raw.emotionalClosureAudit
-        ? {
-            activeCue:
-              typeof raw.emotionalClosureAudit.activeCue === 'string'
-                ? raw.emotionalClosureAudit.activeCue
-                : null,
-            ...(typeof raw.emotionalClosureAudit.lowPressureRequired === 'boolean'
-              ? { lowPressureRequired: raw.emotionalClosureAudit.lowPressureRequired }
-              : {}),
-            ...(typeof raw.emotionalClosureAudit.antiRestartRequired === 'boolean'
-              ? { antiRestartRequired: raw.emotionalClosureAudit.antiRestartRequired }
-              : {}),
-          }
-        : null
-    const selfAuthorityAudit: AlicizationVisibleReplyRealizationArtifact['selfAuthorityAudit']
-      = raw.selfAuthorityAudit
-        ? {
-            authoritySummary:
-              typeof raw.selfAuthorityAudit.authoritySummary === 'string'
-                ? raw.selfAuthorityAudit.authoritySummary
-                : null,
-            closenessPosture:
-              typeof raw.selfAuthorityAudit.closenessPosture === 'string'
-                ? raw.selfAuthorityAudit.closenessPosture
-                : null,
-          }
-        : null
     const critic = sanitizeVisibleReplyCriticSummary(raw.critic)
     const closure = sanitizeVisibleReplyClosureSummary(raw.closure)
     return {
@@ -3434,8 +3334,6 @@ export function normalizeDialogueRespondedPayload(
         : typeof raw.nonHumanAuthoredStatus === 'string'
           ? raw.nonHumanAuthoredStatus
           : null,
-      emotionalClosureAudit,
-      selfAuthorityAudit,
       reason: typeof raw.reason === 'string' ? raw.reason : null,
       critic,
       closure,
@@ -3505,11 +3403,6 @@ export function normalizeDialogueRespondedPayload(
         candidatePerformance: embodiment.performance,
         embodiment,
         digitalLifeSpine: digitalLifeSpine as AlicizationDigitalLifeSpineDigest | null,
-        projectState: (
-          (normalizedCurrentConsciousFrame?.projectState
-            ?? digitalLifeSpine?.runtime?.projectState
-            ?? null) as AlicizationCurrentConsciousFrameSnapshot['projectState']
-        ) ?? null,
         performanceManifest,
       })
     : null
@@ -3562,16 +3455,9 @@ export function normalizeDialogueRespondedPayload(
   const origin = autonomousDialogueFamily.isAutonomous
     ? autonomousDialogueFamily.canonicalOrigin ?? resolveAlicizationAutonomousDialogueOrigin('proactive')
     : 'user-turn'
-  const finalProactive = proactive
-    ? {
-        ...proactive,
-        openingGuidance: proactive.openingGuidance ?? null,
-      }
-    : proactive
   const derivedMindStateBundle = buildMemoryClosureTraceDerivedMindStateBundle({
     structured: {
       ...(structuredPayload as Record<string, unknown>),
-      ...(projectState ? { projectState } : {}),
       ...(explicitDerivedMindStateBundle ? { derivedMindStateBundle: explicitDerivedMindStateBundle } : {}),
     },
     digitalLifeSpine: summarizeMindTurnEventDigitalLifeSpine(
@@ -3601,10 +3487,8 @@ export function normalizeDialogueRespondedPayload(
     format,
     formatLane: formatResolution.lane,
     legacyInputFormat: explicitLegacyInputFormat ?? formatResolution.legacyInputFormat,
-    proactive: finalProactive,
+    proactive,
     dialogueActKernel,
-    ...(projectState ? { projectState } : {}),
-    ...(preDialogueAwareness ? { preDialogueAwareness } : {}),
     governance,
     ...(derivedMindStateBundle ? { derivedMindStateBundle } : {}),
     ...(memoryStageReplay ? { memoryStageReplay } : {}),

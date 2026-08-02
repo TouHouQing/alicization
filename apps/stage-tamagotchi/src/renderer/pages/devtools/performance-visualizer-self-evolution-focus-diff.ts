@@ -70,19 +70,5 @@ export function buildSelfEvolutionFocusDiffSummary(input: {
       : `轨迹事件：${snapshotEvent} -> ${currentEvent}`,
   )
 
-  const sameHerContinuityProgression = (
-    input.snapshot.selectedCardId === 'repair-owner'
-    && input.current.selectedCardId === 'first-check'
-    && input.snapshot.recommendedTraceEventId === 'event-takeover'
-    && input.current.recommendedTraceEventId === 'event-governance'
-    && input.current.highlightedEvidencePanelIds.includes('candidate-trajectory-summary')
-    && input.current.highlightedEvidencePanelIds.includes('proactive-decision-consumption-summary')
-    && input.current.highlightedEvidencePanelIds.includes('identity-drift-governance-summary')
-  )
-
-  if (sameHerContinuityProgression) {
-    lines.push('连续性说明：这不是普通聚焦漂移，而是 identity-continuity continuity governance 从审视阶段推进到确认阶段。')
-  }
-
   return lines
 }

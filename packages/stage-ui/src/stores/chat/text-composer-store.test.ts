@@ -45,10 +45,6 @@ vi.mock('./session-store', () => ({
   }),
 }))
 
-function sentOptions() {
-  return ingestMock.mock.calls[0]?.[1]
-}
-
 describe('chat text composer', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -100,7 +96,6 @@ describe('chat text composer', () => {
       providerId: 'mock-provider',
       model: 'mock-model',
     }))
-    expect(sentOptions()).not.toHaveProperty('preDialogueSendIdentity')
   })
 
   it('leaves explicit project-state questions to memory recall or real tool facts', async () => {
@@ -117,17 +112,5 @@ describe('chat text composer', () => {
       model: 'mock-model',
       providerConfig: { apiKey: 'test-key' },
     }))
-    expect(sentOptions()).not.toHaveProperty('preDialogueSendIdentity')
-  })
-
-  it('sends normally without any renderer pre-dialogue identity dependency', async () => {
-    ingestMock.mockResolvedValueOnce(undefined)
-
-    const store = useChatTextComposerStore()
-    store.setDraft('现在记忆闭环做到哪一步了')
-
-    await expect(store.sendCurrentMessage()).resolves.toBe(true)
-
-    expect(sentOptions()).not.toHaveProperty('preDialogueSendIdentity')
   })
 })

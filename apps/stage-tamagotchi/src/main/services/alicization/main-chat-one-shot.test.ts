@@ -165,44 +165,6 @@ describe('main chat one-shot', () => {
     })
   })
 
-  it('allows one-shot generation without canonical project-state context', async () => {
-    const generateTextImpl = vi.fn(async () => ({
-      text: '普通对话可以直接交给模型。',
-      finishReason: 'stop',
-    }))
-
-    await expect(generateAlicizationMainChatNonStreaming(createInput({
-      messages: [
-        { role: 'system', content: typedMemoryContextBlock },
-        { role: 'user', content: '你好' },
-      ],
-      generateTextImpl,
-    }))).resolves.toEqual({
-      finishReason: 'stop',
-      fullText: '普通对话可以直接交给模型。',
-    })
-    expect(generateTextImpl).toHaveBeenCalledOnce()
-  })
-
-  it('does not require a legacy project-state shell before one-shot generation', async () => {
-    const generateTextImpl = vi.fn(async () => ({
-      text: '不再依赖工程态模板。',
-      finishReason: 'stop',
-    }))
-
-    await expect(generateAlicizationMainChatNonStreaming(createInput({
-      messages: [
-        { role: 'system', content: typedMemoryContextBlock },
-        { role: 'user', content: '你好' },
-      ],
-      generateTextImpl,
-    }))).resolves.toEqual({
-      finishReason: 'stop',
-      fullText: '不再依赖工程态模板。',
-    })
-    expect(generateTextImpl).toHaveBeenCalledOnce()
-  })
-
   it('allows one-shot generation when typed memory context is present in the message payload', async () => {
     const generateTextImpl = vi.fn(async () => ({
       text: '  我还记得这是同一个数字生命项目。  ',
@@ -237,7 +199,7 @@ describe('main chat one-shot', () => {
       closenessDrive: 0.61,
       repairNeed: 0.18,
       initiativePressure: 0.44,
-      reasonTags: ['phase1-life-loop', 'same-her-authority'],
+      reasonTags: ['phase1-life-loop', 'continuity-authority'],
       why: 'Keep one-shot recovery on the same emotion-memory-initiative-embodiment authority line.',
     }
     const generateTextImpl = vi.fn(async (input: Record<string, unknown>) => {

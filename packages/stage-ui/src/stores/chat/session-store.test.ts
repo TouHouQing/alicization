@@ -8,46 +8,6 @@ import { isReactive, ref } from 'vue'
 import { useAiriCardStore } from '../modules/airi-card'
 import { useChatSessionStore } from './session-store'
 
-const legacyProjectStateCueKeys = [
-  'preDialogueAwarenessLine',
-  'preDialogueAwarenessSummary',
-  'awarenessLine',
-  'companionHeadlineLine',
-  'companionBriefingLine',
-  'companionNextClosureLine',
-  'sameHerSelfLine',
-  'sameHerSummary',
-  'sameHerHoldDetail',
-  'sameHerDriftRisk',
-  'sameHerDriftRiskLine',
-  'sameHerDriftRiskSummary',
-  'emotionalClosureCue',
-  'emotionalClosureSummary',
-  'continuityCue',
-  'continuityAnchor',
-  'continuityHold',
-  'continuityDriftRisk',
-  'proactiveSameHerGap',
-  'proactiveSameHerGapSummary',
-  'companionExperimentalCue',
-  'sameHerExperimentalCue',
-  'emotionalClosureExperimentalCue',
-  'proactiveSameHerExperimentalCue',
-] as const
-
-const naturalProjectFacts = {
-  identity: '这次会话记录周末火车行程。',
-  currentPhase: '车票已经确认。',
-  latestLandedProgress: '周六上午九点的车票已经保存。',
-  primaryOpenLoop: '是否带伞还没有决定。',
-  nextClosureTarget: '出发前查看天气。',
-  continuitySummary: '上次对话留下了行程提醒。',
-  itinerary: {
-    station: '虹桥',
-    departure: '周六上午',
-  },
-}
-
 const authState = vi.hoisted(() => ({
   userId: 'local-user',
 }))
@@ -213,11 +173,7 @@ async function seedPersistedSession(
   return meta
 }
 
-function createAssistantWithLegacyGovernance(id: string, createdAt: number): ChatHistoryItem {
-  const deprecatedProjectCues = Object.fromEntries(
-    legacyProjectStateCueKeys.map(key => [key, `deprecated cue for ${key}`]),
-  )
-
+function createAssistantWithMemoryRuntimeFacts(id: string, createdAt: number): ChatHistoryItem {
   return {
     id,
     role: 'assistant',
@@ -230,51 +186,51 @@ function createAssistantWithLegacyGovernance(id: string, createdAt: number): Cha
       emotion: 'neutral',
       reply: '周六上午九点的车票已经保存。',
       format: 'mind-turn-v1',
-      projectState: {
-        ...naturalProjectFacts,
-        ...deprecatedProjectCues,
-      },
-      preDialogueSendIdentity: {
-        summaryLine: 'deprecated send identity',
-      },
-      preDialogueAwareness: {
-        status: 'partial',
-        summaryLine: 'deprecated awareness cue',
-        reasonPreview: ['deprecated awareness reason'],
-      },
-      preDialogueClosure: {
-        status: 'partial',
-        summaryLine: 'deprecated closure cue',
-        briefingLines: ['deprecated closure briefing'],
-        reasons: ['deprecated closure reason'],
+      memoryUsage: {
+        workingMemoryVersion: 'wm-weekend-trip',
+        longTermEvidenceIds: ['memory-ticket'],
       },
       visibleReplyRealization: {
-        projectStateAudit: {
-          currentPhaseSummary: '过期审计错误地声称酒店已经预订。',
-          nextClosureTargetSummary: '过期审计要求检查收据。',
-          sameHerHoldDetail: 'deprecated hold detail',
-          sameHerDriftRiskSummary: 'deprecated drift summary',
-          proactiveSameHerGapSummary: 'deprecated proactive gap',
+        expectedAuthority: 'llm-mind',
+        actualAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        mode: 'provider-stream',
+      },
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'dialogue',
+        derivedMindStateBundle: {
+          structured: {
+            memoryUsage: {
+              workingMemoryVersion: 'wm-weekend-trip',
+              longTermEvidenceIds: ['memory-ticket'],
+            },
+          },
         },
       },
     },
-  } as ChatHistoryItem
+  } as unknown as ChatHistoryItem
 }
 
-function expectLegacyGovernanceRemoved(message: ChatHistoryItem | undefined) {
+function expectMemoryRuntimeFactsPreserved(message: ChatHistoryItem | undefined) {
   expect(message?.role).toBe('assistant')
-  const structured = (message as Extract<ChatHistoryItem, { role: 'assistant' }> | undefined)?.structured
+  const structured = (message as Extract<ChatHistoryItem, { role: 'assistant' }> | undefined)
+    ?.structured as unknown as Record<string, any> | undefined
 
-  expect(structured).not.toHaveProperty('preDialogueSendIdentity')
-  expect(structured).not.toHaveProperty('preDialogueAwareness')
-  expect(structured).not.toHaveProperty('preDialogueClosure')
-  expect(structured).not.toHaveProperty('visibleReplyRealization')
-
-  const projectState = structured?.projectState as unknown as Record<string, unknown>
-  for (const key of legacyProjectStateCueKeys)
-    expect(projectState).not.toHaveProperty(key)
-
-  expect(projectState).toEqual(expect.objectContaining(naturalProjectFacts))
+  expect(structured?.visibleReplyRealization).toEqual({
+    expectedAuthority: 'llm-mind',
+    actualAuthority: 'llm-mind',
+    providerMindExecuted: true,
+    mode: 'provider-stream',
+  })
+  expect(structured?.memoryUsage).toEqual({
+    workingMemoryVersion: 'wm-weekend-trip',
+    longTermEvidenceIds: ['memory-ticket'],
+  })
+  expect(structured?.runtimeDigest?.derivedMindStateBundle?.structured?.memoryUsage).toEqual({
+    workingMemoryVersion: 'wm-weekend-trip',
+    longTermEvidenceIds: ['memory-ticket'],
+  })
 }
 
 describe('chat session store reset stability', () => {
@@ -352,12 +308,12 @@ describe('chat session store reset stability', () => {
     }))
   })
 
-  it('drops legacy governance fields when loading persisted assistant messages', async () => {
-    const sessionId = 'session-with-legacy-governance'
+  it('preserves memory and runtime facts when loading persisted assistant messages', async () => {
+    const sessionId = 'session-with-memory-runtime-facts'
     const now = Date.now()
 
     await seedPersistedSession(sessionId, [
-      createAssistantWithLegacyGovernance(`${sessionId}:assistant`, now),
+      createAssistantWithMemoryRuntimeFacts(`${sessionId}:assistant`, now),
     ], {
       now,
       title: 'Weekend Trip',
@@ -366,7 +322,7 @@ describe('chat session store reset stability', () => {
     const store = useChatSessionStore()
     await store.initialize()
 
-    expectLegacyGovernanceRemoved(
+    expectMemoryRuntimeFactsPreserved(
       store.messages.find(message => message.role === 'assistant'),
     )
   })
@@ -550,7 +506,7 @@ describe('chat session store reset stability', () => {
     expect(store.messages.map(message => message.id)).toEqual(['msg-card-b-1'])
   })
 
-  it('drops legacy governance fields when importing sessions', async () => {
+  it('preserves memory and runtime facts when importing sessions', async () => {
     const store = useChatSessionStore()
     await store.initialize()
 
@@ -575,18 +531,18 @@ describe('chat session store reset stability', () => {
         [sessionId]: {
           meta,
           messages: [
-            createAssistantWithLegacyGovernance(`${sessionId}:assistant`, now),
+            createAssistantWithMemoryRuntimeFacts(`${sessionId}:assistant`, now),
           ],
         },
       },
     })
 
-    expectLegacyGovernanceRemoved(
+    expectMemoryRuntimeFactsPreserved(
       store.messages.find(message => message.role === 'assistant'),
     )
   })
 
-  it('drops legacy governance fields when forking a session', async () => {
+  it('preserves memory and runtime facts when forking a session', async () => {
     const store = useChatSessionStore()
     await store.initialize()
 
@@ -598,12 +554,12 @@ describe('chat session store reset stability', () => {
       role: 'user',
       content: '把周末行程分成一个新分支。',
       createdAt: now,
-    }, createAssistantWithLegacyGovernance(`${sourceSessionId}:assistant`, now + 1))
+    }, createAssistantWithMemoryRuntimeFacts(`${sourceSessionId}:assistant`, now + 1))
 
     const forkedSessionId = await store.forkSession({ fromSessionId: sourceSessionId })
     await store.ensureSessionReady(forkedSessionId)
 
-    expectLegacyGovernanceRemoved(
+    expectMemoryRuntimeFactsPreserved(
       store.getSessionMessages(forkedSessionId).find(message => message.role === 'assistant'),
     )
   })

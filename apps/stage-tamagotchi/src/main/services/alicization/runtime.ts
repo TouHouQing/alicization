@@ -126,7 +126,6 @@ import {
   extractInspectionHintTerms,
   getActiveAttentionAnchor,
   getActivePerceptionSceneResidue,
-  isInternalAlicizationRepairPrompt,
   normalizePerceptionState,
   rememberPerceptionBrowserWorkflowState,
   rememberPerceptionSceneResidue,
@@ -586,14 +585,7 @@ function normalizePersistedConversationTurnStructure(input: {
   if (!input.structured || typeof input.structured !== 'object')
     return input.structured ?? null
 
-  const {
-    projectState: _projectState,
-    projectStateContinuity: _projectStateContinuity,
-    projectStatePreflightSummary: _projectStatePreflightSummary,
-    projectStatePreDialogueAwarenessLine: _projectStatePreDialogueAwarenessLine,
-    preDialogueAwareness: _preDialogueAwareness,
-    ...structured
-  } = input.structured
+  const structured = { ...input.structured }
 
   if (!Object.prototype.hasOwnProperty.call(input.structured, 'visibleReplyRealization'))
     return structured
@@ -901,7 +893,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       activeClosenessContext: personStateProjection?.activeClosenessContext ?? null,
       activeClosenessRung: personStateProjection?.activeClosenessRung ?? null,
       relationshipPosture: personStateProjection?.relationshipPosture ?? null,
-      openingGuidance: personStateProjection?.openingGuidance ?? null,
       personalityCurrentRegime: personalityContinuityState?.currentRegime ?? null,
       personalityRepairPosture: personalityContinuityState?.repairPosture ?? null,
       recollectionIntentMode: context?.recollectionIntent?.mode ?? null,
@@ -1174,7 +1165,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveRecentContextualTurns,
     buildProactiveRecallSeed,
     tuneOrganicMemoryPromptContextForExecutiveTurn,
-    buildPerformanceManifestSystemBlocks,
     resolveOrganicMemoryPromptContext: resolveBaseOrganicMemoryPromptContext,
   } = memoryRuntime
   const resolveOrganicMemoryPromptContext = resolveBaseOrganicMemoryPromptContext
@@ -1384,7 +1374,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     buildPendingExecutionCallbackContext: input => executionCallbackRuntime.buildPendingExecutionCallbackContext(input),
     resolveAgentSessionContinuityContext: async (cardId, input) => await resolveAgentSessionContinuityContext(cardId, input),
     getPerformanceManifest,
-    buildPerformanceManifestSystemBlocks,
     syncAgentTurnSessionMirror,
     appendAuditLog,
     describePerceptionTarget,
@@ -1436,7 +1425,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       getActiveCardId: () => activeCardId,
       normalizeOrganicRecallText,
       readTransportContentAsText,
-      isInternalAlicizationRepairPrompt,
       emptyAlicizationExecutionCallbackContext,
       emptyAlicizationExecutionLedgerContext,
       ensureActiveOrLatestSessionId,
@@ -1915,7 +1903,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const mainChatSessionRuntime = createAlicizationMainChatSessionRuntime({
     workingMemoryStore,
     buildMainRuntimeCorePromptBlocks,
-    buildPerformanceManifestSystemBlocks,
     dialogueSessionManager,
     persistAutobiographicalEpisodesFromPreparedMirror: persistPreparedMirrorAutobiographicalEpisodes,
     enqueueWorkingMemoryLongTermQueue: async input => await alicizationDb.enqueueWorkingMemoryLongTermQueueItems(input),
@@ -2252,37 +2239,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return runtimeContext as AlicizationExecutionRuntimeContext
   }
 
-  function resolveThreadExperienceProjectBriefing(thread: {
-    metadata?: Record<string, unknown> | null
-  } | null | undefined) {
-    const metadata = thread?.metadata
-    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata))
-      return null
-
-    const fabric = metadata.fabric
-    if (!fabric || typeof fabric !== 'object' || Array.isArray(fabric))
-      return null
-
-    const experience = (fabric as Record<string, unknown>).experience
-    if (!experience || typeof experience !== 'object' || Array.isArray(experience))
-      return null
-
-    const normalizedRuntimeContext = normalizeAlicizationExecutionRuntimeContext({
-      generatedAt: 0,
-      projectBriefing: (experience as Record<string, unknown>).projectBriefing ?? null,
-      sensory: {
-        collectedAt: null,
-        running: false,
-        stale: true,
-        ageMs: 0,
-        foregroundWindow: null,
-        capture: null,
-      },
-    })
-
-    return normalizedRuntimeContext?.projectBriefing ?? null
-  }
-
   function withDispatchRuntimeContext<Command extends { runtimeContext?: AlicizationExecutionRuntimeContext | null }>(
     command: Command | null | undefined,
     runtimeContext: AlicizationExecutionRuntimeContext | null,
@@ -2334,7 +2290,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const turnId = sanitizeText(input.thread?.turnId, '').slice(0, 160) || fallbackTurnId
     const decisionTraceId = sanitizeText(input.thread?.decisionTraceId, '').slice(0, 200) || fallbackDecisionTraceId
     const sessionId = sanitizeText(input.thread?.sessionId, '').slice(0, 160) || null
-    const experienceProjectBriefing = resolveThreadExperienceProjectBriefing(input.thread)
     const sensorySnapshot = await sensoryBus.getSnapshot()
     const agentTurn = await agentRuntime.openTurn({
       cardId: input.cardId,
@@ -2346,7 +2301,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       cardId: input.cardId,
       turnId,
       decisionTraceId,
-      projectBriefing: experienceProjectBriefing ?? undefined,
       sessionId,
       sensorySnapshot,
     })
@@ -3979,7 +3933,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       const artifactContaminated = containsAlicizationFixedTemplateResidue([
         normalizedPayload.assistantText ?? '',
         readStringValue(structured?.reply),
-      ].join('\n'))
+      ].join('\n'), {
+        provenance: 'internal-structured-fact',
+      })
       const learningEligibility = hasTypedLearningMetadata
         ? artifactOrigin && artifactLearningPolicy
           ? resolveAlicizationLearningEligibility({
@@ -5039,10 +4995,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     decision: ReturnType<typeof evaluateProactivePolicy>
     selfEvolution?: OrganicMemoryPromptContext['selfEvolution'] | null
     learningExecutionState?: OrganicMemoryPromptContext['learningExecutionState'] | null
-    openingGuidance?: string | null
   }): AlicizationProactiveMetadata {
     const reasonCodes: AlicizationProactiveReasonCode[] = [...input.decision.reasonCodes]
-    const openingGuidance = sanitizeBriefText(input.openingGuidance ?? '', 220) || null
     const learningAction = input.learningExecutionState?.nextLearningAction
       ?? input.selfEvolution?.nextLearningAction
       ?? null
@@ -5059,7 +5013,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         input.decision.style === 'silent-observe'
         && input.decision.reasonCodes.includes('continuity-next-open-window')
         && !input.decision.reasonCodes.includes('held-autonomy-carry')
-        && !input.decision.reasonCodes.includes('continuity-execution-callback-project-carry')
+        && !input.decision.reasonCodes.includes('continuity-execution-callback-carry')
         && !input.decision.reasonCodes.includes('continuity-execution-callback-afterglow-hold')
       )
         ? 'presence-only-hold'
@@ -5077,7 +5031,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       scenario: input.decision.scenario,
       policyVersion: input.decision.policyVersion,
       feedbackWindowMs: proactiveReplyWindowMs,
-      openingGuidance,
     }
   }
 
@@ -5088,7 +5041,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     policyDecision: ReturnType<typeof evaluateProactivePolicy>,
     organicPromptContext: OrganicMemoryPromptContext,
     perceptionState: AlicizationPerceptionState,
-    visualPresenceState: AlicizationVisualPresenceStateSnapshot,
     agentTurnInput?: {
       turnId: string
       decisionTraceId?: string | null
@@ -5096,28 +5048,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     agentTurn?: AlicizationAgentTurnRuntime | null,
   ) {
     const now = Date.now()
-    const digitalLifeSpine = deriveAlicizationDigitalLifeSpine(visualPresenceState)
-    const digitalLifeRuntimeSurface = digitalLifeSpine.runtimeSurface
     const hostPersonModel = organicPromptContext.hostPersonModel ?? null
-    const proactivePersonContexts = buildHostSocialContexts({
-      scenario: policyDecision.scenario,
-      workloadKind: layeredContext.workload.kind,
-    })
-    const personStateProjection = buildAlicizationPersonStateProjection({
-      now: Date.now(),
-      contexts: proactivePersonContexts,
-      autobiographicalSelf: digitalLifeRuntimeSurface.memory.autobiographicalSelf ?? null,
-      hostPersonModel,
-      longHorizonMemory: digitalLifeRuntimeSurface.memory.longHorizonMemory ?? null,
-      motiveEngine: digitalLifeRuntimeSurface.memory.motiveEngine ?? null,
-      habitPolicy: digitalLifeRuntimeSurface.agency.habitPolicy ?? null,
-      selfContinuity: digitalLifeRuntimeSurface.memory.selfContinuity ?? null,
-      selfState: digitalLifeRuntimeSurface.agency.selfState ?? null,
-      privateThought: digitalLifeRuntimeSurface.cognition.privateThought ?? null,
-      mindEcology: buildMindEcologyFromRuntimeSurface(digitalLifeRuntimeSurface),
-      selfEvolution: digitalLifeRuntimeSurface.memory.selfEvolution ?? null,
-      previousContinuityState: digitalLifeRuntimeSurface.memory.personalityContinuityState ?? null,
-    })
     const providerHostPersonModel = hostPersonModel
       ? {
           summary: sanitizeAlicizationProviderFacingText(hostPersonModel.summary, 180) || null,
@@ -5300,7 +5231,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           decision: policyDecision,
           selfEvolution: organicPromptContext.selfEvolution ?? null,
           learningExecutionState: organicPromptContext.learningExecutionState ?? null,
-          openingGuidance: personStateProjection.openingGuidance,
         }),
       },
       providerFailure: null,
@@ -6048,7 +5978,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     visualPresenceCapturePersistDebounceWindowMs,
     buildVisualPresenceCapturePersistFingerprint,
     appendAuditLog,
-    getActiveSelfRevisionStatePatch: async () => await selfEvolutionRuntime.getActivePatch(),
     listHumanlikeMemoryRecallEvents: async input => await alicizationDb.listMindTurnEvents(input),
   })
 

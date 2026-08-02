@@ -15,13 +15,10 @@ import type {
   AlicizationVisualTransitionSnapshot,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
-import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
 import { deriveAlicizationPersonaAuthorityInfluence } from './personality-continuity-state'
-
-export const alicizationMotiveEngineMarker = '[ALICIZATION_MOTIVE_ENGINE]'
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -123,7 +120,7 @@ function buildAgenda(input: {
     kind: input.kind,
     status: agendaStatus(weight),
     weight,
-    summary: input.kind,
+    summary: sanitizeText(input.summary, 220) || input.anchor || input.kind,
     sourceTags: Array.from(new Set(input.sourceTags.map(tag => sanitizeText(tag, 48)).filter(Boolean))).slice(0, 8),
     targetGoalKind: targetGoalKindForAgenda({
       kind: input.kind,
@@ -203,16 +200,6 @@ export function buildMotiveEngine(input: {
   reflectionLedger?: AlicizationReflectionLedgerSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
   previous?: AlicizationMotiveEngineSnapshot | null
-  projectState?: {
-    preflightSummary?: string | null
-    identity?: string | null
-    currentPhase?: string | null
-    primaryOpenLoop?: string | null
-    nextClosureTarget?: string | null
-    sameHerSelfLine?: string | null
-    preferredVoiceMode?: string | null
-    preferredPacingMode?: string | null
-  } | null
 }): AlicizationMotiveEngineSnapshot {
   const relationshipEra = latestAutobiographicalEra(input.recentMemoryConsolidations ?? null, 'relationship-era')
   const taskEra = latestAutobiographicalEra(input.recentMemoryConsolidations ?? null, 'task-era')
@@ -321,7 +308,7 @@ export function buildMotiveEngine(input: {
       kind: 'preserve-trust',
       anchor,
       weight: clamp01(drives.truthDiscipline * 0.72 + reflectionPressure * 0.22),
-      summary: 'preserve-trust',
+      summary: anchor,
       sourceTags: ['truth-discipline', 'reflection-ledger'],
       worldModel: input.worldModel,
       context: input.context,
@@ -337,9 +324,7 @@ export function buildMotiveEngine(input: {
       kind: 'protect-boundary',
       anchor,
       weight: drives.boundaryRespect,
-      summary: resumeConfirmationBoundaryCarry
-        ? 'remembered_host_confirmed_resume=bounded_confirmation_boundary; permanent_execution_permission=false; presence_weight=light_until_new_boundary'
-        : 'host_boundary=preserve; presence_weight=light_until_window_opens',
+      summary: anchor,
       sourceTags: ['boundary-respect', 'host-busy', ...(resumeConfirmationBoundaryCarry ? ['resume-confirmation-boundary'] : [])],
       worldModel: input.worldModel,
       context: input.context,
@@ -355,7 +340,7 @@ export function buildMotiveEngine(input: {
       kind: 'return-open-loop',
       anchor,
       weight: drives.unfinishedThreadReturn,
-      summary: 'unfinished_thread_return=deliberate; dissolve=blocked',
+      summary: anchor,
       sourceTags: ['unfinished-thread-return', 'open-loop'],
       worldModel: input.worldModel,
       context: input.context,
@@ -371,7 +356,7 @@ export function buildMotiveEngine(input: {
       kind: 'protect-rest',
       anchor,
       weight: drives.restProtection,
-      summary: 'protect-rest',
+      summary: anchor,
       sourceTags: ['rest-protection', 'fatigue'],
       worldModel: input.worldModel,
       context: input.context,
@@ -387,7 +372,7 @@ export function buildMotiveEngine(input: {
       kind: 'stay-near-lightly',
       anchor,
       weight: clamp01(drives.companionship * 0.74 + drives.boundaryRespect * 0.18),
-      summary: 'stay-near-lightly',
+      summary: anchor,
       sourceTags: ['companionship', 'boundary-respect'],
       worldModel: input.worldModel,
       context: input.context,
@@ -403,7 +388,7 @@ export function buildMotiveEngine(input: {
       kind: 'grow-shared-language',
       anchor,
       weight: clamp01(drives.selfDirection * 0.56 + drives.companionship * 0.24),
-      summary: 'grow-shared-language',
+      summary: anchor,
       sourceTags: ['self-direction', 'companionship'],
       worldModel: input.worldModel,
       context: input.context,
@@ -442,9 +427,4 @@ export function buildMotiveEngine(input: {
     ].filter(Boolean),
     updatedAt: input.now,
   }
-}
-
-export function buildMotiveEngineSystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-  void surface
-  return ''
 }

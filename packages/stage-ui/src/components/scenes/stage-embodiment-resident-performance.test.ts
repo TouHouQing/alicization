@@ -13,7 +13,10 @@ import type { StageEmbodimentAttentionPresenceState } from './use-stage-embodime
 
 import { describe, expect, it } from 'vitest'
 
-import { resolveStageEmbodimentResidentPerformance } from './stage-embodiment-resident-performance'
+import {
+  resolveResidentSnapshot,
+  resolveStageEmbodimentResidentPerformance,
+} from './stage-embodiment-resident-performance'
 
 function mergeWithDefaults<T extends object>(
   defaults: T,
@@ -316,7 +319,6 @@ function createDigitalLifeSpineDigest(overrides: any = {}): AlicizationDigitalLi
                         silenceReconnect: null,
                         comfortStyle: null,
                         preferredProactiveStyle: null,
-                        manifestationCadenceSummary: null,
                         openingGuidance: null,
                         whySummary: null,
                       }, overrides.embodiment.initiative.personaBias)
@@ -625,42 +627,47 @@ describe('stage embodiment resident performance', () => {
       emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
       emotionalTension?: string
       rationaleTags?: string[]
-    }) => resolveStageEmbodimentResidentPerformance({
-      activePresence: null,
-      performanceManifest: createManifest(),
-      presencePosture: null,
-      visualPresenceState: createVisualPresenceState({
-        watchMode: 'invited-inspection',
-        currentScene: {
-          workloadKind: 'coding',
-          contentKind: 'diff',
-          scenario: 'coding',
-          summary: 'Inspecting a runtime diff.',
-          source: 'screen-semantic-summary',
-          confidence: 0.74,
-          target: null,
-          beganAt: 0,
-          lastSeenAt: 1_000,
-        },
-        privateThought: {
-          shouldSpeak: false,
-          thoughtText: 'Inspect the current diff.',
-          suggestedStyle: 'silent-observe',
-          embodiedPresence: 'attentive',
-          emotionalTension: auditFields.emotionalTension ?? 'focused-flow',
-          confidence: 0.72,
-          rationaleTags: auditFields.rationaleTags ?? ['inspection'],
-          stance: 'observe',
-          expiresAt: Date.now() + 6_000,
-        },
-        emotionalKernel: auditFields.emotionalKernel ?? null,
-        residentPerformance: null,
-      }),
-    })
+    }) => {
+      const input = {
+        activePresence: null,
+        performanceManifest: createManifest(),
+        presencePosture: null,
+        visualPresenceState: createVisualPresenceState({
+          watchMode: 'invited-inspection',
+          currentScene: {
+            workloadKind: 'coding',
+            contentKind: 'diff',
+            scenario: 'coding',
+            summary: 'Inspecting a runtime diff.',
+            source: 'screen-semantic-summary',
+            confidence: 0.74,
+            target: null,
+            beganAt: 0,
+            lastSeenAt: 1_000,
+          },
+          privateThought: {
+            shouldSpeak: false,
+            thoughtText: 'Inspect the current diff.',
+            suggestedStyle: 'silent-observe',
+            embodiedPresence: 'attentive',
+            emotionalTension: auditFields.emotionalTension ?? 'focused-flow',
+            confidence: 0.72,
+            rationaleTags: auditFields.rationaleTags ?? ['inspection'],
+            stance: 'observe',
+            expiresAt: Date.now() + 6_000,
+          },
+          emotionalKernel: auditFields.emotionalKernel ?? null,
+          residentPerformance: null,
+        }),
+      }
+      return {
+        ...resolveStageEmbodimentResidentPerformance(input),
+        reasonTags: resolveResidentSnapshot(input).reasonTags,
+      }
+    }
 
     const baseline = resolve({})
     const audited = resolve({
-      emotionalTension: 'repair-before-closeness',
       rationaleTags: [
         'repair-before-closeness',
         'rest-protective',
@@ -685,6 +692,7 @@ describe('stage embodiment resident performance', () => {
     })
 
     expect(audited.performance).toEqual(baseline.performance)
+    expect(audited.reasonTags).toEqual(baseline.reasonTags)
   })
 
   it('does not let digital-life spine prose synthesize resident authority without a published snapshot', () => {
@@ -865,6 +873,35 @@ describe('stage embodiment resident performance', () => {
     expect(resolved.variationToken).toBe(visualPresenceState.residentPerformance?.signature)
   })
 
+  it('ignores legacy resident modes in an otherwise identical published performance snapshot', () => {
+    const resolve = (residentMode: 'measured-return' | 'repair-before-closeness' | 'same-thread-continuation' | null) => {
+      const residentPerformance = createSilentResidentPerformanceSnapshot('accompanying')
+      residentPerformance.performance = {
+        ...residentPerformance.performance,
+        facialCue: null,
+        actionCue: null,
+        residentMode,
+        face: residentMode ? { residentMode } : null,
+        action: residentMode ? { residentMode } : null,
+      }
+
+      return resolveStageEmbodimentResidentPerformance({
+        activePresence: null,
+        performanceManifest: createManifest(),
+        presencePosture: null,
+        visualPresenceState: createVisualPresenceState({
+          residentPerformance,
+        }),
+      }).performance
+    }
+
+    const baseline = resolve(null)
+
+    expect(resolve('measured-return')).toEqual(baseline)
+    expect(resolve('repair-before-closeness')).toEqual(baseline)
+    expect(resolve('same-thread-continuation')).toEqual(baseline)
+  })
+
   it('keeps published resident cues authoritative when autobiographical prose contains legacy continuity phrases', () => {
     const visualPresenceState = createVisualPresenceState({
       watchMode: 'symbiotic-vision',
@@ -906,7 +943,7 @@ describe('stage embodiment resident performance', () => {
         emotionalTension: 'soft-covision',
         confidence: 0.84,
         reasonTags: ['companionship'],
-        signature: 'resident|main-runtime|same-her-carry',
+        signature: 'resident|main-runtime|continuity-carry',
         updatedAt: 1_000,
       },
     })
@@ -916,7 +953,7 @@ describe('stage embodiment resident performance', () => {
       continuity: {
         previousActionCue: 'steady_focus',
         previousFacialCue: 'soft-gaze',
-        variationToken: 'resident|published-same-her-carry',
+        variationToken: 'resident|published-continuity-carry',
       },
       digitalLifeSpine: createDigitalLifeSpineDigest({
         architecture: {
@@ -926,7 +963,7 @@ describe('stage embodiment resident performance', () => {
         },
         embodiment: {
           autobiographicalSelf: {
-            identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as identity-continuity',
+            identityNarrative: 'Remembered continuity drift risk: if this slips into a generic assistant shell or detached status talk, treat that as identity-continuity',
           },
         },
         outcomeLearning: null,
@@ -1034,8 +1071,8 @@ describe('stage embodiment resident performance', () => {
       facialCue: 'soft-gaze',
       actionCue: 'observe_focus',
       delivery: 'gentle',
-      emphasis: 1,
-      residentMode: 'measured-return',
+      emphasis: 0,
+      residentMode: 'quiet-accompaniment',
     }))
   })
 })

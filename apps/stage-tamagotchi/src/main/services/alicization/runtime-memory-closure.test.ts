@@ -136,40 +136,6 @@ function allWrittenValues(fixture: ReturnType<typeof createRuntimeFixture>) {
   ]
 }
 
-function memorySurfaceWrites(fixture: ReturnType<typeof createRuntimeFixture>) {
-  return [
-    fixture.appendEpisodicEvents.mock.calls,
-    fixture.upsertMemoryReflections.mock.calls,
-    fixture.upsertMindHead.mock.calls,
-    fixture.appendMindTurnEvents.mock.calls,
-  ]
-}
-
-function collectKeys(value: unknown, result: string[] = []) {
-  if (Array.isArray(value)) {
-    for (const item of value)
-      collectKeys(item, result)
-    return result
-  }
-  if (!value || typeof value !== 'object')
-    return result
-
-  for (const [key, nested] of Object.entries(value)) {
-    result.push(key)
-    collectKeys(nested, result)
-  }
-  return result
-}
-
-function expectNoRetiredSurfaceKeys(value: unknown) {
-  const retiredPrefix = ['project', 'State'].join('')
-  const retiredCadenceKey = ['project', 'Cadence'].join('')
-  expect(collectKeys(value).filter(key =>
-    key.startsWith(retiredPrefix)
-    || key === retiredCadenceKey,
-  )).toEqual([])
-}
-
 function expectNoValue(value: unknown, text: string) {
   expect(JSON.stringify(value)).not.toContain(text)
 }
@@ -299,10 +265,8 @@ describe('runtime memory closure', () => {
       runtimeSurface: createReplySurface(legacySurface),
     }))
 
-    for (const writes of allWrittenValues(fixture)) {
+    for (const writes of allWrittenValues(fixture))
       expectNoValue(writes, marker)
-      expectNoRetiredSurfaceKeys(writes)
-    }
 
     const reinforcementWrites = fixture.appendPersonaReinforcementEvents.mock.calls.flat()
     expect(JSON.stringify(reinforcementWrites)).not.toContain(marker)
@@ -313,55 +277,6 @@ describe('runtime memory closure', () => {
         }),
       ]),
     ]))
-  })
-
-  it('在 person-state、mind-turn、episode 和 reflection 四个写入面递归清除旧字段', async () => {
-    const fixture = createRuntimeFixture()
-    const retiredPrefix = ['project', 'State'].join('')
-    const cadenceKey = ['project', 'Cadence'].join('')
-    const closure = buildReplyOutcomeClosure({
-      now: 49_300,
-      cardId: 'default',
-      turnId: 'turn-surface-sanitize',
-      sessionId: 'session-surface-sanitize',
-      decisionTraceId: 'trace-surface-sanitize',
-      userText: '请记住这次真实反馈。',
-      assistantText: '我会把这次真实反馈留在可追踪记忆里。',
-      runtimeSurface: createReplySurface(),
-    })
-    const injectRetiredKeys = (value: unknown) => {
-      if (!value || typeof value !== 'object' || Array.isArray(value))
-        return
-      const record = value as JsonRecord
-      record[`${retiredPrefix}Injected`] = 'must be removed'
-      record[cadenceKey] = 'must be removed'
-    }
-
-    injectRetiredKeys(closure.relationshipOutcomes[0])
-    injectRetiredKeys(closure.reinforcementEvents[0])
-    injectRetiredKeys(closure.episodicEvents[0])
-    closure.reflections.push({
-      cardId: 'default',
-      decisionTraceId: 'trace-surface-sanitize',
-      turnId: 'turn-surface-sanitize',
-      sessionId: 'session-surface-sanitize',
-      sourceKind: 'reply',
-      targetScope: 'relationship',
-      summary: 'A real reflection remains inspectable.',
-      lesson: 'Keep only evidence that came from this turn.',
-      confidence: 0.8,
-      [`${retiredPrefix}ReflectionInjected`]: 'must be removed',
-      [cadenceKey]: 'must be removed',
-    } as never)
-
-    await fixture.runtime.persistOutcomeClosure('default', closure)
-
-    expect(fixture.upsertMindHead).toHaveBeenCalled()
-    expect(fixture.appendMindTurnEvents).toHaveBeenCalled()
-    expect(fixture.appendEpisodicEvents).toHaveBeenCalled()
-    expect(fixture.upsertMemoryReflections).toHaveBeenCalled()
-    for (const writes of memorySurfaceWrites(fixture))
-      expectNoRetiredSurfaceKeys(writes)
   })
 
   it('不把失败回退文本或原始转录复制进人格强化写入', async () => {
@@ -443,10 +358,6 @@ describe('runtime memory closure', () => {
           shouldWrite: true,
           lane: 'cross-modal-continuity',
           reason: 'runtime-ledger-evidence',
-        },
-        selfRevisionCandidate: {
-          shouldPropose: true,
-          reasonCodes: ['embodiment-lane-dropped:face'],
         },
         traceSummary: 'runtime-ledger-evidence',
         replayLine: 'runtime-ledger-evidence',

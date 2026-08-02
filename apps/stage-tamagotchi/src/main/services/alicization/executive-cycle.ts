@@ -144,7 +144,7 @@ export function buildExecutiveCycle(input: {
     ?? input.previous?.currentLine
     ?? '',
     220,
-  ) || 'Hold the living seam until the next move earns itself.'
+  )
   const cycleStable = input.previous
     && input.previous.dominantProjectId === project?.id
     && input.previous.phase === phase

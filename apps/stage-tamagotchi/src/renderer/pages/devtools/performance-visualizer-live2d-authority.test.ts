@@ -98,10 +98,11 @@ describe('performance visualizer live2d authority comparison view', () => {
       plannedLive2dMotionFollowThroughMs: 440,
       consumedLive2dMotionFollowThroughMs: 440,
       motionFollowThroughAligned: true,
-      sameHerExecutionAligned: true,
-      sameHerExecutionAuthoritySegmentId: 'segment-explicit-playback-cue-metadata',
-      sameHerExecutionMismatchDrivers: [],
-      sameHerExecutionSummary: 'aligned | authority=segment-explicit-playback-cue-metadata | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
+      continuityExecutionAligned: true,
+      continuityExecutionAuthoritySegmentId: 'segment-explicit-playback-cue-metadata',
+      continuityExecutionActiveDrivers: ['face', 'motion', 'lipsync', 'voice'],
+      continuityExecutionMismatchDrivers: [],
+      continuityExecutionSummary: 'aligned | authority=segment-explicit-playback-cue-metadata | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
     })
   })
 
@@ -429,7 +430,7 @@ describe('performance visualizer live2d authority comparison view', () => {
     expect(view?.lipsyncSegmentAligned).toBeNull()
   })
 
-  it('summarizes Live2D same-her execution drift when a consumed lane leaves the active authority segment', () => {
+  it('summarizes Live2D continuity execution drift when a consumed lane leaves the active authority segment', () => {
     const view = buildLive2DAuthorityComparisonView({
       speech: {
         driverSummary: {
@@ -438,13 +439,13 @@ describe('performance visualizer live2d authority comparison view', () => {
             cue: 'soft-gaze',
             source: 'prosody-authority',
             confidence: 0.94,
-            segmentId: 'segment-live2d-same-her-current',
+            segmentId: 'segment-live2d-continuity-current',
           },
           motion: {
             cue: 'observe_focus',
             source: 'timeline-projection',
             confidence: 0.88,
-            segmentId: 'segment-live2d-same-her-current',
+            segmentId: 'segment-live2d-continuity-current',
           },
           lipsync: {
             cue: 'I',
@@ -456,12 +457,12 @@ describe('performance visualizer live2d authority comparison view', () => {
         live2dExecution: {
           activeExpression: {
             name: 'RecoverSoft',
-            segmentId: 'segment-live2d-same-her-current',
+            segmentId: 'segment-live2d-continuity-current',
           },
           activeMotion: {
             group: 'StillnessGuard',
             index: 0,
-            segmentId: 'segment-live2d-same-her-current',
+            segmentId: 'segment-live2d-continuity-current',
           },
           cue: {
             facialCue: 'soft-gaze',
@@ -472,7 +473,7 @@ describe('performance visualizer live2d authority comparison view', () => {
         playbackTelemetry: {
           rendererTarget: 'live2d',
           driverAuthority: {
-            segmentId: 'segment-live2d-same-her-current',
+            segmentId: 'segment-live2d-continuity-current',
             rendererTarget: 'live2d',
             matchedDrivers: ['face', 'motion'],
             sources: ['prosody-authority', 'timeline-projection'],
@@ -481,7 +482,7 @@ describe('performance visualizer live2d authority comparison view', () => {
             lipsyncSegmentMatched: false,
           },
           cue: {
-            id: 'segment-live2d-same-her-current',
+            id: 'segment-live2d-continuity-current',
             rendererHints: {
               preferredExpressionAliases: ['RecoverSoft'],
               preferredMotionAliases: ['StillnessGuard'],
@@ -495,10 +496,11 @@ describe('performance visualizer live2d authority comparison view', () => {
       },
     } as any)
 
-    expect(view?.sameHerExecutionAligned).toBe(false)
-    expect(view?.sameHerExecutionMismatchDrivers).toEqual(['lipsync'])
-    expect(view?.sameHerExecutionAuthoritySegmentId).toBe('segment-live2d-same-her-current')
-    expect(view?.sameHerExecutionSummary).toBe('drift | authority=segment-live2d-same-her-current | active=face, motion, lipsync | mismatch=lipsync | lane=face+motion-only | remaining-open=lipsync+voice')
+    expect(view?.continuityExecutionAligned).toBe(false)
+    expect(view?.continuityExecutionActiveDrivers).toEqual(['face', 'motion', 'lipsync'])
+    expect(view?.continuityExecutionMismatchDrivers).toEqual(['lipsync'])
+    expect(view?.continuityExecutionAuthoritySegmentId).toBe('segment-live2d-continuity-current')
+    expect(view?.continuityExecutionSummary).toBe('drift | authority=segment-live2d-continuity-current | active=face, motion, lipsync | mismatch=lipsync | lane=face+motion-only | remaining-open=lipsync+voice')
   })
 
   it('surfaces Live2D voice authority drift when the audible line points at a stale segment', () => {
@@ -574,8 +576,9 @@ describe('performance visualizer live2d authority comparison view', () => {
     expect(view?.consumedVoiceSummary).toBe('zh-CN | closure=0.72 | precision=0.88 | provenance=authority-bound | segment=segment-live2d-voice-stale | source=prosody-authority')
     expect(view?.voiceSource).toBe('prosody-authority')
     expect(view?.voiceSegmentAligned).toBe(false)
-    expect(view?.sameHerExecutionAligned).toBe(false)
-    expect(view?.sameHerExecutionMismatchDrivers).toEqual(['voice'])
-    expect(view?.sameHerExecutionSummary).toBe('drift | authority=segment-live2d-voice-current | active=face, motion, lipsync, voice | mismatch=voice | lane=face+motion+lipsync-only | remaining-open=voice')
+    expect(view?.continuityExecutionAligned).toBe(false)
+    expect(view?.continuityExecutionActiveDrivers).toEqual(['face', 'motion', 'lipsync', 'voice'])
+    expect(view?.continuityExecutionMismatchDrivers).toEqual(['voice'])
+    expect(view?.continuityExecutionSummary).toBe('drift | authority=segment-live2d-voice-current | active=face, motion, lipsync, voice | mismatch=voice | lane=face+motion+lipsync-only | remaining-open=voice')
   })
 })

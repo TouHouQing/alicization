@@ -3,6 +3,15 @@ import { describe, expect, it } from 'vitest'
 import { buildExecutiveCycle } from './executive-cycle'
 
 describe('buildExecutiveCycle', () => {
+  it('does not invent an inner narrative when no runtime fact supplies one', () => {
+    const cycle = buildExecutiveCycle({
+      now: 1_000,
+    })
+
+    expect(cycle.currentLine).toBe('')
+    expect(cycle.narrative).not.toContain('Hold the living seam until the next move earns itself.')
+  })
+
   it('enters reflecting when a fresh negative reflection is still active', () => {
     const cycle = buildExecutiveCycle({
       now: 20_000,
@@ -120,8 +129,8 @@ describe('buildExecutiveCycle', () => {
           kind: 'change-review',
           status: 'lingering',
           source: 'continuity',
-          title: 'same-her repair carry',
-          summary: 'The same-her repair line is still carrying forward.',
+          title: 'continuity repair carry',
+          summary: 'The continuity repair line is still carrying forward.',
           confidence: 0.62,
           significance: 0.7,
           unresolved: true,
@@ -169,11 +178,11 @@ describe('buildExecutiveCycle', () => {
           {
             id: 'reflection::missed',
             targetProjectId: 'project::repair',
-            summary: 'Same-her repair still needs another pass.',
+            summary: 'The unresolved repair still needs another pass.',
             expectation: 'Repair should reduce truth risk.',
             observedOutcome: 'Truth risk is still high.',
             outcome: 'missed',
-            revision: 'Keep the same-her repair line active before fluency.',
+            revision: 'Keep the continuity repair line active before fluency.',
             confidenceShift: -0.1,
             createdAt: 19_000,
           },
@@ -187,7 +196,7 @@ describe('buildExecutiveCycle', () => {
     expect(cycle.phase).toBe('reflecting')
     expect(cycle.shouldReflect).toBe(true)
     expect(cycle.activeReflectionId).toBe('reflection::missed')
-    expect(cycle.currentLine).toContain('same-her repair line active')
+    expect(cycle.currentLine).toContain('continuity repair line active')
     expect(cycle.currentLine).not.toContain('temporary wobble')
   })
 

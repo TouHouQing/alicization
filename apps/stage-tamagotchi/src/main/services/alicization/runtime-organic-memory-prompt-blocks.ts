@@ -11,12 +11,6 @@ function sanitizeOrganicMemoryProviderText(raw: unknown, maxChars = 220) {
   const normalized = sanitizeAlicizationProviderFacingText(raw, maxChars)
   if (!normalized || normalized === alicizationFixedTemplateReplacement)
     return ''
-  if (
-    /\bcurrent continuity\b|\bcontinuity identity\b/iu.test(normalized)
-    || /\b(?:same[-_ ]her|identity[-_ ]continuity|continuity state|phase\s*1|runtime_personhood|project[-_ ]state)\b/iu.test(normalized)
-  ) {
-    return ''
-  }
   return normalized
 }
 

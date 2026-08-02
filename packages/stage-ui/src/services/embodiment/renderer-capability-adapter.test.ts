@@ -199,10 +199,10 @@ describe('renderer capability adapter', () => {
 
   it.each([
     {
-      name: 'same-her',
+      name: 'continuity',
       residentPerformance: {
         reasonTags: ['subconscious-proactive', 'silent-observe', 'continuity:quiet-accompaniment'],
-        signature: 'resident|same-her',
+        signature: 'resident|continuity',
       },
     },
     {
@@ -417,13 +417,13 @@ describe('renderer capability adapter', () => {
           'subconscious-proactive',
           'silent-observe',
           'continuity:quiet-accompaniment',
-          'same-her',
+          'continuity',
           'body+voice-only',
           'still-voiced',
           'measured-return',
           'repair-before-closeness',
         ],
-        signature: 'same-her|body+voice-only|still-voiced|callback',
+        signature: 'continuity|body+voice-only|still-voiced|callback',
       }),
     })
 

@@ -10,8 +10,9 @@ export interface CompressWorkingMemoryOptions {
 }
 
 function looksLikeFixedFallbackTemplate(text: string) {
-  return containsAlicizationFixedTemplateResidue(text)
-    || /随便聊聊|安静陪着|在这里陪着你的那一个|沿着同一条线慢慢长成/u.test(text)
+  return containsAlicizationFixedTemplateResidue(text, {
+    origin: 'internal-structured-fact',
+  })
 }
 
 function summarizeTurn(turn: WorkingMemorySnapshot['recentRawTurns'][number]) {
@@ -22,7 +23,7 @@ function summarizeTurn(turn: WorkingMemorySnapshot['recentRawTurns'][number]) {
   if (!text)
     return ''
   if (looksLikeFixedFallbackTemplate(text))
-    return `${turn.role}:[fallback-template-excluded]`
+    return ''
 
   return `${turn.role}:${text}`
 }

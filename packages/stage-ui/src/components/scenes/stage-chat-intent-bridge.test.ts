@@ -1,5 +1,7 @@
 import type { IntentHandle, IntentOptions } from '@proj-alicization/pipelines-audio'
 
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -63,39 +65,23 @@ function buildRuntimeDigest() {
   } as any
 }
 
-function expectNoLegacyGovernance(value: unknown) {
-  const serialized = JSON.stringify(value)
-  expect(serialized).not.toMatch(
-    /projectState|sameHer|opening_policy|relationship_cadence|redacted_internal|continuityArcStage|continuityPreferredTiming|continuityCadence|emotionalClosureCue|preDialogue/iu,
-  )
-}
-
 describe('stage chat intent bridge', () => {
-  it('removes project governance while preserving real runtime, memory, and embodiment facts', () => {
+  it('does not maintain a legacy metadata-key denylist', () => {
+    const source = readFileSync(new URL('./stage-chat-intent-bridge.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toContain('legacySpeechGovernanceKeys')
+    expect(source).not.toContain('isLegacySpeechGovernanceKey')
+  })
+
+  it('merges current runtime, memory, and embodiment facts', () => {
     const metadata = attachFallbackDialogueMetadataToSpeechMetadata({
       source: 'stage',
       intentSource: 'chat',
       runtimeDigest: buildRuntimeDigest(),
     }, {
-      projectState: {
-        identity: 'fixed project identity',
-        sameHerSelfLine: 'same-her fixed life line',
-      },
       runtimeDigest: {
         ...buildRuntimeDigest(),
-        projectState: {
-          sameHerHoldDetail: 'opening_policy=project_progress_recap',
-        },
-        emotionalClosureCue: 'repair-before-closeness',
-        continuityRestraint: 'measured-return',
-        currentConsciousFrame: {
-          continuityArcStage: 'same-thread-continuation',
-          continuityPreferredTiming: 'next-open-window',
-          continuityCadence: 'measured-return',
-        },
-      },
-      preDialogueAwareness: {
-        awarenessLine: 'fixed awareness line',
+        summary: 'provider-authored runtime digest',
       },
       embodimentScript: {
         version: 'embodiment-script-v1',
@@ -117,10 +103,9 @@ describe('stage chat intent bridge', () => {
         }),
       }),
     }))
-    expectNoLegacyGovernance(metadata)
   })
 
-  it('does not let richer project wording win runtime digest selection', () => {
+  it('does not let a longer sparse digest win runtime digest selection', () => {
     const metadata = attachFallbackDialogueMetadataToSpeechMetadata({
       source: 'stage',
       runtimeDigest: buildRuntimeDigest(),
@@ -128,11 +113,6 @@ describe('stage chat intent bridge', () => {
       runtimeDigest: {
         version: 'alicization-runtime-digest-v1',
         dominantChannel: 'active-memory',
-        projectState: {
-          identity: 'very long fixed project identity intended to inflate scoring',
-          primaryOpenLoop: 'very long fixed project loop intended to inflate scoring',
-          nextClosureTarget: 'very long fixed project target intended to inflate scoring',
-        },
         shouldProactivelySpeak: false,
         shouldProactivelyAct: false,
         continuityPressure: 0.1,
@@ -145,10 +125,9 @@ describe('stage chat intent bridge', () => {
     expect((metadata?.runtimeDigest as any)?.activeLoop?.phase).toBe('dialogue')
     expect((metadata?.runtimeDigest as any)?.currentConsciousFrame?.focusAnchor)
       .toBe('当前用户问题')
-    expectNoLegacyGovernance(metadata)
   })
 
-  it('preserves cleaned derived memory identity while dropping project governance', () => {
+  it('preserves cleaned derived memory identity', () => {
     const memoryIdentity = {
       selectedCandidateIds: ['memory-candidate-1'],
       continuityKey: 'corrected-callback-memory',
@@ -184,30 +163,17 @@ describe('stage chat intent bridge', () => {
             lane: 'none',
             reason: 'memory identity already comes from recall evidence',
           },
-          selfRevisionCandidate: {
-            shouldPropose: false,
-            domain: 'dialogue-style',
-            reasonCodes: [],
-            summary: null,
-          },
           traceSummary: 'cleaned recalled memory drives the next embodiment state',
           replayLine: 'body state follows recalled memory evidence',
           sourceTags: ['memory-closure-causality'],
           memoryClosureCausality,
         },
-        projectStateContinuity: {
-          sameHerSummary: 'fixed project continuity',
-        },
-      },
-      projectState: {
-        sameHerSelfLine: 'fixed line',
       },
     })
 
     expect(
       (metadata?.runtimeDigest as any)?.derivedMindStateBundle?.embodimentContinuityLedger?.memoryClosureCausality?.memoryIdentity,
     ).toEqual(memoryIdentity)
-    expectNoLegacyGovernance(metadata)
   })
 
   it('merges current speech synthesis values without dropping provider and voice facts', () => {
@@ -264,9 +230,6 @@ describe('stage chat intent bridge', () => {
     bridge.attachRuntimeMetadata({
       runtimeDigest: {
         ...buildRuntimeDigest(),
-        projectState: {
-          sameHerHoldDetail: 'relationship_cadence=measured_return',
-        },
       },
       embodimentScript: {
         version: 'embodiment-script-v1',
@@ -287,7 +250,6 @@ describe('stage chat intent bridge', () => {
         dominantChannel: 'active-memory',
       }),
     }))
-    expectNoLegacyGovernance(openCalls[1]?.metadata)
     expect(handles[0]?.cancel).toHaveBeenCalledWith('metadata-upgrade')
     expect(handles[1]?.writeLiteral).toHaveBeenCalledWith('你好')
   })

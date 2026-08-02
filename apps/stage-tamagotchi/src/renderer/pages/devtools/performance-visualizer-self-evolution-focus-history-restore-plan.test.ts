@@ -13,7 +13,7 @@ describe('performance visualizer self evolution focus history restore plan', () 
           activeThreadId: 'thread-1',
           selectedCardId: 'repair-path',
           explanation: 'snapshot-1',
-          highlightedEvidencePanelIds: ['private-thought-governance-chain'],
+          highlightedEvidencePanelIds: ['proactive-action-chain'],
           highlightedTraceSectionIds: ['trace-details'],
           recommendedTraceEventId: 'event-1',
           capturedAt: 100,
@@ -45,7 +45,7 @@ describe('performance visualizer self evolution focus history restore plan', () 
           selectedCardId: 'repair-path',
           explanation: 'snapshot-2',
           highlightedEvidencePanelIds: [
-            'private-thought-governance-chain',
+            'proactive-action-chain',
             'runtime-continuity-projection',
           ],
           highlightedTraceSectionIds: [
@@ -101,7 +101,7 @@ describe('performance visualizer self evolution focus history restore plan', () 
       rendererRejoinSurfaceKey: null,
       restoreSummaryLine: null,
       highlightedEvidencePanelIds: [
-        'private-thought-governance-chain',
+        'proactive-action-chain',
         'runtime-continuity-projection',
       ],
       highlightedTraceSectionIds: [
@@ -123,7 +123,7 @@ describe('performance visualizer self evolution focus history restore plan', () 
           selectedCardId: 'repair-path',
           explanation: 'snapshot-2',
           highlightedEvidencePanelIds: [
-            'private-thought-governance-chain',
+            'proactive-action-chain',
             'runtime-continuity-projection',
           ],
           highlightedTraceSectionIds: [
@@ -213,7 +213,7 @@ describe('performance visualizer self evolution focus history restore plan', () 
           selectedCardId: 'repair-path',
           explanation: 'snapshot-0',
           highlightedEvidencePanelIds: [
-            'private-thought-governance-chain',
+            'proactive-action-chain',
           ],
           highlightedTraceSectionIds: [],
           recommendedTraceEventId: null,
@@ -291,66 +291,6 @@ describe('performance visualizer self evolution focus history restore plan', () 
       decisionTraceId: 'trace-body-only',
       selectedCardId: 'repair-path',
       recommendedTraceEventId: 'event-body-only',
-      shouldDrillTrace: true,
-      bodyContinuityPhase: 'body-only-hold',
-      rendererRejoinSurfaceKey: null,
-      restoreSummaryLine: '恢复到身体连续性独撑态：身体线仍在独自托住同一段 living segment，当前还不能把显形权威的回接视为已经成立。',
-      highlightedEvidencePanelIds: [
-        'runtime-continuity-projection',
-      ],
-      highlightedTraceSectionIds: [
-        'selected-trace-event',
-      ],
-    })
-  })
-
-  it('preserves body-only-hold restore semantics when only the adopted-anchor governance note still carries the older same-segment body-line wording', () => {
-    expect(buildSelfEvolutionFocusHistoryRestorePlan({
-      history: [
-        {
-          version: 'self-evolution-focus-snapshot/v1',
-          candidateId: 'candidate-body-only-note-only',
-          decisionTraceId: 'trace-body-only-note-only',
-          activeThreadId: 'thread-body-only-note-only',
-          selectedCardId: 'repair-path',
-          explanation: 'snapshot-body-only-note-only',
-          bodyContinuityPhase: null,
-          rendererRejoinSurfaceKey: null,
-          highlightedEvidencePanelIds: [
-            'runtime-continuity-projection',
-          ],
-          highlightedTraceSectionIds: [
-            'selected-trace-event',
-          ],
-          recommendedTraceEventId: 'event-body-only-note-only',
-          capturedAt: 360,
-        },
-      ],
-      transition: {
-        currentCapturedAt: 360,
-        previousCapturedAt: 260,
-        currentDecisionTraceId: 'trace-body-only-note-only',
-        previousDecisionTraceId: 'trace-previous',
-        changedFocusCard: true,
-        changedEvidenceTargets: true,
-        changedTraceTargets: true,
-        changedTraceEvent: true,
-        lines: ['focus-card: repair-owner -> repair-path'],
-      },
-      adoptedAnchor: {
-        snapshotCapturedAt: 360,
-        decisionTraceId: 'trace-body-only-note-only',
-        bodyContinuityPhase: null,
-        rendererRejoinSurfaceKey: null,
-        bodyContinuityGovernanceNote: '身体连续性仍主要由身体线独自托住同一段 living segment，虽然显形层还没有稳定补回，但这条 same-her 生命线本身没有断。',
-      },
-      side: 'current',
-    })).toEqual({
-      snapshotCapturedAt: 360,
-      candidateId: 'candidate-body-only-note-only',
-      decisionTraceId: 'trace-body-only-note-only',
-      selectedCardId: 'repair-path',
-      recommendedTraceEventId: 'event-body-only-note-only',
       shouldDrillTrace: true,
       bodyContinuityPhase: 'body-only-hold',
       rendererRejoinSurfaceKey: null,
@@ -468,7 +408,7 @@ describe('performance visualizer self evolution focus history restore plan', () 
     })
   })
 
-  it('keeps quieter face+lipsync+voice identity-continuity', () => {
+  it('keeps quieter face+lipsync+voice continuity', () => {
     expect(buildSelfEvolutionFocusHistoryRestorePlan({
       history: [
         {
@@ -480,7 +420,7 @@ describe('performance visualizer self evolution focus history restore plan', () 
           explanation: 'snapshot-face-lipsync-voice-restore',
           bodyContinuityPhase: 'renderer-rejoin-without-body',
           rendererRejoinSurfaceKey: null,
-          bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
+          survivingVisibleLane: 'face+lipsync+voice-only',
           highlightedEvidencePanelIds: [
             'renderer-authority-projection',
             'runtime-continuity-projection',
@@ -512,8 +452,9 @@ describe('performance visualizer self evolution focus history restore plan', () 
       recommendedTraceEventId: 'event-takeover',
       shouldDrillTrace: true,
       bodyContinuityPhase: 'renderer-rejoin-without-body',
+      survivingVisibleLane: 'face+lipsync+voice-only',
       rendererRejoinSurfaceKey: null,
-      restoreSummaryLine: '恢复到显形回接失身态：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
+      restoreSummaryLine: '恢复到显形回接失身态：当前仅剩表情、口型、声音维持同一段连续性。',
       highlightedEvidencePanelIds: [
         'renderer-authority-projection',
         'runtime-continuity-projection',
@@ -524,20 +465,20 @@ describe('performance visualizer self evolution focus history restore plan', () 
     })
   })
 
-  it('restores a identity-continuity', () => {
+  it('restores a structured continuity evidence snapshot', () => {
     expect(buildSelfEvolutionFocusHistoryRestorePlan({
       history: [
         {
           version: 'self-evolution-focus-snapshot/v1',
-          candidateId: 'candidate-governance-2',
-          decisionTraceId: 'trace-governance-2',
+          candidateId: 'candidate-continuity-2',
+          decisionTraceId: 'trace-continuity-2',
           activeThreadId: 'thread-1',
           selectedCardId: 'first-check',
-          explanation: 'same-her governance reconfirmed',
+          explanation: 'continuity evidence reconfirmed',
           highlightedEvidencePanelIds: [
             'candidate-trajectory-summary',
             'proactive-decision-consumption-summary',
-            'identity-drift-governance-summary',
+            'runtime-continuity-projection',
           ],
           highlightedTraceSectionIds: [
             'trace-consumption',
@@ -548,11 +489,11 @@ describe('performance visualizer self evolution focus history restore plan', () 
         },
         {
           version: 'self-evolution-focus-snapshot/v1',
-          candidateId: 'candidate-governance-1',
-          decisionTraceId: 'trace-governance-1',
+          candidateId: 'candidate-continuity-1',
+          decisionTraceId: 'trace-continuity-1',
           activeThreadId: 'thread-1',
           selectedCardId: 'repair-owner',
-          explanation: 'same-her governance under review',
+          explanation: 'continuity evidence under review',
           highlightedEvidencePanelIds: [
             'candidate-trajectory-summary',
             'proactive-decision-consumption-summary',
@@ -567,8 +508,8 @@ describe('performance visualizer self evolution focus history restore plan', () 
       transition: {
         currentCapturedAt: 1320,
         previousCapturedAt: 1180,
-        currentDecisionTraceId: 'trace-governance-2',
-        previousDecisionTraceId: 'trace-governance-1',
+        currentDecisionTraceId: 'trace-continuity-2',
+        previousDecisionTraceId: 'trace-continuity-1',
         changedFocusCard: true,
         changedEvidenceTargets: true,
         changedTraceTargets: true,
@@ -581,8 +522,8 @@ describe('performance visualizer self evolution focus history restore plan', () 
       side: 'current',
     })).toEqual({
       snapshotCapturedAt: 1320,
-      candidateId: 'candidate-governance-2',
-      decisionTraceId: 'trace-governance-2',
+      candidateId: 'candidate-continuity-2',
+      decisionTraceId: 'trace-continuity-2',
       selectedCardId: 'first-check',
       recommendedTraceEventId: 'event-governance',
       shouldDrillTrace: true,
@@ -592,7 +533,7 @@ describe('performance visualizer self evolution focus history restore plan', () 
       highlightedEvidencePanelIds: [
         'candidate-trajectory-summary',
         'proactive-decision-consumption-summary',
-        'identity-drift-governance-summary',
+        'runtime-continuity-projection',
       ],
       highlightedTraceSectionIds: [
         'trace-consumption',
@@ -774,72 +715,6 @@ describe('performance visualizer self evolution focus history restore plan', () 
     })
   })
 
-  it('falls back to the adopted anchor continuity note when restoring the adopted current side from note-less snapshot history', () => {
-    expect(buildSelfEvolutionFocusHistoryRestorePlan({
-      history: [
-        {
-          version: 'self-evolution-focus-snapshot/v1',
-          candidateId: 'candidate-anchor-2',
-          decisionTraceId: 'trace-anchor-2',
-          activeThreadId: 'thread-anchor',
-          selectedCardId: 'repair-path',
-          explanation: 'adopted anchor snapshot',
-          highlightedEvidencePanelIds: [
-            'renderer-authority-projection',
-            'runtime-continuity-projection',
-          ],
-          highlightedTraceSectionIds: [
-            'trace-details',
-            'selected-trace-event',
-          ],
-          recommendedTraceEventId: 'event-anchor-current',
-          capturedAt: 200,
-        },
-        {
-          version: 'self-evolution-focus-snapshot/v1',
-          candidateId: 'candidate-anchor-1',
-          decisionTraceId: 'trace-anchor-1',
-          activeThreadId: 'thread-anchor',
-          selectedCardId: 'repair-path',
-          explanation: 'older snapshot',
-          highlightedEvidencePanelIds: [
-            'renderer-authority-projection',
-          ],
-          highlightedTraceSectionIds: [
-            'trace-details',
-          ],
-          recommendedTraceEventId: 'event-anchor-previous',
-          capturedAt: 100,
-        },
-      ],
-      transition: {
-        currentCapturedAt: 200,
-        previousCapturedAt: 100,
-        currentDecisionTraceId: 'trace-anchor-2',
-        previousDecisionTraceId: 'trace-anchor-1',
-        changedFocusCard: false,
-        changedEvidenceTargets: true,
-        changedTraceTargets: true,
-        changedTraceEvent: true,
-        lines: [],
-      },
-      adoptedAnchor: {
-        snapshotCapturedAt: 200,
-        decisionTraceId: 'trace-anchor-2',
-        bodyContinuityPhase: null,
-        rendererRejoinSurfaceKey: null,
-        bodyContinuityGovernanceNote: '身体连续性已经明确处于跨模态重锁态，显形权威仍与身体线共同锁在同一段 living segment 上，可直接进入长期基线。',
-      },
-      side: 'current',
-    })).toMatchObject({
-      snapshotCapturedAt: 200,
-      decisionTraceId: 'trace-anchor-2',
-      bodyContinuityPhase: 'full-cross-modal-lock',
-      rendererRejoinSurfaceKey: null,
-      restoreSummaryLine: '恢复到跨模态重锁态：身体线与显形权威仍稳定锁在同一段 living segment 上。',
-    })
-  })
-
   it('borrows the structured speech renderer rejoin surface from the paired transition snapshot when the restored side only keeps the body continuity phase', () => {
     expect(buildSelfEvolutionFocusHistoryRestorePlan({
       history: [
@@ -849,7 +724,7 @@ describe('performance visualizer self evolution focus history restore plan', () 
           decisionTraceId: 'trace-body-speech-current',
           activeThreadId: 'thread-body-speech-current',
           selectedCardId: 'repair-owner',
-          explanation: 'same-her speech rejoin still in progress',
+          explanation: 'continuity speech rejoin still in progress',
           bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
           rendererRejoinSurfaceKey: null,
           highlightedEvidencePanelIds: [
@@ -899,58 +774,6 @@ describe('performance visualizer self evolution focus history restore plan', () 
       bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
       rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech',
       restoreSummaryLine: '恢复到身体连续性补回态：身体线已经托住同一段 living segment，并开始沿同一条身体线补回 speech 显形权威。',
-    })
-  })
-
-  it('restores body-only-hold directly from the snapshot governance note even when no adopted anchor is present', () => {
-    expect(buildSelfEvolutionFocusHistoryRestorePlan({
-      history: [
-        {
-          version: 'self-evolution-focus-snapshot/v1',
-          candidateId: 'candidate-body-only-note-on-snapshot',
-          decisionTraceId: 'trace-body-only-note-on-snapshot',
-          activeThreadId: 'thread-body-only-note-on-snapshot',
-          selectedCardId: 'repair-path',
-          explanation: 'snapshot-body-only-note-on-snapshot',
-          bodyContinuityGovernanceNote: '身体连续性仍主要由身体线独自托住同一段 living segment，虽然显形层还没有稳定补回，但这条 same-her 生命线本身没有断。',
-          highlightedEvidencePanelIds: [
-            'private-thought-governance-chain',
-          ],
-          highlightedTraceSectionIds: [
-            'trace-details',
-          ],
-          recommendedTraceEventId: 'event-body-only-snapshot-note',
-          capturedAt: 920,
-        },
-      ],
-      transition: {
-        currentCapturedAt: 920,
-        previousCapturedAt: 820,
-        currentDecisionTraceId: 'trace-body-only-note-on-snapshot',
-        previousDecisionTraceId: 'trace-previous',
-        changedFocusCard: false,
-        changedEvidenceTargets: true,
-        changedTraceTargets: true,
-        changedTraceEvent: true,
-        lines: ['focus-card: repair-path'],
-      },
-      side: 'current',
-    })).toEqual({
-      snapshotCapturedAt: 920,
-      candidateId: 'candidate-body-only-note-on-snapshot',
-      decisionTraceId: 'trace-body-only-note-on-snapshot',
-      selectedCardId: 'repair-path',
-      recommendedTraceEventId: 'event-body-only-snapshot-note',
-      shouldDrillTrace: true,
-      bodyContinuityPhase: 'body-only-hold',
-      rendererRejoinSurfaceKey: null,
-      restoreSummaryLine: '恢复到身体连续性独撑态：身体线仍在独自托住同一段 living segment，当前还不能把显形权威的回接视为已经成立。',
-      highlightedEvidencePanelIds: [
-        'private-thought-governance-chain',
-      ],
-      highlightedTraceSectionIds: [
-        'trace-details',
-      ],
     })
   })
 })

@@ -3,7 +3,6 @@ import type {
   AlicizationAffectiveResidueMemorySnapshot,
   AlicizationAutobiographicalSelfSnapshot,
   AlicizationAutonomySnapshot,
-  AlicizationDerivedMindStateBundle,
   AlicizationInitiativeSnapshot,
   AlicizationMotiveEngineSnapshot,
   AlicizationPrivateThoughtSnapshot,
@@ -36,7 +35,6 @@ function asArray<T>(value: T[] | null | undefined) {
 function hasExecutionCallbackAfterglowHold(input: {
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
-  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
 }) {
   const cadenceMemory = input.affectiveResidue?.relationshipCadence ?? null
 
@@ -125,51 +123,6 @@ function deriveAutobiographicalCadenceBias(autobiographicalSelf?: AlicizationAut
   }
 }
 
-function deriveContinuityGovernanceCadenceBias(
-  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null,
-) {
-  const reasonCodes = asArray(activeContinuityGovernance?.reasonCodes)
-    .map(code => sanitizeText(code, 80).toLowerCase())
-  const lanes = asArray(activeContinuityGovernance?.lanes)
-    .map(lane => sanitizeText(lane, 80).toLowerCase())
-  const hasEmotionalGovernanceReason = reasonCodes.some(code =>
-    code.startsWith('emotion-transition:')
-    || code.startsWith('emotion-initiative:')
-    || code.startsWith('emotion-embodiment:'),
-  )
-  const hasEmotionalProactiveLane = lanes.includes('proactive-policy')
-    && hasEmotionalGovernanceReason
-  const repairFirstEmotionalSuppression = reasonCodes.includes('emotion-transition:repair-shift')
-    || reasonCodes.includes('emotion-initiative:repair-first')
-  const restGuardEmotionalSuppression = reasonCodes.includes('emotion-transition:rest-protective-shift')
-    || reasonCodes.includes('emotion-initiative:rest-guard')
-  const measuredReturnEmotionalSuppression = reasonCodes.includes('emotion-initiative:measured-return')
-    || reasonCodes.includes('emotion-initiative:single-thread')
-
-  if (hasEmotionalProactiveLane) {
-    const suppressionWeight = repairFirstEmotionalSuppression
-      ? 1
-      : restGuardEmotionalSuppression
-        ? 0.92
-        : measuredReturnEmotionalSuppression
-          ? 0.78
-          : 0.68
-
-    return {
-      openingMomentumDamp: clamp01(0.06 * suppressionWeight),
-      cadencePressureDamp: clamp01(0.08 * suppressionWeight),
-      reasonTags: [
-        'continuity-governance:emotional-self-revision',
-        ...(repairFirstEmotionalSuppression || restGuardEmotionalSuppression || measuredReturnEmotionalSuppression
-          ? ['continuity-governance:emotion-initiative-suppression']
-          : []),
-      ],
-    }
-  }
-
-  return null
-}
-
 function foregroundThoughtThread(thoughtThreads?: AlicizationThoughtThreadStateSnapshot | null) {
   const threads = asArray(thoughtThreads?.threads)
   return threads.find(thread => thread.id === thoughtThreads?.foregroundThreadId)
@@ -254,7 +207,6 @@ export function progressProactiveCadenceState(input: {
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
-  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
   emotionalTransitionDecay?: AlicizationEmotionalTransitionDecaySnapshot | null
 }) {
   const busy = hostBusy(input.context, input.worldModel ?? null)
@@ -270,12 +222,10 @@ export function progressProactiveCadenceState(input: {
   const thinAffectiveResidueHold = hasThinAffectiveResidueRoomMakingHold(affectiveResidue)
   const autobiographicalCadenceBias = deriveAutobiographicalCadenceBias(input.autobiographicalSelf ?? null)
   const selfEvolutionCadenceBias = deriveSelfEvolutionCadenceBias(input.selfEvolution ?? null)
-  const continuityGovernanceCadenceBias = deriveContinuityGovernanceCadenceBias(input.activeContinuityGovernance ?? null)
   const emotionalDecayCadenceBias = deriveEmotionalDecayCadenceBias(input.emotionalTransitionDecay ?? null)
   const executionCallbackAfterglowHold = hasExecutionCallbackAfterglowHold({
     personalityContinuityState: input.personalityContinuityState ?? null,
     affectiveResidue,
-    activeContinuityGovernance: input.activeContinuityGovernance ?? null,
   })
   const targetMomentum = clamp01(
     (busy ? 0 : 0.18)
@@ -308,7 +258,6 @@ export function progressProactiveCadenceState(input: {
     - (recentProactiveGapMinutes < 6 ? 0.18 : recentProactiveGapMinutes < 12 ? 0.08 : 0)
     - (autobiographicalCadenceBias?.openingMomentumDamp ?? 0)
     - (selfEvolutionCadenceBias?.openingMomentumDamp ?? 0)
-    - (continuityGovernanceCadenceBias?.openingMomentumDamp ?? 0)
     - (emotionalDecayCadenceBias?.openingMomentumDamp ?? 0),
   )
   const initiativeTrust = clamp01(
@@ -346,7 +295,6 @@ export function deriveProactiveCadenceSignal(input: {
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
-  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
   emotionalTransitionDecay?: AlicizationEmotionalTransitionDecaySnapshot | null
 }) {
   const runtimeThread = foregroundRuntimeThread(input.threadRuntime ?? null)
@@ -357,12 +305,10 @@ export function deriveProactiveCadenceSignal(input: {
   const thinAffectiveResidueHold = hasThinAffectiveResidueRoomMakingHold(affectiveResidue)
   const autobiographicalCadenceBias = deriveAutobiographicalCadenceBias(input.autobiographicalSelf ?? null)
   const selfEvolutionCadenceBias = deriveSelfEvolutionCadenceBias(input.selfEvolution ?? null)
-  const continuityGovernanceCadenceBias = deriveContinuityGovernanceCadenceBias(input.activeContinuityGovernance ?? null)
   const emotionalDecayCadenceBias = deriveEmotionalDecayCadenceBias(input.emotionalTransitionDecay ?? null)
   const executionCallbackAfterglowHold = hasExecutionCallbackAfterglowHold({
     personalityContinuityState: input.personalityContinuityState ?? null,
     affectiveResidue,
-    activeContinuityGovernance: input.activeContinuityGovernance ?? null,
   })
   const cadencePressure = clamp01(
     input.state.openingMomentum * 0.58
@@ -388,22 +334,11 @@ export function deriveProactiveCadenceSignal(input: {
   - ((cadenceMemory?.overreachRisk ?? 0) * 0.1)
   - (autobiographicalCadenceBias?.cadencePressureDamp ?? 0)
   - (selfEvolutionCadenceBias?.cadencePressureDamp ?? 0)
-  - (continuityGovernanceCadenceBias?.cadencePressureDamp ?? 0)
   - (emotionalDecayCadenceBias?.cadencePressureDamp ?? 0)
 
   const normalizedCadencePressure = clamp01(
     cadencePressure,
   )
-  const hoverFirstRhythm = Boolean(
-    continuityGovernanceCadenceBias
-    && (
-      rhythmState?.restMode === 'low-pressure'
-      || rhythmState?.restMode === 'rest-protective'
-      || cadenceMemory?.shouldDelayWarmth === true
-      || (cadenceMemory?.overreachRisk ?? 0) >= 0.18
-    ),
-  )
-
   return {
     cadencePressure: normalizedCadencePressure,
     openingMomentum: input.state.openingMomentum,
@@ -429,9 +364,7 @@ export function deriveProactiveCadenceSignal(input: {
         : []),
       ...(autobiographicalCadenceBias?.reasonTags ?? []),
       ...(selfEvolutionCadenceBias?.reasonTags ?? []),
-      ...(continuityGovernanceCadenceBias?.reasonTags ?? []),
       ...(emotionalDecayCadenceBias?.reasonTags ?? []),
-      ...(hoverFirstRhythm ? ['continuity-rhythm:hover-first'] : []),
     ],
   } satisfies AlicizationProactiveCadenceSignal
 }

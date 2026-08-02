@@ -81,7 +81,6 @@ describe('performance visualizer execution telemetry summary', () => {
       { key: 'resident-presence', label: '偏好存在感', value: 'soft-watch' },
       { key: 'resident-selected-action', label: '已选动作', value: 'hover' },
       { key: 'resident-persona-bias', label: '人设偏压', value: 'observe-first' },
-      { key: 'resident-opening-guidance', label: '开场指导', value: 'leave more room before outward reply' },
       {
         key: 'resident-scene',
         label: '场景落点',
@@ -375,7 +374,7 @@ describe('performance visualizer execution telemetry summary', () => {
     ])
   })
 
-  it('derives body-led same-her trust for execution telemetry when body has re-formed on the current segment before face and motion return', () => {
+  it('derives body-led continuity trust for execution telemetry when body has re-formed on the current segment before face and motion return', () => {
     expect(buildDriverExecutionTelemetrySummaryEntries({
       driverSummary: {
         rendererTarget: 'vrm',
@@ -545,7 +544,7 @@ describe('performance visualizer execution telemetry summary', () => {
     expect(entries.find(entry => entry.key === 'driver-authority-trust')?.value.includes('余韵还在')).toBe(true)
   })
 
-  it('preserves body-led same-her trust through diagnostics aggregation when playback cue authority is the current body-backed source of truth', () => {
+  it('preserves body-led continuity trust through diagnostics aggregation when playback cue authority is the current body-backed source of truth', () => {
     const entries = buildDriverExecutionTelemetrySummaryEntriesFromDiagnostics({
       speechEmbodiment: {
         driverSummary: {
@@ -601,7 +600,7 @@ describe('performance visualizer execution telemetry summary', () => {
     })
   })
 
-  it('keeps body-led same-her trust through diagnostics aggregation when upstream matched drivers thin to lipsync but current lane truth already carries body continuity', () => {
+  it('keeps body-led continuity trust through diagnostics aggregation when upstream matched drivers thin to lipsync but current lane truth already carries body continuity', () => {
     const entries = buildDriverExecutionTelemetrySummaryEntriesFromDiagnostics({
       speechEmbodiment: {
         driverSummary: {

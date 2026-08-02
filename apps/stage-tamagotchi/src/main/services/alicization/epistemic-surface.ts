@@ -24,9 +24,7 @@ function hasConcreteProblemThread(input: {
   )
 }
 
-// This posture layer separates "I have not fully grounded the content yet" from
-// "I have enough live truth to honestly stay with the host's current knot."
-// A live observed diff/error scene should not always collapse into repair mode.
+// Keep observed live problem threads distinct from scenes that require regrounding.
 export function buildEpistemicSurfacePosture(input: {
   context: AlicizationProactiveLayeredContext
   worldModel: AlicizationWorldModelSnapshot

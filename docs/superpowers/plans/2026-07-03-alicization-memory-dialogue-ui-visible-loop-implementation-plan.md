@@ -2367,7 +2367,7 @@ describe('memory workbench dialogue loop acceptance', () => {
     })
 
     expect(block).toContain('recall-failed')
-    expect(block).not.toContain('我在。结构化连续性状态的线还在')
+    expect(block).not.toContain('retired_policy=observe_first')
   })
 })
 ```

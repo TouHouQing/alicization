@@ -42,20 +42,6 @@ export interface AlicizationEmotionalTransitionLedgerSnapshot {
     tone: AlicizationEmotionalKernelSnapshot['embodimentTone'] | null
     reason: string
   }
-  selfRevisionCandidate: {
-    shouldPropose: boolean
-    domain: 'dialogue-style' | 'proactive-policy' | 'relationship'
-    reasonCodes: string[]
-    summary: string | null
-    projectStateContinuity: {
-      sameHerSelfLine: string | null
-      sameHerDriftRisk: string | null
-      proactiveSameHerGap: string | null
-      emotionalClosureCue: string | null
-      sameHerHoldDetail: string | null
-      continuityGuard: string | null
-    }
-  }
   traceSummary: string
   replayLine: string
 }
@@ -73,7 +59,6 @@ export interface AlicizationEmotionalTransitionDecaySnapshot {
   embodimentTone: AlicizationEmotionalTransitionLedgerSnapshot['embodimentDrive']['tone']
   memoryWritebackLane: AlicizationEmotionalTransitionLedgerSnapshot['memoryWriteback']['lane']
   reasonTags: string[]
-  summary: string
 }
 
 function roundDelta(value: number) {
@@ -252,7 +237,7 @@ function resolveDecayPolicy(input: {
     return {
       mode: 'hold-until-repair-cools' as const,
       carryTtlMs: 1_800_000,
-      reason: 'Repair pressure is high enough that warmth should not decay back into approach immediately.',
+      reason: 'emotional-decay:repair-cooling',
     }
   }
 
@@ -260,7 +245,7 @@ function resolveDecayPolicy(input: {
     return {
       mode: 'protect-rest-window' as const,
       carryTtlMs: 3_600_000,
-      reason: 'Rest-protective emotion should persist long enough to keep initiative and body quiet.',
+      reason: 'emotional-decay:rest-window',
     }
   }
 
@@ -268,14 +253,14 @@ function resolveDecayPolicy(input: {
     return {
       mode: 'cool-approach-pressure' as const,
       carryTtlMs: 900_000,
-      reason: 'Measured return should cool approach pressure before the next outward move.',
+      reason: 'emotional-decay:measured-return',
     }
   }
 
   return {
     mode: 'decay-normally' as const,
     carryTtlMs: 300_000,
-    reason: 'No high-risk emotional carry needs a longer hold window.',
+    reason: 'emotional-decay:normal',
   }
 }
 
@@ -289,7 +274,7 @@ function resolveMemoryWriteback(input: {
     return {
       shouldWrite: true,
       lane: 'relationship-repair' as const,
-      reason: 'Repair, restraint, or a strong axis change should be available to later memory recall.',
+      reason: 'emotional-memory:relationship-repair',
     }
   }
 
@@ -297,7 +282,7 @@ function resolveMemoryWriteback(input: {
     return {
       shouldWrite: true,
       lane: 'rest-protection' as const,
-      reason: 'Rest protection should be remembered so later initiative does not reopen too loudly.',
+      reason: 'emotional-memory:rest-protection',
     }
   }
 
@@ -305,7 +290,7 @@ function resolveMemoryWriteback(input: {
     return {
       shouldWrite: true,
       lane: 'emotional-continuity' as const,
-      reason: 'Guarded confirmation-boundary emotion should remain recallable so later initiative stays single-thread until the boundary settles.',
+      reason: 'emotional-memory:confirmation-boundary',
     }
   }
 
@@ -313,14 +298,14 @@ function resolveMemoryWriteback(input: {
     return {
       shouldWrite: true,
       lane: 'emotional-continuity' as const,
-      reason: 'A strong emotional movement should remain available as continuity evidence.',
+      reason: 'emotional-memory:strong-axis-change',
     }
   }
 
   return {
     shouldWrite: false,
     lane: 'none' as const,
-    reason: 'The emotional movement is small enough to remain transient.',
+    reason: 'emotional-memory:transient',
   }
 }
 
@@ -332,7 +317,7 @@ function resolveInitiativeSuppression(input: {
     return {
       shouldSuppress: true,
       mode: 'repair-first' as const,
-      reason: 'Repair-first emotion should lower proactive pressure until the relationship line settles.',
+      reason: 'emotional-initiative:repair-first',
     }
   }
 
@@ -340,7 +325,7 @@ function resolveInitiativeSuppression(input: {
     return {
       shouldSuppress: true,
       mode: 'rest-guard' as const,
-      reason: 'Rest-protective emotion should suppress outward initiative during the rest window.',
+      reason: 'emotional-initiative:rest-guard',
     }
   }
 
@@ -348,7 +333,7 @@ function resolveInitiativeSuppression(input: {
     return {
       shouldSuppress: true,
       mode: 'single-thread' as const,
-      reason: 'Guarded emotion should keep initiative on one confirmed thread.',
+      reason: 'emotional-initiative:single-thread',
     }
   }
 
@@ -356,14 +341,14 @@ function resolveInitiativeSuppression(input: {
     return {
       shouldSuppress: true,
       mode: 'measured-return' as const,
-      reason: 'Measured-return emotion should keep proactive pressure low.',
+      reason: 'emotional-initiative:measured-return',
     }
   }
 
   return {
     shouldSuppress: false,
     mode: 'none' as const,
-    reason: 'The emotional state does not require initiative suppression.',
+    reason: 'emotional-initiative:none',
   }
 }
 
@@ -378,74 +363,8 @@ function resolveEmbodimentDrive(input: {
     shouldDrive,
     tone: shouldDrive ? input.next.embodimentTone : null,
     reason: shouldDrive
-      ? 'The body should express the next emotional tone instead of stale warmth.'
-      : 'The body can keep its current expression because the emotional tone is stable.',
-  }
-}
-
-function resolveSelfRevisionCandidate(input: {
-  next: AlicizationEmotionalKernelSnapshot
-  transitionKind: AlicizationEmotionalTransitionKind
-  memoryWriteback: AlicizationEmotionalTransitionLedgerSnapshot['memoryWriteback']
-  initiativeSuppression: AlicizationEmotionalTransitionLedgerSnapshot['initiativeSuppression']
-}) {
-  const emptyContinuity = {
-    sameHerSelfLine: null,
-    sameHerDriftRisk: null,
-    proactiveSameHerGap: null,
-    emotionalClosureCue: null,
-    sameHerHoldDetail: null,
-    continuityGuard: null,
-  }
-
-  if (input.transitionKind === 'repair-shift') {
-    return {
-      shouldPropose: true,
-      domain: 'dialogue-style' as const,
-      reasonCodes: compactUnique([
-        'repair-before-closeness',
-        input.initiativeSuppression.mode === 'repair-first' ? 'continue-repair-first' : null,
-        input.memoryWriteback.shouldWrite ? 'writeback-repair-restraint' : null,
-      ], 6),
-      summary: 'Repair-first emotional carry should propose a continuity self-revision so later turns keep closeness restrained until the seam settles.',
-      projectStateContinuity: emptyContinuity,
-    }
-  }
-
-  if (input.transitionKind === 'rest-protective-shift') {
-    return {
-      shouldPropose: true,
-      domain: 'proactive-policy' as const,
-      reasonCodes: compactUnique([
-        'rest-protective',
-        input.initiativeSuppression.mode === 'rest-guard' ? 'suppress-outward-initiative' : null,
-        input.memoryWriteback.shouldWrite ? 'writeback-rest-window' : null,
-      ], 6),
-      summary: 'Rest-protective emotional carry should propose a continuity self-revision so later initiative keeps the body quiet during rest windows.',
-      projectStateContinuity: emptyContinuity,
-    }
-  }
-
-  if (input.transitionKind === 'guarded-shift') {
-    return {
-      shouldPropose: true,
-      domain: 'relationship' as const,
-      reasonCodes: compactUnique([
-        'guarded-care',
-        input.next.reasonTags.includes('confirmation-boundary') ? 'confirmation-boundary' : null,
-        input.initiativeSuppression.mode === 'single-thread' ? 'single-thread-restraint' : null,
-      ], 6),
-      summary: 'Guarded emotional carry should propose a continuity self-revision so later turns preserve the confirmed boundary before widening.',
-      projectStateContinuity: emptyContinuity,
-    }
-  }
-
-  return {
-    shouldPropose: false,
-    domain: 'dialogue-style' as const,
-    reasonCodes: [],
-    summary: null,
-    projectStateContinuity: emptyContinuity,
+      ? 'emotional-embodiment:transition-drive'
+      : 'emotional-embodiment:stable',
   }
 }
 
@@ -485,12 +404,6 @@ export function buildAlicizationEmotionalTransitionLedger(input: {
     next: input.next,
     transitionKind,
   })
-  const selfRevisionCandidate = resolveSelfRevisionCandidate({
-    next: input.next,
-    transitionKind,
-    memoryWriteback,
-    initiativeSuppression,
-  })
   const previousEmotion = input.previous?.dominantEmotion ?? null
   const transitionLabel = `${previousEmotion ?? 'none'} -> ${input.next.dominantEmotion}`
   const reasonCarry = compactUnique([
@@ -516,7 +429,6 @@ export function buildAlicizationEmotionalTransitionLedger(input: {
     memoryWriteback,
     initiativeSuppression,
     embodimentDrive,
-    selfRevisionCandidate,
     traceSummary,
     replayLine: `${turnId ?? 'turn:unknown'} emotional-transition ${transitionKind} ${transitionLabel} changed=${changedAxes.join('|') || 'none'}`,
   }
@@ -572,12 +484,6 @@ export function resolveAlicizationEmotionalTransitionDecay(input: {
     phase === 'soften' && input.ledger.initiativeSuppression.mode === 'measured-return' ? 'emotion-decay:approach-cooling' : null,
     phase === 'release' ? 'emotion-decay:released' : null,
   ], 8)
-  const summary = phase === 'hold'
-    ? `Emotional transition ${input.ledger.transitionKind} is still inside its ${input.ledger.decayPolicy.mode} hold window.`
-    : phase === 'soften'
-      ? `Emotional transition ${input.ledger.transitionKind} has expired but should soften into measured restraint before release.`
-      : `Emotional transition ${input.ledger.transitionKind} has cooled enough to release initiative, memory, and embodiment carry.`
-
   return {
     version: 'emotional-transition-decay-v1',
     ledgerCreatedAt: input.ledger.createdAt,
@@ -591,6 +497,5 @@ export function resolveAlicizationEmotionalTransitionDecay(input: {
     embodimentTone,
     memoryWritebackLane,
     reasonTags,
-    summary,
   }
 }

@@ -21,60 +21,6 @@ interface SelfEvolutionFocusHistoryPatternGuidance {
   summaryLine: string
 }
 
-function resolveBodyContinuityPhase(
-  bodyContinuityHint: string | null,
-  summaryLine: string,
-) {
-  if (
-    bodyContinuityHint?.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
-    || bodyContinuityHint?.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
-    || bodyContinuityHint?.includes('当前仅剩表情、口型、声音维持同一段连续性')
-    || bodyContinuityHint?.includes('当前仅剩动作、口型、声音维持同一段连续性')
-    || summaryLine.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
-    || summaryLine.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
-    || summaryLine.includes('当前仅剩表情、口型、声音维持同一段连续性')
-    || summaryLine.includes('当前仅剩动作、口型、声音维持同一段连续性')
-  ) {
-    return 'renderer-rejoin-without-body' as const
-  }
-
-  if (bodyContinuityHint?.includes('显形回接失身态') || summaryLine.includes('显形回接失身态'))
-    return 'renderer-rejoin-without-body' as const
-
-  if (
-    bodyContinuityHint?.includes('稳定锁在同一段 living segment')
-    || bodyContinuityHint?.includes('稳定锁回同一段 living segment')
-    || bodyContinuityHint?.includes('跨模态重锁态')
-    || summaryLine.includes('稳定锁在同一段 living segment')
-    || summaryLine.includes('稳定锁回同一段 living segment')
-    || summaryLine.includes('跨模态重锁态')
-  ) {
-    return 'full-cross-modal-lock' as const
-  }
-
-  if (
-    bodyContinuityHint?.includes('沿同一条连续身体线补回')
-    || bodyContinuityHint?.includes('身体承接态 ->')
-    || summaryLine.includes('沿着同一条连续身体线补回')
-    || summaryLine.includes('沿同一条连续身体线补回')
-    || summaryLine.includes('身体承接态 ->')
-    || summaryLine.includes('身体连续性承接 ->')
-  ) {
-    return 'body-carried-to-renderer-rejoin' as const
-  }
-
-  if (
-    bodyContinuityHint?.includes('独自托住同一段 living segment')
-    || bodyContinuityHint?.includes('身体独撑态')
-    || summaryLine.includes('独自托住同一段 living segment')
-    || summaryLine.includes('身体独撑态')
-  ) {
-    return 'body-only-hold' as const
-  }
-
-  return null
-}
-
 function resolveRendererTargetFromSurfaceKey(
   rendererRejoinSurfaceKey: SelfEvolutionFocusHistoryPatternGuidance['rendererRejoinSurfaceKey'],
 ) {
@@ -103,33 +49,10 @@ export function buildSelfEvolutionActiveWorkflowFocus(input: {
     return null
 
   const isBodyContinuity = guidance.governanceLayer === 'body-continuity'
-  const bodyContinuityHint = (
-    guidance.bodyContinuityHint
-    ?? (isBodyContinuity ? guidance.prosodyAuthorityHint : null)
-    ?? null
-  )
-  const survivingVisibleLane = guidance.survivingVisibleLane ?? (
-    bodyContinuityHint?.includes('当前仅剩表情、口型、声音维持同一段连续性')
-      ? 'face+lipsync+voice-only'
-      : bodyContinuityHint?.includes('当前仅剩动作、口型、声音维持同一段连续性')
-        ? 'motion+lipsync+voice-only'
-        : bodyContinuityHint?.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
-          ? 'face+lipsync-only'
-          : bodyContinuityHint?.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
-            ? 'motion+lipsync-only'
-            : guidance.summaryLine.includes('当前仅剩表情、口型、声音维持同一段连续性')
-              ? 'face+lipsync+voice-only'
-              : guidance.summaryLine.includes('当前仅剩动作、口型、声音维持同一段连续性')
-                ? 'motion+lipsync+voice-only'
-                : guidance.summaryLine.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
-                  ? 'face+lipsync-only'
-                  : guidance.summaryLine.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
-                    ? 'motion+lipsync-only'
-                    : null
-  )
+  const bodyContinuityHint = guidance.bodyContinuityHint ?? null
+  const survivingVisibleLane = guidance.survivingVisibleLane ?? null
   const bodyContinuityPhase = guidance.bodyContinuityPhase
     ?? (survivingVisibleLane ? 'renderer-rejoin-without-body' : null)
-    ?? resolveBodyContinuityPhase(bodyContinuityHint, guidance.summaryLine)
   const rendererTarget = input.rendererTarget
     ?? guidance.rendererTarget
     ?? resolveRendererTargetFromSurfaceKey(guidance.rendererRejoinSurfaceKey ?? null)

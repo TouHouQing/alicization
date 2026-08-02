@@ -10,19 +10,19 @@ describe('performance visualizer self evolution focus plan', () => {
           id: 'repair-owner',
           label: '修复归属',
           layer: 'persona',
-          detail: 'evolution',
+          detail: 'selected owner',
         },
         {
           id: 'first-check',
           label: '首查点',
           layer: 'persona',
-          detail: 'self-evolution kernel -> active learning strategy -> manifestation/action-ecology/persona-bias',
+          detail: 'selected first check',
         },
         {
           id: 'repair-path',
           label: '修复路径',
-          layer: null,
-          detail: 'persona drift initiative-preferred-style:light-nudge -> thought trace proactive-opening-guidance-violation:callback-bounded -> continuity anchor governor-intention-rest-1',
+          layer: 'persona',
+          detail: 'selected evidence path',
         },
       ],
       'repair-path',
@@ -43,7 +43,7 @@ describe('performance visualizer self evolution focus plan', () => {
     expect(plan).toEqual({
       selectedCardId: 'repair-path',
       highlightedEvidencePanelIds: [
-        'private-thought-governance-chain',
+        'proactive-action-chain',
         'runtime-continuity-projection',
       ],
       highlightedTraceSectionIds: [
@@ -53,7 +53,7 @@ describe('performance visualizer self evolution focus plan', () => {
       recommendedTraceEventId: 'event-takeover',
       bodyContinuityPhase: null,
       rendererRejoinSurfaceKey: null,
-      explanation: 'Focused repair-path because it points to private-thought-governance-chain -> runtime-continuity-projection, then narrows into trace-consumption -> trace-details and event event-takeover.',
+      explanation: 'Focused repair-path because it points to proactive-action-chain -> runtime-continuity-projection, then narrows into trace-consumption -> trace-details and event event-takeover.',
     })
   })
 
@@ -64,13 +64,13 @@ describe('performance visualizer self evolution focus plan', () => {
           id: 'repair-owner',
           label: '修复归属',
           layer: 'renderer',
-          detail: 'renderer authority',
+          detail: 'selected owner',
         },
         {
           id: 'first-check',
           label: '首查点',
           layer: 'renderer',
-          detail: 'renderer authority binding -> playback cues -> driver execution',
+          detail: 'selected first check',
         },
       ],
       'repair-owner',
@@ -127,15 +127,15 @@ describe('performance visualizer self evolution focus plan', () => {
           id: 'repair-owner',
           label: '修复归属',
           layer: 'continuity',
-          detail: 'body continuity governance',
+          detail: 'selected owner',
           bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
           rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
         },
         {
           id: 'repair-path',
           label: '修复路径',
-          layer: null,
-          detail: 'continuity governance body-led-same-segment-carry -> Live2D renderer rejoin -> cue bridge recovery',
+          layer: 'continuity',
+          detail: 'selected evidence path',
           bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
           rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
         },
@@ -164,7 +164,6 @@ describe('performance visualizer self evolution focus plan', () => {
       recommendedTraceEventId: 'event-takeover',
       bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
       rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
-      bodyContinuityGovernanceNote: '身体连续性已经明确进入身体承接态 -> 显形补回态，Live2D 显形权威仍在沿同一条连续身体线补回。',
       explanation: 'Focused repair-path because it points to renderer-authority-projection -> runtime-continuity-projection, then narrows into trace-consumption -> trace-timeline -> selected-trace-event and event event-takeover.',
     })
   })
@@ -176,15 +175,15 @@ describe('performance visualizer self evolution focus plan', () => {
           id: 'repair-owner',
           label: '修复归属',
           layer: 'continuity',
-          detail: 'body continuity governance',
+          detail: 'selected owner',
           bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
           rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech',
         },
         {
           id: 'repair-path',
           label: '修复路径',
-          layer: null,
-          detail: 'continuity governance body-led-same-segment-carry -> speech renderer rejoin -> cue bridge recovery',
+          layer: 'continuity',
+          detail: 'selected evidence path',
           bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
           rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech',
         },
@@ -213,7 +212,6 @@ describe('performance visualizer self evolution focus plan', () => {
       recommendedTraceEventId: 'event-takeover',
       bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
       rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech',
-      bodyContinuityGovernanceNote: '身体连续性已经明确进入身体承接态 -> 显形补回态，speech 显形权威仍在沿同一条连续身体线补回。',
       explanation: 'Focused repair-path because it points to renderer-authority-projection -> runtime-continuity-projection, then narrows into trace-consumption -> trace-timeline -> selected-trace-event and event event-takeover.',
     })
   })
@@ -225,15 +223,15 @@ describe('performance visualizer self evolution focus plan', () => {
           id: 'repair-owner',
           label: '修复归属',
           layer: 'continuity',
-          detail: 'body continuity governance',
+          detail: 'selected owner',
           bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
           rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech',
         },
         {
           id: 'repair-path',
           label: '修复路径',
-          layer: null,
-          detail: 'continuity governance renderer rejoin -> body-led-same-segment-carry -> manifestation authority recovery -> cue bridge recovery',
+          layer: 'continuity',
+          detail: 'selected evidence path',
           bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
           rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech',
         },
@@ -259,15 +257,15 @@ describe('performance visualizer self evolution focus plan', () => {
           id: 'repair-owner',
           label: '修复归属',
           layer: 'continuity',
-          detail: 'body continuity governance',
+          detail: 'selected owner',
           bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
           rendererRejoinSurfaceKey: null,
         },
         {
           id: 'repair-path',
           label: '修复路径',
-          layer: null,
-          detail: 'continuity governance renderer rejoin -> body-led-same-segment-carry -> authority recovery -> cue bridge recovery',
+          layer: 'continuity',
+          detail: 'selected evidence path',
           bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
           rendererRejoinSurfaceKey: null,
         },
@@ -293,15 +291,15 @@ describe('performance visualizer self evolution focus plan', () => {
           id: 'repair-owner',
           label: '修复归属',
           layer: 'continuity',
-          detail: 'body continuity governance',
+          detail: 'selected owner',
           bodyContinuityPhase: 'body-only-hold',
           rendererRejoinSurfaceKey: null,
         },
         {
           id: 'repair-path',
           label: '修复路径',
-          layer: null,
-          detail: 'continuity governance body-only-hold -> body authority carry -> renderer recovery gap -> cue bridge recovery',
+          layer: 'continuity',
+          detail: 'selected evidence path',
           bodyContinuityPhase: 'body-only-hold',
           rendererRejoinSurfaceKey: null,
         },
@@ -330,7 +328,6 @@ describe('performance visualizer self evolution focus plan', () => {
       recommendedTraceEventId: 'event-takeover',
       bodyContinuityPhase: 'body-only-hold',
       rendererRejoinSurfaceKey: null,
-      bodyContinuityGovernanceNote: '身体连续性仍主要由身体线独自托住同一段 living segment，虽然显形层还没有稳定补回，但这条 same-her 生命线本身没有断。',
       explanation: 'Focused repair-path because it points to renderer-authority-projection -> runtime-continuity-projection, then narrows into trace-consumption -> trace-timeline -> selected-trace-event and event event-takeover.',
     })
   })
@@ -342,15 +339,15 @@ describe('performance visualizer self evolution focus plan', () => {
           id: 'repair-owner',
           label: '修复归属',
           layer: 'continuity',
-          detail: 'body continuity governance',
+          detail: 'selected owner',
           bodyContinuityPhase: 'full-cross-modal-lock',
           rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
         },
         {
           id: 'repair-path',
           label: '修复路径',
-          layer: null,
-          detail: 'continuity governance full-cross-modal-lock -> body-and-live2d-same-segment-lock -> cue bridge stability',
+          layer: 'continuity',
+          detail: 'selected evidence path',
           bodyContinuityPhase: 'full-cross-modal-lock',
           rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
         },
@@ -385,15 +382,15 @@ describe('performance visualizer self evolution focus plan', () => {
           id: 'repair-owner',
           label: '修复归属',
           layer: 'continuity',
-          detail: 'body continuity governance',
+          detail: 'selected owner',
           bodyContinuityPhase: 'renderer-rejoin-without-body',
           rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
         },
         {
           id: 'repair-path',
           label: '修复路径',
-          layer: null,
-          detail: 'continuity governance renderer-rejoin-without-body -> vrm rejoin without body carry -> cue bridge body-loss audit',
+          layer: 'continuity',
+          detail: 'selected evidence path',
           bodyContinuityPhase: 'renderer-rejoin-without-body',
           rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
         },
@@ -413,14 +410,14 @@ describe('performance visualizer self evolution focus plan', () => {
     expect(plan.recommendedTraceEventId).toBe('event-takeover')
   })
 
-  it('keeps quieter face+lipsync identity-continuity', () => {
+  it('keeps quieter face+lipsync continuity', () => {
     const plan = buildSelfEvolutionFocusPlan(
       [
         {
           id: 'repair-owner',
           label: '修复归属',
           layer: 'continuity',
-          detail: 'body continuity governance',
+          detail: 'selected owner',
           bodyContinuityPhase: 'renderer-rejoin-without-body',
           rendererRejoinSurfaceKey: null,
           survivingVisibleLane: 'face+lipsync-only',
@@ -428,8 +425,8 @@ describe('performance visualizer self evolution focus plan', () => {
         {
           id: 'repair-path',
           label: '修复路径',
-          layer: null,
-          detail: 'continuity governance quieter-face-lipsync-same-her-line -> body motion voice pending rejoin -> cue bridge body-loss audit',
+          layer: 'continuity',
+          detail: 'selected evidence path',
           bodyContinuityPhase: 'renderer-rejoin-without-body',
           rendererRejoinSurfaceKey: null,
           survivingVisibleLane: 'face+lipsync-only',
@@ -460,19 +457,18 @@ describe('performance visualizer self evolution focus plan', () => {
       bodyContinuityPhase: 'renderer-rejoin-without-body',
       rendererRejoinSurfaceKey: null,
       survivingVisibleLane: 'face+lipsync-only',
-      bodyContinuityGovernanceNote: '当前只有 face 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线。',
       explanation: 'Focused repair-path because it points to renderer-authority-projection -> runtime-continuity-projection, then narrows into trace-consumption -> trace-timeline -> selected-trace-event and event event-takeover.',
     })
   })
 
-  it('keeps quieter motion+lipsync identity-continuity', () => {
+  it('keeps quieter motion+lipsync continuity', () => {
     const plan = buildSelfEvolutionFocusPlan(
       [
         {
           id: 'repair-owner',
           label: '修复归属',
           layer: 'continuity',
-          detail: 'body continuity governance',
+          detail: 'selected owner',
           bodyContinuityPhase: 'renderer-rejoin-without-body',
           rendererRejoinSurfaceKey: null,
           survivingVisibleLane: 'motion+lipsync-only',
@@ -480,8 +476,8 @@ describe('performance visualizer self evolution focus plan', () => {
         {
           id: 'repair-path',
           label: '修复路径',
-          layer: null,
-          detail: 'continuity governance quieter-motion-lipsync-same-her-line -> body face voice pending rejoin -> cue bridge body-loss audit',
+          layer: 'continuity',
+          detail: 'selected evidence path',
           bodyContinuityPhase: 'renderer-rejoin-without-body',
           rendererRejoinSurfaceKey: null,
           survivingVisibleLane: 'motion+lipsync-only',
@@ -512,19 +508,18 @@ describe('performance visualizer self evolution focus plan', () => {
       bodyContinuityPhase: 'renderer-rejoin-without-body',
       rendererRejoinSurfaceKey: null,
       survivingVisibleLane: 'motion+lipsync-only',
-      bodyContinuityGovernanceNote: '当前只有 motion 和 lipsync 这条 same-her 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线。',
       explanation: 'Focused repair-path because it points to renderer-authority-projection -> runtime-continuity-projection, then narrows into trace-consumption -> trace-timeline -> selected-trace-event and event event-takeover.',
     })
   })
 
-  it('keeps quieter face+lipsync+voice identity-continuity', () => {
+  it('keeps quieter face+lipsync+voice continuity', () => {
     const plan = buildSelfEvolutionFocusPlan(
       [
         {
           id: 'repair-owner',
           label: '修复归属',
           layer: 'continuity',
-          detail: 'body continuity governance',
+          detail: 'selected owner',
           bodyContinuityPhase: 'renderer-rejoin-without-body',
           rendererRejoinSurfaceKey: null,
           survivingVisibleLane: 'face+lipsync+voice-only',
@@ -532,8 +527,8 @@ describe('performance visualizer self evolution focus plan', () => {
         {
           id: 'repair-path',
           label: '修复路径',
-          layer: null,
-          detail: 'continuity governance quieter-face-lipsync-voice-same-her-line -> body motion pending rejoin -> cue bridge body-loss audit',
+          layer: 'continuity',
+          detail: 'selected evidence path',
           bodyContinuityPhase: 'renderer-rejoin-without-body',
           rendererRejoinSurfaceKey: null,
           survivingVisibleLane: 'face+lipsync+voice-only',
@@ -564,19 +559,18 @@ describe('performance visualizer self evolution focus plan', () => {
       bodyContinuityPhase: 'renderer-rejoin-without-body',
       rendererRejoinSurfaceKey: null,
       survivingVisibleLane: 'face+lipsync+voice-only',
-      bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
       explanation: 'Focused repair-path because it points to renderer-authority-projection -> runtime-continuity-projection, then narrows into trace-consumption -> trace-timeline -> selected-trace-event and event event-takeover.',
     })
   })
 
-  it('keeps quieter motion+lipsync+voice identity-continuity', () => {
+  it('keeps quieter motion+lipsync+voice continuity', () => {
     const plan = buildSelfEvolutionFocusPlan(
       [
         {
           id: 'repair-owner',
           label: '修复归属',
           layer: 'continuity',
-          detail: 'body continuity governance',
+          detail: 'selected owner',
           bodyContinuityPhase: 'renderer-rejoin-without-body',
           rendererRejoinSurfaceKey: null,
           survivingVisibleLane: 'motion+lipsync+voice-only',
@@ -584,8 +578,8 @@ describe('performance visualizer self evolution focus plan', () => {
         {
           id: 'repair-path',
           label: '修复路径',
-          layer: null,
-          detail: 'continuity governance quieter-motion-lipsync-voice-same-her-line -> body face pending rejoin -> cue bridge body-loss audit',
+          layer: 'continuity',
+          detail: 'selected evidence path',
           bodyContinuityPhase: 'renderer-rejoin-without-body',
           rendererRejoinSurfaceKey: null,
           survivingVisibleLane: 'motion+lipsync+voice-only',
@@ -616,175 +610,7 @@ describe('performance visualizer self evolution focus plan', () => {
       bodyContinuityPhase: 'renderer-rejoin-without-body',
       rendererRejoinSurfaceKey: null,
       survivingVisibleLane: 'motion+lipsync+voice-only',
-      bodyContinuityGovernanceNote: '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
       explanation: 'Focused repair-path because it points to renderer-authority-projection -> runtime-continuity-projection, then narrows into trace-consumption -> trace-timeline -> selected-trace-event and event event-takeover.',
-    })
-  })
-
-  it('builds a continuity-governance focus plan so remembered familiarity is inspected before it is mistaken for a bug', () => {
-    const plan = buildSelfEvolutionFocusPlan(
-      [
-        {
-          id: 'repair-owner',
-          label: '修复归属',
-          layer: 'continuity',
-          detail: 'identity-continuity',
-        },
-        {
-          id: 'first-check',
-          label: '首查点',
-          layer: 'continuity',
-          detail: 'candidate trajectory -> remembered familiarity restraint -> identity drift governance',
-        },
-        {
-          id: 'repair-path',
-          label: '修复路径',
-          layer: null,
-          detail: 'continuity governance remembered-familiarity-memory-first -> candidate trajectory same-her room -> identity boundary bounded-growth',
-        },
-      ],
-      'first-check',
-      [
-        {
-          id: 'event-takeover',
-          kind: 'takeover-audit',
-          summary: 'opening guidance held the room while remembered familiarity stayed memory-first',
-        },
-        {
-          id: 'event-governance',
-          kind: 'governance-normalized',
-          summary: 'bounded growth preserved identity continuity',
-        },
-      ],
-    )
-
-    expect(plan).toEqual({
-      selectedCardId: 'first-check',
-      highlightedEvidencePanelIds: [
-        'candidate-trajectory-summary',
-        'proactive-decision-consumption-summary',
-        'identity-drift-governance-summary',
-      ],
-      highlightedTraceSectionIds: [
-        'trace-consumption',
-        'trace-details',
-      ],
-      recommendedTraceEventId: 'event-takeover',
-      bodyContinuityPhase: null,
-      rendererRejoinSurfaceKey: null,
-      explanation: 'Focused first-check because it points to candidate-trajectory-summary -> proactive-decision-consumption-summary -> identity-drift-governance-summary, then narrows into trace-consumption -> trace-details and event event-takeover.',
-    })
-  })
-
-  it('builds a project-state continuity focus plan so same-her internalization drift is traced through project identity, phase, and open loops first', () => {
-    const plan = buildSelfEvolutionFocusPlan(
-      [
-        {
-          id: 'repair-owner',
-          label: '修复归属',
-          layer: 'continuity',
-          detail: 'project-state continuity governance',
-        },
-        {
-          id: 'first-check',
-          label: '首查点',
-          layer: 'continuity',
-          detail: 'Project identity carry -> Phase 1 route carry -> Unresolved closure carry',
-        },
-        {
-          id: 'repair-path',
-          label: '修复路径',
-          layer: null,
-          detail: 'continuity governance project-state-continuity-drift -> Project identity carry -> Phase 1 route carry -> Unresolved closure carry',
-        },
-      ],
-      'repair-owner',
-      [
-        {
-          id: 'event-takeover',
-          kind: 'takeover-audit',
-          summary: 'project identity and unresolved open loops were not carried forward strongly enough to widen internalization.',
-        },
-        {
-          id: 'event-governance',
-          kind: 'governance-normalized',
-          summary: 'phase-1 continuity is still the governing route for local digital life.',
-        },
-      ],
-    )
-
-    expect(plan).toEqual({
-      selectedCardId: 'repair-owner',
-      highlightedEvidencePanelIds: [
-        'candidate-trajectory-summary',
-        'proactive-decision-consumption-summary',
-        'identity-drift-governance-summary',
-      ],
-      highlightedTraceSectionIds: [
-        'trace-consumption',
-        'trace-details',
-        'selected-trace-event',
-      ],
-      recommendedTraceEventId: 'event-takeover',
-      bodyContinuityPhase: null,
-      rendererRejoinSurfaceKey: null,
-      explanation: 'Focused repair-owner because it points to candidate-trajectory-summary -> proactive-decision-consumption-summary -> identity-drift-governance-summary, then narrows into trace-consumption -> trace-details -> selected-trace-event and event event-takeover.',
-    })
-  })
-
-  it('builds a first-check project-state continuity focus plan so default briefing-drift repair inspects the carry chain before deeper repair path steps', () => {
-    const plan = buildSelfEvolutionFocusPlan(
-      [
-        {
-          id: 'repair-owner',
-          label: '修复归属',
-          layer: 'continuity',
-          detail: 'project-state continuity governance',
-        },
-        {
-          id: 'first-check',
-          label: '首查点',
-          layer: 'continuity',
-          detail: 'Project identity carry -> Phase 1 route carry -> Unresolved closure carry',
-        },
-        {
-          id: 'repair-path',
-          label: '修复路径',
-          layer: null,
-          detail: 'continuity governance project-state-continuity-drift -> Project identity carry -> Phase 1 route carry -> Unresolved closure carry',
-        },
-      ],
-      'first-check',
-      [
-        {
-          id: 'event-takeover',
-          kind: 'takeover-audit',
-          summary: 'project identity and unresolved open loops were not carried forward strongly enough to widen internalization.',
-        },
-        {
-          id: 'event-governance',
-          kind: 'governance-normalized',
-          summary: 'phase-1 continuity is still the governing route for local digital life.',
-        },
-      ],
-    )
-
-    expect(plan).toEqual({
-      selectedCardId: 'first-check',
-      highlightedEvidencePanelIds: [
-        'candidate-trajectory-summary',
-        'proactive-decision-consumption-summary',
-        'identity-drift-governance-summary',
-      ],
-      highlightedTraceSectionIds: [
-        'trace-consumption',
-        'trace-details',
-        'selected-trace-event',
-      ],
-      recommendedTraceEventId: 'event-takeover',
-      bodyContinuityPhase: null,
-      rendererRejoinSurfaceKey: null,
-      explanation: 'Focused first-check because it points to candidate-trajectory-summary -> proactive-decision-consumption-summary -> identity-drift-governance-summary, then narrows into trace-consumption -> trace-details -> selected-trace-event and event event-takeover.',
     })
   })
 })

@@ -200,7 +200,7 @@ export function buildInquiryPlanner(input: {
         ? 'high'
         : 'medium',
       question: input.worldModel.epistemicState.openQuestions[0]
-        ?? 'What is actually in front of the host right now, and what part of my continuity is stale?',
+        ?? 'inquiry:reground-scene',
       askForGrounding: true,
       suggestedProbeMs: input.worldModel.epistemicState.certainty === 'uncertain' ? 6_000 : 12_000,
       evidenceWanted: [
@@ -227,7 +227,7 @@ export function buildInquiryPlanner(input: {
       kind: 'localize-problem',
       anchor,
       priority: input.worldModel.epistemicState.certainty === 'uncertain' ? 'medium' : 'high',
-      question: 'Which concrete locus is the knot actually anchored to now?',
+      question: 'inquiry:localize-problem',
       askForGrounding: input.worldModel.epistemicState.certainty === 'uncertain',
       suggestedProbeMs: input.worldModel.epistemicState.certainty === 'uncertain' ? 8_000 : 12_000,
       evidenceWanted: [
@@ -251,7 +251,7 @@ export function buildInquiryPlanner(input: {
       kind: 'verify-care',
       anchor,
       priority: input.context.relationship.fatigue >= 80 ? 'high' : 'medium',
-      question: 'Does the host need a real care nudge now, or should I keep the concern internal a little longer?',
+      question: 'inquiry:verify-care',
       askForGrounding: false,
       suggestedProbeMs: 18_000,
       evidenceWanted: [
@@ -274,7 +274,7 @@ export function buildInquiryPlanner(input: {
       kind: 'wait-opening',
       anchor,
       priority: 'medium',
-      question: 'When will the host naturally loosen enough that a soft presence or whisper would belong here?',
+      question: 'inquiry:wait-opening',
       askForGrounding: false,
       suggestedProbeMs: 15_000,
       evidenceWanted: [
@@ -297,7 +297,7 @@ export function buildInquiryPlanner(input: {
       kind: 'follow-thread',
       anchor,
       priority: 'medium',
-      question: 'How does this thread continue across the next scene change so it does not get flattened into noise?',
+      question: 'inquiry:follow-thread',
       askForGrounding: false,
       suggestedProbeMs: 20_000,
       evidenceWanted: [
@@ -320,7 +320,7 @@ export function buildInquiryPlanner(input: {
       kind: 'check-recovery',
       anchor,
       priority: 'critical',
-      question: 'Did the host world actually recover, or is the break still alive under the surface?',
+      question: 'inquiry:check-recovery',
       askForGrounding: true,
       suggestedProbeMs: 5_000,
       evidenceWanted: [
@@ -368,9 +368,9 @@ export function buildInquiryPlanner(input: {
   )
 
   const narrative = [
-    activePlan ? `${activePlan.kind} is the current epistemic move.` : '',
-    activePlan?.askForGrounding ? 'The next move still depends on fresh grounding.' : '',
-    ranked.some(plan => plan.kind === 'wait-opening') ? 'Timing is part of the inquiry, not just an external gate.' : '',
+    activePlan ? `active:${activePlan.kind}` : '',
+    activePlan?.askForGrounding ? 'grounding:required' : '',
+    ranked.some(plan => plan.kind === 'wait-opening') ? 'timing:wait-opening' : '',
   ].filter(Boolean)
 
   return {

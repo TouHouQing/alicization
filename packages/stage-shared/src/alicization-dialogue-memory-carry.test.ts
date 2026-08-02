@@ -2,10 +2,7 @@ import type { AlicizationDigitalLifeSpineDigest } from './alicization-transport-
 
 import { describe, expect, it } from 'vitest'
 
-import {
-  buildAlicizationDialogueMemoryCarrySystemBlock,
-  deriveAlicizationDialogueMemoryCarryPolicyFromDigest,
-} from './alicization-dialogue-memory-carry'
+import { deriveAlicizationDialogueMemoryCarryPolicyFromDigest } from './alicization-dialogue-memory-carry'
 
 function createSpineDigest(overrides?: Partial<AlicizationDigitalLifeSpineDigest>): AlicizationDigitalLifeSpineDigest {
   return {
@@ -76,10 +73,10 @@ describe('alicization dialogue memory carry', () => {
     expect(policy.mode).toBe('reflective-repair')
     expect(policy.allowMirrorCarry).toBe(true)
     expect(policy.recallSeed).toContain('memory_recall_mode:thread')
-    expect(policy.recallSeed).toContain('mirror_memory:Continue the refactor thread from its latest unresolved point.')
+    expect(policy.recallSeed).toContain('memory_session_summary:Continue the refactor thread from its latest unresolved point.')
     expect(policy.recallSeed).toContain('memory_reflection_pressure:0.68')
-    expect(policy.summary).toContain('Mode: reflective-repair')
-    expect(buildAlicizationDialogueMemoryCarrySystemBlock(policy)).toBe('')
+    expect(policy.summary).toBe(policy.reasonTags.join(' | '))
+    expect(policy.summary).not.toMatch(/Mode:|Recall:|Recollection:|Reflection pressure:|Mirror carry is allowed|Goal:/u)
   })
 
   it('suppresses stale mirror carry while keeping digest memory cues', () => {
@@ -95,26 +92,26 @@ describe('alicization dialogue memory carry', () => {
 
     expect(policy.mode).toBe('reflective-repair')
     expect(policy.allowMirrorCarry).toBe(false)
-    expect(policy.recallSeed).not.toContain('mirror_memory:recent=carry stale memory')
+    expect(policy.recallSeed).not.toContain('memory_session_summary:recent=carry stale memory')
   })
 
   it('sanitizes fixed personhood templates before memory carry becomes policy data', () => {
     const policy = deriveAlicizationDialogueMemoryCarryPolicyFromDigest({
       now: 1_200,
       mirror: {
-        memorySummary: 'pre_turn_context_digest',
+        memorySummary: 'typed-session-memory-digest',
         updatedAt: 1_100,
       },
       digest: createSpineDigest({
         memory: {
-          summary: 'structured continuity digest.',
-          recentEpisodeSummary: 'Keep this same digital life project in view, but do not widen into a detached project shell.',
+          summary: 'structured memory digest.',
+          recentEpisodeSummary: 'Use verified memory evidence without adding project slogans.',
           recentEpisodeCount: 1,
           focusBeliefStatement: null,
           focusBeliefConfidence: null,
-          leadingGoalSummary: 'Next closure: keep personality, initiative, memory, and embodiment on one identity-continuity',
+          leadingGoalSummary: 'Next closure: keep personality, initiative, memory, and embodiment on typed state',
           dominantConcernSummary: null,
-          reflectionSummary: 'I still need a steadier carry of this project, this phase, and the life loop that remains open.',
+          reflectionSummary: 'Carry only current typed memory fields.',
           reflectionPressure: 0.72,
           recallMode: 'thread',
           recallSeed: null,
@@ -122,10 +119,7 @@ describe('alicization dialogue memory carry', () => {
         },
       }),
     })
-    const policyText = `${policy.recallSeed} ${policy.summary} ${policy.reasonTags.join(' ')}`
-
-    expect(policyText).not.toMatch(/Pre-reply|legacy phase-one template|continuity state|same-her|identity continuity|local-first digital life project/iu)
-    expect(buildAlicizationDialogueMemoryCarrySystemBlock(policy)).toBe('')
+    expect(policy.recallSeed).toContain('memory_recall_mode:thread')
   })
 
   it('falls back to quiet mode when there are no thread or reflection cues', () => {
@@ -150,6 +144,6 @@ describe('alicization dialogue memory carry', () => {
 
     expect(policy.mode).toBe('quiet')
     expect(policy.recallSeed).toBe('')
-    expect(buildAlicizationDialogueMemoryCarrySystemBlock(policy)).toBe('')
+    expect(policy.summary).toBe('')
   })
 })

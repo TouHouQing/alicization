@@ -618,11 +618,11 @@ describe('embodiment director', () => {
         'repair-before-closeness',
         'durable-relationship-rhythm',
         'continuity-next-open-window',
-        'embodiment:audible-same-her-line',
+        'embodiment:audible-continuity-line',
         'embodiment:body+voice-only',
         'embodiment:still-voiced-face-line',
       ],
-      signature: 'resident|same-her|body+voice-only|still-voiced-motion-line|repair-before-closeness',
+      signature: 'resident|continuity|body+voice-only|still-voiced-motion-line|repair-before-closeness',
     }
     const cleanScript = buildAlicizationEmbodimentScript({
       seed,
@@ -770,7 +770,7 @@ describe('embodiment director', () => {
 
   it('keeps narrative and summary prose from changing structured face and motion hold timing', () => {
     const buildScript = (prose: {
-      manifestationCadenceSummary: string
+      personaWhySummary: string
       relationshipDoctrine: string
       outcomeSummary: string
       latestInflection: string
@@ -849,9 +849,7 @@ describe('embodiment director', () => {
               silenceReconnect: 'hold',
               comfortStyle: 'quiet-presence',
               preferredProactiveStyle: 'silent-observe',
-              manifestationCadenceSummary: prose.manifestationCadenceSummary,
-              openingGuidance: 'audit only',
-              whySummary: 'audit only',
+              whySummary: prose.personaWhySummary,
             },
           },
           embodiment: {
@@ -893,13 +891,13 @@ describe('embodiment director', () => {
       rendererTarget: 'vrm',
     })
     const cleanScript = buildScript({
-      manifestationCadenceSummary: 'audit text',
+      personaWhySummary: 'audit text',
       relationshipDoctrine: 'audit text',
       outcomeSummary: 'audit text',
       latestInflection: 'audit text',
     })
     const pollutedScript = buildScript({
-      manifestationCadenceSummary: 'observe-first and stay slower until the opening softens',
+      personaWhySummary: 'observe-first and stay slower until the opening softens',
       relationshipDoctrine: 'keep more room with lower-pressure timing',
       outcomeSummary: 'pressure stayed low during a slower return',
       latestInflection: 'repair should settle before closeness expands',

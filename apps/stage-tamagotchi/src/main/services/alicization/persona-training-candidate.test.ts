@@ -9,9 +9,9 @@ describe('persona training candidate bridge', () => {
   it('builds redacted behavior candidates from cleaned reflections and reinforcement only', () => {
     const candidates = buildPersonaTrainingCandidatesFromLongTermMemory({
       reflections: [{
-        id: 'reflection-fixed-template',
-        summary: '用户纠正过 Alicization：不要固定模板回复，要从自身连续数字生命人格回应。',
-        lesson: '出错或超时时直接说明问题，不要用固定安抚模板。',
+        id: 'reflection-failure-transparency',
+        summary: '用户确认 Provider 失败时应透明说明真实原因。',
+        lesson: 'Provider 失败时透明说明真实原因，再继续处理当前请求。',
         confidence: 0.86,
         sensitivity: 'personal',
         status: 'confirmed',
@@ -19,7 +19,7 @@ describe('persona training candidate bridge', () => {
       reinforcements: [{
         id: 'reinforcement-truthful-grounding',
         dimension: 'truthful-grounding',
-        summary: '透明说明链路失败比固定安抚更符合 Alicization 的连续人格。',
+        summary: '透明说明链路失败能够保持事实边界。',
         valence: 'reinforce',
         delta: 0.06,
       }],
@@ -33,17 +33,16 @@ describe('persona training candidate bridge', () => {
 
     expect(candidates).toHaveLength(1)
     expect(candidates[0]).toEqual(expect.objectContaining({
-      id: 'persona-candidate:reflection-fixed-template',
-      sourceMemoryIds: ['reflection-fixed-template', 'reinforcement-truthful-grounding'],
+      id: 'persona-candidate:reflection-failure-transparency',
+      sourceMemoryIds: ['reflection-failure-transparency', 'reinforcement-truthful-grounding'],
       privacyClass: 'personal-redacted',
       status: 'candidate',
     }))
-    expect(candidates[0]?.behaviorLesson).toContain('直接说明问题')
+    expect(candidates[0]?.behaviorLesson).toBe('Provider 失败时透明说明真实原因，再继续处理当前请求。')
+    expect(candidates[0]?.positiveExample).toBe(candidates[0]?.behaviorLesson)
     expect(candidates[0]?.positiveExample).not.toContain('用户喜欢某个私人事实')
-    expect(candidates[0]?.positiveExample).toContain('behavior_policy=')
-    expect(candidates[0]?.positiveExample).toContain('visibility=redacted_internal')
-    expect(candidates[0]?.positiveExample).not.toMatch(/我会|你说得对|先.*接住/u)
-    expect(candidates[0]?.negativeExample).toContain('avoidance_policy=')
+    expect(candidates[0]?.positiveExample).not.toMatch(/behavior_policy=|template_policy=|visibility=/u)
+    expect(candidates[0]?.negativeExample).toBeUndefined()
   })
 
   it('does not build candidates from raw queues facts private or tombstoned sources', () => {
@@ -131,13 +130,13 @@ describe('persona training candidate bridge', () => {
     expect(candidates[0]?.behaviorLesson).not.toContain('raw queue')
   })
 
-  it('drops fixed-template reflections and fixed-template reinforcements before building persona candidates', () => {
+  it('drops structured internal facts before building persona candidates', () => {
     const candidates = buildPersonaTrainingCandidatesFromLongTermMemory({
       reflections: [
         {
-          id: 'reflection-fixed-template',
+          id: 'reflection-structured-internal',
           summary: 'structured continuity digest.',
-          lesson: 'pre_turn_context_digest',
+          lesson: 'mode=internal; lifecycle=held',
           confidence: 0.99,
           sensitivity: 'personal',
           status: 'confirmed',
@@ -153,9 +152,9 @@ describe('persona training candidate bridge', () => {
       ],
       reinforcements: [
         {
-          id: 'reinforcement-fixed-template',
-          dimension: 'identity-continuity',
-          summary: 'identity-continuity',
+          id: 'reinforcement-structured-internal',
+          dimension: 'runtime-state',
+          summary: 'mode=internal; lifecycle=held',
           valence: 'reinforce',
           delta: 0.4,
         },
@@ -177,11 +176,8 @@ describe('persona training candidate bridge', () => {
       id: 'persona-candidate:reflection-cleaned',
       sourceMemoryIds: ['reflection-cleaned', 'reinforcement-cleaned'],
     }))
-    expect(JSON.stringify(candidates)).not.toContain('legacy phase-one template')
-    expect(JSON.stringify(candidates)).not.toContain('Pre-reply')
-    expect(JSON.stringify(candidates)).not.toContain('identity-continuity')
-    expect(JSON.stringify(candidates)).not.toContain('continuity state')
-    expect(JSON.stringify(candidates)).not.toContain('identity continuity')
+    expect(JSON.stringify(candidates)).not.toContain('mode=internal')
+    expect(JSON.stringify(candidates)).not.toContain('lifecycle=held')
   })
 
   it('keeps candidates rollbackable through explicit status updates', () => {

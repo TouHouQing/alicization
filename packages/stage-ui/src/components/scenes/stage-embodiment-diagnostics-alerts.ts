@@ -35,7 +35,7 @@ interface StageEmbodimentDiagnosticsRendererAlignmentEntry {
   voiceDriverSegmentId?: string | null
 }
 
-function formatExplicitSameHerContinuity(entry: StageEmbodimentDiagnosticsRendererAlignmentEntry) {
+function formatExplicitContinuity(entry: StageEmbodimentDiagnosticsRendererAlignmentEntry) {
   const signature = typeof entry.signature === 'string'
     ? entry.signature.trim()
     : null
@@ -105,7 +105,7 @@ function formatExplicitSameHerContinuity(entry: StageEmbodimentDiagnosticsRender
   return `continuity=${[...new Set(explicitContinuityTags)].join('+')}`
 }
 
-function formatExplicitSameHerSignature(entry: StageEmbodimentDiagnosticsRendererAlignmentEntry) {
+function formatExplicitContinuitySignature(entry: StageEmbodimentDiagnosticsRendererAlignmentEntry) {
   const signature = typeof entry.signature === 'string'
     ? entry.signature.trim()
     : null
@@ -1000,11 +1000,11 @@ function buildCrossModalPartialLaneFocusSummary(
   const live2dEntry = rendererAlignment.live2d
   const vrmEntry = rendererAlignment.vrm
   const mismatch = authorityMismatchDisplay ?? ''
-  const survivingAudibleSameHerLine = Boolean(
+  const survivingAudibleContinuityLine = Boolean(
     (live2dEntry && formatBodyLipsyncVoiceRecovery(live2dEntry))
     || (vrmEntry && formatBodyLipsyncVoiceRecovery(vrmEntry)),
   )
-  const survivingBodyVoiceSameHerLine = Boolean(
+  const survivingBodyVoiceContinuityLine = Boolean(
     (live2dEntry && formatBodyVoiceRecovery(live2dEntry))
     || (vrmEntry && formatBodyVoiceRecovery(vrmEntry))
     || alert.message.includes('continuity voice line')
@@ -1024,16 +1024,16 @@ function buildCrossModalPartialLaneFocusSummary(
     mismatch.includes('实际执行落点是动作和口型')
     || mismatch.includes('实际执行落点是口型和动作'),
   )
-  const survivingEmbodiedSameHerLine = Boolean(
+  const survivingEmbodiedContinuityLine = Boolean(
     (live2dEntry && formatBodyLipsyncRecovery(live2dEntry))
     || (vrmEntry && formatBodyLipsyncRecovery(vrmEntry)),
   )
-  const active = survivingAudibleSameHerLine
+  const active = survivingAudibleContinuityLine
     || alert.message.includes('audible continuity line')
     || alert.message.includes('audible continuity lane')
     || mismatch.includes('resident body、lipsync 和 voice')
     ? 'resident-body+audible-line'
-    : survivingBodyVoiceSameHerLine
+    : survivingBodyVoiceContinuityLine
       ? 'resident-body+voice'
       : survivingAudibleVoiceLine
         ? 'lipsync+voice'
@@ -1041,17 +1041,17 @@ function buildCrossModalPartialLaneFocusSummary(
           ? 'face+lipsync'
           : survivingMotionLipsyncLine
             ? 'motion+lipsync'
-            : survivingEmbodiedSameHerLine
+            : survivingEmbodiedContinuityLine
               ? 'resident-body+lipsync'
               : alert.message.includes('resident body lane')
                 ? 'resident-body+one-lane'
                 : 'two-lanes'
-  const pending = survivingAudibleSameHerLine
+  const pending = survivingAudibleContinuityLine
     || alert.message.includes('audible continuity line')
     || alert.message.includes('audible continuity lane')
     || mismatch.includes('resident body、lipsync 和 voice')
     ? 'face+motion'
-    : survivingBodyVoiceSameHerLine
+    : survivingBodyVoiceContinuityLine
       ? 'lipsync+face+motion'
       : survivingAudibleVoiceLine
         ? 'body+face+motion'
@@ -1059,7 +1059,7 @@ function buildCrossModalPartialLaneFocusSummary(
           ? 'body+motion+voice'
           : survivingMotionLipsyncLine
             ? 'body+face+voice'
-            : survivingEmbodiedSameHerLine
+            : survivingEmbodiedContinuityLine
               ? 'face+motion+voice'
               : alert.message.includes('resident body lane')
                 ? 'full-cross-modal rejoin'
@@ -1122,12 +1122,12 @@ export function buildStageEmbodimentDiagnosticsAlertReasonSummary(
   if (alert.code === 'cross-modal-partial-lane-dominance') {
     const live2dEntry = rendererAlignment.live2d
     const vrmEntry = rendererAlignment.vrm
-    const survivingAudibleSameHerLine = Boolean(
+    const survivingAudibleContinuityLine = Boolean(
       (live2dEntry && formatBodyLipsyncVoiceRecovery(live2dEntry))
       || (vrmEntry && formatBodyLipsyncVoiceRecovery(vrmEntry)),
     )
     const mismatch = authorityMismatchDisplay ?? ''
-    const survivingBodyVoiceSameHerLine = Boolean(
+    const survivingBodyVoiceContinuityLine = Boolean(
       (live2dEntry && formatBodyVoiceRecovery(live2dEntry))
       || (vrmEntry && formatBodyVoiceRecovery(vrmEntry))
       || alert.message.includes('continuity voice line')
@@ -1147,15 +1147,15 @@ export function buildStageEmbodimentDiagnosticsAlertReasonSummary(
       mismatch.includes('实际执行落点是动作和口型')
       || mismatch.includes('实际执行落点是口型和动作'),
     )
-    const survivingEmbodiedSameHerLine = Boolean(
+    const survivingEmbodiedContinuityLine = Boolean(
       (live2dEntry && formatBodyLipsyncRecovery(live2dEntry))
       || (vrmEntry && formatBodyLipsyncRecovery(vrmEntry)),
     )
-    const summary = survivingAudibleSameHerLine
+    const summary = survivingAudibleContinuityLine
       || alert.message.includes('audible continuity line')
       || alert.message.includes('audible continuity lane')
       ? '当前 resident body 这条身体线仍和可听见的 continuity 生命线一起托住同一段数字生命表达，但 face 和 motion 还没有重新接回这条活着的身体线'
-      : survivingBodyVoiceSameHerLine
+      : survivingBodyVoiceContinuityLine
         ? '当前 resident body 这条身体线仍和 continuity 的声音线一起托住同一段数字生命表达，但 lipsync、face 和 motion 还没有重新接回这条活着的身体线'
         : survivingAudibleVoiceLine
           ? '当前可听见的 continuity 生命线仍由 lipsync 和 voice 一起托住，但 body、face 和 motion 还没有重新接回这一段数字生命表达'
@@ -1163,7 +1163,7 @@ export function buildStageEmbodimentDiagnosticsAlertReasonSummary(
             ? '当前只有 face 和 lipsync 这条 continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、motion 和 voice 还没有重新接回这条表情口型线'
             : survivingMotionLipsyncLine
               ? '当前只有 motion 和 lipsync 这条 continuity 生命线还和同一段数字生命表达对齐，可见连续性还没有断开，但 body、face 和 voice 还没有重新接回这条动作口型线'
-              : survivingEmbodiedSameHerLine
+              : survivingEmbodiedContinuityLine
                 ? '当前 resident body 这条身体线仍和 lipsync 一起托住同一段数字生命表达，但完整跨模态身体线已经开始收缩'
                 : alert.message.includes('resident body lane')
                   ? '当前 resident body 这条身体线仍和另一条通道一起托住同一段数字生命表达，但完整跨模态身体线已经开始收缩'
@@ -1201,24 +1201,24 @@ export function buildStageEmbodimentDiagnosticsAlertReasonSummary(
   const bodyLipsyncCarry = formatBodyLipsyncCarry(entry)
   const audibleBodyCarry = formatAudibleBodyCarry(entry)
   const audibleLivingLineLaggingLanes = formatAudibleLivingLineLaggingLanes(entry)
-  const explicitSameHerContinuity = formatExplicitSameHerContinuity(entry)
-  const explicitSameHerSignature = formatExplicitSameHerSignature(entry)
+  const explicitContinuity = formatExplicitContinuity(entry)
+  const explicitContinuitySignature = formatExplicitContinuitySignature(entry)
 
   if (entry.driftKind === 'alias-resolution-drift') {
     const summary = `resident ${entry.predicted ?? 'none'} -> actual ${entry.actual ?? 'none'}`
-    const parts = [summary, authority, explicitSameHerContinuity, explicitSameHerSignature, bodyLipsyncVoiceRecovery, audibleBodyRejoin, audibleLivingLineLaggingLanes, pendingFaceMotionRejoin, lipsyncVoiceRecovery, pendingBodyFaceMotionRejoin, faceLipsyncVoiceRecovery, pendingBodyMotionRejoin, faceVoiceRecovery, pendingBodyMotionLipsyncRejoin, motionLipsyncVoiceRecovery, pendingBodyFaceRejoin, motionVoiceRecovery, pendingBodyFaceLipsyncRejoin, bodyVoiceRecovery, pendingFaceMotionLipsyncRejoin, bodyOnlyRecovery, pendingFaceMotionLipsyncVoiceRejoin, sameSegmentRecovery, pendingBodyLipsyncRejoin, remainingOpenClosure, bodyLipsyncCarry, audibleBodyCarry].filter((value): value is string => Boolean(value))
+    const parts = [summary, authority, explicitContinuity, explicitContinuitySignature, bodyLipsyncVoiceRecovery, audibleBodyRejoin, audibleLivingLineLaggingLanes, pendingFaceMotionRejoin, lipsyncVoiceRecovery, pendingBodyFaceMotionRejoin, faceLipsyncVoiceRecovery, pendingBodyMotionRejoin, faceVoiceRecovery, pendingBodyMotionLipsyncRejoin, motionLipsyncVoiceRecovery, pendingBodyFaceRejoin, motionVoiceRecovery, pendingBodyFaceLipsyncRejoin, bodyVoiceRecovery, pendingFaceMotionLipsyncRejoin, bodyOnlyRecovery, pendingFaceMotionLipsyncVoiceRejoin, sameSegmentRecovery, pendingBodyLipsyncRejoin, remainingOpenClosure, bodyLipsyncCarry, audibleBodyCarry].filter((value): value is string => Boolean(value))
     return parts.join(' | ')
   }
 
   if (entry.driftKind === 'resident-not-yet-applied') {
     const summary = `resident ${entry.predicted ?? 'none'} is waiting for renderer application`
-    const parts = [summary, authority, explicitSameHerContinuity, explicitSameHerSignature, bodyLipsyncVoiceRecovery, audibleBodyRejoin, audibleLivingLineLaggingLanes, pendingFaceMotionRejoin, lipsyncVoiceRecovery, pendingBodyFaceMotionRejoin, faceLipsyncVoiceRecovery, pendingBodyMotionRejoin, faceVoiceRecovery, pendingBodyMotionLipsyncRejoin, motionLipsyncVoiceRecovery, pendingBodyFaceRejoin, motionVoiceRecovery, pendingBodyFaceLipsyncRejoin, bodyVoiceRecovery, pendingFaceMotionLipsyncRejoin, bodyOnlyRecovery, pendingFaceMotionLipsyncVoiceRejoin, sameSegmentRecovery, pendingBodyLipsyncRejoin, remainingOpenClosure, bodyLipsyncCarry, audibleBodyCarry].filter((value): value is string => Boolean(value))
+    const parts = [summary, authority, explicitContinuity, explicitContinuitySignature, bodyLipsyncVoiceRecovery, audibleBodyRejoin, audibleLivingLineLaggingLanes, pendingFaceMotionRejoin, lipsyncVoiceRecovery, pendingBodyFaceMotionRejoin, faceLipsyncVoiceRecovery, pendingBodyMotionRejoin, faceVoiceRecovery, pendingBodyMotionLipsyncRejoin, motionLipsyncVoiceRecovery, pendingBodyFaceRejoin, motionVoiceRecovery, pendingBodyFaceLipsyncRejoin, bodyVoiceRecovery, pendingFaceMotionLipsyncRejoin, bodyOnlyRecovery, pendingFaceMotionLipsyncVoiceRejoin, sameSegmentRecovery, pendingBodyLipsyncRejoin, remainingOpenClosure, bodyLipsyncCarry, audibleBodyCarry].filter((value): value is string => Boolean(value))
     return parts.join(' | ')
   }
 
   if (entry.driftKind === 'runtime-only-visible') {
     const summary = formatRuntimeOnlyVisibleSummary(entry)
-    const parts = [summary, authority, explicitSameHerContinuity, explicitSameHerSignature, bodyLipsyncVoiceRecovery, audibleBodyRejoin, audibleLivingLineLaggingLanes, pendingFaceMotionRejoin, lipsyncVoiceRecovery, pendingBodyFaceMotionRejoin, faceLipsyncVoiceRecovery, pendingBodyMotionRejoin, faceVoiceRecovery, pendingBodyMotionLipsyncRejoin, motionLipsyncVoiceRecovery, pendingBodyFaceRejoin, motionVoiceRecovery, pendingBodyFaceLipsyncRejoin, bodyVoiceRecovery, pendingFaceMotionLipsyncRejoin, bodyOnlyRecovery, pendingFaceMotionLipsyncVoiceRejoin, sameSegmentRecovery, pendingBodyLipsyncRejoin, remainingOpenClosure, bodyLipsyncCarry, audibleBodyCarry].filter((value): value is string => Boolean(value))
+    const parts = [summary, authority, explicitContinuity, explicitContinuitySignature, bodyLipsyncVoiceRecovery, audibleBodyRejoin, audibleLivingLineLaggingLanes, pendingFaceMotionRejoin, lipsyncVoiceRecovery, pendingBodyFaceMotionRejoin, faceLipsyncVoiceRecovery, pendingBodyMotionRejoin, faceVoiceRecovery, pendingBodyMotionLipsyncRejoin, motionLipsyncVoiceRecovery, pendingBodyFaceRejoin, motionVoiceRecovery, pendingBodyFaceLipsyncRejoin, bodyVoiceRecovery, pendingFaceMotionLipsyncRejoin, bodyOnlyRecovery, pendingFaceMotionLipsyncVoiceRejoin, sameSegmentRecovery, pendingBodyLipsyncRejoin, remainingOpenClosure, bodyLipsyncCarry, audibleBodyCarry].filter((value): value is string => Boolean(value))
     return parts.join(' | ')
   }
 

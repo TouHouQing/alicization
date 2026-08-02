@@ -105,7 +105,7 @@ describe('performance visualizer trace timeline summary', () => {
     ])
   })
 
-  it('surfaces body-led same-her trust for trace records when body has re-formed on the current segment before face and motion return', () => {
+  it('surfaces body-led continuity trust for trace records when body has re-formed on the current segment before face and motion return', () => {
     expect(buildRecentDrivingTraceRecordSummaryEntries({
       decisionTraceId: 'mind:trace:body-led-1',
       activeThreadId: 'runtime-thread-body-led-1',

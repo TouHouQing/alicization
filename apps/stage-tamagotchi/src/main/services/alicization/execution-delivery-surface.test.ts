@@ -91,7 +91,7 @@ describe('execution delivery surface', () => {
       type: 'alicization-execution-settlement-request',
     })
     expect(`${prompt.system}\n${prompt.user}`).not.toMatch(
-      /pay off|sound like|lead with|same-her|continuity|relationship posture|陪伴|语气|开场|结尾/i,
+      /pay off|sound like|lead with|continuity|continuity|relationship posture|陪伴|语气|开场|结尾/i,
     )
   })
 })

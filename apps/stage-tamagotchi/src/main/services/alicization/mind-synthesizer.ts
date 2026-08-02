@@ -263,7 +263,6 @@ function resolveInteriorSummary(input: {
   repairSummary?: string | null
   desireSummary?: string | null
   motiveSummary?: string | null
-  habitSummary?: string | null
   autobiographicalInflection?: string | null
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   turnAnchorCue?: string | null
@@ -275,7 +274,6 @@ function resolveInteriorSummary(input: {
     input.privateThought?.thoughtText
     || input.motiveSummary
     || input.autobiographicalInflection
-    || input.habitSummary
     || (input.dialogueFirstTurn ? input.turnAnchorCue : '')
     || input.concernSummary
     || input.commitmentSummary
@@ -379,7 +377,6 @@ export function buildMindSynthesis(input: {
   })
   const openQuestions = asArray(input.worldModel?.epistemicState.openQuestions)
   const activeConversationCommitments = asArray(input.conversationState?.activeCommitments)
-  const habitNarrative = asArray(input.habitPolicy?.narrative)
 
   const beliefs = uniqueByLabel([
     makeStatement({
@@ -423,18 +420,6 @@ export function buildMindSynthesis(input: {
       summary: motiveAgenda?.summary,
       confidence: motiveAgenda?.weight ?? 0.34,
       sourceTags: ['motive-engine', motiveAgenda?.kind ?? 'agenda'],
-    }),
-    makeStatement({
-      label: 'habit-gate',
-      summary: input.habitPolicy?.dominantMode
-        ? `Current habit gate leans ${input.habitPolicy.dominantMode}.`
-        : null,
-      confidence: input.habitPolicy?.requiresGroundingBeforeSurface
-        ? 0.72
-        : input.habitPolicy?.prefersQuietCompanionship
-          ? 0.62
-          : 0.34,
-      sourceTags: ['habit-policy', input.habitPolicy?.dominantMode ?? 'unknown'],
     }),
     makeStatement({
       label: 'living-thread',
@@ -543,22 +528,6 @@ export function buildMindSynthesis(input: {
       confidence: Math.max(0.32, input.autobiographicalSelf?.stability ?? 0.32),
       sourceTags: ['autobiographical-self', 'inflection'],
     }),
-    makeStatement({
-      label: 'habit-pressure',
-      summary: input.habitPolicy?.protectsRestWindow
-        ? 'habit_pressure=protect_rest_window; exchange_expansion=defer'
-        : input.habitPolicy?.blocksDirectSpeakWhenBusy
-          ? 'habit_pressure=busy_host; presence_weight=light'
-          : input.habitPolicy?.requiresGroundingBeforeSurface
-            ? 'habit_pressure=grounding_before_fluency'
-            : null,
-      confidence: input.habitPolicy?.protectsRestWindow
-        ? 0.82
-        : input.habitPolicy?.blocksDirectSpeakWhenBusy || input.habitPolicy?.requiresGroundingBeforeSurface
-          ? 0.72
-          : 0.32,
-      sourceTags: ['habit-policy', input.habitPolicy?.dominantMode ?? 'unknown'],
-    }),
   ].filter((item): item is AlicizationMindStatementSnapshot => Boolean(item)), 6)
 
   const commitments = uniqueByLabel([
@@ -585,18 +554,6 @@ export function buildMindSynthesis(input: {
       summary: motiveAgenda?.summary,
       confidence: motiveAgenda?.weight ?? 0.4,
       sourceTags: ['motive-engine', motiveAgenda?.kind ?? 'agenda'],
-    }),
-    makeStatement({
-      label: 'habit-constraint',
-      summary: input.habitPolicy?.returnViaRecheck
-        ? 'habit_constraint=return_via_recheck; proof_before_surface_fluency=true'
-        : input.habitPolicy?.prefersQuietCompanionship
-          ? 'habit_constraint=quiet_companionship; crowding=avoid'
-          : null,
-      confidence: input.habitPolicy?.returnViaRecheck || input.habitPolicy?.prefersQuietCompanionship
-        ? 0.66
-        : 0.34,
-      sourceTags: ['habit-policy', input.habitPolicy?.dominantMode ?? 'unknown'],
     }),
   ].filter((item): item is AlicizationMindStatementSnapshot => Boolean(item)), 3)
 
@@ -647,18 +604,6 @@ export function buildMindSynthesis(input: {
         ?? input.motiveEngine?.drives?.companionship
         ?? 0.34,
       sourceTags: ['motive-engine', input.motiveEngine?.rulingDrive ?? 'unknown'],
-    }),
-    makeStatement({
-      label: 'habit-preference',
-      summary: input.habitPolicy?.prefersQuietCompanionship
-        ? 'habit_preference=quiet_companionship; distance=near_light'
-        : input.habitPolicy?.requiresGroundingBeforeSurface
-          ? 'habit_preference=grounding_before_expression'
-          : null,
-      confidence: input.habitPolicy?.prefersQuietCompanionship || input.habitPolicy?.requiresGroundingBeforeSurface
-        ? 0.64
-        : 0.32,
-      sourceTags: ['habit-policy', input.habitPolicy?.dominantMode ?? 'unknown'],
     }),
   ].filter((item): item is AlicizationMindStatementSnapshot => Boolean(item)), 5)
 
@@ -715,7 +660,6 @@ export function buildMindSynthesis(input: {
     repairSummary: repair?.summary ?? null,
     desireSummary: turnAnchorCue ?? input.conversationState?.jointThread ?? desires[0]?.summary ?? null,
     motiveSummary: motiveAgenda?.summary ?? null,
-    habitSummary: habitNarrative[0] ?? null,
     autobiographicalInflection: input.autobiographicalSelf?.latestInflection ?? null,
     privateThought: input.privateThought ?? null,
     turnAnchorCue,
@@ -793,9 +737,4 @@ export function buildMindSynthesis(input: {
     ].filter((item): item is AlicizationMindStatementSnapshot => Boolean(item)), 6).map(item => item.summary),
     updatedAt: input.now,
   } satisfies AlicizationMindSynthesisSnapshot
-}
-
-export function buildMindSynthesisSystemBlock(state: AlicizationMindSynthesisSnapshot | null | undefined) {
-  void state
-  return ''
 }

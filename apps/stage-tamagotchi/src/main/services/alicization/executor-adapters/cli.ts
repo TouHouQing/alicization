@@ -854,7 +854,6 @@ function buildCliRuntimeEnv(runtimeContext: AlicizationExecutionRuntimeContext |
     return buildAlicizationExecutionEnv(processEnv)
 
   const runtimeContextBlock = buildAlicizationExecutionRuntimeContextBlock(runtimeContext)
-  const executionFacts = runtimeContext.projectBriefing
 
   return buildAlicizationExecutionEnv(processEnv, {
     ALICIZATION_EXECUTION_RUNTIME_CONTEXT_JSON: JSON.stringify(runtimeContext),
@@ -865,35 +864,6 @@ function buildCliRuntimeEnv(runtimeContext: AlicizationExecutionRuntimeContext |
       runtimeContext.sensory.foregroundWindow?.processName,
       runtimeContext.sensory.foregroundWindow?.title,
     ].filter(Boolean).join(' | '),
-    ALICIZATION_EXECUTION_STATUS_LATEST: executionFacts?.latestLandedProgress ?? undefined,
-    ALICIZATION_EXECUTION_STATUS_OPEN: executionFacts?.primaryOpenLoop ?? undefined,
-    ALICIZATION_EXECUTION_STATUS_NEXT: executionFacts?.nextClosureTarget ?? undefined,
-    ALICIZATION_EXECUTION_CONTINUITY_ARC_STAGE: executionFacts?.continuityArcStage ?? undefined,
-    ALICIZATION_EXECUTION_CONTINUITY_RESTRAINT: executionFacts?.continuityRestraint ?? undefined,
-    ALICIZATION_EXECUTION_CONTINUITY_PREFERRED_TIMING: executionFacts?.continuityPreferredTiming ?? undefined,
-    ALICIZATION_EXECUTION_CONTINUITY_CADENCE: executionFacts?.continuityCadence ?? undefined,
-    ALICIZATION_EXECUTION_EMBODIMENT_BLINK_CADENCE: executionFacts?.preferredBlinkCadence ?? undefined,
-    ALICIZATION_EXECUTION_EMBODIMENT_GAZE_MODE: executionFacts?.preferredGazeMode ?? undefined,
-    ALICIZATION_EXECUTION_EMBODIMENT_PAUSE_MODE: executionFacts?.preferredPauseMode ?? undefined,
-    ALICIZATION_EXECUTION_EMBODIMENT_LIPSYNC_MODE: executionFacts?.preferredLipsyncMode ?? undefined,
-    ALICIZATION_EXECUTION_EMBODIMENT_VOICE_MODE: executionFacts?.preferredVoiceMode ?? undefined,
-    ALICIZATION_EXECUTION_EMBODIMENT_PACING_MODE: executionFacts?.preferredPacingMode ?? undefined,
-    ALICIZATION_EXECUTION_PROJECT_IDENTITY: undefined,
-    ALICIZATION_EXECUTION_PROJECT_PHASE: undefined,
-    ALICIZATION_EXECUTION_PROJECT_LANDED_PROGRESS: undefined,
-    ALICIZATION_EXECUTION_PROJECT_OPEN_LOOP: undefined,
-    ALICIZATION_EXECUTION_PROJECT_NEXT_CLOSURE: undefined,
-    ALICIZATION_EXECUTION_PROJECT_SAME_HER: undefined,
-    ALICIZATION_EXECUTION_PROJECT_SAME_HER_HOLD: undefined,
-    ALICIZATION_EXECUTION_PROJECT_SAME_HER_DRIFT_RISK: undefined,
-    ALICIZATION_EXECUTION_PROJECT_CONTINUITY_RESTRAINT: undefined,
-    ALICIZATION_EXECUTION_PROJECT_CONTINUITY: undefined,
-    ALICIZATION_EXECUTION_PROJECT_PREFLIGHT: undefined,
-    ALICIZATION_EXECUTION_PROJECT_AWARENESS: undefined,
-    ALICIZATION_EXECUTION_PROJECT_PREFERRED_PAUSE_MODE: undefined,
-    ALICIZATION_EXECUTION_PROJECT_PREFERRED_LIPSYNC_MODE: undefined,
-    ALICIZATION_EXECUTION_PROJECT_PREFERRED_VOICE_MODE: undefined,
-    ALICIZATION_EXECUTION_PROJECT_PREFERRED_PACING_MODE: undefined,
   })
 }
 

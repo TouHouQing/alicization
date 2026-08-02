@@ -1,7 +1,5 @@
 import type { Message } from '@xsai/shared-chat'
 
-import { readFileSync } from 'node:fs'
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -399,8 +397,6 @@ describe('main chat background run', () => {
     const finishPayload = vi.mocked(input.runStateController.finishRun).mock.calls.at(-1)?.[1]
     expect(finishPayload?.fullText).toBe(rawFullText)
     expect(finishPayload?.visibleReplyRealization).toMatchObject(visibleReplyRealization)
-    expect(finishPayload?.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
-    expect(finishPayload?.visibleReplyRealization).not.toHaveProperty('projectStateEvidenceStatus')
     expect(Object.keys(JSON.parse(String(finishPayload?.fullText)))).toEqual([
       'memoryUsage',
       'performance',
@@ -518,27 +514,14 @@ describe('main chat background run', () => {
     )
   })
 
-  it('does not retain Provider JSON shaping helpers in the background success path', () => {
-    const source = readFileSync(new URL('./main-chat-background-run.ts', import.meta.url), 'utf8')
-
-    expect(source).not.toContain('ensureStructuredProjectStateHostVisibleClosure')
-    expect(source).not.toContain('ensureStructuredVisibleReplyProjectStateAudit')
-    expect(source).not.toContain('normalizeTopLevelProjectStateAwarenessFromRealization')
-  })
-
-  it('does not rebuild project governance or legacy cues into the runtime digest fallback', () => {
+  it('builds the runtime digest fallback only from available emotional facts', () => {
     const prepared = createPrepared({
       runtimeSurface: {
         ...createPrepared().runtimeSurface,
         digitalLifeRuntimeSurface: {
           dialogue: {
             currentConsciousFrame: {
-              projectState: {
-                identity: 'project-state identity',
-                currentPhase: 'project-state phase',
-                continuityCue: 'continuityCue=legacy',
-              },
-              reasonTags: ['reasonTags=legacy'],
+              reasonTags: ['memory-available'],
               focusAnchor: '真实的当前对话焦点',
             },
           },
@@ -557,11 +540,11 @@ describe('main chat background run', () => {
 
     const digest = mainChatBackgroundRunTestInternals.buildPreparedRuntimeDigestFallback(prepared)
 
-    expect(digest?.projectState).toBeNull()
     expect(digest?.currentConsciousFrame).toBeNull()
-    expect(JSON.stringify(digest)).not.toMatch(
-      /project-state identity|project-state phase|continuityCue|reasonTags|reasonCodes|opening_policy|relationship_cadence|governingFocus|mustDo|mustNotDo/iu,
-    )
+    expect(digest?.emotionalKernel).toEqual(expect.objectContaining({
+      memoryRecallMode: 'working-and-long-term',
+      embodimentTone: 'steady',
+    }))
   })
 
   it('delegates failures without installing timeout reply recovery callbacks', async () => {

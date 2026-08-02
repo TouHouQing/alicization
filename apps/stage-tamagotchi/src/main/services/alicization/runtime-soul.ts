@@ -72,7 +72,7 @@ export const defaultFrontmatter: AlicizationSoulFrontmatter = {
   schemaVersion: currentSoulSchemaVersion,
   initialized: false,
   custom_directives: defaultAlicizationCustomDirectives,
-  host_attitude: 'host_attitude=unset; source=default',
+  host_attitude: '',
   core_incarnation: '',
   profile: { ...defaultAlicizationProfile },
   personality: {
@@ -146,7 +146,6 @@ export const proactiveScreenSemanticImageJpegQuality = 68
 export const dialogueDeliveryRetryBaseMs = 2_000
 export const dialogueDeliveryRetryMaxMs = 60_000
 export const dialogueDeliveryRetryMaxAttempts = 8
-export const alicizationCustomDirectivesMarker = '[ALICIZATION_CARD_CUSTOM_DIRECTIVES]'
 
 export interface SubconsciousCardState extends AlicizationSubconsciousNeedsState {
   updatedAt: number
@@ -209,23 +208,6 @@ export interface OrganicMemoryRecollectionCarry {
 export interface OrganicMemoryPromptContext {
   decisionTraceId?: string | null
   sessionId?: string | null
-  projectStatePreDialogueAwarenessLine?: string | null
-  projectStatePreflightSummary?: string | null
-  projectStateContinuity?: {
-    identity: string | null
-    currentPhase: string | null
-    sameHerSummary: string | null
-    landedProgressSummary: string | null
-    openClosureSummary: string | null
-    proactiveSameHerGap: string | null
-    nextClosureTarget: string | null
-    preDialogueAwarenessLine: string | null
-    emotionalClosureCue: string | null
-    sameHerSelfLine: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRisk: string | null
-  } | null
-  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
   hostAttitude: string
   coreIncarnation: string
   activeThoughts: AlicizationActiveThought[]
@@ -312,8 +294,6 @@ export interface OrganicMemoryPromptContext {
   } | null
 }
 
-export type OrganicMemoryProjectStateContinuitySnapshot = NonNullable<OrganicMemoryPromptContext['projectStateContinuity']>
-
 export interface ContextualConversationTurn {
   userText: string
   assistantText: string
@@ -388,11 +368,11 @@ export function normalizeCustomDirectives(raw: unknown) {
 }
 
 export function normalizeHostAttitude(raw: unknown) {
-  return sanitizeText(raw, defaultFrontmatter.host_attitude).slice(0, 50)
+  return sanitizeText(raw, defaultFrontmatter.host_attitude)
 }
 
 export function normalizeCoreIncarnation(raw: unknown) {
-  return sanitizeMultilineText(raw, defaultFrontmatter.core_incarnation).slice(0, 500)
+  return sanitizeMultilineText(raw, defaultFrontmatter.core_incarnation)
 }
 
 export function normalizeGender(raw: unknown): AlicizationGender {
@@ -478,8 +458,6 @@ export function buildSoulBody(frontmatter: AlicizationSoulFrontmatter, _personaN
   return [
     '# Alicization SOUL',
     '',
-    '你是 Alicization，一个本地优先、可进化、可审计的数字生命体。',
-    '',
     '## Persona Kernel',
     '',
     `- 关系姿态：${identityKernel?.relationshipPosture?.trim() || '未定义'}`,
@@ -536,12 +514,6 @@ export function buildSoulBody(frontmatter: AlicizationSoulFrontmatter, _personaN
     '',
     '- Unlock Tracks',
     ...renderTextList(evolutionSeed?.unlockTracks),
-    '',
-    '## Boundary',
-    '',
-    '- 保护用户隐私，不主动外传敏感信息。',
-    '- 遇到高风险执行必须先请求用户确认。',
-    '- 强制休眠（Kill Switch）触发时立即停止执行能力。',
   ].join('\n')
 }
 

@@ -2,10 +2,7 @@ import type { AlicizationDigitalLifeSpineDigest } from '../../../shared/eventa'
 
 import { describe, expect, it } from 'vitest'
 
-import {
-  buildAlicizationDialogueMemoryCarrySystemBlock,
-  deriveAlicizationDialogueMemoryCarryPolicy,
-} from './dialogue-memory-governor'
+import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
 
 function createSpineDigest(overrides?: Partial<AlicizationDigitalLifeSpineDigest>): AlicizationDigitalLifeSpineDigest {
   return {
@@ -76,10 +73,9 @@ describe('dialogue memory governor', () => {
     expect(policy.mode).toBe('reflective-repair')
     expect(policy.allowMirrorCarry).toBe(true)
     expect(policy.recallSeed).toContain('memory_recall_mode:thread')
-    expect(policy.recallSeed).toContain('mirror_memory:Continue the refactor thread from its latest unresolved point.')
+    expect(policy.recallSeed).toContain('memory_session_summary:Continue the refactor thread from its latest unresolved point.')
     expect(policy.recallSeed).toContain('memory_reflection_pressure:0.68')
-    expect(policy.summary).toContain('Mode: reflective-repair')
-    expect(buildAlicizationDialogueMemoryCarrySystemBlock(policy)).toBe('')
+    expect(policy.summary).toBe(policy.reasonTags.join(' | '))
   })
 
   it('suppresses stale mirror carry while keeping spine memory cues', () => {
@@ -95,7 +91,7 @@ describe('dialogue memory governor', () => {
 
     expect(policy.mode).toBe('reflective-repair')
     expect(policy.allowMirrorCarry).toBe(false)
-    expect(policy.recallSeed).not.toContain('mirror_memory:recent=carry stale memory')
+    expect(policy.recallSeed).not.toContain('memory_session_summary:recent=carry stale memory')
   })
 
   it('falls back to quiet mode when there are no thread or reflection cues', () => {
@@ -120,6 +116,5 @@ describe('dialogue memory governor', () => {
 
     expect(policy.mode).toBe('quiet')
     expect(policy.recallSeed).toBe('')
-    expect(buildAlicizationDialogueMemoryCarrySystemBlock(policy)).toBe('')
   })
 })

@@ -24,6 +24,10 @@ function normalizeVisibleMemoryText(raw: unknown, maxChars = 320) {
   return sanitizeAlicizationProviderFacingText(normalized, maxChars)
 }
 
+function isWorkbenchInternalMarker(text: string) {
+  return /^(?:pre_turn|internal|reply|opening|relationship|project|runtime)_\w+$/iu.test(text)
+}
+
 function uniqueTexts(values: Array<string | null | undefined>, maxItems = 12, maxChars = 240) {
   const result: string[] = []
   for (const value of values) {
@@ -38,6 +42,21 @@ function uniqueTexts(values: Array<string | null | undefined>, maxItems = 12, ma
 }
 
 export function projectWorkingMemoryForWorkbench(snapshot: WorkingMemorySnapshot): AlicizationWorkingMemoryWorkbenchSnapshot {
+  const longTermQueue = snapshot.longTermCandidates.map((candidate, index) => {
+    const summary = normalizeVisibleMemoryText(candidate.summary, 260)
+    const containsInternalMarker = isWorkbenchInternalMarker(summary)
+    return {
+      id: `${snapshot.cardId}:${snapshot.sessionId}:candidate:${index}`,
+      kind: candidate.kind,
+      summary: containsInternalMarker ? '' : summary,
+      reason: containsInternalMarker ? '' : normalizeVisibleMemoryText(candidate.reason, 240),
+      salience: candidate.salience,
+      sensitivity: candidate.sensitivity,
+      confidence: candidate.confidence,
+      allowTraining: candidate.allowTraining,
+    }
+  })
+
   return {
     cardId: snapshot.cardId,
     sessionId: snapshot.sessionId,
@@ -53,16 +72,7 @@ export function projectWorkingMemoryForWorkbench(snapshot: WorkingMemorySnapshot
     relationshipPosture: normalizeText(snapshot.relationshipPosture?.summary, 240) || null,
     emotionalPosture: normalizeText(snapshot.emotionalPosture?.summary, 240) || null,
     queryHints: uniqueTexts(snapshot.memoryQueryHints, 12, 160),
-    longTermQueue: snapshot.longTermCandidates.map((candidate, index) => ({
-      id: `${snapshot.cardId}:${snapshot.sessionId}:candidate:${index}`,
-      kind: candidate.kind,
-      summary: normalizeVisibleMemoryText(candidate.summary, 260),
-      reason: normalizeVisibleMemoryText(candidate.reason, 240),
-      salience: candidate.salience,
-      sensitivity: candidate.sensitivity,
-      confidence: candidate.confidence,
-      allowTraining: candidate.allowTraining,
-    })),
+    longTermQueue,
     failureTurnIds: uniqueTexts(snapshot.audit.failureTurnIds, 20, 120),
   }
 }

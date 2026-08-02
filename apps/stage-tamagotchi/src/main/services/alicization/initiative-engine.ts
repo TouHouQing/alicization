@@ -29,7 +29,6 @@ import type {
   AlicizationProactiveStyle,
   AlicizationReflectionLedgerSnapshot,
   AlicizationRelationshipModelSnapshot,
-  AlicizationSameHerCausalityRepairPressureSnapshot,
   AlicizationSelfContinuitySnapshot,
   AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfGovernorSnapshot,
@@ -44,8 +43,6 @@ import type {
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
-
-import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
 
 import { pickDominantAutobiographicalGoal } from './autobiographical-self'
 import { buildInitiativeArbitration } from './initiative-arbiter'
@@ -62,66 +59,11 @@ function sanitizeText(raw: unknown, maxChars = 180) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-const initiativeWhyStructuredCuePattern = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)*\s*=/iu
-
-const transparentInitiativeFailureActorPattern = /\b(?:provider|embedding|tool|execution|request|api|model|runtime)\b/iu
-const transparentInitiativeFailureStatePattern = /\b(?:failed|failure|error|timed out|timeout|unavailable)\b|\bHTTP\s+\d{3}\b/iu
-
-function isTransparentInitiativeFailure(text: string) {
-  return transparentInitiativeFailureStatePattern.test(text)
-    && (
-      transparentInitiativeFailureActorPattern.test(text)
-      || /\bHTTP\s+\d{3}\b/iu.test(text)
-    )
-}
-
-function trimInitiativeWhySegment(raw: string) {
-  return raw
-    .trim()
-    .replace(/^[|;,\s]+/u, '')
-    .replace(/[|;,\s]+$/u, '')
-}
-
-function sanitizeInitiativeWhySegment(raw: string) {
-  let segment = trimInitiativeWhySegment(sanitizeText(raw, 640))
-  if (!segment)
-    return ''
-
-  const structuredCueIndex = segment.search(initiativeWhyStructuredCuePattern)
-  if (structuredCueIndex === 0)
-    return ''
-  if (structuredCueIndex > 0)
-    segment = trimInitiativeWhySegment(segment.slice(0, structuredCueIndex))
-
-  if (!segment)
-    return ''
-
-  if (isTransparentInitiativeFailure(segment))
-    return sanitizeText(segment, 320)
-
-  return sanitizeAlicizationProviderFacingText(segment, 320, '')
-}
-
-function sanitizeInitiativeWhyCandidate(raw: unknown) {
-  const normalized = sanitizeText(raw, 1600)
-  if (!normalized)
-    return ''
-
-  return sanitizeText(
-    normalized
-      .split(/(?<=[!?。！？])\s*|(?<=\.)\s+|[|;\n]+/u)
-      .map(sanitizeInitiativeWhySegment)
-      .filter(Boolean)
-      .join(' '),
-    320,
-  )
-}
-
 function resolveInitiativeWhy(candidates: unknown[]) {
   for (const candidate of candidates) {
-    const sanitized = sanitizeInitiativeWhyCandidate(candidate)
-    if (sanitized)
-      return sanitized
+    const normalized = sanitizeText(candidate, 320)
+    if (normalized)
+      return normalized
   }
   return ''
 }
@@ -150,7 +92,6 @@ function deriveAutobiographicalSelfInitiativeBias(_autobiographicalSelf?: Aliciz
   gentleContinue: boolean
   correctedSamePersonSettling: boolean
   quieterEmbodimentSettling: boolean
-  continuityRestraint: AlicizationInitiativeSnapshot['continuityRestraint']
 } {
   return {
     preferLowerPressure: false,
@@ -160,7 +101,6 @@ function deriveAutobiographicalSelfInitiativeBias(_autobiographicalSelf?: Aliciz
     gentleContinue: false,
     correctedSamePersonSettling: false,
     quieterEmbodimentSettling: false,
-    continuityRestraint: null,
   }
 }
 
@@ -194,7 +134,6 @@ function deriveAffectiveResidueInitiativeBias(affectiveResidue?: AlicizationAffe
 function deriveEmotionalTensionInitiativeBias(privateThought?: AlicizationPrivateThoughtSnapshot | null): {
   preferLowerPressure: boolean
   forceSilentObserve: boolean
-  continuityRestraint: AlicizationInitiativeSnapshot['continuityRestraint']
   preferredStyle: AlicizationProactiveStyle | null
   preferredPresence: AlicizationEmbodiedPresenceState | null
 } {
@@ -202,7 +141,6 @@ function deriveEmotionalTensionInitiativeBias(privateThought?: AlicizationPrivat
     return {
       preferLowerPressure: true,
       forceSilentObserve: true,
-      continuityRestraint: 'rest-protective' as const,
       preferredStyle: 'silent-observe' as const,
       preferredPresence: 'concerned' as const,
     }
@@ -211,7 +149,6 @@ function deriveEmotionalTensionInitiativeBias(privateThought?: AlicizationPrivat
     return {
       preferLowerPressure: true,
       forceSilentObserve: false,
-      continuityRestraint: 'single-thread' as const,
       preferredStyle: 'silent-observe' as const,
       preferredPresence: 'hesitant' as const,
     }
@@ -220,7 +157,6 @@ function deriveEmotionalTensionInitiativeBias(privateThought?: AlicizationPrivat
   return {
     preferLowerPressure: false,
     forceSilentObserve: false,
-    continuityRestraint: null,
     preferredStyle: null,
     preferredPresence: null,
   }
@@ -231,7 +167,7 @@ function deriveEmotionalKernelInitiativeBias(emotionalKernel?: AlicizationEmotio
   forceSilentObserve: boolean
   preferMeasuredReturn: boolean
   repairFirst: boolean
-  continuityRestraint: AlicizationInitiativeSnapshot['continuityRestraint']
+  protectRest: boolean
   preferredStyle: AlicizationProactiveStyle | null
   preferredPresence: AlicizationEmbodiedPresenceState | null
   explanation: string
@@ -242,7 +178,7 @@ function deriveEmotionalKernelInitiativeBias(emotionalKernel?: AlicizationEmotio
       forceSilentObserve: false,
       preferMeasuredReturn: false,
       repairFirst: false,
-      continuityRestraint: null as AlicizationInitiativeSnapshot['continuityRestraint'],
+      protectRest: false,
       preferredStyle: null as AlicizationProactiveStyle | null,
       preferredPresence: null as AlicizationEmbodiedPresenceState | null,
       explanation: '',
@@ -278,15 +214,7 @@ function deriveEmotionalKernelInitiativeBias(emotionalKernel?: AlicizationEmotio
     forceSilentObserve: measuredReturn || restProtective || guardedBoundaryHold || inwardContinuityHold,
     preferMeasuredReturn: (measuredReturn || restProtective || inwardContinuityHold) && !repairFirst,
     repairFirst,
-    continuityRestraint: repairFirst
-      ? 'repair-before-closeness'
-      : restProtective
-        ? 'rest-protective'
-        : guardedBoundaryHold
-          ? 'single-thread'
-          : measuredReturn || inwardContinuityHold
-            ? 'measured-return'
-            : null,
+    protectRest: restProtective,
     preferredStyle: measuredReturn || restProtective || guardedBoundaryHold || inwardContinuityHold ? 'silent-observe' : null,
     preferredPresence: restProtective ? 'concerned' : guardedBoundaryHold ? 'hesitant' : null,
     explanation: '',
@@ -302,7 +230,6 @@ function deriveRecollectionIntentInitiativeBias(recollectionIntent?: Alicization
   anthropomorphicRepairHold: boolean
   metabolizedSameThreadForeground: boolean
   residentQuietHold: boolean
-  continuityRestraint: AlicizationInitiativeSnapshot['continuityRestraint']
   explanation: string
 } {
   const agenda = recollectionIntent?.recollectionAgenda ?? null
@@ -322,7 +249,6 @@ function deriveRecollectionIntentInitiativeBias(recollectionIntent?: Alicization
     anthropomorphicRepairHold: false,
     metabolizedSameThreadForeground: false,
     residentQuietHold: false,
-    continuityRestraint: preferLowerPressure ? 'lower-pressure' : null,
     explanation: '',
   }
 }
@@ -334,8 +260,6 @@ function deriveLongHorizonInitiativeBias(longHorizonMemory?: AlicizationLongHori
   repairFirst: boolean
   gentleContinue: boolean
   anthropomorphicRepairHold: boolean
-  sameHerClosureDirection: boolean
-  continuityRestraint: AlicizationInitiativeSnapshot['continuityRestraint']
   explanation: string
 } {
   const autonomyRespect = longHorizonMemory?.preferenceBias.autonomyRespect ?? 0
@@ -349,21 +273,7 @@ function deriveLongHorizonInitiativeBias(longHorizonMemory?: AlicizationLongHori
     repairFirst: false,
     gentleContinue: false,
     anthropomorphicRepairHold: false,
-    sameHerClosureDirection: false,
-    continuityRestraint: preferLowerPressure ? 'lower-pressure' : null,
     explanation: '',
-  }
-}
-
-function deriveProjectStateInitiativeBias(_input?: unknown) {
-  return {
-    requiresLifeLoopClosure: false,
-    preferLowerPressure: false,
-    forceSilentObserve: false,
-    sameHerClosureDirection: false,
-    preferMeasuredReturn: false,
-    repairBeforeCloseness: false,
-    initiativeExplanation: '',
   }
 }
 
@@ -374,85 +284,12 @@ function derivePersonStateInitiativeBias(projection?: AlicizationPersonStateProj
 
   return {
     preferLowerPressure,
-    preferMeasuredReturn: false,
-    repairBeforeCloseness: false,
-    sameHerClosureDirection: false,
   }
 }
 
-function deriveActiveContinuityGovernanceInitiativeBias(_input?: {
-  mode?: string | null
-  summary?: string | null
-  lanes?: string[] | null
-  reasonCodes?: string[] | null
-} | null) {
-  return {
-    preferLowerPressure: false,
-    preferMeasuredReturn: false,
-    repairBeforeCloseness: false,
-    sameHerClosureDirection: false,
-  }
-}
-
-function resolveContinuityRestraint(input: {
-  affectiveResidueBias: ReturnType<typeof deriveAffectiveResidueInitiativeBias>
-  autobiographicalSelfBias: ReturnType<typeof deriveAutobiographicalSelfInitiativeBias>
-  emotionalTensionBias: ReturnType<typeof deriveEmotionalTensionInitiativeBias>
-  emotionalKernelBias: ReturnType<typeof deriveEmotionalKernelInitiativeBias>
-  recollectionIntentBias: ReturnType<typeof deriveRecollectionIntentInitiativeBias>
-  longHorizonBias: ReturnType<typeof deriveLongHorizonInitiativeBias>
-  selfEvolutionBias: ReturnType<typeof deriveSelfEvolutionInitiativeBias>
-  activeContinuityGovernanceBias: ReturnType<typeof deriveActiveContinuityGovernanceInitiativeBias>
-  projectStateBias: ReturnType<typeof deriveProjectStateInitiativeBias>
-  personStateBias: ReturnType<typeof derivePersonStateInitiativeBias>
-}): AlicizationInitiativeSnapshot['continuityRestraint'] {
-  if (input.emotionalTensionBias.continuityRestraint)
-    return input.emotionalTensionBias.continuityRestraint
-
-  if (input.emotionalKernelBias.continuityRestraint)
-    return input.emotionalKernelBias.continuityRestraint
-
-  if (input.recollectionIntentBias.continuityRestraint)
-    return input.recollectionIntentBias.continuityRestraint
-
-  if (input.longHorizonBias.continuityRestraint)
-    return input.longHorizonBias.continuityRestraint
-
-  if (input.autobiographicalSelfBias.continuityRestraint)
-    return input.autobiographicalSelfBias.continuityRestraint
-
-  if (
-    input.affectiveResidueBias.repairFirst
-    || input.emotionalKernelBias.repairFirst
-  ) {
-    return 'repair-before-closeness'
-  }
-
-  if (
-    input.affectiveResidueBias.forceSilentObserve
-    || input.emotionalKernelBias.preferMeasuredReturn
-  ) {
-    return 'measured-return'
-  }
-
-  if (
-    input.affectiveResidueBias.preferLowerPressure
-    || input.recollectionIntentBias.preferLowerPressure
-    || input.longHorizonBias.preferLowerPressure
-    || input.personStateBias.preferLowerPressure
-  ) {
-    return 'lower-pressure'
-  }
-
-  return null
-}
-
-function continuityRichRepairCanStayVisibleHover(input: {
+function groundedRepairCanStayVisibleHover(input: {
   selectedAction: AlicizationInitiativeSnapshot['selectedAction']
-  continuityRestraint: AlicizationInitiativeSnapshot['continuityRestraint']
   concern?: AlicizationConcernSnapshot
-  projectStateBias: ReturnType<typeof deriveProjectStateInitiativeBias>
-  longHorizonBias: ReturnType<typeof deriveLongHorizonInitiativeBias>
   selfEvolutionBias: ReturnType<typeof deriveSelfEvolutionInitiativeBias>
   affectiveResidueBias: ReturnType<typeof deriveAffectiveResidueInitiativeBias>
   emotionalTensionBias: ReturnType<typeof deriveEmotionalTensionInitiativeBias>
@@ -467,26 +304,14 @@ function continuityRichRepairCanStayVisibleHover(input: {
     return false
   if (input.context.system.inputActivity !== 'active')
     return false
-  if (
-    input.continuityRestraint !== 'measured-return'
-    && input.continuityRestraint !== 'repair-before-closeness'
-  ) {
-    return false
-  }
-
-  return input.projectStateBias.sameHerClosureDirection
-    || input.longHorizonBias.sameHerClosureDirection
-    || input.selfEvolutionBias.preferLowerPressure
+  return input.selfEvolutionBias.preferLowerPressure
     || input.affectiveResidueBias.preferLowerPressure
     || input.emotionalTensionBias.preferLowerPressure
 }
 
-function continuityRichUnfinishedThreadCanStayVisibleHover(input: {
+function groundedUnfinishedThreadCanStayVisibleHover(input: {
   selectedAction: AlicizationInitiativeSnapshot['selectedAction']
-  continuityRestraint: AlicizationInitiativeSnapshot['continuityRestraint']
   concern?: AlicizationConcernSnapshot
-  projectStateBias: ReturnType<typeof deriveProjectStateInitiativeBias>
-  longHorizonBias: ReturnType<typeof deriveLongHorizonInitiativeBias>
   selfEvolutionBias: ReturnType<typeof deriveSelfEvolutionInitiativeBias>
   affectiveResidueBias: ReturnType<typeof deriveAffectiveResidueInitiativeBias>
   emotionalTensionBias: ReturnType<typeof deriveEmotionalTensionInitiativeBias>
@@ -501,14 +326,7 @@ function continuityRichUnfinishedThreadCanStayVisibleHover(input: {
     return false
   if (input.context.system.inputActivity !== 'active')
     return false
-  if (input.continuityRestraint !== 'measured-return')
-    return false
-
-  return input.projectStateBias.sameHerClosureDirection
-    || input.projectStateBias.preferMeasuredReturn
-    || input.longHorizonBias.sameHerClosureDirection
-    || input.longHorizonBias.preferMeasuredReturn
-    || input.selfEvolutionBias.preferLowerPressure
+  return input.selfEvolutionBias.preferLowerPressure
     || input.affectiveResidueBias.preferLowerPressure
     || input.emotionalTensionBias.preferLowerPressure
 }
@@ -655,37 +473,7 @@ export function buildInitiativeSnapshot(input: {
   privateThought?: AlicizationPrivateThoughtSnapshot | null
   recollectionIntent?: AlicizationMemoryRecollectionIntentSnapshot | null
   memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
-  sameHerCausalityRepairPressure?: AlicizationSameHerCausalityRepairPressureSnapshot | null
-  activeContinuityGovernance?: {
-    source: 'active-self-evolution-version'
-    mode: string
-    candidateId: string | null
-    patchId: string | null
-    decisionTraceId: string | null
-    summary: string | null
-    lanes: string[]
-    reasonCodes: string[]
-  } | null
   personStateProjection?: AlicizationPersonStateProjection | null
-  projectState?: {
-    preflightSummary?: string | null
-    identity?: string | null
-    currentPhase?: string | null
-    primaryOpenLoop?: string | null
-    openClosureSummary?: string | null
-    nextClosureTarget?: string | null
-    nextClosureTargetSummary?: string | null
-    latestLandedProgress?: string | null
-    landedProgressSummary?: string | null
-    sameHerSelfLine?: string | null
-    sameHerDriftRisk?: string | null
-    emotionalClosureCue?: string | null
-    preDialogueAwarenessLine?: string | null
-    openingGuidance?: string | null
-    relationshipDoctrine?: string | null
-    manifestationCadenceSummary?: string | null
-    selfContinuityAuthorityLine?: string | null
-  } | null
 }): AlicizationInitiativeSnapshot {
   const concern = highestConcern(input.concerns)
   const beliefs = asArray(input.beliefLedger?.beliefs)
@@ -728,23 +516,7 @@ export function buildInitiativeSnapshot(input: {
   const recollectionIntentBias = deriveRecollectionIntentInitiativeBias(input.recollectionIntent ?? null)
   const longHorizonBias = deriveLongHorizonInitiativeBias(input.longHorizonMemory ?? null)
   const selfEvolutionBias = deriveSelfEvolutionInitiativeBias(input.selfEvolution ?? null)
-  const activeContinuityGovernanceBias = deriveActiveContinuityGovernanceInitiativeBias(input.activeContinuityGovernance ?? null)
   const personStateBias = derivePersonStateInitiativeBias(input.personStateProjection ?? null)
-  const projectStateBias = deriveProjectStateInitiativeBias(input.projectState ?? null)
-  const continuityRestraint = resolveContinuityRestraint({
-    affectiveResidueBias,
-    autobiographicalSelfBias,
-    emotionalTensionBias,
-    emotionalKernelBias,
-    recollectionIntentBias,
-    longHorizonBias,
-    selfEvolutionBias,
-    activeContinuityGovernanceBias,
-    personStateBias,
-    projectStateBias,
-  })
-  const projectStateMeasuredReturn = projectStateBias.preferMeasuredReturn
-  const projectStateRepairFirst = projectStateBias.repairBeforeCloseness
   const motives: Partial<Record<AlicizationMindMotive, number>> = {
     ...input.mindDynamics.motives,
   }
@@ -779,15 +551,6 @@ export function buildInitiativeSnapshot(input: {
     motives.clarify = clamp01((motives.clarify ?? 0) + 0.1)
   if (autobiographicalGoal?.kind === 'grow-shared-language')
     motives.accompany = clamp01((motives.accompany ?? 0) + 0.08)
-  if (projectStateMeasuredReturn) {
-    motives['stay-silent'] = clamp01((motives['stay-silent'] ?? 0) + 0.12)
-    motives.clarify = clamp01((motives.clarify ?? 0) + 0.06)
-    motives.accompany = clamp01((motives.accompany ?? 0) - 0.04)
-  }
-  if (projectStateRepairFirst) {
-    motives.protect = clamp01((motives.protect ?? 0) + 0.08)
-    motives.clarify = clamp01((motives.clarify ?? 0) + 0.08)
-  }
   if (emotionalKernelBias.preferMeasuredReturn) {
     motives['stay-silent'] = clamp01((motives['stay-silent'] ?? 0) + 0.12)
     motives.accompany = clamp01((motives.accompany ?? 0) + 0.04)
@@ -1069,7 +832,6 @@ export function buildInitiativeSnapshot(input: {
     recollectionIntentBias.residentQuietHold
     && selectedAction === 'recheck'
     && concern?.kind === 'unfinished-thread'
-    && continuityRestraint === 'measured-return'
   ) {
     selectedAction = 'hover'
   }
@@ -1087,25 +849,15 @@ export function buildInitiativeSnapshot(input: {
     gentleContinueSurfacePromotion = true
   }
   if (
-    projectStateBias.preferLowerPressure
-    && (selectedAction === 'speak' || selectedAction === 'whisper')
-    && concern?.kind !== 'care-body'
-  ) {
-    selectedAction = input.worldModel.epistemicState.certainty === 'grounded' ? 'hover' : 'recheck'
-  }
-  if (
     personStateBias.preferLowerPressure
     && (selectedAction === 'speak' || selectedAction === 'whisper')
     && concern?.kind !== 'care-body'
   ) {
     selectedAction = input.worldModel.epistemicState.certainty === 'grounded' ? 'hover' : 'recheck'
   }
-  if (continuityRichRepairCanStayVisibleHover({
+  if (groundedRepairCanStayVisibleHover({
     selectedAction,
-    continuityRestraint,
     concern,
-    projectStateBias,
-    longHorizonBias,
     selfEvolutionBias,
     affectiveResidueBias,
     emotionalTensionBias,
@@ -1114,12 +866,9 @@ export function buildInitiativeSnapshot(input: {
   })) {
     selectedAction = 'hover'
   }
-  else if (continuityRichUnfinishedThreadCanStayVisibleHover({
+  else if (groundedUnfinishedThreadCanStayVisibleHover({
     selectedAction,
-    continuityRestraint,
     concern,
-    projectStateBias,
-    longHorizonBias,
     selfEvolutionBias,
     affectiveResidueBias,
     emotionalTensionBias,
@@ -1179,7 +928,7 @@ export function buildInitiativeSnapshot(input: {
   const executiveSurfaceBias = input.executiveCycle?.shouldAct ? 0.12 : 0
   const emotionalKernelForcedSilentObserve = emotionalKernelBias.forceSilentObserve
     && (
-      emotionalKernelBias.continuityRestraint === 'rest-protective'
+      emotionalKernelBias.protectRest
       || concern?.kind !== 'care-body'
     )
   const uncertaintyRepairHoldRequiresSilentObserve
@@ -1307,7 +1056,6 @@ export function buildInitiativeSnapshot(input: {
     )),
     preferredStyle: finalPreferredStyle,
     preferredPresence: finalPreferredPresence,
-    continuityRestraint,
     why: factualWhy,
     shouldSurface: selectedProposal?.shouldSurface
       ?? input.actionEcology?.shouldSurface

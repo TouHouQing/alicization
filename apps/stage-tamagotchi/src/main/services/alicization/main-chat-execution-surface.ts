@@ -708,8 +708,6 @@ function toSensoryCaptureStateResult(snapshot: AlicizationSensoryCacheSnapshot, 
 }
 
 function toMainGatewayExecutorToolResult(result: MainGatewayExecutionTaskThreadResult): MainGatewayToolResultObject {
-  const fabricMetadata = asRecord(asRecord(result.thread.metadata)?.fabric)
-  const routeExperience = asRecord(fabricMetadata?.experience)
   return {
     status: result.ok ? 'completed' : result.stage === 'plan' ? 'not-routed' : 'failed',
     stage: result.stage,
@@ -723,10 +721,8 @@ function toMainGatewayExecutorToolResult(result: MainGatewayExecutionTaskThreadR
     planState: result.plan.state,
     proposedChannel: result.plan.proposedChannel ?? null,
     routeReasonTags: asStringArray(result.plan.reasonTags),
-    routeNarrative: asStringArray(result.plan.narrative),
     routeAffirmationReasonCodes: asStringArray(result.plan.affirmationReasonCodes),
     routeBlockedReasonCodes: asStringArray(result.plan.blockedReasonCodes),
-    routeExperience,
     summary: result.summary,
     output: result.output ?? null,
     errorCode: result.errorCode,
@@ -2467,7 +2463,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   const tools: Array<Promise<Tool>> = [
     tool({
       name: 'set_reminder',
-      description: '用于在系统后台设定一个真实的倒计时闹钟。注意：调用此工具后，真实的物理系统会在未来唤醒你。因此，你在本轮的 reply 中，【只允许】回复“已为你定好闹钟”等确认语句。绝对禁止在本轮回复中直接给出提醒内容！',
+      description: '在系统后台创建倒计时提醒。工具成功表示任务已调度；提醒内容尚未触发，实际触发发生在倒计时结束后。',
       parameters: z.object({
         minutes: z.coerce.number(),
         message: z.string(),

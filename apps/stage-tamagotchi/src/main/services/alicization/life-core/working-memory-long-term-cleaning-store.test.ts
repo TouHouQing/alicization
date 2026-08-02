@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
-
 import type { WorkingMemoryLongTermCleaningTransaction } from './working-memory-long-term-cleaning'
+
+import { describe, expect, it } from 'vitest'
 
 import { createWorkingMemoryLongTermCleaningStoreRuntime } from './working-memory-long-term-cleaning-store'
 
@@ -23,7 +23,7 @@ function transaction(overrides: Partial<WorkingMemoryLongTermCleaningTransaction
       source: 'working-memory-owner',
       kind: 'correction',
       summary: '不要固定模板回复，要数字生命自身人格。',
-      reason: 'User corrected Alicization persona expression during the current dialogue.',
+      reason: 'candidate:correction',
       sourceTurnIds: ['turn-1:user'],
       evidenceSnippets: ['不要固定模板回复，要数字生命自身人格。'],
       salience: 0.82,

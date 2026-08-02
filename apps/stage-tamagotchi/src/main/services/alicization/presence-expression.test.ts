@@ -40,22 +40,4 @@ describe('buildAlicizationPresenceExpression', () => {
       },
     })
   })
-
-  it('returns null for the banned presence-only hold text', async () => {
-    const snapshot = await buildAlicizationPresenceExpression({
-      trigger: 'presence-only-hold',
-      previousState: null,
-      state: {
-        privateThought: { thoughtText: 'quiet' },
-        emotionalKernel: { version: 'emotional-kernel-v1' },
-        initiative: { preferredStyle: 'silent-observe' },
-      },
-      now: 123,
-      generate: vi.fn(async () => ({
-        text: '我在旁边，先不打扰你。',
-      })),
-    })
-
-    expect(snapshot).toBeNull()
-  })
 })

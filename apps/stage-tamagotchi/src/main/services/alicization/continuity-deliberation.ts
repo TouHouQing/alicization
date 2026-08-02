@@ -72,18 +72,10 @@ function areCompatibleContinuityThreadKinds(a: unknown, b: unknown) {
   return isProblemThreadLike(left) && isProblemThreadLike(right)
 }
 
-function deriveArcStage(input: {
-  preferredTiming: AlicizationContinuityPreferredTiming
-  sourceTags: string[]
-}) {
-  const explicitArcStage = deriveArcStageFromReasonTags(input.sourceTags)
-  if (explicitArcStage !== 'none')
-    return explicitArcStage
-  if (input.sourceTags.includes('thread:continuation'))
-    return 'same-thread-continuation' as const
-  if (input.preferredTiming === 'next-open-window')
+function deriveArcStage(preferredTiming: AlicizationContinuityPreferredTiming) {
+  if (preferredTiming === 'next-open-window')
     return 'hold-for-opening' as const
-  if (input.preferredTiming === 'same-turn-if-invited')
+  if (preferredTiming === 'same-turn-if-invited')
     return 'gentle-reopen' as const
   return 'none' as const
 }
@@ -104,21 +96,6 @@ function deriveKindFromAffordance(input: {
   return 'dialogue-carry' as const
 }
 
-function deriveArcStageFromReasonTags(reasonTags: readonly string[] | null | undefined) {
-  const tags = Array.isArray(reasonTags)
-    ? reasonTags
-        .map(tag => sanitizeText(tag, 120).toLowerCase())
-        .filter(Boolean)
-    : []
-  if (tags.includes('continuity-arc:hold-for-opening'))
-    return 'hold-for-opening' as const
-  if (tags.includes('continuity-arc:gentle-reopen'))
-    return 'gentle-reopen' as const
-  if (tags.includes('continuity-arc:same-thread-continuation'))
-    return 'same-thread-continuation' as const
-  return 'none' as const
-}
-
 function deriveDialogueContinuityArcEvidence(input: {
   currentConsciousFrame: AlicizationDigitalLifeRuntimeSurface['dialogue']['currentConsciousFrame']
   conversationState: AlicizationDigitalLifeRuntimeSurface['dialogue']['conversationState']
@@ -133,7 +110,6 @@ function deriveDialogueContinuityArcEvidence(input: {
   const conversationState = input.conversationState ?? null
   const dialogueWorldThread = input.dialogueWorldThread ?? null
 
-  const explicitArcStage = deriveArcStageFromReasonTags(consciousFrame?.reasonTags ?? null)
   const continuityPolicy = sanitizeText(conversationState?.continuityPolicy, 96).toLowerCase()
   const carryEligible = conversationState?.carryEligible === true
     || dialogueWorldThread?.carryEligible === true
@@ -142,23 +118,16 @@ function deriveDialogueContinuityArcEvidence(input: {
     || carryEligible
   const hasPendingOutcome = dialogueWorldThread?.lastOutcome === 'pending'
   const hasActiveThread = Boolean(dialogueWorldThread?.activeThread || conversationState?.jointThread)
-  const projectStateTiming = sanitizeText(consciousFrame?.projectState?.continuityPreferredTiming, 64).toLowerCase()
-  const preferNextOpenWindow = projectStateTiming === 'next-open-window'
-    || continuityPolicy === 'next-open-window'
+  const preferNextOpenWindow = continuityPolicy === 'next-open-window'
   const alreadyContinuing = carryEligible && stayOnThread && (hasPendingOutcome || conversationState?.shouldHoldThread === true)
-  const residentOverrideSameThread = explicitArcStage === 'hold-for-opening'
-    && stayOnThread
-    && alreadyContinuing
 
-  const inferredArcStage: AlicizationContinuityArcStage = residentOverrideSameThread
+  const inferredArcStage: AlicizationContinuityArcStage = alreadyContinuing
     ? 'same-thread-continuation'
-    : explicitArcStage !== 'none'
-      ? explicitArcStage
-      : preferNextOpenWindow
-        ? 'hold-for-opening'
-        : stayOnThread && hasActiveThread
-          ? 'same-thread-continuation'
-          : 'none'
+    : preferNextOpenWindow
+      ? 'hold-for-opening'
+      : stayOnThread && hasActiveThread
+        ? 'same-thread-continuation'
+        : 'none'
 
   return {
     arcStage: inferredArcStage,
@@ -171,7 +140,6 @@ function deriveDialogueContinuityArcEvidence(input: {
       180,
     ) || null,
     sourceTags: uniqueTextList([
-      explicitArcStage !== 'none' ? `frame:${explicitArcStage}` : null,
       continuityPolicy ? `policy:${continuityPolicy}` : null,
       carryEligible ? 'carry:eligible' : null,
       hasPendingOutcome ? 'thread:pending' : null,
@@ -333,11 +301,8 @@ function deriveThinResidentContinuityEvidence(input: {
   const initiative = input.initiative ?? null
   const cadence = input.affectiveResidue?.relationshipCadence ?? null
   const cadenceMode = sanitizeText(cadence?.cadenceMode, 64).toLowerCase()
-  const continuityRestraint = sanitizeText(initiative?.continuityRestraint, 64).toLowerCase()
-  const hasRepairState = continuityRestraint === 'repair-before-closeness'
-    || cadenceMode === 'repair'
-  const hasMeasuredReturn = continuityRestraint === 'measured-return'
-    || cadenceMode === 'measured-return'
+  const hasRepairState = cadenceMode === 'repair'
+  const hasMeasuredReturn = cadenceMode === 'measured-return'
     || cadenceMode === 'cooldown'
     || cadence?.shouldDelayWarmth === true
   const hasThreadCarry = Boolean(
@@ -367,7 +332,7 @@ function deriveThinResidentContinuityEvidence(input: {
       'thread:continuation',
       initiative?.selectedThreadId ? 'thread:selected' : null,
       hasRepairState ? 'cadence:repair' : null,
-      hasMeasuredReturn ? `cadence:${cadenceMode || continuityRestraint}` : null,
+      hasMeasuredReturn ? `cadence:${cadenceMode}` : null,
       silentObserveCarry ? 'initiative:silent-observe-recheck' : null,
     ], 8),
     preferNextOpenWindow: hasRepairState
@@ -394,16 +359,6 @@ function deriveAlicizationContinuityDeliberationCore(input: {
   const speechPlan = input.recollectionSpeechPlan ?? null
   const autonomy = input.autonomy ?? null
   const replyDeliberation = input.replyDeliberation ?? null
-  const projectStateExplicitPreferredTiming
-    = sanitizeText(input.currentConsciousFrame?.projectState?.continuityPreferredTiming, 64).toLowerCase()
-  const callbackFollowUpPreferredTiming
-    = sanitizeText(deliberation?.followUpAffordance?.preferredTiming, 64).toLowerCase()
-  const projectStateExplicitNextOpenWindow
-    = projectStateExplicitPreferredTiming === 'next-open-window'
-      || (
-        !projectStateExplicitPreferredTiming
-        && callbackFollowUpPreferredTiming === 'next-open-window'
-      )
   const dialogueContinuityEvidence = deriveDialogueContinuityArcEvidence({
     currentConsciousFrame: input.currentConsciousFrame ?? null,
     conversationState: input.conversationState ?? null,
@@ -454,7 +409,6 @@ function deriveAlicizationContinuityDeliberationCore(input: {
         intrusionRisk: 'medium',
         payoffDependency: 'can-surface-softly',
         preferredTiming: thinResidentContinuityEvidence.preferNextOpenWindow
-          || projectStateExplicitNextOpenWindow
           ? 'next-open-window'
           : 'same-turn-if-invited',
         shouldStayOnThread: true,
@@ -476,15 +430,7 @@ function deriveAlicizationContinuityDeliberationCore(input: {
       )
       return {
         kind,
-        arcStage: deriveArcStage({
-          preferredTiming: affordance.preferredTiming,
-          sourceTags: [
-            'memory-deliberation',
-            `kind:${kind}`,
-            `timing:${affordance.preferredTiming}`,
-            `intrusion:${affordance.intrusionRisk}`,
-          ],
-        }),
+        arcStage: deriveArcStage(affordance.preferredTiming),
         summary: affordance.summary,
         whyNow: affordance.whyNow,
         pressure,
@@ -512,10 +458,7 @@ function deriveAlicizationContinuityDeliberationCore(input: {
   ) {
     return {
       kind: 'execution-callback',
-      arcStage: deriveArcStage({
-        preferredTiming: autonomy.shouldSpeak === false ? 'after-payoff' : 'same-turn-if-invited',
-        sourceTags: ['autonomy-follow-through', 'kind:execution-callback'],
-      }),
+      arcStage: deriveArcStage(autonomy.shouldSpeak === false ? 'after-payoff' : 'same-turn-if-invited'),
       summary: sanitizeText(autonomy.executionIntent?.summary, 180) || sanitizeText(autonomy.whyNow, 180) || null,
       whyNow: sanitizeText(autonomy.whyNow, 220) || null,
       pressure: clamp01((autonomy.actReadiness ?? 0) * 0.46 + (autonomy.confidence ?? 0) * 0.34 + 0.1),
@@ -555,10 +498,7 @@ function deriveAlicizationContinuityDeliberationCore(input: {
       kind: 'dialogue-carry',
       arcStage: dialogueContinuityEvidence.arcStage !== 'none'
         ? dialogueContinuityEvidence.arcStage
-        : deriveArcStage({
-            preferredTiming,
-            sourceTags,
-          }),
+        : deriveArcStage(preferredTiming),
       summary,
       whyNow,
       pressure: clamp01((replyDeliberation.confidence ?? 0.5) * 0.58 + 0.12),
@@ -603,7 +543,6 @@ function deriveAlicizationContinuityDeliberationCore(input: {
 
   if (dialogueContinuityEvidence.arcStage !== 'none' && dialogueContinuityEvidence.summary) {
     const preferredTiming = dialogueContinuityEvidence.preferNextOpenWindow
-      || projectStateExplicitNextOpenWindow
       ? 'next-open-window'
       : 'same-turn-if-invited'
     const summary = dialogueContinuityEvidence.summary
@@ -655,7 +594,7 @@ function deriveAlicizationContinuityDeliberationCore(input: {
       pressure: clamp01(0.4 + (stayingWithThreadContinuityEvidence.arcStage === 'same-thread-continuation' ? 0.12 : 0.08)),
       intrusionRisk: 'medium',
       payoffDependency: 'can-surface-softly',
-      preferredTiming: projectStateExplicitNextOpenWindow ? 'next-open-window' : 'same-turn-if-invited',
+      preferredTiming: 'same-turn-if-invited',
       shouldStayOnThread: true,
       shouldSpeakNow: false,
       sourceTags: uniqueTextList([
@@ -667,7 +606,7 @@ function deriveAlicizationContinuityDeliberationCore(input: {
   }
 
   if (thinResidentContinuityEvidence.arcStage !== 'none' && thinResidentContinuityEvidence.summary) {
-    const preferredTiming = thinResidentContinuityEvidence.preferNextOpenWindow || projectStateExplicitNextOpenWindow
+    const preferredTiming = thinResidentContinuityEvidence.preferNextOpenWindow
       ? 'next-open-window'
       : 'same-turn-if-invited'
     return {

@@ -55,6 +55,36 @@ function sanitizeTokenText(raw: unknown, maxChars = 96) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+function stripLegacyResidentModes(
+  performance: AlicizationDialoguePerformancePayload,
+): AlicizationDialoguePerformancePayload {
+  const strip = (residentMode: AlicizationDialoguePerformancePayload['residentMode']) =>
+    residentMode === 'measured-return'
+    || residentMode === 'repair-before-closeness'
+    || residentMode === 'same-thread-continuation'
+      ? null
+      : residentMode
+  const faceResidentMode = strip(performance.face?.residentMode)
+  const actionResidentMode = strip(performance.action?.residentMode)
+
+  return {
+    ...performance,
+    residentMode: strip(performance.residentMode),
+    face: faceResidentMode
+      ? {
+          ...performance.face,
+          residentMode: faceResidentMode,
+        }
+      : null,
+    action: actionResidentMode
+      ? {
+          ...performance.action,
+          residentMode: actionResidentMode,
+        }
+      : null,
+  }
+}
+
 function resolveSilentPresenceAuthority(
   visualPresenceState: ResidentVisualPresenceStateSnapshot | null | undefined,
 ): SilentPresenceAuthorityFields {
@@ -267,12 +297,7 @@ function resolveFallbackResidentSnapshot(
   const updatedAt = Number.isFinite(visualPresenceState?.updatedAt)
     ? Number(visualPresenceState?.updatedAt)
     : Date.now()
-  const auditReasonTags = Array.from(new Set([
-    ...(visualPresenceState?.privateThought?.rationaleTags ?? []),
-    ...(pulsePresence?.reasonTags ?? []),
-  ]))
-
-  const derived = deriveAlicizationResidentPerformanceSnapshot({
+  return deriveAlicizationResidentPerformanceSnapshot({
     watchMode: resolveDerivationWatchMode(input) ?? pulsePresence?.watchMode ?? null,
     currentBodyState: pulsePresence?.currentBodyState ?? silentAuthority.currentBodyState,
     continuityMode: pulsePresence?.continuityMode ?? silentAuthority.continuityMode,
@@ -301,11 +326,6 @@ function resolveFallbackResidentSnapshot(
     fallbackUpdatedAt: updatedAt,
     source: 'browser-fallback',
   })
-
-  return {
-    ...derived,
-    reasonTags: auditReasonTags,
-  }
 }
 
 export function resolveResidentSnapshot(
@@ -362,7 +382,9 @@ export function resolveStageEmbodimentResidentPerformance(
 ): StageEmbodimentResidentPerformanceResolution {
   const residentSnapshot = resolveResidentSnapshot(input)
   if (input.visualPresenceState?.residentPerformance) {
-    const publishedPerformance = normalizeAlicizationPerformancePayload(residentSnapshot.performance)
+    const publishedPerformance = stripLegacyResidentModes(
+      normalizeAlicizationPerformancePayload(residentSnapshot.performance),
+    )
     const planned = buildStageEmbodimentPerformancePlan({
       continuity: input.continuity,
       manifest: input.performanceManifest,

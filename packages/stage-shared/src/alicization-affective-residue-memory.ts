@@ -47,16 +47,6 @@ interface AlicizationAffectivePressureVector {
   restProtective: number
 }
 
-interface AlicizationInitiativeStrategyResidueCarry {
-  cadenceMode: AlicizationAffectiveResidueMemorySnapshot['relationshipCadence']['cadenceMode']
-  shouldDelayWarmth: boolean
-  summary: string
-  reasonTag: string
-  companionshipDensityDelta: number
-  overreachRiskDelta: number
-  afterglowCarryDelta: number
-}
-
 function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
@@ -88,69 +78,6 @@ function compactTextSignals(values: Array<string | null | undefined>) {
   return values.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
 }
 
-function deriveInitiativeStrategyResidueCarry(input: {
-  outcomes: AlicizationRelationshipOutcomeRecord[]
-  reflections: AlicizationMemoryReflectionRecord[]
-  personStateSummary: AlicizationPersonStateEvolutionSummary | null
-}) {
-  const combined = uniqueTexts([
-    ...input.outcomes.flatMap(outcome => [
-      outcome.summary,
-      ...(((outcome as unknown as { sourceSignals?: string[] | null }).sourceSignals) ?? []),
-    ]),
-    ...input.reflections.flatMap(reflection => [
-      reflection.summary,
-      reflection.lesson,
-      ...(((reflection as unknown as { sourceSignals?: string[] | null }).sourceSignals) ?? []),
-    ]),
-    input.personStateSummary?.latestDoctrine ?? null,
-    input.personStateSummary?.latestTrustMeaning ?? null,
-    input.personStateSummary?.latestBurdenLine ?? null,
-    ...(input.personStateSummary?.recentSummaries ?? []),
-  ], 24).join(' ').toLowerCase()
-
-  if (!combined)
-    return null
-
-  const carryEvidenceSummary = uniqueTexts([
-    input.personStateSummary?.recentSummaries?.[0] ?? null,
-    input.personStateSummary?.latestDoctrine ?? null,
-    input.personStateSummary?.latestTrustMeaning ?? null,
-    input.personStateSummary?.latestBurdenLine ?? null,
-    input.outcomes[0]?.summary ?? null,
-    input.reflections[0]?.summary ?? null,
-    input.reflections[0]?.lesson ?? null,
-  ], 1)[0] ?? ''
-
-  const memoryLedCarry = /memory-led|still receiving them|received without obvious resistance|continue gently|gentle.*lower-pressure/u.test(combined)
-  if (memoryLedCarry) {
-    return {
-      cadenceMode: 'warm-hold',
-      shouldDelayWarmth: false,
-      summary: carryEvidenceSummary,
-      reasonTag: 'initiative-memory-led-carry',
-      companionshipDensityDelta: 0.08,
-      overreachRiskDelta: -0.08,
-      afterglowCarryDelta: 0.12,
-    } satisfies AlicizationInitiativeStrategyResidueCarry
-  }
-
-  const cautiousCarry = /clearer opening|fresher opening|leave more room|less eager|lower-pressure|quieter timing/u.test(combined)
-  if (cautiousCarry) {
-    return {
-      cadenceMode: 'measured-return',
-      shouldDelayWarmth: true,
-      summary: carryEvidenceSummary,
-      reasonTag: 'initiative-cautious-carry',
-      companionshipDensityDelta: -0.04,
-      overreachRiskDelta: 0.12,
-      afterglowCarryDelta: 0.08,
-    } satisfies AlicizationInitiativeStrategyResidueCarry
-  }
-
-  return null
-}
-
 function summarizeOutcomePressure(outcomes: AlicizationRelationshipOutcomeRecord[]) {
   return outcomes.reduce<AlicizationAffectivePressureVector>((acc, outcome) => {
     acc.afterglow += Math.max(0, outcome.closenessDelta) * 0.55 + Math.max(0, outcome.openLoopDelta) * 0.35
@@ -170,7 +97,6 @@ function summarizeOutcomePressure(outcomes: AlicizationRelationshipOutcomeRecord
 
 function summarizeReflectionPressure(reflections: AlicizationMemoryReflectionRecord[]) {
   return reflections.reduce<AlicizationAffectivePressureVector>((acc, reflection) => {
-    const text = `${sanitizeText(reflection.summary, 220)} ${sanitizeText(reflection.lesson, 220)}`.toLowerCase()
     const weight = reflection.status === 'confirmed'
       ? 1
       : reflection.status === 'pending'
@@ -178,16 +104,17 @@ function summarizeReflectionPressure(reflections: AlicizationMemoryReflectionRec
         : reflection.status === 'superseded'
           ? 0.32
           : 0.18
-    if (/afterglow|余温|停留|回神|还挂着|open window|lingering/u.test(text))
-      acc.afterglow += 0.22 * weight
-    if (/repair|修复|澄清|recheck|reground|not this|没答到/u.test(text))
-      acc.repair += 0.3 * weight
-    if (/burden|压力|累|疲惫|打扰|crowd|too much/u.test(text))
-      acc.burden += 0.28 * weight
-    if (/trust|信任|接住|更稳|safer|received/u.test(text))
-      acc.trust += 0.24 * weight
-    if (/rest|休息|late-night|深夜|low-pressure|body rhythm/u.test(text))
-      acc.restProtective += 0.34 * weight
+    if (reflection.targetScope === 'relationship') {
+      acc.afterglow += 0.08 * weight
+      acc.trust += 0.18 * weight
+    }
+    if (reflection.targetScope === 'boundary') {
+      acc.repair += 0.12 * weight
+      acc.burden += 0.2 * weight
+      acc.restProtective += 0.14 * weight
+    }
+    if (reflection.targetScope === 'truth')
+      acc.repair += 0.22 * weight
     return acc
   }, {
     afterglow: 0,
@@ -196,6 +123,29 @@ function summarizeReflectionPressure(reflections: AlicizationMemoryReflectionRec
     trust: 0,
     restProtective: 0,
   })
+}
+
+function normalizeTypedSignal(raw: unknown) {
+  return typeof raw === 'string' ? raw.trim().toLowerCase() : ''
+}
+
+function typedEpisodeSignals(event: AlicizationEpisodicEventRecord) {
+  return new Set([
+    ...event.tags,
+    ...event.emotionTags,
+    ...(event.latestReconsolidation?.emotionTags ?? []),
+  ].map(normalizeTypedSignal).filter(Boolean))
+}
+
+function hasTypedEpisodeSignal(
+  event: AlicizationEpisodicEventRecord,
+  accepted: ReadonlySet<string>,
+) {
+  for (const signal of typedEpisodeSignals(event)) {
+    if (accepted.has(signal))
+      return true
+  }
+  return false
 }
 
 function buildResidueEntry(input: {
@@ -246,17 +196,13 @@ function buildRelationshipCadence(input: {
   hostPersonModel: AlicizationHostPersonModelSnapshot | null
   personStateSummary: AlicizationPersonStateEvolutionSummary | null
   pressure: AlicizationAffectivePressureVector
-  initiativeStrategyCarry?: AlicizationInitiativeStrategyResidueCarry | null
 }) {
   const continuity = input.continuity
   const hostPersonModel = input.hostPersonModel
   const personStateSummary = input.personStateSummary
   const { afterglow, burden, repair, restProtective, trust } = input.pressure
-  const initiativeStrategyCarry = input.initiativeStrategyCarry ?? null
-
   return {
     cadenceMode: continuity?.rhythmState?.cadenceMode
-      ?? initiativeStrategyCarry?.cadenceMode
       ?? (repair >= 0.54 || restProtective >= 0.5 || burden >= 0.62 ? 'cooldown' : trust >= 0.56 ? 'warm-hold' : afterglow >= 0.42 ? 'measured-return' : 'ready-return'),
     distancePosture: restProtective >= 0.5 || burden >= 0.56
       ? 'protect-space'
@@ -269,8 +215,7 @@ function buildRelationshipCadence(input: {
       trust * 0.44
       + afterglow * 0.18
       - burden * 0.34
-      - restProtective * 0.28
-      + (initiativeStrategyCarry?.companionshipDensityDelta ?? 0),
+      - restProtective * 0.28,
     ),
     repairRecovery: clamp01(
       repair * 0.62
@@ -281,8 +226,7 @@ function buildRelationshipCadence(input: {
       burden * 0.52
       + repair * 0.24
       + (continuity?.autonomyPosture === 'protect-space' ? 0.14 : 0)
-      - trust * 0.12
-      + (initiativeStrategyCarry?.overreachRiskDelta ?? 0),
+      - trust * 0.12,
     ),
     fatigueGuard: clamp01(
       restProtective * 0.62
@@ -291,10 +235,9 @@ function buildRelationshipCadence(input: {
     ),
     afterglowCarry: clamp01(
       afterglow * 0.68
-      + Math.max(0, continuity?.rhythmState?.memoryResonance ?? 0) * 0.18
-      + (initiativeStrategyCarry?.afterglowCarryDelta ?? 0),
+      + Math.max(0, continuity?.rhythmState?.memoryResonance ?? 0) * 0.18,
     ),
-    shouldDelayWarmth: initiativeStrategyCarry?.shouldDelayWarmth ?? (repair >= 0.54 || burden >= 0.58),
+    shouldDelayWarmth: repair >= 0.54 || burden >= 0.58,
     shouldProtectRest: restProtective >= 0.5,
     reasonTags: uniqueTexts([
       `cadence-mode:${continuity?.rhythmState?.cadenceMode ?? 'derived'}`,
@@ -302,12 +245,9 @@ function buildRelationshipCadence(input: {
       continuity?.rhythmState?.restMode ? `rest:${continuity.rhythmState.restMode}` : null,
       continuity?.currentRegime ? `regime:${continuity.currentRegime}` : null,
       hostPersonModel?.trustLadder.stage ? `trust-stage:${hostPersonModel.trustLadder.stage}` : null,
-      personStateSummary?.latestDoctrine ? `doctrine:${personStateSummary.latestDoctrine}` : null,
-      initiativeStrategyCarry?.reasonTag ?? null,
     ], 10),
     summary: sanitizeText(
-      initiativeStrategyCarry?.summary
-      ?? personStateSummary?.recentSummaries?.[0]
+      personStateSummary?.recentSummaries?.[0]
       ?? personStateSummary?.latestDoctrine
       ?? personStateSummary?.latestTrustMeaning
       ?? personStateSummary?.latestBurdenLine
@@ -336,12 +276,6 @@ export function buildAlicizationAffectiveResidueMemory(input: {
   const personStateSummary = input.personStateEvolutionSummary ?? null
   const hostPersonModel = input.hostPersonModel ?? null
   const relationshipDynamics = input.relationshipDynamics ?? null
-  const initiativeStrategyCarry = deriveInitiativeStrategyResidueCarry({
-    outcomes,
-    reflections,
-    personStateSummary,
-  })
-
   const outcomePressure = summarizeOutcomePressure(outcomes)
   const reflectionPressure = summarizeReflectionPressure(reflections)
   const repairShift = Math.max(0, personStateSummary?.repairShift ?? 0)
@@ -387,8 +321,11 @@ export function buildAlicizationAffectiveResidueMemory(input: {
     hostPersonModel,
     personStateSummary,
     pressure,
-    initiativeStrategyCarry,
   })
+  const repairReflection = reflections.find(item =>
+    item.targetScope === 'truth' || item.targetScope === 'boundary',
+  )
+  const burdenReflection = reflections.find(item => item.targetScope === 'boundary')
 
   const residues = [
     buildResidueEntry({
@@ -413,10 +350,10 @@ export function buildAlicizationAffectiveResidueMemory(input: {
       confidence: clamp01(0.54 + repairShift * 0.24 + outcomes.length * 0.03),
       polarity: 'protective',
       releaseMode: 'mind-only',
-      summary: personStateSummary?.latestDoctrine ?? reflections.find(item => /repair|修复|澄清|not this/iu.test(`${item.summary} ${item.lesson}`))?.lesson ?? outcomes[0]?.summary ?? '',
+      summary: personStateSummary?.latestDoctrine ?? repairReflection?.lesson ?? outcomes[0]?.summary ?? '',
       sourceSignals: compactTextSignals([
         continuity?.repairPosture ? `repair-posture:${continuity.repairPosture}` : null,
-        reflections.find(item => /repair|修复|澄清|not this/iu.test(`${item.summary} ${item.lesson}`))?.lesson ?? null,
+        repairReflection?.lesson ?? null,
         outcomes[0]?.summary ?? null,
       ]),
       lastUpdatedAt: input.now,
@@ -432,7 +369,7 @@ export function buildAlicizationAffectiveResidueMemory(input: {
       sourceSignals: compactTextSignals([
         continuity?.energyProfile ? `energy:${continuity.energyProfile}` : null,
         hostPersonModel?.recurrentBurdens?.[0] ?? null,
-        reflections.find(item => /burden|累|打扰|crowd|pressure/iu.test(`${item.summary} ${item.lesson}`))?.lesson ?? null,
+        burdenReflection?.lesson ?? null,
       ]),
       lastUpdatedAt: input.now,
     }),
@@ -503,14 +440,47 @@ export function buildAlicizationBrowserAffectiveResidueMemory(input: {
   const recollectionForeground = input.recollectionForeground ?? null
   const selfEvolution = input.selfEvolution ?? null
   const recentEpisodicEvents = input.recentEpisodicEvents?.slice(0, 8) ?? []
+  const lateNightSignals = new Set([
+    'deep-night',
+    'fatigue',
+    'late-night',
+    'late night',
+    'rest',
+    'rest-protective',
+    'tired',
+    '休息',
+    '深夜',
+    '疲惫',
+  ])
+  const repairSignals = new Set([
+    'clarification',
+    'reground',
+    'repair',
+    'repair-first',
+    '修复',
+    '澄清',
+  ])
+  const warmSignals = new Set([
+    'afterglow',
+    'care',
+    'cared-for',
+    'trust',
+    'warm',
+    '余温',
+    '温暖',
+  ])
   const lateNightCount = recentEpisodicEvents.filter(event =>
-    /深夜|late night|tired|累|休息|rest/iu.test(`${event.whatHappened} ${event.relationshipMeaning ?? ''} ${event.lesson ?? ''}`),
+    hasTypedEpisodeSignal(event, lateNightSignals),
   ).length
   const repairCount = recentEpisodicEvents.filter(event =>
-    /repair|修复?|澄清|seam|reground/iu.test(`${event.whatHappened} ${event.lesson ?? ''}`),
+    hasTypedEpisodeSignal(event, repairSignals)
+    || (event.relationshipShift?.repairDelta ?? 0) > 0.04
+    || (event.relationshipShift?.misreadDelta ?? 0) < -0.04,
   ).length
   const warmCount = recentEpisodicEvents.filter(event =>
-    /warm|接住|陪|在这|still here|afterglow|余温/iu.test(`${event.whatHappened} ${event.felt} ${event.relationshipMeaning ?? ''}`),
+    hasTypedEpisodeSignal(event, warmSignals)
+    || (event.relationshipShift?.closenessDelta ?? 0) > 0.04
+    || (event.relationshipShift?.trustDelta ?? 0) > 0.04,
   ).length
   const burdenSignals = hostPersonModel?.recurrentBurdens ?? []
   const trustScore = clamp01(hostPersonModel?.trustLadder.score ?? 0)

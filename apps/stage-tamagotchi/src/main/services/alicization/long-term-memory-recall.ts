@@ -64,6 +64,7 @@ export interface LongTermMemoryEvidenceCandidate {
   kind: LongTermMemoryEvidenceKind
   summary: string
   source: string
+  origin?: string | null
   confidence: number
   reviewStatus?: 'confirmed' | 'candidate' | 'review-needed' | 'rejected' | 'pending' | string | null
   salience?: number | null
@@ -151,11 +152,11 @@ export function deriveLongTermMemoryRecallIntent(input: {
   const riskFlags: string[] = []
   let mode: LongTermMemoryRecallMode = 'none'
   let confidence = 0.16
-  let rationale = 'No durable memory signal.'
+  let rationale = 'recall:none'
 
   const recollectionCue = containsAny(normalized, [/记得|记不记得|还记得|想起|回想|上次|之前|以前|那次/u])
   const gameCue = containsAny(normalized, [/游戏|打游戏|开黑|联机|steam|minecraft|mc\b|原神|崩铁|lol|瓦|valorant/iu])
-  const correctionCue = containsAny(normalized, [/固定模板|固定回复|模板化|人格|数字生命|不要固定|不想要|你搞错|不是这个/u])
+  const correctionCue = containsAny(normalized, [/你[搞弄说记]错|不是(?:这个|这样|那样)|我纠正过|别再/u])
   const preferenceCue = containsAny(normalized, [/我喜欢|我不喜欢|偏好|习惯|以后.*(别|不要|要)|记住我/u])
   const procedureCue = containsAny(normalized, [/怎么做|按上次|照之前|流程|步骤|方案|继续.*做|接着.*做/u])
   const taskCue = containsAny(normalized, [/继续|接着|上次.*任务|刚才.*任务|开发|commit|编译|测试|计划|文档/u])
@@ -163,36 +164,44 @@ export function deriveLongTermMemoryRecallIntent(input: {
   if (gameCue || (recollectionCue && /玩|一起/u.test(normalized))) {
     mode = 'episodic'
     confidence = recollectionCue ? 0.82 : 0.68
-    rationale = 'User utterance can benefit from shared episodic memory.'
+    rationale = 'recall:episodic'
     targetKinds.push('episode', 'consolidation', 'fact')
   }
-  else if (correctionCue) {
+  else if (correctionCue && recollectionCue) {
     mode = 'relationship'
     confidence = 0.86
-    rationale = 'User is referring to persona, boundary, or correction memory.'
+    rationale = 'recall:relationship'
     targetKinds.push('reflection', 'fact', 'consolidation')
   }
   else if (preferenceCue) {
     mode = 'preference'
     confidence = 0.76
-    rationale = 'User utterance contains stable preference or habit cues.'
+    rationale = 'recall:preference'
     targetKinds.push('fact', 'reflection')
   }
   else if (procedureCue) {
     mode = 'procedure'
     confidence = 0.72
-    rationale = 'User may expect a previously established procedure.'
+    rationale = 'recall:procedure'
     targetKinds.push('fact', 'consolidation', 'episode')
   }
   else if (taskCue && (recollectionCue || hints.length > 0 || input.activeTask || input.currentThreadTitle)) {
     mode = 'task'
     confidence = recollectionCue ? 0.7 : 0.58
-    rationale = 'User likely wants continuity with an active or previous task.'
+    rationale = 'recall:task'
     targetKinds.push('consolidation', 'episode', 'fact')
   }
-
-  if (mode !== 'none' && targetKinds.length > 1 && correctionCue && (gameCue || taskCue))
+  else if (recollectionCue) {
     mode = 'mixed'
+    confidence = 0.72
+    rationale = 'recall:mixed'
+    targetKinds.push('fact', 'reflection', 'episode', 'consolidation')
+  }
+
+  if (mode !== 'none' && targetKinds.length > 1 && correctionCue && (gameCue || taskCue)) {
+    mode = 'mixed'
+    rationale = 'recall:mixed'
+  }
 
   if (mode !== 'none' && confidence < 0.7)
     riskFlags.push('low-recall-confidence')
@@ -241,7 +250,6 @@ export function buildLongTermMemoryQueryPlan(input: {
   const entityHints = uniqueTexts([
     ...expansion.entityHints,
     /游戏|打游戏|开黑/u.test(normalizedQuery) ? '游戏 共同游玩' : '',
-    /固定模板|固定回复|人格|数字生命/u.test(normalizedQuery) ? 'Alicization 人格 固定模板 用户纠正' : '',
     /commit|编译|测试|开发|文档/u.test(normalizedQuery) ? '开发任务 代码 文档 测试' : '',
   ], 6, 100)
   const procedureHints = uniqueTexts([
@@ -269,10 +277,11 @@ export function buildLongTermMemoryQueryPlan(input: {
     charGramQueries: expansion.charGramQueries,
     semanticQueries: uniqueTexts([
       input.intent.mode === 'episodic' ? `${normalizedQuery} 共同经历 上次发生的事情` : '',
-      input.intent.mode === 'relationship' ? `${normalizedQuery} 用户纠正 人格边界 回复方式` : '',
+      input.intent.mode === 'relationship' ? normalizedQuery : '',
       input.intent.mode === 'preference' ? `${normalizedQuery} 用户稳定偏好` : '',
       input.intent.mode === 'procedure' ? `${normalizedQuery} 可复用流程` : '',
       input.intent.mode === 'task' ? `${normalizedQuery} 未完成任务 连续上下文` : '',
+      input.intent.mode === 'mixed' ? normalizedQuery : '',
     ], 6, 180),
     episodicQueries: uniqueTexts([
       input.intent.targetKinds.includes('episode') ? normalizedQuery : '',
@@ -317,7 +326,10 @@ export function buildLongTermMemoryEvidenceBundle(input: {
   const candidates = input.candidates.filter((candidate) => {
     if (candidate.reviewStatus != null && candidate.reviewStatus !== 'confirmed')
       return false
-    return !containsAlicizationFixedTemplateResidue(candidate.summary)
+    return !containsAlicizationFixedTemplateResidue(candidate.summary, {
+      origin: candidate.origin,
+      source: candidate.source,
+    })
   })
   const ranked = rankLongTermMemoryHybridEvidence({
     intent: input.intent,

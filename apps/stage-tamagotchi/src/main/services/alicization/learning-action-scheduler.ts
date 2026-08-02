@@ -10,11 +10,6 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { AlicizationSelfRevisionEvent } from './self-evolution/self-revision-ledger'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
-function sentence(text: string) {
-  const trimmed = text.trim().replace(/[.。!！?？;；:：]+$/u, '')
-  return trimmed ? `${trimmed}.` : ''
-}
-
 export interface AlicizationLearningScheduledTask {
   cardId: string
   taskId: string
@@ -29,7 +24,6 @@ export interface AlicizationLearningActionAuditPayload {
   taskId: string
   triggerAt: number
   sourceTurnId: string | null
-  projectStateContinuity?: null
   nextLearningAction: AlicizationSelfEvolutionKernelSnapshot['nextLearningAction']
   nextLearningReason: string | null
   activeLearningFocuses: string[]
@@ -217,10 +211,10 @@ function buildTaskMessage(input: {
   activeLearningFocuses: string[]
 }) {
   return [
-    sentence(`Learning action: ${input.nextLearningAction}`),
-    input.nextLearningReason ? sentence(`Reason: ${input.nextLearningReason}`) : '',
-    input.activeLearningFocuses.length > 0 ? sentence(`Focus: ${input.activeLearningFocuses.join(', ')}`) : '',
-  ].filter(Boolean).join(' ')
+    `learning-action:${input.nextLearningAction}`,
+    input.nextLearningReason ? `reason:${input.nextLearningReason}` : '',
+    input.activeLearningFocuses.length > 0 ? `focus:${input.activeLearningFocuses.join(',')}` : '',
+  ].filter(Boolean).join('; ')
 }
 
 function buildAuditPayload(input: {
@@ -232,7 +226,6 @@ function buildAuditPayload(input: {
     taskId: input.task.taskId,
     triggerAt: input.task.triggerAt,
     sourceTurnId: input.task.sourceTurnId ?? null,
-    projectStateContinuity: null,
     nextLearningAction: input.evolution.nextLearningAction,
     nextLearningReason: input.evolution.nextLearningReason,
     activeLearningFocuses: [...input.evolution.activeLearningFocuses],
@@ -264,7 +257,6 @@ function deriveTaskPayload(input: {
     sourceSessionId: input.context.sessionId ?? null,
     action: evolution.nextLearningAction as AlicizationLearningAction,
     reason: evolution.nextLearningReason ?? null,
-    projectStateContinuity: null,
     focuses: [...evolution.activeLearningFocuses].slice(0, 12),
     dominantTrajectory: evolution.dominantTrajectory,
     sourceSignals: [...evolution.sourceSignals].slice(0, 12),

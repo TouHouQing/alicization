@@ -6,8 +6,6 @@ import type { AlicizationPreparedMainChatExecutionResult } from '../main-chat-se
 import type { AlicizationVisibleReplyCriticArtifact } from './critic'
 
 import {
-  alicizationFixedTemplateReplacement,
-  containsAlicizationFixedTemplateResidue,
   isAlicizationInfraVisibleReplyAuthority,
   isAlicizationNormalVisibleReplyAuthority,
   looksLikeAlicizationStructuredPayloadText,
@@ -16,27 +14,6 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import { parseJsonObjectFromText } from '../runtime-transport-content'
-
-function containsVisibleReplyStructuredTemplateResidue(value: string | null | undefined) {
-  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  return Boolean(normalized)
-    && (
-      /\bruntime_personhood\b|phase1_local_digital_life|project_phase=life_core|continuity_identity|continuity_line|content_withheld|visibility=internal[-_]structured/u.test(normalized)
-      || /\b[a-z][\w-]{2,}\s*=/iu.test(normalized)
-      || /\b(?:local_desktop_life_loop|life_core)\b/iu.test(normalized)
-    )
-}
-
-function sanitizeVisibleReplyMetadataText(raw: string | null | undefined, maxChars = 1600) {
-  if (typeof raw !== 'string')
-    return null
-  const sanitized = sanitizeAlicizationStructuredInternalText(raw, maxChars, '')
-  if (!sanitized || sanitized === alicizationFixedTemplateReplacement)
-    return null
-  return containsAlicizationFixedTemplateResidue(sanitized) || containsVisibleReplyStructuredTemplateResidue(sanitized)
-    ? null
-    : sanitized
-}
 
 function sanitizeVisibleReplyReasonCode(raw: unknown) {
   if (typeof raw !== 'string')
@@ -123,15 +100,6 @@ export interface AlicizationVisibleReplyRealizationArtifact {
   visibleReplyValidationStatus?: AlicizationVisibleReplyValidationStatus
   nonHumanAuthoredStatus: string | null
   blockedReasons: string[]
-  emotionalClosureAudit?: {
-    activeCue: string | null
-    lowPressureRequired?: boolean
-    antiRestartRequired?: boolean
-  } | null
-  selfAuthorityAudit?: {
-    authoritySummary: string | null
-    closenessPosture: string | null
-  } | null
   reason: string | null
   critic?: AlicizationVisibleReplyPublicCriticSummary | null
   closure?: AlicizationVisibleReplyPublicClosureSummary | null
@@ -146,6 +114,15 @@ export interface AlicizationResolvedVisibleReply {
 
 function isLocalDeterministicVisibleFallback(execution: AlicizationVisibleReplyExecution) {
   return execution.actualVisibleReplyAuthority === 'local-deterministic-fallback'
+}
+
+function normalizePreparedReplyExecutionPlanMode(
+  raw: unknown,
+  hasVisualGrounding: boolean,
+) {
+  if (raw === 'provider-stream' || raw === 'provider-one-shot')
+    return raw
+  return hasVisualGrounding ? 'provider-one-shot' : 'provider-stream'
 }
 
 function resolvePreparedReplyExecutionPlan(prepared: AlicizationPreparedMainChatExecutionResult) {
@@ -168,9 +145,10 @@ function resolvePreparedReplyExecutionPlan(prepared: AlicizationPreparedMainChat
     return null
   return {
     ...plan,
-    preferredMode: plan.preferredMode === 'local-fallback'
-      ? prepared.hasVisualGrounding ? 'provider-one-shot' : 'provider-stream'
-      : plan.preferredMode,
+    preferredMode: normalizePreparedReplyExecutionPlanMode(
+      (plan as { preferredMode?: unknown }).preferredMode,
+      prepared.hasVisualGrounding,
+    ),
     expectedVisibleReplyAuthority: normalizeAlicizationNormalVisibleReplyAuthority(
       plan.expectedVisibleReplyAuthority as any,
       'llm-mind',
@@ -248,9 +226,6 @@ export function createAlicizationVisibleReplyExecution(input: {
 export function buildAlicizationVisibleReplyRealizationArtifact(input: {
   fullText?: string | null
   visibleReplyExecution: AlicizationVisibleReplyExecution
-  emotionalClosureCue?: string | null
-  selfAuthoritySummary?: string | null
-  selfAuthorityClosenessPosture?: string | null
   critic?: AlicizationVisibleReplyCriticArtifact | null
   closure?: AlicizationVisibleReplyClosureArtifact | null
 }): AlicizationVisibleReplyRealizationArtifact {
@@ -258,15 +233,6 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
   const visibleText = localDeterministicFallback
     ? ''
     : deriveAlicizationVisibleReplyText(input.fullText ?? '')
-  const emotionalClosureCue = typeof input.emotionalClosureCue === 'string'
-    ? input.emotionalClosureCue.trim() || null
-    : null
-  const selfAuthoritySummary = typeof input.selfAuthoritySummary === 'string'
-    ? input.selfAuthoritySummary.trim() || null
-    : null
-  const selfAuthorityClosenessPosture = typeof input.selfAuthorityClosenessPosture === 'string'
-    ? input.selfAuthorityClosenessPosture.trim() || null
-    : null
 
   return {
     version: 'visible-reply-realization-v1',
@@ -282,17 +248,6 @@ export function buildAlicizationVisibleReplyRealizationArtifact(input: {
     blockedReasons: localDeterministicFallback
       ? ['non-human-authored-visible-fallback']
       : [],
-    emotionalClosureAudit: emotionalClosureCue
-      ? {
-          activeCue: emotionalClosureCue,
-        }
-      : null,
-    selfAuthorityAudit: selfAuthoritySummary || selfAuthorityClosenessPosture
-      ? {
-          authoritySummary: sanitizeVisibleReplyMetadataText(selfAuthoritySummary),
-          closenessPosture: sanitizeVisibleReplyMetadataText(selfAuthorityClosenessPosture),
-        }
-      : null,
     reason: input.visibleReplyExecution.reason,
     critic: buildPublicVisibleReplyCriticSummary(input.critic),
     closure: buildPublicVisibleReplyClosureSummary(input.closure),
@@ -355,18 +310,12 @@ export function deriveAlicizationVisibleReplyText(rawText: string) {
 export function buildAlicizationResolvedVisibleReply(input: {
   fullText: string
   visibleReplyExecution: AlicizationVisibleReplyExecution
-  emotionalClosureCue?: string | null
-  selfAuthoritySummary?: string | null
-  selfAuthorityClosenessPosture?: string | null
   critic?: AlicizationVisibleReplyCriticArtifact | null
   closure?: AlicizationVisibleReplyClosureArtifact | null
 }): AlicizationResolvedVisibleReply {
   const realization = buildAlicizationVisibleReplyRealizationArtifact({
     fullText: input.fullText,
     visibleReplyExecution: input.visibleReplyExecution,
-    emotionalClosureCue: input.emotionalClosureCue ?? null,
-    selfAuthoritySummary: input.selfAuthoritySummary ?? null,
-    selfAuthorityClosenessPosture: input.selfAuthorityClosenessPosture ?? null,
     critic: input.critic ?? null,
     closure: input.closure ?? null,
   })
@@ -402,8 +351,6 @@ function buildAlicizationTransparentRecoveryVisibleReply(input: {
     blockedReasons: localDeterministicFallback
       ? ['non-human-authored-visible-fallback']
       : [],
-    emotionalClosureAudit: null,
-    selfAuthorityAudit: null,
     reason,
     critic: null,
     closure: null,

@@ -13,7 +13,7 @@ L
 5. 扩 `proactive-feedback`、`proactive-policy`、`runtime-subconscious-tick`，接入持续 cadence state。
 6. 新建 `host-rhythm-model.ts` 并接入 relationship / habit 链。
 7. 扩 `intention-stream`，让 autobiographical goal / motive agenda / desire 形成 simmering inner projects。
-8. 把 identity / present-state fast path 接到新的 continuity cue。
+8. 让统一 Provider 主链路消费自传记忆召回证据。
 9. 跑 targeted tests、typecheck，补 cleanup receipt 与 delivery acceptance report。
 
 ## Ownership Boundaries
@@ -30,8 +30,8 @@ L
    `apps/stage-tamagotchi/src/main/services/alicization/proactive-feedback.ts`
    `apps/stage-tamagotchi/src/main/services/alicization/proactive-policy.ts`
    `apps/stage-tamagotchi/src/main/services/alicization/runtime-subconscious-tick.ts`
-4. Dialogue fast path:
-   `apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.ts`
+4. Dialogue Provider mainline:
+   `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts`
 5. Integration / build chain:
    `apps/stage-tamagotchi/src/main/services/alicization/host-rhythm-model.ts`
    `apps/stage-tamagotchi/src/main/services/alicization/intention-stream.ts`
@@ -49,7 +49,7 @@ L
 2. cadence state 必须是持续累积/衰减，而不是单次布尔开关。
 3. autobiographical continuity 必须同时作用于 subconscious fragments 和当前 recall seed。
 4. self-generated goals 必须在没有强当前线程时仍能存在，但不能粗暴压过真实当前 turn truth。
-5. fast path 只能接 continuity cue，不能复制一套新的对话治理逻辑。
+5. Provider 主链路只能消费 owner 提供的结构化召回证据，不能复制一套新的对话治理逻辑。
 
 ## Rollback Rules
 

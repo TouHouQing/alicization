@@ -4,7 +4,20 @@ import { buildDerivedMindStateBundle } from './alicization-derived-mind-state-bu
 import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
 
 describe('buildDerivedMindStateBundle', () => {
-  it('does not revive the removed carrying-same-her lane status', () => {
+  it('does not let legacy opening guidance override current trust evidence', () => {
+    const bundle = buildDerivedMindStateBundle({
+      source: 'main-runtime',
+      producedAt: 59_000,
+      personStateProjection: {
+        openingGuidance: 'legacy fixed opening',
+        trustRationale: 'Current trust evidence from the memory owner.',
+      },
+    })
+
+    expect(bundle.dialogueRhythm?.stabilitySignal).toBe('Current trust evidence from the memory owner.')
+  })
+
+  it('does not revive the removed carrying-continuity lane status', () => {
     const bundle = normalizeAlicizationDerivedMindStateBundle({
       version: 'derived-mind-state-bundle-v1',
       source: 'main-runtime',
@@ -15,7 +28,7 @@ describe('buildDerivedMindStateBundle', () => {
         turnId: null,
         lanes: {
           body: {
-            status: 'carrying-same-her',
+            status: 'carrying-continuity',
             summary: 'legacy status',
           },
         },
@@ -29,12 +42,6 @@ describe('buildDerivedMindStateBundle', () => {
           lane: 'none',
           reason: 'none',
         },
-        selfRevisionCandidate: {
-          shouldPropose: false,
-          domain: 'dialogue-style',
-          reasonCodes: [],
-          summary: null,
-        },
         traceSummary: '',
         replayLine: '',
         sourceTags: [],
@@ -45,7 +52,7 @@ describe('buildDerivedMindStateBundle', () => {
     expect(bundle?.embodimentContinuityLedger?.carryingLanes).toEqual([])
   })
 
-  it('preserves embodiment continuity ledger for cross-modal same-her replay and repair', () => {
+  it('preserves embodiment continuity ledger for cross-modal continuity replay and repair', () => {
     const bundle = buildDerivedMindStateBundle({
       source: 'main-runtime',
       producedAt: 61_000,
@@ -61,28 +68,22 @@ describe('buildDerivedMindStateBundle', () => {
         memoryWriteback: {
           shouldWrite: true,
           lane: 'cross-modal-continuity',
-          reason: 'Body and voice carried same-her while expression lanes still need rejoin.',
-        },
-        selfRevisionCandidate: {
-          shouldPropose: true,
-          domain: 'dialogue-style',
-          reasonCodes: ['embodiment-lane-dropped:face', 'embodiment-partial:lipsync'],
-          summary: 'Cross-modal embodiment needs repair before it feels like one lifeform.',
+          reason: 'Body and voice carried continuity while expression lanes still need rejoin.',
         },
         traceSummary: 'phase=partial-carry | carrying=body,voice | dropped=face,motion',
-        replayLine: 'body+voice carried same-her while face+motion dropped and lipsync waited to rejoin.',
-        sourceTags: ['dialogue-delivery', 'renderer-diagnostics', 'cross-modal-same-her-replay'],
+        replayLine: 'body+voice carried continuity while face+motion dropped and lipsync waited to rejoin.',
+        sourceTags: ['dialogue-delivery', 'renderer-diagnostics', 'cross-modal-continuity-replay'],
       },
     })
 
     expect(bundle.embodimentContinuityLedger).toEqual(expect.objectContaining({
       continuityPhase: 'partial-carry',
       memoryWriteback: expect.objectContaining({ lane: 'cross-modal-continuity' }),
-      selfRevisionCandidate: expect.objectContaining({ shouldPropose: true }),
-      sourceTags: ['dialogue-delivery', 'renderer-diagnostics', 'cross-modal-same-her-replay'],
+      sourceTags: ['dialogue-delivery', 'renderer-diagnostics', 'cross-modal-continuity-replay'],
     }))
+    expect(bundle.embodimentContinuityLedger).not.toHaveProperty('selfRevisionCandidate')
     expect(bundle.summary).toContain('embodiment_phase=partial-carry')
-    expect(bundle.summary).toContain('embodiment_self_revision_candidate=dialogue-style')
+    expect(bundle.summary).not.toContain('embodiment_self_revision_candidate')
   })
 
   it('preserves emotional transition ledger for replay and downstream life-loop audits', () => {
@@ -126,20 +127,6 @@ describe('buildDerivedMindStateBundle', () => {
           tone: 'repair-before-closeness',
           reason: 'The body should express repair-before-closeness.',
         },
-        selfRevisionCandidate: {
-          shouldPropose: true,
-          domain: 'dialogue-style',
-          reasonCodes: ['repair-before-closeness', 'continue-repair-first'],
-          summary: 'Repair-first emotional carry should propose a identity-continuity',
-          projectStateContinuity: {
-            sameHerSelfLine: null,
-            sameHerDriftRisk: null,
-            proactiveSameHerGap: null,
-            emotionalClosureCue: null,
-            sameHerHoldDetail: null,
-            continuityGuard: null,
-          },
-        },
         traceSummary: 'warm-attunement -> repair-tension; kind=repair-shift',
         replayLine: 'turn-repair-1 emotional-transition repair-shift warm-attunement -> repair-tension',
       },
@@ -147,8 +134,9 @@ describe('buildDerivedMindStateBundle', () => {
 
     expect(bundle.emotionalTransitionLedger?.transitionKind).toBe('repair-shift')
     expect(bundle.emotionalTransitionLedger?.memoryWriteback.lane).toBe('relationship-repair')
+    expect(bundle.emotionalTransitionLedger).not.toHaveProperty('selfRevisionCandidate')
     expect(bundle.summary).toContain('emotion_transition=repair-shift')
-    expect(bundle.summary).toContain('self_revision_candidate=dialogue-style')
+    expect(bundle.summary).not.toContain('self_revision_candidate')
   })
 
   it('normalizes structured memory-closure causality on emotional and embodiment ledgers', () => {
@@ -187,9 +175,9 @@ describe('buildDerivedMindStateBundle', () => {
             traceAuthority: 'memory-os',
             reasonTags: ['memory-closure-trace', 'runtime-derived-downstream-state'],
             memoryIdentity: {
-              selectedCandidateIds: ['episode:desktop-callback-same-her'],
-              continuityKey: 'episode:desktop-callback-same-her',
-              reasonTags: ['memory-identity:episode:desktop-callback-same-her'],
+              selectedCandidateIds: ['episode:desktop-callback-continuity'],
+              continuityKey: 'episode:desktop-callback-continuity',
+              reasonTags: ['memory-identity:episode:desktop-callback-continuity'],
             },
             summary: 'trace id and policy caused this initiative restraint',
           },
@@ -198,20 +186,6 @@ describe('buildDerivedMindStateBundle', () => {
           shouldDrive: true,
           tone: 'measured-return',
           reason: 'Drive the body line.',
-        },
-        selfRevisionCandidate: {
-          shouldPropose: false,
-          domain: 'dialogue-style',
-          reasonCodes: ['memory-closure-trace'],
-          summary: null,
-          projectStateContinuity: {
-            sameHerSelfLine: null,
-            sameHerDriftRisk: null,
-            proactiveSameHerGap: null,
-            emotionalClosureCue: null,
-            sameHerHoldDetail: null,
-            continuityGuard: null,
-          },
         },
         traceSummary: 'emotional state changed',
         replayLine: 'afterglow carried',
@@ -222,9 +196,9 @@ describe('buildDerivedMindStateBundle', () => {
           traceAuthority: 'memory-os',
           reasonTags: ['memory-closure-trace', 'runtime-derived-downstream-state'],
           memoryIdentity: {
-            selectedCandidateIds: ['episode:desktop-callback-same-her'],
-            continuityKey: 'episode:desktop-callback-same-her',
-            reasonTags: ['memory-identity:episode:desktop-callback-same-her'],
+            selectedCandidateIds: ['episode:desktop-callback-continuity'],
+            continuityKey: 'episode:desktop-callback-continuity',
+            reasonTags: ['memory-identity:episode:desktop-callback-continuity'],
           },
           summary: 'trace id and policy caused this emotional state',
         },
@@ -243,12 +217,6 @@ describe('buildDerivedMindStateBundle', () => {
           lane: 'cross-modal-continuity',
           reason: 'Write cross-modal continuity.',
         },
-        selfRevisionCandidate: {
-          shouldPropose: false,
-          domain: 'dialogue-style',
-          reasonCodes: ['memory-closure-trace'],
-          summary: null,
-        },
         traceSummary: 'all lanes rejoined',
         replayLine: 'body voice face motion lipsync carried together',
         sourceTags: ['runtime-derived-downstream-state'],
@@ -259,9 +227,9 @@ describe('buildDerivedMindStateBundle', () => {
           traceAuthority: 'memory-os',
           reasonTags: ['memory-closure-trace', 'runtime-derived-downstream-state'],
           memoryIdentity: {
-            selectedCandidateIds: ['episode:desktop-callback-same-her'],
-            continuityKey: 'episode:desktop-callback-same-her',
-            reasonTags: ['memory-identity:episode:desktop-callback-same-her'],
+            selectedCandidateIds: ['episode:desktop-callback-continuity'],
+            continuityKey: 'episode:desktop-callback-continuity',
+            reasonTags: ['memory-identity:episode:desktop-callback-continuity'],
           },
           summary: 'trace id and policy caused this embodied state',
         },
@@ -300,9 +268,9 @@ describe('buildDerivedMindStateBundle', () => {
           traceAuthority: 'memory-os',
           reasonTags: ['memory-closure-trace', 'runtime-derived-downstream-state'],
           memoryIdentity: {
-            selectedCandidateIds: ['episode:desktop-callback-same-her'],
-            continuityKey: 'episode:desktop-callback-same-her',
-            reasonTags: ['memory-identity:episode:desktop-callback-same-her'],
+            selectedCandidateIds: ['episode:desktop-callback-continuity'],
+            continuityKey: 'episode:desktop-callback-continuity',
+            reasonTags: ['memory-identity:episode:desktop-callback-continuity'],
           },
           summary: 'trace id and policy caused this execution feedback state',
         },
@@ -317,9 +285,9 @@ describe('buildDerivedMindStateBundle', () => {
       traceAuthority: 'memory-os',
       reasonTags: ['memory-closure-trace', 'runtime-derived-downstream-state'],
       memoryIdentity: {
-        selectedCandidateIds: ['episode:desktop-callback-same-her'],
-        continuityKey: 'episode:desktop-callback-same-her',
-        reasonTags: ['memory-identity:episode:desktop-callback-same-her'],
+        selectedCandidateIds: ['episode:desktop-callback-continuity'],
+        continuityKey: 'episode:desktop-callback-continuity',
+        reasonTags: ['memory-identity:episode:desktop-callback-continuity'],
       },
       summary: 'trace id and policy caused this emotional state',
     })
@@ -330,9 +298,9 @@ describe('buildDerivedMindStateBundle', () => {
       traceAuthority: 'memory-os',
       reasonTags: ['memory-closure-trace', 'runtime-derived-downstream-state'],
       memoryIdentity: {
-        selectedCandidateIds: ['episode:desktop-callback-same-her'],
-        continuityKey: 'episode:desktop-callback-same-her',
-        reasonTags: ['memory-identity:episode:desktop-callback-same-her'],
+        selectedCandidateIds: ['episode:desktop-callback-continuity'],
+        continuityKey: 'episode:desktop-callback-continuity',
+        reasonTags: ['memory-identity:episode:desktop-callback-continuity'],
       },
       summary: 'trace id and policy caused this initiative restraint',
     })
@@ -343,9 +311,9 @@ describe('buildDerivedMindStateBundle', () => {
       traceAuthority: 'memory-os',
       reasonTags: ['memory-closure-trace', 'runtime-derived-downstream-state'],
       memoryIdentity: {
-        selectedCandidateIds: ['episode:desktop-callback-same-her'],
-        continuityKey: 'episode:desktop-callback-same-her',
-        reasonTags: ['memory-identity:episode:desktop-callback-same-her'],
+        selectedCandidateIds: ['episode:desktop-callback-continuity'],
+        continuityKey: 'episode:desktop-callback-continuity',
+        reasonTags: ['memory-identity:episode:desktop-callback-continuity'],
       },
       summary: 'trace id and policy caused this execution feedback state',
     })
@@ -356,102 +324,11 @@ describe('buildDerivedMindStateBundle', () => {
       traceAuthority: 'memory-os',
       reasonTags: ['memory-closure-trace', 'runtime-derived-downstream-state'],
       memoryIdentity: {
-        selectedCandidateIds: ['episode:desktop-callback-same-her'],
-        continuityKey: 'episode:desktop-callback-same-her',
-        reasonTags: ['memory-identity:episode:desktop-callback-same-her'],
+        selectedCandidateIds: ['episode:desktop-callback-continuity'],
+        continuityKey: 'episode:desktop-callback-continuity',
+        reasonTags: ['memory-identity:episode:desktop-callback-continuity'],
       },
       summary: 'trace id and policy caused this embodied state',
     })
-  })
-
-  it('preserves pending continuity causality repair pressure without treating it as memory-closure evidence', () => {
-    const bundle = buildDerivedMindStateBundle({
-      source: 'main-runtime',
-      producedAt: 63_000,
-      sameHerCausalityRepairPressure: {
-        version: 'same-her-causality-repair-pressure-v1',
-        source: 'memory-tuning-advice',
-        status: 'pending-runtime-evidence',
-        updatedAt: 63_000,
-        sourceReportAt: 62_500,
-        focusDimensions: [
-          'runtimeSameHerInitiativeExecutionCausality',
-          'runtimeSameHerEmotionalCausality',
-          'runtimeSameHerEmbodimentCausality',
-        ],
-        lanes: [
-          {
-            lane: 'initiative-execution',
-            reasonTags: ['runtimeSameHerInitiativeExecutionCausality'],
-            summary: 'Proactive opening, execution callback, and learning feedback still need one recalled identity-continuity',
-          },
-          {
-            lane: 'emotion',
-            reasonTags: ['runtimeSameHerEmotionalCausality'],
-            summary: 'Emotional residue still needs to follow from recall and execution feedback.',
-          },
-          {
-            lane: 'embodiment',
-            reasonTags: ['runtimeSameHerEmbodimentCausality'],
-            summary: 'Voice, face, motion, lipsync, and body still need one shared inner state.',
-          },
-        ],
-        memoryIdentityRequirement: {
-          status: 'required',
-          proofBoundary: 'downstream-memory-closure-causality',
-          requiredPath: 'memoryClosureCausality.memoryIdentity',
-          excludedProofs: ['route-chain-text', 'visible-reply-wording'],
-          continuity: 'stable-memory-identity-key',
-          summary: 'Real closure still needs downstream memoryClosureCausality.memoryIdentity, not route-chain text or visible reply wording.',
-        },
-        notes: ['These are pending repair pressures, not real event closure.'],
-        summary: 'pending same-her causality repair: initiative-execution, emotion, embodiment',
-      },
-    } as any)
-
-    expect(bundle.sameHerCausalityRepairPressure).toEqual(expect.objectContaining({
-      source: 'memory-tuning-advice',
-      status: 'pending-runtime-evidence',
-      memoryIdentityRequirement: expect.objectContaining({
-        status: 'required',
-        requiredPath: 'memoryClosureCausality.memoryIdentity',
-        excludedProofs: ['route-chain-text', 'visible-reply-wording'],
-        continuity: 'stable-memory-identity-key',
-      }),
-      lanes: expect.arrayContaining([
-        expect.objectContaining({ lane: 'initiative-execution' }),
-        expect.objectContaining({ lane: 'emotion' }),
-        expect.objectContaining({ lane: 'embodiment' }),
-      ]),
-    }))
-    expect(bundle.learningExecutionState?.memoryClosureCausality).toBeUndefined()
-    expect(bundle.summary).toContain('continuity_causality_repair=initiative-execution,emotion,embodiment')
-
-    const normalized = normalizeAlicizationDerivedMindStateBundle({
-      version: 'derived-mind-state-bundle-v1',
-      source: 'main-runtime',
-      producedAt: 63_000,
-      sameHerCausalityRepairPressure: bundle.sameHerCausalityRepairPressure,
-      summary: bundle.summary,
-    })
-
-    expect(normalized?.sameHerCausalityRepairPressure).toEqual(expect.objectContaining({
-      source: 'memory-tuning-advice',
-      status: 'pending-runtime-evidence',
-      memoryIdentityRequirement: expect.objectContaining({
-        status: 'required',
-        proofBoundary: 'downstream-memory-closure-causality',
-        requiredPath: 'memoryClosureCausality.memoryIdentity',
-        excludedProofs: ['route-chain-text', 'visible-reply-wording'],
-        continuity: 'stable-memory-identity-key',
-      }),
-      lanes: expect.arrayContaining([
-        expect.objectContaining({ lane: 'initiative-execution' }),
-        expect.objectContaining({ lane: 'emotion' }),
-        expect.objectContaining({ lane: 'embodiment' }),
-      ]),
-    }))
-    expect(normalized?.sameHerCausalityRepairPressure?.lanes[0]?.summary).toContain('Proactive opening')
-    expect(JSON.stringify(normalized?.sameHerCausalityRepairPressure)).not.toMatch(/pending same-her causality repair/iu)
   })
 })

@@ -91,7 +91,7 @@
 ## Non-goals
 
 1. 本轮不开放高风险 proactive auto execution。
-2. 本轮不重写整个 fast-path dialogue runtime。
+2. 本轮不重写整个 dialogue Provider runtime。
 
 ## Inferred Assumptions
 

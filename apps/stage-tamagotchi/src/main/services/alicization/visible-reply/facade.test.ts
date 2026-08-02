@@ -1,9 +1,8 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
-import { buildAlicizationDigitalLifeRuntimeSurface } from '../digital-life-kernel'
-import { createDefaultVisualPresenceState } from '../visual-episodic-memory'
 import {
-  buildAlicizationVisibleReplySurfacePlan,
   resolveAlicizationPreparedVisibleReplyExecution,
 } from './facade'
 
@@ -27,35 +26,10 @@ describe('visible-reply-facade', () => {
     expect(execution.expectedVisibleReplyAuthority).toBe('llm-mind')
   })
 
-  it('returns planning DTOs without reply-governance system blocks', () => {
-    const state = createDefaultVisualPresenceState(10_000)
-    const runtimeSurface = buildAlicizationDigitalLifeRuntimeSurface(state)
-    const plan = buildAlicizationVisibleReplySurfacePlan({
-      now: 10_000,
-      context: {
-        system: {},
-        workload: { kind: 'unknown', confidence: 0, source: 'test' },
-        content: { kind: 'unknown', confidence: 0, source: 'test' },
-        relationship: {},
-        localTime: { hour: 12, minute: 0, isLateNight: false },
-      } as any,
-      state,
-      runtimeSurface,
-      inspectionRequested: false,
-      groundedThisTurn: false,
-      perceptionState: {
-        attentionAnchor: null,
-        lastNonSelfForegroundTarget: null,
-        recentObservations: [],
-        invitedInspection: null,
-        recentSceneResidue: null,
-        updatedAt: 10_000,
-      } as any,
-    })
+  it('does not expose the retired visible reply posture planner', () => {
+    const facadeSource = readFileSync(new URL('./facade.ts', import.meta.url), 'utf8')
 
-    expect(plan.executiveAnswerBrief.brief.mustDo).toEqual([])
-    expect(plan.responseSurfaceContract.contract.mustDo).toEqual([])
-    expect(plan.mindTurnContract.mustDo).toEqual([])
-    expect(plan).not.toHaveProperty('systemBlocks')
+    expect(facadeSource).not.toContain('buildAlicizationVisibleReplySurfacePlan')
+    expect(facadeSource).not.toContain('systemBlocks')
   })
 })

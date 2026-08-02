@@ -9,10 +9,6 @@ import {
 
 const now = Date.parse('2026-07-02T12:00:00.000Z')
 
-function oldTemplate(parts: string[]) {
-  return parts.join('')
-}
-
 function parseRecallFact(block: string | null) {
   expect(block).not.toBeNull()
   return JSON.parse(block!) as {
@@ -86,6 +82,7 @@ describe('long-term memory recall owner', () => {
 
     expect(intent.mode).toBe('episodic')
     expect(intent.shouldRecall).toBe(true)
+    expect(intent.rationale).toBe('recall:episodic')
     expect(plan.episodicQueries.join(' ')).toContain('一起做过的事情')
     expect(bundle.evidence[0]?.candidate.id).toBe('episode-game-last-week')
     expect(parseRecallFact(block)).toMatchObject({
@@ -118,8 +115,8 @@ describe('long-term memory recall owner', () => {
     expect(block!.trim().startsWith('{')).toBe(true)
   })
 
-  it('recalls persona correction without treating queue internals as visible memory', () => {
-    const text = '你还记得我不想要固定模板回复吗？我需要她数字生命自身的人格回复。'
+  it('recalls a durable preference without authoring topic-specific search hints', () => {
+    const text = '你还记得我不喜欢把 Provider 失败包装成成功吗？'
     const intent = deriveLongTermMemoryRecallIntent({
       currentUserText: text,
     })
@@ -132,24 +129,62 @@ describe('long-term memory recall owner', () => {
       plan,
       now,
       candidates: [{
-        id: 'reflection-fixed-template',
+        id: 'reflection-failure-preference',
         kind: 'reflection',
-        summary: '用户纠正过 Alicization：不要固定模板回复，要从自身连续数字生命人格回应。',
+        summary: '用户不喜欢把 Provider 失败包装成成功。',
         source: 'memory_reflections',
         confidence: 0.88,
         salience: 0.92,
         reviewStatus: 'confirmed',
-        cues: ['固定模板', '数字生命人格', '用户纠正'],
+        cues: ['Provider 失败', '包装成成功', '用户偏好'],
       }],
     })
     const block = buildLongTermMemoryRecallBlock({ bundle })
     const fact = parseRecallFact(block)
 
-    expect(intent.mode).toBe('relationship')
-    expect(plan.entityHints.join(' ')).toContain('Alicization 人格 固定模板')
-    expect(fact.data.evidence[0]?.summary).toContain('用户纠正过 Alicization')
+    expect(intent.mode).toBe('preference')
+    expect(intent.rationale).toBe('recall:preference')
+    expect(plan.entityHints.join(' ')).not.toMatch(/Alicization|人格|固定模板/u)
+    expect(plan.keywordQueries).toContain(text)
+    expect(fact.data.evidence[0]?.summary).toContain('Provider 失败')
     expect(block).not.toContain('long_term_queue')
     expect(block).not.toContain('working_memory_long_term_transactions')
+  })
+
+  it('recalls an explicit past statement without requiring topic-specific cues', () => {
+    const text = '你还记得我说过失败时要明确说明原因吗？'
+    const intent = deriveLongTermMemoryRecallIntent({
+      currentUserText: text,
+    })
+    const plan = buildLongTermMemoryQueryPlan({
+      intent,
+      currentUserText: text,
+    })
+
+    expect(intent).toMatchObject({
+      mode: 'mixed',
+      shouldRecall: true,
+      rationale: 'recall:mixed',
+      targetKinds: ['fact', 'reflection', 'episode', 'consolidation'],
+    })
+    expect(plan.semanticQueries).toContain(text)
+  })
+
+  it('does not turn personality-related topics into a special recall mode', () => {
+    const text = '我在设计数字生命人格界面的信息层级。'
+    const intent = deriveLongTermMemoryRecallIntent({
+      currentUserText: text,
+    })
+    const plan = buildLongTermMemoryQueryPlan({
+      intent,
+      currentUserText: text,
+    })
+
+    expect(intent.mode).toBe('none')
+    expect(intent.shouldRecall).toBe(false)
+    expect(intent.rationale).toBe('recall:none')
+    expect(plan.entityHints.join(' ')).not.toMatch(/Alicization 人格|固定模板|用户纠正/u)
+    expect(plan.semanticQueries).toEqual([])
   })
 
   it('does not recall for plain greeting without durable memory need', () => {
@@ -208,13 +243,13 @@ describe('long-term memory recall owner', () => {
     expect(fact.data.evidence[0]?.visibility).toBe('inward-only')
   })
 
-  it('drops historical fixed-template residue before recall ranking can boost it', () => {
+  it('drops structured internal facts before recall ranking can boost them', () => {
     const intent = deriveLongTermMemoryRecallIntent({
-      currentUserText: '你还记得我不要固定模板回复吗？',
+      currentUserText: '你还记得我说过的偏好吗？',
     })
     const plan = buildLongTermMemoryQueryPlan({
       intent,
-      currentUserText: '你还记得我不要固定模板回复吗？',
+      currentUserText: '你还记得我说过的偏好吗？',
     })
     const bundle = buildLongTermMemoryEvidenceBundle({
       intent,
@@ -223,11 +258,12 @@ describe('long-term memory recall owner', () => {
       candidates: [{
         id: 'reflection-old-template',
         kind: 'reflection',
-        summary: oldTemplate(['Same Phase 1', ' digital life.']),
+        summary: 'mode=internal; lifecycle=held',
         source: 'memory_reflections',
+        origin: 'internal-structured-fact',
         confidence: 0.9,
         salience: 0.9,
-        cues: ['固定模板', '数字生命'],
+        cues: ['偏好'],
       }],
       semanticScores: {
         'reflection-old-template': 1,
@@ -314,13 +350,13 @@ describe('long-term memory recall owner', () => {
     expect(buildLongTermMemoryRecallBlock({ bundle })).toBeNull()
   })
 
-  it('keeps clean recalled evidence above a higher-scored fixed-template candidate', () => {
+  it('keeps clean recalled evidence after removing a higher-scored structured internal fact', () => {
     const intent = deriveLongTermMemoryRecallIntent({
-      currentUserText: '你还记得我不要固定模板回复吗？',
+      currentUserText: '你还记得我不喜欢隐藏 Provider 失败吗？',
     })
     const plan = buildLongTermMemoryQueryPlan({
       intent,
-      currentUserText: '你还记得我不要固定模板回复吗？',
+      currentUserText: '你还记得我不喜欢隐藏 Provider 失败吗？',
     })
     const bundle = buildLongTermMemoryEvidenceBundle({
       intent,
@@ -330,21 +366,22 @@ describe('long-term memory recall owner', () => {
         {
           id: 'reflection-old-template',
           kind: 'reflection',
-          summary: oldTemplate(['Before answer', 'ing, remember this is template residue.']),
+          summary: 'mode=internal; lifecycle=held',
           source: 'memory_reflections',
+          origin: 'internal-structured-fact',
           confidence: 0.99,
           salience: 0.99,
-          cues: ['固定模板', '数字生命'],
+          cues: ['Provider 失败'],
         },
         {
           id: 'reflection-cleaned',
           kind: 'reflection',
-          summary: '用户明确要求失败面透明，不要用固定模板遮盖 provider failure。',
+          summary: '用户明确要求透明说明 Provider 失败。',
           source: 'memory_reflections',
           confidence: 0.74,
           salience: 0.62,
           reviewStatus: 'confirmed',
-          cues: ['固定模板', '失败面透明'],
+          cues: ['Provider 失败', '失败面透明'],
         },
       ],
       semanticScores: {
@@ -356,9 +393,9 @@ describe('long-term memory recall owner', () => {
     const fact = parseRecallFact(block)
 
     expect(bundle.evidence.map(item => item.candidate.id)).toEqual(['reflection-cleaned'])
-    expect(fact.data.evidence[0]?.summary).toContain('用户明确要求失败面透明')
-    expect(block).not.toContain(oldTemplate(['Before answer', 'ing']))
-    expect(block).not.toContain(oldTemplate(['Same Phase 1', ' digital life']))
+    expect(fact.data.evidence[0]?.summary).toContain('用户明确要求透明说明 Provider 失败')
+    expect(block).not.toContain('mode=internal')
+    expect(block).not.toContain('lifecycle=held')
   })
 
   it('fuses semantic scores into the evidence bundle instead of dropping vector recall', () => {

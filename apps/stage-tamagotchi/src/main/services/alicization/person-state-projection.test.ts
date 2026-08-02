@@ -321,7 +321,7 @@ describe('person-state-projection', () => {
 
     expect(repair.closenessLadder.find(entry => entry.context === 'repair-window')?.rung).toBe('measured-room')
     expect(callback.closenessLadder.find(entry => entry.context === 'execution-callback')?.rung).toBe('measured-room')
-    expect(repair.openingGuidance).toBeNull()
-    expect(callback.manifestationCadenceSummary).toBeNull()
+    expect(repair).not.toHaveProperty('openingGuidance')
+    expect(callback).not.toHaveProperty('manifestationCadenceSummary')
   })
 })

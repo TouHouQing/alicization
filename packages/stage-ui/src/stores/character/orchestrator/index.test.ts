@@ -244,6 +244,8 @@ describe('store character-orchestrator', () => {
     expect(mockStream.mock.calls[0][0]).toEqual('mock-model')
     expect(mockStream.mock.calls[0][1]).not.toBeNull()
     expect(mockStream.mock.calls[0][2]).toHaveLength(2)
+    expect(JSON.stringify(mockStream.mock.calls[0][2])).not.toContain('You are a brave adventurer in Minecraft.')
+    expect(JSON.stringify(mockStream.mock.calls[0][2])).toContain('alicization-spark-event')
     expect(mockStream.mock.calls[0][3]).toHaveProperty('tools')
 
     expect(mockOnSparkNotifyReactionStreamEvent).toBeCalledWith(event.data.id, 'Ahhh, got hit by zombie!')

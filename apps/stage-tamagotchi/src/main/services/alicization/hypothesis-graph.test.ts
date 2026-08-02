@@ -226,6 +226,7 @@ describe('buildHypothesisGraph', () => {
 
     const active = graph.hypotheses.find(hypothesis => hypothesis.id === graph.activeHypothesisId)
     expect(active?.kind).toBe('recovery-event')
+    expect(active?.summary).toBe('anr-likely')
     expect(graph.driftPressure).toBeGreaterThan(0.2)
   })
 })

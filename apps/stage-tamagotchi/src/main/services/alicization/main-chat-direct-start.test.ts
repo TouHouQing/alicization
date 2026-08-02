@@ -40,7 +40,7 @@ function createInput(overrides?: Partial<Parameters<typeof handleAlicizationDire
 }
 
 describe('main chat direct start', () => {
-  it('strips legacy pre-dialogue identity and forwards real payload fields with the raw ipc event', async () => {
+  it('forwards real payload fields with the raw ipc event', async () => {
     const input = createInput()
 
     const result = await handleAlicizationDirectChatStart(input)
@@ -62,9 +62,6 @@ describe('main chat direct start', () => {
         ipcMainEvent: input.ipcMainEvent,
       },
     })
-    expect(JSON.stringify(vi.mocked(input.appendRuntimeDebugLine).mock.calls)).not.toMatch(
-      /preDialogue|LEGACY_FIXED_GOVERNANCE|LEGACY_REASON/iu,
-    )
   })
 
   it('keeps direct-start failures transparent and rethrows them', async () => {

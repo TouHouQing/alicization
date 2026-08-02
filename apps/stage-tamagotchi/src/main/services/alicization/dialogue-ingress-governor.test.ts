@@ -129,6 +129,7 @@ describe('buildDialogueIngressGovernor', () => {
       inspectionEligible: true,
       releaseInspectionCarry: false,
       screenReferenceMode: 'required',
+      summary: 'owner:general; screen:required',
     }))
     expect(governor.reasonTags).toContain('inspection-world-claim')
   })
@@ -195,6 +196,7 @@ describe('buildDialogueIngressGovernor', () => {
       inspectionEligible: false,
       releaseInspectionCarry: true,
       screenReferenceMode: 'avoid',
+      summary: 'owner:alicization-self; screen:avoid',
     }))
     expect(governor.reasonTags).not.toContain('inspection-world-claim')
   })

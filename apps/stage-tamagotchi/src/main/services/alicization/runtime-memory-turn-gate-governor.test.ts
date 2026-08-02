@@ -80,7 +80,7 @@ describe('runtime-memory-turn-gate-governor', () => {
             conflictPressure: 'low',
           },
           selectedCandidateIds: ['memory-situation:closure-authority'],
-          reasonTags: ['phase-1', 'same-her', 'memory-initiative-embodiment', 'memory-os-authority'],
+          reasonTags: ['phase-1', 'continuity', 'memory-initiative-embodiment', 'memory-os-authority'],
         },
       } as any,
     })

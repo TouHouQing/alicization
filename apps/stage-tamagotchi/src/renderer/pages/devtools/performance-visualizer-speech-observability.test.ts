@@ -2286,35 +2286,35 @@ describe('performance visualizer speech observability', () => {
     expect(view.embodimentClosureStage).toBe('full-cross-modal-lock')
   })
 
-  it('keeps same-her structured closure stages visible when legacy closure hints are absent in speech observability inputs', () => {
+  it('keeps continuity structured closure stages visible when legacy closure hints are absent in speech observability inputs', () => {
     const cases = [
       {
-        cueId: 'segment-same-her-live2d-only-observability-1',
+        cueId: 'segment-continuity-live2d-only-observability-1',
         rendererTarget: 'live2d' as const,
         matchedDrivers: ['face', 'motion', 'lipsync', 'voice'] as const,
         matchSummary: 'body:no face:yes motion:yes lipsync:yes voice:yes',
         driverExecutionSummary: 'face=attentive/focused | motion=observe_focus | lipsync=energy-phoneme-hybrid phase=playing',
-        sameHerEvidence: {
+        continuityEvidence: {
           live2dAuthorityView: {
-            sameHerExecutionAuthoritySegmentId: 'segment-same-her-live2d-only-observability-1',
-            sameHerExecutionSummary: 'aligned | authority=segment-same-her-live2d-only-observability-1 | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
+            continuityExecutionAuthoritySegmentId: 'segment-continuity-live2d-only-observability-1',
+            continuityExecutionSummary: 'aligned | authority=segment-continuity-live2d-only-observability-1 | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
           },
           vrmAuthorityView: null,
         },
         expected: 'renderer-rejoin-without-body',
       },
       {
-        cueId: 'segment-same-her-vrm-only-observability-1',
+        cueId: 'segment-continuity-vrm-only-observability-1',
         rendererTarget: 'vrm' as const,
         matchedDrivers: ['body', 'face', 'motion', 'lipsync', 'voice'] as const,
         matchSummary: 'body:yes face:yes motion:yes lipsync:yes voice:yes',
-        driverExecutionSummary: 'body=measured-return seg=segment-same-her-vrm-only-observability-1 | face=attentive/focused | motion=observe_focus | lipsync=energy-phoneme-hybrid phase=playing',
-        sameHerEvidence: {
+        driverExecutionSummary: 'body=measured-return seg=segment-continuity-vrm-only-observability-1 | face=attentive/focused | motion=observe_focus | lipsync=energy-phoneme-hybrid phase=playing',
+        continuityEvidence: {
           live2dAuthorityView: null,
           vrmAuthorityView: {
-            sameHerFramePerformanceSegmentId: 'segment-same-her-vrm-only-observability-1',
-            sameHerFrameSpeechSegmentId: 'segment-same-her-vrm-only-observability-1',
-            sameHerFrameSummary: 'aligned | segment=segment-same-her-vrm-only-observability-1 | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
+            continuityFramePerformanceSegmentId: 'segment-continuity-vrm-only-observability-1',
+            continuityFrameSpeechSegmentId: 'segment-continuity-vrm-only-observability-1',
+            continuityFrameSummary: 'aligned | segment=segment-continuity-vrm-only-observability-1 | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
           },
         },
         expected: 'full-cross-modal-lock',
@@ -2398,14 +2398,14 @@ describe('performance visualizer speech observability', () => {
           },
           drivers: null,
         },
-      } as any, testCase.sameHerEvidence)
+      } as any, testCase.continuityEvidence)
 
       expect(view.embodimentClosureStage).toBe(testCase.expected)
       expect(view.playbackCue?.authorityView?.embodimentClosureStage).toBe(testCase.expected)
     }
   })
 
-  it('does not infer embodiment closure stage from stale VRM same-her summary-only evidence when explicit identity-continuity', () => {
+  it('does not infer embodiment closure stage from stale VRM continuity summary-only evidence when explicit identity-continuity', () => {
     const cueId = 'segment-speech-observability-summary-only-current'
     const view = buildSpeechObservabilityView({
       phase: 'playing',
@@ -2484,7 +2484,7 @@ describe('performance visualizer speech observability', () => {
     } as any, {
       live2dAuthorityView: null,
       vrmAuthorityView: {
-        sameHerFrameSummary: 'aligned | performance=segment-speech-observability-summary-only-stale | speech=segment-speech-observability-summary-only-stale | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
+        continuityFrameSummary: 'aligned | performance=segment-speech-observability-summary-only-stale | speech=segment-speech-observability-summary-only-stale | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
       },
     })
 
@@ -3919,7 +3919,7 @@ describe('performance visualizer speech observability', () => {
         truthState: 'remembered',
         repairState: 'none',
         finalSurfacePolicy: 'same-thread-continuation',
-        closureState: 'same-her-carry',
+        closureState: 'continuity-carry',
         suppressionTags: ['interrupt-tail'],
       },
       recentDrivingTraceEvents: [],
@@ -4526,7 +4526,7 @@ describe('performance visualizer speech observability', () => {
     expect(view.authoritySummary?.authorityTrustSummary).toContain('余韵还在，先留白，别立刻把温度放大')
   })
 
-  it('keeps same-her renderer hint signature and reason tags visible in speech observability playback cue authority view', () => {
+  it('keeps continuity renderer hint signature and reason tags visible in speech observability playback cue authority view', () => {
     const view = buildSpeechObservabilityView({
       phase: 'playing',
       playbackPhase: 'playing',
@@ -4560,7 +4560,7 @@ describe('performance visualizer speech observability', () => {
         stopReason: null,
         rendererTarget: 'live2d',
         driverAuthority: {
-          segmentId: 'segment-same-her-observability-view',
+          segmentId: 'segment-continuity-observability-view',
           rendererTarget: 'live2d',
           matchedDrivers: ['body', 'lipsync'],
           sources: ['prosody-authority'],
@@ -4570,7 +4570,7 @@ describe('performance visualizer speech observability', () => {
           lipsyncSegmentMatched: true,
         },
         cue: {
-          id: 'segment-same-her-observability-view',
+          id: 'segment-continuity-observability-view',
           rendererHints: {
             residentMode: 'measured-return',
             preferredBlinkCadence: 'linger',
@@ -4578,7 +4578,7 @@ describe('performance visualizer speech observability', () => {
             preferredExpressionAliases: ['RecoverSoft'],
             preferredMotionAliases: ['IdleSettle'],
             reasonTags: [
-              'embodiment:audible-same-her-line',
+              'embodiment:audible-continuity-line',
               'embodiment:still-voiced-motion-line',
             ],
             signature: 'embodiment:body-lipsync-voice-rejoin',
@@ -4590,7 +4590,7 @@ describe('performance visualizer speech observability', () => {
           lipsync: {
             mode: 'energy-phoneme-hybrid',
             playbackPhase: 'playing',
-            segmentId: 'segment-same-her-observability-view',
+            segmentId: 'segment-continuity-observability-view',
             visemeHints: [],
           },
         },
@@ -4598,12 +4598,12 @@ describe('performance visualizer speech observability', () => {
     } as any)
 
     expect(view.playbackCue?.authorityView).toEqual(expect.objectContaining({
-      cueId: 'segment-same-her-observability-view',
+      cueId: 'segment-continuity-observability-view',
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
       reasonTags: [
-        'embodiment:audible-same-her-line',
+        'embodiment:audible-continuity-line',
         'embodiment:still-voiced-motion-line',
       ],
       signature: 'embodiment:body-lipsync-voice-rejoin',

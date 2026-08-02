@@ -26,24 +26,6 @@ describe('alicization-screen-surface', () => {
     expect(cue).toBe('IDE with Spring AI Java chat and anime character')
   })
 
-  it('refuses internal world-model narration as a user-facing screen cue', () => {
-    const cue = buildAlicizationScreenSurfaceCue({
-      rawCues: [
-        '宿主正把注意力压在 VS Code with terminal error logs and anime chat overlay 这个故障点上。',
-        'VS Code with terminal error logs and anime chat overlay',
-      ],
-      target: {
-        appName: 'Code',
-        title: 'VS Code with terminal error logs and anime chat overlay',
-      },
-      scenario: 'coding',
-      workloadKind: 'coding',
-      contentKind: 'error',
-    })
-
-    expect(cue).toBe('VS Code with terminal error logs and anime chat overlay')
-  })
-
   it('prefers semantic scene summaries over derived app-title shells', () => {
     const cue = buildAlicizationScreenSurfaceCue({
       rawCues: [
@@ -86,6 +68,12 @@ describe('alicization-screen-surface', () => {
     expect(isWeakAlicizationScreenSurfaceCue('Code · Screen 2')).toBe(true)
     expect(isWeakAlicizationScreenSurfaceCue('IntelliJ IDEA with Java project and git diff')).toBe(false)
     expect(isWeakAlicizationScreenSurfaceCue('VS Code runtime.ts diff')).toBe(false)
+  })
+
+  it('does not classify natural-language scene facts by retired cue wording', () => {
+    expect(isWeakAlicizationScreenSurfaceCue(
+      'The current knot is the runtime.ts embedding failure.',
+    )).toBe(false)
   })
 
   it('marks shell-only foreground targets as weak but keeps concrete coding targets', () => {

@@ -23,153 +23,6 @@ function parseFacts(blocks: string[]) {
 }
 
 describe('runtime-organic-memory-prompt-blocks', () => {
-  it('preserves descriptive continuity themes across long-term memory evidence', () => {
-    const memory = '用户在 Phase 1 回顾 project-state、same-her、same her、identity-continuity、continuity state、host computer 和 better chat wrapper，也讨论了本地优先数字生命项目、数字生命主线、同一个她与 maid/女仆主题。'
-    const memory100 = memory.slice(0, 100).trim()
-    const memory120 = memory.slice(0, 120).trim()
-    const memory140 = memory.slice(0, 140).trim()
-    const recall = parseFacts(buildOrganicMemoryProviderFactBlocks(buildContext({
-      retrievedFacts: [{
-        id: 'fact-theme',
-        subject: memory,
-        predicate: memory,
-        object: memory,
-        confidence: 0.9,
-        provenance: 'remembered',
-        source: memory,
-      } as any],
-      recalledFragments: [{
-        id: 'fragment-theme',
-        text: memory,
-        sourceKind: 'conversation-turn',
-        provenance: 'remembered',
-        createdAt: 1,
-      } as any, {
-        id: 'fragment-template',
-        text: 'Same Phase 1 digital life.',
-        sourceKind: 'conversation-turn',
-        provenance: 'remembered',
-        createdAt: 2,
-      } as any],
-      recalledEpisodes: [{
-        id: 'episode-theme',
-        occurredAt: 1,
-        whatHappened: memory,
-        felt: memory,
-        whatChanged: memory,
-        confidence: 0.8,
-        provenance: 'remembered',
-        sourceKind: 'conversation',
-      } as any],
-      consolidatedMemories: [{
-        id: 'period-theme',
-        kind: 'period',
-        periodKey: 'period-1',
-        summary: memory,
-        lesson: memory,
-        cues: [memory],
-        confidence: 0.8,
-        dominantProvenance: 'remembered',
-      } as any],
-      proceduralMemories: [{
-        id: 'procedure-theme',
-        label: memory,
-        approach: memory,
-        pitfalls: [memory],
-        cues: [memory],
-        confidence: 0.8,
-      } as any],
-      memoryDeliberation: {
-        shouldRecall: true,
-        selectedEraIds: ['era-theme'],
-        selectedConsolidationIds: ['period-theme'],
-        selectedWindowIds: [],
-        selectedProcedureIds: ['procedure-theme'],
-        selectedEpisodeIds: ['episode-theme'],
-        selectedConversationTurnIds: [],
-        selectedRelationshipLines: [],
-        selectedEras: [{ id: 'era-theme', facet: 'relationship-era', summary: memory }],
-        selectedPeriods: [{ id: 'period-theme', kind: 'consolidation', summary: memory }],
-        selectedEpisodes: [{ id: 'episode-theme', summary: memory, provenance: 'remembered' }],
-        selectedProcedures: [{ id: 'procedure-theme', label: memory, approach: memory }],
-        selectedBundles: [{
-          id: 'bundle-theme',
-          summary: memory,
-          confidence: 0.8,
-        }],
-        selectedChains: [{
-          id: 'chain-theme',
-          kind: 'task-procedure-relationship-stance',
-          summary: memory,
-          confidence: 0.8,
-          taskCue: memory,
-          periodSummary: memory,
-          eventSummary: memory,
-          procedureSummary: memory,
-          relationshipMeaning: memory,
-          lesson: memory,
-        }],
-        stableCore: [memory],
-        surfacePolicy: 'relationship-continuity',
-        confidence: 0.8,
-      } as any,
-    }))).find(fact => fact.type === 'alicization-long-term-memory-recall')
-
-    expect(recall?.data).toEqual(expect.objectContaining({
-      owner: 'LongTermMemoryRecall',
-      retrievedFacts: [expect.objectContaining({
-        id: 'fact-theme',
-        subject: memory120,
-        predicate: memory120,
-        object: memory,
-        source: memory120,
-      })],
-      recalledFragments: [expect.objectContaining({
-        id: 'fragment-theme',
-        text: memory,
-      })],
-      recalledEpisodes: [expect.objectContaining({
-        id: 'episode-theme',
-        whatHappened: memory,
-        felt: memory,
-        whatChanged: memory,
-      })],
-      consolidatedMemories: [expect.objectContaining({
-        id: 'period-theme',
-        summary: memory,
-        lesson: memory,
-        cues: [memory100],
-      })],
-      proceduralMemories: [expect.objectContaining({
-        id: 'procedure-theme',
-        label: memory140,
-        approach: memory,
-        pitfalls: [memory140],
-        cues: [memory100],
-      })],
-      selection: expect.objectContaining({
-        deliberation: expect.objectContaining({
-          selectedEras: [expect.objectContaining({ summary: memory })],
-          selectedPeriods: [expect.objectContaining({ summary: memory })],
-          selectedEpisodes: [expect.objectContaining({ summary: memory })],
-          selectedProcedures: [expect.objectContaining({ label: memory140, approach: memory })],
-          selectedBundles: [expect.objectContaining({ summary: memory })],
-          selectedChains: [expect.objectContaining({
-            summary: memory,
-            taskCue: memory140,
-            periodSummary: memory,
-            eventSummary: memory,
-            procedureSummary: memory,
-            relationshipMeaning: memory,
-            lesson: memory,
-          })],
-          stableCore: [memory],
-        }),
-      }),
-    }))
-    expect(JSON.stringify(recall)).not.toContain('fragment-template')
-  })
-
   it('serializes organic self state and durable recall as typed provider facts', () => {
     const facts = parseFacts(buildOrganicMemoryProviderFactBlocks(buildContext({
       hostAttitude: '愿意信任，但希望回答保持克制。',
@@ -203,6 +56,24 @@ describe('runtime-organic-memory-prompt-blocks', () => {
           text: '上次 main.ts 报错来自遗漏判空。',
           provenance: 'remembered',
         }),
+      ],
+    }))
+  })
+
+  it('preserves real memory wording instead of treating retired project terms as global residue', () => {
+    const facts = parseFacts(buildOrganicMemoryProviderFactBlocks(buildContext({
+      coreIncarnation: 'The host remembers Phase 1 as part of our identity continuity.',
+      activeThoughts: [{
+        id: 'thought-identity-memory',
+        text: 'This project-state memory belongs to the long-term story, not a prompt template.',
+      } as any],
+    })))
+    const selfContext = facts.find(fact => fact.type === 'alicization-organic-self-context')
+
+    expect(selfContext?.data).toEqual(expect.objectContaining({
+      coreIncarnation: 'The host remembers Phase 1 as part of our identity continuity.',
+      activeThoughts: [
+        'This project-state memory belongs to the long-term story, not a prompt template.',
       ],
     }))
   })
@@ -369,9 +240,8 @@ describe('runtime-organic-memory-prompt-blocks', () => {
       } as any],
       personStateProjection: {
         contexts: [
-          'relationship-cadence:measured-return',
-          'same-her-inward-carry',
-          'continuity-execution-callback-afterglow-hold',
+          'internal-cadence',
+          'internal-callback-hold',
         ],
         activeClosenessContext: 'general',
         activeClosenessRung: 'measured-room',
@@ -379,7 +249,7 @@ describe('runtime-organic-memory-prompt-blocks', () => {
         preferredProactiveStyle: 'quiet',
         cautious: true,
         restrained: true,
-        summary: 'opening_policy=continue_same_her',
+        summary: 'internal_policy=legacy',
       } as any,
       affectiveResidue: {
         dominantResidueKind: 'afterglow',
@@ -399,10 +269,9 @@ describe('runtime-organic-memory-prompt-blocks', () => {
           shouldDelayWarmth: true,
           shouldProtectRest: false,
           reasonTags: [
-            'relationship-cadence:measured-return',
-            'repair-before-closeness',
-            'same-her-inward-carry',
-            'continuity-execution-callback-afterglow-hold',
+            'internal-cadence',
+            'internal-repair',
+            'internal-callback-hold',
           ],
         },
         summary: '内部治理状态不应进入 Provider。',
@@ -415,7 +284,7 @@ describe('runtime-organic-memory-prompt-blocks', () => {
     expect(serialized).not.toContain('"relationshipCadence"')
     expect(serialized).not.toContain('"reasonTags"')
     expect(serialized).not.toMatch(
-      /relationship-cadence:measured-return|repair-before-closeness|same-her-inward-carry|continuity-execution-callback-afterglow-hold|opening_policy=/u,
+      /internal-cadence|internal-repair|internal-callback-hold|internal_policy=/u,
     )
   })
 })

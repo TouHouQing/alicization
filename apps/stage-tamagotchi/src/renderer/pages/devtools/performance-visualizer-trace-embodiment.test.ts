@@ -52,7 +52,7 @@ describe('performance visualizer trace embodiment', () => {
     })).toBe('turn=care | closure=grounded-recall | surface=procedural-carry | authority=face, motion, lipsync | execution=face+motion+lipsync | scenario=late-night-fatigue | stance=observe-first | sourceTrail=fatigue, care, grounded-recall')
   })
 
-  it('keeps body and voice execution lanes when rebuilding same-her trace embodiment summaries from body-lipsync-voice carry', () => {
+  it('keeps body and voice execution lanes when rebuilding continuity trace embodiment summaries from body-lipsync-voice carry', () => {
     expect(buildTraceAuthorityExecutionSummary({
       turnMode: 'care',
       closureState: 'grounded-recall',

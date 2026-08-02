@@ -51,20 +51,6 @@ describe('proactive feedback loop state', () => {
       tone: 'rest-protective',
       reason: 'The body should stay quiet and rest-protective.',
     },
-    selfRevisionCandidate: {
-      shouldPropose: true,
-      domain: 'proactive-policy',
-      reasonCodes: ['rest-protective', 'suppress-outward-initiative'],
-      summary: 'Rest-protective emotional carry should keep later initiative quiet.',
-      projectStateContinuity: {
-        sameHerSelfLine: 'structured continuity digest.',
-        sameHerDriftRisk: 'Noisy initiative would split the same-her rest line.',
-        proactiveSameHerGap: 'Do not reopen before rest protection cools.',
-        emotionalClosureCue: 'rest-protective',
-        sameHerHoldDetail: 'Keep the body quiet while rest protection is active.',
-        continuityGuard: 'Do not split emotion, initiative, and embodiment.',
-      },
-    },
     traceSummary: 'rest-protective-shift cooled initiative pressure',
     replayLine: 'emotion_initiative_suppression:rest-guard',
   } satisfies AlicizationEmotionalTransitionLedgerSnapshot

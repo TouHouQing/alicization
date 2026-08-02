@@ -302,7 +302,6 @@ describe('memory-turn-artifact', () => {
           updatedAt: 1_200_000,
         },
         personStateProjection: {
-          manifestationCadenceSummary: 'Return on one measured-return line and keep the reopening lower-pressure.',
           relationshipDoctrine: 'Do not let the continuity state flatten into a generic tool shell.',
           summary: 'Measured-return continuity should stay visible across reply, memory, and body.',
         } as any,
@@ -367,7 +366,7 @@ describe('memory-turn-artifact', () => {
       confidence: 0.88,
       latencyCost: 0.14,
       status: 'selected',
-      statusReason: 'same-her memory closure stayed dominant',
+      statusReason: 'continuity memory closure stayed dominant',
       summary: 'The remembered seam should govern the next reply, action carry, and body cadence together.',
       evidenceSummary: 'same-person continuity | execution result callback | measured-return body cadence',
     } as const
@@ -447,14 +446,13 @@ describe('memory-turn-artifact', () => {
           updatedAt: 1_300_000,
         },
         personStateProjection: {
-          manifestationCadenceSummary: 'Keep voice, gaze, motion, and lipsync on one lower-pressure measured-return line.',
           relationshipDoctrine: 'Same-person continuity beats generic project progress.',
           summary: 'Memory should govern reply cadence, proactive restraint, and embodied continuity together.',
           selfContinuityAuthority: {
             relationshipLine: 'same-person continuity',
             inwardLine: 'Hold the same remembered seam before outward reply wider.',
             authoritySummary: 'Memory OS remains the authority for this identity-continuity',
-            sourceTags: ['phase-1', 'same-her', 'memory-initiative-embodiment'],
+            sourceTags: ['phase-1', 'continuity', 'memory-initiative-embodiment'],
           },
         } as any,
         memoryDeliberation: {
@@ -555,7 +553,7 @@ describe('memory-turn-artifact', () => {
     expect(artifact.memoryClosureTrace.nextInfluence.embodiment.cadence).toContain('voice, gaze, motion, and lipsync')
     expect(artifact.memoryClosureTrace.reasonTags).toEqual(expect.arrayContaining([
       'phase-1',
-      'same-her',
+      'continuity',
       'memory-initiative-embodiment',
       'memory-os-authority',
     ]))

@@ -166,10 +166,9 @@ export function buildDesireMemory(input: {
     || alicizationGoal?.label
     || input.goalStack.unresolvedSummary
     || input.appraisal.whatChanged
-    || input.worldModel.activeThread?.summary
-    || 'stay with the active concern',
+    || input.worldModel.activeThread?.summary,
     180,
-  ) || 'stay with the active concern'
+  )
   const reopenWhen = [
     ...buildReopenWhen({
       context: input.context,
@@ -188,7 +187,7 @@ export function buildDesireMemory(input: {
   const carried = new Map(currentDesires.map(desire => [desire.id, desire]))
   const activeDesires: AlicizationDesireMemoryEntry[] = []
 
-  if (alicizationGoal || input.actionEcology || input.deliberationState) {
+  if (reason && (alicizationGoal || input.actionEcology || input.deliberationState)) {
     const kind = desireKindFromMind({
       goalKind: alicizationGoal?.kind ?? null,
       action: input.initiative.selectedAction,

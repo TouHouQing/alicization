@@ -93,7 +93,7 @@ describe('stage three runtime diagnostics helpers', () => {
     expect(vrmUpdate.speechSegmentId).toBe('segment-stale-voice-line')
     expect(vrmUpdate.embodimentSegmentAligned).toBe(false)
     expect(vrmUpdate.embodimentSegmentMismatchDrivers).toEqual(['lipsync', 'voice'])
-    expect(vrmUpdate.sameHerFrameSummary).toBe(
+    expect(vrmUpdate.continuityFrameSummary).toBe(
       'drift | performance=segment-current-line | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice | lane=body+face+motion-only | remaining-open=lipsync+voice',
     )
     expect(vrmUpdate.voiceActive).toBe(true)
@@ -131,7 +131,7 @@ describe('stage three runtime diagnostics helpers', () => {
       vrmFrameHookMs: 9,
     })
 
-    expect(speaking.sameHerFrameSummary).toBe(
+    expect(speaking.continuityFrameSummary).toBe(
       'aligned | segment=segment-current-line | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
     )
 
@@ -162,7 +162,7 @@ describe('stage three runtime diagnostics helpers', () => {
     expect(idle.performanceSegmentId).toBeNull()
     expect(idle.speechSegmentId).toBeNull()
     expect(idle.embodimentSegmentAligned).toBeNull()
-    expect(idle.sameHerFrameSummary).toBeNull()
+    expect(idle.continuityFrameSummary).toBeNull()
     expect(idle.embodimentSegmentMismatchDrivers).toEqual([])
     expect(idle.voiceActive).toBe(false)
     expect(idle.lipsyncActive).toBe(false)
@@ -197,7 +197,7 @@ describe('stage three runtime diagnostics helpers', () => {
     })
 
     expect(partial.embodimentSegmentAligned).toBe(true)
-    expect(partial.sameHerFrameSummary).toBe(
+    expect(partial.continuityFrameSummary).toBe(
       'aligned | segment=segment-body-face-motion-line | active=body, face, motion | lane=body+face+motion-only | remaining-open=lipsync+voice',
     )
   })
@@ -983,7 +983,7 @@ describe('stage three runtime diagnostics helpers', () => {
     }))
   })
 
-  it('surfaces same-her measured-return lane drift when only lipsync still matches the active VRM segment', () => {
+  it('surfaces continuity measured-return lane drift when only lipsync still matches the active VRM segment', () => {
     const speech = {
       ...createDefaultStageSpeechEmbodimentDiagnostics(),
       currentBodyState: 'accompanying',
@@ -1009,7 +1009,7 @@ describe('stage three runtime diagnostics helpers', () => {
           watchMode: 'symbiotic-vision',
           sceneScenario: 'coding',
           sceneSummary: 'callback seam still open',
-          activeThreadId: 'thread-same-her-lane-drift-1',
+          activeThreadId: 'thread-continuity-lane-drift-1',
           activeThreadTitle: 'callback seam',
           dominantMode: 'thinking',
           dominantDrive: 'stabilize',
@@ -1025,8 +1025,8 @@ describe('stage three runtime diagnostics helpers', () => {
           operatingMode: 'acting',
           dominantSystem: 'dialogue',
           supportingSystems: ['memory', 'embodiment'],
-          governingFocus: 'same-her measured-return continuity',
-          summary: 'same-her measured-return continuity',
+          governingFocus: 'continuity measured-return continuity',
+          summary: 'continuity measured-return continuity',
         },
         continuitySignal: {
           summary: 'thread=callback seam | stage=same-thread-continuation | restraint=measured-return',
@@ -1042,7 +1042,7 @@ describe('stage three runtime diagnostics helpers', () => {
           preferredStyle: 'silent-observe',
           confidence: 0.81,
           shouldSpeak: false,
-          activeThreadId: 'thread-same-her-lane-drift-1',
+          activeThreadId: 'thread-continuity-lane-drift-1',
           activeThreadTitle: 'callback seam',
           dominantConcernKind: 'same-thread-continuation',
           dominantConcernSummary: 'The same callback line is still alive after repeated measured-return reopenings.',
@@ -1094,30 +1094,30 @@ describe('stage three runtime diagnostics helpers', () => {
       } as any,
       recentDrivingEvent: {
         kind: 'dialogue-responded',
-        decisionTraceId: 'mind:same-her-lane-drift:1',
+        decisionTraceId: 'mind:continuity-lane-drift:1',
         summary: 'identity-continuity',
         createdAt: 2_468,
       } as any,
       recentDrivingTraceRecord: {
-        decisionTraceId: 'mind:same-her-lane-drift:1',
-        activeThreadId: 'thread-same-her-lane-drift-1',
+        decisionTraceId: 'mind:continuity-lane-drift:1',
+        activeThreadId: 'thread-continuity-lane-drift-1',
         turnMode: 'answer',
         truthState: 'remembered',
         repairState: 'none',
         finalSurfacePolicy: 'same-thread-continuation',
-        closureState: 'same-her-carry',
+        closureState: 'continuity-carry',
         suppressionTags: ['continuity-next-open-window'],
       } as any,
       recentDrivingTraceEvents: [],
       recentDrivingTraceDetails: [],
       traceSummary: {
-        decisionTraceId: 'mind:same-her-lane-drift:1',
+        decisionTraceId: 'mind:continuity-lane-drift:1',
         turnMode: 'answer',
         truthState: 'remembered',
         repairState: 'none',
         finalSurfacePolicy: 'same-thread-continuation',
-        closureState: 'same-her-carry',
-        activeThreadId: 'thread-same-her-lane-drift-1',
+        closureState: 'continuity-carry',
+        activeThreadId: 'thread-continuity-lane-drift-1',
         suppressionTags: ['continuity-next-open-window'],
         latestEventSummary: 'identity-continuity',
         segmentBinding: {
@@ -1147,8 +1147,8 @@ describe('stage three runtime diagnostics helpers', () => {
         topVisemes: 'I:0.42',
       },
       authoritySummary: {
-        cueId: 'segment-same-her-lane-drift-1',
-        segmentId: 'segment-same-her-lane-drift-1',
+        cueId: 'segment-continuity-lane-drift-1',
+        segmentId: 'segment-continuity-lane-drift-1',
         rendererTarget: 'vrm',
         matchedDrivers: ['lipsync'],
         matchedSources: ['prosody-authority'],
@@ -1157,7 +1157,7 @@ describe('stage three runtime diagnostics helpers', () => {
         authorityMismatchSummary: 'face-mismatch, motion-mismatch',
         authorityMismatchReasonSummary: '表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型。',
         authorityMismatchDisplay: '表情、动作 authority 漂移，当前绑定来源是 prosody-authority，实际执行落点是口型。',
-        settleSummary: 'authority-bound | segment=segment-same-her-lane-drift-1 | target=vrm | drivers=lipsync | sources=prosody-authority | lane=lipsync-only',
+        settleSummary: 'authority-bound | segment=segment-continuity-lane-drift-1 | target=vrm | drivers=lipsync | sources=prosody-authority | lane=lipsync-only',
       },
       speechEvidence: {
         voiceSummary: 'companion=measured-return | blink=linger | gaze=soften',
@@ -1172,7 +1172,7 @@ describe('stage three runtime diagnostics helpers', () => {
         visemeHintsSummary: 'I:0.42@0.94',
       },
       cueMicroSummary: {
-        cueId: 'segment-same-her-lane-drift-1',
+        cueId: 'segment-continuity-lane-drift-1',
         cueText: '先沿着这条线继续看。',
         cue: 'focused / observe_focus | prosody=0.34 mouth=0.30 head=0.28',
         personaStyle: 'measured-return | soften / linger',
@@ -1184,7 +1184,7 @@ describe('stage three runtime diagnostics helpers', () => {
           cue: 'focused',
           source: 'prosody-authority',
           confidence: 0.94,
-          segmentId: 'segment-other-face-same-her-1',
+          segmentId: 'segment-other-face-continuity-1',
         },
         motion: null,
         lipsync: null,
@@ -1200,7 +1200,7 @@ describe('stage three runtime diagnostics helpers', () => {
         stopReason: null,
         rendererTarget: 'vrm',
         driverAuthority: {
-          segmentId: 'segment-same-her-lane-drift-1',
+          segmentId: 'segment-continuity-lane-drift-1',
           rendererTarget: 'vrm',
           matchedDrivers: ['face', 'motion', 'lipsync'],
           sources: ['prosody-authority', 'timeline-projection'],
@@ -1209,7 +1209,7 @@ describe('stage three runtime diagnostics helpers', () => {
           lipsyncSegmentMatched: true,
         },
         cue: {
-          id: 'segment-same-her-lane-drift-1',
+          id: 'segment-continuity-lane-drift-1',
           text: '先沿着这条线继续看。',
           prosodyWeight: 0.34,
           mouthWeight: 0.3,
@@ -1243,15 +1243,15 @@ describe('stage three runtime diagnostics helpers', () => {
             confidence: 0.94,
             preUtteranceCue: 'steady-inhale',
             postUtteranceCue: 'soft-release',
-            segmentId: 'segment-other-face-same-her-1',
+            segmentId: 'segment-other-face-continuity-1',
           },
           lipsync: {
             mode: 'energy-phoneme-hybrid',
             playbackPhase: 'playing',
-            segmentId: 'segment-same-her-lane-drift-1',
+            segmentId: 'segment-continuity-lane-drift-1',
             continuityHoldMs: 320,
             visemeHints: [
-              { segmentId: 'segment-same-her-lane-drift-1', viseme: 'I', weight: 0.42, source: 'prosody-authority', confidence: 0.94 },
+              { segmentId: 'segment-continuity-lane-drift-1', viseme: 'I', weight: 0.42, source: 'prosody-authority', confidence: 0.94 },
             ],
           },
           motion: {
@@ -1262,7 +1262,7 @@ describe('stage three runtime diagnostics helpers', () => {
             holdMs: 220,
             source: 'timeline-projection',
             confidence: 0.88,
-            segmentId: 'segment-other-motion-same-her-1',
+            segmentId: 'segment-other-motion-continuity-1',
           },
         },
       },
@@ -1553,7 +1553,7 @@ describe('stage three runtime diagnostics helpers', () => {
         truthState: 'remembered',
         repairState: 'none',
         finalSurfacePolicy: 'same-thread-continuation',
-        closureState: 'same-her-carry',
+        closureState: 'continuity-carry',
         suppressionTags: ['continuity-next-open-window'],
       } as any,
       recentDrivingTraceEvents: [],
@@ -1564,7 +1564,7 @@ describe('stage three runtime diagnostics helpers', () => {
         truthState: 'remembered',
         repairState: 'none',
         finalSurfacePolicy: 'same-thread-continuation',
-        closureState: 'same-her-carry',
+        closureState: 'continuity-carry',
         activeThreadId: 'thread-tightened-callback-line-1',
         suppressionTags: ['continuity-next-open-window'],
         latestEventSummary: 'identity-continuity',
@@ -1691,7 +1691,7 @@ describe('stage three runtime diagnostics helpers', () => {
     }))
   })
 
-  it('surfaces interruption-tail same-her narration when owner-canceled playback resumes on the same callback line', () => {
+  it('surfaces interruption-tail continuity narration when owner-canceled playback resumes on the same callback line', () => {
     const store = useStageThreeRuntimeDiagnosticsStore()
 
     store.setSpeechEmbodiment({
@@ -1702,7 +1702,7 @@ describe('stage three runtime diagnostics helpers', () => {
       currentInwardPreoccupation: 'the interruption passed, but she is still following the same callback line before widening again',
       activePresenceSummary: 'identity-continuity',
       embodiedPresenceSummary: 'quiet-accompaniment',
-      runtimeSummary: 'same-her interruption tail stayed on the callback line and reopened as repair-before-closeness',
+      runtimeSummary: 'continuity interruption tail stayed on the callback line and reopened as repair-before-closeness',
       recentDrivingEvent: {
         kind: 'dialogue-interrupted',
         decisionTraceId: 'mind:interrupt-callback-line:1',
@@ -1716,7 +1716,7 @@ describe('stage three runtime diagnostics helpers', () => {
         truthState: 'remembered',
         repairState: 'none',
         finalSurfacePolicy: 'same-thread-continuation',
-        closureState: 'same-her-carry',
+        closureState: 'continuity-carry',
         suppressionTags: ['continuity-next-open-window', 'interrupt-tail'],
       } as any,
       recentDrivingTraceEvents: [],
@@ -1727,7 +1727,7 @@ describe('stage three runtime diagnostics helpers', () => {
         truthState: 'remembered',
         repairState: 'none',
         finalSurfacePolicy: 'same-thread-continuation',
-        closureState: 'same-her-carry',
+        closureState: 'continuity-carry',
         activeThreadId: 'thread-interrupt-callback-line-1',
         suppressionTags: ['continuity-next-open-window', 'interrupt-tail'],
         latestEventSummary: 'owner-canceled interruption happened, but the identity-continuity',

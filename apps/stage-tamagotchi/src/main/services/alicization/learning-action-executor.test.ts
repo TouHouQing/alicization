@@ -304,7 +304,7 @@ describe('learning action executor', () => {
     ]), 'rule')
   })
 
-  it('writes corrected same-person continuity into a durable relationship cadence fact during relationship internalization', async () => {
+  it('does not synthesize a durable relationship policy from fixed continuity wording', async () => {
     const upsertMemoryFacts = vi.fn(async () => {})
     const execute = createAlicizationLearningActionExecutor({
       now: () => 10_000,
@@ -425,14 +425,10 @@ describe('learning action executor', () => {
     })
 
     expect(result.status).toBe('completed')
-    expect(upsertMemoryFacts).toBeCalledWith(expect.arrayContaining([
+    expect(upsertMemoryFacts).not.toBeCalledWith(expect.arrayContaining([
       expect.objectContaining({
-        subject: 'relationship',
         predicate: 'relationship-cadence',
-        object: expect.stringMatching(/corrected same-person continuity[\s\S]*progress pressure/i),
         sourceLabel: 'learning-internalized-relationship-cadence',
-        memoryDomain: 'relationship',
-        knowledgeStage: 'internalized-long-horizon-knowledge',
       }),
     ]), 'rule')
   })

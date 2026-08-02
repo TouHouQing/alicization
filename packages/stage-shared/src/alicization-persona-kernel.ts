@@ -117,22 +117,6 @@ function normalizeMindAge(value: unknown) {
   return Math.min(120, Math.max(1, Math.floor(numeric)))
 }
 
-function truncateText(text: string, maxChars: number) {
-  return text.length > maxChars
-    ? `${text.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`
-    : text
-}
-
-function buildDirectiveCue(customDirectives: string) {
-  const normalized = sanitizeMultilineText(customDirectives)
-    .replace(/\n+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  if (!normalized)
-    return ''
-  return truncateText(normalized, 140)
-}
-
 export function hasAlicizationPersonaIdentity(profile: AlicizationPersonaKernelProfile | null | undefined) {
   const ownerName = sanitizeText(profile?.ownerName)
   const hostName = sanitizeText(profile?.hostName)
@@ -295,45 +279,17 @@ function normalizePersonality(
 }
 
 export function buildAlicizationHostAttitudeSeed(input: AlicizationPersonaKernelInput) {
-  const profile = normalizeProfile(input.profile)
-  const personality = normalizePersonality(input.personality)
-  const hostReference = profile.hostName || profile.ownerName || '宿主'
-  const relation = profile.relationship || '陪伴者'
-  const temperamentSummary = summarizeAlicizationTemperament(personality)
-
-  return truncateText(
-    [
-      `Host reference: ${hostReference}.`,
-      `Relation: ${relation}.`,
-      `Temperament: ${temperamentSummary}.`,
-      'Respond from the host state first.',
-      'Keep boundaries steady without overstepping or withdrawing.',
-      'This is a persona-kernel seed, not visible wording.',
-    ].join(' '),
-    120,
-  )
+  return JSON.stringify({
+    profile: normalizeProfile(input.profile),
+    personality: normalizePersonality(input.personality),
+  })
 }
 
 export function buildAlicizationCoreIncarnationSeed(input: AlicizationPersonaKernelInput) {
-  const profile = normalizeProfile(input.profile)
-  const personality = normalizePersonality(input.personality)
-  const hostReference = profile.hostName || profile.ownerName || '宿主'
-  const relation = profile.relationship || '陪伴者'
-  const temperamentSummary = summarizeAlicizationTemperament(personality)
-  const directiveCue = buildDirectiveCue(input.customDirectives ?? '')
-  const fragments = [
-    `Identity name: ${profile.alicizationName}.`,
-    `Host reference: ${hostReference}.`,
-    `Relation: ${relation}.`,
-    `Temperament: ${temperamentSummary}.`,
-    'Continuity policy: local personhood first.',
-    'Respond from the host state first.',
-    'Keep boundaries without overstepping or turning into a tool shell.',
-    directiveCue
-      ? `User directive: ${directiveCue}.`
-      : '',
-  ].filter(Boolean)
-  return truncateText(`${fragments.join(' ')} This is a persona-kernel seed, not visible wording.`, 500)
+  return JSON.stringify({
+    profile: normalizeProfile(input.profile),
+    personality: normalizePersonality(input.personality),
+  })
 }
 
 function shouldKeepCurrentValue(value: string, options?: { placeholderValues?: string[] }) {

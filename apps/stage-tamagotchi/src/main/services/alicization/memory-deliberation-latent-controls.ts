@@ -45,47 +45,6 @@ export interface AlicizationMemoryDeliberationLatentControls {
   unsafeDetails: string[]
 }
 
-export function summarizeMemoryDeliberationLatentControls(
-  controls: AlicizationMemoryDeliberationLatentControls,
-) {
-  return [
-    `Memory pressure is ${controls.memoryPressure}.`,
-    `Certainty floor is ${controls.certaintyFloor}.`,
-    `Relationship vector is ${controls.relationshipVector}.`,
-    `Surface permission is ${controls.surfacePermission}.`,
-    `Retrospective depth is ${controls.retrospectiveDepth}.`,
-    `Provenance posture is ${controls.provenancePosture}.`,
-    `Detail assertion budget is ${controls.detailAssertionBudget}.`,
-    controls.conflictBurden !== 'none' ? `Conflict burden is ${controls.conflictBurden}.` : '',
-    `Opening strategy is ${controls.openingStrategy}.`,
-    `Answer strategy is ${controls.answerStrategy}.`,
-    `Visibility discipline is ${controls.visibilityDiscipline}.`,
-    `Label uncertainty: ${controls.labelUncertainty ? 'yes' : 'no'}.`,
-    `Frame prior procedure: ${controls.frameAsPriorProcedure ? 'yes' : 'no'}.`,
-    `Avoid archive dumps: ${controls.avoidArchiveDump ? 'yes' : 'no'}.`,
-    `Avoid date recitals: ${controls.avoidDateRecital ? 'yes' : 'no'}.`,
-    `Avoid execution impersonation: ${controls.avoidExecutionImpersonation ? 'yes' : 'no'}.`,
-  ].filter(Boolean).join(' ')
-}
-
-export function buildMemoryAnswerAnchorTag(
-  controls: AlicizationMemoryDeliberationLatentControls,
-) {
-  return `Memory answer anchor: surface permission is ${controls.surfacePermission}; role is ${controls.relationshipVector}; certainty is ${controls.certaintyFloor}; detail budget is ${controls.detailAssertionBudget}; depth is ${controls.retrospectiveDepth}.`
-}
-
-export function buildMemoryOpeningStrategyTag(
-  controls: AlicizationMemoryDeliberationLatentControls,
-) {
-  return `Memory opening strategy: ${controls.openingStrategy}; visibility discipline: ${controls.visibilityDiscipline}.`
-}
-
-export function buildMemoryLatentBoundaryTag(
-  controls: AlicizationMemoryDeliberationLatentControls,
-) {
-  return `Memory boundary: provenance is ${controls.provenancePosture}; uncertainty is ${controls.labelUncertainty ? 'labeled' : 'settled'}; archive dumps are ${controls.avoidArchiveDump ? 'forbidden' : 'allowed'}; date recitals are ${controls.avoidDateRecital ? 'forbidden' : 'allowed'}; execution impersonation is ${controls.avoidExecutionImpersonation ? 'forbidden' : 'allowed'}.`
-}
-
 export function deriveMemoryDeliberationLatentControls(input: {
   deliberation: NonNullable<OrganicMemoryPromptContext['memoryDeliberation']>
   speech: OrganicMemoryPromptContext['recollectionSpeechPlan'] | null

@@ -34,8 +34,8 @@ These boundaries are intentionally separate. Memory Workbench does not become a 
 
 - renderer-side Provider input assembly
 - local ordinary reply authoring
-- ordinary dialogue fast-path reply authoring
-- second-pass visible reply rewriting
+- local ordinary reply authoring
+- post-Provider visible reply rewriting
 - reply wording governance derived from project or runtime state
 - normal-reply fallbacks that conceal infrastructure failure
 
@@ -56,7 +56,7 @@ The remaining deterministic user-visible text is limited to typed infrastructure
 pnpm exec vitest run \
   apps/stage-tamagotchi/src/main/services/alicization/main-chat-single-dialogue-mainline-audit.test.ts \
   apps/stage-tamagotchi/src/main/services/alicization/fixed-reply-governance-removal.test.ts \
-  packages/stage-ui/src/stores/chat-core-pre-dialogue-authority.test.ts \
+  packages/stage-ui/src/stores/chat.test.ts \
   packages/stage-ui/src/composables/alicization-guardrails.test.ts \
   packages/stage-ui/src/stores/chat.test.ts
 ```

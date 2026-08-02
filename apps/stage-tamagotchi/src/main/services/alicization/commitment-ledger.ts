@@ -126,8 +126,8 @@ function buildCommitment(input: {
     id,
     kind: input.kind,
     status: statusFromPriority({ priority, previous }),
-    title: sanitizeText(input.title, 72) || input.kind,
-    summary: sanitizeText(input.summary, 180) || input.title,
+    title: sanitizeText(input.summary, 180) || sanitizeText(input.title, 72) || input.kind,
+    summary: sanitizeText(input.summary, 180) || sanitizeText(input.anchor, 180) || input.kind,
     source: input.source,
     priority,
     confidence: clamp01(input.confidence + (previous?.confidence ?? 0) * 0.12),
@@ -254,10 +254,10 @@ export function buildCommitmentLedger(input: {
       now: input.now,
       kind: 'recheck-scene',
       anchor,
-      title: 'Recheck Scene',
+      title: 'recheck-scene',
       summary: input.previousPrivateThought?.thoughtText
         ?? input.worldModel.epistemicState.openQuestions[0]
-        ?? 'She still wants a cleaner grounding pass before treating this moment as settled.',
+        ?? anchor,
       source: !freshGroundedScene && input.previousPrivateThought?.stance === 'uncertain' ? 'private-thought' : repairHypothesis ? 'hypothesis' : 'runtime-thread',
       priority: clamp01(
         (input.beliefRevision?.groundingNeed ?? 0.28) * 0.52
@@ -297,7 +297,7 @@ export function buildCommitmentLedger(input: {
       title: 'Repair Misread',
       summary: repairHypothesis?.summary
         ?? input.previousPrivateThought?.thoughtText
-        ?? 'A drift between remembered continuity and the live world is still unresolved.',
+        ?? anchor,
       source: repairHypothesis ? 'hypothesis' : (!freshGroundedScene && input.previousPrivateThought?.stance === 'uncertain' ? 'private-thought' : 'continuity'),
       priority: clamp01(
         (input.beliefRevision?.contradictionPressure ?? 0.22) * 0.56
@@ -332,11 +332,11 @@ export function buildCommitmentLedger(input: {
       now: input.now,
       kind: 'hold-problem',
       anchor,
-      title: 'Hold Problem',
+      title: 'hold-problem',
       summary: problemHypothesis?.summary
         ?? guidanceThread?.whyHeld
         ?? input.worldModel.activeThread?.summary
-        ?? 'The concrete knot is still alive and should not be dropped.',
+        ?? anchor,
       source: problemHypothesis ? 'hypothesis' : guidanceThread ? 'runtime-thread' : 'continuity',
       priority: clamp01(
         (problemHypothesis?.salience ?? 0.34) * 0.34
@@ -376,7 +376,7 @@ export function buildCommitmentLedger(input: {
       title: 'Care Host',
       summary: careHypothesis?.summary
         ?? careThread?.whyHeld
-        ?? 'The host may need care more than commentary right now.',
+        ?? anchor,
       source: careHypothesis ? 'hypothesis' : careThread ? 'runtime-thread' : 'continuity',
       priority: clamp01(
         (input.context.relationship.fatigue / 100) * 0.36
@@ -413,11 +413,11 @@ export function buildCommitmentLedger(input: {
       now: input.now,
       kind: 'stay-near',
       anchor,
-      title: 'Stay Near',
+      title: 'stay-near',
       summary: input.previousPrivateThought?.thoughtText
         ?? afterglowHypothesis?.summary
         ?? companionshipThread?.whyHeld
-        ?? 'The shared thread is still warm enough that she wants to remain nearby.',
+        ?? anchor,
       source: input.previousPrivateThought?.stance === 'accompany' ? 'private-thought' : afterglowHypothesis ? 'hypothesis' : companionshipThread ? 'runtime-thread' : 'continuity',
       priority: clamp01(
         (afterglowHypothesis?.salience ?? 0.22) * 0.24
@@ -454,7 +454,7 @@ export function buildCommitmentLedger(input: {
       title: 'Follow Through',
       summary: foregroundThread?.whyHeld
         ?? input.previousPrivateThought?.thoughtText
-        ?? 'This thread is not finished just because it slipped out of the immediate foreground.',
+        ?? anchor,
       source: foregroundThread ? 'runtime-thread' : input.previousPrivateThought ? 'private-thought' : 'continuity',
       priority: clamp01(
         (foregroundThread?.continuity ?? 0.3) * 0.42
@@ -507,13 +507,13 @@ export function buildCommitmentLedger(input: {
   )
 
   const narrative = [
-    governingCommitment ? `${governingCommitment.kind} is the strongest carried obligation.` : '',
-    input.dialogueSemantics ? `current turn is pulling toward ${input.dialogueSemantics.responseNeed}.` : '',
+    governingCommitment ? `governing:${governingCommitment.kind}` : '',
+    input.dialogueSemantics ? `turn:${input.dialogueSemantics.responseNeed}` : '',
     ranked.some(commitment => commitment.kind === 'repair-misread' || commitment.kind === 'recheck-scene')
-      ? 'Grounding work is still being carried internally.'
+      ? 'lane:grounding'
       : '',
     ranked.some(commitment => commitment.kind === 'stay-near' || commitment.kind === 'follow-through')
-      ? 'Continuity is being held across ticks instead of being discarded.'
+      ? 'lane:continuity'
       : '',
   ].filter(Boolean)
 

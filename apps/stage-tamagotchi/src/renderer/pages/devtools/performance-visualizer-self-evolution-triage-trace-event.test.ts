@@ -3,13 +3,13 @@ import { describe, expect, it } from 'vitest'
 import { recommendSelfEvolutionTraceEventId } from './performance-visualizer-self-evolution-triage-trace-event'
 
 describe('performance visualizer self evolution triage trace event', () => {
-  it('prefers takeover-audit for persona repair paths when present', () => {
+  it('prefers takeover-audit for persona diagnostics when present', () => {
     expect(recommendSelfEvolutionTraceEventId(
       {
         id: 'repair-path',
         label: '修复路径',
-        layer: null,
-        detail: 'persona drift initiative-preferred-style:light-nudge -> thought trace proactive-opening-guidance-violation:callback-bounded -> continuity anchor governor-intention-rest-1',
+        layer: 'persona',
+        detail: 'selected persona evidence path',
       },
       [
         {
@@ -26,13 +26,13 @@ describe('performance visualizer self evolution triage trace event', () => {
     )).toBe('event-takeover')
   })
 
-  it('prefers person-state-updated for renderer repair paths before presence-pulse fallback', () => {
+  it('prefers person-state-updated for renderer diagnostics before presence-pulse fallback', () => {
     expect(recommendSelfEvolutionTraceEventId(
       {
         id: 'repair-path',
         label: '修复路径',
-        layer: null,
-        detail: 'renderer drift renderer-drift:resident Soft Gaze -> actual Focus Inspect | face focused@prosody-authority | motion observe_focus@cue-bridge -> authority trace 口型 authority 漂移，当前绑定来源仍然正确，但落点已经不同步。 -> continuity anchor turn=care | closure=grounded-recall | surface=procedural-carry',
+        layer: 'renderer',
+        detail: 'selected renderer evidence path',
       },
       [
         {
@@ -67,36 +67,14 @@ describe('performance visualizer self evolution triage trace event', () => {
     )).toBeNull()
   })
 
-  it('prefers takeover-audit for project-state continuity checks so identity-continuity', () => {
+  it('prefers takeover-audit for structured body continuity diagnostics', () => {
     expect(recommendSelfEvolutionTraceEventId(
       {
         id: 'first-check',
         label: '首查点',
         layer: 'continuity',
-        detail: 'Project identity carry -> Phase 1 route carry -> Unresolved closure carry',
-      },
-      [
-        {
-          id: 'event-governance',
-          kind: 'governance-normalized',
-          summary: 'phase-1 continuity remains normalized for local digital life.',
-        },
-        {
-          id: 'event-takeover',
-          kind: 'takeover-audit',
-          summary: 'project identity and open loops were not carried strongly enough before the turn.',
-        },
-      ],
-    )).toBe('event-takeover')
-  })
-
-  it('prefers takeover-audit for body continuity checks so body-led same-segment carry lands on the continuity audit first', () => {
-    expect(recommendSelfEvolutionTraceEventId(
-      {
-        id: 'first-check',
-        label: '首查点',
-        layer: 'continuity',
-        detail: 'body continuity governance',
+        detail: 'body evidence',
+        bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
       },
       [
         {
@@ -113,13 +91,15 @@ describe('performance visualizer self evolution triage trace event', () => {
     )).toBe('event-takeover')
   })
 
-  it('treats explicit renderer rejoin repair paths as same-segment body continuity checks instead of generic renderer drift', () => {
+  it('uses the explicit body phase for renderer rejoin diagnostics', () => {
     expect(recommendSelfEvolutionTraceEventId(
       {
         id: 'repair-path',
         label: '修复路径',
-        layer: null,
-        detail: 'continuity governance renderer rejoin -> body-led-same-segment-carry -> Live2D authority recovery -> cue bridge recovery',
+        layer: 'continuity',
+        detail: 'selected body renderer path',
+        bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
       },
       [
         {
@@ -135,7 +115,7 @@ describe('performance visualizer self evolution triage trace event', () => {
         {
           id: 'event-governance',
           kind: 'governance-normalized',
-          summary: 'renderer rejoin was normalized as same-her manifestation recovery.',
+          summary: 'renderer rejoin was normalized as continuity manifestation recovery.',
         },
         {
           id: 'event-takeover',
@@ -146,13 +126,13 @@ describe('performance visualizer self evolution triage trace event', () => {
     )).toBe('event-takeover')
   })
 
-  it('treats structured speech renderer rejoin cards as same-segment body continuity checks even when the wording becomes generic', () => {
+  it('uses the explicit renderer surface when the detail text is generic', () => {
     expect(recommendSelfEvolutionTraceEventId(
       {
         id: 'repair-path',
         label: '修复路径',
-        layer: null,
-        detail: 'continuity governance manifestation authority recovery -> cue bridge recovery',
+        layer: 'continuity',
+        detail: 'selected speech renderer path',
         rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech',
       },
       [
@@ -169,7 +149,7 @@ describe('performance visualizer self evolution triage trace event', () => {
         {
           id: 'event-governance',
           kind: 'governance-normalized',
-          summary: 'speech manifestation rejoin was normalized as same-her recovery.',
+          summary: 'speech manifestation rejoin was normalized as continuity recovery.',
         },
         {
           id: 'event-takeover',

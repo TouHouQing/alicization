@@ -6,18 +6,6 @@ import { useAlicizationEpoch1Store } from './alicization-epoch1'
 
 const chatTurnCompleteHooks: Array<(output: any, context: any) => unknown> = []
 
-type LegacyChatTurnContext = {
-  message: {
-    id: string
-    content: string
-  }
-  sessionId: string
-} & {
-  preDialogueSendIdentity?: unknown
-  preDialogueAwareness?: unknown
-  preDialogueClosure?: unknown
-}
-
 vi.mock('./chat', () => ({
   useChatOrchestratorStore: () => ({
     onChatTurnComplete: (hook: (output: any, context: any) => unknown) => {
@@ -150,33 +138,6 @@ function createAlicizationBridgeStub(overrides?: Record<string, unknown>) {
         'provider-test': { apiKey: 'test' },
       },
     }),
-    getProjectStateContinuitySnapshot: vi.fn().mockResolvedValue({
-      identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
-      currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-      latestLandedProgress: 'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
-      primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
-      nextClosureTarget: 'Keep extending cross-modal identity-continuity',
-      continuitySummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi. | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal identity-continuity',
-      sameHerSelfLine: 'pre_turn_context_digest',
-      sameHerDriftRisk: 'If the remembered turn gets flattened into a detached project status shell during async extraction, treat that as identity-continuity',
-      preDialogueAwareness: {
-        status: 'partial',
-        summaryLine: 'Alicization is still in Phase 1 local digital life closure.',
-        companionBriefingLine: 'pre_turn_context_digest',
-        companionNextClosureLine: 'Next closure: keep one same-her digital life line across memory, initiative, execution, and embodiment.',
-        awarenessLine: 'pre_turn_context_digest',
-        emotionalClosureCue: null,
-        reasonPreview: [
-          'Project-state landed progress and still-open closure carry now survive as self-continuity authority itself.',
-        ],
-      },
-      preDialogueClosure: null,
-      emotionalClosureCue: null,
-      nonHumanAuthoredStatus: null,
-      turnId: 'turn-project-awareness',
-      sessionId: 'session-project-awareness',
-      origin: 'user-turn',
-    }),
     streamChat: vi.fn().mockImplementation(async (_payload, options) => {
       await options?.onStreamEvent?.({
         type: 'text-delta',
@@ -197,6 +158,12 @@ describe('alicization epoch1 runtime hooks', () => {
     chatTurnCompleteHooks.length = 0
   })
 
+  it('starts without a fixed host-attitude fallback', () => {
+    const store = useAlicizationEpoch1Store()
+
+    expect(store.organicMemorySnapshot.hostAttitude).toBe('')
+  })
+
   afterEach(() => {
     vi.useRealTimers()
     clearAlicizationBridge()
@@ -208,18 +175,7 @@ describe('alicization epoch1 runtime hooks', () => {
     vi.useFakeTimers()
     const streamChat = vi.fn()
     const upsertMemoryFacts = vi.fn().mockResolvedValue(undefined)
-    const getProjectStateContinuitySnapshot = vi.fn().mockResolvedValue({
-      latestLandedProgress: 'renderer memory extraction must not be requested',
-    })
-    const getLatestProjectStateObservation = vi.fn().mockResolvedValue({
-      projectState: {
-        latestLandedProgress: 'renderer memory extraction must not be requested',
-      },
-    })
-
     setAlicizationBridge(createAlicizationBridgeStub({
-      getLatestProjectStateObservation,
-      getProjectStateContinuitySnapshot,
       streamChat,
       upsertMemoryFacts,
     }))
@@ -230,7 +186,7 @@ describe('alicization epoch1 runtime hooks', () => {
     await Promise.resolve()
 
     const output = {
-      id: 'turn-memory-legacy-pre-dialogue',
+      id: 'turn-memory-owner-boundary',
       origin: 'user-turn',
       content: '我记得你喜欢把重要事项写进清单。',
       structured: {
@@ -241,22 +197,12 @@ describe('alicization epoch1 runtime hooks', () => {
         emotion: 'calm',
       },
     } as any
-    const context: LegacyChatTurnContext = {
+    const context = {
       message: {
-        id: 'user-msg-legacy-pre-dialogue',
+        id: 'user-msg-memory-owner-boundary',
         content: '请记住我喜欢把重要事项写进清单',
       },
-      sessionId: 'session-legacy-pre-dialogue',
-      preDialogueSendIdentity: {
-        summaryLine: 'legacy-send-identity-sentinel',
-        reasonPreview: ['legacy-send-reason-sentinel'],
-      },
-      preDialogueAwareness: {
-        awarenessLine: 'legacy-awareness-sentinel',
-      },
-      preDialogueClosure: {
-        summaryLine: 'legacy-closure-sentinel',
-      },
+      sessionId: 'session-memory-owner-boundary',
     }
 
     for (const hook of chatTurnCompleteHooks)
@@ -267,7 +213,5 @@ describe('alicization epoch1 runtime hooks', () => {
 
     expect(streamChat).not.toHaveBeenCalled()
     expect(upsertMemoryFacts).not.toHaveBeenCalled()
-    expect(getProjectStateContinuitySnapshot).not.toHaveBeenCalled()
-    expect(getLatestProjectStateObservation).not.toHaveBeenCalled()
   })
 })

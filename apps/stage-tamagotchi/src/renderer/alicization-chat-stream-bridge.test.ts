@@ -57,6 +57,20 @@ describe('alicization chat stream bridge', () => {
       emotion: 'neutral',
       reply: 'Provider 可见回复',
     })
+    const visibleReplyRealization = {
+      version: 'visible-reply-realization-v1',
+      expectedAuthority: 'llm-mind',
+      actualAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      mode: 'provider-stream',
+      visibleText: 'Provider 可见回复',
+      visibleReplyValidationStatus: 'approved',
+      blockedReasons: [] as string[],
+      reason: null,
+      projectBriefing: {
+        marker: 'legacy-project-briefing',
+      },
+    } as const
     const memoryFailures = [{
       kind: 'recall-failure',
       reply: '本轮长期记忆召回失败。',
@@ -89,6 +103,7 @@ describe('alicization chat stream bridge', () => {
       fullText,
       finishReason: 'stop',
       memoryFailures: [...memoryFailures],
+      visibleReplyRealization,
     })
 
     expect(event).toMatchObject({
@@ -98,7 +113,19 @@ describe('alicization chat stream bridge', () => {
       finishReason: 'stop',
       failureSurface: null,
       memoryFailures,
+      visibleReplyRealization: expect.objectContaining({
+        version: 'visible-reply-realization-v1',
+        expectedAuthority: 'llm-mind',
+        actualAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        mode: 'provider-stream',
+        visibleText: 'Provider 可见回复',
+        visibleReplyValidationStatus: 'approved',
+        blockedReasons: [],
+        reason: null,
+      }),
     })
+    expect(JSON.stringify(event)).not.toContain('"projectBriefing"')
   })
 
   it('forwards failure metadata exactly without generating a substitute reply', () => {
@@ -128,11 +155,36 @@ describe('alicization chat stream bridge', () => {
     })
   })
 
-  it('keeps runtime meta as structured data', () => {
+  it('forwards runtime and life-system facts without renderer dialogue governance', () => {
+    const embodiment = {
+      emotion: 'neutral',
+      motion: 'idle',
+    } as any
+    const digitalLifeSpine = {
+      memory: {
+        recentEpisodeSummary: '用户正在验证记忆召回。',
+      },
+      mind: {
+        selfLine: '保持由人格与经历形成的连续自我。',
+      },
+    } as any
     const event = bridgeAlicizationChatMetaEventToStreamEvent({
       cardId: 'default',
       turnId: 'turn-meta',
-      governance: null,
+      governance: {
+        turnMode: 'answer',
+        truthState: 'dialogue-grounded',
+        personaKernelMode: 'full',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        repairState: 'none',
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 4,
+      } as any,
+      embodiment,
+      digitalLifeSpine,
       runtimeDigest: {
         version: 'alicization-runtime-digest-v1',
         dominantChannel: 'dialogue',
@@ -140,49 +192,114 @@ describe('alicization chat stream bridge', () => {
         shouldProactivelyAct: false,
         continuityPressure: 0.2,
         companionshipPressure: 0.4,
-        summary: 'dialogue=ready',
+        rulingMotive: '回应用户当前问题',
+        currentConsciousFrame: {
+          reasonTags: ['working-memory', 'long-term-recall'],
+          focusAnchor: '验证记忆对话闭环',
+          consciousNeed: '基于当前对话与召回事实作答',
+          speakingIntention: '直接回答测试结果',
+          selfContinuityAuthority: {
+            sourceTags: ['persona', 'memory'],
+            selfLine: '保持由人格与经历形成的连续自我。',
+            relationshipLine: '记得用户正在验证本地记忆。',
+            motiveLine: '如实反馈验证结果。',
+            habitLine: null,
+            inwardLine: null,
+            authoritySummary: '人格与记忆共同提供连续性。',
+          },
+        },
+        summary: '运行时对话通道已就绪。',
       } as any,
     })
 
-    expect(event).toMatchObject({
+    expect(event).toEqual(expect.objectContaining({
       type: 'meta',
       governance: null,
-      runtimeDigest: {
+      embodiment,
+      digitalLifeSpine,
+      runtimeDigest: expect.objectContaining({
+        version: 'alicization-runtime-digest-v1',
         dominantChannel: 'dialogue',
-        summary: null,
-      },
-    })
+        shouldProactivelySpeak: false,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.2,
+        companionshipPressure: 0.4,
+        rulingMotive: '回应用户当前问题',
+        currentConsciousFrame: expect.objectContaining({
+          reasonTags: ['working-memory', 'long-term-recall'],
+          focusAnchor: '验证记忆对话闭环',
+          consciousNeed: '基于当前对话与召回事实作答',
+          speakingIntention: '直接回答测试结果',
+          selfContinuityAuthority: expect.objectContaining({
+            sourceTags: ['persona', 'memory'],
+            selfLine: '保持由人格与经历形成的连续自我。',
+            relationshipLine: '记得用户正在验证本地记忆。',
+            motiveLine: '如实反馈验证结果。',
+            habitLine: null,
+            inwardLine: null,
+            authoritySummary: '人格与记忆共同提供连续性。',
+          }),
+        }),
+        summary: '运行时对话通道已就绪。',
+      }),
+    }))
   })
 
-  it.each([
-    'Before answering, keep the same-her line.',
-    'Keep measured-return pacing before replying.',
-    'Use repair-before-closeness as the response posture.',
-    'opening_policy=continue_same_her',
-    'relationship_cadence=measured_return',
-    'visibility=redacted_internal',
-  ])('does not restore rejected legacy awareness through the renderer bridge: %s', (awarenessLine) => {
-    const event = bridgeAlicizationChatMetaEventToStreamEvent({
+  it('structurally omits unknown sidecars from meta events', () => {
+    const payload = {
       cardId: 'default',
-      turnId: 'turn-legacy-awareness',
+      turnId: 'turn-unknown-sidecar-meta',
       governance: null,
-      preDialogueAwareness: {
-        status: 'grounded',
-        summaryLine: null,
-        awarenessLine,
-        reasonPreview: [],
+      unknownSidecar: {
+        marker: 'top-level-sidecar',
       },
-    })
+      runtimeDigest: {
+        version: 'alicization-runtime-digest-v1',
+        dominantChannel: 'dialogue',
+        shouldProactivelySpeak: false,
+        shouldProactivelyAct: false,
+        continuityPressure: 0.2,
+        companionshipPressure: 0.4,
+        unknownSidecar: {
+          marker: 'runtime-sidecar',
+        },
+        currentConsciousFrame: {
+          reasonTags: ['memory-recall'],
+          focusAnchor: '用户当前问题',
+          unknownNestedSidecar: {
+            marker: 'frame-sidecar',
+          },
+        },
+        summary: '运行时事实',
+      },
+    } as any
+    const event = bridgeAlicizationChatMetaEventToStreamEvent(payload)
 
-    expect(event.preDialogueAwareness?.awarenessLine ?? null).toBeNull()
+    expect(event).toEqual(expect.objectContaining({
+      type: 'meta',
+      runtimeDigest: expect.objectContaining({
+        summary: '运行时事实',
+        currentConsciousFrame: expect.objectContaining({
+          reasonTags: ['memory-recall'],
+          focusAnchor: '用户当前问题',
+        }),
+      }),
+    }))
+    expect(JSON.stringify(event)).not.toContain('"unknownSidecar"')
+    expect(JSON.stringify(event)).not.toContain('"unknownNestedSidecar"')
   })
 
-  it('does not promote project-state governance from accepted-start runtime metadata', () => {
-    const event = bridgeAlicizationChatStartResultToStreamEvent('default', {
+  it('structurally omits unknown sidecars from accepted-start metadata', () => {
+    const payload = {
       accepted: true,
       turnId: 'turn-start-runtime',
       state: 'accepted',
-      governance: null,
+      governance: {
+        marker: 'unknown-governance',
+      },
+      unknownSidecar: {
+        marker: 'accepted-start-sidecar',
+      },
       runtimeDigest: {
         version: 'alicization-runtime-digest-v1',
         dominantChannel: 'dialogue',
@@ -190,19 +307,16 @@ describe('alicization chat stream bridge', () => {
         shouldProactivelyAct: false,
         continuityPressure: 0.2,
         companionshipPressure: 0.4,
-        projectState: {
-          identity: 'typed runtime project state',
-          latestLandedProgress: 'typed runtime progress',
+        unknownSidecar: {
+          marker: 'accepted-runtime-sidecar',
         },
-      } as any,
-    })
+        summary: '启动后的运行时事实',
+      },
+    } as any
+    const event = bridgeAlicizationChatStartResultToStreamEvent('default', payload)
 
-    expect(event.projectState).toBeNull()
-    expect(event.preDialogueAwareness).toBeNull()
-    expect(event.preDialogueClosure).toBeNull()
-    expect(event.runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      identity: 'typed runtime project state',
-      latestLandedProgress: 'typed runtime progress',
-    }))
+    expect(event.governance).toBeNull()
+    expect(event.runtimeDigest?.summary).toBe('启动后的运行时事实')
+    expect(JSON.stringify(event)).not.toContain('"unknownSidecar"')
   })
 })

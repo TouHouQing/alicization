@@ -104,8 +104,6 @@ const requestCuePattern
   = /\b(?:help|assist|check|review|explain|show|tell|look(?:\s+at)?|guess)\b|帮帮?我|帮忙|看(?:看|下|一下)|告诉我|教我|解释(?:一下)?|分析(?:一下)?|说说|讲讲|猜猜|見て|教えて|手伝って|説明して|見せて/iu
 const currentActivityQuestionPattern
   = /\b(?:what am i doing|what i'?m doing|what am i up to|what i'?m up to|what am i busy with|guess what i'?m doing|guess what i'?m up to)\b|(?:猜猜|你猜猜)[^\n\r\u2028\u2029\u6211]*\u6211.*(?:忙什么|在忙什么|在干什么|在做什么|干嘛|做啥)|我.*(?:在忙什么|在干什么|在做什么|干嘛|做啥)/iu
-const assistantPresentStateQuestionPattern
-  = /\b(?:what are you doing|what are you up to|what are you working on|what are you doing right now)\b|你(?:现在)?在(?:干嘛|做什么|忙什么|搞什么|做啥)/iu
 const companionshipBidPattern
   = /\b(?:chat|talk(?:\s+to|\s+with)? me|stay with me|keep me company|hang out with me|be with me|play with me)\b|陪我(?:聊天|说说话|[聊说玩])?|陪陪我|聊天|聊聊|一起玩|一緒に|話して|そばにいて|遊んで/iu
 const greetingBidPattern
@@ -122,22 +120,6 @@ const selfToneAdjustmentCuePattern
   = /\b(?:be happier|be more cheerful|sound normal|speak normally|talk like a human|be more natural|be gentler)\b|你能不能(?:表现得|说话)?(?:开心|高兴|正常|自然|温柔|轻松)(?:一点)?|你能不能说人话|你说话(?:正常|自然|温柔|轻松)一点|你别那么(?:僵硬|机械|冷)|说话像个人/iu
 const selfIdentityAffirmationCuePattern
   = /(?:这个人|那个人|这人|那人|说的就?是|没错|对啊?).{0,8}(?:就是你|是你)|(?:就是|正是)(?:你|妳)[啊呀呢嘛]?|\b(?:that(?:'s| is) you|it(?:'s| is) you|you(?:'re| are) the one|this person is you|that person is you)\b/iu
-const projectStateContinuityCuePattern
-  = /这个项目.*(?:做到什么程度|还差什么|没闭环|执行到哪)|what this project is.*(?:what has landed|what still remains open)|project.*(?:what has landed|still remains open|closure)/iu
-const projectStateCurrentWorkCuePattern
-  = /(?:还在|现在还在|still).{0,24}(?:完成|做|推进|开发|working on|doing|pushing).{0,40}(?:数字生命|拟人|主动性|闭环|project|goal|phase 1|same (?:digital )?life)/iu
-const projectStateProgressCuePattern
-  = /执行到哪|进行到哪|进行到哪一步|做到哪|做到哪一步|做到什么程度|进度|进展|到什么程度|how far|what has landed|what's landed|progress|landed/iu
-const projectStateMergeReadinessCuePattern
-  = /(?:可以|能不能|现在可以|已经可以|can we|is (?:it|this)|ready to|merge-ready).{0,40}(?:合并到\s*main|merge(?:\s+this)?\s+to\s+main|ready to merge|merge-ready)|(?:合并到\s*main|merge(?:\s+this)?\s+to\s+main|ready to merge|merge-ready).{0,24}(?:了吗|吗|now|already|ready|可以|能不能)|(?:已经在|已在|already (?:landed|on)|already contains|already on).{0,32}(?:本地\s*main|local\s+main)|(?:本地\s*main|local\s+main).{0,32}(?:已经|已|already).{0,24}(?:包含|落地|landed|contains|on)|origin\/main.{0,32}(?:安全|safe|update|push|推)|(?:安全|safe).{0,16}(?:推到|push to|update).{0,24}origin\/main|(?:会把|会不会把|without carrying|carry).{0,48}(?:别的提交|unrelated commits|other commits)|带上去/iu
-const projectStateClosureReadinessCuePattern
-  = /还差哪步|还差哪一步|还差什么|才能算闭环|算闭环|goal.{0,16}(?:闭环|完成|close|closed|complete)|what still needs to close|what remains before .*closed|still open|not yet closed/iu
-const projectStateCompletionTimelineCuePattern
-  = /计划什么时候完成|什么时候完成(?:这个)?\s*goal|何时完成(?:这个)?\s*goal|什么时候完成|何时完成|when (?:will|do).{0,24}(?:finish|complete|close)|expected to finish|expect to finish|completion timeline/iu
-const projectStateLanguageDriftCuePattern
-  = /为什么(?:一直|还)?用英文(?:不用中文)?|为什么(?:一直|还)?不用中文|为什么还用英文|英文不用中文|reply(?:ing)? in english|use english instead of chinese|why are you replying in english|why are you using english|是不是偏移了|偏移了吗|did the thread drift|thread drift|out of alignment|跑偏了/iu
-const mergeProcedureCuePattern
-  = /(?:怎么|如何|how to).{0,24}(?:合并到\s*main|merge(?:\s+this)?\s+to\s+main)/iu
 
 function questionWeight(text: string) {
   const normalized = normalizeDialogueText(text)
@@ -192,43 +174,6 @@ function looksLikeSelfToneAdjustment(text: string) {
 
 function looksLikeSelfIdentityAffirmation(text: string) {
   return selfIdentityAffirmationCuePattern.test(normalizeDialogueText(text))
-}
-
-function looksLikeProjectStateContinuityQuestion(text: string) {
-  const normalized = normalizeDialogueText(text)
-  if (!normalized)
-    return false
-
-  if (projectStateContinuityCuePattern.test(normalized))
-    return true
-  if (
-    assistantPresentStateQuestionPattern.test(normalized)
-    && projectStateCurrentWorkCuePattern.test(normalized)
-  ) {
-    return true
-  }
-  if (mergeProcedureCuePattern.test(normalized))
-    return false
-
-  const asksMergeReadiness = projectStateMergeReadinessCuePattern.test(normalized)
-  const asksClosureReadiness = projectStateClosureReadinessCuePattern.test(normalized)
-  const asksProgress = projectStateProgressCuePattern.test(normalized)
-  const asksCompletionTimeline = projectStateCompletionTimelineCuePattern.test(normalized)
-  const asksLanguageDrift = projectStateLanguageDriftCuePattern.test(normalized)
-
-  return (
-    asksMergeReadiness
-    && (
-      asksClosureReadiness
-      || /现在|now|already|ready|了吗|吗/iu.test(normalized)
-    )
-  ) || (
-    asksCompletionTimeline
-    && (asksProgress || asksClosureReadiness || asksLanguageDrift)
-  ) || (
-    asksLanguageDrift
-    && (asksProgress || asksCompletionTimeline || asksClosureReadiness)
-  )
 }
 
 function terseTurn(text: string) {
@@ -333,10 +278,8 @@ export function buildDialogueTurnSemantics(input: {
   const selfInquiry = looksLikeSelfInquiry(userText)
   const selfToneAdjustment = looksLikeSelfToneAdjustment(userText)
   const selfIdentityAffirmation = looksLikeSelfIdentityAffirmation(userText)
-  const projectStateContinuityQuestion = looksLikeProjectStateContinuityQuestion(userText)
   const currentActivityQuestion = looksLikeCurrentActivityQuestion(userText)
     && Boolean(input.currentScene || input.worldModel?.activeThread)
-    && !projectStateContinuityQuestion
   const codingLike = input.context.workload.kind === 'coding'
     || input.context.workload.kind === 'terminal'
     || input.context.content.kind === 'error'
@@ -357,8 +300,7 @@ export function buildDialogueTurnSemantics(input: {
       subjectiveInference: input.subjectiveInference,
     }),
   })
-  const sceneBoundQuestion = !projectStateContinuityQuestion
-    && (taskAlignment.overlapRatio >= 0.18 || currentActivityQuestion)
+  const sceneBoundQuestion = taskAlignment.overlapRatio >= 0.18 || currentActivityQuestion
   const uncertainScene = input.worldModel?.epistemicState.certainty === 'uncertain'
     || input.worldModel?.epistemicState.certainty === 'lingering'
     || (input.worldModel?.epistemicState.staleRisks.length ?? 0) > 0
@@ -480,10 +422,10 @@ export function buildDialogueTurnSemantics(input: {
   }
   else if (
     !inspectionOwnedTurn
-    && (!sceneBoundQuestion || projectStateContinuityQuestion)
+    && !sceneBoundQuestion
     && !helpSeeking
     && !currentActivityQuestion
-    && (greetingBid || selfInquiry || selfToneAdjustment || selfIdentityAffirmation || projectStateContinuityQuestion)
+    && (greetingBid || selfInquiry || selfToneAdjustment || selfIdentityAffirmation)
   ) {
     if (greetingBid && !selfInquiry && !selfToneAdjustment) {
       act = 'social-bid'
@@ -502,24 +444,6 @@ export function buildDialogueTurnSemantics(input: {
       subjectPreference = 'alicization-self'
       personaSuppression = clamp01(personaSuppression + 0.02)
       reasonTags.push('self-identity-affirmation')
-    }
-    else if (projectStateContinuityQuestion) {
-      const normalizedProjectText = normalizeDialogueText(userText)
-      act = 'ask-help'
-      responseNeed = 'answer'
-      truthExpectation = 'normal'
-      affectiveTone = 'neutral'
-      subjectPreference = 'alicization-self'
-      personaSuppression = clamp01(personaSuppression + 0.1)
-      reasonTags.push(
-        'project-state-continuity-question',
-        projectStateMergeReadinessCuePattern.test(normalizedProjectText) ? 'project-state:merge-readiness' : '',
-        projectStateClosureReadinessCuePattern.test(normalizedProjectText) ? 'project-state:closure-readiness' : '',
-        projectStateCompletionTimelineCuePattern.test(normalizedProjectText) ? 'project-state:completion-timeline' : '',
-        projectStateLanguageDriftCuePattern.test(normalizedProjectText) ? 'project-state:language-drift' : '',
-        projectStateCurrentWorkCuePattern.test(normalizedProjectText) ? 'project-state:current-work' : '',
-        projectStateProgressCuePattern.test(normalizedProjectText) ? 'project-state:progress' : '',
-      )
     }
     else {
       act = selfToneAdjustment ? 'challenge' : 'ask-help'

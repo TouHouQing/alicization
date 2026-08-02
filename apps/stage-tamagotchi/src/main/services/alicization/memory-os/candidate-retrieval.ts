@@ -296,8 +296,7 @@ function buildSituationCandidateSummary(input: {
     180,
   )
   const embodimentCarry = normalizeText(
-    input.context.personStateProjection?.manifestationCadenceSummary
-    ?? input.context.personStateProjection?.relationshipDoctrine
+    input.context.personStateProjection?.relationshipDoctrine
     ?? input.context.personStateProjection?.summary
     ?? null,
     180,

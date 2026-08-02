@@ -6,8 +6,6 @@ import type {
 } from '../../../../shared/eventa'
 import type { AlicizationLearningActionExecutorResult } from '../learning-action-executor'
 
-import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
-
 export interface AlicizationSelfRevisionEvent {
   version: 'self-revision-event-v1'
   id: string
@@ -31,14 +29,6 @@ export interface AlicizationSelfRevisionEvent {
     mayInternalize: boolean
     mayValidateOnly: boolean
   }
-  projectStateContinuity: {
-    sameHerSelfLine: string | null
-    sameHerDriftRisk: string | null
-    proactiveSameHerGap?: string | null
-    emotionalClosureCue: string | null
-    sameHerHoldDetail?: string | null
-    continuityGuard: string | null
-  } | null
   appliedTargets: string[]
   rollbackPlan: string[]
 }
@@ -59,7 +49,9 @@ function unique(values: Array<string | null | undefined>, limit = 8) {
 }
 
 function sanitizeRevisionMaterialText(raw: unknown, maxChars = 240) {
-  return sanitizeAlicizationProviderFacingText(raw, maxChars)
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
 export function buildAlicizationSelfRevisionEvent(input: {
@@ -74,15 +66,6 @@ export function buildAlicizationSelfRevisionEvent(input: {
   const summary = sanitizeRevisionMaterialText(input.result.resultSummary ?? input.task.resultSummary ?? input.task.message ?? null, 280) || null
   const lifecycleState = input.result.lifecycleState ?? null
   const nextLifecycleState = input.result.nextLifecycleState ?? null
-  const sameHerSelfLine = sanitizeRevisionMaterialText(input.task.payload.projectStateContinuity?.sameHerSelfLine, 220)
-  const sameHerDriftRisk = sanitizeRevisionMaterialText(input.task.payload.projectStateContinuity?.sameHerDriftRisk, 320)
-  const proactiveSameHerGap = sanitizeRevisionMaterialText(input.task.payload.projectStateContinuity?.proactiveSameHerGap, 240)
-  const emotionalClosureCue = sanitizeRevisionMaterialText(input.task.payload.projectStateContinuity?.emotionalClosureCue, 240)
-  const sameHerHoldDetail = sanitizeRevisionMaterialText(input.task.payload.projectStateContinuity?.sameHerHoldDetail, 240)
-  const continuityGuard = sameHerDriftRisk
-    && /generic assistant shell|project-summary voice|generic project shell|detached project|generic guidance|same-her continuity drift|same her continuity drift|project shell|project narrator/i.test(sameHerDriftRisk)
-    ? [sameHerSelfLine || 'project_state_review', sameHerDriftRisk].filter(Boolean).join(' ; ')
-    : null
 
   return {
     version: 'self-revision-event-v1',
@@ -107,16 +90,6 @@ export function buildAlicizationSelfRevisionEvent(input: {
       mayInternalize: artifact?.verifier?.mayInternalize ?? false,
       mayValidateOnly: artifact?.verifier?.mayValidateOnly ?? false,
     },
-    projectStateContinuity: sameHerSelfLine || continuityGuard || proactiveSameHerGap || emotionalClosureCue || sameHerHoldDetail
-      ? {
-          sameHerSelfLine: sameHerSelfLine || null,
-          sameHerDriftRisk: sameHerDriftRisk || null,
-          proactiveSameHerGap: proactiveSameHerGap || null,
-          emotionalClosureCue: emotionalClosureCue || null,
-          sameHerHoldDetail: sameHerHoldDetail || null,
-          continuityGuard,
-        }
-      : null,
     appliedTargets: unique([
       ...((input.task.payload.supportingFactIds ?? []).slice(0, 4)),
       ...((input.task.payload.supersedeTargets ?? []).slice(0, 4)),

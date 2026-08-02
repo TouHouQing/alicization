@@ -94,8 +94,8 @@ describe('buildInquiryPlanner', () => {
           id: 'commitment::recheck-scene::live-scene',
           kind: 'recheck-scene',
           status: 'active',
-          title: 'Recheck Scene',
-          summary: 'She still wants a cleaner grounding pass.',
+          title: 'recheck-scene',
+          summary: 'commitment:recheck-scene',
           source: 'continuity',
           priority: 0.76,
           confidence: 0.7,
@@ -169,8 +169,8 @@ describe('buildInquiryPlanner', () => {
           id: 'commitment::stay-near::afterglow',
           kind: 'stay-near',
           status: 'active',
-          title: 'Stay Near',
-          summary: 'The shared thread is still warm enough to stay nearby.',
+          title: 'stay-near',
+          summary: 'thread:wait-opening',
           source: 'continuity',
           priority: 0.62,
           confidence: 0.68,
@@ -189,6 +189,8 @@ describe('buildInquiryPlanner', () => {
     const activePlan = planner.plans.find(plan => plan.id === planner.activePlanId)
     expect(activePlan?.kind).toBe('wait-opening')
     expect(activePlan?.status).toBe('waiting-opening')
+    expect(activePlan?.question).toBe('inquiry:wait-opening')
+    expect(planner.narrative).toContain('timing:wait-opening')
   })
 
   it('keeps an observed diff in localize-problem instead of reflexively regrounding it', () => {
@@ -202,7 +204,7 @@ describe('buildInquiryPlanner', () => {
           status: 'active',
           source: 'observed-scene',
           title: 'runtime.ts diff',
-          summary: 'The host is reviewing a concrete diff knot.',
+          summary: 'thread:change-review',
           confidence: 0.74,
           significance: 0.8,
           unresolved: true,
@@ -240,7 +242,7 @@ describe('buildInquiryPlanner', () => {
           id: 'commitment::hold-problem::runtime',
           kind: 'hold-problem',
           status: 'active',
-          title: 'Hold Problem',
+          title: 'hold-problem',
           summary: 'The concrete diff knot should stay foregrounded.',
           source: 'hypothesis',
           priority: 0.74,
@@ -270,5 +272,6 @@ describe('buildInquiryPlanner', () => {
     const activePlan = planner.plans.find(plan => plan.id === planner.activePlanId)
     expect(activePlan?.kind).toBe('localize-problem')
     expect(activePlan?.askForGrounding).toBe(false)
+    expect(activePlan?.question).toBe('inquiry:localize-problem')
   })
 })

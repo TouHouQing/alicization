@@ -81,7 +81,7 @@ describe('working memory policy', () => {
   it('keeps corrections and commitments above ordinary chat', () => {
     const ranked = rankWorkingMemoryRetention([
       turn({ turnId: 'chat', role: 'user', text: '今天还可以' }),
-      turn({ turnId: 'correction', role: 'user', text: '不是这个，我不想要固定模板回复' }),
+      turn({ turnId: 'correction', role: 'user', text: '不是这个，实际日期是周五。' }),
       turn({ turnId: 'commitment', role: 'alice', text: '我会先把 A 线清空，然后再开始 B 线' }),
     ])
 
@@ -124,7 +124,7 @@ describe('working memory policy', () => {
     expect(createLongTermCandidatesFromWorkingTurns([failure])).toEqual([])
   })
 
-  it('does not promote ordinary requests as corrections and excludes fallback templates directly', () => {
+  it('does not promote ordinary requests as corrections', () => {
     const ordinaryRequest = turn({
       turnId: 'turn-request',
       role: 'user',
@@ -146,19 +146,15 @@ describe('working memory policy', () => {
       sourceTurnIds: ['turn-correction'],
     })
     expect(createLongTermCandidatesFromWorkingTurns([ordinaryRequest])).toEqual([])
-    expect(shouldExcludeTurnFromLongTermCandidate(turn({
-      turnId: 'turn-fallback',
-      role: 'alice',
-      text: '我在。结构化连续性状态的线还在。',
-    }))).toBe(true)
   })
 
-  it('keeps the meaning of template-rejection corrections without storing quoted fixed templates', () => {
+  it('preserves explicit user corrections instead of replacing them with a fixed summary', () => {
+    const rawCorrection = '不要固定模板，请保留这句纠正原文。'
     const candidates = createLongTermCandidatesFromWorkingTurns([
       turn({
         turnId: 'template-rejection',
         role: 'user',
-        text: '不要再用 pre_turn_context_digest',
+        text: rawCorrection,
       }),
     ])
 
@@ -168,8 +164,27 @@ describe('working memory policy', () => {
       allowTraining: false,
       sourceTurnIds: ['template-rejection'],
     }))
-    expect(candidates[0]?.summary).toContain('不要使用固定模板')
-    expect(candidates[0]?.summary).not.toMatch(/Pre-speech|same-her|identity continuity/u)
+    expect(candidates[0]?.summary).toBe(rawCorrection)
+  })
+
+  it('recognizes a generic explicit correction without relying on template-topic words', () => {
+    const rawCorrection = '请不要把周五记成周四，实际是周五。'
+    const candidates = createLongTermCandidatesFromWorkingTurns([
+      turn({
+        turnId: 'date-correction',
+        role: 'user',
+        text: rawCorrection,
+      }),
+    ])
+
+    expect(candidates).toEqual([
+      expect.objectContaining({
+        kind: 'correction',
+        summary: rawCorrection,
+        sourceTurnIds: ['date-correction'],
+        allowTraining: false,
+      }),
+    ])
   })
 
   it('creates long-term candidates for clear preference episode procedure and relationship signals', () => {

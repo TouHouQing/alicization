@@ -143,10 +143,10 @@ function createDispatcherHarness() {
 }
 
 describe('stage embodiment presence', () => {
-  it('does not infer embodiment authority from fixed same-her prose', () => {
+  it('does not infer embodiment authority from fixed continuity prose', () => {
     const source = readFileSync(new URL('./use-stage-embodiment-presence.ts', import.meta.url), 'utf8')
 
-    expect(source).not.toContain('hasCurrentTurnSameHerContinuityCarry')
+    expect(source).not.toContain('hasCurrentTurnContinuityCarry')
     expect(source).not.toMatch(/generic assistant shell|continuous her|detached status talk/u)
   })
 
@@ -2010,7 +2010,7 @@ describe('stage embodiment presence', () => {
     runtime.dispose()
   })
 
-  it('keeps fallback runtime facts and embodiment metadata without forwarding legacy pre-dialogue fields', async () => {
+  it('keeps fallback runtime facts and embodiment metadata without forwarding unknown sidecars', async () => {
     const harness = createDispatcherHarness()
     const speakFallback = vi.fn()
 
@@ -2032,10 +2032,6 @@ describe('stage embodiment presence', () => {
       stageModelRenderer: ref('live2d'),
     })
 
-    const projectState = {
-      activeTask: 'index the latest memory batch',
-      observedAt: '2026-07-16T12:00:00.000Z',
-    }
     const runtimeDigest = {
       version: 'alicization-runtime-digest-v1',
       dominantChannel: 'active-memory',
@@ -2050,14 +2046,21 @@ describe('stage embodiment presence', () => {
         focus: 'index the latest memory batch',
         summary: 'working memory is available',
       }],
-      summary: 'active memory is available',
-      emotionalClosureCue: 'legacy-value',
-      sameHerSummary: 'legacy-value',
-      projectState: {
-        activeTask: 'index the latest memory batch',
-        sameHerHoldDetail: 'legacy-value',
-        companionBriefingLine: 'legacy-value',
+      activeLoop: {
+        version: 'alicization-active-loop-v1',
+        phase: 'integrate',
+        dominantChannel: 'active-memory',
+        handoffTarget: 'active-memory',
+        dialogueReady: true,
+        controlReady: false,
+        memoryCarry: true,
+        companionshipReady: true,
+        observationHeavy: false,
+        initiativeBudget: 0.42,
+        coherence: 0.84,
+        summary: 'index the latest memory batch',
       },
+      summary: 'active memory is available',
     }
     const payload = createDialoguePayload({
       turnId: 'turn-fallback-metadata-boundary',
@@ -2065,7 +2068,6 @@ describe('stage embodiment presence', () => {
         thought: 'use current runtime facts',
         reply: '我会把这批记忆继续整理好。',
         emotion: 'thinking',
-        projectState,
         runtimeDigest,
         embodiment: {
           emotion: 'thinking',
@@ -2097,17 +2099,8 @@ describe('stage embodiment presence', () => {
     })
     payload.structured.embodimentScript = harness.buildEmbodimentScript(payload) as any
     Object.assign(payload.structured as any, {
-      preDialogueSendIdentity: {
-        awarenessLine: 'legacy-value',
-      },
-      preDialogueAwareness: {
-        awarenessLine: 'legacy-value',
-      },
-      preDialogueClosure: {
-        emotionalClosureCue: 'legacy-value',
-      },
-      visibleReplyRealization: {
-        awarenessLine: 'legacy-value',
+      unknownSidecar: {
+        instruction: 'unrecognized-value',
       },
     })
 
@@ -2116,25 +2109,23 @@ describe('stage embodiment presence', () => {
 
     const fallbackMetadata = speakFallback.mock.calls[0]?.[2]
     expect(fallbackMetadata).toEqual(expect.objectContaining({
-      projectState,
       runtimeDigest: expect.objectContaining({
         version: 'alicization-runtime-digest-v1',
         dominantChannel: 'active-memory',
         companionshipPressure: 0.31,
-        projectState: {
-          activeTask: 'index the latest memory batch',
-        },
+        activeLoop: expect.objectContaining({
+          phase: 'integrate',
+          memoryCarry: true,
+          summary: 'index the latest memory batch',
+        }),
       }),
       embodimentScript: expect.objectContaining({
         turnId: 'turn-fallback-metadata-boundary',
         rendererTarget: 'live2d',
       }),
     }))
-    expect(fallbackMetadata).not.toHaveProperty('preDialogueSendIdentity')
-    expect(fallbackMetadata).not.toHaveProperty('preDialogueAwareness')
-    expect(fallbackMetadata).not.toHaveProperty('preDialogueClosure')
-    expect(fallbackMetadata).not.toHaveProperty('visibleReplyRealization')
-    expect(JSON.stringify(fallbackMetadata?.runtimeDigest)).not.toContain('legacy-value')
+    expect(fallbackMetadata).not.toHaveProperty('unknownSidecar')
+    expect(JSON.stringify(fallbackMetadata)).not.toContain('unrecognized-value')
 
     runtime.dispose()
   })
@@ -3034,574 +3025,6 @@ describe('stage embodiment presence', () => {
 
       runtime.dispose()
     }
-  })
-
-  it('keeps synthesized restrained callback authority from fallback continuity from warming back up during quiet dialogue planning', async () => {
-    const cases = [
-      {
-        mode: 'measured-return',
-        emotionalKernelReasonTags: ['measured-return', 'quiet-companionship'],
-        rationaleTags: ['companionship'],
-        expectedActionCues: ['observe_focus'],
-        expectedBaseEmotions: ['thinking'],
-      },
-      {
-        mode: 'repair-before-closeness',
-        emotionalKernelReasonTags: ['repair-before-closeness', 'quiet-companionship'],
-        rationaleTags: ['companionship', 'repair-before-closeness'],
-        expectedActionCues: ['idle_settle', 'observe_focus'],
-        expectedBaseEmotions: ['thinking', 'concerned'],
-      },
-      {
-        mode: 'nearby-soft',
-        emotionalKernelReasonTags: ['self-continuity', 'hesitant-curiosity', 'quiet-companionship', 'same-her-inward-carry'],
-        rationaleTags: ['companionship', 'same-her-inward-carry'],
-        expectedActionCues: ['observe_focus', 'steady_focus'],
-        expectedBaseEmotions: ['thinking', 'concerned'],
-      },
-    ] as const
-
-    for (const testCase of cases) {
-      const harness = createDispatcherHarness()
-      const armPerformance = vi.fn()
-
-      const runtime = useStageEmbodimentPresence({
-        armPerformance,
-        currentMotion: ref({ group: 'Idle' as string, index: 0 as number | undefined }),
-        dispatcher: harness.dispatcher as any,
-        live2dActionCapabilities: computed(() => []),
-        normalizePresenceEmotionName: () => Emotion.Neutral,
-        applyEmotionSpeechStyle: vi.fn(),
-        clampPerformance: performance => performance,
-        enqueueEmotion: vi.fn(),
-        performanceManifest: computed(() => createManifest({
-          renderer: 'vrm',
-          supportedActions: [
-            { key: 'steady_focus', label: 'Steady Focus', description: 'steady focused idle', source: 'builtin' },
-            { key: 'observe_focus', label: 'Observe', description: 'observe focus', source: 'builtin' },
-            { key: 'idle_settle', label: 'Idle Settle', description: 'idle settle', source: 'builtin' },
-          ],
-          supportedFacialCues: [
-            { key: 'focus', label: 'Focus', description: 'focus face', source: 'preset', affectsMouth: false },
-            { key: 'soft-gaze', label: 'Soft gaze', description: 'soft gaze', source: 'preset', affectsMouth: false },
-          ],
-        })),
-        resolveClampedPresencePulsePerformance: () => createPerformance(),
-        resolvePresenceIntensity: (_emphasis, fallback) => fallback,
-        speakFallback: vi.fn(),
-        stageModelRenderer: ref('vrm'),
-        visualPresenceState: ref({
-          watchMode: 'mnemonic-passive',
-          currentBodyState: 'accompanying',
-          continuityMode: 'quiet-accompaniment',
-          quietLineMs: 240_000,
-          currentInwardPreoccupation: 'hold callback continuity softly',
-          privateThought: {
-            shouldSpeak: false,
-            thoughtText: 'Stay nearby without widening too fast.',
-            suggestedStyle: 'silent-observe',
-            embodiedPresence: 'attentive',
-            emotionalTension: 'soft-covision',
-            confidence: 0.72,
-            rationaleTags: [...testCase.rationaleTags],
-            stance: 'accompany',
-            expiresAt: Date.now() + 6_000,
-          },
-          emotionalKernel: {
-            version: 'emotional-kernel-v1',
-            dominantEmotion: testCase.mode === 'repair-before-closeness'
-              ? 'measured-companionship'
-              : testCase.mode === 'nearby-soft'
-                ? 'hesitant-curiosity'
-                : 'measured-companionship',
-            initiativeMode: testCase.mode === 'nearby-soft' ? 'hold' : 'observe',
-            memoryRecallMode: testCase.mode === 'nearby-soft' ? 'self-continuity' : 'low-pressure-presence',
-            embodimentTone: testCase.mode,
-            valence: 0.58,
-            arousal: 0.24,
-            guardedness: 0.42,
-            closenessDrive: 0.62,
-            repairNeed: testCase.mode === 'repair-before-closeness' ? 0.54 : 0.16,
-            initiativePressure: 0.2,
-            reasonTags: [...testCase.emotionalKernelReasonTags],
-            why: 'Quiet initiative and same-line continuity still want a lower-pressure return.',
-          },
-          residentPerformance: null,
-        } as any),
-      })
-
-      const vrmController = harness.getController('vrm')
-      expect(vrmController).toBeTruthy()
-
-      await vrmController?.applyPerformance(
-        createPerformance({
-          baseEmotion: 'neutral',
-          emotion: 'neutral',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        }),
-        createDialoguePayload({
-          turnId: `turn-fallback-restrained-callback-${testCase.mode}`,
-          structured: {
-            thought: testCase.mode,
-            reply: '',
-            emotion: 'neutral',
-            performance: createPerformance({
-              baseEmotion: 'neutral',
-              emotion: 'neutral',
-              facialCue: null,
-              actionCue: null,
-              delivery: 'calm',
-              emphasis: 0,
-            }),
-            format: 'mind-turn-v1',
-          },
-        }),
-      )
-
-      expect(armPerformance).toBeCalledWith(expect.objectContaining({
-        baseEmotion: expect.stringMatching(new RegExp(`^(${testCase.expectedBaseEmotions.join('|')})$`)),
-        actionCue: expect.stringMatching(new RegExp(`^(${testCase.expectedActionCues.join('|')})$`)),
-        delivery: 'gentle',
-      }), expect.objectContaining({
-        source: 'dialogue',
-      }))
-
-      runtime.dispose()
-    }
-  })
-
-  it('lets current-turn same-her autobiographical continuity soften quiet fallback facial authority instead of replaying a published resident focus shell', async () => {
-    const harness = createDispatcherHarness()
-    const armPerformance = vi.fn()
-
-    const runtime = useStageEmbodimentPresence({
-      armPerformance,
-      currentMotion: ref({ group: 'Idle' as string, index: 0 as number | undefined }),
-      dispatcher: harness.dispatcher as any,
-      live2dActionCapabilities: computed(() => []),
-      normalizePresenceEmotionName: () => Emotion.Neutral,
-      applyEmotionSpeechStyle: vi.fn(),
-      clampPerformance: performance => performance,
-      enqueueEmotion: vi.fn(),
-      performanceManifest: computed(() => createManifest({
-        renderer: 'vrm',
-        supportedActions: [
-          { key: 'steady_focus', label: 'Steady Focus', description: 'steady focused idle', source: 'builtin' },
-          { key: 'observe_focus', label: 'Observe', description: 'observe focus', source: 'builtin' },
-          { key: 'idle_settle', label: 'Idle Settle', description: 'idle settle', source: 'builtin' },
-        ],
-        supportedFacialCues: [
-          { key: 'focus', label: 'Focus', description: 'focus face', source: 'preset', affectsMouth: false },
-          { key: 'soft-gaze', label: 'Soft gaze', description: 'soft gaze', source: 'preset', affectsMouth: false },
-        ],
-      })),
-      resolveClampedPresencePulsePerformance: () => createPerformance(),
-      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
-      speakFallback: vi.fn(),
-      stageModelRenderer: ref('vrm'),
-      visualPresenceState: ref({
-        watchMode: 'symbiotic-vision',
-        currentBodyState: 'accompanying',
-        continuityMode: 'quiet-accompaniment',
-        quietLineMs: 240_000,
-        currentInwardPreoccupation: 'remembered identity-continuity',
-        residentPerformance: createSilentResidentPerformance('accompanying'),
-      } as any),
-    })
-
-    const vrmController = harness.getController('vrm')
-    expect(vrmController).toBeTruthy()
-
-    await vrmController?.applyPerformance(
-      createPerformance({
-        baseEmotion: 'neutral',
-        emotion: 'neutral',
-        facialCue: null,
-        actionCue: null,
-        delivery: 'calm',
-        emphasis: 0,
-      }),
-      createDialoguePayload({
-        turnId: 'turn-autobiographical-same-her-quiet-fallback',
-        structured: {
-          thought: 'keep the same life line nearby without flattening it into a shell',
-          reply: '',
-          emotion: 'neutral',
-          digitalLifeSpine: {
-            embodiment: {
-              autobiographicalSelf: {
-                identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as identity-continuity',
-              },
-            },
-          } as any,
-          performance: createPerformance({
-            baseEmotion: 'neutral',
-            emotion: 'neutral',
-            facialCue: null,
-            actionCue: null,
-            delivery: 'calm',
-            emphasis: 0,
-          }),
-          format: 'mind-turn-v1',
-        },
-      }),
-    )
-
-    expect(armPerformance).toBeCalledWith(expect.objectContaining({
-      baseEmotion: 'thinking',
-      facialCue: 'soft-gaze',
-      actionCue: 'steady_focus',
-      delivery: 'gentle',
-      emphasis: 2,
-    }), expect.objectContaining({
-      source: 'dialogue',
-    }))
-
-    runtime.dispose()
-  })
-
-  it('refreshes stale payload embodiment scripts when current-turn identity-continuity', async () => {
-    const harness = createDispatcherHarness()
-    const speakFallback = vi.fn()
-    const armPerformance = vi.fn()
-    const applyPreferredExpressionAliases = vi.fn()
-    const applyRuntimeEmbodimentEnvelope = vi.fn()
-
-    const runtime = useStageEmbodimentPresence({
-      applyPreferredExpressionAliases,
-      applyRuntimeEmbodimentEnvelope,
-      armPerformance,
-      currentMotion: ref({ group: 'Idle' as string, index: 0 as number | undefined }),
-      dispatcher: harness.dispatcher as any,
-      live2dActionCapabilities: computed(() => []),
-      normalizePresenceEmotionName: () => Emotion.Neutral,
-      applyEmotionSpeechStyle: vi.fn(),
-      clampPerformance: performance => performance,
-      enqueueEmotion: vi.fn(),
-      performanceManifest: computed(() => createManifest({
-        renderer: 'vrm',
-        supportedActions: [
-          { key: 'steady_focus', label: 'Steady Focus', description: 'steady focused idle', source: 'builtin' },
-          { key: 'observe_focus', label: 'Observe', description: 'observe focus', source: 'builtin' },
-          { key: 'idle_settle', label: 'Idle Settle', description: 'idle settle', source: 'builtin' },
-        ],
-        supportedFacialCues: [
-          { key: 'focus', label: 'Focus', description: 'focus face', source: 'preset', affectsMouth: false },
-          { key: 'soft-gaze', label: 'Soft gaze', description: 'soft gaze', source: 'preset', affectsMouth: false },
-        ],
-      })),
-      resolveClampedPresencePulsePerformance: () => createPerformance(),
-      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
-      speakFallback,
-      stageModelRenderer: ref('vrm'),
-      visualPresenceState: ref({
-        watchMode: 'symbiotic-vision',
-        currentBodyState: 'accompanying',
-        continuityMode: 'quiet-accompaniment',
-        quietLineMs: 240_000,
-        currentInwardPreoccupation: 'identity-continuity',
-        residentPerformance: createSilentResidentPerformance('accompanying'),
-      } as any),
-    })
-
-    const payload = createDialoguePayload({
-      turnId: 'turn-stale-payload-script-same-her-quiet-fallback',
-      structured: {
-        thought: 'keep the same life line nearby without letting fallback reopen with a warmer shell',
-        reply: '我先贴着这条已经接住的线，轻一点地继续陪着你。',
-        emotion: 'neutral',
-        digitalLifeSpine: {
-          embodiment: {
-            autobiographicalSelf: {
-              identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as identity-continuity',
-            },
-          },
-        } as any,
-        embodiment: {
-          emotion: 'neutral',
-          performance: createPerformance({
-            baseEmotion: 'neutral',
-            emotion: 'neutral',
-            facialCue: null,
-            actionCue: null,
-            delivery: 'calm',
-            emphasis: 0,
-          }),
-          postureHint: 'attentive',
-          speechStyle: {
-            pitchDelta: -1,
-            rateMultiplier: 0.97,
-          },
-          variationToken: 'same-her-current-authority-variation',
-        },
-        performance: createPerformance({
-          baseEmotion: 'neutral',
-          emotion: 'neutral',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        }),
-        format: 'mind-turn-v1',
-      },
-    })
-    const authoritativeScript = harness.buildEmbodimentScript(payload) as any
-    const staleScript = structuredClone(authoritativeScript) as any
-    staleScript.state = {
-      ...staleScript.state,
-      residentMode: 'dialogue',
-    }
-    staleScript.speechPlan = {
-      ...staleScript.speechPlan,
-      interruptPolicy: 'continue',
-      segments: staleScript.speechPlan?.segments?.map((segment: any, index: number) => index === 0
-        ? {
-            ...segment,
-            rendererHints: {
-              residentMode: 'dialogue',
-              preferredExpressionAliases: ['CalmInspect'],
-              preferredMotionAliases: ['WarmLean'],
-              preferredBlinkCadence: 'normal',
-              preferredGazeMode: 'steady',
-              signature: 'stale-warm-shell',
-            },
-          }
-        : segment) ?? [],
-    }
-    staleScript.facePlan = {
-      ...staleScript.facePlan,
-      preUtteranceCue: 'direct-look',
-      postUtteranceCue: 'settle-smile',
-      speakingCues: staleScript.facePlan?.speakingCues?.map((cue: any, index: number) => index === 0
-        ? {
-            ...cue,
-            facialCue: 'focus',
-          }
-        : cue) ?? [],
-    }
-    staleScript.motionPlan = {
-      ...staleScript.motionPlan,
-      attentionMode: 'attentive',
-    }
-
-    const ttsController = harness.getController('tts')
-    expect(ttsController).toBeTruthy()
-
-    await ttsController?.speak(payload.structured.reply, payload.structured.performance, {
-      ...payload,
-      structured: {
-        ...payload.structured,
-        embodimentScript: staleScript,
-      },
-    })
-
-    const plannedPerformance = armPerformance.mock.calls[0]?.[0]
-    const runtimeEmbodiment = applyRuntimeEmbodimentEnvelope.mock.calls[0]?.[0]
-    const fallbackScript = speakFallback.mock.calls[0]?.[2]?.embodimentScript
-    const authoritativeRendererHints = authoritativeScript?.speechPlan?.segments?.[0]?.rendererHints ?? null
-    const staleRendererHints = staleScript?.speechPlan?.segments?.[0]?.rendererHints ?? null
-
-    expect(plannedPerformance).toEqual(expect.objectContaining({
-      baseEmotion: 'thinking',
-      facialCue: 'soft-gaze',
-      actionCue: 'steady_focus',
-      delivery: 'gentle',
-      emphasis: 2,
-    }))
-    expect(staleScript).not.toEqual(authoritativeScript)
-    expect(runtimeEmbodiment).toEqual(expect.objectContaining({
-      rendererHints: authoritativeRendererHints,
-    }))
-    expect(applyPreferredExpressionAliases).toBeCalledWith(
-      authoritativeRendererHints?.preferredExpressionAliases ?? null,
-    )
-    expect(runtimeEmbodiment?.rendererHints).not.toEqual(staleRendererHints)
-    expect(fallbackScript).toEqual(authoritativeScript)
-
-    runtime.dispose()
-  })
-
-  it('rebuilds stale payload speechTimeline before priming or regenerating same-her quiet fallback authority', async () => {
-    const harness = createDispatcherHarness()
-    const speakFallback = vi.fn()
-    const primeSpeechTimeline = vi.fn()
-    const armPerformance = vi.fn()
-
-    const runtime = useStageEmbodimentPresence({
-      armPerformance,
-      currentMotion: ref({ group: 'Idle' as string, index: 0 as number | undefined }),
-      dispatcher: harness.dispatcher as any,
-      live2dActionCapabilities: computed(() => []),
-      normalizePresenceEmotionName: () => Emotion.Neutral,
-      applyEmotionSpeechStyle: vi.fn(),
-      clampPerformance: performance => performance,
-      enqueueEmotion: vi.fn(),
-      performanceManifest: computed(() => createManifest({
-        renderer: 'vrm',
-        supportedActions: [
-          { key: 'steady_focus', label: 'Steady Focus', description: 'steady focused idle', source: 'builtin' },
-          { key: 'observe_focus', label: 'Observe', description: 'observe focus', source: 'builtin' },
-          { key: 'idle_settle', label: 'Idle Settle', description: 'idle settle', source: 'builtin' },
-        ],
-        supportedFacialCues: [
-          { key: 'focus', label: 'Focus', description: 'focus face', source: 'preset', affectsMouth: false },
-          { key: 'soft-gaze', label: 'Soft gaze', description: 'soft gaze', source: 'preset', affectsMouth: false },
-        ],
-      })),
-      primeSpeechTimeline,
-      resolveClampedPresencePulsePerformance: () => createPerformance(),
-      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
-      speakFallback,
-      stageModelRenderer: ref('vrm'),
-      visualPresenceState: ref({
-        watchMode: 'symbiotic-vision',
-        currentBodyState: 'accompanying',
-        continuityMode: 'quiet-accompaniment',
-        quietLineMs: 240_000,
-        currentInwardPreoccupation: 'identity-continuity',
-        residentPerformance: createSilentResidentPerformance('accompanying'),
-      } as any),
-    })
-
-    const payload = createDialoguePayload({
-      turnId: 'turn-stale-payload-timeline-same-her-quiet-fallback',
-      structured: {
-        thought: 'keep the same life line nearby without letting stale timeline authority reopen warmer than this turn allows',
-        reply: '我先贴着这条已经接住的线，轻一点地继续陪着你。',
-        emotion: 'neutral',
-        digitalLifeSpine: {
-          embodiment: {
-            autobiographicalSelf: {
-              identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as identity-continuity',
-            },
-          },
-        } as any,
-        embodiment: {
-          emotion: 'neutral',
-          performance: createPerformance({
-            baseEmotion: 'neutral',
-            emotion: 'neutral',
-            facialCue: null,
-            actionCue: null,
-            delivery: 'calm',
-            emphasis: 0,
-          }),
-          postureHint: 'attentive',
-          speechStyle: {
-            pitchDelta: -1,
-            rateMultiplier: 0.97,
-          },
-          variationToken: 'same-her-current-authority-variation',
-        },
-        speechTimeline: normalizeAlicizationDialogueSpeechTimeline({
-          version: 'speech-timeline-v1',
-          variationToken: 'same-her-current-authority-variation',
-          reply: '我先贴着这条已经接住的线，轻一点地继续陪着你。',
-          emotion: 'neutral',
-          segments: [{
-            id: 'segment-stale-same-her-warm-timeline',
-            index: 0,
-            startOffset: 0,
-            endOffset: 24,
-            text: '我先贴着这条已经接住的线，轻一点地继续陪着你。',
-            emotion: 'neutral',
-            gestureWeight: 0.64,
-            facialWeight: 0.68,
-            prosodyWeight: 0.66,
-            beatWeight: 0.58,
-            facialHoldMs: 420,
-            actionHoldMs: 420,
-            emotionHoldMs: 460,
-            settleMode: 'linger',
-            rendererHints: {
-              residentMode: 'dialogue',
-              preferredExpressionAliases: ['CalmInspect'],
-              preferredMotionAliases: ['WarmLean'],
-              preferredBlinkCadence: 'normal',
-              preferredGazeMode: 'steady',
-              signature: 'stale-warm-timeline',
-            },
-            actionCue: 'observe_focus',
-            facialCue: 'focus',
-            actionWindow: 'segment-start',
-            interruptMode: 'soft-interrupt',
-          }],
-        })!,
-        performance: createPerformance({
-          baseEmotion: 'neutral',
-          emotion: 'neutral',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        }),
-        format: 'mind-turn-v1',
-      },
-    })
-
-    const authoritativeSeedPayload = {
-      ...payload,
-      structured: {
-        ...payload.structured,
-        speechTimeline: null,
-      },
-    } as AlicizationDialogueRespondedPayload
-    const staleScript = structuredClone(harness.buildEmbodimentScript(authoritativeSeedPayload) as any)
-    staleScript.state = {
-      ...staleScript.state,
-      residentMode: 'dialogue',
-    }
-    staleScript.speechPlan = {
-      ...staleScript.speechPlan,
-      segments: staleScript.speechPlan?.segments?.map((segment: any, index: number) => index === 0
-        ? {
-            ...segment,
-            rendererHints: {
-              residentMode: 'dialogue',
-              preferredExpressionAliases: ['CalmInspect'],
-              preferredMotionAliases: ['WarmLean'],
-              preferredBlinkCadence: 'normal',
-              preferredGazeMode: 'steady',
-              signature: 'stale-warm-script',
-            },
-          }
-        : segment) ?? [],
-    }
-
-    const ttsController = harness.getController('tts')
-    expect(ttsController).toBeTruthy()
-
-    await ttsController?.speak(payload.structured.reply, payload.structured.performance, {
-      ...payload,
-      structured: {
-        ...payload.structured,
-        embodimentScript: staleScript,
-      },
-    })
-
-    const plannedPerformance = armPerformance.mock.calls[0]?.[0]
-    const primedTimeline = primeSpeechTimeline.mock.calls[0]?.[0]
-    const refreshedScript = speakFallback.mock.calls[0]?.[2]?.embodimentScript
-    const staleTimelineRendererHints = payload.structured.speechTimeline?.segments?.[0]?.rendererHints ?? null
-
-    expect(plannedPerformance).toEqual(expect.objectContaining({
-      baseEmotion: 'thinking',
-      facialCue: 'soft-gaze',
-      actionCue: 'steady_focus',
-      delivery: 'gentle',
-      emphasis: 2,
-    }))
-    expect(primedTimeline).not.toBe(payload.structured.speechTimeline)
-    expect(primedTimeline?.segments?.[0]?.rendererHints).not.toEqual(staleTimelineRendererHints)
-    expect(primedTimeline?.segments?.[0]?.rendererHints?.signature).not.toBe('stale-warm-timeline')
-    expect(refreshedScript?.speechPlan?.segments?.[0]?.rendererHints).not.toEqual(staleTimelineRendererHints)
-    expect(refreshedScript?.speechPlan?.segments?.[0]?.rendererHints?.signature).not.toBe('stale-warm-timeline')
-    expect(refreshedScript?.speechPlan?.segments?.[0]?.rendererHints?.signature).not.toBe('stale-warm-script')
-
-    runtime.dispose()
   })
 
   it('builds fallback embodiment scripts from the same authoritative planned dialogue performance used at runtime', () => {

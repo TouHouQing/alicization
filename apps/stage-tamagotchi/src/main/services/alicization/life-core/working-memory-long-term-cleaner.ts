@@ -15,26 +15,25 @@ import {
 } from './working-memory'
 import { createWorkingMemoryLongTermCleaningTransaction } from './working-memory-long-term-cleaning'
 
-const fixedFallbackTemplatePattern = /我在。同一条本地数字生命的线还在|同一条本地数字生命的线还在|我先轻一点留在这里|你想说什么，我就接住/u
-const promptResiduePattern = /ALICIZATION_|same-her|same living line|project_state|Phase 1|mustDo|mustNotDo|answerPlanner|WorkingMemory owner/iu
-const correctionCuePattern = /固定模板|固定回复|模板化|人格|数字生命|不想要|不要固定|你搞错|不是这个/u
-const personaCorrectionCuePattern = /固定模板|固定回复|模板化|人格|数字生命|不要固定/u
+const correctionCuePattern = /不是|不对|错|纠正|改成|不要|别|停止|移除|清除/u
 const preferenceCuePattern = /我喜欢|我不喜欢|偏好|习惯|明确喜欢|希望.*(回复|方式)|以后.*(要|不要|别)/u
 const episodeCuePattern = /一起|共同|经历|上周|昨天|今天|那次|玩过|完成|任务节点|下次/u
 const procedureCuePattern = /流程|步骤|方式|按|红测|验证|先.*再|认可|复用|推进/u
-const relationshipCuePattern = /关系|边界|修复|出错|超时|直接说明|透明|不要.*模板|固定安抚|人格/u
+const relationshipCuePattern = /关系|边界|修复|出错|超时|直接说明|透明/u
 
 const minimumAutomaticConfidence = 0.7
 const minimumAutomaticSalience = 0.6
 
-const cleanedFixedTemplateReplacement
-  = 'content_withheld; reason=continuity-residue'
+const internalStructuredFactContext = {
+  provenance: 'internal-structured-fact' as const,
+}
 
-function sanitizeCleanerText(raw: unknown, maxChars = 260, replacement = '') {
+function sanitizeCleanerText(raw: unknown, maxChars = 260) {
   return sanitizeAlicizationProviderFacingText(
     normalizeWorkingMemoryText(raw, maxChars),
     maxChars,
-    replacement,
+    '',
+    internalStructuredFactContext,
   )
 }
 
@@ -48,70 +47,65 @@ function candidateText(item: WorkingMemoryLongTermQueueItem) {
 
 function buildRetrievalCues(input: {
   item: WorkingMemoryLongTermQueueItem
-  personaCorrection: boolean
 }) {
-  if (input.personaCorrection) {
+  if (input.item.kind === 'correction') {
     return uniqueWorkingMemoryTexts([
-      '固定模板',
-      '数字生命人格',
-      '人格纠正',
-      sanitizeCleanerText(input.item.summary, 120, ''),
+      '用户纠正',
+      sanitizeCleanerText(input.item.summary, 120),
+      ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120)),
     ], 8, 80)
   }
 
   if (input.item.kind === 'preference') {
     return uniqueWorkingMemoryTexts([
       '用户偏好',
-      sanitizeCleanerText(input.item.summary, 120, ''),
-      ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120, cleanedFixedTemplateReplacement)),
+      sanitizeCleanerText(input.item.summary, 120),
+      ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120)),
     ], 8, 80)
   }
 
   if (input.item.kind === 'episode') {
     return uniqueWorkingMemoryTexts([
       '共同经历',
-      sanitizeCleanerText(input.item.summary, 120, ''),
-      ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120, cleanedFixedTemplateReplacement)),
+      sanitizeCleanerText(input.item.summary, 120),
+      ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120)),
     ], 8, 80)
   }
 
   if (input.item.kind === 'procedure') {
     return uniqueWorkingMemoryTexts([
       '可复用流程',
-      sanitizeCleanerText(input.item.summary, 120, ''),
-      ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120, cleanedFixedTemplateReplacement)),
+      sanitizeCleanerText(input.item.summary, 120),
+      ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120)),
     ], 8, 80)
   }
 
   if (input.item.kind === 'relationship') {
     return uniqueWorkingMemoryTexts([
       '关系边界',
-      sanitizeCleanerText(input.item.summary, 120, ''),
-      ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120, cleanedFixedTemplateReplacement)),
+      sanitizeCleanerText(input.item.summary, 120),
+      ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120)),
     ], 8, 80)
   }
 
   return uniqueWorkingMemoryTexts([
-    sanitizeCleanerText(input.item.summary, 120, ''),
-    sanitizeCleanerText(input.item.reason, 120, ''),
-    ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120, cleanedFixedTemplateReplacement)),
+    sanitizeCleanerText(input.item.summary, 120),
+    sanitizeCleanerText(input.item.reason, 120),
+    ...input.item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 120)),
   ], 8, 80)
 }
 
 function buildCleanedCandidate(input: {
   transaction: WorkingMemoryLongTermCleaningTransaction
-  personaCorrection: boolean
 }): WorkingMemoryLongTermCleanedCandidate {
   const item = input.transaction.item
-  const relationshipMeaning = input.personaCorrection
-    ? 'The user corrected how Alicization should express her own continuous digital-life persona.'
-    : item.kind === 'episode'
-      ? '共同经历'
-      : item.kind === 'relationship'
-        ? 'A relationship boundary or repair pattern that should shape future replies.'
-        : item.kind === 'procedure'
-          ? 'A reusable way of working that should support future task continuity.'
-          : null
+  const relationshipMeaning = item.kind === 'episode'
+    ? '共同经历'
+    : item.kind === 'relationship'
+      ? 'meaning:relationship-boundary'
+      : item.kind === 'procedure'
+        ? 'meaning:procedure-continuity'
+        : null
 
   return {
     id: `cleaned:${item.id}`,
@@ -120,17 +114,16 @@ function buildCleanedCandidate(input: {
     kind: item.kind,
     cardId: input.transaction.cardId,
     sessionId: input.transaction.sessionId,
-    summary: sanitizeCleanerText(item.summary, 260, cleanedFixedTemplateReplacement) || cleanedFixedTemplateReplacement,
-    reason: sanitizeCleanerText(item.reason, 260, cleanedFixedTemplateReplacement) || cleanedFixedTemplateReplacement,
+    summary: sanitizeCleanerText(item.summary, 260),
+    reason: sanitizeCleanerText(item.reason, 260),
     sourceTurnIds: item.sourceTurnIds,
     evidenceSnippets: uniqueWorkingMemoryTexts(
-      item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 260, cleanedFixedTemplateReplacement)),
+      item.evidenceSnippets.map(snippet => sanitizeCleanerText(snippet, 260)),
       8,
       260,
     ),
     retrievalCues: buildRetrievalCues({
       item,
-      personaCorrection: input.personaCorrection,
     }),
     entities: ['user', 'alicization'],
     relationshipMeaning,
@@ -140,6 +133,17 @@ function buildCleanedCandidate(input: {
     trainingEligibility: 'blocked',
     createdAt: item.createdAt,
   }
+}
+
+function hasStructuredResidue(item: WorkingMemoryLongTermQueueItem) {
+  return [
+    item.summary,
+    item.reason,
+    ...item.evidenceSnippets,
+  ].some(value => containsAlicizationFixedTemplateResidue(
+    value,
+    internalStructuredFactContext,
+  ))
 }
 
 function cuePatternForKind(kind: WorkingMemoryLongTermQueueItem['kind']) {
@@ -159,7 +163,6 @@ function cuePatternForKind(kind: WorkingMemoryLongTermQueueItem['kind']) {
 
 function rejectionReasonsFor(input: {
   transaction: WorkingMemoryLongTermCleaningTransaction
-  text: string
 }) {
   const item = input.transaction.item
   const reasons = [
@@ -175,10 +178,8 @@ function rejectionReasonsFor(input: {
     reasons.push('missing-source-turns')
   if (item.evidenceSnippets.length === 0)
     reasons.push('missing-evidence')
-  if (fixedFallbackTemplatePattern.test(input.text))
-    reasons.push('fixed-fallback-template')
-  if (promptResiduePattern.test(input.text) || containsAlicizationFixedTemplateResidue(input.text))
-    reasons.push('prompt-residue')
+  if (hasStructuredResidue(item))
+    reasons.push('structured-residue')
 
   return uniqueWorkingMemoryTexts(reasons, 12, 180)
 }
@@ -199,8 +200,6 @@ function reviewReasonsFor(input: {
   if (item.kind === 'correction') {
     if (!correctionCuePattern.test(input.text))
       reasons.push('weak-correction-cue')
-    else if (!personaCorrectionCuePattern.test(input.text))
-      reasons.push('weak-persona-correction-cue')
   }
   else {
     const pattern = cuePatternForKind(item.kind)
@@ -223,7 +222,7 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
     now,
   })
   const text = candidateText(transaction.item)
-  const rejectionReasons = rejectionReasonsFor({ transaction, text })
+  const rejectionReasons = rejectionReasonsFor({ transaction })
   const reviewReasons = rejectionReasons.length > 0
     ? []
     : reviewReasonsFor({ transaction, text })
@@ -247,7 +246,6 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
       decision: 'review',
       cleanedCandidate: buildCleanedCandidate({
         transaction,
-        personaCorrection: false,
       }),
       rejectionReasons: [],
       reviewReasons,
@@ -262,7 +260,6 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
     decision: 'admit',
     cleanedCandidate: buildCleanedCandidate({
       transaction,
-      personaCorrection: transaction.item.kind === 'correction',
     }),
     rejectionReasons: [],
     reviewReasons: [],

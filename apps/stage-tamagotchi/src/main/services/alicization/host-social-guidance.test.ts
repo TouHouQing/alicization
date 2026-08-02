@@ -176,7 +176,7 @@ describe('host social guidance', () => {
         shouldInternalize: true,
         activeLearningFocuses: ['internalize-procedure'],
         sourceSignals: ['validated-procedure-carry'],
-        summary: 'Validated procedure carry is ready to internalize.',
+        summary: 'learning:internalize',
       } as any,
       learningExecutionState: {
         nextLearningAction: 'internalize',
@@ -248,7 +248,7 @@ describe('host social guidance', () => {
         shouldInternalize: true,
         activeLearningFocuses: ['internalize-procedure'],
         sourceSignals: ['validated-procedure-carry'],
-        summary: 'Validated procedure carry is ready to internalize.',
+        summary: 'learning:internalize',
       } as any,
       learningExecutionState: {
         nextLearningAction: 'internalize',

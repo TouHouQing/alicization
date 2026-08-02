@@ -61,7 +61,6 @@ export function buildAlicizationMemoryDeliberationKernel(input: {
   recollectionIntent: OrganicMemoryPromptContext['recollectionIntent'] | null | undefined
   knowledgeEvidence?: OrganicMemoryPromptContext['knowledgeEvidence']
   hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
-  projectStateContinuity?: OrganicMemoryPromptContext['projectStateContinuity']
 }) {
   const deliberation = input.deliberation ?? null
   const speech = input.speech ?? null

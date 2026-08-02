@@ -94,12 +94,8 @@ describe('dialogue session manager', () => {
     expect(mirror.continuityArcSummary).toBeNull()
     expect(mirror.continuityProjectSummary).toBeNull()
     expect(mirror.executionSummary).toContain('inspect_file')
-    expect(mirror.dialogueSummary).toContain('source=dialogue')
+    expect(mirror.dialogueSummary).toBeNull()
     expect(manager.getSessionMirror('default', 'session-1')).toEqual(mirror)
-    expect(manager.buildSessionMirrorSystemBlock({
-      cardId: 'default',
-      sessionId: 'session-1',
-    })).toBe('')
   })
 
   it('expires stale mirrors and supports explicit clearing', () => {
@@ -164,8 +160,5 @@ describe('dialogue session manager', () => {
       mode: 'episodic',
       visibility: 'visible',
     }))
-    expect(JSON.stringify(mirror)).not.toMatch(
-      /same[-_ ]her|opening[_ -]?policy|relationship[_ -]?cadence|redacted_internal|before answering/iu,
-    )
   })
 })

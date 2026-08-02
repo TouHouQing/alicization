@@ -234,21 +234,6 @@ describe('proactive-cadence structured authority', () => {
     expect(learned.reasonTags).toContain('autobiographical-self:cadence-policy')
   })
 
-  it('uses structured emotional governance reason codes without reading governance summary', () => {
-    const baseline = deriveSignal()
-    const governed = deriveSignal({
-      activeContinuityGovernance: {
-        mode: 'emotional-revision',
-        lanes: ['proactive-policy'],
-        reasonCodes: ['emotion-transition:repair-shift'],
-        summary: 'arbitrary governance text',
-      },
-    })
-
-    expect(governed.cadencePressure).toBeLessThan(baseline.cadencePressure)
-    expect(governed.reasonTags).toContain('continuity-governance:emotional-self-revision')
-  })
-
   it('keeps emotional decay hold restrictive and release neutral', () => {
     const hold = deriveSignal({
       emotionalTransitionDecay: {
@@ -289,6 +274,6 @@ describe('proactive-cadence structured authority', () => {
     })
 
     expect(signal.cadencePressure).toBeGreaterThan(0)
-    expect(signal.reasonTags).not.toContain('continuity-execution-callback-project-carry')
+    expect(signal.reasonTags).not.toContain('continuity-execution-callback-carry')
   })
 })

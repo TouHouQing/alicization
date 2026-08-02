@@ -5,8 +5,7 @@ export type AlicizationMainGatewayAuditFamily
     | 'mind-state'
     | 'screen-understanding'
 
-// Source tags select runtime routing, timeout, and audit behavior. They never imply
-// project-state, persona, or reply-governance prompt injection.
+// Source tags select runtime routing, timeout, and audit behavior only.
 export type AlicizationMainGatewaySource
   = 'execution-callback'
     | 'reminder'

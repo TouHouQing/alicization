@@ -319,7 +319,7 @@ describe('dialogue-turn-encounter', () => {
         confidence: 0.82,
         summary: 'The host is asking what this project is, what has landed, and what still remains open.',
         source: 'hybrid',
-        reasonTags: ['project-state-continuity-question', 'dialogue-first-turn', 'scene-detached-turn'],
+        reasonTags: ['runtime-continuity-question', 'dialogue-first-turn', 'scene-detached-turn'],
       },
       context: baseContext,
       currentScene: weakCodingScene,
@@ -330,6 +330,6 @@ describe('dialogue-turn-encounter', () => {
 
     expect(encounter.subject).toBe('alicization-self')
     expect(encounter.summary).toBe('')
-    expect(encounter.reasonTags).toContain('project-state-continuity-question')
+    expect(encounter.reasonTags).toContain('runtime-continuity-question')
   })
 })

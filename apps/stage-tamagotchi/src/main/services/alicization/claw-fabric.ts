@@ -56,30 +56,6 @@ export interface AlicizationClawFabricChannelOutcomeSummary {
 }
 
 export interface AlicizationClawFabricExperience {
-  projectBriefing?: {
-    identity?: string | null
-    currentPhase?: string | null
-    latestLandedProgress?: string | null
-    landedProgressSummary?: string | null
-    primaryOpenLoop?: string | null
-    openClosureSummary?: string | null
-    nextClosureTarget?: string | null
-    nextClosureTargetSummary?: string | null
-    sameHerSelfLine?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRisk?: string | null
-    sameHerDriftRiskSummary?: string | null
-    proactiveSameHerGap?: string | null
-    companionBriefingLine?: string | null
-    emotionalClosureSummary?: string | null
-    continuityCue?: string | null
-    continuityPreferredTiming?: 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window' | null
-    continuityCadence?: string | null
-    preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
-    preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
-    preflightSummary?: string | null
-    preDialogueAwarenessLine?: string | null
-  } | null
   sessionResumeChannel?: AlicizationExecutionChannel | null
   activeChannels?: AlicizationExecutionChannel[] | null
   channelOutcomes?: Partial<Record<AlicizationExecutionChannel, AlicizationClawFabricChannelOutcomeSummary>> | null

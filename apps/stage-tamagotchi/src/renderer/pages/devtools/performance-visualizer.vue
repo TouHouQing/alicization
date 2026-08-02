@@ -133,17 +133,12 @@ const {
   selectedCandidateConsumedTraceSummaries,
   selectedCandidateConsumptionStability,
   selectedCandidateTrajectorySummary,
-  selectedCandidateBaselineAnchorAuditSummary,
-  selectedCandidateCompanionshipTransitionSummary,
   birthPersonaAuthoritySummary,
-  identityDriftGovernanceSummary,
-  selectedCandidateInternalizationReadinessSummary,
   selectedCandidatePersonaAuthorityMappingSummary,
   selectedCandidateAuthoritySurfaces,
   selectedCandidatePersonaBiasProvenance,
   selectedCandidateProactiveActionChain,
   selectedCandidateProactiveManifestationChain,
-  selectedCandidatePrivateThoughtGovernanceChain,
   selectedCandidateResidentPerformanceProjection,
   selectedCandidateEmbodimentOutputProjection,
   selectedCandidateImpactSummary,
@@ -155,12 +150,6 @@ const {
   selectedTraceEventDetails,
   selectedCandidateTraceSummary,
   sortedCandidates,
-  preDialogueAwarenessSnapshot,
-  preDialogueClosureSnapshot,
-  benchmarkSupported,
-  benchmarkLoading,
-  benchmarkRuntimeSameHerProofSummary,
-  benchmarkPreDialogueBriefingRows,
   speechEmbodiment,
   threeRender,
   tracing,
@@ -175,9 +164,6 @@ const {
   stagePaused,
   windowLifecycle,
 } = storeToRefs(windowLifecycleStore)
-const {
-  lastError: replayLastError,
-} = storeToRefs(replayStore)
 
 onMounted(() => {
   diagnostics.startTracing()
@@ -190,14 +176,6 @@ onMounted(() => {
 onUnmounted(() => {
   diagnostics.stopTracing()
 })
-
-async function runRuntimeSameHerSessionProof() {
-  if (!benchmarkSupported.value || benchmarkLoading.value)
-    return
-
-  await replayStore.runSameHerSessionProof()
-  await selfEvolutionInspector.refresh()
-}
 
 function formatFloat(value?: number, digits = 2) {
   return typeof value === 'number' && Number.isFinite(value)
@@ -354,32 +332,11 @@ const selfEvolutionRuntimeContinuityProjection = computed(() => buildSelfEvoluti
   traceEmbodimentSummary: resolvedTraceEmbodimentSummary.value,
 }))
 const selfEvolutionEvidencePanels = computed(() => buildSelfEvolutionEvidencePanels(buildSelfEvolutionEvidencePanelInput({
-  preDialogueBriefingSummary: preDialogueClosureSnapshot.value
-    ? {
-        status: preDialogueClosureSnapshot.value.status,
-        lines: [
-          preDialogueClosureSnapshot.value.summaryLine ?? '',
-          ...(preDialogueClosureSnapshot.value.briefingLines ?? []),
-          ...((preDialogueClosureSnapshot.value.reasons ?? []).filter(reason =>
-            reason.includes('Pre-dialogue self briefing currently reads')
-            || reason.includes('Project continuity self line currently reads')
-            || reason.includes('continuity self authority currently reads')
-            || reason.includes('Latest landed progress still holds')
-            || reason.includes('Primary open life loop still centers on')
-            || reason.includes('Next closure target is still'),
-          )),
-        ].filter(Boolean),
-      }
-    : null,
-  internalizationReadinessSummary: selectedCandidateInternalizationReadinessSummary.value as any,
   proactiveDecisionConsumptionSummary: selectedCandidateProactiveDecisionConsumptionSummary.value,
   candidateTrajectorySummary: selectedCandidateTrajectorySummary.value as any,
-  identityDriftGovernanceSummary: identityDriftGovernanceSummary.value as any,
-  companionshipTransitionSummary: selectedCandidateCompanionshipTransitionSummary.value as any,
   personaBiasProvenance: selectedCandidatePersonaBiasProvenance.value,
   proactiveActionChain: selectedCandidateProactiveActionChain.value,
   proactiveManifestationChain: selectedCandidateProactiveManifestationChain.value,
-  privateThoughtGovernanceChain: selectedCandidatePrivateThoughtGovernanceChain.value,
   residentPerformanceProjection: selectedCandidateResidentPerformanceProjection.value,
   embodimentOutputProjection: selectedCandidateEmbodimentOutputProjection.value,
   rendererAuthorityProjection: selfEvolutionRendererAuthorityProjection.value,
@@ -387,73 +344,16 @@ const selfEvolutionEvidencePanels = computed(() => buildSelfEvolutionEvidencePan
   rejectedActionAlternatives: selectedCandidateRejectedActionAlternatives.value,
 })))
 const selfEvolutionDiagnosticSummaryEntries = computed(() => buildSelfEvolutionDiagnosticSummaryEntries({
-  preDialogueBriefingSummary: preDialogueClosureSnapshot.value
-    ? {
-        status: preDialogueClosureSnapshot.value.status,
-        lines: [
-          preDialogueClosureSnapshot.value.summaryLine ?? '',
-          ...(preDialogueClosureSnapshot.value.briefingLines ?? []),
-          ...((preDialogueClosureSnapshot.value.reasons ?? []).filter(reason =>
-            reason.includes('Pre-dialogue self briefing currently reads')
-            || reason.includes('Project continuity self line currently reads')
-            || reason.includes('continuity self authority currently reads')
-            || reason.includes('Latest landed progress still holds')
-            || reason.includes('Primary open life loop still centers on')
-            || reason.includes('Next closure target is still'),
-          )),
-        ].filter(Boolean),
-      }
-    : null,
-  internalizationReadinessSummary: selectedCandidateInternalizationReadinessSummary.value as any,
   proactiveDecisionConsumptionSummary: selectedCandidateProactiveDecisionConsumptionSummary.value as any,
-  identityDriftGovernanceSummary: identityDriftGovernanceSummary.value as any,
   personaBiasProvenance: selectedCandidatePersonaBiasProvenance.value,
   proactiveActionChain: selectedCandidateProactiveActionChain.value,
   proactiveManifestationChain: selectedCandidateProactiveManifestationChain.value,
-  privateThoughtGovernanceChain: selectedCandidatePrivateThoughtGovernanceChain.value,
   residentPerformanceProjection: selectedCandidateResidentPerformanceProjection.value,
   embodimentOutputProjection: selectedCandidateEmbodimentOutputProjection.value,
   rendererAuthorityProjection: selfEvolutionRendererAuthorityProjection.value,
   runtimeContinuityProjection: selfEvolutionRuntimeContinuityProjection.value,
   rejectedActionAlternatives: selectedCandidateRejectedActionAlternatives.value,
 }))
-const preDialogueAwarenessLines = computed(() => {
-  const awareness = preDialogueAwarenessSnapshot.value
-  if (!awareness)
-    return []
-
-  return [
-    awareness.summaryLine,
-    awareness.companionHeadlineLine,
-    awareness.companionBriefingLine,
-    awareness.awarenessLine,
-    awareness.companionNextClosureLine,
-    ...awareness.reasonPreview,
-  ].filter((line, index, lines): line is string => Boolean(line) && lines.indexOf(line) === index)
-})
-const projectSelfBriefLines = computed(() => {
-  const lines = [
-    preDialogueClosureSnapshot.value?.summaryLine ?? null,
-    ...(preDialogueClosureSnapshot.value?.briefingLines ?? []),
-    ...preDialogueAwarenessLines.value,
-  ].filter((line, index, entries): line is string => Boolean(line) && entries.indexOf(line) === index)
-
-  return lines.filter((line) => {
-    const normalizedLine = line.toLowerCase()
-    return normalizedLine.includes('alicization')
-      || normalizedLine.includes('digital life')
-      || normalizedLine.includes('phase 1')
-      || normalizedLine.includes('project identity')
-      || normalizedLine.includes('project awareness')
-      || normalizedLine.includes('landed progress')
-      || normalizedLine.includes('primary open life loop')
-      || normalizedLine.includes('open life loop')
-      || normalizedLine.includes('next closure')
-      || normalizedLine.includes('embodiment closure')
-      || normalizedLine.includes('body line')
-      || normalizedLine.includes('continuity')
-  })
-})
 const selfEvolutionTriageView = computed(() => buildSelfEvolutionTriageView(
   selfEvolutionDiagnosticSummaryEntries.value,
 ))
@@ -539,7 +439,7 @@ const selfEvolutionFocusHistoryPatternContextByKey = computed<Record<string, Non
 
         const context = buildSelfEvolutionFocusHistoryPatternContext({
           pattern: pattern as any,
-          preferredSide: guidance?.governanceLayer === 'persona-thought' ? 'current' : 'previous',
+          preferredSide: guidance?.governanceLayer === 'persona' ? 'current' : 'previous',
         })
 
         return context
@@ -1302,12 +1202,6 @@ function openMemoryWorkbench() {
             <div :class="['mt-2 text-xs text-neutral-400']">
               {{ formatSelfEvolutionDisplayText('blocked-reasons') }}: {{ formatList(selectedCandidate?.validation.activationBlockedReasons) }}
             </div>
-            <div
-              v-if="selectedCandidateInternalizationReadinessSummary"
-              :class="['mt-2 text-xs text-neutral-400']"
-            >
-              {{ formatSelfEvolutionDisplayText('internalization-readiness') }}: {{ formatList(selectedCandidateInternalizationReadinessSummary.lines) }}
-            </div>
             <div :class="['mt-2 text-xs text-neutral-400']">
               {{ formatSelfEvolutionDisplayText('rollback-plan') }}: {{ formatList(selectedCandidate?.patch.validation.rollbackPlan) }}
             </div>
@@ -1350,7 +1244,6 @@ function openMemoryWorkbench() {
                   </div>
                   <div>{{ formatSelfEvolutionDisplayText('hypothesis-labeling-raised') }}: {{ selectedCandidateConsumptionPreview.response.hypothesisLabelingRaised }}</div>
                   <div>{{ formatSelfEvolutionDisplayText('specificity-clamp-raised') }}: {{ selectedCandidateConsumptionPreview.response.specificityClampRaised }}</div>
-                  <div>{{ formatSelfEvolutionDisplayText('template-shell-suppressed') }}: {{ selectedCandidateConsumptionPreview.response.templateShellSuppressed }}</div>
                   <div :class="['mt-1 text-neutral-500']">
                     {{ formatList(selectedCandidateConsumptionPreview.response.reasons) }}
                   </div>
@@ -1538,66 +1431,6 @@ function openMemoryWorkbench() {
               </div>
             </div>
             <div
-              v-if="selectedCandidateBaselineAnchorAuditSummary"
-              :class="['mt-4 rounded-xl border border-violet-700/40 bg-violet-950/20 p-3']"
-            >
-              <div :class="['mb-2 text-xs text-violet-200/70 uppercase tracking-wide']">
-                {{ formatSelfEvolutionDisplayText('baseline-anchor-audit') }}
-              </div>
-              <div
-                v-for="line in selectedCandidateBaselineAnchorAuditSummary.lines"
-                :key="`baseline-anchor-audit-summary:${line}`"
-                :class="['mb-1 text-xs text-violet-50/90 last:mb-0']"
-              >
-                {{ line }}
-              </div>
-            </div>
-            <div
-              v-if="selectedCandidateCompanionshipTransitionSummary"
-              :class="['mt-4 rounded-xl border border-pink-700/40 bg-pink-950/20 p-3']"
-            >
-              <div :class="['mb-2 text-xs text-pink-200/70 uppercase tracking-wide']">
-                companionship transition
-              </div>
-              <div :class="['mb-1 text-xs text-pink-50/90']">
-                mode: {{ formatMaybeText(selectedCandidateCompanionshipTransitionSummary.companionshipHoldMode) }}
-              </div>
-              <div :class="['mb-1 text-xs text-pink-50/90']">
-                face bias: {{ formatList(selectedCandidateCompanionshipTransitionSummary.preferredExpressionAliases) }}
-              </div>
-              <div :class="['mb-1 text-xs text-pink-50/90']">
-                motion bias: {{ formatList(selectedCandidateCompanionshipTransitionSummary.preferredMotionAliases) }}
-              </div>
-              <div
-                v-if="selectedCandidateCompanionshipTransitionSummary.summaryLine"
-                :class="['mb-1 text-xs text-pink-100/80']"
-              >
-                settle: {{ selectedCandidateCompanionshipTransitionSummary.summaryLine }}
-              </div>
-              <div
-                v-for="reason in selectedCandidateCompanionshipTransitionSummary.reasons"
-                :key="`candidate-companionship-transition-summary:${reason}`"
-                :class="['mb-1 text-xs text-pink-100/72 last:mb-0']"
-              >
-                {{ reason }}
-              </div>
-            </div>
-            <div
-              v-if="identityDriftGovernanceSummary"
-              :class="['mt-4 rounded-xl border border-cyan-700/40 bg-cyan-950/20 p-3']"
-            >
-              <div :class="['mb-2 text-xs text-cyan-200/70 uppercase tracking-wide']">
-                {{ formatSelfEvolutionDisplayText('identity-drift-governance') }}
-              </div>
-              <div
-                v-for="line in identityDriftGovernanceSummary.lines"
-                :key="`identity-drift-governance-summary:${line}`"
-                :class="['mb-1 text-xs text-cyan-50/90 last:mb-0']"
-              >
-                {{ line }}
-              </div>
-            </div>
-            <div
               v-if="selectedCandidateImpactSummary"
               :class="['mt-4 rounded-xl border border-emerald-700/40 bg-emerald-950/20 p-3']"
             >
@@ -1618,117 +1451,6 @@ function openMemoryWorkbench() {
             >
               <div :class="['mb-2 text-xs text-sky-200/70 uppercase tracking-wide']">
                 {{ formatSelfEvolutionDisplayText('self-evolution-summary') }}
-              </div>
-              <div :class="['mb-3 rounded-lg border border-emerald-600/30 bg-emerald-900/20 p-3']">
-                <div :class="['mb-2 flex flex-wrap items-center justify-between gap-2']">
-                  <div :class="['text-[11px] text-emerald-100/70 uppercase tracking-wide']">
-                    runtime continuity desktop proof
-                  </div>
-                  <ButtonBar
-                    data-testid="runtime-continuity-proof:run-button"
-                    icon="i-solar:play-circle-bold-duotone"
-                    :text="benchmarkSupported ? 'Run sampled runtime continuity proof' : 'Runtime replay benchmark bridge is unavailable'"
-                    @click="runRuntimeSameHerSessionProof"
-                  >
-                    {{ benchmarkLoading ? 'running proof' : benchmarkSupported ? 'run proof' : 'unsupported' }}
-                  </ButtonBar>
-                </div>
-                <div
-                  data-testid="runtime-continuity-proof:status"
-                  :class="['mb-1 text-xs text-emerald-50/88']"
-                >
-                  status: {{ benchmarkRuntimeSameHerProofSummary?.status ?? (benchmarkSupported ? 'not-run' : 'unsupported') }}
-                </div>
-                <div
-                  v-if="benchmarkRuntimeSameHerProofSummary?.headline"
-                  :class="['mb-1 text-xs text-emerald-100/82']"
-                >
-                  {{ benchmarkRuntimeSameHerProofSummary.headline }}
-                </div>
-                <div
-                  data-testid="runtime-continuity-proof:detail"
-                  :class="['mb-1 text-xs text-emerald-100/72']"
-                >
-                  detail: {{ benchmarkRuntimeSameHerProofSummary?.detail ?? 'Run a sampled proof to load runtime decision-trace closure evidence.' }}
-                </div>
-                <div
-                  data-testid="runtime-continuity-proof:next-repair-target"
-                  :class="['text-xs text-emerald-100/72']"
-                >
-                  next repair target: {{ benchmarkRuntimeSameHerProofSummary?.nextRepairTarget ?? 'Collect real desktop turns before treating continuity closure as closed.' }}
-                </div>
-                <div
-                  v-if="replayLastError"
-                  :class="['mt-2 text-xs text-rose-100/80']"
-                >
-                  replay error: {{ replayLastError }}
-                </div>
-              </div>
-              <div
-                v-if="projectSelfBriefLines.length > 0"
-                :class="['mb-3 rounded-lg border border-violet-600/30 bg-violet-900/20 p-3']"
-              >
-                <div :class="['mb-2 text-[11px] text-violet-100/70 uppercase tracking-wide']">
-                  project self brief
-                </div>
-                <div
-                  v-for="line in projectSelfBriefLines"
-                  :key="`project-self-brief:${line}`"
-                  :class="['mb-1 text-xs text-violet-100/84 last:mb-0']"
-                >
-                  {{ line }}
-                </div>
-              </div>
-              <div
-                v-if="preDialogueClosureSnapshot?.briefingLines?.length"
-                :class="['mb-3 rounded-lg border border-sky-600/30 bg-sky-900/20 p-3']"
-              >
-                <div :class="['mb-2 text-[11px] text-sky-100/70 uppercase tracking-wide']">
-                  pre-dialogue self briefing
-                </div>
-                <div
-                  v-if="preDialogueClosureSnapshot.summaryLine"
-                  :class="['mb-2 text-xs text-sky-50/88']"
-                >
-                  {{ preDialogueClosureSnapshot.summaryLine }}
-                </div>
-                <div
-                  v-for="line in preDialogueClosureSnapshot.briefingLines"
-                  :key="`pre-dialogue-briefing:${line}`"
-                  :class="['mb-1 text-xs text-sky-100/80 last:mb-0']"
-                >
-                  {{ line }}
-                </div>
-                <div
-                  v-if="benchmarkPreDialogueBriefingRows.length > 0"
-                  :class="['mt-3 rounded-lg border border-sky-700/20 bg-sky-950/20 p-2']"
-                >
-                  <div :class="['mb-2 text-[11px] text-sky-200/70 uppercase tracking-wide']">
-                    briefing stability
-                  </div>
-                  <div
-                    v-for="row in benchmarkPreDialogueBriefingRows"
-                    :key="`pre-dialogue-briefing-row:${row.key}`"
-                    :class="['mb-1 text-xs text-sky-100/78 last:mb-0']"
-                  >
-                    {{ row.detail }}
-                  </div>
-                </div>
-              </div>
-              <div
-                v-if="preDialogueAwarenessLines.length > 0"
-                :class="['mb-3 rounded-lg border border-cyan-600/30 bg-cyan-900/20 p-3']"
-              >
-                <div :class="['mb-2 text-[11px] text-cyan-100/70 uppercase tracking-wide']">
-                  pre-dialogue awareness
-                </div>
-                <div
-                  v-for="line in preDialogueAwarenessLines"
-                  :key="`pre-dialogue-awareness:${line}`"
-                  :class="['mb-1 text-xs text-cyan-100/82 last:mb-0']"
-                >
-                  {{ line }}
-                </div>
               </div>
               <div
                 v-if="selfEvolutionTriageView.triageCards.length > 0"
@@ -3073,9 +2795,9 @@ function openMemoryWorkbench() {
             {{ formatSpeechDisplayText('live2d-authority-comparison') }}
           </div>
           <div>{{ formatSpeechDisplayText('cue-id') }}: {{ live2dAuthorityComparisonView.cueId }}</div>
-          <div>{{ formatSpeechDisplayText('continuity-execution-summary') }}: {{ formatMaybeText(live2dAuthorityComparisonView.sameHerExecutionSummary) }}</div>
-          <div>{{ formatSpeechDisplayText('continuity-execution-aligned') }}: {{ live2dAuthorityComparisonView.sameHerExecutionAligned ?? 'n/a' }}</div>
-          <div>{{ formatSpeechDisplayText('continuity-execution-mismatch-drivers') }}: {{ formatList(live2dAuthorityComparisonView.sameHerExecutionMismatchDrivers ?? []) }}</div>
+          <div>{{ formatSpeechDisplayText('continuity-execution-summary') }}: {{ formatMaybeText(live2dAuthorityComparisonView.continuityExecutionSummary) }}</div>
+          <div>{{ formatSpeechDisplayText('continuity-execution-aligned') }}: {{ live2dAuthorityComparisonView.continuityExecutionAligned ?? 'n/a' }}</div>
+          <div>{{ formatSpeechDisplayText('continuity-execution-mismatch-drivers') }}: {{ formatList(live2dAuthorityComparisonView.continuityExecutionMismatchDrivers ?? []) }}</div>
           <div>{{ formatSpeechDisplayText('planned-expression-aliases') }}: {{ formatList(live2dAuthorityComparisonView.plannedExpressionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('consumed-expression-name') }}: {{ formatMaybeText(live2dAuthorityComparisonView.consumedExpressionName) }}</div>
           <div>{{ formatSpeechDisplayText('expression-aligned') }}: {{ live2dAuthorityComparisonView.expressionAligned ?? 'n/a' }}</div>
@@ -3114,9 +2836,9 @@ function openMemoryWorkbench() {
             {{ formatSpeechDisplayText('vrm-authority-comparison') }}
           </div>
           <div>{{ formatSpeechDisplayText('cue-id') }}: {{ vrmAuthorityComparisonView.cueId }}</div>
-          <div>{{ formatSpeechDisplayText('continuity-frame-summary') }}: {{ formatMaybeText(vrmAuthorityComparisonView.sameHerFrameSummary) }}</div>
-          <div>{{ formatSpeechDisplayText('continuity-frame-aligned') }}: {{ vrmAuthorityComparisonView.sameHerFrameAligned ?? 'n/a' }}</div>
-          <div>{{ formatSpeechDisplayText('continuity-frame-mismatch-drivers') }}: {{ formatList(vrmAuthorityComparisonView.sameHerFrameMismatchDrivers ?? []) }}</div>
+          <div>{{ formatSpeechDisplayText('continuity-frame-summary') }}: {{ formatMaybeText(vrmAuthorityComparisonView.continuityFrameSummary) }}</div>
+          <div>{{ formatSpeechDisplayText('continuity-frame-aligned') }}: {{ vrmAuthorityComparisonView.continuityFrameAligned ?? 'n/a' }}</div>
+          <div>{{ formatSpeechDisplayText('continuity-frame-mismatch-drivers') }}: {{ formatList(vrmAuthorityComparisonView.continuityFrameMismatchDrivers ?? []) }}</div>
           <div>{{ formatSpeechDisplayText('planned-expression-aliases') }}: {{ formatList(vrmAuthorityComparisonView.plannedExpressionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('consumed-expression-aliases') }}: {{ formatList(vrmAuthorityComparisonView.consumedExpressionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('expression-aligned') }}: {{ vrmAuthorityComparisonView.expressionAligned ?? 'n/a' }}</div>
@@ -3239,7 +2961,7 @@ function openMemoryWorkbench() {
           {{ formatSpeechDisplayText('vrm-update-frame') }}
         </div>
         <div :class="['grid gap-1 text-sm text-neutral-100']">
-          <div>{{ formatSpeechDisplayText('continuity-frame-summary') }}: {{ vrmUpdate.sameHerFrameSummary ?? 'n/a' }}</div>
+          <div>{{ formatSpeechDisplayText('continuity-frame-summary') }}: {{ vrmUpdate.continuityFrameSummary ?? 'n/a' }}</div>
           <div>{{ formatSpeechDisplayText('last-consumed-expression-aliases') }}: {{ formatList(vrmUpdate.lastConsumedExpressionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('last-consumed-motion-aliases') }}: {{ formatList(vrmUpdate.lastConsumedMotionAliases) }}</div>
           <div>{{ formatSpeechDisplayText('last-consumed-vrm-action-fade-ms') }}: {{ vrmUpdate.lastConsumedVrmActionFadeMs ?? 'n/a' }}</div>

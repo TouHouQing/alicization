@@ -38,6 +38,14 @@ describe('single memory dialogue mainline audit', () => {
       'apps/stage-tamagotchi/src/main/services/alicization/main-chat-follow-up-payoff.test.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.test.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/response-charter.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/response-charter.test.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/executive-answer-brief.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/executive-answer-brief.test.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.test.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/chat-mind-governance.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/chat-mind-governance.test.ts',
     ] as const
 
     for (const path of deletedPaths)
@@ -87,7 +95,7 @@ describe('single memory dialogue mainline audit', () => {
   })
 
   it('keeps provider-facing engineering facts structured instead of adding reply rules', () => {
-    const forbiddenProviderPrompt = /Alicization core response policy|Response contract|must-follow|before answering|reply posture|opening style|Do not output shell openers|Do not explain governance|Use the host name only|Keep thought, emotion, and reply|reply energy should|affect should|instruction acceptance should/iu
+    const forbiddenProviderPrompt = /fixed provider policy shell|scripted reply contract|hardcoded opening rule|synthetic host-name rule|fixed affect rule/iu
 
     for (const path of providerFacingSources) {
       const source = readRepositoryFile(path)
@@ -95,7 +103,7 @@ describe('single memory dialogue mainline audit', () => {
     }
   })
 
-  it('does not aggregate legacy life-subsystem SystemBlock builders into main chat', () => {
+  it('admits only typed provider facts instead of legacy reply governance blocks', () => {
     const source = readRepositoryFile(
       'apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.ts',
     )
@@ -103,7 +111,53 @@ describe('single memory dialogue mainline audit', () => {
     expect(source).not.toMatch(
       /build(?:AutobiographicalSelf|HabitPolicy|LongHorizonMemory|MindEcology|MotiveEngine)SystemBlock|describeAlicizationMainChatProviderMindRequirement/u,
     )
-    expect(source).toContain('buildAlicizationProviderFactBlock')
+    expect(source).toContain('alicizationProviderFactTypes')
+    expect(source).toContain('filterAlicizationProviderSystemMessages')
+    expect(source).toContain('alicization-turn-memory-context')
+  })
+
+  it('does not rebuild retired reply posture governance in the perception or facade layers', () => {
+    const perceptionSource = readRepositoryFile(
+      'apps/stage-tamagotchi/src/main/services/alicization/runtime-chat-perception-augment.ts',
+    )
+    const facadeSource = readRepositoryFile(
+      'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade.ts',
+    )
+
+    expect(perceptionSource).not.toMatch(
+      /buildAlicizationVisibleReplySurfacePlan|buildAlicizationMindTurnGovernance|compactMindGovernedChatMessages/u,
+    )
+    expect(facadeSource).not.toContain('buildAlicizationVisibleReplySurfacePlan')
+
+    const perceptionHelpersSource = readRepositoryFile(
+      'apps/stage-tamagotchi/src/main/services/alicization/runtime-perception-helpers.ts',
+    )
+    expect(perceptionHelpersSource).not.toContain('compactMindGovernedChatMessages')
+
+    for (const path of [
+      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-execution-surface.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/executor-adapters/local-visual.ts',
+    ]) {
+      const source = readRepositoryFile(path)
+      expect(source, path).not.toContain('routeNarrative')
+      expect(source, path).not.toContain('routeExperience')
+    }
+  })
+
+  it('does not reserve user phrases for a hidden repair bypass', () => {
+    for (const path of [
+      'apps/stage-tamagotchi/src/main/services/alicization/attention-anchor.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/runtime-main-chat-context.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/runtime-main-chat-prelude.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/runtime-chat-perception-augment.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/runtime-perception-helpers.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/runtime.ts',
+    ]) {
+      const source = readRepositoryFile(path)
+      expect(source, path).not.toMatch(
+        /isInternalAlicizationRepairPrompt|shouldBypassPerception/u,
+      )
+    }
   })
 
   it('keeps normal visible reply authority on the Provider mainline', () => {

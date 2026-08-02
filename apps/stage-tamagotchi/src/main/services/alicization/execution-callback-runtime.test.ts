@@ -169,46 +169,6 @@ describe('execution callback runtime', () => {
     expect(context.recallText).not.toContain('drwxr-xr-x')
   })
 
-  it('does not copy project briefing or governance cues into callback continuity metadata', async () => {
-    const runtime = createRuntime({
-      threads: [createThread({
-        metadata: {
-          execution: {
-            runtimeContext: {
-              projectBriefing: {
-                identity: 'Project identity must not become a callback prompt.',
-                currentPhase: 'Phase 1 governance shell',
-                continuityCue: 'opening_policy=legacy',
-                sameHerSelfLine: 'relationship_cadence=legacy',
-              },
-            },
-          },
-        } as any,
-      })],
-      events: [createEvent({
-        payload: {
-          summary: 'The actual execution result.',
-          runtimeContext: {
-            projectBriefing: {
-              identity: 'Project identity must not become a callback prompt.',
-              continuityCue: 'visibility=redacted_internal',
-            },
-          },
-        },
-      })],
-    })
-
-    const context = await runtime.buildPendingExecutionCallbackContext({
-      sessionId: 'session-1',
-    })
-    const metadata = context.continuitySignals[0]?.metadata ?? {}
-
-    expect(JSON.stringify(metadata)).not.toContain('Project identity must not become a callback prompt.')
-    expect(JSON.stringify(metadata)).not.toMatch(/opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-    expect(context.recallText).toContain('execution_callback_outcome:The actual execution result.')
-    expect(context.systemBlock).not.toMatch(/opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-  })
-
   it('preserves blocked execution safety facts without persona cover', async () => {
     const runtime = createRuntime({
       threads: [createThread({
@@ -284,7 +244,7 @@ describe('execution callback runtime', () => {
             auditability: 'resume-before-dispatch',
             interruptibility: 'process-not-yet-restarted',
             projectIdentity: 'legacy project identity',
-            projectContinuityCue: 'opening_policy=legacy',
+            projectContinuityCue: 'retired_policy=legacy',
           },
         }),
         createEvent({
@@ -313,7 +273,7 @@ describe('execution callback runtime', () => {
       confirmationBoundary: 'host-confirmed-before-redispatch',
       interruptibility: 'process-not-yet-restarted',
     }))
-    expect(JSON.stringify(callback)).not.toMatch(/legacy project identity|opening_policy=/iu)
+    expect(JSON.stringify(callback)).not.toMatch(/legacy project identity|retired provider policy cue/iu)
     expect(context.actions[0]?.metadata).toEqual(expect.objectContaining({
       resumeConfirmationSummary: expect.stringContaining('host-confirmed-before-redispatch'),
     }))

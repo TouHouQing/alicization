@@ -29,14 +29,11 @@ const {
   benchmarkShipGateRows,
   benchmarkRegressionTriageRows,
   benchmarkPresenceQualityRows,
-  benchmarkProjectStateRows,
-  benchmarkProjectStateAuditRows,
   benchmarkRuntimeSamplingEvidenceRows,
-  benchmarkSameHerLaneGapRows,
-  benchmarkSameHerRepairTargetRows,
-  benchmarkSameHerSessionRows,
-  benchmarkSameHerTransitionRows,
-  benchmarkSelfAuthorityRows,
+  benchmarkContinuityLaneGapRows,
+  benchmarkContinuityRepairTargetRows,
+  benchmarkContinuitySessionRows,
+  benchmarkContinuityTransitionRows,
   filteredBenchmarkFailingTurns,
   memoryHealthComparisonRows,
   lastError,
@@ -242,8 +239,8 @@ async function runBenchmark() {
   })
 }
 
-async function runSameHerSessionProof() {
-  await store.runSameHerSessionProof()
+async function runContinuitySessionProof() {
+  await store.runContinuitySessionProof()
 }
 
 async function inspectBenchmarkTurn(turnId: string | null) {
@@ -342,16 +339,13 @@ async function inspectBenchmarkTurn(turnId: string | null) {
       :selected-turn-id="selectedDiagnosisTurnId"
       :memory-health-rows="memoryHealthComparisonRows"
       :presence-quality-rows="benchmarkPresenceQualityRows"
-      :project-state-rows="benchmarkProjectStateRows"
       :runtime-sampling-evidence-rows="benchmarkRuntimeSamplingEvidenceRows"
-      :same-her-session-rows="benchmarkSameHerSessionRows"
-      :same-her-lane-gap-rows="benchmarkSameHerLaneGapRows"
-      :same-her-transition-rows="benchmarkSameHerTransitionRows"
-      :same-her-repair-target-rows="benchmarkSameHerRepairTargetRows"
-      :project-state-audit-rows="benchmarkProjectStateAuditRows"
-      :self-authority-rows="benchmarkSelfAuthorityRows"
+      :continuity-session-rows="benchmarkContinuitySessionRows"
+      :continuity-lane-gap-rows="benchmarkContinuityLaneGapRows"
+      :continuity-transition-rows="benchmarkContinuityTransitionRows"
+      :continuity-repair-target-rows="benchmarkContinuityRepairTargetRows"
       @run="runBenchmark"
-      @run-same-her-session-proof="runSameHerSessionProof"
+      @run-continuity-session-proof="runContinuitySessionProof"
       @update:pack-id="store.setBenchmarkPackId($event)"
       @update:sample-limit="store.setBenchmarkSampleLimit($event)"
       @update:selected-dimension="store.setSelectedDiagnosisDimension($event)"

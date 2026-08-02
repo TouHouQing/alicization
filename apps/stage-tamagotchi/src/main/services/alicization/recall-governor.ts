@@ -173,31 +173,6 @@ function buildEmbodiedCarry(input: {
   }
 }
 
-function buildSelfAuthorityAnchors(selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null) {
-  if (!selfContinuityAuthority)
-    return []
-  return uniqueList([
-    selfContinuityAuthority.selfLine ? `self:${selfContinuityAuthority.selfLine}` : null,
-    selfContinuityAuthority.relationshipLine ? `relationship:${selfContinuityAuthority.relationshipLine}` : null,
-    selfContinuityAuthority.inwardLine ? `inward:${selfContinuityAuthority.inwardLine}` : null,
-    selfContinuityAuthority.habitLine ? `habit:${selfContinuityAuthority.habitLine}` : null,
-    selfContinuityAuthority.authoritySummary ? `authority:${selfContinuityAuthority.authoritySummary}` : null,
-  ], 5)
-}
-
-function buildProjectPreflightRecallAnchor(input: {
-  raw: unknown
-  longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
-}) {
-  void input
-  return null
-}
-
-function buildProjectEmotionalClosureRecallAnchor(raw: unknown) {
-  void raw
-  return null
-}
-
 function pickRecallAnchor(...values: unknown[]) {
   for (const value of values) {
     const normalized = sanitizeDialogueAnchorText(value, 180)
@@ -217,10 +192,6 @@ function formatRecallGovernorRationale(input: {
   mode: AlicizationRecallGovernorSnapshot['mode']
   dialogueFirstBound: boolean
   restProtectiveEmotionalKernel: boolean
-  autobiographicalContinuityPresent: boolean
-  selfAuthorityPresent: boolean
-  projectAnchorPresent: boolean
-  emotionalClosurePresent: boolean
 }) {
   if (input.mode === 'scene')
     return 'reason=scene_grounding_priority; recall_scope=live_grounding_or_repair'
@@ -235,18 +206,9 @@ function formatRecallGovernorRationale(input: {
     return 'reason=emotional_resonance; recall_scope=affective_continuity'
 
   if (input.mode === 'self-continuity') {
-    if (input.restProtectiveEmotionalKernel) {
-      return 'Reason: self-continuity rest protection. Recall scope is narrow self-continuity.'
-    }
-
-    return [
-      'Reason: self-continuity authorized.',
-      `Autobiographical continuity: ${input.autobiographicalContinuityPresent ? 'present' : 'absent'}.`,
-      `Self authority: ${input.selfAuthorityPresent ? 'present' : 'absent'}.`,
-      `Continuity anchor: ${input.projectAnchorPresent ? 'present' : 'absent'}.`,
-      `Emotional closure: ${input.emotionalClosurePresent ? 'present' : 'absent'}.`,
-      'Scene claim: fresh screen is not assumed.',
-    ].join(' ')
+    return input.restProtectiveEmotionalKernel
+      ? 'reason=self_continuity_rest_protection; recall_scope=narrow'
+      : 'reason=self_continuity; recall_scope=autobiographical_evidence'
   }
 
   return 'reason=no_specific_recall_mode; recall_scope=owner_default'
@@ -395,9 +357,6 @@ export function buildRecallGovernor(input: {
   mindEcology?: AlicizationMindEcologySnapshot | null
   personalityContinuityState?: AlicizationPersonalityContinuityStateSnapshot | null
   selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
-  projectStatePreDialogueAwarenessLine?: string | null
-  projectStatePreflightSummary?: string | null
-  projectStateEmotionalClosureCue?: string | null
   sceneContext?: {
     cueSummary?: string | null
     appName?: string | null
@@ -510,14 +469,6 @@ export function buildRecallGovernor(input: {
     input.privateThought?.stance === 'care' ? 'care' : null,
     input.replyDeliberation?.selectedMotive === 'attune' ? 'attune' : null,
   ], 6)
-  const selfAuthorityAnchors = buildSelfAuthorityAnchors(input.selfContinuityAuthority ?? null)
-  const projectPreflightAnchor = buildProjectPreflightRecallAnchor({
-    raw: input.projectStatePreDialogueAwarenessLine ?? input.projectStatePreflightSummary,
-    longHorizonMemory: input.longHorizonMemory ?? null,
-  })
-  const projectEmotionalClosureAnchor = buildProjectEmotionalClosureRecallAnchor(
-    input.projectStateEmotionalClosureCue,
-  )
   const sceneFamiliarityHint = estimateSceneFamiliarity({
     sceneContext: input.sceneContext ?? null,
     dialogueWorldThread,
@@ -585,11 +536,8 @@ export function buildRecallGovernor(input: {
   ], 6).join(' | ') || primaryTurnAnchor
   const recallSeed = uniqueList([
     ...threadAnchors,
-    projectPreflightAnchor,
-    projectEmotionalClosureAnchor,
     ...sceneAttachmentCues,
     ...autobiographicalContinuityLines,
-    ...selfAuthorityAnchors,
     ...(recollectionIntent?.queryHints ?? []),
     input.motiveEngine?.backgroundAgendas[0]?.summary ?? null,
     input.motiveEngine?.longTermGoals[0]?.summary ?? null,
@@ -601,10 +549,6 @@ export function buildRecallGovernor(input: {
     mode: resolvedMode,
     dialogueFirstBound: input.dialogueEncounter?.dialogueFirst === true || input.dialogueEncounter?.screenReferenceMode === 'avoid',
     restProtectiveEmotionalKernel,
-    autobiographicalContinuityPresent: autobiographicalContinuityLines.length > 0,
-    selfAuthorityPresent: selfAuthorityAnchors.length > 0,
-    projectAnchorPresent: Boolean(projectPreflightAnchor),
-    emotionalClosurePresent: Boolean(projectEmotionalClosureAnchor),
   })
 
   return {
@@ -628,12 +572,9 @@ export function buildRecallGovernor(input: {
       ...recalledFragmentSourceBudget.map(item => `recalled-fragment-source:${item.sourceKind}:${item.maxItems}`),
       carryAsMemory ? 'carry:memory' : 'carry:none',
       primaryTurnAnchor ? `anchor:${primaryTurnAnchor}` : null,
-      projectPreflightAnchor ? `project-preflight:${projectPreflightAnchor}` : null,
-      projectEmotionalClosureAnchor ? `project-emotion:${projectEmotionalClosureAnchor}` : null,
       sceneAttachmentCues.length > 0 ? `scene-anchor:${sceneAttachmentCues[0]}` : null,
       dialogueWorldThread?.lastOutcome ? `thread_outcome:${dialogueWorldThread.lastOutcome}` : null,
       input.replyDeliberation?.selectedMotive ? `reply:${input.replyDeliberation.selectedMotive}` : null,
-      selfAuthorityAnchors[0] ? `self-authority:${selfAuthorityAnchors[0]}` : null,
       mergedAffectiveCarry?.summary ? `affective-carry:${mergedAffectiveCarry.summary}` : null,
       embodiedCarry?.summary ? `embodied-carry:${embodiedCarry.summary}` : null,
       input.personalityContinuityState?.rhythmState.summary ? `rhythm-carry:${input.personalityContinuityState.rhythmState.summary}` : null,
@@ -641,9 +582,4 @@ export function buildRecallGovernor(input: {
     ], 18),
     updatedAt: input.now,
   } satisfies AlicizationRecallGovernorSnapshot
-}
-
-export function buildRecallGovernorSystemBlock(state: AlicizationRecallGovernorSnapshot | null | undefined) {
-  void state
-  return ''
 }

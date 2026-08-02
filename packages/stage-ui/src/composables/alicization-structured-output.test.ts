@@ -115,26 +115,20 @@ describe('alicization structured output', () => {
     expect(validateStructuredContract(result)).toEqual([])
   })
 
-  it('does not expose legacy pre-dialogue governance fields from provider output', () => {
+  it('drops unknown provider sidecars from structured output', () => {
     const result = normalizeStructuredOutput({
       fullText: JSON.stringify(providerPayload({
-        preDialogueAwareness: {
-          status: 'partial',
-          summaryLine: '固定回复姿态',
-          reasonPreview: ['mustDo=复述项目状态'],
-        },
-        preDialogueClosure: {
-          status: 'partial',
-          summaryLine: '固定收束',
-          briefingLines: ['openingMove=固定开场'],
-          reasons: ['fixed-reply-governance'],
+        unknownSidecar: {
+          marker: 'provider-sidecar',
+          unknownNestedSidecar: {
+            marker: 'nested-provider-sidecar',
+          },
         },
       })),
       thought: '',
     })
 
-    expect(result).not.toHaveProperty('preDialogueAwareness')
-    expect(result).not.toHaveProperty('preDialogueClosure')
+    expect(result).not.toHaveProperty('unknownSidecar')
   })
 
   it('preserves provider thought and reply without display normalization', () => {
@@ -222,35 +216,27 @@ describe('alicization structured output', () => {
     ]))
   })
 
-  it('rejects fixed persona residue instead of sanitizing it into another reply', () => {
-    const contaminated = '我先轻一点留在这里，不抢你的节奏。'
+  it('preserves provider-authored natural phrasing without a fixed phrase blacklist', () => {
+    const reply = '我先轻一点留在这里，不抢你的节奏。'
 
-    expect(sanitizeStructuredReplySurface(contaminated)).toBe('')
+    expect(sanitizeStructuredReplySurface(reply)).toBe(reply)
 
     const result = normalizeStructuredOutput({
-      fullText: JSON.stringify(providerPayload({ reply: contaminated })),
+      fullText: JSON.stringify(providerPayload({ reply })),
       thought: '',
     })
-    expect(result.reply).toBe(contaminated)
-    expect(validateStructuredContract(result)).toEqual([
-      expect.objectContaining({
-        code: 'reply-surface-roleplay-residue',
-      }),
-    ])
+    expect(result.reply).toBe(reply)
+    expect(validateStructuredContract(result)).toEqual([])
   })
 
-  it('rejects stage-direction roleplay without writing a replacement surface', () => {
-    const contaminated = '（轻轻歪头）我知道了。'
+  it('preserves provider-authored stage directions and decorative punctuation', () => {
+    const reply = '（轻轻歪头）我知道了。♡'
 
-    expect(sanitizeStructuredReplySurface(contaminated)).toBe('')
+    expect(sanitizeStructuredReplySurface(reply)).toBe(reply)
     expect(validateStructuredContract({
       ...normalizedProviderResult(),
-      reply: contaminated,
-    })).toEqual([
-      expect.objectContaining({
-        code: 'reply-surface-roleplay-residue',
-      }),
-    ])
+      reply,
+    })).toEqual([])
   })
 
   it('treats the legacy key-value thought protocol as contamination', () => {

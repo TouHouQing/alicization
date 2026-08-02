@@ -3,78 +3,26 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import { selectAlicizationExecutionDeliveryReply } from './execution-delivery-surface'
-import { buildAlicizationResponseSurfaceContract } from './response-surface-contract'
+import { buildAlicizationMindTurnContract } from './mind-turn-contract'
+import { resolveAlicizationMainChatNormalVisibleReplyAuthority } from './visible-reply/facade'
 
 describe('reply authority invariants', () => {
-  it('keeps normal reply contracts on provider-mind authority instead of a later local wording layer', () => {
-    const result = buildAlicizationResponseSurfaceContract({
-      brief: {
-        turnMode: 'answer',
-        liveSurface: '',
-        carriedThread: null,
-        truthState: 'live-grounded',
-        separateCarryFromSurface: false,
-        shouldCompactHistory: false,
-        maxRecentUserTurns: 2,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      charter: {
-        epistemicMode: 'grounded-live',
-        responseMode: 'answer-naturally',
-        governingFocus: 'Answer the current host turn directly.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'warm',
-      },
-    })
-
-    expect(result.contract.replyRealizationMode).toBe('provider-mind-required')
-    expect(result.contract.expectedVisibleReplyAuthority).toBe('llm-mind')
+  it('keeps normal replies on Provider authority without a reply-posture contract', () => {
+    expect(resolveAlicizationMainChatNormalVisibleReplyAuthority(null)).toBe('llm-mind')
   })
 
-  it('keeps inward-only recollection out of the visible reply contract', () => {
-    const result = buildAlicizationResponseSurfaceContract({
-      brief: {
-        turnMode: 'answer',
-        liveSurface: '',
-        carriedThread: 'runtime seam',
-        truthState: 'remembered',
-        separateCarryFromSurface: true,
-        shouldCompactHistory: false,
-        maxRecentUserTurns: 2,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      charter: {
-        epistemicMode: 'memory-only',
-        responseMode: 'answer-naturally',
-        governingFocus: 'Let remembered continuity shape the answer without opening a retrospective shell.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'warm',
-      },
-      recollectionSpeechPlan: {
-        shouldSurface: false,
-        surfaceMode: 'internal-only',
-        placement: 'internal-only',
-        certainty: 'approximate',
-        rationale: 'The answer should stay present-facing.',
-        confidence: 0.81,
-      },
+  it('keeps memory wording out of the Provider authority contract', () => {
+    const contract = buildAlicizationMindTurnContract({
+      now: 10,
     })
 
-    expect(Object.keys(result.contract).some(key => key.toLowerCase().includes('recollection'))).toBe(false)
+    expect(contract).toEqual({
+      version: 'mind-turn-contract-v1',
+      expectedVisibleReplyAuthority: 'llm-mind',
+      replyRealizationMode: 'provider-mind-required',
+      updatedAt: 10,
+    })
+    expect(Object.keys(contract).some(key => /memory|recollection|opening|sentence/iu.test(key))).toBe(false)
   })
 
   it('keeps execution payoff pending until the Provider settles visible text', () => {

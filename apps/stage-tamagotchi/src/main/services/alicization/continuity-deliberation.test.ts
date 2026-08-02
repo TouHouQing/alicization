@@ -78,11 +78,8 @@ describe('continuity deliberation', () => {
     const deliberation = deriveAlicizationContinuityDeliberationFromSurface(baseSurface({
       dialogue: {
         currentConsciousFrame: {
-          reasonTags: ['continuity-arc:hold-for-opening'],
+          reasonTags: [],
           focusAnchor: 'active thread',
-          projectState: {
-            continuityPreferredTiming: 'same-turn-if-invited',
-          },
         },
         conversationState: {
           continuityPolicy: 'stay-on-thread',
@@ -218,7 +215,6 @@ describe('continuity deliberation', () => {
           selectedAction: 'recheck',
           preferredStyle: 'silent-observe',
           shouldSpeak: false,
-          continuityRestraint: 'measured-return',
           why: 'arbitrary initiative rationale',
         },
       },
@@ -246,7 +242,6 @@ describe('continuity deliberation', () => {
           selectedAction: 'recheck',
           preferredStyle: 'silent-observe',
           shouldSpeak: false,
-          continuityRestraint: 'single-thread',
           why: 'arbitrary initiative rationale',
         },
       },
@@ -261,12 +256,9 @@ describe('continuity deliberation', () => {
       dialogue: {
         currentConsciousFrame: {
           focusAnchor: 'active thread',
-          projectState: {
-            continuityPreferredTiming: 'next-open-window',
-          },
         },
         conversationState: {
-          continuityPolicy: 'stay-on-thread',
+          continuityPolicy: 'next-open-window',
           carryEligible: true,
           shouldHoldThread: true,
           jointThread: 'active thread',

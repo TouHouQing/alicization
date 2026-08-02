@@ -79,13 +79,11 @@ describe('memory workbench projection', () => {
     })
 
     const projected = projectWorkingMemoryForWorkbench(snapshot)
-    const serialized = JSON.stringify(projected.longTermQueue)
 
     expect(projected.longTermQueue[0]?.summary)
       .toBe('')
     expect(projected.longTermQueue[0]?.reason)
       .toBe('')
-    expect(serialized).not.toMatch(/Before (?:answering|speaking)|local-first digital life project|legacy phase-one template|one continuous "?her"?|continuity state/iu)
   })
 
   it('builds a partial snapshot when long-term or review modules report errors', async () => {

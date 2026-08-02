@@ -248,7 +248,7 @@ describe('speech planner prosody', () => {
     expect(plan.segments[1]?.prosody?.phraseBoundary).toBe('hard')
   })
 
-  it('softens measured-return identity-continuity', () => {
+  it('derives prosody from provider-authored text and segment weights', () => {
     const plan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-measured-return-prosody',
       replyText: '先慢一点回来。',
@@ -425,12 +425,12 @@ describe('speech planner prosody', () => {
       phraseBoundary: 'hard',
       contour: 'falling',
       emphasisWord: '回来',
-      emphasisStrength: 0.45,
-      tempoShift: -0.12,
+      emphasisStrength: 0.5,
+      tempoShift: -0.08,
     })
   })
 
-  it('lets remembered longer pause cadence further slow and lengthen a measured-return segment', () => {
+  it('keeps renderer pause preferences from rewriting provider-authored segment prosody', () => {
     const naturalPlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-natural-pause-prosody',
       replyText: '我先中性可见占位。',
@@ -501,15 +501,11 @@ describe('speech planner prosody', () => {
       digitalLife: null,
     })
 
-    expect(longerPlan.segments[0]?.prosody?.tempoShift).toBeLessThan(
-      naturalPlan.segments[0]?.prosody?.tempoShift ?? Number.POSITIVE_INFINITY,
-    )
-    expect(longerPlan.segments[0]?.settleMs).toBeGreaterThan(
-      naturalPlan.segments[0]?.settleMs ?? Number.NEGATIVE_INFINITY,
-    )
+    expect(longerPlan.segments[0]?.prosody).toEqual(naturalPlan.segments[0]?.prosody)
+    expect(longerPlan.segments[0]?.settleMs).toBe(naturalPlan.segments[0]?.settleMs)
   })
 
-  it('lets lower-pressure slower voice hints keep a measured-return segment more inward than an otherwise identical natural-even line', () => {
+  it('keeps renderer voice preferences from rewriting provider-authored segment prosody', () => {
     const naturalEvenPlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-natural-even-voice-prosody',
       replyText: '我先沿着这条线中性可见占位。',
@@ -586,15 +582,8 @@ describe('speech planner prosody', () => {
       digitalLife: null,
     })
 
-    expect(slowerLowerPressurePlan.segments[0]?.prosody?.emphasisStrength).toBeLessThan(
-      naturalEvenPlan.segments[0]?.prosody?.emphasisStrength ?? Number.POSITIVE_INFINITY,
-    )
-    expect(slowerLowerPressurePlan.segments[0]?.prosody?.tempoShift).toBeLessThan(
-      naturalEvenPlan.segments[0]?.prosody?.tempoShift ?? Number.POSITIVE_INFINITY,
-    )
-    expect(slowerLowerPressurePlan.segments[0]?.settleMs).toBeGreaterThan(
-      naturalEvenPlan.segments[0]?.settleMs ?? Number.NEGATIVE_INFINITY,
-    )
+    expect(slowerLowerPressurePlan.segments[0]?.prosody).toEqual(naturalEvenPlan.segments[0]?.prosody)
+    expect(slowerLowerPressurePlan.segments[0]?.settleMs).toBe(naturalEvenPlan.segments[0]?.settleMs)
   })
 
   it('treats polluted measured-return face-motion tokens the same as clean measured-return hints', () => {
@@ -733,7 +722,7 @@ describe('speech planner prosody', () => {
               residentMode: 'repair-before-closeness',
               preferredBlinkCadence: 'quiet',
               preferredGazeMode: 'soften',
-              signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+              signature: 'resident|main-runtime|embodiment:audible_continuity_line|body+voice-only',
               reasonTags: ['embodiment:body+voice-only'],
             },
           },
@@ -807,7 +796,7 @@ describe('speech planner prosody', () => {
               residentMode: 'same-thread-continuation',
               preferredBlinkCadence: 'linger',
               preferredGazeMode: 'soften',
-              signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+              signature: 'resident|main-runtime|embodiment:audible_continuity_line|body+voice-only',
               reasonTags: ['embodiment:body+voice-only'],
             },
           },
@@ -975,7 +964,7 @@ describe('speech planner prosody', () => {
     expect(pickComparableSegment(pollutedPlan.segments[0]!)).toEqual(pickComparableSegment(cleanPlan.segments[0]!))
   })
 
-  it('softens repair-before-closeness prosody relative to the same hints without resident mode', () => {
+  it('keeps repair renderer mode from rewriting provider-authored prosody', () => {
     const turnId = 'turn-zh-repair-structured-baseline-prosody'
     const segmentId = 'segment-repair-structured-baseline'
     const text = '先慢一点回来。'
@@ -999,15 +988,10 @@ describe('speech planner prosody', () => {
       },
     })
 
-    expect(repairPlan.segments[0]?.prosody?.emphasisStrength).toBeLessThan(
-      baselinePlan.segments[0]?.prosody?.emphasisStrength ?? Number.POSITIVE_INFINITY,
-    )
-    expect(repairPlan.segments[0]?.prosody?.tempoShift).toBeLessThan(
-      baselinePlan.segments[0]?.prosody?.tempoShift ?? Number.POSITIVE_INFINITY,
-    )
+    expect(repairPlan.segments[0]?.prosody).toEqual(baselinePlan.segments[0]?.prosody)
   })
 
-  it('softens same-thread-continuation prosody relative to the same hints without resident mode', () => {
+  it('keeps thread renderer mode from rewriting provider-authored prosody', () => {
     const turnId = 'turn-zh-same-thread-structured-baseline-prosody'
     const segmentId = 'segment-same-thread-structured-baseline'
     const text = '我继续沿着当前这条线说。'
@@ -1031,22 +1015,17 @@ describe('speech planner prosody', () => {
       },
     })
 
-    expect(sameThreadPlan.segments[0]?.prosody?.emphasisStrength).toBeLessThan(
-      baselinePlan.segments[0]?.prosody?.emphasisStrength ?? Number.POSITIVE_INFINITY,
-    )
-    expect(sameThreadPlan.segments[0]?.prosody?.tempoShift).toBeLessThan(
-      baselinePlan.segments[0]?.prosody?.tempoShift ?? Number.POSITIVE_INFINITY,
-    )
+    expect(sameThreadPlan.segments[0]?.prosody).toEqual(baselinePlan.segments[0]?.prosody)
   })
 
-  it('keeps quiet-companionship segment prosody inward and gentler than ordinary dialogue without forcing the full measured-return reopen cadence', () => {
+  it('keeps renderer resident modes from rewriting provider-authored segment prosody', () => {
     const ordinaryDialoguePlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-ordinary-dialogue-prosody',
-      replyText: '我先安静陪着，把这条线接稳一点。',
+      replyText: '我先看一下情况，把这轮节奏放稳。',
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-zh-ordinary-dialogue-prosody',
-        reply: '我先安静陪着，把这条线接稳一点。',
+        reply: '我先看一下情况，把这轮节奏放稳。',
         emotion: 'thinking',
         segments: [
           {
@@ -1054,7 +1033,7 @@ describe('speech planner prosody', () => {
             index: 0,
             startOffset: 0,
             endOffset: 15,
-            text: '我先安静陪着，把这条线接稳一点。',
+            text: '我先看一下情况，把这轮节奏放稳。',
             gestureWeight: 0.3,
             facialWeight: 0.4,
             prosodyWeight: 0.52,
@@ -1076,11 +1055,11 @@ describe('speech planner prosody', () => {
 
     const quietCompanionshipPlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-quiet-companionship-prosody',
-      replyText: '我先安静陪着，把这条线接稳一点。',
+      replyText: '我先看一下情况，把这轮节奏放稳。',
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-zh-quiet-companionship-prosody',
-        reply: '我先安静陪着，把这条线接稳一点。',
+        reply: '我先看一下情况，把这轮节奏放稳。',
         emotion: 'thinking',
         segments: [
           {
@@ -1088,7 +1067,7 @@ describe('speech planner prosody', () => {
             index: 0,
             startOffset: 0,
             endOffset: 15,
-            text: '我先安静陪着，把这条线接稳一点。',
+            text: '我先看一下情况，把这轮节奏放稳。',
             gestureWeight: 0.3,
             facialWeight: 0.4,
             prosodyWeight: 0.52,
@@ -1110,11 +1089,11 @@ describe('speech planner prosody', () => {
 
     const measuredReturnPlan = buildAlicizationEmbodimentSpeechPlan({
       turnId: 'turn-zh-measured-return-compare-prosody',
-      replyText: '我先安静陪着，把这条线接稳一点。',
+      replyText: '我先看一下情况，把这轮节奏放稳。',
       speechTimeline: {
         version: 'speech-timeline-v1',
         variationToken: 'turn-zh-measured-return-compare-prosody',
-        reply: '我先安静陪着，把这条线接稳一点。',
+        reply: '我先看一下情况，把这轮节奏放稳。',
         emotion: 'thinking',
         segments: [
           {
@@ -1122,7 +1101,7 @@ describe('speech planner prosody', () => {
             index: 0,
             startOffset: 0,
             endOffset: 15,
-            text: '我先安静陪着，把这条线接稳一点。',
+            text: '我先看一下情况，把这轮节奏放稳。',
             gestureWeight: 0.3,
             facialWeight: 0.4,
             prosodyWeight: 0.52,
@@ -1142,17 +1121,7 @@ describe('speech planner prosody', () => {
       digitalLife: null,
     })
 
-    expect(quietCompanionshipPlan.segments[0]?.prosody?.emphasisStrength).toBeLessThan(
-      ordinaryDialoguePlan.segments[0]?.prosody?.emphasisStrength ?? Number.POSITIVE_INFINITY,
-    )
-    expect(quietCompanionshipPlan.segments[0]?.prosody?.emphasisStrength).toBeGreaterThanOrEqual(
-      measuredReturnPlan.segments[0]?.prosody?.emphasisStrength ?? Number.NEGATIVE_INFINITY,
-    )
-    expect(quietCompanionshipPlan.segments[0]?.prosody?.tempoShift).toBeLessThan(
-      ordinaryDialoguePlan.segments[0]?.prosody?.tempoShift ?? Number.POSITIVE_INFINITY,
-    )
-    expect(quietCompanionshipPlan.segments[0]?.prosody?.tempoShift).toBeGreaterThanOrEqual(
-      measuredReturnPlan.segments[0]?.prosody?.tempoShift ?? Number.NEGATIVE_INFINITY,
-    )
+    expect(quietCompanionshipPlan.segments[0]?.prosody).toEqual(ordinaryDialoguePlan.segments[0]?.prosody)
+    expect(measuredReturnPlan.segments[0]?.prosody).toEqual(ordinaryDialoguePlan.segments[0]?.prosody)
   })
 })

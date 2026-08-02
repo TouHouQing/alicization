@@ -66,27 +66,6 @@ function asArray<T>(value: T[] | null | undefined) {
   return Array.isArray(value) ? value : []
 }
 
-function includesAny(text: string, needles: string[]) {
-  return needles.some(needle => text.includes(needle))
-}
-
-function selfEvolutionSupportsLowerPressureCompanionship(selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null) {
-  if (!selfEvolution)
-    return false
-
-  const relationshipDoctrine = sanitizeText(selfEvolution.relationshipDoctrine, 160).toLowerCase()
-  const burdenLine = sanitizeText(selfEvolution.burdenLine, 160).toLowerCase()
-  const trustMeaning = sanitizeText(selfEvolution.trustMeaning, 160).toLowerCase()
-  const latestInflection = sanitizeText(selfEvolution.latestInflection, 160).toLowerCase()
-  const relationshipCadenceSummary = sanitizeText(selfEvolution.relationshipCadenceSummary, 160).toLowerCase()
-
-  return includesAny(relationshipDoctrine, ['leave more room', 'more room', 'slower return', 'lower-pressure', 'less eager'])
-    || includesAny(trustMeaning, ['lower-pressure', 'less eager', 'room', 'space', 'timing'])
-    || includesAny(latestInflection, ['lower-pressure', 'less eager', 'slower return', 'room'])
-    || includesAny(relationshipCadenceSummary, ['lower-pressure', 'less eager', 'slower return', 'room', 'measured-return', 'bounded-return', 'surface fully cools'])
-    || includesAny(burdenLine, ['pressure', 'crowd', 'overloaded', 'eager'])
-}
-
 function isSeriousDurabilityPulse(pulse: AlicizationDurabilityPulseSnapshot | null | undefined) {
   return pulse?.kind === 'process-gone'
     || pulse?.kind === 'render-process-gone'
@@ -297,18 +276,6 @@ function resolveAutobiographicalFallbackThought(
   ) || null
 }
 
-function buildInitiativeContinuityRestraintTags(
-  initiative?: AlicizationInitiativeSnapshot | null,
-) {
-  const restraint = initiative?.continuityRestraint ?? null
-  if (!restraint)
-    return []
-
-  return restraint === 'lower-pressure'
-    ? ['lower-pressure']
-    : [restraint, 'lower-pressure']
-}
-
 function applyContinuityMindOverlay(input: {
   now: number
   snapshot: AlicizationPrivateThoughtSnapshot
@@ -507,7 +474,6 @@ function buildThoughtFromMind(input: {
     governorFocusObjectId: input.selfGovernor?.focusObjectId ?? null,
   })
   const rationaleTags = [
-    ...buildInitiativeContinuityRestraintTags(input.initiative),
     concern ? `concern:${concern.kind}` : '',
     carriedConcern ? `concern-continuity:${carriedConcern.kind}/${carriedConcern.status}` : '',
     input.worldModel?.activeThread ? `thread:${input.worldModel.activeThread.kind}` : '',
@@ -1104,12 +1070,7 @@ function applyPrivateThoughtCarry(input: {
   if (!sameCarrier)
     return input.snapshot
 
-  const mergedThoughtText = sanitizeText(
-    previous.thoughtText && input.snapshot.thoughtText && previous.thoughtText !== input.snapshot.thoughtText
-      ? `${previous.thoughtText} Still: ${input.snapshot.thoughtText}`
-      : input.snapshot.thoughtText || previous.thoughtText,
-    220,
-  )
+  const mergedThoughtText = sanitizeText(input.snapshot.thoughtText || previous.thoughtText, 220)
 
   return {
     ...input.snapshot,
@@ -1172,12 +1133,6 @@ export function buildPrivateThoughtLoop(input: {
   mindEcology?: AlicizationMindEcologySnapshot | null
   durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
   previousPrivateThought?: AlicizationPrivateThoughtSnapshot | null
-  projectState?: {
-    identity?: string | null
-    currentPhase?: string | null
-    latestLandedProgress?: string | null
-    primaryOpenLoop?: string | null
-  } | null
 }): AlicizationPrivateThoughtSnapshot {
   const scenario = inferScenarioFromContext({
     workload: input.context.workload.kind,
@@ -1386,8 +1341,6 @@ export function buildPrivateThoughtLoop(input: {
     rationaleTags.push(`motive-drive:${input.motiveEngine.rulingDrive}`)
   if (input.habitPolicy?.dominantMode)
     rationaleTags.push(`habit:${input.habitPolicy.dominantMode}`)
-  if (selfEvolutionSupportsLowerPressureCompanionship(input.selfEvolution ?? null))
-    rationaleTags.push('self-evolution:lower-pressure-companionship')
   if (input.autobiographicalSelf?.personaDrift.attachmentStyle)
     rationaleTags.push(`autobio-bond:${input.autobiographicalSelf.personaDrift.attachmentStyle}`)
   if (input.autobiographicalSelf?.personaDrift.conflictStyle)

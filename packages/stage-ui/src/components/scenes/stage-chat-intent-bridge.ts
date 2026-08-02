@@ -29,67 +29,18 @@ interface StageChatIntentBridge {
   cancel: (reason?: string) => void
 }
 
-const legacySpeechGovernanceKeys = new Set([
-  'projectState',
-  'projectStateContinuity',
-  'preDialogueAwarenessLine',
-  'preDialogueAwarenessSummary',
-  'awarenessLine',
-  'companionHeadlineLine',
-  'companionBriefingLine',
-  'companionNextClosureLine',
-  'sameHerSelfLine',
-  'sameHerSummary',
-  'sameHerHoldDetail',
-  'sameHerDriftRisk',
-  'sameHerDriftRiskLine',
-  'sameHerDriftRiskSummary',
-  'emotionalClosureCue',
-  'emotionalClosureSummary',
-  'continuityCue',
-  'continuityAnchor',
-  'continuityHold',
-  'continuityDriftRisk',
-  'continuityRestraint',
-  'continuityArcStage',
-  'continuityPreferredTiming',
-  'continuityCadence',
-  'proactiveSameHerGap',
-  'proactiveSameHerGapSummary',
-  'openingPolicy',
-  'opening_policy',
-  'relationshipCadence',
-  'relationship_cadence',
-  'redacted_internal',
-])
-
-function isLegacySpeechGovernanceKey(key: string) {
-  return key === 'preDialogueSendIdentity'
-    || key === 'preDialogueAwareness'
-    || key === 'preDialogueClosure'
-    || key === 'visibleReplyRealization'
-    || legacySpeechGovernanceKeys.has(key)
-    || key.startsWith('companion')
-    || key.startsWith('sameHer')
-    || key.startsWith('emotionalClosure')
-    || key.startsWith('proactiveSameHer')
-}
-
-function sanitizeSpeechMetadataValue(value: unknown, key = ''): unknown {
-  if (isLegacySpeechGovernanceKey(key))
-    return undefined
+function sanitizeSpeechMetadataValue(value: unknown): unknown {
   if (typeof value === 'string')
     return sanitizeAlicizationProviderFacingText(value, 1600, '') || null
   if (Array.isArray(value)) {
     return value
-      .map(item => sanitizeSpeechMetadataValue(item, key))
+      .map(item => sanitizeSpeechMetadataValue(item))
       .filter(item => item !== undefined && item !== null)
   }
   if (value && typeof value === 'object') {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
-        .filter(([entryKey]) => !isLegacySpeechGovernanceKey(entryKey))
-        .map(([entryKey, item]) => [entryKey, sanitizeSpeechMetadataValue(item, entryKey)])
+        .map(([entryKey, item]) => [entryKey, sanitizeSpeechMetadataValue(item)])
         .filter(([, item]) => item !== undefined && item !== null),
     )
   }

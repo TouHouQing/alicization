@@ -267,11 +267,6 @@ describe('runtime memory reconsolidation', () => {
         }),
       }),
     ]))
-    const appendedEvents = (appendMindTurnEvents.mock.calls as unknown[][])[0]?.[0] as Array<{
-      payload?: Record<string, unknown>
-    }> | undefined
-    const appendedEvent = appendedEvents?.[0]
-    expect(appendedEvent?.payload).not.toHaveProperty('projectState')
     expect(appendAuditLog).not.toHaveBeenCalled()
   })
 

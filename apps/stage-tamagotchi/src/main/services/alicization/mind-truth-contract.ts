@@ -5,7 +5,10 @@ export interface AlicizationMindTruthContract {
   truthState: 'live-grounded' | 'live-observed' | 'dialogue-grounded' | 'remembered' | 'imagined' | 'uncertain'
   canDescribeCurrentSceneAsFact: boolean
   shouldLabelMemory: boolean
-  rationale: string
+  reasonCode: 'ontology-imagined' | 'fresh-grounded-scene' | 'fresh-observed-scene' | 'memory-or-stale-carry' | 'uncertain-grounding'
+  source: string | null
+  certainty: string
+  freshness: string
 }
 
 type AlicizationMindTruthSource
@@ -36,7 +39,10 @@ export function deriveMindTruthContract(input: AlicizationMindTruthSource): Alic
       truthState: 'imagined',
       canDescribeCurrentSceneAsFact: false,
       shouldLabelMemory: true,
-      rationale: 'The strongest current frame is still hypothesis or imagined world, not direct perception.',
+      reasonCode: 'ontology-imagined',
+      source,
+      certainty,
+      freshness,
     }
   }
 
@@ -45,7 +51,10 @@ export function deriveMindTruthContract(input: AlicizationMindTruthSource): Alic
       truthState: 'live-grounded',
       canDescribeCurrentSceneAsFact: true,
       shouldLabelMemory: false,
-      rationale: 'Current screen facts come from fresh grounded visual evidence.',
+      reasonCode: 'fresh-grounded-scene',
+      source,
+      certainty,
+      freshness,
     }
   }
 
@@ -54,7 +63,10 @@ export function deriveMindTruthContract(input: AlicizationMindTruthSource): Alic
       truthState: 'live-observed',
       canDescribeCurrentSceneAsFact: true,
       shouldLabelMemory: false,
-      rationale: 'Current screen facts come from live observation, but may still need one more grounding pass.',
+      reasonCode: 'fresh-observed-scene',
+      source,
+      certainty,
+      freshness,
     }
   }
 
@@ -69,7 +81,10 @@ export function deriveMindTruthContract(input: AlicizationMindTruthSource): Alic
       truthState: 'remembered',
       canDescribeCurrentSceneAsFact: false,
       shouldLabelMemory: true,
-      rationale: 'The active thread is being carried by continuity or working memory, not by fresh live evidence.',
+      reasonCode: 'memory-or-stale-carry',
+      source,
+      certainty,
+      freshness,
     }
   }
 
@@ -77,25 +92,9 @@ export function deriveMindTruthContract(input: AlicizationMindTruthSource): Alic
     truthState: 'uncertain',
     canDescribeCurrentSceneAsFact: false,
     shouldLabelMemory: true,
-    rationale: 'The current world is not stable enough to turn into present-tense facts yet.',
-  }
-}
-
-export function buildMindTruthContractLines(input: AlicizationMindTruthSource) {
-  const contract = deriveMindTruthContract(input)
-  return {
-    contract,
-    lines: [
-      '[ALICIZATION_TRUTH_CONTRACT]',
-      `Truth state: ${contract.truthState}.`,
-      `Current rationale: ${contract.rationale}`,
-      `Present-tense screen claims allowed: ${contract.canDescribeCurrentSceneAsFact ? 'yes' : 'no'}.`,
-      'Persona only shapes tone. It must never upgrade remembered, imagined, or unresolved content into current facts.',
-      contract.truthState === 'imagined'
-        ? 'If screen-related content comes from hypothesis, imagined repair, or unresolved inference, explicitly label it as a guess, tentative read, or what still needs grounding.'
-        : contract.shouldLabelMemory
-          ? 'If screen-related content comes from continuity, residue, or an unresolved hypothesis, explicitly label it as memory, residual impression, or uncertainty.'
-          : 'If you mention the current screen, keep it tied to the freshest grounded evidence rather than old residue.',
-    ],
+    reasonCode: 'uncertain-grounding',
+    source,
+    certainty,
+    freshness,
   }
 }

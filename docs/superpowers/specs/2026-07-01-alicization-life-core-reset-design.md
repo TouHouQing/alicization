@@ -6,7 +6,7 @@
 
 ## 目标
 
-Alicization 不应该继续以 prompt 规则、fallback 模板和 same-her 修复补丁的形式堆叠增长。
+Alicization 不应该继续以 prompt 规则、fallback 模板和工程身份口号修复补丁的形式堆叠增长。
 
 这次重建要定义一个更小、更清晰的生命核心，用来支撑：
 
@@ -28,7 +28,7 @@ Alicization 不应该继续以 prompt 规则、fallback 模板和 same-her 修�
 目前观察到的失败模式：
 
 - 对话、记忆、项目状态治理、可见回复修复、fallback 和具身提示分散在同一批大型运行时表面里处理
-- `same-her`、`Phase 1`、项目闭环等语言被重复写成正则和 prompt 指令，而不是一个紧凑的内部身份状态
+- 工程身份口号、阶段名称、项目闭环等语言被重复写成正则和 prompt 指令，而不是一个紧凑的内部身份状态
 - fallback 和超时恢复仍可能影响面向人格的路径
 - 记忆检索更像“候选搜索 + prompt 拼装”，还不是清晰的短期记忆 / 长期记忆 / 原始证据系统
 - 旧的浏览器或本地 fallback 表面可能制造第二个弱人格模型
@@ -63,7 +63,7 @@ Alicization 不应该继续以 prompt 规则、fallback 模板和 same-her 修�
 
 - `SOUL.md` 仍然是人格真源。
 - LoRA、prompt、浏览器 fallback、供应方回复都不能成为人格真源。
-- `same-her` 应该成为状态，而不是回复层被迫说出的短语。
+- 人格连续性应该成为状态，而不是回复层被迫说出的短语。
 
 `IdentityCore` 还应输出稳定的关系锚点和禁忌锚点，避免不同模块各自拼一个“她是谁”的版本。
 
@@ -1174,7 +1174,7 @@ apps/stage-tamagotchi/src/main/services/alicization/life-core/
 
 - 从正常对话中移除固定人格 fallback 模板。
 - 从可见回复中移除项目状态短语强制。
-- 从 happy path 中移除 same-her 正则修复。
+- 从正常回复路径中移除工程身份口号的正则修复。
 - 保留用于验证不变量的回放测试，但不再测试精确补丁措辞。
 
 ## 验证

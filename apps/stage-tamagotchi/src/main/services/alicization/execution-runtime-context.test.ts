@@ -66,12 +66,40 @@ function createInput(overrides: Record<string, unknown> = {}) {
   } as any
 }
 
+function createAffectiveResidue() {
+  return {
+    version: 'affective-residue-memory-v1',
+    updatedAt: 41,
+    residues: [],
+    dominantResidueKind: 'afterglow',
+    afterglowPressure: 0.58,
+    repairPressure: 0.22,
+    burdenPressure: 0.14,
+    trustPressure: 0.64,
+    restProtectivePressure: 0.18,
+    relationshipCadence: {
+      cadenceMode: 'ready-return',
+      distancePosture: 'nearby-soft',
+      companionshipDensity: 0.4,
+      repairRecovery: 0.68,
+      overreachRisk: 0.12,
+      fatigueGuard: 0.18,
+      afterglowCarry: 0.58,
+      shouldDelayWarmth: false,
+      shouldProtectRest: false,
+      reasonTags: ['execution-feedback'],
+      summary: 'Provider callback completed with grounded evidence.',
+    },
+    sourceSignals: ['provider callback completed'],
+    summary: 'Grounded execution afterglow remains available.',
+  } as const
+}
+
 describe('execution runtime context', () => {
-  it('does not synthesize project or persona briefing when the caller only supplies grounded execution facts', () => {
+  it('builds grounded execution facts from the caller input', () => {
     const runtimeContext = buildAlicizationExecutionRuntimeContext(createInput())
 
     expect(runtimeContext.generatedAt).toBe(42)
-    expect(runtimeContext.projectBriefing).toBeNull()
     expect(runtimeContext.sensory).toMatchObject({
       collectedAt: 10,
       running: true,
@@ -84,69 +112,68 @@ describe('execution runtime context', () => {
     })
   })
 
-  it('keeps explicit execution status and enums while clearing every persona and reply-governance field', () => {
+  it('preserves grounded runtime facts', () => {
     const runtimeContext = buildAlicizationExecutionRuntimeContext(createInput({
-      projectBriefing: {
-        identity: 'Alicization is a local-first digital life project.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        landedProgressSummary: 'The requested operation has started.',
-        openClosureSummary: 'The operation is waiting for a provider result.',
-        nextClosureTargetSummary: 'Collect the provider result.',
-        sameHerSelfLine: 'Keep one living line.',
-        sameHerHoldDetail: 'same-her hold: keep this reply inward.',
-        continuityArcStage: 'same-thread-continuation',
-        sameHerDriftRisk: 'Do not become a generic assistant.',
-        proactiveSameHerGap: 'Keep proactive continuity explicit.',
-        companionHeadlineLine: 'Keep the same line visible.',
-        companionBriefingLine: 'Stay gentle before answering.',
-        emotionalClosureSummary: 'Do not reopen from scratch.',
-        continuityRestraint: 'measured-return',
-        continuityCue: 'continuity state: keep this line inward.',
-        continuityPreferredTiming: 'next-open-window',
-        continuityCadence: 'measured-return',
-        preferredBlinkCadence: 'linger',
-        preferredGazeMode: 'soften',
-        preferredPauseMode: 'longer',
-        preferredLipsyncMode: 'restrained',
-        preferredVoiceMode: 'lower-pressure',
-        preferredPacingMode: 'slower',
-        preflightSummary: 'Before acting, remember the same project.',
-        preDialogueAwarenessLine: 'Before answering, remember the same digital life.',
-        preDialogueAwarenessSummary: 'Keep the same-her line visible.',
-      },
+      affectiveResidue: createAffectiveResidue(),
+      recentActions: [{
+        kind: 'executor',
+        status: 'completed',
+        threadStatus: 'completed',
+        label: 'callback:cli',
+        summary: 'Provider callback completed.',
+      }],
     }))
 
-    expect(runtimeContext.projectBriefing).toEqual({
-      identity: null,
-      currentPhase: null,
-      latestLandedProgress: 'The requested operation has started.',
-      primaryOpenLoop: 'The operation is waiting for a provider result.',
-      nextClosureTarget: 'Collect the provider result.',
-      sameHerSelfLine: null,
-      sameHerHoldDetail: null,
-      continuityArcStage: 'same-thread-continuation',
-      sameHerDriftRisk: null,
-      proactiveSameHerGap: null,
-      companionBriefingLine: null,
-      emotionalClosureSummary: null,
-      continuityRestraint: 'measured-return',
-      continuityCue: null,
-      continuityPreferredTiming: 'next-open-window',
-      continuityCadence: 'measured-return',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredVoiceMode: 'lower-pressure',
-      preferredPacingMode: 'slower',
-      preflightSummary: null,
-      preDialogueAwarenessLine: null,
-      preDialogueAwarenessSummary: null,
+    expect(runtimeContext).toMatchObject({
+      affectiveResidue: {
+        dominantResidueKind: 'afterglow',
+        afterglowPressure: 0.58,
+        trustPressure: 0.64,
+        relationshipCadence: {
+          cadenceMode: 'ready-return',
+          shouldDelayWarmth: false,
+        },
+      },
+      recentActions: [{
+        kind: 'executor',
+        status: 'completed',
+        threadStatus: 'completed',
+        label: 'callback:cli',
+        summary: 'Provider callback completed.',
+      }],
+      sensory: {
+        collectedAt: 10,
+        running: true,
+        stale: false,
+      },
     })
 
     const normalized = normalizeAlicizationExecutionRuntimeContext(runtimeContext)
-    expect(normalized?.projectBriefing).toEqual(runtimeContext.projectBriefing)
-    expect(buildAlicizationExecutionRuntimeContextBlock(normalized)).not.toMatch(/Before (?:answering|speaking|acting)|same-her|local-first digital life project/iu)
+    const block = buildAlicizationExecutionRuntimeContextBlock(normalized)
+    const factBlock = JSON.parse(block) as {
+      data?: Record<string, unknown>
+    }
+    expect(factBlock.data).not.toHaveProperty('execution')
+    expect(factBlock.data).toMatchObject({
+      affective: {
+        dominantResidueKind: 'afterglow',
+        afterglowPressure: 0.58,
+        trustPressure: 0.64,
+        cadenceMode: 'ready-return',
+      },
+      recentActions: [{
+        kind: 'executor',
+        status: 'completed',
+        threadStatus: 'completed',
+        label: 'callback:cli',
+        summary: 'Provider callback completed.',
+      }],
+      sensory: {
+        running: true,
+        stale: false,
+      },
+    })
+    expect(block).not.toMatch(/Before (?:answering|speaking|acting)|continuity|local-first digital life project/iu)
   })
 
   it('projects Memory OS execution closure facts without converting them into a fixed response template', () => {

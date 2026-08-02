@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { normalizeAlicizationPerformancePayload } from './index'
 
 describe('alicization performance contracts', () => {
-  it('preserves quiet-accompaniment as a low-pressure same-her resident performance mode', () => {
+  it('preserves quiet-accompaniment as a low-pressure continuity resident performance mode', () => {
     const performance = normalizeAlicizationPerformancePayload({
       baseEmotion: 'thinking',
       delivery: 'gentle',
@@ -22,7 +22,7 @@ describe('alicization performance contracts', () => {
     expect(performance.action?.residentMode).toBe('quiet-accompaniment')
   })
 
-  it('preserves same-thread-continuation as an explicit same-her resident carry mode during performance payload normalization', () => {
+  it('preserves same-thread-continuation as an explicit continuity resident carry mode during performance payload normalization', () => {
     const performance = normalizeAlicizationPerformancePayload({
       baseEmotion: 'thinking',
       delivery: 'gentle',

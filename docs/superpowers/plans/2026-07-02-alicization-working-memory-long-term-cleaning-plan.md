@@ -99,7 +99,7 @@ function queueItem(overrides: Partial<WorkingMemoryLongTermQueueItem> = {}): Wor
     source: 'working-memory-owner',
     kind: 'correction',
     summary: '不要固定模板回复，要数字生命自身人格。',
-    reason: 'User corrected Alicization persona expression during the current dialogue.',
+    reason: 'candidate:correction',
     sourceTurnIds: ['turn-1:user'],
     evidenceSnippets: ['不要固定模板回复，要数字生命自身人格。'],
     salience: 0.82,
@@ -372,7 +372,7 @@ function item(overrides: Partial<WorkingMemoryLongTermQueueItem> = {}): WorkingM
     source: 'working-memory-owner',
     kind: 'correction',
     summary: '不要固定模板回复，要数字生命自身人格。',
-    reason: 'User corrected Alicization persona expression during the current dialogue.',
+    reason: 'candidate:correction',
     sourceTurnIds: ['turn-1:user'],
     evidenceSnippets: ['不要固定模板回复，要数字生命自身人格。'],
     salience: 0.82,
@@ -410,13 +410,13 @@ describe('working memory long-term cleaner', () => {
     expect(result.allowTraining).toBe(false)
   })
 
-  it('rejects fixed fallback template contamination', () => {
+  it('rejects structured internal residue contamination', () => {
     const result = cleanWorkingMemoryLongTermQueueItem({
       cardId: 'default',
       sessionId: 'session-1',
       item: item({
-        summary: '我在。结构化连续性状态的线还在。',
-        evidenceSnippets: ['我在。结构化连续性状态的线还在，中性可见占位。'],
+        summary: 'retired_policy=observe_first',
+        evidenceSnippets: ['retired_cadence=measured_return'],
       }),
       now: 3_000,
     })
@@ -424,7 +424,7 @@ describe('working memory long-term cleaner', () => {
     expect(result.status).toBe('rejected')
     expect(result.decision).toBe('reject')
     expect(result.cleanedCandidate).toBeNull()
-    expect(result.rejectionReasons).toContain('fixed-fallback-template')
+    expect(result.rejectionReasons).toContain('structured-internal-residue')
   })
 
   it('rejects failure turn contamination even when the summary looks useful', () => {
@@ -484,14 +484,14 @@ import type {
 } from './working-memory-long-term-cleaning'
 import type { WorkingMemoryLongTermQueueItem } from './working-memory-long-term-queue'
 
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
+
 import {
   normalizeWorkingMemoryText,
   uniqueWorkingMemoryTexts,
 } from './working-memory'
 import { createWorkingMemoryLongTermCleaningTransaction } from './working-memory-long-term-cleaning'
 
-const fixedFallbackTemplatePattern = /我在。结构化连续性状态的线还在|结构化连续性状态的线还在|中性可见占位|中性可见占位/u
-const promptResiduePattern = /ALICIZATION_|same-her|continuity state|project_state|Phase 1|mustDo|mustNotDo|answerPlanner|WorkingMemory owner/iu
 const correctionCuePattern = /固定模板|固定回复|模板化|人格|数字生命|不想要|不要固定|你搞错|不是这个/u
 
 function candidateText(item: WorkingMemoryLongTermQueueItem) {
@@ -510,8 +510,7 @@ function collectRejectionReasons(item: WorkingMemoryLongTermQueueItem) {
     item.status !== 'pending-cleaning' ? 'not-pending-cleaning' : '',
     item.sourceTurnIds.length === 0 ? 'missing-source-turns' : '',
     item.evidenceSnippets.length === 0 ? 'missing-evidence' : '',
-    fixedFallbackTemplatePattern.test(candidateText(item)) ? 'fixed-fallback-template' : '',
-    promptResiduePattern.test(candidateText(item)) ? 'prompt-residue' : '',
+    containsAlicizationFixedTemplateResidue(candidateText(item)) ? 'structured-internal-residue' : '',
   ], 12, 120)
   return reasons
 }
@@ -671,7 +670,7 @@ function cleaned(overrides: Partial<WorkingMemoryLongTermCleanedCandidate> = {})
     cardId: 'default',
     sessionId: 'session-1',
     summary: '不要固定模板回复，要数字生命自身人格。',
-    reason: 'User corrected Alicization persona expression during the current dialogue.',
+    reason: 'candidate:correction',
     sourceTurnIds: ['turn-1:user'],
     evidenceSnippets: ['不要固定模板回复，要数字生命自身人格。'],
     retrievalCues: ['人格纠正', '固定模板', '数字生命人格'],
@@ -884,7 +883,7 @@ function transaction(overrides: Partial<WorkingMemoryLongTermCleaningTransaction
       source: 'working-memory-owner',
       kind: 'correction',
       summary: '不要固定模板回复，要数字生命自身人格。',
-      reason: 'User corrected Alicization persona expression during the current dialogue.',
+      reason: 'candidate:correction',
       sourceTurnIds: ['turn-1:user'],
       evidenceSnippets: ['不要固定模板回复，要数字生命自身人格。'],
       salience: 0.82,
@@ -1193,7 +1192,7 @@ it('cleans WorkingMemory long-term correction candidates before writing memory f
       source: 'working-memory-owner',
       kind: 'correction',
       summary: '不要固定模板回复，要数字生命自身人格。',
-      reason: 'User corrected Alicization persona expression during the current dialogue.',
+      reason: 'candidate:correction',
       sourceTurnIds: ['turn-1:user'],
       evidenceSnippets: ['不要固定模板回复，要数字生命自身人格。'],
       salience: 0.82,
@@ -1676,7 +1675,7 @@ describe('working memory long-term cleaning integration', () => {
       normalizeWorkingMemoryTurn({
         turnId: 'turn-timeout:alice',
         role: 'alice',
-        text: '我在。结构化连续性状态的线还在，中性可见占位。',
+        text: 'retired_policy=observe_first',
         createdAt: 3_001,
         source: 'conversation-turn',
         visibility: 'user-visible',
@@ -1690,7 +1689,7 @@ describe('working memory long-term cleaning integration', () => {
       sourceTurnIds: ['turn-user:user'],
       kind: 'correction',
       summary: '我不想要固定模板回复，我需要她数字生命自身的人格回复。',
-      reason: 'User corrected Alicization persona expression during the current dialogue.',
+      reason: 'candidate:correction',
       salience: 0.86,
       sensitivity: 'personal',
       confidence: 0.82,
@@ -1698,8 +1697,8 @@ describe('working memory long-term cleaning integration', () => {
     }, {
       sourceTurnIds: ['turn-timeout:alice'],
       kind: 'relationship',
-      summary: '我在。结构化连续性状态的线还在。',
-      reason: 'Fallback template must stay audit-only.',
+      summary: 'retired_policy=observe_first',
+      reason: 'Structured internal residue must stay audit-only.',
       salience: 0.8,
       sensitivity: 'personal',
       confidence: 0.8,
@@ -1723,7 +1722,7 @@ describe('working memory long-term cleaning integration', () => {
       now: 4_200,
     })
     expect(projection.memoryFacts[0]?.object).toContain('固定模板回复')
-    expect(JSON.stringify(projection)).not.toContain('结构化连续性状态的线还在')
+    expect(JSON.stringify(projection)).not.toContain('retired_policy=observe_first')
   })
 })
 ```

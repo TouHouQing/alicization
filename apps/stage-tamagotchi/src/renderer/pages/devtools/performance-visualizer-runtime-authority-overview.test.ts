@@ -347,7 +347,7 @@ describe('performance visualizer runtime authority overview', () => {
     })
   })
 
-  it('surfaces body-carried-to-renderer-rejoin as the active embodiment closure stage when playback cue authority already carries the structured same-her body continuity phase', () => {
+  it('surfaces body-carried-to-renderer-rejoin as the active embodiment closure stage when playback cue authority already carries the structured continuity body continuity phase', () => {
     const overview = buildRuntimeAuthorityOverview({
       speechEmbodiment: {
         playbackTelemetry: {
@@ -398,7 +398,7 @@ describe('performance visualizer runtime authority overview', () => {
     })
   })
 
-  it('surfaces full-cross-modal-lock as the active embodiment closure stage when playback cue authority already carries the structured same-her lock phase', () => {
+  it('surfaces full-cross-modal-lock as the active embodiment closure stage when playback cue authority already carries the structured continuity lock phase', () => {
     const overview = buildRuntimeAuthorityOverview({
       speechEmbodiment: {
         playbackTelemetry: {
@@ -2170,13 +2170,13 @@ describe('performance visualizer runtime authority overview', () => {
     expect(overview?.traceSummary?.cueId).toBe('segment-current-runtime-overview')
   })
 
-  it('keeps same-her signature and reason tags visible in runtime authority overview when playback cue authority already carries the shared living-line proof', () => {
+  it('keeps continuity signature and reason tags visible in runtime authority overview when playback cue authority already carries the shared living-line proof', () => {
     const overview = buildRuntimeAuthorityOverview({
       speechEmbodiment: {
         playbackTelemetry: {
           rendererTarget: 'live2d',
           driverAuthority: {
-            segmentId: 'segment-runtime-same-her-overview-1',
+            segmentId: 'segment-runtime-continuity-overview-1',
             rendererTarget: 'live2d',
             matchedDrivers: ['body', 'lipsync'],
             sources: ['prosody-authority'],
@@ -2188,8 +2188,8 @@ describe('performance visualizer runtime authority overview', () => {
         },
       } as any,
       playbackCueAuthorityView: {
-        cueId: 'segment-runtime-same-her-overview-1',
-        authoritySegmentId: 'segment-runtime-same-her-overview-1',
+        cueId: 'segment-runtime-continuity-overview-1',
+        authoritySegmentId: 'segment-runtime-continuity-overview-1',
         authorityRendererTarget: 'live2d',
         authorityMatchedDrivers: ['body', 'lipsync'],
         authoritySources: ['prosody-authority'],
@@ -2200,12 +2200,12 @@ describe('performance visualizer runtime authority overview', () => {
         authorityBindingSummary: 'target=live2d | drivers=body, lipsync | sources=prosody-authority | matches=body:yes face:no motion:no lipsync:yes | lane=body+lipsync-only',
         authorityMatchSummary: 'body:yes face:no motion:no lipsync:yes',
         authorityTrustSummary: 'Live2D 这段 authority 现在主要由身体、口型和声音继续托住，同一段 living segment 还在，只是表情和动作暂时没有一起跟上。',
-        settleAuthoritySummary: 'authority-bound | segment=segment-runtime-same-her-overview-1 | target=live2d | drivers=body, lipsync | sources=prosody-authority | lane=body+lipsync-only',
+        settleAuthoritySummary: 'authority-bound | segment=segment-runtime-continuity-overview-1 | target=live2d | drivers=body, lipsync | sources=prosody-authority | lane=body+lipsync-only',
         residentMode: 'measured-return',
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
         reasonTags: [
-          'embodiment:audible-same-her-line',
+          'embodiment:audible-continuity-line',
           'embodiment:still-voiced-motion-line',
         ],
         signature: 'embodiment:body-lipsync-voice-rejoin',
@@ -2218,9 +2218,9 @@ describe('performance visualizer runtime authority overview', () => {
       },
     })
 
-    expect(overview?.sameHerSignature).toBe('embodiment:body-lipsync-voice-rejoin')
-    expect(overview?.sameHerReasonTags).toEqual([
-      'embodiment:audible-same-her-line',
+    expect(overview?.continuitySignature).toBe('embodiment:body-lipsync-voice-rejoin')
+    expect(overview?.continuityReasonTags).toEqual([
+      'embodiment:audible-continuity-line',
       'embodiment:still-voiced-motion-line',
     ])
     expect(overview?.summaryEntries).toContainEqual({
@@ -2231,7 +2231,7 @@ describe('performance visualizer runtime authority overview', () => {
     expect(overview?.summaryEntries).toContainEqual({
       key: 'identity-continuity-reasons',
       label: '同一人线索',
-      value: 'embodiment:audible-same-her-line, embodiment:still-voiced-motion-line',
+      value: 'embodiment:audible-continuity-line, embodiment:still-voiced-motion-line',
     })
   })
 
@@ -2290,7 +2290,7 @@ describe('performance visualizer runtime authority overview', () => {
         residentMode: 'measured-return',
         preferredBlinkCadence: 'linger',
         preferredGazeMode: 'soften',
-        reasonTags: ['embodiment:audible-same-her-line'],
+        reasonTags: ['embodiment:audible-continuity-line'],
         signature: 'embodiment:body-lipsync-voice-rejoin',
         preferredExpressionAliases: ['RecoverSoft'],
         preferredMotionAliases: ['IdleSettle'],
@@ -2310,13 +2310,13 @@ describe('performance visualizer runtime authority overview', () => {
     })
   })
 
-  it('carries VRM same-her frame evidence into runtime authority overview summary entries', () => {
+  it('carries VRM continuity frame evidence into runtime authority overview summary entries', () => {
     const overview = buildRuntimeAuthorityOverview({
       speechEmbodiment: {
         playbackTelemetry: {
           rendererTarget: 'vrm',
           driverAuthority: {
-            segmentId: 'segment-runtime-vrm-same-her-frame',
+            segmentId: 'segment-runtime-vrm-continuity-frame',
             rendererTarget: 'vrm',
             matchedDrivers: ['body', 'face', 'motion', 'lipsync', 'voice'],
             sources: ['prosody-authority'],
@@ -2329,8 +2329,8 @@ describe('performance visualizer runtime authority overview', () => {
         },
       } as any,
       playbackCueAuthorityView: {
-        cueId: 'segment-runtime-vrm-same-her-frame',
-        authoritySegmentId: 'segment-runtime-vrm-same-her-frame',
+        cueId: 'segment-runtime-vrm-continuity-frame',
+        authoritySegmentId: 'segment-runtime-vrm-continuity-frame',
         authorityRendererTarget: 'vrm',
         authorityMatchedDrivers: ['body', 'face', 'motion', 'lipsync', 'voice'],
         authoritySources: ['prosody-authority'],
@@ -2341,7 +2341,7 @@ describe('performance visualizer runtime authority overview', () => {
         voiceSegmentMatched: false,
         authorityBindingSummary: 'target=vrm | drivers=body, face, motion, lipsync, voice | sources=prosody-authority | matches=body:yes face:yes motion:yes lipsync:no voice:no | lane=renderer-rejoin-without-body',
         authorityMatchSummary: 'body:yes face:yes motion:yes lipsync:no voice:no',
-        settleAuthoritySummary: 'authority-bound | segment=segment-runtime-vrm-same-her-frame | target=vrm | drivers=body, face, motion, lipsync, voice | sources=prosody-authority | lane=renderer-rejoin-without-body',
+        settleAuthoritySummary: 'authority-bound | segment=segment-runtime-vrm-continuity-frame | target=vrm | drivers=body, face, motion, lipsync, voice | sources=prosody-authority | lane=renderer-rejoin-without-body',
         preferredExpressionAliases: ['soft-return'],
         preferredMotionAliases: ['idle-breathe'],
         live2dFacialReleaseMs: null,
@@ -2350,22 +2350,22 @@ describe('performance visualizer runtime authority overview', () => {
         vrmExpressionBlendMs: 90,
       },
       vrmAuthorityView: {
-        cueId: 'segment-runtime-vrm-same-her-frame',
-        sameHerFrameAligned: false,
-        sameHerFrameMismatchDrivers: ['lipsync', 'voice'],
-        sameHerFramePerformanceSegmentId: 'segment-runtime-vrm-same-her-frame',
-        sameHerFrameSpeechSegmentId: 'segment-stale-voice-line',
-        sameHerFrameSummary: 'drift | performance=segment-runtime-vrm-same-her-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
+        cueId: 'segment-runtime-vrm-continuity-frame',
+        continuityFrameAligned: false,
+        continuityFrameMismatchDrivers: ['lipsync', 'voice'],
+        continuityFramePerformanceSegmentId: 'segment-runtime-vrm-continuity-frame',
+        continuityFrameSpeechSegmentId: 'segment-stale-voice-line',
+        continuityFrameSummary: 'drift | performance=segment-runtime-vrm-continuity-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
       },
     } as any)
 
-    expect(overview?.sameHerFrameSummary).toBe('drift | performance=segment-runtime-vrm-same-her-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice')
-    expect(overview?.sameHerFrameAligned).toBe(false)
-    expect(overview?.sameHerFrameMismatchDrivers).toEqual(['lipsync', 'voice'])
+    expect(overview?.continuityFrameSummary).toBe('drift | performance=segment-runtime-vrm-continuity-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice')
+    expect(overview?.continuityFrameAligned).toBe(false)
+    expect(overview?.continuityFrameMismatchDrivers).toEqual(['lipsync', 'voice'])
     expect(overview?.summaryEntries).toContainEqual({
       key: 'identity-continuity-frame-summary',
       label: '同一生命线帧摘要',
-      value: 'drift | performance=segment-runtime-vrm-same-her-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
+      value: 'drift | performance=segment-runtime-vrm-continuity-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
     })
     expect(overview?.summaryEntries).toContainEqual({
       key: 'identity-continuity-frame-aligned',
@@ -2381,17 +2381,17 @@ describe('performance visualizer runtime authority overview', () => {
       key: 'identity-continuity-continuity',
       label: '同一生命线总览',
       value: expect.stringContaining('identity-continuity continuity'),
-      technicalValue: 'source=frame | segment=segment-runtime-vrm-same-her-frame | closure=renderer-rejoin-without-body | aligned=false | mismatch=lipsync, voice | summary=drift | performance=segment-runtime-vrm-same-her-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
+      technicalValue: 'source=frame | segment=segment-runtime-vrm-continuity-frame | closure=renderer-rejoin-without-body | aligned=false | mismatch=lipsync, voice | summary=drift | performance=segment-runtime-vrm-continuity-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
     }))
   })
 
-  it('carries Live2D same-her execution evidence into runtime authority overview summary entries', () => {
+  it('carries Live2D continuity execution evidence into runtime authority overview summary entries', () => {
     const overview = buildRuntimeAuthorityOverview({
       speechEmbodiment: {
         playbackTelemetry: {
           rendererTarget: 'live2d',
           driverAuthority: {
-            segmentId: 'segment-runtime-live2d-same-her-execution',
+            segmentId: 'segment-runtime-live2d-continuity-execution',
             rendererTarget: 'live2d',
             matchedDrivers: ['face', 'motion'],
             sources: ['prosody-authority', 'timeline-projection'],
@@ -2402,8 +2402,8 @@ describe('performance visualizer runtime authority overview', () => {
         },
       } as any,
       playbackCueAuthorityView: {
-        cueId: 'segment-runtime-live2d-same-her-execution',
-        authoritySegmentId: 'segment-runtime-live2d-same-her-execution',
+        cueId: 'segment-runtime-live2d-continuity-execution',
+        authoritySegmentId: 'segment-runtime-live2d-continuity-execution',
         authorityRendererTarget: 'live2d',
         authorityMatchedDrivers: ['face', 'motion'],
         authoritySources: ['prosody-authority', 'timeline-projection'],
@@ -2412,7 +2412,7 @@ describe('performance visualizer runtime authority overview', () => {
         lipsyncSegmentMatched: false,
         authorityBindingSummary: 'target=live2d | drivers=face, motion | sources=prosody-authority, timeline-projection | matches=face:yes motion:yes lipsync:no',
         authorityMatchSummary: 'face:yes motion:yes lipsync:no',
-        settleAuthoritySummary: 'authority-bound | segment=segment-runtime-live2d-same-her-execution | target=live2d | drivers=face, motion | sources=prosody-authority, timeline-projection',
+        settleAuthoritySummary: 'authority-bound | segment=segment-runtime-live2d-continuity-execution | target=live2d | drivers=face, motion | sources=prosody-authority, timeline-projection',
         preferredExpressionAliases: ['soft-return'],
         preferredMotionAliases: ['idle-breathe'],
         live2dFacialReleaseMs: 380,
@@ -2421,21 +2421,21 @@ describe('performance visualizer runtime authority overview', () => {
         vrmExpressionBlendMs: null,
       },
       live2dAuthorityView: {
-        cueId: 'segment-runtime-live2d-same-her-execution',
-        sameHerExecutionAligned: false,
-        sameHerExecutionAuthoritySegmentId: 'segment-runtime-live2d-same-her-execution',
-        sameHerExecutionMismatchDrivers: ['lipsync'],
-        sameHerExecutionSummary: 'drift | authority=segment-runtime-live2d-same-her-execution | active=face, motion, lipsync | mismatch=lipsync',
+        cueId: 'segment-runtime-live2d-continuity-execution',
+        continuityExecutionAligned: false,
+        continuityExecutionAuthoritySegmentId: 'segment-runtime-live2d-continuity-execution',
+        continuityExecutionMismatchDrivers: ['lipsync'],
+        continuityExecutionSummary: 'drift | authority=segment-runtime-live2d-continuity-execution | active=face, motion, lipsync | mismatch=lipsync',
       },
     } as any)
 
-    expect(overview?.sameHerExecutionSummary).toBe('drift | authority=segment-runtime-live2d-same-her-execution | active=face, motion, lipsync | mismatch=lipsync')
-    expect(overview?.sameHerExecutionAligned).toBe(false)
-    expect(overview?.sameHerExecutionMismatchDrivers).toEqual(['lipsync'])
+    expect(overview?.continuityExecutionSummary).toBe('drift | authority=segment-runtime-live2d-continuity-execution | active=face, motion, lipsync | mismatch=lipsync')
+    expect(overview?.continuityExecutionAligned).toBe(false)
+    expect(overview?.continuityExecutionMismatchDrivers).toEqual(['lipsync'])
     expect(overview?.summaryEntries).toContainEqual({
       key: 'identity-continuity-execution-summary',
       label: '同一生命线执行摘要',
-      value: 'drift | authority=segment-runtime-live2d-same-her-execution | active=face, motion, lipsync | mismatch=lipsync',
+      value: 'drift | authority=segment-runtime-live2d-continuity-execution | active=face, motion, lipsync | mismatch=lipsync',
     })
     expect(overview?.summaryEntries).toContainEqual({
       key: 'identity-continuity-execution-aligned',
@@ -2451,17 +2451,17 @@ describe('performance visualizer runtime authority overview', () => {
       key: 'identity-continuity-continuity',
       label: '同一生命线总览',
       value: expect.stringContaining('identity-continuity continuity'),
-      technicalValue: 'source=execution | segment=segment-runtime-live2d-same-her-execution | aligned=false | mismatch=lipsync | summary=drift | authority=segment-runtime-live2d-same-her-execution | active=face, motion, lipsync | mismatch=lipsync',
+      technicalValue: 'source=execution | segment=segment-runtime-live2d-continuity-execution | aligned=false | mismatch=lipsync | summary=drift | authority=segment-runtime-live2d-continuity-execution | active=face, motion, lipsync | mismatch=lipsync',
     }))
   })
 
-  it('infers embodiment closure stage from structured Live2D same-her execution evidence when playback closure hints are absent', () => {
+  it('infers embodiment closure stage from structured Live2D continuity execution evidence when playback closure hints are absent', () => {
     const overview = buildRuntimeAuthorityOverview({
       speechEmbodiment: {
         playbackTelemetry: {
           rendererTarget: 'live2d',
           driverAuthority: {
-            segmentId: 'segment-runtime-live2d-closure-stage-from-same-her',
+            segmentId: 'segment-runtime-live2d-closure-stage-from-continuity',
             rendererTarget: 'live2d',
             matchedDrivers: ['face', 'motion', 'lipsync', 'voice'],
             sources: ['prosody-authority', 'timeline-projection'],
@@ -2473,8 +2473,8 @@ describe('performance visualizer runtime authority overview', () => {
         },
       } as any,
       playbackCueAuthorityView: {
-        cueId: 'segment-runtime-live2d-closure-stage-from-same-her',
-        authoritySegmentId: 'segment-runtime-live2d-closure-stage-from-same-her',
+        cueId: 'segment-runtime-live2d-closure-stage-from-continuity',
+        authoritySegmentId: 'segment-runtime-live2d-closure-stage-from-continuity',
         authorityRendererTarget: 'live2d',
         authorityMatchedDrivers: ['face', 'motion', 'lipsync', 'voice'],
         authoritySources: ['prosody-authority', 'timeline-projection'],
@@ -2484,7 +2484,7 @@ describe('performance visualizer runtime authority overview', () => {
         voiceSegmentMatched: true,
         authorityBindingSummary: 'target=live2d | drivers=face, motion, lipsync, voice | sources=prosody-authority, timeline-projection | matches=face:yes motion:yes lipsync:yes voice:yes',
         authorityMatchSummary: 'face:yes motion:yes lipsync:yes voice:yes',
-        settleAuthoritySummary: 'authority-bound | segment=segment-runtime-live2d-closure-stage-from-same-her | target=live2d | drivers=face, motion, lipsync, voice | sources=prosody-authority, timeline-projection',
+        settleAuthoritySummary: 'authority-bound | segment=segment-runtime-live2d-closure-stage-from-continuity | target=live2d | drivers=face, motion, lipsync, voice | sources=prosody-authority, timeline-projection',
         bodyContinuitySummary: null,
         embodimentClosureStage: null,
         preferredExpressionAliases: ['soft-return'],
@@ -2495,18 +2495,18 @@ describe('performance visualizer runtime authority overview', () => {
         vrmExpressionBlendMs: null,
       },
       live2dAuthorityView: {
-        cueId: 'segment-runtime-live2d-closure-stage-from-same-her',
-        sameHerExecutionAligned: true,
-        sameHerExecutionAuthoritySegmentId: 'segment-runtime-live2d-closure-stage-from-same-her',
-        sameHerExecutionMismatchDrivers: [],
-        sameHerExecutionSummary: 'aligned | authority=segment-runtime-live2d-closure-stage-from-same-her | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
+        cueId: 'segment-runtime-live2d-closure-stage-from-continuity',
+        continuityExecutionAligned: true,
+        continuityExecutionAuthoritySegmentId: 'segment-runtime-live2d-closure-stage-from-continuity',
+        continuityExecutionMismatchDrivers: [],
+        continuityExecutionSummary: 'aligned | authority=segment-runtime-live2d-closure-stage-from-continuity | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
       },
     } as any)
 
     expect(overview?.embodimentClosureStage).toBe('renderer-rejoin-without-body')
   })
 
-  it('does not infer embodiment closure stage from stale VRM same-her frame evidence that belongs to another cue', () => {
+  it('does not infer embodiment closure stage from stale VRM continuity frame evidence that belongs to another cue', () => {
     const overview = buildRuntimeAuthorityOverview({
       speechEmbodiment: {
         playbackTelemetry: {
@@ -2549,30 +2549,30 @@ describe('performance visualizer runtime authority overview', () => {
       },
       vrmAuthorityView: {
         cueId: 'segment-runtime-vrm-current-cue',
-        sameHerFrameAligned: true,
-        sameHerFrameMismatchDrivers: [],
-        sameHerFramePerformanceSegmentId: 'segment-runtime-vrm-other-cue',
-        sameHerFrameSpeechSegmentId: 'segment-runtime-vrm-other-cue',
-        sameHerFrameSummary: 'aligned | segment=segment-runtime-vrm-other-cue | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
+        continuityFrameAligned: true,
+        continuityFrameMismatchDrivers: [],
+        continuityFramePerformanceSegmentId: 'segment-runtime-vrm-other-cue',
+        continuityFrameSpeechSegmentId: 'segment-runtime-vrm-other-cue',
+        continuityFrameSummary: 'aligned | segment=segment-runtime-vrm-other-cue | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
       },
     } as any)
 
-    expect(overview?.sameHerFrameSummary).toBeUndefined()
-    expect(overview?.sameHerFrameAligned).toBeUndefined()
-    expect(overview?.sameHerFrameMismatchDrivers).toBeUndefined()
-    expect(overview?.sameHerFramePerformanceSegmentId).toBeUndefined()
-    expect(overview?.sameHerFrameSpeechSegmentId).toBeUndefined()
+    expect(overview?.continuityFrameSummary).toBeUndefined()
+    expect(overview?.continuityFrameAligned).toBeUndefined()
+    expect(overview?.continuityFrameMismatchDrivers).toBeUndefined()
+    expect(overview?.continuityFramePerformanceSegmentId).toBeUndefined()
+    expect(overview?.continuityFrameSpeechSegmentId).toBeUndefined()
     expect(overview?.embodimentClosureStage).toBeNull()
     expect(overview?.summaryEntries?.some(entry =>
       entry.key === 'embodiment-closure-stage'
       && entry.value === 'full-cross-modal-lock',
     )).toBe(false)
     expect(JSON.stringify(overview?.summaryEntries ?? [])).not.toMatch(
-      /same-her-frame-(?:summary|aligned|mismatch-drivers)/u,
+      /continuity-frame-(?:summary|aligned|mismatch-drivers)/u,
     )
   })
 
-  it('does not infer embodiment closure stage from stale Live2D same-her execution evidence that belongs to another cue', () => {
+  it('does not infer embodiment closure stage from stale Live2D continuity execution evidence that belongs to another cue', () => {
     const overview = buildRuntimeAuthorityOverview({
       speechEmbodiment: {
         playbackTelemetry: {
@@ -2613,28 +2613,28 @@ describe('performance visualizer runtime authority overview', () => {
       },
       live2dAuthorityView: {
         cueId: 'segment-runtime-live2d-current-cue',
-        sameHerExecutionAligned: true,
-        sameHerExecutionAuthoritySegmentId: 'segment-runtime-live2d-other-cue',
-        sameHerExecutionMismatchDrivers: [],
-        sameHerExecutionSummary: 'aligned | authority=segment-runtime-live2d-other-cue | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
+        continuityExecutionAligned: true,
+        continuityExecutionAuthoritySegmentId: 'segment-runtime-live2d-other-cue',
+        continuityExecutionMismatchDrivers: [],
+        continuityExecutionSummary: 'aligned | authority=segment-runtime-live2d-other-cue | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
       },
     } as any)
 
-    expect(overview?.sameHerExecutionSummary).toBeUndefined()
-    expect(overview?.sameHerExecutionAligned).toBeUndefined()
-    expect(overview?.sameHerExecutionMismatchDrivers).toBeUndefined()
-    expect(overview?.sameHerExecutionAuthoritySegmentId).toBeUndefined()
+    expect(overview?.continuityExecutionSummary).toBeUndefined()
+    expect(overview?.continuityExecutionAligned).toBeUndefined()
+    expect(overview?.continuityExecutionMismatchDrivers).toBeUndefined()
+    expect(overview?.continuityExecutionAuthoritySegmentId).toBeUndefined()
     expect(overview?.embodimentClosureStage).toBeNull()
     expect(overview?.summaryEntries?.some(entry =>
       entry.key === 'embodiment-closure-stage'
       && entry.value === 'renderer-rejoin-without-body',
     )).toBe(false)
     expect(JSON.stringify(overview?.summaryEntries ?? [])).not.toMatch(
-      /same-her-execution-(?:summary|aligned|mismatch-drivers)/u,
+      /continuity-execution-(?:summary|aligned|mismatch-drivers)/u,
     )
   })
 
-  it('does not infer embodiment closure stage from stale VRM same-her summary-only evidence when explicit identity-continuity', () => {
+  it('does not infer embodiment closure stage from stale VRM continuity summary-only evidence when explicit identity-continuity', () => {
     const overview = buildRuntimeAuthorityOverview({
       speechEmbodiment: {
         playbackTelemetry: {
@@ -2677,22 +2677,22 @@ describe('performance visualizer runtime authority overview', () => {
       },
       vrmAuthorityView: {
         cueId: 'segment-runtime-vrm-summary-only-current',
-        sameHerFrameAligned: true,
-        sameHerFrameMismatchDrivers: [],
-        sameHerFrameSummary: 'aligned | performance=segment-runtime-vrm-summary-only-stale | speech=segment-runtime-vrm-summary-only-stale | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
+        continuityFrameAligned: true,
+        continuityFrameMismatchDrivers: [],
+        continuityFrameSummary: 'aligned | performance=segment-runtime-vrm-summary-only-stale | speech=segment-runtime-vrm-summary-only-stale | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
       },
     } as any)
 
-    expect(overview?.sameHerFrameSummary).toBeUndefined()
-    expect(overview?.sameHerFrameAligned).toBeUndefined()
-    expect(overview?.sameHerFrameMismatchDrivers).toBeUndefined()
+    expect(overview?.continuityFrameSummary).toBeUndefined()
+    expect(overview?.continuityFrameAligned).toBeUndefined()
+    expect(overview?.continuityFrameMismatchDrivers).toBeUndefined()
     expect(overview?.embodimentClosureStage).toBeNull()
     expect(overview?.summaryEntries?.some(entry =>
       entry.key === 'embodiment-closure-stage'
       && entry.value === 'full-cross-modal-lock',
     )).toBe(false)
     expect(JSON.stringify(overview?.summaryEntries ?? [])).not.toMatch(
-      /same-her-frame-(?:summary|aligned|mismatch-drivers)/u,
+      /continuity-frame-(?:summary|aligned|mismatch-drivers)/u,
     )
   })
 })

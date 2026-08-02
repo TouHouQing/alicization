@@ -59,11 +59,6 @@ import {
 } from '@proj-alicization/stage-shared'
 import { nanoid } from 'nanoid'
 
-import {
-  normalizeStructuredPreDialogueAwarenessPayload,
-  normalizeStructuredPreDialogueClosurePayload,
-  normalizeStructuredProjectStatePayload,
-} from '../composables/alicization-structured-output'
 import { storage } from '../database/storage'
 import { SERVER_URL } from '../libs/auth'
 import { getStageUiMessageVariants, translateStageUi } from '../utils/i18n'
@@ -102,10 +97,6 @@ import {
 } from './alicization-visual-presence-spine'
 import { useCharacterNotebookStore } from './character'
 import { useAiriCardStore } from './modules/airi-card'
-import {
-  projectStateObservationToContinuitySnapshot,
-  readConversationTurnProjectStateObservation,
-} from './project-state-observation'
 
 const currentSoulSchemaVersion = 2
 const defaultAlicizationCardId = 'default'
@@ -2756,26 +2747,6 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
       const cardId = resolveActiveCardId()
       return await buildBrowserOrganicMemorySnapshot(cardId)
     },
-    getLatestProjectStateObservation: async () => {
-      const cardId = resolveActiveCardId()
-      const turns = await readConversationTurns(cardId)
-      for (let index = turns.length - 1; index >= 0; index -= 1) {
-        const observation = readConversationTurnProjectStateObservation(turns[index])
-        if (observation)
-          return observation
-      }
-      return null
-    },
-    getProjectStateContinuitySnapshot: async () => {
-      const cardId = resolveActiveCardId()
-      const turns = await readConversationTurns(cardId)
-      for (let index = turns.length - 1; index >= 0; index -= 1) {
-        const observation = readConversationTurnProjectStateObservation(turns[index])
-        if (observation)
-          return projectStateObservationToContinuitySnapshot(observation)
-      }
-      return null
-    },
     searchOrganicSubconsciousFragments: async (payload) => {
       const cardId = resolveActiveCardId()
       const organicMemory = await readOrganicMemory(cardId)
@@ -2840,15 +2811,6 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
             }) ?? null,
             digitalLifeSpine: normalizeAlicizationDigitalLifeSpineDigest(
               (payload.structured.digitalLifeSpine ?? null) as Record<string, unknown> | null,
-            ) ?? null,
-            projectState: normalizeStructuredProjectStatePayload(
-              (payload.structured.projectState ?? null) as Record<string, unknown> | null,
-            ) ?? null,
-            preDialogueAwareness: normalizeStructuredPreDialogueAwarenessPayload(
-              (payload.structured.preDialogueAwareness ?? null) as Record<string, unknown> | null,
-            ) ?? null,
-            preDialogueClosure: normalizeStructuredPreDialogueClosurePayload(
-              (payload.structured.preDialogueClosure ?? null) as Record<string, unknown> | null,
             ) ?? null,
           }
         : undefined

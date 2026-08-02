@@ -542,7 +542,7 @@ export function runReconstructionAmbiguityRetrievalPass(input: {
       sourceKind: 'conversation',
       sourceId: turn.turnId ?? `${turn.sessionId}:${turn.createdAt}`,
       confidence: 0.42,
-      reason: 'Recalled conversation history is reconstructed from retrieved turns rather than observed live.',
+      reason: 'reconstruction:conversation-history',
     })
   }
 

@@ -492,12 +492,17 @@ describe('buildSelfContinuity', () => {
       },
     })
 
-    expect(baseline.initiativeTemperament).toBe('balanced')
-    expect(reservedByRejectedCarry.initiativeTemperament).toBe('reserved')
-    expect(reservedByRejectedCarry.guardingTendency).toBeGreaterThan(baseline.guardingTendency)
-    expect(reservedByRejectedCarry.carryOverDesire).toBeGreaterThan(0.3)
-    expect(warmedByAcceptedCarry.initiativeTemperament).toBe('eager')
-    expect(warmedByAcceptedCarry.relationshipTrust).toBeGreaterThan(baseline.relationshipTrust)
-    expect(warmedByAcceptedCarry.guardingTendency).toBeLessThan(baseline.guardingTendency)
+    expect(reservedByRejectedCarry).toMatchObject({
+      initiativeTemperament: baseline.initiativeTemperament,
+      relationshipTrust: baseline.relationshipTrust,
+      guardingTendency: baseline.guardingTendency,
+      carryOverDesire: baseline.carryOverDesire,
+    })
+    expect(warmedByAcceptedCarry).toMatchObject({
+      initiativeTemperament: baseline.initiativeTemperament,
+      relationshipTrust: baseline.relationshipTrust,
+      guardingTendency: baseline.guardingTendency,
+      carryOverDesire: baseline.carryOverDesire,
+    })
   })
 })

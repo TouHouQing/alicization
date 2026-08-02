@@ -413,19 +413,13 @@ function deriveHostSocialRecallBias(input: {
     coreIncarnation: input.coreIncarnation,
     contexts,
   })
-  const authority = projection?.selfContinuityAuthority ?? null
   const biasTexts = uniqueList([
-    authority?.relationshipLine,
-    authority?.selfLine,
-    authority?.inwardLine,
-    authority?.authoritySummary,
     projection?.preferenceText,
     projection?.sensitivityText,
     projection?.repairTriggerText,
     projection?.burdenText,
     projection?.routineText,
     projection?.trustRationale,
-    projection?.openingGuidance,
     projection?.summary,
     guidance.preferenceText,
     guidance.sensitivityText,
@@ -446,8 +440,6 @@ function deriveHostSocialRecallBias(input: {
     trustStage: projection?.personalityContinuityState?.trustStage ?? hostPersonModel?.trustLadder.stage ?? null,
     activeClosenessContext: projection?.activeClosenessContext ?? null,
     activeClosenessRung: projection?.activeClosenessRung ?? null,
-    relationshipLine: authority?.relationshipLine ?? null,
-    selfLine: authority?.selfLine ?? null,
     biasTexts,
   }
 }
@@ -548,19 +540,9 @@ export function rankByHostSocialAffinity<T>(input: {
         0,
       )
       const normalized = input.normalizeOrganicRecallText(text)
-      const relationshipLineOverlap = socialBias.relationshipLine
-        ? countRecallTermOverlap(input.normalizeOrganicRecallText, socialBias.relationshipLine, text)
-        : 0
-      const selfLineOverlap = socialBias.selfLine
-        ? countRecallTermOverlap(input.normalizeOrganicRecallText, socialBias.selfLine, text)
-        : 0
       const hasRepairBias = /repair|space|room|lighter|boundary|back off|leave room|压力|空间|边界|轻一点|修复/u.test(normalized)
       const hasClosenessBias = /warm|close|closeness|companionship|tender|care|温和|靠近|亲密/u.test(normalized)
       let score = overlap * 0.26
-      if (intentMode === 'relationship-history')
-        score += relationshipLineOverlap * 0.34
-      if (intentMode === 'autobiographical-history')
-        score += selfLineOverlap * 0.28
       if ((intentMode === 'relationship-history' || intentMode === 'autobiographical-history') && (socialBias.cautious || socialBias.restrained)) {
         if (hasRepairBias)
           score += 0.18
@@ -626,7 +608,6 @@ export function rankByRecollectionAgendaAffinity<T>(input: {
   )
   const procedureLines = agenda.candidateProcedureLines ?? []
   const procedureLineVariants = expandProcedureLineVariants(procedureLines, 18)
-  const activeRelationshipLine = input.personStateProjection?.selfContinuityAuthority?.relationshipLine ?? null
   const emotionalPattern = /drain|mess|overwhelm|care|warm|cold|tender|annoyed|压力|[累乱烦]|温和|冷淡|情绪/u
   const relationshipPattern = /relationship|bond|trust|repair|boundary|tone|space|回应|关系|信任|修复|边界|语气|空间/u
 
@@ -643,13 +624,6 @@ export function rankByRecollectionAgendaAffinity<T>(input: {
       const procedureExactCue = scoreExactCuePresence(input.normalizeOrganicRecallText, text, procedureLines)
       const procedureVariantExactCue = scoreExactCuePresence(input.normalizeOrganicRecallText, text, procedureLineVariants)
       const facetWeight = input.getFacet ? (facetWeights.get(input.getFacet(item) ?? 'phase') ?? 0) : 0
-      const relationshipLineAffinity = (
-        input.recollectionIntent?.mode === 'relationship-history'
-        && input.getFacet?.(item) === 'relationship-era'
-        && activeRelationshipLine
-      )
-        ? countRecallTermOverlap(input.normalizeOrganicRecallText, activeRelationshipLine, text) * 0.34
-        : 0
       const timeWeight = input.getAgeDays
         ? Math.max(
             ...((agenda.candidateTimeScopes ?? []).map(scope => scoreAgeForCandidateScope(input.getAgeDays?.(item) ?? 0, scope.scope) * scope.weight)),
@@ -670,7 +644,6 @@ export function rankByRecollectionAgendaAffinity<T>(input: {
         + procedureExactCue * (0.18 + agenda.goalSimilarity * 0.16)
         + procedureVariantExactCue * (0.16 + agenda.goalSimilarity * 0.14)
         + facetWeight * 0.28
-        + relationshipLineAffinity
         + timeWeight * 0.24
         + relationshipAffinity
         + affectAffinity
@@ -714,7 +687,6 @@ export function analyzeMemoryClusters(input: {
   const hintTexts = input.recollectionIntent?.queryHints ?? []
   const procedureLines = agenda?.candidateProcedureLines ?? []
   const procedureLineVariants = expandProcedureLineVariants(procedureLines, 18)
-  const activeRelationshipLine = input.personStateProjection?.selfContinuityAuthority?.relationshipLine ?? null
   const clusterEntries = new Map<string, {
     summary: string
     score: number
@@ -742,12 +714,6 @@ export function analyzeMemoryClusters(input: {
       coreIncarnation: input.coreIncarnation,
       recallSeed: input.recallSeed,
     })
-    const relationshipLineClusterAffinity = (
-      input.recollectionIntent?.mode === 'relationship-history'
-      && activeRelationshipLine
-    )
-      ? countRecallTermOverlap(input.normalizeOrganicRecallText, activeRelationshipLine, probe.text)
-      : 0
     const carryScore = scoreSceneMoodEmbodiedCarryText({
       normalizeOrganicRecallText: input.normalizeOrganicRecallText,
       text: probe.text,
@@ -760,7 +726,6 @@ export function analyzeMemoryClusters(input: {
       + procedureExactCue * 0.22
       + procedureVariantExactCue * 0.2
       + relationshipStageScore
-      + relationshipLineClusterAffinity * 0.42
       + carryScore * 0.48
       + 0.08
     const current = clusterEntries.get(probe.clusterKey) ?? {
@@ -811,12 +776,12 @@ export function analyzeMemoryClusters(input: {
           {
             id: `cluster:${dominant.clusterKey}`,
             summary: dominant.summary,
-            reason: 'A nearby competing thread cluster still matches the current recall cue.',
+            reason: 'cluster-competition:dominant',
           },
           {
             id: `cluster:${runnerUp.clusterKey}`,
             summary: runnerUp.summary,
-            reason: 'Another remembered thread cluster remains almost as plausible as the current leading one.',
+            reason: 'cluster-competition:runner-up',
           },
         ]
       : [],

@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import { buildSelfEvolutionFocusHistoryPatterns } from './performance-visualizer-self-evolution-focus-history-patterns'
 
-const legacyNote = '身体连续性仍主要由身体线独自托住同一段 living segment，虽然显形层还没有稳定补回，但这条 same-her 生命线本身没有断。'
-
 describe('performance visualizer self evolution focus history patterns', () => {
   it('returns an empty list when history is too short to form a drift pattern', () => {
     expect(buildSelfEvolutionFocusHistoryPatterns([])).toEqual([])
@@ -15,7 +13,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
         activeThreadId: 'thread-1',
         selectedCardId: 'repair-path',
         explanation: 'snapshot-1',
-        highlightedEvidencePanelIds: ['private-thought-governance-chain'],
+        highlightedEvidencePanelIds: ['proactive-action-chain'],
         highlightedTraceSectionIds: ['trace-details'],
         recommendedTraceEventId: 'event-1',
         capturedAt: 100,
@@ -33,7 +31,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
         selectedCardId: 'repair-path',
         explanation: 'snapshot-4',
         highlightedEvidencePanelIds: [
-          'private-thought-governance-chain',
+          'proactive-action-chain',
           'runtime-continuity-projection',
         ],
         highlightedTraceSectionIds: [
@@ -70,7 +68,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
         selectedCardId: 'repair-path',
         explanation: 'snapshot-2',
         highlightedEvidencePanelIds: [
-          'private-thought-governance-chain',
+          'proactive-action-chain',
           'runtime-continuity-projection',
         ],
         highlightedTraceSectionIds: [
@@ -101,12 +99,16 @@ describe('performance visualizer self evolution focus history patterns', () => {
       },
     ])).toEqual([
       {
-        patternKey: 'signature:body-continuity|phase:derived|surface:unknown|focus:repair-owner->repair-path|event:event-person-state->event-takeover|evidence:+private-thought-governance-chain,-renderer-authority-projection|trace:+selected-trace-event,+trace-details,-trace-timeline',
+        patternKey: expect.stringMatching(/^pattern:[a-f0-9]{16}$/),
+        bodyContinuityPattern: true,
+        bodyContinuityPhase: null,
+        rendererRejoinSurfaceKey: null,
+        survivingVisibleLane: null,
         occurrenceCount: 2,
-        summaryLine: '2次 身体连续性承接 -> 显形权威补回 | 修复归属 -> 修复路径 | 人格状态事件 -> 接管事件 | +私有思绪治理链 -显形权威投影 | +选中轨迹事件 +轨迹细节 -轨迹时间线',
+        summaryLine: '2次 身体连续性承接 -> 显形权威补回 | 修复归属 -> 修复路径 | 人格状态事件 -> 接管事件 | +主动行动链 -显形权威投影 | +选中轨迹事件 +轨迹细节 -轨迹时间线',
         focusCardTransition: 'repair-owner -> repair-path',
         traceEventTransition: 'event-person-state -> event-takeover',
-        evidenceGained: ['private-thought-governance-chain'],
+        evidenceGained: ['proactive-action-chain'],
         evidenceLost: ['renderer-authority-projection'],
         traceTargetsGained: ['selected-trace-event', 'trace-details'],
         traceTargetsLost: ['trace-timeline'],
@@ -122,13 +124,17 @@ describe('performance visualizer self evolution focus history patterns', () => {
         ],
       },
       {
-        patternKey: 'signature:body-continuity|phase:derived|surface:unknown|focus:repair-path->repair-owner|event:event-takeover->event-person-state|evidence:+renderer-authority-projection,-private-thought-governance-chain|trace:+trace-timeline,-selected-trace-event,-trace-details',
+        patternKey: expect.stringMatching(/^pattern:[a-f0-9]{16}$/),
+        bodyContinuityPattern: true,
+        bodyContinuityPhase: null,
+        rendererRejoinSurfaceKey: null,
+        survivingVisibleLane: null,
         occurrenceCount: 1,
-        summaryLine: '1次 身体连续性承接 -> 显形权威补回 | 修复路径 -> 修复归属 | 接管事件 -> 人格状态事件 | +显形权威投影 -私有思绪治理链 | +轨迹时间线 -选中轨迹事件 -轨迹细节',
+        summaryLine: '1次 身体连续性承接 -> 显形权威补回 | 修复路径 -> 修复归属 | 接管事件 -> 人格状态事件 | +显形权威投影 -主动行动链 | +轨迹时间线 -选中轨迹事件 -轨迹细节',
         focusCardTransition: 'repair-path -> repair-owner',
         traceEventTransition: 'event-takeover -> event-person-state',
         evidenceGained: ['renderer-authority-projection'],
-        evidenceLost: ['private-thought-governance-chain'],
+        evidenceLost: ['proactive-action-chain'],
         traceTargetsGained: ['trace-timeline'],
         traceTargetsLost: ['selected-trace-event', 'trace-details'],
         occurrences: [
@@ -150,7 +156,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
         activeThreadId: 'thread-3',
         selectedCardId: 'repair-path',
         explanation: 'snapshot-3',
-        highlightedEvidencePanelIds: ['private-thought-governance-chain'],
+        highlightedEvidencePanelIds: ['proactive-action-chain'],
         highlightedTraceSectionIds: ['trace-details'],
         recommendedTraceEventId: 'event-takeover',
         capturedAt: 300,
@@ -162,7 +168,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
         activeThreadId: 'thread-2',
         selectedCardId: 'repair-path',
         explanation: 'snapshot-2',
-        highlightedEvidencePanelIds: ['private-thought-governance-chain'],
+        highlightedEvidencePanelIds: ['proactive-action-chain'],
         highlightedTraceSectionIds: ['trace-details'],
         recommendedTraceEventId: 'event-governance',
         capturedAt: 200,
@@ -174,14 +180,18 @@ describe('performance visualizer self evolution focus history patterns', () => {
         activeThreadId: 'thread-1',
         selectedCardId: 'repair-path',
         explanation: 'snapshot-1',
-        highlightedEvidencePanelIds: ['private-thought-governance-chain'],
+        highlightedEvidencePanelIds: ['proactive-action-chain'],
         highlightedTraceSectionIds: ['trace-details'],
         recommendedTraceEventId: 'event-takeover',
         capturedAt: 100,
       },
     ])).toEqual([
       {
-        patternKey: 'focus:repair-path->repair-path|event:event-governance->event-takeover|evidence:none|trace:none',
+        patternKey: expect.stringMatching(/^pattern:[a-f0-9]{16}$/),
+        bodyContinuityPattern: false,
+        bodyContinuityPhase: null,
+        rendererRejoinSurfaceKey: null,
+        survivingVisibleLane: null,
         occurrenceCount: 1,
         summaryLine: '1次 修复路径 -> 修复路径 | 治理事件 -> 接管事件',
         focusCardTransition: 'repair-path -> repair-path',
@@ -198,7 +208,11 @@ describe('performance visualizer self evolution focus history patterns', () => {
         ],
       },
       {
-        patternKey: 'focus:repair-path->repair-path|event:event-takeover->event-governance|evidence:none|trace:none',
+        patternKey: expect.stringMatching(/^pattern:[a-f0-9]{16}$/),
+        bodyContinuityPattern: false,
+        bodyContinuityPhase: null,
+        rendererRejoinSurfaceKey: null,
+        survivingVisibleLane: null,
         occurrenceCount: 1,
         summaryLine: '1次 修复路径 -> 修复路径 | 接管事件 -> 治理事件',
         focusCardTransition: 'repair-path -> repair-path',
@@ -297,7 +311,11 @@ describe('performance visualizer self evolution focus history patterns', () => {
       },
     ])).toEqual([
       {
-        patternKey: 'signature:body-continuity|phase:body-carried-to-renderer-rejoin|surface:authority:renderer-rejoin:live2d|focus:repair-path->repair-owner|event:event-takeover->event-person-state|evidence:+renderer-authority-projection|trace:+selected-trace-event',
+        patternKey: expect.stringMatching(/^pattern:[a-f0-9]{16}$/),
+        bodyContinuityPattern: true,
+        bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
+        survivingVisibleLane: null,
         occurrenceCount: 2,
         summaryLine: '2次 身体承接态 -> Live2D 显形补回态 | 修复路径 -> 修复归属 | 接管事件 -> 人格状态事件 | +显形权威投影 | +选中轨迹事件',
         focusCardTransition: 'repair-path -> repair-owner',
@@ -318,7 +336,11 @@ describe('performance visualizer self evolution focus history patterns', () => {
         ],
       },
       {
-        patternKey: 'signature:body-continuity|phase:body-carried-to-renderer-rejoin|surface:authority:renderer-rejoin:live2d|focus:repair-owner->repair-path|event:event-person-state->event-takeover|evidence:-renderer-authority-projection|trace:-selected-trace-event',
+        patternKey: expect.stringMatching(/^pattern:[a-f0-9]{16}$/),
+        bodyContinuityPattern: true,
+        bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
+        survivingVisibleLane: null,
         occurrenceCount: 1,
         summaryLine: '1次 身体承接态 -> Live2D 显形补回态 | 修复归属 -> 修复路径 | 人格状态事件 -> 接管事件 | -显形权威投影 | -选中轨迹事件',
         focusCardTransition: 'repair-owner -> repair-path',
@@ -337,61 +359,6 @@ describe('performance visualizer self evolution focus history patterns', () => {
     ])
   })
 
-  it('restores body-only-hold patterns from the legacy same-her note when the structured phase is missing', () => {
-    expect(buildSelfEvolutionFocusHistoryPatterns([
-      {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-body-note-2',
-        decisionTraceId: 'trace-body-note-2',
-        activeThreadId: 'thread-body-note',
-        selectedCardId: 'repair-owner',
-        explanation: legacyNote,
-        highlightedEvidencePanelIds: [
-          'private-thought-governance-chain',
-        ],
-        highlightedTraceSectionIds: [
-          'trace-details',
-        ],
-        recommendedTraceEventId: 'event-governance',
-        capturedAt: 720,
-      },
-      {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-body-note-1',
-        decisionTraceId: 'trace-body-note-1',
-        activeThreadId: 'thread-body-note',
-        selectedCardId: 'repair-path',
-        explanation: 'body continuity still under review',
-        highlightedEvidencePanelIds: [
-          'private-thought-governance-chain',
-        ],
-        highlightedTraceSectionIds: [
-          'trace-details',
-        ],
-        recommendedTraceEventId: 'event-takeover',
-        capturedAt: 620,
-      },
-    ])).toEqual([
-      {
-        patternKey: 'signature:body-continuity|phase:body-only-hold|surface:unknown|focus:repair-path->repair-owner|event:event-takeover->event-governance|evidence:none|trace:none',
-        occurrenceCount: 1,
-        summaryLine: '1次 身体独撑态 | 修复路径 -> 修复归属 | 接管事件 -> 治理事件',
-        focusCardTransition: 'repair-path -> repair-owner',
-        traceEventTransition: 'event-takeover -> event-governance',
-        evidenceGained: [],
-        evidenceLost: [],
-        traceTargetsGained: [],
-        traceTargetsLost: [],
-        occurrences: [
-          {
-            currentCapturedAt: 720,
-            previousCapturedAt: 620,
-          },
-        ],
-      },
-    ])
-  })
-
   it('keeps the speech renderer rejoin surface explicit in pattern summaries when only the previous structured snapshot still carries that surface key', () => {
     expect(buildSelfEvolutionFocusHistoryPatterns([
       {
@@ -400,7 +367,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
         decisionTraceId: 'trace-speech-2',
         activeThreadId: 'thread-speech-2',
         selectedCardId: 'repair-owner',
-        explanation: 'same-her speech rejoin remains in progress',
+        explanation: 'continuity speech rejoin remains in progress',
         bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
         rendererRejoinSurfaceKey: null,
         highlightedEvidencePanelIds: [
@@ -436,6 +403,11 @@ describe('performance visualizer self evolution focus history patterns', () => {
       },
     ])).toMatchObject([
       {
+        patternKey: expect.stringMatching(/^pattern:[a-f0-9]{16}$/),
+        bodyContinuityPattern: true,
+        bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech',
+        survivingVisibleLane: null,
         summaryLine: '1次 身体承接态 -> speech 显形补回态 | 修复路径 -> 修复归属 | 接管事件 -> 人格状态事件 | -显形权威投影 | -轨迹时间线',
       },
     ])
@@ -485,7 +457,11 @@ describe('performance visualizer self evolution focus history patterns', () => {
       },
     ])).toMatchObject([
       {
-        patternKey: 'signature:body-continuity|phase:full-cross-modal-lock|surface:authority:renderer-rejoin:live2d|focus:repair-path->repair-owner|event:event-takeover->event-person-state|evidence:+renderer-authority-projection|trace:+selected-trace-event',
+        patternKey: expect.stringMatching(/^pattern:[a-f0-9]{16}$/),
+        bodyContinuityPattern: true,
+        bodyContinuityPhase: 'full-cross-modal-lock',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
+        survivingVisibleLane: null,
         summaryLine: '1次 跨模态重锁态（Live2D） | 修复路径 -> 修复归属 | 接管事件 -> 人格状态事件 | +显形权威投影 | +选中轨迹事件',
       },
     ])
@@ -535,13 +511,17 @@ describe('performance visualizer self evolution focus history patterns', () => {
       },
     ])).toMatchObject([
       {
-        patternKey: 'signature:body-continuity|phase:renderer-rejoin-without-body|surface:authority:renderer-rejoin:vrm|focus:repair-path->repair-owner|event:event-takeover->event-person-state|evidence:+renderer-authority-projection|trace:+selected-trace-event',
+        patternKey: expect.stringMatching(/^pattern:[a-f0-9]{16}$/),
+        bodyContinuityPattern: true,
+        bodyContinuityPhase: 'renderer-rejoin-without-body',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
+        survivingVisibleLane: null,
         summaryLine: '1次 显形回接失身态（VRM） | 修复路径 -> 修复归属 | 接管事件 -> 人格状态事件 | +显形权威投影 | +选中轨迹事件',
       },
     ])
   })
 
-  it('keeps quieter face+lipsync+voice identity-continuity', () => {
+  it('keeps quieter face+lipsync+voice continuity', () => {
     expect(buildSelfEvolutionFocusHistoryPatterns([
       {
         version: 'self-evolution-focus-snapshot/v1',
@@ -551,7 +531,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
         selectedCardId: 'repair-owner',
         explanation: 'quieter face+lipsync+voice carry still visible',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
-        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
+        survivingVisibleLane: 'face+lipsync+voice-only',
         highlightedEvidencePanelIds: [
           'renderer-authority-projection',
           'runtime-continuity-projection',
@@ -572,7 +552,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
         selectedCardId: 'repair-path',
         explanation: 'body motion rejoin still pending',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
-        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
+        survivingVisibleLane: 'face+lipsync+voice-only',
         highlightedEvidencePanelIds: [
           'runtime-continuity-projection',
         ],
@@ -585,13 +565,17 @@ describe('performance visualizer self evolution focus history patterns', () => {
       },
     ])).toMatchObject([
       {
-        patternKey: 'signature:body-continuity|phase:renderer-rejoin-without-body|surface:unknown|lane:face+lipsync+voice-only|focus:repair-path->repair-owner|event:event-takeover->event-person-state|evidence:+renderer-authority-projection|trace:+selected-trace-event',
-        summaryLine: '1次 当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
+        patternKey: expect.stringMatching(/^pattern:[a-f0-9]{16}$/),
+        bodyContinuityPattern: true,
+        bodyContinuityPhase: 'renderer-rejoin-without-body',
+        rendererRejoinSurfaceKey: null,
+        survivingVisibleLane: 'face+lipsync+voice-only',
+        summaryLine: '1次 当前仅剩表情、口型、声音维持同一段连续性 | 修复路径 -> 修复归属 | 接管事件 -> 人格状态事件 | +显形权威投影 | +选中轨迹事件',
       },
     ])
   })
 
-  it('keeps quieter motion+lipsync+voice identity-continuity', () => {
+  it('keeps quieter motion+lipsync+voice continuity', () => {
     expect(buildSelfEvolutionFocusHistoryPatterns([
       {
         version: 'self-evolution-focus-snapshot/v1',
@@ -601,7 +585,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
         selectedCardId: 'repair-owner',
         explanation: 'quieter motion+lipsync+voice carry still visible',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
-        bodyContinuityGovernanceNote: '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
+        survivingVisibleLane: 'motion+lipsync+voice-only',
         highlightedEvidencePanelIds: [
           'renderer-authority-projection',
           'runtime-continuity-projection',
@@ -622,7 +606,7 @@ describe('performance visualizer self evolution focus history patterns', () => {
         selectedCardId: 'repair-path',
         explanation: 'body face rejoin still pending',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
-        bodyContinuityGovernanceNote: '当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
+        survivingVisibleLane: 'motion+lipsync+voice-only',
         highlightedEvidencePanelIds: [
           'runtime-continuity-projection',
         ],
@@ -635,8 +619,12 @@ describe('performance visualizer self evolution focus history patterns', () => {
       },
     ])).toMatchObject([
       {
-        patternKey: 'signature:body-continuity|phase:renderer-rejoin-without-body|surface:unknown|lane:motion+lipsync+voice-only|focus:repair-path->repair-owner|event:event-takeover->event-person-state|evidence:+renderer-authority-projection|trace:+selected-trace-event',
-        summaryLine: '1次 当前仅剩动作、口型、声音维持同一段连续性，可见 identity-continuity',
+        patternKey: expect.stringMatching(/^pattern:[a-f0-9]{16}$/),
+        bodyContinuityPattern: true,
+        bodyContinuityPhase: 'renderer-rejoin-without-body',
+        rendererRejoinSurfaceKey: null,
+        survivingVisibleLane: 'motion+lipsync+voice-only',
+        summaryLine: '1次 当前仅剩动作、口型、声音维持同一段连续性 | 修复路径 -> 修复归属 | 接管事件 -> 人格状态事件 | +显形权威投影 | +选中轨迹事件',
       },
     ])
   })

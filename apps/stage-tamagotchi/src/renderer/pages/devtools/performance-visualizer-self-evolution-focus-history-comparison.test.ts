@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import { buildSelfEvolutionFocusHistoryComparison } from './performance-visualizer-self-evolution-focus-history-comparison'
 
-const legacyNote = '身体连续性仍主要由身体线独自托住同一段 living segment，虽然显形层还没有稳定补回，但这条 same-her 生命线本身没有断。'
-
 describe('performance visualizer self evolution focus history comparison', () => {
   it('returns null when either side of the transition cannot be resolved from history', () => {
     expect(buildSelfEvolutionFocusHistoryComparison({
@@ -15,7 +13,7 @@ describe('performance visualizer self evolution focus history comparison', () =>
           activeThreadId: 'thread-1',
           selectedCardId: 'repair-path',
           explanation: 'snapshot-1',
-          highlightedEvidencePanelIds: ['private-thought-governance-chain'],
+          highlightedEvidencePanelIds: ['proactive-action-chain'],
           highlightedTraceSectionIds: ['trace-details'],
           recommendedTraceEventId: 'event-1',
           capturedAt: 100,
@@ -46,7 +44,7 @@ describe('performance visualizer self evolution focus history comparison', () =>
           selectedCardId: 'repair-path',
           explanation: 'snapshot-2',
           highlightedEvidencePanelIds: [
-            'private-thought-governance-chain',
+            'proactive-action-chain',
             'runtime-continuity-projection',
           ],
           highlightedTraceSectionIds: [
@@ -87,7 +85,7 @@ describe('performance visualizer self evolution focus history comparison', () =>
         changedTraceEvent: true,
         lines: [
           'focus-card: repair-owner -> repair-path',
-          'evidence-targets: renderer-authority-projection -> runtime-continuity-projection => private-thought-governance-chain -> runtime-continuity-projection',
+          'evidence-targets: renderer-authority-projection -> runtime-continuity-projection => proactive-action-chain -> runtime-continuity-projection',
           'trace-targets: trace-consumption -> trace-timeline => trace-consumption -> trace-details -> selected-trace-event',
           'trace-event: event-person-state -> event-takeover',
         ],
@@ -118,7 +116,7 @@ describe('performance visualizer self evolution focus history comparison', () =>
         selectedCardId: 'repair-path',
         recommendedTraceEventId: 'event-takeover',
         evidenceTargets: [
-          'private-thought-governance-chain',
+          'proactive-action-chain',
           'runtime-continuity-projection',
         ],
         traceTargets: [
@@ -130,7 +128,7 @@ describe('performance visualizer self evolution focus history comparison', () =>
       focusCardChanged: true,
       traceEventChanged: true,
       evidenceGained: [
-        'private-thought-governance-chain',
+        'proactive-action-chain',
       ],
       evidenceLost: [
         'renderer-authority-projection',
@@ -147,7 +145,7 @@ describe('performance visualizer self evolution focus history comparison', () =>
         '候选项：candidate-1 -> candidate-2',
         '决策轨迹：trace-1 -> trace-2',
         '轨迹事件：人格状态事件 -> 接管事件',
-        '新增证据面板：私有思绪治理链',
+        '新增证据面板：主动行动链',
         '移除证据面板：显形权威投影',
         '新增轨迹段：轨迹细节，选中轨迹事件',
         '移除轨迹段：轨迹时间线',
@@ -166,7 +164,7 @@ describe('performance visualizer self evolution focus history comparison', () =>
           selectedCardId: 'repair-path',
           explanation: 'snapshot-1',
           highlightedEvidencePanelIds: [
-            'private-thought-governance-chain',
+            'proactive-action-chain',
           ],
           highlightedTraceSectionIds: [
             'trace-details',
@@ -182,7 +180,7 @@ describe('performance visualizer self evolution focus history comparison', () =>
           selectedCardId: 'repair-path',
           explanation: 'snapshot-0',
           highlightedEvidencePanelIds: [
-            'private-thought-governance-chain',
+            'proactive-action-chain',
           ],
           highlightedTraceSectionIds: [
             'trace-details',
@@ -214,7 +212,7 @@ describe('performance visualizer self evolution focus history comparison', () =>
         selectedCardId: 'repair-path',
         recommendedTraceEventId: 'event-governance',
         evidenceTargets: [
-          'private-thought-governance-chain',
+          'proactive-action-chain',
         ],
         traceTargets: [
           'trace-details',
@@ -228,7 +226,7 @@ describe('performance visualizer self evolution focus history comparison', () =>
         selectedCardId: 'repair-path',
         recommendedTraceEventId: 'event-takeover',
         evidenceTargets: [
-          'private-thought-governance-chain',
+          'proactive-action-chain',
         ],
         traceTargets: [
           'trace-details',
@@ -249,20 +247,20 @@ describe('performance visualizer self evolution focus history comparison', () =>
     })
   })
 
-  it('describes identity-continuity', () => {
+  it('describes a structured continuity evidence transition', () => {
     expect(buildSelfEvolutionFocusHistoryComparison({
       history: [
         {
           version: 'self-evolution-focus-snapshot/v1',
-          candidateId: 'candidate-governance-2',
-          decisionTraceId: 'trace-governance-2',
+          candidateId: 'candidate-continuity-2',
+          decisionTraceId: 'trace-continuity-2',
           activeThreadId: 'thread-1',
           selectedCardId: 'first-check',
-          explanation: 'same-her governance reconfirmed',
+          explanation: 'continuity evidence reconfirmed',
           highlightedEvidencePanelIds: [
             'candidate-trajectory-summary',
             'proactive-decision-consumption-summary',
-            'identity-drift-governance-summary',
+            'runtime-continuity-projection',
           ],
           highlightedTraceSectionIds: [
             'trace-consumption',
@@ -273,11 +271,11 @@ describe('performance visualizer self evolution focus history comparison', () =>
         },
         {
           version: 'self-evolution-focus-snapshot/v1',
-          candidateId: 'candidate-governance-1',
-          decisionTraceId: 'trace-governance-1',
+          candidateId: 'candidate-continuity-1',
+          decisionTraceId: 'trace-continuity-1',
           activeThreadId: 'thread-1',
           selectedCardId: 'repair-owner',
-          explanation: 'same-her governance under review',
+          explanation: 'continuity evidence under review',
           highlightedEvidencePanelIds: [
             'candidate-trajectory-summary',
             'proactive-decision-consumption-summary',
@@ -292,15 +290,15 @@ describe('performance visualizer self evolution focus history comparison', () =>
       transition: {
         currentCapturedAt: 1320,
         previousCapturedAt: 1180,
-        currentDecisionTraceId: 'trace-governance-2',
-        previousDecisionTraceId: 'trace-governance-1',
+        currentDecisionTraceId: 'trace-continuity-2',
+        previousDecisionTraceId: 'trace-continuity-1',
         changedFocusCard: true,
         changedEvidenceTargets: true,
         changedTraceTargets: true,
         changedTraceEvent: true,
         lines: [
           'focus-card: repair-owner -> first-check',
-          'evidence-targets: candidate-trajectory-summary -> proactive-decision-consumption-summary => candidate-trajectory-summary -> proactive-decision-consumption-summary -> identity-drift-governance-summary',
+          'evidence-targets: candidate-trajectory-summary -> proactive-decision-consumption-summary => candidate-trajectory-summary -> proactive-decision-consumption-summary -> runtime-continuity-projection',
           'trace-targets: trace-consumption => trace-consumption -> trace-details',
           'trace-event: event-takeover -> event-governance',
         ],
@@ -309,8 +307,8 @@ describe('performance visualizer self evolution focus history comparison', () =>
       bodyContinuityPhase: null,
       previous: {
         capturedAt: 1180,
-        candidateId: 'candidate-governance-1',
-        decisionTraceId: 'trace-governance-1',
+        candidateId: 'candidate-continuity-1',
+        decisionTraceId: 'trace-continuity-1',
         activeThreadId: 'thread-1',
         selectedCardId: 'repair-owner',
         recommendedTraceEventId: 'event-takeover',
@@ -324,15 +322,15 @@ describe('performance visualizer self evolution focus history comparison', () =>
       },
       current: {
         capturedAt: 1320,
-        candidateId: 'candidate-governance-2',
-        decisionTraceId: 'trace-governance-2',
+        candidateId: 'candidate-continuity-2',
+        decisionTraceId: 'trace-continuity-2',
         activeThreadId: 'thread-1',
         selectedCardId: 'first-check',
         recommendedTraceEventId: 'event-governance',
         evidenceTargets: [
           'candidate-trajectory-summary',
           'proactive-decision-consumption-summary',
-          'identity-drift-governance-summary',
+          'runtime-continuity-projection',
         ],
         traceTargets: [
           'trace-consumption',
@@ -342,7 +340,7 @@ describe('performance visualizer self evolution focus history comparison', () =>
       focusCardChanged: true,
       traceEventChanged: true,
       evidenceGained: [
-        'identity-drift-governance-summary',
+        'runtime-continuity-projection',
       ],
       evidenceLost: [],
       traceTargetsGained: [
@@ -351,10 +349,10 @@ describe('performance visualizer self evolution focus history comparison', () =>
       traceTargetsLost: [],
       summaryLines: [
         '聚焦卡片：修复归属 -> 首查点',
-        '候选项：candidate-governance-1 -> candidate-governance-2',
-        '决策轨迹：trace-governance-1 -> trace-governance-2',
+        '候选项：candidate-continuity-1 -> candidate-continuity-2',
+        '决策轨迹：trace-continuity-1 -> trace-continuity-2',
         '轨迹事件：接管事件 -> 治理事件',
-        '新增证据面板：身份漂移治理摘要',
+        '新增证据面板：运行时连续性投影',
         '新增轨迹段：轨迹细节',
       ],
     })
@@ -544,7 +542,7 @@ describe('performance visualizer self evolution focus history comparison', () =>
           decisionTraceId: 'trace-structured-2',
           activeThreadId: 'thread-structured-2',
           selectedCardId: 'repair-owner',
-          explanation: 'same-her manifestation recovery remains explicit',
+          explanation: 'continuity manifestation recovery remains explicit',
           bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
           rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech',
           highlightedEvidencePanelIds: [
@@ -660,134 +658,6 @@ describe('performance visualizer self evolution focus history comparison', () =>
         '决策轨迹：trace-body-only-1 -> trace-body-only-2',
         '轨迹事件：人格状态事件 -> 治理事件',
       ],
-    })
-  })
-
-  it('restores body-only-hold from the legacy same-her note when the structured phase is missing from both snapshots', () => {
-    expect(buildSelfEvolutionFocusHistoryComparison({
-      history: [
-        {
-          version: 'self-evolution-focus-snapshot/v1',
-          candidateId: 'candidate-body-note-2',
-          decisionTraceId: 'trace-body-note-2',
-          activeThreadId: 'thread-body-note',
-          selectedCardId: 'repair-owner',
-          explanation: legacyNote,
-          highlightedEvidencePanelIds: [
-            'private-thought-governance-chain',
-          ],
-          highlightedTraceSectionIds: [
-            'trace-details',
-          ],
-          recommendedTraceEventId: 'event-governance',
-          capturedAt: 720,
-        },
-        {
-          version: 'self-evolution-focus-snapshot/v1',
-          candidateId: 'candidate-body-note-1',
-          decisionTraceId: 'trace-body-note-1',
-          activeThreadId: 'thread-body-note',
-          selectedCardId: 'repair-path',
-          explanation: 'body continuity still under review',
-          highlightedEvidencePanelIds: [
-            'private-thought-governance-chain',
-          ],
-          highlightedTraceSectionIds: [
-            'trace-details',
-          ],
-          recommendedTraceEventId: 'event-takeover',
-          capturedAt: 620,
-        },
-      ],
-      transition: {
-        currentCapturedAt: 720,
-        previousCapturedAt: 620,
-        currentDecisionTraceId: 'trace-body-note-2',
-        previousDecisionTraceId: 'trace-body-note-1',
-        changedFocusCard: true,
-        changedEvidenceTargets: false,
-        changedTraceTargets: false,
-        changedTraceEvent: true,
-        lines: [
-          'focus-card: repair-path -> repair-owner',
-          'trace-event: event-takeover -> event-governance',
-        ],
-      },
-    })).toMatchObject({
-      bodyContinuityPhase: 'body-only-hold',
-      summaryLines: [
-        '身体连续性：身体线仍在独自托住同一段 living segment，当前还没有进入显形补回。',
-        '聚焦卡片：修复路径 -> 修复归属',
-        '候选项：candidate-body-note-1 -> candidate-body-note-2',
-        '决策轨迹：trace-body-note-1 -> trace-body-note-2',
-        '轨迹事件：接管事件 -> 治理事件',
-      ],
-    })
-  })
-
-  it('keeps the structured body continuity governance note on both comparison sides when the snapshot chain already carries it', () => {
-    expect(buildSelfEvolutionFocusHistoryComparison({
-      history: [
-        {
-          version: 'self-evolution-focus-snapshot/v1',
-          candidateId: 'candidate-body-note-2',
-          decisionTraceId: 'trace-body-note-2',
-          activeThreadId: 'thread-body-note',
-          selectedCardId: 'repair-owner',
-          explanation: 'snapshot-body-note-2',
-          bodyContinuityGovernanceNote: '身体连续性仍主要由身体线独自托住同一段 living segment，虽然显形层还没有稳定补回，但这条 same-her 生命线本身没有断。',
-          highlightedEvidencePanelIds: [
-            'private-thought-governance-chain',
-          ],
-          highlightedTraceSectionIds: [
-            'trace-details',
-          ],
-          recommendedTraceEventId: 'event-governance',
-          capturedAt: 820,
-        },
-        {
-          version: 'self-evolution-focus-snapshot/v1',
-          candidateId: 'candidate-body-note-1',
-          decisionTraceId: 'trace-body-note-1',
-          activeThreadId: 'thread-body-note',
-          selectedCardId: 'repair-path',
-          explanation: 'snapshot-body-note-1',
-          bodyContinuityGovernanceNote: '身体连续性已经明确进入身体承接态 -> 显形补回态，Live2D 显形权威仍在沿同一条连续身体线补回。',
-          rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
-          highlightedEvidencePanelIds: [
-            'renderer-authority-projection',
-            'runtime-continuity-projection',
-          ],
-          highlightedTraceSectionIds: [
-            'trace-consumption',
-            'selected-trace-event',
-          ],
-          recommendedTraceEventId: 'event-takeover',
-          capturedAt: 720,
-        },
-      ],
-      transition: {
-        currentCapturedAt: 820,
-        previousCapturedAt: 720,
-        currentDecisionTraceId: 'trace-body-note-2',
-        previousDecisionTraceId: 'trace-body-note-1',
-        changedFocusCard: true,
-        changedEvidenceTargets: true,
-        changedTraceTargets: true,
-        changedTraceEvent: true,
-        lines: [
-          'focus-card: repair-path -> repair-owner',
-          'trace-event: event-takeover -> event-governance',
-        ],
-      },
-    })).toMatchObject({
-      previous: {
-        bodyContinuityGovernanceNote: '身体连续性已经明确进入身体承接态 -> 显形补回态，Live2D 显形权威仍在沿同一条连续身体线补回。',
-      },
-      current: {
-        bodyContinuityGovernanceNote: '身体连续性仍主要由身体线独自托住同一段 living segment，虽然显形层还没有稳定补回，但这条 same-her 生命线本身没有断。',
-      },
-      bodyContinuityPhase: 'body-only-hold',
     })
   })
 

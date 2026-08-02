@@ -8,15 +8,12 @@ import type {
   AlicizationSubjectiveSceneAppraisal,
   AlicizationWorldModelSnapshot,
 } from '../../../shared/eventa'
-import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationPersonStateUpdateSurface } from './person-state-update-surface'
 
 import {
   containsAlicizationFixedTemplateResidue,
 } from '@proj-alicization/stage-shared'
-
-export const alicizationLongHorizonMemoryMarker = '[ALICIZATION_LONG_HORIZON_MEMORY]'
 
 interface AlicizationExecutionCallbackCarrySnapshot {
   carryMode: 'lower-pressure' | 'trust-warming' | 'execution-callback' | 'repair-before-closeness'
@@ -36,16 +33,6 @@ interface BuildAlicizationLongHorizonMemoryInput {
   executionCallbackCarry?: AlicizationExecutionCallbackCarrySnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   recentMemoryConsolidations?: AlicizationMemoryConsolidationRecord[] | null
-  projectStateEmotionalClosureCue?: string | null
-  projectStatePrimaryOpenLoop?: string | null
-  projectStateSameHerSelfLine?: string | null
-  projectStateSameHerDriftRisk?: string | null
-  projectStateProactiveSameHerGap?: string | null
-  projectStateContinuityArcStage?: string | null
-  projectStatePreferredPauseMode?: string | null
-  projectStatePreferredLipsyncMode?: string | null
-  projectStatePreferredVoiceMode?: string | null
-  projectStatePreferredPacingMode?: string | null
 }
 
 interface BuildAlicizationLongHorizonMemoryQueryInput {
@@ -79,29 +66,14 @@ const boundaryPattern = /空间|别(?:打扰|催)|不要(?:打扰|催|逼)|边�
 const carePattern = /休息|睡|睡觉|吃饭|喝水|休整|身体|照顾|照看|累|疲惫|care|rest|sleep|break|hydrate|body/iu
 const truthPattern = /诚实|真实|准确|核实|验证|ground|verify|truth|honest|具体|直接|结构化|可执行|结论|不要猜|guess/iu
 const repairPattern = /温和|轻一点|慢一点|soft|gentle|repair|澄清|解释清楚|先稳住|别太冲/iu
-const playPattern = /玩笑|逗|有趣|轻松|可爱|tease|playful|fun|joke/iu
 const taskPattern = /明天|今天|今晚|下周|计划|继续|完成|跟进|别忘|记住|todo|plan|remember|follow up|later|finish|ship|return|open loop/iu
 const bondPattern = /陪|陪伴|一起|靠近|聊天|共看|stay near|together|company|companionship|陪着|在这|陪你/iu
 const dislikePredicatePattern = /dislike|dislikes|avoid|never|constraint|boundary|limit|讨厌|不喜欢|禁忌|限制/iu
 const preferencePredicatePattern = /\b(?:like|likes|prefer|prefers|preference|habit|style)\b|喜欢|偏好|习惯|风格/iu
 const planPredicatePattern = /plan|todo|promise|remember|follow-up|schedule|计划|约定|别忘|记住|继续/iu
 const identityPredicatePattern = /identity|persona|self|principle|doctrine|风格|原则|脾气|人格|自我/iu
-const executionCallbackPattern = /execution-callback|callback|soft-handoff|result-mode|result-lead|回调|执行后的回应/iu
 const executionSafetyGateRestraintPattern = /execution safety gate|execution-safety-gate|blocked-dispatch-restraint|blocked-before-dispatch|confirmation=required|no-process-started|ordinary proactive closeness|wait for confirmation|safety gate/iu
 const executionResumeConfirmationPattern = /execution resume confirmation|execution-resume-confirmation|host-confirmed-before-redispatch|resume-before-dispatch|process-not-yet-restarted|confirmation boundary|redispatch|host-confirmed/iu
-const trustWarmPattern = /trust-warming|trust warmed|trust warming|soft handoff|接得住|更信任|信任回温/iu
-const measuredReturnPattern = /measured-return|bounded-return|reconfirmation|surface fully cools|保持克制回返|关系节奏重确认/iu
-const projectStateCarryPattern = /phase 1|local-first digital life|same digital life|unfinished closure|project identity carry|open=|next=/iu
-const samePersonContinuityPattern = /same-person continuity|same person continuity|持续的人|同一个人/iu
-const correctionPattern = /host corrected|corrected the relationship meaning|corrected memory meaning|defending the first interpretation|misread|纠正|误解/iu
-const progressPressurePattern = /progress pressure|催进度/iu
-const genericStatusRecapPattern = /status recap|status report|generic recap|generic status shell|generic status|concise status recap|progress recap|progress request|状态汇报|催状态/iu
-const genericStatusRecapNegationPattern = /not a status report|not .*status recap|不是状态汇报|不是催进度|不是催状态/iu
-const lowerPressureCadencePattern = /lower-pressure|lower pressure|same living thread|same living line|one living thread|settles back|resettles|measured-return|measured return/iu
-const initiativeStrategyPattern = /future follow-ups|follow-up timing|clearer opening|fresher opening|leave more room|less eager|quieter timing|quiet until|reopening this line/u
-const temporaryNoisePattern = /anxious|anxiety|spike|wobble|passing|momentary|fleeting|temporary|noise|ephemeral|tired|drained|情绪波动|短暂|一时|瞬间|噪声|疲惫/iu
-const tentativeCarryPattern = /tentative|uncertain|not sure|maybe|might|seems|不完全确定|似乎|也许/iu
-const continuityReturnStylePreferencePattern = /even voice|natural pacing|same living thread|same living line|one living thread|unforced|coherent|performative|overeager|rush(?:ing)?/iu
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -119,18 +91,12 @@ function sanitizeLongHorizonEvidenceText(raw: unknown, maxChars = 180) {
   const normalized = sanitizeText(raw, maxChars)
   if (!normalized)
     return ''
-  if (!containsAlicizationFixedTemplateResidue(normalized))
+  if (!containsAlicizationFixedTemplateResidue(normalized, {
+    provenance: 'internal-structured-fact',
+  })) {
     return normalized
+  }
   return ''
-}
-
-function hasLongHorizonStructuredContinuityEvidence(raw: unknown) {
-  const normalized = sanitizeLongHorizonEvidenceText(raw, 260).toLowerCase()
-  if (!normalized)
-    return false
-
-  return /(?:^|\s|\|)(?:continuity_anchor|continuity_hold|continuity_drift_risk|continuity_progress|project_state_review|runtime_loop_validation|memory_dialogue_embodiment_closure|embodiment_scale_validation|runtime_personhood|callback_continuity|embodiment_closure|open_loop|next|landed)=/u.test(normalized)
-    || /(?:^|\s|\|)(?:runtime_personhood|continuity_identity|continuity_line|continuity_thread|callback_continuity)(?:\s|\||$)/u.test(normalized)
 }
 
 function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
@@ -161,33 +127,6 @@ function stringListFrom(raw: unknown, maxItems = 8) {
     raw.map(item => typeof item === 'string' ? item : ''),
     maxItems,
   )
-}
-
-function parseMetabolismPolicy(raw: unknown) {
-  const policy = objectFrom(raw)
-  if (!policy)
-    return null
-
-  const downrankMemoryIds = stringListFrom(policy.downrankMemoryIds, 8)
-  const mergeMemoryIds = stringListFrom(policy.mergeMemoryIds, 8)
-  const forgetMemoryIds = stringListFrom(policy.forgetMemoryIds, 8)
-  const reasons = stringListFrom(policy.reasons, 6)
-
-  if (
-    downrankMemoryIds.length === 0
-    && mergeMemoryIds.length === 0
-    && forgetMemoryIds.length === 0
-    && reasons.length === 0
-  ) {
-    return null
-  }
-
-  return {
-    downrankMemoryIds,
-    mergeMemoryIds,
-    forgetMemoryIds,
-    reasons,
-  }
 }
 
 function blend(previous: number, target: number, rate = 0.22) {
@@ -230,93 +169,30 @@ function parseEmbodimentExpression(raw: unknown) {
   }
 }
 
-function isCorrectedSamePersonContinuityCadence(text: string) {
-  const normalized = sanitizeText(text, 240)
-  if (!normalized)
-    return false
-  return samePersonContinuityPattern.test(normalized)
-    && progressPressurePattern.test(normalized)
-    && (correctionPattern.test(normalized) || lowerPressureCadencePattern.test(normalized))
-}
-
-function summarizeInitiativeStrategyCarry(text: string) {
-  const normalized = sanitizeText(text, 260).toLowerCase()
-  if (!normalized)
-    return ''
-
-  return uniqueList([
-    /gentle/u.test(normalized) ? 'strategy=gentle' : '',
-    /lower-pressure|lower pressure/u.test(normalized) ? 'strategy=lower-pressure' : '',
-    /less eager/u.test(normalized) ? 'strategy=less-eager' : '',
-    /leave more room|more room/u.test(normalized) ? 'strategy=leave-room' : '',
-    /clearer opening|fresher opening/u.test(normalized) ? 'strategy=clearer-opening' : '',
-    /accepted or continued|received without obvious resistance|memory-led/u.test(normalized) ? 'strategy=memory-led' : '',
-  ], 6).join(' ') || sanitizeText(text, 180)
-}
-
-function summarizeMetabolismPolicyCarry(input: {
-  downrankMemoryIds: string[]
-  mergeMemoryIds: string[]
-  forgetMemoryIds: string[]
-  reasons: string[]
-} | null, fallbackSummary: string) {
-  if (!input) {
-    return sanitizeText(fallbackSummary, 180)
-  }
-
-  return sanitizeText(uniqueList([
-    input.downrankMemoryIds.length > 0 ? `downrank=${input.downrankMemoryIds.join(',')}` : '',
-    input.mergeMemoryIds.length > 0 ? `merge=${input.mergeMemoryIds.join(',')}` : '',
-    input.forgetMemoryIds.length > 0 ? `forget=${input.forgetMemoryIds.join(',')}` : '',
-  ], 3).join(' ') || fallbackSummary, 180)
-}
-
 interface ParsedHumanlikeCarryConsolidationCue {
   record: AlicizationMemoryConsolidationRecord
-  relationshipPrimaryIntent: string
-  relationshipSignals: string[]
   recallCertainty: string
-  emotionalResidueTags: string[]
   stablePreferenceHint: string
-  embodimentCadence: string
   embodimentExpressionSummary: string
   hostEmotionLabels: string[]
   selfEmotionLabels: string[]
   embodimentRecallStrength: string
   embodimentModalityRisk: string
-  metabolismSummary: string
-  metabolismPolicy: {
-    downrankMemoryIds: string[]
-    mergeMemoryIds: string[]
-    forgetMemoryIds: string[]
-    reasons: string[]
-  } | null
-  autobiographicalDelta: string
-  selfContinuityInwardLine: string
-  selfContinuitySourceTags: string[]
   cueObject: string
-  carriesSamePersonContinuity: boolean
-  carriesBoundaryCadence: boolean
-  carriesProjectIdentity: boolean
-  carriesRevisionPressure: boolean
-  carriesGenericStatusShell: boolean
-  carriesCorrectedAuthority: boolean
-  tentativeMeaning: boolean
-  authorityScore: number
 }
 
 function parseHumanlikeCarryConsolidationCue(record: AlicizationMemoryConsolidationRecord): ParsedHumanlikeCarryConsolidationCue | null {
   const metadata = objectFrom(record.metadata)
   const humanlikeCarry = objectFrom(metadata?.humanlikeCarry)
-  const projectState = objectFrom(metadata?.projectState)
-  if (!humanlikeCarry && !projectState)
+  if (
+    !humanlikeCarry
+    || record.dominantProvenance === 'shadow'
+    || (record.derivedEventIds?.length ?? 0) === 0
+  ) {
     return null
+  }
 
-  const relationshipPrimaryIntent = sanitizeText(humanlikeCarry?.relationshipPrimaryIntent, 80).toLowerCase()
-  const relationshipSignals = stringListFrom(humanlikeCarry?.relationshipSignals, 6)
   const recallCertainty = sanitizeText(humanlikeCarry?.recallCertainty, 48).toLowerCase()
-  const emotionalResidueTags = stringListFrom(humanlikeCarry?.emotionalResidueTags, 8)
-  const embodimentCadence = sanitizeText(humanlikeCarry?.embodimentCadence, 180)
   const embodimentExpression = parseEmbodimentExpression(humanlikeCarry?.embodimentExpression)
   const embodimentExpressionSummary = sanitizeText(embodimentExpression?.summary, 220)
   const affectivePerspective = objectFrom(humanlikeCarry?.affectivePerspective)
@@ -325,13 +201,7 @@ function parseHumanlikeCarryConsolidationCue(record: AlicizationMemoryConsolidat
   const embodimentRecallProfile = objectFrom(humanlikeCarry?.embodimentRecallProfile)
   const embodimentRecallStrength = sanitizeText(embodimentRecallProfile?.recallStrength, 80)
   const embodimentModalityRisk = sanitizeText(embodimentRecallProfile?.modalityRisk, 80)
-  const metabolismPolicy = parseMetabolismPolicy(humanlikeCarry?.metabolismPolicy)
-  const metabolismSummary = sanitizeText(humanlikeCarry?.metabolismSummary, 220)
-    || sanitizeText(metabolismPolicy?.reasons.join(' '), 220)
   const stablePreferenceHint = sanitizeLongHorizonEvidenceText(humanlikeCarry?.stablePreferenceHint, 220)
-  const autobiographicalDelta = sanitizeLongHorizonEvidenceText(humanlikeCarry?.autobiographicalDelta, 220)
-  const selfContinuityInwardLine = sanitizeLongHorizonEvidenceText(projectState?.selfContinuityInwardLine, 220)
-  const selfContinuitySourceTags = stringListFrom(projectState?.selfContinuitySourceTags, 6)
 
   const cueObject = uniqueList([
     hostEmotionLabels.length > 0 ? `host-emotion ${hostEmotionLabels.join(' ')}` : '',
@@ -339,143 +209,82 @@ function parseHumanlikeCarryConsolidationCue(record: AlicizationMemoryConsolidat
     embodimentRecallStrength ? `embodiment-recall ${embodimentRecallStrength}` : '',
     embodimentModalityRisk ? `modality risk ${embodimentModalityRisk}` : '',
     embodimentExpressionSummary ? `embodiment-expression ${embodimentExpressionSummary}` : '',
-    relationshipPrimaryIntent === 'same-person-test'
-      ? 'same-person continuity should stay authoritative'
-      : '',
-    relationshipSignals.join(' '),
-    recallCertainty ? `recall certainty ${recallCertainty}` : '',
-    emotionalResidueTags.join(' '),
-    embodimentCadence,
-    metabolismPolicy?.downrankMemoryIds.length ? `downrank ${metabolismPolicy.downrankMemoryIds.join(' ')}` : '',
-    metabolismPolicy?.mergeMemoryIds.length ? `merge ${metabolismPolicy.mergeMemoryIds.join(' ')}` : '',
-    metabolismPolicy?.forgetMemoryIds.length ? `forget ${metabolismPolicy.forgetMemoryIds.join(' ')}` : '',
-    ...(metabolismPolicy?.reasons ?? []),
-    metabolismSummary,
-    stablePreferenceHint,
-    autobiographicalDelta,
-    selfContinuityInwardLine,
-    selfContinuitySourceTags.join(' '),
-    sanitizeLongHorizonEvidenceText(record.summary, 220),
-    sanitizeLongHorizonEvidenceText(record.lesson, 220),
-  ], 12).join(' ')
-  if (!cueObject)
+  ], 6).join(' ')
+  if (!cueObject && !stablePreferenceHint)
     return null
-
-  const carriesStructuredContinuityEvidence = hasLongHorizonStructuredContinuityEvidence(cueObject)
-  const carriesSamePersonContinuity
-    = relationshipPrimaryIntent === 'same-person-test'
-      || relationshipSignals.some(signal => /same-person|continuity|host-corrected/i.test(signal))
-      || samePersonContinuityPattern.test(cueObject)
-      || carriesStructuredContinuityEvidence
-      || /tool shell|generic shell|工具壳/i.test(cueObject)
-  const carriesBoundaryCadence
-    = lowerPressureCadencePattern.test(cueObject)
-      || emotionalResidueTags.some(tag => /protective|unfinished|corrected/i.test(tag))
-      || /modality risk (?:medium|high)/i.test(cueObject)
-  const carriesProjectIdentity
-    = /runtime_personhood|project_state_review=|runtime_loop_validation=/i.test(cueObject)
-      || selfContinuitySourceTags.some(tag => /project-state-carry|continuity-execution-callback-project-carry/i.test(tag))
-  const carriesRevisionPressure
-    = correctionPattern.test(cueObject)
-      || /downrank|older status shell|corrected same-person continuity/i.test(cueObject)
-      || selfEmotionLabels.some(label => /careful-repair|repair/i.test(label))
-  const carriesGenericStatusShell
-    = (
-      relationshipPrimaryIntent === 'progress-pressure'
-      || genericStatusRecapPattern.test(cueObject)
-      || progressPressurePattern.test(cueObject)
-    ) && !genericStatusRecapNegationPattern.test(cueObject)
-  const carriesCorrectedAuthority
-    = carriesSamePersonContinuity
-      && (
-        recallCertainty === 'corrected'
-        || carriesRevisionPressure
-        || relationshipPrimaryIntent === 'same-person-test'
-        || relationshipPrimaryIntent === 'continuity-worry'
-        || relationshipPrimaryIntent === 'mixed'
-        || emotionalResidueTags.some(tag => /corrected-meaning|protective-continuity/i.test(tag))
-      )
-  const tentativeMeaning = recallCertainty === 'tentative' || tentativeCarryPattern.test(cueObject)
-  const authorityScore
-    = Number(record.confidence ?? 0) * 0.2
-      + (carriesSamePersonContinuity ? 0.3 : 0)
-      + (carriesCorrectedAuthority ? 0.44 : 0)
-      + (
-        relationshipPrimaryIntent === 'same-person-test'
-        || relationshipPrimaryIntent === 'continuity-worry'
-        || relationshipPrimaryIntent === 'mixed'
-          ? 0.14
-          : 0
-      )
-      + (carriesBoundaryCadence ? 0.1 : 0)
-      + (carriesProjectIdentity ? 0.08 : 0)
-      + (metabolismSummary ? 0.08 : 0)
-      - (carriesGenericStatusShell ? 0.3 : 0)
-      - (tentativeMeaning ? 0.08 : 0)
 
   return {
     record,
-    relationshipPrimaryIntent,
-    relationshipSignals,
     recallCertainty,
-    emotionalResidueTags,
-    embodimentCadence,
     embodimentExpressionSummary,
     hostEmotionLabels,
     selfEmotionLabels,
     embodimentRecallStrength,
     embodimentModalityRisk,
-    metabolismSummary,
-    metabolismPolicy,
     stablePreferenceHint,
-    autobiographicalDelta,
-    selfContinuityInwardLine,
-    selfContinuitySourceTags,
     cueObject,
-    carriesSamePersonContinuity,
-    carriesBoundaryCadence,
-    carriesProjectIdentity,
-    carriesRevisionPressure,
-    carriesGenericStatusShell,
-    carriesCorrectedAuthority,
-    tentativeMeaning,
-    authorityScore,
   }
 }
 
-function filterSupersededHumanlikeCarryConsolidationCues(
-  records: AlicizationMemoryConsolidationRecord[],
-) {
-  const parsed = records
-    .map(record => parseHumanlikeCarryConsolidationCue(record))
-    .filter((item): item is ParsedHumanlikeCarryConsolidationCue => item !== null)
-
-  const suppressedIds = new Set<string>()
-  for (const current of parsed) {
-    if (!current.carriesGenericStatusShell)
-      continue
-
-    const supersededByCorrectedCarry = parsed.some((candidate) => {
-      if (candidate.record.id === current.record.id)
-        return false
-      const sameNarrativeLane
-        = candidate.record.facet && current.record.facet
-          ? candidate.record.facet === current.record.facet
-          : candidate.record.kind === current.record.kind
-      if (!sameNarrativeLane)
-        return false
-      if (!candidate.carriesCorrectedAuthority || candidate.tentativeMeaning)
-        return false
-      if (Number(candidate.record.confidence ?? 0) < 0.78)
-        return false
-      return candidate.authorityScore > current.authorityScore + 0.16
-    })
-
-    if (supersededByCorrectedCarry)
-      suppressedIds.add(current.record.id)
+function consolidationProvenanceBoost(record: AlicizationMemoryConsolidationRecord) {
+  switch (record.dominantProvenance) {
+    case 'observed':
+      return 0.14
+    case 'remembered':
+      return 0.1
+    case 'inferred':
+      return 0.05
+    case 'reconstructed':
+      return 0.03
+    case 'dreamt':
+      return 0.02
+    default:
+      return 0
   }
+}
 
-  return parsed.filter(item => !suppressedIds.has(item.record.id))
+function consolidationEvidenceWeight(record: AlicizationMemoryConsolidationRecord, now: number) {
+  const ageDays = Math.max(0, (now - record.updatedAt) / (24 * 60 * 60 * 1000))
+  const recency = Math.exp(-ageDays / 28)
+  const evidenceBoost = Math.min(0.12, (record.derivedEventIds?.length ?? 0) * 0.03)
+  return clamp01(
+    record.confidence * 0.68
+    + recency * 0.16
+    + evidenceBoost
+    + consolidationProvenanceBoost(record),
+  )
+}
+
+function inferConsolidationInfluenceTags(
+  parsed: ParsedHumanlikeCarryConsolidationCue,
+  kind: 'carry' | 'preference',
+) {
+  const tags = new Set<AlicizationLongHorizonMemoryCueInfluence>()
+  if (parsed.record.facet === 'relationship-era')
+    tags.add('bond')
+  if (parsed.record.facet === 'task-era' || parsed.record.kind === 'procedural')
+    tags.add('task')
+  if (parsed.record.facet === 'self-era')
+    tags.add('identity')
+  if (kind === 'carry' && parsed.hostEmotionLabels.length > 0)
+    tags.add('bond')
+  if (
+    kind === 'carry'
+    && (
+      parsed.selfEmotionLabels.length > 0
+      || parsed.embodimentExpressionSummary
+      || parsed.embodimentRecallStrength
+    )
+  ) {
+    tags.add('identity')
+  }
+  if (kind === 'carry' && ['medium', 'high'].includes(parsed.embodimentModalityRisk.toLowerCase()))
+    tags.add('boundary')
+  if (parsed.recallCertainty === 'corrected')
+    tags.add('truth')
+  if (tags.size === 0)
+    tags.add('truth')
+  return [...tags]
 }
 
 function defaultLongHorizonMemory() {
@@ -547,7 +356,6 @@ function inferCueInfluenceTags(fact: Pick<AlicizationMemoryFact, 'subject' | 'pr
   const predicate = normalizePredicate(fact.predicate)
   const object = sanitizeText(fact.object, 220)
   const text = `${subject} ${predicate} ${object}`
-  const correctedSamePersonCadence = isCorrectedSamePersonContinuityCadence(text)
 
   if (subject === 'relationship')
     tags.add('bond')
@@ -562,16 +370,10 @@ function inferCueInfluenceTags(fact: Pick<AlicizationMemoryFact, 'subject' | 'pr
     tags.add('care')
   if (truthPattern.test(text))
     tags.add('truth')
-  if (playPattern.test(text))
+  if (/玩笑|逗|有趣|轻松|可爱|tease|playful|fun|joke/iu.test(text))
     tags.add('play')
   if ((taskPattern.test(text) || planPredicatePattern.test(predicate)) && !preferencePredicatePattern.test(predicate))
     tags.add('task')
-  if (correctedSamePersonCadence) {
-    tags.add('boundary')
-    tags.add('task')
-    tags.add('identity')
-  }
-
   if (repairPattern.test(text))
     tags.add('truth')
 
@@ -711,9 +513,6 @@ function shouldCarryFactIntoLongHorizon(fact: AlicizationMemoryFact) {
 }
 
 function decayPreviousAnchorCueWeight(cue: AlicizationLongHorizonMemoryCueSnapshot) {
-  const cueText = sanitizeText(`${cue.summary} ${cue.object} ${cue.predicate}`, 320)
-  if (temporaryNoisePattern.test(cueText))
-    return clamp01(cue.weight * 0.32)
   return clamp01(cue.weight * 0.92)
 }
 
@@ -832,7 +631,7 @@ function buildDerivedAnchorCues(input: {
       )
     : false
   if (surface?.summary && hasLearnedPersonStateEvidence) {
-    const text = sanitizeText(`${surface.summary} ${surface.narrative}`, 220)
+    const text = sanitizeText(surface.summary, 220)
     const tags = new Set<AlicizationLongHorizonMemoryCueInfluence>()
     if (truthPattern.test(text) || repairPattern.test(text))
       tags.add('truth')
@@ -865,235 +664,44 @@ function buildDerivedAnchorCues(input: {
     })
   }
 
-  if (surface) {
-    const summaryLine = sanitizeText(surface.summary, 220)
-    const autobiographicalNarrativeLines = Array.isArray(surface.narrative) ? surface.narrative : [surface.narrative]
-    const autobiographicalPreferenceHints = Array.isArray(surface.preferenceHints) ? surface.preferenceHints : []
-    const autobiographicalRepairHints = Array.isArray(surface.repairHints) ? surface.repairHints : []
-    const autobiographicalBurdenHints = Array.isArray(surface.burdenHints) ? surface.burdenHints : []
-    const autobiographicalSamePersonLines = [
-      ...autobiographicalPreferenceHints,
-      ...autobiographicalNarrativeLines,
-      summaryLine,
-    ]
-    const autobiographicalCorrectionLines = [
-      ...autobiographicalRepairHints,
-      ...autobiographicalNarrativeLines,
-      summaryLine,
-    ]
-    const autobiographicalProgressPressureLines = [
-      ...autobiographicalBurdenHints,
-      ...autobiographicalNarrativeLines,
-      summaryLine,
-    ]
-    const hasSamePersonContinuityCue = autobiographicalSamePersonLines.some(line => samePersonContinuityPattern.test(line))
-    const hasLowerPressureCadenceCue = autobiographicalSamePersonLines.some(line => lowerPressureCadencePattern.test(line))
-    const hasCorrectionCue = autobiographicalCorrectionLines.some(line => correctionPattern.test(line) || repairPattern.test(line))
-    const hasProgressPressureCue = autobiographicalProgressPressureLines.some(line => progressPressurePattern.test(line))
-    const autobiographicalCorrectionText = uniqueList([
-      ...autobiographicalPreferenceHints.filter(line => samePersonContinuityPattern.test(line) || lowerPressureCadencePattern.test(line)),
-      ...autobiographicalNarrativeLines.filter(line => samePersonContinuityPattern.test(line) || lowerPressureCadencePattern.test(line)),
-      samePersonContinuityPattern.test(summaryLine) || lowerPressureCadencePattern.test(summaryLine) ? summaryLine : '',
-      ...autobiographicalRepairHints.filter(line => correctionPattern.test(line) || repairPattern.test(line)),
-      ...autobiographicalNarrativeLines.filter(line => correctionPattern.test(line)),
-      correctionPattern.test(summaryLine) ? summaryLine : '',
-      ...autobiographicalBurdenHints.filter(line => progressPressurePattern.test(line)),
-      ...autobiographicalNarrativeLines.filter(line => progressPressurePattern.test(line)),
-      progressPressurePattern.test(summaryLine) ? summaryLine : '',
-    ], 4).join(' ')
-    const carriesAutobiographicalCorrection = hasSamePersonContinuityCue
-      && hasProgressPressureCue
-      && (hasCorrectionCue || hasLowerPressureCadenceCue)
+  const humanlikeCarryConsolidationCues = recentMemoryConsolidations.flatMap((record) => {
+    const parsed = parseHumanlikeCarryConsolidationCue(record)
+    if (!parsed)
+      return []
 
-    if (carriesAutobiographicalCorrection) {
-      cues.push({
-        factId: 'derived:person-state-autobiographical-carry',
-        subject: 'assistant',
-        predicate: 'autobiographical-self-carry',
-        object: sanitizeText(autobiographicalCorrectionText, 180),
-        confidence: 0.82,
-        weight: clamp01(
-          0.62
-          + Math.max(0, surface.relationshipShift.repairDelta) * 0.34
-          + Math.max(0, surface.relationshipShift.boundaryDelta) * 0.22
-          + Math.max(0, surface.relationshipShift.trustDelta) * 0.18
-          + (correctionPattern.test(autobiographicalCorrectionText) ? 0.08 : 0)
-          + (lowerPressureCadencePattern.test(autobiographicalCorrectionText) ? 0.08 : 0),
-        ),
-        influenceTags: ['identity', 'boundary', 'task', 'truth'],
-        summary: sanitizeText(autobiographicalCorrectionText, 180),
+    const evidenceWeight = consolidationEvidenceWeight(parsed.record, input.now)
+    const carryCue = parsed.cueObject
+      ? [{
+        factId: `derived:consolidation-humanlike-carry:${parsed.record.id}`,
+        subject: parsed.record.facet === 'relationship-era' ? 'relationship' : 'assistant',
+        predicate: 'consolidation-humanlike-carry',
+        object: sanitizeText(parsed.cueObject, 260),
+        confidence: clamp01(parsed.record.confidence + consolidationProvenanceBoost(parsed.record)),
+        weight: evidenceWeight,
+        influenceTags: inferConsolidationInfluenceTags(parsed, 'carry'),
+        summary: sanitizeText(parsed.cueObject, 180),
         lastRecalledAt: input.now,
-      })
-    }
-
-    const initiativeStrategyPreferenceHints = autobiographicalPreferenceHints.filter(line => initiativeStrategyPattern.test(line))
-    const initiativeStrategyRepairHints = autobiographicalRepairHints.filter(line => initiativeStrategyPattern.test(line))
-    const initiativeStrategyBurdenHints = autobiographicalBurdenHints.filter(line => initiativeStrategyPattern.test(line))
-    const initiativeStrategyNarrativeLines = autobiographicalNarrativeLines.filter(line => initiativeStrategyPattern.test(line))
-    const initiativeStrategySummaryLine = initiativeStrategyPattern.test(summaryLine) ? summaryLine : ''
-    const initiativeStrategyText = uniqueList([
-      ...initiativeStrategyRepairHints,
-      ...initiativeStrategyPreferenceHints,
-      ...initiativeStrategyNarrativeLines,
-      ...initiativeStrategyBurdenHints,
-      initiativeStrategySummaryLine,
-    ], 4).join(' ')
-    const carriesInitiativeStrategy = Boolean(initiativeStrategyText)
-      && /clearer opening|fresher opening|leave more room|less eager|lower-pressure|quiet/i.test(initiativeStrategyText)
-    const acceptedInitiativeStrategy = /accepted or continued|received without obvious resistance|memory-led/i.test(initiativeStrategyText)
-
-    if (carriesInitiativeStrategy) {
-      const summarizedInitiativeStrategy = summarizeInitiativeStrategyCarry(initiativeStrategyText)
-      cues.push({
-        factId: 'derived:person-state-initiative-strategy-carry',
-        subject: 'assistant',
-        predicate: 'initiative-strategy-carry',
-        object: summarizedInitiativeStrategy,
-        confidence: 0.8,
-        weight: clamp01(
-          0.58
-          + Math.max(0, surface.relationshipShift.boundaryDelta) * 0.3
-          + Math.max(0, surface.relationshipShift.repairDelta) * 0.18
-          + Math.max(0, surface.relationshipShift.burdenDelta) * 0.16
-          + (initiativeStrategyPattern.test(initiativeStrategyText) ? 0.08 : 0)
-          + (/clearer opening|fresher opening/i.test(initiativeStrategyText) ? 0.08 : 0),
-        ),
-        influenceTags: acceptedInitiativeStrategy
-          ? ['bond', 'task', 'truth']
-          : ['boundary', 'task', 'truth'],
-        summary: summarizedInitiativeStrategy,
-        lastRecalledAt: input.now,
-      })
-    }
-  }
-
-  const humanlikeCarryConsolidationCues = filterSupersededHumanlikeCarryConsolidationCues(recentMemoryConsolidations).flatMap((parsed) => {
-    const influenceTags: AlicizationLongHorizonMemoryCueInfluence[] = [
-      ...(parsed.carriesProjectIdentity || parsed.carriesSamePersonContinuity ? ['identity' as const] : []),
-      ...(parsed.carriesBoundaryCadence || parsed.carriesRevisionPressure ? ['boundary' as const] : []),
-      ...(parsed.carriesSamePersonContinuity || /unfinished|open loop|closure|still open|未完成|闭环|还缺/i.test(parsed.cueObject) ? ['task' as const] : []),
-      ...(parsed.carriesBoundaryCadence || parsed.carriesRevisionPressure ? ['truth' as const] : []),
-      ...(samePersonContinuityPattern.test(parsed.cueObject) || parsed.hostEmotionLabels.some(label => /worried-continuity|continuity/i.test(label)) ? ['bond' as const] : []),
-    ]
-    const stablePreferenceInfluenceTags: AlicizationLongHorizonMemoryCueInfluence[] = parsed.stablePreferenceHint
-      ? [
-          ...(/companionship|stay nearby gently|care-before-analysis|care before analysis|memory-led|gentle|lighter|lived-in|genuinely received|less robotic/u.test(parsed.stablePreferenceHint) || continuityReturnStylePreferencePattern.test(parsed.stablePreferenceHint) ? ['bond' as const] : []),
-          ...(/care-before-analysis|care before analysis|stay nearby gently|lighter companionship|lighter|lived-in/u.test(parsed.stablePreferenceHint) ? ['care' as const] : []),
-          ...(/explicit confirmation|bounded execution|wait for confirmation|lower-pressure|leave more room|clearer opening|memory-led/u.test(parsed.stablePreferenceHint) || /same living thread|same living line|one living thread|overeager|rush(?:ing)?/iu.test(parsed.stablePreferenceHint) ? ['boundary' as const] : []),
-          ...(/memory-led|clearer opening|follow-up|reopening|execution|confirmation/u.test(parsed.stablePreferenceHint) ? ['task' as const] : []),
-          ...(/repair-first|grounded continuity|explicit confirmation|memory-led|lived-in|genuinely received|relationship meaning|mechanical|robotic/u.test(parsed.stablePreferenceHint) || continuityReturnStylePreferencePattern.test(parsed.stablePreferenceHint) ? ['truth' as const] : []),
-          ...(/same-her|same[- ]?person|phase 1|digital life|same living thread|same living line|one living thread/u.test(parsed.stablePreferenceHint) ? ['identity' as const] : []),
-        ]
+      } satisfies AlicizationLongHorizonMemoryCueSnapshot]
       : []
-    if (influenceTags.length === 0 && stablePreferenceInfluenceTags.length === 0)
-      return []
-
-    const summary = sanitizeText(
-      uniqueList([
-        parsed.carriesProjectIdentity ? 'source=project-state' : '',
-        parsed.carriesSamePersonContinuity ? 'source=relationship-continuity' : '',
-        parsed.hostEmotionLabels[0] ?? '',
-        parsed.selfEmotionLabels[0] ?? '',
-        parsed.stablePreferenceHint,
-        parsed.embodimentCadence,
-        parsed.embodimentModalityRisk ? `modality risk ${parsed.embodimentModalityRisk}` : '',
-        parsed.recallCertainty ? `certainty=${parsed.recallCertainty}` : '',
-        summarizeMetabolismPolicyCarry(parsed.metabolismPolicy, parsed.metabolismSummary),
-        parsed.autobiographicalDelta,
-      ], 8).join(' '),
-      180,
-    )
-    if (!summary)
-      return []
 
     const stablePreferenceCue = parsed.stablePreferenceHint
       ? [{
         factId: `derived:consolidation-stable-preference:${parsed.record.id}`,
-        subject: 'assistant',
+        subject: parsed.record.facet === 'relationship-era' ? 'relationship' : 'assistant',
         predicate: 'stable-preference-hint',
         object: sanitizeText(parsed.stablePreferenceHint, 220),
-        confidence: clamp01(
-          Number(parsed.record.confidence ?? 0) * 0.74
-          + (parsed.carriesBoundaryCadence ? 0.08 : 0)
-          + (parsed.carriesProjectIdentity ? 0.06 : 0),
-        ),
-        weight: clamp01(
-          Number(parsed.record.confidence ?? 0) * 0.7
-          + (stablePreferenceInfluenceTags.includes('boundary') ? 0.1 : 0)
-          + (stablePreferenceInfluenceTags.includes('bond') ? 0.1 : 0)
-          + (stablePreferenceInfluenceTags.includes('care') ? 0.08 : 0),
-        ),
-        influenceTags: [...new Set(stablePreferenceInfluenceTags)],
+        confidence: clamp01(parsed.record.confidence + consolidationProvenanceBoost(parsed.record)),
+        weight: evidenceWeight,
+        influenceTags: inferConsolidationInfluenceTags(parsed, 'preference'),
         summary: sanitizeText(parsed.stablePreferenceHint, 180),
         lastRecalledAt: input.now,
       } satisfies AlicizationLongHorizonMemoryCueSnapshot]
       : []
 
-    return [{
-      factId: `derived:consolidation-humanlike-carry:${parsed.record.id}`,
-      subject: 'assistant',
-      predicate: 'consolidation-humanlike-carry',
-      object: sanitizeText(parsed.cueObject, 260),
-      confidence: clamp01(
-        Number(parsed.record.confidence ?? 0) * 0.72
-        + (parsed.recallCertainty === 'corrected' ? 0.16 : parsed.recallCertainty === 'steady' ? 0.08 : 0)
-        + (parsed.carriesBoundaryCadence ? 0.1 : 0)
-        + (parsed.carriesProjectIdentity ? 0.08 : 0),
-      ),
-      weight: clamp01(
-        Number(parsed.record.confidence ?? 0) * 0.68
-        + (parsed.carriesSamePersonContinuity ? 0.18 : 0)
-        + (parsed.carriesBoundaryCadence ? 0.14 : 0)
-        + (parsed.carriesProjectIdentity ? 0.12 : 0)
-        + (parsed.carriesRevisionPressure ? 0.08 : 0),
-      ),
-      influenceTags: [...new Set(influenceTags)],
-      summary,
-      lastRecalledAt: input.now,
-    } satisfies AlicizationLongHorizonMemoryCueSnapshot, ...stablePreferenceCue]
+    return [...carryCue, ...stablePreferenceCue]
   })
 
   cues.push(...humanlikeCarryConsolidationCues)
-
-  const narrativeLines = Array.isArray(surface?.narrative) ? surface.narrative : []
-  const preferenceHints = Array.isArray(surface?.preferenceHints) ? surface.preferenceHints : []
-  const sensitivityHints = Array.isArray(surface?.sensitivityHints) ? surface.sensitivityHints : []
-  const projectStateCarryLines = uniqueList([
-    sanitizeText((surface as Record<string, unknown> | null)?.projectStatePreflightSummary, 220),
-    sanitizeText((surface as Record<string, unknown> | null)?.projectStatePrimaryOpenLoop, 220),
-    sanitizeText(surface?.projectStateContinuity?.proactiveSameHerGap, 220),
-  ], 3)
-  const callbackCarryText = uniqueList([
-    ...narrativeLines.filter(line => executionCallbackPattern.test(line) || trustWarmPattern.test(line) || boundaryPattern.test(line)),
-    ...preferenceHints.filter(line => boundaryPattern.test(line) || trustWarmPattern.test(line)),
-    ...sensitivityHints.filter(line => boundaryPattern.test(line)),
-    ...projectStateCarryLines.filter(line => projectStateCarryPattern.test(line)),
-  ], 4).join(' ')
-  if (callbackCarryText && executionCallbackPattern.test(callbackCarryText)) {
-    const carriesProjectState = projectStateCarryPattern.test(callbackCarryText)
-    const influenceTags: AlicizationLongHorizonMemoryCueInfluence[] = [
-      'bond',
-      ...((boundaryPattern.test(callbackCarryText) || measuredReturnPattern.test(callbackCarryText)) ? ['boundary' as const] : []),
-      ...(trustWarmPattern.test(callbackCarryText) ? ['identity' as const] : []),
-      ...(carriesProjectState ? ['identity' as const, 'task' as const] : []),
-    ]
-    cues.push({
-      factId: 'derived:execution-callback-carry',
-      subject: 'relationship',
-      predicate: 'execution-callback-carry',
-      object: sanitizeText(callbackCarryText, 180),
-      confidence: 0.8,
-      weight: clamp01(
-        0.5
-        + ((boundaryPattern.test(callbackCarryText) || measuredReturnPattern.test(callbackCarryText)) ? 0.12 : 0)
-        + (trustWarmPattern.test(callbackCarryText) ? 0.1 : 0)
-        + (carriesProjectState ? 0.08 : 0),
-      ),
-      influenceTags: [...new Set(influenceTags)],
-      summary: sanitizeText(callbackCarryText, 180),
-      lastRecalledAt: input.now,
-    })
-  }
 
   const safetyGateCarryText = uniqueList(
     recentMemoryConsolidations.flatMap(record => [
@@ -1319,9 +927,4 @@ export function buildAlicizationLongHorizonMemory(input: BuildAlicizationLongHor
     rememberedPlanSummary,
     updatedAt: input.now,
   }
-}
-
-export function buildLongHorizonMemorySystemBlock(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-  void surface
-  return ''
 }

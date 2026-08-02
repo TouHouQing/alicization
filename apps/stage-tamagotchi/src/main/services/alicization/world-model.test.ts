@@ -212,6 +212,8 @@ describe('buildWorldModel', () => {
     expect(worldModel.activeThread?.status).toBe('lingering')
     expect(worldModel.activeThread?.source).toBe('continuity')
     expect(worldModel.epistemicState.certainty).toBe('lingering')
+    expect(worldModel.epistemicState.openQuestions).toContain('world-question:thread-not-regrounded')
+    expect(worldModel.epistemicState.staleRisks).toContain('world-risk:continuity-afterimage')
   })
 
   it('elevates durability shocks into a recovery thread', () => {
@@ -348,6 +350,6 @@ describe('buildWorldModel', () => {
     expect(worldModel.activeThread?.source).toBe('grounded-scene')
     expect(worldModel.activeThread?.title).toBe('TypeScript error panel')
     expect(worldModel.lingeringThreads.some(thread => thread.title === 'Old Chrome page')).toBe(true)
-    expect(worldModel.epistemicState.staleRisks).toContain('刚出现了新的 grounded scene，旧线程只能退回记忆层。')
+    expect(worldModel.epistemicState.staleRisks).toContain('world-risk:previous-thread-demoted')
   })
 })

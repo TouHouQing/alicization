@@ -667,8 +667,15 @@ describe('main chat execution surface', () => {
     const toolNames = tools
       .map((entry: any) => String(entry?.function?.name ?? '').trim())
       .filter(Boolean)
+    const reminderToolDescription = String(
+      tools.find((entry: any) => String(entry?.function?.name ?? '').trim() === 'set_reminder')
+        ?.function
+        ?.description ?? '',
+    )
 
     expect(toolNames).toContain('set_reminder')
+    expect(reminderToolDescription).toContain('提醒内容尚未触发')
+    expect(reminderToolDescription).not.toMatch(/只允许|回复|已为你定好闹钟|绝对禁止/u)
     expect(toolNames).toContain('executor_capability_snapshot')
     expect(toolNames).toContain('sensory_capture_state')
     expect(toolNames).toContain('filesystem_read_file')
@@ -1796,7 +1803,7 @@ describe('main chat execution surface', () => {
     }))
   })
 
-  it('returns routing rationale and experience in executor tool result payload', async () => {
+  it('returns structured routing facts without internal routing prose', async () => {
     const executeTaskThread = vi.fn(async () => ({
       ok: true,
       stage: 'dispatch',
@@ -1879,18 +1886,9 @@ describe('main chat execution surface', () => {
       planState: 'routed',
       proposedChannel: 'claude-code',
       routeReasonTags: ['advisor:claude-code', 'advisor-channel'],
-      routeNarrative: ['Routing adopted the external channel assessor recommendation with confidence weighting.'],
-      routeExperience: expect.objectContaining({
-        advisorChannel: 'claude-code',
-        advisorConfidence: 0.9,
-        rememberedProcedures: expect.arrayContaining([
-          expect.objectContaining({
-            id: 'procedural:runtime-seam',
-            preferredChannel: 'claude-code',
-          }),
-        ]),
-      }),
     }))
+    expect(result).not.toHaveProperty('routeNarrative')
+    expect(result).not.toHaveProperty('routeExperience')
   })
 
   it('defaults governed visual executor dispatches to local visual while preserving grounded runtime context', async () => {
@@ -1989,7 +1987,6 @@ describe('main chat execution surface', () => {
             decisionTraceId: 'trace-local-visual-context-1',
             sessionId: 'session-local-visual-context-1',
             agentSessionId: 'agent-session-1',
-            projectBriefing: null,
             recentActions: [{
               kind: 'sensory',
               status: 'completed',
@@ -2019,7 +2016,6 @@ describe('main chat execution surface', () => {
             decisionTraceId: 'trace-local-visual-context-1',
             sessionId: 'session-local-visual-context-1',
             agentSessionId: 'agent-session-1',
-            projectBriefing: null,
             recentActions: [{
               kind: 'sensory',
               status: 'completed',

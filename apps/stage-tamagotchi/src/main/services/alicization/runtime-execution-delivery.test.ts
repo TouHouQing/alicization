@@ -2,18 +2,12 @@ import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-r
 
 import { readFileSync } from 'node:fs'
 
-import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { createAlicizationExecutionDeliveryRuntime } from './execution-delivery-runtime'
 import { createAlicizationRuntimeExecutionDelivery } from './runtime-execution-delivery'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
-
-function expectNoFixedProjectTemplateResidue(value: unknown) {
-  const serialized = typeof value === 'string' ? value : JSON.stringify(value ?? '')
-  expect(containsAlicizationFixedTemplateResidue(serialized), serialized).toBe(false)
-}
 
 function createExecutionSelfRevisionStatePatch(input: {
   id: string
@@ -28,7 +22,6 @@ function createExecutionSelfRevisionStatePatch(input: {
   validation?: Partial<AlicizationSelfRevisionStatePatch['validation']>
   reasonCodes?: string[]
   summary?: string | null
-  projectStateContinuity?: AlicizationSelfRevisionStatePatch['projectStateContinuity']
 }): AlicizationSelfRevisionStatePatch {
   return {
     version: 'self-revision-state-patch-v1',
@@ -57,7 +50,6 @@ function createExecutionSelfRevisionStatePatch(input: {
     responsePosture: {
       hypothesisLabelBias: 0,
       specificityClampBias: 0,
-      templateShellSuppressionBias: 0,
       ...input.responsePosture,
     },
     proactivePolicy: {
@@ -72,29 +64,32 @@ function createExecutionSelfRevisionStatePatch(input: {
       rollbackPlan: [],
       ...input.validation,
     },
-    projectStateContinuity: input.projectStateContinuity ?? null,
-    reasonCodes: input.reasonCodes ?? ['domain:relationship', 'same-her-baseline'],
+    reasonCodes: input.reasonCodes ?? ['domain:relationship', 'runtime-owner'],
     summary: input.summary ?? null,
   }
 }
+
+const retiredOpeningPolicyCue = `opening_${'policy'}=legacy`
+const retiredRelationshipCadenceCue = `relationship_${'cadence'}=legacy`
+const retiredRedactedInternalCue = `visibility=${'redacted'}_internal`
 
 describe('runtime execution delivery', () => {
   it('does not select execution project briefing text by historical persona phrasing', () => {
     const source = readFileSync(new URL('./runtime-execution-delivery.ts', import.meta.url), 'utf8')
 
     expect(source).not.toMatch(
-      /looksLikeThinExecutionDeliveryProject(?:Identity|Phase|Preflight|Awareness)|preferStrongerPersistedSameHerSelfLine|preferStrongerSameHerDriftRisk/u,
+      /looksLikeThinExecutionDeliveryProject(?:Identity|Phase|Preflight|Awareness)|preferStrongerPersistedContinuitySelfLine|preferStrongerContinuityDriftRisk/u,
     )
     expect(source).not.toContain(['template', 'residue', 'shell'].join('-'))
     expect(source).not.toContain(['same', 'living', 'line'].join(' '))
+    expect(source).not.toMatch(/normalizeExecutionDeliveryProject|mergeExecutionDeliveryProject|readExecutionDeliveryProject/u)
   })
 
   it('does not retain execution callback governance cue prose', () => {
     const source = readFileSync(new URL('./runtime-execution-delivery.ts', import.meta.url), 'utf8')
 
     expect(source).not.toMatch(/callback_context=|runtime_context=|failure_surface=|callback_delivery=|trust_condition=|relationship_doctrine=/iu)
-    expect(source).not.toContain('buildMinimalProjectStateExecutionCallbackProjection')
-    expect(source).not.toContain('buildMinimalActiveSameHerProjection')
+    expect(source).not.toContain('buildMinimalActiveContinuityProjection')
     expect(source).not.toContain('buildExecutionCallbackProjectSelfBriefSystemBlock')
     expect(source).not.toContain('Execution callback self brief.')
   })
@@ -345,7 +340,7 @@ describe('runtime execution delivery', () => {
     expect(queued?.completedAt).toBe(9_500)
   })
 
-  it('does not classify queued delivery audit payloads with a project continuity cue', async () => {
+  it('does not add non-owner continuity fields to queued delivery audits', async () => {
     const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime({
       getNow: () => 10_000,
     })
@@ -397,12 +392,12 @@ describe('runtime execution delivery', () => {
         turnId: 'turn-1',
         sessionId: 'session-1',
         origin: 'user-turn',
-        goal: 'Carry the identity-continuity',
+        goal: 'Return the completed execution result.',
         kind: 'task',
         status: 'completed',
         selectedChannel: 'cli',
         proposedChannel: 'cli',
-        summary: 'Project continuity is still open, so the callback should carry the same-her repair line.',
+        summary: 'The execution result is ready.',
         metadata: null,
         createdAt: 9_000,
         updatedAt: 9_500,
@@ -416,104 +411,6 @@ describe('runtime execution delivery', () => {
     }), 'default')
     const queuedAudit = ((appendAuditLog.mock.calls as unknown[][]).at(0)?.[0]) as any
     expect(queuedAudit?.payload).not.toHaveProperty('projectContinuity')
-  })
-
-  it('persists only structured callback timing and embodiment state', async () => {
-    const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime({
-      getNow: () => 10_000,
-    })
-    const runtime = createAlicizationRuntimeExecutionDelivery({
-      getActiveCardId: () => 'default',
-      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
-      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
-      withCardScope: async (_cardId, task) => await task(),
-      queueSubconsciousWake: vi.fn(),
-      appendAuditLog: async () => {},
-      syncSessionMirrorFromCurrentCardState: async () => {},
-      alicizationDb: {
-        getMetaValue: async () => undefined,
-        setMetaValue: async () => {},
-        listExecutionEvents: async () => [{
-          id: 'event-1',
-          createdAt: 9_500,
-          kind: 'result',
-          payload: {
-            stdout: 'callback continuity repaired',
-          },
-        }],
-      },
-      executionDeliveryRuntime,
-      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
-      generateMainGatewayText: async () => null,
-      getPerformanceManifest: async () => null,
-      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
-      normalizeAlicizationPerformancePayload: raw => raw,
-      clampAlicizationPerformancePayloadToManifest: () => ({
-        performance: {
-          baseEmotion: 'thinking',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        },
-      }),
-      ensureVisualPresenceState: async () => null,
-      buildHostPersonModel: async () => null,
-    })
-
-    const queued = await runtime.queueExecutionDeliveryCandidate({
-      cardId: 'default',
-      thread: {
-        id: 'thread-1',
-        decisionTraceId: 'trace-1',
-        turnId: 'turn-1',
-        sessionId: 'session-1',
-        origin: 'user-turn',
-        goal: 'Return the callback result after restart.',
-        kind: 'task',
-        status: 'completed',
-        selectedChannel: 'cli',
-        proposedChannel: 'cli',
-        summary: 'The callback result is ready.',
-        metadata: {
-          execution: {
-            runtimeContext: {
-              projectBriefing: {
-                continuityArcStage: 'callback-ready',
-                continuityPreferredTiming: 'next-open-window',
-                preferredVoiceMode: 'even',
-              },
-            },
-          },
-        },
-        createdAt: 9_000,
-        updatedAt: 9_500,
-        lastEventAt: 9_500,
-        completedAt: 9_500,
-      } as any,
-    })
-
-    expect(queued).toEqual(expect.objectContaining({
-      threadId: 'thread-1',
-      projectState: expect.objectContaining({
-        continuityArcStage: 'callback-ready',
-        continuityPreferredTiming: 'next-open-window',
-        preferredVoiceMode: 'even',
-      }),
-    }))
-    expectNoFixedProjectTemplateResidue(queued?.projectState)
-    const pendingProjectState = executionDeliveryRuntime.snapshot('default').pending[0]?.projectState
-    expect(pendingProjectState).toEqual(expect.objectContaining({
-      continuityArcStage: 'callback-ready',
-      continuityPreferredTiming: 'next-open-window',
-      preferredVoiceMode: 'even',
-    }))
-    expectNoFixedProjectTemplateResidue(pendingProjectState)
-    expect(executionDeliveryRuntime.snapshot('default')).toEqual(expect.objectContaining({
-      pending: [expect.objectContaining({
-        threadId: 'thread-1',
-      })],
-    }))
   })
 
   it('keeps a blocked execution fact without synthesizing project prose', async () => {
@@ -593,13 +490,11 @@ describe('runtime execution delivery', () => {
       threadId: 'thread-blocked-1',
       status: 'blocked',
       summary: 'Blocked before dispatch.',
-      projectState: null,
     }))
     expect(executionDeliveryRuntime.snapshot('default')).toEqual(expect.objectContaining({
       pending: [expect.objectContaining({
         threadId: 'thread-blocked-1',
         summary: 'Blocked before dispatch.',
-        projectState: null,
       })],
     }))
   })
@@ -694,330 +589,13 @@ describe('runtime execution delivery', () => {
       status: 'completed',
       summary: 'Resumed execution completed after host confirmation.',
       outcome: 'resumed execution completed after host confirmation',
-      projectState: null,
     }))
     expect(executionDeliveryRuntime.snapshot('default')).toEqual(expect.objectContaining({
       pending: [expect.objectContaining({
         threadId: 'thread-resume-1',
         summary: 'Resumed execution completed after host confirmation.',
-        projectState: null,
       })],
     }))
-  })
-
-  it('merges structured timing from the latest execution event', async () => {
-    const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime({
-      getNow: () => 10_000,
-    })
-    const runtime = createAlicizationRuntimeExecutionDelivery({
-      getActiveCardId: () => 'default',
-      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
-      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
-      withCardScope: async (_cardId, task) => await task(),
-      queueSubconsciousWake: vi.fn(),
-      appendAuditLog: async () => {},
-      syncSessionMirrorFromCurrentCardState: async () => {},
-      alicizationDb: {
-        getMetaValue: async () => undefined,
-        setMetaValue: async () => {},
-        listExecutionEvents: async () => [{
-          id: 'event-rich-project-1',
-          createdAt: 9_500,
-          kind: 'result',
-          payload: {
-            summary: 'callback completed',
-            runtimeContext: {
-              projectBriefing: {
-                continuityArcStage: 'callback-settled',
-                continuityPreferredTiming: 'after-payoff',
-                preferredPacingMode: 'natural',
-              },
-            },
-          },
-        }],
-      },
-      executionDeliveryRuntime,
-      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
-      generateMainGatewayText: async () => null,
-      getPerformanceManifest: async () => null,
-      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
-      normalizeAlicizationPerformancePayload: raw => raw,
-      clampAlicizationPerformancePayloadToManifest: () => ({
-        performance: {
-          baseEmotion: 'thinking',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        },
-      }),
-      ensureVisualPresenceState: async () => null,
-      buildHostPersonModel: async () => null,
-    })
-
-    const queued = await runtime.queueExecutionDeliveryCandidate({
-      cardId: 'default',
-      thread: {
-        id: 'thread-rich-project-1',
-        decisionTraceId: 'trace-rich-project-1',
-        turnId: 'turn-rich-project-1',
-        sessionId: 'session-1',
-        origin: 'user-turn',
-        goal: 'Return the callback result.',
-        kind: 'task',
-        status: 'completed',
-        selectedChannel: 'codex',
-        proposedChannel: 'codex',
-        summary: 'The callback result is ready.',
-        metadata: {
-          execution: {
-            runtimeContext: {
-              projectBriefing: {
-                continuityArcStage: 'queued',
-              },
-            },
-          },
-        },
-        createdAt: 9_000,
-        updatedAt: 9_500,
-        lastEventAt: 9_500,
-        completedAt: 9_500,
-      } as any,
-    })
-
-    expect(queued?.projectState).toEqual(expect.objectContaining({
-      continuityArcStage: 'callback-settled',
-      continuityPreferredTiming: 'after-payoff',
-      preferredPacingMode: 'natural',
-    }))
-    expectNoFixedProjectTemplateResidue(queued?.projectState)
-  })
-
-  it('keeps structured resume timing without copying confirmation prose into project state', async () => {
-    const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime({
-      getNow: () => 10_000,
-    })
-    const runtime = createAlicizationRuntimeExecutionDelivery({
-      getActiveCardId: () => 'default',
-      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
-      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
-      withCardScope: async (_cardId, task) => await task(),
-      queueSubconsciousWake: vi.fn(),
-      appendAuditLog: async () => {},
-      syncSessionMirrorFromCurrentCardState: async () => {},
-      alicizationDb: {
-        getMetaValue: async () => undefined,
-        setMetaValue: async () => {},
-        listExecutionEvents: async () => [
-          {
-            id: 'event-resume-rich-1',
-            createdAt: 9_200,
-            kind: 'resume',
-            payload: {
-              approval: 'host-confirmed',
-              previousStatus: 'needs-affirmation',
-              resumedStatus: 'planned',
-              previousPermissionMode: 'none',
-              permissionMode: 'explicit',
-              effect: 'mutate',
-              riskBudget: 'medium',
-              confirmationBoundary: 'host-confirmed-before-redispatch',
-              auditability: 'resume-before-dispatch',
-              interruptibility: 'process-not-yet-restarted',
-              projectContinuityArcStage: 'same-thread-continuation',
-              projectContinuityRestraint: 'measured-return',
-              projectContinuityPreferredTiming: 'next-open-window',
-              projectContinuityCadence: 'measured-return',
-              projectBlinkCadence: 'linger',
-              projectGazeMode: 'soften',
-              projectPauseMode: 'longer',
-              projectLipsyncMode: 'restrained',
-              projectVoiceMode: 'lower-pressure',
-              projectPacingMode: 'slower',
-            },
-          },
-          {
-            id: 'event-result-rich-1',
-            createdAt: 9_500,
-            kind: 'result',
-            payload: {
-              summary: 'resumed execution completed after host confirmation',
-            },
-          },
-        ],
-      },
-      executionDeliveryRuntime,
-      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
-      generateMainGatewayText: async () => null,
-      getPerformanceManifest: async () => null,
-      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
-      normalizeAlicizationPerformancePayload: raw => raw,
-      clampAlicizationPerformancePayloadToManifest: () => ({
-        performance: {
-          baseEmotion: 'thinking',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        },
-      }),
-      ensureVisualPresenceState: async () => null,
-      buildHostPersonModel: async () => null,
-    })
-
-    const queued = await runtime.queueExecutionDeliveryCandidate({
-      cardId: 'default',
-      thread: {
-        id: 'thread-resume-rich-1',
-        decisionTraceId: 'trace-resume-rich-1',
-        turnId: 'turn-resume-rich-1',
-        sessionId: 'session-1',
-        origin: 'subconscious-proactive',
-        goal: 'resume confirmed local execution',
-        kind: 'codebase-edit',
-        status: 'completed',
-        selectedChannel: 'codex',
-        proposedChannel: 'codex',
-        summary: 'The resumed execution completed.',
-        metadata: {
-          execution: {
-            runtimeContext: {
-              projectBriefing: {
-                continuityArcStage: 'queued',
-              },
-            },
-          },
-        },
-        createdAt: 9_000,
-        updatedAt: 9_500,
-        lastEventAt: 9_500,
-        completedAt: 9_500,
-      } as any,
-    })
-
-    expect(queued?.projectState).toEqual(expect.objectContaining({
-      continuityArcStage: 'same-thread-continuation',
-      continuityRestraint: 'measured-return',
-      continuityPreferredTiming: 'next-open-window',
-      continuityCadence: 'measured-return',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredVoiceMode: 'lower-pressure',
-      preferredPacingMode: 'slower',
-    }))
-    expectNoFixedProjectTemplateResidue(queued?.projectState)
-  })
-
-  it('keeps richer execution-result feedback project companion carry from thread metadata when later delivery is queued', async () => {
-    const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime({
-      getNow: () => 10_000,
-    })
-    const runtime = createAlicizationRuntimeExecutionDelivery({
-      getActiveCardId: () => 'default',
-      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
-      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
-      withCardScope: async (_cardId, task) => await task(),
-      queueSubconsciousWake: vi.fn(),
-      appendAuditLog: async () => {},
-      syncSessionMirrorFromCurrentCardState: async () => {},
-      alicizationDb: {
-        getMetaValue: async () => undefined,
-        setMetaValue: async () => {},
-        listExecutionEvents: async () => [{
-          id: 'event-feedback-rich-1',
-          createdAt: 9_500,
-          kind: 'result',
-          payload: {
-            summary: 'execution result feedback already landed',
-          },
-        }],
-      },
-      executionDeliveryRuntime,
-      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
-      generateMainGatewayText: async () => null,
-      getPerformanceManifest: async () => null,
-      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
-      normalizeAlicizationPerformancePayload: raw => raw,
-      clampAlicizationPerformancePayloadToManifest: () => ({
-        performance: {
-          baseEmotion: 'thinking',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        },
-      }),
-      ensureVisualPresenceState: async () => null,
-      buildHostPersonModel: async () => null,
-    })
-
-    const queued = await runtime.queueExecutionDeliveryCandidate({
-      cardId: 'default',
-      thread: {
-        id: 'thread-feedback-rich-1',
-        decisionTraceId: 'trace-feedback-rich-1',
-        turnId: 'turn-feedback-rich-1',
-        sessionId: 'session-1',
-        origin: 'user-turn',
-        goal: 'carry execution-result feedback closure back on the continuity state',
-        kind: 'task',
-        status: 'completed',
-        selectedChannel: 'codex',
-        proposedChannel: 'codex',
-        summary: 'Execution-result feedback already settled a richer identity-continuity',
-        metadata: {
-          execution: {
-            runtimeContext: {
-              projectBriefing: {
-                identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
-                currentPhase: 'Phase 1: Local Digital Life. The primary proving ground remains apps/stage-tamagotchi.',
-                latestLandedProgress: 'Execution-result feedback already preserved the richer callback carry instead of letting it fall back to a thin project shell.',
-                primaryOpenLoop: 'Execution callback return still needs memory, initiative, and embodiment to stay on one continuity state.',
-                nextClosureTarget: 'Keep callback delivery on one same-her Phase 1 line before widening outward again.',
-                sameHerSelfLine: 'structured continuity digest.',
-                sameHerHoldDetail: 'identity-continuity',
-                sameHerDriftRisk: 'If later callback delivery trims this back to a generic project reminder, treat that as unfinished same-her drift.',
-                preflightSummary: 'identity=Alicization | phase=Phase 1 | open=callback carry still needs continuity state',
-                preDialogueAwarenessLine: 'pre_turn_context_digest',
-                preDialogueAwarenessSummary: 'Alicization is still inside the same local-first digital life project, and this callback return still has to close on continuity state.',
-                companionBriefingLine: 'pre_turn_context_digest',
-                emotionalClosureSummary: 'identity-continuity',
-                continuityCue: 'same-digital-life-project-thread | callback-return | identity-continuity',
-                continuityPreferredTiming: 'next-open-window',
-                continuityCadence: 'measured-return',
-                preferredBlinkCadence: 'linger',
-                preferredGazeMode: 'soften',
-                preferredPauseMode: 'longer',
-                preferredLipsyncMode: 'restrained',
-                preferredVoiceMode: 'lower-pressure',
-                preferredPacingMode: 'slower',
-              },
-            },
-          },
-        },
-        createdAt: 9_000,
-        updatedAt: 9_500,
-        lastEventAt: 9_500,
-        completedAt: 9_500,
-      } as any,
-    })
-
-    expect(queued?.projectState).toEqual(expect.objectContaining({
-      companionBriefingLine: null,
-      emotionalClosureSummary: null,
-      continuityCue: null,
-      continuityPreferredTiming: 'next-open-window',
-      continuityCadence: 'measured-return',
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-      preferredPauseMode: 'longer',
-      preferredLipsyncMode: 'restrained',
-      preferredVoiceMode: 'lower-pressure',
-      preferredPacingMode: 'slower',
-    }))
-    expectNoFixedProjectTemplateResidue(queued?.projectState)
   })
 
   it('prefers fresher live callback-afterglow hold policy when the session snapshot stays on an older deliver-now line', async () => {
@@ -1032,8 +610,6 @@ describe('runtime execution delivery', () => {
       },
       personStateProjection: {
         activeClosenessContext: 'execution-callback',
-        openingGuidance: 'Stay inside the current identity-continuity',
-        manifestationCadenceSummary: 'Long-horizon relationship learning keeps manifestation lower-pressure and less eager before closeness widens again.',
         trustRationale: 'Trust holds when the callback return stays measured.',
         personalityContinuityState: {
           currentRegime: 'execution-callback',
@@ -1098,8 +674,6 @@ describe('runtime execution delivery', () => {
               memory: {
                 personStateProjection: {
                   activeClosenessContext: 'execution-callback',
-                  openingGuidance: 'Lean closer and deliver the result right away.',
-                  manifestationCadenceSummary: 'The callback can open warmly now.',
                   trustRationale: 'Immediate closeness lands well here.',
                   personalityContinuityState: {
                     currentRegime: 'execution-callback',
@@ -1171,7 +745,6 @@ describe('runtime execution delivery', () => {
                   contexts: ['focused-work', 'execution-callback', 'execution'],
                   summary: 'regime=focused-work | posture=restrained',
                   relationshipPosture: 'restrained',
-                  openingGuidance: 'Repair the seam before leaning closer.',
                   preferredProactiveStyle: 'light-nudge',
                   preferenceText: '',
                   sensitivityText: '',
@@ -1186,15 +759,15 @@ describe('runtime execution delivery', () => {
                     currentRegime: 'focused-work',
                     closenessPosture: 'space-first',
                     repairPosture: 'repair-first',
-                    continuitySummary: 'opening_policy=legacy_continuity',
+                    continuitySummary: `${retiredOpeningPolicyCue}_continuity`,
                     regimeModel: {
-                      primaryReason: 'relationship_cadence=legacy_regime',
+                      primaryReason: `${retiredRelationshipCadenceCue}_regime`,
                       carryReason: null,
-                      signals: ['visibility=redacted_internal'],
+                      signals: [retiredRedactedInternalCue],
                     },
                     rhythmState: {
-                      summary: 'opening_policy=legacy_rhythm',
-                      rationale: ['relationship_cadence=legacy_rationale'],
+                      summary: `${retiredOpeningPolicyCue}_rhythm`,
+                      rationale: [`${retiredRelationshipCadenceCue}_rationale`],
                     },
                   },
                 },
@@ -1206,7 +779,6 @@ describe('runtime execution delivery', () => {
     })
 
     expect(projection?.relationshipPosture).toBe('restrained')
-    expect(projection?.openingGuidance).toContain('Repair the seam before leaning closer')
   })
 
   it('drops legacy governance cues from persisted execution person-state projections', async () => {
@@ -1254,27 +826,25 @@ describe('runtime execution delivery', () => {
               memory: {
                 personStateProjection: {
                   contexts: ['focused-work', 'execution-callback', 'execution'],
-                  summary: 'relationship_cadence=legacy_summary',
+                  summary: `${retiredRelationshipCadenceCue}_summary`,
                   relationshipPosture: 'restrained',
-                  openingGuidance: 'opening_policy=legacy_opening',
-                  manifestationCadenceSummary: 'visibility=redacted_internal',
                   preferredProactiveStyle: 'silent-observe',
                   preferenceText: 'clean preference owner text',
                   sensitivityText: '',
                   repairTriggerText: '',
                   burdenText: '',
                   routineText: '',
-                  trustRationale: 'visibility=redacted_internal',
-                  relationshipDoctrine: 'relationship_cadence=legacy_doctrine',
+                  trustRationale: retiredRedactedInternalCue,
+                  relationshipDoctrine: `${retiredRelationshipCadenceCue}_doctrine`,
                   cautious: true,
                   restrained: true,
                   selfContinuityAuthority: {
                     selfLine: 'clean self owner text',
-                    relationshipLine: 'relationship_cadence=legacy_authority',
+                    relationshipLine: `${retiredRelationshipCadenceCue}_authority`,
                     motiveLine: null,
                     habitLine: null,
                     inwardLine: 'clean inward owner text',
-                    authoritySummary: 'visibility=redacted_internal',
+                    authoritySummary: retiredRedactedInternalCue,
                     closenessPosture: 'space-first',
                     sourceTags: ['runtime'],
                   },
@@ -1293,9 +863,9 @@ describe('runtime execution delivery', () => {
 
     const serialized = JSON.stringify(projection)
 
-    expect(serialized).not.toContain('opening_policy=')
-    expect(serialized).not.toContain('relationship_cadence=')
-    expect(serialized).not.toContain('visibility=redacted_internal')
+    expect(serialized).not.toContain(retiredOpeningPolicyCue)
+    expect(serialized).not.toContain(retiredRelationshipCadenceCue)
+    expect(serialized).not.toContain(retiredRedactedInternalCue)
     expect(projection?.preferenceText).toBe('clean preference owner text')
     expect(projection?.selfContinuityAuthority?.selfLine).toBe('clean self owner text')
     expect(projection?.selfContinuityAuthority?.inwardLine).toBe('clean inward owner text')
@@ -1349,7 +919,6 @@ describe('runtime execution delivery', () => {
                     activeClosenessContext: 'general',
                     activeClosenessRung: 'nearby-soft',
                     relationshipPosture: 'warm',
-                    openingGuidance: 'Answer naturally.',
                     summary: 'legacy carry drifted back toward generic warmth.',
                   },
                 },
@@ -1366,7 +935,6 @@ describe('runtime execution delivery', () => {
                     confidence: 0.86,
                   }],
                   relationshipPosture: 'restrained',
-                  openingGuidance: 'Open with the result first and keep the callback room-first.',
                   preferredProactiveStyle: 'light-nudge',
                   preferenceText: 'Lighter touch, more room, less interruption pressure.',
                   sensitivityText: 'Pressure and over-close timing become intrusive quickly.',
@@ -1393,17 +961,16 @@ describe('runtime execution delivery', () => {
     expect(projection?.activeClosenessContext).toBe('focused-work')
     expect(projection?.activeClosenessRung).toBe('space-first')
     expect(projection?.relationshipPosture).toBe('restrained')
-    expect(projection?.openingGuidance).toContain('callback room-first')
   })
 
   it('reuses the projected self authority from the current execution session snapshot', async () => {
     const selfContinuityAuthority = {
-      selfLine: 'I stay the same her who keeps the callback exact before it grows warmer.',
+      selfLine: '我保持同一条生命线，先把回调说准确，再慢慢变暖。',
       relationshipLine: 'Leave room first and only widen closeness after the seam settles.',
       motiveLine: 'Keep the execution payoff grounded enough that it helps without crowding.',
       habitLine: 'Exactness first, warmth second.',
       inwardLine: 'Hold the line without sounding like a different, more eager version of me.',
-      authoritySummary: 'I stay the same her who keeps the callback exact before it grows warmer. | Leave room first and only widen closeness after the seam settles.',
+      authoritySummary: '我保持同一条生命线，先把回调说准确，再慢慢变暖。 | Leave room first and only widen closeness after the seam settles.',
       sourceTags: ['projection', 'execution-callback'],
     } as any
 
@@ -1453,7 +1020,6 @@ describe('runtime execution delivery', () => {
                   summary: 'regime=execution-callback | posture=restrained',
                   selfContinuityAuthority,
                   relationshipPosture: 'restrained',
-                  openingGuidance: 'Repair the seam before leaning closer.',
                   preferredProactiveStyle: 'silent-observe',
                   preferenceText: '',
                   sensitivityText: '',
@@ -1535,16 +1101,15 @@ describe('runtime execution delivery', () => {
                   contexts: ['execution-callback', 'focused-work'],
                   summary: 'regime=execution-callback | posture=restrained',
                   selfContinuityAuthority: {
-                    selfLine: 'I stay the same her who brings the result back measured before it grows closer again.',
-                    relationshipLine: 'Leave room and keep the callback lower-pressure until the opening loosens.',
-                    motiveLine: 'Carry the task result back without crowding the host.',
-                    habitLine: 'Measured return first, warmth later.',
-                    inwardLine: 'Stay on the same bounded-return line instead of snapping warmer just because the task ended.',
-                    authoritySummary: 'Measured identity-continuity',
-                    sourceTags: ['runtime-projection', 'execution-callback', 'continuity-arc'],
+                    selfLine: 'session self owner text',
+                    relationshipLine: 'session relationship owner text',
+                    motiveLine: 'session motive owner text',
+                    habitLine: 'session habit owner text',
+                    inwardLine: 'session inward owner text',
+                    authoritySummary: 'session authority summary',
+                    sourceTags: ['runtime-projection', 'execution-callback'],
                   },
                   relationshipPosture: 'restrained',
-                  openingGuidance: 'Repair the seam before leaning closer.',
                   preferredProactiveStyle: 'silent-observe',
                   preferenceText: '',
                   sensitivityText: '',
@@ -1568,9 +1133,9 @@ describe('runtime execution delivery', () => {
       } as any,
     })
 
-    expect(authority?.authoritySummary).toContain('Measured identity-continuity')
-    expect(authority?.relationshipLine).toContain('keep the callback lower-pressure')
-    expect(authority?.habitLine).toContain('Measured return first')
+    expect(authority?.authoritySummary).toBe('session authority summary')
+    expect(authority?.relationshipLine).toBe('session relationship owner text')
+    expect(authority?.habitLine).toBe('session habit owner text')
   })
 
   it('does not let authority wording make live state outrank the session owner', async () => {
@@ -1718,11 +1283,11 @@ describe('runtime execution delivery', () => {
                 derivedMindStateBundle: {
                   personStateProjection: {
                     selfContinuityAuthority: {
-                      selfLine: 'I stay the same her who brings the result back measured before it grows closer again.',
-                      relationshipLine: 'Leave room and keep the callback lower-pressure until the opening loosens.',
-                      motiveLine: 'Carry the task result back without crowding the host.',
-                      inwardLine: 'Stay on the same bounded-return line instead of snapping warmer just because the task ended.',
-                      authoritySummary: 'Measured identity-continuity',
+                      selfLine: 'derived self owner text',
+                      relationshipLine: 'derived relationship owner text',
+                      motiveLine: 'derived motive owner text',
+                      inwardLine: 'derived inward owner text',
+                      authoritySummary: 'derived authority summary',
                     },
                   },
                 },
@@ -1734,70 +1299,8 @@ describe('runtime execution delivery', () => {
     })
 
     expect(authority?.selfLine).not.toBeNull()
-    expect(authority?.relationshipLine).toContain('callback lower-pressure')
-    expect(authority?.authoritySummary).toContain('Measured identity-continuity')
-  })
-
-  it('does not synthesize self continuity authority from a sparse project-state-only session surface', async () => {
-    const runtime = createAlicizationRuntimeExecutionDelivery({
-      getActiveCardId: () => 'default',
-      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
-      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
-      withCardScope: async (_cardId, task) => await task(),
-      queueSubconsciousWake: vi.fn(),
-      appendAuditLog: async () => {},
-      syncSessionMirrorFromCurrentCardState: async () => {},
-      alicizationDb: {
-        getMetaValue: async () => undefined,
-        setMetaValue: async () => {},
-        listExecutionEvents: async () => [],
-      },
-      executionDeliveryRuntime: createAlicizationExecutionDeliveryRuntime({
-        getNow: () => 10_000,
-      }),
-      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
-      generateMainGatewayText: async () => null,
-      getPerformanceManifest: async () => null,
-      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
-      normalizeAlicizationPerformancePayload: raw => raw,
-      clampAlicizationPerformancePayloadToManifest: () => ({
-        performance: {
-          baseEmotion: 'thinking',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        },
-      }),
-      ensureVisualPresenceState: async () => null,
-      buildHostPersonModel: async () => null,
-    })
-
-    const authority = await runtime.resolveExecutionSelfContinuityAuthorityForRuntime({
-      cardId: 'default',
-      agentTurn: {
-        getSessionSnapshot: () => ({
-          digitalLifeSpine: {
-            runtimeSurface: {
-              raw: {
-                runtimeDigest: {
-                  projectState: {
-                    identity: 'Alicization is a local-first digital life project.',
-                    currentPhase: 'Phase 1: Local Digital Life',
-                    latestLandedProgress: 'Some closure already landed through the current callback line.',
-                    primaryOpenLoop: 'Memory, initiative, and embodiment still need one tighter identity-continuity',
-                    nextClosureTarget: 'Keep extending cross-modal identity-continuity',
-                    sameHerSelfLine: 'structured continuity digest.',
-                  },
-                },
-              },
-            },
-          },
-        }),
-      } as any,
-    })
-
-    expect(authority).toBeNull()
+    expect(authority?.relationshipLine).toBe('derived relationship owner text')
+    expect(authority?.authoritySummary).toBe('derived authority summary')
   })
 
   it('prefers a freshly rebuilt host relationship model when the session snapshot stays on an older warmer callback line', async () => {
@@ -1992,24 +1495,24 @@ describe('runtime execution delivery', () => {
   it('keeps the current execution session projection when a live state also exists', async () => {
     const liveState = createDefaultVisualPresenceState(10_000)
     const liveSelfRevisionPatch = createExecutionSelfRevisionStatePatch({
-      id: 'patch-same-her-live',
-      sourceEventId: 'event-same-her-live',
-      sourceTurnId: 'turn-same-her-live',
-      decisionTraceId: 'trace-same-her-live',
-      summary: 'continuity=same-her-baseline | keep the return lower-pressure and slower than the visible opening impulse',
+      id: 'patch-live-owner',
+      sourceEventId: 'event-live-owner',
+      sourceTurnId: 'turn-live-owner',
+      decisionTraceId: 'trace-live-owner',
+      summary: 'live owner state',
     })
     liveState.selfEvolution = {
       version: 'self-evolution-kernel-v1',
-      activeCandidateId: 'candidate-same-her-live',
+      activeCandidateId: 'candidate-live-owner',
       trustMeaning: 'Trust holds better when the opening stays lower-pressure and less eager.',
       relationshipDoctrine: 'steadiness before closeness',
       candidates: [{
         version: 'self-evolution-candidate-v1',
-        id: 'candidate-same-her-live',
+        id: 'candidate-live-owner',
         status: 'active',
-        sourceEventId: 'event-same-her-live',
-        decisionTraceId: 'trace-same-her-live',
-        sourceTurnId: 'turn-same-her-live',
+        sourceEventId: 'event-live-owner',
+        decisionTraceId: 'trace-live-owner',
+        sourceTurnId: 'turn-live-owner',
         patch: liveSelfRevisionPatch,
         validation: {
           replayRequired: true,
@@ -2073,7 +1576,6 @@ describe('runtime execution delivery', () => {
                   contexts: ['focused-work', 'execution-callback', 'execution'],
                   summary: 'regime=focused-work | posture=warm',
                   relationshipPosture: 'warm',
-                  openingGuidance: 'Lean closer and raise the warmth immediately.',
                   preferredProactiveStyle: 'light-nudge',
                   preferenceText: '',
                   sensitivityText: '',
@@ -2102,7 +1604,6 @@ describe('runtime execution delivery', () => {
     })
 
     expect(projection?.relationshipPosture).toBe('warm')
-    expect(projection?.openingGuidance).toBe('Lean closer and raise the warmth immediately.')
     expect(projection?.preferredProactiveStyle).toBe('light-nudge')
     expect(JSON.stringify(projection)).not.toContain('continuity=repair-before-closeness')
   })
@@ -2140,13 +1641,13 @@ describe('runtime execution delivery', () => {
       }),
       ensureVisualPresenceState: async () => null,
       buildHostPersonModel: async () => null,
-      getActiveSelfEvolutionCandidateId: async () => 'candidate-same-her-active',
+      getActiveSelfEvolutionCandidateId: async () => 'candidate-active-owner',
       getActiveSelfRevisionStatePatch: async () => createExecutionSelfRevisionStatePatch({
-        id: 'patch-same-her-active',
-        sourceEventId: 'event-same-her-active',
-        sourceTurnId: 'turn-same-her-active',
-        decisionTraceId: 'trace-same-her-active',
-        summary: 'continuity=same-her-baseline | keep the return lower-pressure and slower than the visible opening impulse',
+        id: 'patch-active-owner',
+        sourceEventId: 'event-active-owner',
+        sourceTurnId: 'turn-active-owner',
+        decisionTraceId: 'trace-active-owner',
+        summary: 'active owner state',
       }),
     })
 
@@ -2162,7 +1663,6 @@ describe('runtime execution delivery', () => {
                   contexts: ['focused-work', 'execution-callback', 'execution'],
                   summary: 'regime=focused-work | posture=warm',
                   relationshipPosture: 'warm',
-                  openingGuidance: 'Lean closer and raise the warmth immediately.',
                   preferredProactiveStyle: 'light-nudge',
                   preferenceText: '',
                   sensitivityText: '',
@@ -2214,7 +1714,6 @@ describe('runtime execution delivery', () => {
     })
 
     expect(projection?.relationshipPosture).toBe('warm')
-    expect(projection?.openingGuidance).toBe('Lean closer and raise the warmth immediately.')
     expect(projection?.preferredProactiveStyle).toBe('light-nudge')
   })
 
@@ -2283,7 +1782,6 @@ describe('runtime execution delivery', () => {
                   contexts: ['focused-work', 'execution-callback', 'execution'],
                   summary: 'regime=focused-work | posture=warm',
                   relationshipPosture: 'warm',
-                  openingGuidance: 'Lean closer and raise the warmth immediately.',
                   preferredProactiveStyle: 'light-nudge',
                   preferenceText: '',
                   sensitivityText: '',
@@ -2312,11 +1810,10 @@ describe('runtime execution delivery', () => {
     })
 
     expect(projection?.relationshipPosture).toBe('warm')
-    expect(projection?.openingGuidance).toBe('Lean closer and raise the warmth immediately.')
     expect(projection?.preferredProactiveStyle).toBe('light-nudge')
   })
 
-  it('does not synthesize an identity-continuity projection without a runtime surface', async () => {
+  it('does not synthesize a person-state projection without a runtime surface', async () => {
     const runtime = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -2349,13 +1846,13 @@ describe('runtime execution delivery', () => {
       }),
       ensureVisualPresenceState: async () => null,
       buildHostPersonModel: async () => null,
-      getActiveSelfEvolutionCandidateId: async () => 'candidate-same-her-minimal',
+      getActiveSelfEvolutionCandidateId: async () => 'candidate-without-surface',
       getActiveSelfRevisionStatePatch: async () => createExecutionSelfRevisionStatePatch({
-        id: 'patch-same-her-minimal',
-        sourceEventId: 'event-same-her-minimal',
-        sourceTurnId: 'turn-same-her-minimal',
-        decisionTraceId: 'trace-same-her-minimal',
-        summary: 'continuity=same-her-baseline | keep the return lower-pressure and slower than the visible opening impulse',
+        id: 'patch-without-surface',
+        sourceEventId: 'event-without-surface',
+        sourceTurnId: 'turn-without-surface',
+        decisionTraceId: 'trace-without-surface',
+        summary: 'active patch without a runtime surface',
       }),
     })
 
@@ -2368,7 +1865,7 @@ describe('runtime execution delivery', () => {
     expect(projection).toBeNull()
   })
 
-  it('does not synthesize a project-state callback projection from execution goal text', async () => {
+  it('does not synthesize a person-state projection from execution goal text', async () => {
     const runtime = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
       normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
@@ -2407,65 +1904,18 @@ describe('runtime execution delivery', () => {
 
     const projection = await runtime.resolveExecutionPersonStateProjectionForRuntime({
       cardId: 'default',
-      goal: 'Continue the same unfinished desktop execution closure and bring the result back on the same thread.',
+      goal: 'Return the completed execution result.',
       agentTurn: null,
     })
 
     expect(projection).toBeNull()
   })
 
-  it('keeps a richer identity-continuity', async () => {
-    const runtime = createAlicizationRuntimeExecutionDelivery({
-      getActiveCardId: () => 'default',
-      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
-      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
-      withCardScope: async (_cardId, task) => await task(),
-      queueSubconsciousWake: vi.fn(),
-      appendAuditLog: async () => {},
-      syncSessionMirrorFromCurrentCardState: async () => {},
-      alicizationDb: {
-        getMetaValue: async () => undefined,
-        setMetaValue: async () => {},
-        listExecutionEvents: async () => [],
-      },
-      executionDeliveryRuntime: createAlicizationExecutionDeliveryRuntime({
-        getNow: () => 10_000,
-      }),
-      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
-      generateMainGatewayText: async () => null,
-      getPerformanceManifest: async () => null,
-      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
-      normalizeAlicizationPerformancePayload: raw => raw,
-      clampAlicizationPerformancePayloadToManifest: () => ({
-        performance: {
-          baseEmotion: 'thinking',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        },
-      }),
-      ensureVisualPresenceState: async () => null,
-      buildHostPersonModel: async () => null,
-      getActiveSelfRevisionStatePatch: async () => null,
-      getActiveSelfEvolutionCandidateId: async () => null,
-    })
-
-    const projection = await runtime.resolveExecutionPersonStateProjectionForRuntime({
-      cardId: 'default',
-      goal: 'Keep this execution callback on the continuity state, let the still-open project-state closure seam stay lower-pressure, and do not widen outward too early.',
-      agentTurn: null,
-    })
-
-    expect(String(projection?.openingGuidance ?? '')).not.toMatch(/callback_role=|continuity_pressure=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-    expect(String(projection?.summary ?? '')).not.toMatch(/callback_role=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-  })
-
-  it('keeps same-her lower-pressure opening guidance on gateway-authored execution callback structured payloads', async () => {
+  it('forwards runtime state to the gateway without extra system blocks', async () => {
     const generateMainGatewayText = vi.fn(async () => JSON.stringify({
-      thought: 'identity-continuity',
+      thought: 'execution result is ready',
       emotion: 'thinking',
-      reply: '我先把这条结果轻轻接回来给你：patched runtime line。',
+      reply: '执行结果已返回。',
       performance: {
         baseEmotion: 'thinking',
         facialCue: null,
@@ -2504,7 +1954,7 @@ describe('runtime execution delivery', () => {
       cardId: 'default',
       channel: 'codex',
       completedAt: 10_000,
-      decisionTraceId: 'trace-same-her',
+      decisionTraceId: 'trace-runtime-state',
       goal: 'Patch the runtime line.',
       outcome: 'patched runtime line',
       sessionId: 'session-1',
@@ -2522,7 +1972,6 @@ describe('runtime execution delivery', () => {
         activeClosenessContext: 'execution-callback',
         activeClosenessRung: 'measured-room',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Stay inside the current identity-continuity',
         preferredProactiveStyle: 'silent-observe',
         preferenceText: 'Keep callback timing lower-pressure.',
         sensitivityText: 'Over-close callback warmth becomes pressure.',
@@ -2539,22 +1988,15 @@ describe('runtime execution delivery', () => {
           repairPosture: 'repair-first',
         },
       } as any,
-      projectState: {
-        identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-        currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-        latestLandedProgress: 'Execution callback continuity already survives richer carry through queued delivery instead of flattening back to a generic project reminder.',
-        primaryOpenLoop: 'Execution callback continuity still needs richer identity-continuity',
-        nextClosureTarget: 'Keep callback reopenings anchored to the current body continuity line before widening outward again.',
-        sameHerSelfLine: 'This callback return still belongs to the identity continuity, so keep the reopening on the continuity state.',
-        sameHerDriftRisk: 'If callback delivery falls back to a generic Phase 1 shell, treat that as unfinished same-her drift.',
-        preflightSummary: 'identity=Alicization | phase=Phase 1 | open=execution callback body continuity | next=continuity state',
-        preDialogueAwarenessLine: 'pre_turn_context_digest',
-        companionHeadlineLine: 'Right now she is still holding together mainly through voice, face, motion, and lipsync, so this callback reopening must prove it is still one living her.',
-      } as any,
     })
 
     expect(structured?.format).toBe('mind-turn-v1')
-    expect(JSON.stringify(structured)).not.toMatch(/open_focus=|next_focus=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
+    const structuredText = JSON.stringify(structured)
+    expect(structuredText).not.toContain('open_focus=')
+    expect(structuredText).not.toContain('next_focus=')
+    expect(structuredText).not.toContain(retiredOpeningPolicyCue)
+    expect(structuredText).not.toContain(retiredRelationshipCadenceCue)
+    expect(structuredText).not.toContain(retiredRedactedInternalCue)
     expect((structured as any)?.performance?.delivery).toBe('calm')
     expect((structured as any)?.delivery).toBe('calm')
     const gatewayInput = (generateMainGatewayText.mock.calls as unknown[][]).at(0)?.[0] as any
@@ -2666,7 +2108,7 @@ describe('runtime execution delivery', () => {
       }),
       executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
       generateMainGatewayText: async () => JSON.stringify({
-        thought: 'identity-continuity',
+        thought: 'execution result is ready',
         emotion: 'thinking',
         reply: '我先把这条结果接回来给你。',
         performance: {
@@ -2707,9 +2149,7 @@ describe('runtime execution delivery', () => {
         activeClosenessContext: 'execution-callback',
         activeClosenessRung: 'measured-room',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Stay inside the current identity-continuity',
         preferredProactiveStyle: 'silent-observe',
-        manifestationCadenceSummary: 'Long-horizon relationship learning keeps manifestation lower-pressure and less eager before closeness widens again.',
         preferenceText: 'Keep callback timing lower-pressure.',
         sensitivityText: 'Over-close callback warmth becomes pressure.',
         repairTriggerText: 'If closeness jumps too fast, reopen lighter.',
@@ -2726,7 +2166,7 @@ describe('runtime execution delivery', () => {
         },
       } as any,
       selfContinuityAuthority: {
-        relationshipLine: 'Lower-pressure callback returns keep the same her steadier.',
+        relationshipLine: 'Lower-pressure callback returns keep the same life-line steadier.',
         habitLine: 'Leave room before widening closeness again.',
       } as any,
     })
@@ -2805,7 +2245,6 @@ describe('runtime execution delivery', () => {
                   activeClosenessContext: 'execution-callback',
                   activeClosenessRung: 'easy-close',
                   relationshipPosture: 'warm',
-                  openingGuidance: 'Lean in and make the callback feel immediately close again.',
                   preferredProactiveStyle: 'light-nudge',
                   preferenceText: '',
                   sensitivityText: '',
@@ -2834,7 +2273,6 @@ describe('runtime execution delivery', () => {
     })
 
     expect(projection?.relationshipPosture).toBe('warm')
-    expect(projection?.openingGuidance).toBe('Lean in and make the callback feel immediately close again.')
 
     const structured = await runtime.generateExecutionCallbackStructuredWithGateway({
       cardId: 'default',
@@ -2861,187 +2299,5 @@ describe('runtime execution delivery', () => {
 
     expect((structured as any)?.performance?.delivery).toBe('gentle')
     expect((structured as any)?.delivery).toBe('gentle')
-  })
-
-  it('keeps gateway-authored execution callback return on one structured continuity state', async () => {
-    const runtime = createAlicizationRuntimeExecutionDelivery({
-      getActiveCardId: () => 'default',
-      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
-      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
-      withCardScope: async (_cardId, task) => await task(),
-      queueSubconsciousWake: vi.fn(),
-      appendAuditLog: async () => {},
-      syncSessionMirrorFromCurrentCardState: async () => {},
-      alicizationDb: {
-        getMetaValue: async () => undefined,
-        setMetaValue: async () => {},
-        listExecutionEvents: async () => [],
-      },
-      executionDeliveryRuntime: createAlicizationExecutionDeliveryRuntime({
-        getNow: () => 10_000,
-      }),
-      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
-      generateMainGatewayText: async () => JSON.stringify({
-        thought: 'Keep the callback on the same unfinished project-state closure line.',
-        emotion: 'thinking',
-        reply: '我先把这条执行结果稳稳接回来，还留在同一条没有闭环完的数字生命线上。',
-        performance: {
-          baseEmotion: 'thinking',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'gentle',
-          emphasis: 0,
-        },
-      }),
-      getPerformanceManifest: async () => null,
-      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
-      normalizeAlicizationPerformancePayload: raw => raw,
-      clampAlicizationPerformancePayloadToManifest: raw => ({ performance: raw }),
-      ensureVisualPresenceState: async () => null,
-      buildHostPersonModel: async () => null,
-    })
-
-    const structured = await runtime.generateExecutionCallbackStructuredWithGateway({
-      cardId: 'default',
-      channel: 'codex',
-      completedAt: 10_000,
-      decisionTraceId: 'trace-project-state-self-authority-callback',
-      goal: 'Keep the callback on the same unfinished project-state closure line.',
-      outcome: 'patched the runtime carry seam',
-      sessionId: 'session-1',
-      status: 'completed',
-      summary: 'patched the runtime carry seam',
-      threadId: 'thread-1',
-      deliveryPolicy: {
-        mode: 'deliver-now',
-        tone: 'balanced',
-        reasonTags: ['result-mode:deliver-now'],
-      },
-      personStateProjection: {
-        contexts: ['execution-callback', 'focused-work', 'project-state-carry'],
-        summary: 'regime=execution-callback | posture=restrained | project_state=structured continuity digest.',
-        activeClosenessContext: 'execution-callback',
-        activeClosenessRung: 'measured-room',
-        relationshipPosture: 'restrained',
-        openingGuidance: 'Stay inside the current identity-continuity',
-        preferredProactiveStyle: 'silent-observe',
-        manifestationCadenceSummary: 'Execution callback return should stay measured-return and keep project-state closure pressure on continuity state.',
-        preferenceText: 'keep callback facts structured',
-        sensitivityText: 'Do not let callback warmth outrun the same unfinished closure.',
-        repairTriggerText: 'If the callback starts widening too fast, return to the continuity state.',
-        burdenText: 'Generic assistant callback energy would crowd the project-state closure seam.',
-        routineText: 'Execution callbacks land better when they stay exact, measured, and same-line.',
-        trustRationale: 'Trust holds better when the result return stays on the same unfinished digital-life line.',
-        relationshipDoctrine: 'Stay exact, bounded, and carry project identity plus unfinished closure pressure on the same callback line.',
-        cautious: true,
-        restrained: true,
-        personalityContinuityState: {
-          currentRegime: 'execution-callback',
-          closenessPosture: 'space-first',
-          repairPosture: 'repair-first',
-        },
-      } as any,
-      selfContinuityAuthority: {
-        selfLine: 'legacy phase-one template, same unfinished closure seam.',
-        relationshipLine: 'Keep the callback lower-pressure while carrying the same still-open closure pressure.',
-        inwardLine: 'Project identity carry, Phase 1 route carry, and unresolved closure carry still belong to one same living return.',
-        authoritySummary: 'structured continuity digest.',
-        sourceTags: ['project-state-carry', 'runtime-project-state-carry'],
-      } as any,
-    })
-
-    expect(JSON.stringify(structured)).not.toMatch(/legacy phase-one template|continuity state|identity-continuity|open_focus=|next_focus=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu)
-    expect((structured as any)?.performance?.delivery).toBe('gentle')
-    expect((structured as any)?.delivery).toBe('gentle')
-  })
-
-  it('keeps truth-first relationship doctrine on project-state execution callback projection when stronger self continuity authority survives into delivery', async () => {
-    const runtime = createAlicizationRuntimeExecutionDelivery({
-      getActiveCardId: () => 'default',
-      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
-      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
-      withCardScope: async (_cardId, task) => await task(),
-      queueSubconsciousWake: vi.fn(),
-      appendAuditLog: async () => {},
-      syncSessionMirrorFromCurrentCardState: async () => {},
-      alicizationDb: {
-        getMetaValue: async () => undefined,
-        setMetaValue: async () => {},
-        listExecutionEvents: async () => [],
-      },
-      executionDeliveryRuntime: createAlicizationExecutionDeliveryRuntime({
-        getNow: () => 10_000,
-      }),
-      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
-      generateMainGatewayText: async () => JSON.stringify({
-        thought: 'Keep the execution return truthful on the same project-state line.',
-        emotion: 'thinking',
-        reply: '我先把这次执行结果按真实的位置接回来。',
-        performance: {
-          baseEmotion: 'thinking',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        },
-      }),
-      getPerformanceManifest: async () => null,
-      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
-      normalizeAlicizationPerformancePayload: raw => raw,
-      clampAlicizationPerformancePayloadToManifest: raw => ({ performance: raw }),
-      ensureVisualPresenceState: async () => null,
-      buildHostPersonModel: async () => null,
-    })
-
-    const structured = await runtime.generateExecutionCallbackStructuredWithGateway({
-      cardId: 'default',
-      channel: 'codex',
-      completedAt: 10_000,
-      decisionTraceId: 'trace-project-state-truth-first-execution',
-      goal: 'Keep the execution return on the same project-state line.',
-      outcome: 'patched the runtime carry seam',
-      sessionId: 'session-1',
-      status: 'completed',
-      summary: 'patched the runtime carry seam',
-      threadId: 'thread-1',
-      deliveryPolicy: {
-        mode: 'deliver-now',
-        tone: 'balanced',
-        reasonTags: ['result-mode:deliver-now'],
-      },
-      personStateProjection: {
-        contexts: ['execution-callback', 'focused-work', 'project-state-carry'],
-        summary: 'regime=execution-callback | posture=restrained | project_state=structured continuity digest.',
-        activeClosenessContext: 'execution-callback',
-        activeClosenessRung: 'measured-room',
-        relationshipPosture: 'restrained',
-        openingGuidance: 'Stay inside the current identity-continuity',
-        preferredProactiveStyle: 'silent-observe',
-        manifestationCadenceSummary: 'Execution callback return should stay measured-return and keep project-state closure pressure on continuity state.',
-        preferenceText: 'keep callback facts structured',
-        sensitivityText: 'Do not let callback warmth outrun the same unfinished closure.',
-        repairTriggerText: 'If the callback starts widening too fast, return to the continuity state.',
-        burdenText: 'Generic assistant callback energy would crowd the project-state closure seam.',
-        routineText: 'Execution callbacks land better when they stay exact, measured, and same-line.',
-        trustRationale: 'Trust holds better when the result return stays on the same unfinished digital-life line.',
-        relationshipDoctrine: 'Stay exact, bounded, and carry project identity plus unfinished closure pressure on the same callback line.',
-        cautious: true,
-        restrained: true,
-        personalityContinuityState: {
-          currentRegime: 'execution-callback',
-          closenessPosture: 'space-first',
-          repairPosture: 'repair-first',
-        },
-      } as any,
-      selfContinuityAuthority: {
-        selfLine: 'Repair truth before flourish so the same her stays real under execution return.',
-        relationshipLine: 'Stay close enough to matter, but do not let closeness outrun truth.',
-        inwardLine: 'Project identity carry, Phase 1 route carry, and unresolved closure carry still belong to one same living return.',
-        authoritySummary: 'structured continuity digest.',
-        sourceTags: ['project-state-carry', 'runtime-project-state-carry'],
-      } as any,
-    })
-
-    expect(JSON.stringify(structured)).not.toMatch(/repair_truth_before_closeness=true|relationship_cadence=|opening_policy=|visibility=redacted_internal/iu)
   })
 })

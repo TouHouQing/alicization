@@ -40,7 +40,6 @@ function buildDialogueRhythm(input: {
     stabilitySignal: sanitizeText(
       selfEvolution?.latestInflection
       ?? affectiveResidue?.relationshipCadence?.summary
-      ?? projection?.openingGuidance
       ?? projection?.trustRationale
       ?? '',
       180,
@@ -52,8 +51,6 @@ function summarizeBundle(input: {
   source: AlicizationDerivedMindStateBundle['source']
   hostPersonModel?: AlicizationHostPersonModelSnapshot | null
   activeSelfRevision?: AlicizationDerivedMindStateBundle['activeSelfRevision']
-  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance']
-  sameHerCausalityRepairPressure?: AlicizationDerivedMindStateBundle['sameHerCausalityRepairPressure']
   emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
   embodimentContinuityLedger?: AlicizationEmbodimentContinuityLedgerSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
@@ -67,19 +64,8 @@ function summarizeBundle(input: {
   return [
     `source=${input.source}`,
     input.activeSelfRevision?.patchId ? `self_revision=${sanitizeText(input.activeSelfRevision.patchId, 120)}` : '',
-    input.activeContinuityGovernance?.mode ? `continuity=${input.activeContinuityGovernance.mode}` : '',
-    input.activeContinuityGovernance?.candidateId ? `anchor=${sanitizeText(input.activeContinuityGovernance.candidateId, 120)}` : '',
-    input.sameHerCausalityRepairPressure?.lanes?.length
-      ? `continuity_causality_repair=${input.sameHerCausalityRepairPressure.lanes.map(item => item.lane).join(',')}`
-      : '',
     input.emotionalTransitionLedger?.transitionKind ? `emotion_transition=${input.emotionalTransitionLedger.transitionKind}` : '',
-    input.emotionalTransitionLedger?.selfRevisionCandidate.shouldPropose
-      ? `self_revision_candidate=${input.emotionalTransitionLedger.selfRevisionCandidate.domain}`
-      : '',
     input.embodimentContinuityLedger?.continuityPhase ? `embodiment_phase=${input.embodimentContinuityLedger.continuityPhase}` : '',
-    input.embodimentContinuityLedger?.selfRevisionCandidate.shouldPropose
-      ? `embodiment_self_revision_candidate=${input.embodimentContinuityLedger.selfRevisionCandidate.domain}`
-      : '',
     input.selfEvolution?.dominantTrajectory ? `trajectory=${sanitizeText(input.selfEvolution.dominantTrajectory, 120)}` : '',
     input.affectiveResidue?.dominantResidueKind ? `residue=${input.affectiveResidue.dominantResidueKind}` : '',
     input.learningExecutionState?.nextLearningAction ? `learning=${sanitizeText(input.learningExecutionState.nextLearningAction, 64)}` : '',
@@ -106,8 +92,6 @@ export function buildDerivedMindStateBundle(input: {
   } | null
   claimEvidenceGraphs?: AlicizationClaimEvidenceGraph[] | null
   activeSelfRevision?: AlicizationDerivedMindStateBundle['activeSelfRevision']
-  activeContinuityGovernance?: AlicizationDerivedMindStateBundle['activeContinuityGovernance']
-  sameHerCausalityRepairPressure?: AlicizationDerivedMindStateBundle['sameHerCausalityRepairPressure']
   emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
   embodimentContinuityLedger?: AlicizationEmbodimentContinuityLedgerSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
@@ -128,8 +112,6 @@ export function buildDerivedMindStateBundle(input: {
     knowledgeEvidence: input.knowledgeEvidence ?? null,
     claimEvidenceGraphs: input.claimEvidenceGraphs ?? null,
     activeSelfRevision: input.activeSelfRevision ?? null,
-    activeContinuityGovernance: input.activeContinuityGovernance ?? null,
-    sameHerCausalityRepairPressure: input.sameHerCausalityRepairPressure ?? null,
     emotionalTransitionLedger: input.emotionalTransitionLedger ?? null,
     embodimentContinuityLedger: input.embodimentContinuityLedger ?? null,
     selfEvolution: input.selfEvolution ?? null,
@@ -149,8 +131,6 @@ export function buildDerivedMindStateBundle(input: {
       source: input.source,
       hostPersonModel: input.hostPersonModel ?? null,
       activeSelfRevision: input.activeSelfRevision ?? null,
-      activeContinuityGovernance: input.activeContinuityGovernance ?? null,
-      sameHerCausalityRepairPressure: input.sameHerCausalityRepairPressure ?? null,
       emotionalTransitionLedger: input.emotionalTransitionLedger ?? null,
       embodimentContinuityLedger: input.embodimentContinuityLedger ?? null,
       selfEvolution: input.selfEvolution ?? null,

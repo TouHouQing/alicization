@@ -474,8 +474,6 @@ function toLocalVisualExecutorToolResult(raw: unknown) {
   const result = asRecord(raw) ?? {}
   const thread = asRecord(result.thread)
   const plan = asRecord(result.plan)
-  const fabricMetadata = asRecord(asRecord(thread?.metadata)?.fabric)
-  const routeExperience = asRecord(fabricMetadata?.experience)
 
   return compactRecord({
     status: result.ok === true
@@ -494,10 +492,8 @@ function toLocalVisualExecutorToolResult(raw: unknown) {
     planState: sanitizeText(plan?.state, 80) || null,
     proposedChannel: sanitizeText(plan?.proposedChannel, 80) || null,
     routeReasonTags: asStringArray(plan?.reasonTags),
-    routeNarrative: asStringArray(plan?.narrative),
     routeAffirmationReasonCodes: asStringArray(plan?.affirmationReasonCodes),
     routeBlockedReasonCodes: asStringArray(plan?.blockedReasonCodes),
-    routeExperience,
     summary: sanitizeText(result.summary, 320) || null,
     output: result.output ?? null,
     errorCode: sanitizeText(result.errorCode, 120) || undefined,

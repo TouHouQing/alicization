@@ -90,8 +90,8 @@ describe('alicization presence dispatcher', () => {
     expect(applyPerformance).toBeCalledWith(expect.objectContaining({
       baseEmotion: 'thinking',
       emotion: 'thinking',
-      facialCue: 'glance',
-      actionCue: 'quick_glance',
+      facialCue: 'frown',
+      actionCue: 'inspect_focus',
     }), expect.objectContaining({
       turnId: 'turn-unknown-emotion',
       structured: expect.objectContaining({
@@ -317,7 +317,6 @@ describe('alicization presence dispatcher', () => {
         'memory-delay-after-payoff',
         'memory-stable-core-only',
         'memory-visible-withhold',
-        'memory-room-first-boundary',
       ]),
     }))
   })
@@ -333,16 +332,16 @@ describe('alicization presence dispatcher', () => {
     })
 
     await store.dispatchDialogueResponded(createPayload({
-      turnId: 'turn-same-her-inward-carry-presence',
+      turnId: 'turn-continuity-inward-carry-presence',
       origin: 'subconscious-proactive',
       structured: {
-        thought: 'Keep the identity continuity line inward and nearby-soft while the host stays with the current knot.',
+        thought: '',
         emotion: 'thinking',
         reply: '',
         proactive: {
           shouldInterrupt: false,
           confidence: 0.84,
-          reasonCodes: ['same-her-inward-carry', 'relationship-reconnect'],
+          reasonCodes: ['continuity-inward-carry', 'relationship-reconnect'],
           urgency: 'low',
           style: 'silent-observe',
           cooldownMs: 120_000,
@@ -355,7 +354,7 @@ describe('alicization presence dispatcher', () => {
           surfaceMode: 'internal-only',
           placement: 'after-payoff',
           certainty: 'approximate',
-          rationale: 'Self-continuity stays inward and nearby-soft while the reopen is held back.',
+          rationale: 'recall:inward-only',
           confidence: 0.8,
         },
         memoryResolutionLedger: {
@@ -379,7 +378,7 @@ describe('alicization presence dispatcher', () => {
           visibleCarryMode: 'withhold',
           conflictPressure: 'low',
           retrievalQuality: 'medium',
-          finalRationale: 'Keep the continuity state inward and nearby-soft for now.',
+          finalRationale: 'recall:inward-only',
         },
       } as any,
     }))
@@ -392,7 +391,7 @@ describe('alicization presence dispatcher', () => {
       emotionalTension: 'soft-covision',
       reasonTags: expect.arrayContaining([
         'continuity:quiet-accompaniment',
-        'same-her-inward-carry',
+        'continuity-inward-carry',
         'memory-inward-carry',
       ]),
     }))
@@ -854,9 +853,6 @@ describe('alicization presence dispatcher', () => {
     )
     expect(vrmPayload?.structured.embodimentScript?.rendererTarget).toBe('vrm')
     expect(vrmPayload?.structured.speechTimeline?.segments.length).toBeGreaterThan(1)
-    expect(vrmPayload?.structured.speechTimeline?.segments.every((segment: { actionCue?: string | null }) => {
-      return segment.actionCue === 'inspect_follow'
-    })).toBe(true)
     expect(vrmPayload?.structured.digitalLife?.lipSync.mode).toBe('hybrid')
     expect(vrmPayload?.structured.digitalLife?.frames.every((frame: { lipSync?: { mode?: string } }) => {
       return frame.lipSync?.mode === 'hybrid'
@@ -1298,7 +1294,7 @@ describe('alicization presence dispatcher', () => {
         proactive: {
           shouldInterrupt: false,
           confidence: 0.64,
-          reasonCodes: ['continuity-execution-callback', 'continuity-next-open-window'],
+          reasonCodes: ['continuity-execution-callback', 'continuity-execution-callback-afterglow-hold'],
           urgency: 'low',
           style: 'silent-observe',
           cooldownMs: 90_000,
@@ -1315,6 +1311,59 @@ describe('alicization presence dispatcher', () => {
       emotionalTension: 'focused-flow',
       reasonTags: expect.arrayContaining([
         'execution-callback-carry',
+        'callback-lower-pressure',
+      ]),
+    }))
+  })
+
+  it('does not infer lower-pressure presence from free-form thought or reply text', async () => {
+    const store = useAlicizationPresenceDispatcherStore()
+    const applyPresencePulse = vi.fn()
+
+    store.registerLive2DController({
+      applyPerformance: vi.fn(),
+      applyPresencePulse,
+    })
+
+    await store.dispatchDialogueResponded(createPayload({
+      turnId: 'turn-execution-callback-presence-free-text',
+      origin: 'subconscious-proactive',
+      structured: {
+        format: 'subconscious-proactive-v1' as any,
+        thought: 'execution-callback lower-pressure leave room pressure',
+        emotion: 'thinking',
+        reply: '我会留空间，不贴太近。',
+        performance: {
+          baseEmotion: 'thinking',
+          emotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'gentle',
+          emphasis: 0,
+        },
+        digitalLife: {
+          preferredPresence: 'attentive',
+          preferredStyle: 'silent-observe',
+        } as any,
+        proactive: {
+          shouldInterrupt: false,
+          confidence: 0.66,
+          reasonCodes: ['continuity-execution-callback'],
+          urgency: 'low',
+          style: 'silent-observe',
+          cooldownMs: 90_000,
+          feedbackWindowMs: 90_000,
+          scenario: 'coding',
+          policyVersion: 'test-policy-v1',
+        },
+      },
+    }))
+
+    expect(applyPresencePulse).toBeCalledWith(expect.objectContaining({
+      embodiedPresence: 'attentive',
+      quietLineMs: 120_000,
+      emotionalTension: 'soft-covision',
+      reasonTags: expect.not.arrayContaining([
         'callback-lower-pressure',
       ]),
     }))
@@ -1352,7 +1401,7 @@ describe('alicization presence dispatcher', () => {
         proactive: {
           shouldInterrupt: false,
           confidence: 0.72,
-          reasonCodes: ['continuity-execution-callback'],
+          reasonCodes: ['continuity-execution-callback-carry'],
           urgency: 'low',
           style: 'silent-observe',
           cooldownMs: 120_000,

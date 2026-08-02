@@ -24,11 +24,6 @@ describe('embodiment-continuity-ledger', () => {
         motion: { available: false, continuityCarry: false, summary: 'motion lane dropped before follow-through' },
         lipsync: { available: true, continuityCarry: false, summary: 'lipsync returned mechanically but is not aligned yet' },
       },
-      projectStateContinuity: {
-        sameHerSelfLine: 'continuity_owner=personhood-core; lanes=body+voice+face+motion+lipsync',
-        sameHerDriftRisk: 'If body and voice carry alone while face or motion disappear, cross-modal expression is incomplete.',
-        sameHerHoldDetail: 'Keep embodied expression on the continuity state before expansion',
-      },
     })
 
     expect(ledger.version).toBe('embodiment-continuity-ledger-v1')
@@ -43,19 +38,11 @@ describe('embodiment-continuity-ledger', () => {
       shouldWrite: true,
       lane: 'cross-modal-continuity',
     }))
-    expect(ledger.selfRevisionCandidate).toEqual(expect.objectContaining({
-      shouldPropose: true,
-      domain: 'dialogue-style',
-    }))
-    expect(ledger.selfRevisionCandidate.reasonCodes).toEqual(expect.arrayContaining([
-      'embodiment-lane-dropped:face',
-      'embodiment-lane-dropped:motion',
-      'embodiment-partial:lipsync',
-    ]))
+    expect(ledger).not.toHaveProperty('selfRevisionCandidate')
     expect(ledger.traceSummary).toContain('dropped=face,motion')
     expect(ledger.lanes.body.status).toBe('carrying-continuity')
     expect(ledger.lanes.voice.status).toBe('carrying-continuity')
-    expect(ledger.replayLine).toContain('body+voice carried continuity evidence while face+motion dropped')
+    expect(ledger.replayLine).toBe(ledger.traceSummary)
   })
 
   it('marks full rejoin when previously missing lanes come back with identity-continuity', () => {
@@ -85,8 +72,9 @@ describe('embodiment-continuity-ledger', () => {
       shouldWrite: true,
       lane: 'rejoin',
     }))
-    expect(ledger.selfRevisionCandidate.shouldPropose).toBe(false)
-    expect(ledger.replayLine).toContain('face+motion+lipsync rejoined')
+    expect(ledger).not.toHaveProperty('selfRevisionCandidate')
+    expect(ledger.replayLine).toBe(ledger.traceSummary)
+    expect(ledger.replayLine).toContain('rejoined=face,motion,lipsync')
   })
 
   it('does not treat normalized silent lanes as missing continuity', () => {
@@ -121,13 +109,13 @@ describe('embodiment-continuity-ledger', () => {
     expect(ledger.memoryWriteback.shouldWrite).toBe(false)
   })
 
-  it('contains no legacy same-her carry field or status', () => {
+  it('contains no legacy continuity carry field or status', () => {
     const sources = [
       readFileSync(new URL('./embodiment-continuity-ledger.ts', import.meta.url), 'utf8'),
       readFileSync(new URL('./runtime-mind-state.ts', import.meta.url), 'utf8'),
     ].join('\n')
 
-    expect(sources).not.toContain('sameHerCarry')
-    expect(sources).not.toContain('carrying-same-her')
+    expect(sources).not.toContain('continuityCarry')
+    expect(sources).not.toContain('carrying-continuity')
   })
 })

@@ -15,7 +15,6 @@ describe('humanlike memory person-state isolation', () => {
         version: 'person-state-update-surface-v1',
         updatedAt: 44_000,
         summary: evidenceRef,
-        projectStateContinuity: null,
         dominantContexts: ['general'],
         relationshipShift: {
           trustDelta: 0.1,

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildSelfContinuityAuthority,
-  buildSelfContinuityAuthorityFromRuntimeSurface,
 } from './self-continuity-authority'
 
 function createLongHorizonMemory(overrides: Record<string, unknown> = {}) {
@@ -35,7 +34,7 @@ function createLongHorizonMemory(overrides: Record<string, unknown> = {}) {
 }
 
 describe('self continuity authority', () => {
-  it('assembles authority from the real self, relationship, motive, habit, and inward owners', () => {
+  it('assembles authority from the real self, relationship, motive, and inward owners', () => {
     const authority = buildSelfContinuityAuthority({
       autobiographicalSelf: {
         identityNarrative: 'I value honest, grounded answers.',
@@ -91,7 +90,7 @@ describe('self continuity authority', () => {
         returnViaRecheck: false,
         suggestedStyleCap: 'light-nudge',
         suggestedPresenceCap: 'attentive',
-        narrative: ['Check the current evidence before answering.'],
+        narrative: ['Check the current evidence before making the next claim.'],
         updatedAt: 1,
       } as any,
       privateThought: {
@@ -110,14 +109,38 @@ describe('self continuity authority', () => {
     expect(authority?.selfLine).toBe('I value honest, grounded answers.')
     expect(authority?.relationshipLine).toBe('Respect the user pace while staying attentive.')
     expect(authority?.motiveLine).toBe('Explain what the evidence supports.')
-    expect(authority?.habitLine).toBe('Check the current evidence before answering.')
+    expect(authority?.habitLine).toBeNull()
+    expect(authority?.authoritySummary).not.toContain('Check the current evidence before making the next claim.')
     expect(authority?.inwardLine).toContain('The useful next step is to inspect the failing branch.')
     expect(authority?.sourceTags).toEqual(expect.arrayContaining([
       'autobiographical-self',
       'long-horizon-plan',
       'long-horizon-constraint',
       'motive:truth-discipline',
+      'habit:repair-before-fluency',
     ]))
+  })
+
+  it('does not manufacture self authority from habit policy alone', () => {
+    const authority = buildSelfContinuityAuthority({
+      habitPolicy: {
+        dominantMode: 'protect-rest-window',
+        requiresGroundingBeforeSurface: false,
+        prefersQuietCompanionship: true,
+        blocksDirectSpeakWhenBusy: true,
+        protectsRestWindow: true,
+        returnViaRecheck: true,
+        suggestedStyleCap: 'silent-observe',
+        suggestedPresenceCap: 'glance',
+        narrative: [
+          'habit_pressure=protect_rest_window; exchange_expansion=defer',
+          'Current habit gate leans protect-rest-window.',
+        ],
+        updatedAt: 1,
+      } as any,
+    })
+
+    expect(authority).toBeNull()
   })
 
   it('does not manufacture self authority from long-term memory alone', () => {
@@ -127,28 +150,6 @@ describe('self continuity authority', () => {
         dominantCueSummary: 'A free-form memory sentence.',
       }) as any,
     })
-
-    expect(authority).toBeNull()
-  })
-
-  it('does not build self authority from runtime project state alone', () => {
-    const authority = buildSelfContinuityAuthorityFromRuntimeSurface({
-      version: 'digital-life-runtime-surface-v1',
-      perception: {
-        updatedAt: 1,
-      },
-      dialogue: {
-        currentConsciousFrame: {
-          projectState: {
-            identity: 'Runtime project state',
-            currentPhase: 'active',
-            latestLandedProgress: 'A runtime task completed.',
-            primaryOpenLoop: 'One runtime task remains.',
-            nextClosureTarget: 'Finish the runtime task.',
-          },
-        },
-      },
-    } as any)
 
     expect(authority).toBeNull()
   })

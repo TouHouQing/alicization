@@ -91,23 +91,6 @@ describe('runtime session continuity builders', () => {
     })
   })
 
-  it('does not turn proactive feedback into project governance metadata', () => {
-    const runtime = createRuntime()
-    const signal = runtime.buildProactiveOutcomeContinuitySignal({
-      turnId: 'turn-proactive-feedback',
-      scenario: 'coding',
-      outcome: 'reply-within-120s',
-      createdAt: Date.UTC(2026, 4, 22, 10, 12, 0),
-      learningAction: 'verify',
-      learningFocuses: ['world-model'],
-    })
-
-    expect(signal.metadata).not.toHaveProperty('learningFocuses')
-    expect(signal.metadata).not.toHaveProperty('projectStateOpenFocusSummary')
-    expect(signal.metadata).not.toHaveProperty('projectStateNextFocusSummary')
-    expect(signal.metadata).not.toHaveProperty('projectStateEmotionalClosureCue')
-  })
-
   it('keeps held autonomy facts without generating a visible summary', () => {
     const runtime = createRuntime()
     const signal = runtime.buildDeferredAutonomyContinuitySignal({
@@ -155,7 +138,7 @@ describe('runtime session continuity builders', () => {
         sourceThreadId: 'thread-runtime',
         executionIntent: {
           kind: 'repair',
-          summary: 'Recheck the local runtime state before speaking.',
+          summary: 'Verify local runtime state.',
         },
       },
     })
@@ -281,8 +264,6 @@ describe('runtime session continuity builders', () => {
     expect(signal?.metadata).toEqual(expect.objectContaining({
       threadAnchor: 'thread-files',
     }))
-    expect(signal?.metadata).not.toHaveProperty('projectStatePreDialogueAwarenessLine')
-    expect(signal?.metadata).not.toHaveProperty('projectStatePreflightSummary')
     expect(signal?.metadata).not.toHaveProperty('projectLatestLandedProgress')
     expect(signal?.metadata).not.toHaveProperty('projectIdentity')
     expect(signal?.metadata).not.toHaveProperty('projectPrimaryOpenLoop')
@@ -342,8 +323,6 @@ describe('runtime session continuity builders', () => {
 
     expect(signal?.summary).toContain('A maintenance event completed.')
     expect(signal?.summary).not.toContain('A structured relationship note is not event evidence.')
-    expect(signal?.metadata).not.toHaveProperty('projectStatePreDialogueAwarenessLine')
-    expect(signal?.metadata).not.toHaveProperty('projectStatePreflightSummary')
     expect(signal?.metadata).not.toHaveProperty('projectLatestLandedProgress')
     expect(signal?.metadata).not.toHaveProperty('projectIdentity')
     expect(signal?.metadata).not.toHaveProperty('projectPrimaryOpenLoop')

@@ -91,23 +91,23 @@ describe('inferAlicizationInspectionIntent', () => {
     expect(result.signalProfile.actionable).toBe(false)
   })
 
-  it('does not treat same-her memory closure dialogue as current-screen inspection', () => {
+  it('does not let legacy memory-template wording suppress grounded shared-attention inspection', () => {
     const result = inferAlicizationInspectionIntent({
-      message: '铃兰-Phase1-0621F 第二轮：上一轮那条“同一个她、同一个数字生命、Phase 1 Local Digital Life”的记忆线现在自然回到这里。请只做安静对话承接：说清 why recall surfaced now；说明上一轮的情绪余波怎样让这一轮更低压、更克制地开口；说明下一次轻主动节奏怎样被这条记忆调低；让身体、声音、表情、动作、口型仍沿同一个她收住。',
+      message: '这个 continuity Phase 1 面板现在怎么样？',
       recentMessages: [
-        { role: 'user', content: '帮我看看我屏幕上现在是什么' },
-        { role: 'assistant', content: '我在看着 Terminal 线程。' },
+        { role: 'user', content: '帮我看看屏幕上的面板' },
+        { role: 'assistant', content: '我在看着这个面板。' },
       ],
       contextPhrases: [
-        'Terminal thread',
-        'current screen',
+        'continuity Phase 1 面板',
+        'current panel',
       ],
       sharedAttentionActive: true,
     })
 
-    expect(result.active).toBe(false)
-    expect(result.reasonCodes).not.toContain('contextual-continuation')
-    expect(result.signalProfile.actionable).toBe(false)
+    expect(result.active).toBe(true)
+    expect(result.reasonCodes).toContain('contextual-continuation')
+    expect(result.signalProfile.actionable).toBe(true)
   })
 
   it('keeps weak observe fillers non-actionable even when an old inspection carry exists', () => {

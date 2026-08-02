@@ -1,11 +1,6 @@
 import type { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 
-import {
-  alicizationFixedTemplateReplacement,
-  sanitizeAlicizationProviderFacingText,
-} from '@proj-alicization/stage-shared'
-
 type MemoryTurnArtifact = ReturnType<typeof buildAlicizationMemoryTurnArtifact>
 
 export interface AlicizationPersonMemoryCapsule {
@@ -20,8 +15,6 @@ export interface AlicizationPersonMemoryCapsule {
     personality: {
       identityLine: string | null
       relationshipLine: string | null
-      openingGuidance: string | null
-      continuityRisk: string | null
     }
     memory: {
       memoryGate: string
@@ -42,8 +35,6 @@ export interface AlicizationPersonMemoryCapsule {
     }
     initiative: {
       proactiveStyle: string | null
-      cadenceSummary: string | null
-      sameHerGap: string | null
       followUpAffordance: string | null
     }
     execution: {
@@ -53,16 +44,13 @@ export interface AlicizationPersonMemoryCapsule {
       confidence: number | null
     }
     embodiment: {
-      hint: string
+      hint: string | null
       expressionPosture: string | null
       voicePacing: string | null
       motionPosture: string | null
     }
     dialogue: {
-      openingGuidance: string | null
       answerPosture: string | null
-      mustDo: string[]
-      mustNotDo: string[]
     }
     learning: {
       nextAction: string | null
@@ -71,26 +59,13 @@ export interface AlicizationPersonMemoryCapsule {
       focuses: string[]
       executionSummary: string | null
     }
-    governance: {
-      activeCandidateId: string | null
-      activePatchId: string | null
-      lanes: string[]
-      reasonCodes: string[]
-      memoryGate: string
-      guard: string | null
-    }
-  }
-  rendering: {
-    blockLines: string[]
   }
 }
 
 function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
-  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-  const sanitized = sanitizeAlicizationProviderFacingText(normalized, maxChars)
-  return sanitized === alicizationFixedTemplateReplacement ? '' : sanitized
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
 function uniqueList(values: Array<string | null | undefined>, maxItems = 5, maxChars = 180) {
@@ -142,17 +117,8 @@ function pickRelationshipLine(context: OrganicMemoryPromptContext) {
     projection?.activeClosenessContext && projection.activeClosenessRung
       ? `distance=${projection.activeClosenessContext}/${projection.activeClosenessRung}`
       : null,
-    projection?.manifestationCadenceSummary ?? null,
     projection?.relationshipDoctrine ?? null,
-    context.selfEvolution?.relationshipCadenceSummary ?? null,
   ], 4, 180).join(' | ') || null
-}
-
-function pickOpeningLine(context: OrganicMemoryPromptContext) {
-  return uniqueList([
-    context.personStateProjection?.openingGuidance ?? null,
-    context.selfEvolution?.dominantTrajectory ?? null,
-  ], 1, 200)[0] ?? null
 }
 
 function pickMemoryLine(context: OrganicMemoryPromptContext, memoryTurnArtifact?: MemoryTurnArtifact | null) {
@@ -186,27 +152,12 @@ function pickLearningLine(context: OrganicMemoryPromptContext) {
 
 function pickEmbodimentHint(context: OrganicMemoryPromptContext) {
   const affectiveResidue = context.affectiveResidue ?? null
-  const projection = context.personStateProjection ?? null
   const cadence = affectiveResidue?.relationshipCadence ?? null
   return uniqueList([
-    projection?.manifestationCadenceSummary ?? null,
     cadence?.distancePosture ? `distance=${cadence.distancePosture}` : null,
     cadence?.cadenceMode ? `cadence=${cadence.cadenceMode}` : null,
     affectiveResidue?.summary ?? null,
-    context.selfEvolution?.relationshipCadenceSummary ?? null,
-  ], 3, 160).join(' | ') || 'derive voice, face, motion, and timing from the same person-state authority'
-}
-
-function pickGuardLine(context: OrganicMemoryPromptContext, memoryTurnArtifact?: MemoryTurnArtifact | null) {
-  return uniqueList([
-    memoryTurnArtifact?.visibleMemoryGate.status === 'closed' || memoryTurnArtifact?.visibleMemoryGate.status === 'inward-only'
-      ? 'keep recall inward unless it directly serves the current payoff'
-      : null,
-    context.memoryResolutionLedger?.shouldLabelUncertainty ? 'label recalled uncertainty when surfaced' : null,
-    context.projectStateContinuity?.sameHerDriftRisk ?? null,
-    context.selfEvolution?.burdenLine ?? null,
-    context.personStateProjection?.burdenText ?? null,
-  ], 3, 180).join(' | ') || null
+  ], 3, 160).join(' | ') || null
 }
 
 function buildSearchTraceLines(context: OrganicMemoryPromptContext) {
@@ -221,10 +172,6 @@ function buildSearchTraceLines(context: OrganicMemoryPromptContext) {
     `search_second_hop=${sanitizeText(searchTrace.secondHop.action, 64)}:${sanitizeText(searchTrace.secondHop.evidenceGap, 80)}:${sanitizeText(searchTrace.secondHop.summary, 160)}`,
     `search_third_hop=${sanitizeText(searchTrace.thirdHop.ambiguityPosture, 64)}:${sanitizeText(searchTrace.thirdHop.summary, 160)}`,
   ]
-}
-
-function joinLine(values: Array<string | null | undefined>, separator = ' | ') {
-  return values.map(value => sanitizeText(value, 220)).filter(Boolean).join(separator) || null
 }
 
 function numberOrNull(raw: unknown) {
@@ -244,27 +191,22 @@ export function buildAlicizationPersonMemoryCapsule(
   const cadence = affectiveResidue?.relationshipCadence ?? null
   const executionCarry = context.executionCallbackCarry ?? null
   const selfEvolution = context.selfEvolution ?? null
-  const activeGovernance = context.activeContinuityGovernance ?? null
-  const guard = pickGuardLine(context, memoryTurnArtifact)
   const searchTrace = buildSearchTraceLines(context)
   const embodimentHint = pickEmbodimentHint(context)
-  const openingGuidance = pickOpeningLine(context)
   const relationshipLine = pickRelationshipLine(context)
   const selectedMemory = pickMemoryLine(context, memoryTurnArtifact)
   const learningLine = pickLearningLine(context)
-  const followUpAffordance = joinLine([
+  const followUpAffordance = uniqueList([
     memoryTurnArtifact?.deliberation.followUp?.summary ?? null,
     memoryTurnArtifact?.deliberation.followUp?.preferredTiming ?? null,
     memoryTurnArtifact?.deliberation.followUp?.intrusionRisk ?? null,
     context.memoryDeliberation?.followUpAffordance?.summary ?? null,
-  ])
+  ], 4, 220).join(' | ') || null
 
   const modules: AlicizationPersonMemoryCapsule['modules'] = {
     personality: {
       identityLine: pickIdentityLine(context),
       relationshipLine,
-      openingGuidance,
-      continuityRisk: sanitizeText(context.projectStateContinuity?.sameHerDriftRisk, 220) || null,
     },
     memory: {
       memoryGate,
@@ -287,8 +229,6 @@ export function buildAlicizationPersonMemoryCapsule(
     },
     initiative: {
       proactiveStyle: sanitizeText(projection?.preferredProactiveStyle, 80) || null,
-      cadenceSummary: sanitizeText(projection?.manifestationCadenceSummary ?? selfEvolution?.relationshipCadenceSummary, 220) || null,
-      sameHerGap: sanitizeText(context.projectStateContinuity?.proactiveSameHerGap, 220) || null,
       followUpAffordance,
     },
     execution: {
@@ -304,16 +244,7 @@ export function buildAlicizationPersonMemoryCapsule(
       motionPosture: sanitizeText(cadence?.distancePosture ?? projection?.activeClosenessRung, 80) || null,
     },
     dialogue: {
-      openingGuidance,
       answerPosture: sanitizeText(projection?.relationshipPosture, 80) || null,
-      mustDo: uniqueList([
-        memoryTurnArtifact?.deliberation.whyNow ?? null,
-        context.memoryDeliberation?.whyNow ?? null,
-      ], 3, 180),
-      mustNotDo: uniqueList([
-        ...(memoryTurnArtifact?.deliberation.unsafeDetails ?? []),
-        guard,
-      ], 4, 180),
     },
     learning: {
       nextAction: sanitizeText(selfEvolution?.nextLearningAction, 80) || null,
@@ -329,42 +260,7 @@ export function buildAlicizationPersonMemoryCapsule(
         220,
       ) || learningLine,
     },
-    governance: {
-      activeCandidateId: sanitizeText(activeGovernance?.candidateId, 160) || null,
-      activePatchId: sanitizeText(activeGovernance?.patchId, 160) || null,
-      lanes: uniqueList(activeGovernance?.lanes ?? [], 8, 80),
-      reasonCodes: uniqueList(activeGovernance?.reasonCodes ?? [], 10, 120),
-      memoryGate,
-      guard,
-    },
   }
-
-  const lines = [
-    '[ALICIZATION_PERSON_MEMORY_CAPSULE]',
-    'Compact realtime authority for this turn. Use this before any expanded memory block; do not quote it verbatim.',
-    `budget=${budgetClass}`,
-    latencyClass ? `latency=${latencyClass}` : '',
-    recallAction ? `recall_action=${recallAction}` : '',
-    modules.personality.identityLine ? `identity=${modules.personality.identityLine}` : '',
-    modules.personality.relationshipLine ? `relationship=${modules.personality.relationshipLine}` : '',
-    modules.dialogue.openingGuidance ? `opening=${modules.dialogue.openingGuidance}` : '',
-    `memory_gate=${memoryGate}`,
-    modules.memory.visibleCarryMode ? `visible_carry=${modules.memory.visibleCarryMode}` : '',
-    modules.memory.selectedMemory ? `selected_memory=${modules.memory.selectedMemory}` : '',
-    modules.learning.nextAction ? `learning=${modules.learning.nextAction}${modules.learning.reason ? `:${modules.learning.reason}` : ''}` : '',
-    `embodiment_hint=${modules.embodiment.hint}`,
-    modules.governance.guard ? `guard=${modules.governance.guard}` : '',
-    `personality=${joinLine([modules.personality.identityLine, modules.personality.relationshipLine, modules.personality.continuityRisk]) ?? 'none'}`,
-    `memory=${joinLine([modules.memory.selectedMemory, modules.memory.surfacePolicy, modules.memory.uncertaintyPolicy]) ?? 'none'}`,
-    `emotion=${joinLine([modules.emotion.dominantResidue, modules.emotion.affectiveSummary, modules.emotion.distancePosture]) ?? 'none'}`,
-    `initiative=${joinLine([modules.initiative.proactiveStyle, modules.initiative.cadenceSummary, modules.initiative.sameHerGap]) ?? 'none'}`,
-    `execution=${joinLine([modules.execution.carryMode, modules.execution.carrySummary, modules.execution.threadAnchor]) ?? 'none'}`,
-    `embodiment=${joinLine([modules.embodiment.hint, modules.embodiment.expressionPosture, modules.embodiment.voicePacing]) ?? 'none'}`,
-    `dialogue=${joinLine([modules.dialogue.openingGuidance, modules.dialogue.answerPosture, modules.dialogue.mustDo[0]]) ?? 'none'}`,
-    `learning=${joinLine([modules.learning.nextAction, modules.learning.reason, modules.learning.focuses[0]]) ?? 'none'}`,
-    `governance=${joinLine([modules.governance.activePatchId, modules.governance.memoryGate, modules.governance.guard]) ?? 'none'}`,
-    ...modules.memory.searchTrace,
-  ]
 
   return {
     version: 'person-memory-capsule-v1',
@@ -375,15 +271,5 @@ export function buildAlicizationPersonMemoryCapsule(
       compactOnly: shouldUseCompactPersonMemoryCapsuleOnly(context, memoryTurnArtifact),
     },
     modules,
-    rendering: {
-      blockLines: lines.filter(Boolean),
-    },
   }
-}
-
-export function buildAlicizationPersonMemoryCapsuleBlock(
-  context: OrganicMemoryPromptContext,
-  memoryTurnArtifact?: MemoryTurnArtifact | null,
-) {
-  return buildAlicizationPersonMemoryCapsule(context, memoryTurnArtifact).rendering.blockLines.join('\n')
 }

@@ -60,28 +60,32 @@ export interface BuildWorkingMemorySnapshotInput {
   previousSnapshot?: WorkingMemorySnapshot | null
 }
 
+const explicitCorrectionPattern = /我?不是(?:这个|这样|要)|不对|不想要|你(?:搞错|错了)|别这样|请?不要|请(?:改成|纠正)|别再|禁止|移除|清除/u
+
 function detectCorrectionScope(text: string) {
-  if (/人格|固定回复|固定模板|旧模板|模板化|数字生命|persona|same-her/iu.test(text))
+  if (/人格|身份|表达|语气|风格|persona/iu.test(text))
     return 'persona' as const
   if (/记忆|回想|长期|短期/u.test(text))
     return 'memory' as const
   if (/任务|执行|工具|commit|push|编译/iu.test(text))
     return 'task' as const
-  if (/不是这个|你错了|别这样|不要这样/u.test(text))
-    return 'reply' as const
-  return 'unknown' as const
+  return 'reply' as const
 }
 
 function looksLikeCorrection(text: string) {
-  return /不是这个|不想要|不要固定|固定回复|固定模板|我需要|你搞错|你错了|别这样|不要这样|(?:不要|别|不想要|禁止|移除|清除|别再|不要再)[^。.!?]*(?:固定模板|固定回复|模板化|same-her|one continuous her|Before (?:answering|speaking|acting)|Right now I am|local-first digital life project|同一个她|同一个\s*her|数字生命主线)/iu.test(text)
+  return explicitCorrectionPattern.test(text)
 }
 
 function sanitizeWorkingMemoryStoredText(raw: unknown, maxChars: number) {
   const normalized = normalizeWorkingMemoryText(raw, maxChars)
   if (!normalized)
     return ''
-  return containsAlicizationFixedTemplateResidue(normalized)
-    ? sanitizeAlicizationProviderFacingText(normalized, maxChars)
+  return containsAlicizationFixedTemplateResidue(normalized, {
+    provenance: 'internal-structured-fact',
+  })
+    ? sanitizeAlicizationProviderFacingText(normalized, maxChars, '', {
+        provenance: 'internal-structured-fact',
+      })
     : normalized
 }
 

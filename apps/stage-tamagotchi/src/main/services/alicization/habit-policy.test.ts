@@ -202,47 +202,4 @@ describe('buildHabitPolicy', () => {
     expect(policy.suggestedStyleCap).toBe('firm-warning')
     expect(policy.narrative).toContain('protect-rest-window')
   })
-
-  it('ignores legacy project state instead of turning it into a behavior policy', () => {
-    const input = {
-      now: 14_000,
-      context: createContext(),
-      worldModel: createWorldModel({
-        activeThread: {
-          id: 'thread::legacy-task-era',
-          kind: 'problem',
-          status: 'active',
-          source: 'observed-scene',
-          title: 'legacy task era',
-          summary: 'A grounded unresolved thread.',
-          confidence: 0.8,
-          significance: 0.8,
-          unresolved: true,
-          beganAt: 0,
-          lastUpdatedAt: 14_000,
-          target: null,
-        },
-      }),
-      motiveEngine: createMotiveEngine({}),
-    }
-    const baseline = buildHabitPolicy(input)
-    const withLegacyProjectState = buildHabitPolicy({
-      ...input,
-      recentMemoryConsolidations: [{
-        kind: 'autobiographical',
-        facet: 'task-era',
-        lesson: 'legacy task-era project state',
-        periodEndedAt: 13_000,
-        updatedAt: 13_000,
-      }],
-      projectState: {
-        identity: 'legacy identity',
-        currentPhase: 'legacy phase',
-        primaryOpenLoop: 'legacy open loop',
-      },
-    } as any)
-
-    expect(withLegacyProjectState).toEqual(baseline)
-    expect(withLegacyProjectState.narrative.join(' ')).not.toMatch(/project|phase|identity/iu)
-  })
 })

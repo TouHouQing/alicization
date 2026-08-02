@@ -381,7 +381,6 @@ describe('memory-accessibility-runtime', () => {
         responsePosture: {
           hypothesisLabelBias: 0.16,
           specificityClampBias: 0.22,
-          templateShellSuppressionBias: 0.28,
         },
         proactivePolicy: {
           restraintBias: 0.16,
@@ -393,7 +392,6 @@ describe('memory-accessibility-runtime', () => {
           requiresRevalidation: false,
           rollbackPlan: ['revalidate-old-relationship-line'],
         },
-        projectStateContinuity: null,
         reasonCodes: ['quarantine-unsupported-carry'],
         summary: 'Old relationship line needs provenance before visible reuse.',
       },

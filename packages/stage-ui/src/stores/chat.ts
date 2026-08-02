@@ -43,8 +43,8 @@ import { ref, toRaw } from 'vue'
 
 import { compactMessagesForPromptAssembly, sanitizeAssistantOutputForDisplay } from '../composables/alicization-guardrails'
 import {
+  normalizeDialogueStructuredArtifact,
   normalizeStructuredOutput,
-  normalizeStructuredProjectStatePayload,
   validateStructuredContract,
 } from '../composables/alicization-structured-output'
 import { abortAlicizationTurns, completeAlicizationTurnAbort, registerAlicizationTurnAbort } from '../composables/alicization-turn-abort'
@@ -84,7 +84,9 @@ function createRuntimeAuthoritativeVisibleReplyBlockedError() {
 function containsChatVisibleReplyFixedTemplateResidue(value: unknown, maxChars = 4000) {
   if (typeof value !== 'string' || !value.trim())
     return false
-  return !sanitizeAlicizationProviderFacingText(value, maxChars, '')
+  return !sanitizeAlicizationProviderFacingText(value, maxChars, '', {
+    provenance: 'internal-structured-fact',
+  })
 }
 
 function isRecordPayload(value: unknown): value is Record<string, unknown> {
@@ -489,7 +491,7 @@ function extractExecutorToolReplyEvidence(result: unknown, toolName: string): Ex
   }
 }
 
-type StructuredWithContract = Omit<StructuredOutputResult, 'preDialogueAwareness' | 'preDialogueClosure'>
+type StructuredWithContract = StructuredOutputResult
   & Omit<ChatAssistantStructuredPayload, | 'thought'
   | 'emotion'
   | 'reply'
@@ -498,9 +500,7 @@ type StructuredWithContract = Omit<StructuredOutputResult, 'preDialogueAwareness
   | 'sentimentConfidenceRaw'
   | 'sentimentConfidence'
   | 'format'
-  | 'parsePath'
-  | 'preDialogueAwareness'
-  | 'preDialogueClosure'>
+  | 'parsePath'>
   & {
     embodiment?: AlicizationDialogueEmbodimentEnvelope | null
     embodimentScript?: AlicizationEmbodimentScriptV1 | null
@@ -508,7 +508,6 @@ type StructuredWithContract = Omit<StructuredOutputResult, 'preDialogueAwareness
     digitalLife?: AlicizationDigitalLifeEnvelope | null
     digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
     runtimeDigest?: AlicizationRuntimeDigest | null
-    projectState?: StructuredOutputResult['projectState']
     governance?: AlicizationMindTurnGovernance | null
     origin?: AlicizationVisibleArtifactOrigin
     learningPolicy?: {
@@ -538,7 +537,6 @@ export function mergeStructuredRuntimeMeta(
     digitalLife: AlicizationDigitalLifeEnvelope | null
     digitalLifeSpine: AlicizationDigitalLifeSpineDigest | null
     runtimeDigest: AlicizationRuntimeDigest | null
-    projectState?: StructuredOutputResult['projectState']
     governance: AlicizationMindTurnGovernance | null
   },
 ): StructuredWithContract {
@@ -550,32 +548,16 @@ export function mergeStructuredRuntimeMeta(
     digitalLife: structured.digitalLife ?? null,
     embodimentScript: structured.embodimentScript ?? null,
   })
-  const normalizedInputProjectState = normalizeStructuredProjectStatePayload(
-    (input.projectState ?? null) as Record<string, unknown> | null,
-  ) ?? null
-  const normalizedStructuredProjectState = normalizeStructuredProjectStatePayload(
-    (structured.projectState ?? null) as Record<string, unknown> | null,
-  ) ?? null
-  const {
-    preDialogueAwareness: _preDialogueAwareness,
-    preDialogueClosure: _preDialogueClosure,
-    ...structuredWithoutPreDialogue
-  } = structured as StructuredWithContract & {
-    preDialogueAwareness?: unknown
-    preDialogueClosure?: unknown
-  }
-
-  return {
-    ...structuredWithoutPreDialogue,
+  return normalizeDialogueStructuredArtifact({
+    ...structured,
     embodiment: input.embodiment ?? structured.embodiment ?? null,
     embodimentScript: input.embodimentScript ?? structured.embodimentScript ?? null,
     speechTimeline: input.speechTimeline ?? structured.speechTimeline ?? null,
     digitalLife: normalizedInputDigitalLife ?? normalizedStructuredDigitalLife ?? input.digitalLife ?? structured.digitalLife ?? null,
     digitalLifeSpine: input.digitalLifeSpine ?? structured.digitalLifeSpine ?? null,
     runtimeDigest: input.runtimeDigest ?? structured.runtimeDigest ?? null,
-    projectState: normalizedInputProjectState ?? normalizedStructuredProjectState ?? null,
     governance: input.governance ?? structured.governance ?? null,
-  }
+  }) as StructuredWithContract
 }
 
 function normalizeChatRuntimeDigitalLifeEnvelope(
@@ -1104,15 +1086,10 @@ function normalizeStructuredTurnForPersistence(
     digitalLife: structured.digitalLife ?? null,
     embodimentScript: structured.embodimentScript ?? null,
   })
-  const normalizedProjectState = normalizeStructuredProjectStatePayload(
-    (structured.projectState ?? null) as Record<string, unknown> | null,
-  ) ?? null
-
-  return {
+  return normalizeDialogueStructuredArtifact({
     ...structured,
     digitalLife: normalizedDigitalLife,
-    projectState: normalizedProjectState,
-  }
+  })
 }
 
 function asStructuredWithContract(
@@ -1218,8 +1195,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         return
 
       void presenceDispatcher.dispatchSilentPresencePulse({
-        label: 'quiet-companionship',
-        summary: 'Still quietly accompanying the host through the current focus.',
         payload,
       })
     })
@@ -1422,7 +1397,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     let turnDigitalLife: AlicizationDigitalLifeEnvelope | null = null
     let turnDigitalLifeSpine: AlicizationDigitalLifeSpineDigest | null = null
     let turnRuntimeDigest: AlicizationRuntimeDigest | null = null
-    let turnProjectState: StructuredOutputResult['projectState'] = null
     let turnVisibleReplyExecution: AlicizationConversationTurnInput['visibleReplyExecution'] | null = null
     let turnVisibleReplyCritic: AlicizationConversationTurnInput['visibleReplyCritic'] | null = null
     let turnVisibleReplyClosure: AlicizationConversationTurnInput['visibleReplyClosure'] | null = null
@@ -1436,7 +1410,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         digitalLife: turnDigitalLife,
         digitalLifeSpine: turnDigitalLifeSpine,
         runtimeDigest: turnRuntimeDigest,
-        projectState: turnProjectState,
         governance: turnMindGovernance,
       }
     }
@@ -1445,25 +1418,15 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       if (isUsableMindTurnGovernanceCandidate(event.governance)) {
         turnMindGovernance = event.governance
       }
-      turnEmbodiment = event.embodiment ?? turnEmbodiment
-      turnEmbodimentScript = event.embodimentScript ?? turnEmbodimentScript
-      turnSpeechTimeline = event.speechTimeline ?? turnSpeechTimeline
-      turnDigitalLife = resolveChatRuntimeDigitalLifeAuthority({
+      turnEmbodiment = normalizeDialogueStructuredArtifact(event.embodiment ?? turnEmbodiment)
+      turnEmbodimentScript = normalizeDialogueStructuredArtifact(event.embodimentScript ?? turnEmbodimentScript)
+      turnSpeechTimeline = normalizeDialogueStructuredArtifact(event.speechTimeline ?? turnSpeechTimeline)
+      turnDigitalLife = normalizeDialogueStructuredArtifact(resolveChatRuntimeDigitalLifeAuthority({
         digitalLife: event.digitalLife,
         embodimentScript: event.embodimentScript,
-      }) ?? turnDigitalLife
-      turnDigitalLifeSpine = event.digitalLifeSpine ?? turnDigitalLifeSpine
-      turnRuntimeDigest = event.runtimeDigest ?? turnRuntimeDigest
-      if (Object.hasOwn(event, 'projectState')) {
-        turnProjectState = normalizeStructuredProjectStatePayload(
-          (event.projectState ?? null) as Record<string, unknown> | null,
-        ) ?? null
-      }
-      else {
-        turnProjectState = normalizeStructuredProjectStatePayload(
-          (event.runtimeDigest?.projectState ?? turnProjectState ?? null) as Record<string, unknown> | null,
-        ) ?? turnProjectState
-      }
+      }) ?? turnDigitalLife)
+      turnDigitalLifeSpine = normalizeDialogueStructuredArtifact(event.digitalLifeSpine ?? turnDigitalLifeSpine)
+      turnRuntimeDigest = normalizeDialogueStructuredArtifact(event.runtimeDigest ?? turnRuntimeDigest)
     }
 
     const setStagedAssistantResolution = (resolution: StagedAssistantResolution) => {
@@ -2518,15 +2481,15 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               if (event.embodiment || event.embodimentScript || event.speechTimeline || event.digitalLife || event.digitalLifeSpine || event.runtimeDigest) {
                 await hooks.emitEmbodimentMetaHooks({
                   governance: event.governance ?? turnMindGovernance,
-                  embodiment: event.embodiment ?? null,
-                  embodimentScript: event.embodimentScript ?? null,
-                  speechTimeline: event.speechTimeline ?? null,
-                  digitalLife: resolveChatRuntimeDigitalLifeAuthority({
+                  embodiment: normalizeDialogueStructuredArtifact(event.embodiment ?? null),
+                  embodimentScript: normalizeDialogueStructuredArtifact(event.embodimentScript ?? null),
+                  speechTimeline: normalizeDialogueStructuredArtifact(event.speechTimeline ?? null),
+                  digitalLife: normalizeDialogueStructuredArtifact(resolveChatRuntimeDigitalLifeAuthority({
                     digitalLife: event.digitalLife,
                     embodimentScript: event.embodimentScript,
-                  }),
-                  digitalLifeSpine: event.digitalLifeSpine ?? null,
-                  runtimeDigest: event.runtimeDigest ?? null,
+                  })),
+                  digitalLifeSpine: normalizeDialogueStructuredArtifact(event.digitalLifeSpine ?? null),
+                  runtimeDigest: normalizeDialogueStructuredArtifact(event.runtimeDigest ?? null),
                 }, streamingMessageContext)
               }
               break

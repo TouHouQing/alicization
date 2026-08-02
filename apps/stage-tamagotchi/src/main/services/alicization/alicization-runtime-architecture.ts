@@ -7,10 +7,6 @@ import type {
 import type { AlicizationActiveLoopSnapshot } from './alicization-active-loop'
 import type { AlicizationDigitalLifeSpineSnapshot } from './digital-life-spine'
 
-import {
-  containsAlicizationFixedTemplateResidue,
-} from '@proj-alicization/stage-shared'
-
 import { deriveAlicizationActiveLoopSnapshot } from './alicization-active-loop'
 
 export type AlicizationRuntimeChannelId
@@ -99,241 +95,54 @@ export interface AlicizationRuntimeSessionSnapshot {
   } | null
 }
 
-const legacyRuntimeGovernanceCuePattern
-  = /(?:^|[\s|;])(?:opening[_-]policy|relationship[_-]cadence|project[_-]continuity|project[_-]state|runtime[_-]personhood|continuity[_-](?:anchor|arc|hold|cue|timing|cadence)|memory[_-]deliberation[_-]cadence)\s*(?:=|:)|visibility\s*(?:=|:)\s*redacted_internal/iu
-const legacyRuntimeGovernanceReasonCodePattern
-  = /^(?:continuity-proactive-gap-active|project-state-causality-repair)$/u
-const legacyRuntimeGovernanceInstructionPattern
-  = /\b(?:answer like the same-person line matters|hold continuity gently|repair continuity first|prefer repair-first|manifest with lower pressure|keep the opening lower-pressure|avoid eager warmth|avoid theatrical intimacy|repair-before-closeness|measured-return|hold-for-opening|next-open-window)\b/iu
-const legacyRuntimeGovernanceObjectKeys = new Set([
-  'activeContinuityGovernance',
-  'projectState',
-  'projectStateContinuity',
-  'sameHerCausalityRepairPressure',
-])
-const legacyRuntimeGovernanceTransportKeys = new Set([
-  'opening_policy',
-  'project_continuity',
-  'project_state',
-  'relationship_cadence',
-  'runtime_context',
-])
-const preservedRuntimeStructureKeys = new Set([
-  'version',
-  'source',
-  'dominantemotion',
-  'initiativemode',
-  'memoryrecallmode',
-  'embodimenttone',
-  'cadencemode',
-  'distanceposture',
-  'dominantresiduekind',
-  'polarity',
-  'releasemode',
-  'kind',
-  'status',
-  'mode',
-  'surfacemode',
-  'placement',
-  'certainty',
-  'nextlearningaction',
-  'preferredtiming',
-  'payoffdependency',
-  'intrusionrisk',
-  'lane',
-  'state',
-  'continuityphase',
-  'domain',
-  'budgetclass',
-  'latencyclass',
-  'recallaction',
-  'selectedmode',
-  'visibleaction',
-])
-
-function isRecord(raw: unknown): raw is Record<string, unknown> {
-  return !!raw && typeof raw === 'object' && !Array.isArray(raw)
-}
-
-function isLegacyRuntimeGovernanceReasonCode(raw: unknown) {
-  const normalized = String(raw).trim().toLowerCase()
-  if (legacyRuntimeGovernanceReasonCodePattern.test(normalized))
-    return true
-
-  const segments = normalized.split('-')
-  return segments[0] === 'same' && segments[1] === 'her'
-}
-
-function isLegacyRuntimeGovernanceText(raw: unknown) {
-  return typeof raw === 'string'
-    && (
-      legacyRuntimeGovernanceCuePattern.test(raw)
-      || isLegacyRuntimeGovernanceReasonCode(raw)
-      || legacyRuntimeGovernanceInstructionPattern.test(raw)
-      || containsAlicizationFixedTemplateResidue(raw)
-    )
-}
-
-function carriesLegacyRuntimeGovernanceProjection(raw: unknown): boolean {
-  if (typeof raw === 'string')
-    return isLegacyRuntimeGovernanceText(raw)
-  if (Array.isArray(raw))
-    return raw.some(carriesLegacyRuntimeGovernanceProjection)
-  if (!isRecord(raw))
-    return false
-  return Object.entries(raw).some(([key, value]) =>
-    legacyRuntimeGovernanceObjectKeys.has(key)
-    || legacyRuntimeGovernanceTransportKeys.has(key.toLowerCase())
-    || (
-      key.toLowerCase() === 'visibility'
-      && typeof value === 'string'
-      && value.trim().toLowerCase() === 'redacted_internal'
-    )
-    || carriesLegacyRuntimeGovernanceProjection(value),
-  )
-}
-
-function normalizeRuntimeGovernanceText(raw: unknown, maxChars: number) {
-  if (typeof raw !== 'string')
-    return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars).trim()
-}
-
-function sanitizeRuntimeGovernanceText(raw: unknown, maxChars = 480) {
-  const normalized = normalizeRuntimeGovernanceText(raw, maxChars)
-  if (!normalized || !isLegacyRuntimeGovernanceText(normalized))
-    return normalized
-
-  return normalized
-    .split(/(?<=[.!?。！？])\s+|\s+\|\s+|;\s+|\n+/u)
-    .map(segment => segment.trim())
-    .filter(segment => segment && !isLegacyRuntimeGovernanceText(segment))
-    .join(' | ')
-    .trim()
-}
-
-function isEmptyRuntimeGovernanceValue(raw: unknown): boolean {
-  if (raw == null || raw === '')
-    return true
-  if (Array.isArray(raw))
-    return raw.length === 0
-  if (!isRecord(raw))
-    return false
-  return Object.values(raw).every(isEmptyRuntimeGovernanceValue)
-}
-
-function stripLegacyRuntimeGovernanceValue(
-  raw: unknown,
-  key: string | null = null,
-): unknown {
-  if (
-    key
-    && (
-      legacyRuntimeGovernanceTransportKeys.has(key.toLowerCase())
-      || (
-        key.toLowerCase() === 'visibility'
-        && typeof raw === 'string'
-        && raw.trim().toLowerCase() === 'redacted_internal'
-      )
-    )
-  ) {
-    return undefined
-  }
-
-  if (key && legacyRuntimeGovernanceObjectKeys.has(key))
-    return undefined
-
-  if (
-    raw != null
-    && typeof raw !== 'string'
-    && !carriesLegacyRuntimeGovernanceProjection(raw)
-  ) {
-    return raw
-  }
-
-  if (typeof raw === 'string') {
-    if (key && preservedRuntimeStructureKeys.has(key.toLowerCase()))
-      return raw
-    const sanitized = sanitizeRuntimeGovernanceText(raw)
-    if (sanitized)
-      return sanitized
-    return key === 'summary' || key == null ? '' : null
-  }
-
-  if (Array.isArray(raw)) {
-    const normalizedKey = key?.toLowerCase()
-    if (normalizedKey === 'reasontags' || normalizedKey === 'reasoncodes')
-      return sanitizeReasonTags(raw)
-    return raw
-      .map(item => stripLegacyRuntimeGovernanceValue(item))
-      .filter(item => !isEmptyRuntimeGovernanceValue(item))
-  }
-
-  if (!isRecord(raw))
-    return raw
-
-  return Object.fromEntries(
-    Object.entries(raw)
-      .map(([entryKey, value]) => [
-        entryKey,
-        stripLegacyRuntimeGovernanceValue(value, entryKey),
-      ] as const)
-      .filter(([, value]) => value !== undefined),
-  )
-}
-
-function stripLegacyRuntimeGovernanceObject<T>(raw: T): T | null {
-  if (raw == null)
-    return null
-  if (!carriesLegacyRuntimeGovernanceProjection(raw))
-    return raw
-
-  const sanitized = stripLegacyRuntimeGovernanceValue(raw)
-  return isEmptyRuntimeGovernanceValue(sanitized) ? null : sanitized as T
-}
-
-function stripLegacyRuntimeGovernanceFromDerivedMindStateBundle(
-  bundle: AlicizationDerivedMindStateBundle | null | undefined,
+function projectSelfEvolutionSnapshot(
+  snapshot: AlicizationDerivedMindStateBundle['selfEvolution'],
 ) {
-  if (!bundle)
-    return bundle ?? null
+  return snapshot ?? null
+}
 
-  const sourceReasonCodes = Array.isArray(bundle.activeSelfRevision?.reasonCodes)
-    ? bundle.activeSelfRevision.reasonCodes
-    : []
-  const reasonCodes = sourceReasonCodes
-    .map(reason => sanitizeText(reason, 96))
-    .filter(reason =>
-      reason
-      && !isLegacyRuntimeGovernanceReasonCode(reason)
-      && !legacyRuntimeGovernanceCuePattern.test(reason)
-      && !legacyRuntimeGovernanceInstructionPattern.test(reason),
-    )
-  const {
-    activeContinuityGovernance: _activeContinuityGovernance,
-    sameHerCausalityRepairPressure: _sameHerCausalityRepairPressure,
-    ...cleanBundle
-  } = bundle
-  const sanitizedCleanBundle = stripLegacyRuntimeGovernanceValue(cleanBundle) as typeof cleanBundle
-  const sanitizedActiveSelfRevision = stripLegacyRuntimeGovernanceObject(
-    bundle.activeSelfRevision,
-  ) as typeof bundle.activeSelfRevision
+function projectDialogueRhythm(
+  rhythm: AlicizationDerivedMindStateBundle['dialogueRhythm'],
+) {
+  if (!rhythm)
+    return null
+
+  return Object.keys(rhythm).length > 0 ? rhythm : null
+}
+
+function projectDerivedMindStateBundle(
+  bundle: AlicizationDerivedMindStateBundle | null | undefined,
+): AlicizationDerivedMindStateBundle | null {
+  if (!bundle)
+    return null
 
   return {
-    ...sanitizedCleanBundle,
-    activeSelfRevision: sanitizedActiveSelfRevision
+    version: bundle.version,
+    source: bundle.source,
+    producedAt: bundle.producedAt,
+    hostPersonModel: bundle.hostPersonModel ?? null,
+    personStateProjection: bundle.personStateProjection ?? null,
+    knowledgeEvidence: bundle.knowledgeEvidence ?? null,
+    claimEvidenceGraphs: bundle.claimEvidenceGraphs ?? null,
+    activeSelfRevision: bundle.activeSelfRevision
       ? {
-          ...sanitizedActiveSelfRevision,
-          reasonCodes,
-          summary: sanitizeRuntimeGovernanceText(bundle.activeSelfRevision?.summary) || null,
+          ...bundle.activeSelfRevision,
+          reasonCodes: sanitizeReasonTags(bundle.activeSelfRevision.reasonCodes),
         }
       : null,
-    selfEvolution: stripLegacyRuntimeGovernanceObject(bundle.selfEvolution),
-    memoryDeliberation: stripLegacyRuntimeGovernanceObject(bundle.memoryDeliberation),
-    dialogueRhythm: stripLegacyRuntimeGovernanceObject(bundle.dialogueRhythm),
-    visualPresenceState: stripLegacyRuntimeGovernanceObject(bundle.visualPresenceState),
-    structured: stripLegacyRuntimeGovernanceObject(bundle.structured),
-    summary: sanitizeRuntimeGovernanceText(bundle.summary),
+    emotionalKernel: bundle.emotionalKernel ?? null,
+    emotionalTransitionLedger: bundle.emotionalTransitionLedger ?? null,
+    embodimentContinuityLedger: bundle.embodimentContinuityLedger ?? null,
+    selfEvolution: projectSelfEvolutionSnapshot(bundle.selfEvolution),
+    affectiveResidue: bundle.affectiveResidue ?? null,
+    learningExecutionState: bundle.learningExecutionState ?? null,
+    recallLatencyPolicy: bundle.recallLatencyPolicy ?? null,
+    recollectionIntent: bundle.recollectionIntent ?? null,
+    recollectionPlan: bundle.recollectionPlan ?? null,
+    recollectionSpeechPlan: bundle.recollectionSpeechPlan ?? null,
+    memoryDeliberation: bundle.memoryDeliberation ?? null,
+    dialogueRhythm: projectDialogueRhythm(bundle.dialogueRhythm),
+    summary: bundle.summary,
   } satisfies AlicizationDerivedMindStateBundle
 }
 
@@ -346,17 +155,11 @@ function clamp01(value: number | null | undefined) {
 function sanitizeText(raw: unknown, maxChars = 160) {
   if (typeof raw !== 'string')
     return ''
-  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-  if (!normalized || containsAlicizationFixedTemplateResidue(normalized))
-    return ''
-  return normalized
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
 function sanitizeDialogueStateText(raw: unknown, maxChars = 320) {
-  const normalized = sanitizeText(raw, maxChars)
-  if (!normalized || legacyRuntimeGovernanceCuePattern.test(normalized))
-    return ''
-  return normalized
+  return sanitizeText(raw, maxChars)
 }
 
 function sanitizeReasonTags(raw: unknown) {
@@ -364,12 +167,7 @@ function sanitizeReasonTags(raw: unknown) {
     return []
   return [...new Set(raw
     .map(tag => sanitizeText(tag, 96))
-    .filter(tag =>
-      tag
-      && !isLegacyRuntimeGovernanceReasonCode(tag)
-      && !legacyRuntimeGovernanceCuePattern.test(tag)
-      && !legacyRuntimeGovernanceInstructionPattern.test(tag),
-    ))]
+    .filter(Boolean))]
 }
 
 function firstNonEmptyText(...values: unknown[]) {
@@ -598,11 +396,11 @@ function buildActiveMemoryChannel(surface: any) {
   const recollectionFollowUp = surface?.memory?.recollectionFollowUp
     ?? memoryDeliberation?.followUpAffordance
     ?? null
-  const recollectionFollowUpSummary = sanitizeRuntimeGovernanceText(
+  const recollectionFollowUpSummary = sanitizeText(
     recollectionFollowUp?.summary,
     180,
   )
-  const recollectionFollowUpWhyNow = sanitizeRuntimeGovernanceText(
+  const recollectionFollowUpWhyNow = sanitizeText(
     recollectionFollowUp?.whyNow,
     180,
   )
@@ -762,21 +560,27 @@ function projectCurrentConsciousFrame(surface: any): AlicizationRuntimeCurrentCo
   }
 }
 
-function stripLegacyRuntimeGovernanceFromActiveLoop(
+function projectActiveLoopSnapshot(
   activeLoop: AlicizationActiveLoopSnapshot | null | undefined,
 ) {
   if (!activeLoop)
     return activeLoop ?? null
-  const legacyActiveLoop = activeLoop as AlicizationActiveLoopSnapshot & {
-    continuityArcStage?: unknown
-    continuityPreferredTiming?: unknown
-  }
-  const {
-    continuityArcStage: _continuityArcStage,
-    continuityPreferredTiming: _continuityPreferredTiming,
-    ...cleanActiveLoop
-  } = legacyActiveLoop
-  return cleanActiveLoop as AlicizationActiveLoopSnapshot
+  return {
+    version: activeLoop.version,
+    phase: activeLoop.phase,
+    dominantChannel: activeLoop.dominantChannel,
+    handoffTarget: activeLoop.handoffTarget,
+    dialogueReady: activeLoop.dialogueReady,
+    controlReady: activeLoop.controlReady,
+    memoryCarry: activeLoop.memoryCarry,
+    companionshipReady: activeLoop.companionshipReady,
+    observationHeavy: activeLoop.observationHeavy,
+    initiativeBudget: activeLoop.initiativeBudget,
+    continuityPressure: activeLoop.continuityPressure,
+    companionshipPressure: activeLoop.companionshipPressure,
+    coherence: activeLoop.coherence,
+    summary: activeLoop.summary,
+  } satisfies AlicizationActiveLoopSnapshot
 }
 
 function buildChannels(
@@ -834,7 +638,7 @@ function buildSnapshotFromSurface(input: {
   const autonomy = buildRuntimeAutonomySnapshot(input.surface)
   const decision = deriveDecisionState(input.surface, channels)
   const emotionalKernel = input.surface?.memory?.emotionalKernel ?? null
-  const derivedMindStateBundle = stripLegacyRuntimeGovernanceFromDerivedMindStateBundle(
+  const derivedMindStateBundle = projectDerivedMindStateBundle(
     input.surface?.memory?.derivedMindStateBundle ?? null,
   )
   const affectiveResidue = input.surface?.memory?.affectiveResidue
@@ -875,7 +679,7 @@ function buildSnapshotFromSurface(input: {
     returnPressure: clamp01(motive?.returnPressure ?? motive?.drives?.unfinishedThreadReturn),
     summary: '',
   }
-  const activeLoop = stripLegacyRuntimeGovernanceFromActiveLoop(
+  const activeLoop = projectActiveLoopSnapshot(
     deriveAlicizationActiveLoopSnapshot({
       architecture: input.spine.architecture,
       runtime: base,
@@ -1023,7 +827,7 @@ export function derivePostPolicyQuietHoldRuntimeSnapshot(
           speakingIntention: sanitizeDialogueStateText(snapshot.currentConsciousFrame.speakingIntention, 420) || null,
         }
       : null,
-    derivedMindStateBundle: stripLegacyRuntimeGovernanceFromDerivedMindStateBundle(
+    derivedMindStateBundle: projectDerivedMindStateBundle(
       snapshot.derivedMindStateBundle,
     ),
     shouldProactivelySpeak: false,
@@ -1032,7 +836,7 @@ export function derivePostPolicyQuietHoldRuntimeSnapshot(
       .replace(/\bspeak=(?:true|false)\b/u, 'speak=false')
       .replace(/\bact=(?:true|false)\b/u, 'act=false'),
   }
-  next.activeLoop = stripLegacyRuntimeGovernanceFromActiveLoop(
+  next.activeLoop = projectActiveLoopSnapshot(
     deriveAlicizationActiveLoopSnapshot({
       runtime: {
         ...next,
@@ -1165,7 +969,7 @@ export function projectAlicizationRuntimeDigest(
         }
       : null,
     affectiveResidue: snapshot.affectiveResidue ?? null,
-    derivedMindStateBundle: stripLegacyRuntimeGovernanceFromDerivedMindStateBundle(
+    derivedMindStateBundle: projectDerivedMindStateBundle(
       snapshot.derivedMindStateBundle ?? null,
     ),
     shouldProactivelySpeak: snapshot.shouldProactivelySpeak,
@@ -1181,11 +985,4 @@ export function projectAlicizationRuntimeDigest(
     channels,
     summary: sanitizeText(snapshot.summary, 240),
   }
-}
-
-export function buildAlicizationRuntimeSystemBlock(
-  snapshot: AlicizationRuntimeSnapshot | null | undefined,
-) {
-  void snapshot
-  return ''
 }

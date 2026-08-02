@@ -17,7 +17,6 @@ const EMBODIMENT_CONTINUITY_LANES: AlicizationEmbodimentContinuityLane[] = [
 export type AlicizationEmbodimentContinuityLaneStatus = SharedAlicizationEmbodimentContinuityLaneStatus
 
 const CARRYING_CONTINUITY_STATUS = 'carrying-continuity' as AlicizationEmbodimentContinuityLaneStatus
-const LEGACY_CAUSALITY_REPAIR_SOURCE_TAG = `${'same'}-her-causality-repair-pressure`
 
 export interface AlicizationEmbodimentContinuityLaneSnapshot {
   status: AlicizationEmbodimentContinuityLaneStatus
@@ -45,12 +44,6 @@ export interface AlicizationEmbodimentContinuityLedger extends AlicizationEmbodi
     lane: 'none' | 'cross-modal-continuity' | 'rejoin'
     reason: string
   }
-  selfRevisionCandidate: {
-    shouldPropose: boolean
-    domain: 'dialogue-style'
-    reasonCodes: string[]
-    summary: string | null
-  }
   traceSummary: string
   replayLine: string
   sourceTags: string[]
@@ -74,10 +67,6 @@ function uniqueList<T extends string>(values: Array<T | null | undefined>, maxIt
       break
   }
   return result
-}
-
-function plusList(values: string[]) {
-  return values.length > 0 ? values.join('+') : 'none'
 }
 
 function hasLaneBeenMissing(status: AlicizationEmbodimentContinuityLaneStatus | null | undefined) {
@@ -126,39 +115,12 @@ function resolveContinuityPhase(input: {
   return 'quiet'
 }
 
-function buildReasonCodes(input: {
-  droppedLanes: AlicizationEmbodimentContinuityLane[]
-  pendingRejoinLanes: AlicizationEmbodimentContinuityLane[]
-  rejoinedLanes: AlicizationEmbodimentContinuityLane[]
-  sourceTags?: string[] | null
-  projectStateContinuity?: {
-    sameHerSelfLine?: string | null
-    sameHerDriftRisk?: string | null
-    sameHerHoldDetail?: string | null
-  } | null
-}) {
-  return uniqueList([
-    ...input.droppedLanes.map(lane => `embodiment-lane-dropped:${lane}`),
-    ...input.pendingRejoinLanes.map(lane => `embodiment-partial:${lane}`),
-    ...input.rejoinedLanes.map(lane => `embodiment-lane-rejoined:${lane}`),
-    sanitizeText(input.projectStateContinuity?.sameHerSelfLine, 180) ? 'identity-continuity-self-line-active' : null,
-    sanitizeText(input.projectStateContinuity?.sameHerDriftRisk, 180) ? 'identity-continuity-drift-risk-active' : null,
-    sanitizeText(input.projectStateContinuity?.sameHerHoldDetail, 180) ? 'identity-continuity-hold-detail-active' : null,
-    input.sourceTags?.includes(LEGACY_CAUSALITY_REPAIR_SOURCE_TAG) ? 'continuity-causality-repair-pressure' : null,
-  ], 18)
-}
-
 export function buildAlicizationEmbodimentContinuityLedger(input: {
   createdAt: number
   turnId?: string | null
   sourceTags?: string[] | null
   previous?: Partial<Record<AlicizationEmbodimentContinuityLane, AlicizationEmbodimentContinuityLaneSnapshot>> | null
   current?: Partial<Record<AlicizationEmbodimentContinuityLane, AlicizationEmbodimentContinuityLaneEvidence>> | null
-  projectStateContinuity?: {
-    sameHerSelfLine?: string | null
-    sameHerDriftRisk?: string | null
-    sameHerHoldDetail?: string | null
-  } | null
 }): AlicizationEmbodimentContinuityLedger {
   const sourceTags = uniqueList((input.sourceTags ?? [])
     .map(tag => sanitizeText(tag, 64))
@@ -191,14 +153,6 @@ export function buildAlicizationEmbodimentContinuityLedger(input: {
     : droppedLanes.length > 0 || pendingRejoinLanes.length > 0
       ? 'cross-modal-continuity'
       : 'none'
-  const reasonCodes = buildReasonCodes({
-    droppedLanes,
-    pendingRejoinLanes,
-    rejoinedLanes,
-    sourceTags,
-    projectStateContinuity: input.projectStateContinuity,
-  })
-  const shouldProposeSelfRevision = droppedLanes.length > 0 || pendingRejoinLanes.length > 0
   const traceSummary = [
     `phase=${continuityPhase}`,
     `carrying=${carryingLanes.join(',') || 'none'}`,
@@ -207,9 +161,7 @@ export function buildAlicizationEmbodimentContinuityLedger(input: {
     `rejoined=${rejoinedLanes.join(',') || 'none'}`,
     sourceTags.length > 0 ? `source=${sourceTags.join(',')}` : '',
   ].filter(Boolean).join(' | ')
-  const replayLine = continuityPhase === 'fully-rejoined'
-    ? `${plusList(rejoinedLanes)} rejoined the embodiment continuity line; carrying lanes stayed ${plusList(carryingLanes)}.`
-    : `${plusList(carryingLanes)} carried continuity evidence while ${plusList(droppedLanes)} dropped and ${plusList(pendingRejoinLanes.filter(lane => !droppedLanes.includes(lane)))} waited to rejoin.`
+  const replayLine = traceSummary
 
   return {
     version: 'embodiment-continuity-ledger-v1',
@@ -225,18 +177,10 @@ export function buildAlicizationEmbodimentContinuityLedger(input: {
       shouldWrite: memoryWritebackLane !== 'none',
       lane: memoryWritebackLane,
       reason: memoryWritebackLane === 'rejoin'
-        ? `Embodiment lanes rejoined after prior drift: ${plusList(rejoinedLanes)}.`
+        ? 'embodiment-memory:rejoin'
         : memoryWritebackLane === 'cross-modal-continuity'
-          ? `Embodiment continuity is partial: carrying=${plusList(carryingLanes)} dropped=${plusList(droppedLanes)} pending=${plusList(pendingRejoinLanes)}.`
-          : '',
-    },
-    selfRevisionCandidate: {
-      shouldPropose: shouldProposeSelfRevision,
-      domain: 'dialogue-style',
-      reasonCodes,
-      summary: shouldProposeSelfRevision
-        ? `Embodiment continuity needs repair before expression can feel like one lifeform: ${traceSummary}.`
-        : null,
+          ? 'embodiment-memory:partial'
+          : 'embodiment-memory:none',
     },
     traceSummary,
     replayLine,

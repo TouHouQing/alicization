@@ -55,31 +55,51 @@ function pickLatestLedgerEntry(entries: AlicizationExecutionLedgerDigest[]) {
 function buildExecutionReplyObligationFromCallback(
   latestCallback: AlicizationExecutionCallbackDigest,
   followUpQuestion: boolean,
-): AlicizationMainChatExecutionReplyObligation {
-  return {
-    channel: sanitizeText(latestCallback.channel, 48) || 'unknown',
+): AlicizationMainChatExecutionReplyObligation | null {
+  return buildExecutionReplyObligation({
+    channel: sanitizeText(latestCallback.channel, 48),
     followUpQuestion,
-    goal: sanitizeText(latestCallback.goal, 180) || 'the recent task',
+    goal: sanitizeText(latestCallback.goal, 180),
     outcome: sanitizeText(latestCallback.outcome, 220),
     source: 'fresh-callback',
     status: normalizeExecutionStatus(latestCallback.status),
-    summary: sanitizeText(latestCallback.summary, 220) || 'A fresh executor callback is waiting for direct payoff.',
-  }
+    summary: sanitizeText(latestCallback.summary, 220),
+  })
 }
 
 function buildExecutionReplyObligationFromLedgerEntry(
   latestLedgerEntry: AlicizationExecutionLedgerDigest,
   followUpQuestion: boolean,
-): AlicizationMainChatExecutionReplyObligation {
-  return {
-    channel: sanitizeText(latestLedgerEntry.channel, 48) || 'unknown',
+): AlicizationMainChatExecutionReplyObligation | null {
+  return buildExecutionReplyObligation({
+    channel: sanitizeText(latestLedgerEntry.channel, 48),
     followUpQuestion,
-    goal: sanitizeText(latestLedgerEntry.goal, 180) || 'the recent task',
+    goal: sanitizeText(latestLedgerEntry.goal, 180),
     outcome: sanitizeText(latestLedgerEntry.outcome, 220),
     source: 'ledger-follow-up',
     status: normalizeExecutionStatus(latestLedgerEntry.status),
-    summary: sanitizeText(latestLedgerEntry.summary, 220) || 'A recent executor result is relevant to the current follow-up.',
+    summary: sanitizeText(latestLedgerEntry.summary, 220),
+  })
+}
+
+function buildExecutionReplyObligation(input: AlicizationMainChatExecutionReplyObligation) {
+  const obligation: AlicizationMainChatExecutionReplyObligation = {
+    followUpQuestion: input.followUpQuestion,
+    source: input.source,
   }
+
+  if (input.channel)
+    obligation.channel = input.channel
+  if (input.goal)
+    obligation.goal = input.goal
+  if (input.outcome)
+    obligation.outcome = input.outcome
+  if (input.status)
+    obligation.status = input.status
+  if (input.summary)
+    obligation.summary = input.summary
+
+  return Object.keys(obligation).length > 2 ? obligation : null
 }
 
 function shouldPreferFreshCallbackOverLedgerEntry(
@@ -142,17 +162,19 @@ function normalizeExecutionStatus(raw: string) {
     return 'planned'
   if (status === 'needs-affirmation')
     return 'needs-affirmation'
-  return 'unknown'
+  if (status === 'unknown')
+    return 'unknown'
+  return undefined
 }
 
 export interface AlicizationMainChatExecutionReplyObligation {
-  channel: string
+  channel?: string
   followUpQuestion: boolean
-  goal: string
-  outcome: string
+  goal?: string
+  outcome?: string
   source: 'fresh-callback' | 'ledger-follow-up'
-  status: 'blocked' | 'cancelled' | 'completed' | 'failed' | 'needs-affirmation' | 'planned' | 'running' | 'unknown'
-  summary: string
+  status?: 'blocked' | 'cancelled' | 'completed' | 'failed' | 'needs-affirmation' | 'planned' | 'running' | 'unknown'
+  summary?: string
 }
 
 export function buildMainChatExecutionReplyVisibleSurfaceRules(

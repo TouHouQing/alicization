@@ -100,7 +100,6 @@ export type AlicizationExecutionResultFeedbackKind = 'valued' | 'doubted' | 'int
 export interface AlicizationExecutionProposalFeedbackThread {
   affirmationReasonCodes?: string[] | null
   goal: string
-  projectBriefing?: AlicizationExecutionResultFeedbackThread['projectBriefing']
   proposedChannel?: string | null
   selectedChannel?: string | null
   summary?: string | null
@@ -113,18 +112,6 @@ export interface AlicizationExecutionResultFeedbackThread {
   memoryClosureExecution?: AlicizationExecutionRuntimeMemoryClosureExecution | null
   outcome?: string | null
   previousAssistantText?: string | null
-  projectBriefing?: {
-    currentPhase?: string | null
-    identity?: string | null
-    latestLandedProgress?: string | null
-    proactiveSameHerGap?: string | null
-    nextClosureTarget?: string | null
-    preDialogueAwarenessLine?: string | null
-    preflightSummary?: string | null
-    primaryOpenLoop?: string | null
-    sameHerDriftRisk?: string | null
-    sameHerSelfLine?: string | null
-  } | null
   proposedChannel?: string | null
   resumeConfirmationSummary?: string | null
   selectedChannel?: string | null

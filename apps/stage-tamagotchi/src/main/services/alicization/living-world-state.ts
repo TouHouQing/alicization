@@ -66,16 +66,17 @@ function createObject(input: {
   threadIds?: string[]
   evidence?: string[]
 }): AlicizationLivingWorldObjectSnapshot {
+  const label = sanitizeText(input.label, 140)
   return {
     id: input.id,
     kind: input.kind,
     status: input.status,
-    label: sanitizeText(input.label, 140) || 'current-world-object',
-    summary: sanitizeText(input.summary, 220) || sanitizeText(input.label, 140) || 'current-world-object',
+    label: label || `${input.kind}:${input.id}`,
+    summary: sanitizeText(input.summary, 220) || label || `${input.kind}:${input.id}`,
     confidence: clamp01(Math.max(input.confidence, input.previous?.confidence ?? 0)),
     salience: clamp01(Math.max(input.salience, input.previous?.salience ?? 0)),
     continuity: clamp01(Math.max(input.continuity, input.previous?.continuity ?? 0)),
-    lastChange: sanitizeText(input.lastChange, 180) || 'continuity-holding',
+    lastChange: sanitizeText(input.lastChange, 180) || `status:${input.status}`,
     openLoop: sanitizeText(input.openLoop, 160) || undefined,
     entityIds: dedupeTexts([...(input.previous?.entityIds ?? []), ...(input.entityIds ?? [])]),
     threadIds: dedupeTexts([...(input.previous?.threadIds ?? []), ...(input.threadIds ?? [])]),
@@ -261,10 +262,10 @@ function buildSessionObject(input: {
       ? 'afterglow-window'
       : 'covision-session'
   const summary = lateNightSession
-    ? 'The host is still carrying the current session deep into the night.'
+    ? `session:${label}; lateNightActiveMinutes:${input.context.relationship.lateNightActiveMinutes}`
     : afterglowSession
-      ? 'The shared scene just loosened but is still warm enough to matter.'
-      : 'A shared scene is holding long enough to feel like an ongoing session.'
+      ? `session:${label}; afterglowOpen:true`
+      : `session:${label}; watch:${input.watchMode}`
 
   return createObject({
     now: input.now,
@@ -315,8 +316,8 @@ function buildIncidentObject(input: {
     ]),
     kind: 'incident',
     status: 'active',
-    label: sanitizeText(input.pulse?.title ?? input.pulse?.appName ?? input.pulse?.processName, 140) || 'foreground-incident',
-    summary: sanitizeText(input.pulse?.detail ?? input.pulse?.title ?? input.pulse?.appName, 220) || 'A serious foreground durability event was detected.',
+    label: sanitizeText(input.pulse?.title ?? input.pulse?.appName ?? input.pulse?.processName, 140) || `incident:${input.pulse?.kind ?? 'unknown'}`,
+    summary: sanitizeText(input.pulse?.detail ?? input.pulse?.title ?? input.pulse?.appName, 220) || `incident:${input.pulse?.kind ?? 'unknown'}`,
     confidence: 0.95,
     salience: 0.96,
     continuity: 0.92,

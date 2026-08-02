@@ -476,8 +476,8 @@ export function buildCounterfactualDeliberation(input: {
     options: rankedOptions,
     narrative: [
       selectedOption
-        ? `${selectedOption.action} wins because identity fit and timing beat its interruption cost.`
-        : 'No outward option matured enough to dominate the mind this tick.',
+        ? `counterfactual:selected;action=${selectedOption.action};tradeoff=${dominantTradeoff(selectedOption.action)}`
+        : 'counterfactual:none',
       selectedOption?.why ?? '',
     ].filter(Boolean),
     updatedAt: input.now,

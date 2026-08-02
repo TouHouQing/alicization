@@ -72,47 +72,4 @@ describe('runtime card prompt persona kernel', () => {
       /Response contract|Output contract|Return (?:exactly )?one (?:strict )?JSON/iu,
     )
   })
-
-  it('does not inject canonical project-state continuity blocks into ordinary main prompt blocks', async () => {
-    const runtime = createAlicizationCardPromptRuntime({
-      getActiveCardId: () => 'default',
-      getSoulSnapshot: () => null,
-      resolveCardPaths: () => ({
-        soulPath: '/tmp/SOUL.md',
-      }),
-      normalizeCardId: raw => typeof raw === 'string' ? raw : 'default',
-      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-      appendRuntimeDebugLine: vi.fn(async () => {}),
-    })
-
-    const blocks = runtime.buildMainRuntimeCorePromptBlocks({
-      hostName: '主人',
-      includeProjectStateContext: false,
-      personaKernel: null,
-    })
-
-    expect(blocks.map(block => JSON.parse(block)).some(block => block.type === 'alicization-project-state')).toBe(false)
-  })
-
-  it('keeps project-state governance out of the Provider prompt even when a legacy caller requests it', async () => {
-    const runtime = createAlicizationCardPromptRuntime({
-      getActiveCardId: () => 'default',
-      getSoulSnapshot: () => null,
-      resolveCardPaths: () => ({
-        soulPath: '/tmp/SOUL.md',
-      }),
-      normalizeCardId: raw => typeof raw === 'string' ? raw : 'default',
-      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
-      appendRuntimeDebugLine: vi.fn(async () => {}),
-    })
-
-    const blocks = runtime.buildMainRuntimeCorePromptBlocks({
-      hostName: '主人',
-      includeProjectStateContext: true,
-      personaKernel: null,
-    })
-
-    const facts = blocks.map(block => JSON.parse(block))
-    expect(facts.some(block => block.type === 'alicization-project-state')).toBe(false)
-  })
 })

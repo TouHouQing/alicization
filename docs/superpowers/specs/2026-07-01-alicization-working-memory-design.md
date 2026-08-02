@@ -243,7 +243,7 @@ interface WorkingMemoryThread {
 
 - 固定模板、fallback 装饰回复、超时兜底，不进入人格候选。
 - 工具 stdout / stderr 默认不直接进入模型上下文，只进入摘要和 evidence handle。
-- 重复的项目状态壳、same-her 口号和薄弱 awareness line 要合并或丢弃。
+- 重复的工程状态壳、身份口号和薄弱 awareness line 要合并或丢弃。
 - 未被用户确认的推测必须标为 uncertain。
 
 ## 回复前注入视图
@@ -254,7 +254,7 @@ interface WorkingMemoryThread {
 
 ```ts
 interface WorkingMemoryPromptView {
-  recentRawDialogue: Array<{ role: 'user' | 'alice'; text: string }>
+  recentRawDialogue: Array<{ role: 'user' | 'alice', text: string }>
   currentThread: string | null
   activeTask: string | null
   unresolvedQuestions: string[]

@@ -16,7 +16,7 @@
 2. autobiographical continuity retrieval
 3. proactive cadence
 4. host rhythm
-5. self-facing fast path continuity
+5. self-facing Provider dialogue continuity
 
 但还存在几个使“自主性”发虚的缺口：
 

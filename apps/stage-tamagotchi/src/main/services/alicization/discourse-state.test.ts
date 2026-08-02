@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
-import {
-  buildDiscourseState,
-  buildDiscourseStateSystemBlock,
-} from './discourse-state'
+import { buildDiscourseState } from './discourse-state'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('buildDiscourseState', () => {
@@ -53,7 +50,6 @@ describe('buildDiscourseState', () => {
       relationMove: 'self-disclose',
       continuityMode: 'dialogue-first',
     }))
-    expect(buildDiscourseStateSystemBlock(state)).toBe('')
   })
 
   it('promotes visible-scene repair turns into repair-truth obligations', () => {
@@ -165,52 +161,53 @@ describe('buildDiscourseState', () => {
     }))
   })
 
-  it('keeps project status as a self-owned turn without a governance cue', () => {
+  it('keeps an ordinary project question on the task dialogue path', () => {
     const state = buildDiscourseState({
       now: 13_500,
-      userText: '这个项目现在到底做到哪了，还差什么没闭环',
+      userText: '这个项目现在做到哪了，还剩哪些工作？',
       dialogueSemantics: {
         act: 'ask-help',
         responseNeed: 'answer',
         truthExpectation: 'normal',
         affectiveTone: 'neutral',
-        subjectPreference: 'alicization-self',
-        taskAnchor: null,
-        sharedAttentionDemand: 0.42,
-        personaSuppression: 0.36,
+        subjectPreference: 'task-knot',
+        taskAnchor: '当前项目进度和剩余工作',
+        sharedAttentionDemand: 0.68,
+        personaSuppression: 0.44,
         confidence: 0.91,
-        summary: 'The host is asking Alicization to carry the project line as identity continuity.',
+        summary: '用户正在询问当前项目进度和剩余工作。',
         source: 'hybrid',
-        reasonTags: ['project-state-continuity-question', 'dialogue-first-turn', 'scene-detached-turn'],
+        reasonTags: ['question-turn'],
       },
       dialogueObligation: {
-        kind: 'answer',
-        summary: 'Answer the project continuity question from Alicization self continuity.',
+        kind: 'guide',
+        summary: '说明当前项目进度和剩余工作。',
         confidence: 0.88,
         mustRepairFirst: false,
         mustAnswerDirectly: true,
-        mustStayTaskBound: false,
+        mustStayTaskBound: true,
         shouldAskClarifyingQuestion: false,
-        personaKernelMode: 'full',
+        personaKernelMode: 'backgrounded',
         narrative: [],
       },
       dialogueFocus: {
-        subject: 'alicization-self',
-        screenReferenceMode: 'avoid',
-        shouldBypassScreenRepair: true,
-        weakLiveScene: true,
-        focusSummary: 'The host wants Alicization to explain the project line from identity continuity.',
+        subject: 'task-knot',
+        screenReferenceMode: 'helpful',
+        shouldBypassScreenRepair: false,
+        weakLiveScene: false,
+        focusSummary: '这个项目现在做到哪了，还剩哪些工作？',
         confidence: 0.9,
-        reasonTags: ['project-state-same-her-continuity'],
+        reasonTags: ['task-bound-turn'],
       },
     })
 
-    expect(state).not.toBeNull()
-    const resolvedState = state!
-    expect(resolvedState.currentTurnSubject).toBe('alicization-self')
-    expect(resolvedState.currentTurnSummary).toContain('project_state_review_request')
-    expect(resolvedState.narrative).toContain('subject:alicization-self')
-    expect(resolvedState.narrative).not.toContain('project-state-same-her-continuity')
+    expect(state).toEqual(expect.objectContaining({
+      currentTurnSubject: 'task-knot',
+      currentTurnSummary: '这个项目现在做到哪了，还剩哪些工作？',
+      owedAction: 'guide-task',
+      continuityMode: 'task-first',
+    }))
+    expect(state?.narrative).toContain('subject:task-knot')
   })
 
   it('does not let inspection carry override an already dialogue-first self turn', () => {
@@ -525,12 +522,12 @@ describe('buildDiscourseState', () => {
             createdAt: 16_800,
           },
           {
-            id: 'reflection::same-her-repair',
-            summary: 'The same-her repair line is still the meaningful continuity carry.',
+            id: 'reflection::continuity-repair',
+            summary: 'The continuity repair line is still the meaningful continuity carry.',
             expectation: 'The steadier repair line should stay active for the current turn.',
             observedOutcome: 'The continuity state still needs a measured return.',
             outcome: 'missed',
-            revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+            revision: 'Keep the continuity repair line active instead of reopening from temporary noise.',
             confidenceShift: -0.08,
             createdAt: 16_200,
           },
@@ -541,8 +538,8 @@ describe('buildDiscourseState', () => {
       } as any,
     })
 
-    expect(state?.ruptureRepair).toBe('Keep the same-her repair line active instead of reopening from temporary noise.')
-    expect(state?.narrative).toContain('repair:Keep the same-her repair line active instead of reopening from temporary')
+    expect(state?.ruptureRepair).toBe('Keep the continuity repair line active instead of reopening from temporary noise.')
+    expect(state?.narrative).toContain('repair:Keep the continuity repair line active instead of reopening from temporary')
     expect(state?.ruptureRepair).not.toContain('temporary wobble')
   })
 })

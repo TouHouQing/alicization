@@ -28,9 +28,6 @@ export function buildSelfEvolutionAdoptedAnchorReplayPlan(input: {
   if (!input.traceability || !input.historyTransition || !input.traceEventSelection)
     return null
 
-  const bodyContinuityRendererRejoinLine = (input.traceability.supportingLines ?? [])
-    .find(line => line.includes('身体承接态 -> ') && line.includes('显形补回态'))
-
   return {
     patternKey: input.traceability.patternKey,
     transitionKey: input.historyTransition.transitionKey,
@@ -41,12 +38,6 @@ export function buildSelfEvolutionAdoptedAnchorReplayPlan(input: {
       `工作流：${input.traceability.workflowHeadline ?? 'n/a'}`,
       `历史转移：${input.historyTransition.summaryLine}`,
       `事件定位：${input.traceEventSelection.summaryLine}`,
-      ...(bodyContinuityRendererRejoinLine
-        ? [`显形补回：${bodyContinuityRendererRejoinLine}`]
-        : []),
-      ...((input.traceability.supportingLines ?? [])
-        .filter(line => line.startsWith('采纳前提仍然可追溯到'))
-        .map(line => `连续性前提：${line}`)),
     ],
   }
 }

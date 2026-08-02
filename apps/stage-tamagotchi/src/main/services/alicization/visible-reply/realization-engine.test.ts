@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildAlicizationVisibleReplyRealizationArtifact,
   deriveAlicizationVisibleReplyText,
+  resolveAlicizationPreparedVisibleReplyExecution,
   resolveAlicizationTimeoutRecoveredVisibleReply,
 } from './realization-engine'
 
@@ -31,6 +32,44 @@ function expectNoRetiredSidecars(value: unknown) {
 }
 
 describe('visible reply realization engine', () => {
+  it.each([
+    {
+      hasVisualGrounding: false,
+      expectedMode: 'provider-stream',
+    },
+    {
+      hasVisualGrounding: true,
+      expectedMode: 'provider-one-shot',
+    },
+  ] as const)(
+    'migrates a persisted local-fallback plan to $expectedMode when visual grounding is $hasVisualGrounding',
+    ({ hasVisualGrounding, expectedMode }) => {
+      const execution = resolveAlicizationPreparedVisibleReplyExecution({
+        prepared: {
+          hasVisualGrounding,
+          mindTurnContract: null,
+          replyExecutionPlan: {
+            preferredMode: 'local-fallback',
+            expectedVisibleReplyAuthority: 'llm-mind',
+            reason: 'legacy-persisted-plan',
+          },
+          runtimeSurface: {
+            replyExecutionPlan: null,
+          },
+          governance: null,
+        } as any,
+      })
+
+      expect(execution).toMatchObject({
+        mode: expectedMode,
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'legacy-persisted-plan',
+      })
+    },
+  )
+
   it('returns only the Provider-authored reply field from a structured response', () => {
     expect(deriveAlicizationVisibleReplyText(JSON.stringify({
       reply: '我已经接住这轮真正要处理的问题。',
@@ -64,7 +103,7 @@ describe('visible reply realization engine', () => {
     expectNoRetiredSidecars(realization)
   })
 
-  it('keeps explicit emotional subsystem evidence without accepting nested metadata as authority', () => {
+  it('drops unknown sidecar inputs from the realization artifact', () => {
     const realization = buildAlicizationVisibleReplyRealizationArtifact({
       fullText: JSON.stringify({
         reply: '我会继续检查可见回复链路。',
@@ -74,7 +113,7 @@ describe('visible reply realization engine', () => {
         },
       }),
       visibleReplyExecution,
-      emotionalClosureCue: 'real emotional cue from the emotional subsystem',
+      unknownSidecar: 'must not reach the public artifact',
       closure: {
         version: 'visible-reply-closure-v1',
         status: 'approved',
@@ -82,14 +121,14 @@ describe('visible reply realization engine', () => {
         finalCritic: null,
         reasonCodes: [],
       } as any,
-    })
+    } as any)
 
     expect(realization.visibleText).toBe('我会继续检查可见回复链路。')
     expect(realization.visibleReplyValidationStatus).toBe('approved')
-    expect(realization.emotionalClosureAudit).toEqual({
-      activeCue: 'real emotional cue from the emotional subsystem',
-    })
-    expect(JSON.stringify(realization)).not.toContain('untrusted nested cue')
+    expect(realization).not.toHaveProperty('unknownSidecar')
+    expect(JSON.stringify(realization)).not.toMatch(
+      /untrusted nested cue|must not reach the public artifact/,
+    )
     expectNoRetiredSidecars(realization)
   })
 

@@ -242,7 +242,6 @@ export function buildAlicizationPersonStateUpdateSurface(input: {
     version: 'person-state-update-surface-v1',
     updatedAt: input.now,
     summary: evidence.all[0]?.id ?? '',
-    projectStateContinuity: null,
     dominantContexts,
     relationshipShift,
     reinforcementBias,
@@ -325,7 +324,6 @@ export function normalizeAlicizationPersonStateUpdateSurface(raw: unknown): Alic
     version: 'person-state-update-surface-v1',
     updatedAt,
     summary,
-    projectStateContinuity: null,
     dominantContexts: normalizePersonStateContexts(candidate?.dominantContexts),
     relationshipShift: {
       trustDelta: clamp(normalizeNumeric(relationshipShift?.trustDelta)),
@@ -431,7 +429,6 @@ export function buildAlicizationPersonStateUpdateRecord(input: {
     version: input.surface.version,
     updatedAt: input.surface.updatedAt,
     summary: knownEvidenceIds.has(summary) ? summary : '',
-    projectStateContinuity: null,
     dominantContexts: normalizePersonStateContexts(input.surface.dominantContexts),
     relationshipShift: {
       trustDelta: clamp(input.surface.relationshipShift.trustDelta),

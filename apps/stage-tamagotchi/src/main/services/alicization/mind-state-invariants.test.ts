@@ -110,7 +110,7 @@ describe('stabilizeMindStateInvariants', () => {
 })
 
 describe('continuity mind', () => {
-  it('maintains a subjective present during prolonged silence', () => {
+  it('uses only the grounded thread summary during prolonged silence', () => {
     const mind = createAlicizationContinuityMind()
     const state = mind.reduce({
       quietLineMs: 240000,
@@ -121,7 +121,7 @@ describe('continuity mind', () => {
       now: 241000,
     })
 
-    expect(state.subjectiveNowSummary).toContain('focus')
+    expect(state.subjectiveNowSummary).toBe('host sustained focus on coding task')
     expect(state.privateThoughtMode).toBe('quiet-companionship')
     expect(state.shouldForceSpeech).toBe(false)
   })
@@ -138,7 +138,7 @@ describe('continuity mind', () => {
     })
 
     expect(state.privateThoughtMode).toBe('quiet-companionship')
-    expect(state.subjectiveNowSummary).toContain('coding thread')
+    expect(state.subjectiveNowSummary).toBe('host staying with a coding thread')
   })
 
   it('blocks quiet companionship when the latest user turn is still recent', () => {
@@ -153,7 +153,7 @@ describe('continuity mind', () => {
     })
 
     expect(state.privateThoughtMode).toBe('ambient-watch')
-    expect(state.subjectiveNowSummary).toContain('focus')
+    expect(state.subjectiveNowSummary).toBe('host sustained focus on coding task')
   })
 
   it('does not treat reducer refresh timestamps as user-turn timing', () => {
@@ -168,7 +168,22 @@ describe('continuity mind', () => {
     })
 
     expect(state.privateThoughtMode).toBe('quiet-companionship')
-    expect(state.subjectiveNowSummary).toContain('focus')
+    expect(state.subjectiveNowSummary).toBe('host sustained focus on coding task')
+  })
+
+  it('does not invent a subjective summary when no grounded thread exists', () => {
+    const mind = createAlicizationContinuityMind()
+    const state = mind.reduce({
+      quietLineMs: 240000,
+      bodyState: 'accompanying',
+      latestThreadSummary: null,
+      relationshipPressure: 0.38,
+      latestUserTurnAt: null,
+      now: 241000,
+    })
+
+    expect(state.subjectiveNowSummary).toBe('')
+    expect(state.privateThoughtMode).toBe('quiet-companionship')
   })
 
   it('does not fabricate quiet companionship from future thought expiry alone', () => {

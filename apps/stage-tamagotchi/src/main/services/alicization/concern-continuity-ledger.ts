@@ -314,9 +314,7 @@ export function buildConcernContinuityLedger(input: {
   const unresolvedCount = dedupedEntries.filter(entry => entry.status === 'active' || entry.status === 'carried').length
   const narrative = governingEntry
     ? [
-        governingEntry.status === 'carried'
-          ? `Still carrying ${governingEntry.summary.toLowerCase()} even after the scene softened.`
-          : `Current governing concern continuity is ${governingEntry.summary.toLowerCase()}.`,
+        `concern-continuity:${governingEntry.status};id=${governingEntry.id};summary=${governingEntry.summary}`,
       ]
     : []
 

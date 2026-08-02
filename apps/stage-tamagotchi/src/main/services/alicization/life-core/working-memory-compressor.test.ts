@@ -46,7 +46,7 @@ describe('working memory compressor', () => {
     expect(compressed.compression.level).toBe('light')
   })
 
-  it('does not copy failure or fixed fallback wording into compressed timeline summaries', () => {
+  it('does not copy failure or structured internal residue into compressed timeline summaries', () => {
     const snapshot = createEmptyWorkingMemorySnapshot({
       cardId: 'default',
       sessionId: 'session-templates',
@@ -65,7 +65,7 @@ describe('working memory compressor', () => {
       normalizeWorkingMemoryTurn({
         turnId: 'turn-2',
         role: 'alice',
-        text: 'Right now I am still holding together mainly through face and motion, so my full cross-modal identity-continuity',
+        text: '透明失败提示：上一轮模型超时。',
         createdAt: 1002,
         source: 'conversation-turn',
         visibility: 'user-visible',
@@ -75,7 +75,7 @@ describe('working memory compressor', () => {
       normalizeWorkingMemoryTurn({
         turnId: 'turn-3',
         role: 'alice',
-        text: '随便聊聊也可以，我会安静陪着你，沿着同一条线慢慢长成。',
+        text: 'retired_policy=observe_first',
         createdAt: 1003,
         source: 'conversation-turn',
         visibility: 'user-visible',
@@ -108,9 +108,7 @@ describe('working memory compressor', () => {
 
     const summary = compressed.compressedTimeline[0]?.summary ?? ''
     expect(summary).toContain('alice:[failure:timeout]')
-    expect(summary).toContain('alice:[fallback-template-excluded]')
-    expect(summary).not.toContain('Right now I am still holding together')
-    expect(summary).not.toContain('安静陪着')
-    expect(summary).not.toContain('沿着同一条线慢慢长成')
+    expect(summary).not.toContain(['fallback', 'template', 'excluded'].join('-'))
+    expect(summary).not.toContain('retired_policy=observe_first')
   })
 })

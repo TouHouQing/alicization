@@ -22,13 +22,13 @@ import {
   buildAlicizationProviderFactBlock,
   buildAlicizationScreenSurfaceCue,
   isWeakAlicizationScreenSurfaceCue,
+  sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 import { generateText } from '@xsai/generate-text'
 
 import { getActiveAttentionAnchor } from './attention-anchor'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
 import { emptyAlicizationExecutionCallbackContext } from './execution-callback-runtime'
-import { buildCardCustomDirectivesSystemBlock } from './main-chat-runtime-surface'
 import { createAbortError } from './main-chat-stream-primitives'
 import {
   isAlicizationRegisteredMainGatewaySource,
@@ -126,7 +126,6 @@ interface CreateAlicizationMainGatewayOneShotRuntimeOptions {
     digitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<{ digitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null, sessionContinuitySignals: AlicizationAgentSessionContinuityInput[] }>
   getPerformanceManifest: () => Promise<CharacterPerformanceCapabilitiesManifest | null>
-  buildPerformanceManifestSystemBlocks: (manifest: CharacterPerformanceCapabilitiesManifest | null) => string[]
   syncAgentTurnSessionMirror: (input: {
     agentTurn?: AlicizationAgentTurnRuntime | null
     cardId: string
@@ -201,8 +200,6 @@ function resolveOneShotMinimumPromptChars(index: number, messages: Message[]) {
   if (!message || typeof message.content !== 'string')
     return 0
   let minimumChars = 0
-  if (message.content.includes('[ALICIZATION_DIALOGUE_SESSION_MIRROR]'))
-    minimumChars = Math.max(minimumChars, 12_000)
   if (index === messages.length - 2 && message.role === 'system')
     minimumChars = Math.max(minimumChars, 4_096)
   if (index === messages.length - 1 && message.role === 'user')
@@ -218,8 +215,6 @@ function resolveOneShotMinimumPromptPriority(index: number, messages: Message[])
     return 0
   if (index === messages.length - 1 && message.role === 'user')
     return 1
-  if (message.content.includes('[ALICIZATION_DIALOGUE_SESSION_MIRROR]'))
-    return 2
   return 99
 }
 
@@ -395,27 +390,16 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     'alicization-organic-self-context',
     'alicization-turn-memory-context',
   ])
-  const trustedCustomDirectiveFactTypes = new Set([
-    'alicization-persona-directives',
-  ])
   const trustedExecutionCallbackFactTypes = new Set([
     'alicization-execution-callbacks',
   ])
-  const retiredOneShotStructuredKeys = new Set([
-    'opening_policy',
-    'project_continuity',
-    'project_state',
-    'projectstate',
-    'projectstatecontinuity',
-    'projectstatepredialogueawarenessline',
-    'projectstatepreflightsummary',
-    'relationship_cadence',
-    'runtime_context',
-  ])
-
   function sanitizeOneShotStructuredValue(raw: unknown): unknown {
-    if (typeof raw === 'string')
-      return raw
+    if (typeof raw === 'string') {
+      const sanitized = sanitizeAlicizationProviderFacingText(raw, 2_400, '', {
+        origin: 'internal-structured-fact',
+      })
+      return sanitized || undefined
+    }
     if (Array.isArray(raw)) {
       if (raw.length === 0)
         return []
@@ -432,12 +416,6 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       return {}
     const sanitized: Record<string, unknown> = {}
     for (const [key, value] of entries) {
-      if (
-        retiredOneShotStructuredKeys.has(key.toLowerCase())
-        || (key.toLowerCase() === 'visibility' && value === 'redacted_internal')
-      ) {
-        continue
-      }
       const nextValue = sanitizeOneShotStructuredValue(value)
       if (nextValue === undefined)
         continue
@@ -739,12 +717,6 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       return null
     }
 
-    const resolvedCustomDirectives = generateOptions.injectCustomDirectives === false
-      ? { text: '', source: 'none' as const }
-      : await options.resolveCardCustomDirectives(generateOptions.cardId ?? options.getActiveCardId())
-    const customDirectiveBlock = generateOptions.injectCustomDirectives === false
-      ? ''
-      : buildCardCustomDirectivesSystemBlock(resolvedCustomDirectives.text)
     const executionCallbackContext = agentTurn?.conversationSessionId
       ? await options.buildPendingExecutionCallbackContext({
           consume: false,
@@ -825,14 +797,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       generateOptions.system,
       trustedCallerSystemFactTypes,
     )
-    const sanitizedCustomDirectiveBlock = sanitizeOneShotProviderSystemBlock(
-      customDirectiveBlock,
-      trustedCustomDirectiveFactTypes,
-    )
     const systemMessages: Message[] = [
-      ...(sanitizedCustomDirectiveBlock
-        ? [{ role: 'system', content: sanitizedCustomDirectiveBlock } as Message]
-        : []),
       ...(executionCallbackSystemBlock
         ? [{ role: 'system', content: executionCallbackSystemBlock } as Message]
         : []),
@@ -904,8 +869,6 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
           source: generateOptions.source ?? 'unknown',
           gatewayAuditFamily: gatewayAuditDescriptor.family,
           gatewaySourceRegistered: gatewayAuditDescriptor.registered,
-          customDirectivesSource: resolvedCustomDirectives.source,
-          customDirectivesChars: resolvedCustomDirectives.text.length,
           chunkCount: fullText ? 1 : 0,
           rawChunkChars: fullText.length,
           finalChars: fullText.length,

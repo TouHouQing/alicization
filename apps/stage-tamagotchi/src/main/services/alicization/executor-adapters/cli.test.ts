@@ -321,45 +321,13 @@ describe('cli executor adapter', () => {
         args: [
           '-e',
           [
-            'const legacyNames = [',
-            '"ALICIZATION_EXECUTION_PROJECT_IDENTITY",',
-            '"ALICIZATION_EXECUTION_PROJECT_PHASE",',
-            '"ALICIZATION_EXECUTION_PROJECT_LANDED_PROGRESS",',
-            '"ALICIZATION_EXECUTION_PROJECT_OPEN_LOOP",',
-            '"ALICIZATION_EXECUTION_PROJECT_NEXT_CLOSURE",',
-            '"ALICIZATION_EXECUTION_PROJECT_SAME_HER",',
-            '"ALICIZATION_EXECUTION_PROJECT_SAME_HER_HOLD",',
-            '"ALICIZATION_EXECUTION_PROJECT_SAME_HER_DRIFT_RISK",',
-            '"ALICIZATION_EXECUTION_PROJECT_CONTINUITY_RESTRAINT",',
-            '"ALICIZATION_EXECUTION_PROJECT_CONTINUITY",',
-            '"ALICIZATION_EXECUTION_PROJECT_PREFLIGHT",',
-            '"ALICIZATION_EXECUTION_PROJECT_AWARENESS",',
-            '"ALICIZATION_EXECUTION_PROJECT_PREFERRED_PAUSE_MODE",',
-            '"ALICIZATION_EXECUTION_PROJECT_PREFERRED_LIPSYNC_MODE",',
-            '"ALICIZATION_EXECUTION_PROJECT_PREFERRED_VOICE_MODE",',
-            '"ALICIZATION_EXECUTION_PROJECT_PREFERRED_PACING_MODE"',
-            '];',
             'const runtimeJson = JSON.parse(process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_JSON || "{}");',
             'const runtimeFact = JSON.parse(process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_BLOCK || "{}");',
             'process.stdout.write(JSON.stringify({',
             'foreground: process.env.ALICIZATION_EXECUTION_FOREGROUND_WINDOW || "",',
             'generatedAt: process.env.ALICIZATION_EXECUTION_CONTEXT_GENERATED_AT || "",',
             'runtimeIdentifiers: { cardId: runtimeJson.cardId ?? null, turnId: runtimeJson.turnId ?? null },',
-            'runtimeFact: { type: runtimeFact.type ?? null, owners: runtimeFact.data?.owners ?? null, failureSurface: runtimeFact.data?.failureSurface ?? null, status: runtimeFact.data?.execution?.status ?? null },',
-            'statusLatest: process.env.ALICIZATION_EXECUTION_STATUS_LATEST || "",',
-            'statusOpen: process.env.ALICIZATION_EXECUTION_STATUS_OPEN || "",',
-            'statusNext: process.env.ALICIZATION_EXECUTION_STATUS_NEXT || "",',
-            'continuityArcStage: process.env.ALICIZATION_EXECUTION_CONTINUITY_ARC_STAGE || "",',
-            'continuityRestraint: process.env.ALICIZATION_EXECUTION_CONTINUITY_RESTRAINT || "",',
-            'continuityPreferredTiming: process.env.ALICIZATION_EXECUTION_CONTINUITY_PREFERRED_TIMING || "",',
-            'continuityCadence: process.env.ALICIZATION_EXECUTION_CONTINUITY_CADENCE || "",',
-            'blinkCadence: process.env.ALICIZATION_EXECUTION_EMBODIMENT_BLINK_CADENCE || "",',
-            'gazeMode: process.env.ALICIZATION_EXECUTION_EMBODIMENT_GAZE_MODE || "",',
-            'pauseMode: process.env.ALICIZATION_EXECUTION_EMBODIMENT_PAUSE_MODE || "",',
-            'lipsyncMode: process.env.ALICIZATION_EXECUTION_EMBODIMENT_LIPSYNC_MODE || "",',
-            'voiceMode: process.env.ALICIZATION_EXECUTION_EMBODIMENT_VOICE_MODE || "",',
-            'pacingMode: process.env.ALICIZATION_EXECUTION_EMBODIMENT_PACING_MODE || "",',
-            'legacy: Object.fromEntries(legacyNames.map(name => [name, process.env[name] ?? null]))',
+            'runtimeFact: { type: runtimeFact.type ?? null, owners: runtimeFact.data?.owners ?? null, failureSurface: runtimeFact.data?.failureSurface ?? null }',
             '}));',
           ].join(''),
         ],
@@ -368,29 +336,6 @@ describe('cli executor adapter', () => {
           cardId: 'default',
           turnId: 'turn-cli-1',
           decisionTraceId: 'mind:trace:cli-1',
-          projectBriefing: {
-            identity: 'legacy identity prompt must not reach CLI env',
-            currentPhase: 'legacy phase prompt must not reach CLI env',
-            latestLandedProgress: 'Runtime context normalization is complete.',
-            sameHerSelfLine: 'legacy persona prompt must not reach CLI env',
-            sameHerHoldDetail: null,
-            primaryOpenLoop: 'CLI still needs neutral execution status variables.',
-            nextClosureTarget: 'Expose typed execution facts without project prompt variables.',
-            sameHerDriftRisk: null,
-            continuityArcStage: 'repair-pass',
-            continuityRestraint: 'measured-return',
-            continuityCue: null,
-            continuityPreferredTiming: 'after-payoff',
-            continuityCadence: 'steady-return',
-            preferredBlinkCadence: 'quiet',
-            preferredGazeMode: 'soften',
-            preferredPauseMode: 'longer',
-            preferredLipsyncMode: 'restrained',
-            preferredVoiceMode: 'lower-pressure',
-            preferredPacingMode: 'slower',
-            preflightSummary: 'legacy preflight prompt must not reach CLI env',
-            preDialogueAwarenessLine: 'legacy awareness prompt must not reach CLI env',
-          },
           sensory: {
             collectedAt: 1_710_000_000_123,
             running: true,
@@ -427,40 +372,12 @@ describe('cli executor adapter', () => {
         type?: string | null
         owners?: Record<string, string> | null
         failureSurface?: string | null
-        status?: Record<string, string> | null
       }
-      statusLatest?: string
-      statusOpen?: string
-      statusNext?: string
-      continuityArcStage?: string
-      continuityRestraint?: string
-      continuityPreferredTiming?: string
-      continuityCadence?: string
-      blinkCadence?: string
-      gazeMode?: string
-      pauseMode?: string
-      lipsyncMode?: string
-      voiceMode?: string
-      pacingMode?: string
-      legacy?: Record<string, string | null>
     }
 
     expect(parsed).toEqual(expect.objectContaining({
       foreground: 'Cursor | cursor | airi-alice',
       generatedAt: '1710000000000',
-      statusLatest: 'Runtime context normalization is complete.',
-      statusOpen: 'CLI still needs neutral execution status variables.',
-      statusNext: 'Expose typed execution facts without project prompt variables.',
-      continuityArcStage: 'repair-pass',
-      continuityRestraint: 'measured-return',
-      continuityPreferredTiming: 'after-payoff',
-      continuityCadence: 'steady-return',
-      blinkCadence: 'quiet',
-      gazeMode: 'soften',
-      pauseMode: 'longer',
-      lipsyncMode: 'restrained',
-      voiceMode: 'lower-pressure',
-      pacingMode: 'slower',
     }))
     expect(parsed.runtimeIdentifiers).toEqual({
       cardId: 'default',
@@ -473,108 +390,12 @@ describe('cli executor adapter', () => {
         longTermRecall: 'LongTermMemoryRecall',
       },
       failureSurface: 'transparent',
-      status: {
-        latest: 'Runtime context normalization is complete.',
-        open: 'CLI still needs neutral execution status variables.',
-        next: 'Expose typed execution facts without project prompt variables.',
-      },
     })
-    expect(Object.values(parsed.legacy ?? {}).every(value => value === null)).toBe(true)
-    expect(result.output).not.toMatch(/\[ALICIZATION_EXECUTION_|legacy (?:identity|phase|persona|preflight|awareness) prompt/iu)
     expect(result.events[0]?.payload).toEqual(expect.objectContaining({
       hasRuntimeContext: true,
       runtimeContext: expect.objectContaining({
         cardId: 'default',
         turnId: 'turn-cli-1',
-      }),
-    }))
-  })
-
-  it('normalizes execution status aliases without exporting legacy project or persona variables', async () => {
-    const aliasLatest = 'Alias latest execution status remains available.'
-    const aliasOpen = 'Alias open execution status remains available.'
-    const aliasNext = 'Alias next execution status remains available.'
-
-    const result = await executeCliTaskThread({
-      thread: createThread(),
-      command: {
-        command: 'node',
-        args: [
-          '-e',
-          'process.stdout.write(JSON.stringify({ latest: process.env.ALICIZATION_EXECUTION_STATUS_LATEST || "", open: process.env.ALICIZATION_EXECUTION_STATUS_OPEN || "", next: process.env.ALICIZATION_EXECUTION_STATUS_NEXT || "", legacyDrift: process.env.ALICIZATION_EXECUTION_PROJECT_SAME_HER_DRIFT_RISK ?? null, runtimeBlock: process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_BLOCK || "" }))',
-        ],
-        runtimeContext: {
-          generatedAt: 1_710_000_000_000,
-          cardId: 'default',
-          turnId: 'turn-cli-alias-project-briefing',
-          decisionTraceId: 'mind:trace:cli-alias-project-briefing',
-          projectBriefing: {
-            latestLandedProgress: ' ',
-            primaryOpenLoop: ' ',
-            nextClosureTarget: '',
-            landedProgressSummary: aliasLatest,
-            openClosureSummary: aliasOpen,
-            nextClosureTargetSummary: aliasNext,
-            sameHerDriftRiskSummary: 'legacy drift prompt must not reach CLI env',
-          } as any,
-          sensory: {
-            collectedAt: 1_710_000_000_123,
-            running: true,
-            stale: false,
-            ageMs: 17,
-            foregroundWindow: {
-              appName: 'Cursor',
-              processName: 'cursor',
-              title: 'airi-alice',
-            },
-            capture: {
-              health: 'healthy',
-              permission: 'granted',
-              sourceCount: 2,
-              lastUpdatedAt: 1_710_000_000_100,
-              lastError: null,
-              degradedReasons: [],
-            },
-          },
-        },
-      },
-      workspaceRoot: process.cwd(),
-    })
-
-    expect(result.ok).toBe(true)
-    const parsed = JSON.parse(result.output ?? '{}') as {
-      latest?: string
-      open?: string
-      next?: string
-      legacyDrift?: string | null
-      runtimeBlock?: string
-    }
-    const runtimeFact = JSON.parse(parsed.runtimeBlock ?? '{}') as {
-      data?: {
-        execution?: {
-          status?: Record<string, string>
-        }
-      }
-    }
-
-    expect(parsed.latest).toBe(aliasLatest)
-    expect(parsed.open).toBe(aliasOpen)
-    expect(parsed.next).toBe(aliasNext)
-    expect(parsed.legacyDrift).toBeNull()
-    expect(runtimeFact.data?.execution?.status).toEqual({
-      latest: aliasLatest,
-      open: aliasOpen,
-      next: aliasNext,
-    })
-    expect(parsed.runtimeBlock).not.toContain('legacy drift prompt')
-    expect(result.events[0]?.payload).toEqual(expect.objectContaining({
-      hasRuntimeContext: true,
-      runtimeContext: expect.objectContaining({
-        projectBriefing: expect.objectContaining({
-          latestLandedProgress: aliasLatest,
-          primaryOpenLoop: aliasOpen,
-          nextClosureTarget: aliasNext,
-        }),
       }),
     }))
   })

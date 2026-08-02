@@ -97,52 +97,38 @@ function createRuntimeSurface(overrides: Record<string, unknown> = {}) {
 }
 
 describe('digital life spine', () => {
-  it('只聚合真实运行时、对话和记忆事实，不输出治理专用字段', () => {
+  it('只聚合真实运行时、对话和记忆事实', () => {
     const digest = projectAlicizationDigitalLifeSpineDigest(
-      deriveAlicizationDigitalLifeSpineFromSurface(createRuntimeSurface({
-        dialogue: {
-          currentConsciousFrame: {
-            focusAnchor: '真实当前回合锚点',
-            projectState: {
-              continuityCue: 'generated governance cue',
-              continuityArcStage: 'generated-governance-stage',
-            },
-          },
-          answerPlanner: {
-            answerIntent: 'answer-current-turn',
-          },
-          conversationState: null,
-        },
-        memory: {
-          summary: '真实长期记忆摘要。',
-          personStateProjection: {
-            openingGuidance: 'generated governance opening',
-            manifestationCadenceSummary: 'generated governance cadence',
-            selfContinuityAuthority: {
-              sourceTags: ['project-state-carry'],
-              inwardLine: 'generated governance carry',
-            },
-          },
-        },
-      })),
+      deriveAlicizationDigitalLifeSpineFromSurface(createRuntimeSurface()),
     )
 
-    expect(digest?.runtime).toEqual(expect.objectContaining({
-      sceneScenario: 'coding',
-      answerIntent: 'answer-current-turn',
-      continuityArcStage: null,
-      continuityPreferredTiming: null,
-      continuityCue: null,
-    }))
-    expect(digest?.proactive).toEqual(expect.objectContaining({
-      selectedAction: 'answer',
-      continuityRestraint: null,
-      personaBias: expect.objectContaining({
-        openingGuidance: null,
-        manifestationCadenceSummary: null,
-      }),
-    }))
-    expect(JSON.stringify(digest)).not.toContain('generated governance')
+    expect(Object.keys(digest?.runtime ?? {}).sort()).toEqual([
+      'activeThreadId',
+      'activeThreadTitle',
+      'answerIntent',
+      'dominantDrive',
+      'dominantMode',
+      'preferredPresence',
+      'sceneScenario',
+      'sceneSummary',
+      'selectedAction',
+      'updatedAt',
+      'watchMode',
+    ])
+    expect(Object.keys(digest?.proactive ?? {}).sort()).toEqual([
+      'activeThreadId',
+      'activeThreadTitle',
+      'confidence',
+      'dominantConcernKind',
+      'dominantConcernSummary',
+      'leadingGoalId',
+      'leadingGoalSummary',
+      'personaBias',
+      'preferredPresence',
+      'preferredStyle',
+      'selectedAction',
+      'shouldSpeak',
+    ])
   })
 
   it('保留真实主动能力与当前对话焦点', () => {
@@ -206,56 +192,6 @@ describe('digital life spine', () => {
     }))
   })
 
-  it('旧快照兼容分支不会把治理摘要重新带回 digest', () => {
-    const digest = projectAlicizationDigitalLifeSpineDigest({
-      version: 'digital-life-spine-v1',
-      runtimeSurface: undefined,
-      architecture: {
-        operatingMode: 'speaking',
-        dominantSystem: 'dialogue',
-        supportingSystems: ['memory'],
-        governingFocus: 'Return to the same seam before branching.',
-        summary: 'Focus: Return to the same seam before branching.',
-      },
-      continuitySignal: {
-        summary: 'project-state=generated governance',
-      },
-      proactiveSelection: null,
-      proactivePolicy: null,
-      runtime: {
-        sceneScenario: 'coding',
-        sceneSummary: '真实场景',
-        updatedAt: 10,
-      },
-      memory: {
-        summary: 'project-state=legacy governance summary',
-        selfEvolution: {
-          relationshipCadenceSummary: 'measured-return legacy governance cadence',
-        },
-        personStateProjection: {
-          selfContinuityAuthority: {
-            sourceTags: ['openingGuidance'],
-            inwardLine: 'project-state legacy governance line',
-            authoritySummary: 'project-state legacy governance authority',
-          },
-        },
-      },
-    } as any)
-
-    expect(digest?.continuitySignal).toBeNull()
-    expect(digest?.runtime).not.toHaveProperty('continuityCue')
-    expect(digest?.architecture).toEqual({
-      operatingMode: 'speaking',
-      dominantSystem: 'dialogue',
-      supportingSystems: ['memory'],
-      governingFocus: null,
-      summary: 'mode=speaking | dominant=dialogue | support=memory',
-    })
-    expect(JSON.stringify(digest)).not.toMatch(
-      /project-state|legacy governance|measured-return|openingGuidance|Return to the same seam/iu,
-    )
-  })
-
   it('从持久化视觉状态构造同一份数字生命 spine', () => {
     const state = createDefaultVisualPresenceState(2_000)
     state.watchMode = 'symbiotic-vision'
@@ -279,8 +215,6 @@ describe('digital life spine', () => {
       sceneScenario: 'coding',
       sceneSummary: '当前窗口显示真实任务。',
     }))
-    expect(digest?.runtime.continuityArcStage).toBeNull()
-    expect(digest?.runtime.continuityCue).toBeNull()
   })
 
   it('提交 mind state 时同时保留上一状态和当前状态', () => {

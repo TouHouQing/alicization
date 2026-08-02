@@ -187,7 +187,7 @@ function createInput() {
         id: 'commitment:hold',
         kind: 'hold-problem' as const,
         status: 'active' as const,
-        title: 'Hold Problem',
+        title: 'hold-problem',
         summary: 'Stay on the error knot.',
         source: 'runtime-thread' as const,
         priority: 0.8,
@@ -249,6 +249,14 @@ describe('buildThoughtThreads', () => {
           burden: 'light',
         },
       },
+      livingWorldState: {
+        ...createInput().livingWorldState,
+        openLoops: [],
+        objects: [{
+          ...createInput().livingWorldState.objects[0],
+          openLoop: '',
+        }],
+      },
       selfGovernor: {
         ...createInput().selfGovernor,
         dominantDrive: 'accompany',
@@ -271,9 +279,11 @@ describe('buildThoughtThreads', () => {
           expiresAt: 120_000,
         }],
       },
+      inquiryLoop: null,
     })
 
     expect(threads.threads.some(thread => thread.kind === 'afterglow-thread')).toBe(true)
     expect(threads.threads.find(thread => thread.kind === 'afterglow-thread')?.status).toBe('ripe')
+    expect(threads.threads.find(thread => thread.kind === 'afterglow-thread')?.question).toBeUndefined()
   })
 })

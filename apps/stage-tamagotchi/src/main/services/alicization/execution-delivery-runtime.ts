@@ -5,39 +5,6 @@ import {
   sanitizeExecutionLedgerText,
 } from './execution-ledger-shared'
 
-export interface AlicizationPendingExecutionDeliveryProjectState {
-  identity?: string | null
-  currentPhase?: string | null
-  preflightSummary?: string | null
-  preDialogueAwarenessLine?: string | null
-  preDialogueAwarenessSummary?: string | null
-  companionHeadlineLine?: string | null
-  companionBriefingLine?: string | null
-  emotionalClosureSummary?: string | null
-  continuityArcStage?: string | null
-  continuityRestraint?: string | null
-  continuityCue?: string | null
-  continuityPreferredTiming?: string | null
-  continuityCadence?: string | null
-  preferredBlinkCadence?: string | null
-  preferredGazeMode?: string | null
-  preferredPauseMode?: string | null
-  preferredLipsyncMode?: string | null
-  preferredVoiceMode?: string | null
-  preferredPacingMode?: string | null
-  latestLandedProgress?: string | null
-  latestProgress?: string | null
-  landedProgressSummary?: string | null
-  primaryOpenLoop?: string | null
-  openClosureSummary?: string | null
-  nextClosureTarget?: string | null
-  nextClosureTargetSummary?: string | null
-  sameHerSelfLine?: string | null
-  sameHerHoldDetail?: string | null
-  sameHerDriftRisk?: string | null
-  sameHerDriftRiskSummary?: string | null
-}
-
 export interface AlicizationPendingExecutionDelivery {
   key: string
   cardId: string
@@ -51,7 +18,6 @@ export interface AlicizationPendingExecutionDelivery {
   summary: string
   outcome: string
   signature: string
-  projectState?: AlicizationPendingExecutionDeliveryProjectState | null
   queuedAt: number
   completedAt: number
   providerSettlementAttempts?: number
@@ -141,48 +107,6 @@ function buildExecutionDeliveryIdentityPrefix(cardId: string, sessionId?: string
   if (!sessionId)
     return `${cardId}::`
   return `${cardId}::${sessionId}::`
-}
-
-function sanitizeExecutionDeliveryProjectState(
-  raw: unknown,
-): AlicizationPendingExecutionDeliveryProjectState | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    return null
-
-  const next = {
-    identity: sanitizeExecutionLedgerText((raw as { identity?: unknown }).identity, 220) || null,
-    currentPhase: sanitizeExecutionLedgerText((raw as { currentPhase?: unknown }).currentPhase, 220) || null,
-    preflightSummary: sanitizeExecutionLedgerText((raw as { preflightSummary?: unknown }).preflightSummary, 320) || null,
-    preDialogueAwarenessLine: sanitizeExecutionLedgerText((raw as { preDialogueAwarenessLine?: unknown }).preDialogueAwarenessLine, 320) || null,
-    preDialogueAwarenessSummary: sanitizeExecutionLedgerText((raw as { preDialogueAwarenessSummary?: unknown }).preDialogueAwarenessSummary, 320) || null,
-    companionHeadlineLine: sanitizeExecutionLedgerText((raw as { companionHeadlineLine?: unknown }).companionHeadlineLine, 320) || null,
-    companionBriefingLine: sanitizeExecutionLedgerText((raw as { companionBriefingLine?: unknown }).companionBriefingLine, 320) || null,
-    emotionalClosureSummary: sanitizeExecutionLedgerText((raw as { emotionalClosureSummary?: unknown }).emotionalClosureSummary, 220) || null,
-    continuityArcStage: sanitizeExecutionLedgerText((raw as { continuityArcStage?: unknown }).continuityArcStage, 120) || null,
-    continuityRestraint: sanitizeExecutionLedgerText((raw as { continuityRestraint?: unknown }).continuityRestraint, 64) || null,
-    continuityCue: sanitizeExecutionLedgerText((raw as { continuityCue?: unknown }).continuityCue, 220) || null,
-    continuityPreferredTiming: sanitizeExecutionLedgerText((raw as { continuityPreferredTiming?: unknown }).continuityPreferredTiming, 120) || null,
-    continuityCadence: sanitizeExecutionLedgerText((raw as { continuityCadence?: unknown }).continuityCadence, 120) || null,
-    preferredBlinkCadence: sanitizeExecutionLedgerText((raw as { preferredBlinkCadence?: unknown }).preferredBlinkCadence, 32) || null,
-    preferredGazeMode: sanitizeExecutionLedgerText((raw as { preferredGazeMode?: unknown }).preferredGazeMode, 32) || null,
-    preferredPauseMode: sanitizeExecutionLedgerText((raw as { preferredPauseMode?: unknown }).preferredPauseMode, 32) || null,
-    preferredLipsyncMode: sanitizeExecutionLedgerText((raw as { preferredLipsyncMode?: unknown }).preferredLipsyncMode, 32) || null,
-    preferredVoiceMode: sanitizeExecutionLedgerText((raw as { preferredVoiceMode?: unknown }).preferredVoiceMode, 32) || null,
-    preferredPacingMode: sanitizeExecutionLedgerText((raw as { preferredPacingMode?: unknown }).preferredPacingMode, 32) || null,
-    latestLandedProgress: sanitizeExecutionLedgerText((raw as { latestLandedProgress?: unknown }).latestLandedProgress, 320) || null,
-    latestProgress: sanitizeExecutionLedgerText((raw as { latestProgress?: unknown }).latestProgress, 320) || null,
-    landedProgressSummary: sanitizeExecutionLedgerText((raw as { landedProgressSummary?: unknown }).landedProgressSummary, 320) || null,
-    primaryOpenLoop: sanitizeExecutionLedgerText((raw as { primaryOpenLoop?: unknown }).primaryOpenLoop, 320) || null,
-    openClosureSummary: sanitizeExecutionLedgerText((raw as { openClosureSummary?: unknown }).openClosureSummary, 320) || null,
-    nextClosureTarget: sanitizeExecutionLedgerText((raw as { nextClosureTarget?: unknown }).nextClosureTarget, 320) || null,
-    nextClosureTargetSummary: sanitizeExecutionLedgerText((raw as { nextClosureTargetSummary?: unknown }).nextClosureTargetSummary, 320) || null,
-    sameHerSelfLine: sanitizeExecutionLedgerText((raw as { sameHerSelfLine?: unknown }).sameHerSelfLine, 220) || null,
-    sameHerHoldDetail: sanitizeExecutionLedgerText((raw as { sameHerHoldDetail?: unknown }).sameHerHoldDetail, 320) || null,
-    sameHerDriftRisk: sanitizeExecutionLedgerText((raw as { sameHerDriftRisk?: unknown }).sameHerDriftRisk, 320) || null,
-    sameHerDriftRiskSummary: sanitizeExecutionLedgerText((raw as { sameHerDriftRiskSummary?: unknown }).sameHerDriftRiskSummary, 320) || null,
-  } satisfies AlicizationPendingExecutionDeliveryProjectState
-
-  return Object.values(next).some(Boolean) ? next : null
 }
 
 export function createAlicizationExecutionDeliveryRuntime(
@@ -288,7 +212,6 @@ export function createAlicizationExecutionDeliveryRuntime(
     summary?: string | null
     outcome?: string | null
     signature?: string | null
-    projectState?: AlicizationPendingExecutionDeliveryProjectState | null
     queuedAt?: number
     completedAt: number
     providerSettlementAttempts?: number
@@ -343,7 +266,6 @@ export function createAlicizationExecutionDeliveryRuntime(
       summary: sanitizeExecutionLedgerText(input.summary, 220),
       outcome: sanitizeExecutionLedgerText(input.outcome, 240),
       signature: sanitizeSignature(input.signature, `${threadId}:${completedAt}`),
-      projectState: sanitizeExecutionDeliveryProjectState(input.projectState),
       queuedAt: Number.isFinite(input.queuedAt)
         ? Math.max(completedAt, Math.floor(Number(input.queuedAt)))
         : getNow(),
@@ -617,7 +539,6 @@ export function createAlicizationExecutionDeliveryRuntime(
         summary: sanitizeExecutionLedgerText(pending.summary, 220),
         outcome: sanitizeExecutionLedgerText(pending.outcome, 240),
         signature: sanitizeSignature(pending.signature, `${sanitizeThreadId(pending.threadId)}:${Math.max(0, Math.floor(Number(pending.completedAt ?? 0)))}`),
-        projectState: sanitizeExecutionDeliveryProjectState(pending.projectState),
         queuedAt: Number.isFinite(pending.queuedAt)
           ? Math.max(0, Math.floor(Number(pending.queuedAt)))
           : undefined,

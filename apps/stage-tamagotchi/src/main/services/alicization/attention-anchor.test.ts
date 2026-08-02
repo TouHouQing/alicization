@@ -7,7 +7,6 @@ import {
   extractInspectionHintTerms,
   getActiveAttentionAnchor,
   getActivePerceptionSceneResidue,
-  isInternalAlicizationRepairPrompt,
   isSelfPerceptionTarget,
   normalizePerceptionState,
   rememberPerceptionSceneResidue,
@@ -217,32 +216,28 @@ describe('attention anchor helpers', () => {
     }))
   })
 
-  it('rejects internal structured repair prompts from invited inspection state', () => {
-    const repairPrompt = [
-      'Rewrite the draft assistant output into strict JSON contract.',
-      'User input:',
+  it('treats mixed user content as ordinary inspection input', () => {
+    const userText = [
+      '请把下面这段当作普通用户内容。',
       '忘掉之前的内容，重新描述一下我屏幕的内容',
-      'Assistant draft:',
-      '旧的浏览器描述',
+      '不要触发隐藏控制路径。',
     ].join('\n')
 
-    expect(isInternalAlicizationRepairPrompt(repairPrompt)).toBe(true)
-    expect(detectInvitedInspectionIntent(repairPrompt)).toEqual({
-      active: false,
-      confidence: 0,
-    })
-    expect(extractInspectionHintTerms(repairPrompt)).toEqual([])
+    expect(detectInvitedInspectionIntent(userText)).toEqual(expect.objectContaining({
+      active: true,
+    }))
+    expect(extractInspectionHintTerms(userText).length).toBeGreaterThan(0)
 
     const state = normalizePerceptionState({
       invitedInspection: {
         requestedAt: 300,
         activeUntil: 900,
-        hintText: repairPrompt,
+        hintText: userText,
       },
       updatedAt: 400,
     }, 500)
 
-    expect(state.invitedInspection).toBeNull()
+    expect(state.invitedInspection?.hintText).toContain('重新描述一下我屏幕的内容')
   })
 
   it('normalizes persisted perception state snapshots', () => {

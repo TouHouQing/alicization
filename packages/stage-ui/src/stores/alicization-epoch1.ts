@@ -106,7 +106,7 @@ async function appendAlicizationAuditLog(payload: {
   }).catch(() => {})
 }
 
-function createEmptyOrganicMemorySnapshot(hostAttitude = '礼貌而克制，保持观察', coreIncarnation = ''): AlicizationOrganicMemorySnapshot {
+function createEmptyOrganicMemorySnapshot(hostAttitude = '', coreIncarnation = ''): AlicizationOrganicMemorySnapshot {
   return {
     hostAttitude,
     coreIncarnation,
@@ -169,7 +169,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
     const bridge = hasAlicizationBridge() ? getAlicizationBridge() : null
     if (!bridge?.getOrganicMemorySnapshot) {
       organicMemorySnapshot.value = createEmptyOrganicMemorySnapshot(
-        currentSoul?.frontmatter.host_attitude ?? '礼貌而克制，保持观察',
+        currentSoul?.frontmatter.host_attitude ?? '',
         currentSoul?.frontmatter.core_incarnation ?? '',
       )
       return organicMemorySnapshot.value
@@ -182,7 +182,7 @@ export const useAlicizationEpoch1Store = defineStore('alicization-epoch1', () =>
     }
 
     organicMemorySnapshot.value = createEmptyOrganicMemorySnapshot(
-      currentSoul?.frontmatter.host_attitude ?? '礼貌而克制，保持观察',
+      currentSoul?.frontmatter.host_attitude ?? '',
       currentSoul?.frontmatter.core_incarnation ?? '',
     )
     return organicMemorySnapshot.value

@@ -62,8 +62,6 @@ export interface AlicizationPresenceEmbodimentController {
 }
 
 export interface AlicizationSilentPresencePulseInput {
-  label: string
-  summary: string
   payload?: AlicizationPresencePulsePayload | null
 }
 
@@ -198,24 +196,26 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
   }) {
     const proactive = input.payload.structured?.proactive
     const digitalLife = input.payload.structured?.digitalLife as { preferredPresence?: unknown, preferredStyle?: unknown } | null | undefined
-    const thought = input.payload.structured?.thought?.toLowerCase?.() ?? ''
-    const reply = input.payload.structured?.reply?.toLowerCase?.() ?? ''
-    const reasonCodes = proactive?.reasonCodes ?? []
-    const combined = [
-      thought,
-      reply,
-      ...reasonCodes,
-      typeof digitalLife?.preferredPresence === 'string' ? digitalLife.preferredPresence : '',
-      typeof digitalLife?.preferredStyle === 'string' ? digitalLife.preferredStyle : '',
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
+    const reasonCodes = Array.isArray(proactive?.reasonCodes)
+      ? proactive.reasonCodes.filter(code => typeof code === 'string')
+      : []
+    const preferredPresence = typeof digitalLife?.preferredPresence === 'string'
+      ? digitalLife.preferredPresence.toLowerCase()
+      : ''
+    const preferredStyle = typeof digitalLife?.preferredStyle === 'string'
+      ? digitalLife.preferredStyle.toLowerCase()
+      : ''
 
     return {
-      executionCarry: /execution-callback|execution-result|result-mode:|result-lead:|execution/.test(combined),
-      needsRoom: /lower-pressure|space-first|leave room|lighter|pressure|intrusive|更轻|留空间/.test(combined),
-      trustWarming: /trust|warming|接得住|有用|close-carry|soft-handoff|轻轻接回来/.test(combined),
+      executionCarry: reasonCodes.some(code =>
+        code === 'continuity-execution-callback'
+        || code === 'continuity-execution-callback-afterglow-hold'
+        || code === 'continuity-execution-callback-carry',
+      ),
+      needsRoom: reasonCodes.includes('continuity-execution-callback-afterglow-hold')
+        || preferredPresence === 'hesitant',
+      trustWarming: reasonCodes.includes('continuity-execution-callback-carry')
+        || (preferredPresence === 'attentive' && preferredStyle === 'light-nudge'),
     }
   }
 
@@ -235,13 +235,9 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
         stableCoreOnly?: boolean | null
         visibleCarryMode?: string | null
       } | null
-      recollectionForeground?: {
-        surfaceSummary?: string | null
-      } | null
     } | null | undefined
     const recollectionSpeechPlan = structured?.recollectionSpeechPlan ?? null
     const memoryResolutionLedger = structured?.memoryResolutionLedger ?? null
-    const recollectionForeground = structured?.recollectionForeground ?? null
 
     const shouldStayInward = memoryResolutionLedger?.shouldStayInward === true
       || recollectionSpeechPlan?.shouldSurface === false
@@ -254,49 +250,29 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     const visibleCarryMode = typeof memoryResolutionLedger?.visibleCarryMode === 'string'
       ? memoryResolutionLedger.visibleCarryMode
       : null
-    const surfaceSummary = [
-      recollectionForeground?.surfaceSummary,
-      recollectionSpeechPlan?.rationale,
-    ].filter(Boolean).join(' ').toLowerCase()
-    const roomFirstBoundary = /room[-\s]?first|leave room|give space|boundary|repair[-\s]?first|先留空间|先给空间|边界|先修/u.test(surfaceSummary)
-
     return {
       shouldStayInward,
       shouldDelayUntilAfterPayoff,
       stableCoreOnly,
       visibleCarryMode,
-      roomFirstBoundary,
     }
   }
 
-  function readSameHerInwardCarryPresenceLearning(input: {
+  function readInwardContinuityCarryPresenceLearning(input: {
     payload: AlicizationDialogueRespondedPayload
   }) {
     const proactive = input.payload.structured?.proactive
     const digitalLifeSpine = input.payload.structured?.digitalLifeSpine as { resident?: { reasonTags?: unknown } | null } | null | undefined
-    const thought = input.payload.structured?.thought?.toLowerCase?.() ?? ''
-    const reply = input.payload.structured?.reply?.toLowerCase?.() ?? ''
     const proactiveReasonCodes = proactive?.reasonCodes ?? []
     const residentReasonTags = Array.isArray(digitalLifeSpine?.resident?.reasonTags)
       ? digitalLifeSpine.resident.reasonTags.filter(tag => typeof tag === 'string')
       : []
-    const combined = [
-      thought,
-      reply,
-      ...proactiveReasonCodes,
-      ...residentReasonTags,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
 
-    const explicitSameHerInwardCarry = proactiveReasonCodes.some(code => typeof code === 'string' && code.toLowerCase() === 'continuity-inward-carry')
+    const explicitInwardContinuityCarry = proactiveReasonCodes.some(code => typeof code === 'string' && code.toLowerCase() === 'continuity-inward-carry')
       || residentReasonTags.some(tag => typeof tag === 'string' && tag.toLowerCase() === 'continuity-inward-carry')
-    const inwardSelfContinuity = /continuity-inward-carry|self-continuity|continuity line|same living self|nearby-soft|quiet companionship|quiet-companionship/.test(combined)
 
     return {
-      explicitSameHerInwardCarry,
-      inwardSelfContinuity,
+      explicitInwardContinuityCarry,
     }
   }
 
@@ -335,15 +311,14 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
     const memoryLearning = readMemorySurfacePresenceLearning({
       payload,
     })
-    const sameHerInwardCarryLearning = readSameHerInwardCarryPresenceLearning({
+    const inwardContinuityCarryLearning = readInwardContinuityCarryPresenceLearning({
       payload,
     })
-    const sameHerInwardCarry = sameHerInwardCarryLearning.explicitSameHerInwardCarry
-      || (sameHerInwardCarryLearning.inwardSelfContinuity && (memoryLearning.shouldStayInward || executionLearning.needsRoom))
+    const inwardContinuityCarry = inwardContinuityCarryLearning.explicitInwardContinuityCarry
 
     return {
       watchMode: 'symbiotic-vision',
-      embodiedPresence: sameHerInwardCarry
+      embodiedPresence: inwardContinuityCarry
         ? 'hesitant'
         : executionLearning.needsRoom || memoryLearning.shouldStayInward || memoryLearning.shouldDelayUntilAfterPayoff
           ? 'hesitant'
@@ -353,14 +328,14 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
       currentBodyState: 'accompanying',
       continuityMode: 'quiet-accompaniment',
       quietLineMs: executionLearning.executionCarry
-        ? sameHerInwardCarry
+        ? inwardContinuityCarry
           ? 210_000
           : executionLearning.needsRoom || memoryLearning.shouldStayInward || memoryLearning.shouldDelayUntilAfterPayoff
             ? 180_000
             : executionLearning.trustWarming
               ? 90_000
               : 120_000
-        : sameHerInwardCarry
+        : inwardContinuityCarry
           ? 210_000
           : memoryLearning.shouldDelayUntilAfterPayoff
             ? 180_000
@@ -375,17 +350,16 @@ export const useAlicizationPresenceDispatcherStore = defineStore('alicization-pr
         ...(executionLearning.executionCarry ? ['execution-callback-carry'] : []),
         ...(executionLearning.needsRoom ? ['callback-lower-pressure'] : []),
         ...(executionLearning.trustWarming ? ['callback-trust-warming'] : []),
-        ...(sameHerInwardCarry ? ['continuity-inward-carry'] : []),
+        ...(inwardContinuityCarry ? ['continuity-inward-carry'] : []),
         ...(memoryLearning.shouldStayInward ? ['memory-inward-carry'] : []),
         ...(memoryLearning.shouldDelayUntilAfterPayoff ? ['memory-delay-after-payoff'] : []),
         ...(memoryLearning.stableCoreOnly ? ['memory-stable-core-only'] : []),
-        ...(memoryLearning.roomFirstBoundary ? ['memory-room-first-boundary'] : []),
         ...(memoryLearning.visibleCarryMode === 'withhold' ? ['memory-visible-withhold'] : []),
         ...proactive.reasonCodes,
       ],
-      emotionalTension: sameHerInwardCarry
+      emotionalTension: inwardContinuityCarry
         ? 'soft-covision'
-        : executionLearning.needsRoom || memoryLearning.shouldStayInward || memoryLearning.roomFirstBoundary
+        : executionLearning.needsRoom || memoryLearning.shouldStayInward
           ? 'focused-flow'
           : 'soft-covision',
       currentInwardPreoccupation: payload.structured?.thought?.trim() || null,

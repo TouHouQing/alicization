@@ -1,10 +1,19 @@
 import type { TextSegment, TextToken } from './types'
 
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import { createSpeechPipeline } from './speech-pipeline'
 
 describe('speech pipeline', () => {
+  it('recognizes runtime digest metadata only through current typed fields', () => {
+    const source = readFileSync(new URL('./speech-pipeline.ts', import.meta.url), 'utf8')
+    const retiredCompatibilityKey = ['project', 'State'].join('')
+
+    expect(source).not.toContain(`'${retiredCompatibilityKey}' in value`)
+  })
+
   it('cancels only the selected owner and promotes the next queued owner intent', async () => {
     const playback = {
       schedule: vi.fn(),
@@ -325,13 +334,16 @@ describe('speech pipeline', () => {
       runtimeDigest: {
         version: 'alicization-runtime-digest-v1',
         dominantChannel: 'active-memory',
-        projectState: {
-          emotionalClosureCue: 'identity-continuity',
+        activeLoop: {
+          id: 'loop-memory',
+          status: 'active',
         },
         summary: 'intent-richer-authority',
       },
-      preDialogueAwareness: {
-        awarenessLine: 'pre_turn_context_digest',
+      memoryContext: {
+        workingMemory: {
+          turnCount: 4,
+        },
       },
     }
     const intent = pipeline.openIntent({
@@ -351,12 +363,15 @@ describe('speech pipeline', () => {
         version: 'alicization-runtime-digest-v1',
         dominantChannel: 'active-memory',
         summary: 'segment-thinner-shell',
-        projectState: expect.objectContaining({
-          emotionalClosureCue: 'identity-continuity',
+        activeLoop: expect.objectContaining({
+          id: 'loop-memory',
+          status: 'active',
         }),
       }),
-      preDialogueAwareness: expect.objectContaining({
-        awarenessLine: 'pre_turn_context_digest',
+      memoryContext: expect.objectContaining({
+        workingMemory: expect.objectContaining({
+          turnCount: 4,
+        }),
       }),
       speechSynthesis: expect.objectContaining({
         provider: 'segment-voice',
@@ -366,12 +381,15 @@ describe('speech pipeline', () => {
       segmentId: 'segment-thinner-runtime-shell',
       metadata: expect.objectContaining({
         runtimeDigest: expect.objectContaining({
-          projectState: expect.objectContaining({
-            emotionalClosureCue: 'identity-continuity',
+          activeLoop: expect.objectContaining({
+            id: 'loop-memory',
+            status: 'active',
           }),
         }),
-        preDialogueAwareness: expect.objectContaining({
-          awarenessLine: 'pre_turn_context_digest',
+        memoryContext: expect.objectContaining({
+          workingMemory: expect.objectContaining({
+            turnCount: 4,
+          }),
         }),
       }),
     }))
@@ -431,13 +449,16 @@ describe('speech pipeline', () => {
         runtimeDigest: {
           version: 'alicization-runtime-digest-v1',
           dominantChannel: 'active-memory',
-          projectState: {
-            emotionalClosureCue: 'identity-continuity',
+          activeLoop: {
+            id: 'loop-memory',
+            status: 'active',
           },
           summary: 'intent-richer-authority',
         },
-        preDialogueAwareness: {
-          awarenessLine: 'pre_turn_context_digest',
+        memoryContext: {
+          workingMemory: {
+            turnCount: 4,
+          },
         },
       },
     })
@@ -452,17 +473,20 @@ describe('speech pipeline', () => {
       runtimeDigest: expect.objectContaining({
         dominantChannel: 'active-memory',
         summary: 'segment-thinner-shell',
-        projectState: expect.objectContaining({
-          emotionalClosureCue: 'identity-continuity',
+        activeLoop: expect.objectContaining({
+          id: 'loop-memory',
+          status: 'active',
         }),
       }),
-      preDialogueAwareness: expect.objectContaining({
-        awarenessLine: 'pre_turn_context_digest',
+      memoryContext: expect.objectContaining({
+        workingMemory: expect.objectContaining({
+          turnCount: 4,
+        }),
       }),
     }))
   })
 
-  it('keeps richer runtime-digest carry when a thinner segment shell explicitly brings null project state and empty channels', async () => {
+  it('keeps richer runtime-digest carry when a thinner segment shell explicitly brings a null active loop and empty channels', async () => {
     const playback = {
       schedule: vi.fn(),
       stopAll: vi.fn(),
@@ -480,7 +504,7 @@ describe('speech pipeline', () => {
           controller.enqueue({
             streamId: meta.streamId,
             intentId: meta.intentId,
-            segmentId: 'segment-null-project-state-shell',
+            segmentId: 'segment-null-active-loop-shell',
             text: 'continuity state',
             special: null,
             reason: 'boost',
@@ -489,7 +513,7 @@ describe('speech pipeline', () => {
             metadata: {
               runtimeDigest: {
                 version: 'alicization-runtime-digest-v1',
-                projectState: null,
+                activeLoop: null,
                 channels: [],
                 summary: 'segment-null-shell',
               },
@@ -504,21 +528,22 @@ describe('speech pipeline', () => {
     const pipeline = createSpeechPipeline<string>({
       tts: vi.fn(async (request) => {
         ttsRequests.push(request.metadata ?? null)
-        return 'audio-null-project-state-shell'
+        return 'audio-null-active-loop-shell'
       }),
       playback,
       segmenter,
     })
 
     const intent = pipeline.openIntent({
-      intentId: 'intent-null-project-state-shell',
-      streamId: 'stream-null-project-state-shell',
+      intentId: 'intent-null-active-loop-shell',
+      streamId: 'stream-null-active-loop-shell',
       metadata: {
         runtimeDigest: {
           version: 'alicization-runtime-digest-v1',
           dominantChannel: 'active-memory',
-          projectState: {
-            emotionalClosureCue: 'identity-continuity',
+          activeLoop: {
+            id: 'loop-memory',
+            status: 'active',
           },
           channels: [{
             id: 'active-memory',
@@ -528,8 +553,10 @@ describe('speech pipeline', () => {
           }],
           summary: 'intent-richer-authority',
         },
-        preDialogueAwareness: {
-          awarenessLine: 'pre_turn_context_digest',
+        memoryContext: {
+          workingMemory: {
+            turnCount: 4,
+          },
         },
       },
     })
@@ -544,8 +571,9 @@ describe('speech pipeline', () => {
       runtimeDigest: expect.objectContaining({
         dominantChannel: 'active-memory',
         summary: 'segment-null-shell',
-        projectState: expect.objectContaining({
-          emotionalClosureCue: 'identity-continuity',
+        activeLoop: expect.objectContaining({
+          id: 'loop-memory',
+          status: 'active',
         }),
         channels: expect.arrayContaining([
           expect.objectContaining({
@@ -554,8 +582,10 @@ describe('speech pipeline', () => {
           }),
         ]),
       }),
-      preDialogueAwareness: expect.objectContaining({
-        awarenessLine: 'pre_turn_context_digest',
+      memoryContext: expect.objectContaining({
+        workingMemory: expect.objectContaining({
+          turnCount: 4,
+        }),
       }),
     }))
   })
@@ -619,13 +649,16 @@ describe('speech pipeline', () => {
         runtimeDigest: {
           version: 'alicization-runtime-digest-v1',
           dominantChannel: 'active-memory',
-          projectState: {
-            emotionalClosureCue: 'identity-continuity',
+          activeLoop: {
+            id: 'loop-memory',
+            status: 'active',
           },
           summary: 'intent-richer-authority',
         },
-        preDialogueAwareness: {
-          awarenessLine: 'pre_turn_context_digest',
+        memoryContext: {
+          workingMemory: {
+            turnCount: 4,
+          },
         },
       },
     })
@@ -642,24 +675,30 @@ describe('speech pipeline', () => {
       runtimeDigest: expect.objectContaining({
         dominantChannel: 'active-memory',
         summary: 'segment-special-shell',
-        projectState: expect.objectContaining({
-          emotionalClosureCue: 'identity-continuity',
+        activeLoop: expect.objectContaining({
+          id: 'loop-memory',
+          status: 'active',
         }),
       }),
-      preDialogueAwareness: expect.objectContaining({
-        awarenessLine: 'pre_turn_context_digest',
+      memoryContext: expect.objectContaining({
+        workingMemory: expect.objectContaining({
+          turnCount: 4,
+        }),
       }),
     }))
     expect(specialPayloads[0]).toEqual(expect.objectContaining({
       runtimeDigest: expect.objectContaining({
         dominantChannel: 'active-memory',
         summary: 'segment-special-shell',
-        projectState: expect.objectContaining({
-          emotionalClosureCue: 'identity-continuity',
+        activeLoop: expect.objectContaining({
+          id: 'loop-memory',
+          status: 'active',
         }),
       }),
-      preDialogueAwareness: expect.objectContaining({
-        awarenessLine: 'pre_turn_context_digest',
+      memoryContext: expect.objectContaining({
+        workingMemory: expect.objectContaining({
+          turnCount: 4,
+        }),
       }),
     }))
   })

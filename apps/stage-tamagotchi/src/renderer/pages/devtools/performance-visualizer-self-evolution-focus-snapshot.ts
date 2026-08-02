@@ -7,7 +7,6 @@ interface SelfEvolutionFocusPlanSnapshotInput {
   bodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
   rendererRejoinSurfaceKey?: 'authority:renderer-rejoin:speech' | 'authority:renderer-rejoin:live2d' | 'authority:renderer-rejoin:vrm' | null
   survivingVisibleLane?: 'face+lipsync-only' | 'motion+lipsync-only' | 'face+lipsync+voice-only' | 'motion+lipsync+voice-only' | null
-  bodyContinuityGovernanceNote?: string | null
 }
 
 interface BuildSelfEvolutionFocusSnapshotInput {
@@ -35,9 +34,6 @@ export function buildSelfEvolutionFocusSnapshot(
     rendererRejoinSurfaceKey: input.focusPlan.rendererRejoinSurfaceKey ?? null,
     ...(input.focusPlan.survivingVisibleLane
       ? { survivingVisibleLane: input.focusPlan.survivingVisibleLane }
-      : {}),
-    ...(input.focusPlan.bodyContinuityGovernanceNote
-      ? { bodyContinuityGovernanceNote: input.focusPlan.bodyContinuityGovernanceNote }
       : {}),
     highlightedEvidencePanelIds: input.focusPlan.highlightedEvidencePanelIds,
     highlightedTraceSectionIds: input.focusPlan.highlightedTraceSectionIds,

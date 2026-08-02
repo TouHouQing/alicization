@@ -109,7 +109,7 @@ describe('buildConcernContinuityLedger', () => {
           id: 'commitment::hold-problem::runtime',
           kind: 'hold-problem',
           status: 'active',
-          title: 'Hold Problem',
+          title: 'hold-problem',
           summary: 'Still keep the diff knot warm across the seam.',
           source: 'continuity',
           priority: 0.7,
@@ -153,6 +153,7 @@ describe('buildConcernContinuityLedger', () => {
     expect(ledger.governingEntryId).toBeTruthy()
     expect(ledger.entries[0]?.status).toBe('carried')
     expect(ledger.carryPressure).toBeGreaterThan(0.45)
+    expect(ledger.narrative[0]).toMatch(/^concern-continuity:carried;/u)
   })
 
   it('refreshes the governing concern when a live coding knot is still present', () => {

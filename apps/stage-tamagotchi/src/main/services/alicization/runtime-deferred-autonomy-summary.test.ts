@@ -7,7 +7,7 @@ import {
 } from './runtime-deferred-autonomy-summary'
 
 const ordinaryWhyNow = 'Stay near the current runtime thread without forcing a visible reply.'
-const ordinaryExecutionIntent = 'Recheck the local runtime state before speaking.'
+const ordinaryExecutionIntent = 'Verify local runtime state.'
 const providerFailure = 'Embedding Provider failed with HTTP 400.'
 const toolFailure = 'Filesystem Tool execution aborted.'
 
@@ -404,16 +404,16 @@ describe('deferred autonomy summary selection', () => {
       },
     },
     {
-      name: 'ignores legacy project metadata when choosing the deferred summary',
+      name: 'ignores unknown metadata when choosing the deferred summary',
       input: {
         mode: 'deferred',
         whyNow: ordinaryWhyNow,
         executionIntentSummary: ordinaryExecutionIntent,
-        projectState: {
-          identity: providerFailure,
-          sameHerSelfLine: toolFailure,
-          primaryOpenLoop: 'WorkingMemory had failed expectations.',
-          memoryClosureSummary: 'LongTermMemory error narration.',
+        unknownSidecar: {
+          providerFailure,
+          toolFailure,
+          workingMemoryNote: 'WorkingMemory had failed expectations.',
+          longTermMemoryNote: 'LongTermMemory error narration.',
         },
       },
       expected: {

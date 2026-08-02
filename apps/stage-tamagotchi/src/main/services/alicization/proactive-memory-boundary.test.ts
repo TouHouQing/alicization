@@ -49,22 +49,4 @@ describe('applyProactiveMemoryBoundaryRestraint', () => {
       cooldownMs: 4 * 60_000,
     })
   })
-
-  it('ignores legacy project-state governance cues instead of changing proactive timing', () => {
-    const decision = {
-      style: 'thread-callback',
-      reasonCodes: ['execution-finished'],
-      cooldownMs: 4 * 60_000,
-    }
-
-    const adjusted = applyProactiveMemoryBoundaryRestraint({
-      decision,
-      memorySurfaceRestraint: null,
-      projectStatePreflightSummary: 'opening_policy=continue_same_her; Memory still needs stronger end-to-end closure.',
-      projectStateEmotionalClosureCue: 'relationship_cadence=remembered_boundary; continuity_hold=measured_return',
-      projectStatePrimaryOpenLoop: 'same-her project closure',
-    } as any)
-
-    expect(adjusted).toEqual(decision)
-  })
 })

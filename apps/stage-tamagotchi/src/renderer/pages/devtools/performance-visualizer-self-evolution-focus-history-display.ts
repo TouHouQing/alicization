@@ -14,11 +14,11 @@ const focusCardLabels: Record<string, string> = {
 }
 
 const evidencePanelLabels: Record<string, string> = {
-  'internalization-readiness-summary': '内化就绪度摘要',
   'candidate-trajectory-summary': '候选轨迹摘要',
   'proactive-decision-consumption-summary': '主动决策消费摘要',
-  'identity-drift-governance-summary': '身份漂移治理摘要',
-  'private-thought-governance-chain': '私有思绪治理链',
+  'persona-bias-provenance': '人格偏置来源',
+  'proactive-action-chain': '主动行动链',
+  'proactive-manifestation-chain': '主动显形链',
   'runtime-continuity-projection': '运行时连续性投影',
   'renderer-authority-projection': '显形权威投影',
 }
@@ -43,9 +43,8 @@ const eventKindLabels: Record<string, string> = {
 }
 
 const governanceLayerLabels: Record<string, string> = {
-  'persona-thought': '人格/思绪层',
+  'persona': '人格层',
   'renderer-authority': '显形权威层',
-  'identity-continuity-continuity': '身份连续性连续性层',
   'body-continuity': '身体连续性层',
 }
 
@@ -55,7 +54,7 @@ const workflowSideLabels: Record<string, string> = {
 }
 
 const repairOwnerHintLabels: Record<string, string> = {
-  'private thought governance': '私有思绪治理',
+  'persona': '人格',
   'renderer authority': '显形权威',
   '身体连续性治理': '身体连续性治理',
 }
@@ -209,7 +208,6 @@ const traceSignalLabels: Record<string, string> = {
 const alignmentSignalLabels: Record<string, string> = {
   'hypothesis-labeling': '假设标注',
   'specificity-clamp': '具体性钳制',
-  'template-shell-suppression': '模板外壳抑制',
   'runtime.personaBias': '运行时人格偏置',
 }
 
@@ -301,7 +299,6 @@ const selfEvolutionDisplayTextLabels: Record<string, string> = {
   'warmth-may-release': '温度可释放',
   'hypothesis-labeling-raised': '假设标注已提升',
   'specificity-clamp-raised': '具体性钳制已提升',
-  'template-shell-suppressed': '模板外壳已抑制',
   'hold-likely': '可能保持',
   'learning-proposal-raised': '学习提案已提升',
   'restraint-raised': '克制已提升',
@@ -332,7 +329,6 @@ const selfEvolutionDisplayTextLabels: Record<string, string> = {
   'birth-persona-authority': '初生人格权威',
   'persona-authority-mapping': '人格权威映射',
   'personality-trajectory': '人格轨迹',
-  'identity-drift-governance': '身份漂移治理',
   'candidate-impact-summary': '候选影响摘要',
   'baseline-anchor-audit': '基线锚点审计',
   'self-evolution-summary': '自演化摘要',
@@ -589,14 +585,6 @@ export function formatSelfEvolutionTraceListValue(
         const localizedFocus = learningDomainLabels[focus] ?? (focus === 'presence' ? '存在显形' : focus)
         return `焦点：${localizedFocus}`
       }
-      if (value.startsWith('opening-guidance:')) {
-        const guidance = value.slice('opening-guidance:'.length)
-        return `开场引导：${guidance === 'callback-bounded' ? '回调受限' : guidance}`
-      }
-      if (value.startsWith('identityKernel.relationshipPosture:'))
-        return `身份内核关系姿态：${value.slice('identityKernel.relationshipPosture:'.length) === 'observer' ? '观察者' : value.slice('identityKernel.relationshipPosture:'.length)}`
-      if (value.startsWith('identityKernel.initiativeStyle:'))
-        return `身份内核主动风格：${value.slice('identityKernel.initiativeStyle:'.length) === 'observant' ? '观察型' : value.slice('identityKernel.initiativeStyle:'.length)}`
       if (value.startsWith('initiativeBaseline.silenceReconnect:'))
         return `主动基线静默重连：${formatSelfEvolutionRuntimeValue('action', value.slice('initiativeBaseline.silenceReconnect:'.length))}`
       if (value.startsWith('initiativeBaseline.comfortStyle:'))
@@ -652,26 +640,6 @@ export function buildSelfEvolutionFocusHistoryPatternGuidanceDisplay(input: {
     evidenceLabels: input.recommendedEvidencePanels.map(formatSelfEvolutionEvidencePanelLabel).join('，'),
     traceLabels: input.recommendedTraceSections.map(formatSelfEvolutionTraceSectionLabel).join('，'),
     eventLabels: input.recommendedEventKinds.map(formatSelfEvolutionEventKindLabel).join('，'),
-  }
-}
-
-export function formatSelfEvolutionRepairSurfaceLabel(input: {
-  targetType: 'evidence' | 'trace' | 'event' | 'snapshot'
-  targetId: string
-  projectStateContinuity?: boolean
-}) {
-  const prefix = input.projectStateContinuity
-    ? '项目状态连续性检查 / '
-    : ''
-  switch (input.targetType) {
-    case 'evidence':
-      return `${prefix}证据 / ${formatSelfEvolutionEvidencePanelLabel(input.targetId)}`
-    case 'trace':
-      return `${prefix}轨迹 / ${formatSelfEvolutionTraceSectionLabel(input.targetId)}`
-    case 'event':
-      return `${prefix}事件 / ${formatSelfEvolutionEventKindLabel(input.targetId)}`
-    case 'snapshot':
-      return `${prefix}快照 / ${input.targetId}`
   }
 }
 

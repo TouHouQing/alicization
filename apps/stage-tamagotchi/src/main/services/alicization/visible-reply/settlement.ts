@@ -283,8 +283,6 @@ function buildObservedRealization(input: {
     visibleReplyValidationStatus: 'approved',
     nonHumanAuthoredStatus,
     blockedReasons: [],
-    emotionalClosureAudit: null,
-    selfAuthorityAudit: null,
     reason: execution.reason,
     critic: {
       version: 'visible-reply-critic-public-summary-v1',

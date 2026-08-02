@@ -213,7 +213,7 @@ describe('visible-reply settlement', () => {
 
   it('accepts Provider-authored wording without applying a legacy template blacklist', async () => {
     const fullText = createProviderPayload({
-      reply: 'Same Phase 1 digital life. Some closure already landed.',
+      reply: '我记得上次你让我先说明失败原因。',
       longTermEvidenceIds: ['memory-1'],
     })
 
@@ -227,14 +227,14 @@ describe('visible-reply settlement', () => {
     })
 
     expect(result.fullText).toBe(fullText)
-    expect(result.visibleText).toBe('Same Phase 1 digital life. Some closure already landed.')
+    expect(result.visibleText).toBe('我记得上次你让我先说明失败原因。')
   })
 
   it.each([
     'parsePath',
     'contractFailed',
     'visibleReplyAuthority',
-    'projectState',
+    'unknownSidecar',
     'runtimeDigest',
     'visibleReplyRealization',
     'visibleReplyRewriteRequest',
@@ -274,15 +274,10 @@ describe('visible-reply settlement', () => {
 }`
     const prepared = createPrepared()
     prepared.mindTurnContract = {
-      emotionalClosureCue: 'rest-protective',
-      projectState: {
-        identity: 'canonical project state must stay outside Provider JSON',
-        currentPhase: 'canonical phase must stay outside Provider JSON',
-        latestLandedProgress: 'canonical landed progress',
-        primaryOpenLoop: 'canonical open loop',
-        nextClosureTarget: 'canonical next closure',
-        sameHerSelfLine: 'canonical same-her line',
-      },
+      version: 'mind-turn-contract-v1',
+      expectedVisibleReplyAuthority: 'llm-mind',
+      replyRealizationMode: 'provider-mind-required',
+      updatedAt: 1,
     }
 
     const result = await settleAlicizationVisibleReply({
@@ -304,8 +299,6 @@ describe('visible-reply settlement', () => {
       providerMindExecuted: true,
       mode: 'provider-stream',
       visibleText: '  Provider 原样回答。  ',
-      emotionalClosureAudit: null,
-      selfAuthorityAudit: null,
       nonHumanAuthoredStatus: null,
       blockedReasons: [],
       reason: 'provider-stream',

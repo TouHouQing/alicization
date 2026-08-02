@@ -186,6 +186,13 @@ describe('buildInquiryLoop', () => {
     expect(loop.inquiries.some(inquiry => inquiry.kind === 'scene-grounding')).toBe(true)
     expect(loop.inquiries.some(inquiry => inquiry.kind === 'contradiction-check')).toBe(true)
     expect(loop.inquiries.some(inquiry => inquiry.kind === 'timing-calibration')).toBe(true)
+    expect(loop.inquiries.find(inquiry => inquiry.kind === 'scene-grounding')?.question)
+      .toBe('她还没确认真正卡住的是哪一行。')
+    expect(loop.inquiries.find(inquiry => inquiry.kind === 'contradiction-check')?.question)
+      .toBe('current scene conflicts with browser carry-over')
+    expect(loop.inquiries.find(inquiry => inquiry.kind === 'timing-calibration')?.question)
+      .toBe('')
+    expect(loop.inquiries.every(inquiry => inquiry.whyItMatters === '')).toBe(true)
   })
 
   it('settles old inquiries after grounding stabilizes and contradictions clear', () => {

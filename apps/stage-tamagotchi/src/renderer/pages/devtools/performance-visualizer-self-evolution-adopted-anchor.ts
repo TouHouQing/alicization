@@ -13,10 +13,7 @@ export function buildSelfEvolutionAdoptedAnchor(input: Array<{
   bodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
   rendererRejoinSurfaceKey?: 'authority:renderer-rejoin:speech' | 'authority:renderer-rejoin:live2d' | 'authority:renderer-rejoin:vrm' | null
   prosodyAuthorityNote?: string | null
-  continuityGovernanceNote?: string | null
-  relationshipCadenceGovernanceNote?: string | null
-  projectStateContinuityGovernanceNote?: string | null
-  bodyContinuityGovernanceNote?: string | null
+  survivingVisibleLane?: 'face+lipsync-only' | 'motion+lipsync-only' | 'face+lipsync+voice-only' | 'motion+lipsync+voice-only' | null
 }>) {
   if (input.length === 0)
     return null
@@ -34,10 +31,7 @@ export function buildSelfEvolutionAdoptedAnchor(input: Array<{
     summaryLine: `当前默认连续性参照已经切换到 ${latest.snapshotCapturedAt} 的已采纳基线。`,
     bodyContinuityPhase: latest.bodyContinuityPhase ?? null,
     rendererRejoinSurfaceKey: latest.rendererRejoinSurfaceKey ?? null,
+    survivingVisibleLane: latest.survivingVisibleLane ?? null,
     prosodyAuthorityNote: latest.prosodyAuthorityNote ?? null,
-    continuityGovernanceNote: latest.continuityGovernanceNote ?? null,
-    relationshipCadenceGovernanceNote: latest.relationshipCadenceGovernanceNote ?? null,
-    projectStateContinuityGovernanceNote: latest.projectStateContinuityGovernanceNote ?? null,
-    bodyContinuityGovernanceNote: latest.bodyContinuityGovernanceNote ?? null,
   }
 }

@@ -1,48 +1,17 @@
 <script setup lang="ts">
 import { BasicTextarea } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
-import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 
 import { useChatReplyAbort } from '../../composables'
-import { useAlicizationSelfEvolutionInspectorStore } from '../../stores/alicization-self-evolution-inspector'
 import { useChatTextComposerStore } from '../../stores/chat/text-composer-store'
-import { resolveStageDialoguePanelClosureLine } from './stage-dialogue-panel-closure-line'
-import { buildStageQuickReplyClosureDiagnosticEntry } from './stage-quick-reply-closure'
 
 const composerStore = useChatTextComposerStore()
 const { draft, isComposing } = storeToRefs(composerStore)
 const { sending, aborting, abortReply } = useChatReplyAbort()
-const selfEvolutionInspectorStore = useAlicizationSelfEvolutionInspectorStore()
 const { t } = useI18n()
-const router = useRouter()
-const preDialogueClosureSnapshot = computed(() => selfEvolutionInspectorStore.preDialogueClosureSnapshot)
-const preDialogueAwarenessSnapshot = computed(() => selfEvolutionInspectorStore.preDialogueAwarenessSnapshot)
-const closureDiagnosticEntry = computed(() => buildStageQuickReplyClosureDiagnosticEntry(
-  preDialogueClosureSnapshot.value,
-  preDialogueAwarenessSnapshot.value,
-))
-const closureVisibleLine = computed(() => resolveStageDialoguePanelClosureLine(
-  closureDiagnosticEntry.value,
-  {
-    fallbackAwarenessLine: preDialogueAwarenessSnapshot.value?.awarenessLine ?? null,
-    fallbackAwarenessCandidates: [
-      preDialogueAwarenessSnapshot.value?.awarenessLine ?? null,
-      preDialogueAwarenessSnapshot.value?.summaryLine ?? null,
-      preDialogueAwarenessSnapshot.value?.companionBriefingLine ?? null,
-    ],
-  },
-))
 async function handleSubmit() {
   await composerStore.sendCurrentMessage()
-}
-
-async function handleOpenClosureDiagnosis() {
-  await router.push({
-    path: '/devtools/performance-visualizer',
-    query: closureDiagnosticEntry.value.routeQuery,
-  })
 }
 
 async function handleActionButtonClick() {
@@ -57,36 +26,6 @@ async function handleActionButtonClick() {
 
 <template>
   <div class="stage-quick-reply">
-    <details
-      v-if="closureDiagnosticEntry.visible"
-      class="stage-quick-reply__closure"
-    >
-      <summary class="stage-quick-reply__closure-toggle">
-        <span class="stage-quick-reply__closure-label">
-          运行诊断
-        </span>
-        <span class="stage-quick-reply__closure-pill">
-          {{ preDialogueClosureSnapshot?.status ?? '待检查' }}
-        </span>
-      </summary>
-      <div
-        v-if="closureVisibleLine"
-        class="stage-quick-reply__closure-summary"
-      >
-        {{ closureVisibleLine }}
-      </div>
-      <div class="stage-quick-reply__closure-hint">
-        {{ closureDiagnosticEntry.hint }}
-      </div>
-      <button
-        v-if="closureDiagnosticEntry.visible"
-        type="button"
-        class="stage-quick-reply__closure-action"
-        @click="handleOpenClosureDiagnosis"
-      >
-        {{ closureDiagnosticEntry.label }}
-      </button>
-    </details>
     <BasicTextarea
       v-model="draft"
       :placeholder="t('stage.dialogue.quick-reply-placeholder')"
@@ -128,89 +67,6 @@ async function handleActionButtonClick() {
     inset 0 1px 0 rgb(255 255 255 / 62%);
   backdrop-filter: blur(16px) saturate(1.1);
   padding: 0.7rem 0.75rem 0.75rem 0.9rem;
-}
-
-.stage-quick-reply__closure {
-  width: 100%;
-  border: 1px solid rgb(99 68 39 / 14%);
-  border-radius: 1rem 1.1rem 0.85rem 0.95rem;
-  background: linear-gradient(135deg, rgb(120 85 49 / 8%) 0%, rgb(255 255 255 / 36%) 100%);
-  padding: 0.55rem 0.7rem;
-}
-
-.stage-quick-reply__closure-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  cursor: pointer;
-  list-style: none;
-}
-
-.stage-quick-reply__closure-toggle::-webkit-details-marker {
-  display: none;
-}
-
-.stage-quick-reply__closure-label {
-  color: rgb(104 76 49 / 88%);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.stage-quick-reply__closure-pill {
-  border: 1px solid rgb(111 77 44 / 14%);
-  border-radius: 999px;
-  background: rgb(255 250 243 / 72%);
-  color: rgb(91 63 36 / 90%);
-  font-size: 0.68rem;
-  line-height: 1;
-  padding: 0.24rem 0.48rem;
-  text-transform: capitalize;
-}
-
-.stage-quick-reply__closure-summary {
-  margin-top: 0.22rem;
-  color: rgb(67 46 29 / 92%);
-  font-size: 0.78rem;
-  line-height: 1.35;
-}
-
-.stage-quick-reply__closure-hint {
-  margin-top: 0.45rem;
-  color: rgb(114 83 55 / 78%);
-  font-size: 0.7rem;
-  line-height: 1.35;
-}
-
-.stage-quick-reply__closure-action {
-  margin-top: 0.48rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgb(95 66 40 / 18%);
-  border-radius: 999px;
-  background: rgb(255 250 243 / 78%);
-  color: rgb(88 60 34 / 92%);
-  font-size: 0.72rem;
-  font-weight: 600;
-  line-height: 1;
-  padding: 0.42rem 0.68rem;
-  transition:
-    transform 180ms ease,
-    background-color 180ms ease,
-    border-color 180ms ease;
-}
-
-.stage-quick-reply__closure-action:hover {
-  transform: translateY(-1px);
-  background: rgb(255 246 233 / 92%);
-  border-color: rgb(95 66 40 / 26%);
-}
-
-.stage-quick-reply__closure-action:active {
-  transform: translateY(1px);
 }
 
 .stage-quick-reply__input {

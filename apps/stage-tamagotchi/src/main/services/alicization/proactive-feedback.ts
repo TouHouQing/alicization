@@ -27,9 +27,6 @@ export interface AlicizationRecentProactiveOutcome {
   assistantText?: string | null
   learningAction?: 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold' | null
   learningFocuses?: string[]
-  projectStateOpenFocusSummary?: string | null
-  projectStateNextFocusSummary?: string | null
-  projectStateEmotionalClosureCue?: string | null
   emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
 }
@@ -42,9 +39,6 @@ export interface AlicizationPendingProactiveOutcome {
   assistantText?: string | null
   learningAction?: 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold' | null
   learningFocuses?: string[]
-  projectStateOpenFocusSummary?: string | null
-  projectStateNextFocusSummary?: string | null
-  projectStateEmotionalClosureCue?: string | null
   emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
 }
@@ -144,15 +138,6 @@ function normalizePendingOutcome(raw: unknown): AlicizationPendingProactiveOutco
   const assistantText = typeof candidate?.assistantText === 'string'
     ? candidate.assistantText.trim().replace(/\s+/g, ' ').slice(0, 260)
     : ''
-  const projectStateOpenFocusSummary = typeof candidate?.projectStateOpenFocusSummary === 'string'
-    ? candidate.projectStateOpenFocusSummary.trim().replace(/\s+/g, ' ').slice(0, 220)
-    : ''
-  const projectStateNextFocusSummary = typeof candidate?.projectStateNextFocusSummary === 'string'
-    ? candidate.projectStateNextFocusSummary.trim().replace(/\s+/g, ' ').slice(0, 220)
-    : ''
-  const projectStateEmotionalClosureCue = typeof candidate?.projectStateEmotionalClosureCue === 'string'
-    ? candidate.projectStateEmotionalClosureCue.trim().replace(/\s+/g, ' ').slice(0, 220)
-    : ''
   const emotionalTransitionLedger = normalizeProactiveEmotionalTransitionLedger(candidate?.emotionalTransitionLedger)
   const affectiveResidue = normalizeProactiveAffectiveResidue(candidate?.affectiveResidue)
 
@@ -164,9 +149,6 @@ function normalizePendingOutcome(raw: unknown): AlicizationPendingProactiveOutco
     assistantText: assistantText || null,
     learningAction,
     learningFocuses,
-    projectStateOpenFocusSummary: projectStateOpenFocusSummary || null,
-    projectStateNextFocusSummary: projectStateNextFocusSummary || null,
-    projectStateEmotionalClosureCue: projectStateEmotionalClosureCue || null,
     emotionalTransitionLedger,
     affectiveResidue,
   }
@@ -210,15 +192,6 @@ function normalizeRecentOutcome(raw: unknown): AlicizationRecentProactiveOutcome
   const assistantText = typeof candidate?.assistantText === 'string'
     ? candidate.assistantText.trim().replace(/\s+/g, ' ').slice(0, 260)
     : ''
-  const projectStateOpenFocusSummary = typeof candidate?.projectStateOpenFocusSummary === 'string'
-    ? candidate.projectStateOpenFocusSummary.trim().replace(/\s+/g, ' ').slice(0, 220)
-    : ''
-  const projectStateNextFocusSummary = typeof candidate?.projectStateNextFocusSummary === 'string'
-    ? candidate.projectStateNextFocusSummary.trim().replace(/\s+/g, ' ').slice(0, 220)
-    : ''
-  const projectStateEmotionalClosureCue = typeof candidate?.projectStateEmotionalClosureCue === 'string'
-    ? candidate.projectStateEmotionalClosureCue.trim().replace(/\s+/g, ' ').slice(0, 220)
-    : ''
   const emotionalTransitionLedger = normalizeProactiveEmotionalTransitionLedger(candidate?.emotionalTransitionLedger)
   const affectiveResidue = normalizeProactiveAffectiveResidue(candidate?.affectiveResidue)
 
@@ -231,9 +204,6 @@ function normalizeRecentOutcome(raw: unknown): AlicizationRecentProactiveOutcome
     assistantText: assistantText || null,
     learningAction,
     learningFocuses,
-    projectStateOpenFocusSummary: projectStateOpenFocusSummary || null,
-    projectStateNextFocusSummary: projectStateNextFocusSummary || null,
-    projectStateEmotionalClosureCue: projectStateEmotionalClosureCue || null,
     emotionalTransitionLedger,
     affectiveResidue,
   }
@@ -298,9 +268,6 @@ function applyOutcome(
           .filter(Boolean)
           .slice(0, 6)
       : [],
-    projectStateOpenFocusSummary: entry.projectStateOpenFocusSummary ?? null,
-    projectStateNextFocusSummary: entry.projectStateNextFocusSummary ?? null,
-    projectStateEmotionalClosureCue: entry.projectStateEmotionalClosureCue ?? null,
     emotionalTransitionLedger: entry.emotionalTransitionLedger ?? null,
     affectiveResidue: entry.affectiveResidue ?? null,
   }
@@ -393,9 +360,6 @@ export function registerProactiveDelivery(
     assistantText?: string | null
     learningAction?: AlicizationPendingProactiveOutcome['learningAction']
     learningFocuses?: string[]
-    projectStateOpenFocusSummary?: string | null
-    projectStateNextFocusSummary?: string | null
-    projectStateEmotionalClosureCue?: string | null
     emotionalTransitionLedger?: AlicizationEmotionalTransitionLedgerSnapshot | null
     affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   },
@@ -421,15 +385,6 @@ export function registerProactiveDelivery(
           .filter(Boolean)
           .slice(0, 6)
       : [],
-    projectStateOpenFocusSummary: typeof input.projectStateOpenFocusSummary === 'string'
-      ? input.projectStateOpenFocusSummary.trim().replace(/\s+/g, ' ').slice(0, 220) || null
-      : null,
-    projectStateNextFocusSummary: typeof input.projectStateNextFocusSummary === 'string'
-      ? input.projectStateNextFocusSummary.trim().replace(/\s+/g, ' ').slice(0, 220) || null
-      : null,
-    projectStateEmotionalClosureCue: typeof input.projectStateEmotionalClosureCue === 'string'
-      ? input.projectStateEmotionalClosureCue.trim().replace(/\s+/g, ' ').slice(0, 220) || null
-      : null,
     emotionalTransitionLedger: normalizeProactiveEmotionalTransitionLedger(input.emotionalTransitionLedger),
     affectiveResidue: normalizeProactiveAffectiveResidue(input.affectiveResidue),
   })

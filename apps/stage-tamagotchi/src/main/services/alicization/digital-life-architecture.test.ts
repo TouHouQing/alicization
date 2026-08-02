@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  buildAlicizationDigitalLifeArchitecture,
-  buildAlicizationDigitalLifeArchitectureSystemBlock,
-} from './digital-life-architecture'
+import { buildAlicizationDigitalLifeArchitecture } from './digital-life-architecture'
 import {
   buildAlicizationDigitalLifeRuntimeSurface,
   commitAlicizationDigitalLifeMindState,
@@ -345,7 +342,6 @@ describe('digital life architecture', () => {
 
     const surface = buildAlicizationDigitalLifeRuntimeSurface(state)
     const architecture = buildAlicizationDigitalLifeArchitecture(surface)
-    const block = buildAlicizationDigitalLifeArchitectureSystemBlock(architecture)
 
     expect(architecture).toEqual(expect.objectContaining({
       version: 'digital-life-architecture-v1',
@@ -362,7 +358,6 @@ describe('digital life architecture', () => {
     expect(architecture?.systems.control.summary).toContain('action=speak')
     expect(architecture?.systems.memory.summary).toContain('goal=unify the runtime spine')
     expect(architecture).not.toHaveProperty('closureAudit')
-    expect(block).toBe('')
   })
 
   it('degrades into a sparse but usable architecture when only live runtime lanes survive', () => {

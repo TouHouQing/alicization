@@ -6,38 +6,6 @@ import { describe, it } from 'vitest'
 
 import { canonicalizeSessionMessages, mergeLoadedSessionMessages } from './session-message-merge'
 
-const legacyProjectStateCueKeys = [
-  'preDialogueAwarenessLine',
-  'preDialogueAwarenessSummary',
-  'awarenessLine',
-  'companionHeadlineLine',
-  'companionBriefingLine',
-  'companionNextClosureLine',
-  'sameHerSelfLine',
-  'sameHerSummary',
-  'sameHerHoldDetail',
-  'sameHerDriftRisk',
-  'sameHerDriftRiskLine',
-  'sameHerDriftRiskSummary',
-  'emotionalClosureCue',
-  'emotionalClosureSummary',
-  'continuityCue',
-  'continuityAnchor',
-  'continuityHold',
-  'continuityDriftRisk',
-  'proactiveSameHerGap',
-  'proactiveSameHerGapSummary',
-  'companionExperimentalCue',
-  'sameHerExperimentalCue',
-  'emotionalClosureExperimentalCue',
-  'proactiveSameHerExperimentalCue',
-] as const
-
-function assertLegacyProjectStateCuesRemoved(projectState: Record<string, unknown>) {
-  for (const key of legacyProjectStateCueKeys)
-    assert.equal(Object.hasOwn(projectState, key), false, `${key} should be removed`)
-}
-
 describe('mergeLoadedSessionMessages', () => {
   it('keeps stored history when the in-memory session only has the placeholder system message', () => {
     const storedMessages: ChatHistoryItem[] = [
@@ -151,7 +119,7 @@ describe('mergeLoadedSessionMessages', () => {
     assert.deepEqual(canonical.map(message => message.role), ['system', 'user', 'assistant'])
   })
 
-  it('removes legacy pre-dialogue fields when duplicate assistant messages merge', () => {
+  it('preserves provider realization facts when duplicate assistant messages merge', () => {
     const stableTurnId = 'chat:session-1:turn-3'
     const canonical = canonicalizeSessionMessages([
       {
@@ -166,27 +134,14 @@ describe('mergeLoadedSessionMessages', () => {
           emotion: 'neutral',
           reply: 'The umbrella decision is still open.',
           format: 'fallback-v1',
-          preDialogueSendIdentity: {
-            summaryLine: 'deprecated send identity',
-          },
-          preDialogueAwareness: {
-            status: 'partial',
-            summaryLine: 'deprecated awareness cue',
-            reasonPreview: ['deprecated awareness reason'],
-          },
-          preDialogueClosure: {
-            status: 'partial',
-            summaryLine: 'deprecated closure cue',
-            briefingLines: ['deprecated closure briefing'],
-            reasons: ['deprecated closure reason'],
-          },
           visibleReplyRealization: {
-            projectStateAudit: {
-              landedProgressSummary: 'deprecated visible reply audit',
-            },
+            expectedAuthority: 'llm-mind',
+            actualAuthority: 'llm-mind',
+            providerMindExecuted: true,
+            mode: 'provider-stream',
           },
         },
-      } as ChatHistoryItem,
+      } as unknown as ChatHistoryItem,
       {
         role: 'assistant',
         content: 'The umbrella decision is still open.',
@@ -210,28 +165,15 @@ describe('mergeLoadedSessionMessages', () => {
     >
 
     assert.equal(assistantMessage.id, stableTurnId)
-    assert.equal(Object.hasOwn(assistantMessage.structured ?? {}, 'preDialogueSendIdentity'), false)
-    assert.equal(Object.hasOwn(assistantMessage.structured ?? {}, 'preDialogueAwareness'), false)
-    assert.equal(Object.hasOwn(assistantMessage.structured ?? {}, 'preDialogueClosure'), false)
-    assert.equal(Object.hasOwn(assistantMessage.structured ?? {}, 'visibleReplyRealization'), false)
+    assert.deepEqual(assistantMessage.structured?.visibleReplyRealization, {
+      expectedAuthority: 'llm-mind',
+      actualAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      mode: 'provider-stream',
+    })
   })
 
-  it('removes legacy project-state cue fields while preserving ordinary natural facts', () => {
-    const naturalProjectFacts = {
-      identity: 'This session records a weekend train trip.',
-      currentPhase: 'The tickets are confirmed.',
-      latestLandedProgress: 'The Saturday morning ticket is saved.',
-      primaryOpenLoop: 'The umbrella choice is still undecided.',
-      nextClosureTarget: 'Check the weather before departure.',
-      continuitySummary: 'The itinerary came from the previous conversation.',
-      itinerary: {
-        station: 'Hongqiao',
-        departure: 'Saturday morning',
-      },
-    }
-    const deprecatedProjectCues = Object.fromEntries(
-      legacyProjectStateCueKeys.map(key => [key, `deprecated cue for ${key}`]),
-    )
+  it('preserves memory and runtime facts during canonicalization', () => {
     const canonical = canonicalizeSessionMessages([
       {
         role: 'assistant',
@@ -245,21 +187,39 @@ describe('mergeLoadedSessionMessages', () => {
           emotion: 'neutral',
           reply: 'The Saturday morning ticket is saved.',
           format: 'mind-turn-v1',
-          projectState: {
-            ...naturalProjectFacts,
-            ...deprecatedProjectCues,
+          memoryUsage: {
+            workingMemoryVersion: 'wm-weekend-trip',
+            longTermEvidenceIds: ['memory-ticket'],
+          },
+          runtimeDigest: {
+            version: 'alicization-runtime-digest-v1',
+            dominantChannel: 'dialogue',
+            derivedMindStateBundle: {
+              structured: {
+                memoryUsage: {
+                  workingMemoryVersion: 'wm-weekend-trip',
+                  longTermEvidenceIds: ['memory-ticket'],
+                },
+              },
+            },
           },
         },
-      } as ChatHistoryItem,
+      } as unknown as ChatHistoryItem,
     ])
 
     const assistantMessage = canonical.find(message => message.role === 'assistant') as Extract<
       ChatHistoryItem,
       { role: 'assistant' }
     >
-    const projectState = assistantMessage.structured?.projectState as unknown as Record<string, unknown>
 
-    assertLegacyProjectStateCuesRemoved(projectState)
-    assert.deepEqual(projectState, naturalProjectFacts)
+    const structured = assistantMessage.structured as unknown as Record<string, any>
+    assert.deepEqual(structured.memoryUsage, {
+      workingMemoryVersion: 'wm-weekend-trip',
+      longTermEvidenceIds: ['memory-ticket'],
+    })
+    assert.deepEqual(structured.runtimeDigest?.derivedMindStateBundle?.structured?.memoryUsage, {
+      workingMemoryVersion: 'wm-weekend-trip',
+      longTermEvidenceIds: ['memory-ticket'],
+    })
   })
 })

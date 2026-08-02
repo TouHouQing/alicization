@@ -60,10 +60,9 @@ function createDigitalLifeSpineDigest(input: {
   confidence?: number
   dominantSystem: NonNullable<AlicizationDigitalLifeSpineDigest['architecture']>['dominantSystem']
   operatingMode: NonNullable<AlicizationDigitalLifeSpineDigest['architecture']>['operatingMode']
-  manifestationCadenceSummary?: string | null
-  openingGuidance?: string | null
   recallMode?: string
   watchMode?: string
+  whySummary?: string | null
 }): AlicizationDigitalLifeSpineDigest {
   return {
     version: 'digital-life-spine-digest-v1',
@@ -106,9 +105,7 @@ function createDigitalLifeSpineDigest(input: {
         silenceReconnect: 'light-probe',
         comfortStyle: 'gentle-care',
         preferredProactiveStyle: 'firm-warning',
-        manifestationCadenceSummary: input.manifestationCadenceSummary ?? null,
-        openingGuidance: input.openingGuidance ?? null,
-        whySummary: null,
+        whySummary: input.whySummary ?? null,
       },
     },
     memory: {
@@ -216,12 +213,6 @@ describe('stage embodiment diagnostics', () => {
               shouldWrite: false,
               lane: 'none',
               reason: 'memory identity already comes from closure causality',
-            },
-            selfRevisionCandidate: {
-              shouldPropose: false,
-              domain: 'dialogue-style',
-              reasonCodes: [],
-              summary: null,
             },
             traceSummary: 'same corrected callback memory drives embodiment diagnostics',
             replayLine: 'body line follows the corrected callback memory',
@@ -3481,7 +3472,7 @@ describe('stage embodiment diagnostics', () => {
       stopReason: null,
       rendererTarget: 'vrm',
       driverAuthority: {
-        segmentId: 'segment-same-her-shell-1',
+        segmentId: 'segment-continuity-shell-1',
         rendererTarget: 'vrm',
         matchedDrivers: ['body', 'face', 'motion', 'lipsync'],
         sources: ['prosody-authority', 'timeline-projection', 'voice-segment'],
@@ -3497,7 +3488,7 @@ describe('stage embodiment diagnostics', () => {
           gazeStability: 0.75,
           breathAmplitude: 0.2,
           expressivity: 0.34,
-          segmentId: 'segment-same-her-shell-1',
+          segmentId: 'segment-continuity-shell-1',
         },
         face: {
           emotion: 'thinking',
@@ -3506,7 +3497,7 @@ describe('stage embodiment diagnostics', () => {
           holdMs: 300,
           preUtteranceCue: 'steady-inhale',
           postUtteranceCue: 'soft-release',
-          segmentId: 'segment-same-her-shell-1',
+          segmentId: 'segment-continuity-shell-1',
           source: 'prosody-authority',
           confidence: 0.91,
         },
@@ -3516,18 +3507,18 @@ describe('stage embodiment diagnostics', () => {
           actionCue: 'observe_focus',
           intensity: 0.46,
           holdMs: 260,
-          segmentId: 'segment-same-her-shell-1',
+          segmentId: 'segment-continuity-shell-1',
           source: 'timeline-projection',
           confidence: 0.88,
         },
         lipsync: {
           mode: 'energy-phoneme-hybrid',
           playbackPhase: 'playing',
-          segmentId: 'segment-same-her-shell-1',
+          segmentId: 'segment-continuity-shell-1',
           continuityHoldMs: 0,
           visemeHints: [
             {
-              segmentId: 'segment-same-her-shell-1',
+              segmentId: 'segment-continuity-shell-1',
               viseme: 'I',
               weight: 0.45,
               source: 'prosody-authority',
@@ -3904,7 +3895,6 @@ describe('stage embodiment diagnostics', () => {
       preferredPresence: 'attentive',
       selectedAction: 'warn',
       personaBiasSummary: null,
-      personaOpeningGuidance: null,
       scene: 'coding',
       scenario: 'coding',
     })
@@ -3949,8 +3939,7 @@ describe('stage embodiment diagnostics', () => {
         operatingMode: 'observing',
         recallMode: 'working-memory',
         watchMode: 'recovering',
-        manifestationCadenceSummary: 'persona leans toward direct reconnect once the opening is real, so the return cadence can loosen earlier.',
-        openingGuidance: 'Open directly with the live answer first and keep the approach lighter.',
+        whySummary: 'persona owner favors a direct reconnect in the current relationship state.',
       })),
       performanceState: ref({
         ...createIdleStageEmbodimentPerformanceState(),
@@ -4070,8 +4059,7 @@ describe('stage embodiment diagnostics', () => {
       activeThreadTitle: 'runtime',
       preferredPresence: 'attentive',
       selectedAction: 'warn',
-      personaBiasSummary: 'persona leans toward direct reconnect once the opening is real, so the return cadence can loosen earlier.',
-      personaOpeningGuidance: 'Open directly with the live answer first and keep the approach lighter.',
+      personaBiasSummary: 'persona owner favors a direct reconnect in the current relationship state.',
       scene: 'chat',
       scenario: 'late-night-care',
     })
@@ -4094,7 +4082,7 @@ describe('stage embodiment diagnostics', () => {
       selectedThoughtThreadId: 'thought-thread-rest-1',
     })
   })
-  it('publishes same-her audible-return continuity metadata directly on companionshipTransition when the active cue already carries that living line', () => {
+  it('publishes continuity audible-return continuity metadata directly on companionshipTransition when the active cue already carries that living line', () => {
     const now = Date.now()
     const diagnostics = useStageEmbodimentDiagnostics({
       activePresence: ref(null),
@@ -4116,7 +4104,7 @@ describe('stage embodiment diagnostics', () => {
           emphasis: 1,
         },
         activeCue: {
-          id: 'segment-same-her-transition-1',
+          id: 'segment-continuity-transition-1',
           index: 0,
           startOffset: 0,
           endOffset: 9,
@@ -4142,7 +4130,7 @@ describe('stage embodiment diagnostics', () => {
             preferredBlinkCadence: 'linger',
             preferredGazeMode: 'soften',
             reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
-            signature: 'embodiment:audible-same-her-line',
+            signature: 'embodiment:audible-continuity-line',
           },
           rendererSettle: {
             live2dFacialReleaseMs: 340,
@@ -4190,15 +4178,9 @@ describe('stage embodiment diagnostics', () => {
       digitalLifeSpineDigest: ref({
         runtime: {
           activeThreadId: 'thread-1',
-          activeThreadTitle: 'same-her',
+          activeThreadTitle: 'continuity',
           preferredPresence: 'companionship',
           selectedAction: 'steady_focus',
-        },
-        proactive: {
-          personaBias: {
-            manifestationCadenceSummary: 'keep the continuity state audible while the body rejoins',
-            openingGuidance: 'keep more room and reopen slowly.',
-          },
         },
       } as any),
       presencePosture: ref(createIdleStageEmbodimentPresencePostureState()),
@@ -4210,7 +4192,7 @@ describe('stage embodiment diagnostics', () => {
       'embodiment:body-lipsync-voice-rejoin',
     ])
     expect(diagnostics.snapshot.value.performance.runtimeDynamics.companionshipTransition.signature).toBe(
-      'embodiment:audible-same-her-line',
+      'embodiment:audible-continuity-line',
     )
   })
 
@@ -4314,15 +4296,9 @@ describe('stage embodiment diagnostics', () => {
       digitalLifeSpineDigest: ref({
         runtime: {
           activeThreadId: 'thread-1',
-          activeThreadTitle: 'same-her',
+          activeThreadTitle: 'continuity',
           preferredPresence: 'companionship',
           selectedAction: 'steady_focus',
-        },
-        proactive: {
-          personaBias: {
-            manifestationCadenceSummary: 'keep the continuity state settling through motion and voice before widening again',
-            openingGuidance: 'keep more room and reopen slowly.',
-          },
         },
       } as any),
       presencePosture: ref(createIdleStageEmbodimentPresencePostureState()),

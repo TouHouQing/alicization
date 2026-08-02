@@ -20,7 +20,6 @@ type AlicizationExecutionFirstAnswerAct
 
 type AlicizationExecutionFirstAnswerSubject
   = | 'alicization-self'
-    | 'project-state'
     | 'relationship'
     | 'host-state'
     | 'task-knot'

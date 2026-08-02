@@ -58,10 +58,6 @@ interface CreateAlicizationAgentSessionMirrorRuntimeOptions {
     trigger: 'startup' | 'timer' | 'force'
   }) => AlicizationAgentSessionActionInput
   dialogueSessionManager: {
-    buildSessionMirrorSystemBlock: (input: {
-      cardId: string
-      sessionId: string
-    }) => string
     getSessionMirror: (cardId: string, sessionId: string) => AlicizationDialogueSessionMirror | null
     ingestAgentSessionSnapshot: (input: {
       agentSession: ReturnType<AlicizationAgentTurnRuntime['getSessionSnapshot']>

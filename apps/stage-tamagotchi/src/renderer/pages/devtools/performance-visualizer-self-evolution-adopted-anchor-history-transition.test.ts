@@ -66,33 +66,34 @@ describe('performance visualizer self evolution adopted anchor history transitio
       summaryLine: '当前默认连续性锚点对应 900 -> 1100 这次历史转移。',
       supportingLines: [
         '这次转移生成了被采纳的默认基线快照，并继续沿用轨迹 trace-3。',
-        '如果需要验证 same-her 连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
+        '如果需要验证连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
       ],
     })
   })
 
-  it('preserves identity-continuity', () => {
+  it('matches an ordinary structured continuity transition without governance prose', () => {
     expect(buildSelfEvolutionAdoptedAnchorHistoryTransition({
       adoptedAnchor: {
         snapshotCapturedAt: 1320,
-        decisionTraceId: 'trace-governance-3',
-        activePatternKey: 'pattern-same-her-governance',
+        decisionTraceId: 'trace-proactive-action-3',
+        activePatternKey: 'pattern-proactive-action-chain',
         bodyContinuityPhase: null,
         rendererRejoinSurfaceKey: null,
+        survivingVisibleLane: null,
       },
       historyDrilldown: [
         {
           currentCapturedAt: 1320,
           previousCapturedAt: 1180,
-          currentDecisionTraceId: 'trace-governance-3',
-          previousDecisionTraceId: 'trace-governance-2',
+          currentDecisionTraceId: 'trace-proactive-action-3',
+          previousDecisionTraceId: 'trace-proactive-action-2',
           changedFocusCard: true,
           changedEvidenceTargets: true,
           changedTraceTargets: true,
           changedTraceEvent: true,
           lines: [
             '聚焦卡片：修复归属 -> 首查点',
-            '证据面板：候选轨迹摘要 => 身份漂移治理摘要',
+            '证据面板：运行时连续性投影 => proactive-action-chain',
           ],
         },
       ],
@@ -103,14 +104,13 @@ describe('performance visualizer self evolution adopted anchor history transitio
       selectedSide: 'current',
       summaryLine: '当前默认连续性锚点对应 1180 -> 1320 这次历史转移。',
       supportingLines: [
-        '这次转移生成了被采纳的默认基线快照，并继续沿用轨迹 trace-governance-3。',
-        '如果需要验证 same-her 连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
-        '这次历史转移对应的是同一个她连续性治理，而不是把记忆先行的熟悉感当成待修漂移。',
+        '这次转移生成了被采纳的默认基线快照，并继续沿用轨迹 trace-proactive-action-3。',
+        '如果需要验证连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
       ],
     })
   })
 
-  it('preserves body continuity wording when the adopted anchor came from body-led same-segment carry governance', () => {
+  it('uses the structured body-carried rejoin phase and Live2D surface', () => {
     expect(buildSelfEvolutionAdoptedAnchorHistoryTransition({
       adoptedAnchor: {
         snapshotCapturedAt: 1620,
@@ -118,6 +118,7 @@ describe('performance visualizer self evolution adopted anchor history transitio
         activePatternKey: 'pattern-body-continuity-governance',
         bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
         rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
+        survivingVisibleLane: null,
       },
       historyDrilldown: [
         {
@@ -143,13 +144,13 @@ describe('performance visualizer self evolution adopted anchor history transitio
       summaryLine: '当前默认连续性锚点对应 1520 -> 1620 这次历史转移。',
       supportingLines: [
         '这次转移生成了被采纳的默认基线快照，并继续沿用轨迹 trace-body-3。',
-        '如果需要验证 same-her 连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
-        '这次历史转移对应的是身体连续性治理，应优先确认身体线是否仍托住同一段 living segment，并确认 Live2D 是否沿同一条连续身体线补回显形权威，而不是把这段回收误写成 generic partial drift。',
+        '如果需要验证连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
+        expect.stringMatching(/身体线.*Live2D/u),
       ],
     })
   })
 
-  it('preserves body-only-hold wording when the adopted anchor came from a lower-visibility body-led same-segment carry', () => {
+  it('uses the structured body-only-hold phase', () => {
     expect(buildSelfEvolutionAdoptedAnchorHistoryTransition({
       adoptedAnchor: {
         snapshotCapturedAt: 1760,
@@ -157,6 +158,7 @@ describe('performance visualizer self evolution adopted anchor history transitio
         activePatternKey: 'pattern-body-continuity-governance',
         bodyContinuityPhase: 'body-only-hold',
         rendererRejoinSurfaceKey: null,
+        survivingVisibleLane: null,
       },
       historyDrilldown: [
         {
@@ -182,13 +184,13 @@ describe('performance visualizer self evolution adopted anchor history transitio
       summaryLine: '当前默认连续性锚点对应 1700 -> 1760 这次历史转移。',
       supportingLines: [
         '这次转移生成了被采纳的默认基线快照，并继续沿用轨迹 trace-body-only-3。',
-        '如果需要验证 same-her 连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
-        '这次历史转移对应的是身体连续性治理，应优先确认身体线是否仍在独自托住同一段 living segment，而不是把这段低显形延续误写成已经失败或已经完成。',
+        '如果需要验证连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
+        expect.stringMatching(/身体线.*living segment/u),
       ],
     })
   })
 
-  it('does not fabricate a speech rejoin surface when the adopted anchor came from body rejoin but the renderer surface is still unknown', () => {
+  it('keeps the renderer rejoin surface unknown when only the body phase is known', () => {
     expect(buildSelfEvolutionAdoptedAnchorHistoryTransition({
       adoptedAnchor: {
         snapshotCapturedAt: 1690,
@@ -196,6 +198,7 @@ describe('performance visualizer self evolution adopted anchor history transitio
         activePatternKey: 'pattern-body-continuity-governance',
         bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
         rendererRejoinSurfaceKey: null,
+        survivingVisibleLane: null,
       },
       historyDrilldown: [
         {
@@ -221,13 +224,13 @@ describe('performance visualizer self evolution adopted anchor history transitio
       summaryLine: '当前默认连续性锚点对应 1620 -> 1690 这次历史转移。',
       supportingLines: [
         '这次转移生成了被采纳的默认基线快照，并继续沿用轨迹 trace-body-generic-3。',
-        '如果需要验证 same-her 连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
-        '这次历史转移对应的是身体连续性治理，应优先确认身体线是否仍托住同一段 living segment，并确认显形权威是否沿同一条连续身体线补回，而不是把这段回收误写成 generic partial drift。',
+        '如果需要验证连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
+        expect.stringMatching(/^((?!speech).)*显形权威/u),
       ],
     })
   })
 
-  it('preserves full-cross-modal-lock wording when the adopted anchor came from a stable same-segment lock across body and renderer surfaces', () => {
+  it('uses the structured full-cross-modal-lock phase and VRM surface', () => {
     expect(buildSelfEvolutionAdoptedAnchorHistoryTransition({
       adoptedAnchor: {
         snapshotCapturedAt: 1820,
@@ -235,6 +238,7 @@ describe('performance visualizer self evolution adopted anchor history transitio
         activePatternKey: 'pattern-body-continuity-governance',
         bodyContinuityPhase: 'full-cross-modal-lock',
         rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
+        survivingVisibleLane: null,
       },
       historyDrilldown: [
         {
@@ -260,13 +264,13 @@ describe('performance visualizer self evolution adopted anchor history transitio
       summaryLine: '当前默认连续性锚点对应 1760 -> 1820 这次历史转移。',
       supportingLines: [
         '这次转移生成了被采纳的默认基线快照，并继续沿用轨迹 trace-body-lock-3。',
-        '如果需要验证 same-her 连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
-        '这次历史转移对应的是身体连续性治理，应优先确认身体线与 VRM 是否仍共同锁在同一段 living segment 上，而不是把这段稳定回归误写成短暂同步。',
+        '如果需要验证连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
+        expect.stringMatching(/身体线.*VRM.*living segment/u),
       ],
     })
   })
 
-  it('preserves renderer-rejoin-without-body wording when the adopted anchor came from visible recovery without same-segment body carry', () => {
+  it('uses the structured renderer-rejoin-without-body phase and speech surface', () => {
     expect(buildSelfEvolutionAdoptedAnchorHistoryTransition({
       adoptedAnchor: {
         snapshotCapturedAt: 1880,
@@ -274,6 +278,7 @@ describe('performance visualizer self evolution adopted anchor history transitio
         activePatternKey: 'pattern-body-continuity-governance',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
         rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech',
+        survivingVisibleLane: null,
       },
       historyDrilldown: [
         {
@@ -299,13 +304,13 @@ describe('performance visualizer self evolution adopted anchor history transitio
       summaryLine: '当前默认连续性锚点对应 1820 -> 1880 这次历史转移。',
       supportingLines: [
         '这次转移生成了被采纳的默认基线快照，并继续沿用轨迹 trace-body-loss-3。',
-        '如果需要验证 same-her 连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
-        '这次历史转移对应的是身体连续性治理，应优先确认为什么 speech 已经回接、但身体线没有继续托住同一段 living segment，而不是把这段失身回接误写成可信长期基线。',
+        '如果需要验证连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
+        expect.stringMatching(/speech.*身体线/u),
       ],
     })
   })
 
-  it('does not fall back to generic body rejoin wording when cross-modal lock is trusted but the renderer surface is still unknown', () => {
+  it('keeps the cross-modal-lock surface unknown without inferring speech', () => {
     expect(buildSelfEvolutionAdoptedAnchorHistoryTransition({
       adoptedAnchor: {
         snapshotCapturedAt: 1820,
@@ -313,6 +318,7 @@ describe('performance visualizer self evolution adopted anchor history transitio
         activePatternKey: 'pattern-body-continuity-governance',
         bodyContinuityPhase: 'full-cross-modal-lock',
         rendererRejoinSurfaceKey: null,
+        survivingVisibleLane: null,
       },
       historyDrilldown: [
         {
@@ -338,53 +344,13 @@ describe('performance visualizer self evolution adopted anchor history transitio
       summaryLine: '当前默认连续性锚点对应 1760 -> 1820 这次历史转移。',
       supportingLines: [
         '这次转移生成了被采纳的默认基线快照，并继续沿用轨迹 trace-body-lock-generic-3。',
-        '如果需要验证 same-her 连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
-        '这次历史转移对应的是身体连续性治理，应优先确认身体线与显形权威是否仍共同锁在同一段 living segment 上，而不是把这段稳定回归误写成短暂同步。',
+        '如果需要验证连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
+        expect.stringMatching(/^((?!speech).)*显形权威/u),
       ],
     })
   })
 
-  it('preserves full-cross-modal-lock wording when the governance note is explicit but the adopted anchor is still missing structured phase metadata', () => {
-    expect(buildSelfEvolutionAdoptedAnchorHistoryTransition({
-      adoptedAnchor: {
-        snapshotCapturedAt: 1815,
-        decisionTraceId: 'trace-body-lock-generic-note-only-4',
-        activePatternKey: 'pattern-body-continuity-governance',
-        bodyContinuityPhase: null,
-        rendererRejoinSurfaceKey: null,
-        bodyContinuityGovernanceNote: '身体连续性已经明确处于跨模态重锁态，显形权威仍与身体线共同锁在同一段 living segment 上，可直接进入长期基线。',
-      },
-      historyDrilldown: [
-        {
-          currentCapturedAt: 1815,
-          previousCapturedAt: 1760,
-          currentDecisionTraceId: 'trace-body-lock-generic-note-only-4',
-          previousDecisionTraceId: 'trace-body-lock-generic-note-only-3',
-          changedFocusCard: true,
-          changedEvidenceTargets: true,
-          changedTraceTargets: true,
-          changedTraceEvent: true,
-          lines: [
-            '聚焦卡片：修复归属 -> 首查点',
-            '证据面板：显形权威投影 => 运行时连续性投影',
-          ],
-        },
-      ],
-    })).toEqual({
-      transitionKey: '1815:1760',
-      currentCapturedAt: 1815,
-      previousCapturedAt: 1760,
-      selectedSide: 'current',
-      summaryLine: '当前默认连续性锚点对应 1760 -> 1815 这次历史转移。',
-      supportingLines: [
-        '这次转移生成了被采纳的默认基线快照，并继续沿用轨迹 trace-body-lock-generic-note-only-4。',
-        '如果需要验证 same-her 连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
-        '这次历史转移对应的是身体连续性治理，应优先确认身体线与显形权威是否仍共同锁在同一段 living segment 上，而不是把这段稳定回归误写成短暂同步。',
-      ],
-    })
-  })
-
-  it('does not fall back to generic body rejoin wording when visible recovery happened without body carry and the renderer surface is still unknown', () => {
+  it('keeps the renderer-rejoin-without-body surface unknown without inferring speech', () => {
     expect(buildSelfEvolutionAdoptedAnchorHistoryTransition({
       adoptedAnchor: {
         snapshotCapturedAt: 1880,
@@ -392,6 +358,7 @@ describe('performance visualizer self evolution adopted anchor history transitio
         activePatternKey: 'pattern-body-continuity-governance',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
         rendererRejoinSurfaceKey: null,
+        survivingVisibleLane: null,
       },
       historyDrilldown: [
         {
@@ -417,13 +384,13 @@ describe('performance visualizer self evolution adopted anchor history transitio
       summaryLine: '当前默认连续性锚点对应 1820 -> 1880 这次历史转移。',
       supportingLines: [
         '这次转移生成了被采纳的默认基线快照，并继续沿用轨迹 trace-body-loss-generic-3。',
-        '如果需要验证 same-her 连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
-        '这次历史转移对应的是身体连续性治理，应优先确认为什么显形权威已经回接、但身体线没有继续托住同一段 living segment，而不是把这段失身回接误写成可信长期基线。',
+        '如果需要验证连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
+        expect.stringMatching(/^((?!speech).)*显形权威/u),
       ],
     })
   })
 
-  it('preserves quieter identity-continuity', () => {
+  it('preserves a structured surviving visible lane', () => {
     expect(buildSelfEvolutionAdoptedAnchorHistoryTransition({
       adoptedAnchor: {
         snapshotCapturedAt: 1905,
@@ -431,7 +398,7 @@ describe('performance visualizer self evolution adopted anchor history transitio
         activePatternKey: 'pattern-body-continuity-governance',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
         rendererRejoinSurfaceKey: null,
-        bodyContinuityGovernanceNote: '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
+        survivingVisibleLane: 'face+lipsync+voice-only',
       },
       historyDrilldown: [
         {
@@ -457,8 +424,8 @@ describe('performance visualizer self evolution adopted anchor history transitio
       summaryLine: '当前默认连续性锚点对应 1880 -> 1905 这次历史转移。',
       supportingLines: [
         '这次转移生成了被采纳的默认基线快照，并继续沿用轨迹 trace-face-voice-only-4。',
-        '如果需要验证 same-her 连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
-        '这次历史转移对应的是身体连续性治理，应优先确认当前是否仍只有表情、口型、声音这条 same-her 生命线与同一段 living segment 对齐，避免把这次 quieter carry 误写成 body、motion 已经补回的修复完成。',
+        '如果需要验证连续性，应优先回看这次前后转移，而不是只看静态锚点结果。',
+        expect.stringContaining('表情、口型、声音'),
       ],
     })
   })

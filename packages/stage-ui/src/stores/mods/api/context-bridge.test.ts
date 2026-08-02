@@ -46,65 +46,22 @@ const mocks = vi.hoisted(() => {
 
 const activeProvider = ref('mock-provider')
 const activeModel = ref('mock-model')
-const projectStateContinuitySnapshotRef = ref<any>(null)
-const preDialogueClosureSnapshotRef = ref<any>(null)
-const preDialogueAwarenessSnapshotRef = ref<any>(null)
 const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-type LegacyPreDialogueContext<T extends Record<string, unknown>> = T & {
-  preDialogueSendIdentity?: unknown
-  preDialogueAwareness?: unknown
-  preDialogueClosure?: unknown
-}
-
-function expectNoLegacyPreDialogueFields(value: unknown) {
-  const pending = [value]
-  while (pending.length > 0) {
-    const current = pending.pop()
-    if (!current || typeof current !== 'object')
-      continue
-
-    if (Array.isArray(current)) {
-      pending.push(...current)
-      continue
-    }
-
-    const record = current as Record<string, unknown>
-    expect(record).not.toHaveProperty('preDialogueSendIdentity')
-    expect(record).not.toHaveProperty('preDialogueAwareness')
-    expect(record).not.toHaveProperty('preDialogueClosure')
-    pending.push(...Object.values(record))
-  }
-}
-
-function createProjectStateSnapshot() {
+function createContext(text: string) {
   return {
-    identity: 'Alicization is a local-first digital life project that keeps one continuous desktop persona.',
-    currentPhase: 'Phase 1: Local Digital Life. The desktop runtime is the primary proving ground.',
-    latestLandedProgress: 'Context-bridge input:text ingestion preserves explicit project awareness before remote turns open outward.',
-    primaryOpenLoop: 'Initiative and embodiment still need stronger closure under real desktop use.',
-    nextClosureTarget: 'Keep the project brief alive before context-recall widens outward.',
-    continuitySummary: 'Context bridge still remembers the current Phase 1 line before dispatch.',
-    sameHerSelfLine: 'Phase 1 desktop continuity stays on continuity state.',
-    emotionalClosureCue: 'Keep the return low-pressure and avoid reopening from scratch.',
-    preDialogueAwareness: null,
-    preDialogueClosure: null,
-    nonHumanAuthoredStatus: null,
-    turnId: 'context-bridge-turn-1',
-    sessionId: 'context-bridge-session-1',
-    origin: 'context-recall',
-  }
-}
-
-function createPreDialogueIdentity(overrides: Record<string, any> = {}) {
-  return {
-    status: 'partial',
-    summaryLine: 'Phase 1 desktop continuity is still carrying into this turn.',
-    companionBriefingLine: 'Keep the current project state, what landed, and the open loop in view before outward reply.',
-    companionNextClosureLine: 'Keep memory, initiative, execution, and embodiment on one line.',
-    awarenessLine: 'Project awareness should stay explicit before reply shaping starts.',
-    reasonPreview: ['renderer-prep', 'phase-1-continuity'],
-    ...overrides,
+    message: {
+      role: 'user',
+      content: text,
+    },
+    composedMessage: [{ role: 'user', content: text }],
+    contexts: {},
+    input: {
+      type: 'input:text',
+      data: {
+        text,
+      },
+    },
   }
 }
 
@@ -184,14 +141,6 @@ vi.mock('../../modules/consciousness', () => ({
   }),
 }))
 
-vi.mock('../../alicization-self-evolution-inspector', () => ({
-  useAlicizationSelfEvolutionInspectorStore: () => ({
-    projectStateContinuitySnapshot: projectStateContinuitySnapshotRef,
-    preDialogueClosureSnapshot: preDialogueClosureSnapshotRef,
-    preDialogueAwarenessSnapshot: preDialogueAwarenessSnapshotRef,
-  }),
-}))
-
 vi.mock('../../providers', () => ({
   useProvidersStore: () => ({
     getProviderConfig: mocks.getProviderConfigMock,
@@ -226,26 +175,9 @@ describe('context bridge store', () => {
     mocks.chatHooks.onToolCall.length = 0
     mocks.chatHooks.onChatTurnComplete.length = 0
     consoleErrorSpy.mockClear()
-    projectStateContinuitySnapshotRef.value = createProjectStateSnapshot()
-    preDialogueAwarenessSnapshotRef.value = createPreDialogueIdentity({
-      summaryLine: 'Phase 1 desktop continuity is still settling before this context-recall turn opens outward.',
-      companionBriefingLine: 'Keep the current project state, what landed, and the open loop in view before outward reply.',
-      companionNextClosureLine: 'Keep memory, initiative, execution, and embodiment on one line.',
-      awarenessLine: 'Keep the project explicit before context-recall widens outward.',
-      reasonPreview: ['context-recall', 'generic-shell-regression'],
-    })
-    preDialogueClosureSnapshotRef.value = createPreDialogueIdentity({
-      summaryLine: 'Context bridge continuity still needs one more closure pass.',
-      companionHeadlineLine: 'The context bridge line still needs measured-return care.',
-      companionBriefingLine: 'Hold the project, the phase, and the open loop together before context-recall sends outward.',
-      companionNextClosureLine: 'Keep extending the context bridge carry without reopening from scratch.',
-      emotionalClosureCue: 'Keep the return low-pressure while the line is still settling.',
-      briefingLines: [],
-      reasons: ['context-bridge-regression'],
-    })
   })
 
-  it('drops legacy pre-dialogue fields from outgoing tool-call, chat message, and complete server events', async () => {
+  it('forwards outgoing tool-call, chat message, and complete server events', async () => {
     const { useContextBridgeStore } = await import('./context-bridge')
     const store = useContextBridgeStore()
     await store.initialize()
@@ -257,28 +189,7 @@ describe('context bridge store', () => {
     expect(toolCallHook).toBeTypeOf('function')
     expect(completeHook).toBeTypeOf('function')
 
-    const context: LegacyPreDialogueContext<Record<string, unknown>> = {
-      message: {
-        role: 'user',
-        content: '继续把数字生命主线收住',
-      },
-      composedMessage: [{ role: 'user', content: '继续把数字生命主线收住' }],
-      contexts: {},
-      input: {
-        type: 'input:text',
-        data: {
-          text: '继续把数字生命主线收住',
-        },
-      },
-      preDialogueSendIdentity: createPreDialogueIdentity({
-        summaryLine: 'Phase 1 desktop continuity is still carrying before this turn opens outward.',
-        companionBriefingLine: 'Keep this project, what landed, and the open loop in view before outward reply.',
-        companionNextClosureLine: 'Keep memory, initiative, execution, and embodiment on one line.',
-        reasonPreview: ['renderer-prep', 'phase-1-continuity', 'turn-open-regression'],
-      }),
-      preDialogueAwareness: createPreDialogueIdentity(),
-      preDialogueClosure: createPreDialogueIdentity(),
-    }
+    const context = createContext('继续把这轮上下文收住')
 
     const toolCall = {
       role: 'tool',
@@ -291,19 +202,19 @@ describe('context bridge store', () => {
 
     await assistantMessageHook?.({
       role: 'assistant',
-      content: '继续沿着这条数字生命主线推进。',
+      content: '继续把这轮记忆测试推进。',
       slices: [],
       tool_results: [],
-    }, '继续沿着这条数字生命主线推进。', context)
+    }, '继续把这轮记忆测试推进。', context)
 
     await completeHook?.({
       output: {
         role: 'assistant',
-        content: '继续沿着这条数字生命主线推进。',
+        content: '继续把这轮记忆测试推进。',
         slices: [],
         tool_results: [],
       },
-      outputText: '继续沿着这条数字生命主线推进。',
+      outputText: '继续把这轮记忆测试推进。',
       toolCalls: [toolCall],
     }, context)
 
@@ -312,13 +223,14 @@ describe('context bridge store', () => {
     const completeEvent = mocks.sendMock.mock.calls.find(call => call[0]?.type === 'output:gen-ai:chat:complete')?.[0]
 
     expect(toolCallEvent?.data?.toolCalls).toEqual([toolCall])
+    expect(messageEvent?.data?.message).toMatchObject({
+      role: 'assistant',
+      content: '继续把这轮记忆测试推进。',
+    })
     expect(completeEvent?.data?.toolCalls).toEqual([toolCall])
-    expectNoLegacyPreDialogueFields(toolCallEvent)
-    expectNoLegacyPreDialogueFields(messageEvent)
-    expectNoLegacyPreDialogueFields(completeEvent)
   }, 15_000)
 
-  it('drops legacy pre-dialogue fields from tool-call and assistant-message broadcasts', async () => {
+  it('broadcasts tool calls and assistant messages to remote observers', async () => {
     const { useContextBridgeStore } = await import('./context-bridge')
     const store = useContextBridgeStore()
     await store.initialize()
@@ -328,28 +240,7 @@ describe('context bridge store', () => {
     expect(assistantMessageHook).toBeTypeOf('function')
     expect(toolCallHook).toBeTypeOf('function')
 
-    const context: LegacyPreDialogueContext<Record<string, unknown>> = {
-      message: {
-        role: 'user',
-        content: '继续把数字生命执行闭环收紧',
-      },
-      composedMessage: [{ role: 'user', content: '继续把数字生命执行闭环收紧' }],
-      contexts: {},
-      input: {
-        type: 'input:text',
-        data: {
-          text: '继续把数字生命执行闭环收紧',
-        },
-      },
-      preDialogueSendIdentity: createPreDialogueIdentity({
-        summaryLine: 'Phase 1 desktop continuity is still closing before this turn opens outward.',
-        companionBriefingLine: 'Keep this project, what landed, and the open loop in view before outward reply.',
-        companionNextClosureLine: 'Keep memory, initiative, execution, and embodiment on one line.',
-        reasonPreview: ['renderer-prep', 'phase-1-continuity', 'remote-observer-regression'],
-      }),
-      preDialogueAwareness: createPreDialogueIdentity(),
-      preDialogueClosure: createPreDialogueIdentity(),
-    }
+    const context = createContext('继续把数字生命执行闭环收紧')
 
     const toolCall = {
       toolCallId: 'tool-broadcast-1',
@@ -373,8 +264,6 @@ describe('context bridge store', () => {
 
     expect(toolCallBroadcast?.toolCall).toEqual(toolCall)
     expect(assistantMessageBroadcast?.messageText).toBe('我先看一下桌面当前状态。')
-    expectNoLegacyPreDialogueFields(toolCallBroadcast)
-    expectNoLegacyPreDialogueFields(assistantMessageBroadcast)
   }, 15_000)
 
   it('sanitizes remote-observer broadcast payloads into structured-clone-safe data before cross-window fanout', async () => {
@@ -385,27 +274,17 @@ describe('context bridge store', () => {
     const assistantMessageHook = mocks.chatHooks.onAssistantMessage[0]
     expect(assistantMessageHook).toBeTypeOf('function')
 
-    const rawPreDialogueSendIdentity = {
-      status: 'partial',
-      summaryLine: 'Phase 1 desktop continuity is still carrying before this observer broadcast fans out.',
-      companionBriefingLine: 'Keep the current line explicit before remote observers mirror this turn.',
-      companionNextClosureLine: 'Keep embodiment, speech, and chat continuity on one line.',
-      awarenessLine: 'This remote observer broadcast should still stay on the same quiet line.',
-      reasonPreview: ['observer-fanout', 'quiet-companionship'],
-    }
-    const proxiedPreDialogueSendIdentity = new Proxy(rawPreDialogueSendIdentity, {})
-
     const context: any = {
       message: new Proxy({
         role: 'user',
-        content: '继续沿着同一个数字生命主线往前走',
+        content: '继续沿着这轮上下文往前走',
         createdAt: new Date('2026-06-11T12:00:00.000Z'),
         runtimeOnly: () => 'drop-me',
       }, {}),
       composedMessage: [
         new Proxy({
           role: 'user',
-          content: '继续沿着同一个数字生命主线往前走',
+          content: '继续沿着这轮上下文往前走',
         }, {}),
       ],
       contexts: {
@@ -422,29 +301,25 @@ describe('context bridge store', () => {
       input: {
         type: 'input:text',
         data: {
-          text: '继续沿着同一个数字生命主线往前走',
+          text: '继续沿着这轮上下文往前走',
           transient: new Map([['mode', 'quiet-companionship']]),
           runtimeOnly: () => 'drop-me',
         },
       },
-      preDialogueSendIdentity: proxiedPreDialogueSendIdentity,
-      preDialogueAwareness: createPreDialogueIdentity(),
-      preDialogueClosure: createPreDialogueIdentity(),
     }
 
     await assistantMessageHook?.({
       role: 'assistant',
-      content: '我还在沿着同一个数字生命主线回应。',
+      content: '我还在沿着这轮上下文回应。',
       slices: [],
       tool_results: [],
       debugSet: new Set(['observer-fanout', 'quiet-companionship']),
       runtimeOnly: () => 'drop-me',
-    } as any, '我还在沿着同一个数字生命主线回应。', context)
+    } as any, '我还在沿着这轮上下文回应。', context)
 
     const assistantMessageBroadcast = mocks.broadcastStreamPostMock.mock.calls.findLast(call => call[0]?.type === 'assistant-message')?.[0] as any
 
     expect(() => structuredClone(assistantMessageBroadcast)).not.toThrow()
-    expectNoLegacyPreDialogueFields(assistantMessageBroadcast)
     expect(assistantMessageBroadcast?.context?.message?.createdAt).toBe('2026-06-11T12:00:00.000Z')
     expect(assistantMessageBroadcast?.context?.message?.runtimeOnly).toBeUndefined()
     expect(assistantMessageBroadcast?.context?.input?.data?.runtimeOnly).toBeUndefined()
@@ -455,7 +330,7 @@ describe('context bridge store', () => {
     expect(assistantMessageBroadcast?.message?.runtimeOnly).toBeUndefined()
   })
 
-  it('drops legacy pre-dialogue fields from before-send broadcasts', async () => {
+  it('broadcasts before-send events', async () => {
     const { useContextBridgeStore } = await import('./context-bridge')
     const store = useContextBridgeStore()
     await store.initialize()
@@ -463,38 +338,13 @@ describe('context bridge store', () => {
     const beforeSendHook = mocks.chatHooks.onBeforeSend[0]
     expect(beforeSendHook).toBeTypeOf('function')
 
-    const context: LegacyPreDialogueContext<Record<string, unknown>> = {
-      message: {
-        role: 'user',
-        content: '继续沿着同一个数字生命主线收住这轮发送前开场',
-      },
-      composedMessage: [{ role: 'user', content: '继续沿着同一个数字生命主线收住这轮发送前开场' }],
-      contexts: {},
-      input: {
-        type: 'input:text',
-        data: {
-          text: '继续沿着同一个数字生命主线收住这轮发送前开场',
-        },
-      },
-      preDialogueSendIdentity: createPreDialogueIdentity({
-        summaryLine: 'Phase 1 desktop continuity is still closing before this turn opens outward.',
-        companionHeadlineLine: 'The body, face, and motion line is still keeping the reply low-pressure.',
-        companionBriefingLine: 'Some closure already landed. The unfinished part still needs the same line.',
-        companionNextClosureLine: 'Keep the same line inward and low-pressure while the remaining surfaces rejoin.',
-        awarenessLine: 'Some closure already landed. The unfinished part still needs the same line.',
-        emotionalClosureCue: 'Keep the return low-pressure so the line does not restart from scratch.',
-        reasonPreview: ['inward-carry', 'quiet-companionship', 'remaining-surface-join'],
-      }),
-      preDialogueAwareness: createPreDialogueIdentity(),
-      preDialogueClosure: createPreDialogueIdentity(),
-    }
+    const context = createContext('继续沿着这轮上下文收住发送前事件')
 
-    await beforeSendHook?.('继续沿着同一个数字生命主线收住这轮发送前开场', context)
+    await beforeSendHook?.('继续沿着这轮上下文收住发送前事件', context)
 
     const beforeSendBroadcast = mocks.broadcastStreamPostMock.mock.calls.find(call => call[0]?.type === 'before-send')?.[0]
 
-    expect(beforeSendBroadcast?.message).toBe('继续沿着同一个数字生命主线收住这轮发送前开场')
-    expectNoLegacyPreDialogueFields(beforeSendBroadcast)
+    expect(beforeSendBroadcast?.message).toBe('继续沿着这轮上下文收住发送前事件')
   }, 15_000)
 
   it('broadcasts the authoritative assistant message text instead of guessing from structured content', async () => {
@@ -505,28 +355,7 @@ describe('context bridge store', () => {
     const assistantMessageHook = mocks.chatHooks.onAssistantMessage[0]
     expect(assistantMessageHook).toBeTypeOf('function')
 
-    const context: LegacyPreDialogueContext<Record<string, unknown>> = {
-      message: {
-        role: 'user',
-        content: '继续沿着数字生命主线整理执行闭环',
-      },
-      composedMessage: [{ role: 'user', content: '继续沿着数字生命主线整理执行闭环' }],
-      contexts: {},
-      input: {
-        type: 'input:text',
-        data: {
-          text: '继续沿着数字生命主线整理执行闭环',
-        },
-      },
-      preDialogueSendIdentity: createPreDialogueIdentity({
-        summaryLine: 'Phase 1 desktop continuity is still closing before this turn opens outward.',
-        companionBriefingLine: 'Keep this project, what landed, and the open loop in view before outward reply.',
-        companionNextClosureLine: 'Keep memory, initiative, execution, and embodiment on one line.',
-        reasonPreview: ['renderer-prep', 'turn-open-regression'],
-      }),
-      preDialogueAwareness: createPreDialogueIdentity(),
-      preDialogueClosure: createPreDialogueIdentity(),
-    }
+    const context = createContext('继续沿着这轮上下文整理执行闭环')
 
     await assistantMessageHook?.({
       role: 'assistant',
@@ -539,10 +368,9 @@ describe('context bridge store', () => {
 
     const assistantMessageBroadcast = mocks.broadcastStreamPostMock.mock.calls.findLast(call => call[0]?.type === 'assistant-message')?.[0]
     expect(assistantMessageBroadcast?.messageText).toBe('真正权威的远端可见回复文本。')
-    expectNoLegacyPreDialogueFields(assistantMessageBroadcast)
   })
 
-  it('keeps renderer inspector snapshots out of raw context-recall dialogue ingestion', async () => {
+  it('ingests raw context-recall input', async () => {
     const { useContextBridgeStore } = await import('./context-bridge')
     const store = useContextBridgeStore()
     await store.initialize()
@@ -553,9 +381,6 @@ describe('context bridge store', () => {
     await inputListeners[0]?.({
       data: {
         text: '继续沿着这个数字生命项目的主线推进',
-        preDialogueSendIdentity: createPreDialogueIdentity(),
-        preDialogueAwareness: createPreDialogueIdentity(),
-        preDialogueClosure: createPreDialogueIdentity(),
       },
       metadata: {
         source: 'spark',
@@ -578,32 +403,6 @@ describe('context bridge store', () => {
       }),
       undefined,
     )
-    expectNoLegacyPreDialogueFields(mocks.ingestMock.mock.calls[0]?.[1])
-  })
-
-  it('continues raw context-recall ingestion when renderer inspector snapshots are unavailable', async () => {
-    projectStateContinuitySnapshotRef.value = null
-    preDialogueClosureSnapshotRef.value = null
-    preDialogueAwarenessSnapshotRef.value = null
-
-    const { useContextBridgeStore } = await import('./context-bridge')
-    const store = useContextBridgeStore()
-    await store.initialize()
-
-    const inputListeners = mocks.eventListeners.get('input:text') ?? []
-    expect(inputListeners).toHaveLength(1)
-
-    await inputListeners[0]?.({
-      data: {
-        text: '继续沿着这个数字生命项目的主线推进',
-      },
-      metadata: {
-        source: 'spark',
-      },
-    })
-
-    expect(mocks.ingestMock).toHaveBeenCalledOnce()
-    expect(mocks.ingestMock.mock.calls[0]?.[1]).not.toHaveProperty('preDialogueSendIdentity')
     expect(consoleErrorSpy).not.toHaveBeenCalled()
   })
 })

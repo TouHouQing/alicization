@@ -4,8 +4,6 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
-import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
-
 export interface RuntimeConsciousFrameReducerInput {
   surface: AlicizationDigitalLifeRuntimeSurface | null
   governance: AlicizationMindTurnGovernance | null
@@ -13,7 +11,9 @@ export interface RuntimeConsciousFrameReducerInput {
 }
 
 function sanitizeConsciousFrameText(raw: unknown, maxChars = 620) {
-  return sanitizeAlicizationProviderFacingText(raw, maxChars, '')
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
 function sanitizeConsciousFrameOptionalText(raw: unknown, maxChars = 320) {
@@ -37,7 +37,6 @@ function sanitizeCurrentConsciousFrame(
     focusAnchor: sanitizeConsciousFrameOptionalText(frame.focusAnchor),
     withheldImpulse: sanitizeConsciousFrameOptionalText(frame.withheldImpulse),
     reasonTags: sanitizeConsciousFrameReasonTags(frame.reasonTags),
-    continuityCadence: sanitizeConsciousFrameOptionalText(frame.continuityCadence, 80),
   } satisfies AlicizationCurrentConsciousFrameSnapshot
 }
 

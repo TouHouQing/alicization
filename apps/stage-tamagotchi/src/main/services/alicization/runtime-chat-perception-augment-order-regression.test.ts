@@ -15,6 +15,17 @@ describe('runtime-chat-perception-augment reply authority boundary', () => {
     )
     expect(source).not.toContain('buildAlicizationAnswerPlannerSystemBlock')
     expect(source).not.toContain('buildCompactMindTurnControlSystemBlock')
+    expect(source).not.toContain('buildAlicizationVisibleReplySurfacePlan')
+    expect(source).not.toContain('buildAlicizationMindTurnGovernance')
+    expect(source).not.toContain('compactMindGovernedChatMessages')
+    expect(source).not.toContain('executiveAnswerBrief')
+    expect(source).not.toContain('responseCharter')
+    expect(source).not.toContain('responseSurfaceContract')
+    expect(source).not.toContain('getActiveSelfRevisionStatePatch')
+    expect(source).toContain('turnMode: \'answer\' as const')
+    expect(source).toContain('personaKernelMode: \'full\' as const')
+    expect(source).toContain('mindTurnContract: null')
+    expect(source).toContain('mindTurnGovernance: null')
   })
 
   it('keeps perception facts and invited inspection context available', () => {

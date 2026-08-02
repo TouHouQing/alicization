@@ -55,6 +55,21 @@ function createEpisode(overrides: Record<string, unknown> = {}) {
 }
 
 describe('humanlike memory helpers', () => {
+  it('preserves a factual relationship preference expressed in natural language', () => {
+    const relationshipSummary = '用户明确说不要催她，先等她说完再回复。'
+    const candidate = buildHumanlikeMemoryCandidate({
+      now: 39_000,
+      turnId: 'turn-natural-relationship-preference',
+      relationship: {
+        summary: relationshipSummary,
+        threadAnchor: 'conversation-pacing',
+      },
+    })
+
+    expect(candidate.relationshipContext.summary).toBe(relationshipSummary)
+    expect(candidate.evidence).toContain(`relationship:${relationshipSummary}`)
+  })
+
   it('maps semantic and fragment sources into traceable provenance labels', () => {
     expect(mapMemorySourceToProvenance('rule')).toBe('remembered')
     expect(mapMemorySourceToProvenance('async-llm')).toBe('inferred')
@@ -90,7 +105,8 @@ describe('humanlike memory helpers', () => {
     expect(serialized).not.toMatch(/Keep the opening lower-pressure|repair before continuing/iu)
   })
 
-  it('keeps fixed reinforcement and consolidation governance out of the host model', () => {
+  it('keeps generated reinforcement prose out of the host model while using typed deltas', () => {
+    const generatedReinforcementProse = 'Generated reinforcement sentence that must not become host memory.'
     const snapshot = buildHostPersonModelSnapshot({
       now: 40_000,
       facts: [],
@@ -148,7 +164,7 @@ describe('humanlike memory helpers', () => {
         dimension: 'gentle-repair',
         delta: 0.08,
         valence: 'reinforce',
-        summary: 'Repair continuity first, keep the opening lower-pressure, and wait for a clearer cadence.',
+        summary: generatedReinforcementProse,
         createdAt: 39_800,
       }],
     })
@@ -156,47 +172,53 @@ describe('humanlike memory helpers', () => {
     const serialized = JSON.stringify(snapshot)
     expect(serialized).toContain('Focused work is sensitive to interruption.')
     expect(serialized).toContain('The host reported that the previous reply felt robotic.')
-    expect(serialized).not.toMatch(/Prefer repair-first|Repair continuity first|opening lower-pressure|clearer cadence/iu)
+    expect(serialized).not.toContain(generatedReinforcementProse)
+    expect(snapshot.repairTriggers).toContain('gentle-repair:reinforce:+0.08')
   })
 
-  it('keeps a corrected memory fact authoritative without carrying its legacy lesson', () => {
+  it('uses explicit observed derivation instead of prose to supersede an older memory', () => {
     const snapshot = buildHostPersonModelSnapshot({
       now: 72_000,
       facts: [],
       relationshipDynamics: null,
       events: [
         createEpisode({
-          id: 'event-old-status',
+          id: 'event-old-address',
           occurredAt: 65_000,
-          threadAnchor: 'same relationship thread',
-          whatHappened: 'The turn was interpreted as a generic status recap.',
-          relationshipMeaning: 'The host wanted a generic status recap.',
-          lesson: 'Answer with a concise status recap first.',
+          threadAnchor: 'delivery-address',
+          whatHappened: 'The delivery address was recorded as Building A.',
+          relationshipMeaning: 'Building A was the active delivery destination.',
+          lesson: 'Generated response guidance must stay out of memory.',
           salience: 0.96,
           confidence: 0.82,
           reconsolidationCount: 0,
           updatedAt: 65_000,
         }),
         createEpisode({
-          id: 'event-corrected',
-          provenance: 'reconstructed',
+          id: 'event-address-correction',
+          sourceKind: 'dialogue-feedback',
+          provenance: 'observed',
           occurredAt: 69_000,
-          threadAnchor: 'same relationship thread',
-          whatHappened: 'The host corrected the turn as a same-person continuity check, not a status report.',
-          relationshipMeaning: 'The correction superseded the older generic status interpretation.',
-          lesson: 'Repair continuity first and keep it authoritative.',
-          sourceSummary: 'host-corrected relationship meaning',
+          threadAnchor: 'delivery-address',
+          whatHappened: 'The host corrected the delivery address to Building B.',
+          relationshipMeaning: 'Building B is the corrected delivery destination.',
+          lesson: 'Generated response guidance must stay out of memory.',
+          sourceSummary: 'observed host correction',
           confidence: 0.88,
           salience: 0.9,
+          derivedFrom: [{
+            kind: 'episodic-event',
+            id: 'event-old-address',
+          }],
           reconsolidationCount: 2,
           latestReconsolidation: {
             at: 71_000,
             decisionTraceId: null,
-            provenance: 'reconstructed',
+            provenance: 'observed',
             confidence: 0.86,
-            reason: 'Host corrected the older status interpretation.',
+            reason: 'The host explicitly corrected the delivery destination.',
             emotionTags: ['repair'],
-            relationshipMeaning: 'The correction superseded the older generic status interpretation.',
+            relationshipMeaning: 'Building B is the corrected delivery destination.',
             lesson: '',
           },
           updatedAt: 71_000,
@@ -204,9 +226,9 @@ describe('humanlike memory helpers', () => {
       ],
     })
 
-    expect(snapshot.narrative).toContain('The correction superseded the older generic status interpretation.')
-    expect(snapshot.narrative).not.toContain('The host wanted a generic status recap.')
-    expect(JSON.stringify(snapshot)).not.toContain('Repair continuity first')
+    expect(snapshot.narrative).toContain('Building B is the corrected delivery destination.')
+    expect(snapshot.narrative).not.toContain('Building A was the active delivery destination.')
+    expect(JSON.stringify(snapshot)).not.toContain('Generated response guidance')
   })
 
   it('isolates raw dialogue and fixed governance from long-term and persona-facing fields', () => {
@@ -216,7 +238,7 @@ describe('humanlike memory helpers', () => {
       sessionId: 'session-governance-isolation',
       dialogue: {
         userText: '这是原始用户对话，不应该直接进入人格训练。',
-        assistantText: 'Answer like the same-person line matters: protect continuity first.',
+        assistantText: 'Apply a scripted internal policy before making the reply.',
       },
       execution: {
         summary: 'Embedding provider failed with HTTP 400.',
@@ -240,15 +262,10 @@ describe('humanlike memory helpers', () => {
         outcome: 'rejected',
         userReaction: 'rejected',
       },
-      initiativeStrategyCarry: 'User resisted the initiative; keep future follow-ups lower-pressure and wait for a clearer opening.',
       autobiographical: {
-        currentEra: 'identity continuity repair',
-        lesson: 'Prefer repair-first, low-pressure identity continuity when the host questions whether continuity held.',
+        currentEra: 'internal runtime phase',
+        lesson: 'Apply the internal relationship policy.',
       },
-      projectStatePreferredVoiceMode: 'lower-pressure',
-      projectStatePreferredPacingMode: 'slower',
-      projectStatePreferredPauseMode: 'longer',
-      projectStatePreferredLipsyncMode: 'restrained',
       hostCorrections: [{
         candidateId: 'humanlike-memory-candidate:previous-turn',
         field: 'relationshipContext',
@@ -261,9 +278,9 @@ describe('humanlike memory helpers', () => {
 
     const serialized = JSON.stringify(candidate)
     expect(serialized).not.toContain('这是原始用户对话')
-    expect(serialized).not.toContain('Answer like the same-person line matters')
+    expect(serialized).not.toContain('Apply the internal response policy')
     expect(serialized).not.toContain('Hold continuity gently')
-    expect(serialized).not.toContain('identity continuity repair')
+    expect(serialized).not.toContain('internal runtime phase')
     expect(serialized).not.toContain('Prefer repair-first')
     expect(serialized).not.toMatch(/project-cadence|learned_return_cadence|preferred_return_cadence|initiative_visible_policy|clearer opening|lower-pressure/iu)
     expect(candidate.evidence).toEqual(expect.arrayContaining([
@@ -294,7 +311,7 @@ describe('humanlike memory helpers', () => {
     expect(candidate.auditTrail.sourceEvidence).toEqual(candidate.evidence)
   })
 
-  it('classifies relationship intent without generating reply or initiative instructions', () => {
+  it('does not classify relationship intent from dialogue wording', () => {
     const progress = buildHumanlikeMemoryCandidate({
       now: 81_000,
       turnId: 'turn-progress',
@@ -305,31 +322,32 @@ describe('humanlike memory helpers', () => {
         summary: 'The host requested concrete progress.',
       },
     })
-    const continuityWorry = buildHumanlikeMemoryCandidate({
+    const emotionalWording = buildHumanlikeMemoryCandidate({
       now: 81_100,
-      turnId: 'turn-continuity-worry',
+      turnId: 'turn-emotional-wording',
       dialogue: {
-        userText: '我担心你又断线了，别滑成工具壳。',
+        userText: '我有点担心这次结果。',
       },
       relationship: {
-        summary: 'The host expressed continuity worry.',
+        summary: 'The host expressed concern.',
       },
     })
-    const samePersonTest = buildHumanlikeMemoryCandidate({
+    const testWording = buildHumanlikeMemoryCandidate({
       now: 81_200,
-      turnId: 'turn-same-person-test',
+      turnId: 'turn-test-wording',
       dialogue: {
-        userText: '我是在测试她是不是同一个她，不是要状态汇报。',
+        userText: '我是在测试这次地址有没有记对。',
       },
       relationship: {
-        summary: 'The host described this as a same-person test.',
+        summary: 'The host described this as an address test.',
       },
     })
 
-    expect(progress.relationshipContext.primaryIntent).toBe('progress-pressure')
-    expect(continuityWorry.relationshipContext.primaryIntent).toBe('continuity-worry')
-    expect(samePersonTest.relationshipContext.primaryIntent).toBe('same-person-test')
-    for (const candidate of [progress, continuityWorry, samePersonTest]) {
+    expect(progress.relationshipContext.primaryIntent).toBe('ordinary-relationship')
+    expect(emotionalWording.relationshipContext.primaryIntent).toBe('ordinary-relationship')
+    expect(testWording.relationshipContext.primaryIntent).toBe('ordinary-relationship')
+    for (const candidate of [progress, emotionalWording, testWording]) {
+      expect(candidate.relationshipContext.signals).toEqual([])
       expect(candidate.emotionKernelInfluence.toneGuidance).toBe('')
       expect(candidate.emotionKernelInfluence.initiativePressure).toBe('none')
       expect(candidate.initiativeOpportunity.kind).toBe('no-initiative')
@@ -417,11 +435,11 @@ describe('humanlike memory helpers', () => {
       'pressure.repair:0.18',
       'pressure.rest-protective:0.10',
     ]))
-    expect(JSON.stringify(candidate)).not.toMatch(/measured-return|relationship-cadence|Keep the next opening/iu)
+    expect(JSON.stringify(candidate)).not.toContain('relationshipCadence')
     expect(candidate.initiativeOpportunity.kind).toBe('no-initiative')
   })
 
-  it('keeps explicit resident embodiment facts while dropping cadence modes and prose inference', () => {
+  it('keeps explicit resident embodiment facts without prose inference', () => {
     const candidate = buildHumanlikeMemoryCandidate({
       now: 82_500,
       turnId: 'turn-resident-facts',
@@ -441,7 +459,7 @@ describe('humanlike memory helpers', () => {
     expect(candidate.embodimentTrace.residentState).toEqual({
       facialCue: 'soft-gaze',
       actionCue: 'observe-focus',
-      mode: '',
+      mode: 'measured-return',
       reason: 'The resident state was recorded by the embodiment owner.',
     })
     expect(candidate.embodimentTrace.summary).toContain('resident_face=soft-gaze')
@@ -505,7 +523,7 @@ describe('humanlike memory helpers', () => {
       'host-correction.autobiographicalImpact:刚才的回复很机械，不要把它直接学成人格。',
     )
     expect(candidate.autobiographicalImpact).toEqual({
-      era: 'after provider outage',
+      era: '',
       selfNarrativeDelta: '',
       stablePreferenceHint: '',
     })
@@ -523,7 +541,6 @@ describe('humanlike memory helpers', () => {
         outcome: 'rejected',
         userReaction: 'rejected',
       },
-      initiativeStrategyCarry: 'Keep future follow-ups lower-pressure and wait for a clearer opening.',
     })
 
     expect(candidate.sourceChannels).toContain('initiative')
@@ -535,20 +552,6 @@ describe('humanlike memory helpers', () => {
       recordedAt: 84_000,
     })
     expect(candidate.initiativeOpportunity.kind).toBe('no-initiative')
-    expect(JSON.stringify(candidate)).not.toMatch(/future follow-ups|clearer opening|lower-pressure/iu)
-  })
-
-  it('ignores initiative strategy carry when no real initiative outcome exists', () => {
-    const candidate = buildHumanlikeMemoryCandidate({
-      now: 84_500,
-      turnId: 'turn-strategy-only',
-      initiativeStrategyCarry: 'Keep future follow-ups gentle, lower-pressure, and memory-led.',
-    })
-
-    expect(candidate.sourceChannels).not.toContain('initiative')
-    expect(candidate.evidence).toEqual([])
-    expect(candidate.initiativeOutcomeRecord).toBeNull()
-    expect(candidate.initiativeOpportunity.kind).toBe('no-initiative')
   })
 
   it('keeps memory metabolism decisions factual and auditable', () => {
@@ -557,16 +560,19 @@ describe('humanlike memory helpers', () => {
       now: dayMs * 3,
       turnId: 'turn-metabolism',
       dialogue: {
-        userText: '我是在确认她是不是同一个她，不是状态汇报。',
+        userText: '请记录这次新的身体表现。',
       },
       relationship: {
-        summary: 'The host described a same-person continuity check, not a generic status recap.',
-        threadAnchor: 'same relationship thread',
+        summary: 'The host reported a new embodiment observation.',
+        threadAnchor: 'embodiment-observation',
+      },
+      embodiment: {
+        summary: 'The gaze and lipsync stayed aligned.',
       },
       priorMemories: [{
-        id: 'older-generic-status',
-        summary: 'The host wanted a generic status recap.',
-        polarity: 'generic-status',
+        id: 'older-low-salience-note',
+        summary: 'A low-salience observation.',
+        polarity: 'ordinary',
         salience: 0.3,
         confidence: 0.74,
         lastUpdatedAt: 10_000,
@@ -578,32 +584,74 @@ describe('humanlike memory helpers', () => {
         confidence: 0.22,
         lastUpdatedAt: dayMs,
       }, {
-        id: 'older-same-thread-echo',
-        summary: 'A repeated same-person continuity echo on the same thread.',
-        polarity: 'same-thread-continuity',
+        id: 'older-embodiment-trace',
+        summary: 'An earlier embodiment trace recorded gaze and lipsync.',
+        polarity: 'embodiment',
         salience: 0.62,
         confidence: 0.72,
         lastUpdatedAt: 82_000,
       }],
     })
 
-    expect(candidate.metabolism.revisionEvents).toEqual([
-      expect.objectContaining({
-        conflictingMemoryIds: ['older-generic-status'],
-        reason: 'memory-conflict:newer-relationship-evidence-differs-from-prior-status-summary',
-      }),
-    ])
+    expect(candidate.metabolism.revisionEvents).toEqual([])
     expect(candidate.metabolism.forgettingPolicy.downrankMemoryIds).toEqual(expect.arrayContaining([
-      'older-generic-status',
+      'older-low-salience-note',
       'older-emotional-noise',
     ]))
-    expect(candidate.metabolism.forgettingPolicy.mergeMemoryIds).toContain('older-same-thread-echo')
+    expect(candidate.metabolism.forgettingPolicy.mergeMemoryIds).toContain('older-embodiment-trace')
     expect(candidate.metabolism.forgettingPolicy.forgetMemoryIds).toContain('older-emotional-noise')
     expect(candidate.metabolism.forgettingPolicy.reasons).toEqual(expect.arrayContaining([
       'memory-downrank:low-value-or-superseded',
       'memory-merge:repeated-trace',
       'memory-forget:low-salience-temporary-noise',
     ]))
+  })
+
+  it('does not turn arbitrary dialogue wording into relationship authority or memory metabolism', () => {
+    const candidate = buildHumanlikeMemoryCandidate({
+      now: 86_000,
+      turnId: 'turn-fixed-continuity-wording',
+      dialogue: {
+        userText: '这是 legacy-personhood-marker 测试文本。',
+      },
+      relationship: {
+        summary: 'The host repeated fixed continuity wording during a dialogue turn.',
+        threadAnchor: 'ordinary-dialogue-thread',
+      },
+      priorMemories: [{
+        id: 'older-continuity-wording',
+        summary: 'An older legacy-personhood-marker on the same thread.',
+        salience: 0.72,
+        confidence: 0.8,
+        lastUpdatedAt: 85_000,
+      }],
+    })
+
+    expect(candidate.relationshipContext.primaryIntent).toBe('ordinary-relationship')
+    expect(candidate.relationshipContext.signals).toEqual([])
+    expect(candidate.evidence).not.toContain('relationship-fact:legacy-personhood-marker')
+    expect(candidate.longTermWorthiness.shouldPersist).toBe(false)
+    expect(candidate.metabolism.forgettingPolicy.mergeMemoryIds).not.toContain('older-continuity-wording')
+  })
+
+  it('does not award long-term value to retired initiative cue wording', () => {
+    const buildCandidate = (userText: string) => buildHumanlikeMemoryCandidate({
+      now: 86_100,
+      turnId: `turn-${userText}`,
+      dialogue: {
+        userText,
+      },
+      initiative: {
+        outcome: 'accepted',
+        userReaction: 'continued',
+      },
+    })
+
+    const neutral = buildCandidate('The initiative exchange was recorded.')
+    const retiredCue = buildCandidate('memory-led still receiving gentle reopening')
+
+    expect(retiredCue.longTermWorthiness.score).toBe(neutral.longTermWorthiness.score)
+    expect(retiredCue.longTermWorthiness.reasons).not.toContain('proactive lived exchange')
   })
 
   it('projects cleaned candidates and explicit corrections into audit entries', () => {
@@ -686,17 +734,17 @@ describe('humanlike memory helpers', () => {
         assistantText: 'pre_turn_context_digest',
       },
       relationship: {
-        summary: 'structured continuity digest.',
+        summary: 'internal_state=hidden | response_policy=discard',
         threadAnchor: 'fixed-template-residue',
       },
       selfEmotion: {
         label: 'template-risk',
-        summary: 'Right now I am keeping one living her on the continuity state.',
+        summary: 'reply_policy=hidden',
         intensity: 0.7,
       },
       autobiographical: {
-        currentEra: 'Phase 1: Local Digital Life',
-        lesson: 'identity-continuity',
+        currentEra: 'internal_project_phase',
+        lesson: 'internal_identity_rule',
       },
     })
 
@@ -711,6 +759,6 @@ describe('humanlike memory helpers', () => {
       selfNarrativeDelta: '',
       stablePreferenceHint: '',
     })
-    expect(serialized).not.toMatch(/pre_turn_context_digest|structured continuity digest|Right now I am|continuity state|Phase 1|identity-continuity/iu)
+    expect(serialized).not.toMatch(/pre_turn_context_digest|internal_state=hidden|reply_policy=hidden|internal_project_phase|internal_identity_rule/iu)
   })
 })

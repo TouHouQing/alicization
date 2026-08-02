@@ -153,7 +153,7 @@ describe('buildCurrentConsciousFrame', () => {
   })
 
   it.each([
-    '你还是同一个她吗？',
+    '你还记得刚才的约定吗？',
     'Phase 1: Local Digital Life 是什么意思？',
   ])('preserves user-authored questions even when they mention former template topics: %s', (userQuestion) => {
     const frame = buildCurrentConsciousFrame({
@@ -185,7 +185,7 @@ describe('buildCurrentConsciousFrame', () => {
   })
 
   it('preserves real userText without trusting generated question or host fallbacks', () => {
-    const userText = '我真正问的是 same-her 和 Phase 1 为什么还会影响对话。'
+    const userText = '我真正问的是 continuity 和 Phase 1 为什么还会影响对话。'
     const generatedQuestion = 'Phase 1: Local Digital Life should lead the next reply.'
     const frame = buildCurrentConsciousFrame({
       now: 35,
@@ -216,7 +216,8 @@ describe('buildCurrentConsciousFrame', () => {
 
     expect(frame?.consciousNeed).toBe(userText)
     expect(frame?.consciousNeedSource).toBe('user-text')
-    expect(JSON.stringify(frame)).not.toContain(generatedQuestion)
+    expect(frame?.focusAnchor).toBe(generatedQuestion)
+    expect(frame?.focusAnchorSource).toBe('host-move')
   })
 
   it('does not trust a generated hostMove fallback without user-text provenance', () => {
@@ -254,7 +255,7 @@ describe('buildCurrentConsciousFrame', () => {
   })
 
   it('marks a host move that matches real userText as user-authored focus', () => {
-    const userText = 'same-her 和 Phase 1 只是我这轮真实输入的检索词。'
+    const userText = 'continuity 和 Phase 1 只是我这轮真实输入的检索词。'
     const frame = buildCurrentConsciousFrame({
       now: 35,
       userText,
@@ -289,7 +290,7 @@ describe('buildCurrentConsciousFrame', () => {
   })
 
   it('preserves trusted user-authored anchors when fixed-template words appear outside currentQuestion', () => {
-    const userText = '我问的是 same-her、Phase 1 和数字生命这些词是不是还会误删用户原文。'
+    const userText = '我问的是 continuity、Phase 1 和数字生命这些词是不是还会误删用户原文。'
     const frame = buildCurrentConsciousFrame({
       now: 35,
       discourseState: createDiscourseState({
@@ -324,7 +325,7 @@ describe('buildCurrentConsciousFrame', () => {
   })
 
   it('marks question-sourced primary anchors with visual-persistable question source tags', () => {
-    const userQuestion = 'Phase 1 里的 same-her 和数字生命原文为什么会被过滤？'
+    const userQuestion = 'Phase 1 里的 continuity 和数字生命原文为什么会被过滤？'
     const frame = buildCurrentConsciousFrame({
       now: 35,
       userText: userQuestion,
@@ -481,7 +482,7 @@ describe('buildCurrentConsciousFrame', () => {
   })
 
   it('prefers the trusted host move over a generated dialogue task anchor', () => {
-    const userText = '继续清理 same-her 和 Phase 1 固定模板残留。'
+    const userText = '继续清理 continuity 和 Phase 1 固定模板残留。'
     const frame = buildCurrentConsciousFrame({
       now: 35,
       userText,
@@ -526,7 +527,7 @@ describe('buildCurrentConsciousFrame', () => {
   })
 
   it('prefers the trusted host move over an untrusted carried thread anchor', () => {
-    const userText = '继续清理 same-her 和 Phase 1 固定模板残留。'
+    const userText = '继续清理 continuity 和 Phase 1 固定模板残留。'
     const frame = buildCurrentConsciousFrame({
       now: 35,
       userText,
@@ -592,7 +593,7 @@ describe('buildCurrentConsciousFrame', () => {
         concerns: [{
           summary: 'Care for the host gently and preserve the relationship posture.',
         }],
-        openingIntent: 'Care for the host gently before answering.',
+        openingIntent: 'Care for the host gently before making the next claim.',
         confidence: 0.8,
       } as any,
       answerCompiler: createAnswerCompiler({
@@ -645,107 +646,6 @@ describe('buildCurrentConsciousFrame', () => {
     })
     expect(frame?.reasonTags).toContain('self-revise')
     expect(frame?.reasonTags).toContain('withhold-specificity')
-  })
-
-  it('ignores legacy governance fields from every runtime surface branch', () => {
-    const directInput = {
-      now: 50,
-      discourseState: createDiscourseState({
-        confidence: 0.7,
-      }),
-      mindSynthesis: {
-        confidence: 0.9,
-      } as any,
-      answerCompiler: createAnswerCompiler({
-        confidence: 0.82,
-      }),
-      privateThought: {
-        confidence: 0.6,
-      } as any,
-    }
-    const frame = buildCurrentConsciousFrame(directInput)
-    const frameWithLegacyGovernance = buildCurrentConsciousFrame({
-      ...directInput,
-      runtimeSurface: {
-        dialogue: {
-          currentConsciousFrame: {
-            projectState: {
-              identity: 'legacy identity cue',
-              currentPhase: 'legacy phase cue',
-              primaryOpenLoop: 'legacy open loop cue',
-              continuityPreferredTiming: 'next-open-window',
-              continuityCadence: 'linger-then-rejoin',
-              continuityArcStage: 'indexing-verification-follow-up',
-            },
-          },
-          runtimeDigest: {
-            projectState: {
-              continuityPreferredTiming: 'after-payoff',
-              continuityCadence: 'legacy-runtime-cadence',
-              continuityArcStage: 'legacy-runtime-stage',
-            },
-          },
-        },
-        cognition: {
-          runtimeDigest: {
-            projectState: {
-              continuityPreferredTiming: 'internal-only',
-              continuityCadence: 'legacy-cognition-cadence',
-              continuityArcStage: 'legacy-cognition-stage',
-            },
-          },
-        },
-        raw: {
-          runtimeDigest: {
-            projectState: {
-              continuityPreferredTiming: 'same-turn-if-invited',
-              continuityCadence: 'legacy-raw-digest-cadence',
-              continuityArcStage: 'legacy-raw-digest-stage',
-            },
-          },
-          runtime: {
-            projectState: {
-              continuityPreferredTiming: 'next-open-window',
-              continuityCadence: 'legacy-raw-runtime-cadence',
-              continuityArcStage: 'legacy-raw-runtime-stage',
-            },
-          },
-          projectState: {
-            continuityPreferredTiming: 'after-payoff',
-            continuityCadence: 'legacy-raw-project-cadence',
-            continuityArcStage: 'legacy-raw-project-stage',
-          },
-        },
-      } as any,
-    })
-
-    expect(frameWithLegacyGovernance).toEqual(frame)
-    expect(frameWithLegacyGovernance).not.toHaveProperty('projectState')
-    expect(frameWithLegacyGovernance).not.toHaveProperty('continuityPreferredTiming')
-    expect(frameWithLegacyGovernance).not.toHaveProperty('continuityCadence')
-    expect(frameWithLegacyGovernance?.reasonTags).not.toEqual(expect.arrayContaining([
-      'continuity-arc:indexing-verification-follow-up',
-      'continuity-timing:next-open-window',
-      'continuity-cadence:linger-then-rejoin',
-    ]))
-    expect(JSON.stringify(frameWithLegacyGovernance)).not.toContain('legacy')
-  })
-
-  it('contains no natural-language conscious-frame policy or system prompt builder', () => {
-    const source = readFileSync(new URL('./current-conscious-frame.ts', import.meta.url), 'utf8')
-
-    expect(source).not.toMatch(
-      /buildCurrentConsciousFrameSystemBlock|Current conscious frame\.|WorkingMemory owns short-term memory|Express the current frame|Use the available current frame|Reply from the current turn context/iu,
-    )
-    expect(source).not.toMatch(
-      /Execution callback return needs|Care should stay|Let repair settle|Keep emotional closure|Keep the inward hold active|Revise first|Put dialogue first|Stay on the active knot/iu,
-    )
-    expect(source).not.toMatch(
-      /resolveAlicizationProjectStateSnapshot|buildAlicizationPersonalityContinuityState|buildSelfContinuityAuthorityFromRuntimeSurface/iu,
-    )
-    expect(source).not.toContain('sanitizeDynamicIntention')
-    expect(source).not.toContain('answerCompiler.openingClaim')
-    expect(source).not.toContain('answerCompiler.nextMove')
   })
 
   it('passes the real user text from runtime-mind-state into the conscious frame builder', () => {

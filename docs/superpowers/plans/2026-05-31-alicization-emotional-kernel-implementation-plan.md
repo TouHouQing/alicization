@@ -4,7 +4,7 @@
 
 **Goal:** Add one dominant emotional kernel to the Phase 1 desktop runtime and thread it through recall, initiative, and embodiment so the same emotional line shapes memory, agency, and body continuity together.
 
-**Architecture:** Introduce a new derived main-runtime module that reads existing self, thought, residue, projection, and project-state inputs and emits a compact emotional kernel snapshot. Thread that snapshot through `runtime-mind-state.ts` into `recall-governor.ts`, `initiative-engine.ts`, and `body-kernel.ts`, then expose it on shared runtime snapshots so downstream consumers see the same emotional authority.
+**Architecture:** Introduce a new derived main-runtime module that reads existing self, thought, residue, projection, and live runtime-fact inputs and emits a compact emotional kernel snapshot. Thread that snapshot through `runtime-mind-state.ts` into `recall-governor.ts`, `initiative-engine.ts`, and `body-kernel.ts`, then expose it on shared runtime snapshots so downstream consumers see the same emotional authority.
 
 **Tech Stack:** TypeScript, Vitest, `apps/stage-tamagotchi` main runtime services, shared transport contracts in `packages/stage-shared`, and typed bridge surfaces in `apps/stage-tamagotchi/src/shared/eventa.ts`.
 

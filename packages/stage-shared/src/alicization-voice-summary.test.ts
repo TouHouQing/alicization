@@ -72,9 +72,9 @@ describe('alicization voice summary', () => {
       preferredBlinkCadence: 'quiet',
       preferredGazeMode: 'soften',
       reasonSummary: 'keep callback facts structured',
-      segmentId: 'segment-repair-first-same-her-inward-carry',
+      segmentId: 'segment-repair-first-continuity-inward-carry',
     })).toBe(
-      'emotion=concerned | companion=repair-before-closeness | timing=next-open-window | blink=quiet | gaze=soften | reason=continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred | seg=segment-repair-first-same-her-inward-carry',
+      'emotion=concerned | companion=repair-before-closeness | timing=next-open-window | blink=quiet | gaze=soften | reason=continuity_hold=repair_before_closeness; target=callback; repair=settle_first; widening=deferred | seg=segment-repair-first-continuity-inward-carry',
     )
   })
 })

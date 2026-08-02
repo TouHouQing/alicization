@@ -7,25 +7,6 @@ import {
 type DeliveryReminderRuntimeOptions = Parameters<typeof createAlicizationDeliveryReminderRuntime>[0]
 type AppendConversationTurnPayload = Parameters<DeliveryReminderRuntimeOptions['appendConversationTurnWithGuards']>[0]
 
-const legacyGovernanceDeliveryPatch = {
-  projectState: {
-    currentPhase: 'legacy callback governance',
-  },
-  projectStateAudit: {
-    continuitySummary: 'opening_policy=legacy callback governance',
-  },
-  openingGuidance: 'Hold this callback for the next opening.',
-  opening_policy: 'hold_for_opening',
-  relationship_cadence: 'measured_return',
-  project_continuity: 'same callback line',
-  runtime_context: 'local_runtime',
-  continuityArc: {
-    stage: 'hold-for-opening',
-  },
-  continuityCue: 'callback-afterglow-hold',
-  visibility: 'redacted_internal',
-}
-
 function createPendingDelivery(
   providerSettlementAttempts = 0,
   patch: Record<string, unknown> = {},
@@ -160,30 +141,6 @@ function firstPersistedPayload(mock: { mock: { calls: unknown[][] } }) {
   return mock.mock.calls[0]?.[0] as AppendConversationTurnPayload | undefined
 }
 
-function expectRequeuedWithoutLegacyGovernance(
-  requeue: { mock: { calls: unknown[][] } },
-  expected: Record<string, unknown> = {},
-) {
-  const requeued = requeue.mock.calls.at(-1)?.[0]
-  expect(requeued).toMatchObject({
-    key: 'default::session-1::thread-1::123456::completed',
-    goal: 'Patch the runtime line.',
-    summary: 'patched runtime line',
-    outcome: 'patched runtime line',
-    ...expected,
-  })
-  expect(requeued).not.toHaveProperty('projectState')
-  expect(requeued).not.toHaveProperty('projectStateAudit')
-  expect(requeued).not.toHaveProperty('openingGuidance')
-  expect(requeued).not.toHaveProperty('opening_policy')
-  expect(requeued).not.toHaveProperty('relationship_cadence')
-  expect(requeued).not.toHaveProperty('project_continuity')
-  expect(requeued).not.toHaveProperty('runtime_context')
-  expect(requeued).not.toHaveProperty('continuityArc')
-  expect(requeued).not.toHaveProperty('continuityCue')
-  expect(requeued).not.toHaveProperty('visibility')
-}
-
 function createReminderHarness() {
   const task = {
     taskId: 'reminder-1',
@@ -229,9 +186,6 @@ function createReminderHarness() {
         delivery: 'calm',
         emphasis: 0,
       },
-      projectState: {
-        currentPhase: 'legacy reminder governance',
-      },
     })),
     appendAuditLog: vi.fn(async () => {}),
     buildReminderContinuitySignal: vi.fn(() => ({
@@ -276,7 +230,7 @@ function createReminderHarness() {
 }
 
 describe('runtime delivery reminders', () => {
-  it('persists reminders without project-state governance metadata', async () => {
+  it('persists the Provider-authored reminder output', async () => {
     const harness = createReminderHarness()
 
     const result = await harness.runtime.processDueRemindersForCurrentCard('force')
@@ -288,9 +242,10 @@ describe('runtime delivery reminders', () => {
       requeued: 0,
     })
     const persisted = firstPersistedPayload(harness.appendConversationTurnWithGuards)
-    expect(persisted?.structured).not.toHaveProperty('projectState')
-    expect(persisted?.structured?.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
-    expect(persisted?.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
+    expect(persisted?.assistantText).toBe('记得检查构建。')
+    expect(persisted?.structured?.reply).toBe('记得检查构建。')
+    expect(persisted?.structured?.visibleReplyAuthority).toBe('llm-mind')
+    expect(persisted?.visibleReplyRealization).toEqual(persisted?.structured?.visibleReplyRealization)
     expect(harness.completeScheduledTask).toHaveBeenCalledTimes(1)
     expect(harness.requeueScheduledTask).not.toHaveBeenCalled()
   })
@@ -302,13 +257,13 @@ describe('runtime delivery reminders', () => {
         status: 'pending-provider-settlement',
         reason: 'missing-provider-reply',
       },
-      pendingDeliveryPatch: legacyGovernanceDeliveryPatch,
     })
 
     const processed = await harness.runtime.processPendingExecutionDeliveriesForCurrentCard('force')
 
     expect(processed).toBe(false)
-    expectRequeuedWithoutLegacyGovernance(harness.requeue, {
+    expect(harness.requeue).toHaveBeenCalledWith({
+      ...harness.pendingDelivery,
       providerSettlementAttempts: 1,
     })
     expect(harness.appendConversationTurnWithGuards).not.toHaveBeenCalled()
@@ -343,9 +298,6 @@ describe('runtime delivery reminders', () => {
           delivery: 'calm',
           emphasis: 0,
         },
-        projectState: {
-          currentPhase: 'legacy callback governance',
-        },
       },
       selection: {
         status: 'settled',
@@ -363,86 +315,7 @@ describe('runtime delivery reminders', () => {
     expect(persisted?.assistantText).toBe(providerReply)
     expect(persisted?.structured?.reply).toBe(providerReply)
     expect(persisted?.structured?.visibleReplyAuthority).toBe('llm-mind')
-    expect(harness.generateExecutionCallbackStructuredWithGateway.mock.calls[0]?.[0]).not.toHaveProperty('projectState')
-    expect(persisted?.structured).not.toHaveProperty('projectState')
-    expect(persisted?.structured?.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
-    expect(persisted?.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
-  })
-
-  it('calls the Provider even when the legacy delivery policy says hold-for-opening', async () => {
-    const providerReply = '运行结果已经返回。'
-    const harness = createHarness({
-      providerStructured: {
-        format: 'mind-turn-v1',
-        thought: 'provider thought',
-        emotion: 'thinking',
-        reply: providerReply,
-        performance: {
-          baseEmotion: 'thinking',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        },
-      },
-      selection: {
-        status: 'settled',
-        source: 'llm',
-        visibleReply: providerReply,
-      },
-      deliveryPolicy: {
-        mode: 'hold-for-opening',
-        tone: 'balanced',
-        reasonTags: ['callback-afterglow-hold'],
-      },
-    })
-
-    const processed = await harness.runtime.processPendingExecutionDeliveriesForCurrentCard('force')
-
-    expect(processed).toBe(true)
-    expect(harness.generateExecutionCallbackStructuredWithGateway).toHaveBeenCalledTimes(1)
-    expect(harness.requeue).not.toHaveBeenCalled()
-    expect(harness.markDelivered).toHaveBeenCalledWith(harness.pendingDelivery)
-    expect(firstPersistedPayload(harness.appendConversationTurnWithGuards)?.assistantText).toBe(providerReply)
-    expect(harness.appendAuditLog).not.toHaveBeenCalledWith(expect.objectContaining({
-      action: expect.stringMatching(/held-for-opening|held-for-callback-afterglow/u),
-    }))
-  })
-
-  it('does not let proactive opening guidance veto a settled Provider callback', async () => {
-    const providerReply = '先抱抱你，运行结果已经返回。'
-    const harness = createHarness({
-      providerStructured: {
-        format: 'mind-turn-v1',
-        thought: 'provider thought',
-        emotion: 'thinking',
-        reply: providerReply,
-        proactive: {
-          openingGuidance: 'Repair the seam before leaning closer.',
-        },
-        performance: {
-          baseEmotion: 'thinking',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        },
-      },
-      selection: {
-        status: 'settled',
-        source: 'llm',
-        visibleReply: providerReply,
-      },
-    })
-
-    const processed = await harness.runtime.processPendingExecutionDeliveriesForCurrentCard('force')
-
-    expect(processed).toBe(true)
-    expect(harness.requeue).not.toHaveBeenCalled()
-    expect(harness.markDelivered).toHaveBeenCalledWith(harness.pendingDelivery)
-    const persisted = firstPersistedPayload(harness.appendConversationTurnWithGuards)
-    expect(persisted?.assistantText).toBe(providerReply)
-    expect(persisted?.structured?.reply).toBe(providerReply)
+    expect(persisted?.visibleReplyRealization).toEqual(persisted?.structured?.visibleReplyRealization)
   })
 
   it('requeues a settled callback when persistence is skipped', async () => {
@@ -467,13 +340,12 @@ describe('runtime delivery reminders', () => {
         visibleReply: providerReply,
       },
       persistConversationTurn: false,
-      pendingDeliveryPatch: legacyGovernanceDeliveryPatch,
     })
 
     const processed = await harness.runtime.processPendingExecutionDeliveriesForCurrentCard('force')
 
     expect(processed).toBe(false)
-    expectRequeuedWithoutLegacyGovernance(harness.requeue)
+    expect(harness.requeue.mock.calls[0]?.[0]).toBe(harness.pendingDelivery)
     expect(harness.markDelivered).not.toHaveBeenCalled()
     expect(harness.persistExecutionDeliveryState).toHaveBeenCalledWith('default')
     expect(harness.queueSubconsciousWake).toHaveBeenCalledWith(
@@ -486,7 +358,7 @@ describe('runtime delivery reminders', () => {
     }))
   })
 
-  it('cleans legacy governance before requeueing a callback after a Provider exception', async () => {
+  it('requeues the current delivery entry after a Provider exception', async () => {
     const harness = createHarness({
       providerStructured: null,
       providerError: new Error('provider transport failed'),
@@ -494,13 +366,12 @@ describe('runtime delivery reminders', () => {
         status: 'pending-provider-settlement',
         reason: 'provider-error',
       },
-      pendingDeliveryPatch: legacyGovernanceDeliveryPatch,
     })
 
     const processed = await harness.runtime.processPendingExecutionDeliveriesForCurrentCard('force')
 
     expect(processed).toBe(false)
-    expectRequeuedWithoutLegacyGovernance(harness.requeue)
+    expect(harness.requeue.mock.calls[0]?.[0]).toBe(harness.pendingDelivery)
     expect(harness.persistExecutionDeliveryState).toHaveBeenCalledWith('default')
     expect(harness.queueSubconsciousWake).toHaveBeenCalledWith(
       'default',

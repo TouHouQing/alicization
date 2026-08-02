@@ -1489,35 +1489,35 @@ describe('performance visualizer speech authority', () => {
     }))
   })
 
-  it('keeps same-her structured closure stages visible when legacy closure hints are absent upstream', () => {
+  it('keeps continuity structured closure stages visible when legacy closure hints are absent upstream', () => {
     const cases = [
       {
-        cueId: 'segment-same-her-live2d-only-speech-authority-1',
+        cueId: 'segment-continuity-live2d-only-speech-authority-1',
         rendererTarget: 'live2d' as const,
         matchedDrivers: ['face', 'motion', 'lipsync', 'voice'] as const,
         matchSummary: 'body:no face:yes motion:yes lipsync:yes voice:yes',
         driverExecutionSummary: 'face=attentive/focused | motion=observe_focus | lipsync=energy-phoneme-hybrid phase=playing',
-        sameHerEvidence: {
+        continuityEvidence: {
           live2dAuthorityView: {
-            sameHerExecutionAuthoritySegmentId: 'segment-same-her-live2d-only-speech-authority-1',
-            sameHerExecutionSummary: 'aligned | authority=segment-same-her-live2d-only-speech-authority-1 | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
+            continuityExecutionAuthoritySegmentId: 'segment-continuity-live2d-only-speech-authority-1',
+            continuityExecutionSummary: 'aligned | authority=segment-continuity-live2d-only-speech-authority-1 | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
           },
           vrmAuthorityView: null,
         },
         expected: 'renderer-rejoin-without-body',
       },
       {
-        cueId: 'segment-same-her-vrm-only-speech-authority-1',
+        cueId: 'segment-continuity-vrm-only-speech-authority-1',
         rendererTarget: 'vrm' as const,
         matchedDrivers: ['body', 'face', 'motion', 'lipsync', 'voice'] as const,
         matchSummary: 'body:yes face:yes motion:yes lipsync:yes voice:yes',
-        driverExecutionSummary: 'body=measured-return seg=segment-same-her-vrm-only-speech-authority-1 | face=attentive/focused | motion=observe_focus | lipsync=energy-phoneme-hybrid phase=playing',
-        sameHerEvidence: {
+        driverExecutionSummary: 'body=measured-return seg=segment-continuity-vrm-only-speech-authority-1 | face=attentive/focused | motion=observe_focus | lipsync=energy-phoneme-hybrid phase=playing',
+        continuityEvidence: {
           live2dAuthorityView: null,
           vrmAuthorityView: {
-            sameHerFramePerformanceSegmentId: 'segment-same-her-vrm-only-speech-authority-1',
-            sameHerFrameSpeechSegmentId: 'segment-same-her-vrm-only-speech-authority-1',
-            sameHerFrameSummary: 'aligned | segment=segment-same-her-vrm-only-speech-authority-1 | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
+            continuityFramePerformanceSegmentId: 'segment-continuity-vrm-only-speech-authority-1',
+            continuityFrameSpeechSegmentId: 'segment-continuity-vrm-only-speech-authority-1',
+            continuityFrameSummary: 'aligned | segment=segment-continuity-vrm-only-speech-authority-1 | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
           },
         },
         expected: 'full-cross-modal-lock',
@@ -1597,7 +1597,7 @@ describe('performance visualizer speech authority', () => {
           embodimentClosureStage: null,
         } as any,
         undefined,
-        testCase.sameHerEvidence,
+        testCase.continuityEvidence,
       )
 
       expect(rows[0]?.embodimentClosureStage).toBe(testCase.expected)
@@ -1609,7 +1609,7 @@ describe('performance visualizer speech authority', () => {
     }
   })
 
-  it('does not leak stale Live2D same-her summary-only evidence into another speech authority row when explicit identity-continuity', () => {
+  it('does not leak stale Live2D continuity summary-only evidence into another speech authority row when explicit identity-continuity', () => {
     const cueId = 'segment-speech-authority-summary-only-current'
     const rows = buildSpeechAuthoritySegmentRows(
       [
@@ -1683,7 +1683,7 @@ describe('performance visualizer speech authority', () => {
       undefined,
       {
         live2dAuthorityView: {
-          sameHerExecutionSummary: 'aligned | authority=segment-speech-authority-summary-only-stale | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
+          continuityExecutionSummary: 'aligned | authority=segment-speech-authority-summary-only-stale | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
         },
         vrmAuthorityView: null,
       },
@@ -1697,7 +1697,7 @@ describe('performance visualizer speech authority', () => {
     ) ?? false).toBe(false)
   })
 
-  it('does not leak embodiment closure stage onto another observed segment when only one cue owns the same-her authority carry', () => {
+  it('does not leak embodiment closure stage onto another observed segment when only one cue owns the continuity authority carry', () => {
     const rows = buildSpeechAuthoritySegmentRows(
       [
         {
@@ -3346,8 +3346,8 @@ describe('performance visualizer speech authority', () => {
     }))
   })
 
-  it('preserves same-her signature and reason tags in speech authority summary entries when playback authority already carries shared-line proof', () => {
-    const cueId = 'segment-same-her-speech-authority'
+  it('preserves continuity signature and reason tags in speech authority summary entries when playback authority already carries shared-line proof', () => {
+    const cueId = 'segment-continuity-speech-authority'
     const rows = buildSpeechAuthoritySegmentRows(
       [
         {
@@ -3394,7 +3394,7 @@ describe('performance visualizer speech authority', () => {
             motionSegmentMatched: false,
             lipsyncSegmentMatched: true,
             reasonTags: [
-              'embodiment:audible-same-her-line',
+              'embodiment:audible-continuity-line',
               'embodiment:still-voiced-motion-line',
             ],
             signature: 'embodiment:body-lipsync-voice-rejoin',
@@ -3425,14 +3425,14 @@ describe('performance visualizer speech authority', () => {
     )
 
     expect(rows[0]?.speechSummaryEntries).toContainEqual({
-      key: 'same-her-signature',
+      key: 'continuity-signature',
       label: '同一人签名',
       value: 'embodiment:body-lipsync-voice-rejoin',
     })
     expect(rows[0]?.speechSummaryEntries).toContainEqual({
-      key: 'same-her-reasons',
+      key: 'continuity-reasons',
       label: '同一人线索',
-      value: 'embodiment:audible-same-her-line, embodiment:still-voiced-motion-line',
+      value: 'embodiment:audible-continuity-line, embodiment:still-voiced-motion-line',
     })
   })
 

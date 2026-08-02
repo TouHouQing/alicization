@@ -109,17 +109,6 @@ function sanitizeHintText(value: unknown) {
     : ''
 }
 
-export function isInternalAlicizationRepairPrompt(text: string) {
-  const normalized = sanitizeHintText(text)
-  if (!normalized)
-    return false
-
-  const lower = normalized.toLowerCase()
-  return lower.includes('rewrite the draft assistant output into strict json contract')
-    || (lower.includes('user input:') && lower.includes('assistant draft:'))
-    || (lower.includes('current personality state:') && lower.includes('violations to fix:'))
-}
-
 function clampConfidence(value: number) {
   if (!Number.isFinite(value))
     return 0
@@ -238,7 +227,6 @@ function normalizeInvitedInspection(raw: unknown): AlicizationInvitedInspectionM
     !Number.isFinite(requestedAt)
     || !Number.isFinite(activeUntil)
     || !hintText
-    || isInternalAlicizationRepairPrompt(hintText)
   ) {
     return null
   }
@@ -530,7 +518,7 @@ export function activateInvitedInspection(input: {
   durationMs?: number
 }) {
   const hintText = sanitizeHintText(input.hintText)
-  if (!hintText || isInternalAlicizationRepairPrompt(hintText))
+  if (!hintText)
     return input.state
 
   const activeUntil = input.now + Math.max(60_000, input.durationMs ?? 3 * 60_000)
@@ -743,13 +731,6 @@ export function detectInvitedInspectionIntent(text: string) {
       confidence: 0,
     }
   }
-  if (isInternalAlicizationRepairPrompt(normalized)) {
-    return {
-      active: false,
-      confidence: 0,
-    }
-  }
-
   const inferred = inferAlicizationInspectionIntent({
     message: normalized,
   })
@@ -762,7 +743,7 @@ export function detectInvitedInspectionIntent(text: string) {
 
 export function extractInspectionHintTerms(text: string) {
   const normalized = sanitizeHintText(text).toLowerCase()
-  if (!normalized || isInternalAlicizationRepairPrompt(normalized))
+  if (!normalized)
     return []
 
   const terms = new Set<string>()

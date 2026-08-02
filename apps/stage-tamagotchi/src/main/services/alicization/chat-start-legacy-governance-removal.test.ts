@@ -10,27 +10,6 @@ function readRepositoryFile(path: string) {
 }
 
 describe('chat-start legacy governance removal', () => {
-  it('removes pre-dialogue identity governance from current chat-start contracts and runtime', () => {
-    const productionFiles = [
-      'apps/stage-tamagotchi/src/shared/eventa.ts',
-      'apps/stage-tamagotchi/src/shared/alicization-chat-transport.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-timeout-fallback.ts',
-      'packages/stage-ui/src/stores/alicization-bridge.ts',
-      'packages/stage-ui/src/types/chat.ts',
-      'packages/stage-shared/src/alicization-chat-entry-dispatch.ts',
-      'packages/plugin-protocol/src/types/events.ts',
-      'apps/server/src/services/chats.ts',
-      'apps/server/src/api/chats.schema.ts',
-    ] as const
-
-    for (const path of productionFiles) {
-      const source = readRepositoryFile(path)
-      expect(source, path).not.toContain('preDialogueSendIdentity')
-      expect(source, path).not.toContain('AlicizationPreDialogueSendIdentity')
-    }
-  })
-
   it('constructs only current chat-start fields before the renderer transport whitelist', () => {
     const source = readRepositoryFile('apps/stage-tamagotchi/src/renderer/App.vue')
     const start = source.indexOf('function sanitizeRendererAlicizationChatStartPayload(')
@@ -72,7 +51,7 @@ describe('chat-start legacy governance removal', () => {
     expect(source).not.toContain('_TContext')
   })
 
-  it('keeps the typed runtime digest on the stage-ui accepted-start result contract', () => {
+  it('keeps the typed runtime digest on the accepted-start result contract', () => {
     const source = readRepositoryFile(
       'packages/stage-ui/src/stores/alicization-bridge.ts',
     )
@@ -82,7 +61,5 @@ describe('chat-start legacy governance removal', () => {
 
     expect(start).toBeGreaterThanOrEqual(0)
     expect(resultContract).toContain('runtimeDigest?: AlicizationRuntimeDigest | null')
-    expect(resultContract).not.toContain('projectState?:')
-    expect(resultContract).not.toContain('preDialogueAwareness?:')
   })
 })

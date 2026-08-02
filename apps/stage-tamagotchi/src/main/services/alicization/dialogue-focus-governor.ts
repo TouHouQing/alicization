@@ -39,28 +39,6 @@ function normalizeSurfaceText(raw: unknown) {
   return sanitizeText(raw, 160).toLowerCase()
 }
 
-function looksLikeProjectStateContinuityQuestion(text: unknown) {
-  const normalized = normalizeSurfaceText(text)
-  if (!normalized)
-    return false
-
-  const asksProjectIdentity = normalized.includes('这个项目')
-    || normalized.includes('what this project is')
-    || normalized.includes('project is')
-    || normalized.includes('project-state')
-  const asksProgressOrOpenClosure = normalized.includes('做到什么程度')
-    || normalized.includes('还差什么')
-    || normalized.includes('没闭环')
-    || normalized.includes('what has landed')
-    || normalized.includes('what still remains open')
-    || normalized.includes('remains open')
-    || normalized.includes('has landed')
-    || normalized.includes('what still remains open')
-    || normalized.includes('closure')
-
-  return asksProjectIdentity && asksProgressOrOpenClosure
-}
-
 // NOTICE: These generic surface markers are not user-language intent rules.
 // They only down-rank OS/window shells that repeatedly showed up in runtime
 // evidence as stale anchor residue instead of meaningful scene content.
@@ -133,24 +111,10 @@ export function buildDialogueFocusGovernance(input: {
     worldModel,
   })
   const preferredSubject = input.semantics.subjectPreference ?? null
-  const projectStateContinuityQuestion = input.semantics.reasonTags.includes('project-state-continuity-question')
-    || looksLikeProjectStateContinuityQuestion(input.semantics.summary)
-    || looksLikeProjectStateContinuityQuestion(input.obligation?.summary)
-  const shouldPreferProjectStateSelfContinuity
-    = projectStateContinuityQuestion
-      && (
-        preferredSubject === 'alicization-self'
-        || preferredSubject === 'general'
-        || input.semantics.reasonTags.includes('dialogue-first-turn')
-        || input.semantics.reasonTags.includes('scene-detached-turn')
-      )
 
   let subject: AlicizationDialogueAnswerSubject = input.ownership?.subject ?? 'general'
   if (input.ownership) {
     subject = input.ownership.subject
-  }
-  else if (shouldPreferProjectStateSelfContinuity) {
-    subject = 'alicization-self'
   }
   else if (inspectionOwnedTurn) {
     subject = worldModel?.activeThread ? 'task-knot' : 'visible-scene'
@@ -256,7 +220,6 @@ export function buildDialogueFocusGovernance(input: {
       `subject:${subject}`,
       `screen:${screenReferenceMode}`,
       input.ownership ? 'ownership-ssot' : '',
-      shouldPreferProjectStateSelfContinuity ? 'project-state-continuity' : '',
       sceneBoundTurn ? 'scene-bound' : '',
       detachedTurn ? 'scene-detached' : '',
       inspectionOwnedTurn ? 'inspection-owned-turn' : '',
@@ -264,9 +227,4 @@ export function buildDialogueFocusGovernance(input: {
       shouldBypassScreenRepair ? 'bypass-screen-repair' : '',
     ]),
   } satisfies AlicizationDialogueFocusGovernance
-}
-
-export function buildDialogueFocusGovernanceSystemBlock(governance: AlicizationDialogueFocusGovernance) {
-  void governance
-  return ''
 }

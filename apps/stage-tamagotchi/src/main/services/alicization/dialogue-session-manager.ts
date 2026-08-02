@@ -45,17 +45,6 @@ export interface AlicizationDialogueSessionMirror {
 export type AlicizationDialogueSessionRecollectionState = OrganicMemoryRecollectionCarry
 
 export interface AlicizationDialogueSessionManager {
-  /**
-   * Session mirrors are audit state, not a prompt owner.
-   *
-   * WorkingMemory and LongTermMemoryRecall own dialogue context. Keeping this
-   * method in the contract lets callers stay transport-compatible while making
-   * the old mirror prompt path inert.
-   */
-  buildSessionMirrorSystemBlock: (input: {
-    cardId: string
-    sessionId: string
-  }) => string
   clear: (cardId?: string) => void
   getSessionMirror: (cardId: string, sessionId: string) => AlicizationDialogueSessionMirror | null
   ingestAgentSessionSnapshot: (input: {
@@ -87,9 +76,6 @@ const defaultSessionMirrorStaleAfterMs = 10 * 60 * 1000
 const defaultMaxContinuityLabels = 6
 const defaultMaxSessionPhases = 10
 
-const legacyGovernancePattern
-  = /same[-_ ]?her|same[-_ ]?living|project[-_ ]?state|project[-_ ]?continuity|continuity[-_ ]?(?:hold|mode|arc|timing|cadence|governance|baseline|carry|closure|self|anchor|identity|line|thread)|opening[_ -]?policy|relationship[_ -]?cadence|visibility\s*=\s*(?:redacted_)?internal|before (?:answering|speaking|acting)|phase\s*1\s*(?:digital|local)[- ]?life|local[- ]first digital life project/iu
-
 function sanitizeText(raw: unknown, maxChars = 160) {
   if (typeof raw !== 'string')
     return ''
@@ -100,8 +86,11 @@ function sanitizeFactText(raw: unknown, maxChars = 320) {
   const normalized = sanitizeText(raw, maxChars)
   if (!normalized || normalized === alicizationFixedTemplateReplacement)
     return ''
-  if (containsAlicizationFixedTemplateResidue(normalized) || legacyGovernancePattern.test(normalized))
+  if (containsAlicizationFixedTemplateResidue(normalized, {
+    provenance: 'internal-structured-fact',
+  })) {
     return ''
+  }
 
   return normalized
 }
@@ -678,16 +667,7 @@ export function createAlicizationDialogueSessionManager(
     }))
   }
 
-  function buildSessionMirrorSystemBlock(input: {
-    cardId: string
-    sessionId: string
-  }) {
-    void input
-    return ''
-  }
-
   return {
-    buildSessionMirrorSystemBlock,
     clear,
     getSessionMirror,
     ingestAgentSessionSnapshot,

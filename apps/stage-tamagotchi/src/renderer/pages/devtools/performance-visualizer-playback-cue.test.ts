@@ -281,7 +281,7 @@ describe('performance visualizer playback cue authority view', () => {
     })
   })
 
-  it('preserves body-backed same-her authority when body and voice still carry the living segment after visible face motion and lipsync drift', () => {
+  it('preserves body-backed continuity authority when body and voice still carry the living segment after visible face motion and lipsync drift', () => {
     const view = buildPlaybackCueAuthorityView({
       speech: {
         authoritySummary: {
@@ -601,31 +601,31 @@ describe('performance visualizer playback cue authority view', () => {
     }
   })
 
-  it('keeps same-her structured closure stages visible on playback cue authority view when legacy closure hints are absent upstream', () => {
+  it('keeps continuity structured closure stages visible on playback cue authority view when legacy closure hints are absent upstream', () => {
     const cases = [
       {
-        cueId: 'segment-playback-same-her-live2d-only-1',
+        cueId: 'segment-playback-continuity-live2d-only-1',
         rendererTarget: 'live2d' as const,
         matchedDrivers: ['face', 'motion', 'lipsync', 'voice'] as const,
-        sameHerEvidence: {
+        continuityEvidence: {
           live2dAuthorityView: {
-            sameHerExecutionAuthoritySegmentId: 'segment-playback-same-her-live2d-only-1',
-            sameHerExecutionSummary: 'aligned | authority=segment-playback-same-her-live2d-only-1 | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
+            continuityExecutionAuthoritySegmentId: 'segment-playback-continuity-live2d-only-1',
+            continuityExecutionSummary: 'aligned | authority=segment-playback-continuity-live2d-only-1 | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
           },
           vrmAuthorityView: null,
         },
         expected: 'renderer-rejoin-without-body',
       },
       {
-        cueId: 'segment-playback-same-her-vrm-only-1',
+        cueId: 'segment-playback-continuity-vrm-only-1',
         rendererTarget: 'vrm' as const,
         matchedDrivers: ['body', 'face', 'motion', 'lipsync', 'voice'] as const,
-        sameHerEvidence: {
+        continuityEvidence: {
           live2dAuthorityView: null,
           vrmAuthorityView: {
-            sameHerFramePerformanceSegmentId: 'segment-playback-same-her-vrm-only-1',
-            sameHerFrameSpeechSegmentId: 'segment-playback-same-her-vrm-only-1',
-            sameHerFrameSummary: 'aligned | segment=segment-playback-same-her-vrm-only-1 | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
+            continuityFramePerformanceSegmentId: 'segment-playback-continuity-vrm-only-1',
+            continuityFrameSpeechSegmentId: 'segment-playback-continuity-vrm-only-1',
+            continuityFrameSummary: 'aligned | segment=segment-playback-continuity-vrm-only-1 | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
           },
         },
         expected: 'full-cross-modal-lock',
@@ -665,7 +665,7 @@ describe('performance visualizer playback cue authority view', () => {
             },
           },
         },
-        ...testCase.sameHerEvidence,
+        ...testCase.continuityEvidence,
       } as any)
 
       expect(view?.embodimentClosureStage).toBe(testCase.expected)
@@ -676,7 +676,7 @@ describe('performance visualizer playback cue authority view', () => {
     }
   })
 
-  it('does not infer embodiment closure stage from stale Live2D same-her summary-only evidence when explicit identity-continuity', () => {
+  it('does not infer embodiment closure stage from stale Live2D continuity summary-only evidence when explicit identity-continuity', () => {
     const cueId = 'segment-playback-summary-only-current-body'
     const view = buildPlaybackCueAuthorityView({
       speech: {
@@ -708,7 +708,7 @@ describe('performance visualizer playback cue authority view', () => {
         },
       },
       live2dAuthorityView: {
-        sameHerExecutionSummary: 'aligned | authority=segment-playback-summary-only-stale-live2d | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
+        continuityExecutionSummary: 'aligned | authority=segment-playback-summary-only-stale-live2d | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
       },
     } as any)
 
@@ -1863,13 +1863,13 @@ describe('performance visualizer playback cue authority view', () => {
     })
   })
 
-  it('preserves same-her renderer hint signature and reason tags on playback cue authority view', () => {
+  it('preserves continuity renderer hint signature and reason tags on playback cue authority view', () => {
     const view = buildPlaybackCueAuthorityView({
       speech: {
         playbackTelemetry: {
           rendererTarget: 'live2d',
           driverAuthority: {
-            segmentId: 'segment-same-her-playback-view',
+            segmentId: 'segment-continuity-playback-view',
             rendererTarget: 'live2d',
             matchedDrivers: ['body', 'lipsync'],
             sources: ['prosody-authority'],
@@ -1879,7 +1879,7 @@ describe('performance visualizer playback cue authority view', () => {
             lipsyncSegmentMatched: true,
           },
           cue: {
-            id: 'segment-same-her-playback-view',
+            id: 'segment-continuity-playback-view',
             rendererHints: {
               residentMode: 'measured-return',
               preferredBlinkCadence: 'linger',
@@ -1887,7 +1887,7 @@ describe('performance visualizer playback cue authority view', () => {
               preferredExpressionAliases: ['RecoverSoft'],
               preferredMotionAliases: ['IdleSettle'],
               reasonTags: [
-                'embodiment:audible-same-her-line',
+                'embodiment:audible-continuity-line',
                 'embodiment:still-voiced-motion-line',
               ],
               signature: 'embodiment:body-lipsync-voice-rejoin',
@@ -1898,25 +1898,25 @@ describe('performance visualizer playback cue authority view', () => {
     } as any)
 
     expect(view).toEqual(expect.objectContaining({
-      cueId: 'segment-same-her-playback-view',
+      cueId: 'segment-continuity-playback-view',
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
       reasonTags: [
-        'embodiment:audible-same-her-line',
+        'embodiment:audible-continuity-line',
         'embodiment:still-voiced-motion-line',
       ],
       signature: 'embodiment:body-lipsync-voice-rejoin',
     }))
     expect(view?.summaryEntries).toContainEqual({
-      key: 'same-her-signature',
+      key: 'continuity-signature',
       label: '同一人签名',
       value: 'embodiment:body-lipsync-voice-rejoin',
     })
     expect(view?.summaryEntries).toContainEqual({
-      key: 'same-her-reasons',
+      key: 'continuity-reasons',
       label: '同一人线索',
-      value: 'embodiment:audible-same-her-line, embodiment:still-voiced-motion-line',
+      value: 'embodiment:audible-continuity-line, embodiment:still-voiced-motion-line',
     })
   })
 })

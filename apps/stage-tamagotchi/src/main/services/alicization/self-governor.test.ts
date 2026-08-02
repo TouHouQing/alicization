@@ -173,7 +173,7 @@ function createInput() {
         id: 'commitment:hold',
         kind: 'hold-problem' as const,
         status: 'active' as const,
-        title: 'Hold Problem',
+        title: 'hold-problem',
         summary: 'Keep the real error knot in view.',
         source: 'runtime-thread' as const,
         priority: 0.8,

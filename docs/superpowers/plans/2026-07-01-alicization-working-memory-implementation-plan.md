@@ -428,7 +428,7 @@ describe('working memory policy', () => {
       turn({
         turnId: 'turn-fallback',
         role: 'alice',
-        text: '我在。结构化连续性状态的线还在。',
+        text: 'retired_policy=observe_first',
       }),
     ])
 
@@ -462,6 +462,8 @@ import type {
   WorkingMemoryTurn,
 } from './working-memory'
 
+import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
+
 import {
   clampWorkingMemoryScore,
   normalizeWorkingMemoryText,
@@ -469,12 +471,11 @@ import {
 
 const correctionPattern = /不是这个|不想要|不要固定|固定模板|我需要|你搞错|你错了|别这样|不要这样/u
 const commitmentPattern = /我会|我先|我已经|接下来|继续|开始|完成|修复|提交|commit|push|编译/u
-const fallbackTemplatePattern = /我在。结构化连续性状态的线还在|结构化连续性状态的线还在|中性可见占位|中性可见占位/u
 
 export function shouldExcludeTurnFromLongTermCandidate(turn: WorkingMemoryTurn) {
   if (turn.failureKind)
     return true
-  if (fallbackTemplatePattern.test(turn.text))
+  if (containsAlicizationFixedTemplateResidue(turn.text))
     return true
   if (turn.role === 'tool' || turn.visibility === 'internal')
     return true
@@ -516,7 +517,7 @@ export function createLongTermCandidatesFromWorkingTurns(turns: WorkingMemoryTur
         sourceTurnIds: [turn.turnId],
         kind: 'correction',
         summary: normalizeWorkingMemoryText(turn.text, 260),
-        reason: 'User corrected Alicization behavior, memory use, or persona expression during the current dialogue.',
+        reason: 'candidate:correction',
         salience: 0.82,
         sensitivity: 'personal',
         confidence: 0.78,
@@ -699,7 +700,7 @@ export interface BuildWorkingMemorySnapshotInput {
 }
 
 function detectCorrectionScope(text: string) {
-  if (/人格|固定回复|固定模板|数字生命|persona|same-her/iu.test(text))
+  if (/人格|固定回复|固定模板|数字生命|persona/iu.test(text))
     return 'persona' as const
   if (/记忆|回想|长期|短期/u.test(text))
     return 'memory' as const
@@ -1488,38 +1489,11 @@ function readWorkingMemoryRecentTurnsFromContextualString(contextualString: stri
 }
 ```
 
-- [ ] **Step 5: Build and inject the WorkingMemory block after provider-facing messages are assembled**
+- [ ] **Step 5: Build and attach the WorkingMemory context after Provider inputs are assembled**
 
-In `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts`, find this block:
-
-```ts
-messages = injectProviderFacingMindTurnContractSystemMessage({
-  contract: finalizedReturnedMindTurnContract,
-  messages: runtimeSurface.messages,
-})
-if (!carriesAlicizationCanonicalProjectState(messages)) {
-  messages = [
-    ...buildAlicizationProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
-    ...messages,
-  ]
-}
-runtimeSurface.messages = messages
-```
-
-Replace it with:
+In `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.ts`, build the owner snapshot from the accepted current turn and attach its structured context beside the other dynamic Provider facts. Do not restore retired engineering-brief blocks or fixed natural-language instructions.
 
 ```ts
-messages = injectProviderFacingMindTurnContractSystemMessage({
-  contract: finalizedReturnedMindTurnContract,
-  messages: runtimeSurface.messages,
-})
-if (!carriesAlicizationCanonicalProjectState(messages)) {
-  messages = [
-    ...buildAlicizationProjectStateExtraSystemBlocks().map(content => ({ role: 'system', content }) as Message),
-    ...messages,
-  ]
-}
-
 const workingMemorySnapshot = buildWorkingMemorySnapshot({
   cardId: payload.cardId,
   sessionId: agentTurn.conversationSessionId ?? payload.cardId,
@@ -1531,11 +1505,7 @@ const workingMemorySnapshot = buildWorkingMemorySnapshot({
   currentConsciousFrame: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame ?? null,
   executionCarry: executionCallbackContext.recallText || executionLedgerContext.recallText || null,
 })
-const workingMemorySystemBlock = buildWorkingMemorySystemBlock(
-  buildWorkingMemoryPromptView(workingMemorySnapshot),
-)
-messages = injectWorkingMemorySystemBlock(messages, workingMemorySystemBlock)
-runtimeSurface.messages = messages
+runtimeSurface.workingMemory = workingMemorySnapshot
 ```
 
 Add this helper near `readWorkingMemoryRecentTurnsFromContextualString`:
@@ -1615,7 +1585,7 @@ Expected: PASS, unless the known MediaPipe asset postinstall failure blocks the 
 - [ ] Confirm there is no fallback/persona contamination in the new tests:
 
 ```bash
-rg -n "我在。结构化连续性状态的线还在|中性可见占位" apps/stage-tamagotchi/src/main/services/alicization/life-core
+rg -n "retired_policy=|retired_cadence=" apps/stage-tamagotchi/src/main/services/alicization/life-core
 ```
 
 Expected: only the policy test fixture should match.

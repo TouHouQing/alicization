@@ -8,7 +8,6 @@ import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import { describe, expect, it } from 'vitest'
 
 import { createAlicizationMemorySearchRuntime } from './memory-search-runtime'
-import { buildAlicizationResponseSurfaceContract } from './response-surface-contract'
 
 describe('memory-search-runtime invariants', () => {
   it('keeps shared recollection contracts assignable through runtime surface memory fields', () => {
@@ -269,46 +268,5 @@ describe('memory-search-runtime invariants', () => {
           },
         },
       })
-  })
-
-  it('keeps reply-layer recollection controls empty instead of regrowing drafted wording authority', () => {
-    const result = buildAlicizationResponseSurfaceContract({
-      brief: {
-        turnMode: 'guide-current-knot',
-        liveSurface: '',
-        carriedThread: 'remembered procedure',
-        truthState: 'remembered',
-        separateCarryFromSurface: true,
-        shouldCompactHistory: false,
-        maxRecentUserTurns: 2,
-        mustDo: [],
-        mustNotDo: [],
-      },
-      charter: {
-        epistemicMode: 'memory-only',
-        responseMode: 'guide-current-knot',
-        governingFocus: 'Use remembered procedure as continuity for the answer.',
-        governingConcern: null,
-        governingCommitment: null,
-        governingInquiry: null,
-        governingProject: null,
-        emotionalClosureCue: null,
-        activeClosenessContext: null,
-        activeClosenessRung: null,
-        relationshipPosture: 'warm',
-      },
-      recollectionSpeechPlan: {
-        shouldSurface: true,
-        surfaceMode: 'procedural-carry',
-        placement: 'inside-payoff',
-        certainty: 'approximate',
-        rationale: 'The host is explicitly asking how this used to be handled.',
-        confidence: 0.83,
-      },
-    })
-
-    expect(Object.keys(result.contract).some(key => key.toLowerCase().includes('recollection'))).toBe(false)
-    expect(result.contract.mustDo.join(' | ')).not.toContain('I mostly remember handling this by returning to the same seam before branching.')
-    expect(result.systemBlock).not.toContain('I mostly remember handling this by returning to the same seam before branching.')
   })
 })

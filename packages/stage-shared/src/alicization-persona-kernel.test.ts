@@ -4,6 +4,8 @@ import {
   defaultAlicizationProfile,
 } from './alicization-defaults'
 import {
+  buildAlicizationCoreIncarnationSeed,
+  buildAlicizationHostAttitudeSeed,
   resolveAlicizationPersonaKernel,
   summarizeAlicizationTemperament,
 } from './alicization-persona-kernel'
@@ -113,10 +115,11 @@ describe('alicization-persona-kernel', () => {
     })
     expect(snapshot.personality.identityAnchors).toEqual(['host-steadiness'])
     expect(snapshot.personality.antiPersonaConstraints).toEqual(['no theatrical warmth'])
-    expect(snapshot.temperamentSummary).toBe('obedience=0.91; liveliness=0.14; sensibility=0.67')
+    expect(snapshot.temperamentSummary).toBe('obedience 0.91, liveliness 0.14, sensibility 0.67')
     expect(snapshot.hostAttitudeSeed).toContain(defaultAlicizationProfile.hostName)
     expect(snapshot.coreIncarnationSeed).toContain(defaultAlicizationProfile.alicizationName)
-    expect(snapshot.coreIncarnation).toContain('先稳住，再靠近。')
+    expect(snapshot.coreIncarnationSeed).not.toContain('先稳住，再靠近。')
+    expect(snapshot.coreIncarnation).not.toContain('先稳住，再靠近。')
     expect(snapshot.personaWorkshop).toEqual({
       presetTemperament: {
         obedience: 0.3,
@@ -138,6 +141,78 @@ describe('alicization-persona-kernel', () => {
       obedience: 0.91,
       liveliness: 0.14,
       sensibility: 0.67,
-    })).toBe('obedience=0.91; liveliness=0.14; sensibility=0.67')
+    })).toBe('obedience 0.91, liveliness 0.14, sensibility 0.67')
+  })
+
+  it('builds the host attitude seed from structured persona facts only', () => {
+    const seed = buildAlicizationHostAttitudeSeed({
+      profile: {
+        ownerName: '桐人',
+        hostName: '桐人',
+        alicizationName: '爱丽丝',
+        gender: 'female',
+        genderCustom: '',
+        relationship: '伴侣',
+        mindAge: 19,
+      },
+      personality: {
+        obedience: 0.21,
+        liveliness: 0.73,
+        sensibility: 0.88,
+        identityAnchors: ['守护共同经历'],
+        antiPersonaConstraints: ['不迎合'],
+      },
+      customDirectives: '保留自己的判断。',
+    })
+
+    expect(JSON.parse(seed)).toMatchObject({
+      profile: {
+        ownerName: '桐人',
+        hostName: '桐人',
+        alicizationName: '爱丽丝',
+        relationship: '伴侣',
+      },
+      personality: {
+        obedience: 0.21,
+        liveliness: 0.73,
+        sensibility: 0.88,
+        identityAnchors: ['守护共同经历'],
+        antiPersonaConstraints: ['不迎合'],
+      },
+    })
+    expect(Object.keys(JSON.parse(seed))).toEqual(['profile', 'personality'])
+    expect(seed).not.toMatch(/Respond from|Keep boundaries|persona-kernel seed|visible wording|tool shell|Continuity policy/i)
+  })
+
+  it('keeps custom directives out of the structured core incarnation seed', () => {
+    const customDirectives = [
+      '面对我时保持真诚，不要为了顺从而隐藏判断。',
+      '可以直接表达不同意见，并从共同经历形成自己的偏好。',
+      '这段配置故意超过旧的摘要长度，以证明用户写下的人格要求不会被截断、改写或降级成系统预制的回复规则。',
+      '在长期相处中继续保留这些原始配置事实。',
+    ].join('\n')
+    const seed = buildAlicizationCoreIncarnationSeed({
+      profile: {
+        ownerName: '桐人',
+        hostName: '桐人',
+        alicizationName: '爱丽丝',
+        gender: 'female',
+        relationship: '伴侣',
+        mindAge: 19,
+      },
+      personality: {
+        obedience: 0.21,
+        liveliness: 0.73,
+        sensibility: 0.88,
+      },
+      customDirectives,
+    })
+
+    const facts = JSON.parse(seed)
+    expect(Object.keys(facts)).toEqual(['profile', 'personality'])
+    expect(facts.customDirectives).toBeUndefined()
+    expect(seed).not.toContain(customDirectives)
+    expect(seed).not.toContain('面对我时保持真诚')
+    expect(seed).not.toMatch(/Respond from|Keep boundaries|persona-kernel seed|visible wording|tool shell|Continuity policy/i)
   })
 })

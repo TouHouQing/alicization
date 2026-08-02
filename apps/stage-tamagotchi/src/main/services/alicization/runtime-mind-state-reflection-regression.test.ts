@@ -66,7 +66,7 @@ describe('runtime-mind-state reflection regression', () => {
             id: 'thread-reflection-runtime-carry',
             kind: 'problem',
             title: 'Reflection carry continuity',
-            summary: 'The runtime should keep the meaningful same-her repair line active instead of reviving newer temporary noise.',
+            summary: 'The runtime should keep the meaningful continuity repair line active instead of reviving newer temporary noise.',
             confidence: 0.84,
             unresolved: true,
             source: 'dialogue-ingress',
@@ -81,7 +81,7 @@ describe('runtime-mind-state reflection regression', () => {
           epistemicState: {
             certainty: 'grounded',
             freshness: 'fresh',
-            openQuestions: ['Which persisted reflection should stay active after a temporary same-her wobble was superseded?'],
+            openQuestions: ['Which persisted reflection should stay active after a temporary continuity wobble was superseded?'],
             staleRisks: [],
           },
           hostState: {
@@ -117,15 +117,15 @@ describe('runtime-mind-state reflection regression', () => {
           deniedAt: null,
         },
         {
-          id: 'reflection::same-her-repair',
+          id: 'reflection::continuity-repair',
           cardId: 'default',
-          decisionTraceId: 'trace::same-her-repair',
-          turnId: 'turn::same-her-repair',
-          sessionId: 'session::same-her-repair',
+          decisionTraceId: 'trace::continuity-repair',
+          turnId: 'turn::continuity-repair',
+          sessionId: 'session::continuity-repair',
           sourceKind: 'reply',
           targetScope: 'relationship',
-          summary: 'The steadier same-her repair line is still the meaningful continuity carry.',
-          lesson: 'Keep the same-her repair lesson active instead of reopening from the temporary wobble.',
+          summary: 'The steadier continuity repair line is still the meaningful continuity carry.',
+          lesson: 'Keep the continuity repair lesson active instead of reopening from the temporary wobble.',
           status: 'confirmed',
           confidence: 0.9,
           supportingFactIds: [],
@@ -202,8 +202,8 @@ describe('runtime-mind-state reflection regression', () => {
       organicMemoryContext: {} as any,
     })
 
-    expect(result.reflectionLedger?.latestEntryId).toBe('reflection::same-her-repair')
+    expect(result.reflectionLedger?.latestEntryId).toBe('reflection::continuity-repair')
     expect(result.reflectionLedger?.entries.find(entry => entry.id === 'reflection::temporary-noise')?.outcome).toBe('released')
-    expect(result.reflectionLedger?.entries.find(entry => entry.id === result.reflectionLedger?.latestEntryId)?.revision).toContain('same-her repair lesson')
+    expect(result.reflectionLedger?.entries.find(entry => entry.id === result.reflectionLedger?.latestEntryId)?.revision).toContain('continuity repair lesson')
   })
 })

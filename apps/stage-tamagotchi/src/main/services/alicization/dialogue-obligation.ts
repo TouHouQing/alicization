@@ -172,11 +172,3 @@ export function buildDialogueObligation(input: {
     ].filter(Boolean),
   }
 }
-
-export function buildAlicizationDialogueObligationSystemBlock(input: {
-  semantics: AlicizationDialogueTurnSemantics
-  obligation: AlicizationDialogueObligation
-}) {
-  void input
-  return ''
-}

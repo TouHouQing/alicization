@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  buildDialogueWorldThread,
-  buildDialogueWorldThreadSystemBlock,
-} from './dialogue-world-thread'
+import { buildDialogueWorldThread } from './dialogue-world-thread'
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
@@ -187,7 +184,6 @@ describe('buildDialogueWorldThread', () => {
     }))
     expect(state?.openLoops).toContain('What is wrong with this diff?')
     expect(state?.recallKeys.join(' | ')).toContain('reply_motive:guide')
-    expect(buildDialogueWorldThreadSystemBlock(state)).toBe('')
   })
 
   it('drops stale screen loops and facts when the turn pivots back to dialogue-first', () => {

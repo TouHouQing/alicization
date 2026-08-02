@@ -1,25 +1,12 @@
 import type { IntentOptions } from '@proj-alicization/pipelines-audio'
 
+import { readFileSync } from 'node:fs'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createSpeechPipelineRuntime } from './pipeline-runtime'
 
 import * as speechBusModule from './bus'
-
-const legacySpeechMetadataKeys = [
-  'preDialogueSendIdentity',
-  'preDialogueAwareness',
-  'preDialogueClosure',
-  'visibleReplyRealization',
-  'preDialogueAwarenessLine',
-  'awarenessLine',
-  'companionBriefingLine',
-  'companionNextClosureLine',
-  'sameHerSelfLine',
-  'sameHerHoldDetail',
-  'emotionalClosureCue',
-  'proactiveSameHerGap',
-] as const
 
 vi.mock('./bus', () => {
   const listeners = new Map<symbol, Set<(event: { body: unknown }) => void>>()
@@ -79,7 +66,7 @@ function createIntentHandle(intentId: string, streamId: string, ownerId?: string
 }
 
 function createEmbodimentScriptFixture(turnId: string) {
-  const replyText = 'Provider may discuss same-her semantics as ordinary content.'
+  const replyText = 'Provider may discuss continuity semantics as ordinary content.'
   return {
     version: 'embodiment-script-v1',
     turnId,
@@ -124,13 +111,6 @@ function createEmbodimentScriptFixture(turnId: string) {
 
 function createSpeechMetadataFixture(turnId: string) {
   return {
-    projectState: {
-      activeTask: 'index the latest memory batch',
-      observedAt: '2026-07-16T12:00:00.000Z',
-      sameHerSelfLine: 'legacy-value',
-      awarenessLine: 'legacy-value',
-      emotionalClosureCue: 'legacy-value',
-    },
     runtimeDigest: {
       version: 'alicization-runtime-digest-v1',
       dominantChannel: 'active-memory',
@@ -146,11 +126,6 @@ function createSpeechMetadataFixture(turnId: string) {
         summary: 'working memory is available',
       }],
       summary: 'active memory is available',
-      projectState: {
-        activeTask: 'index the latest memory batch',
-        sameHerHoldDetail: 'legacy-value',
-        preDialogueAwarenessLine: 'legacy-value',
-      },
     },
     embodimentScript: createEmbodimentScriptFixture(turnId),
     speechSynthesis: {
@@ -161,43 +136,24 @@ function createSpeechMetadataFixture(turnId: string) {
       requestId: `request-${turnId}`,
       source: 'dialogue-runtime',
     },
-    preDialogueSendIdentity: {
-      awarenessLine: 'legacy-value',
-    },
-    preDialogueAwareness: {
-      companionBriefingLine: 'legacy-value',
-    },
-    preDialogueClosure: {
-      emotionalClosureCue: 'legacy-value',
-    },
-    visibleReplyRealization: {
-      awarenessLine: 'legacy-value',
-    },
   }
 }
 
-function expectSanitizedSpeechMetadata(metadata: unknown, turnId: string) {
+function expectSpeechMetadata(metadata: unknown, turnId: string) {
   expect(metadata).toEqual(expect.objectContaining({
-    projectState: {
-      activeTask: 'index the latest memory batch',
-      observedAt: '2026-07-16T12:00:00.000Z',
-    },
     runtimeDigest: expect.objectContaining({
       version: 'alicization-runtime-digest-v1',
       dominantChannel: 'active-memory',
       companionshipPressure: 0.31,
-      projectState: {
-        activeTask: 'index the latest memory batch',
-      },
     }),
     embodimentScript: expect.objectContaining({
       turnId,
       rendererTarget: 'live2d',
-      replyText: 'Provider may discuss same-her semantics as ordinary content.',
+      replyText: 'Provider may discuss continuity semantics as ordinary content.',
       speechPlan: expect.objectContaining({
         segments: [
           expect.objectContaining({
-            text: 'Provider may discuss same-her semantics as ordinary content.',
+            text: 'Provider may discuss continuity semantics as ordinary content.',
           }),
         ],
       }),
@@ -211,10 +167,6 @@ function expectSanitizedSpeechMetadata(metadata: unknown, turnId: string) {
       source: 'dialogue-runtime',
     },
   }))
-
-  const serialized = JSON.stringify(metadata)
-  for (const key of legacySpeechMetadataKeys)
-    expect(serialized).not.toContain(`"${key}"`)
 }
 
 beforeEach(() => {
@@ -223,6 +175,13 @@ beforeEach(() => {
 })
 
 describe('speech pipeline runtime', () => {
+  it('does not maintain a legacy metadata-key denylist', () => {
+    const source = readFileSync(new URL('./pipeline-runtime.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toContain('legacySpeechGovernanceKeys')
+    expect(source).not.toContain('isLegacySpeechGovernanceKey')
+  })
+
   it('cancels bridged host intents, unbinds the bus, and can rebind after dispose', async () => {
     const hostIntent = createIntentHandle('remote-intent', 'remote-stream')
     const openIntent = vi.fn(() => hostIntent)
@@ -286,13 +245,13 @@ describe('speech pipeline runtime', () => {
       originId: 'external-origin',
       intentId: 'remote-template-intent',
       streamId: 'remote-template-stream',
-      value: 'The provider may literally discuss same-her semantics.',
+      value: 'The provider may literally discuss continuity semantics.',
     })
     ;(speechBusModule as any).__testContext.emit((speechBusModule as any).speechIntentSpecialEvent, {
       originId: 'external-origin',
       intentId: 'remote-template-intent',
       streamId: 'remote-template-stream',
-      value: '同一个她也可能是用户原话。',
+      value: '这个短语也可能是用户原话。',
     })
     ;(speechBusModule as any).__testContext.emit((speechBusModule as any).speechIntentLiteralEvent, {
       originId: 'external-origin',
@@ -302,9 +261,9 @@ describe('speech pipeline runtime', () => {
     })
 
     expect(hostIntent.writeLiteral).toHaveBeenCalledTimes(2)
-    expect(hostIntent.writeLiteral).toHaveBeenNthCalledWith(1, 'The provider may literally discuss same-her semantics.')
+    expect(hostIntent.writeLiteral).toHaveBeenNthCalledWith(1, 'The provider may literally discuss continuity semantics.')
     expect(hostIntent.writeLiteral).toHaveBeenNthCalledWith(2, '这句是真正要读出来的内容。')
-    expect(hostIntent.writeSpecial).toHaveBeenCalledWith('同一个她也可能是用户原话。')
+    expect(hostIntent.writeSpecial).toHaveBeenCalledWith('这个短语也可能是用户原话。')
   })
 
   it('preserves provider-authored direct host literal and special speech tokens verbatim', async () => {
@@ -319,14 +278,14 @@ describe('speech pipeline runtime', () => {
       streamId: 'local-template-stream',
     })
 
-    intent.writeLiteral('The provider may literally discuss same-her semantics.')
-    intent.writeSpecial('同一个她也可能是用户原话。')
+    intent.writeLiteral('The provider may literally discuss continuity semantics.')
+    intent.writeSpecial('这个短语也可能是用户原话。')
     intent.writeLiteral('这句是真正要读出来的内容。')
 
     expect(hostIntent.writeLiteral).toHaveBeenCalledTimes(2)
-    expect(hostIntent.writeLiteral).toHaveBeenNthCalledWith(1, 'The provider may literally discuss same-her semantics.')
+    expect(hostIntent.writeLiteral).toHaveBeenNthCalledWith(1, 'The provider may literally discuss continuity semantics.')
     expect(hostIntent.writeLiteral).toHaveBeenNthCalledWith(2, '这句是真正要读出来的内容。')
-    expect(hostIntent.writeSpecial).toHaveBeenCalledWith('同一个她也可能是用户原话。')
+    expect(hostIntent.writeSpecial).toHaveBeenCalledWith('这个短语也可能是用户原话。')
   })
 
   it('emits cancel events for locally created remote intents during dispose', async () => {
@@ -430,7 +389,7 @@ describe('speech pipeline runtime', () => {
     expect(cancelOwner).toHaveBeenNthCalledWith(2, 'card-1', 'remote-barge-in')
   })
 
-  it('strips legacy governance metadata for direct local host intents while preserving runtime facts', async () => {
+  it('preserves current metadata for direct local host intents', async () => {
     const hostIntent = createIntentHandle('local-metadata-intent', 'local-metadata-stream')
     const openIntent = vi.fn((_options?: IntentOptions) => hostIntent)
     const runtime = createSpeechPipelineRuntime()
@@ -444,10 +403,10 @@ describe('speech pipeline runtime', () => {
     } as any)
 
     expect(openIntent).toHaveBeenCalledTimes(1)
-    expectSanitizedSpeechMetadata(openIntent.mock.calls[0]?.[0]?.metadata, 'turn-local-host')
+    expectSpeechMetadata(openIntent.mock.calls[0]?.[0]?.metadata, 'turn-local-host')
   })
 
-  it('strips legacy governance metadata from remote start events while preserving runtime facts', async () => {
+  it('preserves current metadata from remote start events', async () => {
     const hostIntent = createIntentHandle('remote-metadata-intent', 'remote-metadata-stream')
     const openIntent = vi.fn((_options?: IntentOptions) => hostIntent)
     const runtime = createSpeechPipelineRuntime()
@@ -462,7 +421,7 @@ describe('speech pipeline runtime', () => {
     })
 
     expect(openIntent).toHaveBeenCalledTimes(1)
-    expectSanitizedSpeechMetadata(openIntent.mock.calls[0]?.[0]?.metadata, 'turn-remote-start')
+    expectSpeechMetadata(openIntent.mock.calls[0]?.[0]?.metadata, 'turn-remote-start')
   })
 
   it('emits real speech metadata on start events for locally created remote intents', () => {
@@ -505,7 +464,7 @@ describe('speech pipeline runtime', () => {
     }))
   })
 
-  it('opens the later owner intent after cancellation without restoring legacy governance metadata', async () => {
+  it('opens the later owner intent after cancellation without changing its metadata', async () => {
     const firstHostIntent = createIntentHandle('remote-owner-first', 'remote-owner-stream-first', 'card-1')
     const secondHostIntent = createIntentHandle('remote-owner-second', 'remote-owner-stream-second', 'card-1')
     const openIntent = vi
@@ -534,9 +493,6 @@ describe('speech pipeline runtime', () => {
       ownerId: 'card-1',
       metadata: {
         embodimentScript: createEmbodimentScriptFixture('turn-owner-second'),
-        preDialogueAwareness: {
-          awarenessLine: 'legacy-value',
-        },
       },
     })
 
@@ -644,7 +600,7 @@ describe('speech pipeline runtime', () => {
       priority: 7,
       behavior: 'interrupt',
     }))
-    expectSanitizedSpeechMetadata(openIntent.mock.calls[0]?.[0]?.metadata, 'turn-token-fallback')
+    expectSpeechMetadata(openIntent.mock.calls[0]?.[0]?.metadata, 'turn-token-fallback')
     expect(hostIntent.writeLiteral).toHaveBeenCalledWith('迟到的第一段。')
     expect(hostIntent.writeFlush).toHaveBeenCalledTimes(1)
     expect(hostIntent.end).toHaveBeenCalledTimes(1)

@@ -201,8 +201,7 @@ describe('buildLivingWorldState', () => {
       quietLineMs: 240_000,
       shouldDispatchSilentPresencePulse: true,
     }))
-    expect(outcome?.summary).toContain('quietly accompanying')
-    expect(outcome?.summary).toContain('coding thread')
+    expect(outcome?.summary).toBe('the coding thread in runtime.ts')
 
     const event = buildQuietCompanionshipMindTurnEvent({
       now,
@@ -428,5 +427,121 @@ describe('buildLivingWorldState', () => {
     expect(next.objects.some(object => object.status === 'cooling')).toBe(true)
     expect(next.objects.some(object => object.kind === 'session')).toBe(true)
     expect(next.stability).toBe('shifting')
+  })
+
+  it('summarizes synthetic session objects with machine facts instead of fixed prose', () => {
+    const state = buildLivingWorldState({
+      now: 80 * 60_000,
+      context: {
+        ...createContext(),
+        localTime: {
+          hour: 1,
+          minute: 20,
+          isLateNight: true,
+        },
+        relationship: {
+          ...createContext().relationship,
+          lateNightActiveMinutes: 80,
+        },
+      },
+      watchMode: 'mnemonic-passive',
+      scene: null,
+      worldModel: {
+        activeThread: null,
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'observed',
+          freshness: 'live',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 80 * 60_000,
+          attentionAgeMs: 80 * 60_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 80 * 60_000,
+      },
+      entityWorld: {
+        focusEntityId: null,
+        activeEntityIds: [],
+        entities: [],
+        relations: [],
+        openLoops: [],
+        updatedAt: 80 * 60_000,
+      },
+      recentTransition: null,
+      durabilityPulse: null,
+      previous: null,
+    })
+
+    const session = state.objects.find(object => object.kind === 'session')
+
+    expect(session?.summary).toBe('session:late-night-session; lateNightActiveMinutes:80')
+  })
+
+  it('summarizes durability incidents from pulse facts instead of fallback prose', () => {
+    const state = buildLivingWorldState({
+      now: 5_000,
+      context: createContext(),
+      watchMode: 'symbiotic-vision',
+      scene: null,
+      worldModel: {
+        activeThread: null,
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'live',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'recovery',
+          sceneAgeMs: 0,
+          attentionAgeMs: 0,
+          sameSceneAsBefore: false,
+          sameAttentionAsBefore: false,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'fatigued',
+          burden: 'heavy',
+        },
+        updatedAt: 5_000,
+      },
+      entityWorld: {
+        focusEntityId: null,
+        activeEntityIds: [],
+        entities: [],
+        relations: [],
+        openLoops: [],
+        updatedAt: 5_000,
+      },
+      recentTransition: null,
+      durabilityPulse: {
+        kind: 'process-gone',
+        source: 'heartbeat',
+        detectedAt: 5_000,
+      } as any,
+      previous: null,
+    })
+
+    const incident = state.objects.find(object => object.kind === 'incident')
+
+    expect(incident?.label).toBe('incident:process-gone')
+    expect(incident?.summary).toBe('incident:process-gone')
   })
 })

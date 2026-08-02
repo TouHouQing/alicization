@@ -38,10 +38,6 @@ export async function runOrganicLearningGovernor(
     await input.scheduleOrganicLearningAction?.({
       context: {
         ...input.organicPromptContext,
-        projectStatePreDialogueAwarenessLine: null,
-        projectStatePreflightSummary: null,
-        projectStateContinuity: null,
-        activeContinuityGovernance: null,
         recentMemoryReflections: recentMemoryReflections as any,
         recentRelationshipOutcomes: recentRelationshipOutcomes as any,
       },

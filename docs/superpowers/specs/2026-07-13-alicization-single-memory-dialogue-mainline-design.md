@@ -2,7 +2,7 @@
 
 > 状态：现行边界。2026-07-16 已落实单一 Provider 主链路，并删除本地回复重写、普通 fallback authoring 与 dead renderer。
 > 日期：2026-07-13
-> 范围：删除普通对话的固定自然语言 system prompt、固定回复模板、固定回复治理和 fast-path，让所有正常回复统一由 Provider 基于动态人格、短期记忆、长期记忆和工具事实生成。
+> 范围：删除普通对话的固定自然语言 system prompt、固定回复模板、固定回复治理和本地普通回复旁路，让所有正常回复统一由 Provider 基于动态人格、短期记忆、长期记忆和工具事实生成。
 > 主要落点：`apps/stage-tamagotchi` 桌面主对话运行时、`packages/stage-shared` 的对话协议与失败面、`packages/stage-ui` 的 renderer 对话入口。
 
 ## 背景
@@ -14,10 +14,10 @@ Alicization 已经具备可用的记忆骨架：
 - `SOUL.md`、稳定身份事实和关系状态提供动态人格事实。
 - 工具执行、visible-reply settlement、失败审计和记忆写回已经存在。
 
-当前对话链路仍存在第二套隐性心智：
+此前对话链路存在第二套隐性心智：
 
 - 固定自然语言 system instruction 会在动态人格和记忆之外再次规定她应该怎样说话。
-- greeting、identity、utility、tool result 等 fast-path 可以绕过统一 Provider 主链路。
+- greeting、identity、utility、tool result 等本地分支可以绕过统一 Provider 主链路。
 - 本地 fallback、repair 和 renderer composer 会在 Provider 回复之外生成普通用户可见台词。
 - Provider 候选失败后仍存在本地重写思路，会再次塑造回复并可能丢失短期或长期记忆证据。
 - compact timeout recovery 会尝试恢复一段像正常人格表达的回复，而不是直接暴露基础设施失败。
@@ -54,7 +54,7 @@ Alicization 已经具备可用的记忆骨架：
 
 - 固定身份、陪伴姿态、语气、称呼、句式、开场或结尾台词。
 - 固定自然语言 system prompt、developer prompt 或 hidden instruction。
-- 要求回复体现 `same-her`、Phase 1、continuity、project-state 等工程口号的自然语言规则。
+- 要求回复体现身份连续性、阶段、工程状态等口号的自然语言规则。
 - greeting、identity、date/time、utility、tool-success 的本地 deterministic 普通回复。
 - Provider 失败后伪装成正常人格表达的 fallback。
 - Provider 候选失败后用于重写人格、情绪、记忆、连续性或项目状态的任何本地指导。
@@ -141,7 +141,7 @@ flowchart TD
 - keyword、FTS、semantic/vector 和 episodic 检索计划。
 - 证据选择、排序理由、可见策略和风险标记。
 
-主对话运行时只能消费其结构化召回结果，不能在 fast-path、失败处理或 renderer 中另做一套长期搜索。
+主对话运行时只能消费其结构化召回结果，不能在本地旁路、失败处理或 renderer 中另做一套长期搜索。
 
 待审核候选不是已确认长期记忆，不得进入正常召回证据。tombstone、inward-only、no-training 和敏感度策略继续在长期记忆 owner 边界执行。
 
@@ -177,7 +177,7 @@ Provider 输入由动态事实和机器协议组成。
 
 - 固定人格台词或示例回复。
 - 固定陪伴姿态、称呼、语气或句式。
-- `same-her`、Phase 1、project-state、continuity 等工程口号。
+- 身份连续性、阶段、工程状态等工程口号。
 - “回答前必须怎样想、怎样说、怎样修复”的自然语言规则。
 - 本地生成的 greeting、identity、utility 或 tool-success 候选回复。
 - 失败后用于伪装正常人格表达的恢复文本。
@@ -213,9 +213,9 @@ Provider 请求应优先使用其原生 structured output 或 response format �
 4. FailureSurface 向用户明确说明当前 Provider/模型不支持所需结构化输出。
 5. 该 turn 记录为基础设施失败，并排除出长期记忆凝练和 persona learning。
 
-## Fast-path 删除
+## 本地普通回复旁路删除
 
-必须删除整个 ordinary dialogue fast-path，而不是只关闭部分 reason code。
+必须删除整个 ordinary dialogue 本地旁路，而不是只关闭部分 reason code。
 
 包括：
 
@@ -235,7 +235,7 @@ Provider 请求应优先使用其原生 structured output 或 response format �
 - 工具调用前的权限确认仍由风险策略表面处理，因为它是授权交互，不是人格回复。
 - Provider、工具或权限失败直接进入 FailureSurface。
 
-如果 `main-chat-active-dialogue-loop.ts` 中仍有执行回调共享能力，应先将最小、无台词的 typed builder 和类型迁到独立模块，再删除 fast-path 文件。迁出的模块不得保留普通回复生成能力。
+旧主动对话模块中曾被执行回调复用的能力只能迁出最小、无台词的 typed builder 和类型；退休模块不得保留普通回复生成能力。
 
 ## Settlement、检测与协议失败
 
@@ -262,7 +262,7 @@ type AlicizationVisibleArtifactOrigin
     | 'authorization-surface'
 ```
 
-其中只有 `provider` 可以产生正常对话文本。`failure-surface` 只能产生透明故障提示，`authorization-surface` 只能产生权限确认或拒绝状态。不存在 `local-reply`、`fast-path`、`fallback-persona` 或 `renderer-repair` 等合法来源。
+其中只有 `provider` 可以产生正常对话文本。`failure-surface` 只能产生透明故障提示，`authorization-surface` 只能产生权限确认或拒绝状态。不存在本地普通回复、人格 fallback 或 renderer 修补等合法来源。
 
 Provider 声明的 memory usage 必须与本 turn 实际提供的 WorkingMemory 和 LongTermMemoryRecall 证据 ID 交叉校验。Provider 不能凭空创造已使用的记忆证据，也不能改变 owner 的召回理由。
 
@@ -365,7 +365,7 @@ renderer 不得：
 
 - 注入固定人格 system prompt。
 - 为 greeting、identity、重试、超时或工具成功生成普通回复。
-- 用 `preDialogueSendIdentity` 或 project-state snapshot 构造自然语言身份连续性提示。
+- 用 renderer 侧身份快照或工程状态快照构造自然语言身份连续性提示。
 - 在 main process 失败后显示另一套本地人格 fallback。
 
 浏览器、移动端和其他 surface 后续应复用同一对话协议，不能成为新的 persona center。
@@ -374,9 +374,9 @@ renderer 不得：
 
 实施阶段按依赖顺序处理：
 
-1. 先增加“唯一主链路、无 fast-path、无固定 system prompt”的失败测试。
-2. 删除 `main-chat-background-run.ts` 中 ordinary fast-path 和 compact timeout recovery。
-3. 从 `main-chat-active-dialogue-loop.ts` 迁出仍被执行回调复用的最小 typed builder，然后删除该 fast-path 模块。
+1. 先增加“唯一主链路、无本地普通回复旁路、无固定 system prompt”的失败测试。
+2. 删除后台运行时中的 ordinary local reply branch 和 compact timeout recovery。
+3. 迁出仍被执行回调复用的最小 typed builder，然后删除退休的本地回复模块。
 4. 将结构化输出约束收敛为 Provider 原生 JSON Schema。
 5. 删除 `alicization-prompting.ts`、runtime prompt composer、guardrails 和 chat store 中的固定自然语言 system instruction。
 6. 删除共享层、main process 和 renderer 中的本地普通回复 fallback/repair。
@@ -395,7 +395,7 @@ renderer 不得：
 - 固定自然语言 core system instruction。
 - structured contract 的自然语言重述。
 - greeting、identity、utility、tool-success 本地回复生成器。
-- ordinary fast-path 分支。
+- ordinary local reply branch。
 - compact timeout 人格恢复分支。
 - Provider 失败后的本地重写、重试或 renderer 补写指导。
 - renderer 本地普通回复 fallback。
@@ -462,7 +462,7 @@ renderer 不得：
 
 实现完成必须同时满足：
 
-1. 生产对话代码中不存在 ordinary dialogue fast-path。
+1. 生产对话代码中不存在 ordinary dialogue 本地回复旁路。
 2. 正常用户可见回复只可能来自本次 Provider 返回。
 3. 每个可见 artifact 都有 `provider`、`failure-surface` 或 `authorization-surface` 来源，且只有 `provider` 可以产生正常对话文本。
 4. Provider 候选在 Schema 和污染检测通过前不会生成用户可见普通回复 artifact。

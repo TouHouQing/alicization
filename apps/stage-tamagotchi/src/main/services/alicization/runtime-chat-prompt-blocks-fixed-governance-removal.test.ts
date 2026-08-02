@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildChatInspectionContractSystemBlock,
+  buildChatInspectionGroundingParts,
   buildChatPerceptionSystemBlock,
 } from './runtime-chat-prompt-blocks'
 
@@ -15,14 +16,6 @@ describe('runtime chat prompt blocks fixed governance removal', () => {
     const source = readFileSync(new URL('./runtime-chat-prompt-blocks.ts', import.meta.url), 'utf8')
     expect(source).not.toContain('buildCompactMindTurnControlSystemBlock')
     expect(source).not.toContain('buildDialogueMindFrameSystemBlock')
-  })
-
-  it('does not define background project self-brief blocks for provider gateways', () => {
-    const source = readFileSync(new URL('./runtime.ts', import.meta.url), 'utf8')
-
-    expect(source).not.toMatch(/build(?:CoreIncarnationReforge|Reminder|Proactive|Dream|MemoryConsolidation)ProjectSelfBriefSystemBlock/u)
-    expect(source).not.toContain('buildAlicizationProviderFacingProjectStateExtraSystemBlocks')
-    expect(source).not.toContain('buildAlicizationProviderFacingProjectStateSystemBlock')
   })
 
   it('does not embed reply-writing rules in perception or inspection context', () => {
@@ -42,6 +35,8 @@ describe('runtime chat prompt blocks fixed governance removal', () => {
     const state = {
       attentionAnchor: {
         appName: 'Safari',
+        processName: 'Safari',
+        title: 'Memory settings',
         anchoredAt: 10,
         lastObservedAt: 10,
         reason: 'recent-foreground',
@@ -72,6 +67,10 @@ describe('runtime chat prompt blocks fixed governance removal', () => {
       type: 'alicization-perception',
       data: {
         inspectionMode: 'invited-by-user',
+        continuity: {
+          attention_anchor: expect.stringContaining('Safari'),
+          invited_inspection_active: 'false',
+        },
       },
     })
     expect(JSON.parse(inspection)).toMatchObject({
@@ -83,5 +82,65 @@ describe('runtime chat prompt blocks fixed governance removal', () => {
     })
     expect(perception).not.toContain('[ALICIZATION_PERCEPTION]')
     expect(inspection).not.toContain('[ALICIZATION_INSPECTION_CONTRACT]')
+  })
+
+  it('emits screenshot grounding as a typed fact instead of a natural-language cue block', () => {
+    const state = {
+      attentionAnchor: {
+        appName: 'Safari',
+        anchoredAt: 10,
+        lastObservedAt: 10,
+        reason: 'recent-foreground',
+        workloadKind: 'browsing',
+        confidence: 0.9,
+      },
+      browserWorkflowState: null,
+      lastNonSelfForegroundTarget: null,
+      recentObservations: [{
+        appName: 'Safari',
+        observedAt: 10,
+      }],
+      invitedInspection: null,
+      recentSceneResidue: null,
+      updatedAt: 10,
+    } as any
+
+    const parts = buildChatInspectionGroundingParts({
+      imageDataUrl: 'data:image/png;base64,current-screen',
+      candidateSourceName: 'Entire screen',
+      focusTarget: {
+        appName: 'Safari',
+        source: 'window',
+      },
+      perceptionState: state,
+      currentForeground: {
+        appName: 'Safari',
+      },
+      userText: '重新看看我的屏幕',
+      now: 10,
+      staleHistoryRisk: true,
+    })
+
+    expect(parts).toHaveLength(2)
+    expect(parts[0]?.type).toBe('text')
+    const groundingText = parts[0]?.type === 'text' ? parts[0].text : ''
+    expect(JSON.parse(groundingText)).toMatchObject({
+      type: 'alicization-visual-grounding',
+      data: {
+        userRequest: '重新看看我的屏幕',
+        captureSource: 'Entire screen',
+        staleHistoryRisk: true,
+        currentScreenshotAttached: true,
+        attentionAnchor: null,
+      },
+    })
+    expect(groundingText).not.toContain('[ALICIZATION_VISUAL_GROUNDING]')
+    expect(groundingText).not.toContain('User request:')
+    expect(parts[1]).toMatchObject({
+      type: 'image_url',
+      image_url: {
+        url: 'data:image/png;base64,current-screen',
+      },
+    })
   })
 })

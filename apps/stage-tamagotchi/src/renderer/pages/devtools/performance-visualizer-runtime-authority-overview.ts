@@ -33,19 +33,19 @@ export interface PerformanceVisualizerRuntimeAuthorityOverview {
   bodyContinuitySummary?: string | null
   embodimentClosureStage?: string | null
   authorityTrustSummary?: string | null
-  sameHerSignature?: string | null
-  sameHerReasonTags?: string[] | null
+  continuitySignature?: string | null
+  continuityReasonTags?: string[] | null
   runtimeMemoryClosureIdentityKey?: string | null
   runtimeMemoryClosureIdentityReasonTags?: string[] | null
-  sameHerFrameAligned?: boolean | null
-  sameHerFrameMismatchDrivers?: string[] | null
-  sameHerFramePerformanceSegmentId?: string | null
-  sameHerFrameSpeechSegmentId?: string | null
-  sameHerFrameSummary?: string | null
-  sameHerExecutionAligned?: boolean | null
-  sameHerExecutionAuthoritySegmentId?: string | null
-  sameHerExecutionMismatchDrivers?: string[] | null
-  sameHerExecutionSummary?: string | null
+  continuityFrameAligned?: boolean | null
+  continuityFrameMismatchDrivers?: string[] | null
+  continuityFramePerformanceSegmentId?: string | null
+  continuityFrameSpeechSegmentId?: string | null
+  continuityFrameSummary?: string | null
+  continuityExecutionAligned?: boolean | null
+  continuityExecutionAuthoritySegmentId?: string | null
+  continuityExecutionMismatchDrivers?: string[] | null
+  continuityExecutionSummary?: string | null
   prosodyAuthoritySummary: string | null
   preferredBlinkCadence?: string | null
   preferredGazeMode?: string | null
@@ -161,7 +161,7 @@ function extractStructuredSegmentId(summary: string | null | undefined) {
   return normalizeRuntimeReasonSummary(match?.[1] ?? null)
 }
 
-function extractStructuredSameHerSegmentIds(summary: string | null | undefined) {
+function extractStructuredContinuitySegmentIds(summary: string | null | undefined) {
   const normalized = normalizeRuntimeReasonSummary(summary)
   if (!normalized) {
     return {
@@ -191,8 +191,8 @@ function structuredSummaryMatchesScopedSegment(summary: string | null | undefine
   return matchesScopedSegment(structuredSegmentId, activeSegmentId)
 }
 
-function structuredSameHerSummaryMatchesScopedSegment(summary: string | null | undefined, activeSegmentId: string | null | undefined) {
-  const segmentIds = extractStructuredSameHerSegmentIds(summary)
+function structuredContinuitySummaryMatchesScopedSegment(summary: string | null | undefined, activeSegmentId: string | null | undefined) {
+  const segmentIds = extractStructuredContinuitySegmentIds(summary)
   return [
     segmentIds.authoritySegmentId,
     segmentIds.summarySegmentId,
@@ -201,7 +201,7 @@ function structuredSameHerSummaryMatchesScopedSegment(summary: string | null | u
   ].every(segmentId => matchesScopedSegment(segmentId, activeSegmentId))
 }
 
-function resolveSameHerEvidenceBelongsToActiveSegment(input: {
+function resolveContinuityEvidenceBelongsToActiveSegment(input: {
   activeSegmentId: string | null | undefined
   summary: string | null | undefined
   segmentIds?: Array<string | null | undefined>
@@ -210,7 +210,7 @@ function resolveSameHerEvidenceBelongsToActiveSegment(input: {
   if (!normalizedActiveSegmentId)
     return true
 
-  const summarySegmentIds = extractStructuredSameHerSegmentIds(input.summary)
+  const summarySegmentIds = extractStructuredContinuitySegmentIds(input.summary)
   const candidateSegmentIds = [
     ...(input.segmentIds ?? []),
     summarySegmentIds.authoritySegmentId,
@@ -228,51 +228,51 @@ function resolveSameHerEvidenceBelongsToActiveSegment(input: {
   return candidateSegmentIds.includes(normalizedActiveSegmentId)
 }
 
-function resolveCueScopedSameHerSummaries(input: {
+function resolveCueScopedContinuitySummaries(input: {
   cueId: string | null
   live2dAuthorityView?: Pick<
     PerformanceVisualizerLive2DAuthorityComparisonView,
-    'sameHerExecutionAuthoritySegmentId' | 'sameHerExecutionSummary'
+    'continuityExecutionAuthoritySegmentId' | 'continuityExecutionSummary'
   > | null
   vrmAuthorityView?: Pick<
     PerformanceVisualizerVrmAuthorityComparisonView,
-    'sameHerFramePerformanceSegmentId' | 'sameHerFrameSpeechSegmentId' | 'sameHerFrameSummary'
+    'continuityFramePerformanceSegmentId' | 'continuityFrameSpeechSegmentId' | 'continuityFrameSummary'
   > | null
 }) {
-  const live2dSameHerExecutionSummary = (() => {
-    const summary = normalizeRuntimeReasonSummary(input.live2dAuthorityView?.sameHerExecutionSummary)
+  const live2dContinuityExecutionSummary = (() => {
+    const summary = normalizeRuntimeReasonSummary(input.live2dAuthorityView?.continuityExecutionSummary)
     if (!summary)
       return null
 
-    const authoritySegmentId = normalizeRuntimeReasonSummary(input.live2dAuthorityView?.sameHerExecutionAuthoritySegmentId)
+    const authoritySegmentId = normalizeRuntimeReasonSummary(input.live2dAuthorityView?.continuityExecutionAuthoritySegmentId)
     if (!matchesScopedSegment(authoritySegmentId, input.cueId))
       return null
-    if (!structuredSameHerSummaryMatchesScopedSegment(summary, input.cueId))
+    if (!structuredContinuitySummaryMatchesScopedSegment(summary, input.cueId))
       return null
 
     return summary
   })()
 
-  const vrmSameHerFrameSummary = (() => {
-    const summary = normalizeRuntimeReasonSummary(input.vrmAuthorityView?.sameHerFrameSummary)
+  const vrmContinuityFrameSummary = (() => {
+    const summary = normalizeRuntimeReasonSummary(input.vrmAuthorityView?.continuityFrameSummary)
     if (!summary)
       return null
 
-    const performanceSegmentId = normalizeRuntimeReasonSummary(input.vrmAuthorityView?.sameHerFramePerformanceSegmentId)
-    const speechSegmentId = normalizeRuntimeReasonSummary(input.vrmAuthorityView?.sameHerFrameSpeechSegmentId)
+    const performanceSegmentId = normalizeRuntimeReasonSummary(input.vrmAuthorityView?.continuityFramePerformanceSegmentId)
+    const speechSegmentId = normalizeRuntimeReasonSummary(input.vrmAuthorityView?.continuityFrameSpeechSegmentId)
     if (!matchesScopedSegment(performanceSegmentId, input.cueId))
       return null
     if (!matchesScopedSegment(speechSegmentId, input.cueId))
       return null
-    if (!structuredSameHerSummaryMatchesScopedSegment(summary, input.cueId))
+    if (!structuredContinuitySummaryMatchesScopedSegment(summary, input.cueId))
       return null
 
     return summary
   })()
 
   return {
-    live2dSameHerExecutionSummary,
-    vrmSameHerFrameSummary,
+    live2dContinuityExecutionSummary,
+    vrmContinuityFrameSummary,
   }
 }
 
@@ -558,7 +558,7 @@ function extractEmbodimentClosureStage(...summaries: Array<string | null | undef
   return null
 }
 
-function formatSameHerDriverName(driver: string) {
+function formatContinuityDriverName(driver: string) {
   if (driver === 'body')
     return '身体'
   if (driver === 'face')
@@ -572,59 +572,59 @@ function formatSameHerDriverName(driver: string) {
   return driver
 }
 
-function formatSameHerMismatchDriverList(drivers: string[]) {
+function formatContinuityMismatchDriverList(drivers: string[]) {
   const normalizedDrivers = drivers
     .map(driver => normalizeRuntimeReasonSummary(driver))
     .filter((driver): driver is string => Boolean(driver))
     .filter((driver, index, values) => values.indexOf(driver) === index)
-    .map(formatSameHerDriverName)
+    .map(formatContinuityDriverName)
 
   return normalizedDrivers.length > 0
     ? normalizedDrivers.join('、')
     : null
 }
 
-function buildSameHerContinuitySummaryEntry(input: {
+function buildContinuitySummaryEntry(input: {
   rendererTarget: PerformanceVisualizerRendererTarget
   embodimentClosureStage: string | null
-  sameHerFrameSummary: string | null
-  sameHerFrameAligned: boolean | null
-  sameHerFrameMismatchDrivers: string[]
-  sameHerFramePerformanceSegmentId: string | null
-  sameHerFrameSpeechSegmentId: string | null
-  sameHerExecutionSummary: string | null
-  sameHerExecutionAligned: boolean | null
-  sameHerExecutionMismatchDrivers: string[]
-  sameHerExecutionAuthoritySegmentId: string | null
+  continuityFrameSummary: string | null
+  continuityFrameAligned: boolean | null
+  continuityFrameMismatchDrivers: string[]
+  continuityFramePerformanceSegmentId: string | null
+  continuityFrameSpeechSegmentId: string | null
+  continuityExecutionSummary: string | null
+  continuityExecutionAligned: boolean | null
+  continuityExecutionMismatchDrivers: string[]
+  continuityExecutionAuthoritySegmentId: string | null
 }): PerformanceVisualizerRuntimeDiagnosticSummaryEntry | null {
-  const sameHerFrameSegmentIds = extractStructuredSameHerSegmentIds(input.sameHerFrameSummary)
-  const sameHerExecutionSegmentIds = extractStructuredSameHerSegmentIds(input.sameHerExecutionSummary)
+  const continuityFrameSegmentIds = extractStructuredContinuitySegmentIds(input.continuityFrameSummary)
+  const continuityExecutionSegmentIds = extractStructuredContinuitySegmentIds(input.continuityExecutionSummary)
   const candidates = {
-    frame: input.sameHerFrameSummary
+    frame: input.continuityFrameSummary
       ? {
           source: 'frame' as const,
-          summary: input.sameHerFrameSummary,
-          aligned: input.sameHerFrameAligned,
-          mismatchDrivers: input.sameHerFrameMismatchDrivers,
-          segmentId: input.sameHerFramePerformanceSegmentId
-            ?? input.sameHerFrameSpeechSegmentId
-            ?? sameHerFrameSegmentIds.performanceSegmentId
-            ?? sameHerFrameSegmentIds.speechSegmentId
-            ?? sameHerFrameSegmentIds.summarySegmentId
-            ?? sameHerFrameSegmentIds.authoritySegmentId,
+          summary: input.continuityFrameSummary,
+          aligned: input.continuityFrameAligned,
+          mismatchDrivers: input.continuityFrameMismatchDrivers,
+          segmentId: input.continuityFramePerformanceSegmentId
+            ?? input.continuityFrameSpeechSegmentId
+            ?? continuityFrameSegmentIds.performanceSegmentId
+            ?? continuityFrameSegmentIds.speechSegmentId
+            ?? continuityFrameSegmentIds.summarySegmentId
+            ?? continuityFrameSegmentIds.authoritySegmentId,
         }
       : null,
-    execution: input.sameHerExecutionSummary
+    execution: input.continuityExecutionSummary
       ? {
           source: 'execution' as const,
-          summary: input.sameHerExecutionSummary,
-          aligned: input.sameHerExecutionAligned,
-          mismatchDrivers: input.sameHerExecutionMismatchDrivers,
-          segmentId: input.sameHerExecutionAuthoritySegmentId
-            ?? sameHerExecutionSegmentIds.authoritySegmentId
-            ?? sameHerExecutionSegmentIds.summarySegmentId
-            ?? sameHerExecutionSegmentIds.performanceSegmentId
-            ?? sameHerExecutionSegmentIds.speechSegmentId,
+          summary: input.continuityExecutionSummary,
+          aligned: input.continuityExecutionAligned,
+          mismatchDrivers: input.continuityExecutionMismatchDrivers,
+          segmentId: input.continuityExecutionAuthoritySegmentId
+            ?? continuityExecutionSegmentIds.authoritySegmentId
+            ?? continuityExecutionSegmentIds.summarySegmentId
+            ?? continuityExecutionSegmentIds.performanceSegmentId
+            ?? continuityExecutionSegmentIds.speechSegmentId,
         }
       : null,
   }
@@ -638,7 +638,7 @@ function buildSameHerContinuitySummaryEntry(input: {
   if (!selectedCandidate)
     return null
 
-  const mismatchDriversDisplay = formatSameHerMismatchDriverList(selectedCandidate.mismatchDrivers)
+  const mismatchDriversDisplay = formatContinuityMismatchDriverList(selectedCandidate.mismatchDrivers)
   const valueParts = [
     `当前 identity-continuity continuity 主要由${selectedCandidate.source === 'frame' ? '渲染帧线' : '执行线'}继续托住`,
     selectedCandidate.segmentId ? `活跃片段 ${selectedCandidate.segmentId}` : null,
@@ -667,20 +667,20 @@ export function buildRuntimeAuthorityOverview(input: {
   speechEmbodiment?: StageThreeRuntimeSpeechEmbodimentDiagnostics | null
   live2dAuthorityView?: Pick<
     PerformanceVisualizerLive2DAuthorityComparisonView,
-    | 'sameHerExecutionAligned'
-    | 'sameHerExecutionAuthoritySegmentId'
-    | 'sameHerExecutionMismatchDrivers'
-    | 'sameHerExecutionSummary'
+    | 'continuityExecutionAligned'
+    | 'continuityExecutionAuthoritySegmentId'
+    | 'continuityExecutionMismatchDrivers'
+    | 'continuityExecutionSummary'
   > | null
   playbackCueAuthorityView?: PerformanceVisualizerPlaybackCueAuthorityView | null
   traceEmbodimentSummary?: string | null
   vrmAuthorityView?: Pick<
     PerformanceVisualizerVrmAuthorityComparisonView,
-    | 'sameHerFrameAligned'
-    | 'sameHerFrameMismatchDrivers'
-    | 'sameHerFramePerformanceSegmentId'
-    | 'sameHerFrameSpeechSegmentId'
-    | 'sameHerFrameSummary'
+    | 'continuityFrameAligned'
+    | 'continuityFrameMismatchDrivers'
+    | 'continuityFramePerformanceSegmentId'
+    | 'continuityFrameSpeechSegmentId'
+    | 'continuityFrameSummary'
   > | null
 }): PerformanceVisualizerRuntimeAuthorityOverview | null {
   const playbackCueAuthorityView = input.playbackCueAuthorityView ?? null
@@ -876,21 +876,21 @@ export function buildRuntimeAuthorityOverview(input: {
     ?? authoritySummaryTraceEmbodimentSummary
     ?? input.traceEmbodimentSummary
     ?? null
-  const upstreamSameHerSignature = preferUpstreamAuthoritySummary
+  const upstreamContinuitySignature = preferUpstreamAuthoritySummary
     ? normalizeRuntimeReasonSummary((authoritySummary as { signature?: string | null } | null)?.signature ?? null)
     : null
-  const upstreamSameHerReasonTags = preferUpstreamAuthoritySummary
+  const upstreamContinuityReasonTags = preferUpstreamAuthoritySummary
     ? ((authoritySummary as { reasonTags?: string[] | null } | null)?.reasonTags ?? [])
         .map(tag => normalizeRuntimeReasonSummary(tag))
         .filter((tag): tag is string => Boolean(tag))
         .filter((tag, index, tags) => tags.indexOf(tag) === index)
     : []
-  const sameHerSignature = normalizeRuntimeReasonSummary(playbackCueAuthorityView?.signature ?? null)
-    ?? upstreamSameHerSignature
+  const continuitySignature = normalizeRuntimeReasonSummary(playbackCueAuthorityView?.signature ?? null)
+    ?? upstreamContinuitySignature
     ?? null
-  const sameHerReasonTags = [
+  const continuityReasonTags = [
     ...(playbackCueAuthorityView?.reasonTags ?? []),
-    ...upstreamSameHerReasonTags,
+    ...upstreamContinuityReasonTags,
   ]
     .map(tag => normalizeRuntimeReasonSummary(tag))
     .filter((tag): tag is string => Boolean(tag))
@@ -902,48 +902,48 @@ export function buildRuntimeAuthorityOverview(input: {
     ?? (preferUpstreamAuthoritySummary ? authoritySummaryCueId : null)
     ?? authoritySegmentId
     ?? null
-  const rawSameHerFrameSummary = normalizeRuntimeReasonSummary(vrmAuthorityView?.sameHerFrameSummary)
-  const rawSameHerFrameAligned = typeof vrmAuthorityView?.sameHerFrameAligned === 'boolean'
-    ? vrmAuthorityView.sameHerFrameAligned
+  const rawContinuityFrameSummary = normalizeRuntimeReasonSummary(vrmAuthorityView?.continuityFrameSummary)
+  const rawContinuityFrameAligned = typeof vrmAuthorityView?.continuityFrameAligned === 'boolean'
+    ? vrmAuthorityView.continuityFrameAligned
     : null
-  const rawSameHerFrameMismatchDrivers = (vrmAuthorityView?.sameHerFrameMismatchDrivers ?? [])
+  const rawContinuityFrameMismatchDrivers = (vrmAuthorityView?.continuityFrameMismatchDrivers ?? [])
     .map(driver => normalizeRuntimeReasonSummary(driver))
     .filter((driver): driver is string => Boolean(driver))
     .filter((driver, index, drivers) => drivers.indexOf(driver) === index)
-  const rawSameHerFramePerformanceSegmentId = normalizeRuntimeReasonSummary(vrmAuthorityView?.sameHerFramePerformanceSegmentId)
-  const rawSameHerFrameSpeechSegmentId = normalizeRuntimeReasonSummary(vrmAuthorityView?.sameHerFrameSpeechSegmentId)
-  const rawSameHerExecutionSummary = normalizeRuntimeReasonSummary(live2dAuthorityView?.sameHerExecutionSummary)
-  const rawSameHerExecutionAligned = typeof live2dAuthorityView?.sameHerExecutionAligned === 'boolean'
-    ? live2dAuthorityView.sameHerExecutionAligned
+  const rawContinuityFramePerformanceSegmentId = normalizeRuntimeReasonSummary(vrmAuthorityView?.continuityFramePerformanceSegmentId)
+  const rawContinuityFrameSpeechSegmentId = normalizeRuntimeReasonSummary(vrmAuthorityView?.continuityFrameSpeechSegmentId)
+  const rawContinuityExecutionSummary = normalizeRuntimeReasonSummary(live2dAuthorityView?.continuityExecutionSummary)
+  const rawContinuityExecutionAligned = typeof live2dAuthorityView?.continuityExecutionAligned === 'boolean'
+    ? live2dAuthorityView.continuityExecutionAligned
     : null
-  const rawSameHerExecutionMismatchDrivers = (live2dAuthorityView?.sameHerExecutionMismatchDrivers ?? [])
+  const rawContinuityExecutionMismatchDrivers = (live2dAuthorityView?.continuityExecutionMismatchDrivers ?? [])
     .map(driver => normalizeRuntimeReasonSummary(driver))
     .filter((driver): driver is string => Boolean(driver))
     .filter((driver, index, drivers) => drivers.indexOf(driver) === index)
-  const rawSameHerExecutionAuthoritySegmentId = normalizeRuntimeReasonSummary(live2dAuthorityView?.sameHerExecutionAuthoritySegmentId)
-  const sameHerFrameBelongsToActiveSegment = resolveSameHerEvidenceBelongsToActiveSegment({
+  const rawContinuityExecutionAuthoritySegmentId = normalizeRuntimeReasonSummary(live2dAuthorityView?.continuityExecutionAuthoritySegmentId)
+  const continuityFrameBelongsToActiveSegment = resolveContinuityEvidenceBelongsToActiveSegment({
     activeSegmentId: expectedCueId,
-    summary: rawSameHerFrameSummary,
+    summary: rawContinuityFrameSummary,
     segmentIds: [
-      rawSameHerFramePerformanceSegmentId,
-      rawSameHerFrameSpeechSegmentId,
+      rawContinuityFramePerformanceSegmentId,
+      rawContinuityFrameSpeechSegmentId,
     ],
   })
-  const sameHerExecutionBelongsToActiveSegment = resolveSameHerEvidenceBelongsToActiveSegment({
+  const continuityExecutionBelongsToActiveSegment = resolveContinuityEvidenceBelongsToActiveSegment({
     activeSegmentId: expectedCueId,
-    summary: rawSameHerExecutionSummary,
-    segmentIds: [rawSameHerExecutionAuthoritySegmentId],
+    summary: rawContinuityExecutionSummary,
+    segmentIds: [rawContinuityExecutionAuthoritySegmentId],
   })
-  const sameHerFrameSummary = sameHerFrameBelongsToActiveSegment ? rawSameHerFrameSummary : null
-  const sameHerFrameAligned = sameHerFrameBelongsToActiveSegment ? rawSameHerFrameAligned : null
-  const sameHerFrameMismatchDrivers = sameHerFrameBelongsToActiveSegment ? rawSameHerFrameMismatchDrivers : []
-  const sameHerFramePerformanceSegmentId = sameHerFrameBelongsToActiveSegment ? rawSameHerFramePerformanceSegmentId : null
-  const sameHerFrameSpeechSegmentId = sameHerFrameBelongsToActiveSegment ? rawSameHerFrameSpeechSegmentId : null
-  const sameHerExecutionSummary = sameHerExecutionBelongsToActiveSegment ? rawSameHerExecutionSummary : null
-  const sameHerExecutionAligned = sameHerExecutionBelongsToActiveSegment ? rawSameHerExecutionAligned : null
-  const sameHerExecutionMismatchDrivers = sameHerExecutionBelongsToActiveSegment ? rawSameHerExecutionMismatchDrivers : []
-  const sameHerExecutionAuthoritySegmentId = sameHerExecutionBelongsToActiveSegment ? rawSameHerExecutionAuthoritySegmentId : null
-  const cueScopedSameHerSummaries = resolveCueScopedSameHerSummaries({
+  const continuityFrameSummary = continuityFrameBelongsToActiveSegment ? rawContinuityFrameSummary : null
+  const continuityFrameAligned = continuityFrameBelongsToActiveSegment ? rawContinuityFrameAligned : null
+  const continuityFrameMismatchDrivers = continuityFrameBelongsToActiveSegment ? rawContinuityFrameMismatchDrivers : []
+  const continuityFramePerformanceSegmentId = continuityFrameBelongsToActiveSegment ? rawContinuityFramePerformanceSegmentId : null
+  const continuityFrameSpeechSegmentId = continuityFrameBelongsToActiveSegment ? rawContinuityFrameSpeechSegmentId : null
+  const continuityExecutionSummary = continuityExecutionBelongsToActiveSegment ? rawContinuityExecutionSummary : null
+  const continuityExecutionAligned = continuityExecutionBelongsToActiveSegment ? rawContinuityExecutionAligned : null
+  const continuityExecutionMismatchDrivers = continuityExecutionBelongsToActiveSegment ? rawContinuityExecutionMismatchDrivers : []
+  const continuityExecutionAuthoritySegmentId = continuityExecutionBelongsToActiveSegment ? rawContinuityExecutionAuthoritySegmentId : null
+  const cueScopedContinuitySummaries = resolveCueScopedContinuitySummaries({
     cueId: expectedCueId,
     live2dAuthorityView,
     vrmAuthorityView,
@@ -955,8 +955,8 @@ export function buildRuntimeAuthorityOverview(input: {
     authorityMismatchDisplay,
     authorityMismatchReasonSummary,
     playbackCueAuthorityView?.bodyContinuitySummary ?? null,
-    cueScopedSameHerSummaries.vrmSameHerFrameSummary,
-    cueScopedSameHerSummaries.live2dSameHerExecutionSummary,
+    cueScopedContinuitySummaries.vrmContinuityFrameSummary,
+    cueScopedContinuitySummaries.live2dContinuityExecutionSummary,
   )
   const upstreamTraceSummary = input.speechEmbodiment?.traceSummary
   const traceSummary = normalizeTraceSummaryCueId((
@@ -997,8 +997,8 @@ export function buildRuntimeAuthorityOverview(input: {
     authorityMatchSummary,
     embodimentClosureStage,
     authorityTrustSummary,
-    ...(sameHerSignature ? { sameHerSignature } : {}),
-    ...(sameHerReasonTags.length > 0 ? { sameHerReasonTags } : {}),
+    ...(continuitySignature ? { continuitySignature } : {}),
+    ...(continuityReasonTags.length > 0 ? { continuityReasonTags } : {}),
     ...(runtimeMemoryClosureIdentity
       ? {
           runtimeMemoryClosureIdentityKey: runtimeMemoryClosureIdentity.continuityKey,
@@ -1019,61 +1019,61 @@ export function buildRuntimeAuthorityOverview(input: {
     settleAuthoritySummary,
     suppressDerivedAuthorityTrust: playbackCueTrustScopedAway,
   })
-  const sameHerContinuitySummaryEntry = buildSameHerContinuitySummaryEntry({
+  const continuitySummaryEntry = buildContinuitySummaryEntry({
     rendererTarget,
     embodimentClosureStage,
-    sameHerFrameSummary,
-    sameHerFrameAligned,
-    sameHerFrameMismatchDrivers,
-    sameHerFramePerformanceSegmentId,
-    sameHerFrameSpeechSegmentId,
-    sameHerExecutionSummary,
-    sameHerExecutionAligned,
-    sameHerExecutionMismatchDrivers,
-    sameHerExecutionAuthoritySegmentId,
+    continuityFrameSummary,
+    continuityFrameAligned,
+    continuityFrameMismatchDrivers,
+    continuityFramePerformanceSegmentId,
+    continuityFrameSpeechSegmentId,
+    continuityExecutionSummary,
+    continuityExecutionAligned,
+    continuityExecutionMismatchDrivers,
+    continuityExecutionAuthoritySegmentId,
   })
-  if (sameHerContinuitySummaryEntry)
-    summaryEntries.push(sameHerContinuitySummaryEntry)
-  if (sameHerFrameSummary) {
+  if (continuitySummaryEntry)
+    summaryEntries.push(continuitySummaryEntry)
+  if (continuityFrameSummary) {
     summaryEntries.push({
       key: 'identity-continuity-frame-summary',
       label: '同一生命线帧摘要',
-      value: sameHerFrameSummary,
+      value: continuityFrameSummary,
     })
   }
-  if (sameHerFrameAligned != null) {
+  if (continuityFrameAligned != null) {
     summaryEntries.push({
       key: 'identity-continuity-frame-aligned',
       label: '同一生命线帧对齐',
-      value: String(sameHerFrameAligned),
+      value: String(continuityFrameAligned),
     })
   }
-  if (sameHerFrameMismatchDrivers.length > 0) {
+  if (continuityFrameMismatchDrivers.length > 0) {
     summaryEntries.push({
       key: 'identity-continuity-frame-mismatch-drivers',
       label: '同一生命线漂移驱动',
-      value: sameHerFrameMismatchDrivers.join(', '),
+      value: continuityFrameMismatchDrivers.join(', '),
     })
   }
-  if (sameHerExecutionSummary) {
+  if (continuityExecutionSummary) {
     summaryEntries.push({
       key: 'identity-continuity-execution-summary',
       label: '同一生命线执行摘要',
-      value: sameHerExecutionSummary,
+      value: continuityExecutionSummary,
     })
   }
-  if (sameHerExecutionAligned != null) {
+  if (continuityExecutionAligned != null) {
     summaryEntries.push({
       key: 'identity-continuity-execution-aligned',
       label: '同一生命线执行对齐',
-      value: String(sameHerExecutionAligned),
+      value: String(continuityExecutionAligned),
     })
   }
-  if (sameHerExecutionMismatchDrivers.length > 0) {
+  if (continuityExecutionMismatchDrivers.length > 0) {
     summaryEntries.push({
       key: 'identity-continuity-execution-mismatch-drivers',
       label: '同一生命线执行漂移驱动',
-      value: sameHerExecutionMismatchDrivers.join(', '),
+      value: continuityExecutionMismatchDrivers.join(', '),
     })
   }
   const enrichedTraceSummaryEntries = buildTraceTelemetrySummaryEntries(traceSummary, {
@@ -1088,23 +1088,23 @@ export function buildRuntimeAuthorityOverview(input: {
     bodyContinuitySummary: playbackCueAuthorityView?.bodyContinuitySummary ?? null,
     embodimentClosureStage,
     authorityTrustSummary,
-    ...(sameHerSignature ? { sameHerSignature } : {}),
-    ...(sameHerReasonTags.length > 0 ? { sameHerReasonTags } : {}),
+    ...(continuitySignature ? { continuitySignature } : {}),
+    ...(continuityReasonTags.length > 0 ? { continuityReasonTags } : {}),
     ...(runtimeMemoryClosureIdentity
       ? {
           runtimeMemoryClosureIdentityKey: runtimeMemoryClosureIdentity.continuityKey,
           runtimeMemoryClosureIdentityReasonTags: runtimeMemoryClosureIdentity.reasonTags,
         }
       : {}),
-    ...(sameHerFrameSummary ? { sameHerFrameSummary } : {}),
-    ...(sameHerFrameAligned != null ? { sameHerFrameAligned } : {}),
-    ...(sameHerFrameMismatchDrivers.length > 0 ? { sameHerFrameMismatchDrivers } : {}),
-    ...(sameHerFramePerformanceSegmentId ? { sameHerFramePerformanceSegmentId } : {}),
-    ...(sameHerFrameSpeechSegmentId ? { sameHerFrameSpeechSegmentId } : {}),
-    ...(sameHerExecutionSummary ? { sameHerExecutionSummary } : {}),
-    ...(sameHerExecutionAligned != null ? { sameHerExecutionAligned } : {}),
-    ...(sameHerExecutionMismatchDrivers.length > 0 ? { sameHerExecutionMismatchDrivers } : {}),
-    ...(sameHerExecutionAuthoritySegmentId ? { sameHerExecutionAuthoritySegmentId } : {}),
+    ...(continuityFrameSummary ? { continuityFrameSummary } : {}),
+    ...(continuityFrameAligned != null ? { continuityFrameAligned } : {}),
+    ...(continuityFrameMismatchDrivers.length > 0 ? { continuityFrameMismatchDrivers } : {}),
+    ...(continuityFramePerformanceSegmentId ? { continuityFramePerformanceSegmentId } : {}),
+    ...(continuityFrameSpeechSegmentId ? { continuityFrameSpeechSegmentId } : {}),
+    ...(continuityExecutionSummary ? { continuityExecutionSummary } : {}),
+    ...(continuityExecutionAligned != null ? { continuityExecutionAligned } : {}),
+    ...(continuityExecutionMismatchDrivers.length > 0 ? { continuityExecutionMismatchDrivers } : {}),
+    ...(continuityExecutionAuthoritySegmentId ? { continuityExecutionAuthoritySegmentId } : {}),
     prosodyAuthoritySummary,
     preferredBlinkCadence,
     preferredGazeMode,

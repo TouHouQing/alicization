@@ -8,7 +8,7 @@ import { ApiError } from '../../utils/error'
 import { createChatRoutes } from '../chats'
 
 describe('chatRoutes', () => {
-  it('drops legacy pre-dialogue governance at the browser server stream proxy boundary', async () => {
+  it('drops unsupported top-level context at the browser server stream proxy boundary', async () => {
     let capturedPayload: Record<string, unknown> | null = null
     const chatService = {
       streamChat: vi.fn(async (payload, options) => {
@@ -53,28 +53,8 @@ describe('chatRoutes', () => {
             content: '继续把数字生命拟人情绪驱动闭环收完。',
           },
         ],
-        preDialogueSendIdentity: {
-          status: 'grounded',
-          summaryLine: 'Structured pre-dialogue continuity is available at the browser proxy boundary.',
-          companionBriefingLine: 'The current turn carries project identity, landed progress, and open loop metadata.',
-          companionNextClosureLine: 'Keep the proxy payload intact for the downstream chat service.',
-          awarenessLine: 'Proxy should forward structured continuity fields without rewriting them.',
-          emotionalClosureCue: 'Keep provider-facing reply grounded in the forwarded structured context.',
-          reasonPreview: [
-            'Browser proxy carries structured continuity before dispatch.',
-          ],
-          projectState: {
-            identity: 'Alicization local runtime project state',
-            currentPhase: 'local desktop life loop',
-            latestLandedProgress: 'body-face-motion continuity has landed',
-            primaryOpenLoop: 'lipsync and voice still need rejoin validation',
-            nextClosureTarget: 'preserve structured continuity through browser proxy',
-            continuitySummary: 'browser proxy forwards structured continuity before the turn.',
-          },
-          emotionalKernel: {
-            affectLabel: 'calm-resolute',
-            socialPosture: 'steady',
-          },
+        unsupportedContext: {
+          text: 'must not cross the proxy schema boundary',
         },
       }),
     })
@@ -93,6 +73,6 @@ describe('chatRoutes', () => {
         content: '继续把数字生命拟人情绪驱动闭环收完。',
       }],
     }))
-    expect(capturedPayload).not.toHaveProperty('preDialogueSendIdentity')
+    expect(capturedPayload).not.toHaveProperty('unsupportedContext')
   })
 })

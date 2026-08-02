@@ -50,12 +50,6 @@ export function readLearningExecutionStateFromDerivedMindStateBundle(
   return bundle?.learningExecutionState ?? null
 }
 
-export function readActiveContinuityGovernanceFromDerivedMindStateBundle(
-  bundle: AlicizationDerivedMindStateBundle | null | undefined,
-) {
-  return bundle?.activeContinuityGovernance ?? null
-}
-
 export function readRecallLatencyPolicyFromDerivedMindStateBundle(
   bundle: AlicizationDerivedMindStateBundle | null | undefined,
 ) {

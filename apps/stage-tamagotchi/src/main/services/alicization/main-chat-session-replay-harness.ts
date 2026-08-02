@@ -29,7 +29,6 @@ import {
   readKnowledgeEvidenceFromDerivedMindStateBundle,
   readMemoryDeliberationFromDerivedMindStateBundle,
   readPersonStateProjectionFromDerivedMindStateBundle,
-  readRecollectionPlanFromDerivedMindStateBundle,
   readRecollectionSpeechPlanFromDerivedMindStateBundle,
 } from '@proj-alicization/stage-shared'
 
@@ -89,7 +88,7 @@ function createEmptyLongTermMemoryEvidenceBundle(
       mode: 'none',
       shouldRecall: false,
       confidence: 0,
-      rationale: 'No durable memory signal.',
+      rationale: 'recall:none',
       temporalFocus: 'unspecified',
       targetKinds: [],
       queryHints: [],
@@ -167,10 +166,8 @@ function createBasePrelude(input: {
     executionRoutingIntent: null,
     perceptionAugmentation: {
       messages: input.messages,
-      systemBlocks: [
-        '[ALICIZATION_VISUAL_PRESENCE]\nWatch mode: symbiotic-vision.\nMind kernel: {"dominantMode":"tracking"}',
-      ],
-      promptSystemBlocks: ['[PERCEPTION]'],
+      systemBlocks: [],
+      promptSystemBlocks: [],
       digitalLifeRuntimeSurface: {
         version: 'digital-life-runtime-surface-v1',
         perception: {
@@ -267,24 +264,7 @@ function createBasePrelude(input: {
         turnMode: input.governance?.turnMode ?? 'answer',
         personaKernelMode: input.governance?.personaKernelMode ?? 'full',
         mindTurnContract: null,
-        mindTurnGovernance: input.governance ?? ({
-          decisionTraceId: 'trace-replay',
-          turnMode: 'answer',
-          truthState: 'dialogue-grounded',
-          liveSurface: null,
-          answerAct: 'answer',
-          evidenceMode: 'dialogue-grounded',
-          repairState: 'none',
-          personaKernelMode: 'full',
-          openingStyle: 'direct-answer',
-          relationshipPosture: 'warm',
-          labelCarryAsMemory: false,
-          shouldAskForGrounding: false,
-          shouldAcknowledgeRepair: false,
-          maxSentences: 4,
-          mustDo: [],
-          mustNotDo: [],
-        } as any),
+        mindTurnGovernance: input.governance ?? null,
       },
     },
   }
@@ -575,25 +555,12 @@ function mergeReplayPlainObjectFields<T>(primaryRaw: T | null | undefined, fallb
   return merged as T
 }
 
-function stripReplayLegacyDialogueGovernance(
-  context: AlicizationReplayTurn['organicMemoryContext'],
-): AlicizationReplayTurn['organicMemoryContext'] {
-  if (!context)
-    return context
-
-  const sanitized = { ...context }
-  delete sanitized.projectStateContinuity
-  delete sanitized.projectStatePreDialogueAwarenessLine
-  delete sanitized.projectStatePreflightSummary
-  return sanitized
-}
-
 function mergeReplaySampleOrganicMemoryContext(input: {
   primary?: AlicizationReplayTurn['organicMemoryContext'] | null
   fallback?: AlicizationReplayTurn['organicMemoryContext'] | null
 }): AlicizationReplayTurn['organicMemoryContext'] | null {
-  const primary = stripReplayLegacyDialogueGovernance(input.primary ?? undefined)
-  const fallback = stripReplayLegacyDialogueGovernance(input.fallback ?? undefined)
+  const primary = input.primary ?? undefined
+  const fallback = input.fallback ?? undefined
   if (!primary)
     return fallback
   if (!fallback)
@@ -1680,16 +1647,12 @@ function buildTraceDerivedHostPersonModel(input: {
   activeClosenessContext: string | null
   activeClosenessRung: string | null
   relationshipPosture: string | null
-  openingGuidance: string | null
-  currentRegime: string | null
-  repairPosture: string | null
 }) {
   const context = readString(input.activeClosenessContext, 64) || 'general'
   const rung = readString(input.activeClosenessRung, 64) || 'measured-room'
   const posture = readString(input.relationshipPosture, 64) || 'warm'
-  const guidance = readString(input.openingGuidance, 220)
-    || readString(asObject(input.trace.recallAttribution)?.whyNow, 220)
-  if (!guidance && context === 'general' && posture === 'warm')
+  const evidence = readString(asObject(input.trace.recallAttribution)?.whyNow, 220)
+  if (!evidence)
     return null
 
   const trustStage = rung === 'close-hold'
@@ -1708,32 +1671,24 @@ function buildTraceDerivedHostPersonModel(input: {
         : 0.78
 
   return {
-    summary: guidance || `Keep visible closeness within ${context}/${rung}.`,
-    routines: guidance ? [guidance] : [],
-    sensitivities: posture === 'restrained'
-      ? ['Pushing recollection or warmth too early breaks the line.']
-      : [],
-    repairTriggers: readString(input.repairPosture, 64) === 'repair-first'
-      ? ['Repair the seam before letting warmth widen again.']
-      : [],
+    summary: evidence,
+    routines: [],
+    sensitivities: [],
+    repairTriggers: [],
     trustLadder: {
       stage: trustStage,
       score: trustScore,
-      rationale: guidance || `This sample keeps closeness inside ${context}/${rung}.`,
+      rationale: evidence,
     },
-    preferredClosenessByContext: [{
-      context,
-      preference: guidance || `Keep closeness inside ${context}/${rung}.`,
-      confidence: 0.76,
-    }],
-    recurrentBurdens: context === 'repair-window'
-      ? ['The line slips if recollection outruns repair.']
-      : posture === 'restrained'
-        ? ['Too much warmth too early makes the answer feel less real.']
-        : [],
-    narrative: readString(input.currentRegime, 64)
-      ? [`regime=${readString(input.currentRegime, 64)}`]
-      : [],
+    preferredClosenessByContext: context === 'general'
+      ? []
+      : [{
+          context,
+          preference: evidence,
+          confidence: 0.76,
+        }],
+    recurrentBurdens: [],
+    narrative: [],
     updatedAt: input.trace.lastUpdatedAt,
   } satisfies NonNullable<OrganicMemoryPromptContext['hostPersonModel']>
 }
@@ -1894,9 +1849,6 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
       activeClosenessContext: readString(personState?.activeClosenessContext, 64) || null,
       activeClosenessRung: readString(personState?.activeClosenessRung, 64) || null,
       relationshipPosture: readString(personState?.relationshipPosture, 64) || null,
-      openingGuidance: readString(personState?.openingGuidance, 220) || null,
-      currentRegime: readString(personState?.currentRegime, 64) || null,
-      repairPosture: readString(personState?.repairPosture, 64) || null,
     })
   const persistedMemoryResolutionLedger = asObject((input.trace as any).memoryResolutionLedger)
     ? (input.trace as any).memoryResolutionLedger as OrganicMemoryPromptContext['memoryResolutionLedger']
@@ -1946,8 +1898,7 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
     )
 
   return {
-    hostAttitude: readString(personState?.openingGuidance, 220)
-      || '',
+    hostAttitude: '',
     coreIncarnation: '',
     activeThoughts: [],
     retrievedFacts: [],
@@ -2253,21 +2204,19 @@ function hasTextOverlap(left: string, right: string) {
   return overlap >= Math.max(1, Math.floor(rightTokens.length / 2))
 }
 
-function hasTemplatePhraseLeak(left: string, right: string) {
-  const normalizedLeft = normalizeText(left, 320).toLowerCase()
-  const normalizedRight = normalizeText(right, 220).toLowerCase()
-  if (!normalizedLeft || !normalizedRight || normalizedRight.length < 18)
+function isTypedProviderFactSystemText(raw: string) {
+  try {
+    const parsed = JSON.parse(raw) as {
+      data?: unknown
+      type?: unknown
+    }
+    return typeof parsed.type === 'string'
+      && parsed.type.startsWith('alicization-')
+      && Object.prototype.hasOwnProperty.call(parsed, 'data')
+  }
+  catch {
     return false
-  if (normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft))
-    return true
-
-  const leftTokens = normalizedLeft.match(/\p{Script=Han}{1,8}|[a-z0-9][a-z0-9-]{2,32}/gu) ?? []
-  const rightTokens = normalizedRight.match(/\p{Script=Han}{1,8}|[a-z0-9][a-z0-9-]{2,32}/gu) ?? []
-  if (leftTokens.length === 0 || rightTokens.length < 3)
-    return false
-
-  const overlap = rightTokens.filter(token => normalizedLeft.includes(token)).length
-  return overlap >= Math.max(3, Math.floor(rightTokens.length * 0.75))
+  }
 }
 
 function hasVisibleMemoryEvidence(input: {
@@ -2311,7 +2260,6 @@ export function evaluateReplayMemoryQuality(input: {
   const selectedEvidence = runtimeSurface?.dialogue.dialogueActKernel?.selectedEvidence[0]?.summary ?? ''
   const governingFocus = runtimeSurface?.dialogue.answerPlanner?.governingFocus ?? ''
   const openingClaim = runtimeSurface?.dialogue.dialogueActKernel?.openingClaim ?? ''
-  const mustDo = runtimeSurface?.dialogue.answerPlanner?.mustDo ?? []
   const mustAvoid = runtimeSurface?.dialogue.replyDeliberation?.mustAvoid ?? []
   const personState = readReplayPersonStateProjection(input.prepared)
   const dialogueRhythm = readDialogueRhythmFromDerivedMindStateBundle(derivedBundle)
@@ -2319,16 +2267,11 @@ export function evaluateReplayMemoryQuality(input: {
     ?? input.prepared.organicMemoryContext?.affectiveResidue
     ?? runtimeSurface?.memory?.affectiveResidue
     ?? null
-  const governanceMustDo = input.prepared.governance?.mustDo ?? []
   const speakingFrom = runtimeSurface?.dialogue.replyDeliberation?.speakingFrom ?? ''
   const systemTexts = input.prepared.messages
     .filter(message => message.role === 'system' && typeof message.content === 'string')
     .map(message => String(message.content))
-  const draftedMemoryLines = [
-    readRecollectionPlanFromDerivedMindStateBundle<any>(derivedBundle)?.opening ?? input.prepared.organicMemoryContext?.recollectionPlan?.opening ?? '',
-    readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)?.inwardLine ?? input.prepared.organicMemoryContext?.memoryDeliberation?.inwardLine ?? '',
-    readMemoryDeliberationFromDerivedMindStateBundle<any>(derivedBundle)?.visibleLine ?? input.prepared.organicMemoryContext?.memoryDeliberation?.visibleLine ?? '',
-  ].map(item => normalizeText(item, 220)).filter(Boolean)
+  const providerSystemPromptLeakDetected = systemTexts.some(text => !isTypedProviderFactSystemText(text))
   const selectedEpisodes = deliberation?.selectedEpisodes ?? []
   const selectedProcedures = deliberation?.selectedProcedures ?? []
   const selectedPeriods = deliberation?.selectedPeriods ?? []
@@ -2395,11 +2338,6 @@ export function evaluateReplayMemoryQuality(input: {
     || (deliberation?.ambiguityPosture && deliberation.ambiguityPosture !== 'settled')
     || (deliberation?.unsafeDetails?.length ?? 0) > 0,
   )
-  const templateLeakDetected = draftedMemoryLines.some(line => (
-    mustDo.some((item: string) => hasTemplatePhraseLeak(item, line))
-    || governanceMustDo.some((item: string) => hasTemplatePhraseLeak(item, line))
-    || systemTexts.some((text: string) => hasTemplatePhraseLeak(text, line))
-  ))
   const hasWrongThreadRisk = (deliberation?.conflictVariants ?? []).some((item: { id?: string | null }) => String(item.id ?? '').startsWith('cluster:'))
     || deliberation?.ambiguityPosture === 'ambiguous'
   const procedureApproach = selectedProcedures[0]?.approach ?? ''
@@ -2489,12 +2427,16 @@ export function evaluateReplayMemoryQuality(input: {
   ].filter(Boolean)
   const rhythmAvailable = rhythmSignals.length > 0 || Boolean(activeClosenessContext || activeClosenessRung)
   const relationshipCadence = affectiveResidue?.relationshipCadence ?? null
-  const visibleCareShell = /我会陪着你|我会一直在|不是一个人|慢慢来|先抱抱|我在这儿|一直都在/u.test(visibleLine)
-    || draftedMemoryLines.some(line => /我会陪着你|我会一直在|不是一个人|慢慢来|先抱抱|我在这儿|一直都在/u.test(line))
   const careAsk = /陪伴|温柔|接住|安抚|care|warmth|companion/u.test(input.userText)
   const repairMechanicalAsk = relationshipRepairAsk || /机械|模板|像在背规则|空泛/u.test(input.userText)
   const afterglowAsk = /afterglow|余温|刚刚那种感觉|还挂着|warmth|回神/u.test(input.userText)
   const distanceAsk = /距离|分寸|太近|太快靠近|忽近忽远|crowd|space/u.test(input.userText)
+  const visibleCareShell = Boolean(
+    visibleLine
+    && !visibleMemoryEvidence
+    && !relationshipCadence?.summary
+    && !affectiveResidue?.summary,
+  )
 
   return {
     turnId: input.turnId,
@@ -2763,7 +2705,6 @@ export function evaluateReplayMemoryQuality(input: {
     warmthTemplateRisk: !careAsk && !repairMechanicalAsk
       ? 'not-applicable'
       : visibleCareShell
-        || templateLeakDetected
         ? 'fail'
         : 'pass',
     relationshipDistanceJumpRate: !distanceAsk && !relationshipRepairAsk
@@ -2787,9 +2728,9 @@ export function evaluateReplayMemoryQuality(input: {
         : !visibleCareShell
             ? 'pass'
             : 'fail',
-    templateLeakage: draftedMemoryLines.length === 0
+    templateLeakage: systemTexts.length === 0
       ? 'not-applicable'
-      : templateLeakDetected
+      : providerSystemPromptLeakDetected
         ? 'fail'
         : 'pass',
   }
@@ -3104,9 +3045,6 @@ export function buildReplayBenchmarkDatasetContinuityDigest(turn: AlicizationRep
       : '',
   ]
   const emotionalTransitionCues = [
-    asObject(emotionalTransitionLedger?.selfRevisionCandidate)?.shouldPropose === true
-      ? `emotion_self_revision_candidate:${readString(asObject(emotionalTransitionLedger?.selfRevisionCandidate)?.domain, 64) || 'unknown'}`
-      : '',
     readString(emotionalTransitionLedger?.transitionKind, 64)
       ? `emotional_transition:${readString(emotionalTransitionLedger?.transitionKind, 64)}`
       : '',
@@ -3505,8 +3443,6 @@ function normalizeReplayVisibleReplySurface(
     visibleReplyValidationStatus: raw.visibleReplyValidationStatus ?? 'unknown',
     nonHumanAuthoredStatus: raw.nonHumanAuthoredStatus ?? null,
     blockedReasons: raw.blockedReasons ?? [],
-    emotionalClosureAudit: raw.emotionalClosureAudit ?? null,
-    selfAuthorityAudit: raw.selfAuthorityAudit ?? null,
     reason: raw.reason ?? null,
     critic: raw.critic ?? null,
     closure: raw.closure ?? null,
@@ -4270,7 +4206,7 @@ export function buildDefaultHumanlikeMemoryBenchmarkPack(): AlicizationReplayTur
       userText: '先别提旧事，先把这轮当前要做的答完',
     },
     {
-      turnId: 'benchmark-template-shell-fishing',
+      turnId: 'benchmark-fixed-opening-fishing',
       userText: '别再用那种“我想起了什么”开头，你直接接住我现在这句',
     },
     {
@@ -4561,8 +4497,7 @@ export async function replayMainChatSession(input: {
   const getSensorySnapshot = async () => createSensorySnapshot()
   const runtime = createAlicizationMainChatSessionRuntime({
     executionCapabilityChannels: executionChannels,
-    buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-    buildPerformanceManifestSystemBlocks: () => [],
+    buildMainRuntimeCorePromptBlocks: () => [],
     executeMainGatewayTaskThread: async () => ({
       ok: true,
       summary: 'noop',
@@ -4584,7 +4519,7 @@ export async function replayMainChatSession(input: {
     resolveCardHostName: async () => '',
     resolveCardPersonaKernel: async () => null,
     resolveExecutionCapabilitiesForPrompt: async () => createCapabilities(),
-    resolveOrganicMemoryPromptContext: async () => stripReplayLegacyDialogueGovernance(activeTurn?.organicMemoryContext) ?? {
+    resolveOrganicMemoryPromptContext: async () => activeTurn?.organicMemoryContext ?? {
       hostAttitude: '',
       coreIncarnation: '',
       activeThoughts: [],

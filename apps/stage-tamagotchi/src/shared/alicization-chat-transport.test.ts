@@ -7,10 +7,10 @@ import {
   summarizeAlicizationChatStartPayloadForTransport,
 } from './alicization-chat-transport'
 
-function createPayloadWithUnreadableLegacyField() {
+function createPayloadWithUnreadableUnknownField() {
   const payload = {
     cardId: 'default',
-    turnId: 'turn-legacy-field',
+    turnId: 'turn-unknown-field',
     providerId: 'openai',
     model: 'gpt-5',
     providerConfig: {
@@ -35,10 +35,10 @@ function createPayloadWithUnreadableLegacyField() {
     waitForTools: false,
   } satisfies AlicizationChatStartPayload
 
-  Object.defineProperty(payload, 'preDialogueSendIdentity', {
+  Object.defineProperty(payload, 'unknownSidecar', {
     enumerable: true,
     get() {
-      throw new Error('legacy chat-start governance must not be inspected')
+      throw new Error('unknown chat-start fields must not be inspected')
     },
   })
 
@@ -72,14 +72,14 @@ function createPayloadWithUnreadableMessageField() {
 }
 
 describe('alicization-chat-transport', () => {
-  it('serializes only the current chat-start contract without reading legacy governance fields', () => {
+  it('serializes only the current chat-start contract without reading unknown fields', () => {
     const result = sanitizeAlicizationChatStartPayloadForTransport(
-      createPayloadWithUnreadableLegacyField(),
+      createPayloadWithUnreadableUnknownField(),
     )
 
     expect(result.value).toEqual({
       cardId: 'default',
-      turnId: 'turn-legacy-field',
+      turnId: 'turn-unknown-field',
       providerId: 'openai',
       model: 'gpt-5',
       providerConfig: {
@@ -101,7 +101,7 @@ describe('alicization-chat-transport', () => {
       supportsTools: true,
       waitForTools: false,
     })
-    expect(result.value).not.toHaveProperty('preDialogueSendIdentity')
+    expect(result.value).not.toHaveProperty('unknownSidecar')
     expect(result.report.changed).toBe(true)
     expect(() => structuredClone(result.value)).not.toThrow()
   })
@@ -136,7 +136,7 @@ describe('alicization-chat-transport', () => {
 
   it('summarizes only provider configuration keys and message schema', () => {
     expect(summarizeAlicizationChatStartPayloadForTransport(
-      createPayloadWithUnreadableLegacyField(),
+      createPayloadWithUnreadableUnknownField(),
     )).toEqual({
       providerConfigKeys: ['apiKey', 'extras', 'transform'],
       messageSchema: [

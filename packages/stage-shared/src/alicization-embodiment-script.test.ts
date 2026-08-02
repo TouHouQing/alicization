@@ -581,7 +581,7 @@ describe('alicization embodiment script', () => {
     expect(repairBeforeCloseness?.state.residentMode).toBe('repair-before-closeness')
   })
 
-  it('preserves quiet-accompaniment as a low-pressure same-her resident mode', () => {
+  it('preserves quiet-accompaniment as a low-pressure continuity resident mode', () => {
     const quietAccompaniment = normalizeAlicizationEmbodimentScript({
       version: 'embodiment-script-v1',
       turnId: 'turn-quiet-accompaniment',

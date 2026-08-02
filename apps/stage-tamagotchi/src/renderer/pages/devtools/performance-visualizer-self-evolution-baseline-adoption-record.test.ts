@@ -2,843 +2,151 @@ import { describe, expect, it } from 'vitest'
 
 import { buildSelfEvolutionBaselineAdoptionRecord } from './performance-visualizer-self-evolution-baseline-adoption-record'
 
+type BodyContinuityPhase
+  = | 'body-only-hold'
+    | 'body-carried-to-renderer-rejoin'
+    | 'full-cross-modal-lock'
+    | 'renderer-rejoin-without-body'
+    | null
+
+type RendererRejoinSurfaceKey
+  = | 'authority:renderer-rejoin:speech'
+    | 'authority:renderer-rejoin:live2d'
+    | 'authority:renderer-rejoin:vrm'
+    | null
+
+type SurvivingVisibleLane
+  = | 'face+lipsync-only'
+    | 'motion+lipsync-only'
+    | 'face+lipsync+voice-only'
+    | 'motion+lipsync+voice-only'
+    | null
+
+function latestSnapshot(overrides: {
+  bodyContinuityPhase?: BodyContinuityPhase
+  rendererRejoinSurfaceKey?: RendererRejoinSurfaceKey
+  survivingVisibleLane?: SurvivingVisibleLane
+} = {}) {
+  return {
+    version: 'self-evolution-focus-snapshot/v1',
+    candidateId: 'candidate-3',
+    decisionTraceId: 'trace-3',
+    activeThreadId: 'thread-1',
+    selectedCardId: 'repair-path' as const,
+    explanation: 'structured baseline',
+    bodyContinuityPhase: null,
+    rendererRejoinSurfaceKey: null,
+    highlightedEvidencePanelIds: ['runtime-continuity-projection'],
+    highlightedTraceSectionIds: ['selected-trace-event'],
+    recommendedTraceEventId: 'event-3',
+    capturedAt: 1100,
+    ...overrides,
+  }
+}
+
+function buildRecord(overrides: {
+  mode?: 'adopt-now' | 'observe' | 'reject'
+  snapshot?: ReturnType<typeof latestSnapshot> | null
+  prosodyAuthorityNote?: string | null
+  supportingLines?: string[]
+} = {}) {
+  return buildSelfEvolutionBaselineAdoptionRecord({
+    baselineAdoption: {
+      mode: overrides.mode ?? 'adopt-now',
+      summaryLine: 'trusted baseline',
+      detailLine: 'fresh structured baseline',
+      supportingLines: overrides.supportingLines ?? ['fresh validation snapshot'],
+    },
+    latestSnapshot: overrides.snapshot === undefined ? latestSnapshot() : overrides.snapshot,
+    activePatternKey: 'pattern-body-continuity',
+    repairOwnerHint: 'body-continuity',
+    prosodyAuthorityNote: overrides.prosodyAuthorityNote ?? null,
+    capturedAt: 1200,
+  })
+}
+
 describe('performance visualizer self evolution baseline adoption record', () => {
-  it('returns null when adoption is not in adopt-now mode or there is no latest snapshot', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'observe',
-        summaryLine: '先不要采纳这张基线，继续观察下一次连续性转移。',
-        detailLine: '它目前只能算暂定基线。',
-        supportingLines: [
-          '韵律权威链尚未回到当前片段，因此不能进入长期基线。',
-        ],
-      },
-      latestSnapshot: null,
-      activePatternKey: 'pattern-persona',
-      repairOwnerHint: '私有思绪治理',
-      prosodyAuthorityNote: null,
-      capturedAt: 1000,
-    })).toBeNull()
+  it('returns null unless adoption is immediate and a latest snapshot exists', () => {
+    expect(buildRecord({ mode: 'observe' })).toBeNull()
+    expect(buildRecord({ mode: 'reject' })).toBeNull()
+    expect(buildRecord({ snapshot: null })).toBeNull()
   })
 
-  it('builds an explicit adoption record for a trusted baseline promoted now', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '韵律权威链已重新绑定到当前片段，可直接进入长期基线。',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-2',
-        decisionTraceId: 'trace-2',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'repair-path',
-        explanation: 'post repair baseline',
-        highlightedEvidencePanelIds: ['runtime-continuity-projection'],
-        highlightedTraceSectionIds: ['selected-trace-event'],
-        recommendedTraceEventId: 'event-2',
-        capturedAt: 900,
-      },
-      activePatternKey: 'pattern-persona',
-      repairOwnerHint: '私有思绪治理',
-      prosodyAuthorityNote: '韵律权威链已重新绑定到当前片段，可直接进入长期基线。',
-      capturedAt: 1000,
-    })).toEqual({
+  it('builds the stable adoption identity from the latest snapshot', () => {
+    expect(buildRecord()).toMatchObject({
       version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 1000,
-      snapshotCapturedAt: 900,
-      candidateId: 'candidate-2',
-      decisionTraceId: 'trace-2',
+      adoptedAt: 1200,
+      snapshotCapturedAt: 1100,
+      candidateId: 'candidate-3',
+      decisionTraceId: 'trace-3',
       activeThreadId: 'thread-1',
       selectedCardId: 'repair-path',
-      activePatternKey: 'pattern-persona',
-      repairOwnerHint: '私有思绪治理',
+      activePatternKey: 'pattern-body-continuity',
+      repairOwnerHint: 'body-continuity',
       adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
+      summaryLine: 'trusted baseline',
       bodyContinuityPhase: null,
       rendererRejoinSurfaceKey: null,
-      prosodyAuthorityNote: '韵律权威链已重新绑定到当前片段，可直接进入长期基线。',
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: null,
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: null,
     })
   })
 
-  it('falls back to adoption supporting lines when no explicit prosody note is passed', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          '韵律权威链已重新绑定到当前片段，可直接进入长期基线。',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-5',
-        decisionTraceId: 'trace-5',
-        activeThreadId: 'thread-2',
-        selectedCardId: 'repair-path',
-        explanation: 'adopt from supporting lines',
-        highlightedEvidencePanelIds: ['renderer-authority-projection'],
-        highlightedTraceSectionIds: ['trace-consumption'],
-        recommendedTraceEventId: 'event-5',
-        capturedAt: 1200,
-      },
-      activePatternKey: 'pattern-renderer',
-      repairOwnerHint: '显形权威',
-      prosodyAuthorityNote: null,
-      capturedAt: 1300,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 1300,
-      snapshotCapturedAt: 1200,
-      candidateId: 'candidate-5',
-      decisionTraceId: 'trace-5',
-      activeThreadId: 'thread-2',
-      selectedCardId: 'repair-path',
-      activePatternKey: 'pattern-renderer',
-      repairOwnerHint: '显形权威',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      bodyContinuityPhase: null,
+  it.each([
+    {
+      bodyContinuityPhase: 'body-only-hold' as const,
       rendererRejoinSurfaceKey: null,
-      prosodyAuthorityNote: '韵律权威链已重新绑定到当前片段，可直接进入长期基线。',
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: null,
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: null,
+    },
+    {
+      bodyContinuityPhase: 'body-carried-to-renderer-rejoin' as const,
+      rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm' as const,
+    },
+    {
+      bodyContinuityPhase: 'full-cross-modal-lock' as const,
+      rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d' as const,
+    },
+    {
+      bodyContinuityPhase: 'renderer-rejoin-without-body' as const,
+      rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech' as const,
+    },
+  ])('preserves $bodyContinuityPhase structured metadata', ({
+    bodyContinuityPhase,
+    rendererRejoinSurfaceKey,
+  }) => {
+    expect(buildRecord({
+      snapshot: latestSnapshot({
+        bodyContinuityPhase,
+        rendererRejoinSurfaceKey,
+      }),
+    })).toMatchObject({
+      bodyContinuityPhase,
+      rendererRejoinSurfaceKey,
     })
   })
 
-  it('captures a identity-continuity', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          'same-her 连续性治理已经再次确认，可直接进入长期基线。',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-governance-3',
-        decisionTraceId: 'trace-governance-3',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'first-check',
-        explanation: 'same-her governance reconfirmed',
-        highlightedEvidencePanelIds: [
-          'candidate-trajectory-summary',
-          'identity-drift-governance-summary',
-        ],
-        highlightedTraceSectionIds: ['trace-consumption', 'trace-details'],
-        recommendedTraceEventId: 'event-governance',
-        capturedAt: 1320,
-      },
-      activePatternKey: 'pattern-same-her-governance',
-      repairOwnerHint: '连续性治理',
-      prosodyAuthorityNote: null,
-      capturedAt: 1400,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 1400,
-      snapshotCapturedAt: 1320,
-      candidateId: 'candidate-governance-3',
-      decisionTraceId: 'trace-governance-3',
-      activeThreadId: 'thread-1',
-      selectedCardId: 'first-check',
-      activePatternKey: 'pattern-same-her-governance',
-      repairOwnerHint: '连续性治理',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      bodyContinuityPhase: null,
-      rendererRejoinSurfaceKey: null,
-      prosodyAuthorityNote: null,
-      continuityGovernanceNote: 'same-her 连续性治理已经再次确认，可直接进入长期基线。',
-      relationshipCadenceGovernanceNote: null,
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: null,
-    })
-  })
-
-  it('captures a relationship cadence governance note when the adopted baseline was trusted for companionship cadence reconfirmation', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          'relationship cadence 治理已经再次确认，并开始内化为长期关系节律，可直接进入长期关系基线。',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-cadence-3',
-        decisionTraceId: 'trace-cadence-3',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'first-check',
-        explanation: 'relationship cadence reconfirmed',
-        highlightedEvidencePanelIds: [
-          'companionship-transition-summary',
-          'resident-performance-projection',
-        ],
-        highlightedTraceSectionIds: ['trace-consumption', 'trace-details', 'selected-trace-event'],
-        recommendedTraceEventId: 'event-takeover',
-        capturedAt: 1410,
-      },
-      activePatternKey: 'pattern-relationship-cadence-governance',
-      repairOwnerHint: '关系节奏治理',
-      prosodyAuthorityNote: null,
-      capturedAt: 1500,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 1500,
-      snapshotCapturedAt: 1410,
-      candidateId: 'candidate-cadence-3',
-      decisionTraceId: 'trace-cadence-3',
-      activeThreadId: 'thread-1',
-      selectedCardId: 'first-check',
-      activePatternKey: 'pattern-relationship-cadence-governance',
-      repairOwnerHint: '关系节奏治理',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      bodyContinuityPhase: null,
-      rendererRejoinSurfaceKey: null,
-      prosodyAuthorityNote: null,
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: 'relationship cadence 治理已经再次确认，并开始内化为长期关系节律，可直接进入长期关系基线。',
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: null,
-    })
-  })
-
-  it('captures a restrained callback-line cadence note when the adopted baseline stays on same-turn-if-invited measured-return', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          'relationship cadence 治理已经再次确认，但当前仍停在 same-turn-if-invited measured-return 的同一条 callback line 上，应作为更克制的关系节律基线继续承接，而不是被扩写成一段新的外放靠近。',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-cadence-callback-4',
-        decisionTraceId: 'trace-cadence-callback-4',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'first-check',
-        explanation: 'callback-line cadence reconfirmed',
-        highlightedEvidencePanelIds: [
-          'companionship-transition-summary',
-          'resident-performance-projection',
-        ],
-        highlightedTraceSectionIds: ['trace-consumption', 'trace-details', 'selected-trace-event'],
-        recommendedTraceEventId: 'event-takeover',
-        capturedAt: 1420,
-      },
-      activePatternKey: 'pattern-relationship-cadence-governance',
-      repairOwnerHint: '关系节奏治理',
-      prosodyAuthorityNote: null,
-      capturedAt: 1510,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 1510,
-      snapshotCapturedAt: 1420,
-      candidateId: 'candidate-cadence-callback-4',
-      decisionTraceId: 'trace-cadence-callback-4',
-      activeThreadId: 'thread-1',
-      selectedCardId: 'first-check',
-      activePatternKey: 'pattern-relationship-cadence-governance',
-      repairOwnerHint: '关系节奏治理',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      bodyContinuityPhase: null,
-      rendererRejoinSurfaceKey: null,
-      prosodyAuthorityNote: null,
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: 'relationship cadence 治理已经再次确认，但当前仍停在 same-turn-if-invited measured-return 的同一条 callback line 上，应作为更克制的关系节律基线继续承接，而不是被扩写成一段新的外放靠近。',
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: null,
-    })
-  })
-
-  it('captures a project-state continuity governance note when the adopted baseline was trusted for Project identity carry, Phase 1 route carry, and Unresolved closure carry reconfirmation', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          '项目状态连续性治理已经再次确认，可直接进入长期基线。',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-project-state-3',
-        decisionTraceId: 'trace-project-state-3',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'first-check',
-        explanation: 'project-state continuity reconfirmed',
-        highlightedEvidencePanelIds: [
-          'candidate-trajectory-summary',
-          'identity-drift-governance-summary',
-        ],
-        highlightedTraceSectionIds: ['trace-consumption', 'trace-details'],
-        recommendedTraceEventId: 'event-project-state',
-        capturedAt: 1520,
-      },
-      activePatternKey: 'pattern-project-state-continuity-governance',
-      repairOwnerHint: '项目状态连续性治理',
-      prosodyAuthorityNote: null,
-      capturedAt: 1600,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 1600,
-      snapshotCapturedAt: 1520,
-      candidateId: 'candidate-project-state-3',
-      decisionTraceId: 'trace-project-state-3',
-      activeThreadId: 'thread-1',
-      selectedCardId: 'first-check',
-      activePatternKey: 'pattern-project-state-continuity-governance',
-      repairOwnerHint: '项目状态连续性治理',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      bodyContinuityPhase: null,
-      rendererRejoinSurfaceKey: null,
-      prosodyAuthorityNote: null,
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: null,
-      projectStateContinuityGovernanceNote: '项目状态连续性治理已经再次确认，可直接进入长期基线。',
-      bodyContinuityGovernanceNote: null,
-    })
-  })
-
-  it('captures a body continuity governance note when the adopted baseline was trusted because the body line still carries the living segment', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          '身体连续性已经明确进入身体承接态 -> 显形补回态，VRM 显形权威仍在沿同一条连续身体线补回，可直接进入长期基线。',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-body-3',
-        decisionTraceId: 'trace-body-3',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'first-check',
-        explanation: 'body continuity reconfirmed',
-        bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
-        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
-        highlightedEvidencePanelIds: [
-          'renderer-authority-projection',
-          'runtime-continuity-projection',
-        ],
-        highlightedTraceSectionIds: ['trace-consumption', 'trace-timeline', 'selected-trace-event'],
-        recommendedTraceEventId: 'event-body-continuity',
-        capturedAt: 1710,
-      },
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      prosodyAuthorityNote: null,
-      capturedAt: 1800,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 1800,
-      snapshotCapturedAt: 1710,
-      candidateId: 'candidate-body-3',
-      decisionTraceId: 'trace-body-3',
-      activeThreadId: 'thread-1',
-      selectedCardId: 'first-check',
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
-      rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
-      prosodyAuthorityNote: null,
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: null,
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: '身体连续性已经明确进入身体承接态 -> 显形补回态，VRM 显形权威仍在沿同一条连续身体线补回，可直接进入长期基线。',
-    })
-  })
-
-  it('captures a body-only-hold governance note when the adopted baseline is trusted because the body line still carries the same living segment alone', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          '身体连续性已经明确处于身体独撑态：当前仍由身体线独自托住同一段 living segment，可作为更谨慎的长期基线观察依据。',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-body-only-hold-7',
-        decisionTraceId: 'trace-body-only-hold-7',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'repair-path',
-        explanation: 'body-only-hold baseline',
-        bodyContinuityPhase: 'body-only-hold',
-        rendererRejoinSurfaceKey: null,
-        highlightedEvidencePanelIds: ['runtime-continuity-projection'],
-        highlightedTraceSectionIds: ['selected-trace-event'],
-        recommendedTraceEventId: 'event-body-only-hold-7',
-        capturedAt: 2010,
-      },
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      prosodyAuthorityNote: null,
-      capturedAt: 2100,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 2100,
-      snapshotCapturedAt: 2010,
-      candidateId: 'candidate-body-only-hold-7',
-      decisionTraceId: 'trace-body-only-hold-7',
-      activeThreadId: 'thread-1',
-      selectedCardId: 'repair-path',
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      bodyContinuityPhase: 'body-only-hold',
-      rendererRejoinSurfaceKey: null,
-      prosodyAuthorityNote: null,
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: null,
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: '身体连续性已经明确处于身体独撑态：当前仍由身体线独自托住同一段 living segment，可作为更谨慎的长期基线观察依据。',
-    })
-  })
-
-  it('captures a body-only-hold governance note when only the older same-segment body-line wording survives in adoption supporting lines', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          '身体连续性仍主要由身体线独自托住同一段 living segment，虽然显形层还没有稳定补回，但这条 same-her 生命线本身没有断。',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-body-only-note-only',
-        decisionTraceId: 'trace-body-only-note-only',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'repair-path',
-        explanation: 'body-only-hold note-only baseline',
-        bodyContinuityPhase: null,
-        rendererRejoinSurfaceKey: null,
-        highlightedEvidencePanelIds: ['runtime-continuity-projection'],
-        highlightedTraceSectionIds: ['selected-trace-event'],
-        recommendedTraceEventId: 'event-body-only-note-only',
-        capturedAt: 2020,
-      },
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      prosodyAuthorityNote: null,
-      capturedAt: 2100,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 2100,
-      snapshotCapturedAt: 2020,
-      candidateId: 'candidate-body-only-note-only',
-      decisionTraceId: 'trace-body-only-note-only',
-      activeThreadId: 'thread-1',
-      selectedCardId: 'repair-path',
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      bodyContinuityPhase: 'body-only-hold',
-      rendererRejoinSurfaceKey: null,
-      prosodyAuthorityNote: null,
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: null,
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: '身体连续性仍主要由身体线独自托住同一段 living segment，虽然显形层还没有稳定补回，但这条 same-her 生命线本身没有断。',
-    })
-  })
-
-  it('captures a structured body rejoin governance note when the adopted baseline is trusted through the newer runtime continuity wording', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          '身体连续性已经被新的验证快照再次确认，并明确处于身体承接态 -> 显形补回态（VRM authority rejoin），可进入基线判断。',
-          'Body continuity still carries the same living segment while VRM manifestation rejoins it, so runtime continuity can explain the renderer recovery as the same digital life re-entering full embodiment instead of a new identity branch.',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-body-rejoin-1',
-        decisionTraceId: 'trace-body-rejoin-1',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'repair-path',
-        explanation: 'body continuity rejoin reconfirmed',
-        bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
-        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
-        highlightedEvidencePanelIds: ['runtime-continuity-projection'],
-        highlightedTraceSectionIds: ['selected-trace-event'],
-        recommendedTraceEventId: 'event-1',
-        capturedAt: 1800,
-      },
-      activePatternKey: 'pattern-body-rejoin',
-      repairOwnerHint: '身体连续性治理',
-      prosodyAuthorityNote: null,
-      capturedAt: 1900,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 1900,
-      snapshotCapturedAt: 1800,
-      candidateId: 'candidate-body-rejoin-1',
-      decisionTraceId: 'trace-body-rejoin-1',
-      activeThreadId: 'thread-1',
-      selectedCardId: 'repair-path',
-      activePatternKey: 'pattern-body-rejoin',
-      repairOwnerHint: '身体连续性治理',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
-      rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
-      prosodyAuthorityNote: null,
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: null,
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: '身体连续性已经被新的验证快照再次确认，并明确处于身体承接态 -> 显形补回态（VRM authority rejoin），可进入基线判断。',
-    })
-  })
-
-  it('captures a cross-modal-lock body continuity governance note so the adopted anchor can preserve same-segment lock evidence', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          '身体连续性已经明确处于跨模态重锁态，Live2D 显形权威仍与身体线共同锁在同一段 living segment 上，可直接进入长期基线。',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-body-lock-1',
-        decisionTraceId: 'trace-body-lock-1',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'repair-path',
-        explanation: 'body lock trusted baseline',
-        bodyContinuityPhase: 'full-cross-modal-lock',
-        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
-        highlightedEvidencePanelIds: ['renderer-authority-projection'],
-        highlightedTraceSectionIds: ['selected-trace-event'],
-        recommendedTraceEventId: 'event-body-lock',
-        capturedAt: 1710,
-      },
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      prosodyAuthorityNote: null,
-      capturedAt: 1800,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 1800,
-      snapshotCapturedAt: 1710,
-      candidateId: 'candidate-body-lock-1',
-      decisionTraceId: 'trace-body-lock-1',
-      activeThreadId: 'thread-1',
-      selectedCardId: 'repair-path',
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      bodyContinuityPhase: 'full-cross-modal-lock',
-      rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
-      prosodyAuthorityNote: null,
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: null,
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: '身体连续性已经明确处于跨模态重锁态，Live2D 显形权威仍与身体线共同锁在同一段 living segment 上，可直接进入长期基线。',
-    })
-  })
-
-  it('captures a generic cross-modal-lock governance note when the adopted anchor keeps manifestation authority generic', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          '身体连续性已经明确处于跨模态重锁态，显形权威仍与身体线共同锁在同一段 living segment 上，可直接进入长期基线。',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-body-lock-generic-1',
-        decisionTraceId: 'trace-body-lock-generic-1',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'repair-path',
-        explanation: 'body lock generic trusted baseline',
-        bodyContinuityPhase: 'full-cross-modal-lock',
-        rendererRejoinSurfaceKey: null,
-        highlightedEvidencePanelIds: ['renderer-authority-projection'],
-        highlightedTraceSectionIds: ['selected-trace-event'],
-        recommendedTraceEventId: 'event-body-lock-speech',
-        capturedAt: 1810,
-      },
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      prosodyAuthorityNote: null,
-      capturedAt: 1900,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 1900,
-      snapshotCapturedAt: 1810,
-      candidateId: 'candidate-body-lock-generic-1',
-      decisionTraceId: 'trace-body-lock-generic-1',
-      activeThreadId: 'thread-1',
-      selectedCardId: 'repair-path',
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      bodyContinuityPhase: 'full-cross-modal-lock',
-      rendererRejoinSurfaceKey: null,
-      prosodyAuthorityNote: null,
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: null,
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: '身体连续性已经明确处于跨模态重锁态，显形权威仍与身体线共同锁在同一段 living segment 上，可直接进入长期基线。',
-    })
-  })
-
-  it('infers cross-modal-lock phase metadata from the governance note when the snapshot phase is still missing', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          '身体连续性已经明确处于跨模态重锁态，显形权威仍与身体线共同锁在同一段 living segment 上，可直接进入长期基线。',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-body-lock-generic-note-only-1',
-        decisionTraceId: 'trace-body-lock-generic-note-only-1',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'repair-path',
-        explanation: 'body lock generic trusted baseline without structured phase metadata',
-        bodyContinuityPhase: null,
-        rendererRejoinSurfaceKey: null,
-        highlightedEvidencePanelIds: ['renderer-authority-projection'],
-        highlightedTraceSectionIds: ['selected-trace-event'],
-        recommendedTraceEventId: 'event-body-lock-generic-note-only',
-        capturedAt: 1815,
-      },
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      prosodyAuthorityNote: null,
-      capturedAt: 1905,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 1905,
-      snapshotCapturedAt: 1815,
-      candidateId: 'candidate-body-lock-generic-note-only-1',
-      decisionTraceId: 'trace-body-lock-generic-note-only-1',
-      activeThreadId: 'thread-1',
-      selectedCardId: 'repair-path',
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      bodyContinuityPhase: 'full-cross-modal-lock',
-      rendererRejoinSurfaceKey: null,
-      prosodyAuthorityNote: null,
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: null,
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: '身体连续性已经明确处于跨模态重锁态，显形权威仍与身体线共同锁在同一段 living segment 上，可直接进入长期基线。',
-    })
-  })
-
-  it('captures a renderer-rejoin-without-body governance note so visible recovery remains traceable as non-trustworthy continuity', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          '显形回接失身态已经被完整记录：VRM 显形权威已经回接，但身体线没有继续托住同一段 living segment，因此这条可见恢复只能作为审计锚点，而不能被误写成可信长期基线。',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-body-loss-1',
-        decisionTraceId: 'trace-body-loss-1',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'repair-path',
-        explanation: 'visible recovery without body carry',
+  it.each([
+    'face+lipsync-only',
+    'motion+lipsync-only',
+    'face+lipsync+voice-only',
+    'motion+lipsync+voice-only',
+  ] as const)('preserves structured surviving visible lane %s', (survivingVisibleLane) => {
+    expect(buildRecord({
+      snapshot: latestSnapshot({
         bodyContinuityPhase: 'renderer-rejoin-without-body',
-        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
-        highlightedEvidencePanelIds: ['renderer-authority-projection'],
-        highlightedTraceSectionIds: ['selected-trace-event'],
-        recommendedTraceEventId: 'event-body-loss',
-        capturedAt: 1910,
-      },
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      prosodyAuthorityNote: null,
-      capturedAt: 2000,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 2000,
-      snapshotCapturedAt: 1910,
-      candidateId: 'candidate-body-loss-1',
-      decisionTraceId: 'trace-body-loss-1',
-      activeThreadId: 'thread-1',
-      selectedCardId: 'repair-path',
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
+        survivingVisibleLane,
+      }),
+    })).toMatchObject({
       bodyContinuityPhase: 'renderer-rejoin-without-body',
-      rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
-      prosodyAuthorityNote: null,
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: null,
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: '显形回接失身态已经被完整记录：VRM 显形权威已经回接，但身体线没有继续托住同一段 living segment，因此这条可见恢复只能作为审计锚点，而不能被误写成可信长期基线。',
+      rendererRejoinSurfaceKey: null,
+      survivingVisibleLane,
     })
   })
 
-  it('captures a quieter surviving-lane governance note so face, lipsync, and voice identity-continuity', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          '显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-face-voice-only-7',
-        decisionTraceId: 'trace-face-voice-only-7',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'repair-path',
-        explanation: 'quieter surviving lane audit baseline',
-        bodyContinuityPhase: null,
-        rendererRejoinSurfaceKey: null,
-        highlightedEvidencePanelIds: ['renderer-authority-projection'],
-        highlightedTraceSectionIds: ['selected-trace-event'],
-        recommendedTraceEventId: 'event-face-voice-only-7',
-        capturedAt: 1925,
-      },
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
+  it('does not recover a prosody authority note from adoption supporting text', () => {
+    expect(buildRecord({
+      supportingLines: [
+        '韵律权威链已重新绑定到当前片段，可作为采纳基线的一部分。',
+      ],
+    })).toMatchObject({
       prosodyAuthorityNote: null,
-      capturedAt: 2015,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 2015,
-      snapshotCapturedAt: 1925,
-      candidateId: 'candidate-face-voice-only-7',
-      decisionTraceId: 'trace-face-voice-only-7',
-      activeThreadId: 'thread-1',
-      selectedCardId: 'repair-path',
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      bodyContinuityPhase: 'renderer-rejoin-without-body',
-      rendererRejoinSurfaceKey: null,
-      prosodyAuthorityNote: null,
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: null,
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: '显形回接失身态已经被完整记录：当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity',
-    })
-  })
-
-  it('preserves structured surviving visible lane metadata even when the adopted baseline support line falls back to generic renderer-rejoin-without-body wording', () => {
-    expect(buildSelfEvolutionBaselineAdoptionRecord({
-      baselineAdoption: {
-        mode: 'adopt-now',
-        summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-        detailLine: '这张基线已经可信，而且它就是当前最新的修复后快照。',
-        supportingLines: [
-          '最新快照已经通过 trusted 判断。',
-          '显形回接失身态已经被完整记录：显形权威已经回接，但身体线没有继续托住同一段 living segment，因此这条可见恢复只能作为审计锚点，而不能被误写成可信长期基线。',
-        ],
-      },
-      latestSnapshot: {
-        version: 'self-evolution-focus-snapshot/v1',
-        candidateId: 'candidate-face-voice-only-structured-1',
-        decisionTraceId: 'trace-face-voice-only-structured-1',
-        activeThreadId: 'thread-1',
-        selectedCardId: 'repair-path',
-        explanation: 'structured quieter surviving lane should remain portable',
-        bodyContinuityPhase: 'renderer-rejoin-without-body',
-        rendererRejoinSurfaceKey: null,
-        survivingVisibleLane: 'face+lipsync+voice-only',
-        highlightedEvidencePanelIds: ['renderer-authority-projection'],
-        highlightedTraceSectionIds: ['selected-trace-event'],
-        recommendedTraceEventId: 'event-face-voice-only-structured-1',
-        capturedAt: 1935,
-      },
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      prosodyAuthorityNote: null,
-      capturedAt: 2025,
-    })).toEqual({
-      version: 'self-evolution-baseline-adoption/v1',
-      adoptedAt: 2025,
-      snapshotCapturedAt: 1935,
-      candidateId: 'candidate-face-voice-only-structured-1',
-      decisionTraceId: 'trace-face-voice-only-structured-1',
-      activeThreadId: 'thread-1',
-      selectedCardId: 'repair-path',
-      activePatternKey: 'pattern-body-continuity-governance',
-      repairOwnerHint: '身体连续性治理',
-      adoptionMode: 'adopt-now',
-      summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      bodyContinuityPhase: 'renderer-rejoin-without-body',
-      rendererRejoinSurfaceKey: null,
-      survivingVisibleLane: 'face+lipsync+voice-only',
-      prosodyAuthorityNote: null,
-      continuityGovernanceNote: null,
-      relationshipCadenceGovernanceNote: null,
-      projectStateContinuityGovernanceNote: null,
-      bodyContinuityGovernanceNote: '显形回接失身态已经被完整记录：显形权威已经回接，但身体线没有继续托住同一段 living segment，因此这条可见恢复只能作为审计锚点，而不能被误写成可信长期基线。',
     })
   })
 })

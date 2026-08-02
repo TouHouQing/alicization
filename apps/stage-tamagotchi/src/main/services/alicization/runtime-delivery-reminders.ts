@@ -25,75 +25,6 @@ import { buildAlicizationTurnGraphFromSettlements } from './turn-os/turn-graph'
 
 const executionProviderSettlementRetryBudget = 3
 
-const legacyExecutionDeliveryGovernanceKeys = new Set([
-  'continuityArc',
-  'continuityArcStage',
-  'continuityCadence',
-  'continuityCue',
-  'continuityPreferredTiming',
-  'continuityRestraint',
-  'governingCommitment',
-  'governingConcern',
-  'governingFocus',
-  'governingInquiry',
-  'governingProject',
-  'initiativeRestraint',
-  'mustDo',
-  'mustNotDo',
-  'openingGuidance',
-  'openingStyle',
-  'opening_policy',
-  'preDialogueAwarenessLine',
-  'preDialogueAwarenessSummary',
-  'preflightSummary',
-  'projectState',
-  'projectStateAudit',
-  'project_continuity',
-  'project_state',
-  'relationshipPosture',
-  'relationship_cadence',
-  'runtime_context',
-  'sameHerDriftRisk',
-  'sameHerHoldDetail',
-  'sameHerSelfLine',
-  'shouldDelayUntilAfterPayoff',
-  'shouldStayInward',
-  'suppressionTags',
-  'surfacePolicy',
-])
-
-function stripLegacyExecutionDeliveryGovernance<T>(value: T): T {
-  if (Array.isArray(value))
-    return value.map(item => stripLegacyExecutionDeliveryGovernance(item)) as T
-
-  if (!value || typeof value !== 'object')
-    return value
-
-  const sanitized = Object.fromEntries(
-    Object.entries(value as Record<string, unknown>)
-      .filter(([key, item]) =>
-        !legacyExecutionDeliveryGovernanceKeys.has(key)
-        && (key !== 'visibility' || item !== 'redacted_internal'),
-      )
-      .map(([key, item]) => [
-        key,
-        stripLegacyExecutionDeliveryGovernance(item),
-      ]),
-  )
-
-  return sanitized as T
-}
-
-function sanitizeExecutionDeliveryForRequeue<T extends Record<string, unknown>>(
-  pendingDelivery: T,
-  patch: Record<string, unknown> = {},
-) {
-  return stripLegacyExecutionDeliveryGovernance({
-    ...pendingDelivery,
-    ...patch,
-  })
-}
-
 interface CreateAlicizationDeliveryReminderRuntimeOptions {
   getActiveCardId: () => string
   isAlicizationKillSwitchSuspended: () => boolean
@@ -425,20 +356,14 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           replyPreview: options.sanitizeBriefText(structured.reply, 120),
         })
         const deliveredSessionId = await options.ensureActiveOrLatestSessionId(options.getActiveCardId())
-        const reminderStructuredForPersistence = stripLegacyExecutionDeliveryGovernance(
-          reminderVisibleUtterance.structuredForPersistence,
-        )
-        const reminderVisibleReplyRealization = stripLegacyExecutionDeliveryGovernance(
-          reminderVisibleUtterance.visibleReplyRealization,
-        )
         const persisted = await options.appendConversationTurnWithGuards({
           turnId: firedTurnId,
           sessionId: deliveredSessionId,
           assistantText: reminderVisibleUtterance.assistantText,
-          structured: reminderStructuredForPersistence,
+          structured: reminderVisibleUtterance.structuredForPersistence,
           origin: resolveAlicizationAutonomousDialogueOrigin('proactive'),
           createdAt: Date.now(),
-          visibleReplyRealization: reminderVisibleReplyRealization,
+          visibleReplyRealization: reminderVisibleUtterance.visibleReplyRealization,
         })
 
         if (!persisted) {
@@ -662,9 +587,10 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         }
       }
       options.executionDeliveryRuntime.requeue(
-        sanitizeExecutionDeliveryForRequeue(pendingDelivery, {
+        {
+          ...pendingDelivery,
           providerSettlementAttempts,
-        }),
+        },
       )
       await options.persistExecutionDeliveryState(options.getActiveCardId())
       options.queueSubconsciousWake(
@@ -769,10 +695,10 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
             : selectedReply.reason,
         })
       }
-      const structured = stripLegacyExecutionDeliveryGovernance({
+      const structured = {
         ...llmStructured,
         reply: selectedReply.visibleReply,
-      })
+      }
       const deliverySource = selectedReply.source
       const callbackVisibleUtterance = resolveAlicizationProactiveVisibleUtterance({
         kind: 'execution-callback',
@@ -819,9 +745,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
           decisionTraceId: pendingDelivery.decisionTraceId ?? null,
         },
       })
-      const callbackVisibleReplySurface = stripLegacyExecutionDeliveryGovernance(
-        callbackVisibleUtterance.visibleReplyRealization,
-      ) as any
+      const callbackVisibleReplySurface = callbackVisibleUtterance.visibleReplyRealization as any
       turnRuntime.settleSurface({
         context: callbackTurnRuntimeContext,
         surface: callbackVisibleReplySurface,
@@ -869,7 +793,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         assistantText: callbackVisibleUtterance.assistantText,
         structured: callbackVisibleUtterance.structuredForPersistence
           ? {
-              ...stripLegacyExecutionDeliveryGovernance(callbackVisibleUtterance.structuredForPersistence),
+              ...callbackVisibleUtterance.structuredForPersistence,
               turnGraph: callbackTurnGraph,
             }
           : callbackVisibleUtterance.structuredForPersistence,
@@ -885,9 +809,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         },
       })
       if (!persisted) {
-        options.executionDeliveryRuntime.requeue(
-          sanitizeExecutionDeliveryForRequeue(pendingDelivery),
-        )
+        options.executionDeliveryRuntime.requeue(pendingDelivery)
         await options.persistExecutionDeliveryState(options.getActiveCardId())
         options.queueSubconsciousWake(options.getActiveCardId(), `execution-delivery-retry:${pendingDelivery.threadId}`, 1_500)
         await options.appendAuditLog({
@@ -939,9 +861,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
       return true
     }
     catch (error) {
-      options.executionDeliveryRuntime.requeue(
-        sanitizeExecutionDeliveryForRequeue(pendingDelivery),
-      )
+      options.executionDeliveryRuntime.requeue(pendingDelivery)
       await options.persistExecutionDeliveryState(options.getActiveCardId())
       options.queueSubconsciousWake(options.getActiveCardId(), `execution-delivery-error:${pendingDelivery.threadId}`, 2_500)
       await options.appendAuditLog({

@@ -425,7 +425,7 @@ describe('performance visualizer self evolution runtime continuity projection', 
     expect(projection?.reasons).toContain('Body continuity still carries the same living segment while manifestation rejoins it, so runtime continuity can explain the renderer recovery as the same digital life re-entering full embodiment instead of a new identity branch.')
   })
 
-  it('keeps the concrete renderer surface and same-her lock wording when body continuity has already entered full-cross-modal-lock', () => {
+  it('keeps the concrete renderer surface and continuity lock wording when body continuity has already entered full-cross-modal-lock', () => {
     const projection = buildSelfEvolutionRuntimeContinuityProjection({
       rendererAuthorityProjection: {
         status: 'grounded',
@@ -479,7 +479,7 @@ describe('performance visualizer self evolution runtime continuity projection', 
     expect(projection?.bodyContinuityPhase).toBe('full-cross-modal-lock')
     expect(projection?.rendererRejoinSurfaceKey).toBe('authority:renderer-rejoin:live2d')
     expect(projection?.reasons).toContain(
-      'Body continuity and Live2D manifestation are now locked back onto the same living segment together, so runtime continuity can explain the renderer recovery as one explicit same-her embodiment line instead of a temporary visual alignment.',
+      'Body continuity and Live2D manifestation are now locked back onto the same living segment together, so runtime continuity can explain the renderer recovery as one explicit continuity embodiment line instead of a temporary visual alignment.',
     )
   })
 
@@ -536,7 +536,7 @@ describe('performance visualizer self evolution runtime continuity projection', 
     expect(projection?.bodyContinuityPhase).toBe('renderer-rejoin-without-body')
     expect(projection?.rendererRejoinSurfaceKey).toBe('authority:renderer-rejoin:vrm')
     expect(projection?.reasons).toContain(
-      'Renderer lanes have rejoined on VRM manifestation, but the body line is no longer carrying that same living segment, so runtime continuity should keep treating the visible recovery as same-her drift risk rather than a completed embodiment repair.',
+      'Renderer lanes have rejoined on VRM manifestation, but the body line is no longer carrying that same living segment, so runtime continuity should keep treating the visible recovery as continuity drift risk rather than a completed embodiment repair.',
     )
   })
 
@@ -623,7 +623,7 @@ describe('performance visualizer self evolution runtime continuity projection', 
     expect(projection?.reasons).toContain('Renderer authority continuity still keeps 表情命中 / 动作未命中 / 口型未知 on the same life thread, so runtime continuity can explain which embodiment lane stayed bound and which one drifted without collapsing the whole digital-life thread into a fake identity break.')
   })
 
-  it('carries a lipsync-plus-voice identity-continuity', () => {
+  it('carries a lipsync-plus-voice continuity', () => {
     const projection = buildSelfEvolutionRuntimeContinuityProjection({
       rendererAuthorityProjection: {
         status: 'partial',
@@ -805,7 +805,7 @@ describe('performance visualizer self evolution runtime continuity projection', 
     expect(projection?.reasons).toContain('Renderer authority continuity still keeps 表情未命中 / 动作未命中 / 口型命中 / 声音未命中 on the same life thread, so runtime continuity can explain which embodiment lane stayed bound and which one drifted without collapsing the whole digital-life thread into a fake identity break.')
   })
 
-  it('keeps audible body-carried identity-continuity', () => {
+  it('keeps audible body-carried continuity', () => {
     const projection = buildSelfEvolutionRuntimeContinuityProjection({
       rendererAuthorityProjection: {
         status: 'partial',
@@ -994,7 +994,7 @@ describe('performance visualizer self evolution runtime continuity projection', 
     expect(projection?.driftingSignals).toContain('authority-lipsync:no')
   })
 
-  it('carries a body-led identity-continuity', () => {
+  it('carries a body-led continuity', () => {
     const projection = buildSelfEvolutionRuntimeContinuityProjection({
       rendererAuthorityProjection: {
         status: 'partial',
@@ -1272,7 +1272,7 @@ describe('performance visualizer self evolution runtime continuity projection', 
     expect(projection?.traceEmbodimentDisplaySummary).toBe('关怀回合，收口 grounded-recall（基于记忆回收落稳），表面策略 procedural-carry（沿既有过程延续表达），权威驱动 无，实际执行 无，场景 深夜疲劳照看，姿态 先观察后表达，来源链 fatigue -> care -> grounded-recall')
   })
 
-  it('carries VRM same-her frame drift from renderer authority into runtime continuity projection', () => {
+  it('carries VRM continuity frame drift from renderer authority into runtime continuity projection', () => {
     const projection = buildSelfEvolutionRuntimeContinuityProjection({
       rendererAuthorityProjection: {
         status: 'drift',
@@ -1292,8 +1292,8 @@ describe('performance visualizer self evolution runtime continuity projection', 
         matchedSignals: ['authority-body:yes', 'authority-face:yes', 'authority-motion:yes'],
         missingSignals: [],
         driftingSignals: [
-          'same-her-frame:lipsync',
-          'same-her-frame:voice',
+          'continuity-frame:lipsync',
+          'continuity-frame:voice',
           'renderer-drift:drift | performance=segment-runtime-continuity-vrm-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
         ],
         reasons: [],
@@ -1319,7 +1319,7 @@ describe('performance visualizer self evolution runtime continuity projection', 
             runtimeChannel: 'active-dialogue',
             runtimeSummary: 'same line still held',
             activeThreadId: 'runtime-thread-vrm-frame-drift-1',
-            activeThreadTitle: 'same-her frame drift',
+            activeThreadTitle: 'continuity frame drift',
             preferredPresence: 'gentle-watch',
             selectedAction: 'observe_focus',
             personaBiasSummary: null,
@@ -1343,12 +1343,12 @@ describe('performance visualizer self evolution runtime continuity projection', 
     })
 
     expect(projection?.status).toBe('drift')
-    expect(projection?.driftingSignals).toContain('same-her-frame:lipsync')
-    expect(projection?.driftingSignals).toContain('same-her-frame:voice')
-    expect(projection?.reasons).toContain('Runtime continuity still carries same-her frame drift signals same-her-frame:lipsync, same-her-frame:voice, so the current repair loop can keep the voice/lipsync mismatch attached to one digital-life thread instead of treating it as a separate renderer branch.')
+    expect(projection?.driftingSignals).toContain('continuity-frame:lipsync')
+    expect(projection?.driftingSignals).toContain('continuity-frame:voice')
+    expect(projection?.reasons).toContain('Runtime continuity still carries continuity frame drift signals continuity-frame:lipsync, continuity-frame:voice, so the current repair loop can keep the voice/lipsync mismatch attached to one digital-life thread instead of treating it as a separate renderer branch.')
   })
 
-  it('carries Live2D same-her execution drift from renderer authority into runtime continuity projection', () => {
+  it('carries Live2D continuity execution drift from renderer authority into runtime continuity projection', () => {
     const projection = buildSelfEvolutionRuntimeContinuityProjection({
       rendererAuthorityProjection: {
         status: 'drift',
@@ -1368,7 +1368,7 @@ describe('performance visualizer self evolution runtime continuity projection', 
         matchedSignals: ['authority-face:yes', 'authority-motion:yes'],
         missingSignals: [],
         driftingSignals: [
-          'same-her-execution:lipsync',
+          'continuity-execution:lipsync',
           'renderer-drift:drift | authority=segment-runtime-continuity-live2d-execution | active=face, motion, lipsync | mismatch=lipsync',
         ],
         reasons: [],
@@ -1394,7 +1394,7 @@ describe('performance visualizer self evolution runtime continuity projection', 
             runtimeChannel: 'active-dialogue',
             runtimeSummary: 'same line still held',
             activeThreadId: 'runtime-thread-live2d-execution-drift-1',
-            activeThreadTitle: 'same-her execution drift',
+            activeThreadTitle: 'continuity execution drift',
             preferredPresence: 'gentle-watch',
             selectedAction: 'observe_focus',
             personaBiasSummary: null,
@@ -1418,7 +1418,7 @@ describe('performance visualizer self evolution runtime continuity projection', 
     })
 
     expect(projection?.status).toBe('drift')
-    expect(projection?.driftingSignals).toContain('same-her-execution:lipsync')
-    expect(projection?.reasons).toContain('Runtime continuity still carries same-her execution drift signals same-her-execution:lipsync, so the current repair loop can keep the Live2D execution mismatch attached to one digital-life thread instead of treating it as a separate renderer branch.')
+    expect(projection?.driftingSignals).toContain('continuity-execution:lipsync')
+    expect(projection?.reasons).toContain('Runtime continuity still carries continuity execution drift signals continuity-execution:lipsync, so the current repair loop can keep the Live2D execution mismatch attached to one digital-life thread instead of treating it as a separate renderer branch.')
   })
 })

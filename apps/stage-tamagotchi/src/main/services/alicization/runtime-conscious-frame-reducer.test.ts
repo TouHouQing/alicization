@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-
 import { describe, expect, it } from 'vitest'
 
 import { reduceRuntimeConsciousFrame } from './runtime-conscious-frame-reducer'
@@ -15,7 +13,6 @@ function createGovernance() {
     screenReferenceMode: 'avoid',
     repairState: 'none',
     labelCarryAsMemory: false,
-    emotionalClosureCue: null,
   } as any
 }
 
@@ -38,13 +35,7 @@ function createSurface(currentConsciousFrame: Record<string, unknown> | null) {
       dialogueActKernel: null,
     },
     agency: {},
-    raw: {
-      runtimeDigest: {
-        projectState: {
-          currentPhase: 'Runtime-owned project state.',
-        },
-      },
-    },
+    raw: {},
   } as any
 }
 
@@ -62,14 +53,6 @@ function createFrame(overrides: Record<string, unknown> = {}) {
     shouldSelfRevise: false,
     confidence: 0.82,
     reasonTags: ['memory-deliberation', 'dialogue-grounded'],
-    continuityPreferredTiming: 'after-payoff',
-    continuityCadence: 'measured',
-    projectState: {
-      identity: 'Runtime-owned project state.',
-      currentPhase: 'Runtime phase.',
-      primaryOpenLoop: 'Search scale validation.',
-      nextClosureTarget: 'Run larger recall benchmarks.',
-    },
     updatedAt: 10,
     ...overrides,
   } as any
@@ -109,57 +92,29 @@ describe('reduceRuntimeConsciousFrame', () => {
       shouldWithholdSpecificity: false,
       confidence: 0.82,
       reasonTags: ['memory-deliberation', 'dialogue-grounded'],
-      continuityPreferredTiming: 'after-payoff',
-      continuityCadence: 'measured',
       updatedAt: 10,
     })
   })
 
-  it('drops fixed-template residue instead of replacing it with authored fallback prose', () => {
+  it('preserves provider-authored cognition text while applying ordinary whitespace normalization', () => {
     const reduced = reduceRuntimeConsciousFrame({
       surface: createSurface(createFrame({
-        consciousNeed: 'pre_turn_context_digest',
-        consciousTension: 'pre_turn_context_digest',
-        speakingIntention: 'pre_turn_context_digest',
-        focusAnchor: 'pre_turn_context_digest',
-        withheldImpulse: 'pre_turn_context_digest',
+        consciousNeed: '  Provider may discuss continuity semantics as ordinary content.  ',
+        consciousTension: 'A first line.\nA second line.',
+        speakingIntention: '  Answer from the current cognition state. ',
+        focusAnchor: '  active runtime issue ',
+        withheldImpulse: '  unrelated branch ',
       })),
       governance: createGovernance(),
       now: 300,
     })
 
     expect(reduced?.dialogue.currentConsciousFrame).toMatchObject({
-      consciousNeed: '',
-      consciousTension: '',
-      speakingIntention: '',
-      focusAnchor: null,
-      withheldImpulse: null,
+      consciousNeed: 'Provider may discuss continuity semantics as ordinary content.',
+      consciousTension: 'A first line. A second line.',
+      speakingIntention: 'Answer from the current cognition state.',
+      focusAnchor: 'active runtime issue',
+      withheldImpulse: 'unrelated branch',
     })
-  })
-
-  it('does not rewrite project-state ownership while sanitizing the frame', () => {
-    const projectState = {
-      identity: 'Runtime-owned project state.',
-      currentPhase: 'Runtime phase.',
-      primaryOpenLoop: 'Search scale validation.',
-      nextClosureTarget: 'Run larger recall benchmarks.',
-    }
-    const surface = createSurface(createFrame({ projectState }))
-    const reduced = reduceRuntimeConsciousFrame({
-      surface,
-      governance: createGovernance(),
-      now: 400,
-    })
-
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState).toBe(projectState)
-    expect(reduced?.raw).toBe(surface.raw)
-  })
-
-  it('contains no canonical project or fallback consciousness generators', () => {
-    const source = readFileSync(new URL('./runtime-conscious-frame-reducer.ts', import.meta.url), 'utf8')
-
-    expect(source).not.toMatch(
-      /resolveAlicizationProjectStateBrief|resolveCanonicalStructuredProjectState|buildCurrentConsciousFrame|fallbackConsciousNeed|fallbackSpeakingIntention|buildFallbackProjectStateGrounding|sameHer|Phase 1/iu,
-    )
   })
 })

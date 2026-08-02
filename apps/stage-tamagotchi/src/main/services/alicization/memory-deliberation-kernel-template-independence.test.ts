@@ -83,19 +83,6 @@ describe('memory-deliberation-kernel template independence', () => {
           rationale: 'Opaque trust context.',
         },
       } as any,
-      projectStateContinuity: {
-        identity: 'Opaque identity context.',
-        currentPhase: 'Opaque phase context.',
-        sameHerSummary: 'Opaque continuity context.',
-        landedProgressSummary: 'Opaque progress context.',
-        openClosureSummary: 'Opaque open context.',
-        proactiveSameHerGap: null,
-        nextClosureTarget: 'Opaque next context.',
-        preDialogueAwarenessLine: null,
-        emotionalClosureCue: null,
-        sameHerSelfLine: null,
-        sameHerDriftRisk: null,
-      },
     })
 
     expect(pickDecision(withNonOwnerContext)).toEqual(pickDecision(baseline))

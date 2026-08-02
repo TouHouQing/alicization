@@ -437,12 +437,7 @@ describe('memory provider planning', () => {
     })
 
     expect(systems).toHaveLength(4)
-    expect(systems.join('\n')).not.toMatch(/memory planning owner boundary|Short-term memory owner|Long-term recall owner|Memory Workbench|Review candidates are not confirmed|Raw transcripts must not become persona training data/iu)
     expect(systems.every(system => providerFactType(system).endsWith('-context'))).toBe(true)
-    expect(systems.some(system => system.includes('[ALICIZATION_PROJECT_STATE]'))).toBe(false)
-    expect(systems.some(system => system.includes('project_identity=Alicization is a local-first digital life project'))).toBe(false)
-    expect(systems.some(system => system.includes('open_life_loops:'))).toBe(false)
-    expect(systems.some(system => system.includes('Prefer changes that make memory feel more like lived continuity.'))).toBe(false)
   })
 
   it('keeps continuation seed inside typed recollection and deliberation context', async () => {

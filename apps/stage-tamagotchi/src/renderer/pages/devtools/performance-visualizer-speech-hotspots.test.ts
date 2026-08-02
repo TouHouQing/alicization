@@ -348,7 +348,7 @@ describe('performance visualizer speech hotspots', () => {
     ]))
   })
 
-  it('surfaces body-led same-her authority in speech hotspots when body still carries the living segment before face and motion return', () => {
+  it('surfaces body-led continuity authority in speech hotspots when body still carries the living segment before face and motion return', () => {
     const hotspots = buildSpeechAuthorityHotspots(
       [
         {
@@ -633,9 +633,9 @@ describe('performance visualizer speech hotspots', () => {
           authorityMatchSummary: 'body:yes face:no motion:no lipsync:yes',
           authorityMatchedDrivers: ['body', 'lipsync'],
           authorityMatchedSources: ['prosody-authority', 'voice-segment'],
-          sameHerSignature: 'embodiment:body-lipsync-voice-rejoin',
-          sameHerReasonTags: [
-            'embodiment:audible-same-her-line',
+          continuitySignature: 'embodiment:body-lipsync-voice-rejoin',
+          continuityReasonTags: [
+            'embodiment:audible-continuity-line',
             'embodiment:still-voiced-motion-line',
           ],
           authorityMismatchSummary: 'face-mismatch, motion-mismatch',
@@ -713,14 +713,14 @@ describe('performance visualizer speech hotspots', () => {
     expect(hotspots[0]?.authorityMismatchReasonSummary).toBe('表情和动作还没回到这一段里，但身体线和声音还在继续托住同一个 living segment。')
     expect(hotspots[0]?.speechSummaryEntries).toEqual(expect.arrayContaining([
       {
-        key: 'same-her-signature',
+        key: 'continuity-signature',
         label: '同一人签名',
         value: 'embodiment:body-lipsync-voice-rejoin',
       },
       {
-        key: 'same-her-reasons',
+        key: 'continuity-reasons',
         label: '同一人线索',
-        value: 'embodiment:audible-same-her-line, embodiment:still-voiced-motion-line',
+        value: 'embodiment:audible-continuity-line, embodiment:still-voiced-motion-line',
       },
       {
         key: 'authority-trust',
@@ -3529,7 +3529,7 @@ describe('performance visualizer speech hotspots', () => {
           personaStyleSummary: 'repair-before-closeness | soften / linger',
           timingSummary: 'facial=360 action=320 emotion=360 | segment-start | soft-interrupt | hold',
           driverExecutionSummary: 'face=thinking/soft-release@0.41 hold=360 pre=soft-breath post=soft-release src=prosody-authority conf=0.94 | motion=idle_settle mode=attentive idle=steady_focus@0.18 hold=320 src=timeline-projection conf=0.90 | lipsync=energy-phoneme-hybrid phase=playing',
-          traceEmbodimentSummary: 'turn=answer | closure=same-her-carry | surface=same-thread-continuation | authority=face, motion, lipsync | execution=face+motion+lipsync',
+          traceEmbodimentSummary: 'turn=answer | closure=continuity-carry | surface=same-thread-continuation | authority=face, motion, lipsync | execution=face+motion+lipsync',
           visemeHintsSummary: 'closed:0.78@0.93 src=prosody-authority segment=segment-later-callback-return | I:0.72@0.95 src=prosody-authority segment=segment-later-callback-return',
           settleAuthoritySummary: 'authority-bound | segment=segment-later-callback-return | target=live2d | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection',
           rendererDriftSummary: null,
@@ -3549,7 +3549,7 @@ describe('performance visualizer speech hotspots', () => {
           truthState: 'remembered',
           repairState: 'none',
           finalSurfacePolicy: 'same-thread-continuation',
-          closureState: 'same-her-carry',
+          closureState: 'continuity-carry',
           suppressionTags: ['continuity-next-open-window', 'interrupt-tail'],
         },
         recentDrivingTraceEvents: [],
@@ -3615,7 +3615,7 @@ describe('performance visualizer speech hotspots', () => {
       authorityTrustSummary: 'Live2D 表情、动作、口型已经一起回到当前片段主链，可按同一身体线继续观察。',
       authorityMatchSummary: 'face:yes motion:yes lipsync:yes',
       settleAuthoritySummary: 'authority-bound | segment=segment-later-callback-return | target=live2d | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection',
-      traceEmbodimentSummary: 'turn=answer | closure=same-her-carry | surface=same-thread-continuation | authority=face, motion, lipsync | execution=face+motion+lipsync',
+      traceEmbodimentSummary: 'turn=answer | closure=continuity-carry | surface=same-thread-continuation | authority=face, motion, lipsync | execution=face+motion+lipsync',
     }))
     expect(hotspots[0]?.speechEvidence.driverExecutionSummary).toContain('face=thinking/soft-release@0.41')
     expect(hotspots[0]?.speechEvidence.driverExecutionSummary).toContain('motion=idle_settle')
@@ -3640,7 +3640,7 @@ describe('performance visualizer speech hotspots', () => {
       cueId: 'segment-later-callback-return',
       decisionTraceId: 'mind:interrupt-callback-line:1',
       finalSurfacePolicy: 'same-thread-continuation',
-      closureState: 'same-her-carry',
+      closureState: 'continuity-carry',
       latestEventSummary: '打断以后还是沿着同一条 callback 线中性可见占位。',
       segmentBinding: expect.objectContaining({
         matched: true,

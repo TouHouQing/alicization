@@ -1,6 +1,6 @@
 import type { ChatHistoryItem } from '../../types/chat'
 
-import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
+import { normalizeDialogueStructuredArtifact } from '../../composables/alicization-structured-output'
 
 function extractMessageContent(message: ChatHistoryItem) {
   if (typeof message.content === 'string')
@@ -17,68 +17,6 @@ function extractMessageContent(message: ChatHistoryItem) {
   }
 
   return ''
-}
-
-const legacyProjectStateCueKeys = new Set([
-  'preDialogueAwarenessLine',
-  'preDialogueAwarenessSummary',
-  'awarenessLine',
-  'companionHeadlineLine',
-  'companionBriefingLine',
-  'companionNextClosureLine',
-  'sameHerSelfLine',
-  'sameHerSummary',
-  'sameHerHoldDetail',
-  'sameHerDriftRisk',
-  'sameHerDriftRiskLine',
-  'sameHerDriftRiskSummary',
-  'emotionalClosureCue',
-  'emotionalClosureSummary',
-  'continuityCue',
-  'continuityAnchor',
-  'continuityHold',
-  'continuityDriftRisk',
-  'proactiveSameHerGap',
-  'proactiveSameHerGapSummary',
-])
-
-function isLegacyProjectStateCueKey(key: string) {
-  return legacyProjectStateCueKeys.has(key)
-    || key.startsWith('companion')
-    || key.startsWith('sameHer')
-    || key.startsWith('emotionalClosure')
-    || key.startsWith('proactiveSameHer')
-}
-
-function sanitizeMergedStructuredProjectText(key: string, value: unknown, maxChars = 1600) {
-  if (typeof value !== 'string')
-    return value
-
-  const normalized = value.trim().replace(/\s+/g, ' ').slice(0, Math.max(0, maxChars)).trim()
-  if (!normalized)
-    return null
-  if ((key === 'currentPhase' || key === 'phase') && /\bphase\s*1\b|第一阶段|阶段一|project_phase=life_core/iu.test(normalized))
-    return null
-
-  const safe = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
-  return safe || null
-}
-
-function sanitizeMergedStructuredProjectPayload<T>(payload: T, parentKey = ''): T {
-  if (isLegacyProjectStateCueKey(parentKey))
-    return null as T
-  if (typeof payload === 'string')
-    return sanitizeMergedStructuredProjectText(parentKey, payload) as T
-  if (Array.isArray(payload))
-    return payload.map(item => sanitizeMergedStructuredProjectPayload(item, parentKey)) as T
-  if (payload && typeof payload === 'object') {
-    return Object.fromEntries(
-      Object.entries(payload as Record<string, unknown>)
-        .filter(([key]) => !isLegacyProjectStateCueKey(key))
-        .map(([key, value]) => [key, sanitizeMergedStructuredProjectPayload(value, key)]),
-    ) as T
-  }
-  return payload
 }
 
 function normalizeMessageId(raw: unknown) {
@@ -173,32 +111,12 @@ function cloneValue<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
-function stripLegacyPreDialogueStructured<T>(structured: T): T {
-  if (!structured || typeof structured !== 'object' || Array.isArray(structured))
-    return structured
-
-  const {
-    preDialogueSendIdentity: _preDialogueSendIdentity,
-    preDialogueAwareness: _preDialogueAwareness,
-    preDialogueClosure: _preDialogueClosure,
-    visibleReplyRealization: _visibleReplyRealization,
-    ...rest
-  } = structured as Record<string, unknown>
-  return rest as T
-}
-
 function sanitizeCanonicalMessage(message: ChatHistoryItem) {
   const cloned = cloneValue(message)
   if (cloned.role !== 'assistant' || !cloned.structured)
     return cloned
 
-  const structured = stripLegacyPreDialogueStructured(cloned.structured)
-  cloned.structured = structured?.projectState
-    ? {
-        ...structured,
-        projectState: sanitizeMergedStructuredProjectPayload(structured.projectState),
-      }
-    : structured
+  cloned.structured = normalizeDialogueStructuredArtifact(cloned.structured)
   return cloned
 }
 
@@ -281,32 +199,23 @@ function mergeEquivalentMessages(left: ChatHistoryItem, right: ChatHistoryItem):
       || secondaryAssistant.structured?.reply?.trim()
       ? 1
       : 0
-    const preferredStructured = stripLegacyPreDialogueStructured(
+    const preferredStructured = normalizeDialogueStructuredArtifact(
       primaryStructuredScore >= secondaryStructuredScore
         ? cloneValue(primaryAssistant.structured)
         : cloneValue(secondaryAssistant.structured),
     )
-    const fallbackStructured = stripLegacyPreDialogueStructured(
+    const fallbackStructured = normalizeDialogueStructuredArtifact(
       primaryStructuredScore >= secondaryStructuredScore
         ? cloneValue(secondaryAssistant.structured)
         : cloneValue(primaryAssistant.structured),
     )
-    const rawMergedProjectState = preferredStructured?.projectState && fallbackStructured?.projectState
-      ? {
-          ...fallbackStructured.projectState,
-          ...preferredStructured.projectState,
-        }
-      : preferredStructured?.projectState ?? fallbackStructured?.projectState
     const mergedStructured = preferredStructured && fallbackStructured
       ? {
           ...fallbackStructured,
           ...preferredStructured,
         }
       : preferredStructured ?? fallbackStructured
-    if (mergedStructured && rawMergedProjectState) {
-      mergedStructured.projectState = sanitizeMergedStructuredProjectPayload(rawMergedProjectState)
-    }
-    mergedAssistant.structured = mergedStructured
+    mergedAssistant.structured = normalizeDialogueStructuredArtifact(mergedStructured)
     mergedAssistant.categorization = primaryAssistant.categorization?.speech?.trim()
       ? cloneValue(primaryAssistant.categorization)
       : cloneValue(secondaryAssistant.categorization)
@@ -335,27 +244,32 @@ export function canonicalizeSessionMessages(messages: ChatHistoryItem[]) {
 }
 
 export function mergeLoadedSessionMessages(storedMessages: ChatHistoryItem[], currentMessages: ChatHistoryItem[]) {
+  const canonicalStoredMessages = canonicalizeSessionMessages(storedMessages)
+  const safeStoredMessages = areMessageArraysStructurallyEqual(canonicalStoredMessages, storedMessages)
+    ? storedMessages
+    : canonicalStoredMessages
+
   if (currentMessages.length === 0)
-    return storedMessages
+    return safeStoredMessages
 
   const currentNonSystemMessages = currentMessages.filter((message, index) => index !== 0 || message.role !== 'system')
   if (currentNonSystemMessages.length === 0)
-    return storedMessages
+    return safeStoredMessages
 
-  const systemMessage = storedMessages[0]?.role === 'system'
-    ? storedMessages[0]
+  const systemMessage = safeStoredMessages[0]?.role === 'system'
+    ? safeStoredMessages[0]
     : currentMessages[0]?.role === 'system'
       ? currentMessages[0]
       : undefined
 
   const merged = canonicalizeSessionMessages([
-    ...storedMessages,
+    ...safeStoredMessages,
     ...currentNonSystemMessages,
   ])
-  if (areMessageArraysStructurallyEqual(merged, storedMessages))
-    return storedMessages
+  if (areMessageArraysStructurallyEqual(merged, safeStoredMessages))
+    return safeStoredMessages
 
-  if (storedMessages.length === 0 && systemMessage && merged[0]?.role !== 'system')
+  if (safeStoredMessages.length === 0 && systemMessage && merged[0]?.role !== 'system')
     return canonicalizeSessionMessages([systemMessage, ...merged])
 
   return merged

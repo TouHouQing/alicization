@@ -70,7 +70,7 @@ pnpm exec vitest run \
   apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime-fixed-template-regression.test.ts \
   apps/stage-tamagotchi/src/main/services/alicization/fixed-reply-governance-removal.test.ts \
   packages/stage-ui/src/stores/chat.test.ts \
-  packages/stage-ui/src/stores/chat-core-pre-dialogue-authority.test.ts
+  packages/stage-ui/src/stores/chat.test.ts
 ```
 
 ```bash

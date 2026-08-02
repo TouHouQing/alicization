@@ -315,110 +315,7 @@ describe('runtime-governance', () => {
     expect((dialoguePayload?.structured as unknown as Record<string, unknown>)?.format).toBe('subconscious-reminder-v1')
   })
 
-  it('inherits measured-return resident delivery authority when sparse reply performance would otherwise flatten the same-her reopening', () => {
-    const dialoguePayload = normalizeDialogueRespondedPayload({
-      turnId: 'turn-normalize-resident-measured-return-authority-1',
-      sessionId: 'session-normalize-resident-measured-return-authority',
-      assistantText: '我先沿着这条线中性可见占位。',
-      structured: {
-        thought: 'keep the reopening on the same callback line without warming it too fast',
-        emotion: 'thinking',
-        reply: '我先沿着这条线中性可见占位。',
-        performance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        },
-        format: 'mind-turn-v1',
-      },
-      origin: 'user-turn',
-      createdAt: Date.now(),
-    }, {
-      renderer: 'live2d',
-      supportedBaseEmotions: ['neutral', 'thinking', 'concerned'],
-      supportedFacialCues: [
-        { key: 'soft-gaze', label: 'Soft Gaze', description: 'soft gaze', source: 'preset', affectsMouth: false },
-      ],
-      supportedActions: [
-        { key: 'steady_focus', label: 'Steady Focus', description: 'steady focus', source: 'live2d-motion' },
-        { key: 'observe_focus', label: 'Observe Focus', description: 'observe focus', source: 'live2d-motion' },
-        { key: 'idle_settle', label: 'Idle Settle', description: 'idle settle', source: 'live2d-motion' },
-      ],
-      supportsLookAt: true,
-      supportsVisemeLipSync: true,
-      supportsMicroDynamics: true,
-    }, {
-      residentPerformance: {
-        version: 'resident-performance-v1',
-        source: 'main-runtime',
-        confidence: 0.92,
-        reasonTags: ['main-runtime', 'quiet-companionship', 'measured-return', 'timing:runtime-continuity-arc'],
-        signature: 'resident-signature-normalize-measured-return-authority-1',
-        updatedAt: 1,
-        stance: 'accompany',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'soft-covision',
-        performance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          facialCue: 'soft-gaze',
-          actionCue: 'steady_focus',
-          delivery: 'gentle',
-          emphasis: 1,
-        },
-      },
-    })
-
-    expect(dialoguePayload?.structured.performance).toEqual(expect.objectContaining({
-      baseEmotion: 'thinking',
-      facialCue: 'soft-gaze',
-      actionCue: 'steady_focus',
-      delivery: 'gentle',
-      emphasis: 1,
-    }))
-    expect(dialoguePayload?.structured.embodimentScript).toEqual(expect.objectContaining({
-      state: expect.objectContaining({
-        residentMode: 'measured-return',
-        delivery: 'gentle',
-        emphasis: 1,
-      }),
-      facePlan: expect.objectContaining({
-        preUtteranceCue: 'steady-inhale',
-        postUtteranceCue: 'eyes-soften',
-      }),
-      speechPlan: expect.objectContaining({
-        segments: expect.arrayContaining([
-          expect.objectContaining({
-            prosody: expect.objectContaining({
-              tempoShift: -0.1,
-            }),
-            rendererHints: expect.objectContaining({
-              residentMode: 'measured-return',
-            }),
-          }),
-        ]),
-      }),
-    }))
-    expect(dialoguePayload?.structured.embodimentScript?.motionPlan.idleBase).toBe('observe_focus')
-    expect(dialoguePayload?.structured.embodimentScript?.motionPlan.actionBursts[0]?.actionCue).toBe('observe_focus')
-    expect(dialoguePayload?.structured.digitalLife).toEqual(expect.objectContaining({
-      mode: 'thinking',
-      performance: expect.objectContaining({
-        delivery: 'gentle',
-        emphasis: 1,
-      }),
-      action: expect.objectContaining({
-        actionCue: 'observe_focus',
-        actionMode: 'hold',
-      }),
-    }))
-    expect(dialoguePayload?.structured.digitalLife?.lipSync.continuityHoldMs).toBeGreaterThanOrEqual(300)
-  })
-
-  it('preserves long-horizon learning reason codes in proactive metadata normalization', () => {
+  it('preserves long-horizon learning reason codes without forwarding opening guidance', () => {
     const dialoguePayload = normalizeDialogueRespondedPayload({
       turnId: 'turn-normalize-proactive-learning-reasons-1',
       sessionId: 'session-normalize-proactive-learning-reasons',
@@ -462,7 +359,42 @@ describe('runtime-governance', () => {
       'learning:verify',
       'learning-focus:world-model',
     ]))
-    expect(dialoguePayload?.structured.proactive?.openingGuidance).toBe('Open by observing first and keep the approach lighter.')
+    expect(dialoguePayload?.structured.proactive).not.toHaveProperty('openingGuidance')
+  })
+
+  it('drops unknown sidecars from normalized dialogue payloads', () => {
+    const dialoguePayload = normalizeDialogueRespondedPayload({
+      turnId: 'turn-normalize-retired-reply-governance-1',
+      sessionId: 'session-normalize-retired-reply-governance',
+      assistantText: '我会按当前记忆和事实继续回答。',
+      structured: {
+        thought: 'Use current memory and provider evidence.',
+        emotion: 'thinking',
+        reply: '我会按当前记忆和事实继续回答。',
+        parsePath: 'json',
+        format: 'mind-turn-v1',
+        unknownStructuredSidecar: {
+          summaryLine: 'must not cross the normalized boundary',
+        },
+      },
+      visibleReplyRealization: {
+        version: 'visible-reply-realization-v1',
+        expectedAuthority: 'llm-mind',
+        actualAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        mode: 'provider-one-shot',
+        visibleText: '我会按当前记忆和事实继续回答。',
+        visibleReplyValidationStatus: 'approved',
+        blockedReasons: [],
+        unknownRealizationSidecar: 'must not cross the realization boundary',
+        reason: null,
+      },
+      origin: 'user-turn',
+      createdAt: Date.now(),
+    } as any)
+
+    expect(dialoguePayload?.structured).not.toHaveProperty('unknownStructuredSidecar')
+    expect(dialoguePayload?.visibleReplyRealization).not.toHaveProperty('unknownRealizationSidecar')
   })
 
   it('uses the manifest renderer as embodimentScript rendererTarget across governed and normalized payloads', () => {
@@ -733,223 +665,6 @@ describe('runtime-governance', () => {
     )
   })
 
-  it('keeps measured-return face lane authority when provided digitalLife frames stay thin during later same-thread normalization', () => {
-    const dialoguePayload = normalizeDialogueRespondedPayload({
-      turnId: 'turn-normalize-digital-life-measured-return-thin-face-1',
-      sessionId: 'session-normalize-digital-life-measured-return-thin-face',
-      assistantText: '我还是沿着刚才那条 callback 线继续，不把这次绕回来当成另一段新的开始。',
-      structured: {
-        thought: 'obligation=answer; truth=remembered; focus=callback-runtime-seam; move=continue-slower-fifth; tone=restrained',
-        emotion: 'thinking',
-        reply: '我还是沿着刚才那条 callback 线继续，不把这次绕回来当成另一段新的开始。',
-        performance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          facialCue: null,
-          actionCue: null,
-          delivery: 'calm',
-          emphasis: 0,
-        },
-        digitalLife: {
-          version: 'digital-life-v1',
-          variationToken: 'turn-normalize-digital-life-measured-return-thin-face-1',
-          emotion: 'thinking',
-          mode: 'thinking',
-          postureHint: 'inspection',
-          performance: {
-            baseEmotion: 'thinking',
-            emotion: 'thinking',
-            facialCue: 'glance',
-            actionCue: 'observe_focus',
-            delivery: 'gentle',
-            emphasis: 0,
-          },
-          speechStyle: {
-            pitchDelta: -5,
-            rateMultiplier: 0.88,
-          },
-          voice: {
-            pitchDelta: -5,
-            rateMultiplier: 0.88,
-            energy: 0.49,
-            cadence: 0.47,
-          },
-          lipSync: {
-            mode: 'energy-phoneme-hybrid',
-            visemeBias: 0.34,
-            energyBias: 0.58,
-            mouthScale: 0.94,
-            continuityHoldMs: 320,
-          },
-          face: {
-            emotion: 'thinking',
-            facialCue: 'glance',
-            expressionMode: 'hold',
-            intensity: 0.65,
-            holdMs: 638,
-          },
-          action: {
-            actionCue: 'observe_focus',
-            actionMode: 'hold',
-            intensity: 0.34,
-            holdMs: 300,
-          },
-          motor: {
-            stillness: 0.5,
-            expressivity: 0.5,
-            gaze: { focus: 0.6, stability: 0.6, azimuth: 0, elevation: 0 },
-            head: { yaw: 0, pitch: 0, roll: 0, nod: 0.1 },
-            breath: { amplitude: 0.25, pace: 0.4 },
-            facial: {
-              eyeOpenness: 0.55,
-              browLift: 0.05,
-              browTension: 0.16,
-              cheekLift: 0.08,
-              mouthSpread: 0.1,
-              mouthRound: 0.14,
-              jawOpenBias: 0.2,
-            },
-            body: {
-              sway: 0.03,
-              lean: 0,
-              openness: 0.4,
-              settle: 0.55,
-            },
-          },
-          frames: [{
-            id: 'turn-normalize-digital-life-measured-return-thin-face-1-segment-0',
-            index: 0,
-            startOffset: 0,
-            endOffset: 30,
-            text: '我还是沿着刚才那条 callback 线继续，不把这次绕回来当成另一段新的开始。',
-            mode: 'thinking',
-            interruptPolicy: 'soft-settle',
-            settleMode: 'linger',
-            face: {
-              emotion: 'thinking',
-              facialCue: 'glance',
-              expressionMode: 'hold',
-              intensity: 0.65,
-              holdMs: 638,
-            },
-            action: {
-              actionCue: 'observe_focus',
-              actionMode: 'hold',
-              intensity: 0.34,
-              holdMs: 300,
-            },
-            voice: {
-              pitchDelta: -5,
-              rateMultiplier: 0.88,
-              energy: 0.49,
-              cadence: 0.47,
-            },
-            lipSync: {
-              mode: 'energy-phoneme-hybrid',
-              visemeBias: 0.34,
-              energyBias: 0.58,
-              mouthScale: 0.94,
-              continuityHoldMs: 320,
-            },
-            motor: {
-              stillness: 0.5,
-              expressivity: 0.5,
-              gaze: { focus: 0.6, stability: 0.6, azimuth: 0, elevation: 0 },
-              head: { yaw: 0, pitch: 0, roll: 0, nod: 0.1 },
-              breath: { amplitude: 0.25, pace: 0.4 },
-              facial: {
-                eyeOpenness: 0.55,
-                browLift: 0.05,
-                browTension: 0.16,
-                cheekLift: 0.08,
-                mouthSpread: 0.1,
-                mouthRound: 0.14,
-                jawOpenBias: 0.2,
-              },
-              body: {
-                sway: 0.03,
-                lean: 0,
-                openness: 0.4,
-                settle: 0.55,
-              },
-            },
-          }],
-        } as any,
-        format: 'mind-turn-v1',
-      },
-      origin: 'user-turn',
-      createdAt: Date.now(),
-    }, {
-      renderer: 'live2d',
-      supportedBaseEmotions: ['neutral', 'thinking', 'concerned'],
-      supportedFacialCues: [
-        { key: 'soft-gaze', label: 'Soft Gaze', description: 'soft gaze', source: 'preset', affectsMouth: false },
-        { key: 'glance', label: 'Glance', description: 'glance', source: 'preset', affectsMouth: false },
-      ],
-      supportedActions: [
-        { key: 'steady_focus', label: 'Steady Focus', description: 'steady focus', source: 'live2d-motion' },
-        { key: 'observe_focus', label: 'Observe Focus', description: 'observe focus', source: 'live2d-motion' },
-        { key: 'idle_settle', label: 'Idle Settle', description: 'idle settle', source: 'live2d-motion' },
-      ],
-      supportsLookAt: true,
-      supportsVisemeLipSync: true,
-      supportsMicroDynamics: true,
-    }, {
-      residentPerformance: {
-        version: 'resident-performance-v1',
-        source: 'main-runtime',
-        confidence: 0.74,
-        reasonTags: ['main-runtime', 'quiet-companionship', 'measured-return', 'timing:runtime-continuity-arc'],
-        signature: 'resident-signature-normalize-digital-life-measured-return-thin-face-1',
-        updatedAt: 1,
-        stance: 'accompany',
-        embodiedPresence: 'attentive',
-        emotionalTension: 'soft-covision',
-        performance: {
-          baseEmotion: 'thinking',
-          emotion: 'thinking',
-          facialCue: 'soft-gaze',
-          actionCue: 'steady_focus',
-          delivery: 'gentle',
-          emphasis: 0,
-        },
-      },
-    })
-
-    expect(dialoguePayload?.structured.embodimentScript).toEqual(expect.objectContaining({
-      state: expect.objectContaining({
-        residentMode: 'measured-return',
-        delivery: 'gentle',
-      }),
-    }))
-    expect(dialoguePayload?.structured.digitalLife).toEqual(expect.objectContaining({
-      mode: 'thinking',
-      performance: expect.objectContaining({
-        delivery: 'gentle',
-        emphasis: 0,
-      }),
-      face: expect.objectContaining({
-        expressionMode: 'hold',
-      }),
-      action: expect.objectContaining({
-        actionCue: 'observe_focus',
-        actionMode: 'hold',
-      }),
-      frames: expect.arrayContaining([
-        expect.objectContaining({
-          face: expect.objectContaining({
-            expressionMode: 'hold',
-            facialCue: expect.any(String),
-          }),
-          action: expect.objectContaining({
-            actionCue: 'observe_focus',
-            actionMode: 'hold',
-          }),
-        }),
-      ]),
-    }))
-  })
-
   it('suppresses need-reground fallback takeover for explicit execution-bound turns', () => {
     const input: AlicizationConversationTurnInput = {
       turnId: 'turn-execution-bound-1',
@@ -1077,7 +792,6 @@ describe('runtime-governance', () => {
         activeClosenessContext: 'repair-window',
         activeClosenessRung: 'measured-room',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Repair the seam before leaning closer.',
         personalityCurrentRegime: 'repair-window',
         personalityRepairPosture: 'repair-first',
         recollectionIntentMode: 'execution-procedure',
@@ -1136,10 +850,10 @@ describe('runtime-governance', () => {
           id: 'cluster:runtime-nearby',
           summary: '另一条相近的 runtime 线程也还在竞争这次回想',
           provenance: 'reconstructed',
-          reason: 'A nearby competing thread cluster still matches the current recall cue.',
+          reason: 'cluster-competition:dominant',
         }],
         stableCore: ['先 patch 再 verify 再汇报'],
-        unsafeDetails: ['A nearby competing thread cluster still matches the current recall cue.'],
+        unsafeDetails: ['cluster-competition:dominant'],
         followUpAffordance: {
           summary: 'Let the remembered repair rhythm contour the answer after the live payoff lands.',
           whyNow: 'The current payoff still has to land before the remembered line opens further.',
@@ -1449,11 +1163,11 @@ describe('runtime-governance', () => {
       turnId: 'turn-dialogue-emitted-memory-closure-1',
       sessionId: 'session-dialogue-emitted-memory-closure',
       userText: '继续把记忆闭环接到身体表现里',
-      assistantText: '我会把这条回忆、情绪余波和身体表现接在同一个她身上。',
+      assistantText: '我会把这条回忆、情绪余波和身体表现接到同一轮记忆证据里。',
       structured: {
         thought: 'obligation=answer; truth=remembered; focus=memory closure; move=continue; tone=steady',
         emotion: 'thinking',
-        reply: '我会把这条回忆、情绪余波和身体表现接在同一个她身上。',
+        reply: '我会把这条回忆、情绪余波和身体表现接到同一轮记忆证据里。',
         parsePath: 'json',
         format: 'mind-turn-v1',
         derivedMindStateBundle: {
@@ -1491,13 +1205,6 @@ describe('runtime-governance', () => {
               tone: 'measured-return',
               reason: 'Drive face voice motion lipsync and body together.',
             },
-            selfRevisionCandidate: {
-              shouldPropose: false,
-              domain: 'dialogue-style',
-              reasonCodes: [],
-              summary: null,
-              projectStateContinuity: {},
-            },
             traceSummary: 'memory closure changed the emotional afterglow',
             replayLine: 'next turn keeps the same measured-return afterglow',
           },
@@ -1515,14 +1222,9 @@ describe('runtime-governance', () => {
               lane: 'cross-modal-continuity',
               reason: 'All body channels held the same memory line.',
             },
-            selfRevisionCandidate: {
-              shouldPropose: false,
-              reasonCodes: [],
-              summary: null,
-            },
             traceSummary: 'body voice face motion lipsync stayed on one line',
             replayLine: 'body expression stays measured-return next turn',
-            sourceTags: ['dialogue-emitted', 'same-her-body'],
+            sourceTags: ['dialogue-emitted', 'continuity-body'],
           },
         },
         memoryStageReplay: {
@@ -1539,14 +1241,14 @@ describe('runtime-governance', () => {
         memoryResolutionLedger: {
           version: 'memory-resolution-ledger-v1',
           producedAt: createdAt,
-          dominantClusterId: 'cluster:same-her-memory-closure',
-          dominantClusterSummary: 'same-her memory closure',
+          dominantClusterId: 'cluster:continuity-memory-closure',
+          dominantClusterSummary: 'continuity memory closure',
           competingClusterId: 'cluster:wrong-thread',
           competingClusterSummary: 'nearby stale status',
           candidates: [
             {
-              id: 'cluster:same-her-memory-closure',
-              summary: 'same-her memory closure',
+              id: 'cluster:continuity-memory-closure',
+              summary: 'continuity memory closure',
               score: 0.9,
               status: 'selected',
               reason: 'The recalled closure matches the current body line.',
@@ -1570,7 +1272,7 @@ describe('runtime-governance', () => {
           visibleCarryMode: 'explicit-recall',
           conflictPressure: 'medium',
           retrievalQuality: 'high',
-          finalRationale: 'Use the same-her memory closure and suppress the wrong thread.',
+          finalRationale: 'Use the continuity memory closure and suppress the wrong thread.',
         },
       } as any,
       governance: {
@@ -1624,7 +1326,7 @@ describe('runtime-governance', () => {
       ]),
     }))
     expect(dialogueEventPayload?.memoryResolutionLedger).toEqual(expect.objectContaining({
-      dominantClusterId: 'cluster:same-her-memory-closure',
+      dominantClusterId: 'cluster:continuity-memory-closure',
       suppressionTags: expect.arrayContaining(['wrong-thread']),
     }))
   })
@@ -1667,11 +1369,11 @@ describe('runtime-governance', () => {
           nextLearningAction: 'verify-callback',
           shouldVerify: true,
           shouldReflect: true,
-          activeLearningFocuses: ['execution-callback', 'same-her-runtime-closure'],
+          activeLearningFocuses: ['execution-callback', 'continuity-runtime-closure'],
         },
         emotion: {
           afterglow: 'remembered execution callback keeps the next emotional afterglow lower-pressure',
-          residue: 'same-her memory closure residue',
+          residue: 'continuity memory closure residue',
           reason: 'emotion should stay softened because the recalled callback is still active',
         },
         embodiment: {
@@ -1683,7 +1385,7 @@ describe('runtime-governance', () => {
         },
       },
       closureState: {
-        state: 'trace-backed-same-her-closure',
+        state: 'trace-backed-continuity-closure',
         open: true,
         revisionRequired: false,
         shouldLabelUncertainty: false,
@@ -1691,11 +1393,11 @@ describe('runtime-governance', () => {
         retrievalQuality: 'high',
         conflictPressure: 'low',
       },
-      selectedCandidateIds: ['episode:desktop-callback-same-her'],
+      selectedCandidateIds: ['episode:desktop-callback-continuity'],
       memoryIdentity: {
-        selectedCandidateIds: ['episode:desktop-callback-same-her'],
-        continuityKey: 'cluster:desktop-callback-same-her',
-        reasonTags: ['cluster:desktop-callback-same-her', 'memory-os-authority'],
+        selectedCandidateIds: ['episode:desktop-callback-continuity'],
+        continuityKey: 'cluster:desktop-callback-continuity',
+        reasonTags: ['cluster:desktop-callback-continuity', 'memory-os-authority'],
       },
       reasonTags: [
         'memory-reconsolidated',
@@ -1711,11 +1413,11 @@ describe('runtime-governance', () => {
       turnId: 'turn-governance-memory-closure-trace-lift-1',
       sessionId: 'session-governance-memory-closure-trace-lift',
       userText: '继续把这个记忆闭环跑通',
-      assistantText: '我会把这条回忆、执行回调和身体表现接在同一个她身上。',
+      assistantText: '我会把这条回忆、执行回调和身体表现接到同一轮记忆证据里。',
       structured: {
         thought: 'obligation=answer; truth=remembered; focus=memory closure replay proof; move=continue; tone=steady',
         emotion: 'thinking',
-        reply: '我会把这条回忆、执行回调和身体表现接在同一个她身上。',
+        reply: '我会把这条回忆、执行回调和身体表现接到同一轮记忆证据里。',
         parsePath: 'json',
         format: 'mind-turn-v1',
         memoryClosureTrace,
@@ -1725,7 +1427,7 @@ describe('runtime-governance', () => {
           continuitySignal: null,
           memory: {
             recallMode: 'callback-afterglow',
-            recallSeed: 'desktop same-her memory closure',
+            recallSeed: 'desktop continuity memory closure',
             leadingGoalSummary: 'Make replay prove that memory shaped the next turn.',
             thoughtThreadSummary: 'memory, emotion, initiative, execution, and embodiment are staying on one line',
             personStateProjection: {
@@ -1735,7 +1437,7 @@ describe('runtime-governance', () => {
                 motiveLine: '让回忆继续影响执行和身体表现。',
                 habitLine: '先验证再主动开口。',
                 inwardLine: '把 memoryClosureTrace 留给 replay 看见。',
-                authoritySummary: 'same-her memory closure already alive',
+                authoritySummary: 'continuity memory closure already alive',
                 sourceTags: ['memory-closure'],
               },
               activeClosenessContext: 'callback-afterglow',
@@ -1743,7 +1445,6 @@ describe('runtime-governance', () => {
               relationshipPosture: 'restrained',
               openingGuidance: 'Keep the recalled line low-pressure.',
               preferredProactiveStyle: 'silent-observe',
-              manifestationCadenceSummary: 'measured-return until the callback lands',
             },
           },
           runtime: {
@@ -1755,7 +1456,7 @@ describe('runtime-governance', () => {
             selectedAction: 'silent-observe',
             updatedAt: 1,
             continuityArcStage: 'same-thread-continuation',
-            continuityCue: 'same-her memory closure should stay replay-visible',
+            continuityCue: 'continuity memory closure should stay replay-visible',
           },
           proactive: {
             selectedAction: null,
@@ -1859,9 +1560,9 @@ describe('runtime-governance', () => {
           causedByMemoryClosure: true,
           traceAuthority: 'memory-os',
           memoryIdentity: {
-            selectedCandidateIds: ['episode:desktop-callback-same-her'],
-            continuityKey: 'cluster:desktop-callback-same-her',
-            reasonTags: ['cluster:desktop-callback-same-her', 'memory-os-authority'],
+            selectedCandidateIds: ['episode:desktop-callback-continuity'],
+            continuityKey: 'cluster:desktop-callback-continuity',
+            reasonTags: ['cluster:desktop-callback-continuity', 'memory-os-authority'],
           },
         }),
       }),
@@ -1873,9 +1574,9 @@ describe('runtime-governance', () => {
           causedByMemoryClosure: true,
           traceAuthority: 'memory-os',
           memoryIdentity: {
-            selectedCandidateIds: ['episode:desktop-callback-same-her'],
-            continuityKey: 'cluster:desktop-callback-same-her',
-            reasonTags: ['cluster:desktop-callback-same-her', 'memory-os-authority'],
+            selectedCandidateIds: ['episode:desktop-callback-continuity'],
+            continuityKey: 'cluster:desktop-callback-continuity',
+            reasonTags: ['cluster:desktop-callback-continuity', 'memory-os-authority'],
           },
         }),
       }),
@@ -1886,9 +1587,9 @@ describe('runtime-governance', () => {
           causedByMemoryClosure: true,
           traceAuthority: 'memory-os',
           memoryIdentity: {
-            selectedCandidateIds: ['episode:desktop-callback-same-her'],
-            continuityKey: 'cluster:desktop-callback-same-her',
-            reasonTags: ['cluster:desktop-callback-same-her', 'memory-os-authority'],
+            selectedCandidateIds: ['episode:desktop-callback-continuity'],
+            continuityKey: 'cluster:desktop-callback-continuity',
+            reasonTags: ['cluster:desktop-callback-continuity', 'memory-os-authority'],
           },
         }),
       }),
@@ -1900,9 +1601,9 @@ describe('runtime-governance', () => {
         causedByMemoryClosure: true,
         traceAuthority: 'memory-os',
         memoryIdentity: {
-          selectedCandidateIds: ['episode:desktop-callback-same-her'],
-          continuityKey: 'cluster:desktop-callback-same-her',
-          reasonTags: ['cluster:desktop-callback-same-her', 'memory-os-authority'],
+          selectedCandidateIds: ['episode:desktop-callback-continuity'],
+          continuityKey: 'cluster:desktop-callback-continuity',
+          reasonTags: ['cluster:desktop-callback-continuity', 'memory-os-authority'],
         },
       }),
     )
@@ -2003,12 +1704,6 @@ describe('runtime-governance', () => {
           outcomeLearning: null,
           continuity: null,
         },
-        projectState: {
-          sameHerSelfLine: 'legacy phase-one template keeps 铃兰-Phase1-0621 on continuity state.',
-          memoryClosureSummary: 'why recall surfaced now: explicit memory handoff for 铃兰-Phase1-0621 asked this line to return as the same memory identity.',
-          proactiveSameHerGap: 'prior memory closure changes the next proactive opening into a lower-pressure measured return.',
-          emotionalClosureCue: 'prior memory closure changes the next emotional afterglow into quieter same-her residue.',
-        },
       } as any,
       governance: {
         decisionTraceId: 'mind:governance:fallbackmemoryclosuregenericcluster',
@@ -2061,7 +1756,7 @@ describe('runtime-governance', () => {
       whySurface: [{
         source: 'retrieval',
         summary: 'why recall surfaced now: the prior white-sakura memory returned because this same relationship line reopened',
-        reasonCodes: ['why-surfaced', 'same-her-memory-closure'],
+        reasonCodes: ['why-surfaced', 'continuity-memory-closure'],
       }],
       nextInfluence: {
         initiative: {
@@ -2074,7 +1769,7 @@ describe('runtime-governance', () => {
           carry: 'prior recall changed the next execution callback carry so it does not reset into a fresh helper task',
           nextLearningAction: 'verify',
           shouldVerify: true,
-          activeLearningFocuses: ['execution-callback', 'same-her-memory-closure'],
+          activeLearningFocuses: ['execution-callback', 'continuity-memory-closure'],
         },
         embodiment: {
           cadence: 'body voice face motion lipsync measured-return',
@@ -2172,7 +1867,7 @@ describe('runtime-governance', () => {
       whySurface: [{
         source: 'retrieval',
         summary: 'the remembered desktop callback surfaced because the same closure target returned',
-        reasonCodes: ['memory-closure-trace', 'same-her-callback'],
+        reasonCodes: ['memory-closure-trace', 'continuity-callback'],
       }],
       surfacePolicy: {
         gateStatus: 'allowed',
@@ -2181,7 +1876,7 @@ describe('runtime-governance', () => {
         speechMode: 'lower-pressure',
         placement: 'inside-payoff',
         certainty: 'trace-backed',
-        reasons: ['same-her-callback'],
+        reasons: ['continuity-callback'],
       },
       nextInfluence: {
         initiative: {
@@ -2195,7 +1890,7 @@ describe('runtime-governance', () => {
           nextLearningAction: 'verify',
           shouldVerify: true,
           shouldReflect: true,
-          activeLearningFocuses: ['remembered-callback', 'same-her-closure'],
+          activeLearningFocuses: ['remembered-callback', 'continuity-closure'],
         },
         emotion: {
           reason: 'the callback memory keeps the next emotional state softened',
@@ -2211,7 +1906,7 @@ describe('runtime-governance', () => {
         },
       },
       closureState: {
-        state: 'trace-backed-same-her-callback',
+        state: 'trace-backed-continuity-callback',
         open: true,
         revisionRequired: false,
         shouldLabelUncertainty: false,
@@ -2335,7 +2030,7 @@ describe('runtime-governance', () => {
       whySurface: [{
         source: 'retrieval',
         summary: 'why recall surfaced now: the prior callback must change the visible and embodied reply',
-        reasonCodes: ['why-surfaced', 'same-her-memory-closure'],
+        reasonCodes: ['why-surfaced', 'continuity-memory-closure'],
       }],
       surfacePolicy: {
         gateStatus: 'open',
@@ -2344,7 +2039,7 @@ describe('runtime-governance', () => {
         speechMode: 'visible',
         placement: 'inside-payoff',
         certainty: 'grounded',
-        reasons: ['same-her-memory-closure'],
+        reasons: ['continuity-memory-closure'],
       },
       nextInfluence: {
         initiative: {
@@ -2505,146 +2200,6 @@ describe('runtime-governance', () => {
     }))
   })
 
-  it('does not add project-state governance tags to normalized payload spine authority', () => {
-    const normalized = normalizeDialogueRespondedPayload({
-      turnId: 'turn-callback-afterglow-chat-meta-measured-return-noisy-sixth-follow-up',
-      sessionId: 'session-normalize-noisy-sixth-project-state-carry',
-      userText: '中间又切出去一下，也还是接着刚才那条线',
-      assistantText: '我还是沿着刚才那条 callback 线继续，不把这次绕回来当成另一段新的开始。',
-      structured: {
-        thought: 'obligation=answer; truth=remembered; focus=callback-runtime-seam; move=continue-slower-fifth; tone=restrained',
-        emotion: 'thinking',
-        reply: '我还是沿着刚才那条 callback 线继续，不把这次绕回来当成另一段新的开始。',
-        parsePath: 'json',
-        format: 'mind-turn-v1',
-        projectState: {
-          sameHerSelfLine: 'structured continuity digest.',
-          nextClosureTarget: 'keep one measured-return, repair-before-closeness, or rest-protective quiet-companionship same living thread across renderer output',
-          primaryOpenLoop: 'Project identity carry still needs to stay on one identity-continuity',
-        },
-        digitalLifeSpine: {
-          version: 'digital-life-spine-digest-v1',
-          architecture: null,
-          continuitySignal: {
-            label: 'same-thread-return',
-            summary: 'thread=later coding seam after noisy callback detour',
-            activeThreadId: 'deep-focus::later coding seam after noisy callback detour',
-            dominantMode: 'repairing',
-            dominantDrive: 'understand',
-            answerIntent: 'continue the same callback line gently after noise',
-            preferredPresence: 'hesitant',
-          },
-          memory: {
-            summary: 'The callback line is still the continuity state after the unrelated detour.',
-            recentEpisodeSummary: 'The host returned to the later coding seam after a noisier unrelated detour.',
-            recentEpisodeCount: 1,
-            focusBeliefStatement: 'This should stay a same-thread continuation rather than a fresh reopen.',
-            focusBeliefConfidence: 0.82,
-            leadingGoalSummary: 'Keep the same callback line measured and continuous.',
-            dominantConcernSummary: 'Do not let the line drift into a detached fresh reopening shell.',
-            reflectionSummary: null,
-            reflectionPressure: 0.34,
-            recallMode: 'working',
-            recallSeed: 'callback-noisy-sixth-follow-up',
-            thoughtThreadSummary: 'same callback line, later return, still measured-return',
-            personStateProjection: {
-              summary: 'She is still carrying the same callback line forward.',
-              activeClosenessContext: 'same-thread-continuation',
-              activeClosenessRung: 'space-first',
-              relationshipPosture: 'restrained',
-              openingGuidance: 'Stay on the same callback line and keep continuing lower-pressure.',
-              preferredProactiveStyle: 'silent-observe',
-              manifestationCadenceSummary: 'observe-first and stay slower until the opening softens',
-              selfContinuityAuthority: {
-                selfLine: '我还是沿着同一个她的回线往前。',
-                relationshipLine: '这次回到 coding seam，也还是同一条关系线在往下接。',
-                motiveLine: '继续把 callback 的后续接住，不把它改写成新的开始。',
-                habitLine: '先守住同一条线，再慢慢往下接。',
-                inwardLine: '先沿着同一条 callback 线轻一点继续。',
-                authoritySummary: 'identity-continuity',
-                sourceTags: ['motive:self-direction', 'companionship', 'boundary-respect'],
-              },
-            },
-          },
-          motive: null,
-          habit: null,
-          runtime: {
-            watchMode: 'symbiotic-vision',
-            sceneScenario: 'coding',
-            sceneSummary: 'later coding seam after noisy callback detour',
-            activeThreadId: 'deep-focus::later coding seam after noisy callback detour',
-            activeThreadTitle: 'later coding seam after noisy callback detour',
-            dominantMode: 'repairing',
-            dominantDrive: 'understand',
-            answerIntent: 'continue the same callback line gently after noise',
-            preferredPresence: 'hesitant',
-            selectedAction: 'recheck',
-            continuityArcStage: 'same-thread-continuation',
-            continuityPreferredTiming: 'next-open-window',
-            continuityCue: 'same callback seam, continue the same line gently',
-            projectState: {
-              sameHerSelfLine: 'structured continuity digest.',
-              nextClosureTarget: 'keep one measured-return same living thread across renderer output',
-              primaryOpenLoop: 'Project identity carry still needs to stay on one identity-continuity',
-            },
-            updatedAt: 1,
-          },
-          proactive: {
-            selectedAction: null,
-            preferredStyle: 'silent-observe',
-            preferredPresence: 'hesitant',
-            continuityRestraint: 'measured-return',
-            shouldSpeak: false,
-            speakDrive: 0.21,
-            silenceDrive: 0.79,
-            why: 'same callback line should stay lower-pressure after noise',
-          },
-          outcomeLearning: null,
-          embodiment: null,
-          selfAuthority: {
-            inwardLine: 'structured continuity digest.',
-          },
-        },
-      },
-      governance: {
-        decisionTraceId: 'trace-normalize-noisy-sixth-project-state-carry',
-        turnMode: 'answer',
-        truthState: 'remembered',
-        personaKernelMode: 'full',
-        openingStyle: 'light-accompaniment',
-        relationshipPosture: 'restrained',
-        answerAct: 'answer',
-        answerSubject: 'relationship',
-        screenReferenceMode: 'avoid',
-        evidenceMode: 'continuity-carry',
-        repairState: 'none',
-        liveSurface: 'runtime.ts - callback seam final return',
-        focusAnchor: 'runtime.ts - callback seam final return',
-        answerIntent: 'Continue the same callback line gently after the unrelated detour.',
-        openingMove: 'Stay on the same callback line and keep continuing lower-pressure.',
-        carriedThread: 'callback result seam',
-        labelCarryAsMemory: true,
-        shouldAskForGrounding: false,
-        shouldAcknowledgeRepair: false,
-        maxSentences: 4,
-        mindMode: 'repairing',
-        embodiedPresence: 'hesitant',
-        emotionalTension: 'soft-covision',
-        mustDo: [],
-        mustNotDo: [],
-      },
-      origin: 'user-turn',
-      createdAt: 1,
-    })!
-
-    expect(
-      normalized.structured.digitalLifeSpine?.memory?.personStateProjection?.selfContinuityAuthority?.sourceTags ?? [],
-    ).toEqual(expect.arrayContaining(['motive:self-direction', 'companionship', 'boundary-respect']))
-    expect(
-      normalized.structured.digitalLifeSpine?.memory?.personStateProjection?.selfContinuityAuthority?.sourceTags ?? [],
-    ).not.toContain('project-state-carry')
-  })
-
   it('keeps explicit VRM action authority in reply-only stream meta rebuild even when embodiment renderer hints are still sparse', () => {
     const meta = buildTestAlicizationChatStreamEmbodimentMeta({
       governance: {
@@ -2730,7 +2285,6 @@ describe('runtime-governance', () => {
             empathyBias: 0.82,
             silenceReconnect: 'hold',
             preferredProactiveStyle: 'silent-observe',
-            manifestationCadenceSummary: 'observe-first and stay slower until the opening softens',
           },
         },
         outcomeLearning: {

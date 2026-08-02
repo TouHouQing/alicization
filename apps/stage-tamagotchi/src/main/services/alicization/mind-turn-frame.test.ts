@@ -384,7 +384,7 @@ describe('buildMindTurnFrame', () => {
         confidence: 0.83,
         governingFocus: 'Keep the continuity state continuous while face and motion rejoin.',
         openingMove: 'Open on the same living audio thread first, keep the continuity state intact through body, lipsync, and voice, and let face and motion rejoin before widening outward.',
-        answerIntent: 'Keep audible-body continuity carrying the same her before full cross-modal closure returns.',
+        answerIntent: 'Keep audible-body continuity carrying the same life-line before full cross-modal closure returns.',
         relationshipPosture: 'warm',
         shouldAskForGrounding: false,
         shouldAcknowledgeRepair: false,
@@ -438,7 +438,7 @@ describe('buildMindTurnFrame', () => {
       privateThought: {
         stance: 'observe',
         confidence: 0.76,
-        rationaleTags: ['audible-body', 'same-her'],
+        rationaleTags: ['audible-body', 'continuity'],
         thoughtText: 'The living audio thread is still intact, so the opening should stay there first.',
         shouldSpeak: true,
         suggestedStyle: 'light-nudge',
@@ -497,8 +497,8 @@ describe('buildMindTurnFrame', () => {
         evidenceMode: 'dialogue-grounded',
         confidence: 0.82,
         governingFocus: 'Keep the continuity state continuous while voice, face, and motion still rejoin.',
-        openingMove: 'Open on the quieter same-her body-and-lipsync line first, keep that living line inward, and let voice, face, and motion rejoin before widening outward.',
-        answerIntent: 'Keep quieter body-lipsync continuity carrying the same her before full cross-modal closure returns.',
+        openingMove: 'Open on the quieter continuity body-and-lipsync line first, keep that living line inward, and let voice, face, and motion rejoin before widening outward.',
+        answerIntent: 'Keep quieter body-lipsync continuity carrying the same life-line before full cross-modal closure returns.',
         relationshipPosture: 'warm',
         shouldAskForGrounding: false,
         shouldAcknowledgeRepair: false,
@@ -552,7 +552,7 @@ describe('buildMindTurnFrame', () => {
       privateThought: {
         stance: 'observe',
         confidence: 0.75,
-        rationaleTags: ['body-lipsync', 'same-her'],
+        rationaleTags: ['body-lipsync', 'continuity'],
         thoughtText: 'The quieter body-and-lipsync line is still intact, so the opening should stay there first.',
         shouldSpeak: true,
         suggestedStyle: 'light-nudge',
@@ -564,9 +564,9 @@ describe('buildMindTurnFrame', () => {
       },
       conversationState: {
         jointThread: 'Keep the quieter living line continuous while voice, face, and motion rejoin.',
-        hostMove: '先别把这条 quieter same-her 线说成已经完全回来',
+        hostMove: '先别把这条 quieter continuity 线说成已经完全回来',
         activeProject: 'Alicization embodiment closure',
-        unansweredQuestion: '先别把这条 quieter same-her 线说成已经完全回来',
+        unansweredQuestion: '先别把这条 quieter continuity 线说成已经完全回来',
         owedRepair: null,
         activeCommitments: [],
         relationFrame: 'task',
@@ -586,7 +586,7 @@ describe('buildMindTurnFrame', () => {
         relationDrift: 'steady',
         memoryMode: 'dialogue-carry',
         recallKeys: ['body-lipsync continuity'],
-        lastUserMove: '先别把这条 quieter same-her 线说成已经完全回来',
+        lastUserMove: '先别把这条 quieter continuity 线说成已经完全回来',
         lastAssistantMove: null,
         lastOutcome: 'pending',
         pendingValidation: null,
@@ -596,7 +596,7 @@ describe('buildMindTurnFrame', () => {
       } as any,
     })
 
-    expect(frame.obligation.openingMove).toContain('quieter same-her body-and-lipsync line first')
+    expect(frame.obligation.openingMove).toContain('quieter continuity body-and-lipsync line first')
     expect(frame.obligation.openingMove).toContain('voice, face, and motion rejoin')
     expect(frame.obligation.openingMove).not.toContain('same living audio thread first')
     expect(frame.mustDo).toContain('Keep the quieter body-and-lipsync line intact first.')

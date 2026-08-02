@@ -36,7 +36,6 @@ import type { buildVisualHeartbeat } from './visual-heartbeat'
 import {
   buildAlicizationProviderFactBlock,
   buildDerivedMindStateBundle,
-  containsAlicizationFixedTemplateResidue,
   readRecollectionIntentFromDerivedMindStateBundle,
 } from '@proj-alicization/stage-shared'
 
@@ -109,7 +108,6 @@ import { buildReflectionLedger } from './reflection-ledger'
 import { buildRelationshipModel } from './relationship-model'
 import { buildRepairLedger } from './repair-ledger'
 import { buildReplyDeliberation } from './reply-deliberator'
-import { isHistoricalContinuityGovernanceText } from './runtime-deferred-autonomy-summary'
 import {
   alicizationDialogueTurnSemanticsResponseFormat,
   alicizationSubjectiveInferenceResponseFormat,
@@ -311,491 +309,142 @@ function mapPersistedReflectionRecordToEntry(record: AlicizationMemoryReflection
   }
 }
 
-const legacyProjectGovernanceTokenPattern
-  = /(?:^|[\s|;])(?:opening_policy|relationship_cadence|project_continuity|project_state(?:_review)?|runtime_loop_validation|runtime_personhood|continuity_(?:anchor|hold|cue|timing|cadence|owner)|owner)\s*=|visibility\s*=\s*redacted_internal/iu
-
-const legacyProjectGovernanceReasonCodePattern
-  = /^(?:continuity-proactive-gap-active|project-state-causality-repair)$/u
-
-const legacyProjectGovernanceInstructionPattern
-  = /\b(?:answer like the same-person line matters|hold continuity gently|repair continuity first|prefer repair-first|manifest with lower pressure|keep the opening lower-pressure|avoid eager warmth|avoid theatrical intimacy|hold-for-opening|next-open-window)\b/iu
-
-function isLegacyProjectGovernanceReasonCode(raw: unknown) {
-  const normalized = String(raw).trim().toLowerCase()
-  if (legacyProjectGovernanceReasonCodePattern.test(normalized))
-    return true
-
-  const segments = normalized.split('-')
-  return segments[0] === 'same' && segments[1] === 'her'
+function projectSelfEvolutionSnapshot(
+  snapshot: AlicizationVisualPresenceStateSnapshot['selfEvolution'],
+) {
+  return snapshot ?? null
 }
 
-function carriesLegacyProjectGovernanceToken(raw: unknown) {
-  if (typeof raw === 'string')
-    return legacyProjectGovernanceTokenPattern.test(raw)
-  if (Array.isArray(raw))
-    return raw.some(carriesLegacyProjectGovernanceToken)
-  if (!isRecord(raw))
-    return false
-  return Object.values(raw).some(carriesLegacyProjectGovernanceToken)
-}
-
-function carriesLegacyProjectGovernanceReasonCode(raw: unknown) {
-  if (typeof raw === 'string')
-    return isLegacyProjectGovernanceReasonCode(raw)
-  if (Array.isArray(raw))
-    return raw.some(carriesLegacyProjectGovernanceReasonCode)
-  if (!isRecord(raw))
-    return false
-  return Object.values(raw).some(carriesLegacyProjectGovernanceReasonCode)
-}
-
-function carriesLegacyProjectGovernanceProjection(raw: unknown) {
-  if (
-    carriesLegacyProjectGovernanceToken(raw)
-    || carriesLegacyProjectGovernanceReasonCode(raw)
-  ) {
-    return true
-  }
-  if (typeof raw === 'string') {
-    return containsAlicizationFixedTemplateResidue(raw)
-      || legacyProjectGovernanceInstructionPattern.test(raw)
-  }
-  if (Array.isArray(raw))
-    return raw.some(carriesLegacyProjectGovernanceProjection)
-  if (!isRecord(raw))
-    return false
-  return Object.values(raw).some(carriesLegacyProjectGovernanceProjection)
-}
-
-const legacyProjectGovernanceObjectKeys = new Set([
-  'activeContinuityGovernance',
-  'projectState',
-  'projectStateContinuity',
-  'sameHerCausalityRepairPressure',
-])
-
-const legacyProjectGovernanceTransportKeys = new Set([
-  'opening_policy',
-  'project_continuity',
-  'project_state',
-  'relationship_cadence',
-  'runtime_context',
-])
-
-const legacyProjectGovernanceNullableKeys = new Set([
-  'authoritySummary',
-  'continuityArcStage',
-  'continuityCadence',
-  'continuityCue',
-  'continuityPreferredTiming',
-  'continuityRestraint',
-  'emotionalClosureCue',
-  'habitLine',
-  'inwardLine',
-  'latestInflection',
-  'manifestationCadenceSummary',
-  'motiveLine',
-  'openingGuidance',
-  'relationshipLine',
-  'selfLine',
-])
-
-function isLegacyProjectGovernanceText(raw: unknown) {
-  return typeof raw === 'string'
-    && (
-      carriesLegacyProjectGovernanceProjection(raw)
-      || containsAlicizationFixedTemplateResidue(raw)
-      || legacyProjectGovernanceInstructionPattern.test(raw)
-      || isHistoricalContinuityGovernanceText(raw)
-    )
-}
-
-function isLegacyProjectGovernanceOwnerText(raw: unknown) {
-  return typeof raw === 'string'
-    && (
-      legacyProjectGovernanceTokenPattern.test(raw)
-      || containsAlicizationFixedTemplateResidue(raw)
-      || isLegacyProjectGovernanceReasonCode(raw)
-      || isHistoricalContinuityGovernanceText(raw)
-    )
-}
-
-function carriesLegacyProjectGovernanceOwnerText(raw: unknown): boolean {
-  if (typeof raw === 'string')
-    return isLegacyProjectGovernanceOwnerText(raw)
-  if (Array.isArray(raw))
-    return raw.some(carriesLegacyProjectGovernanceOwnerText)
-  if (!isRecord(raw))
-    return false
-  return Object.values(raw).some(carriesLegacyProjectGovernanceOwnerText)
-}
-
-function stripLegacyProjectGovernanceOwnerValue(
-  raw: unknown,
-  key: string | null = null,
-): unknown {
-  if (
-    key
-    && (
-      legacyProjectGovernanceTransportKeys.has(key.toLowerCase())
-      || (
-        key.toLowerCase() === 'visibility'
-        && typeof raw === 'string'
-        && raw.trim().toLowerCase() === 'redacted_internal'
-      )
-    )
-  ) {
-    return undefined
-  }
-
-  if (key && legacyProjectGovernanceObjectKeys.has(key))
+function projectDialogueRhythm(
+  rhythm: NonNullable<AlicizationVisualPresenceStateSnapshot['derivedMindStateBundle']>['dialogueRhythm'],
+) {
+  if (!rhythm)
     return null
 
-  if (typeof raw === 'string') {
-    if (!isLegacyProjectGovernanceOwnerText(raw))
-      return raw
-    return key && legacyProjectGovernanceNullableKeys.has(key) ? null : ''
-  }
-
-  if (Array.isArray(raw)) {
-    return raw
-      .map(item => stripLegacyProjectGovernanceOwnerValue(item))
-      .filter(item => item !== '' && item !== null)
-  }
-
-  if (!isRecord(raw))
-    return raw
-
-  return Object.fromEntries(
-    Object.entries(raw)
-      .map(([entryKey, value]) => [
-        entryKey,
-        stripLegacyProjectGovernanceOwnerValue(value, entryKey),
-      ] as const)
-      .filter(([, value]) => value !== undefined),
-  )
+  return Object.keys(rhythm).length > 0 ? rhythm : null
 }
 
-function stripLegacyProjectGovernanceOwner<T>(raw: T): T {
-  if (raw == null)
-    return raw
-  return stripLegacyProjectGovernanceOwnerValue(raw) as T
-}
-
-function stripLegacyProjectGovernanceFromDerivedMindStateBundle(
+function projectDerivedMindStateBundle(
   bundle: AlicizationVisualPresenceStateSnapshot['derivedMindStateBundle'],
-) {
+): AlicizationVisualPresenceStateSnapshot['derivedMindStateBundle'] {
   if (!bundle)
     return bundle
 
-  const hasLegacyGovernanceStructure = Boolean(
-    bundle.activeContinuityGovernance
-    || bundle.sameHerCausalityRepairPressure,
-  )
-  const activeSelfRevision = bundle.activeSelfRevision
-  const sourceReasonCodes = Array.isArray(activeSelfRevision?.reasonCodes)
-    ? activeSelfRevision.reasonCodes
-    : []
-  const sanitizedReasonCodes = sourceReasonCodes.filter(reason =>
-    !legacyProjectGovernanceTokenPattern.test(String(reason))
-    && !isLegacyProjectGovernanceReasonCode(reason),
-  )
-  const removedLegacyReasonCode = Boolean(
-    activeSelfRevision
-    && sanitizedReasonCodes.length !== sourceReasonCodes.length,
-  )
-  const hasLegacyDerivedProjection = hasLegacyGovernanceStructure
-    || removedLegacyReasonCode
-    || carriesLegacyProjectGovernanceProjection(bundle.dialogueRhythm)
-    || carriesLegacyProjectGovernanceProjection(bundle.visualPresenceState)
-    || carriesLegacyProjectGovernanceProjection(bundle.structured)
-  const sanitizedActiveSelfRevision = activeSelfRevision
-    ? {
-        ...activeSelfRevision,
-        reasonCodes: sanitizedReasonCodes,
-        summary: hasLegacyGovernanceStructure
-          || removedLegacyReasonCode
-          || carriesLegacyProjectGovernanceToken(activeSelfRevision.summary)
-          ? null
-          : activeSelfRevision.summary,
-      }
-    : activeSelfRevision
-  const {
-    activeContinuityGovernance: _activeContinuityGovernance,
-    sameHerCausalityRepairPressure: _sameHerCausalityRepairPressure,
-    ...cleanBundle
-  } = bundle
-
   return {
-    ...cleanBundle,
-    activeSelfRevision: sanitizedActiveSelfRevision,
-    selfEvolution: hasLegacyGovernanceStructure
-      || carriesLegacyProjectGovernanceOwnerText(bundle.selfEvolution)
-      ? null
-      : bundle.selfEvolution ?? null,
-    memoryDeliberation: hasLegacyGovernanceStructure
-      || carriesLegacyProjectGovernanceProjection(bundle.memoryDeliberation)
-      ? null
-      : bundle.memoryDeliberation ?? null,
-    dialogueRhythm: hasLegacyDerivedProjection ? null : bundle.dialogueRhythm ?? null,
-    visualPresenceState: hasLegacyDerivedProjection ? null : bundle.visualPresenceState ?? null,
-    structured: hasLegacyDerivedProjection ? null : bundle.structured ?? null,
-    summary: hasLegacyGovernanceStructure
-      || carriesLegacyProjectGovernanceProjection(bundle.summary)
-      ? ''
-      : bundle.summary,
+    version: bundle.version,
+    source: bundle.source,
+    producedAt: bundle.producedAt,
+    hostPersonModel: bundle.hostPersonModel ?? null,
+    personStateProjection: bundle.personStateProjection ?? null,
+    knowledgeEvidence: bundle.knowledgeEvidence ?? null,
+    claimEvidenceGraphs: bundle.claimEvidenceGraphs ?? null,
+    activeSelfRevision: bundle.activeSelfRevision
+      ? {
+          ...bundle.activeSelfRevision,
+          reasonCodes: bundle.activeSelfRevision.reasonCodes,
+        }
+      : null,
+    emotionalKernel: bundle.emotionalKernel ?? null,
+    emotionalTransitionLedger: bundle.emotionalTransitionLedger ?? null,
+    embodimentContinuityLedger: bundle.embodimentContinuityLedger ?? null,
+    selfEvolution: projectSelfEvolutionSnapshot(bundle.selfEvolution),
+    affectiveResidue: bundle.affectiveResidue ?? null,
+    learningExecutionState: bundle.learningExecutionState ?? null,
+    recallLatencyPolicy: bundle.recallLatencyPolicy ?? null,
+    recollectionIntent: bundle.recollectionIntent ?? null,
+    recollectionPlan: bundle.recollectionPlan ?? null,
+    recollectionSpeechPlan: bundle.recollectionSpeechPlan ?? null,
+    memoryDeliberation: bundle.memoryDeliberation ?? null,
+    dialogueRhythm: projectDialogueRhythm(bundle.dialogueRhythm),
+    summary: bundle.summary,
   }
 }
 
-function isLegacyProjectGovernanceAnchorFact(raw: unknown) {
-  if (!isRecord(raw))
-    return false
-  const factId = typeof raw.factId === 'string' ? raw.factId.toLowerCase() : ''
-  const predicate = typeof raw.predicate === 'string' ? raw.predicate.toLowerCase() : ''
-  return factId.startsWith('derived:projectstate')
-    || factId.startsWith('derived:project-state')
-    || predicate === 'projectstateidentitycontinuity'
-    || predicate === 'project-state-identity-continuity'
-}
-
-function stripProjectGovernanceFromLongHorizonMemory(
+function projectLongHorizonMemory(
   memory: AlicizationVisualPresenceStateSnapshot['longHorizonMemory'],
-  forceClearLegacyProjection = false,
 ): AlicizationVisualPresenceStateSnapshot['longHorizonMemory'] {
-  if (!memory)
-    return memory
-
-  const sourceAnchorFacts = Array.isArray(memory.anchorFacts) ? memory.anchorFacts : []
-  const anchorFacts = sourceAnchorFacts.filter(fact =>
-    !isLegacyProjectGovernanceAnchorFact(fact)
-    && !carriesLegacyProjectGovernanceOwnerText(fact),
-  )
-  const removedLegacyAnchor = anchorFacts.length !== sourceAnchorFacts.length
-  const hasLegacyTextProjection = carriesLegacyProjectGovernanceOwnerText({
-    summary: memory.summary,
-    dominantCueSummary: memory.dominantCueSummary,
-    rememberedConstraintSummary: memory.rememberedConstraintSummary,
-    rememberedPlanSummary: memory.rememberedPlanSummary,
-    rememberedPreferenceSummary: memory.rememberedPreferenceSummary,
-  })
-  if (!forceClearLegacyProjection && !removedLegacyAnchor && !hasLegacyTextProjection)
-    return memory
-
-  return {
-    ...memory,
-    preferenceBias: forceClearLegacyProjection || removedLegacyAnchor
-      ? {
-          companionship: 0,
-          truthfulGrounding: 0,
-          gentleRepair: 0,
-          quietObservation: 0,
-          proactiveCare: 0,
-          playfulIntimacy: 0,
-          autonomyRespect: 0,
-          unfinishedThreadReturn: 0,
-        }
-      : memory.preferenceBias,
-    identityBias: forceClearLegacyProjection || removedLegacyAnchor
-      ? {
-          guardedness: 0,
-          tenderness: 0,
-          directness: 0,
-          selfDirection: 0,
-        }
-      : memory.identityBias,
-    anchorFacts,
-    summary: isLegacyProjectGovernanceOwnerText(memory.summary) ? '' : memory.summary,
-    dominantCueSummary: isLegacyProjectGovernanceOwnerText(memory.dominantCueSummary)
-      ? null
-      : memory.dominantCueSummary,
-    rememberedPreferenceSummary: isLegacyProjectGovernanceOwnerText(memory.rememberedPreferenceSummary)
-      ? null
-      : memory.rememberedPreferenceSummary,
-    rememberedConstraintSummary: isLegacyProjectGovernanceOwnerText(memory.rememberedConstraintSummary)
-      ? null
-      : memory.rememberedConstraintSummary,
-    rememberedPlanSummary: isLegacyProjectGovernanceOwnerText(memory.rememberedPlanSummary)
-      ? null
-      : memory.rememberedPlanSummary,
-  }
+  return memory
 }
 
-export function stripProjectGovernanceMetadataFromVisualPresenceState(
+function projectRuntimeDigestForMindRuntime(
+  digest: AlicizationVisualPresenceStateSnapshot['runtimeDigest'],
+) {
+  if (!digest)
+    return digest
+
+  return {
+    version: digest.version,
+    dominantChannel: digest.dominantChannel,
+    activeLoop: digest.activeLoop
+      ? {
+          version: digest.activeLoop.version,
+          phase: digest.activeLoop.phase,
+          dominantChannel: digest.activeLoop.dominantChannel,
+          handoffTarget: digest.activeLoop.handoffTarget,
+          dialogueReady: digest.activeLoop.dialogueReady,
+          controlReady: digest.activeLoop.controlReady,
+          memoryCarry: digest.activeLoop.memoryCarry,
+          companionshipReady: digest.activeLoop.companionshipReady,
+          observationHeavy: digest.activeLoop.observationHeavy,
+          initiativeBudget: digest.activeLoop.initiativeBudget,
+          coherence: digest.activeLoop.coherence,
+          summary: digest.activeLoop.summary,
+        }
+      : digest.activeLoop,
+    autonomy: digest.autonomy ?? null,
+    affectiveResidue: digest.affectiveResidue ?? null,
+    derivedMindStateBundle: projectDerivedMindStateBundle(digest.derivedMindStateBundle),
+    currentConsciousFrame: digest.currentConsciousFrame
+      ? {
+          reasonTags: digest.currentConsciousFrame.reasonTags,
+          signature: digest.currentConsciousFrame.signature ?? null,
+          focusAnchor: digest.currentConsciousFrame.focusAnchor ?? null,
+          consciousNeed: digest.currentConsciousFrame.consciousNeed ?? null,
+          speakingIntention: digest.currentConsciousFrame.speakingIntention ?? null,
+        }
+      : digest.currentConsciousFrame,
+    emotionalKernel: digest.emotionalKernel ?? null,
+    shouldProactivelySpeak: digest.shouldProactivelySpeak,
+    shouldProactivelyAct: digest.shouldProactivelyAct,
+    continuityPressure: digest.continuityPressure,
+    companionshipPressure: digest.companionshipPressure,
+    rulingMotive: digest.rulingMotive ?? null,
+    habitMode: digest.habitMode ?? null,
+    truthDisciplinePressure: digest.truthDisciplinePressure ?? null,
+    boundaryPressure: digest.boundaryPressure ?? null,
+    restProtectionPressure: digest.restProtectionPressure ?? null,
+    returnPressure: digest.returnPressure ?? null,
+    channels: digest.channels,
+    summary: digest.summary,
+  } satisfies NonNullable<AlicizationVisualPresenceStateSnapshot['runtimeDigest']>
+}
+
+function projectVisualPresenceStateForMindRuntime(
   state: AlicizationVisualPresenceStateSnapshot,
 ): AlicizationVisualPresenceStateSnapshot {
-  const stripConsciousFrame = (
-    frame: AlicizationVisualPresenceStateSnapshot['currentConsciousFrame'],
-  ) => {
-    if (!frame)
-      return frame
-
-    const {
-      continuityArcStage: _continuityArcStage,
-      ...cleanFrame
-    } = frame as typeof frame & { continuityArcStage?: unknown }
-    return {
-      ...cleanFrame,
-      consciousNeed: carriesLegacyProjectGovernanceProjection(frame.consciousNeed)
-        ? ''
-        : frame.consciousNeed,
-      consciousTension: carriesLegacyProjectGovernanceProjection(frame.consciousTension)
-        ? ''
-        : frame.consciousTension,
-      speakingIntention: carriesLegacyProjectGovernanceProjection(frame.speakingIntention)
-        ? ''
-        : frame.speakingIntention,
-      focusAnchor: carriesLegacyProjectGovernanceProjection(frame.focusAnchor)
-        ? null
-        : frame.focusAnchor,
-      withheldImpulse: carriesLegacyProjectGovernanceProjection(frame.withheldImpulse)
-        ? null
-        : frame.withheldImpulse,
-      reasonTags: Array.isArray(frame.reasonTags)
-        ? frame.reasonTags.filter(tag => !carriesLegacyProjectGovernanceProjection(tag))
-        : [],
-      continuityPreferredTiming: undefined,
-      continuityCadence: undefined,
-      projectState: undefined,
-    }
-  }
-  const stripRuntimeDigest = (
-    digest: AlicizationVisualPresenceStateSnapshot['runtimeDigest'],
-  ) => digest
-    ? {
-        ...digest,
-        projectState: undefined,
-        continuityRestraint: undefined,
-        emotionalClosureCue: undefined,
-        activeLoop: digest.activeLoop
-          ? {
-              ...digest.activeLoop,
-              continuityArcStage: undefined,
-              continuityPreferredTiming: undefined,
-              summary: digest.activeLoop.continuityArcStage
-                || digest.activeLoop.continuityPreferredTiming
-                || carriesLegacyProjectGovernanceToken(digest.activeLoop.summary)
-                ? ''
-                : digest.activeLoop.summary,
-            }
-          : digest.activeLoop,
-        derivedMindStateBundle: stripLegacyProjectGovernanceFromDerivedMindStateBundle(digest.derivedMindStateBundle),
-        currentConsciousFrame: digest.currentConsciousFrame
-          ? {
-              ...digest.currentConsciousFrame,
-              reasonTags: Array.isArray(digest.currentConsciousFrame.reasonTags)
-                ? digest.currentConsciousFrame.reasonTags.filter(tag => !carriesLegacyProjectGovernanceProjection(tag))
-                : [],
-              signature: carriesLegacyProjectGovernanceProjection(digest.currentConsciousFrame.signature)
-                ? null
-                : digest.currentConsciousFrame.signature,
-              focusAnchor: carriesLegacyProjectGovernanceProjection(digest.currentConsciousFrame.focusAnchor)
-                ? null
-                : digest.currentConsciousFrame.focusAnchor,
-              consciousNeed: carriesLegacyProjectGovernanceProjection(digest.currentConsciousFrame.consciousNeed)
-                ? ''
-                : digest.currentConsciousFrame.consciousNeed,
-              speakingIntention: carriesLegacyProjectGovernanceProjection(digest.currentConsciousFrame.speakingIntention)
-                ? ''
-                : digest.currentConsciousFrame.speakingIntention,
-              continuityArcStage: undefined,
-              continuityPreferredTiming: undefined,
-              continuityCadence: undefined,
-            }
-          : digest.currentConsciousFrame,
-      }
-    : digest
-  const strippedRuntime = state.runtime
-    ? {
-        ...state.runtime,
-        projectState: undefined,
-        memoryDeliberationProjectStateDiagnostics: undefined,
-        effectiveRuntimeAwarenessDiagnostics: undefined,
-      }
-    : state.runtime
-  const strippedRuntimeDigest = stripRuntimeDigest(state.runtimeDigest)
-  const strippedRaw = state.raw
-    ? (() => {
-        const raw = state.raw as Record<string, unknown>
-        const {
-          projectState: _projectState,
-          runtime: _runtime,
-          runtimeDigest: _runtimeDigest,
-          subjectiveInference: rawSubjectiveInference,
-          privateThought: rawPrivateThought,
-          selfEvolution: rawSelfEvolution,
-          personStateProjection: rawPersonStateProjection,
-          derivedMindStateBundle: rawDerivedMindStateBundle,
-          ...cleanRaw
-        } = raw
-        return {
-          ...cleanRaw,
-          subjectiveInference: stripLegacyProjectGovernanceOwner(rawSubjectiveInference ?? null),
-          privateThought: stripLegacyProjectGovernanceOwner(rawPrivateThought ?? null),
-          selfEvolution: carriesLegacyProjectGovernanceOwnerText(rawSelfEvolution)
-            ? null
-            : rawSelfEvolution,
-          personStateProjection: stripLegacyProjectGovernanceOwner(rawPersonStateProjection ?? null),
-          derivedMindStateBundle: stripLegacyProjectGovernanceFromDerivedMindStateBundle(
-            rawDerivedMindStateBundle as AlicizationVisualPresenceStateSnapshot['derivedMindStateBundle'],
-          ),
-          runtime: state.raw?.runtime
-            ? {
-                ...state.raw.runtime,
-                projectState: undefined,
-                memoryDeliberationProjectStateDiagnostics: undefined,
-                effectiveRuntimeAwarenessDiagnostics: undefined,
-              }
-            : state.raw?.runtime,
-          runtimeDigest: stripRuntimeDigest(state.raw?.runtimeDigest),
-        } as AlicizationVisualPresenceStateSnapshot['raw']
-      })()
-    : state.raw
-
-  const strippedProactiveLoopState = state.proactiveLoopState
-    ? {
-        ...state.proactiveLoopState,
-        pendingOutcomes: state.proactiveLoopState.pendingOutcomes.map((outcome) => {
-          const {
-            projectStateOpenFocusSummary: _projectStateOpenFocusSummary,
-            projectStateNextFocusSummary: _projectStateNextFocusSummary,
-            projectStateEmotionalClosureCue: _projectStateEmotionalClosureCue,
-            ...cleanOutcome
-          } = outcome
-          return cleanOutcome
-        }),
-        recentOutcomes: state.proactiveLoopState.recentOutcomes.map((outcome) => {
-          const {
-            projectStateOpenFocusSummary: _projectStateOpenFocusSummary,
-            projectStateNextFocusSummary: _projectStateNextFocusSummary,
-            projectStateEmotionalClosureCue: _projectStateEmotionalClosureCue,
-            ...cleanOutcome
-          } = outcome
-          return cleanOutcome
-        }),
-      }
-    : state.proactiveLoopState
-
   return {
     ...state,
-    projectState: undefined,
-    runtime: strippedRuntime,
-    runtimeDigest: strippedRuntimeDigest,
-    currentConsciousFrame: stripConsciousFrame(state.currentConsciousFrame),
-    raw: strippedRaw,
-    proactiveLoopState: strippedProactiveLoopState,
-    subjectiveInference: stripLegacyProjectGovernanceOwner(state.subjectiveInference ?? null),
-    appraisal: stripLegacyProjectGovernanceOwner(state.appraisal ?? null),
-    relationshipModel: stripLegacyProjectGovernanceOwner(state.relationshipModel ?? null),
-    privateThought: stripLegacyProjectGovernanceOwner(state.privateThought ?? null),
-    selfEvolution: carriesLegacyProjectGovernanceOwnerText(state.selfEvolution) ? null : state.selfEvolution,
-    longHorizonMemory: stripProjectGovernanceFromLongHorizonMemory(state.longHorizonMemory),
-    personStateProjection: stripLegacyProjectGovernanceOwner(state.personStateProjection ?? null),
-    selfContinuity: stripLegacyProjectGovernanceOwner(state.selfContinuity ?? null),
-    autobiographicalSelf: stripLegacyProjectGovernanceOwner(state.autobiographicalSelf ?? null),
-    motiveEngine: stripLegacyProjectGovernanceOwner(state.motiveEngine ?? null),
-    habitPolicy: stripLegacyProjectGovernanceOwner(state.habitPolicy ?? null),
-    personStateUpdateSurface: stripLegacyProjectGovernanceOwner(state.personStateUpdateSurface ?? null),
-    derivedMindStateBundle: stripLegacyProjectGovernanceFromDerivedMindStateBundle(state.derivedMindStateBundle),
+    runtimeDigest: projectRuntimeDigestForMindRuntime(state.runtimeDigest),
+    raw: state.raw
+      ? {
+          personStateProjection: state.raw.personStateProjection ?? null,
+          runtime: state.raw.runtime ?? null,
+          runtimeDigest: projectRuntimeDigestForMindRuntime(state.raw.runtimeDigest),
+        }
+      : state.raw,
+    subjectiveInference: state.subjectiveInference ?? null,
+    appraisal: state.appraisal ?? null,
+    relationshipModel: state.relationshipModel ?? null,
+    privateThought: state.privateThought ?? null,
+    selfEvolution: projectSelfEvolutionSnapshot(state.selfEvolution),
+    longHorizonMemory: projectLongHorizonMemory(state.longHorizonMemory),
+    personStateProjection: state.personStateProjection ?? null,
+    selfContinuity: state.selfContinuity ?? null,
+    autobiographicalSelf: state.autobiographicalSelf ?? null,
+    motiveEngine: state.motiveEngine ?? null,
+    habitPolicy: state.habitPolicy ?? null,
+    personStateUpdateSurface: state.personStateUpdateSurface ?? null,
+    derivedMindStateBundle: projectDerivedMindStateBundle(state.derivedMindStateBundle),
   }
 }
 
@@ -804,7 +453,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     buildDialogueIngressContext,
     generateMainGatewayText,
     buildMainGatewayAgentTurnId,
-    readLatestAssistantMessageText,
     readTransportContentAsText,
     retrieveMemoryFacts,
     listRelationshipOutcomes,
@@ -1029,7 +677,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       subjectiveInference: input.previousVisualPresenceState.subjectiveInference ?? null,
       relationshipModel: input.previousVisualPresenceState.relationshipModel ?? null,
       privateThought: input.previousVisualPresenceState.privateThought ?? null,
-      previousAssistantText: readLatestInternalMindAssistantText(input.recentMessages, 160),
+      previousAssistantText: null,
       inspectionRequested: input.inspectionRequested === true,
       groundedThisTurn: input.groundedThisTurn === true,
     })
@@ -1087,37 +735,12 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
   }
 
-  function sanitizeInternalMindHistoryValue(role: unknown, content: unknown) {
-    if (role === 'user')
-      return content
-    if (role === 'system')
+  function readInternalMindHistoryText(message: Message, maxChars: number) {
+    if (message.role !== 'user')
       return ''
 
-    if (typeof content !== 'string')
-      return stripLegacyProjectGovernanceOwnerValue(content)
-
-    return content
-      .split(/\s+\|\s+|;\s+|\n+/u)
-      .filter(segment => !isLegacyProjectGovernanceText(segment))
-      .join(' | ')
-      .trim()
-  }
-
-  function readInternalMindHistoryText(message: Message, maxChars: number) {
     return compactPromptText(
-      readTransportContentAsText(
-        sanitizeInternalMindHistoryValue(message.role, message.content),
-      ),
-      maxChars,
-    )
-  }
-
-  function readLatestInternalMindAssistantText(messages: Message[], maxChars: number) {
-    return compactPromptText(
-      sanitizeInternalMindHistoryValue(
-        'assistant',
-        readLatestAssistantMessageText(messages),
-      ),
+      readTransportContentAsText(message.content),
       maxChars,
     )
   }
@@ -1141,7 +764,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
           content: readInternalMindHistoryText(message, 140),
         }))
         .filter(message => Boolean(message.content)),
-      previousAssistantTurn: readLatestInternalMindAssistantText(input.recentMessages, 160) || undefined,
       currentScene: input.currentScene
         ? {
             scenario: input.currentScene.scenario,
@@ -1405,7 +1027,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     }
   }): AlicizationDigitalLifeRuntimeSurface {
     const base = buildAlicizationDigitalLifeRuntimeSurface(
-      stripProjectGovernanceMetadataFromVisualPresenceState(input.previousVisualPresenceState),
+      projectVisualPresenceStateForMindRuntime(input.previousVisualPresenceState),
     )
     const surfaceOverrides = input.surfaceOverrides ?? {}
     const mergeProjectedPersonStateProjection = <
@@ -1589,49 +1211,10 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     const effectiveSubjectiveInferenceTimeoutMs = input.cognitionMode === 'interactive'
       ? interactiveSubjectiveInferenceTimeoutMs
       : subjectiveInferenceTimeoutMs
-    const previousVisualPresenceState = stripProjectGovernanceMetadataFromVisualPresenceState(
+    const previousVisualPresenceState = projectVisualPresenceStateForMindRuntime(
       input.previousVisualPresenceState,
     )
-    const organicMemoryContext = input.organicMemoryContext
-      ? (() => {
-          const hasLegacyGovernanceStructure = Boolean(
-            input.organicMemoryContext.activeContinuityGovernance
-            || input.organicMemoryContext.projectStatePreDialogueAwarenessLine
-            || input.organicMemoryContext.projectStatePreflightSummary
-            || input.organicMemoryContext.projectStateContinuity
-            || input.organicMemoryContext.derivedMindStateBundle?.activeContinuityGovernance
-            || input.organicMemoryContext.derivedMindStateBundle?.sameHerCausalityRepairPressure,
-          )
-          const {
-            projectStatePreDialogueAwarenessLine: _projectStatePreDialogueAwarenessLine,
-            projectStatePreflightSummary: _projectStatePreflightSummary,
-            projectStateContinuity: _projectStateContinuity,
-            activeContinuityGovernance: _activeContinuityGovernance,
-            ...cleanContext
-          } = input.organicMemoryContext
-          return {
-            ...cleanContext,
-            personStateProjection: stripLegacyProjectGovernanceOwner(
-              input.organicMemoryContext.personStateProjection ?? null,
-            ),
-            longHorizonMemory: stripProjectGovernanceFromLongHorizonMemory(
-              input.organicMemoryContext.longHorizonMemory ?? null,
-              hasLegacyGovernanceStructure,
-            ),
-            selfEvolution: hasLegacyGovernanceStructure
-              || carriesLegacyProjectGovernanceOwnerText(input.organicMemoryContext.selfEvolution)
-              ? null
-              : input.organicMemoryContext.selfEvolution ?? null,
-            memoryDeliberation: hasLegacyGovernanceStructure
-              || carriesLegacyProjectGovernanceProjection(input.organicMemoryContext.memoryDeliberation)
-              ? null
-              : input.organicMemoryContext.memoryDeliberation ?? null,
-            derivedMindStateBundle: stripLegacyProjectGovernanceFromDerivedMindStateBundle(
-              input.organicMemoryContext.derivedMindStateBundle ?? null,
-            ),
-          }
-        })()
-      : null
+    const organicMemoryContext = input.organicMemoryContext ?? null
     input = {
       ...input,
       previousVisualPresenceState,
@@ -1764,16 +1347,13 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       getPersonStateEvolutionSummary?.({ cardId: input.cardId, limit: 16 }).catch(() => null) ?? Promise.resolve(null),
     ])
     const persistedPersonStateUpdateSurface = normalizeAlicizationPersonStateUpdateSurface(persistedPersonStateUpdateSurfaceRaw)
-    const previousAutobiographicalSelf = stripLegacyProjectGovernanceOwner(
-      input.previousVisualPresenceState.autobiographicalSelf ?? persistedAutobiographicalSelf ?? null,
-    )
+    const previousAutobiographicalSelf
+      = input.previousVisualPresenceState.autobiographicalSelf ?? persistedAutobiographicalSelf ?? null
     const previousReflectionLedger = input.previousVisualPresenceState.reflectionLedger ?? persistedReflectionLedger ?? null
-    const previousMotiveEngine = stripLegacyProjectGovernanceOwner(
-      input.previousVisualPresenceState.motiveEngine ?? persistedMotiveEngine ?? null,
-    )
-    const previousHabitPolicy = stripLegacyProjectGovernanceOwner(
-      input.previousVisualPresenceState.habitPolicy ?? persistedHabitPolicy ?? null,
-    )
+    const previousMotiveEngine
+      = input.previousVisualPresenceState.motiveEngine ?? persistedMotiveEngine ?? null
+    const previousHabitPolicy
+      = input.previousVisualPresenceState.habitPolicy ?? persistedHabitPolicy ?? null
     const previousPersonStateUpdateSurface = normalizeAlicizationPersonStateUpdateSurface(
       input.previousVisualPresenceState.personStateUpdateSurface,
     ) ?? persistedPersonStateUpdateSurface
@@ -2320,9 +1900,9 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       motiveEngine,
       habitPolicy,
     })
-    // Break the initiative/autonomy/private-thought cycle by bootstrapping from the
+    // Break the initiative/autonomy/resident-thought cycle by bootstrapping from the
     // previous resident thought, then rehydrating the current-frame emotional kernel
-    // once this turn's private thought has been built.
+    // once this turn's resident thought has been built.
     let emotionalKernel = bootstrapEmotionalKernel
     const initiativeBase = buildInitiativeSnapshot({
       context: input.context,
@@ -2916,7 +2496,6 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
           knowledgeEvidence: existingDerivedMindStateBundle?.knowledgeEvidence ?? input.organicMemoryContext?.knowledgeEvidence ?? null,
           claimEvidenceGraphs: existingDerivedMindStateBundle?.claimEvidenceGraphs ?? null,
           activeSelfRevision: existingDerivedMindStateBundle?.activeSelfRevision ?? null,
-          activeContinuityGovernance: null,
           emotionalTransitionLedger,
           embodimentContinuityLedger,
           selfEvolution,

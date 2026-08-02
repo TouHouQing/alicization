@@ -8,10 +8,7 @@ import type {
   AlicizationPerformanceDelivery,
   CharacterPerformanceCapabilitiesManifest,
 } from './alicization-performance-contracts'
-import type {
-  AlicizationDigitalLifeSpineDigest,
-  AlicizationRuntimeProjectStateDigest,
-} from './alicization-transport-contracts'
+import type { AlicizationDigitalLifeSpineDigest } from './alicization-transport-contracts'
 
 import {
   normalizeAlicizationEmotion,
@@ -75,7 +72,6 @@ export interface BuildAlicizationDialogueSpeechTimelineInput {
   candidatePerformance?: AlicizationDialoguePerformancePayload | null
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
-  projectState?: AlicizationRuntimeProjectStateDigest | null
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
 }
 
@@ -94,16 +90,6 @@ interface PersonaSpeechStyleBias {
   beat: number
   mouth: number
   head: number
-}
-
-interface ProjectClosureSpeechEmbodimentBias {
-  preferredBlinkCadence?: 'normal' | 'linger' | 'quiet'
-  preferredGazeMode?: 'steady' | 'soften' | 'drift'
-  preferredPauseMode?: 'longer' | 'natural'
-  preferredLipsyncMode?: 'restrained' | 'matched'
-  preferredVoiceMode?: 'lower-pressure' | 'even'
-  preferredPacingMode?: 'slower' | 'natural'
-  residentMode?: string
 }
 
 const keptPunctuations = new Set(['?', '？', '!', '！'])
@@ -279,7 +265,7 @@ function normalizeVariationToken(raw: unknown) {
 }
 
 function normalizeAlignmentText(text: string) {
-  return text.replace(/\s+/g, ' ').trim()
+  return text.trim()
 }
 
 function hashStableSeed(text: string) {
@@ -545,13 +531,6 @@ function resolvePersonaSpeechStyleSummary(personaBias: PersonaSpeechTimingBias, 
   return null
 }
 
-export function resolveProjectClosureSpeechEmbodimentBias(
-  projectState?: AlicizationRuntimeProjectStateDigest | null,
-): ProjectClosureSpeechEmbodimentBias | null {
-  void projectState
-  return null
-}
-
 function resolveSegmentEmotion(input: {
   delivery: AlicizationPerformanceDelivery
   text: string
@@ -596,7 +575,6 @@ function resolveSegmentEmotion(input: {
 function resolveSegmentRendererHints(input: {
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
-  projectState?: AlicizationRuntimeProjectStateDigest | null
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
   segmentEmotion: AlicizationEmotion
   turnEmotion: AlicizationEmotion
@@ -1094,7 +1072,6 @@ export function buildAlicizationDialogueSpeechTimeline(
     const rendererHints = resolveSegmentRendererHints({
       embodiment,
       digitalLifeSpine: input.digitalLifeSpine,
-      projectState: input.projectState,
       performanceManifest: input.performanceManifest,
       segmentEmotion,
       turnEmotion: emotion,

@@ -72,7 +72,7 @@ describe('performance visualizer self evolution repair followup navigation', () 
     })
   })
 
-  it('relands project-identity carry on candidate-trajectory evidence so identity-continuity', () => {
+  it('uses refreshed candidate trajectory evidence after runtime inspection', () => {
     expect(buildSelfEvolutionRepairFollowupNavigation({
       executedRoute: {
         surfaceKey: 'evidence:runtime-continuity-projection',
@@ -95,7 +95,7 @@ describe('performance visualizer self evolution repair followup navigation', () 
     })
   })
 
-  it('relands current-phase carry on identity-governance evidence so Phase 1 route drift stays on a concrete project-state panel', () => {
+  it('uses refreshed decision-consumption evidence after runtime inspection', () => {
     expect(buildSelfEvolutionRepairFollowupNavigation({
       executedRoute: {
         surfaceKey: 'evidence:runtime-continuity-projection',
@@ -103,18 +103,18 @@ describe('performance visualizer self evolution repair followup navigation', () 
         targetId: 'runtime-continuity-projection',
       },
       refreshedRoute: {
-        surfaceKey: 'evidence:identity-drift-governance-summary',
+        surfaceKey: 'evidence:proactive-decision-consumption-summary',
         targetType: 'evidence',
-        targetId: 'identity-drift-governance-summary',
+        targetId: 'proactive-decision-consumption-summary',
       },
       refreshedScrollTarget: {
-        scrollTargetId: 'self-evolution-evidence:identity-drift-governance-summary',
+        scrollTargetId: 'self-evolution-evidence:proactive-decision-consumption-summary',
         targetType: 'evidence',
-        targetId: 'identity-drift-governance-summary',
+        targetId: 'proactive-decision-consumption-summary',
       },
     })).toEqual({
-      activeSurfaceKey: 'evidence:identity-drift-governance-summary',
-      scrollTargetId: 'self-evolution-evidence:identity-drift-governance-summary',
+      activeSurfaceKey: 'evidence:proactive-decision-consumption-summary',
+      scrollTargetId: 'self-evolution-evidence:proactive-decision-consumption-summary',
     })
   })
 

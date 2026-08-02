@@ -248,7 +248,7 @@ describe('vrm gaze mode bias', () => {
     expect(repairBeforeClosenessSoften.elevationScale).toBe(0.9)
   })
 
-  it('keeps gaze bias identical when audit fields are empty, ordinary, or contain legacy same-her text', () => {
+  it('keeps gaze bias identical when audit fields are empty, ordinary, or contain legacy continuity text', () => {
     const cleanRepairBeforeCloseness = resolveVrmGazeModeBias({
       preferredGazeMode: 'soften',
       residentMode: 'repair-before-closeness',
@@ -259,15 +259,15 @@ describe('vrm gaze mode bias', () => {
       reasonTags: ['renderer:audit-only'],
       signature: 'ordinary renderer audit text',
     } as any)
-    const legacySameHerRepairBeforeCloseness = resolveVrmGazeModeBias({
+    const legacyContinuityRepairBeforeCloseness = resolveVrmGazeModeBias({
       preferredGazeMode: 'soften',
       residentMode: 'repair-before-closeness',
       reasonTags: ['embodiment:body+voice-only'],
-      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+      signature: 'resident|main-runtime|embodiment:audible_continuity_line|body+voice-only',
     } as any)
 
     expect(ordinaryAuditRepairBeforeCloseness).toEqual(cleanRepairBeforeCloseness)
-    expect(legacySameHerRepairBeforeCloseness).toEqual(cleanRepairBeforeCloseness)
+    expect(legacyContinuityRepairBeforeCloseness).toEqual(cleanRepairBeforeCloseness)
   })
 
   it('keeps interruption-resume blink cadence more inward for repair-before-closeness than measured-return on the same later callback line', () => {
@@ -312,15 +312,15 @@ describe('vrm gaze mode bias', () => {
     vi.restoreAllMocks()
   })
 
-  it('keeps blink cadence identical when audit fields are empty, ordinary, or contain legacy same-her text', () => {
+  it('keeps blink cadence identical when audit fields are empty, ordinary, or contain legacy continuity text', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0)
 
     const cleanRepairBlink = useBlink()
     const ordinaryAuditRepairBlink = useBlink()
-    const legacySameHerRepairBlink = useBlink()
+    const legacyContinuityRepairBlink = useBlink()
     let cleanRepairFirstBlinkAt: number | null = null
     let ordinaryAuditRepairFirstBlinkAt: number | null = null
-    let legacySameHerRepairFirstBlinkAt: number | null = null
+    let legacyContinuityRepairFirstBlinkAt: number | null = null
 
     for (let i = 0; i < 90; i += 1) {
       const elapsed = (i + 1) * 0.1
@@ -334,24 +334,24 @@ describe('vrm gaze mode bias', () => {
         reasonTags: ['renderer:audit-only'],
         signature: 'ordinary renderer audit text',
       } as any)
-      const legacySameHerRepairResult = legacySameHerRepairBlink.update(0.1, null, {
+      const legacyContinuityRepairResult = legacyContinuityRepairBlink.update(0.1, null, {
         preferredBlinkCadence: 'linger',
         residentMode: 'repair-before-closeness',
         reasonTags: ['embodiment:body+voice-only'],
-        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+        signature: 'resident|main-runtime|embodiment:audible_continuity_line|body+voice-only',
       } as any)
 
       if (cleanRepairFirstBlinkAt === null && cleanRepairResult.active)
         cleanRepairFirstBlinkAt = elapsed
       if (ordinaryAuditRepairFirstBlinkAt === null && ordinaryAuditRepairResult.active)
         ordinaryAuditRepairFirstBlinkAt = elapsed
-      if (legacySameHerRepairFirstBlinkAt === null && legacySameHerRepairResult.active)
-        legacySameHerRepairFirstBlinkAt = elapsed
+      if (legacyContinuityRepairFirstBlinkAt === null && legacyContinuityRepairResult.active)
+        legacyContinuityRepairFirstBlinkAt = elapsed
     }
 
     expect(cleanRepairFirstBlinkAt).not.toBeNull()
     expect(ordinaryAuditRepairFirstBlinkAt).toBe(cleanRepairFirstBlinkAt)
-    expect(legacySameHerRepairFirstBlinkAt).toBe(cleanRepairFirstBlinkAt)
+    expect(legacyContinuityRepairFirstBlinkAt).toBe(cleanRepairFirstBlinkAt)
 
     vi.restoreAllMocks()
   })
@@ -447,7 +447,7 @@ describe('vrm gaze mode bias', () => {
     expect(steadySecondTarget).toEqual(steadyFirstTarget)
   })
 
-  it('keeps idle saccades identical when audit fields are empty, ordinary, or contain legacy same-her text', () => {
+  it('keeps idle saccades identical when audit fields are empty, ordinary, or contain legacy continuity text', () => {
     const cleanRepairRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9)
 
     const cleanRepairVrm = createMockVrm()
@@ -488,12 +488,12 @@ describe('vrm gaze mode bias', () => {
     )
     ordinaryAuditRepairRandomSpy.mockRestore()
 
-    const legacySameHerRepairRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9)
+    const legacyContinuityRepairRandomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.9)
 
-    const legacySameHerRepairVrm = createMockVrm()
-    const legacySameHerRepairSaccades = useIdleEyeSaccades()
-    legacySameHerRepairSaccades.update(
-      legacySameHerRepairVrm,
+    const legacyContinuityRepairVrm = createMockVrm()
+    const legacyContinuityRepairSaccades = useIdleEyeSaccades()
+    legacyContinuityRepairSaccades.update(
+      legacyContinuityRepairVrm,
       createIdleLookAtTarget(),
       0.1,
       null,
@@ -504,10 +504,10 @@ describe('vrm gaze mode bias', () => {
         preferredBlinkCadence: 'quiet',
         residentMode: 'repair-before-closeness',
         reasonTags: ['embodiment:body+voice-only'],
-        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+        signature: 'resident|main-runtime|embodiment:audible_continuity_line|body+voice-only',
       } as any,
     )
-    legacySameHerRepairRandomSpy.mockRestore()
+    legacyContinuityRepairRandomSpy.mockRestore()
 
     const cleanRepairPosition = {
       x: cleanRepairVrm.lookAt.target.position.x,
@@ -520,9 +520,9 @@ describe('vrm gaze mode bias', () => {
       z: ordinaryAuditRepairVrm.lookAt.target.position.z,
     }).toEqual(cleanRepairPosition)
     expect({
-      x: legacySameHerRepairVrm.lookAt.target.position.x,
-      y: legacySameHerRepairVrm.lookAt.target.position.y,
-      z: legacySameHerRepairVrm.lookAt.target.position.z,
+      x: legacyContinuityRepairVrm.lookAt.target.position.x,
+      y: legacyContinuityRepairVrm.lookAt.target.position.y,
+      z: legacyContinuityRepairVrm.lookAt.target.position.z,
     }).toEqual(cleanRepairPosition)
   })
 })

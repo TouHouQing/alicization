@@ -1,5 +1,4 @@
 import type {
-  AlicizationAffectiveResidueMemorySnapshot,
   AlicizationAutobiographicalSelfSnapshot,
   AlicizationHostPersonModelSnapshot,
   AlicizationLongHorizonMemorySnapshot,
@@ -51,42 +50,6 @@ function summarizeTrajectory(input: {
   return null
 }
 
-export interface AlicizationSelfEvolutionRelationshipCadenceEvidence {
-  source: 'owned-affective-residue'
-  cadence: AlicizationAffectiveResidueMemorySnapshot['relationshipCadence']
-}
-
-function resolveRelationshipCadenceSignal(input: {
-  evidence?: AlicizationSelfEvolutionRelationshipCadenceEvidence | null
-}) {
-  const evidence = input.evidence ?? null
-  const cadence = evidence?.cadence ?? null
-  const cadenceModeSummary = cadence?.cadenceMode !== 'ready-return'
-    ? cadence?.cadenceMode
-    : null
-  const summary = sanitizeText(cadence?.summary, 220) || cadenceModeSummary
-  if (evidence?.source !== 'owned-affective-residue' || !cadence || !summary)
-    return null
-
-  const cadenceStrength = clamp01(Math.max(
-    cadence.afterglowCarry,
-    cadence.repairRecovery,
-    cadence.overreachRisk,
-    cadence.fatigueGuard,
-  ))
-  const carriesCadencePosture = cadence.cadenceMode !== 'ready-return'
-    || cadence.distancePosture !== 'nearby-soft'
-    || cadence.shouldDelayWarmth
-    || cadence.shouldProtectRest
-  const shouldInternalize = carriesCadencePosture
-    && cadenceStrength >= 0.5
-
-  return {
-    shouldInternalize,
-    summary,
-  }
-}
-
 function deriveNextLearningAction(input: {
   learningReadiness: number
   contradictionPressure: number
@@ -116,36 +79,36 @@ function deriveNextLearningAction(input: {
   if (contradictionHeavy && input.contradictionPressure >= 0.42) {
     return {
       action: 'verify' as const,
-      reason: 'Contradiction pressure is high and at least one durable fact is still contested.',
+      reason: 'learning:verify',
     }
   }
   if (contradictionCount >= 2 && input.revisionPressure >= 0.38) {
     return {
       action: 'revise' as const,
-      reason: 'Multiple contradictions are already present, so the older understanding should be revised.',
+      reason: 'learning:revise',
     }
   }
   if (input.revisionPressure >= 0.45) {
     return {
       action: 'reflect' as const,
-      reason: 'Reflection pressure is high enough that the system should consolidate a lesson before replying from it again.',
+      reason: 'learning:reflect',
     }
   }
   if (procedureCount >= 2 && validationCount >= 2 && input.learningReadiness >= 0.16 && input.contradictionPressure <= 0.18) {
     return {
       action: 'internalize' as const,
-      reason: 'Validated procedure carry is strong enough to be promoted into durable skill-like memory.',
+      reason: 'learning:internalize',
     }
   }
   if (input.sourceSignals.length > 0 && input.learningReadiness >= 0.24) {
     return {
       action: 'record' as const,
-      reason: 'There is fresh growth signal, but not enough evidence yet to revise or internalize it.',
+      reason: 'learning:record',
     }
   }
   return {
     action: 'hold' as const,
-    reason: 'Current growth signal is too weak to justify a learning transition right now.',
+    reason: 'learning:hold',
   }
 }
 
@@ -179,15 +142,6 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     selfRevisionProactivePolicyBias?: number | null
     selfRevisionValidationBias?: number | null
   } | null
-  activeSelfRevisionProjectStateContinuity?: {
-    sameHerSelfLine?: string | null
-    sameHerDriftRisk?: string | null
-    proactiveSameHerGap?: string | null
-    emotionalClosureCue?: string | null
-    continuityGuard?: string | null
-    continuityPressure?: number | null
-  } | null
-  relationshipCadenceEvidence?: AlicizationSelfEvolutionRelationshipCadenceEvidence | null
   reflectionSummary?: string | null
   reflectionLesson?: string | null
   reflectionTargetScope?: string | null
@@ -218,10 +172,6 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     + (learningPolicyState?.wrongThreadSuppressionBias ?? 0) * 0.08
     + (learningPolicyState?.provenanceLabelBias ?? 0) * 0.08,
   )
-  const relationshipCadenceSignal = resolveRelationshipCadenceSignal({
-    evidence: input.relationshipCadenceEvidence ?? null,
-  })
-
   const relationshipDoctrine = sanitizeText(
     evolution?.latestDoctrine
     ?? longHorizonMemory?.rememberedConstraintSummary
@@ -288,7 +238,6 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     (learningPolicyState?.selfRevisionPatchCount ?? 0) > 0 ? 'self-revision-policy-feedback' : null,
     (knowledgeEvidence?.stronglyValidatedProcedureCount ?? 0) > 0 ? 'internalize-procedure' : null,
     relationshipCount > 0 && relationshipViewStrength >= 0.58 ? 'internalize-relationship' : null,
-    relationshipCadenceSignal?.shouldInternalize ? 'internalize-relationship-cadence' : null,
     selfModelCount > 0 && selfModelViewStrength >= 0.54 ? 'internalize-self-model' : null,
     worldModelCount > 0 && worldModelViewStrength >= 0.56 ? 'internalize-world-model' : null,
     autobiographicalSelf?.gradualUnlock?.unlockableFacets[0]?.facet
@@ -302,7 +251,6 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     input.reflectionSummary,
     input.reflectionLesson,
     autobiographicalSelf?.gradualUnlock?.pendingHypotheses[0]?.hypothesis ?? null,
-    relationshipCadenceSignal?.summary,
     evolution?.recentSummaries?.[0] ?? null,
     longHorizonMemory?.dominantCueSummary ?? null,
     longHorizonMemory?.rememberedPlanSummary ?? null,
@@ -322,8 +270,6 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     knowledgeEvidence,
     sourceSignals,
   })
-  const relationshipCadenceSummary = relationshipCadenceSignal?.summary ?? null
-
   if (
     !dominantTrajectory
     && activeLearningFocuses.length === 0
@@ -349,7 +295,6 @@ export function buildAlicizationSelfEvolutionKernel(input: {
     trustMeaning,
     nextLearningAction: learningDecision.action,
     nextLearningReason: learningDecision.reason,
-    relationshipCadenceSummary,
     shouldRecord: learningDecision.action === 'record',
     shouldReflect: learningDecision.action === 'reflect',
     shouldVerify: learningDecision.action === 'verify',
@@ -362,7 +307,6 @@ export function buildAlicizationSelfEvolutionKernel(input: {
       learningDecision.reason,
       activeLearningFocuses[0] ?? null,
       sourceSignals[0] ?? null,
-      relationshipCadenceSummary,
     ], 3, 220).join(' | '),
   }
 }

@@ -98,6 +98,113 @@ describe('main chat execution reply obligation', () => {
     })
   })
 
+  it('keeps only verifiable callback fields when an execution failure has no goal or summary', () => {
+    const obligation = deriveMainChatExecutionReplyObligation({
+      messages: [{
+        role: 'user',
+        content: '刚才那个命令失败了吗',
+      } as Message],
+      callbackContext: {
+        actions: [],
+        callbacks: [{
+          channel: '',
+          createdAt: 20,
+          decisionTraceId: 'trace-failed',
+          goal: '',
+          outcome: 'executor timed out after 30000 ms',
+          sessionId: 'session-1',
+          status: 'failed',
+          summary: '',
+          threadId: 'thread-failed',
+          turnId: 'turn-failed',
+        }],
+        continuitySignals: [],
+        recallText: '',
+        systemBlock: '',
+      },
+      ledgerContext: {
+        entries: [],
+        recallText: '',
+        systemBlock: '',
+      },
+    })
+
+    expect(obligation).toEqual({
+      followUpQuestion: true,
+      outcome: 'executor timed out after 30000 ms',
+      source: 'fresh-callback',
+      status: 'failed',
+    })
+  })
+
+  it('keeps only verifiable ledger fields instead of filling missing execution narration', () => {
+    const obligation = deriveMainChatExecutionReplyObligation({
+      messages: [{
+        role: 'user',
+        content: '那个任务结果呢',
+      } as Message],
+      callbackContext: {
+        actions: [],
+        callbacks: [],
+        continuitySignals: [],
+        recallText: '',
+        systemBlock: '',
+      },
+      ledgerContext: {
+        entries: [{
+          activityAt: 20,
+          channel: 'codex',
+          eventKinds: ['result'],
+          goal: '',
+          outcome: 'provider returned HTTP 503',
+          status: 'failed',
+          summary: '',
+        }],
+        recallText: '',
+        systemBlock: '',
+      },
+    })
+
+    expect(obligation).toEqual({
+      channel: 'codex',
+      followUpQuestion: true,
+      outcome: 'provider returned HTTP 503',
+      source: 'ledger-follow-up',
+      status: 'failed',
+    })
+  })
+
+  it('does not create an execution reply fact when the selected record has no verifiable fields', () => {
+    const obligation = deriveMainChatExecutionReplyObligation({
+      messages: [{
+        role: 'user',
+        content: '那个任务状态怎么样了',
+      } as Message],
+      callbackContext: {
+        actions: [],
+        callbacks: [],
+        continuitySignals: [],
+        recallText: '',
+        systemBlock: '',
+      },
+      ledgerContext: {
+        entries: [{
+          activityAt: 20,
+          channel: '',
+          eventKinds: [],
+          goal: '',
+          outcome: '',
+          status: '',
+          summary: '',
+        }],
+        recallText: '',
+        systemBlock: '',
+      },
+    })
+
+    expect(obligation).toBeNull()
+  })
+
   it('stays inactive when the current user turn is unrelated to execution results', () => {
     const obligation = deriveMainChatExecutionReplyObligation({
       messages: [{
@@ -226,7 +333,7 @@ describe('main chat execution reply obligation', () => {
     })
   })
 
-  it('prefers a fresher ledger-backed active thread over an older completed callback so the latest same-her execution state is not hijacked by stale payoff carry', () => {
+  it('prefers a fresher ledger-backed active thread over an older completed callback so the latest continuity execution state is not hijacked by stale payoff carry', () => {
     const obligation = deriveMainChatExecutionReplyObligation({
       messages: [{
         role: 'user',

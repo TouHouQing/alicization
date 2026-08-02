@@ -73,7 +73,7 @@ describe('performance visualizer speech evidence', () => {
     })).toEqual(['prosody'])
   })
 
-  it('preserves normalized embodiment closure stage in speech evidence snapshots so downstream same-her diagnostics do not need to re-parse raw strings', () => {
+  it('preserves normalized embodiment closure stage in speech evidence snapshots so downstream continuity diagnostics do not need to re-parse raw strings', () => {
     const snapshot = buildSpeechEvidenceSnapshot({
       voiceSummary: null,
       bodyContinuitySummary: null,

@@ -55,4 +55,54 @@ describe('memory procedural abstraction', () => {
     expect(abstractions[0]?.approach).toContain('Patch first')
     expect(abstractions[0]?.pitfalls.join(' ')).toContain('verify')
   })
+
+  it('does not classify ordinary reply prose as procedural memory', () => {
+    const abstractions = buildProceduralMemoryAbstractions({
+      intent: {
+        mode: 'execution-procedure',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: [],
+        rationale: 'typed procedure recall',
+        confidence: 0.8,
+      },
+      episodes: [{
+        id: 'event-prose-only',
+        cardId: 'default',
+        decisionTraceId: null,
+        turnId: 'turn-prose-only',
+        sessionId: 'session-prose-only',
+        sourceKind: 'reply',
+        provenance: 'observed',
+        occurredAt: 1,
+        whereSummary: 'chat',
+        withWhom: ['host'],
+        threadAnchor: null,
+        whatHappened: 'codex patch verify cli workflow',
+        felt: null,
+        emotionTags: [],
+        whatChanged: null,
+        relationshipMeaning: null,
+        lesson: 'codex patch verify cli workflow',
+        sourceSummary: null,
+        confidence: 0.9,
+        salience: 0.9,
+        sceneAttachment: 0,
+        consolidationPriority: 0,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: [],
+        createdAt: 1,
+        updatedAt: 1,
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+        latestReconsolidation: null,
+      }],
+    })
+
+    expect(abstractions).toEqual([])
+  })
 })

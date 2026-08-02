@@ -51,7 +51,6 @@ import type {
   AlicizationRepairLedgerSnapshot,
   AlicizationReplyDeliberationSnapshot,
   AlicizationRuntimeDigest,
-  AlicizationRuntimeProjectStateDigest,
   AlicizationSelfContinuitySnapshot,
   AlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfGovernorSnapshot,
@@ -75,60 +74,20 @@ import {
   deriveAlicizationResidentPerformanceSnapshot,
   normalizeAlicizationNormalVisibleReplyAuthority,
   normalizeAlicizationRuntimeDigest,
-  sanitizeAlicizationMemoryEvidenceText,
 } from '@proj-alicization/stage-shared'
 
 import { normalizeClaimEvidenceLedger } from './claim-evidence-ledger'
 import { normalizeDialogueActKernel } from './dialogue-act-kernel'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
-import { buildAlicizationEmotionalKernel } from './emotional-kernel'
 import { normalizeMindTurnFrame } from './mind-turn-frame'
 import { resolveAlicizationRecallFragmentBudget } from './recall-governor-budget'
 import {
-  pickAlicizationTransparentRuntimeFailureText,
   sanitizeAlicizationTransparentRuntimeFailureText,
 } from './runtime-failure-evidence'
 
 export const visualWorkingMemoryTtlMs = 10 * 60_000
 const visualWorkingMemoryLimit = 8
-type AlicizationCurrentConsciousProjectState = NonNullable<NonNullable<AlicizationCurrentConsciousFrameSnapshot['projectState']>>
-type AlicizationFullProjectState = AlicizationRuntimeProjectStateDigest
 type AlicizationVisualPresenceRuntimeState = NonNullable<NonNullable<AlicizationVisualPresenceStateSnapshot['runtime']>>
-const projectStateDigestKeys = [
-  'preflightSummary',
-  'preDialogueAwarenessLine',
-  'preDialogueAwarenessSummary',
-  'continuitySummary',
-  'awarenessLine',
-  'companionHeadlineLine',
-  'companionBriefingLine',
-  'identity',
-  'currentPhase',
-  'latestLandedProgress',
-  'latestProgress',
-  'landedProgressSummary',
-  'memoryClosureSummary',
-  'primaryOpenLoop',
-  'nextClosureTarget',
-  'sameHerSelfLine',
-  'sameHerHoldDetail',
-  'sameHerDriftRisk',
-  'emotionalClosureCue',
-  'emotionalClosureSummary',
-  'proactiveSameHerGap',
-  'proactiveSameHerGapSummary',
-  'continuityRestraint',
-  'continuityArcStage',
-  'continuityPreferredTiming',
-  'continuityCadence',
-  'continuityCue',
-  'preferredBlinkCadence',
-  'preferredGazeMode',
-  'preferredPauseMode',
-  'preferredLipsyncMode',
-  'preferredVoiceMode',
-  'preferredPacingMode',
-] as const satisfies readonly (keyof AlicizationFullProjectState)[]
 
 function clamp01(value: number) {
   if (!Number.isFinite(value))
@@ -157,385 +116,14 @@ function sanitizeVisualDynamicEmotionalKernel(kernel: AlicizationEmotionalKernel
   return withoutFixedWhy as AlicizationEmotionalKernelSnapshot
 }
 
-function hasOwnField(candidate: Record<string, unknown>, key: string) {
-  return Object.prototype.hasOwnProperty.call(candidate, key)
-}
-
-function normalizeProjectStateContinuityPreferredTiming(raw: unknown): AlicizationCurrentConsciousFrameSnapshot['continuityPreferredTiming'] {
-  return raw === 'internal-only'
-    || raw === 'after-payoff'
-    || raw === 'same-turn-if-invited'
-    || raw === 'next-open-window'
-    ? raw
-    : null
-}
-
-function normalizeProjectStateBlinkCadence(raw: unknown): AlicizationCurrentConsciousProjectState['preferredBlinkCadence'] {
-  const normalized = sanitizeText(raw, 32)
-  return normalized === 'normal'
-    || normalized === 'linger'
-    || normalized === 'quiet'
-    ? normalized
-    : null
-}
-
-function normalizeProjectStateGazeMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredGazeMode'] {
-  const normalized = sanitizeText(raw, 32)
-  return normalized === 'steady'
-    || normalized === 'soften'
-    || normalized === 'drift'
-    ? normalized
-    : null
-}
-
-function normalizeProjectStateContinuityRestraint(raw: unknown): AlicizationCurrentConsciousProjectState['continuityRestraint'] {
-  return raw === 'lower-pressure'
-    || raw === 'measured-return'
-    || raw === 'repair-before-closeness'
-    || raw === 'rest-protective'
-    || raw === 'single-thread'
-    ? raw
-    : null
-}
-
-function normalizeProjectStateStructuredSlug(raw: unknown) {
-  const normalized = sanitizeText(raw, 80).toLowerCase()
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(normalized) ? normalized : null
-}
-
-function normalizeProjectStatePauseMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredPauseMode'] {
-  return raw === 'longer' || raw === 'natural' ? raw : null
-}
-
-function normalizeProjectStateLipsyncMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredLipsyncMode'] {
-  return raw === 'restrained' || raw === 'matched' ? raw : null
-}
-
-function normalizeProjectStateVoiceMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredVoiceMode'] {
-  return raw === 'lower-pressure' || raw === 'even' ? raw : null
-}
-
-function normalizeProjectStatePacingMode(raw: unknown): AlicizationCurrentConsciousProjectState['preferredPacingMode'] {
-  return raw === 'slower' || raw === 'natural' ? raw : null
-}
-
-function normalizeCurrentConsciousProjectStateSnapshot(raw: unknown): AlicizationCurrentConsciousProjectState | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    return null
-
-  const candidate = raw as Record<string, unknown>
-  const normalized: AlicizationCurrentConsciousProjectState = {}
-  const assign = <T>(
-    key: keyof AlicizationCurrentConsciousProjectState,
-    normalize: (value: unknown) => T | null,
-  ) => {
-    if (!hasOwnField(candidate, key))
-      return
-    const value = normalize(candidate[key])
-    if (value !== null)
-      (normalized as Record<string, unknown>)[key] = value
-  }
-
-  assign('continuityPreferredTiming', normalizeProjectStateContinuityPreferredTiming)
-  assign('continuityCadence', normalizeProjectStateStructuredSlug)
-  assign('continuityRestraint', normalizeProjectStateContinuityRestraint)
-  assign('continuityArcStage', normalizeProjectStateStructuredSlug)
-  assign('preferredBlinkCadence', normalizeProjectStateBlinkCadence)
-  assign('preferredGazeMode', normalizeProjectStateGazeMode)
-  assign('preferredPauseMode', normalizeProjectStatePauseMode)
-  assign('preferredLipsyncMode', normalizeProjectStateLipsyncMode)
-  assign('preferredVoiceMode', normalizeProjectStateVoiceMode)
-  assign('preferredPacingMode', normalizeProjectStatePacingMode)
-
-  return Object.keys(normalized).length > 0
-    ? normalized
-    : null
-}
-
-function mergeProjectStateSnapshots(
-  ...sources: Array<AlicizationCurrentConsciousProjectState | AlicizationFullProjectState | null | undefined>
-): AlicizationFullProjectState | null {
-  let merged: AlicizationFullProjectState | null = null
-
-  for (const source of sources) {
-    if (!source)
-      continue
-    merged ??= {}
-    for (const [key, value] of Object.entries(source)) {
-      if (value !== undefined)
-        (merged as Record<string, unknown>)[key] = value
-    }
-  }
-
-  return merged
-}
-
-function compactProjectStateNulls<T extends Record<string, unknown> | null | undefined>(source: T): T | null {
-  if (!source)
-    return null
-  const compacted = Object.fromEntries(
-    Object.entries(source).filter(([, value]) => value !== null && value !== undefined),
-  )
-  return Object.keys(compacted).length > 0 ? compacted as T : null
-}
-
-function applyProjectStateSource(
-  state: AlicizationFullProjectState | null,
-  raw: unknown,
-) {
-  const source = readProjectStateSource(raw)
-  if (!source.declared) {
-    return {
-      cleared: false,
-      declared: false,
-      state,
-    }
-  }
-  if (source.value === null) {
-    return {
-      cleared: true,
-      declared: true,
-      state: null,
-    }
-  }
-  return {
-    cleared: false,
-    declared: true,
-    state: applyExplicitProjectStatePatch(
-      mergeProjectStateSnapshots(state, source.value),
-      raw,
-    ),
-  }
-}
-
-function applyExplicitProjectStatePatch(
-  state: AlicizationFullProjectState | null,
-  rawPatch: unknown,
-) {
-  if (rawPatch === null)
-    return null
-  if (!rawPatch || typeof rawPatch !== 'object' || Array.isArray(rawPatch))
-    return state
-
-  const patch = rawPatch as Record<string, unknown>
-  let next = state
-
-  for (const key of projectStateDigestKeys) {
-    if (!hasOwnField(patch, key) || patch[key] !== null)
-      continue
-
-    next ??= {}
-    next = {
-      ...next,
-      [key]: null,
-      ...(key === 'proactiveSameHerGap'
-        ? { proactiveSameHerGapSummary: null }
-        : {}),
-    }
-  }
-
-  return next
-}
-
-function normalizeProjectStateSnapshot(raw: unknown): AlicizationFullProjectState | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    return null
-
-  const candidate = raw as Record<string, unknown>
-  const normalized: AlicizationFullProjectState = {}
-  const assignText = (key: keyof AlicizationFullProjectState, maxChars = 320) => {
-    if (!hasOwnField(candidate, key))
-      return
-    if (candidate[key] === null) {
-      (normalized as Record<string, unknown>)[key] = null
-      return
-    }
-    const value = sanitizeText(candidate[key], maxChars)
-    if (value)
-      (normalized as Record<string, unknown>)[key] = value
-  }
-
-  assignText('preflightSummary', 480)
-  assignText('preDialogueAwarenessLine', 480)
-  assignText('preDialogueAwarenessSummary', 480)
-  assignText('continuitySummary', 480)
-  assignText('awarenessLine', 480)
-  assignText('companionHeadlineLine', 480)
-  assignText('companionBriefingLine', 480)
-  assignText('identity', 320)
-  assignText('currentPhase', 320)
-  assignText('memoryClosureSummary', 320)
-  assignText('sameHerSelfLine', 320)
-  assignText('sameHerHoldDetail', 320)
-  assignText('emotionalClosureCue', 320)
-  assignText('emotionalClosureSummary', 320)
-  assignText('continuityArcStage', 120)
-  assignText('continuityCue', 420)
-  assignText('continuityCadence', 120)
-
-  const explicitLatestProgress = sanitizeText(candidate.latestProgress, 320)
-  const explicitLatestLandedProgress = sanitizeText(candidate.latestLandedProgress, 320)
-  const summaryLatestLandedProgress = sanitizeText(candidate.landedProgressSummary, 320)
-  const resolvedLatestLandedProgress
-    = explicitLatestLandedProgress || summaryLatestLandedProgress || explicitLatestProgress || null
-  if (
-    hasOwnField(candidate, 'latestProgress')
-    || hasOwnField(candidate, 'latestLandedProgress')
-    || hasOwnField(candidate, 'landedProgressSummary')
-  ) {
-    if (resolvedLatestLandedProgress) {
-      normalized.latestProgress = explicitLatestProgress || resolvedLatestLandedProgress
-      normalized.latestLandedProgress = resolvedLatestLandedProgress
-      normalized.landedProgressSummary = summaryLatestLandedProgress || resolvedLatestLandedProgress
-    }
-    else {
-      if (candidate.latestProgress === null)
-        normalized.latestProgress = null
-      if (candidate.latestLandedProgress === null)
-        normalized.latestLandedProgress = null
-      if (candidate.landedProgressSummary === null)
-        normalized.landedProgressSummary = null
-    }
-  }
-
-  const explicitPrimaryOpenLoop = sanitizeText(candidate.primaryOpenLoop, 320)
-  const summaryPrimaryOpenLoop = sanitizeText(candidate.openClosureSummary, 320)
-  const resolvedPrimaryOpenLoop = explicitPrimaryOpenLoop || summaryPrimaryOpenLoop || null
-  if (
-    resolvedPrimaryOpenLoop
-    && (hasOwnField(candidate, 'primaryOpenLoop') || hasOwnField(candidate, 'openClosureSummary'))
-  ) {
-    normalized.primaryOpenLoop = resolvedPrimaryOpenLoop
-  }
-  else if (candidate.primaryOpenLoop === null || candidate.openClosureSummary === null) {
-    normalized.primaryOpenLoop = null
-  }
-
-  const explicitNextClosureTarget = sanitizeText(candidate.nextClosureTarget, 420)
-  const summaryNextClosureTarget = sanitizeText(candidate.nextClosureTargetSummary, 420)
-  const resolvedNextClosureTarget = explicitNextClosureTarget || summaryNextClosureTarget || null
-  if (
-    resolvedNextClosureTarget
-    && (hasOwnField(candidate, 'nextClosureTarget') || hasOwnField(candidate, 'nextClosureTargetSummary'))
-  ) {
-    normalized.nextClosureTarget = resolvedNextClosureTarget
-  }
-  else if (candidate.nextClosureTarget === null || candidate.nextClosureTargetSummary === null) {
-    normalized.nextClosureTarget = null
-  }
-
-  const explicitSameHerDriftRisk = sanitizeText(candidate.sameHerDriftRisk, 320)
-  const summarySameHerDriftRisk = sanitizeText(candidate.sameHerDriftRiskSummary, 320)
-  const resolvedSameHerDriftRisk = explicitSameHerDriftRisk || summarySameHerDriftRisk || null
-  if (
-    resolvedSameHerDriftRisk
-    && (hasOwnField(candidate, 'sameHerDriftRisk') || hasOwnField(candidate, 'sameHerDriftRiskSummary'))
-  ) {
-    normalized.sameHerDriftRisk = resolvedSameHerDriftRisk
-  }
-  else if (candidate.sameHerDriftRisk === null || candidate.sameHerDriftRiskSummary === null) {
-    normalized.sameHerDriftRisk = null
-  }
-
-  const explicitProactiveSameHerGap = sanitizeText(candidate.proactiveSameHerGap, 320)
-  const summaryProactiveSameHerGap = sanitizeText(candidate.proactiveSameHerGapSummary, 320)
-  const hasProactiveSameHerGap = hasOwnField(candidate, 'proactiveSameHerGap')
-  const hasProactiveSameHerGapSummary = hasOwnField(candidate, 'proactiveSameHerGapSummary')
-  if (hasProactiveSameHerGap && candidate.proactiveSameHerGap === null) {
-    normalized.proactiveSameHerGap = null
-    normalized.proactiveSameHerGapSummary = null
-  }
-  else if (hasProactiveSameHerGap || hasProactiveSameHerGapSummary) {
-    const resolvedProactiveSameHerGap
-      = explicitProactiveSameHerGap || summaryProactiveSameHerGap || null
-    if (resolvedProactiveSameHerGap)
-      normalized.proactiveSameHerGap = resolvedProactiveSameHerGap
-    if (hasProactiveSameHerGapSummary && candidate.proactiveSameHerGapSummary === null)
-      normalized.proactiveSameHerGapSummary = null
-    else if (summaryProactiveSameHerGap || resolvedProactiveSameHerGap)
-      normalized.proactiveSameHerGapSummary = summaryProactiveSameHerGap || resolvedProactiveSameHerGap
-  }
-
-  const assignStructured = <T>(
-    key: keyof AlicizationFullProjectState,
-    normalize: (value: unknown) => T | null,
-  ) => {
-    if (!hasOwnField(candidate, key))
-      return
-    if (candidate[key] === null) {
-      (normalized as Record<string, unknown>)[key] = null
-      return
-    }
-    const value = normalize(candidate[key])
-    if (value !== null)
-      (normalized as Record<string, unknown>)[key] = value
-  }
-  assignStructured('continuityRestraint', normalizeProjectStateContinuityRestraint)
-  assignStructured('preferredBlinkCadence', normalizeProjectStateBlinkCadence)
-  assignStructured('preferredGazeMode', normalizeProjectStateGazeMode)
-  assignStructured('preferredPauseMode', normalizeProjectStatePauseMode)
-  assignStructured('preferredLipsyncMode', normalizeProjectStateLipsyncMode)
-  assignStructured('preferredVoiceMode', normalizeProjectStateVoiceMode)
-  assignStructured('preferredPacingMode', normalizeProjectStatePacingMode)
-  assignStructured('continuityPreferredTiming', normalizeProjectStateContinuityPreferredTiming)
-
-  return Object.keys(normalized).length > 0
-    ? normalized
-    : null
-}
-
-function readProjectStateSource(raw: unknown): {
-  declared: boolean
-  value: AlicizationFullProjectState | null
-} {
-  if (raw === null) {
-    return {
-      declared: true,
-      value: null,
-    }
-  }
-  const value = normalizeProjectStateSnapshot(raw)
-  return {
-    declared: value !== null,
-    value,
-  }
-}
-
-function readNestedProjectStatePatch(raw: unknown) {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-    return undefined
-  const candidate = raw as Record<string, unknown>
-  return hasOwnField(candidate, 'projectState')
-    ? candidate.projectState
-    : undefined
-}
-
 function normalizeVisualPresenceRuntimeState(raw: unknown): AlicizationVisualPresenceRuntimeState | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw))
     return null
 
   const candidate = raw as Record<string, unknown>
-  const projectStateSource = readProjectStateSource(candidate.projectState)
-  const normalized: AlicizationVisualPresenceRuntimeState = {
-    projectState: projectStateSource.value,
-    memoryDeliberationProjectStateDiagnostics:
-      candidate.memoryDeliberationProjectStateDiagnostics
-      && typeof candidate.memoryDeliberationProjectStateDiagnostics === 'object'
-      && !Array.isArray(candidate.memoryDeliberationProjectStateDiagnostics)
-        ? candidate.memoryDeliberationProjectStateDiagnostics as Record<string, unknown>
-        : null,
-    effectiveRuntimeAwarenessDiagnostics:
-      candidate.effectiveRuntimeAwarenessDiagnostics
-      && typeof candidate.effectiveRuntimeAwarenessDiagnostics === 'object'
-      && !Array.isArray(candidate.effectiveRuntimeAwarenessDiagnostics)
-        ? candidate.effectiveRuntimeAwarenessDiagnostics as Record<string, unknown>
-        : null,
-  }
-
-  return projectStateSource.declared
-    || normalized.memoryDeliberationProjectStateDiagnostics
-    || normalized.effectiveRuntimeAwarenessDiagnostics
-    ? normalized
+  const memoryClosureTrace = candidate.memoryClosureTrace
+  return memoryClosureTrace && typeof memoryClosureTrace === 'object' && !Array.isArray(memoryClosureTrace)
+    ? { memoryClosureTrace }
     : null
 }
 
@@ -589,7 +177,6 @@ function withResidentPerformance(state: AlicizationVisualPresenceStateSnapshot):
       currentScene: state.currentScene,
       attention: state.attention,
       privateThought: state.privateThought,
-      currentConsciousFrame: state.currentConsciousFrame ?? null,
       affectiveResidue: state.affectiveResidue ?? state.derivedMindStateBundle?.affectiveResidue ?? null,
       relationshipTimingBias: selfEvolution
         ? {
@@ -1036,7 +623,6 @@ function normalizeAppraisal(raw: unknown): AlicizationSubjectiveSceneAppraisal |
     && inferredHostGoal !== 'keep-going'
     && inferredHostGoal !== 'finish-one-more-step'
     && inferredHostGoal !== 'resume-work'
-    && inferredHostGoal !== 'continue-phase-1-line'
     && inferredHostGoal !== 'unknown'
   ) {
     return null
@@ -1603,7 +1189,6 @@ function normalizeInitiative(raw: unknown): AlicizationInitiativeSnapshot | null
 
   const preferredStyle = candidate.preferredStyle
   const preferredPresence = candidate.preferredPresence
-  const continuityRestraint = candidate.continuityRestraint
   return {
     selectedAction,
     selectedProposalId: sanitizeText(candidate.selectedProposalId, 160) || null,
@@ -1649,12 +1234,6 @@ function normalizeInitiative(raw: unknown): AlicizationInitiativeSnapshot | null
       || preferredPresence === 'concerned'
       ? preferredPresence
       : 'glance',
-    continuityRestraint: continuityRestraint === 'lower-pressure'
-      || continuityRestraint === 'measured-return'
-      || continuityRestraint === 'repair-before-closeness'
-      || continuityRestraint === 'rest-protective'
-      ? continuityRestraint
-      : null,
     why: sanitizeText(candidate.why, 200),
     shouldSurface: candidate.shouldSurface === true,
     shouldSpeak: candidate.shouldSpeak === true,
@@ -2033,8 +1612,7 @@ function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapsho
       && responseMode !== 'accompany-lightly'
       && responseMode !== 'answer-naturally')
     || (replyRealizationMode != null
-      && replyRealizationMode !== 'provider-mind-required'
-      && replyRealizationMode !== 'fallback-locally-allowed')
+      && replyRealizationMode !== 'provider-mind-required')
     || (expectedVisibleReplyAuthority != null
       && expectedVisibleReplyAuthority !== 'llm-mind')
     || (recommendedAct !== 'answer'
@@ -2073,17 +1651,6 @@ function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapsho
     return null
   }
 
-  const supportingReality = Array.isArray(candidate.supportingReality)
-    ? candidate.supportingReality
-        .filter((item): item is string => typeof item === 'string')
-        .map(item => sanitizeAlicizationMemoryEvidenceText(item, 180))
-        .filter(item =>
-          Boolean(item)
-          && !/^(?:pre-dialogue project awareness|project preflight|project identity|current phase|project progress|phase-one open loop|next closure target):/iu.test(item),
-        )
-        .slice(0, 6)
-    : []
-
   return {
     answerSubject,
     screenReferenceMode,
@@ -2091,7 +1658,7 @@ function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapsho
     relationMove,
     turnMode,
     responseMode,
-    replyRealizationMode: replyRealizationMode === 'provider-mind-required' || replyRealizationMode === 'fallback-locally-allowed'
+    replyRealizationMode: replyRealizationMode === 'provider-mind-required'
       ? replyRealizationMode
       : null,
     expectedVisibleReplyAuthority: normalizeAlicizationNormalVisibleReplyAuthority(
@@ -2120,8 +1687,8 @@ function normalizeAnswerCompiler(raw: unknown): AlicizationAnswerCompilerSnapsho
       : null,
     openingDirective: '',
     openingClaim: '',
-    supportingReality,
-    uncertaintyBoundary: sanitizeText(candidate.uncertaintyBoundary, 220) || null,
+    supportingReality: [],
+    uncertaintyBoundary: null,
     careVector: null,
     nextMove: null,
     labelCarryAsMemory: candidate.labelCarryAsMemory === true,
@@ -2365,7 +1932,6 @@ function normalizeCurrentConsciousFrame(raw: unknown): AlicizationCurrentConscio
   const centerOfGravity = candidate.centerOfGravity
   const truthDiscipline = normalizeConsciousTruthDiscipline(candidate.truthDiscipline)
   const normalizedSubject = subject === 'alicization-self'
-    || subject === 'project-state'
     || subject === 'relationship'
     || subject === 'host-state'
     || subject === 'task-knot'
@@ -2398,15 +1964,6 @@ function normalizeCurrentConsciousFrame(raw: unknown): AlicizationCurrentConscio
     : ''
   const consciousTension = sanitizeDialogueAnchorText(candidate.consciousTension, 220)
 
-  const projectStateRaw = candidate.projectState
-  const normalizedProjectState = normalizeCurrentConsciousProjectStateSnapshot(projectStateRaw)
-  const continuityPreferredTiming = normalizeProjectStateContinuityPreferredTiming(candidate.continuityPreferredTiming)
-  const continuityCadence = normalizeProjectStateStructuredSlug(candidate.continuityCadence)
-  const projectStateContinuityPreferredTiming = normalizeProjectStateContinuityPreferredTiming(
-    normalizedProjectState?.continuityPreferredTiming,
-  )
-  const projectStateContinuityCadence = normalizedProjectState?.continuityCadence ?? null
-
   return {
     subject: normalizedSubject,
     centerOfGravity: normalizedCenterOfGravity,
@@ -2425,33 +1982,6 @@ function normalizeCurrentConsciousFrame(raw: unknown): AlicizationCurrentConscio
     shouldSelfRevise: candidate.shouldSelfRevise === true,
     confidence: clamp01(Number(candidate.confidence)),
     reasonTags,
-    continuityPreferredTiming: continuityPreferredTiming ?? projectStateContinuityPreferredTiming ?? null,
-    continuityCadence: continuityCadence ?? projectStateContinuityCadence ?? null,
-    projectState: normalizedProjectState
-      ? {
-          ...normalizedProjectState,
-          continuityPreferredTiming:
-            normalizedProjectState.continuityPreferredTiming
-            ?? continuityPreferredTiming
-            ?? projectStateContinuityPreferredTiming
-            ?? null,
-          continuityCadence:
-            normalizedProjectState.continuityCadence
-            ?? continuityCadence
-            ?? projectStateContinuityCadence
-            ?? null,
-        }
-      : projectStateContinuityPreferredTiming || projectStateContinuityCadence
-        ? {
-            continuityPreferredTiming: projectStateContinuityPreferredTiming ?? null,
-            continuityCadence: projectStateContinuityCadence ?? null,
-          }
-        : continuityPreferredTiming || continuityCadence
-          ? {
-              continuityPreferredTiming: continuityPreferredTiming ?? null,
-              continuityCadence: continuityCadence ?? null,
-            }
-          : null,
     updatedAt: Number.isFinite(Number(candidate.updatedAt))
       ? Math.max(0, Math.floor(Number(candidate.updatedAt)))
       : Date.now(),
@@ -2712,7 +2242,6 @@ export function createDefaultVisualPresenceState(now = Date.now()): AlicizationV
     dialogueActKernel: null,
     answerCompiler: null,
     personStateProjection: null,
-    projectState: null,
     currentConsciousFrame: null,
     claimEvidenceLedger: null,
     replyDeliberation: null,
@@ -2726,7 +2255,6 @@ export function createDefaultVisualPresenceState(now = Date.now()): AlicizationV
     runtime: null,
     raw: {
       personStateProjection: null,
-      projectState: null,
       runtimeDigest: null,
       runtime: null,
     },
@@ -2853,68 +2381,8 @@ export function normalizeVisualPresenceState(raw: unknown, now = Date.now()): Al
   const runtimeRaw = candidate.runtime ?? rawCandidate?.runtime
   base.runtimeDigest = normalizeAlicizationRuntimeDigest(runtimeDigestRaw)
   base.runtime = normalizeVisualPresenceRuntimeState(runtimeRaw)
-  let projectState: AlicizationFullProjectState | null = null
-  let projectStateDeclared = false
-  for (const rawProjectState of [
-    rawCandidate?.projectState,
-    readNestedProjectStatePatch(runtimeDigestRaw),
-    readNestedProjectStatePatch(runtimeRaw),
-    candidate.projectState,
-  ]) {
-    const applied = applyProjectStateSource(projectState, rawProjectState)
-    if (!applied.declared)
-      continue
-    projectState = applied.state
-    projectStateDeclared = true
-  }
-  base.projectState = projectStateDeclared
-    ? projectState
-    : normalizeProjectStateSnapshot(base.currentConsciousFrame?.projectState)
-  if (projectStateDeclared && base.projectState === null) {
-    if (base.runtime) {
-      base.runtime = {
-        ...base.runtime,
-        projectState: null,
-      }
-    }
-    if (base.runtimeDigest) {
-      base.runtimeDigest = {
-        ...base.runtimeDigest,
-        projectState: null,
-      }
-    }
-    if (base.currentConsciousFrame) {
-      base.currentConsciousFrame = {
-        ...base.currentConsciousFrame,
-        continuityPreferredTiming: null,
-        continuityCadence: null,
-        projectState: null,
-      }
-    }
-  }
-  else if (projectStateDeclared) {
-    if (base.runtime) {
-      base.runtime = {
-        ...base.runtime,
-        projectState: base.projectState,
-      }
-    }
-    if (base.runtimeDigest) {
-      base.runtimeDigest = {
-        ...base.runtimeDigest,
-        projectState: base.projectState,
-      }
-    }
-  }
-  else if (base.runtime && !base.runtime.projectState && base.projectState) {
-    base.runtime = {
-      ...base.runtime,
-      projectState: base.projectState,
-    }
-  }
   base.raw = {
     personStateProjection: base.personStateProjection ?? null,
-    projectState: base.projectState ?? null,
     runtimeDigest: base.runtimeDigest ?? null,
     runtime: base.runtime ?? null,
   }
@@ -3026,74 +2494,6 @@ function buildEpisode(input: {
   return episode
 }
 
-function derivePresenceOnlyResidentHoldContinuityRestraint(input: {
-  initiative?: AlicizationInitiativeSnapshot | null
-  affectiveResidue: AlicizationVisualPresenceStateSnapshot['affectiveResidue']
-}) {
-  const continuityRestraint = input.initiative?.continuityRestraint
-  if (continuityRestraint !== 'lower-pressure')
-    return continuityRestraint
-
-  const cadence = input.affectiveResidue?.relationshipCadence
-  return cadence?.cadenceMode === 'measured-return'
-    || cadence?.reasonTags?.includes('relationship-cadence:measured-return')
-    ? 'measured-return'
-    : continuityRestraint
-}
-
-function rebuildPresenceOnlyResidentHoldEmotionalKernel(input: {
-  initiative?: AlicizationInitiativeSnapshot | null
-  privateThought: AlicizationPrivateThoughtSnapshot | null
-  selfState: AlicizationSelfStateSnapshot | null
-  selfEvolution: AlicizationSelfEvolutionKernelSnapshot | null
-  personStateProjection: AlicizationVisualPresenceStateSnapshot['personStateProjection']
-  projectState: AlicizationVisualPresenceStateSnapshot['projectState'] | null
-  affectiveResidue: AlicizationVisualPresenceStateSnapshot['affectiveResidue']
-  derivedMindStateBundle: AlicizationDerivedMindStateBundle | null
-  fallbackEmotionalKernel: AlicizationEmotionalKernelSnapshot | null
-}): AlicizationEmotionalKernelSnapshot | null {
-  const continuityRestraint = derivePresenceOnlyResidentHoldContinuityRestraint({
-    initiative: input.initiative,
-    affectiveResidue: input.affectiveResidue ?? input.derivedMindStateBundle?.affectiveResidue ?? null,
-  })
-  if (
-    !input.initiative
-    || input.initiative.shouldSpeak !== false
-    || input.initiative.preferredStyle !== 'silent-observe'
-    || (
-      continuityRestraint !== 'measured-return'
-      && continuityRestraint !== 'repair-before-closeness'
-      && continuityRestraint !== 'rest-protective'
-    )
-  ) {
-    return sanitizeVisualDynamicEmotionalKernel(input.fallbackEmotionalKernel)
-  }
-
-  const rebuiltKernel = buildAlicizationEmotionalKernel({
-    selfState: input.selfState,
-    privateThought: input.privateThought,
-    affectiveResidue: input.affectiveResidue ?? input.derivedMindStateBundle?.affectiveResidue ?? null,
-    personStateProjection: input.personStateProjection ?? null,
-  })
-
-  if (continuityRestraint !== 'rest-protective')
-    return sanitizeVisualDynamicEmotionalKernel(rebuiltKernel)
-
-  const sanitizedKernel = sanitizeVisualDynamicEmotionalKernel(rebuiltKernel)
-  return {
-    ...sanitizedKernel!,
-    dominantEmotion: 'rest-protective-companionship',
-    initiativeMode: 'observe',
-    memoryRecallMode: 'rest-protective-presence',
-    embodimentTone: 'rest-protective',
-    reasonTags: Array.from(new Set([
-      ...rebuiltKernel.reasonTags,
-      'rest-protective',
-      'quiet-companionship',
-    ])),
-  }
-}
-
 export function updateVisualPresenceState(input: {
   now: number
   previousState?: AlicizationVisualPresenceStateSnapshot | null
@@ -3147,7 +2547,6 @@ export function updateVisualPresenceState(input: {
   dialogueActKernel?: AlicizationDialogueActKernelSnapshot | null
   answerCompiler?: AlicizationAnswerCompilerSnapshot | null
   personStateProjection?: AlicizationVisualPresenceStateSnapshot['personStateProjection']
-  projectState?: AlicizationVisualPresenceStateSnapshot['projectState'] | null
   currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
   claimEvidenceLedger?: AlicizationClaimEvidenceLedgerSnapshot | null
   replyDeliberation?: AlicizationReplyDeliberationSnapshot | null
@@ -3168,34 +2567,6 @@ export function updateVisualPresenceState(input: {
 }): AlicizationVisualPresenceStateSnapshot {
   const previousState = input.previousState ?? createDefaultVisualPresenceState(input.now)
   let workingMemoryEpisodes = pruneWorkingMemoryEpisodes(previousState.workingMemoryEpisodes, input.now)
-  const initiativePresenceRetune = input.initiative
-    && input.initiative.shouldSpeak === false
-    && input.initiative.preferredStyle === 'silent-observe'
-    && (
-      input.initiative.continuityRestraint === 'lower-pressure'
-      || input.initiative.continuityRestraint === 'measured-return'
-      || input.initiative.continuityRestraint === 'repair-before-closeness'
-      || input.initiative.continuityRestraint === 'rest-protective'
-    )
-    ? {
-        currentBodyState: input.initiative.preferredPresence === 'concerned'
-          ? (
-              input.initiative.continuityRestraint === 'rest-protective'
-                ? 'accompanying' as const
-                : 'recovering' as const
-            )
-          : 'accompanying' as const,
-        continuityMode: input.initiative.continuityRestraint === 'repair-before-closeness'
-          ? 'protective-watch' as const
-          : 'quiet-accompaniment' as const,
-        quietLineMs: Math.max(previousState.quietLineMs, 180_000),
-        currentInwardPreoccupation: pickAlicizationTransparentRuntimeFailureText([
-          input.initiative.why,
-          input.privateThought?.thoughtText,
-          previousState.currentInwardPreoccupation,
-        ], 160) || null,
-      }
-    : null
 
   if (previousState.currentScene && sceneSignature(previousState.currentScene) !== sceneSignature(input.scene)) {
     const previousEpisode = buildEpisode({
@@ -3209,85 +2580,37 @@ export function updateVisualPresenceState(input: {
   }
 
   const personStateProjection = input.personStateProjection ?? previousState.personStateProjection ?? null
-  const runtimeBase = input.runtime ?? previousState.runtime ?? null
-  const runtimeDigestBase = input.runtimeDigest ?? previousState.runtimeDigest ?? null
   const hasInputCurrentConsciousFrame = Object.prototype.hasOwnProperty.call(input, 'currentConsciousFrame')
-  const currentConsciousFrameBase = input.currentConsciousFrame ?? previousState.currentConsciousFrame ?? null
+  const currentConsciousFrame = hasInputCurrentConsciousFrame
+    ? normalizeCurrentConsciousFrame(input.currentConsciousFrame)
+    : previousState.currentConsciousFrame ?? null
   const derivedMindStateBundle = input.derivedMindStateBundle ?? (previousState as AlicizationVisualPresenceStateSnapshot & {
     derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   }).derivedMindStateBundle ?? null
-  let projectState = normalizeProjectStateSnapshot(previousState.projectState)
-  let projectStateCleared = false
-  if (!hasInputCurrentConsciousFrame) {
-    projectState = mergeProjectStateSnapshots(
-      projectState,
-      compactProjectStateNulls(normalizeCurrentConsciousProjectStateSnapshot(previousState.currentConsciousFrame?.projectState)),
-    )
-  }
-  const runtimeDigestProjectState = applyProjectStateSource(projectState, input.runtimeDigest?.projectState)
-  projectState = runtimeDigestProjectState.state
-  if (runtimeDigestProjectState.declared)
-    projectStateCleared = runtimeDigestProjectState.cleared
-  const runtimeProjectState = applyProjectStateSource(projectState, input.runtime?.projectState)
-  projectState = runtimeProjectState.state
-  if (runtimeProjectState.declared)
-    projectStateCleared = runtimeProjectState.cleared
-  if (hasInputCurrentConsciousFrame && !projectStateCleared) {
-    projectState = mergeProjectStateSnapshots(
-      projectState,
-      compactProjectStateNulls(normalizeCurrentConsciousProjectStateSnapshot(input.currentConsciousFrame?.projectState)),
-    )
-  }
-  const directProjectState = applyProjectStateSource(projectState, input.projectState)
-  projectState = directProjectState.state
-  if (directProjectState.declared)
-    projectStateCleared = directProjectState.cleared
-  const currentConsciousProjectState = normalizeCurrentConsciousProjectStateSnapshot(projectState)
-  const currentConsciousFrame = currentConsciousFrameBase
-    ? {
-        ...currentConsciousFrameBase,
-        continuityPreferredTiming: currentConsciousProjectState?.continuityPreferredTiming ?? null,
-        continuityCadence: currentConsciousProjectState?.continuityCadence ?? null,
-        projectState: currentConsciousProjectState,
-      }
-    : null
   const affectiveResidue = input.affectiveResidue
     ?? input.derivedMindStateBundle?.affectiveResidue
     ?? previousState.affectiveResidue
     ?? derivedMindStateBundle?.affectiveResidue
     ?? null
-  const emotionalKernel = rebuildPresenceOnlyResidentHoldEmotionalKernel({
-    initiative: input.initiative,
-    privateThought: input.privateThought,
-    selfState: input.selfState ?? previousState.selfState ?? null,
-    selfEvolution: input.selfEvolution ?? previousState.selfEvolution ?? null,
-    personStateProjection,
-    projectState,
-    affectiveResidue,
-    derivedMindStateBundle,
-    fallbackEmotionalKernel: input.emotionalKernel ?? previousState.emotionalKernel ?? null,
-  })
-  const runtime = runtimeBase
+  const emotionalKernel = sanitizeVisualDynamicEmotionalKernel(
+    input.emotionalKernel ?? previousState.emotionalKernel ?? null,
+  )
+  const runtime = normalizeVisualPresenceRuntimeState(input.runtime ?? previousState.runtime ?? null)
+  const normalizedRuntimeDigest = normalizeAlicizationRuntimeDigest(
+    input.runtimeDigest ?? previousState.runtimeDigest ?? null,
+  )
+  const runtimeDigest = normalizedRuntimeDigest
     ? {
-        ...runtimeBase,
-        projectState,
-      }
-    : null
-  const runtimeDigest = runtimeDigestBase
-    ? {
-        ...runtimeDigestBase,
-        projectState,
+        ...normalizedRuntimeDigest,
         emotionalKernel,
       }
-    : runtimeDigestBase
-  const retunedInwardPreoccupation = initiativePresenceRetune?.currentInwardPreoccupation ?? null
+    : null
 
   return withResidentPerformance({
-    currentBodyState: initiativePresenceRetune?.currentBodyState ?? previousState.currentBodyState,
-    continuityMode: initiativePresenceRetune?.continuityMode ?? previousState.continuityMode,
-    quietLineMs: initiativePresenceRetune?.quietLineMs ?? previousState.quietLineMs,
-    currentInwardPreoccupation: retunedInwardPreoccupation
-      ?? normalizePresenceAuthorityCurrentInwardPreoccupation(previousState.currentInwardPreoccupation),
+    currentBodyState: previousState.currentBodyState,
+    continuityMode: previousState.continuityMode,
+    quietLineMs: previousState.quietLineMs,
+    currentInwardPreoccupation: normalizePresenceAuthorityCurrentInwardPreoccupation(previousState.currentInwardPreoccupation),
     watchMode: input.watchMode,
     currentScene: input.scene,
     attention: input.attention,
@@ -3339,7 +2662,6 @@ export function updateVisualPresenceState(input: {
     dialogueActKernel: input.dialogueActKernel ?? previousState.dialogueActKernel ?? null,
     answerCompiler: input.answerCompiler ?? previousState.answerCompiler ?? null,
     personStateProjection,
-    projectState,
     currentConsciousFrame,
     claimEvidenceLedger: input.claimEvidenceLedger ?? previousState.claimEvidenceLedger ?? null,
     replyDeliberation: input.replyDeliberation ?? previousState.replyDeliberation ?? null,
@@ -3353,7 +2675,6 @@ export function updateVisualPresenceState(input: {
     runtime,
     raw: {
       personStateProjection,
-      projectState,
       runtimeDigest,
       runtime,
     },

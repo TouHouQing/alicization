@@ -129,7 +129,7 @@ describe('context-ranking', () => {
           clusterKey: 'legacy-phrase',
           clusterSummary: 'Legacy phrase',
           kind: 'relationship',
-          text: 'same her continuity line',
+          text: 'identity continuity line',
         },
       ] as any,
       recallSeed: 'unrelated seed',
@@ -146,7 +146,7 @@ describe('context-ranking', () => {
     expect(clusters.dominantClusterKey).toBe('ordinary')
   })
 
-  it('keeps typed relationship ranking stable when authority prose uses legacy cues', () => {
+  it('keeps typed relationship ranking stable when authority prose uses continuity cues', () => {
     const rankWithAuthorityLine = (relationshipLine: string) => {
       const projection = buildStructuredPersonStateProjection('owner-authored doctrine')
       projection.personalityContinuityState.trustStage = null
@@ -180,7 +180,127 @@ describe('context-ranking', () => {
     }
 
     expect(rankWithAuthorityLine('leave more room')).toEqual(['repair', 'warmth'])
-    expect(rankWithAuthorityLine('same her foreground')).toEqual(['repair', 'warmth'])
+    expect(rankWithAuthorityLine('identity continuity foreground')).toEqual(['repair', 'warmth'])
+  })
+
+  it('does not let relationship authority prose change host social ranking', () => {
+    const projection = buildStructuredPersonStateProjection('')
+    projection.personalityContinuityState.trustStage = null
+    projection.personalityContinuityState.repairPosture = 'measured-repair'
+    projection.summary = ''
+    projection.selfContinuityAuthority = {
+      relationshipLine: 'warm closeness companionship',
+    }
+
+    const ranked = rankByHostSocialAffinity({
+      normalizeOrganicRecallText,
+      items: [
+        {
+          id: 'repair',
+          text: 'repair boundary',
+        },
+        {
+          id: 'warmth',
+          text: 'warm closeness companionship',
+        },
+      ],
+      toText: item => item.text,
+      recallSeed: 'relationship history',
+      recollectionIntent: {
+        mode: 'relationship-history',
+        queryHints: [],
+      } as any,
+      hostPersonModel: null,
+      personStateProjection: projection,
+      coreIncarnation: '',
+    })
+
+    expect(ranked.map(item => item.id)).toEqual(['repair', 'warmth'])
+  })
+
+  it('does not let relationship authority prose change recollection agenda ranking', () => {
+    const projection = buildStructuredPersonStateProjection('')
+    projection.selfContinuityAuthority = {
+      relationshipLine: 'warm closeness companionship',
+    }
+
+    const ranked = rankByRecollectionAgendaAffinity({
+      normalizeOrganicRecallText,
+      items: [
+        {
+          id: 'repair',
+          text: 'repair boundary',
+          facet: 'relationship-era' as const,
+          ageDays: 3,
+        },
+        {
+          id: 'warmth',
+          text: 'warm closeness companionship',
+          facet: 'relationship-era' as const,
+          ageDays: 3,
+        },
+      ],
+      recollectionIntent: {
+        mode: 'relationship-history',
+        queryHints: [],
+        recollectionAgenda: {
+          whyRecallNow: 'typed relationship recall',
+          goalSimilarity: 0,
+          relationshipNeed: 0,
+          affectivePull: 0,
+          sceneFamiliarity: 0,
+          candidateTimeScopes: [],
+          candidateEraFacets: [],
+          candidateProcedureLines: [],
+          uncertaintyTolerance: 'medium' as const,
+        },
+      } as any,
+      toText: item => item.text,
+      getFacet: item => item.facet,
+      getAgeDays: item => item.ageDays,
+      personStateProjection: projection,
+    })
+
+    expect(ranked.map(item => item.id)).toEqual(['repair', 'warmth'])
+  })
+
+  it('does not let relationship authority prose change cluster scoring', () => {
+    const projection = buildStructuredPersonStateProjection('')
+    projection.personalityContinuityState.trustStage = null
+    projection.personalityContinuityState.repairPosture = 'measured-repair'
+    projection.summary = ''
+    projection.selfContinuityAuthority = {
+      relationshipLine: 'warm closeness companionship',
+    }
+
+    const clusters = analyzeMemoryClusters({
+      normalizeOrganicRecallText,
+      probes: [
+        {
+          clusterKey: 'repair',
+          clusterSummary: 'Repair',
+          kind: 'relationship',
+          text: 'repair boundary',
+        },
+        {
+          clusterKey: 'warmth',
+          clusterSummary: 'Warmth',
+          kind: 'relationship',
+          text: 'warm closeness companionship',
+        },
+      ] as any,
+      recallSeed: 'relationship history',
+      recollectionIntent: {
+        mode: 'relationship-history',
+        queryHints: [],
+      } as any,
+      hostPersonModel: null,
+      personStateProjection: projection,
+      coreIncarnation: '',
+      recallGovernor: null,
+    })
+
+    expect(clusters.dominantClusterKey).toBe('repair')
   })
 
   it('uses structured truth and autonomy signals for execution-memory ranking', () => {

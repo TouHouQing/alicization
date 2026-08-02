@@ -5,6 +5,7 @@ import type {
   AlicizationProviderMemoryUsage,
   AlicizationVisibleArtifactLearningPolicy,
   AlicizationVisibleArtifactOrigin,
+  AlicizationVisibleReplyRealizationTransportArtifact,
 } from '@proj-alicization/stage-shared'
 import type { AssistantMessage, CommonContentPart, CompletionToolCall, Message, SystemMessage, ToolMessage, UserMessage } from '@xsai/shared-chat'
 
@@ -67,51 +68,7 @@ export interface ChatAssistantStructuredPayload {
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
   proactive?: AlicizationProactiveMetadata
   governance?: AlicizationMindTurnGovernance | null
-  projectState?: {
-    identity: string
-    currentPhase: string
-    latestLandedProgress: string | null
-    latestProgress?: string | null
-    primaryOpenLoop: string | null
-    nextClosureTarget: string
-    continuitySummary?: string | null
-    sameHerSelfLine?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRisk?: string | null
-  } | null
-  preDialogueClosure?: {
-    status: 'grounded' | 'partial' | 'drift'
-    summaryLine: string | null
-    companionHeadlineLine?: string | null
-    sameHerDriftRiskLine?: string | null
-    companionshipReasonLine?: string | null
-    companionBriefingLine?: string | null
-    companionNextClosureLine?: string | null
-    emotionalClosureCue?: string | null
-    briefingLines: string[]
-    reasons: string[]
-  } | null
-  preDialogueAwareness?: {
-    status: 'grounded' | 'partial' | 'drift'
-    summaryLine: string | null
-    companionHeadlineLine?: string | null
-    companionBriefingLine?: string | null
-    companionNextClosureLine?: string | null
-    awarenessLine?: string | null
-    emotionalClosureCue?: string | null
-    reasonPreview: string[]
-  } | null
-  visibleReplyRealization?: {
-    projectStateAudit?: {
-      sameHerSummary?: unknown
-      landedProgressSummary?: unknown
-      openClosureSummary?: unknown
-      preDialogueAwarenessSummary?: unknown
-      continuitySummary?: unknown
-      embodimentClosureSummary?: unknown
-      sameHerDriftRisk?: unknown
-    } | null
-  } | null
+  visibleReplyRealization?: AlicizationVisibleReplyRealizationTransportArtifact | null
   visibleReplyBlocked?: boolean
   nonHumanAuthoredStatus?: string | null
   excludeFromPersonaLearning?: boolean

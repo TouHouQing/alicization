@@ -134,13 +134,7 @@ export function buildDialogueIngressGovernor(input: {
       + (inspectionOwnsTurn ? 0.1 : 0)
       + (inspectionEligible ? 0.08 : 0),
     ),
-    summary: inspectionOwnsTurn
-      ? 'The host is speaking through Alicization toward the co-witnessed world, so inspection keeps ownership of this turn.'
-      : dialogueFirst
-        ? 'The host is speaking into Alicization’s side of the relationship, so scene carry cannot own this turn.'
-        : inspectionEligible
-          ? 'The turn still belongs to the co-witnessed scene or task knot, so inspection remains eligible.'
-          : 'The turn does not currently justify visual grounding carry on its own.',
+    summary: `owner:${turnOwner}; screen:${screenReferenceMode}`,
     reasonTags: uniqueLabels([
       `owner:${turnOwner}`,
       hardDialogueFirst ? 'dialogue-first-owner' : softDialogueFirst ? 'soft-dialogue-owner' : '',

@@ -1,15 +1,12 @@
 import type { ChatHistoryItem } from '../../types/chat'
 import type { ChatSessionMeta, ChatSessionRecord, ChatSessionsExport, ChatSessionsIndex } from '../../types/chat-session'
 
-import {
-  containsAlicizationFixedTemplateResidue,
-  isStageTamagotchi,
-  sanitizeAlicizationProviderFacingText,
-} from '@proj-alicization/stage-shared'
+import { isStageTamagotchi } from '@proj-alicization/stage-shared'
 import { nanoid } from 'nanoid'
 import { defineStore, storeToRefs } from 'pinia'
 import { computed, ref, watch } from 'vue'
 
+import { normalizeDialogueStructuredArtifact } from '../../composables/alicization-structured-output'
 import { client } from '../../composables/api'
 import { useLocalFirstRequest } from '../../composables/use-local-first'
 import { chatSessionsRepo } from '../../database/repos/chat-sessions.repo'
@@ -18,8 +15,6 @@ import { useAiriCardStore } from '../modules/airi-card'
 import { canonicalizeSessionMessages, mergeLoadedSessionMessages } from './session-message-merge'
 
 export const useChatSessionStore = defineStore('chat-session', () => {
-  const fixedTemplateWithheldLine = ''
-
   const { userId, isAuthenticated } = storeToRefs(useAuthStore())
   const { activeCardId } = storeToRefs(useAiriCardStore())
 
@@ -38,141 +33,6 @@ export const useChatSessionStore = defineStore('chat-session', () => {
   let syncQueue = Promise.resolve()
   const loadedSessions = new Set<string>()
   const loadingSessions = new Map<string, Promise<void>>()
-
-  function isBlockedSessionEvidence(value: unknown) {
-    if (typeof value !== 'string')
-      return false
-    const normalized = value.trim().toLowerCase()
-    return normalized === fixedTemplateWithheldLine
-      || normalized.includes('content_withheld')
-      || normalized.includes('reason=continuity-residue')
-  }
-
-  function looksLikeStructuredSessionFact(value: string) {
-    return /(?:^|\|\s*)(?:identity|phase|landed|open|next|initiative_gap|continuity_[a-z_]+|emotional_closure|status|summary|visibility|owner|source|evidence|observability|affective_closure|missing_lanes|open_loop|runtime_loop_validation|project_state_review|embodiment_scale_validation|runtime_authoritative_send_alignment|embodiment_lanes|pending_lanes|embodiment_closure|body_continuity|memory_surface_policy|remaining-open)=/iu.test(value)
-      || /^[a-z][\w+-]*:[\w+:-]+$/iu.test(value)
-  }
-
-  function looksLikeNeutralizedTemplateSentence(value: string) {
-    const carriesNeutralizedContinuityToken = /\b(?:continuity_identity|continuity_line|runtime_personhood|project_state_review)\b/iu.test(value)
-    if (!carriesNeutralizedContinuityToken)
-      return false
-
-    const carriesDirectiveResidue = /\b(?:should|needs?|must|keep|rather than|before|after|reopen|widen|follow-through|drift|preserved closure)\b/iu.test(value)
-    if (carriesDirectiveResidue)
-      return true
-
-    return !looksLikeStructuredSessionFact(value)
-  }
-
-  function looksLikeGenericSessionShell(value: string) {
-    const normalized = value.trim().toLowerCase()
-    return normalized.includes('generic continuity reminder')
-      || normalized.includes('generic awareness reminder')
-      || normalized.includes('generic awareness summary')
-      || normalized.includes('generic same-her reminder')
-      || normalized.includes('generic next target')
-      || normalized.includes('generic next closure')
-      || normalized.includes('generic closure shell')
-      || normalized.includes('generic closure summary')
-  }
-
-  function looksLikeDirectiveSessionShell(value: string) {
-    const normalized = value.trim().toLowerCase()
-    if (!normalized)
-      return false
-
-    if (/^(?:before (?:answering|speaking|acting)|right now\b|next closure\b|if (?:this|restored|imported|the forked)|keep\b)/iu.test(normalized))
-      return true
-
-    return /\b(?:should|needs?|must|requires?|before|reopen|widen|flatten|override|proof so|preserved closure)\b/iu.test(normalized)
-      && /\b(?:project|phase|continuity|closure|life loop|digital life|identity|same|turn|reply|awareness|embodiment)\b/iu.test(normalized)
-  }
-
-  function sanitizeSessionStructuredText(value: string | null | undefined, maxChars = 420) {
-    if (typeof value !== 'string')
-      return null
-    if (isBlockedSessionEvidence(value))
-      return null
-    if (looksLikeGenericSessionShell(value))
-      return null
-    if (looksLikeDirectiveSessionShell(value))
-      return null
-
-    const sanitized = sanitizeAlicizationProviderFacingText(value, maxChars, '')
-    if (!sanitized || isBlockedSessionEvidence(sanitized))
-      return null
-    if (containsAlicizationFixedTemplateResidue(sanitized))
-      return null
-    if (looksLikeNeutralizedTemplateSentence(sanitized))
-      return null
-    if (looksLikeDirectiveSessionShell(sanitized))
-      return null
-
-    return sanitized
-  }
-
-  function sanitizeSessionStructuredProjectField(
-    field: 'identity' | 'phase' | 'open' | 'next',
-    value: string | null | undefined,
-    maxChars = 420,
-  ) {
-    if (typeof value !== 'string' || !value.trim())
-      return null
-    if (field === 'phase' && /\bphase\s*1\b|第一阶段|阶段一|project_phase=life_core/iu.test(value))
-      return null
-
-    return sanitizeSessionStructuredText(value, maxChars)
-  }
-
-  function isLegacySessionProjectStateCueKey(key: string) {
-    return key === 'preDialogueAwarenessLine'
-      || key === 'preDialogueAwarenessSummary'
-      || key === 'awarenessLine'
-      || key.startsWith('companion')
-      || key.startsWith('sameHer')
-      || key.startsWith('emotionalClosure')
-      || key === 'continuityCue'
-      || key === 'continuityAnchor'
-      || key === 'continuityHold'
-      || key === 'continuityDriftRisk'
-      || key.startsWith('proactiveSameHer')
-  }
-
-  function sanitizeSessionProjectFactValue(value: unknown, key = ''): unknown {
-    if (typeof value === 'string') {
-      if (key === 'currentPhase' || key === 'phase')
-        return sanitizeSessionStructuredProjectField('phase', value, 180)
-      if (key === 'identity')
-        return sanitizeSessionStructuredProjectField('identity', value, 220)
-      if (key === 'primaryOpenLoop')
-        return sanitizeSessionStructuredProjectField('open', value)
-      if (key === 'nextClosureTarget')
-        return sanitizeSessionStructuredProjectField('next', value)
-      return sanitizeSessionStructuredText(value)
-    }
-    if (Array.isArray(value)) {
-      return value
-        .map(item => sanitizeSessionProjectFactValue(item, key))
-        .filter(item => item !== null && item !== undefined)
-    }
-    if (value && typeof value === 'object') {
-      return Object.fromEntries(
-        Object.entries(value as Record<string, unknown>)
-          .filter(([entryKey]) => !isLegacySessionProjectStateCueKey(entryKey))
-          .map(([entryKey, item]) => [entryKey, sanitizeSessionProjectFactValue(item, entryKey)])
-          .filter(([, item]) => item !== null && item !== undefined),
-      )
-    }
-    return value
-  }
-
-  function sanitizeSessionProjectState(projectState: Record<string, unknown> | null) {
-    if (!projectState)
-      return null
-
-    return sanitizeSessionProjectFactValue(projectState) as Record<string, unknown>
-  }
 
   function getCurrentUserId() {
     if (isStageTamagotchi())
@@ -211,26 +71,8 @@ export const useChatSessionStore = defineStore('chat-session', () => {
         if (message.role !== 'assistant' || !message.structured || typeof message.structured !== 'object')
           return message
 
-        const structured = message.structured as Record<string, any>
-        const {
-          preDialogueSendIdentity: _preDialogueSendIdentity,
-          preDialogueAwareness: _preDialogueAwareness,
-          preDialogueClosure: _preDialogueClosure,
-          visibleReplyRealization: _visibleReplyRealization,
-          projectState: rawProjectState,
-          ...structuredWithoutLegacyGovernance
-        } = structured
-        const sanitizedProjectState = sanitizeSessionProjectState(
-          rawProjectState && typeof rawProjectState === 'object' && !Array.isArray(rawProjectState)
-            ? rawProjectState as Record<string, unknown>
-            : null,
-        )
-        const nextStructured = (sanitizedProjectState
-          ? {
-              ...structuredWithoutLegacyGovernance,
-              projectState: sanitizedProjectState,
-            }
-          : structuredWithoutLegacyGovernance) as typeof message.structured
+        const structured = message.structured as unknown as Record<string, unknown>
+        const nextStructured = normalizeDialogueStructuredArtifact(structured) as unknown as typeof message.structured
 
         if (JSON.stringify(nextStructured) === JSON.stringify(structured))
           return message

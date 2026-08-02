@@ -10,7 +10,6 @@ import type {
 import type { AlicizationOutcomeClosureResult, buildExecutionProposalFeedbackOutcomeClosure, buildExecutionResultFeedbackOutcomeClosure, deriveExecutionProposalFeedbackKind, deriveExecutionResultFeedbackKind } from './outcome-reinforcement'
 
 import {
-  containsAlicizationFixedTemplateResidue,
   normalizeAlicizationDerivedMindStateBundle,
   normalizeAlicizationExecutionRuntimeContext,
 } from '@proj-alicization/stage-shared'
@@ -66,7 +65,6 @@ interface CreateAlicizationRuntimeExecutionFeedbackOptions {
       outcome?: string | null
       feedbackExperience?: AlicizationFeedbackMemoryExperience | null
       memoryClosureExecution?: AlicizationExecutionRuntimeMemoryClosureExecution | null
-      projectBriefing?: ReturnType<typeof mergeExecutionResultFeedbackProjectBriefing> | null
       safetyGateSummary?: string | null
       resumeConfirmationSummary?: string | null
     }) => Promise<void>
@@ -93,21 +91,6 @@ interface CreateAlicizationRuntimeExecutionFeedbackOptions {
     }) => Promise<void>
     upsertTaskThread: (input: AlicizationTaskThreadRecord) => Promise<unknown>
   }
-}
-
-function sanitizeExecutionProjectBriefingText(
-  raw: unknown,
-  maxChars: number,
-  _field = 'summary',
-) {
-  if (typeof raw !== 'string')
-    return null
-
-  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-  if (!normalized || containsAlicizationFixedTemplateResidue(normalized))
-    return null
-
-  return normalized
 }
 
 function readFabricAffirmationReasonCodes(thread: AlicizationTaskThreadRecord) {
@@ -157,86 +140,6 @@ function extractExecutionResultFeedbackExperienceFromClosure(
   }
 }
 
-function readExecutionResultFeedbackProjectBriefing(thread: AlicizationTaskThreadRecord) {
-  const metadata = thread.metadata && typeof thread.metadata === 'object' && !Array.isArray(thread.metadata)
-    ? thread.metadata as {
-      execution?: {
-        runtimeContext?: {
-          projectBriefing?: {
-            currentPhase?: unknown
-            identity?: unknown
-            latestLandedProgress?: unknown
-            latestProgress?: unknown
-            landedProgressSummary?: unknown
-            nextClosureTarget?: unknown
-            nextClosureTargetSummary?: unknown
-            preDialogueAwarenessLine?: unknown
-            preDialogueAwarenessSummary?: unknown
-            companionBriefingLine?: unknown
-            preflightSummary?: unknown
-            primaryOpenLoop?: unknown
-            openClosureSummary?: unknown
-            proactiveSameHerGap?: unknown
-            sameHerHoldDetail?: unknown
-            sameHerDriftRisk?: unknown
-            sameHerDriftRiskSummary?: unknown
-            sameHerSelfLine?: unknown
-            emotionalClosureCue?: unknown
-            emotionalClosureSummary?: unknown
-            continuityArcStage?: unknown
-            continuityRestraint?: unknown
-            continuityCue?: unknown
-            continuityPreferredTiming?: unknown
-            continuityCadence?: unknown
-            preferredBlinkCadence?: unknown
-            preferredGazeMode?: unknown
-            preferredPauseMode?: unknown
-            preferredLipsyncMode?: unknown
-            preferredVoiceMode?: unknown
-            preferredPacingMode?: unknown
-          } | null
-        } | null
-      } | null
-    }
-    : null
-  const projectBriefing = metadata?.execution?.runtimeContext?.projectBriefing
-  if (!projectBriefing || typeof projectBriefing !== 'object' || Array.isArray(projectBriefing))
-    return null
-  return {
-    identity: sanitizeExecutionProjectBriefingText(projectBriefing.identity, 220, 'identity'),
-    currentPhase: sanitizeExecutionProjectBriefingText(projectBriefing.currentPhase, 220, 'phase'),
-    latestLandedProgress: sanitizeExecutionProjectBriefingText(projectBriefing.latestLandedProgress, 320, 'landed'),
-    latestProgress: sanitizeExecutionProjectBriefingText(projectBriefing.latestProgress, 320, 'landed'),
-    landedProgressSummary: sanitizeExecutionProjectBriefingText(projectBriefing.landedProgressSummary, 320, 'landed'),
-    primaryOpenLoop: sanitizeExecutionProjectBriefingText(projectBriefing.primaryOpenLoop, 320, 'open'),
-    openClosureSummary: sanitizeExecutionProjectBriefingText(projectBriefing.openClosureSummary, 320, 'open'),
-    proactiveSameHerGap: sanitizeExecutionProjectBriefingText(projectBriefing.proactiveSameHerGap, 320, 'summary'),
-    nextClosureTarget: sanitizeExecutionProjectBriefingText(projectBriefing.nextClosureTarget, 320, 'next'),
-    nextClosureTargetSummary: sanitizeExecutionProjectBriefingText(projectBriefing.nextClosureTargetSummary, 320, 'next'),
-    sameHerSelfLine: sanitizeExecutionProjectBriefingText(projectBriefing.sameHerSelfLine, 220, 'continuity_anchor'),
-    sameHerHoldDetail: sanitizeExecutionProjectBriefingText(projectBriefing.sameHerHoldDetail, 220, 'continuity_hold'),
-    sameHerDriftRisk: sanitizeExecutionProjectBriefingText(projectBriefing.sameHerDriftRisk, 320, 'continuity_drift_risk'),
-    sameHerDriftRiskSummary: sanitizeExecutionProjectBriefingText(projectBriefing.sameHerDriftRiskSummary, 320, 'continuity_drift_risk'),
-    preflightSummary: sanitizeExecutionProjectBriefingText(projectBriefing.preflightSummary, 320, 'awareness'),
-    preDialogueAwarenessLine: sanitizeExecutionProjectBriefingText(projectBriefing.preDialogueAwarenessLine, 320, 'awareness'),
-    preDialogueAwarenessSummary: sanitizeExecutionProjectBriefingText(projectBriefing.preDialogueAwarenessSummary, 320, 'awareness'),
-    companionBriefingLine: sanitizeExecutionProjectBriefingText(projectBriefing.companionBriefingLine, 320, 'awareness'),
-    emotionalClosureCue: sanitizeExecutionProjectBriefingText(projectBriefing.emotionalClosureCue, 220, 'emotional_closure'),
-    emotionalClosureSummary: sanitizeExecutionProjectBriefingText(projectBriefing.emotionalClosureSummary, 220, 'emotional_closure'),
-    continuityArcStage: optionsSanitizeProjectText(projectBriefing.continuityArcStage, 120),
-    continuityRestraint: optionsSanitizeProjectText(projectBriefing.continuityRestraint, 64),
-    continuityCue: optionsSanitizeProjectText(projectBriefing.continuityCue, 220),
-    continuityPreferredTiming: optionsSanitizeProjectText(projectBriefing.continuityPreferredTiming, 120),
-    continuityCadence: optionsSanitizeProjectText(projectBriefing.continuityCadence, 120),
-    preferredBlinkCadence: optionsSanitizeProjectText(projectBriefing.preferredBlinkCadence, 32),
-    preferredGazeMode: optionsSanitizeProjectText(projectBriefing.preferredGazeMode, 32),
-    preferredPauseMode: optionsSanitizeProjectText(projectBriefing.preferredPauseMode, 32),
-    preferredLipsyncMode: optionsSanitizeProjectText(projectBriefing.preferredLipsyncMode, 32),
-    preferredVoiceMode: optionsSanitizeProjectText(projectBriefing.preferredVoiceMode, 32),
-    preferredPacingMode: optionsSanitizeProjectText(projectBriefing.preferredPacingMode, 32),
-  }
-}
-
 function readExecutionFeedbackRuntimeContextRecord(thread: AlicizationTaskThreadRecord) {
   const metadata = thread.metadata && typeof thread.metadata === 'object' && !Array.isArray(thread.metadata)
     ? thread.metadata as {
@@ -282,41 +185,6 @@ function readExecutionFeedbackEmotionalTransitionLedger(thread: AlicizationTaskT
 function readExecutionFeedbackMemoryClosureExecution(thread: AlicizationTaskThreadRecord) {
   const runtimeContext = normalizeAlicizationExecutionRuntimeContext(readExecutionFeedbackRuntimeContextRecord(thread))
   return runtimeContext?.memoryClosureExecution ?? null
-}
-
-function mergeExecutionResultFeedbackProjectBriefing(input: {
-  threadProjectBriefing: ReturnType<typeof readExecutionResultFeedbackProjectBriefing>
-}) {
-  if (!input.threadProjectBriefing)
-    return null
-
-  return sanitizeMergedExecutionResultFeedbackProjectBriefing(input.threadProjectBriefing)
-}
-
-function sanitizeMergedExecutionResultFeedbackProjectBriefing(
-  projectBriefing: Record<string, unknown>,
-) {
-  return {
-    ...projectBriefing,
-    identity: sanitizeExecutionProjectBriefingText(projectBriefing.identity, 220, 'identity'),
-    currentPhase: sanitizeExecutionProjectBriefingText(projectBriefing.currentPhase, 220, 'phase'),
-    latestLandedProgress: sanitizeExecutionProjectBriefingText(projectBriefing.latestLandedProgress, 320, 'landed'),
-    primaryOpenLoop: sanitizeExecutionProjectBriefingText(projectBriefing.primaryOpenLoop, 320, 'open'),
-    proactiveSameHerGap: sanitizeExecutionProjectBriefingText(projectBriefing.proactiveSameHerGap, 320, 'summary'),
-    nextClosureTarget: sanitizeExecutionProjectBriefingText(projectBriefing.nextClosureTarget, 320, 'next'),
-    sameHerSelfLine: sanitizeExecutionProjectBriefingText(projectBriefing.sameHerSelfLine, 220, 'continuity_anchor'),
-    sameHerDriftRisk: sanitizeExecutionProjectBriefingText(projectBriefing.sameHerDriftRisk, 320, 'continuity_drift_risk'),
-    sameHerHoldDetail: sanitizeExecutionProjectBriefingText(projectBriefing.sameHerHoldDetail, 220, 'continuity_hold'),
-    preflightSummary: sanitizeExecutionProjectBriefingText(projectBriefing.preflightSummary, 320, 'awareness'),
-    preDialogueAwarenessLine: sanitizeExecutionProjectBriefingText(projectBriefing.preDialogueAwarenessLine, 320, 'awareness'),
-    preDialogueAwarenessSummary: sanitizeExecutionProjectBriefingText(projectBriefing.preDialogueAwarenessSummary, 320, 'awareness'),
-    companionBriefingLine: sanitizeExecutionProjectBriefingText(projectBriefing.companionBriefingLine, 320, 'awareness'),
-    emotionalClosureSummary: sanitizeExecutionProjectBriefingText(projectBriefing.emotionalClosureSummary, 220, 'emotional_closure'),
-  }
-}
-
-function optionsSanitizeProjectText(raw: unknown, maxChars: number) {
-  return sanitizeExecutionProjectBriefingText(raw, maxChars, 'summary')
 }
 
 function readExecutionFeedbackPayloadObject(payload: unknown) {
@@ -485,9 +353,6 @@ export function createAlicizationRuntimeExecutionFeedback(
       return null
 
     const affirmationReasonCodes = readFabricAffirmationReasonCodes(latest)
-    const projectBriefing = mergeExecutionResultFeedbackProjectBriefing({
-      threadProjectBriefing: readExecutionResultFeedbackProjectBriefing(latest),
-    })
     const affectiveResidue = readExecutionFeedbackAffectiveResidue(latest)
     const emotionalTransitionLedger = readExecutionFeedbackEmotionalTransitionLedger(latest)
     const feedback = options.deriveExecutionProposalFeedbackKind({
@@ -497,7 +362,6 @@ export function createAlicizationRuntimeExecutionFeedback(
         goal: latest.goal,
         summary: latest.summary ?? '',
         userText,
-        projectBriefing,
         proposedChannel: latest.proposedChannel ?? null,
         selectedChannel: latest.selectedChannel ?? null,
         affirmationReasonCodes,
@@ -520,7 +384,6 @@ export function createAlicizationRuntimeExecutionFeedback(
         goal: latest.goal,
         summary: latest.summary ?? '',
         userText,
-        projectBriefing,
         proposedChannel: latest.proposedChannel ?? null,
         selectedChannel: latest.selectedChannel ?? null,
         affirmationReasonCodes,
@@ -534,9 +397,7 @@ export function createAlicizationRuntimeExecutionFeedback(
         await options.alicizationDb.upsertTaskThread({
           ...latest,
           status: nextStatus,
-          summary: feedback === 'denied'
-            ? 'The host explicitly declined this proactive execution proposal.'
-            : 'The host turned away from this proactive execution proposal before confirming it.',
+          summary: `execution-proposal-feedback:${feedback}`,
           updatedAt: at,
           lastEventAt: at,
           completedAt: feedback === 'denied' ? at : latest.completedAt ?? null,
@@ -601,9 +462,6 @@ export function createAlicizationRuntimeExecutionFeedback(
       .sort((left, right) => options.readTaskThreadActivityAt(right) - options.readTaskThreadActivityAt(left))[0] ?? null
     if (!latest)
       return null
-    const projectBriefing = mergeExecutionResultFeedbackProjectBriefing({
-      threadProjectBriefing: readExecutionResultFeedbackProjectBriefing(latest),
-    })
     const affectiveResidue = readExecutionFeedbackAffectiveResidue(latest)
     const emotionalTransitionLedger = readExecutionFeedbackEmotionalTransitionLedger(latest)
     const memoryClosureExecution = readExecutionFeedbackMemoryClosureExecution(latest)
@@ -618,7 +476,6 @@ export function createAlicizationRuntimeExecutionFeedback(
         outcome: latest.summary ?? '',
         previousAssistantText,
         userText,
-        projectBriefing,
         memoryClosureExecution,
         proposedChannel: latest.proposedChannel ?? null,
         selectedChannel: latest.selectedChannel ?? null,
@@ -653,7 +510,6 @@ export function createAlicizationRuntimeExecutionFeedback(
         outcome: latest.summary ?? '',
         previousAssistantText,
         userText,
-        projectBriefing,
         memoryClosureExecution,
         proposedChannel: latest.proposedChannel ?? null,
         resumeConfirmationSummary,
@@ -676,7 +532,6 @@ export function createAlicizationRuntimeExecutionFeedback(
       outcome: latest.summary ?? '',
       feedbackExperience,
       memoryClosureExecution,
-      projectBriefing,
       safetyGateSummary,
       resumeConfirmationSummary,
     })
@@ -726,19 +581,16 @@ export function createAlicizationRuntimeExecutionFeedback(
           ...metadata,
           execution: {
             ...executionMetadata,
-            ...(projectBriefing
-              ? {
-                  runtimeContext: {
-                    ...runtimeContextMetadata,
-                    generatedAt: runtimeContextMetadata.generatedAt ?? at,
-                    decisionTraceId: runtimeContextMetadata.decisionTraceId ?? latest.decisionTraceId ?? null,
-                    turnId: runtimeContextMetadata.turnId ?? latest.turnId ?? null,
-                    sessionId: runtimeContextMetadata.sessionId ?? latest.sessionId ?? null,
-                    sensory: sensoryMetadata,
-                    projectBriefing,
-                  },
-                }
-              : {}),
+            runtimeContext: {
+              ...runtimeContextMetadata,
+              generatedAt: runtimeContextMetadata.generatedAt ?? at,
+              decisionTraceId: runtimeContextMetadata.decisionTraceId ?? latest.decisionTraceId ?? null,
+              turnId: runtimeContextMetadata.turnId ?? latest.turnId ?? null,
+              sessionId: runtimeContextMetadata.sessionId ?? latest.sessionId ?? null,
+              sensory: sensoryMetadata,
+              ...(affectiveResidue ? { affectiveResidue } : {}),
+              ...(memoryClosureExecution ? { memoryClosureExecution } : {}),
+            },
             resultFeedbackKind: feedback,
             resultFeedbackSettledAt: at,
             resultFeedbackTurnId: options.sanitizeText(normalizedPayload.turnId) || null,

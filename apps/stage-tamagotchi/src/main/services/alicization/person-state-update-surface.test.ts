@@ -231,7 +231,7 @@ describe('person-state-update-surface', () => {
       payload: {
         ...record,
         summary: record.summary,
-        projectStateContinuity: { note: marker },
+        runtimeContinuity: { note: marker },
         preferenceHints: [marker],
         sensitivityHints: [marker],
         repairHints: [marker],
@@ -247,7 +247,6 @@ describe('person-state-update-surface', () => {
     expect(record.sourceKinds).toEqual(['proactive'])
     expect(normalized).toEqual(expect.objectContaining({
       summary: outcomeRef,
-      projectStateContinuity: null,
       preferenceHints: [],
       sensitivityHints: [],
       repairHints: [],
@@ -255,6 +254,7 @@ describe('person-state-update-surface', () => {
       narrative: [],
       affectiveResidue: null,
     }))
+    expect(normalized).not.toHaveProperty('runtimeContinuity')
     expect(JSON.stringify(normalized)).not.toContain(marker)
   })
 

@@ -5,19 +5,16 @@ import { describe, expect, it } from 'vitest'
 import { clampAlicizationPerformancePayloadToManifest } from './alicization-bridge'
 
 describe('alicization performance manifest clamp', () => {
-  it('keeps bridge project-state observation and continuity types explicitly legacy-aware for latestProgress-based continuity payloads', () => {
-    const source = readFileSync(new URL('./alicization-bridge.ts', import.meta.url), 'utf8')
-
-    expect(source).toContain('export interface AlicizationProjectStateObservation')
-    expect(source).toContain('export interface AlicizationProjectStateContinuitySnapshot')
-    expect(source).toContain('latestProgress?: string | null')
-  })
-
-  it('keeps project-state as a first-class answer subject so visual presence snapshots can carry Phase 1 self-awareness', () => {
+  it('keeps dialogue answer subjects bounded to self, relationship, host, task, scene, and general context', () => {
     const source = readFileSync(new URL('./alicization-bridge.ts', import.meta.url), 'utf8')
 
     expect(source).toContain('export type AlicizationDialogueAnswerSubject')
-    expect(source).toContain(`| 'project-state'`)
+    expect(source).toContain(`| 'alicization-self'`)
+    expect(source).toContain(`| 'relationship'`)
+    expect(source).toContain(`| 'host-state'`)
+    expect(source).toContain(`| 'task-knot'`)
+    expect(source).toContain(`| 'visible-scene'`)
+    expect(source).toContain(`| 'general'`)
   })
 
   it('keeps humanlike memory audit and correction on the shared bridge contract', () => {

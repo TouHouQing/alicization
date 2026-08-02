@@ -343,8 +343,3 @@ export function buildConversationState(input: {
     updatedAt: input.now,
   } satisfies AlicizationConversationStateSnapshot
 }
-
-export function buildConversationStateSystemBlock(state: AlicizationConversationStateSnapshot | null | undefined) {
-  void state
-  return ''
-}

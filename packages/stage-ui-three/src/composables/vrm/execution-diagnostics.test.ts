@@ -70,7 +70,7 @@ describe('vrm execution diagnostics', () => {
         preferredPacingMode: 'slower',
         reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
         residentMode: 'measured-return',
-        signature: 'embodiment:audible-same-her-line',
+        signature: 'embodiment:audible-continuity-line',
       },
       rendererSettle: {
         live2dFacialReleaseMs: 320,
@@ -140,7 +140,7 @@ describe('vrm execution diagnostics', () => {
         preferredPacingMode: 'slower',
         reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
         residentMode: 'measured-return',
-        signature: 'embodiment:audible-same-her-line',
+        signature: 'embodiment:audible-continuity-line',
         vrmActionFadeMs: 280,
         vrmExpressionBlendMs: 360,
       },
@@ -757,7 +757,7 @@ describe('vrm execution diagnostics', () => {
     })
   })
 
-  it('keeps cadence-aware same-her follow-through cue context visible after vrm motion outlives the cleared active cue', () => {
+  it('keeps cadence-aware continuity follow-through cue context visible after vrm motion outlives the cleared active cue', () => {
     const performanceState = createIdleStageEmbodimentPerformanceState()
     performanceState.phase = 'cooldown'
     performanceState.performance.baseEmotion = 'thinking'
@@ -774,9 +774,9 @@ describe('vrm execution diagnostics', () => {
       currentFacialCueAffectsMouth: false,
       currentMotion: {
         cue: 'StillnessGuard',
-        segmentId: 'segment-vrm-same-her-follow-through-1',
+        segmentId: 'segment-vrm-continuity-follow-through-1',
         cueSnapshot: {
-          id: 'segment-vrm-same-her-follow-through-1',
+          id: 'segment-vrm-continuity-follow-through-1',
           emotion: 'thinking',
           facialCue: 'soft-gaze',
           rendererHints: {
@@ -789,8 +789,8 @@ describe('vrm execution diagnostics', () => {
             preferredLipsyncMode: 'restrained',
             preferredVoiceMode: 'lower-pressure',
             preferredPacingMode: 'slower',
-            reasonTags: ['same-her-return'],
-            signature: 'same-her-hold:slower-lower-pressure',
+            reasonTags: ['continuity-return'],
+            signature: 'continuity-hold:slower-lower-pressure',
           },
           rendererSettle: {
             vrmActionFadeMs: 420,
@@ -813,7 +813,7 @@ describe('vrm execution diagnostics', () => {
     })
     expect(snapshot.activeMotion).toEqual({
       cue: 'StillnessGuard',
-      segmentId: 'segment-vrm-same-her-follow-through-1',
+      segmentId: 'segment-vrm-continuity-follow-through-1',
     })
     expect(snapshot.cue).toEqual({
       emotion: 'thinking',
@@ -826,15 +826,15 @@ describe('vrm execution diagnostics', () => {
       preferredLipsyncMode: 'restrained',
       preferredVoiceMode: 'lower-pressure',
       preferredPacingMode: 'slower',
-      reasonTags: ['same-her-return'],
+      reasonTags: ['continuity-return'],
       residentMode: 'repair-before-closeness',
-      signature: 'same-her-hold:slower-lower-pressure',
+      signature: 'continuity-hold:slower-lower-pressure',
       vrmActionFadeMs: 420,
       vrmExpressionBlendMs: 560,
     })
   })
 
-  it('keeps cadence-aware same-her cue context visible when only the vrm lipsync continuity tail remains after speech clears', () => {
+  it('keeps cadence-aware continuity cue context visible when only the vrm lipsync continuity tail remains after speech clears', () => {
     const performanceState = createIdleStageEmbodimentPerformanceState()
     performanceState.phase = 'cooldown'
     performanceState.performance.baseEmotion = 'thinking'
@@ -853,9 +853,9 @@ describe('vrm execution diagnostics', () => {
         active: true,
         dominantViseme: 'ih',
         dominantWeight: 0.22,
-        segmentId: 'segment-vrm-same-her-lipsync-tail-1',
+        segmentId: 'segment-vrm-continuity-lipsync-tail-1',
         cueSnapshot: {
-          id: 'segment-vrm-same-her-lipsync-tail-1',
+          id: 'segment-vrm-continuity-lipsync-tail-1',
           emotion: 'thinking',
           facialCue: 'soft-gaze',
           rendererHints: {
@@ -868,8 +868,8 @@ describe('vrm execution diagnostics', () => {
             preferredLipsyncMode: 'restrained',
             preferredVoiceMode: 'lower-pressure',
             preferredPacingMode: 'slower',
-            reasonTags: ['same-her-return'],
-            signature: 'same-her-hold:slower-lower-pressure',
+            reasonTags: ['continuity-return'],
+            signature: 'continuity-hold:slower-lower-pressure',
           },
           rendererSettle: {
             vrmActionFadeMs: 420,
@@ -901,7 +901,7 @@ describe('vrm execution diagnostics', () => {
       active: true,
       dominantViseme: 'ih',
       dominantWeight: 0.22,
-      segmentId: 'segment-vrm-same-her-lipsync-tail-1',
+      segmentId: 'segment-vrm-continuity-lipsync-tail-1',
     })
     expect(snapshot.cue).toEqual({
       emotion: 'thinking',
@@ -914,15 +914,15 @@ describe('vrm execution diagnostics', () => {
       preferredLipsyncMode: 'restrained',
       preferredVoiceMode: 'lower-pressure',
       preferredPacingMode: 'slower',
-      reasonTags: ['same-her-return'],
+      reasonTags: ['continuity-return'],
       residentMode: 'repair-before-closeness',
-      signature: 'same-her-hold:slower-lower-pressure',
+      signature: 'continuity-hold:slower-lower-pressure',
       vrmActionFadeMs: 420,
       vrmExpressionBlendMs: 560,
     })
   })
 
-  it('keeps measured-return same-her restraint visible when only face motion and lipsync have rejoined the later living line', () => {
+  it('keeps measured-return continuity restraint visible when only face motion and lipsync have rejoined the later living line', () => {
     const performanceState = createIdleStageEmbodimentPerformanceState()
     performanceState.phase = 'cooldown'
     performanceState.performance.baseEmotion = 'thinking'
@@ -1000,7 +1000,7 @@ describe('vrm execution diagnostics', () => {
           preferredGazeMode: 'soften',
           reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
           residentMode: 'measured-return',
-          signature: 'embodiment:audible-same-her-line',
+          signature: 'embodiment:audible-continuity-line',
         },
         rendererSettle: {
           live2dFacialReleaseMs: 340,
@@ -1060,7 +1060,7 @@ describe('vrm execution diagnostics', () => {
       preferredPacingMode: null,
       reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
       residentMode: 'measured-return',
-      signature: 'embodiment:audible-same-her-line',
+      signature: 'embodiment:audible-continuity-line',
       vrmActionFadeMs: 280,
       vrmExpressionBlendMs: 360,
     })

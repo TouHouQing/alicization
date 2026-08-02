@@ -84,7 +84,6 @@ function looksLikeRuntimeDigestMetadata(
 ) {
   return value.version === 'alicization-runtime-digest-v1'
     || 'dominantChannel' in value
-    || 'projectState' in value
     || 'channels' in value
 }
 

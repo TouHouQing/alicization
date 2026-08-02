@@ -29,11 +29,12 @@ export interface PerformanceVisualizerVrmAuthorityComparisonView {
   plannedVrmExpressionBlendMs: number | null
   consumedVrmExpressionBlendMs: number | null
   vrmExpressionBlendAligned: boolean | null
-  sameHerFrameAligned?: boolean | null
-  sameHerFrameMismatchDrivers?: string[]
-  sameHerFramePerformanceSegmentId?: string | null
-  sameHerFrameSpeechSegmentId?: string | null
-  sameHerFrameSummary?: string | null
+  continuityFrameAligned?: boolean | null
+  continuityFrameActiveDrivers?: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
+  continuityFrameMismatchDrivers?: string[]
+  continuityFramePerformanceSegmentId?: string | null
+  continuityFrameSpeechSegmentId?: string | null
+  continuityFrameSummary?: string | null
 }
 
 function normalizeText(value: unknown) {
@@ -169,9 +170,10 @@ export function buildVrmAuthorityComparisonView(snapshot: {
     lastConsumedVrmActionFadeMs?: number | null
     lastConsumedVrmExpressionBlendMs?: number | null
     embodimentSegmentAligned?: boolean | null
+    embodimentSegmentActiveDrivers?: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'> | null
     embodimentSegmentMismatchDrivers?: string[] | null
     performanceSegmentId?: string | null
-    sameHerFrameSummary?: string | null
+    continuityFrameSummary?: string | null
     speechSegmentId?: string | null
   } | null
 } | null | undefined): PerformanceVisualizerVrmAuthorityComparisonView | null {
@@ -207,15 +209,24 @@ export function buildVrmAuthorityComparisonView(snapshot: {
   const consumedVrmActionFadeMs = normalizeNumber(vrmUpdate?.lastConsumedVrmActionFadeMs)
   const plannedVrmExpressionBlendMs = normalizeNumber(plannedCue?.rendererSettle?.vrmExpressionBlendMs)
   const consumedVrmExpressionBlendMs = normalizeNumber(vrmUpdate?.lastConsumedVrmExpressionBlendMs)
-  const sameHerFrameSummary = normalizeText(vrmUpdate?.sameHerFrameSummary)
-  const sameHerFramePerformanceSegmentId = normalizeText(vrmUpdate?.performanceSegmentId)
-  const sameHerFrameSpeechSegmentId = normalizeText(vrmUpdate?.speechSegmentId)
-  const sameHerFrameMismatchDrivers = normalizeAliasList(vrmUpdate?.embodimentSegmentMismatchDrivers)
-  const hasSameHerFrameEvidence = sameHerFrameSummary != null
+  const continuityFrameSummary = normalizeText(vrmUpdate?.continuityFrameSummary)
+  const continuityFramePerformanceSegmentId = normalizeText(vrmUpdate?.performanceSegmentId)
+  const continuityFrameSpeechSegmentId = normalizeText(vrmUpdate?.speechSegmentId)
+  const continuityFrameActiveDrivers = normalizeAliasList(vrmUpdate?.embodimentSegmentActiveDrivers)
+    .filter((driver): driver is 'body' | 'face' | 'motion' | 'lipsync' | 'voice' =>
+      driver === 'body'
+      || driver === 'face'
+      || driver === 'motion'
+      || driver === 'lipsync'
+      || driver === 'voice',
+    )
+  const continuityFrameMismatchDrivers = normalizeAliasList(vrmUpdate?.embodimentSegmentMismatchDrivers)
+  const hasContinuityFrameEvidence = continuityFrameSummary != null
     || typeof vrmUpdate?.embodimentSegmentAligned === 'boolean'
-    || sameHerFramePerformanceSegmentId != null
-    || sameHerFrameSpeechSegmentId != null
-    || sameHerFrameMismatchDrivers.length > 0
+    || continuityFramePerformanceSegmentId != null
+    || continuityFrameSpeechSegmentId != null
+    || continuityFrameActiveDrivers.length > 0
+    || continuityFrameMismatchDrivers.length > 0
 
   const hasSignal = cueId
     || plannedExpressionAliases.length > 0
@@ -232,7 +243,7 @@ export function buildVrmAuthorityComparisonView(snapshot: {
     || consumedVrmActionFadeMs != null
     || plannedVrmExpressionBlendMs != null
     || consumedVrmExpressionBlendMs != null
-    || hasSameHerFrameEvidence
+    || hasContinuityFrameEvidence
 
   if (!hasSignal)
     return null
@@ -284,13 +295,14 @@ export function buildVrmAuthorityComparisonView(snapshot: {
     plannedVrmExpressionBlendMs,
     consumedVrmExpressionBlendMs,
     vrmExpressionBlendAligned: resolveNumberAlignment(plannedVrmExpressionBlendMs, consumedVrmExpressionBlendMs),
-    ...(hasSameHerFrameEvidence
+    ...(hasContinuityFrameEvidence
       ? {
-          sameHerFrameAligned: vrmUpdate?.embodimentSegmentAligned ?? null,
-          sameHerFrameMismatchDrivers,
-          sameHerFramePerformanceSegmentId,
-          sameHerFrameSpeechSegmentId,
-          sameHerFrameSummary,
+          continuityFrameAligned: vrmUpdate?.embodimentSegmentAligned ?? null,
+          continuityFrameActiveDrivers,
+          continuityFrameMismatchDrivers,
+          continuityFramePerformanceSegmentId,
+          continuityFrameSpeechSegmentId,
+          continuityFrameSummary,
         }
       : {}),
   }

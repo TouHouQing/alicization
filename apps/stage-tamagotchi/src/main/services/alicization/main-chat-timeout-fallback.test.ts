@@ -31,7 +31,7 @@ describe('main chat timeout fallback', () => {
     expect(payload.reasonCodes).toContain('action:answer')
   })
 
-  it('does not carry project, memory, or persona context into timeout failure payloads', () => {
+  it('does not carry runtime, session, persona, or unknown sidecars into timeout failure payloads', () => {
     const reply = buildAlicizationMainGatewayTimeoutFallbackReply({
       turnId: 'turn-timeout-context-quarantine',
       actionKind: 'answer',
@@ -46,14 +46,13 @@ describe('main chat timeout fallback', () => {
         continuityPressure: 0.9,
         companionshipPressure: 0.7,
         channels: [],
-        summary: '我在。结构化连续性状态的线还在，中性可见占位。',
-        projectState: {
-          sameHerSelfLine: 'structured continuity digest.',
-          preDialogueAwarenessLine: 'pre_turn_context_digest',
+        summary: 'runtime state should not ride along with a timeout failure',
+        unknownSidecar: {
+          marker: 'runtime-sidecar',
         },
       } as any,
       sessionMirror: {
-        summary: 'same-her session mirror should not ride along with a timeout failure',
+        summary: 'continuity session mirror should not ride along with a timeout failure',
       } as any,
       personaKernel: {
         profile: {
@@ -67,13 +66,10 @@ describe('main chat timeout fallback', () => {
     expect(payload.visibleReplyBlocked).toBe(true)
     expect(payload.nonHumanAuthoredStatus).toBe('direct-infra-repair:timeout')
     expect(payload.runtimeDigest).toBeUndefined()
-    expect(payload.projectState).toBeUndefined()
-    expect(payload.projectStateAudit).toBeUndefined()
-    expect(payload.preDialogueAwareness).toBeUndefined()
-    expect(payload.preDialogueClosure).toBeUndefined()
+    expect(payload.unknownSidecar).toBeUndefined()
     expect(payload.sessionMirror).toBeUndefined()
     expect(payload.personaKernelName).toBeUndefined()
-    expect(reply).not.toMatch(/结构化连续性状态|legacy phase-one template|continuity state|Pre-reply|same-her session mirror/u)
+    expect(reply).not.toContain('runtime-sidecar')
   })
 
   it('keeps execution timeout fallback on infra status instead of contentful execution recovery', () => {

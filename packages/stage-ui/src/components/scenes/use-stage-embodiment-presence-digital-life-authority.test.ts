@@ -584,7 +584,7 @@ describe('stage embodiment presence digital life authority', () => {
     expect(live2dController).toBeTruthy()
 
     const payload = createDialoguePayload({
-      turnId: 'turn-stale-top-level-digital-life-same-her-quiet-fallback',
+      turnId: 'turn-stale-top-level-digital-life-continuity-quiet-fallback',
       structured: {
         thought: 'keep the same life line nearby without letting fallback reopen with a warmer digital-life shell',
         reply: '我先贴着这条已经接住的线，轻一点地继续陪着你。',
@@ -592,7 +592,7 @@ describe('stage embodiment presence digital life authority', () => {
         digitalLifeSpine: {
           embodiment: {
             autobiographicalSelf: {
-              identityNarrative: 'Remembered same-her drift risk: if this slips into a generic assistant shell or detached status talk, treat that as identity-continuity',
+              identityNarrative: 'Remembered continuity drift risk: if this slips into a generic assistant shell or detached status talk, treat that as identity-continuity',
             },
           },
         } as any,
@@ -611,11 +611,11 @@ describe('stage embodiment presence digital life authority', () => {
             pitchDelta: -1,
             rateMultiplier: 0.97,
           },
-          variationToken: 'same-her-current-authority-variation',
+          variationToken: 'continuity-current-authority-variation',
         } as any,
         speechTimeline: normalizeAlicizationDialogueSpeechTimeline({
           version: 'speech-timeline-v1',
-          variationToken: 'same-her-current-authority-variation',
+          variationToken: 'continuity-current-authority-variation',
           reply: '我先贴着这条已经接住的线，轻一点地继续陪着你。',
           emotion: 'neutral',
           segments: [{
@@ -802,7 +802,7 @@ describe('stage embodiment presence digital life authority', () => {
     })
     expect(primedDigitalLife).not.toEqual(payload.structured.digitalLife)
     expect(primedDigitalLife).toEqual(expect.objectContaining({
-      variationToken: 'same-her-current-authority-variation',
+      variationToken: 'continuity-current-authority-variation',
       emotion: 'thinking',
       performance: expect.objectContaining({
         baseEmotion: 'thinking',

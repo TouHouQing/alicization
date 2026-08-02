@@ -160,7 +160,6 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
 
   function buildMainRuntimeCorePromptBlocks(input: {
     hostName?: string
-    includeProjectStateContext?: boolean
     personaKernel?: AlicizationPersonaKernelSnapshot | null
   }) {
     const blocks: string[] = []

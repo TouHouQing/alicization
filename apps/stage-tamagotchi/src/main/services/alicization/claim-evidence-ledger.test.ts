@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildClaimEvidenceLedger,
-  buildClaimEvidenceLedgerSystemBlock,
   extractTechnicalSpecificityClaims,
 } from './claim-evidence-ledger'
 import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
@@ -111,7 +110,6 @@ describe('claim-evidence-ledger', () => {
       forbidUnsupportedSpecificity: true,
     }))
     expect(ledger?.allowedSpecificCues).toEqual([])
-    expect(buildClaimEvidenceLedgerSystemBlock(ledger)).toBe('')
   })
 
   it('admits concrete artifact cues only when they are grounded or explicitly named by the host', () => {

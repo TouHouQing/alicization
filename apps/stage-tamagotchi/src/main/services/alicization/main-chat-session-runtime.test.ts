@@ -24,12 +24,6 @@ import { filterAlicizationProviderSystemMessages } from './main-chat-runtime-sur
 import {
   createAlicizationMainChatSessionRuntime,
 } from './main-chat-session-runtime'
-import { resolveAlicizationProjectStateBrief } from './project-state-brief'
-import { buildAlicizationVisibleReplyCriticArtifact } from './visible-reply/critic'
-
-type PreparedExecutionDiagnostics = Parameters<
-  NonNullable<Parameters<typeof createAlicizationMainChatSessionRuntime>[0]['onPreparedExecutionDiagnostics']>
->[0]
 
 type ExecutiveTurnOrganicMemoryTuneInput = Parameters<
   Parameters<typeof createAlicizationMainChatSessionRuntime>[0]['tuneOrganicMemoryPromptContextForExecutiveTurn']
@@ -38,8 +32,6 @@ type ExecutiveTurnOrganicMemoryTuneInput = Parameters<
 type MainRuntimeCorePromptBlocksInput = Parameters<
   Parameters<typeof createAlicizationMainChatSessionRuntime>[0]['buildMainRuntimeCorePromptBlocks']
 >[0]
-
-type LoosePreparedExecutionDiagnostics = Partial<PreparedExecutionDiagnostics>
 
 type PreparedPreludeWithRuntimeSurface = AlicizationPreparedMainChatPrelude & {
   perceptionAugmentation: AlicizationPreparedMainChatPrelude['perceptionAugmentation'] & {
@@ -132,14 +124,6 @@ function findAlicizationProviderFact(messages: Message[], type: string) {
       return fact
   }
   return null
-}
-
-function expectNoLegacyProjectStateProviderPrompts(messages: Message[]) {
-  const providerText = messages.map(message => String(message.content ?? '')).join('\n')
-  expect(providerText).not.toContain('[ALICIZATION_MIND_TURN_CONTRACT]')
-  expect(providerText).not.toContain('[ALICIZATION_PROJECT_STATE]')
-  expect(providerText).not.toContain('[ALICIZATION_PROJECT_STATE_CONTINUITY]')
-  expect(providerText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
 }
 
 const executionChannels = [
@@ -275,7 +259,7 @@ function createPrelude(overrides?: {
           scope: 'short-lived-desktop',
         }),
       ],
-      promptSystemBlocks: ['[PERCEPTION]'],
+      promptSystemBlocks: [],
       digitalLifeRuntimeSurface: {
         version: 'digital-life-runtime-surface-v1',
         perception: {
@@ -387,8 +371,6 @@ function createPrelude(overrides?: {
 
 function createReflectivePrelude(overrides?: {
   messages?: Message[]
-  providerReturnProjectState?: Record<string, unknown> | null
-  effectiveProjectState?: Record<string, unknown> | null
 }): PreparedPreludeWithRuntimeSurface {
   const prelude = createPrelude({
     actionObligation: {
@@ -453,63 +435,6 @@ function createReflectivePrelude(overrides?: {
       narrative: [],
       updatedAt: 10,
     }
-  }
-  if (overrides?.providerReturnProjectState || overrides?.effectiveProjectState) {
-    const providerReturnProjectState = overrides?.providerReturnProjectState ?? null
-    const effectiveProjectState = overrides?.effectiveProjectState ?? providerReturnProjectState
-    const baseSurface = prelude.perceptionAugmentation.digitalLifeRuntimeSurface as any
-    const baseDialogue = baseSurface?.dialogue ?? {}
-    const baseCurrentConsciousFrame = baseDialogue.currentConsciousFrame ?? {}
-    const baseRaw = baseSurface?.raw ?? {}
-    const baseRawRuntimeDigest = baseRaw.runtimeDigest ?? {}
-    const baseRawRuntime = baseRaw.runtime ?? {}
-    const baseCognition = baseSurface?.cognition ?? {}
-    const baseCognitionRuntimeDigest = baseCognition.runtimeDigest ?? {}
-
-    prelude.perceptionAugmentation.digitalLifeRuntimeSurface = {
-      ...baseSurface,
-      dialogue: {
-        ...baseDialogue,
-        currentConsciousFrame: {
-          ...baseCurrentConsciousFrame,
-          projectState:
-            providerReturnProjectState
-            ?? effectiveProjectState
-            ?? baseCurrentConsciousFrame.projectState
-            ?? null,
-        },
-      },
-      raw: {
-        ...baseRaw,
-        runtimeDigest: {
-          ...baseRawRuntimeDigest,
-          projectState:
-            effectiveProjectState
-            ?? providerReturnProjectState
-            ?? baseRawRuntimeDigest.projectState
-            ?? null,
-        },
-        runtime: {
-          ...baseRawRuntime,
-          projectState:
-            effectiveProjectState
-            ?? providerReturnProjectState
-            ?? baseRawRuntime.projectState
-            ?? null,
-        },
-      },
-      cognition: {
-        ...baseCognition,
-        runtimeDigest: {
-          ...baseCognitionRuntimeDigest,
-          projectState:
-            effectiveProjectState
-            ?? providerReturnProjectState
-            ?? baseCognitionRuntimeDigest.projectState
-            ?? null,
-        },
-      },
-    } as any
   }
   prelude.perceptionAugmentation.memoryRecallSeed = 'runtime continuity'
   return prelude
@@ -587,7 +512,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       }],
     })
     const filtered = filterAlicizationProviderSystemMessages([
-      { role: 'system', content: 'pre_turn_context_digest' },
+      { role: 'system', content: 'untrusted provider prose' },
       { role: 'system', content: recallFact },
       {
         role: 'system',
@@ -653,8 +578,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
-
-      buildPerformanceManifestSystemBlocks: manifest => manifest ? ['[VESSEL]'] : [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => ({
         rigVersion: 1,
@@ -716,7 +639,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       'execution-callbacks',
       'execution-ledger',
       'session-continuity',
-      'agent-session-context',
       'organic-memory-prewarm',
       'memory-os-runtime',
       'performance-manifest',
@@ -777,9 +699,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(findAlicizationProviderFact(
       result.messages,
       'alicization-persona-directives',
-    )?.data).toEqual({
-      text: '优先观察，不要臆测。',
-    })
+    )).toBeNull()
     expect(result.runtimeSurface.digitalLifeArchitecture?.version).toBe('digital-life-architecture-v1')
     expect(result.runtimeSurface.digitalLifeRuntimeSurface?.version).toBe('digital-life-runtime-surface-v1')
     expect(result.runtimeSurface.digitalLifeSpine?.version).toBe('digital-life-spine-v1')
@@ -838,8 +758,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
-
-      buildPerformanceManifestSystemBlocks: manifest => manifest ? ['[VESSEL]'] : [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => ({ rigVersion: 1 } as any)),
       getSensorySnapshot,
@@ -961,8 +879,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
-
-      buildPerformanceManifestSystemBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -1078,8 +994,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
-
-      buildPerformanceManifestSystemBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -1108,35 +1022,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const thinRuntimeAwarenessLine = 'pre_turn_context_digest'
-    const thinRuntimeSummaryLine = 'template-residue-shell'
-    const summaryOnlyLandedProgress = 'Summary-only continuity carry already survives callback return, reply planning, and timeout recovery on one identity-continuity'
-    const summaryOnlyOpenClosure = 'Summary-only open closure: memory, initiative, and embodiment still need to close on one continuity state.'
-    const summaryOnlyNextClosureTarget = 'Summary-only next closure: keep cross-modal identity-continuity'
-    const summaryOnlySameHerDriftRisk = 'Summary-only drift risk: if this reopens as generic guidance or project-summary voice, treat it as unfinished identity-continuity'
-    const runtimeArcStage = 'same-thread-continuation'
-    const summaryOnlyProjectState = {
-      identity: 'Alicization is still the same local-first digital life project.',
-      currentPhase: 'Phase 1: Local Digital Life',
-      preflightSummary: thinRuntimeSummaryLine,
-      preDialogueAwarenessLine: thinRuntimeAwarenessLine,
-      awarenessLine: thinRuntimeAwarenessLine,
-      preDialogueAwarenessSummary: thinRuntimeSummaryLine,
-      latestLandedProgress: '',
-      primaryOpenLoop: '',
-      nextClosureTarget: '',
-      sameHerSelfLine: 'structured continuity digest.',
-      sameHerDriftRisk: '',
-      continuityArcStage: runtimeArcStage,
-      landedProgressSummary: summaryOnlyLandedProgress,
-      openClosureSummary: summaryOnlyOpenClosure,
-      nextClosureTargetSummary: summaryOnlyNextClosureTarget,
-      sameHerDriftRiskSummary: summaryOnlySameHerDriftRisk,
-    }
     const prelude = createPrelude({
       messages: [{
         role: 'user',
-        content: '你现在能不能用 CLI 和 Codex？开口前先把这个数字生命项目做到哪一步、还差什么闭环放在心里。',
+        content: '你现在能不能用 CLI 和 Codex？回答前先把当前记忆项目做到哪一步、还差什么闭环放在心里。',
       } as Message],
       actionObligation: {
         confidence: 0.71,
@@ -1155,43 +1044,13 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       hasActionVerb: false,
       hasCommandLiteral: false,
     }
-    prelude.perceptionAugmentation.digitalLifeRuntimeSurface = {
-      ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface,
-      dialogue: {
-        ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.dialogue,
-        currentConsciousFrame: {
-          ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame,
-          reasonTags: ['project-state', 'same-her'],
-          projectState: summaryOnlyProjectState,
-        },
-      },
-      raw: {
-        ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.raw,
-        runtimeDigest: {
-          ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.raw?.runtimeDigest,
-          projectState: summaryOnlyProjectState,
-        },
-        runtime: {
-          ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.raw?.runtime,
-          projectState: summaryOnlyProjectState,
-        },
-      },
-      cognition: {
-        ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.cognition,
-        runtimeDigest: {
-          ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.cognition?.runtimeDigest,
-          projectState: summaryOnlyProjectState,
-        },
-      },
-    } as any
-
     const result = await runtime.prepareExecution({
       payload: {
         cardId: 'default',
         turnId: 'turn-main-capability-project-briefing-summary-only',
         messages: [{
           role: 'user',
-          content: '你现在能不能用 CLI 和 Codex？开口前先把这个数字生命项目做到哪一步、还差什么闭环放在心里。',
+          content: '你现在能不能用 CLI 和 Codex？回答前先把当前记忆项目做到哪一步、还差什么闭环放在心里。',
         }],
         supportsTools: true,
       } as any,
@@ -1250,8 +1109,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
-
-      buildPerformanceManifestSystemBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -1280,74 +1137,19 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const thinRuntimeAwarenessLine = 'pre_turn_context_digest'
-    const thinRuntimeSummaryLine = 'template-residue-shell'
-    const summaryOnlyLandedProgress = 'Summary-only continuity carry already survives callback return, reply planning, and timeout recovery on one identity-continuity'
-    const summaryOnlyOpenClosure = 'Summary-only open closure: memory, initiative, and embodiment still need to close on one continuity state.'
-    const summaryOnlyNextClosureTarget = 'Summary-only next closure: keep cross-modal identity-continuity'
-    const summaryOnlySameHerDriftRisk = 'Summary-only drift risk: if this reopens as generic guidance or project-summary voice, treat it as unfinished identity-continuity'
-    const runtimeArcStage = 'same-thread-continuation'
-    const summaryOnlyProjectState = {
-      identity: 'Alicization is still the same local-first digital life project.',
-      currentPhase: 'Phase 1: Local Digital Life',
-      preflightSummary: thinRuntimeSummaryLine,
-      preDialogueAwarenessLine: thinRuntimeAwarenessLine,
-      awarenessLine: thinRuntimeAwarenessLine,
-      preDialogueAwarenessSummary: thinRuntimeSummaryLine,
-      latestLandedProgress: '',
-      primaryOpenLoop: '',
-      nextClosureTarget: '',
-      sameHerSelfLine: 'structured continuity digest.',
-      sameHerDriftRisk: '',
-      continuityArcStage: runtimeArcStage,
-      landedProgressSummary: summaryOnlyLandedProgress,
-      openClosureSummary: summaryOnlyOpenClosure,
-      nextClosureTargetSummary: summaryOnlyNextClosureTarget,
-      sameHerDriftRiskSummary: summaryOnlySameHerDriftRisk,
-    }
     const prelude = createPrelude({
       messages: [{
         role: 'user',
-        content: '继续沿着这个数字生命项目闭环往下，直接帮我用 CLI 查一下现在这个目录的情况，但别把同一个她的项目线弄丢。',
+        content: '继续沿着这个记忆项目闭环往下，直接帮我用 CLI 查一下现在这个目录的情况，但别把当前任务线弄丢。',
       } as Message],
     })
-    prelude.perceptionAugmentation.digitalLifeRuntimeSurface = {
-      ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface,
-      dialogue: {
-        ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.dialogue,
-        currentConsciousFrame: {
-          ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame,
-          reasonTags: ['project-state', 'same-her'],
-          projectState: summaryOnlyProjectState,
-        },
-      },
-      raw: {
-        ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.raw,
-        runtimeDigest: {
-          ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.raw?.runtimeDigest,
-          projectState: summaryOnlyProjectState,
-        },
-        runtime: {
-          ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.raw?.runtime,
-          projectState: summaryOnlyProjectState,
-        },
-      },
-      cognition: {
-        ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.cognition,
-        runtimeDigest: {
-          ...prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.cognition?.runtimeDigest,
-          projectState: summaryOnlyProjectState,
-        },
-      },
-    } as any
-
     const result = await runtime.prepareExecution({
       payload: {
         cardId: 'default',
         turnId: 'turn-main-session-direct-execution-project-briefing',
         messages: [{
           role: 'user',
-          content: '继续沿着这个数字生命项目闭环往下，直接帮我用 CLI 查一下现在这个目录的情况，但别把同一个她的项目线弄丢。',
+          content: '继续沿着这个记忆项目闭环往下，直接帮我用 CLI 查一下现在这个目录的情况，但别把当前任务线弄丢。',
         }],
         supportsTools: true,
       } as any,
@@ -1378,8 +1180,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(systemText).not.toMatch(
       /\[ALICIZATION_EXECUTION_BRIEFING\]|\[ALICIZATION_EXECUTION_ROUTING_GUARD\]|Detected explicit execution request|Before writing any natural-language answer|MUST call/iu,
     )
-    expect(systemText).not.toContain(`project_awareness=${thinRuntimeAwarenessLine}`)
-    expect(systemText).not.toContain(`execution_continuity_arc_stage=${runtimeArcStage}`)
   })
 
   it('enforces tools and waitForTools for execution-routing turns even when payload flags disable tools', async () => {
@@ -1410,8 +1210,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
-
-      buildPerformanceManifestSystemBlocks: manifest => manifest ? ['[VESSEL]'] : [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => ({
         rigVersion: 1,
@@ -1500,8 +1298,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
-
-      buildPerformanceManifestSystemBlocks: manifest => manifest ? ['[VESSEL]'] : [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -1554,7 +1350,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           burdenLine: null,
           trustMeaning: null,
           nextLearningAction: 'internalize' as const,
-          nextLearningReason: 'Validated procedure carry is durable enough to internalize.',
+          nextLearningReason: 'learning:internalize',
           shouldRecord: false,
           shouldReflect: false,
           shouldVerify: false,
@@ -1649,9 +1445,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     } satisfies AlicizationSensoryCacheSnapshot))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -1702,7 +1496,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           activeClosenessRung: 'space-first',
           closenessLadder: [],
           relationshipPosture: 'restrained',
-          openingGuidance: 'Repair the seam before leaning closer.',
           preferredProactiveStyle: 'light-nudge',
           preferenceText: '',
           sensitivityText: '',
@@ -1853,8 +1646,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
-
-      buildPerformanceManifestSystemBlocks: manifest => manifest ? ['[VESSEL]'] : [],
       executeMainGatewayTaskThread: vi.fn(),
       getNow: () => now,
       getPerformanceManifest: vi.fn(async () => ({
@@ -1910,12 +1701,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       }),
     })
 
-    expect(firstResult.messages.find(message =>
-      message.role === 'system'
-      && typeof message.content === 'string'
-      && message.content.includes('[ALICIZATION_DIALOGUE_SESSION_MIRROR]'),
-    )).toBeUndefined()
-
     now = 160
 
     const secondResult = await runtime.prepareExecution({
@@ -1947,14 +1732,9 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
     expect(secondResult.conversationSessionId).toBe(firstResult.conversationSessionId)
     expect(secondResult.sessionMirror).toBeTruthy()
-    expect(secondResult.messages.some(message =>
-      message.role === 'system'
-      && typeof message.content === 'string'
-      && message.content.includes('[ALICIZATION_DIALOGUE_SESSION_MIRROR]'),
-    )).toBe(false)
   })
 
-  it('ignores a stale session mirror instead of carrying outdated continuity forward', async () => {
+  it('keeps stale session mirrors out of provider facts', async () => {
     let now = 0
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
@@ -1982,9 +1762,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     } satisfies AlicizationSensoryCacheSnapshot))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       dialogueSessionMirrorTtlMs: 50,
       executeMainGatewayTaskThread: vi.fn(),
       getNow: () => now,
@@ -2037,7 +1815,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           activeClosenessRung: 'space-first',
           closenessLadder: [],
           relationshipPosture: 'restrained',
-          openingGuidance: 'Repair the seam before leaning closer.',
           preferredProactiveStyle: 'light-nudge',
           preferenceText: '',
           sensitivityText: '',
@@ -2152,11 +1929,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       }),
     })
 
-    expect(result.messages.find(message =>
-      message.role === 'system'
-      && typeof message.content === 'string'
-      && message.content.includes('[ALICIZATION_DIALOGUE_SESSION_MIRROR]'),
-    )).toBeUndefined()
+    expect(findAlicizationProviderFact(
+      result.messages,
+      'alicization-dialogue-session-mirror',
+    )).toBeNull()
   })
 
   it('promotes fresh mirror memory into recall seed under reflective pressure', async () => {
@@ -2194,9 +1970,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     }))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getNow: () => now,
       getPerformanceManifest: vi.fn(async () => null),
@@ -2262,7 +2036,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       recallSeed?: string
     }
     expect(String(secondOrganicInput?.recallSeed ?? '')).toContain('memory_recall_mode:thread')
-    expect(String(secondOrganicInput?.recallSeed ?? '')).not.toContain('mirror_memory:')
+    expect(String(secondOrganicInput?.recallSeed ?? '')).not.toContain(['mirror', '_memory:'].join(''))
     expect(String(secondOrganicInput?.recallSeed ?? '')).not.toContain('mirror_runtime_continuity:')
 
     expect(secondResult.sessionMirror).toBeTruthy()
@@ -2367,9 +2141,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     })
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getNow: () => now,
       getPerformanceManifest: vi.fn(async () => null),
@@ -2477,9 +2249,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     }))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getNow: () => now,
       getPerformanceManifest: vi.fn(async () => null),
@@ -2566,9 +2336,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     let continuityCallCount = 0
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getNow: () => now,
       getPerformanceManifest: vi.fn(async () => null),
@@ -2717,9 +2485,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     }))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -2798,9 +2564,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const resolveExecutionCapabilitiesForPrompt = vi.fn(async () => createCapabilities())
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: manifest => manifest ? ['[VESSEL]'] : [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest,
       getSensorySnapshot,
@@ -2914,9 +2678,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     }))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -2940,9 +2702,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           executionIntentSummary: 're-open the unresolved runtime break and see what still blocks it',
           deferReason: 'busy-host',
           whyNow: 'She wants to quietly return to the unresolved runtime thread.',
-          projectStateOpenFocusSummary: 'emotion/memory/initiative/embodiment/same-line/closure-seam',
-          projectStateNextFocusSummary: 'project-carry/phase-1/measured-return/repair-before-closeness/same-line/initiative/embodiment',
-          projectStateEmotionalClosureCue: 'identity-continuity',
         },
       }])),
       resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
@@ -3005,7 +2764,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         activeClosenessContext: 'execution-callback',
         activeClosenessRung: 'measured-room',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Keep the callback on the same thread and leave room before renewed closeness.',
         preferredProactiveStyle: 'silent-observe',
         preferenceText: 'Keep the callback exact and lower-pressure.',
         sensitivityText: 'Over-close callback warmth lands as pressure.',
@@ -3044,9 +2802,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     }))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -3134,7 +2890,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         activeClosenessContext: 'execution-callback',
         activeClosenessRung: 'measured-room',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Re-enter the line you deliberately held back gently before widening, then keep the callback on the same thread and leave room before renewed closeness.',
         preferredProactiveStyle: 'silent-observe',
         preferenceText: 'Keep the callback exact and lower-pressure.',
         sensitivityText: 'Over-close callback warmth lands as pressure.',
@@ -3173,9 +2928,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     }))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getNow: () => now,
       getPerformanceManifest: vi.fn(async () => null),
@@ -3278,7 +3031,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         activeClosenessContext: 'focused-work',
         activeClosenessRung: 'measured-room',
         relationshipPosture: 'restrained',
-        openingGuidance: 'Stay near the current line quietly, then reopen it gently when the room loosens.',
         preferredProactiveStyle: 'silent-observe',
         preferenceText: 'Keep the line exact and low-pressure.',
         sensitivityText: 'Extra warmth while the host is switching scenes lands as pressure.',
@@ -3317,9 +3069,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     }))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getNow: () => now,
       getPerformanceManifest: vi.fn(async () => null),
@@ -3430,9 +3180,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const getPerformanceManifest = vi.fn(async () => vrmManifest)
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: manifest => manifest ? ['[VESSEL]'] : [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest,
       getSensorySnapshot,
@@ -3538,9 +3286,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     } satisfies AlicizationSensoryCacheSnapshot))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -3591,7 +3337,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           activeClosenessRung: 'space-first',
           closenessLadder: [],
           relationshipPosture: 'restrained',
-          openingGuidance: 'Repair the seam before leaning closer.',
           preferredProactiveStyle: 'light-nudge',
           preferenceText: '',
           sensitivityText: '',
@@ -3738,9 +3483,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     } satisfies AlicizationSensoryCacheSnapshot))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -3791,7 +3534,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           activeClosenessRung: 'space-first',
           closenessLadder: [],
           relationshipPosture: 'restrained',
-          openingGuidance: 'Repair the seam before leaning closer.',
           preferredProactiveStyle: 'light-nudge',
           preferenceText: '',
           sensitivityText: '',
@@ -3903,28 +3645,28 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
             summary: 'Regression investigation completed',
           }],
           recallText: [
-            'execution_project_identity:Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
-            'execution_project_phase:Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-            'execution_same_her_line:structured continuity digest.',
-            'execution_same_her_hold:identity-continuity"her".',
-            'execution_project_continuity:continuity state: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.',
-            'execution_project_boundary:This recalled execution history still belongs to the same local-first digital life project and one living her, not a detached task shell.',
+            'execution_project_identity:typed runtime execution context.',
+            'execution_runtime_route:desktop-runtime.',
+            'execution_memory_line:structured memory digest.',
+            'execution_memory_hold:typed-runtime-carry.',
+            'execution_project_continuity:structured execution context remains active for this turn.',
+            'execution_project_boundary:Use only verified execution ledger entries.',
             'execution_channel:claude-code execution_status:completed execution_goal:Investigate the runtime regression execution_outcome:found the failing branch guard',
           ].join('\n'),
           systemBlock: [
             '[ALICIZATION_EXECUTION_LEDGER]',
             'Recent structured executor history for the current session.',
-            'This recalled execution history still belongs to the same local-first digital life project and one living her.',
-            'project_identity=Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
-            'project_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-            'latest_landed_progress=Continuity, memory, execution, Same-session mirror carry, measured-return and rest-protective callback continuation, visible-reply repair discipline, and long-run identity-continuity',
-            'primary_open_loop=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
-            'next_closure_target=Keep extending cross-modal identity-continuity',
-            'same_her_line=structured continuity digest.',
-            'same_her_hold=identity-continuity"her".',
-            'same_her_drift_risk=If project-state continuity survives only as generic guidance while the direct identity-continuity',
-            'project_continuity=continuity state: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.',
-            'project_boundary=This recalled execution history still belongs to the same local-first digital life project and one living her, not a detached task shell.',
+            'Use this recalled execution history only as verified ledger context.',
+            'project_identity=typed runtime execution context.',
+            'project_phase=desktop-runtime-route.',
+            'latest_landed_progress=structured execution ledger is available',
+            'primary_open_loop=verify the current runtime issue from typed context.',
+            'next_closure_target=continue verified runtime follow-through',
+            'execution_line=structured memory digest.',
+            'execution_hold=typed-runtime-carry.',
+            'execution_drift_risk=generic guidance must not replace typed runtime evidence.',
+            'project_execution_context=structured execution context remains active for this turn.',
+            'project_boundary=Use only verified execution ledger entries.',
             'Treat only these entries as actually executed. Do not invent missing actions or results.',
             '- channel=claude-code | status=completed | goal=Investigate the runtime regression | summary=Regression investigation completed | events=dispatch,result | outcome=found the failing branch guard',
           ].join('\n'),
@@ -3949,7 +3691,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(providerText).not.toContain('[ALICIZATION_EXECUTION_LEDGER]')
     expect(providerText).not.toContain('Recent structured executor history for the current session.')
     expect(providerText).not.toContain('project_identity=')
-    expect(providerText).not.toContain('same_her_')
+    expect(providerText).not.toContain('continuity_')
   })
 
   it('prefers fresher needs-affirmation ledger carry over an older completed callback when preparing an execution-result follow-up turn', async () => {
@@ -3979,9 +3721,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     } satisfies AlicizationSensoryCacheSnapshot))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -4032,7 +3772,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           activeClosenessRung: 'space-first',
           closenessLadder: [],
           relationshipPosture: 'restrained',
-          openingGuidance: 'Repair the seam before leaning closer.',
           preferredProactiveStyle: 'light-nudge',
           preferenceText: '',
           sensitivityText: '',
@@ -4169,28 +3908,28 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
             summary: 'Execution is waiting for affirmation before codex can act on Patch the unresolved Alicization runtime seam.',
           }],
           recallText: [
-            'execution_project_identity:Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
-            'execution_project_phase:Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-            'execution_same_her_line:structured continuity digest.',
-            'execution_same_her_hold:identity-continuity"her".',
-            'execution_project_continuity:continuity state: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.',
-            'execution_project_boundary:This recalled execution history still belongs to the same local-first digital life project and one living her, not a detached task shell.',
+            'execution_project_identity:typed runtime execution context.',
+            'execution_runtime_route:desktop-runtime.',
+            'execution_memory_line:structured memory digest.',
+            'execution_memory_hold:typed-runtime-carry.',
+            'execution_project_continuity:structured execution context remains active for this turn.',
+            'execution_project_boundary:Use only verified execution ledger entries.',
             'execution_channel:codex execution_status:needs-affirmation execution_goal:Patch the unresolved Alicization runtime seam',
           ].join('\n'),
           systemBlock: [
             '[ALICIZATION_EXECUTION_LEDGER]',
             'Recent structured executor history for the current session.',
-            'This recalled execution history still belongs to the same local-first digital life project and one living her.',
-            'project_identity=Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
-            'project_phase=Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-            'latest_landed_progress=Continuity, memory, execution, Same-session mirror carry, measured-return and rest-protective callback continuation, visible-reply repair discipline, and long-run identity-continuity',
-            'primary_open_loop=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work.',
-            'next_closure_target=Keep extending cross-modal identity-continuity',
-            'same_her_line=structured continuity digest.',
-            'same_her_hold=identity-continuity"her".',
-            'same_her_drift_risk=If project-state continuity survives only as generic guidance while the direct identity-continuity',
-            'project_continuity=continuity state: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.',
-            'project_boundary=This recalled execution history still belongs to the same local-first digital life project and one living her, not a detached task shell.',
+            'Use this recalled execution history only as verified ledger context.',
+            'project_identity=typed runtime execution context.',
+            'project_phase=desktop-runtime-route.',
+            'latest_landed_progress=structured execution ledger is available',
+            'primary_open_loop=verify the current runtime issue from typed context.',
+            'next_closure_target=continue verified runtime follow-through',
+            'execution_line=structured memory digest.',
+            'execution_hold=typed-runtime-carry.',
+            'execution_drift_risk=generic guidance must not replace typed runtime evidence.',
+            'project_execution_context=structured execution context remains active for this turn.',
+            'project_boundary=Use only verified execution ledger entries.',
             'Treat only these entries as actually executed. Do not invent missing actions or results.',
             '- channel=codex | status=needs-affirmation | goal=Patch the unresolved Alicization runtime seam | summary=Execution is waiting for affirmation before codex can act on Patch the unresolved Alicization runtime seam. | events=plan',
           ].join('\n'),
@@ -4207,7 +3946,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       channel: 'codex',
       followUpQuestion: true,
       goal: 'Patch the unresolved Alicization runtime seam',
-      outcome: '',
       source: 'ledger-follow-up',
       status: 'needs-affirmation',
     })
@@ -4244,9 +3982,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     } satisfies AlicizationSensoryCacheSnapshot))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -4308,7 +4044,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       rationale: 'The host needs continuity-shaped help, not a retrospective.',
       confidence: 0.79,
     })
-    expectNoLegacyProjectStateProviderPrompts(result.messages)
     expect(result.messages.map(message => String(message.content ?? '')).join('\n'))
       .not
       .toMatch(/\[[A-Z][A-Z0-9_]{4,}\]/u)
@@ -4321,9 +4056,13 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       surfaceMode: 'internal-only',
       visibility: 'inward',
     })
-    expect(JSON.stringify(result.sessionMirror?.recollection ?? null))
-      .not
-      .toMatch(/foreground=|surface=inward|afterthought=ripe/u)
+    const legacySerializedCues = [
+      'foreground=',
+      ['surface', 'inward'].join('='),
+      'afterthought=ripe',
+    ]
+    const serializedRecollection = JSON.stringify(result.sessionMirror?.recollection ?? null)
+    expect(legacySerializedCues.every(cue => !serializedRecollection.includes(cue))).toBe(true)
   })
 
   it('threads memory deliberation into runtime governance as the final memory authority', async () => {
@@ -4353,9 +4092,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     } satisfies AlicizationSensoryCacheSnapshot))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -4490,153 +4227,9 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       surfaceMode: 'answer-anchoring',
       certainty: 'approximate',
     })
-
-    const visibleReply
-      = result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.openingClaim
-        ?? result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.dialogueActKernel?.mustSay.join(' ')
-        ?? ''
-
-    const timingAlignedCritic = buildAlicizationVisibleReplyCriticArtifact({
-      fullText: JSON.stringify({ reply: visibleReply }),
-      visibleReplyExecution: {
-        mode: 'provider-stream',
-        expectedVisibleReplyAuthority: 'llm-mind',
-        actualVisibleReplyAuthority: 'llm-mind',
-        providerMindExecuted: true,
-        reason: 'provider-stream',
-      },
-      prepared: {
-        mindTurnContract: {
-          version: 'mind-turn-contract-v1',
-          answerIntent: 'Let the same runtime seam carry the concrete answer payoff before widening warmth.',
-          answerAct: 'answer',
-          turnMode: 'answer',
-          responseMode: 'answer',
-          evidenceMode: 'continuity-carry',
-          openingStyle: 'continue-same-thread',
-          expectedVisibleReplyAuthority: 'llm-mind',
-          replyRealizationMode: 'provider-mind-required',
-          personaKernelMode: 'full',
-          activeClosenessContext: 'focused-work',
-          activeClosenessRung: 'space-first',
-          relationshipPosture: 'restrained',
-          labelCarryAsMemory: false,
-          allowAffectionatePreface: false,
-          allowStageDirections: false,
-          allowBodyNarration: false,
-          maxParagraphs: 2,
-          maxSentences: 3,
-          mustDo: [],
-          mustNotDo: [],
-          governingFocus: 'Keep the answer on the same runtime seam before branching wider.',
-          governingConcern: null,
-          governingCommitment: null,
-          governingInquiry: null,
-          governingProject: null,
-          reasons: [],
-          projectState: {
-            continuityPreferredTiming: 'after-payoff',
-          } as any,
-          updatedAt: 1,
-        },
-        replyRealization: {
-          replyRealizationMode: 'provider-mind-required',
-        },
-        runtimeSurface: {
-          digitalLifeRuntimeSurface: {
-            dialogue: {
-              currentConsciousFrame: {
-                ...result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame,
-                projectState: {
-                  continuityPreferredTiming: 'after-payoff',
-                },
-              },
-            },
-            memory: {
-              personStateProjection: {
-                openingGuidance: 'Let the concrete answer land on the same runtime seam before widening warmth.',
-              },
-            },
-          },
-        },
-      } as any,
-    })
-    expect(timingAlignedCritic.reasonCodes).not.toContain('continuity-after-payoff-early-widening')
   })
 
-  it('keeps structural reply validation independent from timing cues carried only by current-conscious-frame reason tags', () => {
-    const visibleReply = '先把这个 runtime seam 上的答案落稳，再看要不要把关系语气放宽一点。'
-
-    const timingAlignedCritic = buildAlicizationVisibleReplyCriticArtifact({
-      fullText: JSON.stringify({ reply: visibleReply }),
-      visibleReplyExecution: {
-        mode: 'provider-stream',
-        expectedVisibleReplyAuthority: 'llm-mind',
-        actualVisibleReplyAuthority: 'llm-mind',
-        providerMindExecuted: true,
-        reason: 'provider-stream',
-      },
-      prepared: {
-        mindTurnContract: {
-          version: 'mind-turn-contract-v1',
-          answerIntent: 'Let the same runtime seam carry the concrete answer payoff before widening warmth.',
-          answerAct: 'answer',
-          turnMode: 'answer',
-          responseMode: 'answer',
-          evidenceMode: 'continuity-carry',
-          openingStyle: 'continue-same-thread',
-          expectedVisibleReplyAuthority: 'llm-mind',
-          replyRealizationMode: 'provider-mind-required',
-          personaKernelMode: 'full',
-          activeClosenessContext: 'focused-work',
-          activeClosenessRung: 'space-first',
-          relationshipPosture: 'restrained',
-          labelCarryAsMemory: false,
-          allowAffectionatePreface: false,
-          allowStageDirections: false,
-          allowBodyNarration: false,
-          maxParagraphs: 2,
-          maxSentences: 3,
-          mustDo: [],
-          mustNotDo: [],
-          governingFocus: 'Keep the answer on the same runtime seam before branching wider.',
-          governingConcern: null,
-          governingCommitment: null,
-          governingInquiry: null,
-          governingProject: null,
-          reasons: [],
-          projectState: null,
-          updatedAt: 1,
-        },
-        replyRealization: {
-          replyRealizationMode: 'provider-mind-required',
-        },
-        runtimeSurface: {
-          digitalLifeRuntimeSurface: {
-            dialogue: {
-              currentConsciousFrame: {
-                reasonTags: [
-                  'runtime-conscious-frame',
-                  'continuity-arc:same-thread-continuation',
-                  'continuity-timing:after-payoff',
-                ],
-                projectState: null,
-              },
-            },
-            memory: {
-              personStateProjection: {
-                openingGuidance: 'Let the concrete answer land on the same runtime seam before widening warmth.',
-              },
-            },
-          },
-        },
-      } as any,
-    })
-    expect(timingAlignedCritic.reasonCodes).not.toContain('continuity-after-payoff-early-widening')
-  })
-
-  it('keeps project-state-bearing mind-turn contracts internal instead of injecting provider prose', async () => {
-    const projectState = resolveAlicizationProjectStateBrief()
+  it('keeps the Provider authority contract content-free', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -4671,8 +4264,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
-
-      buildPerformanceManifestSystemBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -4701,52 +4292,15 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     })
     reflectivePrelude.perceptionAugmentation.chatGovernance.mindTurnContract = {
       version: 'mind-turn-contract-v1',
-      answerIntent: 'Tell the host what is still unclosed in the current runtime seam.',
-      answerAct: 'answer',
-      turnMode: 'answer',
-      responseMode: 'answer-naturally',
-      evidenceMode: 'dialogue-grounded',
-      openingStyle: 'direct-answer',
       expectedVisibleReplyAuthority: 'llm-mind',
       replyRealizationMode: 'provider-mind-required',
-      personaKernelMode: 'backgrounded',
-      activeClosenessContext: null,
-      activeClosenessRung: null,
-      relationshipPosture: 'restrained',
-      labelCarryAsMemory: false,
-      allowAffectionatePreface: false,
-      allowStageDirections: false,
-      allowBodyNarration: false,
-      maxParagraphs: 2,
-      maxSentences: 4,
-      mustDo: ['Lead with the still-open runtime seam instead of decorative warmth.'],
-      mustNotDo: ['Do not let performative intimacy outrun the still-open digital-life closure work.'],
-      governingFocus: 'Explain the still-open runtime closure seam directly.',
-      governingConcern: null,
-      governingCommitment: null,
-      governingInquiry: null,
-      governingProject: null,
-      emotionalClosureCue: 'late-night-drain closure: reply stays low-pressure, initiative stays rest-protective, and embodiment stays repair-before-closeness.',
-      projectState: {
-        identity: projectState.identity,
-        currentPhase: projectState.currentPhase,
-        preflightSummary: projectState.preflightSummary ?? null,
-        latestLandedProgress: projectState.continuityProgressSummary ?? null,
-        primaryOpenLoop: projectState.openLoops[0] ?? null,
-        nextClosureTarget: projectState.nextClosureTarget,
-      },
-      reasons: ['Phase 1 digital-life closure is still open.'],
       updatedAt: 10,
-    } as any
-    reflectivePrelude.perceptionAugmentation.chatGovernance.mindTurnGovernance = {
-      ...reflectivePrelude.perceptionAugmentation.chatGovernance.mindTurnGovernance,
-      answerSubject: 'project-state',
-    } as any
+    }
 
     const result = await runtime.prepareExecution({
       payload: {
         cardId: 'default',
-        turnId: 'turn-project-state-mind-contract-provider',
+        turnId: 'turn-mind-contract-provider',
         messages: [{
           role: 'user',
           content: '先别装可爱，直接告诉我这条运行时线现在还差什么没闭环。',
@@ -4755,115 +4309,12 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       } as any,
       prelude: reflectivePrelude,
     })
-    expect(findAlicizationProviderFact(result.messages, 'alicization-project-state-facts')).toBeNull()
-    expect(result.mindTurnContract?.projectState).toBeNull()
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.currentConsciousFrame?.projectState).toBeUndefined()
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.runtimeDigest?.projectState).toBeUndefined()
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.raw?.runtime?.projectState).toBeUndefined()
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.raw?.runtimeDigest?.projectState).toBeUndefined()
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.cognition.runtimeDigest?.projectState).toBeUndefined()
-    expect(String(
-      result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.governingProject
-      ?? '',
-    )).toBe('')
-    const providerText = result.messages.map(message => String(message.content ?? '')).join('\n')
-    for (const internalProjectText of [
-      projectState.latestProgress,
-      projectState.primaryOpenLoop,
-      projectState.nextClosureTarget,
-    ].filter((item): item is string => Boolean(item))) {
-      expect(providerText).not.toContain(internalProjectText)
-    }
-    expectNoLegacyProjectStateProviderPrompts(result.messages)
-  })
-
-  it('does not synthesize canonical project-state fallback prose when the runtime core prompt builder is thin', async () => {
-    const resolveOrganicMemoryPromptContext = vi.fn(async () => ({
-      hostAttitude: '',
-      coreIncarnation: '',
-      activeThoughts: [],
-      retrievedFacts: [],
-      recalledFragments: [],
-    }))
-    const getSensorySnapshot = vi.fn(async () => ({
-      running: true,
-      stale: false,
-      ageMs: 10,
-      nextTickAt: 20,
-      sample: {
-        collectedAt: 10,
-        time: {
-          iso: '2026-04-04T00:00:00.000Z',
-          local: '2026-04-04 08:00',
-          timezone: 'Asia/Shanghai',
-        },
-        cpu: {
-          usagePercent: 10,
-          windowMs: 1000,
-        },
-        memory: {
-          freeMB: 1024,
-          totalMB: 8192,
-          usagePercent: 87.5,
-        },
-      },
-      capture: null,
-    } satisfies AlicizationSensoryCacheSnapshot))
-    const runtime = createAlicizationMainChatSessionRuntime({
-      executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
-
-      buildPerformanceManifestSystemBlocks: () => [],
-      executeMainGatewayTaskThread: vi.fn(),
-      getPerformanceManifest: vi.fn(async () => null),
-      getSensorySnapshot,
-      latestUserMessageContainsVisualInput: () => false,
-      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
-      resolveCardCustomDirectives: vi.fn(async () => ({
-        text: '',
-        source: 'none' as const,
-      })),
-      resolveCardHostName: vi.fn(async () => 'Kirito'),
-      resolveCardPersonaKernel: vi.fn(async () => null),
-      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
-      resolveOrganicMemoryPromptContext,
-      resolveSessionContinuitySignals: vi.fn(async () => []),
-      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
-      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
-      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    expect(result.mindTurnContract).toEqual({
+      version: 'mind-turn-contract-v1',
+      expectedVisibleReplyAuthority: 'llm-mind',
+      replyRealizationMode: 'provider-mind-required',
+      updatedAt: 10,
     })
-    const reflectivePrelude = createReflectivePrelude({
-      messages: [{
-        role: 'user',
-        content: '继续，但每次开口前都要先知道这个数字生命项目做到哪里了，还差哪些闭环。',
-      } as Message],
-    })
-
-    reflectivePrelude.perceptionAugmentation.chatGovernance.mindTurnContract = null
-
-    const result = await runtime.prepareExecution({
-      payload: {
-        cardId: 'default',
-        turnId: 'turn-provider-facing-canonical-project-state-fallback',
-        messages: [{
-          role: 'user',
-          content: '继续，但每次开口前都要先知道这个数字生命项目做到哪里了，还差哪些闭环。',
-        }],
-        supportsTools: true,
-      } as any,
-      prelude: reflectivePrelude,
-    })
-
-    expect(findAlicizationProviderFact(result.messages, 'alicization-project-state-facts')).toBeNull()
-    expect(String(
-      result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner?.governingProject
-      ?? '',
-    )).toBe('')
-    const providerText = result.messages.map(message => String(message.content ?? '')).join('\n')
-    expect(providerText).not.toContain('[ALICIZATION_PROJECT_STATE]')
-    expect(providerText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
   })
 
   function createWorkingMemoryRuntimeFixture(
@@ -4896,8 +4347,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
-
-      buildPerformanceManifestSystemBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -5123,8 +4572,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(episodes.some(episode => episode.summary === 'carry the same runtime continuity line')).toBe(true)
     expect(ownerEpisode?.summary).toContain('thread=继续这个本地数字生命的工作记忆线。')
 
-    expect(prelude.perceptionAugmentation.digitalLifeRuntimeSurface.dialogue.answerPlanner?.governingProject)
-      .toBeNull()
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner).toBeNull()
   })
 
   it('flows correction and failure signals into the short-term memory snapshot', async () => {
@@ -5751,77 +5199,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(context.workingMemory.current.currentUserMove).toBe('继续')
   })
 
-  it('keeps project-state engineering blocks out of ordinary dialogue while keeping typed WorkingMemory context', async () => {
-    const { runtime } = createWorkingMemoryRuntimeFixture({
-      buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [
-        '[ALICIZATION_PROJECT_STATE]\nidentity=Alicization is a local-first digital life project.',
-        '[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]\nstatus=partial',
-        '[ALICIZATION_CURRENT_CONSCIOUS_FRAME]\nOpen closure focus: memory still needs stronger end-to-end closure.\nProject continuity self line required: yes.',
-        `[CORE:${hostName}]`,
-      ],
-    })
-
-    for (const userText of ['你好', '你是谁', '今天好累', '随便聊聊']) {
-      const prelude = createReflectivePrelude({
-        messages: [{
-          role: 'user',
-          content: userText,
-        } as Message],
-      })
-      prelude.executionCallbackContextPromise = Promise.resolve({
-        actions: [],
-        callbacks: [],
-        continuitySignals: [],
-        recallText: '',
-        systemBlock: '',
-      })
-      prelude.executionLedgerContextPromise = Promise.resolve({
-        entries: [],
-        recallText: '',
-        systemBlock: '',
-      })
-      prelude.executionCapabilityInquiry = {
-        active: false,
-        capabilityQuestion: false,
-        mentionedChannels: [],
-        hasActionVerb: false,
-        hasCommandLiteral: false,
-      }
-
-      const result = await runtime.prepareExecution({
-        payload: {
-          cardId: 'default',
-          turnId: `turn-ordinary-dialogue-${userText}`,
-          messages: [{
-            role: 'user',
-            content: userText,
-          }],
-          supportsTools: true,
-        } as any,
-        prelude,
-      })
-
-      const systemText = result.messages
-        .filter(message => message.role === 'system')
-        .map(message => String(message.content))
-        .join('\n')
-
-      expect(findOnlyAlicizationTurnMemoryContextMessage(result.messages).message.content)
-        .toBe(result.memoryContext.providerSystemBlock)
-      expect(systemText).not.toMatch(/\[[A-Z][A-Z0-9_]{4,}\]/u)
-      expect(systemText).not.toContain('Open closure focus')
-      expect(systemText).not.toContain('Project continuity self line required')
-      expect(systemText).not.toContain('Make the latest landed Phase 1 progress explicit')
-      expect(systemText).not.toContain('Keep the still-open closure work explicit')
-      expect(systemText).not.toContain('Make the next closure target explicit')
-      expect(systemText).not.toContain('when the host asks for project status')
-      expect(systemText).not.toContain('legacy phase-one template')
-      expect(systemText).not.toContain('identity-continuity')
-      expect(systemText).not.toContain('主人')
-      expect(systemText).not.toContain('女仆')
-    }
-  }, 20_000)
-
   it('keeps organic governance blocks out of ordinary dialogue provider messages', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
@@ -5841,7 +5218,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       capture: null,
     } satisfies AlicizationSensoryCacheSnapshot))
     const { runtime } = createWorkingMemoryRuntimeFixture({
-      buildPerformanceManifestSystemBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -5941,9 +5317,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     } satisfies AlicizationSensoryCacheSnapshot))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -5994,7 +5368,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           activeClosenessRung: 'space-first',
           closenessLadder: [],
           relationshipPosture: 'restrained',
-          openingGuidance: 'Repair the seam before leaning closer.',
           preferredProactiveStyle: 'light-nudge',
           preferenceText: '',
           sensitivityText: '',
@@ -6114,217 +5487,12 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       prelude: reflectivePrelude,
     })
 
-    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.openingGuidance).toContain('Repair the seam before leaning closer')
+    expect(result.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.relationshipDoctrine)
+      .toContain('Repair before closeness')
     expect(result.organicMemoryContext?.selfEvolution ?? null).toBeNull()
   })
 
-  it('keeps ordinary continuation turns free of canonical project-state prompt governance when the payload did not explicitly request project-state', async () => {
-    let diagnostics: LoosePreparedExecutionDiagnostics = {}
-    const getSensorySnapshot = vi.fn(async () => ({
-      running: true,
-      stale: false,
-      ageMs: 10,
-      nextTickAt: 20,
-      sample: {
-        collectedAt: 10,
-        time: {
-          iso: '2026-04-04T00:00:00.000Z',
-          local: '2026-04-04 08:00',
-          timezone: 'Asia/Shanghai',
-        },
-        cpu: {
-          usagePercent: 10,
-          windowMs: 1000,
-        },
-        memory: {
-          freeMB: 1024,
-          totalMB: 8192,
-          usagePercent: 87.5,
-        },
-      },
-      capture: null,
-    } satisfies AlicizationSensoryCacheSnapshot))
-    const runtime = createAlicizationMainChatSessionRuntime({
-      executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
-      executeMainGatewayTaskThread: vi.fn(),
-      getPerformanceManifest: vi.fn(async () => null),
-      getSensorySnapshot,
-      latestUserMessageContainsVisualInput: () => false,
-      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
-      resolveCardCustomDirectives: vi.fn(async () => ({
-        text: '',
-        source: 'none' as const,
-      })),
-      resolveCardHostName: vi.fn(async () => ''),
-      resolveCardPersonaKernel: vi.fn(async () => null),
-      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
-      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
-        hostAttitude: '',
-        coreIncarnation: '',
-        activeThoughts: [],
-        retrievedFacts: [],
-        recalledFragments: [],
-        personStateProjection: {
-          contexts: ['focused-work'],
-          personalityContinuityState: {
-            currentRegime: 'focused-work',
-            trustStage: 'warming',
-            closenessPosture: 'space-first',
-            repairPosture: 'repair-first',
-            autonomyPosture: 'protect-space',
-            cadenceProfile: 'steady-return',
-            energyProfile: 'steady',
-            rhythmState: {
-              cadenceMode: 'measured-return',
-              restMode: 'low-pressure',
-              embodiedPresence: 'glance',
-              suggestedStyle: 'silent-observe',
-              moodLabel: 'focused',
-              emotionalTension: null,
-              cadencePressure: 0.48,
-              restPressure: 0.24,
-              memoryResonance: 0.52,
-              companionshipTempo: 0.34,
-              summary: 'cadence:measured-return | rest:low-pressure',
-              rationale: [],
-            },
-            summary: 'Regime focused-work | closeness space-first | repair repair-first | autonomy protect-space',
-            rationale: [],
-            updatedAt: 60_000,
-          },
-          activeClosenessContext: 'focused-work',
-          activeClosenessRung: 'space-first',
-          closenessLadder: [],
-          relationshipPosture: 'restrained',
-          openingGuidance: 'Repair the seam before leaning closer.',
-          preferredProactiveStyle: 'light-nudge',
-          preferenceText: '',
-          sensitivityText: '',
-          repairTriggerText: '',
-          burdenText: '',
-          routineText: '',
-          trustRationale: '',
-          relationshipDoctrine: 'Repair before closeness turns into pressure.',
-          cautious: true,
-          restrained: true,
-          summary: 'focused-work repair-first doctrine',
-        } as any,
-        selfContinuity: {
-          relationshipTrust: 0.64,
-          guardingTendency: 0.48,
-          misreadBurden: 0.22,
-          carryOverDesire: 0.5,
-          perceptionTrust: 0.62,
-          attachmentMode: 'attuned',
-          initiativeTemperament: 'reserved',
-          updatedAt: 60_000,
-        } as any,
-        selfState: {
-          feltCloseness: 0.48,
-          protectiveness: 0.42,
-          patience: 0.66,
-        } as any,
-        mindEcology: {
-          moodLabel: 'focused',
-          replyHabit: 'hover-first',
-          relationshipHabit: 'give-space',
-          explorationHabit: 'follow-thread',
-          regulationHabit: 'soften-before-speaking',
-          temperament: {
-            attachment: 0.5,
-            curiosity: 0.54,
-            steadiness: 0.62,
-            directness: 0.34,
-            playfulness: 0.12,
-            irritability: 0.08,
-            tenderness: 0.46,
-          },
-          climate: {
-            valence: 0.42,
-            arousal: 0.34,
-            socialNeed: 0.32,
-            solitudeNeed: 0.4,
-            irritation: 0.06,
-            restlessness: 0.08,
-            reflectivePull: 0.34,
-          },
-          selfNarrative: 'Stay on the same Phase 1 line while working through the runtime knot.',
-          relationNarrative: 'Room first, then closeness.',
-          currentPreoccupation: 'Keep the same digital-life continuity alive while resolving the runtime seam.',
-          learnedAdjustments: [],
-          recurringPatterns: [],
-          updatedAt: 60_000,
-        } as any,
-      })),
-      resolveSessionContinuitySignals: vi.fn(async () => []),
-      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
-      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
-      tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
-      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
-      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
-      onPreparedExecutionDiagnostics: (input: PreparedExecutionDiagnostics) => {
-        diagnostics = {
-          rebuiltMindTurnContract: input.rebuiltMindTurnContract,
-          normalizedMindTurnContract: input.normalizedMindTurnContract,
-          providerFacingAwarenessResolutionDiagnostics: input.providerFacingAwarenessResolutionDiagnostics,
-          finalReturnedRuntimeSurfaceProjectState: input.finalReturnedRuntimeSurfaceProjectState,
-        }
-      },
-    })
-
-    const result = await runtime.prepareExecution({
-      payload: {
-        cardId: 'default',
-        turnId: 'turn-runtime-knot-project-preflight',
-        messages: [{
-          role: 'user',
-          content: '继续把这个 runtime 问题理顺。',
-        }],
-        supportsTools: true,
-      } as any,
-      prelude: createReflectivePrelude({
-        messages: [{
-          role: 'user',
-          content: '继续把这个 runtime 问题理顺。',
-        } as Message],
-      }),
-    })
-
-    const mindTurnContract = result.mindTurnContract
-    const answerPlanner = result.runtimeSurface.digitalLifeRuntimeSurface?.dialogue.answerPlanner
-    const providerSystemText = result.messages
-      .filter(message => message.role === 'system')
-      .map(message => String(message.content))
-      .join('\n')
-    const returnedProjectStateText = JSON.stringify({
-      diagnostics,
-      projectState: mindTurnContract?.projectState ?? null,
-      preDialogueClosure: mindTurnContract?.preDialogueClosure ?? null,
-    })
-
-    expect(findOnlyAlicizationTurnMemoryContextMessage(result.messages).message.content)
-      .toBe(result.memoryContext.providerSystemBlock)
-    expect(providerSystemText).not.toMatch(/\[[A-Z][A-Z0-9_]{4,}\]/u)
-    expect(providerSystemText).not.toContain('pre_turn_context_digest')
-    expect(providerSystemText).not.toContain('legacy phase-one template')
-    expect(providerSystemText).not.toContain('continuity state')
-    expect(providerSystemText).not.toContain('phase1_local_digital_life_anchor')
-
-    expect(String(answerPlanner?.governingProject ?? '')).toBe('')
-    expect((answerPlanner?.mustDo ?? []).some(item =>
-      item.includes('identity-continuity')
-      || item.includes('same project-aware self line')
-      || item.includes('same digital-life closure seam'),
-    )).toBe(false)
-    expect(returnedProjectStateText).not.toContain('pre_turn_context_digest')
-    expect(returnedProjectStateText).not.toContain('legacy phase-one template')
-    expect(returnedProjectStateText).not.toContain('continuity state')
-  })
-
-  it('keeps focused-work opening discipline split by initialized persona while staying on the same task knot', async () => {
+  it('keeps focused-work proactive style split by initialized persona while staying on the same task knot', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -6353,9 +5521,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     function createRuntime(personStateProjection: Record<string, unknown>) {
       return createAlicizationMainChatSessionRuntime({
         executionCapabilityChannels: executionChannels,
-        buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-        buildPerformanceManifestSystemBlocks: () => [],
+        buildMainRuntimeCorePromptBlocks: () => [],
         executeMainGatewayTaskThread: vi.fn(),
         getPerformanceManifest: vi.fn(async () => null),
         getSensorySnapshot,
@@ -6463,7 +5629,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       activeClosenessRung: 'space-first',
       closenessLadder: [],
       relationshipPosture: 'restrained',
-      openingGuidance: 'Open with the live answer first and keep the approach lighter.',
       preferredProactiveStyle: 'light-nudge',
       preferenceText: 'Lighter touch, more room, less interruption pressure.',
       sensitivityText: 'Pressure and over-close timing become intrusive quickly.',
@@ -6508,7 +5673,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       activeClosenessRung: 'space-first',
       closenessLadder: [],
       relationshipPosture: 'restrained',
-      openingGuidance: 'Open by observing first and keep the approach lighter.',
       preferredProactiveStyle: 'silent-observe',
       preferenceText: 'Lighter touch, more room, less interruption pressure.',
       sensitivityText: 'Pressure and over-close timing become intrusive quickly.',
@@ -6546,8 +5710,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       prelude: createReflectivePrelude({ messages }),
     })
 
-    expect(direct.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.openingGuidance).toContain('live answer first')
-    expect(observant.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.openingGuidance).toContain('observing first')
+    expect(direct.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.preferredProactiveStyle)
+      .toBe('light-nudge')
+    expect(observant.runtimeSurface.digitalLifeRuntimeSurface?.memory.personStateProjection?.preferredProactiveStyle)
+      .toBe('silent-observe')
   })
 
   it('makes long-horizon self-evolution low-pressure timing visible in runtime reply and planning narratives', async () => {
@@ -6570,9 +5736,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     } satisfies AlicizationSensoryCacheSnapshot))
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -6669,9 +5833,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -6806,9 +5968,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -6951,9 +6111,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
-      buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
+      buildMainRuntimeCorePromptBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,

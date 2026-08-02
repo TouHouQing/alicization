@@ -404,7 +404,7 @@ describe('buildPrivateThoughtLoop', () => {
     expect(thought.thoughtText).toBe('Nearness should still leave room for the host.')
   })
 
-  it('surfaces long-horizon lower-pressure companionship learning in the private thought rationale when presence stays quiet on purpose', () => {
+  it('keeps quiet companionship grounded in typed habit and motive state', () => {
     const thought = buildPrivateThoughtLoop({
       now: 14_000,
       context: createContext({
@@ -516,7 +516,7 @@ describe('buildPrivateThoughtLoop', () => {
           kind: 'stay-near',
           status: 'foreground',
           weight: 0.78,
-          summary: 'Stay near the host without turning the opening eager again.',
+          summary: 'Stay available without interrupting.',
           sourceTags: ['companionship'],
           targetGoalKind: 'stay-near',
           createdAt: 0,
@@ -535,39 +535,14 @@ describe('buildPrivateThoughtLoop', () => {
         returnViaRecheck: false,
         suggestedStyleCap: 'silent-observe',
         suggestedPresenceCap: 'glance',
-        narrative: ['self-evolution:lower-pressure-manifestation'],
+        narrative: [],
         updatedAt: 14_000,
-      } as any,
-      selfEvolution: {
-        version: 'self-evolution-kernel-v1',
-        updatedAt: 13_500,
-        evolutionMomentum: 0.72,
-        learningReadiness: 0.76,
-        contradictionPressure: 0.08,
-        revisionPressure: 0.14,
-        autobiographicalStability: 0.84,
-        dominantTrajectory: 'earned lower-pressure companionship timing',
-        relationshipDoctrine: 'Leave more room before closeness reopens.',
-        latestInflection: 'The opening holds better when I do not lean in too fast.',
-        burdenLine: 'Too much eagerness makes the companionship feel heavier than it needs to.',
-        trustMeaning: 'Trust holds better when the opening stays lower-pressure and less eager.',
-        nextLearningAction: 'internalize',
-        nextLearningReason: 'The lower-pressure return is stable enough to become durable.',
-        shouldRecord: false,
-        shouldReflect: false,
-        shouldVerify: false,
-        shouldRevise: false,
-        shouldInternalize: true,
-        activeLearningFocuses: ['internalize-relationship'],
-        sourceSignals: ['relationship-learning'],
-        summary: 'Lower-pressure companionship timing is becoming the durable norm.',
       } as any,
     })
 
     expect(thought.shouldSpeak).toBe(false)
     expect(thought.suggestedStyle).toBe('silent-observe')
     expect(thought.rationaleTags).toContain('habit:light-touch-companionship')
-    expect(thought.rationaleTags).toContain('self-evolution:lower-pressure-companionship')
   })
 
   it('carries forward the same private thought line when the same inner carrier stays alive', () => {
@@ -671,7 +646,7 @@ describe('buildPrivateThoughtLoop', () => {
     })
 
     expect(thought.rationaleTags).toContain('private-thought-carry')
-    expect(thought.thoughtText).toContain('Still:')
+    expect(thought.thoughtText).toBe('Which seam is still unresolved?')
     expect(thought.expiresAt).toBeGreaterThan(20_000 + 90_000)
   })
 
@@ -692,7 +667,7 @@ describe('buildPrivateThoughtLoop', () => {
         workloadKind: 'coding',
         contentKind: 'diff',
         scenario: 'coding',
-        summary: 'same-her runtime closure seam',
+        summary: 'continuity runtime closure seam',
         source: 'screen-semantic-summary',
         confidence: 0.9,
         beganAt: 0,
@@ -700,12 +675,12 @@ describe('buildPrivateThoughtLoop', () => {
       },
       worldModel: {
         activeThread: {
-          id: 'thread::same-her-runtime-closure',
+          id: 'thread::continuity-runtime-closure',
           kind: 'change-review',
           status: 'active',
           source: 'grounded-scene',
-          title: 'same-her runtime closure seam',
-          summary: 'The same-her runtime closure seam is still being repaired.',
+          title: 'continuity runtime closure seam',
+          summary: 'The continuity runtime closure seam is still being repaired.',
           confidence: 0.86,
           significance: 0.84,
           unresolved: true,
@@ -718,7 +693,7 @@ describe('buildPrivateThoughtLoop', () => {
         epistemicState: {
           certainty: 'grounded',
           freshness: 'recent',
-          seenNow: ['same-her runtime closure seam'],
+          seenNow: ['continuity runtime closure seam'],
           inferredNow: [],
           openQuestions: [],
           staleRisks: [],
@@ -751,12 +726,12 @@ describe('buildPrivateThoughtLoop', () => {
             createdAt: 25_800,
           },
           {
-            id: 'reflection::same-her-repair',
-            summary: 'The same-her repair line is still the meaningful continuity carry.',
+            id: 'reflection::continuity-repair',
+            summary: 'The continuity repair line is still the meaningful continuity carry.',
             expectation: 'The steadier repair line should stay active for the current inward turn.',
             observedOutcome: 'The continuity state still needs a measured return.',
             outcome: 'missed',
-            revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+            revision: 'Keep the continuity repair line active instead of reopening from temporary noise.',
             confidenceShift: -0.08,
             createdAt: 25_200,
           },
@@ -771,7 +746,7 @@ describe('buildPrivateThoughtLoop', () => {
       } as any,
     } as any)
 
-    expect(thought.thoughtText).toBe('Keep the same-her repair line active instead of reopening from temporary noise.')
+    expect(thought.thoughtText).toBe('Keep the continuity repair line active instead of reopening from temporary noise.')
     expect(thought.rationaleTags).toContain('reflection:missed')
     expect(thought.thoughtText).not.toContain('temporary wobble')
   })

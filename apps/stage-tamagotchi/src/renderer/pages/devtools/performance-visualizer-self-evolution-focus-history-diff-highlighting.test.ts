@@ -37,7 +37,7 @@ describe('performance visualizer self evolution focus history diff highlighting'
         selectedCardId: 'repair-path',
         recommendedTraceEventId: 'event-takeover',
         evidenceTargets: [
-          'private-thought-governance-chain',
+          'proactive-action-chain',
           'runtime-continuity-projection',
         ],
         traceTargets: [
@@ -48,14 +48,14 @@ describe('performance visualizer self evolution focus history diff highlighting'
       },
       focusCardChanged: true,
       traceEventChanged: true,
-      evidenceGained: ['private-thought-governance-chain'],
+      evidenceGained: ['proactive-action-chain'],
       evidenceLost: ['renderer-authority-projection'],
       traceTargetsGained: ['trace-details', 'selected-trace-event'],
       traceTargetsLost: ['trace-timeline'],
       summaryLines: [],
     })).toEqual({
       evidencePanels: {
-        'private-thought-governance-chain': 'current-only',
+        'proactive-action-chain': 'current-only',
         'renderer-authority-projection': 'previous-only',
         'runtime-continuity-projection': 'shared',
       },
@@ -78,7 +78,7 @@ describe('performance visualizer self evolution focus history diff highlighting'
         activeThreadId: 'thread-1',
         selectedCardId: 'repair-path',
         recommendedTraceEventId: 'event-governance',
-        evidenceTargets: ['private-thought-governance-chain'],
+        evidenceTargets: ['proactive-action-chain'],
         traceTargets: ['trace-details'],
       },
       current: {
@@ -88,7 +88,7 @@ describe('performance visualizer self evolution focus history diff highlighting'
         activeThreadId: 'thread-1',
         selectedCardId: 'repair-path',
         recommendedTraceEventId: 'event-takeover',
-        evidenceTargets: ['private-thought-governance-chain'],
+        evidenceTargets: ['proactive-action-chain'],
         traceTargets: ['trace-details'],
       },
       focusCardChanged: false,
@@ -100,7 +100,7 @@ describe('performance visualizer self evolution focus history diff highlighting'
       summaryLines: [],
     })).toEqual({
       evidencePanels: {
-        'private-thought-governance-chain': 'shared',
+        'proactive-action-chain': 'shared',
       },
       traceSections: {
         'trace-details': 'shared',

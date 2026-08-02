@@ -220,7 +220,7 @@ describe('buildAnswerPlanner', () => {
     expect(planner.mustNotDo).toEqual([])
   })
 
-  it('keeps dynamic self authority available for self-facing turns', () => {
+  it('keeps self-facing answer planning bound to the current turn instead of authority prose', () => {
     const planner = buildPlanner({
       ownership: {
         subject: 'alicization-self',
@@ -265,8 +265,10 @@ describe('buildAnswerPlanner', () => {
     })
 
     expect(planner.governingFocus).toContain('你现在怎么理解自己')
-    expect(planner.governingFocus).toContain('reviewed memory and current choices')
-    expect(planner.answerIntent).toContain('reviewed memory and current choices')
+    expect(planner.governingFocus).not.toContain('reviewed memory and current choices')
+    expect(planner.governingFocus).not.toContain('choices I actually made')
+    expect(planner.answerIntent).not.toContain('reviewed memory and current choices')
+    expect(planner.answerIntent).not.toContain('relationship line comes from')
   })
 
   it('does not select a released reflection as current evidence', () => {
@@ -315,7 +317,6 @@ describe('buildAnswerPlanner', () => {
         memory: {
           personStateProjection: {
             openingGuidance: 'Observe first with lighter pressure.',
-            manifestationCadenceSummary: 'Manifest with lower pressure and preserve context.',
             relationshipPosture: 'restrained',
             activeClosenessContext: 'focused-work',
             activeClosenessRung: 'space-first',

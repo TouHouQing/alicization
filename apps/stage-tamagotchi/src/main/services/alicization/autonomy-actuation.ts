@@ -98,55 +98,16 @@ function humanizeExecutionChannel(channel: string | null | undefined) {
   return normalized
 }
 
-function carriesSameHerProjectClosureLine(text: string | null | undefined) {
-  const normalized = sanitizeText(text, 220).toLowerCase()
-  return normalized.includes('same phase 1 digital life')
-    || normalized.includes('same living line')
-    || normalized.includes('same digital life')
-    || normalized.includes('one continuous her')
-}
-
-function deriveAutonomyProjectClosureCarry(text: string | null | undefined) {
-  const normalized = sanitizeText(text, 220)
-  if (!normalized || !carriesSameHerProjectClosureLine(normalized))
-    return ''
-
-  const matched = normalized.match(
-    /unfinished closure still needs[^.]*|still needs[^.]*same living line[^.]*|still needs[^.]*closure[^.]*|memory and initiative[^.]*still[^.]*/iu,
-  )
-
-  return sanitizeText(matched?.[0] ?? '', 120)
-}
-
-function enrichAutonomyGoalSummary(input: {
-  goalSummary: string
-  whyNow?: string | null
-}) {
-  const goalSummary = sanitizeText(input.goalSummary, 180)
-  if (!goalSummary)
-    return ''
-
-  const sameHerCarry = input.whyNow && carriesSameHerProjectClosureLine(input.whyNow)
-    ? sanitizeText(input.whyNow, 84)
-    : ''
-  const closureCarry = deriveAutonomyProjectClosureCarry(input.whyNow)
-  if (!sameHerCarry && !closureCarry)
-    return goalSummary
-
-  return sanitizeText(
-    [goalSummary, sameHerCarry, closureCarry]
-      .filter(Boolean)
-      .join('; '),
-    180,
-  ) || goalSummary
-}
-
 function sanitizeAutonomyDispatchSummary(raw: unknown) {
-  return sanitizeAlicizationProviderFacingText(
-    raw,
-    180,
-    'structured_context=withheld_fixed_template_residue',
-  ) || 'structured_context=unavailable'
+  return sanitizeAlicizationProviderFacingText(raw, 180, '', {
+    origin: 'internal-structured-fact',
+  })
+}
+
+function sanitizeAutonomyRuntimeContext(
+  runtimeContext: AlicizationExecutionRuntimeContext | null | undefined,
+): AlicizationExecutionRuntimeContext | null {
+  return runtimeContext ?? null
 }
 
 function deriveProactiveExecutionRiskBand(input: {
@@ -247,8 +208,6 @@ function buildReminderMinutes(input: {
     return 24
   if (reason === 'busy-host')
     return scenario === 'coding' || watchMode === 'symbiotic-vision' ? 12 : 16
-  if (reason === 'corrected-same-person-settling' || reason === 'quieter-embodiment-settling')
-    return 14
   if (reason === 'repair-incomplete')
     return 8
   if (reason === 'needs-grounding')
@@ -278,10 +237,7 @@ function buildReminderMessage(input: {
     ?? autonomy.whyNow,
     180,
   )
-  const target = enrichAutonomyGoalSummary({
-    goalSummary: baseTarget,
-    whyNow: autonomy.whyNow,
-  }) || 'the held continuity line'
+  const target = baseTarget || 'the held continuity line'
   const deferReason = sanitizeText(autonomy.deferReason, 80)
 
   const normalizedDeferReason = deferReason || 'waiting-opening'
@@ -377,10 +333,7 @@ export function deriveAutonomousTaskPlan(input: {
     ?? autonomy.whyNow,
     180,
   )
-  const goalSummary = enrichAutonomyGoalSummary({
-    goalSummary: baseGoalSummary,
-    whyNow: autonomy.whyNow,
-  })
+  const goalSummary = baseGoalSummary
   if (!goalSummary)
     return null
 
@@ -520,11 +473,6 @@ export function deriveAutonomyExecutionProposalSurface(input: {
       : autonomyKind === 'repair' || autonomyKind === 'follow-through' || autonomyKind === 'guide'
         ? 'thinking'
         : 'neutral'
-  const projectClosureCarry = deriveAutonomyProjectClosureCarry(autonomy?.whyNow)
-  const sameHerCarry = autonomy?.whyNow && carriesSameHerProjectClosureLine(autonomy.whyNow)
-    ? sanitizeText(autonomy.whyNow, projectClosureCarry ? 88 : 140)
-    : ''
-  const compactThoughtMetrics = Boolean(projectClosureCarry)
   const thought = sanitizeText(
     [
       autonomy ? `autonomy=${autonomy.selectedMode}` : '',
@@ -532,14 +480,12 @@ export function deriveAutonomyExecutionProposalSurface(input: {
       input.actuationResult.taskKind ? `task=${input.actuationResult.taskKind}` : '',
       input.actuationResult.taskPlanState ? `plan=${input.actuationResult.taskPlanState}` : '',
       `tone=${interactionLearning.proposalTone}`,
-      compactThoughtMetrics ? '' : `directness=${interactionLearning.directness.toFixed(2)}`,
-      compactThoughtMetrics ? '' : `opening=${interactionLearning.openingPatience.toFixed(2)}`,
+      `directness=${interactionLearning.directness.toFixed(2)}`,
+      `opening=${interactionLearning.openingPatience.toFixed(2)}`,
       `proof=${interactionLearning.proofBias.toFixed(2)}`,
       channelLabel ? `channel=${channelLabel}` : '',
       explicitConsent ? 'gate=explicit-consent' : desktopFallback ? 'gate=desktop-fallback' : 'gate=affirmation',
       `goal=${goal}`,
-      sameHerCarry ? `sameHer=${sameHerCarry}` : '',
-      projectClosureCarry ? `closure=${projectClosureCarry}` : '',
     ].filter(Boolean).join('; '),
     320,
   )
@@ -583,15 +529,16 @@ export function buildAutonomousObserveDispatchInput(input: {
   runtimeContext?: AlicizationExecutionRuntimeContext | null
 }): AlicizationDispatchTaskThreadRuntimeInput {
   const taskContext = sanitizeAutonomyDispatchSummary(input.summary)
+  const runtimeContext = sanitizeAutonomyRuntimeContext(input.runtimeContext)
   const prompt = [
     'Investigate the current task context without modifying files.',
     `Goal: ${sanitizeText(input.task.goal, 220)}`,
-    `Task context: ${taskContext}`,
+    taskContext ? `Task context: ${taskContext}` : '',
     'Constraints:',
     '- Read-only investigation only.',
     '- Do not edit files, do not stage files, do not commit, and do not run destructive commands.',
     '- End with the concrete blocker, the strongest evidence paths, and the next safe step.',
-  ].join('\n')
+  ].filter(Boolean).join('\n')
 
   if (input.requestedDispatchChannel === 'claude-code') {
     return {
@@ -603,7 +550,7 @@ export function buildAutonomousObserveDispatchInput(input: {
         timeoutMs: 120_000,
         allowTools: true,
         permissionMode: 'plan',
-        ...(input.runtimeContext ? { runtimeContext: input.runtimeContext } : {}),
+        ...(runtimeContext ? { runtimeContext } : {}),
       },
     }
   }
@@ -616,7 +563,7 @@ export function buildAutonomousObserveDispatchInput(input: {
       cwd: input.workspaceRoot ?? null,
       timeoutMs: 120_000,
       sandbox: 'read-only',
-      ...(input.runtimeContext ? { runtimeContext: input.runtimeContext } : {}),
+      ...(runtimeContext ? { runtimeContext } : {}),
     },
   }
 }
@@ -633,16 +580,17 @@ export function buildAutonomousTaskDispatchInput(input: {
     return buildAutonomousObserveDispatchInput(input)
 
   const taskContext = sanitizeAutonomyDispatchSummary(input.summary)
+  const runtimeContext = sanitizeAutonomyRuntimeContext(input.runtimeContext)
   const prompt = [
     'Continue the current task directly and make the smallest safe code change now.',
     `Goal: ${sanitizeText(input.task.goal, 220)}`,
-    `Task context: ${taskContext}`,
+    taskContext ? `Task context: ${taskContext}` : '',
     'Constraints:',
     '- Keep the change narrow and reversible.',
     '- Do not run destructive commands.',
     '- Verify with the most direct safe command available.',
     '- End with what changed, what was verified, and any residual risk.',
-  ].join('\n')
+  ].filter(Boolean).join('\n')
 
   if (input.requestedDispatchChannel === 'claude-code') {
     return {
@@ -654,7 +602,7 @@ export function buildAutonomousTaskDispatchInput(input: {
         timeoutMs: 180_000,
         allowTools: true,
         permissionMode: 'acceptEdits',
-        ...(input.runtimeContext ? { runtimeContext: input.runtimeContext } : {}),
+        ...(runtimeContext ? { runtimeContext } : {}),
       },
     }
   }
@@ -667,7 +615,7 @@ export function buildAutonomousTaskDispatchInput(input: {
       cwd: input.workspaceRoot ?? null,
       timeoutMs: 180_000,
       sandbox: 'workspace-write',
-      ...(input.runtimeContext ? { runtimeContext: input.runtimeContext } : {}),
+      ...(runtimeContext ? { runtimeContext } : {}),
     },
   }
 }

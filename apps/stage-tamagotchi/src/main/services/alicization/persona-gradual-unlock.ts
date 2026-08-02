@@ -119,7 +119,7 @@ export function buildPersonaGradualUnlock(input: {
     facets.push({
       facet: 'shared-language',
       confidence: sharedLanguageConfidence,
-      reason: 'Repeated receptive relationship turns are starting to support a more shared language posture.',
+      reason: 'facet:shared-language',
     })
   }
 
@@ -137,7 +137,7 @@ export function buildPersonaGradualUnlock(input: {
     facets.push({
       facet: 'truth-before-flourish',
       confidence: truthConfidence,
-      reason: 'Repair and grounding signals suggest hypothesis-label discipline should stay ahead of flourish.',
+      reason: 'facet:truth-before-flourish',
     })
   }
 
@@ -154,7 +154,7 @@ export function buildPersonaGradualUnlock(input: {
     facets.push({
       facet: 'near-with-boundary',
       confidence: boundaryConfidence,
-      reason: 'Boundary-respecting turns can unlock a closer-but-not-crowding relationship hypothesis.',
+      reason: 'facet:near-with-boundary',
     })
   }
 
@@ -170,7 +170,7 @@ export function buildPersonaGradualUnlock(input: {
     facets.push({
       facet: 'unfinished-thread-return',
       confidence: returnConfidence,
-      reason: 'Open-loop support and return reinforcement suggest a durable return-to-thread hypothesis.',
+      reason: 'facet:unfinished-thread-return',
     })
   }
 
@@ -182,25 +182,19 @@ export function buildPersonaGradualUnlock(input: {
     return null
 
   const pendingHypotheses = unlockableFacets.map((facet) => {
-    const hypothesis = facet.facet === 'shared-language'
-      ? 'Hypothesis: repeated relationship reinforcement may be opening a more shared-language persona posture.'
-      : facet.facet === 'truth-before-flourish'
-        ? 'Hypothesis: truth discipline and repair should stay ahead of flourish while this relationship settles.'
-        : facet.facet === 'near-with-boundary'
-          ? 'Hypothesis: closeness can grow if it keeps room and does not become pressure.'
-          : 'Hypothesis: unfinished threads may want a more reliable return path before they are considered settled.'
+    const hypothesis = `persona-candidate:${facet.facet}`
     return {
       facet: facet.facet,
       hypothesis,
       confidence: facet.confidence,
       supportingSignals: uniqueList([
         facet.reason,
-        repeatedRelationshipSignals ? 'repeated relationship signals' : '',
-        outcomeSummary.positiveTurnCount > 0 ? `positive relationship turns: ${outcomeSummary.positiveTurnCount}` : '',
-        reinforcementSummary.companionship > 0 ? 'companionship reinforcement' : '',
-        reinforcementSummary.truthfulGrounding > 0 ? 'truthful-grounding reinforcement' : '',
-        reinforcementSummary.autonomyRespect > 0 ? 'autonomy-respect reinforcement' : '',
-        reinforcementSummary.unfinishedThreadReturn > 0 ? 'unfinished-thread-return reinforcement' : '',
+        repeatedRelationshipSignals ? 'signal:relationship-repeat' : '',
+        outcomeSummary.positiveTurnCount > 0 ? `positiveRelationshipTurns:${outcomeSummary.positiveTurnCount}` : '',
+        reinforcementSummary.companionship > 0 ? 'reinforcement:companionship' : '',
+        reinforcementSummary.truthfulGrounding > 0 ? 'reinforcement:truthful-grounding' : '',
+        reinforcementSummary.autonomyRespect > 0 ? 'reinforcement:autonomy-respect' : '',
+        reinforcementSummary.unfinishedThreadReturn > 0 ? 'reinforcement:unfinished-thread-return' : '',
       ]),
     } satisfies AlicizationPersonaGradualUnlockHypothesisSnapshot
   })

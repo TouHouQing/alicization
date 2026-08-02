@@ -12,8 +12,6 @@ import {
   hasExplicitAlicizationExecutionDemand,
 } from '@proj-alicization/stage-shared'
 
-import { resolveAlicizationProjectStateSnapshot } from './project-state-brief'
-
 function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
@@ -49,8 +47,6 @@ const executionRoutingToolMap: Partial<Record<AlicizationDispatchChannel, Aliciz
   'desktop': 'executor_run_local_visual',
 }
 const continuationCuePattern = /继续|接着|接下来|续上|接上|沿着刚才|按刚才|照刚才|continue|keep\s+going|go\s+on|resume|carry\s+on|pick\s+up\s+where\s+we\s+left\s+off/iu
-const memoryClosureDialogueCuePattern = /纯对话|记忆闭环|闭环线|同一个她|same-her|memory\s*closure|why\s+recall\s+surfaced|recall\s+surfaced|回忆.*浮现/iu
-const memoryClosureDownstreamLaneCuePattern = /上一轮|下一轮|余波|接住|情绪|轻主动|主动性|身体|声音|表情|动作|口型|emotion|initiative|body|voice|face|motion|lipsync|lip\s*sync|embodiment/iu
 const zhExecutionAffirmationPattern = /^(?:可以(?:做吧|开始|做)?|行(?:啊|吧)?|好[的啊呀]?(?:做吧)?|嗯嗯?|那就做吧|那你做吧|做吧|去做吧|开始吧|动手吧|改吧|那就改吧|去改吧|你做吧|来吧)$/u
 const enExecutionAffirmationPattern = /^(?:ok|okay|yes|yeah|yep|sure|goahead|doit|pleasedo|startit|dothat)$/iu
 const browserVisualCuePattern = /\b(?:browser|web\s?page|page|site|tab|url)\b|浏览器|网页|页面|标签页/u
@@ -170,15 +166,6 @@ function hasContinuationCue(userText: string) {
   return continuationCuePattern.test(userText)
 }
 
-function isPureDialogueMemoryClosureContinuationTurn(userText: string) {
-  const normalized = sanitizeText(userText, 520)
-  if (!normalized)
-    return false
-
-  return memoryClosureDialogueCuePattern.test(normalized)
-    && memoryClosureDownstreamLaneCuePattern.test(normalized)
-}
-
 function normalizeCompactUserText(raw: string) {
   return sanitizeText(raw, 240)
     .replace(/[，,。.!！？?\s]+/g, '')
@@ -192,67 +179,13 @@ function isExecutionAffirmationTurn(userText: string) {
   return zhExecutionAffirmationPattern.test(compact) || enExecutionAffirmationPattern.test(compact)
 }
 
-function looksLikeThinProjectStatusSummary(text: string) {
-  const normalized = sanitizeText(text, 220).toLowerCase()
-  if (!normalized)
-    return false
-
-  return normalized === 'give a simple project update.'
-    || normalized === 'give the project update clearly.'
-    || normalized === 'answer the project-state question directly.'
-    || /simple project update|project update clearly|project-state question/u.test(normalized)
-}
-
-function uniqueTextList(values: Array<string | null | undefined>, maxItems = 4) {
-  const result: string[] = []
+function resolveObligationSummary(values: unknown[], maxChars = 180) {
   for (const value of values) {
-    const normalized = sanitizeText(value, 220)
-    if (!normalized || result.includes(normalized))
-      continue
-    result.push(normalized)
-    if (result.length >= maxItems)
-      break
+    const normalized = sanitizeText(value, maxChars)
+    if (normalized)
+      return normalized
   }
-  return result
-}
-
-function buildProjectStateContinuationSummary(projectState?: Record<string, unknown> | null) {
-  if (!projectState)
-    return ''
-
-  const snapshot = resolveAlicizationProjectStateSnapshot({
-    runtimeProjectState: projectState as {
-      identity?: unknown
-      currentPhase?: unknown
-      preflightSummary?: unknown
-      preDialogueAwarenessLine?: unknown
-      awarenessLine?: unknown
-      companionHeadlineLine?: unknown
-      companionBriefingLine?: unknown
-      preDialogueAwarenessSummary?: unknown
-      latestLandedProgress?: unknown
-      latestProgress?: unknown
-      primaryOpenLoop?: unknown
-      nextClosureTarget?: unknown
-      sameHerSelfLine?: unknown
-      sameHerDriftRisk?: unknown
-      emotionalClosureCue?: unknown
-      emotionalClosureSummary?: unknown
-      sameHerHoldDetail?: unknown
-      continuityArcStage?: unknown
-      continuityCue?: unknown
-    } | null,
-  })
-
-  return sanitizeText(
-    uniqueTextList([
-      snapshot.sameHerSelfLine,
-      snapshot.primaryOpenLoop,
-      snapshot.nextClosureTarget,
-      snapshot.latestLandedProgress ?? snapshot.latestProgress ?? null,
-    ]).join(' '),
-    180,
-  )
+  return ''
 }
 
 function buildPendingAffirmationRoutingIntent(thread: AlicizationPendingAffirmationThreadCandidate) {
@@ -393,40 +326,23 @@ export function deriveMainChatActionObligation(input: {
   const wantsTaskExecution = executionTurnAuthority.executionBound || Boolean(explicitRoutingIntent)
   const explicitExecutionDemand = executionTurnAuthority.explicitExecutionDemand
   const continuationCueActive = hasContinuationCue(userText)
-  const pureDialogueMemoryClosureContinuation = !explicitRoutingIntent
-    && !explicitExecutionDemand
-    && isPureDialogueMemoryClosureContinuationTurn(userText)
   const continuityPolicyHoldsTaskThread = Boolean(
     conversationState?.shouldHoldThread === true
     && conversationState?.continuityPolicy === 'stay-on-thread'
     && activeThread?.unresolved === true,
   )
   const continuationRequested = (
-    !pureDialogueMemoryClosureContinuation
-    && (
-      dialogueEncounter?.act === 'continue-thread'
-      || continuityPolicyHoldsTaskThread
-    )
+    dialogueEncounter?.act === 'continue-thread'
+    || continuityPolicyHoldsTaskThread
   ) && (continuationCueActive || wantsTaskExecution)
   const currentConsciousSpeakingIntention = sanitizeText(currentConsciousFrame?.speakingIntention, 180)
-  const projectStateContinuationSummary = buildProjectStateContinuationSummary(
-    (currentConsciousFrame?.projectState as Record<string, unknown> | null) ?? null,
-  )
   const dialogueEncounterSummary = sanitizeText(dialogueEncounter?.summary, 180)
-  const preferredAnswerSummary = (
-    currentConsciousSpeakingIntention
-    && (
-      !dialogueEncounterSummary
-      || looksLikeThinProjectStatusSummary(dialogueEncounterSummary)
-    )
-  )
-    ? currentConsciousSpeakingIntention
-    : dialogueEncounterSummary
+  const preferredAnswerSummary = currentConsciousSpeakingIntention || dialogueEncounterSummary
 
   if (input.capabilityInquiry.capabilityQuestion) {
     return {
       kind: 'answer',
-      summary: 'The host is asking about execution capability availability, not requesting execution yet.',
+      summary: userText,
       confidence: 0.96,
       routingIntent: null,
       source: 'capability-inquiry',
@@ -441,11 +357,11 @@ export function deriveMainChatActionObligation(input: {
     const routingIntent = buildPendingAffirmationRoutingIntent(pendingAffirmationThread)
     return {
       kind: 'continue-task',
-      summary: sanitizeText(
-        pendingAffirmationThread.summary
-        || `The host affirmed the pending execution proposal for ${pendingAffirmationThread.goal}.`,
-        180,
-      ) || `The host affirmed the pending execution proposal for ${pendingAffirmationThread.goal}.`,
+      summary: resolveObligationSummary([
+        pendingAffirmationThread.summary,
+        pendingAffirmationThread.goal,
+        userText,
+      ]),
       confidence: 0.96,
       routingIntent,
       source: 'pending-affirmation',
@@ -462,12 +378,11 @@ export function deriveMainChatActionObligation(input: {
   if (dialogueEncounter?.shouldAskClarifyingQuestion) {
     return {
       kind: 'clarify',
-      summary: sanitizeText(
-        dialogueEncounter.summary
-        || currentConsciousFrame?.consciousNeed
-        || 'The host turn needs one concrete clarification before acting.',
-        180,
-      ) || 'The host turn needs one concrete clarification before acting.',
+      summary: resolveObligationSummary([
+        dialogueEncounter.summary,
+        currentConsciousFrame?.consciousNeed,
+        userText,
+      ]),
       confidence: clamp01(
         (dialogueEncounter?.confidence ?? 0.52) * 0.72
         + (currentConsciousFrame?.confidence ?? 0.38) * 0.12
@@ -499,13 +414,12 @@ export function deriveMainChatActionObligation(input: {
     if (localVisualRoutingIntent) {
       return {
         kind: 'continue-task',
-        summary: sanitizeText(
-          dialogueEncounter?.summary
-          || currentConsciousFrame?.speakingIntention
-          || activeThread?.summary
-          || 'The host is continuing the current governed local visual task thread.',
-          180,
-        ) || 'The host is continuing the current governed local visual task thread.',
+        summary: resolveObligationSummary([
+          dialogueEncounter?.summary,
+          currentConsciousFrame?.speakingIntention,
+          activeThread?.summary,
+          userText,
+        ]),
         confidence: clamp01(
           (dialogueEncounter?.confidence ?? 0.52) * 0.34
           + (currentConsciousFrame?.confidence ?? 0.42) * 0.16
@@ -534,13 +448,12 @@ export function deriveMainChatActionObligation(input: {
     if (localVisualRoutingIntent) {
       return {
         kind: 'continue-task',
-        summary: sanitizeText(
-          dialogueEncounter?.summary
-          || currentConsciousFrame?.speakingIntention
-          || activeThread?.summary
-          || 'The host is continuing the current governed local visual task thread.',
-          180,
-        ) || 'The host is continuing the current governed local visual task thread.',
+        summary: resolveObligationSummary([
+          dialogueEncounter?.summary,
+          currentConsciousFrame?.speakingIntention,
+          activeThread?.summary,
+          userText,
+        ]),
         confidence: clamp01(
           (dialogueEncounter?.confidence ?? 0.52) * 0.34
           + (currentConsciousFrame?.confidence ?? 0.42) * 0.16
@@ -562,12 +475,11 @@ export function deriveMainChatActionObligation(input: {
   if (explicitRoutingIntent) {
     return {
       kind: continuationRequested ? 'continue-task' : 'execute',
-      summary: sanitizeText(
-        dialogueEncounter?.summary
-        || currentConsciousFrame?.speakingIntention
-        || 'The host explicitly requested real task execution in this turn.',
-        180,
-      ) || 'The host explicitly requested real task execution in this turn.',
+      summary: resolveObligationSummary([
+        dialogueEncounter?.summary,
+        currentConsciousFrame?.speakingIntention,
+        userText,
+      ]),
       confidence: clamp01(
         (dialogueEncounter?.confidence ?? 0.52) * 0.36
         + (currentConsciousFrame?.confidence ?? 0.42) * 0.14
@@ -587,12 +499,11 @@ export function deriveMainChatActionObligation(input: {
   if (discourseState?.owedAction === 'inspect-scene' && dialogueEncounter?.inspectionRequested) {
     return {
       kind: 'inspect',
-      summary: sanitizeText(
-        dialogueEncounter.summary
-        || currentConsciousFrame?.consciousNeed
-        || 'The turn owes scene inspection before a stronger claim.',
-        180,
-      ) || 'The turn owes scene inspection before a stronger claim.',
+      summary: resolveObligationSummary([
+        dialogueEncounter.summary,
+        currentConsciousFrame?.consciousNeed,
+        userText,
+      ]),
       confidence: clamp01(
         (dialogueEncounter?.confidence ?? 0.48) * 0.58
         + (currentConsciousFrame?.confidence ?? 0.34) * 0.18
@@ -641,17 +552,13 @@ export function deriveMainChatActionObligation(input: {
   ) {
     return {
       kind: continuationRequested ? 'continue-task' : 'execute',
-      summary: sanitizeText(
-        (continuationRequested
-          ? projectStateContinuationSummary
-          : '')
-        || currentConsciousFrame?.speakingIntention
-        || dialogueEncounter?.summary
-        || conversationState?.jointThread
-        || activeThread?.summary
-        || 'The current governed turn should move the active task thread forward through execution.',
-        180,
-      ) || 'The current governed turn should move the active task thread forward through execution.',
+      summary: resolveObligationSummary([
+        currentConsciousFrame?.speakingIntention,
+        dialogueEncounter?.summary,
+        conversationState?.jointThread,
+        activeThread?.summary,
+        userText,
+      ]),
       confidence: clamp01(
         (dialogueEncounter?.confidence ?? 0.44) * 0.28
         + (conversationState?.confidence ?? 0.4) * 0.18
@@ -668,13 +575,12 @@ export function deriveMainChatActionObligation(input: {
 
   return {
     kind: 'answer',
-    summary: sanitizeText(
-      preferredAnswerSummary
-      || currentConsciousFrame?.speakingIntention
-      || conversationState?.jointThread
-      || 'The turn should stay on direct truthful reply rather than action dispatch.',
-      180,
-    ) || 'The turn should stay on direct truthful reply rather than action dispatch.',
+    summary: resolveObligationSummary([
+      userText,
+      preferredAnswerSummary,
+      currentConsciousFrame?.speakingIntention,
+      conversationState?.jointThread,
+    ]),
     confidence: clamp01(
       (dialogueEncounter?.confidence ?? 0.42) * 0.34
       + (conversationState?.confidence ?? 0.4) * 0.16
@@ -687,7 +593,6 @@ export function deriveMainChatActionObligation(input: {
       discourseState?.owedAction ? `owed-action:${discourseState.owedAction}` : 'owed-action:answer-general',
       dialogueFirst ? 'dialogue-first' : '',
       taskBoundTurn ? 'stay-task-bound' : '',
-      pureDialogueMemoryClosureContinuation ? 'memory-closure-dialogue-continuation' : '',
     ].filter(Boolean)),
   }
 }

@@ -8,13 +8,6 @@ interface SelfEvolutionTraceEventCandidate {
   summary?: string | null
 }
 
-function isBodyContinuityRendererRejoin(detail: string) {
-  return detail.includes('body-led-same-segment-carry')
-    || detail.includes('body authority carry')
-    || detail.includes('renderer rejoin')
-    || detail.includes('显形补回')
-}
-
 function isStructuredBodyContinuityRendererRejoin(
   triageCard: PerformanceVisualizerSelfEvolutionTriageCard,
 ) {
@@ -32,35 +25,19 @@ export function recommendSelfEvolutionTraceEventId(
   if (!triageCard || traceEvents.length === 0)
     return null
 
-  if (triageCard.detail.startsWith('persona drift ') || triageCard.detail === 'evolution') {
+  if (triageCard.layer === 'persona') {
     return traceEvents.find(event => event.kind === 'takeover-audit')?.id
       ?? traceEvents.find(event => event.kind === 'governance-normalized')?.id
       ?? null
   }
 
-  if (triageCard.detail.startsWith('renderer drift ') || triageCard.detail === 'renderer authority') {
+  if (triageCard.layer === 'renderer') {
     return traceEvents.find(event => event.kind === 'person-state-updated')?.id
       ?? traceEvents.find(event => event.kind === 'presence-pulse-dispatched')?.id
       ?? null
   }
 
-  if (triageCard.detail.startsWith('continuity governance ') || triageCard.detail === 'identity-continuity continuity governance') {
-    return traceEvents.find(event => event.kind === 'takeover-audit')?.id
-      ?? traceEvents.find(event => event.kind === 'governance-normalized')?.id
-      ?? null
-  }
-
-  if (triageCard.detail === 'relationship cadence governance') {
-    return traceEvents.find(event => event.kind === 'takeover-audit')?.id
-      ?? traceEvents.find(event => event.kind === 'governance-normalized')?.id
-      ?? null
-  }
-
-  if (
-    triageCard.detail === 'body continuity governance'
-    || isBodyContinuityRendererRejoin(triageCard.detail)
-    || isStructuredBodyContinuityRendererRejoin(triageCard)
-  ) {
+  if (isStructuredBodyContinuityRendererRejoin(triageCard)) {
     return traceEvents.find(event => event.kind === 'takeover-audit')?.id
       ?? traceEvents.find(event => event.kind === 'governance-normalized')?.id
       ?? traceEvents.find(event => event.kind === 'person-state-updated')?.id

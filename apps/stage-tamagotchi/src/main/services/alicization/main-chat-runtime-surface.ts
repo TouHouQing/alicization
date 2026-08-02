@@ -15,10 +15,6 @@ import type {
   AlicizationMainChatReplyExecutionPlanSurface,
 } from './visible-reply/facade'
 
-import {
-  buildAlicizationProviderFactBlock,
-} from '@proj-alicization/stage-shared'
-
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
 import {
   normalizeCustomDirectives,
@@ -87,7 +83,6 @@ const alicizationProviderFactTypes = new Set([
   'alicization-execution-routing',
   'alicization-host',
   'alicization-inspection',
-  'alicization-persona-directives',
   'alicization-persona-profile',
   'alicization-perception',
   'alicization-spark-event',
@@ -188,15 +183,6 @@ function sanitizePromptText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-export function buildCardCustomDirectivesSystemBlock(directives: string) {
-  const normalized = normalizeCustomDirectives(directives)
-  return normalized
-    ? buildAlicizationProviderFactBlock('alicization-persona-directives', {
-        text: normalized,
-      })
-    : ''
-}
-
 export function readMessageContentAsText(content: unknown) {
   if (typeof content === 'string')
     return content
@@ -255,28 +241,6 @@ export function extractHostNameFromMessages(messages: Message[]) {
       return looseHostName
   }
   return ''
-}
-
-export function injectCardCustomDirectivesIntoMessages(messages: Message[], directives: string) {
-  const block = buildCardCustomDirectivesSystemBlock(directives)
-  if (!block)
-    return messages
-
-  const alreadyInjected = messages.some((message) => {
-    if (message.role !== 'system')
-      return false
-    return readMessageContentAsText(message.content).trim() === block
-  })
-  if (alreadyInjected)
-    return messages
-
-  return [
-    {
-      role: 'system',
-      content: block,
-    } as Message,
-    ...messages,
-  ]
 }
 
 export function extractAllowedToolNamesFromToolChoice(
@@ -341,9 +305,9 @@ export function buildAlicizationMainChatRuntimeSurface(
     ...(input.executionLedgerSystemBlocks ?? []),
   ])
 
-  let messages = prependSystemBlocksToMessages(input.baseMessages, promptBlocks)
-  messages = injectCardCustomDirectivesIntoMessages(messages, input.customDirectivesResolution.text)
-  messages = filterAlicizationProviderSystemMessages(messages)
+  const messages = filterAlicizationProviderSystemMessages(
+    prependSystemBlocksToMessages(input.baseMessages, promptBlocks),
+  )
 
   const enforcedToolNames = extractAllowedToolNamesFromToolChoice(input.toolChoice, input.tools)
   const hasVisualGrounding = input.hasVisualGrounding

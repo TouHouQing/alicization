@@ -7,11 +7,8 @@ import type {
 
 import {
   alicizationEmotionWhitelist,
-  alicizationFixedTemplateReplacement,
   alicizationPerformanceDeliveryWhitelist,
   containsAlicizationFixedTemplateResidue,
-  isAlicizationDecorativePersonaTemplateContamination,
-  sanitizeAlicizationStructuredInternalText,
 } from '@proj-alicization/stage-shared'
 
 import {
@@ -317,98 +314,6 @@ function parsePayloadMemoryUsage(payload: Record<string, unknown> | null): Alici
   }
 }
 
-function sanitizeProjectStateText(value: unknown, maxChars: number) {
-  if (typeof value !== 'string')
-    return ''
-  return sanitizeAlicizationStructuredInternalText(value, maxChars, alicizationFixedTemplateReplacement)
-}
-
-function sanitizeVisibleProjectStateText(value: unknown, maxChars: number) {
-  const sanitized = sanitizeProjectStateText(value, maxChars)
-  return sanitized === alicizationFixedTemplateReplacement ? '' : sanitized
-}
-
-function looksStructuredProjectStateFragment(value: string) {
-  return /^[a-z][\w+-]*=/iu.test(value)
-    || /^[a-z][\w+-]*:[\w+:-]+$/iu.test(value)
-}
-
-function sanitizeStructuredProjectStateListText(value: unknown, maxChars: number) {
-  const sanitized = sanitizeVisibleProjectStateText(value, maxChars)
-  if (!sanitized)
-    return ''
-  return looksStructuredProjectStateFragment(sanitized) ? sanitized : ''
-}
-
-function parsePayloadProjectState(payload: Record<string, unknown> | null) {
-  const candidate = toObjectRecord(payload?.projectState) ?? toObjectRecord(payload)
-  if (!candidate)
-    return undefined
-
-  const identity = sanitizeProjectStateText(candidate.identity, 180)
-  const currentPhase = sanitizeProjectStateText(candidate.currentPhase, 180)
-  const nextClosureTarget = sanitizeProjectStateText(candidate.nextClosureTarget, 320)
-
-  const latestLandedProgress
-    = sanitizeProjectStateText(candidate.latestLandedProgress, 320)
-      || sanitizeProjectStateText(candidate.latestProgress, 320)
-      || sanitizeProjectStateText(candidate.landedProgressSummary, 320)
-      || null
-  const primaryOpenLoop = sanitizeProjectStateText(candidate.primaryOpenLoop, 320) || null
-  const emotionalClosureCueCandidate = sanitizeProjectStateText(candidate.emotionalClosureCue, 320)
-  const continuityRestraintCandidate = sanitizeProjectStateText(candidate.continuityRestraint, 64)
-  const continuityArcStageCandidate = sanitizeProjectStateText(candidate.continuityArcStage, 120)
-  const continuityPreferredTimingCandidate = sanitizeProjectStateText(candidate.continuityPreferredTiming, 120)
-  const continuityCadenceCandidate = sanitizeProjectStateText(candidate.continuityCadence, 120)
-  const continuityCueCandidate = sanitizeProjectStateText(candidate.continuityCue, 220)
-  const continuitySummary = sanitizeProjectStateText(candidate.continuitySummary, 320) || null
-
-  if (
-    !identity
-    && !currentPhase
-    && !latestLandedProgress
-    && !primaryOpenLoop
-    && !nextClosureTarget
-    && !continuitySummary
-    && !emotionalClosureCueCandidate
-    && !continuityRestraintCandidate
-    && !continuityArcStageCandidate
-    && !continuityPreferredTimingCandidate
-    && !continuityCadenceCandidate
-    && !continuityCueCandidate
-  ) {
-    return undefined
-  }
-
-  return {
-    identity,
-    currentPhase,
-    latestLandedProgress,
-    primaryOpenLoop,
-    nextClosureTarget,
-    continuitySummary,
-    sameHerSelfLine: null,
-    sameHerHoldDetail: null,
-    sameHerDriftRisk: null,
-    emotionalClosureCue: emotionalClosureCueCandidate || null,
-    ...(continuityRestraintCandidate
-      ? { continuityRestraint: continuityRestraintCandidate }
-      : {}),
-    ...(continuityArcStageCandidate
-      ? { continuityArcStage: continuityArcStageCandidate }
-      : {}),
-    ...(continuityPreferredTimingCandidate
-      ? { continuityPreferredTiming: continuityPreferredTimingCandidate }
-      : {}),
-    ...(continuityCadenceCandidate
-      ? { continuityCadence: continuityCadenceCandidate }
-      : {}),
-    ...(continuityCueCandidate
-      ? { continuityCue: continuityCueCandidate }
-      : {}),
-  }
-}
-
 function parsePayloadDigitalLife(
   payload: Record<string, unknown> | null,
   fallbackEmotion: string,
@@ -431,118 +336,17 @@ function parsePayloadDigitalLife(
   ) ?? undefined
 }
 
-function parsePayloadPreDialogueClosure(payload: Record<string, unknown> | null): StructuredOutputResult['preDialogueClosure'] | undefined {
-  const candidate = toObjectRecord(payload?.preDialogueClosure)
-  if (!candidate)
-    return undefined
+export function normalizeDialogueStructuredArtifact<T>(value: T): T {
+  if (Array.isArray(value))
+    return value.map(item => normalizeDialogueStructuredArtifact(item)) as T
 
-  const rawStatus = sanitizeProjectStateText(candidate.status, 80)?.toLowerCase()
-  const status = rawStatus === 'grounded' || rawStatus === 'partial' || rawStatus === 'drift'
-    ? rawStatus
-    : null
-  if (!status)
-    return undefined
+  if (!value || typeof value !== 'object')
+    return value
 
-  return {
-    status,
-    summaryLine: sanitizeVisibleProjectStateText(candidate.summaryLine, 320) || null,
-    companionHeadlineLine: sanitizeVisibleProjectStateText(candidate.companionHeadlineLine, 320) || null,
-    sameHerDriftRiskLine: null,
-    companionshipReasonLine: sanitizeVisibleProjectStateText(candidate.companionshipReasonLine, 320) || null,
-    companionBriefingLine: sanitizeVisibleProjectStateText(candidate.companionBriefingLine, 320) || null,
-    companionNextClosureLine: sanitizeVisibleProjectStateText(candidate.companionNextClosureLine, 320) || null,
-    emotionalClosureCue: sanitizeVisibleProjectStateText(candidate.emotionalClosureCue, 320) || null,
-    briefingLines: Array.isArray(candidate.briefingLines)
-      ? candidate.briefingLines
-          .map(line => sanitizeStructuredProjectStateListText(line, 320))
-          .filter(Boolean)
-      : [],
-    reasons: Array.isArray(candidate.reasons)
-      ? candidate.reasons
-          .map(reason => sanitizeStructuredProjectStateListText(reason, 320))
-          .filter(Boolean)
-      : [],
-  }
-}
-
-export function normalizeStructuredProjectStatePayload(
-  projectState: Record<string, unknown> | null | undefined,
-): (NonNullable<StructuredOutputResult['projectState']> & {
-  continuitySummary?: string | null
-  sameHerHoldDetail?: string | null
-  sameHerDriftRisk?: string | null
-  emotionalClosureCue?: string | null
-  continuityRestraint?: string | null
-  continuityArcStage?: string | null
-  continuityPreferredTiming?: string | null
-  continuityCadence?: string | null
-  continuityCue?: string | null
-  proactiveSameHerGap?: string | null
-}) | undefined {
-  if (!projectState)
-    return undefined
-
-  return parsePayloadProjectState(projectState)
-}
-
-export function normalizeStructuredPreDialogueAwarenessPayload(
-  preDialogueAwareness: Record<string, unknown> | null | undefined,
-): {
-  status: 'grounded' | 'partial' | 'drift'
-  summaryLine: string | null
-  companionHeadlineLine: string | null
-  companionBriefingLine: string | null
-  companionNextClosureLine: string | null
-  awarenessLine: string | null
-  emotionalClosureCue: string | null
-  reasonPreview: string[]
-} | undefined {
-  if (!preDialogueAwareness)
-    return undefined
-
-  const rawStatus = typeof preDialogueAwareness.status === 'string'
-    ? preDialogueAwareness.status.trim().toLowerCase()
-    : null
-  const status = rawStatus === 'grounded' || rawStatus === 'partial' || rawStatus === 'drift'
-    ? rawStatus
-    : null
-  if (!status)
-    return undefined
-
-  const summaryLine = sanitizeVisibleProjectStateText(preDialogueAwareness.summaryLine, 320) || null
-  const companionHeadlineLine = sanitizeVisibleProjectStateText(preDialogueAwareness.companionHeadlineLine, 320) || null
-  const companionBriefingLine = sanitizeVisibleProjectStateText(preDialogueAwareness.companionBriefingLine, 320) || null
-  const companionNextClosureLine = sanitizeVisibleProjectStateText(preDialogueAwareness.companionNextClosureLine, 320) || null
-  const awarenessLine = sanitizeVisibleProjectStateText(preDialogueAwareness.awarenessLine, 320) || null
-  const emotionalClosureCue = sanitizeVisibleProjectStateText(preDialogueAwareness.emotionalClosureCue, 320) || null
-  const reasonPreview = Array.isArray(preDialogueAwareness.reasonPreview)
-    ? preDialogueAwareness.reasonPreview
-        .map(reason => sanitizeStructuredProjectStateListText(reason, 320))
-        .filter(Boolean)
-    : []
-
-  if (!summaryLine && !companionBriefingLine && !awarenessLine && reasonPreview.length === 0)
-    return undefined
-
-  return {
-    status,
-    summaryLine,
-    companionHeadlineLine,
-    companionBriefingLine,
-    companionNextClosureLine,
-    awarenessLine,
-    emotionalClosureCue,
-    reasonPreview,
-  }
-}
-
-export function normalizeStructuredPreDialogueClosurePayload(
-  preDialogueClosure: Record<string, unknown> | null | undefined,
-): StructuredOutputResult['preDialogueClosure'] | undefined {
-  if (!preDialogueClosure)
-    return undefined
-
-  return parsePayloadPreDialogueClosure({ preDialogueClosure })
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => [key, normalizeDialogueStructuredArtifact(item)]),
+  ) as T
 }
 
 function parsePayloadEmotion(payload: Record<string, unknown> | null) {
@@ -715,46 +519,6 @@ export interface StructuredOutputResult {
   nonHumanAuthoredStatus?: string | null
   visibleReplyAuthority?: string | null
   digitalLife?: AlicizationDigitalLifeEnvelope | null
-  projectState?: {
-    identity: string
-    currentPhase: string
-    latestLandedProgress: string | null
-    primaryOpenLoop: string | null
-    nextClosureTarget: string
-    continuitySummary?: string | null
-    sameHerSelfLine?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRisk?: string | null
-    emotionalClosureCue?: string | null
-    proactiveSameHerGap?: string | null
-    continuityRestraint?: string | null
-    continuityArcStage?: string | null
-    continuityPreferredTiming?: string | null
-    continuityCadence?: string | null
-    continuityCue?: string | null
-  } | null
-  preDialogueAwareness?: {
-    status: 'grounded' | 'partial' | 'drift'
-    summaryLine: string | null
-    companionHeadlineLine: string | null
-    companionBriefingLine: string | null
-    companionNextClosureLine: string | null
-    awarenessLine: string | null
-    emotionalClosureCue: string | null
-    reasonPreview: string[]
-  } | null
-  preDialogueClosure?: {
-    status: 'grounded' | 'partial' | 'drift'
-    summaryLine: string | null
-    companionHeadlineLine?: string | null
-    sameHerDriftRiskLine?: string | null
-    companionshipReasonLine?: string | null
-    companionBriefingLine?: string | null
-    companionNextClosureLine?: string | null
-    emotionalClosureCue?: string | null
-    briefingLines: string[]
-    reasons: string[]
-  } | null
 }
 
 export type StructuredValidationIssueCode
@@ -768,7 +532,6 @@ export type StructuredValidationIssueCode
     | 'performance-emotion-mismatch'
     | 'memory-usage-invalid'
     | 'thought-missing-mind-spine'
-    | 'reply-surface-roleplay-residue'
 
 export interface StructuredValidationIssue {
   code: StructuredValidationIssueCode
@@ -798,8 +561,6 @@ const providerMemoryUsageFields = new Set([
 ])
 
 const legacyThoughtControlMarkers = ['obligation=', 'truth=', 'focus=', 'move=', 'tone='] as const
-const stageDirectionPattern = /[（(][^）)]{0,160}(?:声音|鼻音|眼睛|咬唇|歪头|膝盖|贴近|轻轻|依恋|湿湿|whisper|softly|blush|lean|sigh|nod)[^）)]*[）)]/giu
-const decorativeRoleplayPattern = /[♡♥❤💕💗💖✨]/gu
 function thoughtContainsLegacyControlLine(thought: string) {
   const normalized = thought.trim().toLowerCase()
   return legacyThoughtControlMarkers.every(marker => normalized.includes(marker))
@@ -949,10 +710,9 @@ export function sanitizeStructuredReplySurface(reply: string) {
   const trimmed = reply.trim()
   if (!trimmed)
     return ''
-  if (trimmed.match(stageDirectionPattern) || trimmed.match(decorativeRoleplayPattern))
-    return ''
-  return containsAlicizationFixedTemplateResidue(trimmed)
-    || isAlicizationDecorativePersonaTemplateContamination(trimmed)
+  return containsAlicizationFixedTemplateResidue(trimmed, {
+    provenance: 'internal-structured-fact',
+  })
     ? ''
     : trimmed
 }
@@ -994,13 +754,6 @@ export function validateStructuredContract(
       })
     }
   }
-  else if (sanitizeStructuredReplySurface(structured.reply) !== structured.reply.trim()) {
-    issues.push({
-      code: 'reply-surface-roleplay-residue',
-      message: 'Reply contains blocked template or roleplay residue.',
-    })
-  }
-
   return issues
 }
 
@@ -1026,7 +779,6 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
   const performance = parsePayloadPerformance(payload, emotion, reply)
   const memoryUsage = parsePayloadMemoryUsage(payload)
   const digitalLife = parsePayloadDigitalLife(payload, emotion)
-  const projectState = parsePayloadProjectState(payload)
   const visibleReplyBlocked = payload?.visibleReplyBlocked === true
     ? true
     : undefined
@@ -1086,6 +838,5 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
     nonHumanAuthoredStatus,
     visibleReplyAuthority,
     digitalLife,
-    projectState,
   }
 }

@@ -82,16 +82,14 @@ describe('resolveRuntimeSubconsciousTickEntry', () => {
     })
   })
 
-  it('treats explicit same-her presence-only holds as held visible-utterance continuity even without the older continuity reason trio', () => {
+  it('treats explicit presence-only holds as held visible-utterance continuity', () => {
     expect(resolveRuntimeSubconsciousTickEntry({
       decision: {
         shouldInterrupt: false,
         style: 'silent-observe',
         reasonCodes: [
-          'project-phase1-life-loop-open',
-          'project-continuity-pressure',
-          'project-measured-return-pressure',
-          'project-next-closure-pressure',
+          'continuity-next-open-window',
+          'presence-only-hold',
         ],
         presenceOnlyHold: true,
       },
@@ -133,9 +131,7 @@ describe('resolveRuntimeSubconsciousTickEntry', () => {
           'foreground-error',
           'world-model-revalidation-required',
           'continuity-next-open-window',
-          'project-phase1-life-loop-open',
-          'project-continuity-pressure',
-          'project-measured-return-pressure',
+          'presence-only-hold',
         ],
         presenceOnlyHold: true,
       },

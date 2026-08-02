@@ -162,34 +162,35 @@ export function buildChatInspectionGroundingParts(input: {
   const recentObservations = input.perceptionState.recentObservations
     .filter(observation => !input.staleHistoryRisk || !isWeakGenericBrowserPerceptionTarget(observation))
     .slice(-2)
-    .map(observation => `${formatObservationAge(input.now, observation.observedAt)} | ${describePerceptionTarget(observation)}`)
+    .map(observation => ({
+      age: formatObservationAge(input.now, observation.observedAt),
+      target: describePerceptionTarget(observation),
+    }))
 
   return [
     {
       type: 'text',
-      text: [
-        '[ALICIZATION_VISUAL_GROUNDING]',
-        `User request: ${sanitizeBriefText(input.userText, 180) || 'unknown'}`,
-        `Capture source: ${sanitizeBriefText(input.candidateSourceName, 120) || 'unknown'}`,
-        `Focus target: ${describePerceptionTarget(input.focusTarget)}`,
-        `Focus source: ${sanitizeBriefText(input.focusTarget?.source ?? '', 48) || 'none'}`,
-        input.staleHistoryRisk
-          ? 'Attention anchor: suppressed weak generic browser metadata.'
-          : `Attention anchor: ${describePerceptionTarget(anchor)}`,
-        `Foreground sample: ${describePerceptionTarget(input.currentForeground)}`,
-        `Recent observations: ${recentObservations.length > 0 ? recentObservations.join(' || ') : 'none'}`,
-        'primary_visual_evidence=current_screenshot',
-        input.staleHistoryRisk
-          ? [
-              'screen_recheck=generic',
-              'previous_screen_descriptions=stale_by_default',
-              'old_browser_page_reuse=blocked_unless_visible_now',
-              'weak_browser_anchor=metadata_only',
-              'old_tab_url_page_proof=false',
-              'screenshot_memory_conflict_policy=reset_to_visible_now',
-            ].join('\n')
-          : '',
-      ].join('\n'),
+      text: buildAlicizationProviderFactBlock('alicization-visual-grounding', {
+        scope: 'current-screenshot',
+        claimAuthority: 'not-user-authored',
+        userRequest: sanitizeBriefText(input.userText, 180) || null,
+        captureSource: sanitizeBriefText(input.candidateSourceName, 120) || null,
+        focusTarget: describePerceptionTarget(input.focusTarget),
+        focusSource: sanitizeBriefText(input.focusTarget?.source ?? '', 48) || null,
+        attentionAnchor: anchor
+          ? describePerceptionTarget(anchor)
+          : null,
+        foregroundSample: describePerceptionTarget(input.currentForeground),
+        recentObservations,
+        currentScreenshotAttached: true,
+        staleHistoryRisk: Boolean(input.staleHistoryRisk),
+        historicalScreenDescriptions: input.staleHistoryRisk
+          ? 'stale-by-default'
+          : 'unverified',
+        weakBrowserAnchor: input.staleHistoryRisk
+          ? 'suppressed'
+          : 'not-suppressed',
+      }),
     },
     {
       type: 'image_url',

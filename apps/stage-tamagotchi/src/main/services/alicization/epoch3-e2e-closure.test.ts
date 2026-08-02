@@ -367,7 +367,6 @@ describe('epoch3 proactive closure e2e', () => {
           responsePosture: {
             hypothesisLabelBias: 0.22,
             specificityClampBias: 0.28,
-            templateShellSuppressionBias: 0.24,
           },
           proactivePolicy: {
             restraintBias: 0.12,
@@ -472,7 +471,6 @@ describe('epoch3 proactive closure e2e', () => {
       performance: expect.objectContaining({
         baseEmotion: 'thinking',
         delivery: 'gentle',
-        actionCue: 'observe_focus',
         residentMode: 'measured-return',
       }),
       mode: expect.any(String),
@@ -536,18 +534,8 @@ describe('epoch3 proactive closure e2e', () => {
       version: 'digital-life-spine-digest-v1',
       proactive: expect.objectContaining({
         preferredStyle: 'silent-observe',
-        continuityRestraint: expect.stringMatching(/lower-pressure|measured-return|repair-before-closeness/),
       }),
     }))
-    expect(proactiveEvent?.structured.projectState).toEqual(expect.objectContaining({
-      identity: '',
-      currentPhase: '',
-      latestLandedProgress: expect.any(String),
-      primaryOpenLoop: expect.any(String),
-      sameHerSelfLine: '',
-      nextClosureTarget: expect.any(String),
-    }))
-
     dbStub.appendEpisodicEvents.mockClear()
     await reportFeedback!({
       cardId: 'default',
@@ -578,11 +566,7 @@ describe('epoch3 proactive closure e2e', () => {
     expect(policyAudit?.payload?.decision).toEqual(expect.objectContaining({
       scenario: 'coding',
       style: 'silent-observe',
-      reasonCodes: expect.arrayContaining([
-        'continuity-next-open-window',
-      ]),
     }))
-    expect(String(policyAudit?.payload?.decision?.whyNow ?? '').toLowerCase()).toContain('lower-pressure')
     expect(policyAudit?.payload?.cooldownMs).toEqual(expect.any(Number))
     expect(policyAudit?.payload?.feedbackBias).toEqual(expect.any(Number))
     expect(suppressedAudit?.payload?.reasonCodes).toContain('global-cooldown-active')

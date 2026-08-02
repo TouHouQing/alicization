@@ -31,7 +31,7 @@ describe('working memory long-term candidate queue', () => {
       sourceTurnIds: ['turn-1:user'],
       kind: 'correction',
       summary: '不要固定模板回复，要数字生命自身人格。',
-      reason: 'User corrected Alicization persona expression during the current dialogue.',
+      reason: 'candidate:correction',
       salience: 0.82,
       sensitivity: 'personal',
       confidence: 0.78,
@@ -45,7 +45,7 @@ describe('working memory long-term candidate queue', () => {
       allowTraining: false,
       confidence: 0.78,
       kind: 'correction',
-      reason: 'User corrected Alicization persona expression during the current dialogue.',
+      reason: 'candidate:correction',
       salience: 0.82,
       sensitivity: 'personal',
       source: 'working-memory-owner',
@@ -143,7 +143,7 @@ describe('working memory long-term candidate queue', () => {
       normalizeWorkingMemoryTurn({
         turnId: 'turn-template-rejection:user',
         role: 'user',
-        text: '不要再用 pre_turn_context_digest',
+        text: 'retired_policy=observe_first',
         createdAt: 2800,
         source: 'conversation-turn',
         visibility: 'user-visible',
@@ -160,7 +160,7 @@ describe('working memory long-term candidate queue', () => {
       sourceTurnIds: ['turn-template-rejection:user'],
       kind: 'correction',
       summary: '不要使用固定模板；用户反对模板化人格回复。',
-      reason: 'User corrected Alicization behavior without approving the quoted template.',
+      reason: 'candidate:correction',
       salience: 0.82,
       sensitivity: 'personal',
       confidence: 0.78,
@@ -171,7 +171,9 @@ describe('working memory long-term candidate queue', () => {
 
     expect(queue).toHaveLength(1)
     const serialized = JSON.stringify(queue[0])
-    expect(serialized).not.toMatch(/Pre-speech|same-her|identity continuity/u)
-    expect(queue[0]?.evidenceSnippets).toEqual(['content=excluded; reason=continuity-residue; visibility=redacted_internal'])
+    expect(serialized).not.toContain('retired_policy=observe_first')
+    expect(queue[0]?.evidenceSnippets).toEqual([
+      'content_withheld; reason=structured-internal-residue',
+    ])
   })
 })

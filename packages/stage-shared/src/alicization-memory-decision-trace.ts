@@ -121,8 +121,6 @@ function scoreDerivedMindStateBundleEvidence(bundle: AlicizationDerivedMindState
     score += 4
   if (bundle.activeSelfRevision)
     score += 3
-  if (bundle.activeContinuityGovernance)
-    score += 3
   if (bundle.learningExecutionState)
     score += 3
   if (bundle.recollectionIntent)

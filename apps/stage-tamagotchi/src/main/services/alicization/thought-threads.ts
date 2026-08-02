@@ -98,15 +98,10 @@ function threadQuestion(input: {
   object: AlicizationLivingWorldObjectSnapshot | null
   inquiryLoop?: AlicizationInquiryLoopSnapshot | null
 }) {
+  void input.kind
   const inquiry = primaryInquiry(input.inquiryLoop)
-  if (input.kind === 'repair-thread')
-    return inquiry?.question ?? input.worldModel.epistemicState.openQuestions[0] ?? 'What did I misread in the current scene?'
-  if (input.kind === 'problem-thread')
-    return inquiry?.question ?? input.object?.openLoop ?? 'What is the actual knot here?'
-  if (input.kind === 'afterglow-thread')
-    return 'Is this the seam where a soft check-in would feel natural?'
-  if (input.kind === 'care-thread')
-    return 'Does the host need care more than silence right now?'
+  void input.worldModel
+  void input.object
   return inquiry?.question ?? input.object?.openLoop ?? ''
 }
 

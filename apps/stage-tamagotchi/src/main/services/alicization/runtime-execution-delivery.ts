@@ -1,15 +1,11 @@
 import type {
-  AlicizationExecutionEventRecord,
   AlicizationHostPersonModelSnapshot,
   AlicizationTaskThreadRecord,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
 import type { AlicizationAgentTurnRuntime } from './agent-runtime'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
-import type {
-  AlicizationPendingExecutionDeliveryProjectState,
-  createAlicizationExecutionDeliveryRuntime,
-} from './execution-delivery-runtime'
+import type { createAlicizationExecutionDeliveryRuntime } from './execution-delivery-runtime'
 import type {
   AlicizationExecutionDeliveryReplySelection,
 } from './execution-delivery-surface'
@@ -66,14 +62,9 @@ function sanitizeExecutionDeliveryProjectFreeText(raw: unknown, maxChars = 320) 
   const ledgerText = sanitizeExecutionLedgerText(raw, maxChars)
   if (!ledgerText)
     return null
-  return sanitizeAlicizationProviderFacingText(ledgerText, maxChars, '') || null
-}
-
-function sanitizeExecutionDeliveryProjectControlText(raw: unknown, maxChars = 120) {
-  const ledgerText = sanitizeExecutionLedgerText(raw, maxChars)
-  if (!ledgerText)
-    return null
-  return sanitizeAlicizationProviderFacingText(ledgerText, maxChars, '') || null
+  return sanitizeAlicizationProviderFacingText(ledgerText, maxChars, '', {
+    origin: 'internal-structured-fact',
+  }) || null
 }
 
 function sanitizeExecutionProjectionCarryText(raw: unknown, maxChars = 320) {
@@ -125,10 +116,13 @@ function sanitizeExecutionPersonalityContinuityState(
 function sanitizeExecutionPersonStateProjection(projection: AlicizationPersonStateProjection) {
   const authority = projection.selfContinuityAuthority
   return {
-    ...projection,
+    contexts: projection.contexts,
     personalityContinuityState: sanitizeExecutionPersonalityContinuityState(projection.personalityContinuityState),
-    openingGuidance: sanitizeExecutionProjectionCarryText(projection.openingGuidance, 320),
-    manifestationCadenceSummary: sanitizeExecutionProjectionCarryText(projection.manifestationCadenceSummary, 320),
+    activeClosenessContext: projection.activeClosenessContext,
+    activeClosenessRung: projection.activeClosenessRung,
+    closenessLadder: projection.closenessLadder,
+    relationshipPosture: projection.relationshipPosture,
+    preferredProactiveStyle: projection.preferredProactiveStyle,
     preferenceText: sanitizeExecutionProjectionRequiredText(projection.preferenceText, 320),
     sensitivityText: sanitizeExecutionProjectionRequiredText(projection.sensitivityText, 320),
     repairTriggerText: sanitizeExecutionProjectionRequiredText(projection.repairTriggerText, 320),
@@ -136,6 +130,8 @@ function sanitizeExecutionPersonStateProjection(projection: AlicizationPersonSta
     routineText: sanitizeExecutionProjectionRequiredText(projection.routineText, 320),
     trustRationale: sanitizeExecutionProjectionRequiredText(projection.trustRationale, 320),
     relationshipDoctrine: sanitizeExecutionProjectionRequiredText(projection.relationshipDoctrine, 320),
+    cautious: projection.cautious,
+    restrained: projection.restrained,
     summary: sanitizeExecutionProjectionRequiredText(projection.summary, 520),
     selfContinuityAuthority: authority
       ? {
@@ -151,227 +147,6 @@ function sanitizeExecutionPersonStateProjection(projection: AlicizationPersonSta
         }
       : null,
   } satisfies AlicizationPersonStateProjection
-}
-
-function normalizeExecutionDeliveryProjectBriefing(
-  projectBriefing: unknown,
-): AlicizationPendingExecutionDeliveryProjectState | null {
-  if (!projectBriefing || typeof projectBriefing !== 'object' || Array.isArray(projectBriefing))
-    return null
-
-  const record = projectBriefing as Record<string, unknown>
-  const normalized = {
-    continuityArcStage: sanitizeExecutionDeliveryProjectControlText(record.continuityArcStage, 120),
-    continuityRestraint: sanitizeExecutionDeliveryProjectControlText(record.continuityRestraint, 64),
-    continuityPreferredTiming: sanitizeExecutionDeliveryProjectControlText(record.continuityPreferredTiming, 120),
-    continuityCadence: sanitizeExecutionDeliveryProjectControlText(record.continuityCadence, 120),
-    preferredBlinkCadence: sanitizeExecutionDeliveryProjectControlText(record.preferredBlinkCadence, 32),
-    preferredGazeMode: sanitizeExecutionDeliveryProjectControlText(record.preferredGazeMode, 32),
-    preferredPauseMode: sanitizeExecutionDeliveryProjectControlText(record.preferredPauseMode, 32),
-    preferredLipsyncMode: sanitizeExecutionDeliveryProjectControlText(record.preferredLipsyncMode, 32),
-    preferredVoiceMode: sanitizeExecutionDeliveryProjectControlText(record.preferredVoiceMode, 32),
-    preferredPacingMode: sanitizeExecutionDeliveryProjectControlText(record.preferredPacingMode, 32),
-  } satisfies AlicizationPendingExecutionDeliveryProjectState
-
-  return Object.values(normalized).some(Boolean) ? normalized : null
-}
-
-function preferExecutionDeliveryProjectBriefingText(input: {
-  current?: string | null
-  candidate?: string | null
-}) {
-  const current = sanitizeExecutionLedgerText(input.current, 320) || ''
-  const candidate = sanitizeExecutionLedgerText(input.candidate, 320) || ''
-
-  if (!current)
-    return candidate || null
-  if (!candidate)
-    return current || null
-  if (current === candidate)
-    return current
-
-  if (candidate.startsWith(current) && candidate.length >= current.length + 24)
-    return candidate
-  if (current.startsWith(candidate) && current.length >= candidate.length + 24)
-    return current
-
-  return candidate.length > current.length ? candidate : current
-}
-
-function mergeExecutionDeliveryProjectBriefingPair(input: {
-  current: AlicizationPendingExecutionDeliveryProjectState
-  candidate: AlicizationPendingExecutionDeliveryProjectState
-}): AlicizationPendingExecutionDeliveryProjectState {
-  return {
-    continuityArcStage: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.continuityArcStage,
-      candidate: input.candidate.continuityArcStage,
-    }),
-    continuityRestraint: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.continuityRestraint,
-      candidate: input.candidate.continuityRestraint,
-    }),
-    continuityPreferredTiming: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.continuityPreferredTiming,
-      candidate: input.candidate.continuityPreferredTiming,
-    }),
-    continuityCadence: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.continuityCadence,
-      candidate: input.candidate.continuityCadence,
-    }),
-    preferredBlinkCadence: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.preferredBlinkCadence,
-      candidate: input.candidate.preferredBlinkCadence,
-    }),
-    preferredGazeMode: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.preferredGazeMode,
-      candidate: input.candidate.preferredGazeMode,
-    }),
-    preferredPauseMode: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.preferredPauseMode,
-      candidate: input.candidate.preferredPauseMode,
-    }),
-    preferredLipsyncMode: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.preferredLipsyncMode,
-      candidate: input.candidate.preferredLipsyncMode,
-    }),
-    preferredVoiceMode: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.preferredVoiceMode,
-      candidate: input.candidate.preferredVoiceMode,
-    }),
-    preferredPacingMode: preferExecutionDeliveryProjectBriefingText({
-      current: input.current.preferredPacingMode,
-      candidate: input.candidate.preferredPacingMode,
-    }),
-  }
-}
-
-function mergeExecutionDeliveryProjectBriefings(
-  ...briefings: Array<AlicizationPendingExecutionDeliveryProjectState | null | undefined>
-) {
-  let merged: AlicizationPendingExecutionDeliveryProjectState | null = null
-
-  for (const briefing of briefings) {
-    if (!briefing)
-      continue
-    merged = merged
-      ? mergeExecutionDeliveryProjectBriefingPair({
-          current: merged,
-          candidate: briefing,
-        })
-      : briefing
-  }
-
-  return merged && Object.values(merged).some(Boolean) ? merged : null
-}
-
-function readThreadExecutionDeliveryProjectState(
-  thread: AlicizationTaskThreadRecord,
-): AlicizationPendingExecutionDeliveryProjectState | null {
-  const metadata = thread.metadata && typeof thread.metadata === 'object' && !Array.isArray(thread.metadata)
-    ? thread.metadata as {
-      execution?: {
-        runtimeContext?: {
-          projectBriefing?: {
-            currentPhase?: unknown
-            identity?: unknown
-            latestLandedProgress?: unknown
-            latestProgress?: unknown
-            landedProgressSummary?: unknown
-            nextClosureTarget?: unknown
-            nextClosureTargetSummary?: unknown
-            preDialogueAwarenessLine?: unknown
-            preDialogueAwarenessSummary?: unknown
-            preflightSummary?: unknown
-            companionHeadlineLine?: unknown
-            companionBriefingLine?: unknown
-            emotionalClosureSummary?: unknown
-            continuityCue?: unknown
-            continuityPreferredTiming?: unknown
-            continuityCadence?: unknown
-            preferredBlinkCadence?: unknown
-            preferredGazeMode?: unknown
-            preferredVoiceMode?: unknown
-            preferredPacingMode?: unknown
-            primaryOpenLoop?: unknown
-            openClosureSummary?: unknown
-            sameHerDriftRisk?: unknown
-            sameHerDriftRiskSummary?: unknown
-            sameHerHoldDetail?: unknown
-            sameHerSelfLine?: unknown
-          } | null
-        } | null
-      } | null
-    }
-    : null
-  return normalizeExecutionDeliveryProjectBriefing(metadata?.execution?.runtimeContext?.projectBriefing)
-}
-
-function readExecutionDeliveryPayloadObject(payload: unknown) {
-  return payload && typeof payload === 'object' && !Array.isArray(payload)
-    ? payload as Record<string, unknown>
-    : null
-}
-
-type AlicizationExecutionDeliveryEventSnapshot = Pick<
-  AlicizationExecutionEventRecord,
-  'createdAt' | 'kind' | 'payload'
->
-
-function readExecutionDeliveryProjectBriefingFromLatestEvent(
-  events: AlicizationExecutionDeliveryEventSnapshot[] | null | undefined,
-) {
-  const latestEvent = readLatestExecutionEvent(events ?? [])
-  const payload = readExecutionDeliveryPayloadObject(latestEvent?.payload)
-  const runtimeContext = readExecutionDeliveryPayloadObject(payload?.runtimeContext)
-  return normalizeExecutionDeliveryProjectBriefing(runtimeContext?.projectBriefing)
-}
-
-function readExecutionDeliveryProjectBriefingFromResumeEvent(
-  events: AlicizationExecutionDeliveryEventSnapshot[] | null | undefined,
-) {
-  const latestResumeEvent = readLatestExecutionEvent(events ?? [], ['resume'])
-  const payload = readExecutionDeliveryPayloadObject(latestResumeEvent?.payload)
-  if (!payload)
-    return null
-
-  return normalizeExecutionDeliveryProjectBriefing({
-    identity: payload.projectIdentity,
-    currentPhase: payload.projectPhase,
-    latestLandedProgress: payload.latestLandedProgress,
-    primaryOpenLoop: payload.primaryOpenLoop,
-    nextClosureTarget: payload.nextClosureTarget,
-    sameHerSelfLine: payload.sameHerLine,
-    sameHerHoldDetail: payload.projectSameHerHoldDetail,
-    sameHerDriftRisk: payload.sameHerDriftRisk,
-    proactiveSameHerGap: payload.proactiveSameHerGap,
-    preflightSummary: payload.projectPreflight,
-    preDialogueAwarenessLine: payload.projectAwareness,
-    companionBriefingLine: payload.projectCompanionBriefing,
-    emotionalClosureSummary: payload.projectEmotionalClosure,
-    continuityArcStage: payload.projectContinuityArcStage,
-    continuityRestraint: payload.projectContinuityRestraint,
-    continuityCue: payload.projectContinuityCue,
-    continuityPreferredTiming: payload.projectContinuityPreferredTiming,
-    continuityCadence: payload.projectContinuityCadence,
-    preferredBlinkCadence: payload.projectBlinkCadence,
-    preferredGazeMode: payload.projectGazeMode,
-    preferredPauseMode: payload.projectPauseMode,
-    preferredLipsyncMode: payload.projectLipsyncMode,
-    preferredVoiceMode: payload.projectVoiceMode,
-    preferredPacingMode: payload.projectPacingMode,
-  })
-}
-
-function mergeExecutionDeliveryProjectState(input: {
-  threadProjectState: AlicizationPendingExecutionDeliveryProjectState | null
-  events: AlicizationExecutionDeliveryEventSnapshot[]
-}) {
-  return mergeExecutionDeliveryProjectBriefings(
-    input.threadProjectState,
-    readExecutionDeliveryProjectBriefingFromResumeEvent(input.events),
-    readExecutionDeliveryProjectBriefingFromLatestEvent(input.events),
-  )
 }
 
 interface CreateAlicizationRuntimeExecutionDeliveryOptions {
@@ -519,10 +294,6 @@ export function createAlicizationRuntimeExecutionDelivery(
       goal: input.thread.goal,
       summary: input.thread.summary,
       outcome: readExecutionOutcome(events),
-      projectState: mergeExecutionDeliveryProjectState({
-        threadProjectState: readThreadExecutionDeliveryProjectState(input.thread),
-        events,
-      }),
       signature: sanitizeExecutionLedgerText(
         latestEvent
           ? `${input.thread.id}:${latestEvent.id ?? latestEvent.createdAt}`
@@ -613,7 +384,6 @@ export function createAlicizationRuntimeExecutionDelivery(
     selfContinuityAuthority?: AlicizationSelfContinuityAuthority | null
     hostPersonModel?: OrganicMemoryPromptContext['hostPersonModel']
     knowledgeEvidence?: OrganicMemoryPromptContext['knowledgeEvidence']
-    projectState?: AlicizationPendingExecutionDeliveryProjectState | null
     agentTurnInput?: {
       turnId: string
       decisionTraceId?: string | null
@@ -849,7 +619,6 @@ export function createAlicizationRuntimeExecutionDelivery(
             selfRevisionResponsePostureBias: Math.max(
               activeSelfRevisionPatch.responsePosture.hypothesisLabelBias ?? 0,
               activeSelfRevisionPatch.responsePosture.specificityClampBias ?? 0,
-              activeSelfRevisionPatch.responsePosture.templateShellSuppressionBias ?? 0,
             ),
             selfRevisionProactivePolicyBias: Math.max(
               activeSelfRevisionPatch.proactivePolicy.restraintBias ?? 0,

@@ -23,7 +23,6 @@ function buildCandidateState(now: number) {
       reciprocityExpectation: 0.04,
     },
     initiative: {
-      continuityRestraint: null,
       shouldSpeak: false,
     },
     privateThought: {
@@ -124,65 +123,34 @@ describe('body kernel', () => {
     expect(next.currentInwardPreoccupation).toBe(failureText)
   })
 
-  it('does not derive body authority from legacy cadence prose without structured evidence', () => {
+  it('does not derive body authority from descriptive memory or person-state prose', () => {
     const now = 120_000
     const candidateState = buildCandidateState(now)
-    const legacyCadenceProse = [
-      'repair-before-closeness',
-      'measured-return',
-      'lower-pressure',
-      'same living line',
-      'without reopening from scratch',
-      'wait for confirmation',
-    ].join(' ')
-
-    candidateState.currentConsciousFrame = {
-      reasonTags: [],
-      projectState: {
-        emotionalClosureSummary: legacyCadenceProse,
-        emotionalClosureCue: legacyCadenceProse,
-        sameHerHoldDetail: legacyCadenceProse,
-      },
-    }
-    candidateState.projectState = {
-      preDialogueAwarenessLine: legacyCadenceProse,
-      primaryOpenLoop: legacyCadenceProse,
-      nextClosureTarget: legacyCadenceProse,
-      sameHerSelfLine: legacyCadenceProse,
-    }
-    candidateState.selfEvolution = {
-      relationshipCadenceSummary: legacyCadenceProse,
-    }
+    const descriptiveText = 'A free-form description with no structured body authority.'
     candidateState.personStateProjection = {
-      openingGuidance: legacyCadenceProse,
-      manifestationCadenceSummary: legacyCadenceProse,
-      relationshipDoctrine: legacyCadenceProse,
+      summary: descriptiveText,
       selfContinuityAuthority: {
-        relationshipLine: legacyCadenceProse,
-        authoritySummary: legacyCadenceProse,
+        selfLine: descriptiveText,
+        inwardLine: descriptiveText,
+        relationshipLine: descriptiveText,
+        authoritySummary: descriptiveText,
         sourceTags: [],
       },
     }
     candidateState.autobiographicalSelf = {
-      relationshipDoctrine: legacyCadenceProse,
-      latestInflection: legacyCadenceProse,
-      identityNarrative: legacyCadenceProse,
+      relationshipDoctrine: descriptiveText,
+      latestInflection: descriptiveText,
+      identityNarrative: descriptiveText,
     }
     candidateState.longHorizonMemory = {
       preferenceBias: {},
       identityBias: {},
-      anchorFacts: [{
-        factId: 'legacy-cadence-prose',
-        predicate: 'initiative-strategy-carry',
-        object: legacyCadenceProse,
-        summary: legacyCadenceProse,
-        influenceTags: ['bond', 'boundary', 'identity'],
-      }],
-      summary: legacyCadenceProse,
-      dominantCueSummary: legacyCadenceProse,
-      rememberedPreferenceSummary: legacyCadenceProse,
-      rememberedConstraintSummary: legacyCadenceProse,
-      rememberedPlanSummary: legacyCadenceProse,
+      anchorFacts: [],
+      summary: descriptiveText,
+      dominantCueSummary: descriptiveText,
+      rememberedPreferenceSummary: descriptiveText,
+      rememberedConstraintSummary: descriptiveText,
+      rememberedPlanSummary: descriptiveText,
     }
 
     const next = applyCandidate(candidateState, now)
@@ -212,13 +180,12 @@ describe('body kernel', () => {
   it('gives structured repair authority priority over measured accompaniment', () => {
     const now = 140_000
     const candidateState = buildCandidateState(now)
-    candidateState.initiative.continuityRestraint = 'measured-return'
     candidateState.emotionalKernel = {
       dominantEmotion: 'repair-tension',
       initiativeMode: 'repair',
       memoryRecallMode: 'repair-grounding',
       embodimentTone: 'repair-before-closeness',
-      reasonTags: ['repair-before-closeness'],
+      reasonTags: [],
     }
 
     const next = applyCandidate(candidateState, now)
@@ -236,7 +203,7 @@ describe('body kernel', () => {
       initiativeMode: 'rest-guard',
       memoryRecallMode: 'rest-protective-presence',
       embodimentTone: 'rest-protective',
-      reasonTags: ['rest-protective'],
+      reasonTags: [],
     }
 
     const next = applyCandidate(candidateState, now)
@@ -254,7 +221,7 @@ describe('body kernel', () => {
       initiativeMode: 'hold',
       memoryRecallMode: 'self-continuity',
       embodimentTone: 'protective-watch',
-      reasonTags: ['execution-safety-gate', 'confirmation-boundary'],
+      reasonTags: [],
     }
 
     const next = applyCandidate(candidateState, now)
@@ -264,20 +231,18 @@ describe('body kernel', () => {
     expect(next.quietLineMs).toBe(180_000)
   })
 
-  it('uses durable-self provenance only with a structured restrained projection', () => {
+  it('uses a structured restrained person-state projection for quiet accompaniment', () => {
     const now = 170_000
     const candidateState = buildCandidateState(now)
     candidateState.personStateProjection = {
       relationshipPosture: 'restrained',
       cautious: true,
       restrained: true,
-      openingGuidance: 'This wording can change freely.',
-      manifestationCadenceSummary: 'Another arbitrary description.',
       selfContinuityAuthority: {
         selfLine: 'A local self description.',
         inwardLine: 'A private reflection.',
         authoritySummary: 'A summary whose wording is not parsed.',
-        sourceTags: ['durable-self-core'],
+        sourceTags: [],
       },
     }
 
@@ -288,33 +253,17 @@ describe('body kernel', () => {
     expect(next.quietLineMs).toBe(180_000)
   })
 
-  it.each([
-    {
-      name: 'source provenance without restrained state',
-      projection: {
-        relationshipPosture: 'warm',
-        cautious: false,
-        restrained: false,
-        selfContinuityAuthority: {
-          sourceTags: ['durable-self-core'],
-        },
-      },
-    },
-    {
-      name: 'restrained state without source provenance',
-      projection: {
-        relationshipPosture: 'restrained',
-        cautious: true,
-        restrained: true,
-        selfContinuityAuthority: {
-          sourceTags: [],
-        },
-      },
-    },
-  ])('does not grant durable body authority from $name', ({ projection }) => {
+  it('does not grant quiet body authority from an unrestrained person-state projection', () => {
     const now = 175_000
     const candidateState = buildCandidateState(now)
-    candidateState.personStateProjection = projection
+    candidateState.personStateProjection = {
+      relationshipPosture: 'warm',
+      cautious: false,
+      restrained: false,
+      selfContinuityAuthority: {
+        sourceTags: [],
+      },
+    }
 
     const next = applyCandidate(candidateState, now)
 
@@ -328,7 +277,7 @@ describe('body kernel', () => {
     const second = buildCandidateState(now)
     const relationshipCadence = {
       cadenceMode: 'measured-return',
-      reasonTags: ['relationship-cadence:measured-return'],
+      reasonTags: [],
     }
 
     first.affectiveResidue = {

@@ -98,14 +98,14 @@ describe('buildReflectionLedgerFragment', () => {
   it('returns empty when a newer released temporary-noise reflection does not actually replace the current meaningful reflection', () => {
     const fragment = buildReflectionLedgerFragment({
       previousLedger: {
-        latestEntryId: 'reflection::same-her-repair',
+        latestEntryId: 'reflection::continuity-repair',
         entries: [{
-          id: 'reflection::same-her-repair',
-          summary: 'The same-her repair line is still the meaningful reflection carry.',
+          id: 'reflection::continuity-repair',
+          summary: 'The continuity repair line is still the meaningful reflection carry.',
           expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
           observedOutcome: 'The continuity state still needs a measured return.',
           outcome: 'missed',
-          revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+          revision: 'Keep the continuity repair line active instead of reopening from temporary noise.',
           confidenceShift: -0.08,
           createdAt: 10_000,
         }],
@@ -127,12 +127,12 @@ describe('buildReflectionLedgerFragment', () => {
             createdAt: 10_100,
           },
           {
-            id: 'reflection::same-her-repair',
-            summary: 'The same-her repair line is still the meaningful reflection carry.',
+            id: 'reflection::continuity-repair',
+            summary: 'The continuity repair line is still the meaningful reflection carry.',
             expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
             observedOutcome: 'The continuity state still needs a measured return.',
             outcome: 'missed',
-            revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+            revision: 'Keep the continuity repair line active instead of reopening from temporary noise.',
             confidenceShift: -0.08,
             createdAt: 10_000,
           },

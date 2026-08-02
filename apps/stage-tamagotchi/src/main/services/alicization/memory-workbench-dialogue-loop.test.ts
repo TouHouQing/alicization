@@ -34,7 +34,7 @@ describe('memory workbench dialogue loop acceptance', () => {
           mode: 'episodic',
           shouldRecall: true,
           confidence: 0.82,
-          rationale: 'User utterance can benefit from shared episodic memory.',
+          rationale: 'recall:episodic',
           temporalFocus: 'recent-or-mid',
           targetKinds: ['episode'],
           queryHints: ['我们去打游戏吧'],
@@ -286,7 +286,7 @@ describe('memory workbench dialogue loop acceptance', () => {
           sourceTurnIds: ['turn-1:user'],
           evidenceSnippets: ['不要记这条。'],
           salience: 0.86,
-          confidence: 0.78,
+          confidence: 0.68,
           sensitivity: 'personal',
           allowTraining: false,
           status: 'pending-cleaning',
@@ -435,7 +435,7 @@ describe('memory workbench dialogue loop acceptance', () => {
 
       const recall = await db.retrieveLongTermMemoryEvidence({
         cardId: 'default',
-        currentUserText: '你还记得我不要固定模板回复吗？',
+        currentUserText: '你还记得我说过以后失败时要明确说明原因吗？',
         limit: 4,
       })
       expect(recall.evidence[0]?.candidate.id).toBe('reflection-semantic-1')
@@ -486,7 +486,7 @@ describe('memory workbench dialogue loop acceptance', () => {
 
       const recall = await db.retrieveLongTermMemoryEvidence({
         cardId: 'default',
-        currentUserText: '你还记得我不要固定模板回复吗？',
+        currentUserText: '你还记得我说过以后失败时要明确说明原因吗？',
         limit: 4,
       })
       expect(recall.evidence[0]?.rankReasons).toEqual(expect.arrayContaining([

@@ -31,9 +31,7 @@ const baseEvent = {
     mayInternalize: true,
     mayValidateOnly: false,
   },
-  projectStateContinuity: {
-    proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
-  },
+  runtimeContinuity: null,
   appliedTargets: ['fact-1'],
   rollbackPlan: [],
 } as any
@@ -63,7 +61,6 @@ const basePatch = {
   responsePosture: {
     hypothesisLabelBias: 0.04,
     specificityClampBias: 0.1,
-    templateShellSuppressionBias: 0.12,
   },
   proactivePolicy: {
     restraintBias: 0,
@@ -75,15 +72,7 @@ const basePatch = {
     requiresRevalidation: false,
     rollbackPlan: [],
   },
-  projectStateContinuity: {
-    sameHerSelfLine: null,
-    sameHerDriftRisk: null,
-    proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
-    emotionalClosureCue: null,
-    sameHerHoldDetail: 'identity-continuity',
-    continuityGuard: null,
-    continuityPressure: 0.18,
-  },
+  runtimeContinuity: null,
   reasonCodes: ['domain:self-model'],
   summary: 'Prefer replay-backed self-model changes.',
 } as any
@@ -104,14 +93,6 @@ describe('self evolution version runtime', () => {
       'self-evolution:shadow-replay-required',
       'self-evolution:final-replay-gate-required',
       'self-evolution:production-gold-required',
-    ]))
-    expect(candidate.validation.projectStateContinuityReasons).toEqual(expect.arrayContaining([
-      'self-evolution:project-preflight-carry-present',
-      'self-evolution:project-same-her-hold-detail-present',
-      'self-evolution:project-proactive-same-her-gap-present',
-      'self-evolution:project-same-her-self-line-present',
-      'self-evolution:project-same-her-drift-risk-present',
-      'self-evolution:project-phase-memory-closure-still-open',
     ]))
   })
 
@@ -188,14 +169,9 @@ describe('self evolution version runtime', () => {
     expect(validated.candidates[0]?.validation.activationBlockedReasons).not.toContain('self-evolution:shadow-replay-required')
     expect(validated.candidates[0]?.validation.activationBlockedReasons).not.toContain('self-evolution:final-replay-gate-required')
     expect(validated.candidates[0]?.validation.activationBlockedReasons).not.toContain('self-evolution:production-gold-required')
-    expect(validated.candidates[0]?.validation.projectStateContinuityReasons).toContain('self-evolution:project-phase-memory-closure-still-open')
-    expect(validated.candidates[0]?.validation.projectStateContinuityReasons).toContain('self-evolution:project-preflight-carry-present')
-    expect(validated.candidates[0]?.validation.projectStateContinuityReasons).toContain('self-evolution:project-proactive-same-her-gap-present')
-    expect(validated.candidates[0]?.validation.projectStateContinuityReasons).toContain('self-evolution:project-same-her-self-line-present')
-    expect(validated.candidates[0]?.validation.projectStateContinuityReasons).toContain('self-evolution:project-same-her-drift-risk-present')
   })
 
-  it('keeps a replay-validated candidate in shadow when replay still shows project-state continuity drift', () => {
+  it('does not let legacy project-state lexical diagnostics block a replay-validated candidate', () => {
     const candidate = buildAlicizationSelfEvolutionVersionCandidate({
       event: baseEvent,
       patch: basePatch,
@@ -212,72 +188,13 @@ describe('self evolution version runtime', () => {
       productionGoldSampleCount: 8,
       productionGoldCoverage: 1,
       now: 120,
-      projectStateContinuityDrift: true,
-      projectStateContinuitySummary: 'same-her=Answer project-state questions from one identity-continuity',
-      projectStateSummary: {
-        comparedTurnCount: 3,
-        identityHitCount: 1,
-        phaseHitCount: 1,
-        openLoopHitCount: 0,
-        sameHerHitCount: 0,
-        proactiveSameHerGapHitCount: 0,
-        continuityHitCount: 0,
-      },
+      runtimeContinuityDrift: true,
+      runtimeContinuitySummary: 'legacy project wording',
     } as any)
 
-    expect(validated.candidates[0]?.status).toBe('shadow')
-    expect(validated.candidates[0]?.activatedAt).toBeNull()
-    expect(validated.candidates[0]?.validation.activationBlockedReasons).toContain('self-evolution:project-state-continuity-drift')
-    expect(validated.candidates[0]?.validation.projectStateContinuityReasons).toEqual(expect.arrayContaining([
-      'self-evolution:project-preflight-carry-present',
-      'self-evolution:project-phase-memory-closure-still-open',
-      'self-evolution:project-proactive-same-her-gap-present',
-      'self-evolution:project-state-continuity-drift',
-      'self-evolution:project-state-identity-carry-weak',
-      'self-evolution:project-state-same-her-carry-weak',
-      'self-evolution:project-state-phase-carry-weak',
-      'self-evolution:project-state-open-loop-carry-weak',
-      'self-evolution:project-state-proactive-gap-carry-weak',
-    ]))
-    expect(validated.candidates[0]?.validation.projectStateContinuityReasons?.some(reason =>
-      reason.startsWith('self-evolution:project-state-continuity-summary=same-her=Answer project-state questions from one identity-continuity'),
-    )).toBe(true)
-  })
-
-  it('keeps identity-continuity', () => {
-    const candidate = buildAlicizationSelfEvolutionVersionCandidate({
-      event: baseEvent,
-      patch: basePatch,
-      now: 100,
-    })
-    const snapshot = buildAlicizationSelfEvolutionVersionRuntimeSnapshot({
-      candidates: [candidate],
-    })
-    const validated = applyAlicizationSelfEvolutionReplayValidation({
-      snapshot,
-      candidateId: candidate.id,
-      replayPassed: true,
-      finalReplayGatePassed: true,
-      productionGoldSampleCount: 8,
-      productionGoldCoverage: 1,
-      now: 120,
-      projectStateContinuityDrift: true,
-      projectStateContinuitySummary: 'same-her=Keep one same digital life explicit while replay checks whether the living line stayed intact.',
-      projectStateSummary: {
-        comparedTurnCount: 2,
-        identityHitCount: 2,
-        sameHerHitCount: 0,
-        phaseHitCount: 2,
-        openLoopHitCount: 2,
-        proactiveSameHerGapHitCount: 2,
-        continuityHitCount: 0,
-      },
-    } as any)
-
-    expect(validated.candidates[0]?.validation.projectStateContinuityReasons).toEqual(expect.arrayContaining([
-      'self-evolution:project-same-her-hold-detail-present',
-      'self-evolution:project-state-same-her-carry-weak',
-    ]))
+    expect(validated.candidates[0]?.status).toBe('active')
+    expect(validated.candidates[0]?.activatedAt).toBe(120)
+    expect(validated.candidates[0]?.validation.activationBlockedReasons).not.toContain('self-evolution:runtime-continuity-drift')
   })
 
   it('persists proposals through the runtime adapter', async () => {
@@ -406,7 +323,7 @@ describe('self evolution version runtime', () => {
       repairOwnerHint: 'project state continuity governance',
       adoptionMode: 'adopt-now' as const,
       summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',
-      projectStateContinuityGovernanceNote: '项目状态连续性治理已经再次确认，可直接进入长期基线。',
+      runtimeContinuityGovernanceNote: '项目状态连续性治理已经再次确认，可直接进入长期基线。',
     }]
     let snapshot = buildAlicizationSelfEvolutionVersionRuntimeSnapshot({
       candidates: [candidate],
@@ -448,7 +365,7 @@ describe('self evolution version runtime', () => {
     })
 
     expect((snapshot as any).baselineAdoptionHistory).toEqual(baselineAdoptionHistory)
-    expect((snapshot as any).baselineAdoptionHistory?.[0]?.projectStateContinuityGovernanceNote)
+    expect((snapshot as any).baselineAdoptionHistory?.[0]?.runtimeContinuityGovernanceNote)
       .toBe('项目状态连续性治理已经再次确认，可直接进入长期基线。')
   })
 })

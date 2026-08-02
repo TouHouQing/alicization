@@ -310,8 +310,8 @@ function findAuthorityEntry(
     authorityMismatchSummary: view.authorityMismatchSummary ?? scopedAuthoritySummary.authorityMismatchSummary,
     authorityMismatchReasonSummary: view.authorityMismatchReasonSummary ?? scopedAuthoritySummary.authorityMismatchReasonSummary,
     authorityMismatchDisplay: view.authorityMismatchDisplay ?? scopedAuthoritySummary.authorityMismatchDisplay,
-    sameHerSignature: view.playbackCue?.authorityView?.signature ?? null,
-    sameHerReasonTags: view.playbackCue?.authorityView?.reasonTags ?? null,
+    continuitySignature: view.playbackCue?.authorityView?.signature ?? null,
+    continuityReasonTags: view.playbackCue?.authorityView?.reasonTags ?? null,
     speechEvidence: view.speechEvidence,
   }).find((item) => {
     if (key === 'authority-binding')
@@ -413,8 +413,8 @@ export function buildSpeechObservabilityRows(
     const convergenceEntry = formatConvergenceDisplay(view)
     const embodimentClosureStageEntry = findAuthorityEntry('embodiment-closure-stage', view)
     const authorityTrustEntry = findAuthorityEntry('authority-trust', view)
-    const sameHerSignatureEntry = findAuthorityEntry('continuity-signature', view)
-    const sameHerReasonsEntry = findAuthorityEntry('continuity-reasons', view)
+    const continuitySignatureEntry = findAuthorityEntry('continuity-signature', view)
+    const continuityReasonsEntry = findAuthorityEntry('continuity-reasons', view)
     rows.push({
       section: 'authority',
       label: scopedAuthoritySummary.segmentId ?? view.authorityBinding.segmentId ?? 'authority',
@@ -463,20 +463,20 @@ export function buildSpeechObservabilityRows(
         technicalValue: authorityTrustEntry.technicalValue,
       }))
     }
-    if (sameHerSignatureEntry) {
+    if (continuitySignatureEntry) {
       rows.push(buildRow({
         section: 'authority',
         label: 'continuity-signature',
-        value: sameHerSignatureEntry.value,
-        technicalValue: sameHerSignatureEntry.technicalValue,
+        value: continuitySignatureEntry.value,
+        technicalValue: continuitySignatureEntry.technicalValue,
       }))
     }
-    if (sameHerReasonsEntry) {
+    if (continuityReasonsEntry) {
       rows.push(buildRow({
         section: 'authority',
         label: 'continuity-reasons',
-        value: sameHerReasonsEntry.value,
-        technicalValue: sameHerReasonsEntry.technicalValue,
+        value: continuityReasonsEntry.value,
+        technicalValue: continuityReasonsEntry.technicalValue,
       }))
     }
     if (authorityMismatchSummary) {

@@ -55,9 +55,9 @@ describe('runtime held-autonomy reducer chain', () => {
         cautious: true,
         restrained: true,
         selfContinuityAuthority: {
-          selfLine: 'I stay the same her who returns to unresolved work gently.',
+          selfLine: '我沿着同一条生命线，温和地回到未完成的事情。',
           relationshipLine: 'Keep the callback on the same line and leave room before leaning closer again.',
-          authoritySummary: 'I stay the same her and keep the callback on the same line before leaning closer again.',
+          authoritySummary: '我沿着同一条生命线，让回调先保持连贯，再重新靠近。',
           sourceTags: ['projection', 'held-autonomy', 'runtime'],
         },
         personalityContinuityState: {
@@ -102,7 +102,6 @@ describe('runtime held-autonomy reducer chain', () => {
             sourceTags: ['raw', 'carry'],
           },
           openingGuidance: 'Answer gently.',
-          manifestationCadenceSummary: 'Ordinary reply cadence.',
         },
       },
       perception: {} as any,

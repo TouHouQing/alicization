@@ -15,7 +15,7 @@
 但缺少最后一步：
 
 1. 用户确认没有可靠接回原线程。
-2. execution-first fast path 也还不会拿 `threadId` 去继续原 thread。
+2. execution continuation 还不会拿 `threadId` 去继续原 thread。
 3. 结果是 Alicization 虽然会提出“要不要我替你做”，但还不能像真人一样在你点头后接住承诺并真正动手。
 
 ## Architectural Direction

@@ -225,7 +225,6 @@ describe('browser alicization bridge visual presence listeners', () => {
       mode: 'provider-stream',
       visibleText: '浏览器 transport 应保留完整 Provider JSON。',
       visibleReplyValidationStatus: 'approved',
-      projectStateEvidenceStatus: 'present',
       blockedReasons: [],
     } satisfies AlicizationVisibleReplyRealizationTransportArtifact
     const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
@@ -1168,138 +1167,6 @@ describe('browser alicization bridge visual presence listeners', () => {
     }))
   })
 
-  it('derives dynamic project-state facts from hidden failure artifact turns', async () => {
-    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
-    const bridge = getAlicizationBridge()
-
-    await bridge.appendConversationTurn?.({
-      turnId: 'turn-browser-project-state-hidden-failure',
-      sessionId: 'session-browser-project-state-hidden-failure',
-      origin: 'user-turn',
-      userText: '当前记忆索引还差什么',
-      assistantText: '',
-      structured: {
-        format: 'mind-turn-v1',
-        nonHumanAuthoredStatus: 'gateway-unreachable',
-        projectState: {
-          identity: '本地数字生命运行时',
-          currentPhase: 'memory-runtime',
-          latestLandedProgress: '长期记忆记录已经写入本地存储。',
-          primaryOpenLoop: '向量索引健康状态仍需验证。',
-          nextClosureTarget: '运行向量索引健康检查。',
-        },
-      },
-      createdAt: Date.now(),
-    } as any)
-
-    const observation = await bridge.getLatestProjectStateObservation?.()
-    expect(observation).toEqual({
-      turnId: 'turn-browser-project-state-hidden-failure',
-      sessionId: 'session-browser-project-state-hidden-failure',
-      origin: 'user-turn',
-      nonHumanAuthoredStatus: 'gateway-unreachable',
-      preDialogueAwareness: null,
-      preDialogueClosure: null,
-      projectState: expect.objectContaining({
-        identity: '本地数字生命运行时',
-        currentPhase: 'memory-runtime',
-        latestLandedProgress: '长期记忆记录已经写入本地存储。',
-        primaryOpenLoop: '向量索引健康状态仍需验证。',
-        nextClosureTarget: '运行向量索引健康检查。',
-        continuitySummary: null,
-        sameHerSelfLine: null,
-        sameHerHoldDetail: null,
-        sameHerDriftRisk: null,
-        proactiveSameHerGap: null,
-      }),
-    })
-  })
-
-  it('does not turn structural visible-reply closure metadata into project-state continuity', async () => {
-    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
-    const bridge = getAlicizationBridge()
-
-    await bridge.appendConversationTurn?.({
-      turnId: 'turn-browser-project-state-finish-evidence',
-      sessionId: 'session-browser-project-state-finish-evidence',
-      origin: 'user-turn',
-      userText: '检查当前记忆索引状态。',
-      assistantText: '向量索引仍需要健康检查。',
-      structured: {
-        format: 'mind-turn-v1',
-        projectState: {
-          latestLandedProgress: '长期记忆已经写入本地数据库。',
-          primaryOpenLoop: '向量索引健康状态尚未确认。',
-          nextClosureTarget: '运行 embedding reindex 健康检查。',
-        },
-      },
-      visibleReplyClosure: {
-        status: 'blocked',
-        reasonCodes: ['missing-visible-reply'],
-        initialCriticStatus: 'blocked',
-        finalCriticStatus: null,
-      },
-      createdAt: Date.now(),
-    } as any)
-
-    const observation = await bridge.getLatestProjectStateObservation?.()
-    expect(observation).toEqual(expect.objectContaining({
-      turnId: 'turn-browser-project-state-finish-evidence',
-      sessionId: 'session-browser-project-state-finish-evidence',
-      origin: 'user-turn',
-      nonHumanAuthoredStatus: null,
-      preDialogueAwareness: null,
-      preDialogueClosure: null,
-      projectState: expect.objectContaining({
-        latestLandedProgress: '长期记忆已经写入本地数据库。',
-        primaryOpenLoop: '向量索引健康状态尚未确认。',
-        nextClosureTarget: '运行 embedding reindex 健康检查。',
-      }),
-    }))
-  })
-
-  it('keeps hidden failure project-state snapshots factual without fixed reply governance', async () => {
-    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
-    const bridge = getAlicizationBridge()
-
-    await bridge.appendConversationTurn?.({
-      turnId: 'turn-browser-project-state-canonical-hidden-failure',
-      sessionId: 'session-browser-project-state-canonical-hidden-failure',
-      origin: 'user-turn',
-      userText: '继续检查记忆索引',
-      assistantText: '',
-      structured: {
-        format: 'mind-turn-v1',
-        nonHumanAuthoredStatus: 'gateway-unreachable',
-        projectState: {
-          identity: '本地数字生命运行时',
-          currentPhase: 'memory-runtime',
-          latestLandedProgress: '长期记忆记录已经写入本地存储。',
-          primaryOpenLoop: '向量索引健康状态仍需验证。',
-          nextClosureTarget: '运行向量索引健康检查。',
-        },
-      },
-      createdAt: Date.now(),
-    } as any)
-
-    const snapshot = await bridge.getProjectStateContinuitySnapshot?.()
-    expect(snapshot).toEqual(expect.objectContaining({
-      identity: '本地数字生命运行时',
-      currentPhase: 'memory-runtime',
-      latestLandedProgress: '长期记忆记录已经写入本地存储。',
-      primaryOpenLoop: '向量索引健康状态仍需验证。',
-      nextClosureTarget: '运行向量索引健康检查。',
-      sameHerSelfLine: null,
-      sameHerHoldDetail: null,
-      preDialogueClosure: null,
-      sameHerDriftRisk: null,
-      nonHumanAuthoredStatus: 'gateway-unreachable',
-      turnId: 'turn-browser-project-state-canonical-hidden-failure',
-      sessionId: 'session-browser-project-state-canonical-hidden-failure',
-      origin: 'user-turn',
-    }))
-  })
-
   it('keeps browser fallback memory searchable during salience refresh instead of archiving it away', async () => {
     disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
     const bridge = getAlicizationBridge()
@@ -2007,45 +1874,6 @@ describe('browser alicization bridge visual presence listeners', () => {
           }),
         }),
       ]),
-    }))
-  })
-
-  it('keeps browser project-state snapshots factual without reconstructing reply-governance templates', async () => {
-    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
-    const bridge = getAlicizationBridge()
-
-    await bridge.appendConversationTurn?.({
-      turnId: 'turn-browser-project-state-factual-snapshot',
-      sessionId: 'session-browser-project-state-factual-snapshot',
-      origin: 'user-turn',
-      assistantText: '长期记忆记录已写入，下一步检查向量索引。',
-      structured: {
-        format: 'mind-turn-v1',
-        projectState: {
-          identity: '本地数字生命运行时',
-          currentPhase: 'memory-runtime',
-          latestLandedProgress: '长期记忆记录已经写入本地存储。',
-          primaryOpenLoop: '向量索引健康状态仍需验证。',
-          nextClosureTarget: '运行向量索引健康检查。',
-        },
-      },
-      createdAt: Date.now(),
-    } as any)
-
-    const snapshot = await bridge.getProjectStateContinuitySnapshot?.()
-
-    expect(snapshot).toEqual(expect.objectContaining({
-      identity: '本地数字生命运行时',
-      currentPhase: 'memory-runtime',
-      latestLandedProgress: '长期记忆记录已经写入本地存储。',
-      primaryOpenLoop: '向量索引健康状态仍需验证。',
-      nextClosureTarget: '运行向量索引健康检查。',
-      continuitySummary: null,
-      sameHerSelfLine: null,
-      sameHerHoldDetail: null,
-      sameHerDriftRisk: null,
-      proactiveSameHerGap: null,
-      preDialogueClosure: null,
     }))
   })
 

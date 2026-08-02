@@ -46,22 +46,6 @@ function asArray<T>(value: T[] | null | undefined) {
 
 const initiativeWhyMaxChars = 320
 
-interface AlicizationInitiativeProjectStateInput {
-  preflightSummary?: string | null
-  identity?: string | null
-  currentPhase?: string | null
-  latestLandedProgress?: string | null
-  latestProgress?: string | null
-  landedProgressSummary?: string | null
-  primaryOpenLoop?: string | null
-  openClosureSummary?: string | null
-  nextClosureTarget?: string | null
-  nextClosureTargetSummary?: string | null
-  sameHerSelfLine?: string | null
-  sameHerDriftRisk?: string | null
-  sameHerDriftRiskSummary?: string | null
-}
-
 function actionSpeaks(action: AlicizationMindActionTendency) {
   return action === 'whisper' || action === 'speak' || action === 'warn'
 }
@@ -314,7 +298,6 @@ function proposalBias(input: {
   motiveEngine?: AlicizationMotiveEngineSnapshot | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
   concern?: AlicizationConcernSnapshot | null
-  projectState?: AlicizationInitiativeProjectStateInput | null
 }) {
   let bias = 0
 
@@ -373,7 +356,6 @@ function createProposal(input: {
   selfContinuity?: AlicizationSelfContinuitySnapshot | null
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   personalityAuthority?: AlicizationPersonalityState | null
-  projectState?: AlicizationInitiativeProjectStateInput | null
   style?: AlicizationProactiveStyle
   presence?: AlicizationInitiativeProposalSnapshot['embodiedPresence']
   targetBeliefId?: string | null
@@ -477,7 +459,6 @@ export function buildInitiativeArbitration(input: {
   counterfactualDeliberation?: AlicizationCounterfactualDeliberationSnapshot | null
   desireMemory?: AlicizationDesireMemorySnapshot | null
   memoryTuningAdvice?: AlicizationMemoryTuningAdvice | null
-  projectState?: AlicizationInitiativeProjectStateInput | null
 }): AlicizationInitiativeArbitrationSnapshot {
   const concern = dominantConcern(input.concerns)
   const runtimeThread = foregroundRuntimeThread(input.threadRuntime)
@@ -517,7 +498,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      projectState: input.projectState ?? null,
       style: option.style,
       presence: option.embodiedPresence,
       targetCounterfactualOptionId: option.id,
@@ -557,7 +537,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      projectState: input.projectState ?? null,
       style: concern.kind === 'care-body'
         ? (input.context.relationship.fatigue >= 80 ? 'firm-warning' : 'gentle-care')
         : concern.kind === 'co-watch'
@@ -599,7 +578,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      projectState: input.projectState ?? null,
       targetCommitmentId: commitment.id,
       targetRuntimeThreadId: runtimeThread?.id ?? null,
       targetThoughtThreadId: thoughtThread?.id ?? null,
@@ -637,7 +615,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      projectState: input.projectState ?? null,
       targetThoughtThreadId: thoughtThread.id,
       targetConcernId: concern?.id ?? null,
     }))
@@ -666,7 +643,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      projectState: input.projectState ?? null,
       presence: runtimeThread.suggestedPresence,
       targetRuntimeThreadId: runtimeThread.id,
       targetThreadId: runtimeThread.sourceThreadId ?? null,
@@ -699,7 +675,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      projectState: input.projectState ?? null,
       targetGovernorIntentionId: governorIntention.id,
       targetConcernId: concern?.id ?? null,
     }))
@@ -730,7 +705,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      projectState: input.projectState ?? null,
       targetDesireId: desire.id,
       targetConcernId: concern?.id ?? null,
     }))
@@ -765,7 +739,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      projectState: input.projectState ?? null,
       targetThreadId: input.worldModel.activeThread.id,
       targetRuntimeThreadId: runtimeThread?.id ?? null,
       targetThoughtThreadId: thoughtThread?.id ?? null,
@@ -788,7 +761,6 @@ export function buildInitiativeArbitration(input: {
       selfContinuity: input.selfContinuity,
       autobiographicalSelf: input.autobiographicalSelf,
       personalityAuthority: input.personalityAuthority,
-      projectState: input.projectState ?? null,
       targetConcernId: concern?.id ?? null,
     }))
   }
@@ -801,7 +773,6 @@ export function buildInitiativeArbitration(input: {
         motiveEngine: input.motiveEngine ?? null,
         habitPolicy: input.habitPolicy ?? null,
         concern,
-        projectState: input.projectState ?? null,
       })),
     }))
     .sort((left, right) => right.score - left.score)

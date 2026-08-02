@@ -1,8 +1,8 @@
 import type { WorkingMemorySnapshot } from './working-memory'
-import type { WorkingMemoryPromptView } from './working-memory-prompt-view'
+import type { WorkingMemoryQualityView } from './working-memory-quality-view'
 
 import { compressWorkingMemorySnapshot } from './working-memory-compressor'
-import { buildWorkingMemoryPromptView } from './working-memory-prompt-view'
+import { buildWorkingMemoryQualityView } from './working-memory-quality-view'
 
 export interface WorkingMemoryQualityFixture {
   id: string
@@ -58,7 +58,7 @@ export interface WorkingMemoryQualityTrace {
 export interface WorkingMemoryQualityResult {
   fixtureId: string
   compressedSnapshot: WorkingMemorySnapshot
-  view: WorkingMemoryPromptView
+  view: WorkingMemoryQualityView
   metrics: WorkingMemoryQualityMetrics
   trace: WorkingMemoryQualityTrace
   passed: boolean
@@ -77,11 +77,10 @@ function scoreExpected(expected: string[], actualText: string) {
   return hits / expected.length
 }
 
-function buildFailureText(view: WorkingMemoryPromptView) {
+function buildFailureText(view: WorkingMemoryQualityView) {
   return [
     ...view.modules.audit.failureTurnIds.map(id => `failure:${id}`),
     ...view.modules.audit.notes,
-    ...view.rendering.blockLines,
   ].join('\n')
 }
 
@@ -97,8 +96,8 @@ export function runWorkingMemoryQualityHarnessFixture(input: {
 }): WorkingMemoryQualityResult {
   const fixture = input.fixture
   const compressedSnapshot = compactWorkingMemoryForQuality(fixture)
-  const view = buildWorkingMemoryPromptView(compressedSnapshot)
-  const block = view.rendering.blockLines.join('\n')
+  const view = buildWorkingMemoryQualityView(compressedSnapshot)
+  const structuredViewText = JSON.stringify(view.modules)
   const taskText = [
     view.modules.task.summary ?? '',
     view.modules.task.status ?? '',
@@ -117,7 +116,7 @@ export function runWorkingMemoryQualityHarnessFixture(input: {
   const correctionScore = scoreExpected(fixture.expectedCorrectionIncludes ?? [], correctionText)
   const failureScore = scoreExpected(expectedFailureMarkers, failureText)
   const candidateBoundaryViolationCount = (fixture.forbiddenConfirmedCandidateText ?? [])
-    .filter(text => block.includes(text))
+    .filter(text => structuredViewText.includes(text))
     .length
   const missingReasons = [
     !includesAll(taskText, fixture.expectedTaskIncludes ?? []) ? 'missing-task' : null,

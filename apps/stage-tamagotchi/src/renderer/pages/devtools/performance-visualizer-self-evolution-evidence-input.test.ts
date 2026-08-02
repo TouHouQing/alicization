@@ -3,12 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { buildSelfEvolutionEvidencePanelInput } from './performance-visualizer-self-evolution-evidence-input'
 
 describe('performance visualizer self evolution evidence input', () => {
-  it('passes same-her summary layers through to the evidence panel builder input', () => {
+  it('passes active evidence layers through to the evidence panel builder input', () => {
     expect(buildSelfEvolutionEvidencePanelInput({
-      preDialogueBriefingSummary: {
-        status: 'drift',
-        lines: ['briefing=drift=preDialogueBriefingDrift | fullyBriefed=0.33 (1/3)'],
-      },
       proactiveDecisionConsumptionSummary: {
         status: 'grounded',
         decisionMode: 'birth-anchored-restraint',
@@ -19,13 +15,7 @@ describe('performance visualizer self evolution evidence input', () => {
         status: 'grounded',
         trajectoryLabel: 'restrained companionship is holding',
         dominantDrift: null,
-        lines: ['remembered-familiarity-trajectory: familiarity is staying memory-first while the same-her room holds'],
-      },
-      identityDriftGovernanceSummary: {
-        status: 'grounded',
-        governanceMode: 'bounded-growth',
-        dominantDrift: null,
-        lines: ['remembered-familiarity-governance: familiarity stayed in memory first, so growth did not widen visible closeness past the same-her room'],
+        lines: ['remembered-familiarity-trajectory: familiarity is staying memory-first while the continuity room holds'],
       },
       rejectedActionAlternatives: {
         status: 'grounded',
@@ -36,17 +26,11 @@ describe('performance visualizer self evolution evidence input', () => {
         reasons: ['Counterfactual competition kept hover ahead because remembered familiarity was held as memory before visible closeness widened, so the more direct speak return was intentionally declined.'],
       },
     } as any)).toEqual(expect.objectContaining({
-      preDialogueBriefingSummary: expect.objectContaining({
-        status: 'drift',
-      }),
       proactiveDecisionConsumptionSummary: expect.objectContaining({
         decisionMode: 'birth-anchored-restraint',
       }),
       candidateTrajectorySummary: expect.objectContaining({
         trajectoryLabel: 'restrained companionship is holding',
-      }),
-      identityDriftGovernanceSummary: expect.objectContaining({
-        governanceMode: 'bounded-growth',
       }),
       rejectedActionAlternatives: expect.objectContaining({
         selectedOptionId: 'cf-hover',

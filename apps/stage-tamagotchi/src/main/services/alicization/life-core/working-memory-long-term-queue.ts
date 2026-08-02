@@ -35,16 +35,19 @@ export interface WorkingMemoryLongTermQueueItem {
   createdAt: number
 }
 
-const fixedFallbackTemplatePattern = /我在。同一条本地数字生命的线还在|同一条本地数字生命的线还在|我先轻一点留在这里|你想说什么，我就接住/u
-
 const fixedTemplateEvidenceReplacement
-  = 'content_withheld; reason=continuity-residue'
+  = 'content_withheld; reason=structured-internal-residue'
+
+const internalStructuredFactContext = {
+  provenance: 'internal-structured-fact' as const,
+}
 
 function sanitizeQueueText(raw: unknown, maxChars = 260, replacement = '') {
   return sanitizeAlicizationProviderFacingText(
     normalizeWorkingMemoryText(raw, maxChars),
     maxChars,
     replacement,
+    internalStructuredFactContext,
   )
 }
 
@@ -86,11 +89,11 @@ function collectContaminationFlags(input: {
     flags.push('failure-turn')
   if (input.sourceTurnIds.some(turnId => input.excludedTurnIds.has(turnId)))
     flags.push('excluded-turn')
-  if (
-    fixedFallbackTemplatePattern.test(candidateText(input.candidate))
-    || containsAlicizationFixedTemplateResidue(candidateText(input.candidate))
-  ) {
-    flags.push('fixed-fallback-template')
+  if (containsAlicizationFixedTemplateResidue(
+    candidateText(input.candidate),
+    internalStructuredFactContext,
+  )) {
+    flags.push('structured-internal-residue')
   }
   const turnsById = new Map(input.snapshot.recentRawTurns.map(turn => [turn.turnId, turn]))
   const hasIneligibleTypedSource = input.sourceTurnIds.some((turnId) => {

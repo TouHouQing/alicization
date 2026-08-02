@@ -2009,9 +2009,8 @@ describe('alicization sqlite dao', () => {
     const conflicted = rows.find(row => row.latestReconsolidation?.provenance === 'reconstructed') ?? rows[0]
     expect(conflicted?.whatHappened).toContain('runtime seam callback')
     expect(conflicted?.latestReconsolidation?.provenance).toBe('reconstructed')
-    expect(conflicted?.latestReconsolidation?.reason).toContain('Conflicting remembered variants')
+    expect(conflicted?.latestReconsolidation?.reason).toBe('memory-contradiction:conflicting-remembered-variants')
     expect(conflicted?.latestReconsolidation?.emotionTags).toContain('contradiction-pressure')
-    expect(conflicted?.lesson).toContain('answer this memory with uncertainty')
   })
 
   it('prioritizes a feedback-reconsolidated memory on the next similar recall', async () => {
@@ -2153,7 +2152,7 @@ describe('alicization sqlite dao', () => {
       sessionId: 'session-execution-callback-memory-refresh',
       turnId: 'turn-execution-callback-memory-refresh',
       threadAnchors: ['execution callback seam'],
-      affectAnchors: ['feedback:valued', 'same-her-callback'],
+      affectAnchors: ['feedback:valued', 'continuity-callback'],
       relationshipAnchors: ['host correction', 'continuity state'],
       carryAsMemory: true,
       recollectionIntent: {
@@ -2162,7 +2161,7 @@ describe('alicization sqlite dao', () => {
         searchEpisodes: true,
         searchConversations: true,
         searchProceduralExperience: true,
-        queryHints: ['execution callback', 'continuity state', 'same her'],
+        queryHints: ['execution callback', 'continuity state', '同一个她'],
         rationale: 'The same thread should now be answered with the richer identity-continuity',
         confidence: 0.82,
       },
@@ -2585,25 +2584,20 @@ describe('alicization sqlite dao', () => {
         periodKey: '2026-05-humanlike-carry',
         periodStartedAt: new Date('2026-05-29T09:00:00Z').getTime(),
         periodEndedAt: new Date('2026-05-30T10:00:00Z').getTime(),
-        summary: 'That self era kept carrying corrected same-person continuity on a lower-pressure line.',
-        lesson: 'Do not defend the first interpretation once the host has corrected the relationship meaning.',
-        cues: ['corrected same-person continuity', 'lower-pressure'],
+        summary: 'The user corrected how an earlier result should be interpreted.',
+        lesson: 'Prefer the corrected evidence over the earlier uncertain interpretation.',
+        cues: ['user correction', 'verified evidence'],
         confidence: 0.9,
         dominantProvenance: 'remembered',
         derivedEventIds: ['event-humanlike-carry-1'],
         updatedAt: Date.now(),
         metadata: {
           humanlikeCarry: {
-            relationshipPrimaryIntent: 'same-person-test',
-            recallCertainty: 'corrected',
-            emotionalResidueTags: ['protective-continuity', 'unfinishedness', 'corrected-meaning'],
-            embodimentCadence: 'lower-pressure voice, slower pacing, stable gaze',
-            metabolismSummary: 'Downrank the older status shell and keep the corrected same-person continuity meaning active.',
-            autobiographicalDelta: 'I learned to carry corrected same-person continuity on a lower-pressure continuity state.',
-          },
-          projectState: {
-            selfContinuityInwardLine: 'structured continuity digest.',
-            selfContinuitySourceTags: ['project-state-carry', 'continuity-execution-callback-project-carry'],
+            relationshipPrimaryIntent: 'respect-user-correction',
+            recallCertainty: 'confirmed',
+            emotionalResidueTags: ['relief', 'trust-repair'],
+            metabolismSummary: 'The corrected evidence now supersedes the earlier uncertain reading.',
+            autobiographicalDelta: 'The correction changed how this memory should be recalled.',
           },
         },
       },
@@ -2612,13 +2606,11 @@ describe('alicization sqlite dao', () => {
     const rows = await db.listMemoryConsolidations(8)
     expect(rows[0]?.metadata).toEqual(expect.objectContaining({
       humanlikeCarry: expect.objectContaining({
-        relationshipPrimaryIntent: 'same-person-test',
-        recallCertainty: 'corrected',
-        emotionalResidueTags: expect.arrayContaining(['protective-continuity', 'corrected-meaning']),
-        embodimentCadence: expect.stringContaining('stable gaze'),
-      }),
-      projectState: expect.objectContaining({
-        selfContinuityInwardLine: expect.stringContaining('Phase 1 digital life'),
+        relationshipPrimaryIntent: 'respect-user-correction',
+        recallCertainty: 'confirmed',
+        emotionalResidueTags: ['relief', 'trust-repair'],
+        metabolismSummary: 'The corrected evidence now supersedes the earlier uncertain reading.',
+        autobiographicalDelta: 'The correction changed how this memory should be recalled.',
       }),
     }))
   })
@@ -2890,7 +2882,7 @@ describe('alicization sqlite dao', () => {
         source: 'working-memory-owner',
         kind: 'correction',
         summary: '不要固定模板回复，要数字生命自身人格。',
-        reason: 'User corrected Alicization persona expression during the current dialogue.',
+        reason: 'candidate:correction',
         sourceTurnIds: ['turn-1:user'],
         evidenceSnippets: ['不要固定模板回复，要数字生命自身人格。'],
         salience: 0.82,
@@ -2954,7 +2946,7 @@ describe('alicization sqlite dao', () => {
           source: 'working-memory-owner',
           kind: 'preference',
           summary: '用户明确喜欢回复先说结论，再给必要细节。',
-          reason: 'User stated a stable response preference.',
+          reason: 'candidate:preference',
           sourceTurnIds: ['turn-pref:user'],
           evidenceSnippets: ['我喜欢你先说结论，再给必要细节。'],
           salience: 0.78,
@@ -2988,7 +2980,7 @@ describe('alicization sqlite dao', () => {
           source: 'working-memory-owner',
           kind: 'procedure',
           summary: '用户认可长期记忆开发按红测、实现、验证的方式推进。',
-          reason: 'User approved a reusable working procedure.',
+          reason: 'candidate:procedure',
           sourceTurnIds: ['turn-procedure:user'],
           evidenceSnippets: ['以后长期记忆开发按红测、实现、验证这个流程推进。'],
           salience: 0.78,
@@ -3076,7 +3068,7 @@ describe('alicization sqlite dao', () => {
         source: 'working-memory-owner',
         kind: 'preference',
         summary: '用户明确喜欢回复先说结论，再给必要细节。',
-        reason: 'User stated a stable response preference.',
+        reason: 'candidate:preference',
         sourceTurnIds: ['turn-private-pref:user'],
         evidenceSnippets: ['我喜欢你先说结论，再给必要细节。'],
         salience: 0.78,
@@ -3194,8 +3186,8 @@ describe('alicization sqlite dao', () => {
 
     await db.upsertMemoryFacts([{
       subject: 'user',
-      predicate: 'rejects_reply_behavior',
-      object: '不要固定模板回复',
+      predicate: 'prefers_failure_reporting',
+      object: '失败时明确说明原因',
       confidence: 0.82,
       memoryDomain: 'relationship',
       validationStatus: 'provisional',
@@ -3207,9 +3199,9 @@ describe('alicization sqlite dao', () => {
       sessionId: 'session-1',
       sourceKind: 'reply',
       targetScope: 'boundary',
-      summary: '不要固定模板回复',
-      lesson: '从连续数字生命人格回应',
-      status: 'pending',
+      summary: '用户希望失败时明确说明原因',
+      lesson: '将失败原因作为可回想的用户偏好',
+      status: 'confirmed',
       confidence: 0.78,
     }])
     await db.appendEpisodicEvents([{
@@ -3245,10 +3237,10 @@ describe('alicization sqlite dao', () => {
 
     const correctionBundle = await db.retrieveLongTermMemoryEvidence({
       cardId: 'default',
-      currentUserText: '不要固定模板回复',
+      currentUserText: '以后失败时要明确说明原因',
       limit: 8,
     })
-    expect(correctionBundle.intent.mode).toBe('relationship')
+    expect(correctionBundle.intent.mode).toBe('preference')
     expect(correctionBundle.evidence.map(item => item.candidate.source)).toEqual(expect.arrayContaining([
       'memory_facts',
       'memory_reflections',
@@ -3256,10 +3248,10 @@ describe('alicization sqlite dao', () => {
 
     const naturalCorrectionBundle = await db.retrieveLongTermMemoryEvidence({
       cardId: 'default',
-      currentUserText: '你还记得我不要固定模板回复吗？',
+      currentUserText: '你还记得我说过以后失败时要明确说明原因吗？',
       limit: 8,
     })
-    expect(naturalCorrectionBundle.intent.mode).toBe('relationship')
+    expect(naturalCorrectionBundle.intent.mode).toBe('preference')
     expect(naturalCorrectionBundle.evidence.map(item => item.candidate.source)).toEqual(expect.arrayContaining([
       'memory_facts',
       'memory_reflections',
@@ -3273,8 +3265,8 @@ describe('alicization sqlite dao', () => {
 
     await db.upsertMemoryFacts([{
       subject: 'user',
-      predicate: 'rejects_reply_behavior',
-      object: '不要固定模板回复',
+      predicate: 'prefers_failure_reporting',
+      object: '失败时明确说明原因',
       confidence: 0.82,
       memoryDomain: 'relationship',
       validationStatus: 'provisional',
@@ -3285,7 +3277,7 @@ describe('alicization sqlite dao', () => {
 
     const before = await db.retrieveLongTermMemoryEvidence({
       cardId: 'default',
-      currentUserText: '你还记得我不要固定模板回复吗？',
+      currentUserText: '你还记得我说过失败时要明确说明原因吗？',
       limit: 8,
     })
     expect(before.evidence.map(item => item.candidate.id)).toContain(fact!.id)
@@ -3297,7 +3289,7 @@ describe('alicization sqlite dao', () => {
 
     const after = await db.retrieveLongTermMemoryEvidence({
       cardId: 'default',
-      currentUserText: '你还记得我不要固定模板回复吗？',
+      currentUserText: '你还记得我说过失败时要明确说明原因吗？',
       limit: 8,
     })
     expect(after.evidence.map(item => item.candidate.id)).not.toContain(fact!.id)
@@ -4277,20 +4269,6 @@ describe('alicization sqlite dao', () => {
         sourceSessionId: 'session-1',
         action: 'verify',
         reason: 'verify contradiction',
-        projectStateContinuity: {
-          identity: 'Alicization is a local-first digital life project building identity continuity on the host computer rather than a better chat wrapper.',
-          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          sameHerSummary: 'Keep one same local digital life coherent across emotion, memory, initiative, and embodiment while learning from this turn.',
-          landedProgressSummary: 'Project-state continuity already survives into runtime preparation and visible reply carry.',
-          openClosureSummary: 'Memory still needs stronger end-to-end closure across turns, initiative, and embodiment.',
-          proactiveSameHerGap: 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.',
-          nextClosureTarget: 'Keep extending cross-modal identity-continuity',
-          preDialogueAwarenessLine: 'pre_turn_context_digest',
-          emotionalClosureCue: 'identity-continuity',
-          sameHerSelfLine: 'structured continuity digest.',
-          sameHerHoldDetail: 'identity-continuity',
-          sameHerDriftRisk: 'If project-state continuity survives only as generic guidance while the identity-continuity',
-        },
         focuses: ['resolve-contradictions'],
         dominantTrajectory: 'Need to verify',
         sourceSignals: ['Need to verify'],
@@ -4309,20 +4287,7 @@ describe('alicization sqlite dao', () => {
     const claimed = await db.claimDueLearningTasks('default', nowMs, 10)
     expect(claimed).toHaveLength(1)
     expect(claimed[0]?.status).toBe('claimed')
-    expect(claimed[0]?.payload.projectStateContinuity).toEqual(expect.objectContaining({
-      identity: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
-      currentPhase: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
-      landedProgressSummary: expect.stringContaining('runtime preparation'),
-      proactiveSameHerGap: expect.stringContaining('visible proactive hold'),
-      preDialogueAwarenessLine: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
-      emotionalClosureCue: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
-      sameHerSelfLine: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
-      sameHerHoldDetail: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
-      sameHerDriftRisk: 'content=excluded; reason=continuity-residue; visibility=redacted_internal',
-    }))
-    expect(JSON.stringify(claimed[0]?.payload.projectStateContinuity)).not.toMatch(/Pre-reply|local-first digital life project|Phase 1: Local Digital Life|legacy phase-one template|continuity state|identity-continuity/iu)
-    expect(JSON.stringify(claimed[0]?.payload.projectStateContinuity)).toContain('content=excluded')
-    expect(JSON.stringify(claimed[0]?.payload.projectStateContinuity)).toContain('visibility=redacted_internal')
+    expect(claimed[0]?.payload).not.toHaveProperty('runtimeContinuity')
 
     await db.startLearningTask('learning-task-1', nowMs)
     await db.completeLearningTask('learning-task-1', {

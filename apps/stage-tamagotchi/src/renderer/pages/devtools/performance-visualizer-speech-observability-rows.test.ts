@@ -2932,7 +2932,7 @@ describe('performance visualizer speech observability rows', () => {
     })
   })
 
-  it('keeps body-backed same-her authority visible in observability rows when the living segment is now carried by the body line', () => {
+  it('keeps body-backed continuity authority visible in observability rows when the living segment is now carried by the body line', () => {
     const view = buildSpeechObservabilityView({
       phase: 'playing',
       playbackPhase: 'playing',
@@ -3164,7 +3164,7 @@ describe('performance visualizer speech observability rows', () => {
     })
   })
 
-  it('surfaces same-her signature and reason tags rows when playback cue authority already carries shared-line proof', () => {
+  it('surfaces continuity signature and reason tags rows when playback cue authority already carries shared-line proof', () => {
     const view = buildSpeechObservabilityView({
       phase: 'playing',
       playbackPhase: 'playing',
@@ -3193,7 +3193,7 @@ describe('performance visualizer speech observability rows', () => {
       playbackTelemetry: {
         rendererTarget: 'vrm',
         driverAuthority: {
-          segmentId: 'segment-same-her-observability-row',
+          segmentId: 'segment-continuity-observability-row',
           rendererTarget: 'vrm',
           matchedDrivers: ['body', 'lipsync'],
           sources: ['prosody-authority', 'voice-segment'],
@@ -3203,12 +3203,12 @@ describe('performance visualizer speech observability rows', () => {
           lipsyncSegmentMatched: true,
         },
         cue: {
-          id: 'segment-same-her-observability-row',
+          id: 'segment-continuity-observability-row',
           rendererHints: {
             preferredBlinkCadence: 'linger',
             preferredGazeMode: 'soften',
             reasonTags: [
-              'embodiment:audible-same-her-line',
+              'embodiment:audible-continuity-line',
               'embodiment:still-voiced-motion-line',
             ],
             signature: 'embodiment:body-lipsync-voice-rejoin',
@@ -3229,13 +3229,13 @@ describe('performance visualizer speech observability rows', () => {
 
     expect(rows).toContainEqual({
       section: 'authority',
-      label: 'same-her-signature',
+      label: 'continuity-signature',
       value: 'embodiment:body-lipsync-voice-rejoin',
     })
     expect(rows).toContainEqual({
       section: 'authority',
-      label: 'same-her-reasons',
-      value: 'embodiment:audible-same-her-line, embodiment:still-voiced-motion-line',
+      label: 'continuity-reasons',
+      value: 'embodiment:audible-continuity-line, embodiment:still-voiced-motion-line',
     })
   })
 
@@ -3304,7 +3304,7 @@ describe('performance visualizer speech observability rows', () => {
     })
   })
 
-  it('surfaces explicit convergence rows when same-her convergence has been published for the active speech segment', () => {
+  it('surfaces explicit convergence rows when continuity convergence has been published for the active speech segment', () => {
     const view = {
       articulation: null,
       articulationSummary: null,

@@ -61,16 +61,6 @@ describe('alicization memory decision trace', () => {
               reasonCodes: ['domain:self-model', 'rollback-validation-required'],
               summary: 'Keep the revised self-line in verify-first posture.',
             },
-            activeContinuityGovernance: {
-              source: 'active-self-evolution-version',
-              mode: 'same-her-baseline',
-              candidateId: 'candidate-runtime-1',
-              patchId: 'patch-runtime-1',
-              decisionTraceId: 'trace-runtime-1',
-              lanes: ['response-posture', 'rollback-validation'],
-              reasonCodes: ['domain:self-model', 'rollback-validation-required'],
-              summary: 'Keep the revised self-line in verify-first posture.',
-            },
             summary: 'bundle summary',
           },
           memoryStageReplay: {
@@ -198,11 +188,6 @@ describe('alicization memory decision trace', () => {
         patchDecisionTraceId: 'trace-runtime-1',
         lanes: expect.arrayContaining(['response-posture', 'rollback-validation']),
       }),
-      activeContinuityGovernance: expect.objectContaining({
-        mode: 'same-her-baseline',
-        candidateId: 'candidate-runtime-1',
-        patchId: 'patch-runtime-1',
-      }),
     }))
   })
 
@@ -288,13 +273,6 @@ describe('alicization memory decision trace', () => {
                 tone: 'measured-return',
                 reason: 'Drive quieter face, voice, motion, and lipsync together.',
               },
-              selfRevisionCandidate: {
-                shouldPropose: false,
-                domain: 'dialogue-style',
-                reasonCodes: [],
-                summary: null,
-                projectStateContinuity: {},
-              },
               traceSummary: 'emotion shifted because the remembered repair line landed',
               replayLine: 'next turn should keep the same quieter afterglow',
             },
@@ -310,16 +288,11 @@ describe('alicization memory decision trace', () => {
               memoryWriteback: {
                 shouldWrite: true,
                 lane: 'cross-modal-continuity',
-                reason: 'All embodiment lanes held the same-her memory line.',
-              },
-              selfRevisionCandidate: {
-                shouldPropose: false,
-                reasonCodes: [],
-                summary: null,
+                reason: 'All embodiment lanes held the continuity memory line.',
               },
               traceSummary: 'voice face motion lipsync and body stayed on one line',
               replayLine: 'body expression should remain measured-return next turn',
-              sourceTags: ['dialogue-emitted', 'same-her-body'],
+              sourceTags: ['dialogue-emitted', 'continuity-body'],
             },
           },
           memoryResolutionLedger: {
@@ -452,13 +425,6 @@ describe('alicization memory decision trace', () => {
           tone: 'measured-return',
           reason: summary,
         },
-        selfRevisionCandidate: {
-          shouldPropose: false,
-          domain: 'dialogue-style',
-          reasonCodes: [],
-          summary: null,
-          projectStateContinuity: {},
-        },
         traceSummary: summary,
         replayLine: summary,
         memoryClosureCausality: {
@@ -480,11 +446,6 @@ describe('alicization memory decision trace', () => {
           shouldWrite: true,
           lane: 'cross-modal-continuity',
           reason: summary,
-        },
-        selfRevisionCandidate: {
-          shouldPropose: false,
-          reasonCodes: [],
-          summary: null,
         },
         traceSummary: summary,
         replayLine: summary,
@@ -780,7 +741,7 @@ describe('alicization memory decision trace', () => {
             motion: { residentMode: 'measured-return' },
             lipSync: { residentMode: 'measured-return' },
             bodyContinuity: {
-              bodyLine: 'voice face motion lipsync and body stay on the same-her memory callback line',
+              bodyLine: 'voice face motion lipsync and body stay on the continuity memory callback line',
             },
             action: {
               actionCue: 'observe_focus',
@@ -832,7 +793,7 @@ describe('alicization memory decision trace', () => {
       motion: expect.objectContaining({ residentMode: 'measured-return' }),
       lipSync: expect.objectContaining({ residentMode: 'measured-return' }),
       bodyContinuity: expect.objectContaining({
-        bodyLine: expect.stringContaining('same-her memory callback line'),
+        bodyLine: expect.stringContaining('continuity memory callback line'),
       }),
     }))
     expect(records[0]?.embodimentAuthority?.embodimentScript).toEqual(expect.objectContaining({

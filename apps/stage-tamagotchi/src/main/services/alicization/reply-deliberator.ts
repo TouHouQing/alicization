@@ -15,7 +15,6 @@ import type { AlicizationDialogueTurnEncounter } from './dialogue-turn-encounter
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
 import {
-  isDialogueControlDirectiveText,
   sanitizeDialogueAnchorText,
   sanitizeDialogueSurfaceText,
 } from './dialogue-surface-text'
@@ -55,10 +54,7 @@ function sanitizeTag(raw: unknown, maxChars = 48) {
 }
 
 function sanitizeDynamicText(raw: unknown, maxChars = 220) {
-  const normalized = sanitizeDialogueSurfaceText(raw, maxChars)
-  if (!normalized || isDialogueControlDirectiveText(normalized))
-    return ''
-  return normalized
+  return sanitizeDialogueSurfaceText(raw, maxChars)
 }
 
 function pickDynamicText(maxChars: number, ...sources: DynamicTextSource[]): DynamicTextSelection | null {

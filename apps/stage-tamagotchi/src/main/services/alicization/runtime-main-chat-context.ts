@@ -22,7 +22,6 @@ interface CreateAlicizationMainChatContextRuntimeOptions {
   getActiveCardId: () => string
   normalizeOrganicRecallText: (raw: string) => string
   readTransportContentAsText: (content: unknown) => string
-  isInternalAlicizationRepairPrompt: (text: string) => boolean
   emptyAlicizationExecutionCallbackContext: AlicizationExecutionCallbackContext
   emptyAlicizationExecutionLedgerContext: AlicizationExecutionLedgerContext
   ensureActiveOrLatestSessionId: (cardId: string) => Promise<string>
@@ -53,7 +52,6 @@ export function createAlicizationMainChatContextRuntime(options: CreateAlicizati
     getActiveCardId,
     normalizeOrganicRecallText,
     readTransportContentAsText,
-    isInternalAlicizationRepairPrompt,
     emptyAlicizationExecutionCallbackContext,
     emptyAlicizationExecutionLedgerContext,
     ensureActiveOrLatestSessionId,
@@ -96,7 +94,7 @@ export function createAlicizationMainChatContextRuntime(options: CreateAlicizati
 
   async function buildMainChatExecutionCallbackContext(payload: AlicizationChatStartPayload): Promise<AlicizationExecutionCallbackContext> {
     const currentUserText = readMainChatCurrentUserText(payload)
-    if (!currentUserText || isInternalAlicizationRepairPrompt(currentUserText))
+    if (!currentUserText)
       return emptyAlicizationExecutionCallbackContext
 
     const sessionId = await ensureActiveOrLatestSessionId(getActiveCardId()).catch(() => '')
@@ -110,7 +108,7 @@ export function createAlicizationMainChatContextRuntime(options: CreateAlicizati
 
   async function buildMainChatExecutionLedgerContext(payload: AlicizationChatStartPayload): Promise<AlicizationExecutionLedgerContext> {
     const currentUserText = readMainChatCurrentUserText(payload)
-    if (!currentUserText || isInternalAlicizationRepairPrompt(currentUserText))
+    if (!currentUserText)
       return emptyAlicizationExecutionLedgerContext
 
     const sessionId = await ensureActiveOrLatestSessionId(getActiveCardId()).catch(() => '')
@@ -127,7 +125,7 @@ export function createAlicizationMainChatContextRuntime(options: CreateAlicizati
 
   async function buildMainChatPendingAffirmationThread(payload: AlicizationChatStartPayload): Promise<AlicizationPendingAffirmationThreadCandidate | null> {
     const currentUserText = readMainChatCurrentUserText(payload)
-    if (!currentUserText || isInternalAlicizationRepairPrompt(currentUserText))
+    if (!currentUserText)
       return null
 
     const sessionId = await ensureActiveOrLatestSessionId(getActiveCardId()).catch(() => '')
@@ -171,7 +169,7 @@ export function createAlicizationMainChatContextRuntime(options: CreateAlicizati
 
   async function buildMainChatContextualString(payload: AlicizationChatStartPayload) {
     const currentUserText = readMainChatCurrentUserText(payload)
-    if (!currentUserText || isInternalAlicizationRepairPrompt(currentUserText))
+    if (!currentUserText)
       return ''
     if (resolveInspectionIntentFromMessageHistory({
       userText: currentUserText,
@@ -216,7 +214,7 @@ export function createAlicizationMainChatContextRuntime(options: CreateAlicizati
     messages: AlicizationChatStartPayload['messages'],
     latestUserText: string,
   ) {
-    if (!latestUserText || isInternalAlicizationRepairPrompt(latestUserText) || !resolveInspectionIntentFromMessageHistory({
+    if (!latestUserText || !resolveInspectionIntentFromMessageHistory({
       userText: latestUserText,
       messages,
     })) {
@@ -224,22 +222,18 @@ export function createAlicizationMainChatContextRuntime(options: CreateAlicizati
     }
 
     let inspectionContextActive = false
-    return messages.map((message, index) => {
+    return messages.filter((message, index) => {
       const role = typeof message?.role === 'string' ? message.role : ''
       if (role === 'user') {
         const userText = normalizeOrganicRecallText(readTransportContentAsText(message.content))
         inspectionContextActive = detectInvitedInspectionIntent(userText).active
-        return message
+        return true
       }
 
-      if (role === 'assistant' && inspectionContextActive && index < messages.length - 1) {
-        return {
-          ...message,
-          content: '[Earlier Alicization screen-inspection reply intentionally omitted so the current screenshot can dominate.]',
-        }
-      }
+      if (role === 'assistant' && inspectionContextActive && index < messages.length - 1)
+        return false
 
-      return message
+      return true
     })
   }
 

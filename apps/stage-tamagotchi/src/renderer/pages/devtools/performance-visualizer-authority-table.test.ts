@@ -913,10 +913,10 @@ describe('performance visualizer authority table rows', () => {
     ])
   })
 
-  it('keeps same-her signature and reason tags visible in outer authority table speech summaries when shared-line proof survives on the speech row', () => {
+  it('keeps continuity signature and reason tags visible in outer authority table speech summaries when shared-line proof survives on the speech row', () => {
     const rows = buildAuthorityTableRows([
       {
-        cueId: 'segment-same-her-authority-table-1',
+        cueId: 'segment-continuity-authority-table-1',
         cueText: '身体、口型和声音还在一起托住这一段。',
         surfaces: 'vrm',
         lanes: 'lipsync, settle',
@@ -936,8 +936,8 @@ describe('performance visualizer authority table rows', () => {
         ],
       },
     ] as any, {
-      'segment-same-her-authority-table-1': {
-        cueId: 'segment-same-her-authority-table-1',
+      'segment-continuity-authority-table-1': {
+        cueId: 'segment-continuity-authority-table-1',
         cueText: '身体、口型和声音还在一起托住这一段。',
         driftStatus: 'partial-drift',
         aligned: false,
@@ -947,9 +947,9 @@ describe('performance visualizer authority table rows', () => {
         authorityMatchedSources: ['prosody-authority', 'voice-segment'],
         authorityBindingSummary: 'target=vrm | drivers=body, lipsync | sources=prosody-authority, voice-segment | matches=body:yes face:no motion:no lipsync:yes | lane=body+lipsync+voice-only',
         authorityMatchSummary: 'body:yes face:no motion:no lipsync:yes',
-        sameHerSignature: 'embodiment:body-lipsync-voice-rejoin',
-        sameHerReasonTags: [
-          'embodiment:audible-same-her-line',
+        continuitySignature: 'embodiment:body-lipsync-voice-rejoin',
+        continuityReasonTags: [
+          'embodiment:audible-continuity-line',
           'embodiment:still-voiced-motion-line',
         ],
         authorityMismatchSummary: 'face-mismatch, motion-mismatch',
@@ -968,17 +968,17 @@ describe('performance visualizer authority table rows', () => {
         driverExecutionSummary: null,
         traceEmbodimentSummary: null,
         visemeHintsSummary: null,
-        settleAuthoritySummary: 'authority-bound | segment=segment-same-her-authority-table-1 | target=vrm | drivers=body, lipsync | sources=prosody-authority, voice-segment',
+        settleAuthoritySummary: 'authority-bound | segment=segment-continuity-authority-table-1 | target=vrm | drivers=body, lipsync | sources=prosody-authority, voice-segment',
       },
     } as any)
 
-    expect(rows[0]?.speechSummaryLines).toContain('same-her-signature: embodiment:body-lipsync-voice-rejoin')
+    expect(rows[0]?.speechSummaryLines).toContain('continuity-signature: embodiment:body-lipsync-voice-rejoin')
     expect(rows[0]?.speechSummaryLines).toContain(
-      'same-her-reasons: embodiment:audible-same-her-line, embodiment:still-voiced-motion-line',
+      'continuity-reasons: embodiment:audible-continuity-line, embodiment:still-voiced-motion-line',
     )
   })
 
-  it('keeps execution safety-gate restraint visible in authority table speech summary lines before raw same-her tags', () => {
+  it('keeps execution safety-gate restraint visible in authority table speech summary lines before raw continuity tags', () => {
     const rows = buildAuthorityTableRows([
       {
         cueId: 'segment-safety-gate-authority-table-1',
@@ -1012,8 +1012,8 @@ describe('performance visualizer authority table rows', () => {
         authorityMatchedSources: ['resident-current-conscious-frame'],
         authorityBindingSummary: null,
         authorityMatchSummary: null,
-        sameHerSignature: 'resident|measured-return|execution-restraint',
-        sameHerReasonTags: [
+        continuitySignature: 'resident|measured-return|execution-restraint',
+        continuityReasonTags: [
           'execution-safety-gate:blocked-dispatch-restraint',
           'execution-safety-gate:confirmation-required',
           'execution-safety-gate:no-process-started',
@@ -1040,7 +1040,7 @@ describe('performance visualizer authority table rows', () => {
     } as any)
 
     const safetyGateLine = 'execution-safety-gate: blocked dispatch 已被安全门拦住；需要确认；没有启动进程。'
-    const rawReasonLine = 'same-her-reasons: execution-safety-gate:blocked-dispatch-restraint, execution-safety-gate:confirmation-required, execution-safety-gate:no-process-started, embodiment-carry:measured-return'
+    const rawReasonLine = 'continuity-reasons: execution-safety-gate:blocked-dispatch-restraint, execution-safety-gate:confirmation-required, execution-safety-gate:no-process-started, embodiment-carry:measured-return'
 
     expect(rows[0]?.speechSummaryLines).toContain(safetyGateLine)
     expect(rows[0]?.speechSummaryLines).toContain(rawReasonLine)
@@ -1403,7 +1403,7 @@ describe('performance visualizer authority table rows', () => {
     ])
   })
 
-  it('keeps body-face-motion same-her recovery and remaining-open lipsync voice closure visible in authority table rows', () => {
+  it('keeps body-face-motion continuity recovery and remaining-open lipsync voice closure visible in authority table rows', () => {
     const rows = buildAuthorityTableRows([
       {
         cueId: 'segment-body-face-motion-table-1',
@@ -2135,7 +2135,7 @@ describe('performance visualizer authority table rows', () => {
         personaStyleSummary: 'repair-before-closeness | soften / linger',
         timingSummary: 'facial=360 action=320 emotion=360 | segment-start | soft-interrupt | hold',
         driverExecutionSummary: 'face=thinking/soft-release@0.41 hold=360 pre=soft-breath post=soft-release src=prosody-authority conf=0.94 | motion=idle_settle mode=attentive idle=steady_focus@0.18 hold=320 src=timeline-projection conf=0.90 | lipsync=energy-phoneme-hybrid phase=playing',
-        traceEmbodimentSummary: 'turn=answer | closure=same-her-carry | surface=same-thread-continuation | authority=face, motion, lipsync | execution=face+motion+lipsync',
+        traceEmbodimentSummary: 'turn=answer | closure=continuity-carry | surface=same-thread-continuation | authority=face, motion, lipsync | execution=face+motion+lipsync',
         visemeHintsSummary: 'closed:0.78@0.93 src=prosody-authority segment=segment-later-callback-return | I:0.72@0.95 src=prosody-authority segment=segment-later-callback-return',
         settleAuthoritySummary: 'authority-bound | segment=segment-later-callback-return | target=live2d | drivers=face, motion, lipsync | sources=prosody-authority, timeline-projection',
         rendererDriftSummary: null,
@@ -2150,7 +2150,7 @@ describe('performance visualizer authority table rows', () => {
     expect(rows[0]?.prosodyAuthoritySummary).toContain('segment=segment-later-callback-return')
     expect(rows[0]?.speechSummaryLines).toContain('authority-trust: Live2D 表情、动作、口型已经一起回到当前片段主链，可按同一身体线继续观察。')
     expect(rows[0]?.speechSummaryLines.some(line => line.startsWith('driver-execution: '))).toBe(true)
-    expect(rows[0]?.traceEmbodimentSummary).toBe('turn=answer | closure=same-her-carry | surface=same-thread-continuation | authority=face, motion, lipsync | execution=face+motion+lipsync')
+    expect(rows[0]?.traceEmbodimentSummary).toBe('turn=answer | closure=continuity-carry | surface=same-thread-continuation | authority=face, motion, lipsync | execution=face+motion+lipsync')
     expect(rows[0]?.speechSummaryLines.some(line => line.startsWith('trace-embodiment: '))).toBe(true)
     expect(rows[2]?.settle).toBe('live2dFacialReleaseMs: 380 -> 380 | live2dMotionFollowThroughMs: 460 -> 460')
     expect(rows[2]?.settleLive2dFacialReleaseMs).toBe('380 -> 380')
@@ -2310,7 +2310,7 @@ describe('performance visualizer authority table rows', () => {
     expect(rows[0]?.speechSummaryLines).toContain('authority-trust: VRM 这段 authority 仍带着“余韵还在，先留白，别立刻把温度放大”这一层关系余温，所以外层观察不该把她压回纯技术 settle。 当前还要守住 linger blink / soften gaze 的关系节奏。')
   })
 
-  it('preserves body-carried lane truth from authority match summary when matched drivers lag behind the structured same-her recovery', () => {
+  it('preserves body-carried lane truth from authority match summary when matched drivers lag behind the structured continuity recovery', () => {
     const rows = buildAuthorityTableRows([
       {
         cueId: 'segment-body-summary-table-1',
@@ -2642,7 +2642,7 @@ describe('performance visualizer authority table rows', () => {
       const rows = buildAuthorityTableRows([
         {
           cueId: testCase.cueId,
-          cueText: `same-her structured closure stage ${testCase.expected}`,
+          cueText: `continuity structured closure stage ${testCase.expected}`,
           surfaces: testCase.surface,
           lanes: testCase.lanes,
           driftStatus: 'partial-drift',
@@ -2663,7 +2663,7 @@ describe('performance visualizer authority table rows', () => {
       ] as any, {
         [testCase.cueId]: {
           cueId: testCase.cueId,
-          cueText: `same-her structured closure stage ${testCase.expected}`,
+          cueText: `continuity structured closure stage ${testCase.expected}`,
           driftStatus: 'partial-drift',
           aligned: false,
           authoritySegmentMatched: true,

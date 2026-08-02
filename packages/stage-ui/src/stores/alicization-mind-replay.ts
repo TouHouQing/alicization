@@ -82,12 +82,6 @@ function pickNumber(raw: unknown) {
   return Number.isFinite(value) ? value : null
 }
 
-function pickRatio(hits: number, total: number) {
-  if (!Number.isFinite(hits) || !Number.isFinite(total) || total <= 0)
-    return null
-  return Number((hits / total).toFixed(2))
-}
-
 function readPresenceQuality(raw: AlicizationMemoryStats | null | undefined) {
   return raw?.presenceQuality ?? null
 }
@@ -108,52 +102,7 @@ function buildMindReplayDiagnosisSummary(input: {
   learningEvidenceSummary: AlicizationMindReplayBenchmarkTurnDiagnosis['learningEvidenceSummary']
   replyMemoryCoherenceSummary: AlicizationMindReplayBenchmarkTurnDiagnosis['replyMemoryCoherenceSummary']
   resolutionLedgerSummary: AlicizationMindReplayBenchmarkTurnDiagnosis['resolutionLedgerSummary']
-  selfAuthoritySummary?: {
-    authoritySummary: string | null
-    closenessPosture: string | null
-    visibleReplyValidationStatus: 'approved' | 'blocked' | 'unknown'
-    projectStateEvidenceStatus: 'present' | 'missing' | 'unknown'
-  } | null
 }) {
-  const selfAuthoritySummary = input.selfAuthoritySummary ?? null
-  const hasSelfAuthorityFailure = input.failingDimensions.some(dimension =>
-    dimension.toLowerCase().replace(/[^a-z0-9]/gu, '').includes('selfauthority'),
-  )
-  const hasOnlySelfAuthorityFailure = input.failingDimensions.length === 1
-    && hasSelfAuthorityFailure
-  const shouldPrioritizeSelfAuthority = selfAuthoritySummary
-    && (
-      selfAuthoritySummary.visibleReplyValidationStatus !== 'approved'
-      || selfAuthoritySummary.projectStateEvidenceStatus !== 'present'
-      || hasOnlySelfAuthorityFailure
-    )
-  if (shouldPrioritizeSelfAuthority) {
-    const validationLine = selfAuthoritySummary.visibleReplyValidationStatus === 'approved'
-      ? '可见回复校验已通过'
-      : selfAuthoritySummary.visibleReplyValidationStatus === 'blocked'
-        ? '可见回复校验已阻断'
-        : '校验状态未知，不能判定成功'
-    const evidenceLine = selfAuthoritySummary.projectStateEvidenceStatus === 'present'
-      ? '项目状态证据存在'
-      : selfAuthoritySummary.projectStateEvidenceStatus === 'missing'
-        ? '项目状态证据缺失'
-        : '项目状态证据状态未知'
-    return [
-      selfAuthoritySummary.authoritySummary?.trim()
-        ? `权限摘要：${selfAuthoritySummary.authoritySummary.trim()}`
-        : null,
-      selfAuthoritySummary.closenessPosture?.trim()
-        ? `亲近姿态：${selfAuthoritySummary.closenessPosture.trim()}`
-        : null,
-      validationLine,
-      evidenceLine,
-      selfAuthoritySummary.visibleReplyValidationStatus === 'approved'
-      && selfAuthoritySummary.projectStateEvidenceStatus === 'present'
-      && hasOnlySelfAuthorityFailure
-        ? '校验与证据状态已知，但该维度仍有内容差异'
-        : null,
-    ].filter((value): value is string => Boolean(value)).join('；')
-  }
   if ((input.replyMemoryCoherenceSummary?.withheldReasons.length ?? 0) > 0)
     return input.replyMemoryCoherenceSummary?.withheldReasons.join(', ') ?? null
   if ((input.resolutionLedgerSummary?.suppressionTags.length ?? 0) > 0)
@@ -245,12 +194,6 @@ export interface AlicizationMindReplayBenchmarkTurnDiagnosis {
     followUpPreferredTiming: string | null
     followUpIntrusionRisk: string | null
   } | null
-  selfAuthoritySummary: {
-    authoritySummary: string | null
-    closenessPosture: string | null
-    visibleReplyValidationStatus: 'approved' | 'blocked' | 'unknown'
-    projectStateEvidenceStatus: 'present' | 'missing' | 'unknown'
-  } | null
   resolutionLedgerSummary: {
     dominantClusterSummary: string | null
     competingClusterSummary: string | null
@@ -316,34 +259,14 @@ export interface AlicizationMindReplayRegressionTriageRow {
   firstCheck: string
 }
 
-export interface AlicizationMindReplaySameHerRepairTargetRow {
+export interface AlicizationMindReplayRuntimeRepairTargetRow {
   lane: 'memory' | 'initiativeOrExecution' | 'emotion' | 'embodiment'
   sessionId: string
   turnId: string
   decisionTraceId?: string | null
-  missingLanes: Array<'memory' | 'initiativeOrExecution' | 'emotion' | 'embodiment'>
   reasons: string[]
+  targetKind: 'turn' | 'transition'
   firstCheck: string
-}
-
-export interface AlicizationMindReplayRuntimeSameHerProofSummary {
-  status: 'closed' | 'insufficient' | 'not-runtime' | 'none'
-  closed: boolean
-  source: NonNullable<NonNullable<AlicizationRunReplayBenchmarkResult['datasetFeedback']['runtimeSamplingEvidence']>['source']> | null
-  sourceIsRuntime: boolean
-  sampledTurnCount: number
-  comparedSessionCount: number
-  closedSessionCount: number
-  sessionClosureRate: number
-  runtimeClosureRate: number
-  runtimeSourcedSessionCount: number
-  allRuntimeSourcedSessionCount: number
-  syntheticTurnCount: number
-  decisionTraceTurnCount: number
-  runtimeTurnCount: number
-  headline: string
-  detail: string
-  nextRepairTarget: string
 }
 
 export interface AlicizationMindReplayMemoryClosureLongRunSummary {
@@ -572,26 +495,10 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
           learningEvidenceSummary,
           replyMemoryCoherenceSummary,
           resolutionLedgerSummary,
-          selfAuthoritySummary: item.selfAuthoritySummary
-            ? {
-                authoritySummary: item.selfAuthoritySummary.authoritySummary ?? null,
-                closenessPosture: item.selfAuthoritySummary.closenessPosture ?? null,
-                visibleReplyValidationStatus: item.selfAuthoritySummary.visibleReplyValidationStatus,
-                projectStateEvidenceStatus: item.selfAuthoritySummary.projectStateEvidenceStatus,
-              }
-            : null,
         }),
         learningEvidenceSummary,
         learningExecutionStateSummary,
         replyMemoryCoherenceSummary,
-        selfAuthoritySummary: item.selfAuthoritySummary
-          ? {
-              authoritySummary: item.selfAuthoritySummary.authoritySummary ?? null,
-              closenessPosture: item.selfAuthoritySummary.closenessPosture ?? null,
-              visibleReplyValidationStatus: item.selfAuthoritySummary.visibleReplyValidationStatus,
-              projectStateEvidenceStatus: item.selfAuthoritySummary.projectStateEvidenceStatus,
-            }
-          : null,
         resolutionLedgerSummary,
         memorySituationCandidateSummary,
         paritySummary,
@@ -693,153 +600,6 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       })),
     ]
   })
-  const benchmarkProjectStateRows = computed<AlicizationMindReplayMetricRow[]>(() => {
-    const projectState = benchmarkReport.value?.datasetFeedback.projectStateSummary ?? null
-    if (!projectState)
-      return []
-    const comparedTurnCount = Math.max(0, projectState.comparedTurnCount)
-    const hasProactiveSameHerGapHitCount = Object.prototype.hasOwnProperty.call(
-      projectState,
-      'proactiveSameHerGapHitCount',
-    )
-    const identityHitRate = pickRatio(projectState.identityHitCount, comparedTurnCount)
-    const phaseHitRate = pickRatio(projectState.phaseHitCount, comparedTurnCount)
-    const openLoopHitRate = pickRatio(projectState.openLoopHitCount, comparedTurnCount)
-    const sameHerHitRate = pickRatio(projectState.sameHerHitCount, comparedTurnCount)
-    const proactiveSameHerGapHitRate = hasProactiveSameHerGapHitCount
-      ? pickRatio(projectState.proactiveSameHerGapHitCount ?? 0, comparedTurnCount)
-      : null
-    const continuityHitRate = pickRatio(projectState.continuityHitCount, comparedTurnCount)
-    return [
-      {
-        key: 'project_state_compared_turn_count',
-        value: comparedTurnCount,
-        detail: `${comparedTurnCount} replay turn(s) carried project-state continuity cues that should keep project identity, Phase 1 route, and unresolved open loops on the continuity thread.`,
-      },
-      {
-        key: 'project_state_identity_hit_rate',
-        value: identityHitRate,
-        detail: `identity=${identityHitRate ?? 'n/a'} (${projectState.identityHitCount}/${comparedTurnCount}) | checks whether she still knows what this project is.`,
-      },
-      {
-        key: 'project_state_phase_hit_rate',
-        value: phaseHitRate,
-        detail: `phase=${phaseHitRate ?? 'n/a'} (${projectState.phaseHitCount}/${comparedTurnCount}) | checks whether she is still carrying the Phase 1 local-digital-life route.`,
-      },
-      {
-        key: 'project_state_open_loop_hit_rate',
-        value: openLoopHitRate,
-        detail: `openLoop=${openLoopHitRate ?? 'n/a'} (${projectState.openLoopHitCount}/${comparedTurnCount}) | checks whether unresolved project loops are still being carried forward.`,
-      },
-      {
-        key: 'project_state_same_her_hit_rate',
-        value: sameHerHitRate,
-        detail: `sameHer=${sameHerHitRate ?? 'n/a'} (${projectState.sameHerHitCount}/${comparedTurnCount}) | checks whether the continuity self line is still explicit before the turn widens outward.`,
-      },
-      ...(hasProactiveSameHerGapHitCount
-        ? [{
-            key: 'project_state_proactive_same_her_gap_hit_rate',
-            value: proactiveSameHerGapHitRate,
-            detail: `proactiveSameHerGap=${proactiveSameHerGapHitRate ?? 'n/a'} (${projectState.proactiveSameHerGapHitCount ?? 0}/${comparedTurnCount}) | checks whether visible proactive hold, subconscious carry, and next-session feedback still stay on one continuity follow-through line.`,
-          }]
-        : []),
-      {
-        key: 'project_state_continuity_hit_rate',
-        value: continuityHitRate,
-        detail: `continuity=${continuityHitRate ?? 'n/a'} (${projectState.continuityHitCount}/${comparedTurnCount}) | checks whether identity, phase, open loops, and the continuity self line still arrive together as one continuity brief.`,
-      },
-    ]
-  })
-  const benchmarkEmotionalClosureRows = computed<AlicizationMindReplayMetricRow[]>(() => {
-    const summary = benchmarkReport.value?.datasetFeedback.emotionalClosureSummary ?? null
-    if (!summary)
-      return []
-    const comparedTurnCount = Math.max(0, summary.comparedTurnCount)
-    const validationKnownTurnCount = Math.max(0, summary.validationStatus.knownTurnCount)
-    const activeCueRate = pickRatio(summary.activeCueTurnCount, comparedTurnCount)
-    const lowPressureRequiredRate = pickRatio(summary.lowPressureRequiredTurnCount, comparedTurnCount)
-    const antiRestartRequiredRate = pickRatio(summary.antiRestartRequiredTurnCount, comparedTurnCount)
-    const validationApprovedRate = pickRatio(summary.validationStatus.approvedTurnCount, validationKnownTurnCount)
-    const validationBlockedRate = pickRatio(summary.validationStatus.blockedTurnCount, validationKnownTurnCount)
-    const validationUnknownRate = pickRatio(summary.validationStatus.unknownTurnCount, comparedTurnCount)
-    return [
-      {
-        key: 'emotional_closure_compared_turn_count',
-        value: comparedTurnCount,
-        detail: `已比较 ${comparedTurnCount} 个含情绪收束审计的 replay turn。`,
-      },
-      {
-        key: 'emotional_closure_active_cue_rate',
-        value: activeCueRate,
-        detail: `有效提示覆盖率=${activeCueRate ?? 'n/a'} (${summary.activeCueTurnCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'emotional_closure_low_pressure_required_rate',
-        value: lowPressureRequiredRate,
-        detail: `低压力要求率=${lowPressureRequiredRate ?? 'n/a'} (${summary.lowPressureRequiredTurnCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'emotional_closure_anti_restart_required_rate',
-        value: antiRestartRequiredRate,
-        detail: `避免重新开始要求率=${antiRestartRequiredRate ?? 'n/a'} (${summary.antiRestartRequiredTurnCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'emotional_closure_validation_approved_rate',
-        value: validationApprovedRate,
-        detail: `可见回复校验通过率=${validationApprovedRate ?? 'n/a'} (${summary.validationStatus.approvedTurnCount}/${validationKnownTurnCount}，分母为已知状态)`,
-      },
-      {
-        key: 'emotional_closure_validation_blocked_rate',
-        value: validationBlockedRate,
-        detail: `可见回复校验阻断率=${validationBlockedRate ?? 'n/a'} (${summary.validationStatus.blockedTurnCount}/${validationKnownTurnCount}，分母为已知状态)`,
-      },
-      {
-        key: 'emotional_closure_validation_unknown_rate',
-        value: validationUnknownRate,
-        detail: `可见回复校验未知率=${validationUnknownRate ?? 'n/a'} (${summary.validationStatus.unknownTurnCount}/${comparedTurnCount}，分母为全部比较 turn)`,
-      },
-    ]
-  })
-  const benchmarkSameHerSessionRows = computed<AlicizationMindReplayMetricRow[]>(() => {
-    const summary = benchmarkReport.value?.datasetFeedback.longRunSameHerSessionSummary ?? null
-    if (!summary)
-      return []
-    return [
-      {
-        key: 'same_her_session_compared_count',
-        value: summary.comparedSessionCount,
-        detail: `${summary.comparedSessionCount} real sampled session(s) had enough long-run continuity evidence to compare.`,
-      },
-      {
-        key: 'same_her_session_closure_rate',
-        value: summary.sessionClosureRate,
-        detail: `closed=${summary.closedSessionCount}/${summary.comparedSessionCount}, insufficient=${summary.insufficientSessionCount}, singleTurn=${summary.singleTurnSessionCount} | requires at least three applicable turns, causal handoffs, noisy desktop roles, and all lanes closed in each turn.`,
-      },
-      ...summary.sessions.map((session) => {
-        const closureRate = pickRatio(session.hitCount, Math.max(0, session.turnCount))
-        const missing = session.turnDiagnostics
-          .filter(turn => turn.missingLanes.length > 0)
-          .map(turn => `${turn.turnId}:${turn.missingLanes.join('+')}`)
-        const missingMetabolismTransitions = session.transitionDiagnostics
-          .filter(transition => transition.memoryMetabolismInfluencedNext === false)
-          .map(transition => `${transition.fromTurnId}->${transition.toTurnId}`)
-        const missingRoles = session.eventRoleCoverage?.missingRoles?.join('+') ?? ''
-        const missingRoleTurns = session.eventRoleDiagnostics
-          ?.filter(turn => turn.missingRoles.length > 0)
-          .map(turn => `${turn.turnId}:${turn.missingRoles.join('+')}`)
-          .join(', ') ?? ''
-        const missingMetabolism = session.memoryMetabolismCoverage?.missingProofs?.join('+') ?? ''
-        const eventRoleWindow = typeof session.maxConsecutiveEventRoleProofTurnCount === 'number'
-          ? ` | eventRoleWindow=${session.maxConsecutiveEventRoleProofTurnCount}`
-          : ''
-        return {
-          key: `same_her_session:${session.sessionId}`,
-          value: closureRate,
-          detail: `${session.status} | hits=${session.hitCount}/${session.turnCount} | failures=${session.failureReasons.join(', ') || 'none'} | turns=${session.turnIds.join(', ')} | missing=${missing.join(', ') || 'none'}${eventRoleWindow}${missingRoles ? ` | missingRoles=${missingRoles}` : ''}${missingRoleTurns ? ` | missingRoleTurns=${missingRoleTurns}` : ''}${missingMetabolism ? ` | missingMetabolism=${missingMetabolism}` : ''}${missingMetabolismTransitions.length > 0 ? ` | missingMetabolismTransitions=${missingMetabolismTransitions.join(', ')}` : ''}`,
-        }
-      }),
-    ]
-  })
   const benchmarkRuntimeSamplingEvidenceRows = computed<AlicizationMindReplayMetricRow[]>(() => {
     const evidence = benchmarkReport.value?.datasetFeedback.runtimeSamplingEvidence ?? null
     if (!evidence)
@@ -858,84 +618,6 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       value: evidence.sessionClosureRate,
       detail: `status=${evidence.status} | source=${evidence.source} | sampledTurns=${evidence.sampledTurnCount} | closedSessions=${evidence.closedSessionCount}/${evidence.comparedSessionCount}${repairTargetText ? ` | repairTargets=${repairTargetText}` : ''}${nextRunEvidenceText ? ` | nextRunEvidence=${nextRunEvidenceText}` : ''}`,
     }]
-  })
-  const benchmarkRuntimeSameHerProofSummary = computed<AlicizationMindReplayRuntimeSameHerProofSummary | null>(() => {
-    const report = benchmarkReport.value
-    const evidence = report?.datasetFeedback.runtimeSamplingEvidence ?? null
-    if (!evidence)
-      return null
-
-    const sourceIsRuntime = evidence.source === 'runtime-sampling-backlog'
-      || evidence.source === 'mixed-runtime-and-conversation'
-      || evidence.source === 'conversation-sample'
-    const sessions = report?.datasetFeedback.longRunSameHerSessionSummary?.sessions ?? []
-    const runtimeSourcedSessionCount = sessions.filter(session => (session.runtimeEvidence?.runtimeTurnCount ?? 0) > 0).length
-    const allRuntimeSourcedSessionCount = sessions.filter(session => session.runtimeEvidence?.allTurnsRuntimeSourced === true).length
-    const runtimeTurnCount = sessions.reduce((total, session) => total + Math.max(0, session.runtimeEvidence?.runtimeTurnCount ?? 0), 0)
-    const decisionTraceTurnCount = sessions.reduce((total, session) => total + Math.max(0, session.runtimeEvidence?.decisionTraceTurnCount ?? 0), 0)
-    const syntheticTurnCount = sessions.reduce((total, session) => total + Math.max(0, session.runtimeEvidence?.syntheticTurnCount ?? 0), 0)
-    const telemetryRetrieval = report?.telemetryPatch?.retrievalHealth as Record<string, unknown> | undefined
-    const telemetryRuntimeClosureRate = pickNumber(telemetryRetrieval?.runtimeLongRunSameHerSessionClosureRate)
-    const runtimeClosureRate = telemetryRuntimeClosureRate ?? (sourceIsRuntime && evidence.status === 'closed' ? 1 : 0)
-    const closed = sourceIsRuntime
-      && evidence.status === 'closed'
-      && runtimeClosureRate >= 1
-      && allRuntimeSourcedSessionCount >= evidence.comparedSessionCount
-      && syntheticTurnCount === 0
-    const status: AlicizationMindReplayRuntimeSameHerProofSummary['status'] = !sourceIsRuntime
-      ? 'not-runtime'
-      : closed
-        ? 'closed'
-        : evidence.status === 'none'
-          ? 'none'
-          : 'insufficient'
-    const firstRepairTarget = evidence.repairTargets?.[0] ?? null
-    const firstNextRunEvidenceChecklist = evidence.nextRunEvidenceChecklist?.[0] ?? null
-    const nextRepairTarget = !sourceIsRuntime
-      ? 'Run a sampled proof from real runtime turns with decision-trace provenance before treating the long-run continuity loop as closed.'
-      : closed
-        ? 'Real desktop continuity proof is closed; keep collecting noisy-session samples so future drift is caught before it becomes personality drift.'
-        : firstNextRunEvidenceChecklist
-          ? `Next real desktop run must capture ${runtimeSamplingNextRunEvidenceChecklistActionText(firstNextRunEvidenceChecklist)}`
-          : firstRepairTarget
-            ? `${sameHerLaneGapFirstCheck(firstRepairTarget.lane)} Latest runtime repair reason: ${firstRepairTarget.reasons[0] ?? 'runtime continuity proof is still open.'}`
-            : 'Collect at least one real noisy desktop session with memory recall, proactive opening, execution callback, emotional afterglow, and embodiment expression all tied to decision-trace provenance.'
-    const headline = !sourceIsRuntime
-      ? 'Dataset/static continuity closure is not enough for the real desktop proof.'
-      : closed
-        ? 'Real desktop continuity closure is closed by runtime decision-trace evidence.'
-        : 'Real desktop continuity closure is still open.'
-    const detail = [
-      `source=${evidence.source}`,
-      `runtimeClosureRate=${runtimeClosureRate}`,
-      `runtimeSessions=${runtimeSourcedSessionCount}/${evidence.comparedSessionCount}`,
-      `allRuntimeSourcedSessions=${allRuntimeSourcedSessionCount}/${evidence.comparedSessionCount}`,
-      `runtimeTurns=${runtimeTurnCount}`,
-      `decisionTraceTurns=${decisionTraceTurnCount}`,
-      `syntheticTurns=${syntheticTurnCount}`,
-      `closedSessions=${evidence.closedSessionCount}/${evidence.comparedSessionCount}`,
-      `sessionClosureRate=${evidence.sessionClosureRate}`,
-    ].join(' | ')
-
-    return {
-      status,
-      closed,
-      source: evidence.source,
-      sourceIsRuntime,
-      sampledTurnCount: evidence.sampledTurnCount,
-      comparedSessionCount: evidence.comparedSessionCount,
-      closedSessionCount: evidence.closedSessionCount,
-      sessionClosureRate: evidence.sessionClosureRate,
-      runtimeClosureRate,
-      runtimeSourcedSessionCount,
-      allRuntimeSourcedSessionCount,
-      syntheticTurnCount,
-      decisionTraceTurnCount,
-      runtimeTurnCount,
-      headline,
-      detail,
-      nextRepairTarget,
-    }
   })
   function memoryClosureLongRunDetail(longRun: NonNullable<AlicizationRunReplayBenchmarkResult['datasetFeedback']['memoryClosureLongRun']>) {
     return [
@@ -1025,363 +707,6 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     return sessionIds.join(', ')
   }
 
-  const benchmarkSameHerLaneGapRows = computed<AlicizationMindReplayMetricRow[]>(() => {
-    const summary = benchmarkReport.value?.datasetFeedback.longRunSameHerSessionSummary ?? null
-    const laneOrder = ['memory', 'initiativeOrExecution', 'emotion', 'embodiment'] as const
-    const laneGaps = new Map<typeof laneOrder[number], {
-      turnIds: string[]
-      sessionIds: string[]
-      reasons: string[]
-    }>()
-    for (const session of summary?.sessions ?? []) {
-      for (const turn of session.turnDiagnostics) {
-        for (const lane of turn.missingLanes) {
-          const current = laneGaps.get(lane) ?? { turnIds: [], sessionIds: [], reasons: [] }
-          if (!current.turnIds.includes(turn.turnId))
-            current.turnIds.push(turn.turnId)
-          if (!current.sessionIds.includes(session.sessionId))
-            current.sessionIds.push(session.sessionId)
-          for (const reason of turn.missingLaneReasons?.[lane] ?? []) {
-            if (!current.reasons.includes(reason))
-              current.reasons.push(reason)
-          }
-          laneGaps.set(lane, current)
-        }
-      }
-    }
-    for (const target of benchmarkReport.value?.datasetFeedback.runtimeSamplingEvidence?.repairTargets ?? []) {
-      const sessionIds = target.affectedSessionIds
-        .map(sessionId => sessionId.trim())
-        .filter(Boolean)
-      const turnSampleIds = target.sampleTurnIds
-        .map(sampleTurnId => sampleTurnId.trim())
-        .filter(sampleTurnId => sampleTurnId && !sampleTurnId.includes('->'))
-      for (const [index, sampleTurnId] of turnSampleIds.entries()) {
-        const turnId = runtimeSamplingRepairTargetTurnId(sampleTurnId)
-        if (!turnId)
-          continue
-        const current = laneGaps.get(target.lane) ?? { turnIds: [], sessionIds: [], reasons: [] }
-        const sessionId = runtimeSamplingRepairTargetSessionId(sessionIds, turnSampleIds.length, index)
-        if (!current.turnIds.includes(turnId))
-          current.turnIds.push(turnId)
-        if (!current.sessionIds.includes(sessionId))
-          current.sessionIds.push(sessionId)
-        for (const reason of target.reasons) {
-          if (!current.reasons.includes(reason))
-            current.reasons.push(reason)
-        }
-        laneGaps.set(target.lane, current)
-      }
-    }
-    return laneOrder.flatMap((lane) => {
-      const gap = laneGaps.get(lane)
-      if (!gap || gap.turnIds.length === 0)
-        return []
-      return [{
-        key: `same_her_lane_gap:${lane}`,
-        value: gap.turnIds.length,
-        detail: `${lane} missing in ${gap.turnIds.length} turn(s) across ${gap.sessionIds.length} session(s): ${gap.sessionIds.join(', ')} | turns=${gap.turnIds.join(', ')}${gap.reasons.length > 0 ? ` | reasons=${lane}: ${gap.reasons.join('; ')}` : ''}`,
-      }]
-    })
-  })
-  const benchmarkSameHerTransitionRows = computed<AlicizationMindReplayMetricRow[]>(() => {
-    const summary = benchmarkReport.value?.datasetFeedback.longRunSameHerSessionSummary ?? null
-    const rows = [
-      ...((summary?.sessions ?? []).flatMap(session =>
-        session.transitionDiagnostics.map((transition) => {
-          const hitCount = [
-            transition.memoryInfluencedNext,
-            transition.emotionInfluencedNext,
-            transition.initiativeInfluencedNext,
-            transition.embodimentInfluencedNext,
-          ].filter(Boolean).length
-          const reasonText = transition.missingInfluenceReasons
-            ? Object.entries(transition.missingInfluenceReasons)
-                .flatMap(([lane, reasons]) => {
-                  if (!Array.isArray(reasons) || reasons.length === 0)
-                    return []
-                  return [`${lane}: ${reasons.join('; ')}`]
-                })
-                .join(' | ')
-            : ''
-          return {
-            key: `same_her_transition:${session.sessionId}:${transition.fromTurnId}->${transition.toTurnId}`,
-            value: pickRatio(hitCount, 4),
-            detail: `memory=${transition.memoryInfluencedNext ? 'yes' : 'no'}, emotion=${transition.emotionInfluencedNext ? 'yes' : 'no'}, initiativeOrExecution=${transition.initiativeInfluencedNext ? 'yes' : 'no'}, embodiment=${transition.embodimentInfluencedNext ? 'yes' : 'no'} | missing=${transition.missingInfluences.join('+') || 'none'}${reasonText ? ` | reasons=${reasonText}` : ''}`,
-          }
-        }),
-      )),
-      ...((benchmarkReport.value?.datasetFeedback.runtimeSamplingEvidence?.repairTargets ?? []).flatMap((target) => {
-        const sessionIds = target.affectedSessionIds
-          .map(sessionId => sessionId.trim())
-          .filter(Boolean)
-        const transitionSampleIds = target.sampleTurnIds
-          .map(sampleTurnId => sampleTurnId.trim())
-          .filter(sampleTurnId => sampleTurnId.includes('->'))
-        return transitionSampleIds.flatMap((sampleTurnId, index) => {
-          const parts = sampleTurnId
-            .split('->')
-            .map(part => part.trim())
-            .filter(Boolean)
-          const fromTurnId = parts[0] ?? ''
-          const toTurnId = parts[1] ?? ''
-          if (!fromTurnId || !toTurnId)
-            return []
-          const sessionId = runtimeSamplingRepairTargetSessionId(sessionIds, transitionSampleIds.length, index)
-          const reasonText = target.reasons.length > 0
-            ? ` | reasons=${target.lane}: ${target.reasons.join('; ')}`
-            : ''
-          return [{
-            key: `same_her_transition:${sessionId}:${fromTurnId}->${toTurnId}`,
-            value: null,
-            detail: `runtime-sampling repair target | missing=${target.lane}${reasonText}`,
-          }]
-        })
-      })),
-    ]
-    const seen = new Set<string>()
-    return rows.filter((row) => {
-      if (seen.has(row.key))
-        return false
-      seen.add(row.key)
-      return true
-    })
-  })
-  const benchmarkSelfAuthorityRows = computed<AlicizationMindReplayMetricRow[]>(() => {
-    const summary = benchmarkReport.value?.datasetFeedback.selfAuthoritySummary ?? null
-    if (!summary)
-      return []
-    const comparedTurnCount = Math.max(0, summary.comparedTurnCount)
-    const validationKnownTurnCount = Math.max(0, summary.validationStatus.knownTurnCount)
-    const authoritySummaryRate = pickRatio(summary.authoritySummaryTurnCount, comparedTurnCount)
-    const closenessPostureRate = pickRatio(summary.closenessPostureTurnCount, comparedTurnCount)
-    const contentCompleteRate = pickRatio(summary.contentCompleteTurnCount, comparedTurnCount)
-    const validationApprovedRate = pickRatio(summary.validationStatus.approvedTurnCount, validationKnownTurnCount)
-    const validationBlockedRate = pickRatio(summary.validationStatus.blockedTurnCount, validationKnownTurnCount)
-    const validationUnknownRate = pickRatio(summary.validationStatus.unknownTurnCount, comparedTurnCount)
-    return [
-      {
-        key: 'self_authority_compared_turn_count',
-        value: comparedTurnCount,
-        detail: `已比较 ${comparedTurnCount} 个含权限审计的 replay turn。`,
-      },
-      {
-        key: 'self_authority_summary_rate',
-        value: authoritySummaryRate,
-        detail: `权限摘要内容覆盖率=${authoritySummaryRate ?? 'n/a'} (${summary.authoritySummaryTurnCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'self_authority_closeness_posture_rate',
-        value: closenessPostureRate,
-        detail: `亲近姿态内容覆盖率=${closenessPostureRate ?? 'n/a'} (${summary.closenessPostureTurnCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'self_authority_content_complete_rate',
-        value: contentCompleteRate,
-        detail: `内容完整率=${contentCompleteRate ?? 'n/a'} (${summary.contentCompleteTurnCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'self_authority_validation_approved_rate',
-        value: validationApprovedRate,
-        detail: `可见回复校验通过率=${validationApprovedRate ?? 'n/a'} (${summary.validationStatus.approvedTurnCount}/${validationKnownTurnCount}，分母为已知状态)`,
-      },
-      {
-        key: 'self_authority_validation_blocked_rate',
-        value: validationBlockedRate,
-        detail: `可见回复校验阻断率=${validationBlockedRate ?? 'n/a'} (${summary.validationStatus.blockedTurnCount}/${validationKnownTurnCount}，分母为已知状态)`,
-      },
-      {
-        key: 'self_authority_validation_unknown_rate',
-        value: validationUnknownRate,
-        detail: `可见回复校验未知率=${validationUnknownRate ?? 'n/a'} (${summary.validationStatus.unknownTurnCount}/${comparedTurnCount}，分母为全部比较 turn)`,
-      },
-    ]
-  })
-  const benchmarkProjectStateAuditRows = computed<AlicizationMindReplayMetricRow[]>(() => {
-    const summary = benchmarkReport.value?.datasetFeedback.projectStateAuditSummary ?? null
-    if (!summary)
-      return []
-    const comparedTurnCount = Math.max(0, summary.comparedTurnCount)
-    const validationKnownTurnCount = Math.max(0, summary.validationStatus.knownTurnCount)
-    const evidenceKnownTurnCount = Math.max(0, summary.evidenceStatus.knownTurnCount)
-    const sameHerSummaryRate = pickRatio(summary.sameHerSummaryTurnCount, comparedTurnCount)
-    const landedProgressRate = pickRatio(summary.landedProgressTurnCount, comparedTurnCount)
-    const openClosureRate = pickRatio(summary.openClosureTurnCount, comparedTurnCount)
-    const preDialogueAwarenessRate = pickRatio(summary.preDialogueAwarenessTurnCount, comparedTurnCount)
-    const continuitySummaryRate = pickRatio(summary.continuitySummaryTurnCount, comparedTurnCount)
-    const sameHerHoldDetailCount = summary.sameHerHoldDetailTurnCount ?? 0
-    const continuityArcStageCount = summary.continuityArcStageTurnCount ?? 0
-    const continuityCueCount = summary.continuityCueTurnCount ?? 0
-    const sameHerHoldDetailRate = pickRatio(sameHerHoldDetailCount, comparedTurnCount)
-    const continuityArcStageRate = pickRatio(continuityArcStageCount, comparedTurnCount)
-    const continuityCueRate = pickRatio(continuityCueCount, comparedTurnCount)
-    const hasExplicitContinuityAnchors = summary.sameHerHoldDetailTurnCount != null
-      || summary.continuityArcStageTurnCount != null
-      || summary.continuityCueTurnCount != null
-    const contentCompleteRate = pickRatio(summary.contentCompleteTurnCount, comparedTurnCount)
-    const validationApprovedRate = pickRatio(summary.validationStatus.approvedTurnCount, validationKnownTurnCount)
-    const validationBlockedRate = pickRatio(summary.validationStatus.blockedTurnCount, validationKnownTurnCount)
-    const validationUnknownRate = pickRatio(summary.validationStatus.unknownTurnCount, comparedTurnCount)
-    const evidencePresentRate = pickRatio(summary.evidenceStatus.presentTurnCount, evidenceKnownTurnCount)
-    const evidenceMissingRate = pickRatio(summary.evidenceStatus.missingTurnCount, evidenceKnownTurnCount)
-    const evidenceUnknownRate = pickRatio(summary.evidenceStatus.unknownTurnCount, comparedTurnCount)
-    return [
-      {
-        key: 'project_state_audit_compared_turn_count',
-        value: comparedTurnCount,
-        detail: `已比较 ${comparedTurnCount} 个含项目状态审计的 replay turn。`,
-      },
-      {
-        key: 'project_state_audit_same_her_summary_rate',
-        value: sameHerSummaryRate,
-        detail: `项目状态摘要覆盖率=${sameHerSummaryRate ?? 'n/a'} (${summary.sameHerSummaryTurnCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'project_state_audit_landed_progress_rate',
-        value: landedProgressRate,
-        detail: `已落地信息覆盖率=${landedProgressRate ?? 'n/a'} (${summary.landedProgressTurnCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'project_state_audit_open_closure_rate',
-        value: openClosureRate,
-        detail: `未完成事项覆盖率=${openClosureRate ?? 'n/a'} (${summary.openClosureTurnCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'project_state_audit_pre_dialogue_awareness_rate',
-        value: preDialogueAwarenessRate,
-        detail: `对话前状态信息覆盖率=${preDialogueAwarenessRate ?? 'n/a'} (${summary.preDialogueAwarenessTurnCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'project_state_audit_continuity_summary_rate',
-        value: continuitySummaryRate,
-        detail: `状态汇总覆盖率=${continuitySummaryRate ?? 'n/a'} (${summary.continuitySummaryTurnCount}/${comparedTurnCount})`,
-      },
-      ...(hasExplicitContinuityAnchors
-        ? [
-          {
-            key: 'project_state_audit_same_her_hold_detail_rate',
-            value: sameHerHoldDetailRate,
-            detail: `保持细节覆盖率=${sameHerHoldDetailRate ?? 'n/a'} (${sameHerHoldDetailCount}/${comparedTurnCount})`,
-          },
-          {
-            key: 'project_state_audit_continuity_arc_stage_rate',
-            value: continuityArcStageRate,
-            detail: `过程阶段覆盖率=${continuityArcStageRate ?? 'n/a'} (${continuityArcStageCount}/${comparedTurnCount})`,
-          },
-          {
-            key: 'project_state_audit_continuity_cue_rate',
-            value: continuityCueRate,
-            detail: `状态提示覆盖率=${continuityCueRate ?? 'n/a'} (${continuityCueCount}/${comparedTurnCount})`,
-          },
-        ] satisfies AlicizationMindReplayMetricRow[]
-        : []),
-      {
-        key: 'project_state_audit_content_complete_rate',
-        value: contentCompleteRate,
-        detail: `内容完整率=${contentCompleteRate ?? 'n/a'} (${summary.contentCompleteTurnCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'project_state_audit_validation_approved_rate',
-        value: validationApprovedRate,
-        detail: `可见回复校验通过率=${validationApprovedRate ?? 'n/a'} (${summary.validationStatus.approvedTurnCount}/${validationKnownTurnCount}，分母为已知状态)`,
-      },
-      {
-        key: 'project_state_audit_validation_blocked_rate',
-        value: validationBlockedRate,
-        detail: `可见回复校验阻断率=${validationBlockedRate ?? 'n/a'} (${summary.validationStatus.blockedTurnCount}/${validationKnownTurnCount}，分母为已知状态)`,
-      },
-      {
-        key: 'project_state_audit_validation_unknown_rate',
-        value: validationUnknownRate,
-        detail: `可见回复校验未知率=${validationUnknownRate ?? 'n/a'} (${summary.validationStatus.unknownTurnCount}/${comparedTurnCount}，分母为全部比较 turn)`,
-      },
-      {
-        key: 'project_state_audit_evidence_present_rate',
-        value: evidencePresentRate,
-        detail: `项目状态证据存在率=${evidencePresentRate ?? 'n/a'} (${summary.evidenceStatus.presentTurnCount}/${evidenceKnownTurnCount}，分母为已知状态)`,
-      },
-      {
-        key: 'project_state_audit_evidence_missing_rate',
-        value: evidenceMissingRate,
-        detail: `项目状态证据缺失率=${evidenceMissingRate ?? 'n/a'} (${summary.evidenceStatus.missingTurnCount}/${evidenceKnownTurnCount}，分母为已知状态)`,
-      },
-      {
-        key: 'project_state_audit_evidence_unknown_rate',
-        value: evidenceUnknownRate,
-        detail: `项目状态证据未知率=${evidenceUnknownRate ?? 'n/a'} (${summary.evidenceStatus.unknownTurnCount}/${comparedTurnCount}，分母为全部比较 turn)`,
-      },
-    ]
-  })
-  const benchmarkPreDialogueBriefingRows = computed<AlicizationMindReplayMetricRow[]>(() => {
-    const summary = benchmarkReport.value?.datasetFeedback.preDialogueBriefingSummary ?? null
-    if (!summary)
-      return []
-    const comparedTurnCount = Math.max(0, summary.comparedTurnCount)
-    const identityHitRate = pickRatio(summary.identityHitCount, comparedTurnCount)
-    const phaseHitRate = pickRatio(summary.phaseHitCount, comparedTurnCount)
-    const landedProgressHitRate = pickRatio(summary.landedProgressHitCount, comparedTurnCount)
-    const openLoopHitRate = pickRatio(summary.openLoopHitCount, comparedTurnCount)
-    const nextClosureHitRate = pickRatio(summary.nextClosureHitCount, comparedTurnCount)
-    const emotionalClosureHitRate = pickRatio(summary.emotionalClosureHitCount, comparedTurnCount)
-    const fullyBriefedRate = pickRatio(summary.fullyBriefedTurnCount, comparedTurnCount)
-    const drifted = benchmarkReport.value?.datasetFeedback.driftSignals?.includes('preDialogueBriefingDrift') === true
-    return [
-      {
-        key: 'pre_dialogue_briefing_compared_turn_count',
-        value: comparedTurnCount,
-        detail: `${comparedTurnCount} replay turn(s) carried pre-dialogue self briefing cues for project identity, Phase 1 route, landed progress, unresolved loops, and next closure.`,
-      },
-      {
-        key: 'pre_dialogue_briefing_identity_hit_rate',
-        value: identityHitRate,
-        detail: `identity=${identityHitRate ?? 'n/a'} (${summary.identityHitCount}/${comparedTurnCount}) | checks whether the briefing still says what this project is.`,
-      },
-      {
-        key: 'pre_dialogue_briefing_phase_hit_rate',
-        value: phaseHitRate,
-        detail: `phase=${phaseHitRate ?? 'n/a'} (${summary.phaseHitCount}/${comparedTurnCount}) | checks whether the briefing still carries the Phase 1 route.`,
-      },
-      {
-        key: 'pre_dialogue_briefing_landed_progress_hit_rate',
-        value: landedProgressHitRate,
-        detail: `landed=${landedProgressHitRate ?? 'n/a'} (${summary.landedProgressHitCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'pre_dialogue_briefing_open_loop_hit_rate',
-        value: openLoopHitRate,
-        detail: `openLoop=${openLoopHitRate ?? 'n/a'} (${summary.openLoopHitCount}/${comparedTurnCount}) | checks whether the briefing still names the unresolved life loop.`,
-      },
-      {
-        key: 'pre_dialogue_briefing_next_closure_hit_rate',
-        value: nextClosureHitRate,
-        detail: `nextClosure=${nextClosureHitRate ?? 'n/a'} (${summary.nextClosureHitCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'pre_dialogue_briefing_emotional_closure_hit_rate',
-        value: emotionalClosureHitRate,
-        detail: `emotionalClosure=${emotionalClosureHitRate ?? 'n/a'} (${summary.emotionalClosureHitCount}/${comparedTurnCount})`,
-      },
-      {
-        key: 'pre_dialogue_briefing_fully_briefed_rate',
-        value: fullyBriefedRate,
-        detail: `${drifted ? 'drift=preDialogueBriefingDrift | ' : ''}fullyBriefed=${fullyBriefedRate ?? 'n/a'} (${summary.fullyBriefedTurnCount}/${comparedTurnCount}) | checks whether identity, phase, landed progress, open loop, and next closure still arrive as one stable self brief.`,
-      },
-    ]
-  })
-
-  function sameHerLaneGapFirstCheck(lane: AlicizationMindReplaySameHerRepairTargetRow['lane']) {
-    if (lane === 'memory') {
-      return 'Check memory retrieval and resolution first: verify recalled events, relationship continuity, and memory decision traces are carrying the continuity line before downstream initiative or embodiment tries to use it.'
-    }
-    if (lane === 'initiativeOrExecution') {
-      return 'Check initiative and execution callback carry first: verify proactive cadence, execution feedback, and callback realization still continue the remembered continuity line instead of restarting as a detached task update.'
-    }
-    if (lane === 'emotion') {
-      return 'Check emotional closure carry first: verify affective residue, emotional closure audit, and rewrite preservation still keep the remembered continuity line active before the next turn widens outward.'
-    }
-    return 'Check embodiment projection first: verify voice, facial state, lipsync, motion, and body continuity still derive from the same internal emotional/memory state rather than drifting into a detached performance layer.'
-  }
-
   function runtimeSamplingNextRunEvidenceChecklistText(
     checklist: NonNullable<NonNullable<AlicizationRunReplayBenchmarkResult['datasetFeedback']['runtimeSamplingEvidence']>['nextRunEvidenceChecklist']>,
   ) {
@@ -1398,62 +723,31 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       .join(' | ')
   }
 
-  function runtimeSamplingNextRunEvidenceChecklistActionText(
-    item: NonNullable<NonNullable<AlicizationRunReplayBenchmarkResult['datasetFeedback']['runtimeSamplingEvidence']>['nextRunEvidenceChecklist']>[number],
+  function memoryClosureCausalLaneFirstCheck(
+    lane: AlicizationMindReplayRuntimeRepairTargetRow['lane'],
+    targetKind: AlicizationMindReplayRuntimeRepairTargetRow['targetKind'],
   ) {
-    const sampleText = item.sampleTurnIds.length > 0
-      ? item.sampleTurnIds.join(', ')
-      : 'the next sampled turn'
-    const requiredTraceEvidence = item.requiredTraceEvidence.length > 0
-      ? `: ${item.requiredTraceEvidence.join('; ')}`
-      : ''
-    return `${item.lane}/${item.evidenceKind} evidence for ${sampleText}${requiredTraceEvidence}`
-  }
-
-  function benchmarkSameHerLaneGapTriageRows(repairTargetRows: AlicizationMindReplaySameHerRepairTargetRow[] = []): AlicizationMindReplayRegressionTriageRow[] {
-    const laneOrder = ['memory', 'initiativeOrExecution', 'emotion', 'embodiment'] as const
-    const missingLanes = new Set<typeof laneOrder[number]>()
-    for (const row of benchmarkSameHerLaneGapRows.value) {
-      const lane = laneOrder.find(candidate => row.key === `same_her_lane_gap:${candidate}`)
-      if (lane)
-        missingLanes.add(lane)
-    }
-    for (const row of repairTargetRows) {
-      if (row.firstCheck === sameHerLaneGapFirstCheck(row.lane))
-        missingLanes.add(row.lane)
-    }
-    return laneOrder
-      .filter(lane => missingLanes.has(lane))
-      .map(lane => ({
-        dimension: `sameHerLaneGap:${lane}`,
-        owner: lane === 'memory'
-          ? 'memory retrieval'
-          : 'runtime continuity',
-        firstCheck: sameHerLaneGapFirstCheck(lane),
-      }))
-  }
-
-  function sameHerTransitionGapFirstCheck(lane: AlicizationMindReplaySameHerRepairTargetRow['lane']) {
+    const scope = targetKind === 'transition' ? '跨回合' : '当前回合'
     if (lane === 'memory') {
-      return 'Check memory transition carry first: verify recalled events, relationship continuity, and the next-turn handoff still keep the continuity memory line active before downstream initiative or embodiment tries to use it.'
+      return `先检查${scope}记忆检索、解析和决策轨迹。`
     }
     if (lane === 'initiativeOrExecution') {
-      return 'Check initiative and execution callback transition carry first: verify proactive cadence, execution feedback, callback realization, and the next-turn handoff still continue the remembered continuity line instead of restarting as a detached task update.'
+      return `先检查${scope}主动行为、执行反馈和回调事件。`
     }
     if (lane === 'emotion') {
-      return 'Check emotional transition carry first: verify affective residue, emotional closure audit, rewrite preservation, and the next-turn handoff still keep the remembered continuity line active before the next turn widens outward.'
+      return `先检查${scope}情绪状态、情绪残留和转换事件。`
     }
-    return 'Check embodiment transition carry first: verify voice, facial state, lipsync, motion, body continuity, and the next-turn handoff still derive from the same internal emotional/memory state rather than drifting into a detached performance layer.'
+    return `先检查${scope}语音、表情、口型、动作和机体状态。`
   }
 
-  function sameHerRepairTargetKey(row: AlicizationMindReplaySameHerRepairTargetRow) {
-    return `${row.lane}:${row.turnId}`
+  function memoryClosureRepairTargetKey(row: AlicizationMindReplayRuntimeRepairTargetRow) {
+    return `${row.targetKind}:${row.lane}:${row.sessionId}:${row.turnId}`
   }
 
-  function dedupeSameHerRepairTargetRows(rows: AlicizationMindReplaySameHerRepairTargetRow[]) {
+  function dedupeMemoryClosureRepairTargetRows(rows: AlicizationMindReplayRuntimeRepairTargetRow[]) {
     const seen = new Set<string>()
     return rows.filter((row) => {
-      const key = sameHerRepairTargetKey(row)
+      const key = memoryClosureRepairTargetKey(row)
       if (seen.has(key))
         return false
       seen.add(key)
@@ -1461,7 +755,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     })
   }
 
-  function benchmarkRuntimeSamplingRepairTargetRows(): AlicizationMindReplaySameHerRepairTargetRow[] {
+  const benchmarkMemoryClosureRepairTargetRows = computed<AlicizationMindReplayRuntimeRepairTargetRow[]>(() => {
     const evidence = benchmarkReport.value?.datasetFeedback.runtimeSamplingEvidence ?? null
     const repairTargets = evidence?.repairTargets ?? []
     const decisionTraceIdBySampleTurnId = new Map(
@@ -1472,7 +766,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
         ] as const)
         .filter((entry): entry is [string, string] => Boolean(entry[0] && entry[1])),
     )
-    return repairTargets.flatMap((target) => {
+    return dedupeMemoryClosureRepairTargetRows(repairTargets.flatMap((target) => {
       const sampleTurnIds = target.sampleTurnIds
         .map(sampleTurnId => sampleTurnId.trim())
         .filter(Boolean)
@@ -1483,7 +777,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
         const turnId = runtimeSamplingRepairTargetTurnId(sampleTurnId)
         if (!turnId)
           return []
-        const isTransitionTarget = sampleTurnId.includes('->')
+        const targetKind = sampleTurnId.includes('->') ? 'transition' : 'turn'
         return [{
           lane: target.lane,
           sessionId: runtimeSamplingRepairTargetSessionId(sessionIds, sampleTurnIds.length, index),
@@ -1491,113 +785,61 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
           ...(decisionTraceIdBySampleTurnId.get(sampleTurnId) ?? decisionTraceIdBySampleTurnId.get(turnId)
             ? { decisionTraceId: decisionTraceIdBySampleTurnId.get(sampleTurnId) ?? decisionTraceIdBySampleTurnId.get(turnId) }
             : {}),
-          missingLanes: [target.lane],
           reasons: [...target.reasons],
-          firstCheck: isTransitionTarget
-            ? sameHerTransitionGapFirstCheck(target.lane)
-            : sameHerLaneGapFirstCheck(target.lane),
+          targetKind,
+          firstCheck: memoryClosureCausalLaneFirstCheck(target.lane, targetKind),
         }]
       })
-    })
-  }
-
-  function benchmarkSameHerTransitionGapTriageRows(repairTargetRows: AlicizationMindReplaySameHerRepairTargetRow[] = []): AlicizationMindReplayRegressionTriageRow[] {
-    const summary = benchmarkReport.value?.datasetFeedback.longRunSameHerSessionSummary ?? null
-    const laneOrder = ['memory', 'initiativeOrExecution', 'emotion', 'embodiment'] as const
-    const missingLanes = new Set<typeof laneOrder[number]>()
-    for (const session of summary?.sessions ?? []) {
-      for (const transition of session.transitionDiagnostics) {
-        for (const lane of transition.missingInfluences)
-          missingLanes.add(lane)
-      }
-    }
-    for (const row of repairTargetRows) {
-      if (row.firstCheck === sameHerTransitionGapFirstCheck(row.lane))
-        missingLanes.add(row.lane)
-    }
-    return laneOrder
-      .filter(lane => missingLanes.has(lane))
-      .map(lane => ({
-        dimension: `sameHerTransitionGap:${lane}`,
-        owner: lane === 'memory'
-          ? 'memory retrieval'
-          : 'runtime continuity',
-        firstCheck: sameHerTransitionGapFirstCheck(lane),
-      }))
-  }
-
-  const benchmarkSameHerRepairTargetRows = computed<AlicizationMindReplaySameHerRepairTargetRow[]>(() => {
-    const summary = benchmarkReport.value?.datasetFeedback.longRunSameHerSessionSummary ?? null
-    const sessionRepairTargetRows = summary?.sessions.flatMap((session) => {
-      const decisionTraceIdByTurnId = new Map(
-        session.turnDiagnostics.map(turn => [
-          turn.turnId,
-          turn.tracePointer?.decisionTraceId ?? null,
-        ]),
-      )
-      return [
-        ...session.turnDiagnostics.flatMap(turn =>
-          turn.missingLanes.map(lane => ({
-            lane,
-            sessionId: session.sessionId,
-            turnId: turn.turnId,
-            ...(turn.tracePointer?.decisionTraceId ? { decisionTraceId: turn.tracePointer.decisionTraceId } : {}),
-            missingLanes: [...turn.missingLanes],
-            reasons: [...(turn.missingLaneReasons?.[lane] ?? [])],
-            firstCheck: sameHerLaneGapFirstCheck(lane),
-          })),
-        ),
-        ...session.transitionDiagnostics.flatMap(transition =>
-          transition.missingInfluences.map((lane) => {
-            const decisionTraceId = transition.tracePointer?.decisionTraceId
-              ?? decisionTraceIdByTurnId.get(transition.toTurnId)
-            return {
-              lane,
-              sessionId: session.sessionId,
-              turnId: transition.toTurnId,
-              ...(decisionTraceId ? { decisionTraceId } : {}),
-              missingLanes: [...transition.missingInfluences],
-              reasons: [...(transition.missingInfluenceReasons?.[lane] ?? [])],
-              firstCheck: sameHerTransitionGapFirstCheck(lane),
-            }
-          }),
-        ),
-      ]
-    }) ?? []
-    return dedupeSameHerRepairTargetRows([
-      ...sessionRepairTargetRows,
-      ...benchmarkRuntimeSamplingRepairTargetRows(),
-    ])
+    }))
   })
+
+  function benchmarkMemoryClosureCausalLaneTriageRows(
+    repairTargetRows: AlicizationMindReplayRuntimeRepairTargetRow[],
+  ): AlicizationMindReplayRegressionTriageRow[] {
+    const laneOrder = ['memory', 'initiativeOrExecution', 'emotion', 'embodiment'] as const
+    const targetKinds = ['turn', 'transition'] as const
+    return targetKinds.flatMap(targetKind =>
+      laneOrder.flatMap((lane) => {
+        const matchingRows = repairTargetRows.filter(row => row.targetKind === targetKind && row.lane === lane)
+        if (matchingRows.length === 0)
+          return []
+        return [{
+          dimension: `memoryClosureCausalLane:${targetKind}:${lane}`,
+          owner: lane === 'memory'
+            ? 'memory retrieval'
+            : 'runtime continuity',
+          firstCheck: memoryClosureCausalLaneFirstCheck(lane, targetKind),
+        }]
+      }),
+    )
+  }
 
   const benchmarkRegressionTriageRows = computed<AlicizationMindReplayRegressionTriageRow[]>(() => {
     const report = benchmarkReport.value
-    if (Array.isArray((report as any)?.regressionTriage) && (report as any).regressionTriage.length > 0) {
-      return [
-        ...((report as any).regressionTriage as AlicizationMindReplayRegressionTriageRow[]),
-        ...benchmarkSameHerLaneGapTriageRows(benchmarkSameHerRepairTargetRows.value),
-        ...benchmarkSameHerTransitionGapTriageRows(benchmarkSameHerRepairTargetRows.value),
-      ]
-    }
     const failing = report?.gate.failingKeys ?? []
-    const failingRows = failing.map((dimension) => {
-      let owner: AlicizationMindReplayRegressionTriageRow['owner'] = 'visible realization'
-      let firstCheck = 'Inspect answer shaping and output realization first.'
+    const failingRows = failing.flatMap((dimension) => {
+      let row: AlicizationMindReplayRegressionTriageRow | null = null
       if ([
         'wrongThreadSuppression',
         'recentOnlyDrift',
         'eventGraphRecallCollapse',
       ].includes(dimension)) {
-        owner = 'memory retrieval'
-        firstCheck = 'Check retrieval ranking, event graph recall, and wrong-thread suppression traces first.'
+        row = {
+          dimension,
+          owner: 'memory retrieval',
+          firstCheck: 'Check retrieval ranking, event graph recall, and wrong-thread suppression traces first.',
+        }
       }
       else if ([
         'procedureCarryQuality',
         'temporalScopeFlexibility',
         'implicitRecallQuality',
       ].includes(dimension)) {
-        owner = 'planner'
-        firstCheck = 'Check recollection intent, recall planner, and speech placement decisions first.'
+        row = {
+          dimension,
+          owner: 'planner',
+          firstCheck: 'Check recollection intent, recall planner, and speech placement decisions first.',
+        }
       }
       else if ([
         'knowledgeCorrectionDiscipline',
@@ -1609,44 +851,44 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
         'domainInternalizationDiscipline',
         'worldModelValidationDiscipline',
       ].includes(dimension)) {
-        owner = 'evolution'
-        firstCheck = 'Check self-evolution kernel, active learning strategy, and knowledge assimilation signals first.'
+        row = {
+          dimension,
+          owner: 'evolution',
+          firstCheck: 'Check self-evolution kernel, active learning strategy, and knowledge assimilation signals first.',
+        }
       }
       else if ([
         'surfaceRestraint',
       ].includes(dimension)) {
-        owner = 'contract'
-        firstCheck = 'Check response charter, restraint judge, and truth-discipline contract first.'
+        row = {
+          dimension,
+          owner: 'contract',
+          firstCheck: 'Check response charter, restraint judge, and truth-discipline contract first.',
+        }
       }
       else if ([
         'relationshipRepairAdaptation',
         'closenessLadderDrift',
         'templateLeakage',
       ].includes(dimension)) {
-        owner = 'visible realization'
-        firstCheck = 'Check answer compiler, visible realization posture, and template leakage traces first.'
-      }
-      else if ([
-        'preDialogueBriefingDrift',
-        'projectStateAuditDrift',
-      ].includes(dimension)) {
-        owner = 'runtime continuity'
-        firstCheck = 'Check the pre-dialogue project-awareness chain first: verify project identity, Phase 1 route, landed progress, open loop, next closure, and the continuity drift boundary are still being carried before visible reply shaping begins.'
+        row = {
+          dimension,
+          owner: 'visible realization',
+          firstCheck: 'Check answer compiler, visible realization posture, and template leakage traces first.',
+        }
       }
       else if (dimension === 'replyMemoryCoherence') {
-        owner = 'proactive parity'
-        firstCheck = 'Check cross-surface parity between main chat, proactive, and callback realization first.'
+        row = {
+          dimension,
+          owner: 'proactive parity',
+          firstCheck: 'Check cross-surface parity between main chat, proactive, and callback realization first.',
+        }
       }
-      return {
-        dimension,
-        owner,
-        firstCheck,
-      }
+      return row ? [row] : []
     })
     return [
       ...failingRows,
-      ...benchmarkSameHerLaneGapTriageRows(benchmarkSameHerRepairTargetRows.value),
-      ...benchmarkSameHerTransitionGapTriageRows(benchmarkSameHerRepairTargetRows.value),
+      ...benchmarkMemoryClosureCausalLaneTriageRows(benchmarkMemoryClosureRepairTargetRows.value),
     ]
   })
   const memoryHealthComparisonRows = computed<AlicizationMindReplayMemoryHealthComparisonRow[]>(() => {
@@ -1889,7 +1131,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     }
   }
 
-  async function runSameHerSessionProof() {
+  async function runMemoryClosureProof() {
     return await runReplayBenchmark({
       packId: 'sampled-humanlike-memory-v1',
       persistTelemetry: true,
@@ -1951,7 +1193,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
       ? benchmarkFailingTurns.value.find(item => item.turnId === requestedTurnId) ?? null
       : null
     const repairTarget = requestedTurnId
-      ? benchmarkSameHerRepairTargetRows.value.find(item => item.turnId === requestedTurnId) ?? null
+      ? benchmarkMemoryClosureRepairTargetRows.value.find(item => item.turnId === requestedTurnId) ?? null
       : null
     const repairTargetTurnId = repairTarget?.turnId ?? null
     if (turn) {
@@ -2004,19 +1246,10 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     benchmarkShipGateRows,
     benchmarkPresenceQualityRows,
     benchmarkParityRows,
-    benchmarkProjectStateRows,
-    benchmarkEmotionalClosureRows,
-    benchmarkSameHerSessionRows,
     benchmarkRuntimeSamplingEvidenceRows,
-    benchmarkRuntimeSameHerProofSummary,
     benchmarkMemoryClosureLongRunSummary,
     benchmarkMemoryClosureLongRunRows,
-    benchmarkSameHerLaneGapRows,
-    benchmarkSameHerTransitionRows,
-    benchmarkSameHerRepairTargetRows,
-    benchmarkSelfAuthorityRows,
-    benchmarkProjectStateAuditRows,
-    benchmarkPreDialogueBriefingRows,
+    benchmarkMemoryClosureRepairTargetRows,
     benchmarkRegressionTriageRows,
     memoryHealthComparisonRows,
     replayCoverage,
@@ -2025,7 +1258,7 @@ export const useAlicizationMindReplayStore = defineStore('alicization-mind-repla
     queryMindTurnEvents,
     queryMemoryDecisionTraces,
     runReplayBenchmark,
-    runSameHerSessionProof,
+    runMemoryClosureProof,
     queryByDecisionTraceId,
     queryByTurnId,
     clearReplay,

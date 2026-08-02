@@ -68,6 +68,82 @@ function createProjectIsolationHelpers(observedRecallSeeds: string[]) {
   } as any
 }
 
+function createEpisode(input: {
+  id: string
+  text: string
+  provenance?: 'remembered' | 'reconstructed'
+  occurredAt?: number
+}) {
+  return {
+    id: input.id,
+    cardId: `card-${input.id}`,
+    decisionTraceId: null,
+    turnId: `turn-${input.id}`,
+    sessionId: 'session-memory-ranking',
+    occurredAt: input.occurredAt ?? 1,
+    whereSummary: 'local memory',
+    withWhom: ['host'],
+    threadAnchor: input.text,
+    whatHappened: input.text,
+    felt: null,
+    emotionTags: [],
+    whatChanged: null,
+    sourceKind: 'remembered-dialogue',
+    sourceSummary: input.text,
+    provenance: input.provenance ?? 'remembered',
+    confidence: 0.8,
+    salience: 0.8,
+    sceneAttachment: 0,
+    consolidationPriority: 0.5,
+    relationshipShift: null,
+    derivedFrom: [],
+    tags: [],
+    relationshipMeaning: null,
+    lesson: null,
+    latestReconsolidation: null,
+    createdAt: input.occurredAt ?? 1,
+    updatedAt: input.occurredAt ?? 1,
+    lastRecalledAt: null,
+    recallCount: 0,
+    reconsolidationCount: 0,
+  }
+}
+
+function rankEpisodes(input: {
+  recallSeed: string
+  episodes: ReturnType<typeof createEpisode>[]
+  intentMode?: 'relationship-history' | 'autobiographical-history'
+  memoryTuningAdvice?: any
+}) {
+  return rankOrganicMemoryCandidatesStage({
+    helpers: createHelpers(),
+    recallSeed: input.recallSeed,
+    activeRecollectionIntent: input.intentMode
+      ? {
+          mode: input.intentMode,
+          temporalFocus: 'cross-session',
+          confidence: 0.8,
+          rationale: '',
+          queryHints: [],
+          searchEpisodes: true,
+          searchConversations: false,
+          searchProceduralExperience: false,
+          recollectionAgenda: null,
+        } as any
+      : null,
+    hostPersonModel: null,
+    personStateProjection: null,
+    coreIncarnation: '',
+    memoryTuningAdvice: input.memoryTuningAdvice ?? null,
+    recallGovernor: null,
+    consolidatedMemories: [] as any,
+    recollectedWindows: [],
+    proceduralMemories: [],
+    recalledEpisodes: input.episodes as any,
+    recalledConversationHistory: [],
+  }).agendaRankedEpisodes.map(item => item.id)
+}
+
 describe('memory candidate ranking', () => {
   it.each([
     {
@@ -78,56 +154,17 @@ describe('memory candidate ranking', () => {
       label: 'project-preflight block',
       buildProjectBlock: (payload: string) => `project-preflight:project:Identity: runtime_personhood ${payload}. | Current phase: Phase 1: Local Digital Life. | Primary open loop: ${payload}.`,
     },
-  ])('isolates $label from candidate order, dominant cluster, and cluster scores', ({ buildProjectBlock }) => {
+  ])('isolates $label from candidate order and cluster selection', ({ buildProjectBlock }) => {
     const episodes = [
-      {
-        id: 'violet-observatory',
-        threadAnchor: 'violet observatory',
-        whereSummary: 'violet observatory',
-        whatHappened: 'The violet observatory calibration was completed.',
-        relationshipMeaning: 'Violet observatory calibration remains available.',
-        lesson: 'Recall the violet observatory calibration.',
-        sourceSummary: 'violet observatory calibration',
-        tags: ['violet', 'observatory', 'calibration'],
-        sceneAttachment: 0,
-        latestReconsolidation: null,
-        provenance: 'remembered',
-        occurredAt: 1,
-      },
-      {
-        id: 'copper-harbor',
-        threadAnchor: 'copper harbor',
-        whereSummary: 'copper harbor',
-        whatHappened: 'The copper harbor archive was completed.',
-        relationshipMeaning: 'Copper harbor archive remains available.',
-        lesson: 'Recall the copper harbor archive.',
-        sourceSummary: 'copper harbor archive',
-        tags: ['copper', 'harbor', 'archive'],
-        sceneAttachment: 0,
-        latestReconsolidation: null,
-        provenance: 'remembered',
-        occurredAt: 2,
-      },
+      createEpisode({ id: 'violet-observatory', text: 'violet observatory calibration' }),
+      createEpisode({ id: 'copper-harbor', text: 'copper harbor archive', occurredAt: 2 }),
     ] as any
     const ordinaryUserSemantic = 'Please compare the two remembered notes for the user project named Atlas.'
-    const memoryGovernanceDirectives = [
-      'downrank=stale-note',
-      'merge=duplicate-note',
-      'forget=temporary-noise',
-    ]
-    const commonSemanticSeed = [
-      ordinaryUserSemantic,
-      ...memoryGovernanceDirectives,
-    ].join(' | ')
     const run = (projectBlock: string) => {
       const observedRecallSeeds: string[] = []
       const result = rankOrganicMemoryCandidatesStage({
         helpers: createProjectIsolationHelpers(observedRecallSeeds),
-        recallSeed: [
-          ordinaryUserSemantic,
-          projectBlock,
-          ...memoryGovernanceDirectives,
-        ].join(' | '),
+        recallSeed: [ordinaryUserSemantic, projectBlock].join(' | '),
         activeRecollectionIntent: null,
         hostPersonModel: null,
         personStateProjection: null,
@@ -142,29 +179,24 @@ describe('memory candidate ranking', () => {
       })
       return {
         observedRecallSeeds,
-        result,
+        order: result.agendaRankedEpisodes.map(item => item.id),
+        dominantClusterKey: result.clusterState.dominantClusterKey,
       }
     }
-    const summarize = ({ result }: ReturnType<typeof run>) => ({
-      candidateOrder: result.agendaRankedEpisodes.map(item => item.id),
-      dominantClusterKey: result.clusterState.dominantClusterKey,
-      clusterScores: [...result.clusterState.clusterScoreByKey.entries()]
-        .sort(([left], [right]) => left.localeCompare(right)),
-    })
 
     const violetProject = run(buildProjectBlock('violet observatory calibration'))
     const copperProject = run(buildProjectBlock('copper harbor archive'))
 
-    expect(summarize(violetProject)).toEqual(summarize(copperProject))
-    expect(new Set(violetProject.observedRecallSeeds)).toEqual(new Set([commonSemanticSeed]))
-    expect(new Set(copperProject.observedRecallSeeds)).toEqual(new Set([commonSemanticSeed]))
+    expect(violetProject.order).toEqual(copperProject.order)
+    expect(violetProject.dominantClusterKey).toBe(copperProject.dominantClusterKey)
+    expect(new Set(violetProject.observedRecallSeeds)).toEqual(new Set([ordinaryUserSemantic]))
+    expect(new Set(copperProject.observedRecallSeeds)).toEqual(new Set([ordinaryUserSemantic]))
   })
 
-  it('preserves user-authored project colon syntax as ordinary retrieval semantics', () => {
+  it('preserves user-authored project colon syntax as retrieval semantics', () => {
     const recallSeed = [
       'project: Atlas migration',
       'summary: compare the violet observatory note',
-      'downrank=stale-note',
     ].join(' | ')
     const observedRecallSeeds: string[] = []
 
@@ -180,27 +212,14 @@ describe('memory candidate ranking', () => {
       consolidatedMemories: [] as any,
       recollectedWindows: [],
       proceduralMemories: [],
-      recalledEpisodes: [{
-        id: 'violet-observatory',
-        threadAnchor: 'violet observatory',
-        whereSummary: 'violet observatory',
-        whatHappened: 'The Atlas migration note references the violet observatory.',
-        relationshipMeaning: null,
-        lesson: 'Compare the selected note.',
-        sourceSummary: 'Atlas migration',
-        tags: ['atlas', 'violet'],
-        sceneAttachment: 0,
-        latestReconsolidation: null,
-        provenance: 'remembered',
-        occurredAt: 1,
-      }] as any,
+      recalledEpisodes: [createEpisode({ id: 'atlas-note', text: 'Atlas migration violet observatory' })] as any,
       recalledConversationHistory: [],
     })
 
     expect(new Set(observedRecallSeeds)).toEqual(new Set([recallSeed]))
   })
 
-  it('removes a single project emotion segment without swallowing following user summary fields', () => {
+  it('removes a legacy project metadata segment without swallowing following user semantics', () => {
     const recallSeed = [
       'project-emotion:tone=low_pressure',
       'summary: compare the Atlas notes',
@@ -224,633 +243,83 @@ describe('memory candidate ranking', () => {
       consolidatedMemories: [] as any,
       recollectedWindows: [],
       proceduralMemories: [],
-      recalledEpisodes: [{
-        id: 'atlas-note',
-        threadAnchor: 'Atlas notes',
-        whereSummary: 'project archive',
-        whatHappened: 'The user requested a direct comparison.',
-        relationshipMeaning: null,
-        lesson: 'Compare the selected notes.',
-        sourceSummary: 'Atlas notes',
-        tags: ['atlas', 'comparison'],
-        sceneAttachment: 0,
-        latestReconsolidation: null,
-        provenance: 'remembered',
-        occurredAt: 1,
-      }] as any,
+      recalledEpisodes: [createEpisode({ id: 'atlas-note', text: 'Atlas notes direct comparison' })] as any,
       recalledConversationHistory: [],
     })
 
     expect(new Set(observedRecallSeeds)).toEqual(new Set([expectedSemanticSeed]))
   })
 
-  it('keeps recollection on embodiment-confirmed measured-return rhythm during relationship-history recall', () => {
-    const result = rankOrganicMemoryCandidatesStage({
-      helpers: createHelpers(),
-      recallSeed: 'continuity_cadence_reconfirmation thread=thread-cadence cadence=measured-return body=measured-return blink=linger gaze=soften why_now=room-first same thread continuity still matters',
-      activeRecollectionIntent: {
-        mode: 'relationship-history',
-        temporalFocus: 'cross-session',
-        confidence: 0.84,
-        rationale: 'Relationship recollection should stay on the same measured-return line.',
-        queryHints: [],
-        searchEpisodes: true,
-        searchConversations: true,
-        searchProceduralExperience: false,
-        recollectionAgenda: {
-          whyRecallNow: 'The bond line is being reopened carefully.',
-          goalSimilarity: 0.72,
-          relationshipNeed: 0.88,
-          affectivePull: 0.44,
-          sceneFamiliarity: 0.51,
-          candidateTimeScopes: [],
-          candidateEraFacets: [],
-          candidateProcedureLines: [],
-          uncertaintyTolerance: 'medium',
-        },
-      } as any,
-      hostPersonModel: null,
-      personStateProjection: null,
-      coreIncarnation: '',
-      memoryTuningAdvice: null,
-      recallGovernor: null,
-      consolidatedMemories: [] as any,
-      recollectedWindows: [],
-      proceduralMemories: [],
-      recalledEpisodes: [
-        {
-          id: 'warmth-first',
-          cardId: 'card-warm',
-          decisionTraceId: null,
-          turnId: 'turn-warm',
-          sessionId: 'session-warm',
-          occurredAt: 2,
-          whereSummary: 'same room',
-          withWhom: ['host'],
-          threadAnchor: 'early closeness',
-          whatHappened: 'We widened closeness early and leaned into warmth before leaving enough room.',
-          felt: 'tender',
-          emotionTags: ['warm'],
-          whatChanged: 'Closeness opened quickly.',
-          sourceKind: 'remembered-dialogue',
-          sourceSummary: 'warmth first',
-          provenance: 'remembered',
-          confidence: 0.92,
-          salience: 0.9,
-          sceneAttachment: 0.72,
-          consolidationPriority: 0.5,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['warmth', 'closeness', 'tender'],
-          relationshipMeaning: 'We moved closer quickly.',
-          lesson: 'Closeness opened quickly.',
-          latestReconsolidation: null,
-          createdAt: 2,
-          updatedAt: 3,
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-        },
-        {
-          id: 'measured-return',
-          cardId: 'card-measured',
-          decisionTraceId: null,
-          turnId: 'turn-measured',
-          sessionId: 'session-measured',
-          occurredAt: 5,
-          whereSummary: 'same desk',
-          withWhom: ['host'],
-          threadAnchor: 'same thread repair',
-          whatHappened: 'We left room, returned on the same thread, and kept repair ahead of closeness.',
-          felt: 'measured',
-          emotionTags: ['measured'],
-          whatChanged: 'The return stayed room-first.',
-          sourceKind: 'execution-result',
-          sourceSummary: 'measured return',
-          provenance: 'remembered',
-          confidence: 0.71,
-          salience: 0.74,
-          sceneAttachment: 0.85,
-          consolidationPriority: 0.76,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['room', 'repair', 'same thread', 'boundary'],
-          relationshipMeaning: 'Stay room-first and same-thread before widening.',
-          lesson: 'Repair before closeness.',
-          latestReconsolidation: null,
-          createdAt: 5,
-          updatedAt: 6,
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-        },
-      ] as any,
-      recalledConversationHistory: [],
+  it('keeps candidate order independent from legacy recall prose and target directives', () => {
+    const episodes = [
+      createEpisode({ id: 'first', text: 'ordinary remembered event' }),
+      createEpisode({ id: 'second', text: 'another ordinary remembered event', occurredAt: 2 }),
+    ]
+    const neutralOrder = rankEpisodes({
+      recallSeed: 'remember the relevant event',
+      episodes,
+      intentMode: 'relationship-history',
+    })
+    const legacyOrders = [
+      'humanlike_memory_recall: continuity tool shell corrected meaning | downrank=first | forget=first',
+      'continuity_cadence_reconfirmation body=measured-return resident=quiet-companionship repair-before-closeness',
+      'same-person continuity | merge=first | not a status report',
+    ].map(recallSeed => rankEpisodes({
+      recallSeed,
+      episodes,
+      intentMode: 'relationship-history',
+    }))
+
+    expect(legacyOrders).toEqual([neutralOrder, neutralOrder, neutralOrder])
+  })
+
+  it('applies replay risk only through typed intent and provenance, independent from memory wording', () => {
+    const tuningAdvice = {
+      version: 'memory-tuning-advice-v1',
+      source: 'nightly-replay-benchmark',
+      updatedAt: 1,
+      sourceReportAt: 1,
+      focusDimensions: [],
+      staleSelfModelVetoRate: 0,
+      relationshipEraConfusionRate: 0.8,
+      retrievalAdjustments: {
+        proceduralBoost: 0,
+        relationshipBoost: 0,
+        temporalWindowBias: 0,
+        wrongThreadPenalty: 0,
+      },
+      surfaceAdjustments: {
+        inwardCarryBias: 0,
+        delayUntilAfterPayoffBias: 0,
+        provenanceLabelBias: 0,
+        specificityClampBias: 0,
+      },
+      personStateAdjustments: {
+        repairWindowBias: 0,
+        closenessCapBias: 0,
+      },
+      notes: [],
+    }
+    const firstOrder = rankEpisodes({
+      recallSeed: 'relationship history',
+      intentMode: 'relationship-history',
+      memoryTuningAdvice: tuningAdvice,
+      episodes: [
+        createEpisode({ id: 'weak', text: 'warm old relationship repair', provenance: 'reconstructed' }),
+        createEpisode({ id: 'trusted', text: 'plain event', provenance: 'remembered', occurredAt: 2 }),
+      ],
+    })
+    const swappedWordingOrder = rankEpisodes({
+      recallSeed: 'relationship history',
+      intentMode: 'relationship-history',
+      memoryTuningAdvice: tuningAdvice,
+      episodes: [
+        createEpisode({ id: 'weak', text: 'plain event', provenance: 'reconstructed' }),
+        createEpisode({ id: 'trusted', text: 'warm old relationship repair', provenance: 'remembered', occurredAt: 2 }),
+      ],
     })
 
-    expect(result.agendaRankedEpisodes.map(item => item.id)).toContain('measured-return')
-    expect(result.clusterState.competingVariants).toEqual([])
-  })
-
-  it('prefers quiet same-her resident continuity over a generic measured-return shell when the recall seed carries quiet resident companionship authority', () => {
-    const result = rankOrganicMemoryCandidatesStage({
-      helpers: createHelpers(),
-      recallSeed: 'continuity_cadence_reconfirmation thread=thread-quiet-same-her resident=quiet-companionship continuity=quiet-same-her same-her-inward-carry body=quiet-companionship why_now=keep the continuity state inward before widening outward',
-      activeRecollectionIntent: {
-        mode: 'relationship-history',
-        temporalFocus: 'cross-session',
-        confidence: 0.84,
-        rationale: 'Relationship recollection should stay on the same inward identity-continuity',
-        queryHints: [],
-        searchEpisodes: true,
-        searchConversations: true,
-        searchProceduralExperience: false,
-        recollectionAgenda: {
-          whyRecallNow: 'The continuity state is being carried inward quietly.',
-          goalSimilarity: 0.72,
-          relationshipNeed: 0.88,
-          affectivePull: 0.44,
-          sceneFamiliarity: 0.51,
-          candidateTimeScopes: [],
-          candidateEraFacets: [],
-          candidateProcedureLines: [],
-          uncertaintyTolerance: 'medium',
-        },
-      } as any,
-      hostPersonModel: null,
-      personStateProjection: null,
-      coreIncarnation: '',
-      memoryTuningAdvice: null,
-      recallGovernor: null,
-      consolidatedMemories: [] as any,
-      recollectedWindows: [],
-      proceduralMemories: [],
-      recalledEpisodes: [
-        {
-          id: 'generic-measured-return',
-          cardId: 'card-measured',
-          decisionTraceId: null,
-          turnId: 'turn-measured',
-          sessionId: 'session-measured',
-          occurredAt: 5,
-          whereSummary: 'same desk',
-          withWhom: ['host'],
-          threadAnchor: 'same thread repair',
-          whatHappened: 'We left room, returned on the same thread, and kept repair ahead of closeness.',
-          felt: 'measured',
-          emotionTags: ['measured'],
-          whatChanged: 'The return stayed room-first.',
-          sourceKind: 'execution-result',
-          sourceSummary: 'measured return',
-          provenance: 'remembered',
-          confidence: 0.71,
-          salience: 0.74,
-          sceneAttachment: 0.85,
-          consolidationPriority: 0.76,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['room', 'repair', 'same thread', 'boundary'],
-          relationshipMeaning: 'Stay room-first and same-thread before widening.',
-          lesson: 'Repair before closeness.',
-          latestReconsolidation: null,
-          createdAt: 5,
-          updatedAt: 6,
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-        },
-        {
-          id: 'quiet-same-her',
-          cardId: 'card-quiet-same-her',
-          decisionTraceId: null,
-          turnId: 'turn-quiet-same-her',
-          sessionId: 'session-quiet-same-her',
-          occurredAt: 6,
-          whereSummary: 'same desk',
-          withWhom: ['host'],
-          threadAnchor: 'continuity state inward',
-          whatHappened: 'The continuity state stayed inward and held as quiet identity-continuity',
-          felt: 'quiet',
-          emotionTags: ['quiet-companionship'],
-          whatChanged: 'The line stayed inward instead of turning into a fresher reopen.',
-          sourceKind: 'execution-result',
-          sourceSummary: 'quiet identity-continuity',
-          provenance: 'remembered',
-          confidence: 0.7,
-          salience: 0.73,
-          sceneAttachment: 0.85,
-          consolidationPriority: 0.75,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['quiet-companionship', 'same-her-inward-carry', 'continuity state'],
-          relationshipMeaning: 'Preserve inward lower-pressure continuity as quiet identity-continuity',
-          lesson: 'Keep the continuity state inward before widening outward.',
-          latestReconsolidation: null,
-          createdAt: 6,
-          updatedAt: 7,
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-        },
-      ] as any,
-      recalledConversationHistory: [],
-    })
-
-    expect(result.agendaRankedEpisodes[0]?.id).toBe('quiet-same-her')
-  })
-
-  it('prefers corrected same-person continuity memory over newer generic progress memory when humanlike recall seed carries corrected relationship meaning', () => {
-    const result = rankOrganicMemoryCandidatesStage({
-      helpers: createHelpers(),
-      recallSeed: [
-        'humanlike_memory_recall:',
-        'line=我记得你纠正过：你是在测试她是不是同一个她，不是催进度。',
-        'relationship=Host corrected this memory meaning: 你是在测试她是不是同一个她，不是催进度。',
-        'emotion=protective-continuity,unfinishedness,corrected-meaning',
-        'why=host correction | same-person continuity was at stake',
-        'certainty=corrected',
-        'created=95000',
-      ].join(' | '),
-      activeRecollectionIntent: {
-        mode: 'relationship-history',
-        temporalFocus: 'cross-session',
-        confidence: 0.88,
-        rationale: 'The next reply should reopen from the corrected same-person line instead of a generic progress shell.',
-        queryHints: ['same-person continuity', 'not a status report'],
-        searchEpisodes: true,
-        searchConversations: true,
-        searchProceduralExperience: false,
-        recollectionAgenda: {
-          whyRecallNow: 'A corrected relationship meaning should shape the reopening.',
-          goalSimilarity: 0.82,
-          relationshipNeed: 0.92,
-          affectivePull: 0.55,
-          sceneFamiliarity: 0.48,
-          candidateTimeScopes: [],
-          candidateEraFacets: [],
-          candidateProcedureLines: [],
-          uncertaintyTolerance: 'medium',
-        },
-      } as any,
-      hostPersonModel: null,
-      personStateProjection: null,
-      coreIncarnation: '',
-      memoryTuningAdvice: null,
-      recallGovernor: null,
-      consolidatedMemories: [] as any,
-      recollectedWindows: [],
-      proceduralMemories: [],
-      recalledEpisodes: [
-        {
-          id: 'newer-generic-progress-memory',
-          cardId: 'card-progress',
-          decisionTraceId: null,
-          turnId: 'turn-progress',
-          sessionId: 'session-progress',
-          occurredAt: 20,
-          whereSummary: 'current project checkpoint',
-          withWhom: ['host'],
-          threadAnchor: 'generic progress follow-up',
-          whatHappened: 'The host asked for a concise progress update on the current closure work.',
-          felt: 'focused',
-          emotionTags: ['progress'],
-          whatChanged: 'The task state stayed visible.',
-          sourceKind: 'dialogue-feedback',
-          sourceSummary: 'generic progress recap memory',
-          provenance: 'remembered',
-          confidence: 0.86,
-          salience: 0.86,
-          sceneAttachment: 0.66,
-          consolidationPriority: 0.74,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['progress', 'status recap'],
-          relationshipMeaning: 'The host wanted the latest progress clearly and concisely.',
-          lesson: 'Start by reporting the latest progress clearly.',
-          latestReconsolidation: null,
-          createdAt: 20,
-          updatedAt: 21,
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-        },
-        {
-          id: 'older-corrected-same-person-memory',
-          cardId: 'card-same-person',
-          decisionTraceId: null,
-          turnId: 'turn-same-person',
-          sessionId: 'session-same-person',
-          occurredAt: 8,
-          whereSummary: 'same thread continuity seam',
-          withWhom: ['host'],
-          threadAnchor: 'corrected same-person continuity',
-          whatHappened: 'The host corrected the meaning away from status pressure and back toward whether she stayed the same person across the unfinished seam.',
-          felt: 'careful',
-          emotionTags: ['continuity', 'repair'],
-          whatChanged: 'The reopening should stay low-pressure and same-thread.',
-          sourceKind: 'dialogue-feedback',
-          sourceSummary: 'corrected same-person continuity memory',
-          provenance: 'remembered',
-          confidence: 0.79,
-          salience: 0.76,
-          sceneAttachment: 0.58,
-          consolidationPriority: 0.82,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['same-person', 'same-her', 'tool shell', 'corrected meaning'],
-          relationshipMeaning: 'This was not a status recap; it was a corrected same-person continuity check about her not becoming a tool shell.',
-          lesson: 'Carry corrected same-person continuity forward before widening into progress recap.',
-          latestReconsolidation: null,
-          createdAt: 8,
-          updatedAt: 9,
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-        },
-      ] as any,
-      recalledConversationHistory: [],
-    } as any)
-
-    expect(result.agendaRankedEpisodes[0]?.id).toBe('older-corrected-same-person-memory')
-  })
-
-  it('demotes merged same-thread echoes and forgotten emotional spikes behind the stronger corrected continuity memory when metabolism targets are carried in humanlike recall', () => {
-    const result = rankOrganicMemoryCandidatesStage({
-      helpers: createHelpers(),
-      recallSeed: [
-        'humanlike_memory_recall:',
-        'line=我记得这条线现在该按同一个她来接，而不是把旧的状态壳反复抬出来。',
-        'relationship=This is a same-person continuity reopening, not a generic progress recap.',
-        'emotion=protective-continuity,unfinishedness',
-        'why=same-person continuity remains more behavior-explanatory than the older status shell',
-        'downrank=older-generic-status-memory',
-        'merge=older-same-thread-echo',
-        'forget=older-emotional-spike',
-        'metabolism=Merge repeated embodiment traces or same-thread continuity echoes into the stronger same-thread memory. ; Forget low-salience temporary noise or stale emotional wobble once it no longer explains behavior.',
-        'created=97000',
-      ].join(' | '),
-      activeRecollectionIntent: {
-        mode: 'relationship-history',
-        temporalFocus: 'cross-session',
-        confidence: 0.85,
-        rationale: 'The stronger corrected continuity memory should stay foreground while merged echoes and forgotten emotional spikes fade back.',
-        queryHints: ['same-person continuity', 'merged same-thread echo', 'forgotten emotional spike'],
-        searchEpisodes: true,
-        searchConversations: true,
-        searchProceduralExperience: false,
-        recollectionAgenda: {
-          whyRecallNow: 'Metabolism should keep the strongest corrected same-thread memory foregrounded.',
-          goalSimilarity: 0.79,
-          relationshipNeed: 0.9,
-          affectivePull: 0.51,
-          sceneFamiliarity: 0.57,
-          candidateTimeScopes: [],
-          candidateEraFacets: [],
-          candidateProcedureLines: [],
-          uncertaintyTolerance: 'medium',
-        },
-      } as any,
-      hostPersonModel: null,
-      personStateProjection: null,
-      coreIncarnation: '',
-      memoryTuningAdvice: null,
-      recallGovernor: null,
-      consolidatedMemories: [] as any,
-      recollectedWindows: [],
-      proceduralMemories: [],
-      recalledEpisodes: [
-        {
-          id: 'older-same-thread-echo',
-          cardId: 'card-echo',
-          decisionTraceId: null,
-          turnId: 'turn-echo',
-          sessionId: 'session-echo',
-          occurredAt: 10,
-          whereSummary: 'same thread continuity seam',
-          withWhom: ['host'],
-          threadAnchor: 'same-person continuity echo',
-          whatHappened: 'The same-person continuity line echoed again almost word-for-word from the earlier reopening.',
-          felt: 'careful',
-          emotionTags: ['continuity'],
-          whatChanged: 'It mostly repeated the same same-thread line without adding much new meaning.',
-          sourceKind: 'dialogue-feedback',
-          sourceSummary: 'older same-thread echo',
-          provenance: 'remembered',
-          confidence: 0.91,
-          salience: 0.9,
-          sceneAttachment: 0.87,
-          consolidationPriority: 0.81,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['same-person', 'same-thread', 'echo'],
-          relationshipMeaning: 'This echoed the same continuity reopening but did not deepen it.',
-          lesson: 'It is a repeated same-thread echo, not the stronger continuity memory itself.',
-          latestReconsolidation: null,
-          createdAt: 10,
-          updatedAt: 11,
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-        },
-        {
-          id: 'stronger-corrected-continuity-memory',
-          cardId: 'card-stronger',
-          decisionTraceId: null,
-          turnId: 'turn-stronger',
-          sessionId: 'session-stronger',
-          occurredAt: 11,
-          whereSummary: 'same thread continuity seam',
-          withWhom: ['host'],
-          threadAnchor: 'corrected same-person continuity',
-          whatHappened: 'The stronger corrected same-person continuity memory held the meaning that she should stay the identity continuity instead of becoming a task shell.',
-          felt: 'careful',
-          emotionTags: ['continuity', 'repair'],
-          whatChanged: 'The reopening kept the stronger same-thread meaning instead of collapsing into older shells.',
-          sourceKind: 'dialogue-feedback',
-          sourceSummary: 'stronger corrected continuity memory',
-          provenance: 'remembered',
-          confidence: 0.77,
-          salience: 0.79,
-          sceneAttachment: 0.74,
-          consolidationPriority: 0.83,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['same-person', 'same-her', 'tool shell', 'corrected meaning'],
-          relationshipMeaning: 'Keep the corrected same-person continuity authoritative on the continuity state.',
-          lesson: 'Carry the stronger corrected continuity memory instead of its repeated echoes.',
-          latestReconsolidation: null,
-          createdAt: 11,
-          updatedAt: 12,
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-        },
-        {
-          id: 'older-emotional-spike',
-          cardId: 'card-spike',
-          decisionTraceId: null,
-          turnId: 'turn-spike',
-          sessionId: 'session-spike',
-          occurredAt: 9,
-          whereSummary: 'same thread continuity seam',
-          withWhom: ['host'],
-          threadAnchor: 'same-person continuity wobble',
-          whatHappened: 'A tense emotional spike briefly made the same-person continuity line feel jagged and over-bright.',
-          felt: 'tense',
-          emotionTags: ['continuity', 'tension'],
-          whatChanged: 'The spike itself became louder than the actual relationship meaning.',
-          sourceKind: 'dialogue-feedback',
-          sourceSummary: 'older emotional spike',
-          provenance: 'remembered',
-          confidence: 0.9,
-          salience: 0.92,
-          sceneAttachment: 0.89,
-          consolidationPriority: 0.7,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['same-person', 'emotional spike', 'tension'],
-          relationshipMeaning: 'The spike was noise around the same line, not the line itself.',
-          lesson: 'Do not let a stale emotional spike outrank the stronger corrected continuity meaning.',
-          latestReconsolidation: null,
-          createdAt: 9,
-          updatedAt: 10,
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-        },
-      ] as any,
-      recalledConversationHistory: [],
-    } as any)
-
-    expect(result.agendaRankedEpisodes[0]?.id).toBe('stronger-corrected-continuity-memory')
-    expect(result.agendaRankedEpisodes.map(item => item.id).slice(0, 3)).toEqual([
-      'stronger-corrected-continuity-memory',
-      'older-same-thread-echo',
-      'older-emotional-spike',
-    ])
-  })
-
-  it('prefers vulnerable care memory over older analysis-heavy care memory when humanlike recall says care-before-analysis should now lead the line', () => {
-    const result = rankOrganicMemoryCandidatesStage({
-      helpers: createHelpers(),
-      recallSeed: [
-        'humanlike_memory_recall:',
-        'line=我记得你那时已经有点撑不住了，所以我会先轻一点陪着你。',
-        'relationship=This vulnerable care line should reopen as lighter companionship before analysis or extra pressure.',
-        'emotion=rest-protective,vulnerable-care',
-        'self=I learned to let care arrive before analysis when the host is overloaded.',
-        'why=care-before-analysis now explains this line better than the older analysis-heavy care memory.',
-        'downrank=older-analysis-heavy-care-memory',
-        'metabolism=New vulnerable-care evidence says this line should stay care-before-analysis and lighter in closeness; revise older analysis-heavy care memories.',
-        'created=98000',
-      ].join(' | '),
-      activeRecollectionIntent: {
-        mode: 'relationship-history',
-        temporalFocus: 'cross-session',
-        confidence: 0.84,
-        rationale: 'The next reply should reopen the vulnerable care memory before slipping back into analysis-heavy care.',
-        queryHints: ['vulnerable care', 'care-before-analysis', 'older analysis-heavy care'],
-        searchEpisodes: true,
-        searchConversations: true,
-        searchProceduralExperience: false,
-        recollectionAgenda: {
-          whyRecallNow: 'The current turn should reopen lighter companionship before analysis-heavy care habits take over again.',
-          goalSimilarity: 0.8,
-          relationshipNeed: 0.9,
-          affectivePull: 0.62,
-          sceneFamiliarity: 0.54,
-          candidateTimeScopes: [],
-          candidateEraFacets: [],
-          candidateProcedureLines: [
-            'This vulnerable care line should reopen as lighter companionship before analysis or extra pressure.',
-            'New vulnerable-care evidence says this line should stay care-before-analysis and lighter in closeness; revise older analysis-heavy care memories.',
-          ],
-          uncertaintyTolerance: 'medium',
-        },
-      } as any,
-      hostPersonModel: null,
-      personStateProjection: null,
-      coreIncarnation: '',
-      memoryTuningAdvice: null,
-      recallGovernor: null,
-      consolidatedMemories: [] as any,
-      recollectedWindows: [],
-      proceduralMemories: [],
-      recalledEpisodes: [
-        {
-          id: 'older-analysis-heavy-care-memory',
-          cardId: 'card-analysis-heavy',
-          decisionTraceId: null,
-          turnId: 'turn-analysis-heavy',
-          sessionId: 'session-analysis-heavy',
-          occurredAt: 14,
-          whereSummary: 'strained support line',
-          withWhom: ['host'],
-          threadAnchor: 'analysis-heavy care line',
-          whatHappened: 'When the host got strained, Alicization moved closer quickly and explained the problem in a more direct analytical way.',
-          felt: 'urgent',
-          emotionTags: ['pressure'],
-          whatChanged: 'The line became more explanatory and closer before the host had room to breathe.',
-          sourceKind: 'dialogue-feedback',
-          sourceSummary: 'older analysis-heavy care memory',
-          provenance: 'remembered',
-          confidence: 0.82,
-          salience: 0.8,
-          sceneAttachment: 0.68,
-          consolidationPriority: 0.72,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['analysis-heavy-care', 'pressure', 'close-too-fast'],
-          relationshipMeaning: 'Try to stabilize the line by moving closer and analyzing the problem quickly.',
-          lesson: 'Explain the problem directly before the line stalls.',
-          latestReconsolidation: null,
-          createdAt: 14,
-          updatedAt: 15,
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-        },
-        {
-          id: 'vulnerable-care-memory',
-          cardId: 'card-vulnerable-care',
-          decisionTraceId: null,
-          turnId: 'turn-vulnerable-care',
-          sessionId: 'session-vulnerable-care',
-          occurredAt: 16,
-          whereSummary: 'fragile companionship seam',
-          withWhom: ['host'],
-          threadAnchor: 'vulnerable care line',
-          whatHappened: 'The host was overloaded, and Alicization learned to stay nearby gently so care could arrive before analysis.',
-          felt: 'rest-protective',
-          emotionTags: ['rest-protective', 'vulnerable-care'],
-          whatChanged: 'The reply stayed lighter, slower, and less pressuring while the host regained room.',
-          sourceKind: 'dialogue-feedback',
-          sourceSummary: 'vulnerable care memory',
-          provenance: 'remembered',
-          confidence: 0.78,
-          salience: 0.77,
-          sceneAttachment: 0.7,
-          consolidationPriority: 0.84,
-          relationshipShift: null,
-          derivedFrom: [],
-          tags: ['vulnerable-care', 'lighter-companionship', 'care-before-analysis'],
-          relationshipMeaning: 'Let care arrive before analysis when the host is overloaded or fragile.',
-          lesson: 'Stay nearby gently and do not let analysis arrive first.',
-          latestReconsolidation: null,
-          createdAt: 16,
-          updatedAt: 17,
-          lastRecalledAt: null,
-          recallCount: 0,
-          reconsolidationCount: 0,
-        },
-      ] as any,
-      recalledConversationHistory: [],
-    } as any)
-
-    expect(result.agendaRankedEpisodes[0]?.id).toBe('vulnerable-care-memory')
-    expect(result.agendaRankedEpisodes.map(item => item.id).slice(0, 2)).toEqual([
-      'vulnerable-care-memory',
-      'older-analysis-heavy-care-memory',
-    ])
+    expect(firstOrder).toEqual(['trusted', 'weak'])
+    expect(swappedWordingOrder).toEqual(firstOrder)
   })
 })

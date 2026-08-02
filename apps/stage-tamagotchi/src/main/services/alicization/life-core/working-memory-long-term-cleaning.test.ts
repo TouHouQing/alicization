@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
-
 import type { WorkingMemoryLongTermQueueItem } from './working-memory-long-term-queue'
+
+import { describe, expect, it } from 'vitest'
 
 import {
   buildWorkingMemoryLongTermIdempotencyKey,
@@ -14,7 +14,7 @@ function queueItem(overrides: Partial<WorkingMemoryLongTermQueueItem> = {}): Wor
     source: 'working-memory-owner',
     kind: 'correction',
     summary: '不要固定模板回复，要数字生命自身人格。',
-    reason: 'User corrected Alicization persona expression during the current dialogue.',
+    reason: 'candidate:correction',
     sourceTurnIds: ['turn-1:user'],
     evidenceSnippets: ['不要固定模板回复，要数字生命自身人格。'],
     salience: 0.82,

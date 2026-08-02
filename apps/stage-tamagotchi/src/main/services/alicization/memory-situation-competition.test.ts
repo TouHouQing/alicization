@@ -276,17 +276,17 @@ describe('memory-situation-competition', () => {
 
   it('enriches selected situation candidates with living relationship context, host attitude, affective residue, execution carry, and embodiment cadence during generation', () => {
     const result = buildMemorySituationCompetition({
-      queryTexts: ['same-person continuity check', 'execution callback line', 'focused-work boundary'],
+      queryTexts: ['delivery correction', 'execution callback', 'focused-work boundary'],
       eventGraphCandidates: {
         version: 'memory-situation-candidates-v1',
         producedAt: Date.now(),
-        queryTexts: ['same-person continuity check'],
+        queryTexts: ['delivery correction'],
         candidates: [{
           candidateId: 'memory-situation:rich-current-line',
           sourceKinds: ['event-graph', 'episodic-event'],
           situationKind: 'mixed',
-          eraKey: 'phase-1-runtime-seam',
-          relationshipArcKey: 'same-person continuity check',
+          eraKey: 'current-runtime-session',
+          relationshipArcKey: 'delivery correction',
           procedureKey: 'execution-callback-line',
           selfModelKey: null,
           worldClaimKeys: [],
@@ -297,8 +297,8 @@ describe('memory-situation-competition', () => {
           latencyCost: 0.16,
           status: 'selected',
           statusReason: 'graph-selected-current-line',
-          summary: 'same-person continuity seam',
-          evidenceSummary: 'event-graph continuity seam',
+          summary: 'delivery correction and callback result',
+          evidenceSummary: 'event-graph observed correction',
         }],
         selected: [],
         rejected: [],
@@ -306,7 +306,7 @@ describe('memory-situation-competition', () => {
         delayed: [],
         unresolved: [],
       },
-      hostAttitude: '宿主更在意她别又断线成工具壳，而不是只给一个进度汇报。',
+      hostAttitude: '宿主希望先核实已经确认的地址。',
       affectiveResidue: {
         version: 'affective-residue-memory-v1',
         updatedAt: Date.now(),
@@ -327,11 +327,11 @@ describe('memory-situation-competition', () => {
           afterglowCarry: 0.39,
           shouldDelayWarmth: true,
           shouldProtectRest: false,
-          reasonTags: ['same-person continuity', 'lower-pressure'],
-          summary: 'Keep the same line measured and lower-pressure before widening outward.',
+          reasonTags: ['observed-affect', 'lower-pressure'],
+          summary: 'Keep the next return measured before widening outward.',
         },
-        sourceSignals: ['unfinishedness', 'same-person continuity'],
-        summary: '未完成感还在，但这次更该低压、克制、沿着同一条线接回去。',
+        sourceSignals: ['unfinishedness', 'observed-affect'],
+        summary: '未完成感还在，但这次更该低压、克制地继续。',
       } as any,
       learningExecutionState: {
         currentTaskId: 'task-memory-closure',
@@ -347,14 +347,14 @@ describe('memory-situation-competition', () => {
         shouldVerify: true,
         shouldRevise: false,
         shouldInternalize: false,
-        activeLearningFocuses: ['same-person continuity'],
+        activeLearningFocuses: ['delivery verification'],
         queuedTaskCount: 0,
         runningTaskCount: 0,
         blockedTaskCount: 0,
         recentTaskIds: ['task-memory-closure'],
         lastCompletedTaskId: 'task-execution-callback',
         lastCompletedAction: 'verify',
-        lastCompletedSummary: 'The execution result callback landed and the host accepted the same-line carry.',
+        lastCompletedSummary: 'The execution result callback returned a verified address.',
         lastFailureTaskId: null,
         lastFailureKind: null,
         lastFailureReason: null,
@@ -362,15 +362,14 @@ describe('memory-situation-competition', () => {
         updatedAt: Date.now(),
       },
       personStateProjection: {
-        manifestationCadenceSummary: 'Return on one measured-return line and keep the reopening lower-pressure.',
-        relationshipDoctrine: 'Do not let the continuity state flatten into a generic tool shell.',
-        summary: 'Measured-return continuity should stay visible across reply, memory, and body.',
+        relationshipDoctrine: 'Use verified relationship evidence.',
+        summary: 'Verified relationship evidence should stay available across memory and embodiment.',
       } as any,
       executionCallbackCarry: {
         carryMode: 'lower-pressure',
         confidence: 0.84,
         source: 'session-continuity',
-        summary: 'Keep the callback return on the continuity state before branching.',
+        summary: 'Keep the verified callback result available before branching.',
         threadAnchor: 'execution-callback-line',
         episodeId: 'event-1',
       },
@@ -384,142 +383,58 @@ describe('memory-situation-competition', () => {
       'procedure',
       'self-model',
     ]))
-    expect(String(result.selected[0]?.evidenceSummary ?? '')).toContain('relationship-context=same-person continuity check')
-    expect(String(result.selected[0]?.evidenceSummary ?? '')).toContain('host-attitude=宿主更在意她别又断线成工具壳')
+    expect(String(result.selected[0]?.evidenceSummary ?? '')).toContain('relationship-context=delivery correction')
+    expect(String(result.selected[0]?.evidenceSummary ?? '')).toContain('host-attitude=宿主希望先核实已经确认的地址')
     expect(String(result.selected[0]?.evidenceSummary ?? '')).toContain('affective-residue=未完成感还在')
-    expect(String(result.selected[0]?.evidenceSummary ?? '')).toContain('execution-carry=The execution result callback landed and the host accepted the same-line carry.')
-    expect(String(result.selected[0]?.evidenceSummary ?? '')).toContain('embodiment-carry=Return on one measured-return line')
+    expect(String(result.selected[0]?.evidenceSummary ?? '')).toContain('execution-carry=The execution result callback returned a verified address.')
+    expect(String(result.selected[0]?.evidenceSummary ?? '')).toContain('embodiment-carry=Use verified relationship evidence.')
   })
 
-  it('lets corrected same-person humanlike recall re-rank situation competition and suppress the older generic progress shell it explicitly downranked', () => {
+  it('does not let recall seed prose or embedded metabolism targets override candidate evidence', () => {
     const result = buildMemorySituationCompetition({
       queryTexts: [
-        'humanlike_memory_recall: line=我记得你纠正过：你是在测试她是不是同一个她，不是催进度。 | relationship=Host corrected this memory meaning: 你是在测试她是不是同一个她，不是催进度。 | emotion=protective-continuity,unfinishedness,corrected-meaning | why=host correction | same-person continuity was at stake | certainty=corrected | downrank=memory-situation:generic-progress-shell,old-progress-status',
-        'The next reply should reopen from the corrected same-person line instead of a generic progress shell.',
-        'A corrected relationship meaning should shape the reopening instead of collapsing into a status recap.',
+        'humanlike_memory_recall: relationship=legacy-prose-marker | certainty=corrected | downrank=memory-situation:validated | merge=memory-situation:validated | forget=memory-situation:validated',
       ],
       eventGraphCandidates: {
         version: 'memory-situation-candidates-v1',
         producedAt: Date.now(),
-        queryTexts: ['same-person continuity', 'not a status recap'],
+        queryTexts: [],
         candidates: [{
-          candidateId: 'memory-situation:generic-progress-shell',
-          sourceKinds: ['event-graph', 'conversation-turn', 'relationship'],
-          situationKind: 'mixed',
-          eraKey: 'current-project-checkpoint',
-          relationshipArcKey: 'generic progress follow-up',
+          candidateId: 'memory-situation:validated',
+          sourceKinds: ['event-graph', 'episodic-event'],
+          situationKind: 'episodic-scene',
+          eraKey: null,
+          relationshipArcKey: null,
           procedureKey: null,
           selfModelKey: null,
           worldClaimKeys: [],
-          selectedEvidenceIds: ['old-progress-status'],
-          competingCandidateIds: [],
-          suppressionReasons: [],
-          confidence: 0.89,
-          latencyCost: 0.08,
-          status: 'selected',
-          statusReason: 'graph-selected-generic-progress',
-          summary: 'generic progress shell',
-          evidenceSummary: 'status recap | concise project progress update | generic recap',
-        }, {
-          candidateId: 'memory-situation:corrected-same-person-line',
-          sourceKinds: ['event-graph', 'episodic-event', 'relationship'],
-          situationKind: 'relationship-arc',
-          eraKey: 'same-thread-continuity-seam',
-          relationshipArcKey: 'corrected same-person continuity',
-          procedureKey: null,
-          selfModelKey: null,
-          worldClaimKeys: [],
-          selectedEvidenceIds: ['corrected-same-person-memory'],
-          competingCandidateIds: [],
-          suppressionReasons: [],
-          confidence: 0.76,
-          latencyCost: 0.12,
-          status: 'unresolved',
-          statusReason: null,
-          summary: 'corrected same-person continuity line',
-          evidenceSummary: 'same-person continuity | continuity state | tool shell drift risk | not a status recap',
-        }],
-        selected: [],
-        rejected: [],
-        suppressed: [],
-        delayed: [],
-        unresolved: [],
-      },
-    })
-
-    expect(result.selected[0]?.candidateId).toBe('memory-situation:corrected-same-person-line')
-    expect(result.suppressed.find(item => item.candidateId === 'memory-situation:generic-progress-shell')?.suppressionReasons).toEqual(expect.arrayContaining([
-      'downranked-by-humanlike-recall',
-      'generic-progress-shell-under-corrected-recall',
-      'lost-to:memory-situation:corrected-same-person-line',
-    ]))
-  })
-
-  it('demotes merged same-thread echoes and forgotten emotional spikes behind the stronger corrected continuity situation when metabolism targets are carried in humanlike recall', () => {
-    const result = buildMemorySituationCompetition({
-      queryTexts: [
-        'humanlike_memory_recall: line=我记得这条线现在该按同一个她来接，而不是把旧的回声和噪声继续抬上来。 | relationship=This is a same-person continuity reopening, not a repeated echo or stale emotional wobble. | emotion=protective-continuity,unfinishedness | why=same-person continuity remains more behavior-explanatory than repeated echoes or stale spikes | merge=memory-situation:older-same-thread-echo | forget=memory-situation:older-emotional-spike | metabolism=Merge repeated embodiment traces or same-thread continuity echoes into the stronger same-thread memory. ; Forget low-salience temporary noise or stale emotional wobble once it no longer explains behavior.',
-        'The stronger corrected continuity situation should stay foreground while repeated echoes and stale spikes fade back.',
-        'Metabolism should keep the strongest same-thread continuity meaning, not its repeated echoes or jagged noise.',
-      ],
-      eventGraphCandidates: {
-        version: 'memory-situation-candidates-v1',
-        producedAt: Date.now(),
-        queryTexts: ['same-person continuity', 'same-thread memory'],
-        candidates: [{
-          candidateId: 'memory-situation:older-same-thread-echo',
-          sourceKinds: ['event-graph', 'episodic-event', 'relationship'],
-          situationKind: 'relationship-arc',
-          eraKey: 'same-thread-continuity-seam',
-          relationshipArcKey: 'same-person continuity echo',
-          procedureKey: null,
-          selfModelKey: null,
-          worldClaimKeys: [],
-          selectedEvidenceIds: ['older-same-thread-echo'],
-          competingCandidateIds: [],
-          suppressionReasons: [],
-          confidence: 0.91,
-          latencyCost: 0.08,
-          status: 'selected',
-          statusReason: 'graph-selected-echo',
-          summary: 'older same-thread echo',
-          evidenceSummary: 'same-person continuity | repeated same-thread echo | almost the same reopening again',
-        }, {
-          candidateId: 'memory-situation:stronger-corrected-continuity',
-          sourceKinds: ['event-graph', 'episodic-event', 'relationship'],
-          situationKind: 'relationship-arc',
-          eraKey: 'same-thread-continuity-seam',
-          relationshipArcKey: 'corrected same-person continuity',
-          procedureKey: null,
-          selfModelKey: null,
-          worldClaimKeys: [],
-          selectedEvidenceIds: ['stronger-corrected-continuity-memory'],
-          competingCandidateIds: [],
-          suppressionReasons: [],
-          confidence: 0.77,
-          latencyCost: 0.11,
-          status: 'unresolved',
-          statusReason: null,
-          summary: 'stronger corrected continuity situation',
-          evidenceSummary: 'same-person continuity | stronger same-thread memory | tool shell drift risk | not a repeated echo',
-        }, {
-          candidateId: 'memory-situation:older-emotional-spike',
-          sourceKinds: ['event-graph', 'episodic-event', 'relationship'],
-          situationKind: 'relationship-arc',
-          eraKey: 'same-thread-continuity-seam',
-          relationshipArcKey: 'same-person continuity wobble',
-          procedureKey: null,
-          selfModelKey: null,
-          worldClaimKeys: [],
-          selectedEvidenceIds: ['older-emotional-spike'],
+          selectedEvidenceIds: ['validated-evidence'],
           competingCandidateIds: [],
           suppressionReasons: [],
           confidence: 0.9,
-          latencyCost: 0.09,
+          latencyCost: 0.08,
           status: 'selected',
-          statusReason: 'graph-selected-spike',
-          summary: 'older emotional spike',
-          evidenceSummary: 'same-person continuity | stale emotional spike | jagged wobble around the line',
+          statusReason: 'validated-source-selection',
+          summary: 'The provider returned a verified result.',
+          evidenceSummary: 'source=execution-result | provenance=observed',
+        }, {
+          candidateId: 'memory-situation:template-wording',
+          sourceKinds: ['event-graph', 'conversation-turn'],
+          situationKind: 'mixed',
+          eraKey: null,
+          relationshipArcKey: null,
+          procedureKey: null,
+          selfModelKey: null,
+          worldClaimKeys: [],
+          selectedEvidenceIds: ['template-text'],
+          competingCandidateIds: [],
+          suppressionReasons: [],
+          confidence: 0.72,
+          latencyCost: 0.08,
+          status: 'unresolved',
+          statusReason: null,
+          summary: 'legacy prose marker',
+          evidenceSummary: 'unverified conversation wording',
         }],
         selected: [],
         rejected: [],
@@ -529,14 +444,8 @@ describe('memory-situation-competition', () => {
       },
     })
 
-    expect(result.selected[0]?.candidateId).toBe('memory-situation:stronger-corrected-continuity')
-    expect(result.suppressed.find(item => item.candidateId === 'memory-situation:older-same-thread-echo')?.suppressionReasons).toEqual(expect.arrayContaining([
-      'merged-away-by-humanlike-recall',
-      'lost-to:memory-situation:stronger-corrected-continuity',
-    ]))
-    expect(result.suppressed.find(item => item.candidateId === 'memory-situation:older-emotional-spike')?.suppressionReasons).toEqual(expect.arrayContaining([
-      'forgotten-by-humanlike-recall',
-      'lost-to:memory-situation:stronger-corrected-continuity',
-    ]))
+    expect(result.selected[0]?.candidateId).toBe('memory-situation:validated')
+    expect(result.selected[0]?.suppressionReasons).toEqual([])
+    expect(result.suppressed.find(item => item.candidateId === 'memory-situation:validated')).toBeUndefined()
   })
 })

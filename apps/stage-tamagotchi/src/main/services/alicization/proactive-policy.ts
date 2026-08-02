@@ -655,38 +655,10 @@ export function evaluateProactivePolicy(input: {
   longHorizonMemory?: AlicizationLongHorizonMemorySnapshot | null
   autobiographicalSelf?: AlicizationAutobiographicalSelfSnapshot | null
   selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
-  activeContinuityGovernance?: import('../../../shared/eventa').AlicizationDerivedMindStateBundle['activeContinuityGovernance'] | null
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   selfRevisionPatch?: AlicizationSelfRevisionStatePatch | null
   personalityAuthority?: import('../../../shared/eventa').AlicizationPersonalityState | null
   habitPolicy?: AlicizationHabitPolicySnapshot | null
-  projectState?: {
-    preflightSummary?: string | null
-    preDialogueAwarenessLine?: string | null
-    companionHeadlineLine?: string | null
-    latestLandedProgress?: string | null
-    latestProgress?: string | null
-    landedProgressSummary?: string | null
-    identity?: string | null
-    currentPhase?: string | null
-    primaryOpenLoop?: string | null
-    openClosureSummary?: string | null
-    proactiveSameHerGap?: string | null
-    proactiveSameHerGapSummary?: string | null
-    nextClosureTarget?: string | null
-    nextClosureTargetSummary?: string | null
-    sameHerSelfLine?: string | null
-    sameHerDriftRisk?: string | null
-    sameHerDriftRiskSummary?: string | null
-    emotionalClosureSummary?: string | null
-    sameHerHoldDetail?: string | null
-    preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
-    preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
-    preferredPauseMode?: 'longer' | 'natural' | null
-    preferredLipsyncMode?: 'restrained' | 'matched' | null
-    preferredVoiceMode?: 'lower-pressure' | 'even' | null
-    preferredPacingMode?: 'slower' | 'natural' | null
-  } | null
 }): AlicizationProactivePolicyEvaluation {
   const { context, proactiveState } = input
   const personaAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personalityAuthority ?? null)

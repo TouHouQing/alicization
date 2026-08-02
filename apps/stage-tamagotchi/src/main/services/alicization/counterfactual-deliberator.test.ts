@@ -319,6 +319,9 @@ describe('buildCounterfactualDeliberation', () => {
     expect(deliberation.selectedAction).toBe('recheck')
     expect(deliberation.selectedOptionId).toBe('counterfactual::recheck')
     expect(deliberation.dominantTradeoff).toBe('clarity-before-expression')
+    expect(deliberation.narrative[0]).toBe(
+      'counterfactual:selected;action=recheck;tradeoff=clarity-before-expression',
+    )
   })
 
   it('prefers speaking when a grounded coding knot is local enough to help', () => {
@@ -642,21 +645,6 @@ describe('buildCounterfactualDeliberation', () => {
     })
 
     expect(tuned).toEqual(baseline)
-  })
-
-  it('keeps deliberation invariant when only project-state slogans change', () => {
-    const input = createCounterfactualGovernanceInvariantInput()
-    const baseline = buildCounterfactualDeliberation(input)
-    const projectGoverned = buildCounterfactualDeliberation({
-      ...input,
-      projectState: {
-        identity: ['digital', 'life'].join(' '),
-        currentPhase: ['phase', '1'].join(' '),
-        primaryOpenLoop: ['memory', 'closure', 'initiative', 'embodiment'].join(' '),
-      },
-    })
-
-    expect(projectGoverned).toEqual(baseline)
   })
 
   it('keeps warm companionship counterfactuals grounded in the live scene', () => {

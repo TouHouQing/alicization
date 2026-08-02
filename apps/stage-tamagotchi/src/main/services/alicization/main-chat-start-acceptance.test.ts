@@ -52,7 +52,7 @@ function createInput(overrides?: Partial<Parameters<typeof acceptAlicizationMain
 }
 
 describe('main chat start acceptance', () => {
-  it('strips legacy identity before feedback settlement and accepts the real chat payload', async () => {
+  it('settles feedback and accepts the real chat payload', async () => {
     const input = createInput({
       rawInvokeOptions: {
         ipcMainEvent: {
@@ -70,10 +70,6 @@ describe('main chat start acceptance', () => {
       turnId: 'turn-1',
       messages: [{ role: 'user', content: '你好' }],
     })
-    expect(feedbackPayload).not.toHaveProperty('preDialogueSendIdentity')
-    expect(JSON.stringify(vi.mocked(input.appendRuntimeDebugLine).mock.calls)).not.toMatch(
-      /preDialogue|LEGACY_ACCEPTANCE/iu,
-    )
     expect(input.registerRun).toHaveBeenCalledWith('card-1::turn-1', expect.objectContaining({
       cardId: 'card-1',
       turnId: 'turn-1',

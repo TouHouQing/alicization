@@ -490,7 +490,7 @@ describe('mind ecology', () => {
     expect(ecology.recurringPatterns).toContain('habit:light-touch-companionship')
   })
 
-  it('keeps same-her ecology readable when motive carries lose agenda and goal array scaffolding', () => {
+  it('keeps continuity ecology readable when motive carries lose agenda and goal array scaffolding', () => {
     const ecology = buildMindEcology({
       now: 26_000,
       watchMode: 'mnemonic-passive',
@@ -600,12 +600,12 @@ describe('mind ecology', () => {
             createdAt: 27_800,
           },
           {
-            id: 'reflection::same-her-repair',
-            summary: 'The same-her repair line is still the meaningful continuity carry.',
+            id: 'reflection::continuity-repair',
+            summary: 'The continuity repair line is still the meaningful continuity carry.',
             expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
             observedOutcome: 'The continuity state still needs a measured return.',
             outcome: 'missed',
-            revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+            revision: 'Keep the continuity repair line active instead of reopening from temporary noise.',
             confidenceShift: -0.08,
             createdAt: 27_200,
           },
@@ -628,8 +628,8 @@ describe('mind ecology', () => {
       } as any,
     } as any)
 
-    expect(ecology.currentPreoccupation).toBe('Keep the same-her repair line active instead of reopening from temporary noise.')
-    expect(ecology.learnedAdjustments).toContain('Keep the same-her repair line active instead of reopening from temporary noise.')
+    expect(ecology.currentPreoccupation).toBe('Keep the continuity repair line active instead of reopening from temporary noise.')
+    expect(ecology.learnedAdjustments).toContain('Keep the continuity repair line active instead of reopening from temporary noise.')
     expect(ecology.learnedAdjustments).not.toContain('Do not reopen from the temporary wobble.')
   })
 })

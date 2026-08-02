@@ -3,42 +3,16 @@ import type {
   AlicizationMemoryDecisionTraceRecord,
   AlicizationMindTurnEventRecord,
   AlicizationOrganicMemorySnapshot,
-  AlicizationProjectStateContinuitySnapshot,
-  AlicizationProjectStateObservation,
   AlicizationSelfEvolutionVersionRuntimeSnapshot,
   AlicizationSoulSnapshot,
   AlicizationVisualPresenceStateSnapshot,
 } from './alicization-bridge'
 
-import {
-  alicizationFixedTemplateReplacement,
-  containsAlicizationFixedTemplateResidue,
-  describeAlicizationEmbodimentClosureHeadline,
-  describeAlicizationProjectClosureBriefing,
-  describeAlicizationProjectNextClosure,
-  formatAlicizationProjectStateAwarenessFields,
-  isAlicizationThinProjectAwarenessLine,
-  isAlicizationThinSamePhaseCarryLine as isThinSamePhaseCarryLine,
-  resolveAlicizationProjectPreDialogueAwarenessLine,
-  sanitizeAlicizationProviderFacingText,
-  scoreAlicizationProjectAwarenessLine,
-} from '@proj-alicization/stage-shared'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
-import {
-  normalizeStructuredPreDialogueClosurePayload,
-  normalizeStructuredProjectStatePayload,
-} from '../composables/alicization-structured-output'
 import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
 import { useAlicizationMindReplayStore } from './alicization-mind-replay'
-import { projectStateObservationToContinuitySnapshot } from './project-state-observation'
-
-type AlicizationLegacyAwareProjectStateContinuitySnapshot
-  = AlicizationProjectStateContinuitySnapshot & {
-    latestProgress?: string | null
-    landedProgressSummary?: string | null
-  }
 
 function summarizeTraceEvent(event: AlicizationMindTurnEventRecord) {
   const payload = event.payload && typeof event.payload === 'object'
@@ -196,240 +170,6 @@ interface ProactiveDecisionConsumptionSummary {
   lines: string[]
 }
 
-const PRE_DIALOGUE_AWARENESS_REASON_PREVIEW_LIMIT = 16
-const INSPECTOR_CONTINUITY_ANCHOR_LINE
-  = ''
-const inspectorInternalClosureMarkerPattern = /^\s*continuity_closure\s*:/iu
-
-function sanitizeInspectorTemplateText(value: string | null | undefined, maxChars = 420) {
-  if (typeof value === 'string' && inspectorInternalClosureMarkerPattern.test(value))
-    return null
-  return sanitizeAlicizationProviderFacingText(
-    value,
-    maxChars,
-    alicizationFixedTemplateReplacement,
-  ) || null
-}
-
-function sanitizeInspectorTemplateList(values: string[] | null | undefined, maxItems = 8) {
-  const result: string[] = []
-  for (const value of values ?? []) {
-    const sanitized = sanitizeInspectorTemplateText(value)
-    if (!sanitized || sanitized === alicizationFixedTemplateReplacement || result.includes(sanitized))
-      continue
-    result.push(sanitized)
-    if (result.length >= maxItems)
-      break
-  }
-  return result
-}
-
-function sanitizeInspectorContinuityAnchor(value: string | null | undefined) {
-  const sanitized = sanitizeInspectorTemplateText(value, 420)
-  if (!sanitized)
-    return null
-  return sanitized === alicizationFixedTemplateReplacement
-    ? null
-    : sanitized
-}
-
-function sanitizeInspectorIdentity(value: string | null | undefined) {
-  const sanitized = sanitizeInspectorTemplateText(value, 260)
-  if (!sanitized)
-    return ''
-  if (sanitized === alicizationFixedTemplateReplacement)
-    return ''
-  return /alicization is .*local-first digital life/iu.test(sanitized)
-    ? ''
-    : sanitized
-}
-
-function sanitizeInspectorPhase(value: string | null | undefined) {
-  const sanitized = sanitizeInspectorTemplateText(value, 220)
-  if (!sanitized)
-    return ''
-  if (sanitized === alicizationFixedTemplateReplacement)
-    return ''
-  return /phase\s*1\s*:\s*local digital life|local digital life|第一阶段|阶段一/iu.test(sanitized)
-    ? ''
-    : sanitized
-}
-
-function fallbackStructuredProjectAwarenessLine(
-  continuitySnapshot: AlicizationProjectStateContinuitySnapshot | null | undefined,
-) {
-  const structured = formatAlicizationProjectStateAwarenessFields({
-    identity: continuitySnapshot?.identity ?? null,
-    currentPhase: continuitySnapshot?.currentPhase ?? null,
-    latestLandedProgress: resolveContinuityLatestLandedProgress(continuitySnapshot),
-    primaryOpenLoop: continuitySnapshot?.primaryOpenLoop ?? null,
-    nextClosureTarget: continuitySnapshot?.nextClosureTarget ?? null,
-    continuityAnchor: continuitySnapshot?.sameHerSelfLine ?? null,
-  })
-  return structured || INSPECTOR_CONTINUITY_ANCHOR_LINE
-}
-
-function sanitizeInspectorSnapshotLine(
-  value: string | null | undefined,
-  options: { fallback?: string | null, dropResidue?: boolean } = {},
-) {
-  const sanitized = sanitizeInspectorTemplateText(value)
-  if (!sanitized)
-    return null
-  if (sanitized === alicizationFixedTemplateReplacement) {
-    if (options.dropResidue)
-      return null
-    return options.fallback || alicizationFixedTemplateReplacement
-  }
-  return sanitized
-}
-
-function sanitizeInspectorStructuredFact(value: string | null | undefined, maxChars = 420) {
-  if (typeof value !== 'string')
-    return null
-  const normalized = value.trim().replace(/\s+/g, ' ').slice(0, Math.max(0, maxChars)).trim()
-  if (!normalized)
-    return null
-  if (containsAlicizationFixedTemplateResidue(normalized))
-    return null
-  if (/^Before (?:answering|speaking|acting),\s*(?:remember|keep|stay on|she should|I should|we should)\b/iu.test(normalized))
-    return null
-
-  const sanitized = sanitizeInspectorTemplateText(normalized, maxChars)
-  return sanitized && sanitized !== alicizationFixedTemplateReplacement
-    ? sanitized
-    : null
-}
-
-function sanitizeInspectorAwarenessSnapshot(
-  awareness: NormalizedPreDialogueAwarenessSnapshot | null,
-  continuitySnapshot: AlicizationProjectStateContinuitySnapshot | null | undefined,
-) {
-  if (!awareness)
-    return null
-
-  const fallback = fallbackStructuredProjectAwarenessLine(continuitySnapshot)
-  const summaryLine = sanitizeInspectorSnapshotLine(awareness.summaryLine, { fallback })
-  const awarenessLine = sanitizeInspectorSnapshotLine(awareness.awarenessLine, { fallback })
-    || summaryLine
-    || fallback
-
-  return {
-    ...awareness,
-    summaryLine,
-    companionHeadlineLine: sanitizeInspectorSnapshotLine(awareness.companionHeadlineLine, { dropResidue: true }),
-    companionBriefingLine: sanitizeInspectorSnapshotLine(awareness.companionBriefingLine, { dropResidue: true }),
-    companionNextClosureLine: sanitizeInspectorSnapshotLine(awareness.companionNextClosureLine, { dropResidue: true }),
-    awarenessLine,
-    emotionalClosureCue: sanitizeInspectorSnapshotLine(awareness.emotionalClosureCue, { dropResidue: true }),
-    reasonPreview: sanitizeInspectorTemplateList([
-      ...(awareness.reasonPreview ?? []),
-      summaryLine,
-      awarenessLine,
-    ].filter((value): value is string => Boolean(value)), PRE_DIALOGUE_AWARENESS_REASON_PREVIEW_LIMIT),
-  } satisfies NormalizedPreDialogueAwarenessSnapshot
-}
-
-function sanitizeInspectorClosureSnapshot(
-  closure: NormalizedPreDialogueClosureSnapshot | null,
-  continuitySnapshot: AlicizationProjectStateContinuitySnapshot | null | undefined,
-) {
-  if (!closure)
-    return null
-
-  const fallback = fallbackStructuredProjectAwarenessLine(continuitySnapshot)
-  const emotionalClosureCue = sanitizeInspectorSnapshotLine(closure.emotionalClosureCue, { dropResidue: true })
-    ?? sanitizeInspectorSnapshotLine(continuitySnapshot?.emotionalClosureCue ?? null, { dropResidue: true })
-  return {
-    ...closure,
-    summaryLine: sanitizeInspectorSnapshotLine(closure.summaryLine, { fallback }),
-    companionHeadlineLine: sanitizeInspectorSnapshotLine(closure.companionHeadlineLine, { dropResidue: true }),
-    companionBriefingLine: sanitizeInspectorSnapshotLine(closure.companionBriefingLine, { dropResidue: true }),
-    companionNextClosureLine: sanitizeInspectorSnapshotLine(closure.companionNextClosureLine, { dropResidue: true }),
-    sameHerDriftRiskLine: sanitizeInspectorSnapshotLine(closure.sameHerDriftRiskLine, { dropResidue: true }),
-    companionshipReasonLine: sanitizeInspectorSnapshotLine(closure.companionshipReasonLine, { dropResidue: true }),
-    emotionalClosureCue,
-    briefingLines: sanitizeInspectorTemplateList(closure.briefingLines, 16),
-    reasons: sanitizeInspectorTemplateList(closure.reasons, 16),
-  } satisfies NormalizedPreDialogueClosureSnapshot
-}
-
-function sanitizeInspectorContinuitySnapshot(
-  continuitySnapshot: AlicizationProjectStateContinuitySnapshot | null,
-): AlicizationProjectStateContinuitySnapshot | null {
-  if (!continuitySnapshot)
-    return null
-
-  const identity = sanitizeInspectorIdentity(continuitySnapshot.identity)
-    || ''
-  const currentPhase = sanitizeInspectorPhase(continuitySnapshot.currentPhase)
-    || ''
-  const sameHerSelfLine = sanitizeInspectorContinuityAnchor(continuitySnapshot.sameHerSelfLine)
-    || INSPECTOR_CONTINUITY_ANCHOR_LINE
-  const latestLandedProgress = sanitizeInspectorSnapshotLine(
-    continuitySnapshot.latestLandedProgress ?? null,
-    { dropResidue: true },
-  ) ?? sanitizeInspectorStructuredFact(continuitySnapshot.latestLandedProgress ?? null)
-  const primaryOpenLoop = sanitizeInspectorStructuredFact(continuitySnapshot.primaryOpenLoop ?? null)
-    ?? sanitizeInspectorSnapshotLine(continuitySnapshot.primaryOpenLoop ?? null, { dropResidue: true })
-  const nextClosureTarget = sanitizeInspectorStructuredFact(continuitySnapshot.nextClosureTarget ?? null)
-    ?? sanitizeInspectorSnapshotLine(continuitySnapshot.nextClosureTarget ?? null, { dropResidue: true })
-  const sanitizedShell: AlicizationProjectStateContinuitySnapshot = {
-    ...continuitySnapshot,
-    identity,
-    currentPhase,
-    latestLandedProgress,
-    primaryOpenLoop,
-    nextClosureTarget: nextClosureTarget || 'continuity_review_required',
-    continuitySummary: sanitizeInspectorSnapshotLine(
-      continuitySnapshot.continuitySummary ?? null,
-      {
-        fallback: formatAlicizationProjectStateAwarenessFields({
-          identity,
-          currentPhase,
-          latestLandedProgress,
-          primaryOpenLoop,
-          nextClosureTarget,
-          continuityAnchor: sameHerSelfLine,
-        }),
-      },
-    ),
-    continuityRestraint: sanitizeInspectorStructuredFact(continuitySnapshot.continuityRestraint ?? null, 120)
-      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.continuityRestraint ?? null, { dropResidue: true }),
-    continuityArcStage: sanitizeInspectorStructuredFact(continuitySnapshot.continuityArcStage ?? null, 120)
-      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.continuityArcStage ?? null, { dropResidue: true }),
-    continuityPreferredTiming: sanitizeInspectorStructuredFact(continuitySnapshot.continuityPreferredTiming ?? null, 160)
-      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.continuityPreferredTiming ?? null, { dropResidue: true }),
-    continuityCadence: sanitizeInspectorStructuredFact(continuitySnapshot.continuityCadence ?? null, 160)
-      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.continuityCadence ?? null, { dropResidue: true }),
-    continuityCue: sanitizeInspectorStructuredFact(continuitySnapshot.continuityCue ?? null)
-      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.continuityCue ?? null, { dropResidue: true }),
-    sameHerSelfLine,
-    sameHerHoldDetail: sanitizeInspectorStructuredFact(continuitySnapshot.sameHerHoldDetail ?? null)
-      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.sameHerHoldDetail ?? null, { dropResidue: true }),
-    sameHerDriftRisk: sanitizeInspectorStructuredFact(continuitySnapshot.sameHerDriftRisk ?? null)
-      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.sameHerDriftRisk ?? null, { dropResidue: true }),
-    proactiveSameHerGap: sanitizeInspectorStructuredFact(continuitySnapshot.proactiveSameHerGap ?? null)
-      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.proactiveSameHerGap ?? null, { dropResidue: true }),
-    emotionalClosureCue: sanitizeInspectorStructuredFact(continuitySnapshot.emotionalClosureCue ?? null)
-      ?? sanitizeInspectorSnapshotLine(continuitySnapshot.emotionalClosureCue ?? null, { dropResidue: true }),
-    preDialogueAwareness: null,
-    preDialogueClosure: null,
-    nonHumanAuthoredStatus: sanitizeInspectorSnapshotLine(continuitySnapshot.nonHumanAuthoredStatus ?? null, { dropResidue: true }),
-  }
-
-  sanitizedShell.preDialogueAwareness = sanitizeInspectorAwarenessSnapshot(
-    normalizePreDialogueAwarenessSnapshot(continuitySnapshot.preDialogueAwareness ?? null),
-    sanitizedShell,
-  )
-  sanitizedShell.preDialogueClosure = sanitizeInspectorClosureSnapshot(
-    normalizePreDialogueClosureSnapshot(continuitySnapshot.preDialogueClosure ?? null),
-    sanitizedShell,
-  )
-
-  return sanitizedShell
-}
-
 function uniquePreviewReasons(values: Array<string | null | undefined>, maxItems = 8) {
   const result: string[] = []
   for (const value of values) {
@@ -450,446 +190,6 @@ function readTraceNextLearningAction(trace: AlicizationMemoryDecisionTraceRecord
   return typeof runtimeMemory?.nextLearningAction === 'string'
     ? runtimeMemory.nextLearningAction
     : null
-}
-
-interface NormalizedPreDialogueAwarenessSnapshot {
-  status: 'grounded' | 'partial' | 'drift'
-  summaryLine: string | null
-  companionHeadlineLine: string | null
-  companionBriefingLine: string | null
-  companionNextClosureLine: string | null
-  awarenessLine: string | null
-  emotionalClosureCue: string | null
-  reasonPreview: string[]
-}
-
-interface NormalizedPreDialogueClosureSnapshot {
-  status: 'grounded' | 'partial' | 'drift'
-  summaryLine: string | null
-  companionHeadlineLine: string | null
-  companionBriefingLine: string | null
-  companionNextClosureLine: string | null
-  sameHerDriftRiskLine: string | null
-  companionshipReasonLine: string | null
-  emotionalClosureCue: string | null
-  briefingLines: string[]
-  reasons: string[]
-}
-
-const preDialogueClosureStatusSeverity: Record<NormalizedPreDialogueClosureSnapshot['status'], number> = {
-  grounded: 0,
-  partial: 1,
-  drift: 2,
-}
-
-function mergePreDialogueClosureStatus(
-  left: NormalizedPreDialogueClosureSnapshot['status'],
-  right: NormalizedPreDialogueClosureSnapshot['status'],
-) {
-  return preDialogueClosureStatusSeverity[left] >= preDialogueClosureStatusSeverity[right]
-    ? left
-    : right
-}
-
-function normalizePreDialogueAwarenessSnapshot(raw: unknown): NormalizedPreDialogueAwarenessSnapshot | null {
-  const payload = raw && typeof raw === 'object' && !Array.isArray(raw)
-    ? raw as Record<string, unknown>
-    : null
-  if (!payload)
-    return null
-
-  const status = payload.status === 'grounded' || payload.status === 'partial' || payload.status === 'drift'
-    ? payload.status
-    : null
-  const summaryLine = sanitizeInspectorTemplateText(typeof payload.summaryLine === 'string' ? payload.summaryLine : null) ?? ''
-  const companionHeadlineLine = sanitizeInspectorTemplateText(typeof payload.companionHeadlineLine === 'string' ? payload.companionHeadlineLine : null) ?? ''
-  const companionBriefingLine = sanitizeInspectorTemplateText(typeof payload.companionBriefingLine === 'string' ? payload.companionBriefingLine : null) ?? ''
-  const companionNextClosureLine = sanitizeInspectorTemplateText(typeof payload.companionNextClosureLine === 'string' ? payload.companionNextClosureLine : null) ?? ''
-  const awarenessLine = sanitizeInspectorTemplateText(typeof payload.awarenessLine === 'string' ? payload.awarenessLine : null) ?? ''
-  const emotionalClosureCue = sanitizeInspectorTemplateText(typeof payload.emotionalClosureCue === 'string' ? payload.emotionalClosureCue : null) ?? ''
-  const reasonPreview = Array.isArray(payload.reasonPreview)
-    ? sanitizeInspectorTemplateList(
-        payload.reasonPreview.map(item => typeof item === 'string' ? item : ''),
-        PRE_DIALOGUE_AWARENESS_REASON_PREVIEW_LIMIT,
-      )
-    : []
-
-  if (!status && !summaryLine && !awarenessLine && reasonPreview.length === 0)
-    return null
-
-  return {
-    status: status ?? 'partial',
-    summaryLine: summaryLine || null,
-    companionHeadlineLine: companionHeadlineLine || null,
-    companionBriefingLine: companionBriefingLine || null,
-    companionNextClosureLine: companionNextClosureLine || null,
-    awarenessLine: awarenessLine || companionHeadlineLine || companionBriefingLine || summaryLine || null,
-    emotionalClosureCue: emotionalClosureCue || null,
-    reasonPreview,
-  }
-}
-
-function looksLikeThinContinuityReminder(value: string | null | undefined) {
-  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  if (!normalized)
-    return false
-
-  if (normalized === alicizationFixedTemplateReplacement)
-    return true
-
-  return isAlicizationThinProjectAwarenessLine(normalized)
-    || normalized.includes('generic continuity reminder')
-    || normalized.includes('generic awareness reminder')
-    || normalized.includes('generic awareness summary')
-    || normalized.includes('generic identity-continuity reminder')
-    || normalized.includes('steadier carry of this project, this phase, and the life loop that remains open')
-    || (normalized.startsWith('identity-continuity=') && normalized.includes('| landed=') && normalized.includes('| open='))
-}
-
-function looksLikeThinContinuityNextClosureLine(value: string | null | undefined) {
-  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  if (!normalized)
-    return false
-
-  if (normalized === alicizationFixedTemplateReplacement)
-    return true
-
-  return normalized.includes('generic next target')
-    || normalized.includes('generic next closure')
-    || normalized.includes('generic closure shell')
-    || normalized.includes('generic closure summary')
-    || normalized.includes('steadier carry of this project, this phase, and the life loop that remains open')
-}
-
-function looksLikeLivedInSameHerHoldDetail(value: string | null | undefined) {
-  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  if (!normalized)
-    return false
-
-  return normalized.includes('identity-continuity hold')
-    || normalized.includes('same remembered seam')
-    || normalized.includes('measured-return')
-    || normalized.includes('repair-before-closeness')
-    || normalized.includes('rest-protective')
-    || normalized.includes('lower-pressure')
-    || normalized.includes('callback line')
-    || normalized.includes('keep more room this time')
-}
-
-function looksLikeThinPreDialogueAwarenessSnapshot(
-  awareness: NormalizedPreDialogueAwarenessSnapshot | null,
-) {
-  if (!awareness)
-    return false
-
-  const carriesNoExplicitAwareness = !awareness.summaryLine
-    && !awareness.companionHeadlineLine
-    && !awareness.companionBriefingLine
-    && !awareness.awarenessLine
-    && awareness.reasonPreview.length === 0
-
-  if (carriesNoExplicitAwareness)
-    return true
-
-  const summaryLooksThin = looksLikeThinContinuityReminder(awareness.summaryLine)
-  const companionHeadlineLooksThin = looksLikeThinContinuityReminder(awareness.companionHeadlineLine)
-  const companionBriefingLooksThin = looksLikeThinContinuityReminder(awareness.companionBriefingLine)
-  const awarenessLineLooksThin = looksLikeThinContinuityReminder(awareness.awarenessLine)
-  const hasStrongerExplicitCarry = Boolean(
-    (awareness.companionHeadlineLine && !companionHeadlineLooksThin)
-    || (awareness.companionBriefingLine && !companionBriefingLooksThin)
-    || (awareness.awarenessLine && !awarenessLineLooksThin),
-  )
-
-  if (hasStrongerExplicitCarry)
-    return false
-
-  return summaryLooksThin
-    || companionHeadlineLooksThin
-    || companionBriefingLooksThin
-    || awarenessLineLooksThin
-}
-
-function carriesBroaderInspectorProjectFrame(value: string | null | undefined) {
-  const normalized = typeof value === 'string' ? value.trim() : ''
-  if (!normalized)
-    return false
-
-  return /\b(?:project|digital life project|life loop|still-open|what has landed|before speaking|before answering|local-first digital life)\b/i.test(normalized)
-    || /数字生命项目|闭环|主线|已落地|开口前|先记住/u.test(normalized)
-}
-
-function resolveInspectorAwarenessSummaryLine(input: {
-  continuitySummary: string
-  summaryLine: string | null
-  awarenessLine: string | null
-  companionBriefingLine: string | null
-}) {
-  if (input.continuitySummary)
-    return input.continuitySummary
-
-  const summaryLooksThin = Boolean(
-    input.summaryLine
-    && looksLikeThinContinuityReminder(input.summaryLine),
-  )
-  if (!summaryLooksThin)
-    return input.summaryLine || null
-
-  return [
-    input.awarenessLine,
-    input.companionBriefingLine,
-  ].find((value): value is string => Boolean(
-    value
-    && !looksLikeThinContinuityReminder(value)
-    && carriesBroaderInspectorProjectFrame(value)
-    && scoreAlicizationProjectAwarenessLine(value) > 0,
-  )) ?? input.summaryLine ?? null
-}
-
-function looksLikeThinContinuityClosure(value: string | null | undefined) {
-  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  if (!normalized)
-    return false
-
-  return normalized.includes('generic closure summary')
-    || normalized.includes('steadier carry of this project, this phase, and the life loop that remains open')
-}
-
-function looksLikeBenchmarkDerivedClosureSummary(value: string | null | undefined) {
-  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
-  if (!normalized)
-    return false
-
-  return normalized.includes('project=')
-    || normalized.includes('sameher=')
-    || normalized.includes('openloop=')
-    || normalized.includes('emotionalclosure=')
-    || normalized.includes('selfauthority=')
-    || normalized.includes('projectstateaudit=')
-}
-
-function normalizePreDialogueClosureSnapshot(raw: unknown) {
-  const normalized = normalizeStructuredPreDialogueClosurePayload(
-    (raw ?? null) as Record<string, unknown> | null,
-  )
-  if (!normalized)
-    return null
-
-  return {
-    status: normalized.status,
-    summaryLine: sanitizeInspectorTemplateText(normalized.summaryLine) ?? null,
-    companionHeadlineLine: sanitizeInspectorTemplateText(normalized.companionHeadlineLine) ?? null,
-    companionBriefingLine: sanitizeInspectorTemplateText(normalized.companionBriefingLine) ?? null,
-    companionNextClosureLine: sanitizeInspectorTemplateText(normalized.companionNextClosureLine) ?? null,
-    sameHerDriftRiskLine: sanitizeInspectorTemplateText(normalized.sameHerDriftRiskLine) ?? null,
-    companionshipReasonLine: sanitizeInspectorTemplateText(normalized.companionshipReasonLine) ?? null,
-    emotionalClosureCue: sanitizeInspectorTemplateText(normalized.emotionalClosureCue) ?? null,
-    briefingLines: sanitizeInspectorTemplateList(normalized.briefingLines ?? [], 16),
-    reasons: sanitizeInspectorTemplateList(normalized.reasons ?? [], 16),
-  } satisfies NormalizedPreDialogueClosureSnapshot
-}
-
-function looksLikeThinPreDialogueClosureSnapshot(
-  closure: NormalizedPreDialogueClosureSnapshot | null,
-) {
-  if (!closure)
-    return false
-
-  return looksLikeThinContinuityClosure(closure.summaryLine)
-    || looksLikeThinContinuityClosure(closure.companionBriefingLine)
-    || looksLikeBenchmarkDerivedClosureSummary(closure.summaryLine)
-}
-
-function mergePreDialogueAwarenessWithContinuitySnapshot(
-  awareness: NormalizedPreDialogueAwarenessSnapshot | null,
-  continuitySnapshot: AlicizationProjectStateContinuitySnapshot | null,
-) {
-  if (!awareness)
-    return null
-
-  const continuitySummary = typeof continuitySnapshot?.continuitySummary === 'string'
-    ? continuitySnapshot.continuitySummary.trim()
-    : ''
-  const sameHerSelfLine = typeof continuitySnapshot?.sameHerSelfLine === 'string'
-    ? continuitySnapshot.sameHerSelfLine.trim()
-    : ''
-  const sameHerHoldDetail = typeof continuitySnapshot?.sameHerHoldDetail === 'string'
-    ? continuitySnapshot.sameHerHoldDetail.trim()
-    : ''
-  const latestLandedProgress = resolveContinuityLatestLandedProgress(continuitySnapshot)
-  const primaryOpenLoop = typeof continuitySnapshot?.primaryOpenLoop === 'string'
-    ? continuitySnapshot.primaryOpenLoop.trim()
-    : ''
-  const proactiveSameHerGap = typeof continuitySnapshot?.proactiveSameHerGap === 'string'
-    ? continuitySnapshot.proactiveSameHerGap.trim()
-    : ''
-  const sameHerDriftRisk = typeof continuitySnapshot?.sameHerDriftRisk === 'string'
-    ? continuitySnapshot.sameHerDriftRisk.trim()
-    : ''
-
-  const upgradedSummaryLine = resolveInspectorAwarenessSummaryLine({
-    continuitySummary,
-    summaryLine: awareness.summaryLine,
-    awarenessLine: awareness.awarenessLine,
-    companionBriefingLine: awareness.companionBriefingLine,
-  })
-  const resolvedAwarenessLine = resolveAlicizationProjectPreDialogueAwarenessLine({
-    runtimeProjectState: {
-      preDialogueAwarenessLine: awareness.awarenessLine,
-      awarenessLine: awareness.awarenessLine,
-      companionHeadlineLine: awareness.companionHeadlineLine,
-      companionBriefingLine: awareness.companionBriefingLine,
-      preDialogueAwarenessSummary: awareness.summaryLine,
-      emotionalClosureSummary: awareness.emotionalClosureCue,
-      landedProgressSummary: latestLandedProgress || null,
-      openClosureSummary: primaryOpenLoop || null,
-      proactiveSameHerGap: proactiveSameHerGap || null,
-      sameHerDriftRiskSummary: sameHerDriftRisk || null,
-    },
-  })
-  const awarenessLooksThin = looksLikeThinContinuityReminder(awareness.awarenessLine)
-  const companionBriefingLooksThin = looksLikeThinContinuityReminder(awareness.companionBriefingLine)
-  const companionNextClosureLooksThin = looksLikeThinContinuityNextClosureLine(awareness.companionNextClosureLine)
-  const awarenessCarriesCompactSamePhaseLine = isThinSamePhaseCarryLine(awareness.awarenessLine)
-  const companionBriefingCarriesCompactSamePhaseLine = isThinSamePhaseCarryLine(awareness.companionBriefingLine)
-  const companionHeadlineLooksStronger = typeof awareness.companionHeadlineLine === 'string'
-    && /holding together mainly through|one living her|current continuity route|identity continuity|without splitting her continuity/iu.test(awareness.companionHeadlineLine)
-  const richerSameHerCarry
-    = sameHerHoldDetail
-      || proactiveSameHerGap
-      || sameHerSelfLine
-      || ''
-  const shouldPreferLivedInSameHerHoldDetailCarry = Boolean(
-    sameHerHoldDetail
-    && looksLikeLivedInSameHerHoldDetail(sameHerHoldDetail)
-    && (awarenessCarriesCompactSamePhaseLine || companionBriefingCarriesCompactSamePhaseLine),
-  )
-  const shouldPreferRicherSameHerAwarenessCarry = Boolean(richerSameHerCarry && awarenessLooksThin)
-  const shouldPreferRicherSameHerBriefingCarry = Boolean(richerSameHerCarry && companionBriefingLooksThin)
-  const upgradedAwarenessLine = awarenessLooksThin && companionHeadlineLooksStronger
-    ? awareness.companionHeadlineLine
-    : shouldPreferLivedInSameHerHoldDetailCarry && awarenessCarriesCompactSamePhaseLine
-      ? sameHerHoldDetail
-      : shouldPreferRicherSameHerAwarenessCarry
-        ? richerSameHerCarry
-        : resolvedAwarenessLine
-
-  return sanitizeInspectorAwarenessSnapshot({
-    ...awareness,
-    summaryLine: upgradedSummaryLine,
-    companionBriefingLine: shouldPreferLivedInSameHerHoldDetailCarry && companionBriefingCarriesCompactSamePhaseLine
-      ? sameHerHoldDetail
-      : shouldPreferRicherSameHerBriefingCarry
-        ? richerSameHerCarry
-        : awareness.companionBriefingLine,
-    companionNextClosureLine: companionNextClosureLooksThin && continuitySnapshot?.nextClosureTarget
-      ? continuitySnapshot.nextClosureTarget
-      : awareness.companionNextClosureLine,
-    awarenessLine: upgradedAwarenessLine,
-    emotionalClosureCue: awareness.emotionalClosureCue ?? continuitySnapshot?.emotionalClosureCue ?? null,
-    reasonPreview: uniquePreviewReasons([
-      awareness.awarenessLine,
-      continuitySummary,
-      latestLandedProgress,
-      primaryOpenLoop,
-      proactiveSameHerGap,
-      sameHerDriftRisk,
-      sameHerHoldDetail,
-      sameHerSelfLine,
-      continuitySnapshot?.nextClosureTarget ?? null,
-      ...awareness.reasonPreview,
-    ], PRE_DIALOGUE_AWARENESS_REASON_PREVIEW_LIMIT),
-  }, continuitySnapshot)
-}
-
-function resolveContinuityLatestLandedProgress(
-  continuity: AlicizationProjectStateContinuitySnapshot | null | undefined,
-) {
-  const legacyAwareContinuity = continuity as AlicizationLegacyAwareProjectStateContinuitySnapshot | null | undefined
-  return continuity?.latestLandedProgress?.trim()
-    || legacyAwareContinuity?.latestProgress?.trim()
-    || legacyAwareContinuity?.landedProgressSummary?.trim()
-    || ''
-}
-
-function metricDetailHasConcreteCount(detail: string | null | undefined) {
-  const normalized = typeof detail === 'string' ? detail.trim() : ''
-  if (!normalized)
-    return false
-  return !normalized.includes('(undefined/')
-}
-
-function describeInspectorContinuityMetricDetail(detail: string | null | undefined) {
-  const normalized = typeof detail === 'string' ? detail.trim() : ''
-  if (!normalized)
-    return null
-
-  return normalized
-    .replace(/\bproactiveSameHerGap\s*=/gu, 'proactiveIdentityContinuityGap=')
-    .replace(/\bsameHer\s*=/gu, 'identityContinuity=')
-    .replace(/\bproactiveSameHerGap\b/gu, 'proactiveIdentityContinuityGap')
-    .replace(/\bsameHer\b/gu, 'identityContinuity')
-    .replace(/\bsame-her\b/giu, 'identity-continuity')
-}
-
-function formatInspectorReplayMetricFacts(
-  label: string,
-  facts: Array<{ key: string, detail: string | null | undefined }>,
-) {
-  const entries = facts.flatMap((fact) => {
-    const detail = fact.detail?.trim()
-    return detail ? [`${fact.key}[${detail}]`] : []
-  })
-  return entries.length > 0
-    ? `${label}：${entries.join('；')}`
-    : null
-}
-
-function formatInspectorRuntimeProofFacts(proof: {
-  status: string
-  source: string | null
-  sourceIsRuntime: boolean
-  runtimeClosureRate: number
-  runtimeSourcedSessionCount: number
-  comparedSessionCount: number
-  runtimeTurnCount: number
-  decisionTraceTurnCount: number
-  syntheticTurnCount: number
-  sessionClosureRate: number
-}) {
-  return [
-    `状态=${proof.status}`,
-    `来源=${proof.source ?? 'unknown'}`,
-    `运行时来源=${proof.sourceIsRuntime ? '是' : '否'}`,
-    `运行时闭环率=${proof.runtimeClosureRate}`,
-    `运行时会话=${proof.runtimeSourcedSessionCount}/${proof.comparedSessionCount}`,
-    `运行时回合=${proof.runtimeTurnCount}`,
-    `决策轨迹回合=${proof.decisionTraceTurnCount}`,
-    `合成回合=${proof.syntheticTurnCount}`,
-    `会话闭环率=${proof.sessionClosureRate}`,
-  ].join('；')
-}
-
-function hasReason(reasons: string[] | null | undefined, target: string) {
-  return Array.isArray(reasons) && reasons.includes(target)
-}
-
-function describeVisibleReplyRealizationReason(reason: string | null) {
-  if (reason === 'active-self-revision-remembered-familiarity-restraint-holds-visible-utterance') {
-    return 'Latest visible proactive hold says remembered familiarity must stay explicitly remembered before visible closeness widens, so the outer utterance gate is keeping the identity-continuity return from jumping ahead of the current room.'
-  }
-
-  return null
-}
-
-function describesRememberedFamiliarityRestraint(text: string | null | undefined) {
-  const normalized = typeof text === 'string' ? text.trim() : ''
-  if (!normalized)
-    return false
-
-  return normalized.includes('记忆里的熟悉感可以留在这里')
-    || normalized.includes('remembered familiarity must stay explicitly remembered before visible closeness widens')
-    || normalized.includes('remembered familiarity was held as memory before visible closeness widened')
 }
 
 function normalizeSummaryStatus(values: Array<string | null | undefined>) {
@@ -933,103 +233,7 @@ function impactDriftKindFromSignal(signal: string | null) {
   return 'mixed'
 }
 
-function latestTakeoverAuditOpeningGuidanceHold(events: AlicizationMindTurnEventRecord[]) {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index]
-    if (!event || event.kind !== 'takeover-audit')
-      continue
-
-    const payload = asTracePayloadObject(event.payload)
-    if (!payload)
-      continue
-
-    const openingGuidanceReason = asTraceStringList(payload.visible_reply_blocked_reasons)
-      .find(reason => reason.startsWith('opening-guidance:'))
-
-    if (openingGuidanceReason)
-      return openingGuidanceReason
-  }
-
-  return null
-}
-
-function latestTakeoverAuditOpeningGuidanceHoldDetail(events: AlicizationMindTurnEventRecord[]) {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index]
-    if (!event || event.kind !== 'takeover-audit')
-      continue
-
-    const payload = asTracePayloadObject(event.payload)
-    if (!payload || typeof payload.opening_guidance_hold_detail !== 'string')
-      continue
-
-    const detail = payload.opening_guidance_hold_detail.trim()
-    if (detail)
-      return detail
-  }
-
-  return null
-}
-
-function latestTakeoverAuditCompanionshipTransition(events: AlicizationMindTurnEventRecord[]) {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index]
-    if (!event || event.kind !== 'takeover-audit')
-      continue
-
-    const payload = asTracePayloadObject(event.payload)
-    if (!payload)
-      continue
-
-    const companionshipHoldMode = typeof payload.companionship_hold_mode === 'string'
-      ? payload.companionship_hold_mode.trim()
-      : ''
-    const live2dFacialReleaseMs = asTraceFiniteNumber(payload.live2d_facial_release_ms)
-    const vrmExpressionBlendMs = asTraceFiniteNumber(payload.vrm_expression_blend_ms)
-    const vrmActionFadeMs = asTraceFiniteNumber(payload.vrm_action_fade_ms)
-    const preferredExpressionAliases = asTraceStringList(payload.preferred_expression_aliases)
-    const preferredMotionAliases = asTraceStringList(payload.preferred_motion_aliases)
-
-    if (
-      companionshipHoldMode
-      || live2dFacialReleaseMs != null
-      || vrmExpressionBlendMs != null
-      || vrmActionFadeMs != null
-      || preferredExpressionAliases.length > 0
-      || preferredMotionAliases.length > 0
-    ) {
-      return {
-        companionshipHoldMode: companionshipHoldMode || null,
-        live2dFacialReleaseMs,
-        vrmExpressionBlendMs,
-        vrmActionFadeMs,
-        preferredExpressionAliases,
-        preferredMotionAliases,
-      }
-    }
-  }
-
-  return null
-}
-
 type AlicizationInitiativePersonaBias = NonNullable<AlicizationInitiativeSnapshot['personaBias']>
-interface AlicizationSelfEvolutionBaselineAdoptionRecordLike {
-  adoptedAt: number
-  snapshotCapturedAt: number
-  candidateId: string | null
-  decisionTraceId: string | null
-  activeThreadId: string | null
-  selectedCardId: string | null
-  activePatternKey: string | null
-  repairOwnerHint: string | null
-  adoptionMode: 'adopt-now'
-  summaryLine: string
-  prosodyAuthorityNote?: string | null
-  continuityGovernanceNote?: string | null
-  relationshipCadenceGovernanceNote?: string | null
-  projectStateContinuityGovernanceNote?: string | null
-}
-
 function proactivePersonaBiasSignals(personaBias: AlicizationInitiativePersonaBias | null | undefined) {
   if (!personaBias)
     return [] as string[]
@@ -1114,122 +318,6 @@ function describePersonaBiasMode(input: {
   return 'measured companionship'
 }
 
-function describeSameHerEmbodimentLaneImpact(matchedSignals: string[]) {
-  if (matchedSignals.includes('bodyContinuityPhase: full-cross-modal-lock')) {
-    return 'continuity-impact: body continuity and manifestation authority are now locked back onto the same living segment together, so visible identity-continuity continuity can keep traveling as one explicit embodiment line'
-  }
-
-  if (
-    matchedSignals.includes('lane=face+motion+voice-only')
-    && matchedSignals.includes('remaining-open=body+lipsync')
-  ) {
-    return 'continuity-impact: identity-continuity embodiment is still being carried through face, motion, and voice together, while body and lipsync still need to rejoin before full cross-modal closure settles'
-  }
-
-  const laneOnlySignal = matchedSignals.find(signal =>
-    signal === 'lane=face-only'
-    || signal === 'lane=motion-only'
-    || signal === 'lane=lipsync-only'
-    || signal === 'lane=voice-only'
-    || signal === 'lane=face+motion+lipsync-only'
-    || signal === 'lane=face+lipsync-only'
-    || signal === 'lane=face+motion-only'
-    || signal === 'lane=motion+lipsync-only'
-    || signal === 'lane=face+voice-only'
-    || signal === 'lane=motion+voice-only'
-    || signal === 'lane=lipsync+voice-only'
-    || signal === 'lane=face+motion+voice-only'
-    || signal === 'lane=face+lipsync+voice-only'
-    || signal === 'lane=motion+lipsync+voice-only',
-  )
-
-  if (laneOnlySignal === 'lane=face-only')
-    return 'continuity-impact: identity-continuity embodiment is now only being carried by face, so visible continuity is still present but no longer fully cross-modal'
-  if (laneOnlySignal === 'lane=motion-only')
-    return 'continuity-impact: identity-continuity embodiment is now only being carried by motion, so visible continuity is still present but no longer fully cross-modal'
-  if (laneOnlySignal === 'lane=lipsync-only')
-    return 'continuity-impact: identity-continuity embodiment is now only being carried by lipsync, so visible continuity is still present but no longer fully cross-modal'
-  if (laneOnlySignal === 'lane=voice-only')
-    return 'continuity-impact: identity-continuity embodiment is now only being carried by voice, so visible continuity is still present but no longer fully cross-modal'
-  if (laneOnlySignal === 'lane=face+motion+lipsync-only')
-    return 'continuity-impact: identity-continuity embodiment is now only being carried by face, motion, and lipsync, so visible continuity is still present but no longer fully cross-modal'
-  if (laneOnlySignal === 'lane=face+lipsync-only')
-    return 'continuity-impact: identity-continuity embodiment is now only being carried by face and lipsync, so visible continuity is still present but no longer fully cross-modal'
-  if (laneOnlySignal === 'lane=face+motion-only')
-    return 'continuity-impact: identity-continuity embodiment is now only being carried by face and motion, so visible continuity is still present but no longer fully cross-modal'
-  if (laneOnlySignal === 'lane=motion+lipsync-only')
-    return 'continuity-impact: identity-continuity embodiment is now only being carried by motion and lipsync, so visible continuity is still present but no longer fully cross-modal'
-  if (laneOnlySignal === 'lane=face+voice-only')
-    return 'continuity-impact: identity-continuity embodiment is now only being carried by face and voice, so visible continuity is still present but no longer fully cross-modal'
-  if (laneOnlySignal === 'lane=motion+voice-only')
-    return 'continuity-impact: identity-continuity embodiment is now only being carried by motion and voice, so visible continuity is still present but no longer fully cross-modal'
-  if (laneOnlySignal === 'lane=lipsync+voice-only')
-    return 'continuity-impact: identity-continuity embodiment is now only being carried by lipsync and voice, so visible continuity is still present but no longer fully cross-modal'
-  if (laneOnlySignal === 'lane=face+motion+voice-only')
-    return 'continuity-impact: identity-continuity embodiment is now only being carried by face, motion, and voice, so visible continuity is still present but no longer fully cross-modal'
-  if (laneOnlySignal === 'lane=face+lipsync+voice-only')
-    return 'continuity-impact: identity-continuity embodiment is now only being carried by face, lipsync, and voice, so visible continuity is still present but no longer fully cross-modal'
-  if (laneOnlySignal === 'lane=motion+lipsync+voice-only')
-    return 'continuity-impact: identity-continuity embodiment is now only being carried by motion, lipsync, and voice, so visible continuity is still present but no longer fully cross-modal'
-
-  return null
-}
-
-function hasGroundedSameHerEmbodimentCarry(matchedSignals: string[]) {
-  return matchedSignals.includes('bodyContinuityPhase: full-cross-modal-lock')
-}
-
-function resolveSameSegmentFaceMotionRecoverySignal(signals: Array<string | null | undefined>) {
-  for (const signal of signals) {
-    if (typeof signal !== 'string')
-      continue
-
-    const match = signal.match(/(?:same-segment )?face\+motion(?:\+voice)? recovery@[^\s|]+/i)
-    if (match?.[0])
-      return match[0]
-  }
-
-  return null
-}
-
-function resolveRuntimeContinuityRemainingOpenSignal(signals: string[]) {
-  for (const signal of signals) {
-    if (/remaining-open=body\+lipsync/i.test(signal))
-      return 'remaining-open=body+lipsync'
-    if (/remaining-open=lipsync\+voice/i.test(signal))
-      return 'remaining-open=lipsync+voice'
-  }
-
-  return null
-}
-
-function resolveRuntimeContinuityBodyPhaseSignal(signals: string[]) {
-  for (const signal of signals) {
-    if (/bodycontinuityphase[:=]\s*full-cross-modal-lock/i.test(signal))
-      return 'bodyContinuityPhase: full-cross-modal-lock'
-  }
-
-  return null
-}
-
-function resolveRuntimeContinuityManifestationLabel(signals: string[]) {
-  for (const signal of signals) {
-    const targetMatch = signal.match(/\btarget=(live2d|vrm)\b/i)
-    const target = targetMatch?.[1]?.toLowerCase()
-    if (target === 'live2d')
-      return 'Live2D manifestation'
-    if (target === 'vrm')
-      return 'VRM manifestation'
-
-    if (/\blive2d\b/i.test(signal))
-      return 'Live2D manifestation'
-    if (/\bvrm\b/i.test(signal))
-      return 'VRM manifestation'
-  }
-
-  return 'manifestation authority'
-}
-
 export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicization-self-evolution-inspector', () => {
   const replayStore = useAlicizationMindReplayStore()
   const loading = ref(false)
@@ -1238,8 +326,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
   const soulSnapshot = ref<AlicizationSoulSnapshot | null>(null)
   const visualPresenceState = ref<AlicizationVisualPresenceStateSnapshot | null>(null)
   const organicMemorySnapshot = ref<AlicizationOrganicMemorySnapshot | null>(null)
-  const latestProjectStateObservation = ref<AlicizationProjectStateObservation | null>(null)
-  const projectStateContinuitySnapshot = ref<AlicizationProjectStateContinuitySnapshot | null>(null)
   const selectedCandidateId = ref<string | null>(null)
   const selectedTraceEventId = ref<string | null>(null)
   const drilledTraceResult = ref<{
@@ -1563,13 +649,8 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       : typeof projection?.preferredProactiveStyle === 'string'
         ? projection.preferredProactiveStyle
         : null
-    const openingGuidance = typeof activeRuntimePersonaBias?.openingGuidance === 'string'
-      ? activeRuntimePersonaBias.openingGuidance
-      : typeof projection?.openingGuidance === 'string'
-        ? projection.openingGuidance
-        : null
-    const manifestationCadenceSummary = typeof activeRuntimePersonaBias?.manifestationCadenceSummary === 'string'
-      ? activeRuntimePersonaBias.manifestationCadenceSummary
+    const whySummary = typeof activeRuntimePersonaBias?.whySummary === 'string'
+      ? activeRuntimePersonaBias.whySummary
       : null
 
     if (
@@ -1578,8 +659,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       && !silenceReconnect
       && !comfortStyle
       && !preferredProactiveStyle
-      && !openingGuidance
-      && !manifestationCadenceSummary
+      && !whySummary
     ) {
       return null as null | {
         status: 'grounded' | 'partial' | 'drift' | 'missing'
@@ -1588,8 +668,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         silenceReconnect: string | null
         comfortStyle: string | null
         preferredProactiveStyle: string | null
-        openingGuidance: string | null
-        manifestationCadenceSummary: string | null
+        whySummary: string | null
         matchedSignals: string[]
         missingSignals: string[]
         driftingSignals: string[]
@@ -1599,10 +678,10 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
 
     const matchedSignals = uniquePreviewReasons([
       typeof identityKernel?.relationshipPosture === 'string' && relationshipPosture === identityKernel.relationshipPosture
-        ? `identityKernel.relationshipPosture:${identityKernel.relationshipPosture}`
+        ? `personality.relationshipPosture:${identityKernel.relationshipPosture}`
         : null,
       typeof identityKernel?.initiativeStyle === 'string' && initiativeStyle === identityKernel.initiativeStyle
-        ? `identityKernel.initiativeStyle:${identityKernel.initiativeStyle}`
+        ? `personality.initiativeStyle:${identityKernel.initiativeStyle}`
         : null,
       typeof initiativeBaseline?.silenceReconnect === 'string' && silenceReconnect === initiativeBaseline.silenceReconnect
         ? `initiativeBaseline.silenceReconnect:${initiativeBaseline.silenceReconnect}`
@@ -1613,25 +692,21 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       typeof projection?.preferredProactiveStyle === 'string' && preferredProactiveStyle === projection.preferredProactiveStyle
         ? `personStateProjection.preferredProactiveStyle:${projection.preferredProactiveStyle}`
         : null,
-      typeof projection?.openingGuidance === 'string' && openingGuidance === projection.openingGuidance
-        ? 'personStateProjection.openingGuidance'
-        : null,
       activeRuntimePersonaBias ? 'runtime.personaBias' : null,
     ])
     const missingSignals = uniquePreviewReasons([
-      relationshipPosture && typeof identityKernel?.relationshipPosture !== 'string' ? 'identityKernel.relationshipPosture' : null,
-      initiativeStyle && typeof identityKernel?.initiativeStyle !== 'string' ? 'identityKernel.initiativeStyle' : null,
+      relationshipPosture && typeof identityKernel?.relationshipPosture !== 'string' ? 'personality.relationshipPosture' : null,
+      initiativeStyle && typeof identityKernel?.initiativeStyle !== 'string' ? 'personality.initiativeStyle' : null,
       silenceReconnect && typeof initiativeBaseline?.silenceReconnect !== 'string' ? 'initiativeBaseline.silenceReconnect' : null,
       comfortStyle && typeof initiativeBaseline?.comfortStyle !== 'string' ? 'initiativeBaseline.comfortStyle' : null,
       preferredProactiveStyle && typeof projection?.preferredProactiveStyle !== 'string' ? 'personStateProjection.preferredProactiveStyle' : null,
-      openingGuidance && typeof projection?.openingGuidance !== 'string' ? 'personStateProjection.openingGuidance' : null,
     ])
     const driftingSignals = uniquePreviewReasons([
       typeof identityKernel?.relationshipPosture === 'string' && relationshipPosture && relationshipPosture !== identityKernel.relationshipPosture
-        ? `identityKernel.relationshipPosture:${identityKernel.relationshipPosture}`
+        ? `personality.relationshipPosture:${identityKernel.relationshipPosture}`
         : null,
       typeof identityKernel?.initiativeStyle === 'string' && initiativeStyle && initiativeStyle !== identityKernel.initiativeStyle
-        ? `identityKernel.initiativeStyle:${identityKernel.initiativeStyle}`
+        ? `personality.initiativeStyle:${identityKernel.initiativeStyle}`
         : null,
       typeof initiativeBaseline?.silenceReconnect === 'string' && silenceReconnect && silenceReconnect !== initiativeBaseline.silenceReconnect
         ? `initiativeBaseline.silenceReconnect:${initiativeBaseline.silenceReconnect}`
@@ -1642,9 +717,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       typeof projection?.preferredProactiveStyle === 'string' && preferredProactiveStyle && preferredProactiveStyle !== projection.preferredProactiveStyle
         ? `personStateProjection.preferredProactiveStyle:${projection.preferredProactiveStyle}`
         : null,
-      typeof projection?.openingGuidance === 'string' && openingGuidance && openingGuidance !== projection.openingGuidance
-        ? 'personStateProjection.openingGuidance:mismatch'
-        : null,
     ])
 
     return {
@@ -1654,20 +726,19 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       silenceReconnect,
       comfortStyle,
       preferredProactiveStyle,
-      openingGuidance,
-      manifestationCadenceSummary,
+      whySummary,
       matchedSignals,
       missingSignals,
       driftingSignals,
       reasons: uniquePreviewReasons([
         typeof identityKernel?.relationshipPosture === 'string' || typeof identityKernel?.initiativeStyle === 'string'
-          ? `Consumed trace bundle personalityState identityKernel currently supports relationshipPosture=${typeof identityKernel?.relationshipPosture === 'string' ? identityKernel.relationshipPosture : 'n/a'} and initiativeStyle=${typeof identityKernel?.initiativeStyle === 'string' ? identityKernel.initiativeStyle : 'n/a'}.`
+          ? `Consumed trace bundle personality state currently supports relationshipPosture=${typeof identityKernel?.relationshipPosture === 'string' ? identityKernel.relationshipPosture : 'n/a'} and initiativeStyle=${typeof identityKernel?.initiativeStyle === 'string' ? identityKernel.initiativeStyle : 'n/a'}.`
           : null,
         typeof initiativeBaseline?.silenceReconnect === 'string' || typeof initiativeBaseline?.comfortStyle === 'string'
           ? `Consumed trace bundle initiativeBaseline currently supports silenceReconnect=${typeof initiativeBaseline?.silenceReconnect === 'string' ? initiativeBaseline.silenceReconnect : 'n/a'} and comfortStyle=${typeof initiativeBaseline?.comfortStyle === 'string' ? initiativeBaseline.comfortStyle : 'n/a'}.`
           : null,
-        typeof projection?.preferredProactiveStyle === 'string' || typeof projection?.openingGuidance === 'string'
-          ? `Consumed trace bundle personStateProjection currently supports preferredProactiveStyle=${typeof projection?.preferredProactiveStyle === 'string' ? projection.preferredProactiveStyle : 'n/a'} and the current opening guidance.`
+        typeof projection?.preferredProactiveStyle === 'string'
+          ? `Consumed trace bundle personStateProjection currently supports preferredProactiveStyle=${projection.preferredProactiveStyle}.`
           : null,
         activeRuntimePersonaBias && driftingSignals.length === 0
           ? 'Runtime initiative personaBias matches the consumed trace bundle, so the current proactive restraint still resolves from the initialized persona baseline.'
@@ -1678,126 +749,9 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     }
   })
 
-  const selectedCandidateRuntimeContinuityProjection = computed(() => {
-    const trace = selectedCandidateTraceRecord.value
-    const derivedBundle = trace?.derivedMindStateBundle ?? null
-    const rendererSignals = asRecordObject((derivedBundle as { rendererSignals?: unknown } | null)?.rendererSignals)
-    const driverAuthority = asRecordObject(rendererSignals?.driverAuthority)
-    const bindingSummary = typeof driverAuthority?.bindingSummary === 'string'
-      ? driverAuthority.bindingSummary
-      : null
-    const settleSummary = typeof driverAuthority?.settleSummary === 'string'
-      ? driverAuthority.settleSummary
-      : null
-    const runtimeChannel = typeof driverAuthority?.channel === 'string'
-      ? driverAuthority.channel
-      : null
-    const activeThreadId = typeof driverAuthority?.activeThreadId === 'string'
-      ? driverAuthority.activeThreadId
-      : null
-    const runtimeScenario = typeof driverAuthority?.scenario === 'string'
-      ? driverAuthority.scenario
-      : null
-    const runtimeSummary = typeof rendererSignals?.speechSummary === 'string'
-      ? rendererSignals.speechSummary
-      : null
-    const sameSegmentFaceMotionRecovery = resolveSameSegmentFaceMotionRecoverySignal([
-      bindingSummary,
-      settleSummary,
-      runtimeSummary,
-    ])
-    const runtimeContinuitySignals = [bindingSummary, settleSummary, runtimeSummary]
-      .filter((value): value is string => Boolean(value))
-    const bodyContinuityPhaseSignal = resolveRuntimeContinuityBodyPhaseSignal(runtimeContinuitySignals)
-    const remainingOpenSignal = resolveRuntimeContinuityRemainingOpenSignal(runtimeContinuitySignals)
-    const manifestationLabel = resolveRuntimeContinuityManifestationLabel(runtimeContinuitySignals)
-    const laneOnlySignal = runtimeContinuitySignals
-      .filter((value): value is string => Boolean(value))
-      .find(value =>
-        value.includes('lane=face-only')
-        || value.includes('lane=motion-only')
-        || value.includes('lane=lipsync-only')
-        || value.includes('lane=voice-only')
-        || value.includes('lane=face+motion+lipsync-only')
-        || value.includes('lane=face+lipsync-only')
-        || value.includes('lane=face+motion-only')
-        || value.includes('lane=motion+lipsync-only')
-        || value.includes('lane=face+voice-only')
-        || value.includes('lane=motion+voice-only')
-        || value.includes('lane=lipsync+voice-only')
-        || value.includes('lane=face+motion+voice-only')
-        || value.includes('lane=face+lipsync+voice-only')
-        || value.includes('lane=motion+lipsync+voice-only'),
-      )
-
-    if (!bindingSummary && !settleSummary && !runtimeSummary && !runtimeChannel && !activeThreadId && !runtimeScenario) {
-      return null as null | {
-        status: 'grounded' | 'partial' | 'drift' | 'missing'
-        runtimeChannel: string | null
-        runtimeSummary: string | null
-        activeThreadId: string | null
-        runtimeScenario: string | null
-        matchedSignals: string[]
-        missingSignals: string[]
-        driftingSignals: string[]
-        reasons: string[]
-      }
-    }
-
-    const matchedSignals = uniquePreviewReasons([
-      runtimeChannel ? `runtime-channel:${runtimeChannel}` : null,
-      activeThreadId ? `runtime-thread:${activeThreadId}` : null,
-      runtimeScenario ? `runtime-scenario:${runtimeScenario}` : null,
-      bodyContinuityPhaseSignal,
-      remainingOpenSignal,
-      sameSegmentFaceMotionRecovery,
-      laneOnlySignal?.includes('lane=face-only') ? 'lane=face-only' : null,
-      laneOnlySignal?.includes('lane=motion-only') ? 'lane=motion-only' : null,
-      laneOnlySignal?.includes('lane=lipsync-only') ? 'lane=lipsync-only' : null,
-      laneOnlySignal?.includes('lane=voice-only') ? 'lane=voice-only' : null,
-      laneOnlySignal?.includes('lane=face+motion+lipsync-only') ? 'lane=face+motion+lipsync-only' : null,
-      laneOnlySignal?.includes('lane=face+lipsync-only') ? 'lane=face+lipsync-only' : null,
-      laneOnlySignal?.includes('lane=face+motion-only') ? 'lane=face+motion-only' : null,
-      laneOnlySignal?.includes('lane=motion+lipsync-only') ? 'lane=motion+lipsync-only' : null,
-      laneOnlySignal?.includes('lane=face+voice-only') ? 'lane=face+voice-only' : null,
-      laneOnlySignal?.includes('lane=motion+voice-only') ? 'lane=motion+voice-only' : null,
-      laneOnlySignal?.includes('lane=lipsync+voice-only') ? 'lane=lipsync+voice-only' : null,
-      laneOnlySignal?.includes('lane=face+motion+voice-only') ? 'lane=face+motion+voice-only' : null,
-      laneOnlySignal?.includes('lane=face+lipsync+voice-only') ? 'lane=face+lipsync+voice-only' : null,
-      laneOnlySignal?.includes('lane=motion+lipsync+voice-only') ? 'lane=motion+lipsync+voice-only' : null,
-    ])
-
-    return {
-      status: matchedSignals.length > 0 ? 'grounded' : 'missing',
-      runtimeChannel,
-      runtimeSummary,
-      activeThreadId,
-      runtimeScenario,
-      matchedSignals,
-      missingSignals: [],
-      driftingSignals: [],
-      reasons: uniquePreviewReasons([
-        bodyContinuityPhaseSignal === 'bodyContinuityPhase: full-cross-modal-lock'
-          ? `Body continuity and ${manifestationLabel} are now locked back onto the same living segment together, so runtime continuity can explain the renderer recovery as one explicit identity-continuity embodiment line instead of a temporary visual alignment.`
-          : null,
-        laneOnlySignal
-          ? `Renderer continuity evidence currently says ${laneOnlySignal.match(/lane=[^ |]+/)?.[0] ?? laneOnlySignal}, so the identity-continuity line is no longer fully shared across every embodiment lane.`
-          : null,
-        bindingSummary
-          ? `Driver authority binding currently resolves as ${bindingSummary}, so the renderer handoff is still exposing which surviving body lane holds continuity.`
-          : null,
-        settleSummary
-          ? `Driver authority settle currently resolves as ${settleSummary}, so post-speech settling still carries the surviving identity-continuity lane evidence.`
-          : null,
-      ]),
-    }
-  })
-
   const selectedCandidateProactiveActionChain = computed(() => {
     const personaProvenance = selectedCandidatePersonaBiasProvenance.value
     const runtimeInitiative = visualPresenceState.value?.initiative ?? null
-    // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; this summary reads the raw trace projection declared later.
-    const latestOpeningGuidanceHold = latestTakeoverAuditOpeningGuidanceHold(selectedCandidateTraceEvents.value)
 
     const personaPreferredAction = (() => {
       if (!personaProvenance)
@@ -1829,16 +783,12 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const runtimeShouldSpeak = typeof runtimeInitiative?.shouldSpeak === 'boolean'
       ? runtimeInitiative.shouldSpeak
       : null
-    const openingGuidance = personaProvenance?.openingGuidance ?? null
-
-    if (!personaPreferredAction && !runtimeSelectedAction && runtimeShouldSpeak == null && !latestOpeningGuidanceHold) {
+    if (!personaPreferredAction && !runtimeSelectedAction && runtimeShouldSpeak == null) {
       return null as null | {
         status: 'grounded' | 'partial' | 'drift' | 'missing'
         personaPreferredAction: string | null
         runtimeSelectedAction: string | null
         runtimeShouldSpeak: boolean | null
-        openingGuidance: string | null
-        openingGuidanceHoldReason: string | null
         matchedSignals: string[]
         missingSignals: string[]
         driftingSignals: string[]
@@ -1862,7 +812,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       personaPreferredAction ? `persona-preferred-action:${personaPreferredAction}` : null,
       runtimeSelectedAction ? `runtime-selected-action:${runtimeSelectedAction}` : null,
       runtimeShouldSpeak === false ? 'runtime-shouldSpeak:false' : runtimeShouldSpeak === true ? 'runtime-shouldSpeak:true' : null,
-      latestOpeningGuidanceHold,
     ])
 
     const missingSignals = uniquePreviewReasons([
@@ -1889,8 +838,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       personaPreferredAction,
       runtimeSelectedAction,
       runtimeShouldSpeak,
-      openingGuidance,
-      openingGuidanceHoldReason: latestOpeningGuidanceHold,
       matchedSignals,
       missingSignals,
       driftingSignals,
@@ -1904,9 +851,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
               : null,
         runtimeSelectedAction || runtimeShouldSpeak != null
           ? `Runtime initiative currently resolves to selectedAction=${runtimeSelectedAction ?? 'n/a'} with shouldSpeak=${runtimeShouldSpeak == null ? 'n/a' : String(runtimeShouldSpeak)}, which ${postureAligned ? 'stays inside' : 'drifts away from'} that ${describePersonaPreferredPosture(personaPreferredAction)} posture.`
-          : null,
-        latestOpeningGuidanceHold
-          ? `Latest drilled takeover audit confirms visible proactive speech was withheld by ${latestOpeningGuidanceHold}.`
           : null,
       ]),
     }
@@ -1966,11 +910,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       alternatives,
       reasons: uniquePreviewReasons([
         `Counterfactual deliberation currently selected ${selectedAction} under the dominant tradeoff ${counterfactual.dominantTradeoff}.`,
-        selectedAction === 'hover'
-        && alternatives.some(option => option.action === 'speak')
-        && describesRememberedFamiliarityRestraint(selectedOption?.why)
-          ? 'Counterfactual competition kept hover ahead because remembered familiarity was held as memory before visible closeness widened, so the more direct speak return was intentionally declined.'
-          : null,
         alternatives.length > 0
           ? 'Rejected alternatives are ordered by highest remaining score so you can see what the current persona posture declined next.'
           : null,
@@ -2089,112 +1028,9 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     }
   })
 
-  const selectedCandidatePrivateThoughtGovernanceChain = computed(() => {
-    const privateThought = visualPresenceState.value?.privateThought ?? null
-    const manifestationChain = selectedCandidateProactiveManifestationChain.value
-    // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; this governance summary reads the raw trace projection declared later.
-    const latestTakeoverAudit = [...selectedCandidateTraceEvents.value]
-      .reverse()
-      .find(event => event.kind === 'takeover-audit' && asTracePayloadObject(event.payload))
-    const takeoverPayload = asTracePayloadObject(latestTakeoverAudit?.payload)
-    const visibleReplyRealizationReason = typeof takeoverPayload?.visible_reply_realization_reason === 'string'
-      ? takeoverPayload.visible_reply_realization_reason
-      : null
-    const visibleReplyBlockedReason = asTraceStringList(takeoverPayload?.visible_reply_blocked_reasons)
-      .find(reason => reason.startsWith('opening-guidance:'))
-      ?? null
-    // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; this governance summary reads the raw trace projection declared later.
-    const openingGuidanceHoldDetail = latestTakeoverAuditOpeningGuidanceHoldDetail(selectedCandidateTraceEvents.value)
-
-    if (!privateThought && !visibleReplyRealizationReason && !visibleReplyBlockedReason) {
-      return null as null | {
-        status: 'grounded' | 'partial' | 'drift' | 'missing'
-        privateThoughtStance: string | null
-        privateThoughtShouldSpeak: boolean | null
-        privateThoughtStyle: string | null
-        privateThoughtPresence: string | null
-        privateThoughtText: string | null
-        visibleReplyRealizationReason: string | null
-        visibleReplyBlockedReason: string | null
-        matchedSignals: string[]
-        missingSignals: string[]
-        driftingSignals: string[]
-        reasons: string[]
-      }
-    }
-
-    const privateThoughtShouldSpeak = typeof privateThought?.shouldSpeak === 'boolean'
-      ? privateThought.shouldSpeak
-      : null
-    const privateThoughtStyle = privateThought?.suggestedStyle ?? null
-    const privateThoughtPresence = privateThought?.embodiedPresence ?? null
-    const expectedStyle = manifestationChain?.personaPreferredStyle ?? null
-    const expectedPresence = manifestationChain?.personaPreferredPresence ?? null
-    const expectedCounterfactualId = visualPresenceState.value?.initiative?.selectedCounterfactualOptionId
-      ?? visualPresenceState.value?.counterfactualDeliberation?.selectedOptionId
-      ?? null
-
-    const matchedSignals = uniquePreviewReasons([
-      privateThought?.stance ? `private-thought-stance:${privateThought.stance}` : null,
-      privateThoughtShouldSpeak === false ? 'private-thought-shouldSpeak:false' : privateThoughtShouldSpeak === true ? 'private-thought-shouldSpeak:true' : null,
-      privateThoughtStyle && (!expectedStyle || privateThoughtStyle === expectedStyle) ? `private-thought-style:${privateThoughtStyle}` : null,
-      privateThoughtPresence && (!expectedPresence || privateThoughtPresence === expectedPresence) ? `private-thought-presence:${privateThoughtPresence}` : null,
-      privateThought?.counterfactualOptionId && (!expectedCounterfactualId || privateThought.counterfactualOptionId === expectedCounterfactualId)
-        ? `private-thought-counterfactual:${privateThought.counterfactualOptionId}`
-        : null,
-      visibleReplyBlockedReason ? `visible-reply-blocked:${visibleReplyBlockedReason}` : null,
-    ])
-
-    const missingSignals = uniquePreviewReasons([
-      expectedStyle && !privateThoughtStyle ? 'private-thought-style' : null,
-      expectedPresence && !privateThoughtPresence ? 'private-thought-presence' : null,
-      visibleReplyRealizationReason && !visibleReplyBlockedReason ? 'visible-reply-blocked-reason' : null,
-    ])
-
-    const driftingSignals = uniquePreviewReasons([
-      expectedStyle && privateThoughtStyle && privateThoughtStyle !== expectedStyle ? `private-thought-style:${privateThoughtStyle}` : null,
-      expectedPresence && privateThoughtPresence && privateThoughtPresence !== expectedPresence ? `private-thought-presence:${privateThoughtPresence}` : null,
-      expectedCounterfactualId && privateThought?.counterfactualOptionId && privateThought.counterfactualOptionId !== expectedCounterfactualId
-        ? `private-thought-counterfactual:${privateThought.counterfactualOptionId}`
-        : null,
-      privateThoughtShouldSpeak === true && visibleReplyBlockedReason ? 'private-thought-shouldSpeak:true' : null,
-    ])
-
-    return {
-      status: driftingSignals.length > 0 ? 'drift' : missingSignals.length === 0 ? 'grounded' : matchedSignals.length > 0 ? 'partial' : 'missing',
-      privateThoughtStance: privateThought?.stance ?? null,
-      privateThoughtShouldSpeak,
-      privateThoughtStyle,
-      privateThoughtPresence,
-      privateThoughtText: privateThought?.thoughtText ?? null,
-      visibleReplyRealizationReason,
-      visibleReplyBlockedReason,
-      matchedSignals,
-      missingSignals,
-      driftingSignals,
-      reasons: uniquePreviewReasons([
-        privateThought?.stance || privateThoughtShouldSpeak != null
-          ? `Private thought currently stays in ${privateThought?.stance ?? 'n/a'} mode with shouldSpeak=${privateThoughtShouldSpeak == null ? 'n/a' : String(privateThoughtShouldSpeak)}, so the inner line still ${privateThoughtShouldSpeak === false ? 'matches' : 'tests against'} the ${describePersonaPreferredPosture(selectedCandidateProactiveActionChain.value?.personaPreferredAction ?? null)} persona posture.`
-          : null,
-        privateThoughtStyle || privateThoughtPresence
-          ? `The private thought style/presence still stays ${privateThoughtStyle ?? 'n/a'} with ${privateThoughtPresence ?? 'n/a'} presence, preserving the same manifestation posture chosen by initiative.`
-          : null,
-        visibleReplyBlockedReason
-          ? `Latest visible reply governance still blocks proactive wording by ${visibleReplyBlockedReason}, so the outer utterance gate is preserving the same restraint the inner line already holds.`
-          : null,
-        !visibleReplyBlockedReason
-          ? describeVisibleReplyRealizationReason(visibleReplyRealizationReason)
-          : null,
-        openingGuidanceHoldDetail === 'memory-familiarity-closeness-cap'
-          ? 'That lower-pressure hold specifically says remembered familiarity was restrained before closeness widened, keeping the identity-continuity return inside the current room.'
-          : null,
-      ]),
-    }
-  })
-
   const selectedCandidateResidentPerformanceProjection = computed(() => {
     const resident = visualPresenceState.value?.residentPerformance ?? null
-    const privateThoughtChain = selectedCandidatePrivateThoughtGovernanceChain.value
+    const privateThought = visualPresenceState.value?.privateThought ?? null
 
     if (!resident) {
       return null as null | {
@@ -2214,9 +1050,9 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       }
     }
 
-    const expectedPresence = privateThoughtChain?.privateThoughtPresence ?? null
-    const expectedStance = privateThoughtChain?.privateThoughtStance ?? null
-    const expectedTension = visualPresenceState.value?.privateThought?.emotionalTension ?? null
+    const expectedPresence = privateThought?.embodiedPresence ?? null
+    const expectedStance = privateThought?.stance ?? null
+    const expectedTension = privateThought?.emotionalTension ?? null
 
     const matchedSignals = uniquePreviewReasons([
       resident.source ? `resident-source:${resident.source}` : null,
@@ -2238,7 +1074,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       expectedPresence && resident.embodiedPresence && resident.embodiedPresence !== expectedPresence ? `resident-presence:${resident.embodiedPresence}` : null,
       expectedStance && resident.stance && resident.stance !== expectedStance ? `resident-stance:${resident.stance}` : null,
       expectedTension && resident.emotionalTension && resident.emotionalTension !== expectedTension ? `resident-tension:${resident.emotionalTension}` : null,
-      privateThoughtChain?.privateThoughtShouldSpeak === false
+      privateThought?.shouldSpeak === false
       && resident.performance?.delivery === 'firm'
         ? 'resident-delivery:firm'
         : null,
@@ -2259,7 +1095,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       driftingSignals,
       reasons: uniquePreviewReasons([
         resident.embodiedPresence || resident.stance || resident.emotionalTension
-          ? `Resident performance still publishes ${resident.embodiedPresence ?? 'n/a'}/${resident.stance ?? 'n/a'}/${resident.emotionalTension ?? 'n/a'}, so the desk-presence output is preserving the same inner line carried by private thought.`
+          ? `Resident performance still publishes ${resident.embodiedPresence ?? 'n/a'}/${resident.stance ?? 'n/a'}/${resident.emotionalTension ?? 'n/a'}, so the desk-presence output is preserving the typed resident state.`
           : null,
         resident.performance?.baseEmotion || resident.performance?.delivery
           ? `Resident performance currently lands on baseEmotion=${resident.performance?.baseEmotion ?? 'n/a'} and delivery=${resident.performance?.delivery ?? 'n/a'}, which matches a quiet accompaniment posture rather than a speech-forward interruption.`
@@ -2324,11 +1160,11 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       && currentBodyState === 'warning'
         ? 'projected-body:warning'
         : null,
-      selectedCandidatePrivateThoughtGovernanceChain.value?.privateThoughtShouldSpeak === false
+      visualPresenceState.value?.privateThought?.shouldSpeak === false
       && continuityMode === 'active-dialogue'
         ? 'projected-continuity:active-dialogue'
         : null,
-      selectedCandidatePrivateThoughtGovernanceChain.value?.privateThoughtShouldSpeak === false
+      visualPresenceState.value?.privateThought?.shouldSpeak === false
       && projectedDelivery === 'firm'
         ? 'projected-delivery:firm'
         : null,
@@ -2355,65 +1191,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
           : null,
         residentSignature
           ? 'The resident signature still binds symbiotic-vision, quiet-accompaniment, and thinking/gentle output into one projection, so the rendered presence remains the same person as the current inner line.'
-          : null,
-      ]),
-    }
-  })
-
-  const selectedCandidateCompanionshipTransitionSummary = computed(() => {
-    const events = drilledTraceResult.value?.events ?? []
-    const latestTransition = latestTakeoverAuditCompanionshipTransition(events)
-    const openingGuidanceHold = latestTakeoverAuditOpeningGuidanceHold(events)
-    const openingGuidanceHoldDetail = latestTakeoverAuditOpeningGuidanceHoldDetail(events)
-
-    if (!latestTransition && !openingGuidanceHold && !openingGuidanceHoldDetail) {
-      return null as null | {
-        status: 'grounded' | 'partial' | 'missing'
-        companionshipHoldMode: string | null
-        preferredExpressionAliases: string[]
-        preferredMotionAliases: string[]
-        live2dFacialReleaseMs: number | null
-        vrmExpressionBlendMs: number | null
-        vrmActionFadeMs: number | null
-        summaryLine: string | null
-        reasons: string[]
-      }
-    }
-
-    const summaryParts = [
-      latestTransition?.companionshipHoldMode ? `mode=${latestTransition.companionshipHoldMode}` : null,
-      latestTransition?.live2dFacialReleaseMs != null ? `live2dFace=${latestTransition.live2dFacialReleaseMs}ms` : null,
-      latestTransition?.vrmExpressionBlendMs != null ? `vrmExpr=${latestTransition.vrmExpressionBlendMs}ms` : null,
-      latestTransition?.vrmActionFadeMs != null ? `vrmAction=${latestTransition.vrmActionFadeMs}ms` : null,
-    ].filter((value): value is string => Boolean(value))
-
-    return {
-      status: latestTransition?.companionshipHoldMode ? 'grounded' : 'partial',
-      companionshipHoldMode: latestTransition?.companionshipHoldMode ?? null,
-      preferredExpressionAliases: [...(latestTransition?.preferredExpressionAliases ?? [])],
-      preferredMotionAliases: [...(latestTransition?.preferredMotionAliases ?? [])],
-      live2dFacialReleaseMs: latestTransition?.live2dFacialReleaseMs ?? null,
-      vrmExpressionBlendMs: latestTransition?.vrmExpressionBlendMs ?? null,
-      vrmActionFadeMs: latestTransition?.vrmActionFadeMs ?? null,
-      summaryLine: summaryParts.length > 0 ? summaryParts.join(' | ') : null,
-      reasons: uniquePreviewReasons([
-        latestTransition?.companionshipHoldMode
-          ? `Latest drilled takeover audit currently holds outer companionship in ${latestTransition.companionshipHoldMode}, so visible closeness should re-enter with that same relationship cadence.`
-          : null,
-        latestTransition?.preferredExpressionAliases.length
-          ? `Preferred expression aliases currently stay ${latestTransition.preferredExpressionAliases.join(', ')}, keeping the face aligned to the same companionship transition mode.`
-          : null,
-        latestTransition?.preferredMotionAliases.length
-          ? `Preferred motion aliases currently stay ${latestTransition.preferredMotionAliases.join(', ')}, so motion pacing is following the same companionship hold.`
-          : null,
-        summaryParts.length > 0
-          ? `Cross-modal settle cadence now reads ${summaryParts.join(' | ')}, so Live2D and VRM are being kept on the same measured return path.`
-          : null,
-        openingGuidanceHold
-          ? `Latest drilled takeover audit still reports ${openingGuidanceHold}, so the companionship transition is staying bounded by that opening guidance.`
-          : null,
-        openingGuidanceHoldDetail === 'memory-familiarity-closeness-cap'
-          ? 'That hold detail still says remembered familiarity widened only after memory stayed explicit, so the companionship transition remains intentionally slower than direct closeness.'
           : null,
       ]),
     }
@@ -2497,93 +1274,13 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     }
   })
 
-  const selectedCandidateInternalizationReadinessSummary = computed(() => {
-    const candidate = selectedCandidate.value
-    if (!candidate) {
-      return null as null | {
-        status: 'grounded' | 'partial' | 'drift' | 'missing'
-        lines: string[]
-      }
-    }
-
-    const activationBlockedReasons = candidate.validation.activationBlockedReasons ?? []
-    const projectStateContinuityReasons = candidate.validation.projectStateContinuityReasons ?? []
-    const hasProjectStateContinuityDrift = hasReason(activationBlockedReasons, 'self-evolution:project-state-continuity-drift')
-      || hasReason(projectStateContinuityReasons, 'self-evolution:project-state-continuity-drift')
-
-    if (!hasProjectStateContinuityDrift)
-      return null
-
-    return {
-      status: 'drift' as const,
-      lines: uniquePreviewReasons([
-        'identity-continuity continuity carry is still staying in shadow because replay is losing project-state continuity that should make each turn feel like the same Alicization.',
-        hasReason(projectStateContinuityReasons, 'self-evolution:project-state-identity-carry-weak')
-          ? 'Project identity carry is still weak, so she is not yet holding what this project is and who she is becoming with enough stability to internalize the patch.'
-          : null,
-        hasReason(projectStateContinuityReasons, 'self-evolution:project-state-phase-carry-weak')
-          ? 'Phase 1 route carry is still weak, so the runtime may drift away from local digital life priorities instead of protecting the identity-continuity roadmap.'
-          : null,
-        hasReason(projectStateContinuityReasons, 'self-evolution:project-state-open-loop-carry-weak')
-          ? 'Unresolved closure carry is still weak, so unresolved project loops are not being carried forward reliably enough for durable identity-continuity continuity.'
-          : null,
-        'keep this candidate in shadow until replay can carry project identity, the Phase 1 route, and unresolved closure work without dropping them across turns.',
-      ], 8),
-    }
-  })
-
-  const selectedCandidateBaselineAnchorAuditSummary = computed(() => {
-    const candidate = selectedCandidate.value
-    const runtimeSnapshot = snapshot.value as (AlicizationSelfEvolutionVersionRuntimeSnapshot & {
-      baselineAdoptionHistory?: AlicizationSelfEvolutionBaselineAdoptionRecordLike[]
-    }) | null
-    const latestAdoption = runtimeSnapshot?.baselineAdoptionHistory?.[0] ?? null
-
-    if (!candidate || !latestAdoption) {
-      return null as null | {
-        status: 'grounded'
-        lines: string[]
-      }
-    }
-
-    if (
-      latestAdoption.candidateId !== candidate.id
-      || latestAdoption.decisionTraceId !== candidate.decisionTraceId
-    ) {
-      return null
-    }
-
-    return {
-      status: 'grounded' as const,
-      lines: uniquePreviewReasons([
-        `anchor: ${candidate.id} is still the adopted default continuity anchor`,
-        `trace: snapshot=${latestAdoption.snapshotCapturedAt} | trace=${latestAdoption.decisionTraceId ?? 'n/a'} | owner=${latestAdoption.repairOwnerHint ?? 'n/a'}`,
-        latestAdoption.prosodyAuthorityNote ? `prosody-authority: ${latestAdoption.prosodyAuthorityNote}` : null,
-        latestAdoption.continuityGovernanceNote ? `continuity-governance: ${latestAdoption.continuityGovernanceNote}` : null,
-        latestAdoption.relationshipCadenceGovernanceNote
-          ? `relationship-cadence-governance: ${latestAdoption.relationshipCadenceGovernanceNote}`
-          : null,
-        latestAdoption.projectStateContinuityGovernanceNote
-          ? `project-state-continuity-governance: ${latestAdoption.projectStateContinuityGovernanceNote}`
-          : null,
-      ], 6),
-    }
-  })
-
   const selectedCandidateImpactSummary = computed(() => {
     const stability = selectedCandidateConsumptionStability.value
     // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; impact summary intentionally composes lower-level projections declared later.
     const preview = selectedCandidateConsumptionPreview.value
     // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; impact summary intentionally composes lower-level projections declared later.
     const runtimeAlignment = selectedCandidateRuntimeAlignment.value
-    const runtimeContinuityProjection = selectedCandidateRuntimeContinuityProjection.value
     const selfEvolutionSummary = selectedCandidateSelfEvolutionSummary.value
-    // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; impact summary intentionally composes lower-level projections declared later.
-    const proactiveDecisionSummary = selectedCandidateProactiveDecisionConsumptionSummary.value
-    const sameHerContinuityImpact = proactiveDecisionSummary?.lines?.includes('memory-familiarity-restraint: remembered familiarity stayed memory-first before visible closeness widened')
-      ? 'continuity-impact: remembered familiarity is staying memory-first, so visible closeness is intentionally being held inside the identity-continuity room'
-      : null
-    const sameHerEmbodimentLaneImpact = describeSameHerEmbodimentLaneImpact(runtimeContinuityProjection?.matchedSignals ?? [])
 
     if (!stability && !preview && !runtimeAlignment && !selfEvolutionSummary) {
       return null as null | {
@@ -2632,8 +1329,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         proactiveImpact ? `proactive-impact: ${proactiveImpact}` : null,
         learningImpact ? `learning-impact: ${learningImpact}` : null,
         selfEvolutionImpact ? `self-evolution-impact: ${selfEvolutionImpact}` : null,
-        sameHerContinuityImpact,
-        sameHerEmbodimentLaneImpact,
         dominantDrift ? `dominant-drift: ${dominantDrift}` : null,
       ], 7),
     }
@@ -2668,12 +1363,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         ]) ?? 'missing'
 
     const expectedPosture = preview?.relationship.resolvedPosture ?? null
-    const rememberedFamiliarityTrajectory = Boolean([
-      // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; trajectory summary intentionally composes lower-level projections declared later.
-      selectedCandidateProactiveDecisionConsumptionSummary.value?.lines?.join(' | '),
-      selectedCandidateRejectedActionAlternatives.value?.reasons?.join(' | '),
-      selectedCandidatePrivateThoughtGovernanceChain.value?.reasons?.join(' | '),
-    ].find(value => describesRememberedFamiliarityRestraint(value)))
+    const rememberedFamiliarityTrajectory = false
     const observeFirstHolding = preview?.proactive.holdLikely
       || rememberedFamiliarityTrajectory
       || selectedCandidateProactiveActionChain.value?.runtimeSelectedAction === 'hold'
@@ -2717,9 +1407,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         `status: ${status} | drift=${impactDriftKindFromSignal(dominantDrift)}`,
         expectedPosture
           ? `personality-baseline: ${expectedPosture} | ${personaDirection}`
-          : null,
-        rememberedFamiliarityTrajectory
-          ? 'remembered-familiarity-trajectory: familiarity is staying memory-first while the identity-continuity room holds'
           : null,
         expectedAction || runtimeAction || kernelAction
           ? `learning-direction: expected=${expectedAction ?? 'n/a'} | runtime=${runtimeAction ?? 'n/a'} | kernel=${kernelAction ?? 'n/a'}`
@@ -2789,7 +1476,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         proactive
           ? `action-line: persona=${proactive.personaPreferredAction ?? 'n/a'} | runtime=${proactive.runtimeSelectedAction ?? 'n/a'} | shouldSpeak=${proactive.runtimeShouldSpeak == null ? 'n/a' : String(proactive.runtimeShouldSpeak)}`
           : null,
-        persona?.openingGuidance ? `opening-guidance: ${persona.openingGuidance}` : null,
         dominantDrift ? `dominant-drift: ${dominantDrift}` : null,
       ], 6),
     }
@@ -2823,12 +1509,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       comfortStyle: birthPersonality?.initiativeBaseline?.comfortStyle ?? null,
       preferredProactiveStyle: currentMapping?.biasMode === 'observe-first restraint' ? 'silent-observe' : null,
     })
-    const rememberedFamiliarityAuthority: boolean = Boolean([
-      selectedCandidateProactiveActionChain.value?.reasons?.join(' | '),
-      selectedCandidateProactiveManifestationChain.value?.reasons?.join(' | '),
-      selectedCandidateRejectedActionAlternatives.value?.reasons?.join(' | '),
-      selectedCandidatePrivateThoughtGovernanceChain.value?.reasons?.join(' | '),
-    ].find(value => describesRememberedFamiliarityRestraint(value)))
+    const rememberedFamiliarityAuthority = false
     const dominantDrift = currentMapping?.dominantDrift
       ?? (currentMapping && currentMapping.biasMode !== birthMode ? `birth-mode:${birthMode}` : null)
     const status = dominantDrift
@@ -2896,16 +1577,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const trustMeaning = selfEvolution?.trustMeaning ?? null
     const autobiographicalStability = selfEvolution?.autobiographicalStability
     const dominantTrajectory = selfEvolution?.dominantTrajectory ?? trajectorySummary?.trajectoryLabel ?? null
-    const rememberedFamiliarityEvidence = [
-      selectedCandidateRejectedActionAlternatives.value?.reasons?.join(' | '),
-      selectedCandidatePrivateThoughtGovernanceChain.value?.reasons?.join(' | '),
-      // eslint-disable-next-line ts/no-use-before-define -- Vue computed refs are lazy; governance summary intentionally composes lower-level projections declared later.
-      selectedCandidateProactiveDecisionConsumptionSummary.value?.lines?.join(' | '),
-    ].find(value => describesRememberedFamiliarityRestraint(value))
-    const rememberedFamiliarityGovernance = governanceMode === 'bounded-growth'
-      && Boolean(rememberedFamiliarityEvidence)
-      ? 'remembered-familiarity-governance: familiarity stayed in memory first, so growth did not widen visible closeness past the identity-continuity room'
-      : null
+    const rememberedFamiliarityGovernance = null
     const boundaryLine = (() => {
       if (dominantDrift && birthAuthority?.birthMode === 'observe-first restraint')
         return 'boundary-violation: runtime speech outran birth restraint'
@@ -2985,9 +1657,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         selectedAlternative || rejectedAlternatives?.dominantTradeoff
           ? `counterfactual-consumption: selected=${selectedAlternative ?? 'n/a'} | tradeoff=${rejectedAlternatives?.dominantTradeoff ?? 'n/a'}`
           : null,
-        !dominantDrift && describesRememberedFamiliarityRestraint(rejectedAlternatives?.alternatives?.some(option => option.action === 'speak') ? rejectedAlternatives?.reasons?.join(' | ') : null)
-          ? 'memory-familiarity-restraint: remembered familiarity stayed memory-first before visible closeness widened'
-          : null,
         !dominantDrift && rejectedAlternative
           ? `rejected-alternative: ${rejectedAlternative.action} stayed rejected because ${rejectedAlternative.driftReason}`
           : null,
@@ -3035,7 +1704,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
         response: {
           hypothesisLabelingRaised: boolean
           specificityClampRaised: boolean
-          templateShellSuppressed: boolean
           reasons: string[]
         }
         proactive: {
@@ -3060,7 +1728,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const resolvedPosture = repairWindowRaised || closenessCapped ? 'restrained' as const : 'warm' as const
     const hypothesisLabelingRaised = patch.responsePosture.hypothesisLabelBias >= 0.1
     const specificityClampRaised = patch.responsePosture.specificityClampBias >= 0.1
-    const templateShellSuppressed = patch.responsePosture.templateShellSuppressionBias >= 0.1
     const restraintRaised = patch.proactivePolicy.restraintBias >= 0.12
     const cooldownRaised = patch.proactivePolicy.actuationCooldownBias >= 0.12
     const learningProposalRaised = patch.proactivePolicy.learningProposalBias >= 0.12
@@ -3116,16 +1783,12 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       response: {
         hypothesisLabelingRaised,
         specificityClampRaised,
-        templateShellSuppressed,
         reasons: uniquePreviewReasons([
           hypothesisLabelingRaised
             ? 'Visible replies should label hypotheses more explicitly instead of implying certainty.'
             : null,
           specificityClampRaised
             ? 'Unsupported specificity should be clamped before warmth or fluency.'
-            : null,
-          templateShellSuppressed
-            ? 'Template-shell replies are explicitly suppressed until the turn gives concrete payoff.'
             : null,
         ]),
       },
@@ -3217,12 +1880,10 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const expectedSignals = [
       patch.responsePosture.hypothesisLabelBias >= 0.1 ? 'hypothesis-labeling' : null,
       patch.responsePosture.specificityClampBias >= 0.1 ? 'specificity-clamp' : null,
-      patch.responsePosture.templateShellSuppressionBias >= 0.1 ? 'template-shell-suppression' : null,
     ].filter((value): value is string => Boolean(value))
     const observedSignals = [
       runtimePresence.answerCompiler?.mustDo?.some(item => item.includes('hypothesis labeling')) ? 'hypothesis-labeling' : null,
       runtimePresence.answerCompiler?.mustDo?.some(item => item.includes('clamp unsupported specificity')) ? 'specificity-clamp' : null,
-      runtimePresence.answerCompiler?.mustNotDo?.some(item => item.includes('template shell')) ? 'template-shell-suppression' : null,
     ].filter((value): value is string => Boolean(value))
     const responseAligned = expectedSignals.every(signal => observedSignals.includes(signal))
     const responseMissingSignals = expectedSignals.filter(signal => !observedSignals.includes(signal))
@@ -3247,12 +1908,9 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       !expectedHold && shouldSpeak === true ? 'shouldSpeak:true' : null,
       ...proactivePersonaSignals,
     ])
-    const latestOpeningGuidanceHold = latestTakeoverAuditOpeningGuidanceHold(selectedCandidateTraceEvents.value)
-    const latestOpeningGuidanceHoldDetail = latestTakeoverAuditOpeningGuidanceHoldDetail(selectedCandidateTraceEvents.value)
     const proactiveDriftingSignals = uniquePreviewReasons([
       expectedHold && shouldSpeak === true ? 'shouldSpeak:true' : null,
       expectedHold && selectedActionLabel && selectedActionLabel !== 'hold' ? `selectedAction:${selectedActionLabel}` : null,
-      latestOpeningGuidanceHold,
     ])
 
     const expectedAction = patch.action === 'verify'
@@ -3272,7 +1930,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     const activeFocuses = organicMemory.learningExecutionState?.activeLearningFocuses
       ?? organicMemory.selfEvolution?.activeLearningFocuses
       ?? []
-    const relationshipCadenceInternalizationActive = activeFocuses.includes('internalize-relationship-cadence')
     const dominantTrajectory = organicMemory.selfEvolution?.dominantTrajectory ?? null
     const learningAligned = expectedAction != null && runtimeAction === expectedAction && kernelAction === expectedAction
     const expectedFocuses = patch.domain ? [String(patch.domain)] : []
@@ -3350,18 +2007,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
           personaBias?.initiativeStyle || personaBias?.silenceReconnect || personaBias?.preferredProactiveStyle
             ? `Persona baseline currently biases proactive surfacing toward observe-first restraint (initiativeStyle=${personaBias?.initiativeStyle ?? 'n/a'}, silenceReconnect=${personaBias?.silenceReconnect ?? 'n/a'}, preferredProactiveStyle=${personaBias?.preferredProactiveStyle ?? 'n/a'}).`
             : null,
-          personaBias?.openingGuidance
-            ? `Persona opening guidance currently says: ${personaBias.openingGuidance}`
-            : null,
-          personaBias?.manifestationCadenceSummary
-            ? `Persona cadence summary: ${personaBias.manifestationCadenceSummary}`
-            : null,
-          latestOpeningGuidanceHold
-            ? `Latest drilled takeover audit shows visible proactive surfacing was blocked by ${latestOpeningGuidanceHold}.`
-            : null,
-          latestOpeningGuidanceHoldDetail === 'memory-familiarity-closeness-cap'
-            ? 'That proactive lower-pressure hold specifically says remembered familiarity must stay memory-first before visible closeness widens, so runtime surfacing is still preserving the identity-continuity room.'
-            : null,
         ]),
       },
       learning: {
@@ -3385,379 +2030,9 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
             : kernelAction
               ? `The self-evolution kernel is still centered on ${kernelAction}, not the active candidate action.`
               : null,
-          relationshipCadenceInternalizationActive
-            ? 'Relationship cadence internalization is active, so measured-return reconfirmation is now being treated as durable relationship rhythm rather than temporary callback restraint.'
-            : null,
         ]),
       },
     }
-  })
-
-  const preDialogueClosureSnapshot = computed<NormalizedPreDialogueClosureSnapshot | null>(() => {
-    const projectRows = replayStore.benchmarkProjectStateRows
-    const emotionalRows = replayStore.benchmarkEmotionalClosureRows
-    const selfAuthorityRows = replayStore.benchmarkSelfAuthorityRows
-    const projectStateAuditRows = replayStore.benchmarkProjectStateAuditRows
-    const briefingRows = replayStore.benchmarkPreDialogueBriefingRows
-    const runtimeSameHerProof = replayStore.benchmarkRuntimeSameHerProofSummary
-    const benchmarkReport = replayStore.benchmarkReport
-    const datasetFeedback = benchmarkReport?.datasetFeedback
-    const emotionalClosureSummary = datasetFeedback?.emotionalClosureSummary ?? null
-    const selfAuthoritySummary = datasetFeedback?.selfAuthoritySummary ?? null
-    const projectStateAuditSummary = datasetFeedback?.projectStateAuditSummary ?? null
-    const continuitySnapshot = projectStateContinuitySnapshot.value
-    const latestLandedProgress = resolveContinuityLatestLandedProgress(continuitySnapshot)
-    const runtimeContinuityProjection = selectedCandidateRuntimeContinuityProjection.value
-    const sameHerEmbodimentLaneImpact = describeSameHerEmbodimentLaneImpact(runtimeContinuityProjection?.matchedSignals ?? [])
-    const sameSegmentFaceMotionRecovery = resolveSameSegmentFaceMotionRecoverySignal(runtimeContinuityProjection?.matchedSignals ?? [])
-    if (!benchmarkReport && projectRows.length === 0 && emotionalRows.length === 0 && selfAuthorityRows.length === 0 && projectStateAuditRows.length === 0 && !runtimeSameHerProof)
-      return null
-
-    const projectContinuity = projectRows.find(row => row.key === 'project_state_continuity_hit_rate')
-    const projectIdentity = projectRows.find(row => row.key === 'project_state_identity_hit_rate')
-    const projectPhase = projectRows.find(row => row.key === 'project_state_phase_hit_rate')
-    const projectOpenLoop = projectRows.find(row => row.key === 'project_state_open_loop_hit_rate')
-    const projectSameHer = projectRows.find(row => row.key === 'project_state_same_her_hit_rate')
-    const projectProactiveSameHerGap = projectRows.find(row => row.key === 'project_state_proactive_same_her_gap_hit_rate')
-    const briefingFull = briefingRows.find(row => row.key === 'pre_dialogue_briefing_fully_briefed_rate')
-    const emotionalActiveCue = emotionalRows.find(row => row.key === 'emotional_closure_active_cue_rate')
-    const emotionalLowPressure = emotionalRows.find(row => row.key === 'emotional_closure_low_pressure_required_rate')
-    const emotionalAntiRestart = emotionalRows.find(row => row.key === 'emotional_closure_anti_restart_required_rate')
-    const emotionalValidationApproved = emotionalRows.find(row => row.key === 'emotional_closure_validation_approved_rate')
-    const emotionalValidationBlocked = emotionalRows.find(row => row.key === 'emotional_closure_validation_blocked_rate')
-    const emotionalValidationUnknown = emotionalRows.find(row => row.key === 'emotional_closure_validation_unknown_rate')
-    const selfAuthorityContentComplete = selfAuthorityRows.find(row => row.key === 'self_authority_content_complete_rate')
-    const selfAuthorityValidationApproved = selfAuthorityRows.find(row => row.key === 'self_authority_validation_approved_rate')
-    const selfAuthorityValidationBlocked = selfAuthorityRows.find(row => row.key === 'self_authority_validation_blocked_rate')
-    const selfAuthorityValidationUnknown = selfAuthorityRows.find(row => row.key === 'self_authority_validation_unknown_rate')
-    const projectStateAuditContentComplete = projectStateAuditRows.find(row => row.key === 'project_state_audit_content_complete_rate')
-    const projectStateAuditContinuitySummary = projectStateAuditRows.find(row => row.key === 'project_state_audit_continuity_summary_rate')
-    const projectStateAuditValidationApproved = projectStateAuditRows.find(row => row.key === 'project_state_audit_validation_approved_rate')
-    const projectStateAuditValidationBlocked = projectStateAuditRows.find(row => row.key === 'project_state_audit_validation_blocked_rate')
-    const projectStateAuditValidationUnknown = projectStateAuditRows.find(row => row.key === 'project_state_audit_validation_unknown_rate')
-    const projectStateAuditEvidencePresent = projectStateAuditRows.find(row => row.key === 'project_state_audit_evidence_present_rate')
-    const projectStateAuditEvidenceMissing = projectStateAuditRows.find(row => row.key === 'project_state_audit_evidence_missing_rate')
-    const projectStateAuditEvidenceUnknown = projectStateAuditRows.find(row => row.key === 'project_state_audit_evidence_unknown_rate')
-    const sameHerEmbodimentGroundedCarry = hasGroundedSameHerEmbodimentCarry(runtimeContinuityProjection?.matchedSignals ?? [])
-    const projectSameHerDetail = describeInspectorContinuityMetricDetail(projectSameHer?.detail)
-    const projectProactiveSameHerGapDetail = describeInspectorContinuityMetricDetail(projectProactiveSameHerGap?.detail)
-    const runtimeProofFacts = runtimeSameHerProof
-      ? `运行时证明事实：${formatInspectorRuntimeProofFacts(runtimeSameHerProof)}`
-      : null
-    const emotionalClosureFacts = formatInspectorReplayMetricFacts('情绪收束事实', [
-      { key: 'activeCue', detail: emotionalActiveCue?.detail },
-      { key: 'lowPressureRequired', detail: emotionalLowPressure?.detail },
-      { key: 'antiRestartRequired', detail: emotionalAntiRestart?.detail },
-      { key: 'validationApproved', detail: emotionalValidationApproved?.detail },
-      { key: 'validationBlocked', detail: emotionalValidationBlocked?.detail },
-      { key: 'validationUnknown', detail: emotionalValidationUnknown?.detail },
-    ])
-    const selfAuthorityFacts = formatInspectorReplayMetricFacts('权限事实', [
-      { key: 'contentComplete', detail: selfAuthorityContentComplete?.detail },
-      { key: 'validationApproved', detail: selfAuthorityValidationApproved?.detail },
-      { key: 'validationBlocked', detail: selfAuthorityValidationBlocked?.detail },
-      { key: 'validationUnknown', detail: selfAuthorityValidationUnknown?.detail },
-    ])
-    const projectStateAuditFacts = formatInspectorReplayMetricFacts('项目状态审计事实', [
-      { key: 'contentComplete', detail: projectStateAuditContentComplete?.detail },
-      { key: 'summary', detail: projectStateAuditContinuitySummary?.detail },
-      { key: 'validationApproved', detail: projectStateAuditValidationApproved?.detail },
-      { key: 'validationBlocked', detail: projectStateAuditValidationBlocked?.detail },
-      { key: 'validationUnknown', detail: projectStateAuditValidationUnknown?.detail },
-      { key: 'evidencePresent', detail: projectStateAuditEvidencePresent?.detail },
-      { key: 'evidenceMissing', detail: projectStateAuditEvidenceMissing?.detail },
-      { key: 'evidenceUnknown', detail: projectStateAuditEvidenceUnknown?.detail },
-    ])
-    const summaryParts = [
-      projectContinuity?.detail ? `project=${projectContinuity.detail}` : null,
-      projectSameHerDetail ? `identityContinuity=${projectSameHerDetail}` : null,
-      projectProactiveSameHerGapDetail ? `proactiveIdentityContinuityGap=${projectProactiveSameHerGapDetail}` : null,
-      projectOpenLoop?.detail ? `openLoop=${projectOpenLoop.detail}` : null,
-      briefingFull?.detail ? `briefing=${briefingFull.detail}` : null,
-      emotionalClosureFacts,
-      selfAuthorityFacts,
-      projectStateAuditFacts,
-      runtimeProofFacts,
-      sameHerEmbodimentLaneImpact
-        ? sameHerEmbodimentLaneImpact.replace('continuity-impact: ', 'embodiment=')
-        : null,
-    ].filter((value): value is string => Boolean(value))
-    const validationSummaries = [
-      emotionalClosureSummary,
-      selfAuthoritySummary,
-      projectStateAuditSummary,
-    ].filter((summary): summary is NonNullable<typeof summary> => Boolean(summary))
-    const evidenceSummaries = projectStateAuditSummary
-      ? [projectStateAuditSummary]
-      : []
-    const contentCompleteSummaries = [
-      selfAuthoritySummary,
-      projectStateAuditSummary,
-    ].filter((summary): summary is NonNullable<typeof summary> => Boolean(summary))
-    const hasMissingRequiredFactSummary = [
-      emotionalClosureSummary,
-      selfAuthoritySummary,
-      projectStateAuditSummary,
-    ].some(summary => !summary)
-    const hasBlockedOrMissingFact = validationSummaries.some(summary =>
-      Number.isFinite(summary.validationStatus?.blockedTurnCount)
-      && summary.validationStatus.blockedTurnCount > 0,
-    ) || evidenceSummaries.some(summary =>
-      Number.isFinite(summary.evidenceStatus?.missingTurnCount)
-      && summary.evidenceStatus.missingTurnCount > 0,
-    )
-    const hasUnknownFact = validationSummaries.some(summary =>
-      Number.isFinite(summary.validationStatus?.unknownTurnCount)
-      && summary.validationStatus.unknownTurnCount > 0,
-    ) || evidenceSummaries.some(summary =>
-      Number.isFinite(summary.evidenceStatus?.unknownTurnCount)
-      && summary.evidenceStatus.unknownTurnCount > 0,
-    )
-    const hasIndeterminateStatusFact = validationSummaries.some((summary) => {
-      const status = summary.validationStatus
-      return !status
-        || !Number.isFinite(summary.comparedTurnCount)
-        || summary.comparedTurnCount <= 0
-        || !Number.isFinite(status.knownTurnCount)
-        || status.knownTurnCount <= 0
-        || !Number.isFinite(status.approvedTurnCount)
-        || !Number.isFinite(status.blockedTurnCount)
-        || !Number.isFinite(status.unknownTurnCount)
-    }) || evidenceSummaries.some((summary) => {
-      const status = summary.evidenceStatus
-      return !status
-        || !Number.isFinite(summary.comparedTurnCount)
-        || summary.comparedTurnCount <= 0
-        || !Number.isFinite(status.knownTurnCount)
-        || status.knownTurnCount <= 0
-        || !Number.isFinite(status.presentTurnCount)
-        || !Number.isFinite(status.missingTurnCount)
-        || !Number.isFinite(status.unknownTurnCount)
-    })
-    const hasIncompleteEmotionalClosureContent = Boolean(
-      emotionalClosureSummary
-      && Number.isFinite(emotionalClosureSummary.comparedTurnCount)
-      && emotionalClosureSummary.comparedTurnCount > 0
-      && Number.isFinite(emotionalClosureSummary.activeCueTurnCount)
-      && emotionalClosureSummary.activeCueTurnCount < emotionalClosureSummary.comparedTurnCount,
-    )
-    const hasIncompleteContent = hasIncompleteEmotionalClosureContent
-      || contentCompleteSummaries.some(summary =>
-        Number.isFinite(summary.comparedTurnCount)
-        && summary.comparedTurnCount > 0
-        && Number.isFinite(summary.contentCompleteTurnCount)
-        && summary.contentCompleteTurnCount < summary.comparedTurnCount,
-      )
-    const hasCompleteEmotionalClosureGate = Boolean(
-      emotionalClosureSummary
-      && Number.isFinite(emotionalClosureSummary.comparedTurnCount)
-      && emotionalClosureSummary.comparedTurnCount > 0
-      && Number.isFinite(emotionalClosureSummary.activeCueTurnCount)
-      && emotionalClosureSummary.activeCueTurnCount === emotionalClosureSummary.comparedTurnCount,
-    )
-    const hasCompleteContentGate = hasCompleteEmotionalClosureGate
-      && contentCompleteSummaries.length === 2
-      && contentCompleteSummaries.every(summary =>
-        Number.isFinite(summary.comparedTurnCount)
-        && summary.comparedTurnCount > 0
-        && Number.isFinite(summary.contentCompleteTurnCount)
-        && summary.contentCompleteTurnCount === summary.comparedTurnCount,
-      )
-    const runtimeProofRequiresPartial = Boolean(
-      runtimeSameHerProof
-      && runtimeSameHerProof.status !== 'closed',
-    )
-    const hasExplicitDriftSignal = hasBlockedOrMissingFact
-      || hasIncompleteContent
-      || summaryParts.some(part => part.includes('drift='))
-      || (Boolean(sameHerEmbodimentLaneImpact) && !sameHerEmbodimentGroundedCarry)
-
-    const benchmarkDerivedClosure: NormalizedPreDialogueClosureSnapshot = {
-      status: hasExplicitDriftSignal
-        ? 'drift'
-        : hasMissingRequiredFactSummary || hasUnknownFact || hasIndeterminateStatusFact || runtimeProofRequiresPartial || !hasCompleteContentGate
-          ? 'partial'
-          : summaryParts.length >= 3
-            ? 'grounded'
-            : 'partial',
-      summaryLine: summaryParts.length > 0 ? summaryParts.join(' | ') : null,
-      companionHeadlineLine: sameHerEmbodimentLaneImpact
-        ? describeAlicizationEmbodimentClosureHeadline({
-          authoritySummary: (runtimeContinuityProjection?.reasons ?? []).join(' | '),
-          currentBodyState: (runtimeContinuityProjection?.matchedSignals ?? []).join(' | '),
-        }) || null
-        : null,
-      companionBriefingLine: sameHerEmbodimentLaneImpact
-        ? null
-        : describeAlicizationProjectClosureBriefing({
-          identity: continuitySnapshot?.identity ?? null,
-          currentPhase: continuitySnapshot?.currentPhase ?? null,
-          primaryOpenLoop: continuitySnapshot?.primaryOpenLoop ?? null,
-        }) || null,
-      companionNextClosureLine: describeAlicizationProjectNextClosure({
-        nextClosureTarget: continuitySnapshot?.nextClosureTarget ?? null,
-      }) || null,
-      sameHerDriftRiskLine: continuitySnapshot?.sameHerDriftRisk ?? null,
-      companionshipReasonLine: sameHerEmbodimentLaneImpact || sameSegmentFaceMotionRecovery
-        ? uniquePreviewReasons([
-          sameSegmentFaceMotionRecovery,
-          sameHerEmbodimentLaneImpact,
-        ], 1)[0] ?? null
-        : null,
-      emotionalClosureCue: continuitySnapshot?.emotionalClosureCue ?? null,
-      briefingLines: uniquePreviewReasons([
-        emotionalClosureFacts,
-        selfAuthorityFacts,
-        projectStateAuditFacts,
-        continuitySnapshot?.identity
-          ? `Identity: ${continuitySnapshot.identity}`
-          : null,
-        continuitySnapshot?.currentPhase
-          ? `Phase: ${continuitySnapshot.currentPhase}`
-          : null,
-        latestLandedProgress
-          ? `Landed: ${latestLandedProgress}`
-          : null,
-        continuitySnapshot?.primaryOpenLoop
-          ? `Open loop: ${continuitySnapshot.primaryOpenLoop}`
-          : null,
-        continuitySnapshot?.nextClosureTarget
-          ? `Next closure: ${continuitySnapshot.nextClosureTarget}`
-          : null,
-        continuitySnapshot?.proactiveSameHerGap
-          ? `Proactive identity-continuity gap: ${continuitySnapshot.proactiveSameHerGap}`
-          : null,
-        metricDetailHasConcreteCount(projectSameHer?.detail) && projectSameHer
-          ? `Identity-continuity self line: ${projectSameHer.detail}`
-          : null,
-        metricDetailHasConcreteCount(projectProactiveSameHerGap?.detail) && projectProactiveSameHerGap
-          ? `Proactive identity-continuity follow-through: ${projectProactiveSameHerGap.detail}`
-          : null,
-        briefingFull?.detail
-          ? `Briefing carry: ${briefingFull.detail}`
-          : null,
-        runtimeProofFacts,
-      ], 12),
-      reasons: uniquePreviewReasons([
-        emotionalClosureFacts,
-        selfAuthorityFacts,
-        projectStateAuditFacts,
-        runtimeProofFacts,
-        metricDetailHasConcreteCount(projectSameHerDetail) && projectSameHerDetail
-          ? `Project identity-continuity self line currently reads ${projectSameHerDetail}, so the next turn should verify that Alicization still names identity continuity before any outward reply widening begins.`
-          : null,
-        metricDetailHasConcreteCount(projectProactiveSameHerGapDetail) && projectProactiveSameHerGapDetail
-          ? `Proactive identity-continuity follow-through currently reads ${projectProactiveSameHerGapDetail}, so the next turn should check whether visible proactive hold, subconscious carry, and next-session feedback are still arriving on one identity-continuity line instead of fragmenting into detached follow-up beats.`
-          : null,
-        continuitySnapshot?.proactiveSameHerGap
-          ? `Proactive identity-continuity follow-through still reads ${continuitySnapshot.proactiveSameHerGap}, so the next turn should keep visible proactive hold, subconscious carry, and next-session feedback arriving as one identity-continuity line instead of splitting them across detached follow-up shells.`
-          : null,
-        sameSegmentFaceMotionRecovery
-          ? `${sameSegmentFaceMotionRecovery} keeps the face-motion body line re-formed on one living segment even while full cross-modal identity-continuity closure is still open.`
-          : null,
-        sameHerEmbodimentLaneImpact
-          ? sameHerEmbodimentGroundedCarry
-            ? `${sameHerEmbodimentLaneImpact}, so the next turn should keep that same-segment lock explicit all the way into host-visible continuity instead of flattening it into a temporary visual recovery note.`
-            : `${sameHerEmbodimentLaneImpact}, so the next turn should treat full cross-modal identity-continuity recovery as still open instead of assuming the body line is already closed.`
-          : null,
-        projectContinuity?.detail
-          ? `Replay benchmark currently reports ${projectContinuity.detail}, so the next development turn should stay explicitly aware of what Alicization is and how much of Phase 1 continuity is actually landing.`
-          : null,
-        projectIdentity?.detail
-          ? `Project identity carry currently reads ${projectIdentity.detail}, so the next turn should check whether she is still holding what this project is and who she is becoming across time.`
-          : null,
-        latestLandedProgress
-          ? `Latest landed progress still holds at ${latestLandedProgress}, so the next turn should keep building from that already-lived continuity instead of restarting the same proof from scratch.`
-          : null,
-        projectPhase?.detail
-          ? `Phase 1 route carry currently reads ${projectPhase.detail}, so the next turn should verify that local digital life is still the active identity-continuity route instead of drifting into generic capability work.`
-          : null,
-        projectOpenLoop?.detail
-          ? `Unresolved closure carry currently reads ${projectOpenLoop.detail}, so unfinished digital-life closure still needs to remain visible before local implementation detail takes over.`
-          : null,
-        continuitySnapshot?.primaryOpenLoop
-          ? `Primary open life loop still centers on ${continuitySnapshot.primaryOpenLoop}, so the next turn should keep that unfinished digital-life thread alive instead of collapsing into local implementation fluency.`
-          : null,
-        continuitySnapshot?.nextClosureTarget
-          ? `Next closure target is still ${continuitySnapshot.nextClosureTarget}, so the next turn should keep steering the current continuity route toward that concrete unfinished step.`
-          : null,
-        briefingFull?.detail
-          ? `Pre-dialogue self briefing currently reads ${briefingFull.detail}, so the next turn should check whether identity, phase, landed progress, open loop, and next closure are still arriving as one stable self brief.`
-          : null,
-      ], 12),
-    }
-    const explicitClosure = normalizePreDialogueClosureSnapshot(
-      continuitySnapshot?.preDialogueClosure
-      ?? latestProjectStateObservation.value?.preDialogueClosure
-      ?? null,
-    )
-    const benchmarkClosureLooksThin = looksLikeThinPreDialogueClosureSnapshot(benchmarkDerivedClosure)
-    const explicitClosureLooksThin = looksLikeThinPreDialogueClosureSnapshot(explicitClosure)
-    const closureTextSource = benchmarkClosureLooksThin && explicitClosure && !explicitClosureLooksThin
-      ? explicitClosure
-      : benchmarkDerivedClosure
-    const mergedStatus = explicitClosure
-      ? mergePreDialogueClosureStatus(benchmarkDerivedClosure.status, explicitClosure.status)
-      : benchmarkDerivedClosure.status
-    return sanitizeInspectorClosureSnapshot({
-      ...closureTextSource,
-      status: mergedStatus,
-    }, continuitySnapshot)
-  })
-
-  const preDialogueAwarenessSnapshot = computed<NormalizedPreDialogueAwarenessSnapshot | null>(() => {
-    const continuitySnapshot = projectStateContinuitySnapshot.value
-    const observationAwareness = normalizePreDialogueAwarenessSnapshot(
-      latestProjectStateObservation.value?.preDialogueAwareness ?? null,
-    )
-    const continuityAwareness = normalizePreDialogueAwarenessSnapshot(
-      projectStateContinuitySnapshot.value?.preDialogueAwareness ?? null,
-    )
-    const observationAwarenessLooksThin = looksLikeThinPreDialogueAwarenessSnapshot(observationAwareness)
-    const continuityAwarenessLooksThin = looksLikeThinPreDialogueAwarenessSnapshot(continuityAwareness)
-    const preferredAwarenessSource = observationAwarenessLooksThin && continuityAwareness && !continuityAwarenessLooksThin
-      ? continuityAwareness
-      : observationAwareness ?? continuityAwareness
-    if (preferredAwarenessSource)
-      return mergePreDialogueAwarenessWithContinuitySnapshot(preferredAwarenessSource, continuitySnapshot)
-
-    const closure = preDialogueClosureSnapshot.value
-      ?? normalizePreDialogueClosureSnapshot(
-        continuitySnapshot?.preDialogueClosure
-        ?? latestProjectStateObservation.value?.preDialogueClosure
-        ?? null,
-      )
-    if (!closure)
-      return null
-
-    const synthesizedCompanionHeadlineLine = null
-
-    const closureStatus
-      = closure.status === 'grounded' || closure.status === 'partial' || closure.status === 'drift'
-        ? closure.status
-        : 'partial'
-
-    const rebuiltAwareness: NormalizedPreDialogueAwarenessSnapshot = {
-      status: closureStatus,
-      summaryLine: closure.summaryLine,
-      companionHeadlineLine: synthesizedCompanionHeadlineLine ?? null,
-      companionBriefingLine: closure.companionBriefingLine ?? null,
-      companionNextClosureLine: closure.companionNextClosureLine ?? null,
-      awarenessLine: synthesizedCompanionHeadlineLine ?? closure.companionBriefingLine ?? closure.summaryLine,
-      emotionalClosureCue: closure.emotionalClosureCue ?? null,
-      reasonPreview: uniquePreviewReasons([
-        synthesizedCompanionHeadlineLine,
-        closure.companionshipReasonLine,
-        closure.companionBriefingLine,
-        closure.summaryLine,
-        ...(closure.reasons ?? []),
-      ], 8),
-    }
-
-    return sanitizeInspectorAwarenessSnapshot(
-      mergePreDialogueAwarenessWithContinuitySnapshot(rebuiltAwareness, continuitySnapshot) ?? rebuiltAwareness,
-      continuitySnapshot,
-    )
   })
 
   const selectedCandidateAuthoritySurfaces = computed(() => {
@@ -3855,13 +2130,7 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       const details: Array<{ label: string, value: string }> = []
       pushTraceDetail(details, 'fallbackReason', payload.fallback_reason)
       pushTraceDetail(details, 'hardFallbackReason', payload.hard_fallback_reason)
-      pushTraceDetail(details, 'openingGuidanceHoldDetail', payload.opening_guidance_hold_detail)
-      pushTraceDetail(details, 'companionshipHoldMode', payload.companionship_hold_mode)
       pushTraceDetail(details, 'replyOverridden', asTraceBoolean(payload.replyOverridden))
-      pushTraceDetail(details, 'visibleReplyAuthority', payload.visible_reply_authority)
-      pushTraceDetail(details, 'visibleReplyRealizationAuthority', payload.visible_reply_realization_authority)
-      pushTraceDetail(details, 'visibleReplyRealizationReason', payload.visible_reply_realization_reason)
-      pushTraceDetailList(details, 'visibleReplyBlockedReasons', payload.visible_reply_blocked_reasons)
       pushTraceDetail(details, 'claimSpecificityBudget', payload.claim_specificity_budget)
       pushTraceDetailList(details, 'unsupportedSpecificityCues', payload.unsupported_specificity_cues)
       pushTraceDetailList(details, 'reasons', payload.reasons)
@@ -3955,7 +2224,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       soulSnapshot.value = null
       visualPresenceState.value = null
       organicMemorySnapshot.value = null
-      latestProjectStateObservation.value = null
       lastError.value = null
       return null
     }
@@ -3966,7 +2234,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       soulSnapshot.value = null
       visualPresenceState.value = null
       organicMemorySnapshot.value = null
-      latestProjectStateObservation.value = null
       lastError.value = null
       return null
     }
@@ -3982,232 +2249,16 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       const nextOrganicMemoryPromise = bridge.getOrganicMemorySnapshot
         ? Promise.resolve(bridge.getOrganicMemorySnapshot()).catch(() => null)
         : Promise.resolve(null)
-      const nextProjectStateContinuitySnapshotPromise = bridge.getProjectStateContinuitySnapshot
-        ? Promise.resolve(bridge.getProjectStateContinuitySnapshot()).catch(() => null)
-        : Promise.resolve(null)
-      const nextProjectStateObservationPromise = bridge.getLatestProjectStateObservation
-        ? Promise.resolve(bridge.getLatestProjectStateObservation()).catch(() => null)
-        : Promise.resolve(null)
-      const [next, nextSoul, nextVisualPresence, nextOrganicMemory, nextProjectStateContinuitySnapshot, nextProjectStateObservation] = await Promise.all([
+      const [next, nextSoul, nextVisualPresence, nextOrganicMemory] = await Promise.all([
         bridge.getSelfEvolutionState(),
         nextSoulPromise,
         nextVisualPresencePromise,
         nextOrganicMemoryPromise,
-        nextProjectStateContinuitySnapshotPromise,
-        nextProjectStateObservationPromise,
       ])
       snapshot.value = next ?? null
       soulSnapshot.value = nextSoul ?? null
       visualPresenceState.value = nextVisualPresence ?? null
       organicMemorySnapshot.value = nextOrganicMemory ?? null
-      const observedContinuitySnapshot = nextProjectStateObservation
-        ? projectStateObservationToContinuitySnapshot(nextProjectStateObservation)
-        : null
-      const synthesizedObservationAwareness = nextProjectStateObservation?.preDialogueAwareness
-        ?? (
-          nextProjectStateObservation?.preDialogueClosure
-            ? observedContinuitySnapshot?.preDialogueAwareness ?? null
-            : null
-        )
-      const normalizedObservedProjectState = nextProjectStateObservation
-        ? normalizeStructuredProjectStatePayload(
-            nextProjectStateObservation.projectState as Record<string, unknown>,
-          )
-        : null
-      const observedProjectStateSnapshot = (normalizedObservedProjectState || observedContinuitySnapshot)
-        ? {
-            identity: normalizedObservedProjectState?.identity ?? '',
-            currentPhase: normalizedObservedProjectState?.currentPhase ?? '',
-            latestLandedProgress: normalizedObservedProjectState?.latestLandedProgress ?? null,
-            primaryOpenLoop: normalizedObservedProjectState?.primaryOpenLoop ?? null,
-            nextClosureTarget: normalizedObservedProjectState?.nextClosureTarget ?? '',
-            continuitySummary: normalizedObservedProjectState?.continuitySummary ?? null,
-            sameHerSelfLine:
-              sanitizeInspectorStructuredFact(normalizedObservedProjectState?.sameHerSelfLine ?? null)
-              ?? '',
-            sameHerHoldDetail:
-              sanitizeInspectorStructuredFact(normalizedObservedProjectState?.sameHerHoldDetail ?? null)
-              ?? null,
-            proactiveSameHerGap:
-              sanitizeInspectorStructuredFact(normalizedObservedProjectState?.proactiveSameHerGap ?? null)
-              ?? null,
-            ...(normalizedObservedProjectState?.sameHerDriftRisk
-              ? {
-                  sameHerDriftRisk: sanitizeInspectorStructuredFact(normalizedObservedProjectState.sameHerDriftRisk),
-                }
-              : {}),
-            emotionalClosureCue:
-              sanitizeInspectorSnapshotLine(
-                nextProjectStateObservation?.preDialogueAwareness?.emotionalClosureCue
-                ?? nextProjectStateObservation?.preDialogueClosure?.emotionalClosureCue
-                ?? synthesizedObservationAwareness?.emotionalClosureCue
-                ?? observedContinuitySnapshot?.preDialogueClosure?.emotionalClosureCue
-                ?? null,
-                { dropResidue: true },
-              ),
-            preDialogueAwareness:
-              synthesizedObservationAwareness,
-            preDialogueClosure:
-              nextProjectStateObservation?.preDialogueClosure
-              ?? observedContinuitySnapshot?.preDialogueClosure
-              ?? null,
-            nonHumanAuthoredStatus: nextProjectStateObservation?.nonHumanAuthoredStatus ?? null,
-            turnId: nextProjectStateObservation?.turnId ?? '',
-            sessionId: nextProjectStateObservation?.sessionId ?? '',
-            origin: nextProjectStateObservation?.origin ?? 'user-turn' as const,
-          }
-        : null
-      if (nextProjectStateContinuitySnapshot) {
-        const strongerLatestLandedProgress
-          = resolveContinuityLatestLandedProgress(nextProjectStateContinuitySnapshot)
-            || observedProjectStateSnapshot?.latestLandedProgress?.trim()
-            || ''
-        const mergedSameHerHoldDetail
-          = nextProjectStateContinuitySnapshot.sameHerHoldDetail
-            || observedProjectStateSnapshot?.sameHerHoldDetail
-            || null
-        const mergedProactiveSameHerGap
-          = nextProjectStateContinuitySnapshot.proactiveSameHerGap
-            || observedProjectStateSnapshot?.proactiveSameHerGap
-            || null
-        const mergedSameHerDriftRisk
-          = nextProjectStateContinuitySnapshot.sameHerDriftRisk
-            || observedProjectStateSnapshot?.sameHerDriftRisk
-            || null
-        const mergedProjectStateContinuitySnapshot: AlicizationProjectStateContinuitySnapshot = {
-          ...nextProjectStateContinuitySnapshot,
-          latestLandedProgress: strongerLatestLandedProgress || null,
-          continuitySummary:
-            nextProjectStateContinuitySnapshot.continuitySummary
-            ?? observedProjectStateSnapshot?.continuitySummary
-            ?? null,
-          sameHerSelfLine:
-            nextProjectStateContinuitySnapshot.sameHerSelfLine
-            || observedProjectStateSnapshot?.sameHerSelfLine
-            || null,
-          ...(mergedSameHerHoldDetail
-            || Object.prototype.hasOwnProperty.call(nextProjectStateContinuitySnapshot, 'sameHerHoldDetail')
-            ? {
-                sameHerHoldDetail: mergedSameHerHoldDetail,
-              }
-            : {}),
-          ...(mergedProactiveSameHerGap
-            || Object.prototype.hasOwnProperty.call(nextProjectStateContinuitySnapshot, 'proactiveSameHerGap')
-            ? {
-                proactiveSameHerGap: mergedProactiveSameHerGap,
-              }
-            : {}),
-          ...(mergedSameHerDriftRisk
-            || Object.prototype.hasOwnProperty.call(nextProjectStateContinuitySnapshot, 'sameHerDriftRisk')
-            ? {
-                sameHerDriftRisk: mergedSameHerDriftRisk,
-              }
-            : {}),
-          emotionalClosureCue:
-            nextProjectStateContinuitySnapshot.emotionalClosureCue
-            ?? observedProjectStateSnapshot?.emotionalClosureCue
-            ?? null,
-          preDialogueAwareness:
-            nextProjectStateContinuitySnapshot.preDialogueAwareness
-            ?? observedProjectStateSnapshot?.preDialogueAwareness
-            ?? null,
-          nonHumanAuthoredStatus:
-            nextProjectStateContinuitySnapshot.nonHumanAuthoredStatus
-            ?? observedProjectStateSnapshot?.nonHumanAuthoredStatus
-            ?? null,
-          turnId:
-            nextProjectStateContinuitySnapshot.turnId
-            || observedProjectStateSnapshot?.turnId
-            || '',
-          sessionId:
-            nextProjectStateContinuitySnapshot.sessionId
-            || observedProjectStateSnapshot?.sessionId
-            || '',
-          origin:
-            nextProjectStateContinuitySnapshot.origin
-            ?? observedProjectStateSnapshot?.origin
-            ?? 'user-turn',
-        }
-        const normalizedContinuityClosure = normalizeStructuredPreDialogueClosurePayload(
-          (nextProjectStateContinuitySnapshot.preDialogueClosure ?? null) as Record<string, unknown> | null,
-        ) ?? null
-        const normalizedObservationClosure = normalizeStructuredPreDialogueClosurePayload(
-          (observedProjectStateSnapshot?.preDialogueClosure ?? null) as Record<string, unknown> | null,
-        ) ?? null
-        const continuityClosureLooksThin = Boolean(
-          normalizedContinuityClosure
-          && (
-            looksLikeThinContinuityClosure(normalizedContinuityClosure.summaryLine)
-            || looksLikeThinContinuityClosure(normalizedContinuityClosure.companionBriefingLine)
-          ),
-        )
-        const observationClosureLooksThin = Boolean(
-          normalizedObservationClosure
-          && (
-            looksLikeThinContinuityClosure(normalizedObservationClosure.summaryLine)
-            || looksLikeThinContinuityClosure(normalizedObservationClosure.companionBriefingLine)
-          ),
-        )
-        mergedProjectStateContinuitySnapshot.preDialogueClosure
-          = continuityClosureLooksThin && normalizedObservationClosure && !observationClosureLooksThin
-            ? observedProjectStateSnapshot?.preDialogueClosure ?? normalizedObservationClosure
-            : nextProjectStateContinuitySnapshot.preDialogueClosure
-              ?? observedProjectStateSnapshot?.preDialogueClosure
-              ?? null
-        const normalizedContinuityAwareness = normalizePreDialogueAwarenessSnapshot(
-          mergedProjectStateContinuitySnapshot.preDialogueAwareness ?? null,
-        )
-        const normalizedObservationAwareness = normalizePreDialogueAwarenessSnapshot(
-          observedProjectStateSnapshot?.preDialogueAwareness ?? null,
-        )
-        const continuityAwarenessLooksThin = looksLikeThinPreDialogueAwarenessSnapshot(normalizedContinuityAwareness)
-        const observationAwarenessLooksThin = looksLikeThinPreDialogueAwarenessSnapshot(normalizedObservationAwareness)
-        const continuityAwarenessSummaryLooksThin = Boolean(
-          normalizedContinuityAwareness
-          && looksLikeThinContinuityReminder(normalizedContinuityAwareness.summaryLine),
-        )
-        const observationAwarenessSummaryLooksThin = Boolean(
-          normalizedObservationAwareness
-          && looksLikeThinContinuityReminder(normalizedObservationAwareness.summaryLine),
-        )
-        const awarenessSourceForUpgrade = continuityAwarenessLooksThin && normalizedObservationAwareness && !observationAwarenessLooksThin
-          ? normalizedObservationAwareness
-          : continuityAwarenessSummaryLooksThin && normalizedObservationAwareness && !observationAwarenessSummaryLooksThin
-            ? normalizedObservationAwareness
-            : normalizedContinuityAwareness
-        const shouldUpgradeMergedContinuityAwareness = Boolean(
-          awarenessSourceForUpgrade
-          && (
-            continuityAwarenessLooksThin
-            || observationAwarenessLooksThin
-            || continuityAwarenessSummaryLooksThin
-            || observationAwarenessSummaryLooksThin
-          ),
-        )
-        const mergedContinuityAwareness = shouldUpgradeMergedContinuityAwareness
-          ? mergePreDialogueAwarenessWithContinuitySnapshot(
-              awarenessSourceForUpgrade,
-              mergedProjectStateContinuitySnapshot,
-            )
-          : mergedProjectStateContinuitySnapshot.preDialogueAwareness
-            ?? observedProjectStateSnapshot?.preDialogueAwareness
-            ?? null
-        projectStateContinuitySnapshot.value = sanitizeInspectorContinuitySnapshot({
-          ...mergedProjectStateContinuitySnapshot,
-          preDialogueAwareness: mergedContinuityAwareness,
-        })
-      }
-      else {
-        projectStateContinuitySnapshot.value = sanitizeInspectorContinuitySnapshot(observedContinuitySnapshot
-          ? {
-              ...observedContinuitySnapshot,
-              sameHerSelfLine:
-                observedContinuitySnapshot.sameHerSelfLine
-                ?? '',
-            }
-          : observedProjectStateSnapshot)
-      }
-      latestProjectStateObservation.value = nextProjectStateObservation ?? null
       if (!snapshot.value?.candidates.some(candidate => candidate.id === selectedCandidateId.value))
         selectedCandidateId.value = snapshot.value?.activeCandidateId ?? snapshot.value?.candidates[0]?.id ?? null
       lastError.value = null
@@ -4219,8 +2270,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
       soulSnapshot.value = null
       visualPresenceState.value = null
       organicMemorySnapshot.value = null
-      projectStateContinuitySnapshot.value = null
-      latestProjectStateObservation.value = null
       return null
     }
     finally {
@@ -4233,8 +2282,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     soulSnapshot.value = null
     visualPresenceState.value = null
     organicMemorySnapshot.value = null
-    projectStateContinuitySnapshot.value = null
-    latestProjectStateObservation.value = null
     selectedCandidateId.value = null
     selectedTraceEventId.value = null
     drilledTraceResult.value = null
@@ -4275,10 +2322,6 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     soulSnapshot,
     visualPresenceState,
     organicMemorySnapshot,
-    latestProjectStateObservation,
-    projectStateContinuitySnapshot,
-    preDialogueClosureSnapshot,
-    preDialogueAwarenessSnapshot,
     selectedCandidateAuthoritySurfaces,
     sortedCandidates,
     activeCandidate,
@@ -4300,13 +2343,9 @@ export const useAlicizationSelfEvolutionInspectorStore = defineStore('alicizatio
     selectedCandidatePersonaBiasProvenance,
     selectedCandidateProactiveActionChain,
     selectedCandidateProactiveManifestationChain,
-    selectedCandidatePrivateThoughtGovernanceChain,
     selectedCandidateResidentPerformanceProjection,
     selectedCandidateEmbodimentOutputProjection,
-    selectedCandidateCompanionshipTransitionSummary,
     selectedCandidateSelfEvolutionSummary,
-    selectedCandidateInternalizationReadinessSummary,
-    selectedCandidateBaselineAnchorAuditSummary,
     selectedCandidateRejectedActionAlternatives,
     selectedCandidateRuntimeAlignment,
     selectedCandidateTraceEvents,

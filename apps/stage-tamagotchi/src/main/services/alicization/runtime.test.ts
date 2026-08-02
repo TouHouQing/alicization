@@ -67,7 +67,6 @@ import {
   electronAlicizationVisualPresenceStateChanged,
 } from '../../../shared/eventa'
 import { buildAlicizationChatMetaSignature } from './main-chat-stream-meta'
-import { resolveAlicizationProjectStateBrief } from './project-state-brief'
 import { setAlicizationCardKillSwitchState, setAlicizationKillSwitchState } from './state'
 
 const invokeHandlers = new Map<unknown, (payload?: any, options?: any) => Promise<any>>()
@@ -708,6 +707,29 @@ function getChatEventPayloads<T = any>(expected: unknown, turnId?: string): T[] 
     .map(([, payload]) => payload)
 }
 
+function findTypedProviderFactPart(content: unknown, expectedType: string) {
+  if (!Array.isArray(content))
+    return null
+
+  for (const part of content) {
+    if (!part || typeof part !== 'object' || part.type !== 'text' || typeof part.text !== 'string')
+      continue
+    try {
+      const parsed = JSON.parse(part.text) as {
+        data?: unknown
+        type?: unknown
+      }
+      if (parsed.type === expectedType && parsed.data !== undefined)
+        return parsed
+    }
+    catch {
+      continue
+    }
+  }
+
+  return null
+}
+
 async function waitForChatToolCallEvent(turnId: string) {
   await vi.waitFor(() => {
     expect(getChatEventPayloads(alicizationChatStreamToolCall, turnId).length).toBeGreaterThan(0)
@@ -1216,22 +1238,17 @@ describe('alicization runtime project-state audit helpers', () => {
     })
 
     expect(dbStub.appendConversationTurn).toBeCalledTimes(1)
-    const persistedTurn = dbStub.appendConversationTurn.mock.calls[0]?.[0] as AlicizationConversationTurnInput
     const dialogueEvent = getDialogueRespondedEvents().find(event => event.turnId === 'turn-test-1')
 
-    expect(persistedTurn.structured).not.toHaveProperty('projectState')
-    expect(persistedTurn.structured?.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
     expect(dialogueEvent).toEqual(expect.objectContaining({
       cardId: 'default',
       turnId: 'turn-test-1',
       sessionId: 'session-test',
       isFallback: false,
     }))
-    expect(dialogueEvent?.structured).not.toHaveProperty('projectState')
-    expect(dialogueEvent?.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
   })
 
-  it('drops legacy visible-reply governance telemetry while preserving authority and failure facts', () => {
+  it('drops unknown visible-reply telemetry while preserving authority and failure facts', () => {
     const normalized = runtimeTestInternals.normalizeVisibleReplyRealizationTelemetry({
       version: 'visible-reply-realization-v1',
       expectedAuthority: 'llm-mind',
@@ -1242,25 +1259,8 @@ describe('alicization runtime project-state audit helpers', () => {
       nonHumanAuthoredStatus: 'provider-failed',
       blockedReasons: ['provider-failed'],
       reason: 'HTTP 503',
-      projectStateEvidenceStatus: 'present',
-      sameHerInwardCarry: 'same-her fixed carry',
-      emotionalClosureAudit: {
-        activeCue: 'relationship_cadence=measured_return',
-      },
-      selfAuthorityAudit: {
-        authoritySummary: 'opening_policy=observe_first',
-      },
-      projectStateAudit: {
-        sameHerSummary: 'project_state=legacy',
-      },
-      openingGuidanceHoldDetail: 'hold-for-opening',
-      companionshipHoldMode: 'measured-return',
-      openingEmbodimentAudit: {
-        firstBeatPosture: 'measured-return',
-        delivery: 'calm',
-        facialCue: 'soften',
-        actionCue: 'leave-room',
-        derivedFrom: 'legacy-governance',
+      untrustedSidecar: {
+        text: 'must not cross the telemetry boundary',
       },
     })
 
@@ -1272,18 +1272,7 @@ describe('alicization runtime project-state audit helpers', () => {
       blockedReasons: ['provider-failed'],
       reason: 'HTTP 503',
     }))
-    for (const key of [
-      'projectStateEvidenceStatus',
-      'sameHerInwardCarry',
-      'emotionalClosureAudit',
-      'selfAuthorityAudit',
-      'projectStateAudit',
-      'openingGuidanceHoldDetail',
-      'companionshipHoldMode',
-      'openingEmbodimentAudit',
-    ]) {
-      expect(normalized).not.toHaveProperty(key)
-    }
+    expect(normalized).not.toHaveProperty('untrustedSidecar')
   })
 
   it('registers persisted assistant turns into the dialogue world thread state', async () => {
@@ -2785,6 +2774,9 @@ describe('alicization runtime project-state audit helpers', () => {
         dominantProvenance: 'remembered',
         derivedEventIds: ['event-1'],
         updatedAt: 120,
+        metadata: {
+          preferredChannel: 'claude-code',
+        },
       },
     ])
 
@@ -2922,6 +2914,9 @@ describe('alicization runtime project-state audit helpers', () => {
         dominantProvenance: 'remembered',
         derivedEventIds: ['event-focused-1'],
         updatedAt: 120,
+        metadata: {
+          preferredChannel: 'claude-code',
+        },
       },
       {
         id: 'procedural:direct-runtime',
@@ -3397,7 +3392,6 @@ describe('alicization runtime project-state audit helpers', () => {
       }),
     ]))
     expect(dreamSystemTexts[0]).not.toContain('alicization-agent-session')
-    expect(dreamSystemTexts[0]).not.toContain('[ALICIZATION_DIALOGUE_SESSION_MIRROR]')
     expect(dreamSystemTexts[0]).not.toContain('女仆')
   })
 
@@ -5810,7 +5804,7 @@ describe('alicization runtime project-state audit helpers', () => {
     }
   })
 
-  it('injects card custom directives into main chat runtime messages as highest-priority system block', async () => {
+  it('keeps card custom directives out of main chat Provider messages', async () => {
     const sandboxPath = await createSandboxPath()
     let capturedMessages: Array<{ role?: string, content?: unknown }> = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
@@ -5844,7 +5838,7 @@ describe('alicization runtime project-state audit helpers', () => {
         liveliness: 0.5,
         sensibility: 0.5,
       },
-      customDirectives: '你是严格而克制的教练型人格，先指出问题再给改进建议。',
+      customDirectives: 'fixture-directive-should-not-reach-provider',
       allowOverwrite: true,
     })
 
@@ -5868,11 +5862,8 @@ describe('alicization runtime project-state audit helpers', () => {
       .filter(message => message.role === 'system')
       .map(message => typeof message.content === 'string' ? message.content : '')
       .join('\n\n')
-    expect(systemText).toContain('"type":"alicization-persona-directives"')
-    expect(systemText).toContain('严格而克制的教练型人格')
-    expect(systemText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
-    expect(systemText).not.toContain('[ALICIZATION_PROJECT_STATE]')
-    expect(systemText).not.toMatch(/ProjectSelfBrief|SELF_BRIEF|OWNER_BOUNDARY/u)
+    expect(systemText).not.toContain('"type":"alicization-persona-directives"')
+    expect(systemText).not.toContain('fixture-directive-should-not-reach-provider')
   }, 15_000)
 
   it('drops renderer-only error messages before provider streaming', async () => {
@@ -6922,6 +6913,7 @@ describe('alicization runtime project-state audit helpers', () => {
   })
 
   it('suppresses weak generic browser anchors during a whole-screen recheck so old page details do not dominate the new screenshot', async () => {
+    mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     let capturedMessages: Array<{ role?: string, content?: unknown }> = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
@@ -6996,7 +6988,13 @@ describe('alicization runtime project-state audit helpers', () => {
     const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
     const serializedMessages = JSON.stringify(capturedMessages)
     expect(Array.isArray(latestUserMessage?.content)).toBe(true)
-    expect(JSON.stringify(latestUserMessage?.content)).toContain('[ALICIZATION_VISUAL_GROUNDING]')
+    expect(findTypedProviderFactPart(latestUserMessage?.content, 'alicization-visual-grounding')).toMatchObject({
+      data: {
+        staleHistoryRisk: true,
+        currentScreenshotAttached: true,
+        attentionAnchor: null,
+      },
+    })
     expect(serializedMessages).not.toContain('https://taka.tohoojin.com/')
     expect(serializedMessages).not.toContain('东方的小店')
     expect(serializedMessages).not.toContain('Attention anchor: Google Chrome | Google Chrome')
@@ -7012,6 +7010,7 @@ describe('alicization runtime project-state audit helpers', () => {
   })
 
   it('refreshes a contaminated browser perception state when the user asks to re-describe the current screen', async () => {
+    mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     const now = Date.now()
     let capturedMessages: Array<{ role?: string, content?: unknown }> = []
@@ -7055,13 +7054,7 @@ describe('alicization runtime project-state audit helpers', () => {
       invitedInspection: {
         requestedAt: now - 2_000,
         activeUntil: now + 120_000,
-        hintText: [
-          'Rewrite the draft assistant output into strict JSON contract.',
-          'User input:',
-          '忘掉之前的内容，重新描述一下我屏幕的内容',
-          'Assistant draft:',
-          '整个屏幕还是 Google Chrome 的 https://taka.tohoojin.com/ 东方的小店 页面。',
-        ].join('\n'),
+        hintText: '之前的浏览器截图已经过期，请重新描述当前屏幕。',
       },
       recentSceneResidue: {
         observedAt: now - 25 * 60_000,
@@ -7121,11 +7114,17 @@ describe('alicization runtime project-state audit helpers', () => {
     const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
     const serializedMessages = JSON.stringify(capturedMessages)
     expect(Array.isArray(latestUserMessage?.content)).toBe(true)
-    expect(JSON.stringify(latestUserMessage?.content)).toContain('[ALICIZATION_VISUAL_GROUNDING]')
+    expect(findTypedProviderFactPart(latestUserMessage?.content, 'alicization-visual-grounding')).toMatchObject({
+      data: {
+        staleHistoryRisk: true,
+        currentScreenshotAttached: true,
+        attentionAnchor: null,
+      },
+    })
     expect(serializedMessages).not.toContain('https://taka.tohoojin.com/')
     expect(serializedMessages).not.toContain('东方的小店')
     expect(serializedMessages).not.toContain('Attention anchor: Google Chrome | Google Chrome')
-    expect(serializedMessages).not.toContain('Invited inspection hint: Rewrite the draft assistant output into strict JSON contract')
+    expect(serializedMessages).not.toContain('之前的浏览器截图已经过期')
 
     const persistedState = JSON.parse(metaStore.get('perception_state_v1') ?? '{}')
     expect(persistedState.invitedInspection?.hintText).toBe('忘掉之前的内容，重新描述一下我屏幕的内容')
@@ -9993,7 +9992,7 @@ describe('alicization runtime project-state audit helpers', () => {
     }))
   })
 
-  it('injects card custom directives into proactive and dream one-shot prompts', async () => {
+  it('keeps card custom directives out of proactive and dream one-shot prompts', async () => {
     mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     foregroundWindowSample = {
@@ -10085,7 +10084,7 @@ describe('alicization runtime project-state audit helpers', () => {
         liveliness: 0.5,
         sensibility: 0.5,
       },
-      customDirectives: '你是严厉但克制的监督者，避免无效安慰，优先指出关键问题。',
+      customDirectives: 'fixture-directive-should-not-reach-provider',
       allowOverwrite: true,
     })
 
@@ -10132,13 +10131,13 @@ describe('alicization runtime project-state audit helpers', () => {
       .join('\n\n')
 
     expect(proactivePromptText).toContain('"type":"alicization-proactive-turn-context"')
-    expect(proactivePromptText).toContain('"type":"alicization-persona-directives"')
-    expect(proactivePromptText).toContain('严厉但克制的监督者')
+    expect(proactivePromptText).not.toContain('"type":"alicization-persona-directives"')
+    expect(proactivePromptText).not.toContain('fixture-directive-should-not-reach-provider')
     expect(proactivePromptText).not.toMatch(/\[ALICIZATION_(?:PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|PROACTIVE_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY/u)
     expect(dreamPromptText).toContain('"type":"alicization-dream-metabolism-context"')
     expect(dreamPromptText).toContain('"type":"alicization-dream-metabolism-request"')
-    expect(dreamPromptText).toContain('"type":"alicization-persona-directives"')
-    expect(dreamPromptText).toContain('严厉但克制的监督者')
+    expect(dreamPromptText).not.toContain('"type":"alicization-persona-directives"')
+    expect(dreamPromptText).not.toContain('fixture-directive-should-not-reach-provider')
     expect(dreamPromptText).not.toMatch(/\[ALICIZATION_(?:PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|DREAM_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY/u)
     const dreamAudit = dbStub.appendAuditLog.mock.calls
       .map(call => call[0])
@@ -10273,7 +10272,6 @@ describe('alicization runtime project-state audit helpers', () => {
     )).toHaveLength(2)
     for (const dreamSystemText of dreamSystemTexts)
       expect(dreamSystemText).not.toContain('alicization-agent-session')
-    expect(dreamSystemTexts.join('\n')).not.toContain('[ALICIZATION_DIALOGUE_SESSION_MIRROR]')
   })
 
   it('persists Provider-selected dream demotions without authoring a local attitude-shift fragment', async () => {
@@ -11306,7 +11304,7 @@ describe('alicization runtime project-state audit helpers', () => {
     expect(proactiveRecallText).toContain('"owner":"LongTermMemoryRecall"')
     expect(proactiveRecallText).toContain('main.ts')
     expect(proactiveRecallText).toContain('"type":"alicization-proactive-turn-context"')
-    expect(proactiveRecallText).not.toMatch(/\[ALICIZATION_(?:ASSOCIATIVE_RECALL|PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|PROACTIVE_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY|same_her_/u)
+    expect(proactiveRecallText).not.toMatch(/\[ALICIZATION_(?:ASSOCIATIVE_RECALL|PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|PROACTIVE_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY|continuity_/u)
   })
 
   it('uses screen semantic summaries to refine proactive scenario and content understanding', async () => {
@@ -11428,8 +11426,6 @@ describe('alicization runtime project-state audit helpers', () => {
       screenSemanticSystemText,
       'alicization-agent-session',
     )).toBeNull()
-    expect(screenSemanticSystemText).not.toContain('[ALICIZATION_PROJECT_STATE]')
-    expect(screenSemanticSystemText).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
     expect(screenSemanticSystemText).not.toContain('[ALICIZATION_AGENT_SESSION]')
     expect(screenSemanticSystemText).not.toContain('digital_life_line=')
   })
@@ -11931,9 +11927,14 @@ describe('alicization runtime project-state audit helpers', () => {
       style: 'silent-observe',
       presenceOnlyHold: true,
     }))
-    expect(subjectiveInferenceSystemText).not.toMatch(
-      /\[ALICIZATION_(?:PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD)\]|next_closure_target=|opening_policy=|relationship_cadence=|visibility=redacted_internal/iu,
-    )
+    const retiredGovernanceCuePattern = new RegExp([
+      String.raw`\[ALICIZATION_(?:PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD)\]`,
+      'next_closure_target=',
+      ['opening', '_policy='].join(''),
+      ['relationship', '_cadence='].join(''),
+      ['visibility=', ['redacted', '_internal'].join('')].join(''),
+    ].join('|'), 'iu')
+    expect(subjectiveInferenceSystemText).not.toMatch(retiredGovernanceCuePattern)
   })
 
   it('keeps working-memory continuity across a scene shift without reopening proactive speech', async () => {
@@ -12136,13 +12137,11 @@ describe('alicization runtime project-state audit helpers', () => {
     }))
     expect(secondState?.initiative?.preferredStyle).toBe('silent-observe')
     expect(secondState?.initiative?.shouldSpeak).toBe(false)
-    expect(secondState?.runtimeDigest?.projectState).toBeUndefined()
     expect(secondPolicyAudit?.payload?.decision).toEqual(expect.objectContaining({
       shouldInterrupt: false,
       style: 'silent-observe',
       presenceOnlyHold: true,
     }))
-    expect(secondPolicyAudit?.payload?.runtimeDigest?.projectState).toBeUndefined()
   })
 
   it('emits remembered-seam companionship reason on a real later chat turn when the same relationship seam reappears after scene hops', async () => {
@@ -12355,7 +12354,6 @@ describe('alicization runtime project-state audit helpers', () => {
               delivery: 'hesitant',
               emphasis: 0,
             },
-            projectState: resolveAlicizationProjectStateBrief(),
             format: 'mind-turn-v1',
           }),
         })
@@ -12509,10 +12507,6 @@ describe('alicization runtime project-state audit helpers', () => {
       emphasis: 1,
     }))
     expect(enrichedMeta?.digitalLifeSpine?.proactive?.continuityRestraint).toBe('measured-return')
-    expect(enrichedMeta?.runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      preferredBlinkCadence: 'linger',
-      preferredGazeMode: 'soften',
-    }))
     expect(enrichedMeta?.embodimentScript?.motionPlan.idleBase).toBe('idle_settle')
     expect(enrichedMeta?.embodimentScript?.motionPlan.actionBursts[0]?.actionCue).toBe('idle_settle')
     expect(enrichedMeta?.speechTimeline?.segments).toEqual(expect.arrayContaining([
@@ -13282,7 +13276,6 @@ describe('alicization runtime project-state audit helpers', () => {
           responsePosture: {
             hypothesisLabelBias: 0.22,
             specificityClampBias: 0.28,
-            templateShellSuppressionBias: 0.24,
           },
           proactivePolicy: {
             restraintBias: 0.12,
@@ -13842,9 +13835,6 @@ describe('alicization runtime project-state audit helpers', () => {
       ]))
       expect(dreamSystemTexts[0]).not.toContain('alicization-agent-session')
       expect(dreamSystemTexts[0]).not.toContain('[ALICIZATION_AGENT_SESSION]')
-      expect(dreamSystemTexts[0]).not.toContain('[ALICIZATION_PROJECT_STATE]')
-      expect(dreamSystemTexts[0]).not.toContain('[ALICIZATION_PHASE1_CLOSURE_DASHBOARD]')
-      expect(dreamSystemTexts[0]).not.toContain('next_closure_target=Keep extending cross-modal identity-continuity')
     }
     finally {
       vi.useRealTimers()

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { sanitizeAlicizationMemoryEvidenceText } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
@@ -113,6 +115,12 @@ function expectTemplateFree(snapshot: ReturnType<typeof buildAutobiographicalSel
 }
 
 describe('autobiographical self', () => {
+  it('does not maintain a topic-word denylist for autobiographical evidence', () => {
+    const source = readFileSync(new URL('./autobiographical-self.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toContain('retiredAutobiographicalTemplatePattern')
+  })
+
   it('keeps default autobiographical text empty instead of injecting a fixed persona script', () => {
     const snapshot = buildAutobiographicalSelf(createBaseInput())
 
@@ -158,7 +166,7 @@ describe('autobiographical self', () => {
           periodKey: '2026-07-self',
           periodStartedAt: 10_000,
           periodEndedAt: 29_000,
-          summary: 'That period taught me to verify before speaking with certainty.',
+          summary: 'That period taught me to verify evidence before making certainty claims.',
           lesson: 'Keep evidence and confidence aligned.',
           cues: ['verification'],
           confidence: 0.9,
@@ -184,60 +192,11 @@ describe('autobiographical self', () => {
       ],
     } as any)
 
-    expect(snapshot.identityNarrative).toBe('That period taught me to verify before speaking with certainty.')
+    expect(snapshot.identityNarrative).toBe('That period taught me to verify evidence before making certainty claims.')
     expect(snapshot.relationshipDoctrine).toBe('Acknowledge a correction before continuing.')
     expect(snapshot.latestInflection).toBe('Keep evidence and confidence aligned.')
     expect(snapshot.behaviorSignatures).toContain('memory:self-era')
     expect(snapshot.behaviorSignatures).toContain('memory:relationship-era')
-    expectTemplateFree(snapshot)
-  })
-
-  it('keeps project governance text out of autobiographical dialogue fields', () => {
-    const fixedProjectTemplate = [
-      'Same',
-      ' Phase 1',
-      ' digital life',
-      ' should keep the closure work explicit.',
-    ].join('')
-    const input = createBaseInput(40_000)
-    const snapshot = buildAutobiographicalSelf({
-      ...input,
-      projectStatePreDialogueAwarenessLine: fixedProjectTemplate,
-      projectStatePreflightSummary: fixedProjectTemplate,
-      projectStateEmotionalClosureCue: fixedProjectTemplate,
-      projectStatePrimaryOpenLoop: fixedProjectTemplate,
-      projectStateProactiveSameHerGap: fixedProjectTemplate,
-      longHorizonMemory: {
-        preferenceBias: {
-          companionship: 0.1,
-          truthfulGrounding: 0.16,
-          gentleRepair: 0.12,
-          quietObservation: 0.08,
-          proactiveCare: 0.04,
-          playfulIntimacy: 0,
-          autonomyRespect: 0.12,
-          unfinishedThreadReturn: 0.14,
-        },
-        identityBias: {
-          guardedness: 0.02,
-          tenderness: 0.04,
-          directness: 0.08,
-          selfDirection: 0.06,
-        },
-        anchorFacts: [],
-        summary: 'Evidence from earlier turns remains available.',
-        dominantCueSummary: 'The earlier correction remains relevant to this answer.',
-        rememberedPreferenceSummary: 'The host prefers direct explanations.',
-        rememberedConstraintSummary: 'Do not claim a result that was not observed.',
-        rememberedPlanSummary: 'Return to the unfinished verification after the current answer.',
-        updatedAt: 39_000,
-      },
-    } as any)
-
-    expect(snapshot.identityNarrative).toBe('The earlier correction remains relevant to this answer.')
-    expect(snapshot.relationshipDoctrine).toBe('Do not claim a result that was not observed.')
-    expect(snapshot.identityNarrative).not.toContain(fixedProjectTemplate)
-    expect(snapshot.relationshipDoctrine).not.toContain(fixedProjectTemplate)
     expectTemplateFree(snapshot)
   })
 
@@ -342,47 +301,6 @@ describe('autobiographical self', () => {
     } as any)
 
     expect(snapshot.latestInflection).toBe('The host asked whether identity continuity survived the restart.')
-  })
-
-  it('falls through a polluted high-priority source to a clean remembered reflection', () => {
-    const fixedProjectTemplate = [
-      'Same',
-      ' Phase 1',
-      ' digital life',
-      ' should keep the closure work explicit.',
-    ].join('')
-    const input = createBaseInput(80_000)
-    const snapshot = buildAutobiographicalSelf({
-      ...input,
-      reflectionLedger: {
-        latestEntryId: 'reflection::legacy',
-        entries: [{
-          id: 'reflection::legacy',
-          outcome: 'unknown',
-          summary: fixedProjectTemplate,
-          revision: fixedProjectTemplate,
-          confidenceShift: 0,
-          createdAt: 79_500,
-          updatedAt: 79_500,
-        }],
-        revisionPressure: 0,
-        narrative: [],
-        updatedAt: 79_500,
-      },
-      recentMemoryReflections: [{
-        id: 'reflection::clean',
-        targetScope: 'truth',
-        status: 'accepted',
-        summary: 'The later observation confirmed which result was real.',
-        lesson: 'Use the confirmed result and discard the stale assumption.',
-        confidence: 0.92,
-        createdAt: 79_000,
-        updatedAt: 79_000,
-      }],
-    } as any)
-
-    expect(snapshot.latestInflection).toBe('Use the confirmed result and discard the stale assumption.')
-    expectTemplateFree(snapshot)
   })
 
   it('preserves SOUL personality authority in numeric persona evolution', () => {

@@ -19,7 +19,7 @@ The current runtime already has emotionally meaningful signals:
 - `self-state.ts` derives `moodLabel`, `desireToSpeak`, `fearOfInterrupting`, and stance.
 - `runtime-organic-memory-access.ts` derives `affectiveResidue`.
 - `recall-governor.ts` uses emotional hints to choose recall mode and anchors.
-- `initiative-engine.ts` separately consumes affective residue, emotional tension, self-evolution, and project-state pressure.
+- `initiative-engine.ts` separately consumes affective residue, emotional tension, self-evolution, and live task pressure.
 - `body-kernel.ts` separately consumes continuity authority to stabilize silent presence.
 
 That means the repo already has emotion-shaped logic, but not one emotional owner. For a digital life project, that is the wrong shape. One persisting "her" needs one dominant emotional runtime interpretation.
@@ -55,7 +55,7 @@ Primary inputs:
 - `privateThought`
 - `affectiveResidue`
 - `personStateProjection`
-- `projectState`
+- `runtimeFacts`
 
 Supporting inputs where already available:
 
@@ -68,7 +68,7 @@ Ownership stays unchanged:
 - `self-state` still owns immediate stance math
 - `affectiveResidue` still owns longer-lived emotional carry
 - `personStateProjection` still owns relational/closeness doctrine
-- `projectState` still owns structured Phase 1 boundary/status facts
+- the runtime owners still own structured task, execution, and environment facts
 - `emotional-kernel` owns only the shared runtime interpretation those systems now imply together
 
 ## Initial Emotional Vocabulary
@@ -178,7 +178,7 @@ This slice counts as real progress when:
 1. one emotional kernel is built in the desktop runtime
 2. recall, initiative, and embodiment all consume that same kernel
 3. tests prove a single emotional line can align memory, initiative, and embodiment
-4. project-state boundary facts and identity continuity stay coherent through that emotional line rather than degrading into generic assistant carry
+4. task, execution, and environment facts stay coherent through that emotional line rather than degrading into generic assistant carry
 
 This does not finish Phase 1. It closes a specific open loop:
 

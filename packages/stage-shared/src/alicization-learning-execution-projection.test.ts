@@ -142,16 +142,16 @@ describe('alicization-learning-execution-projection', () => {
   })
 
   it('does not let replay repair pressure create or change learning execution state', () => {
-    const sameHerCausalityRepairPressure = {
-      version: 'same-her-causality-repair-pressure-v1',
+    const continuityCausalityRepairPressure = {
+      version: 'continuity-causality-repair-pressure-v1',
       source: 'memory-tuning-advice',
       status: 'pending-runtime-evidence',
       updatedAt: 500,
       sourceReportAt: 490,
-      focusDimensions: ['runtimeSameHerInitiativeExecutionCausality'],
+      focusDimensions: ['runtimeContinuityInitiativeExecutionCausality'],
       lanes: [{
         lane: 'initiative-execution',
-        reasonTags: ['runtimeSameHerInitiativeExecutionCausality'],
+        reasonTags: ['runtimeContinuityInitiativeExecutionCausality'],
         summary: 'Pending replay diagnostics for initiative execution.',
       }],
       memoryIdentityRequirement: {
@@ -192,7 +192,7 @@ describe('alicization-learning-execution-projection', () => {
 
     expect(deriveAlicizationLearningExecutionProjection({
       projectionMode: 'advisory-only',
-      sameHerCausalityRepairPressure,
+      continuityCausalityRepairPressure,
     } as any)).toBeNull()
 
     const baseline = deriveAlicizationLearningExecutionProjection({
@@ -202,7 +202,7 @@ describe('alicization-learning-execution-projection', () => {
     const pressured = deriveAlicizationLearningExecutionProjection({
       projectionMode: 'advisory-only',
       selfEvolution,
-      sameHerCausalityRepairPressure,
+      continuityCausalityRepairPressure,
     } as any)
 
     expect(pressured).toEqual(baseline)

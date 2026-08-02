@@ -52,8 +52,8 @@ export interface SpeechAuthoritySegmentRow {
   authorityBindingSummary: string | null
   authorityMatchSummary: string | null
   authorityTrustSummary?: string | null
-  sameHerSignature?: string | null
-  sameHerReasonTags?: string[]
+  continuitySignature?: string | null
+  continuityReasonTags?: string[]
   authorityMismatchSummary?: string | null
   authorityMismatchReasonSummary?: string | null
   authorityMismatchDisplay?: string | null
@@ -132,7 +132,7 @@ function extractStructuredSegmentId(summary: string | null | undefined) {
   return normalizeText(match?.[1])
 }
 
-function extractStructuredSameHerSegmentIds(summary: string | null | undefined) {
+function extractStructuredContinuitySegmentIds(summary: string | null | undefined) {
   const normalized = normalizeText(summary)
   if (!normalized) {
     return {
@@ -161,8 +161,8 @@ function structuredSummaryMatchesCueSegment(summary: string | null | undefined, 
   return !structuredSegmentId || structuredSegmentId === cueId
 }
 
-function structuredSameHerSummaryMatchesCueSegment(summary: string | null | undefined, cueId: string) {
-  const segmentIds = extractStructuredSameHerSegmentIds(summary)
+function structuredContinuitySummaryMatchesCueSegment(summary: string | null | undefined, cueId: string) {
+  const segmentIds = extractStructuredContinuitySegmentIds(summary)
   return [
     segmentIds.authoritySegmentId,
     segmentIds.summarySegmentId,
@@ -521,53 +521,53 @@ function extractEmbodimentClosureStage(...summaries: Array<string | null | undef
   return null
 }
 
-function resolveCueScopedSameHerSummaries(input: {
+function resolveCueScopedContinuitySummaries(input: {
   cueId: string
-  sameHerEvidence?: {
+  continuityEvidence?: {
     live2dAuthorityView?: Pick<
       PerformanceVisualizerLive2DAuthorityComparisonView,
-      'sameHerExecutionAuthoritySegmentId' | 'sameHerExecutionSummary'
+      'continuityExecutionAuthoritySegmentId' | 'continuityExecutionSummary'
     > | null
     vrmAuthorityView?: Pick<
       PerformanceVisualizerVrmAuthorityComparisonView,
-      'sameHerFramePerformanceSegmentId' | 'sameHerFrameSpeechSegmentId' | 'sameHerFrameSummary'
+      'continuityFramePerformanceSegmentId' | 'continuityFrameSpeechSegmentId' | 'continuityFrameSummary'
     > | null
   }
 }) {
-  const live2dSameHerExecutionSummary = (() => {
-    const summary = normalizeText(input.sameHerEvidence?.live2dAuthorityView?.sameHerExecutionSummary)
+  const live2dContinuityExecutionSummary = (() => {
+    const summary = normalizeText(input.continuityEvidence?.live2dAuthorityView?.continuityExecutionSummary)
     if (!summary)
       return null
 
-    const authoritySegmentId = normalizeText(input.sameHerEvidence?.live2dAuthorityView?.sameHerExecutionAuthoritySegmentId)
+    const authoritySegmentId = normalizeText(input.continuityEvidence?.live2dAuthorityView?.continuityExecutionAuthoritySegmentId)
     if (!matchesCueScopedSegment(authoritySegmentId, input.cueId))
       return null
-    if (!structuredSameHerSummaryMatchesCueSegment(summary, input.cueId))
+    if (!structuredContinuitySummaryMatchesCueSegment(summary, input.cueId))
       return null
 
     return summary
   })()
 
-  const vrmSameHerFrameSummary = (() => {
-    const summary = normalizeText(input.sameHerEvidence?.vrmAuthorityView?.sameHerFrameSummary)
+  const vrmContinuityFrameSummary = (() => {
+    const summary = normalizeText(input.continuityEvidence?.vrmAuthorityView?.continuityFrameSummary)
     if (!summary)
       return null
 
-    const performanceSegmentId = normalizeText(input.sameHerEvidence?.vrmAuthorityView?.sameHerFramePerformanceSegmentId)
-    const speechSegmentId = normalizeText(input.sameHerEvidence?.vrmAuthorityView?.sameHerFrameSpeechSegmentId)
+    const performanceSegmentId = normalizeText(input.continuityEvidence?.vrmAuthorityView?.continuityFramePerformanceSegmentId)
+    const speechSegmentId = normalizeText(input.continuityEvidence?.vrmAuthorityView?.continuityFrameSpeechSegmentId)
     if (!matchesCueScopedSegment(performanceSegmentId, input.cueId))
       return null
     if (!matchesCueScopedSegment(speechSegmentId, input.cueId))
       return null
-    if (!structuredSameHerSummaryMatchesCueSegment(summary, input.cueId))
+    if (!structuredContinuitySummaryMatchesCueSegment(summary, input.cueId))
       return null
 
     return summary
   })()
 
   return {
-    live2dSameHerExecutionSummary,
-    vrmSameHerFrameSummary,
+    live2dContinuityExecutionSummary,
+    vrmContinuityFrameSummary,
   }
 }
 
@@ -578,14 +578,14 @@ export function buildSpeechAuthoritySegmentRows(
     StageThreeRuntimeSpeechEmbodimentDiagnostics,
     'recentDrivingTraceRecord' | 'recentDrivingTraceDetails'
   >,
-  sameHerEvidence?: {
+  continuityEvidence?: {
     live2dAuthorityView?: Pick<
       PerformanceVisualizerLive2DAuthorityComparisonView,
-      'sameHerExecutionAuthoritySegmentId' | 'sameHerExecutionSummary'
+      'continuityExecutionAuthoritySegmentId' | 'continuityExecutionSummary'
     > | null
     vrmAuthorityView?: Pick<
       PerformanceVisualizerVrmAuthorityComparisonView,
-      'sameHerFramePerformanceSegmentId' | 'sameHerFrameSpeechSegmentId' | 'sameHerFrameSummary'
+      'continuityFramePerformanceSegmentId' | 'continuityFrameSpeechSegmentId' | 'continuityFrameSummary'
     > | null
   },
 ): SpeechAuthoritySegmentRow[] {
@@ -838,16 +838,16 @@ export function buildSpeechAuthoritySegmentRows(
         speechView,
       })
       const {
-        live2dSameHerExecutionSummary,
-        vrmSameHerFrameSummary,
-      } = resolveCueScopedSameHerSummaries({
+        live2dContinuityExecutionSummary,
+        vrmContinuityFrameSummary,
+      } = resolveCueScopedContinuitySummaries({
         cueId: row.cueId,
-        sameHerEvidence,
+        continuityEvidence,
       })
-      const sameHerEmbodimentClosureStage = isAuthorityMatchedCue
+      const continuityEmbodimentClosureStage = isAuthorityMatchedCue
         ? extractEmbodimentClosureStage(
-            live2dSameHerExecutionSummary,
-            vrmSameHerFrameSummary,
+            live2dContinuityExecutionSummary,
+            vrmContinuityFrameSummary,
           )
         : null
       const speechEvidence = buildSpeechEvidenceSnapshot({
@@ -857,7 +857,7 @@ export function buildSpeechAuthoritySegmentRows(
           : null,
         embodimentClosureStage: isAuthorityMatchedCue
           ? speechView.embodimentClosureStage
-          ?? sameHerEmbodimentClosureStage
+          ?? continuityEmbodimentClosureStage
           ?? null
           : null,
         prosodyAuthoritySummary: isAuthorityMatchedCue
@@ -908,10 +908,10 @@ export function buildSpeechAuthoritySegmentRows(
           : [],
         authorityVoiceSegmentMatched,
         authorityTrustSummary,
-        sameHerSignature: isAuthorityMatchedCue
+        continuitySignature: isAuthorityMatchedCue
           ? speechView.playbackCue?.authorityView?.signature ?? null
           : null,
-        sameHerReasonTags: isAuthorityMatchedCue
+        continuityReasonTags: isAuthorityMatchedCue
           ? speechView.playbackCue?.authorityView?.reasonTags ?? null
           : null,
         authorityMismatchSummary,
@@ -925,7 +925,7 @@ export function buildSpeechAuthoritySegmentRows(
       const embodimentClosureStage = isAuthorityMatchedCue
         ? (
             speechView.embodimentClosureStage
-            ?? sameHerEmbodimentClosureStage
+            ?? continuityEmbodimentClosureStage
             ?? speechSummaryEntries.find(entry => entry.key === 'closure-stage')?.value
             ?? null
           )
@@ -959,10 +959,10 @@ export function buildSpeechAuthoritySegmentRows(
         authorityMatchSummary: resolvedAuthorityMatchSummary,
         authorityTrustSummary,
         ...(isAuthorityMatchedCue && speechView.playbackCue?.authorityView?.signature
-          ? { sameHerSignature: speechView.playbackCue.authorityView.signature }
+          ? { continuitySignature: speechView.playbackCue.authorityView.signature }
           : {}),
         ...(isAuthorityMatchedCue && (speechView.playbackCue?.authorityView?.reasonTags?.length ?? 0) > 0
-          ? { sameHerReasonTags: [...(speechView.playbackCue?.authorityView?.reasonTags ?? [])] }
+          ? { continuityReasonTags: [...(speechView.playbackCue?.authorityView?.reasonTags ?? [])] }
           : {}),
         authorityMismatchSummary,
         authorityMismatchReasonSummary,

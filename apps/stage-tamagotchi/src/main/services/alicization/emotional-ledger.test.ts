@@ -60,7 +60,7 @@ describe('buildAlicizationEmotionalTransitionLedger', () => {
       }),
       source: {
         turnId: 'turn-repair-1',
-        sourceTags: ['private-thought', 'affective-residue', 'project-state'],
+        sourceTags: ['private-thought', 'affective-residue'],
       },
     })
 
@@ -71,26 +71,26 @@ describe('buildAlicizationEmotionalTransitionLedger', () => {
       previousEmotion: 'warm-attunement',
       nextEmotion: 'repair-tension',
       transitionKind: 'repair-shift',
-      sourceTags: ['private-thought', 'affective-residue', 'project-state', 'repair-before-closeness', 'confirmation-boundary'],
+      sourceTags: ['private-thought', 'affective-residue', 'repair-before-closeness', 'confirmation-boundary'],
       decayPolicy: {
         mode: 'hold-until-repair-cools',
         carryTtlMs: 1_800_000,
-        reason: 'Repair pressure is high enough that warmth should not decay back into approach immediately.',
+        reason: 'emotional-decay:repair-cooling',
       },
       memoryWriteback: {
         shouldWrite: true,
         lane: 'relationship-repair',
-        reason: 'Repair, restraint, or a strong axis change should be available to later memory recall.',
+        reason: 'emotional-memory:relationship-repair',
       },
       initiativeSuppression: {
         shouldSuppress: true,
         mode: 'repair-first',
-        reason: 'Repair-first emotion should lower proactive pressure until the relationship line settles.',
+        reason: 'emotional-initiative:repair-first',
       },
       embodimentDrive: {
         shouldDrive: true,
         tone: 'repair-before-closeness',
-        reason: 'The body should express the next emotional tone instead of stale warmth.',
+        reason: 'emotional-embodiment:transition-drive',
       },
     })
     expect(ledger.axisDeltas).toEqual({
@@ -106,20 +106,7 @@ describe('buildAlicizationEmotionalTransitionLedger', () => {
     expect(ledger.traceSummary).toContain('repair-before-closeness')
     expect(ledger.replayLine).toContain('turn-repair-1')
     expect(ledger.replayLine).toContain('repair-shift')
-    expect(ledger.selfRevisionCandidate).toEqual({
-      shouldPropose: true,
-      domain: 'dialogue-style',
-      reasonCodes: ['repair-before-closeness', 'continue-repair-first', 'writeback-repair-restraint'],
-      summary: 'Repair-first emotional carry should propose a identity-continuity',
-      projectStateContinuity: {
-        sameHerSelfLine: null,
-        sameHerDriftRisk: null,
-        proactiveSameHerGap: null,
-        emotionalClosureCue: null,
-        sameHerHoldDetail: null,
-        continuityGuard: null,
-      },
-    })
+    expect(ledger).not.toHaveProperty('selfRevisionCandidate')
   })
 
   it('writes guarded confirmation-boundary transitions to emotional continuity even when numeric axis movement is modest', () => {
@@ -162,23 +149,19 @@ describe('buildAlicizationEmotionalTransitionLedger', () => {
     expect(ledger.memoryWriteback).toEqual({
       shouldWrite: true,
       lane: 'emotional-continuity',
-      reason: 'Guarded confirmation-boundary emotion should remain recallable so later initiative stays single-thread until the boundary settles.',
+      reason: 'emotional-memory:confirmation-boundary',
     })
     expect(ledger.initiativeSuppression).toEqual({
       shouldSuppress: true,
       mode: 'single-thread',
-      reason: 'Guarded emotion should keep initiative on one confirmed thread.',
+      reason: 'emotional-initiative:single-thread',
     })
     expect(ledger.embodimentDrive).toEqual({
       shouldDrive: true,
       tone: 'protective-watch',
-      reason: 'The body should express the next emotional tone instead of stale warmth.',
+      reason: 'emotional-embodiment:transition-drive',
     })
-    expect(ledger.selfRevisionCandidate).toEqual(expect.objectContaining({
-      shouldPropose: true,
-      domain: 'relationship',
-      reasonCodes: ['guarded-care', 'confirmation-boundary', 'single-thread-restraint'],
-    }))
+    expect(ledger).not.toHaveProperty('selfRevisionCandidate')
     expect(ledger.replayLine).toContain('guarded-shift')
   })
 
@@ -270,6 +253,7 @@ describe('buildAlicizationEmotionalTransitionLedger', () => {
       'emotion-decay:within-window',
       'emotion-decay:repair-still-hot',
     ]))
+    expect(held).not.toHaveProperty('summary')
     expect(held.expiresAt).toBe(1_900_000)
 
     expect(softened).toEqual(expect.objectContaining({
@@ -284,6 +268,7 @@ describe('buildAlicizationEmotionalTransitionLedger', () => {
       'emotion-decay:expired',
       'emotion-decay:repair-cooling',
     ]))
+    expect(softened).not.toHaveProperty('summary')
 
     expect(released).toEqual(expect.objectContaining({
       phase: 'release',
@@ -297,6 +282,7 @@ describe('buildAlicizationEmotionalTransitionLedger', () => {
       'emotion-decay:expired',
       'emotion-decay:released',
     ]))
+    expect(released).not.toHaveProperty('summary')
   })
 
   it('keeps rest-protective emotion held through its rest window before softening into measured return', () => {

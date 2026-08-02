@@ -78,21 +78,6 @@ describe('codex executor adapter', () => {
           cardId: 'default',
           turnId: 'turn-codex-1',
           decisionTraceId: 'mind:trace:codex-1',
-          projectBriefing: {
-            identity: 'legacy identity prompt must not reach codex',
-            currentPhase: 'legacy phase prompt must not reach codex',
-            latestLandedProgress: 'Runtime context normalization is complete.',
-            sameHerSelfLine: 'legacy persona prompt must not reach codex',
-            sameHerHoldDetail: null,
-            primaryOpenLoop: 'Codex still needs typed task facts.',
-            nextClosureTarget: 'Dispatch runtime and task facts without prose wrappers.',
-            sameHerDriftRisk: null,
-            continuityRestraint: 'measured-return',
-            continuityCue: null,
-            preferredPauseMode: 'longer',
-            preflightSummary: 'legacy preflight prompt must not reach codex',
-            preDialogueAwarenessLine: 'legacy awareness prompt must not reach codex',
-          },
           sensory: {
             collectedAt: 1_710_000_000_123,
             running: true,
@@ -149,28 +134,15 @@ describe('codex executor adapter', () => {
           cardId: 'default',
           turnId: 'turn-codex-1',
         }),
-        execution: expect.objectContaining({
-          status: {
-            latest: 'Runtime context normalization is complete.',
-            open: 'Codex still needs typed task facts.',
-            next: 'Dispatch runtime and task facts without prose wrappers.',
-          },
-          continuity: expect.objectContaining({
-            restraint: 'measured-return',
-          }),
-          embodiment: expect.objectContaining({
-            pauseMode: 'longer',
-          }),
-        }),
       }),
     }))
+    expect(runtimeFact.data).not.toHaveProperty('execution')
     expect(taskFact).toEqual({
       type: 'alicization-execution-task',
       data: {
         instruction: 'Inspect runtime dispatch and summarize findings.',
       },
     })
-    expect(prompt).not.toMatch(/\[ALICIZATION_EXECUTION_|legacy (?:identity|phase|persona|preflight|awareness) prompt/iu)
     expect(result.events[0]?.payload).toEqual(expect.objectContaining({
       hasRuntimeContext: true,
       runtimeContext: expect.objectContaining({

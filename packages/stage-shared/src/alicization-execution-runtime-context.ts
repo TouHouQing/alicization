@@ -6,42 +6,13 @@ import type {
   AlicizationExecutionRuntimeMemoryClosureExecution,
 } from './alicization-transport-contracts'
 
-import { sanitizeAlicizationProviderFacingText } from './alicization-fixed-template-sanitizer'
 import { buildAlicizationProviderFactBlock } from './alicization-provider-facts'
 import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
-
-const placeholderValues = new Set([
-  'none',
-  'null',
-  'unknown',
-  'n/a',
-  'na',
-])
 
 function sanitizeText(raw: unknown, maxChars = 200) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-}
-
-function sanitizeExecutionStatusFact(raw: unknown, maxChars: number) {
-  const text = sanitizeText(raw, maxChars)
-  if (!text || placeholderValues.has(text.toLowerCase()))
-    return ''
-  return sanitizeAlicizationProviderFacingText(text, maxChars)
-}
-
-function normalizeEnum<T extends string>(
-  raw: unknown,
-  values: readonly T[],
-): T | null {
-  const value = sanitizeText(raw, 64)
-  return values.includes(value as T) ? value as T : null
-}
-
-function normalizeSlug(raw: unknown, maxChars = 120) {
-  const value = sanitizeText(raw, maxChars)
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(value) ? value : null
 }
 
 function normalizeTimestamp(raw: unknown) {
@@ -186,79 +157,6 @@ function normalizeMemoryClosureExecution(raw: unknown): AlicizationExecutionRunt
     : null
 }
 
-function normalizeProjectBriefing(
-  raw: unknown,
-): NonNullable<AlicizationExecutionRuntimeContext['projectBriefing']> | null {
-  if (!raw || typeof raw !== 'object')
-    return null
-
-  const value = raw as Record<string, unknown>
-  const latestLandedProgress
-    = sanitizeExecutionStatusFact(value.latestLandedProgress, 320)
-      || sanitizeExecutionStatusFact(value.latestProgress, 320)
-      || sanitizeExecutionStatusFact(value.landedProgressSummary, 320)
-      || null
-  const primaryOpenLoop
-    = sanitizeExecutionStatusFact(value.primaryOpenLoop, 320)
-      || sanitizeExecutionStatusFact(value.openClosureSummary, 320)
-      || null
-  const nextClosureTarget
-    = sanitizeExecutionStatusFact(value.nextClosureTarget, 320)
-      || sanitizeExecutionStatusFact(value.nextClosureTargetSummary, 320)
-      || null
-  const continuityArcStage = normalizeSlug(value.continuityArcStage)
-  const continuityRestraint = normalizeEnum(value.continuityRestraint, [
-    'lower-pressure',
-    'measured-return',
-    'repair-before-closeness',
-    'rest-protective',
-    'single-thread',
-  ] as const)
-  const continuityPreferredTiming = normalizeEnum(value.continuityPreferredTiming, [
-    'internal-only',
-    'after-payoff',
-    'same-turn-if-invited',
-    'next-open-window',
-  ] as const)
-  const continuityCadence = normalizeSlug(value.continuityCadence)
-  const preferredBlinkCadence = normalizeEnum(value.preferredBlinkCadence, ['normal', 'linger', 'quiet'] as const)
-  const preferredGazeMode = normalizeEnum(value.preferredGazeMode, ['steady', 'soften', 'drift'] as const)
-  const preferredPauseMode = normalizeEnum(value.preferredPauseMode, ['longer', 'natural'] as const)
-  const preferredLipsyncMode = normalizeEnum(value.preferredLipsyncMode, ['restrained', 'matched'] as const)
-  const preferredVoiceMode = normalizeEnum(value.preferredVoiceMode, ['lower-pressure', 'even'] as const)
-  const preferredPacingMode = normalizeEnum(value.preferredPacingMode, ['slower', 'natural'] as const)
-
-  const normalized = {
-    identity: null,
-    currentPhase: null,
-    latestLandedProgress,
-    primaryOpenLoop,
-    nextClosureTarget,
-    sameHerSelfLine: null,
-    sameHerHoldDetail: null,
-    continuityArcStage,
-    sameHerDriftRisk: null,
-    proactiveSameHerGap: null,
-    companionBriefingLine: null,
-    emotionalClosureSummary: null,
-    continuityRestraint,
-    continuityCue: null,
-    continuityPreferredTiming,
-    continuityCadence,
-    preferredBlinkCadence,
-    preferredGazeMode,
-    preferredPauseMode,
-    preferredLipsyncMode,
-    preferredVoiceMode,
-    preferredPacingMode,
-    preflightSummary: null,
-    preDialogueAwarenessLine: null,
-    preDialogueAwarenessSummary: null,
-  } satisfies NonNullable<AlicizationExecutionRuntimeContext['projectBriefing']>
-
-  return Object.values(normalized).some(Boolean) ? normalized : null
-}
-
 function normalizeExecutionRuntimeAffectiveResidue(raw: unknown) {
   return normalizeAlicizationDerivedMindStateBundle({
     version: 'derived-mind-state-bundle-v1',
@@ -318,7 +216,6 @@ export function normalizeAlicizationExecutionRuntimeContext(raw: unknown): Alici
     ...(affectiveResidue ? { affectiveResidue } : {}),
     ...(derivedMindStateBundle ? { derivedMindStateBundle } : {}),
     ...(memoryClosureExecution ? { memoryClosureExecution } : {}),
-    projectBriefing: normalizeProjectBriefing(value.projectBriefing),
     recentActions: normalizeRuntimeActions(value.recentActions),
     sensory: {
       collectedAt: normalizeTimestamp(sensory.collectedAt),
@@ -338,7 +235,6 @@ export function buildAlicizationExecutionRuntimeContextBlock(raw: unknown) {
   if (!context)
     return ''
 
-  const projectBriefing = context.projectBriefing
   const capture = context.sensory.capture
   const regroundRequired = context.sensory.stale
     || capture?.health === 'degraded'
@@ -373,29 +269,6 @@ export function buildAlicizationExecutionRuntimeContextBlock(raw: unknown) {
         }
       : null,
     memoryClosureExecution: context.memoryClosureExecution ?? null,
-    execution: projectBriefing
-      ? {
-          status: {
-            latest: projectBriefing.latestLandedProgress,
-            open: projectBriefing.primaryOpenLoop,
-            next: projectBriefing.nextClosureTarget,
-          },
-          continuity: {
-            arcStage: projectBriefing.continuityArcStage ?? null,
-            restraint: projectBriefing.continuityRestraint ?? null,
-            preferredTiming: projectBriefing.continuityPreferredTiming ?? null,
-            cadence: projectBriefing.continuityCadence ?? null,
-          },
-          embodiment: {
-            blinkCadence: projectBriefing.preferredBlinkCadence ?? null,
-            gazeMode: projectBriefing.preferredGazeMode ?? null,
-            pauseMode: projectBriefing.preferredPauseMode ?? null,
-            lipsyncMode: projectBriefing.preferredLipsyncMode ?? null,
-            voiceMode: projectBriefing.preferredVoiceMode ?? null,
-            pacingMode: projectBriefing.preferredPacingMode ?? null,
-          },
-        }
-      : null,
     recentActions: context.recentActions ?? [],
     sensory: {
       collectedAt: context.sensory.collectedAt,

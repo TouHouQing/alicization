@@ -36,14 +36,6 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-function isProjectStateContinuityEncounter(input: {
-  dialogueSemantics?: AlicizationDialogueTurnSemantics | null
-  dialogueEncounter?: AlicizationDialogueEncounterSurface | null
-}) {
-  return input.dialogueSemantics?.reasonTags.includes('project-state-continuity-question')
-    || sanitizeText(input.dialogueEncounter?.summary, 220).toLowerCase().includes('one continuous her line')
-}
-
 function latestReflectionRevision(reflectionLedger?: AlicizationReflectionLedgerSnapshot | null) {
   const latest = reflectionLedger?.entries.find(entry => entry.id === reflectionLedger.latestEntryId)
   const active = latest?.outcome !== 'released'
@@ -277,15 +269,8 @@ export function buildDiscourseState(input: {
     { source: 'thread', text: worldModel?.activeThread?.summary },
     { source: 'carry', text: dialogueFirst ? null : input.previous?.primaryTurnAnchor },
   ])
-  const projectStateContinuityTurn = isProjectStateContinuityEncounter({
-    dialogueSemantics,
-    dialogueEncounter: dialogueEncounterSurface,
-  })
   const currentTurnSummary = sanitizeText(
-    (projectStateContinuityTurn
-      ? 'turn_summary=project_state_review_request; facts_requested=identity_progress_open_loops'
-      : '')
-    || (dialogueFirst
+    (dialogueFirst
       ? primaryTurnAnchor
       : '')
     || (dialogueFirst
@@ -327,7 +312,6 @@ export function buildDiscourseState(input: {
       `owed:${owedAction}`,
       `relation:${relationMove}`,
       `continuity:${continuityMode}`,
-      projectStateContinuityTurn ? 'project-state-continuity' : '',
       ownership ? 'ownership-ssot' : '',
       dialogueEncounterSurface?.shouldBypassScreenRepair || dialogueFocus?.shouldBypassScreenRepair ? 'bypass-screen-repair' : '',
       unresolvedCarry ? `carry:${sanitizeDialogueSurfaceText(unresolvedCarry, 72) || sanitizeText(unresolvedCarry, 72)}` : '',
@@ -336,9 +320,4 @@ export function buildDiscourseState(input: {
     ].filter(Boolean),
     updatedAt: input.now,
   }
-}
-
-export function buildDiscourseStateSystemBlock(state: AlicizationDiscourseStateSnapshot | null | undefined) {
-  void state
-  return ''
 }

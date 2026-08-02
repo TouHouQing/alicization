@@ -276,9 +276,10 @@ describe('memory domain decoupling regression', () => {
     const files = [
       './answer-compiler.ts',
       './answer-planner.ts',
-      './response-charter.ts',
-      './response-surface-contract.ts',
       './main-chat-session-runtime.ts',
+      './main-chat-memory-context.ts',
+      './main-chat-runtime-surface.ts',
+      './long-term-memory-recall.ts',
       './runtime-organic-memory-prompt.ts',
       './memory-search-retrieval-operators.ts',
     ] as const

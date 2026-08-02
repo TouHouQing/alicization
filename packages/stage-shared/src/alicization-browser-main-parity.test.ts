@@ -4,7 +4,7 @@ import { deriveAlicizationBrowserMainParitySummary } from './alicization-browser
 import { normalizeAlicizationDerivedMindStateBundle } from './alicization-transport-contracts'
 
 describe('alicization-browser-main-parity', () => {
-  it('preserves structured same-her renderer continuity when speech timeline travels through the shared transport bundle', () => {
+  it('preserves structured continuity renderer continuity when speech timeline travels through the shared transport bundle', () => {
     const bundle = normalizeAlicizationDerivedMindStateBundle({
       source: 'main-runtime',
       producedAt: 1,
@@ -22,11 +22,11 @@ describe('alicization-browser-main-parity', () => {
         },
         speechTimeline: {
           version: 'speech-timeline-v1',
-          variationToken: 'transport-same-her-line',
+          variationToken: 'transport-continuity-line',
           reply: '我沿着这条线中性可见占位。',
           emotion: 'thinking',
           segments: [{
-            id: 'segment-same-her-line',
+            id: 'segment-continuity-line',
             index: 0,
             startOffset: 0,
             endOffset: 14,
@@ -41,7 +41,7 @@ describe('alicization-browser-main-parity', () => {
               residentMode: 'same-thread-continuation',
               preferredBlinkCadence: 'linger',
               preferredGazeMode: 'soften',
-              signature: 'embodiment:audible-same-her-line',
+              signature: 'embodiment:audible-continuity-line',
               reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
             },
             actionCue: 'observe_focus',
@@ -57,7 +57,7 @@ describe('alicization-browser-main-parity', () => {
       residentMode: 'same-thread-continuation',
       preferredBlinkCadence: 'linger',
       preferredGazeMode: 'soften',
-      signature: 'embodiment:audible-same-her-line',
+      signature: 'embodiment:audible-continuity-line',
       reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
     }))
   })

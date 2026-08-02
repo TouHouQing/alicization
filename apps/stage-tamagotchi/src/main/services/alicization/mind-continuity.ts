@@ -122,17 +122,6 @@ function resolveMindContinuitySource(
   return state ?? null
 }
 
-function readProjectStateCarryLine(state: AlicizationMindContinuitySource | null | undefined) {
-  const authority = state?.personStateProjection?.selfContinuityAuthority ?? null
-  const sourceTags = Array.isArray(authority?.sourceTags)
-    ? authority.sourceTags
-    : []
-  if (!sourceTags.includes('project-state-carry'))
-    return null
-
-  return sanitizeText(authority?.inwardLine, 180) || null
-}
-
 function primaryThread(state: AlicizationMindContinuitySource | null | undefined) {
   if (state?.threadRuntime) {
     const runtimeThreads = asArray(state.threadRuntime.threads)
@@ -320,7 +309,6 @@ export function buildMindContinuityFragment(input: {
     ?? null
   const ecology = buildMindContinuityEcology(nextState)
   const dominantAutobiographicalGoal = pickDominantAutobiographicalGoal(nextState.autobiographicalSelf)
-  const projectStateCarryLine = readProjectStateCarryLine(nextState)
   const autobiographicalContinuityLines = buildAutobiographicalContinuityLines({
     autobiographicalSelf: nextState.autobiographicalSelf ?? null,
     longHorizonMemory: nextState.longHorizonMemory ?? null,
@@ -330,8 +318,7 @@ export function buildMindContinuityFragment(input: {
     mindEcology: ecology,
   })
   const summary = sanitizeText(
-    projectStateCarryLine
-    || autobiographicalContinuityLines[0]
+    autobiographicalContinuityLines[0]
     || nextState.longHorizonMemory?.rememberedPlanSummary
     || nextState.longHorizonMemory?.rememberedConstraintSummary
     || backgroundAgendas[0]?.summary
@@ -412,7 +399,6 @@ export function buildMindContinuityFragment(input: {
     nextState.longHorizonMemory?.rememberedConstraintSummary ? `durable_constraint:${sanitizeText(nextState.longHorizonMemory.rememberedConstraintSummary, 120)}` : '',
     nextState.longHorizonMemory?.rememberedPreferenceSummary ? `durable_preference:${sanitizeText(nextState.longHorizonMemory.rememberedPreferenceSummary, 120)}` : '',
     backgroundAgendas[0]?.summary ? `motive_agenda:${sanitizeText(backgroundAgendas[0].summary, 120)}` : '',
-    projectStateCarryLine ? `project_state_carry:${projectStateCarryLine}` : '',
     autobiographicalContinuityLines[0] ? `autobio_line:${sanitizeText(autobiographicalContinuityLines[0], 120)}` : '',
     continuityField('ecology_mood', ecology?.moodLabel),
     continuityField('ecology_reply', ecology?.replyHabit),
@@ -474,7 +460,6 @@ export function buildMindContinuityRecallSeed(
     ?? null
   const ecology = buildMindContinuityEcology(state)
   const dominantAutobiographicalGoal = pickDominantAutobiographicalGoal(state?.autobiographicalSelf)
-  const projectStateCarryLine = readProjectStateCarryLine(state)
   const autobiographicalContinuityLines = buildAutobiographicalContinuityLines({
     autobiographicalSelf: state?.autobiographicalSelf ?? null,
     longHorizonMemory: state?.longHorizonMemory ?? null,
@@ -532,7 +517,6 @@ export function buildMindContinuityRecallSeed(
     state?.longHorizonMemory?.rememberedConstraintSummary ? sanitizeText(state.longHorizonMemory.rememberedConstraintSummary, 180) : '',
     state?.longHorizonMemory?.rememberedPreferenceSummary ? sanitizeText(state.longHorizonMemory.rememberedPreferenceSummary, 180) : '',
     backgroundAgendas[0]?.summary ? sanitizeText(backgroundAgendas[0].summary, 180) : '',
-    projectStateCarryLine ? `project_state_carry:${projectStateCarryLine}` : '',
     ...autobiographicalContinuityLines.map(line => sanitizeText(line, 180)),
     continuityField('ecology_mood', ecology?.moodLabel),
     continuityField('ecology_reply', ecology?.replyHabit),

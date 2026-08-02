@@ -1,4 +1,5 @@
 type SelfEvolutionFocusCardId = 'repair-owner' | 'first-check' | 'repair-path'
+type SelfEvolutionSurvivingVisibleLane = 'face+lipsync-only' | 'motion+lipsync-only' | 'face+lipsync+voice-only' | 'motion+lipsync+voice-only' | null
 
 interface SelfEvolutionFocusSnapshotRecord {
   version: string
@@ -9,7 +10,7 @@ interface SelfEvolutionFocusSnapshotRecord {
   explanation: string | null
   bodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
   rendererRejoinSurfaceKey?: 'authority:renderer-rejoin:speech' | 'authority:renderer-rejoin:live2d' | 'authority:renderer-rejoin:vrm' | null
-  bodyContinuityGovernanceNote?: string | null
+  survivingVisibleLane?: SelfEvolutionSurvivingVisibleLane
   highlightedEvidencePanelIds: string[]
   highlightedTraceSectionIds: string[]
   recommendedTraceEventId: string | null
@@ -33,50 +34,7 @@ interface SelfEvolutionAdoptedAnchorLike {
   decisionTraceId: string | null
   bodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
   rendererRejoinSurfaceKey?: 'authority:renderer-rejoin:speech' | 'authority:renderer-rejoin:live2d' | 'authority:renderer-rejoin:vrm' | null
-  bodyContinuityGovernanceNote?: string | null
-}
-
-function normalizeSummarySentence(value: string) {
-  const normalized = value.trim()
-  return /[。.!?]$/u.test(normalized) ? normalized : `${normalized}。`
-}
-
-function extractSurvivingVisibleLaneTruth(
-  value: string | null | undefined,
-) {
-  if (!value)
-    return null
-
-  if (
-    value.includes('当前仅剩表情、口型、声音维持同一段连续性')
-    || value.includes('当前仅剩动作、口型、声音维持同一段连续性')
-    || value.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
-    || value.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
-  ) {
-    return normalizeSummarySentence(value)
-  }
-
-  return null
-}
-
-function inferBodyContinuityPhaseFromGovernanceNote(note: string | null | undefined) {
-  if (!note)
-    return null
-  if (note.includes('显形回接失身态'))
-    return 'renderer-rejoin-without-body' as const
-  if (note.includes('跨模态重锁态'))
-    return 'full-cross-modal-lock' as const
-  if (note.includes('身体独撑态') || note.includes('独自托住同一段 living segment'))
-    return 'body-only-hold' as const
-  if (
-    note.includes('身体连续性已经明确进入身体承接态 -> 显形补回态')
-    || note.includes('身体连续性已经被新的验证快照再次确认，并明确处于身体承接态 -> 显形补回态')
-  ) {
-    return 'body-carried-to-renderer-rejoin' as const
-  }
-  if (note.includes('身体独撑态'))
-    return 'body-only-hold' as const
-  return null
+  survivingVisibleLane?: SelfEvolutionSurvivingVisibleLane
 }
 
 function resolveBodyContinuityPhase(params: {
@@ -93,12 +51,6 @@ function resolveBodyContinuityPhase(params: {
     return snapshot.bodyContinuityPhase
   }
 
-  const snapshotNotePhase = inferBodyContinuityPhaseFromGovernanceNote(
-    snapshot.bodyContinuityGovernanceNote,
-  )
-  if (snapshotNotePhase)
-    return snapshotNotePhase
-
   const adoptedAnchor = params.adoptedAnchor
   if (
     adoptedAnchor
@@ -106,7 +58,6 @@ function resolveBodyContinuityPhase(params: {
     && snapshot.decisionTraceId === adoptedAnchor.decisionTraceId
   ) {
     return adoptedAnchor.bodyContinuityPhase
-      ?? inferBodyContinuityPhaseFromGovernanceNote(adoptedAnchor.bodyContinuityGovernanceNote)
       ?? null
   }
 
@@ -155,17 +106,14 @@ function resolveRendererRejoinSurfaceKey(params: {
     ?? null
 }
 
-function resolveSurvivingVisibleLaneTruth(params: {
+function resolveSurvivingVisibleLane(params: {
   snapshot: SelfEvolutionFocusSnapshotRecord
   relatedSnapshot: SelfEvolutionFocusSnapshotRecord | null
   adoptedAnchor?: SelfEvolutionAdoptedAnchorLike | null
 }) {
   const snapshot = params.snapshot
-
-  const directTruth = extractSurvivingVisibleLaneTruth(snapshot.bodyContinuityGovernanceNote)
-    ?? extractSurvivingVisibleLaneTruth(snapshot.explanation)
-  if (directTruth)
-    return directTruth
+  if (snapshot.survivingVisibleLane)
+    return snapshot.survivingVisibleLane
 
   const adoptedAnchor = params.adoptedAnchor
   if (
@@ -173,14 +121,26 @@ function resolveSurvivingVisibleLaneTruth(params: {
     && snapshot.capturedAt === adoptedAnchor.snapshotCapturedAt
     && snapshot.decisionTraceId === adoptedAnchor.decisionTraceId
   ) {
-    const adoptedTruth = extractSurvivingVisibleLaneTruth(adoptedAnchor.bodyContinuityGovernanceNote)
-    if (adoptedTruth)
-      return adoptedTruth
+    if (adoptedAnchor.survivingVisibleLane)
+      return adoptedAnchor.survivingVisibleLane
   }
 
-  return extractSurvivingVisibleLaneTruth(params.relatedSnapshot?.bodyContinuityGovernanceNote)
-    ?? extractSurvivingVisibleLaneTruth(params.relatedSnapshot?.explanation)
+  return params.relatedSnapshot?.survivingVisibleLane
     ?? null
+}
+
+function formatSurvivingVisibleLaneTruth(
+  survivingVisibleLane: SelfEvolutionSurvivingVisibleLane,
+) {
+  if (survivingVisibleLane === 'face+lipsync+voice-only')
+    return '当前仅剩表情、口型、声音维持同一段连续性。'
+  if (survivingVisibleLane === 'motion+lipsync+voice-only')
+    return '当前仅剩动作、口型、声音维持同一段连续性。'
+  if (survivingVisibleLane === 'face+lipsync-only')
+    return '当前只有表情、口型这条连续性线仍在维持。'
+  if (survivingVisibleLane === 'motion+lipsync-only')
+    return '当前只有动作、口型这条连续性线仍在维持。'
+  return null
 }
 
 export function buildSelfEvolutionFocusHistoryRestorePlan(input: {
@@ -219,11 +179,12 @@ export function buildSelfEvolutionFocusHistoryRestorePlan(input: {
       : rendererRejoinSurfaceKey === 'authority:renderer-rejoin:speech'
         ? 'speech'
         : null
-  const survivingVisibleLaneTruth = resolveSurvivingVisibleLaneTruth({
+  const survivingVisibleLane = resolveSurvivingVisibleLane({
     snapshot,
     relatedSnapshot,
     adoptedAnchor: input.adoptedAnchor,
   })
+  const survivingVisibleLaneTruth = formatSurvivingVisibleLaneTruth(survivingVisibleLane)
 
   return {
     snapshotCapturedAt: snapshot.capturedAt,
@@ -233,6 +194,7 @@ export function buildSelfEvolutionFocusHistoryRestorePlan(input: {
     recommendedTraceEventId: snapshot.recommendedTraceEventId,
     shouldDrillTrace: snapshot.highlightedTraceSectionIds.length > 0 || Boolean(snapshot.recommendedTraceEventId),
     bodyContinuityPhase,
+    ...(survivingVisibleLane ? { survivingVisibleLane } : {}),
     rendererRejoinSurfaceKey: bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
       || bodyContinuityPhase === 'full-cross-modal-lock'
       || bodyContinuityPhase === 'renderer-rejoin-without-body'

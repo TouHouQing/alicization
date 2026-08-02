@@ -3,25 +3,25 @@ import { describe, expect, it } from 'vitest'
 import { buildSelfEvolutionTriageTraceTargets } from './performance-visualizer-self-evolution-triage-trace-targets'
 
 describe('performance visualizer self evolution triage trace targets', () => {
-  it('maps persona-oriented repair path into thought and continuity trace sections', () => {
+  it('maps persona diagnostics into their trace sections', () => {
     const targets = buildSelfEvolutionTriageTraceTargets([
       {
         id: 'repair-owner',
         label: '修复归属',
         layer: 'persona',
-        detail: 'evolution',
+        detail: 'selected owner',
       },
       {
         id: 'first-check',
         label: '首查点',
         layer: 'persona',
-        detail: 'self-evolution kernel -> active learning strategy -> manifestation/action-ecology/persona-bias',
+        detail: 'selected first check',
       },
       {
         id: 'repair-path',
         label: '修复路径',
-        layer: null,
-        detail: 'persona drift initiative-preferred-style:light-nudge -> thought trace proactive-opening-guidance-violation:callback-bounded -> continuity anchor governor-intention-rest-1',
+        layer: 'persona',
+        detail: 'selected trace path',
       },
     ])
 
@@ -46,19 +46,19 @@ describe('performance visualizer self evolution triage trace targets', () => {
         id: 'repair-owner',
         label: '修复归属',
         layer: 'renderer',
-        detail: 'renderer authority',
+        detail: 'selected owner',
       },
       {
         id: 'first-check',
         label: '首查点',
         layer: 'renderer',
-        detail: 'renderer authority binding -> playback cues -> driver execution',
+        detail: 'selected first check',
       },
       {
         id: 'repair-path',
         label: '修复路径',
-        layer: null,
-        detail: 'renderer drift renderer-drift:resident Soft Gaze -> actual Focus Inspect | face focused@prosody-authority | motion observe_focus@cue-bridge -> authority trace 口型 authority 漂移，当前绑定来源仍然正确，但落点已经不同步。 -> continuity anchor turn=care | closure=grounded-recall | surface=procedural-carry',
+        layer: 'renderer',
+        detail: 'selected trace path',
       },
     ])
 
@@ -80,66 +80,29 @@ describe('performance visualizer self evolution triage trace targets', () => {
     })
   })
 
-  it('maps relationship-cadence continuity triage into takeover-centered trace sections', () => {
+  it('maps structured body diagnostics into renderer-adjacent trace sections', () => {
     const targets = buildSelfEvolutionTriageTraceTargets([
       {
         id: 'repair-owner',
         label: '修复归属',
         layer: 'continuity',
-        detail: 'relationship cadence governance',
+        detail: 'selected owner',
+        bodyContinuityPhase: 'body-only-hold',
       },
       {
         id: 'first-check',
         label: '首查点',
         layer: 'continuity',
-        detail: 'companionship transition summary -> resident projection -> renderer authority',
+        detail: 'selected first check',
+        bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
       },
       {
         id: 'repair-path',
         label: '修复路径',
-        layer: null,
-        detail: 'continuity governance companionship-measured-return -> companionship transition settle cadence -> resident projection bounded-return',
-      },
-    ])
-
-    expect(targets).toEqual({
-      'repair-owner': [
-        'trace-consumption',
-        'trace-details',
-        'selected-trace-event',
-      ],
-      'first-check': [
-        'trace-consumption',
-        'trace-details',
-        'selected-trace-event',
-      ],
-      'repair-path': [
-        'trace-consumption',
-        'trace-details',
-        'selected-trace-event',
-      ],
-    })
-  })
-
-  it('maps body-continuity triage into renderer-adjacent trace sections that can verify body carry and cue bridge recovery', () => {
-    const targets = buildSelfEvolutionTriageTraceTargets([
-      {
-        id: 'repair-owner',
-        label: '修复归属',
         layer: 'continuity',
-        detail: 'body continuity governance',
-      },
-      {
-        id: 'first-check',
-        label: '首查点',
-        layer: 'continuity',
-        detail: 'body authority carry -> renderer rejoin -> playback cue binding',
-      },
-      {
-        id: 'repair-path',
-        label: '修复路径',
-        layer: null,
-        detail: 'continuity governance renderer rejoin -> body-led-same-segment-carry -> speech authority recovery -> cue bridge recovery',
+        detail: 'selected trace path',
+        bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech',
       },
     ])
 
@@ -162,25 +125,28 @@ describe('performance visualizer self evolution triage trace targets', () => {
     })
   })
 
-  it('treats explicit vrm renderer rejoin wording as the same body continuity trace lane', () => {
+  it('uses explicit VRM renderer surfaces for the body trace lane', () => {
     const targets = buildSelfEvolutionTriageTraceTargets([
       {
         id: 'repair-owner',
         label: '修复归属',
         layer: 'continuity',
-        detail: 'body continuity governance',
+        detail: 'selected owner',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
       },
       {
         id: 'first-check',
         label: '首查点',
         layer: 'continuity',
-        detail: 'body authority carry -> renderer rejoin -> playback cue binding',
+        detail: 'selected first check',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
       },
       {
         id: 'repair-path',
         label: '修复路径',
-        layer: null,
-        detail: 'continuity governance renderer rejoin -> body-led-same-segment-carry -> VRM authority recovery -> cue bridge recovery',
+        layer: 'continuity',
+        detail: 'selected trace path',
+        rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
       },
     ])
 
@@ -209,15 +175,15 @@ describe('performance visualizer self evolution triage trace targets', () => {
         id: 'first-check',
         label: '首查点',
         layer: 'continuity',
-        detail: 'body and live2d same-segment lock -> playback cue binding -> lock stability audit',
+        detail: 'selected first check',
         bodyContinuityPhase: 'full-cross-modal-lock',
         rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
       },
       {
         id: 'repair-path',
         label: '修复路径',
-        layer: null,
-        detail: 'continuity governance renderer-rejoin-without-body -> vrm rejoin without body carry -> cue bridge body-loss audit',
+        layer: 'continuity',
+        detail: 'selected trace path',
         bodyContinuityPhase: 'renderer-rejoin-without-body',
         rendererRejoinSurfaceKey: 'authority:renderer-rejoin:vrm',
       },

@@ -73,7 +73,6 @@ function readEmotionalKernelSnapshot(raw: unknown): AlicizationRuntimeEmotionalK
 
 export const mainChatBackgroundRunTestInternals = {
   buildPreparedRuntimeDigestFallback,
-  buildPreparedProjectStateClosureSnapshot,
 }
 
 type AlicizationBackgroundFinishPayload = Omit<AlicizationChatFinishEvent, 'cardId' | 'turnId'>
@@ -158,10 +157,8 @@ function buildPreparedRuntimeDigestFallback(prepared: AlicizationPreparedMainCha
     dominantChannel: 'dialogue',
     activeLoop: null,
     autonomy: null,
-    projectState: null,
     emotionalKernel,
     currentConsciousFrame: null,
-    continuityRestraint: null,
     shouldProactivelySpeak: false,
     shouldProactivelyAct: false,
     continuityPressure: 0,
@@ -180,24 +177,6 @@ function buildPreparedRuntimeDigestFallback(prepared: AlicizationPreparedMainCha
       summary: '',
     }],
     summary: '',
-  }
-}
-
-function buildPreparedProjectStateClosureSnapshot(_prepared: AlicizationPreparedMainChatExecutionResult | null) {
-  return {
-    projectStateClosureSummary: null,
-    projectStateIdentity: null,
-    projectStatePhase: null,
-    projectStateSameHerSelfLine: null,
-    projectStateLatestLandedProgress: null,
-    projectStatePrimaryOpenLoop: null,
-    projectStateNextClosureTarget: null,
-    projectStatePreflightSummary: null,
-    projectStatePreDialogueAwarenessLine: null,
-    projectStateAwarenessLine: null,
-    projectStateCompanionBriefingLine: null,
-    projectStatePreDialogueAwarenessSummary: null,
-    projectStateContinuityPreferredTiming: null,
   }
 }
 
@@ -314,8 +293,6 @@ function resolveBackgroundVisibleReplyRealization(input: {
     visibleReplyValidationStatus: 'approved',
     nonHumanAuthoredStatus: null,
     blockedReasons: [],
-    emotionalClosureAudit: null,
-    selfAuthorityAudit: null,
     reason: input.visibleReplyExecution.reason,
     critic: readBackgroundVisibleReplyCritic(candidate?.critic),
     closure: readBackgroundVisibleReplyClosure(candidate?.closure),

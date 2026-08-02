@@ -90,16 +90,10 @@ function isProviderEligibleReviewStatus(reviewStatus: unknown) {
   return reviewStatus == null || reviewStatus === 'confirmed'
 }
 
-function containsRetiredMemoryGovernanceResidue(raw: string) {
-  return /(?:^|[\s|;])(?:opening_policy|relationship_cadence|project_state|projectstate|continuity_hold|continuity_drift_risk|emotional_closure)\s*=/iu.test(raw)
-    || /visibility\s*=\s*redacted_internal/iu.test(raw)
-}
-
 function sanitizeProviderMemoryFactText(raw: unknown, maxChars: number) {
-  const sanitized = sanitizeAlicizationMemoryEvidenceText(raw, maxChars)
-  return sanitized && !containsRetiredMemoryGovernanceResidue(sanitized)
-    ? sanitized
-    : ''
+  return sanitizeAlicizationMemoryEvidenceText(raw, maxChars, {
+    provenance: 'internal-structured-fact',
+  })
 }
 
 function finiteNumberOrNull(raw: unknown) {
@@ -116,13 +110,27 @@ function clamp01(raw: unknown) {
 function sanitizeLongTermRecallEvidence(
   item: LongTermMemoryEvidenceBundle['evidence'][number],
 ) {
-  const summary = sanitizeAlicizationMemoryEvidenceText(item.candidate.summary, 360)
-  if (!summary || containsRetiredMemoryGovernanceResidue(summary))
+  const userAuthoredEvidence = item.candidate.origin === 'user-turn'
+    || item.candidate.source === 'user-turn'
+  const sanitizerContext = userAuthoredEvidence
+    ? {
+        origin: item.candidate.origin,
+        source: item.candidate.source,
+      }
+    : {
+        provenance: 'internal-structured-fact',
+      }
+  const summary = sanitizeAlicizationMemoryEvidenceText(
+    item.candidate.summary,
+    360,
+    sanitizerContext,
+  )
+  if (!summary)
     return null
 
   const sanitizeList = (values: string[] | null | undefined, maxItems: number, maxChars: number) =>
     (values ?? [])
-      .map(value => sanitizeAlicizationMemoryEvidenceText(value, maxChars))
+      .map(value => sanitizeAlicizationMemoryEvidenceText(value, maxChars, sanitizerContext))
       .filter(Boolean)
       .slice(0, maxItems)
 
@@ -130,13 +138,13 @@ function sanitizeLongTermRecallEvidence(
     id: normalizeAvailableLongTermEvidenceId(item.candidate.id),
     kind: item.candidate.kind,
     summary,
-    source: sanitizeAlicizationMemoryEvidenceText(item.candidate.source, 120) || 'memory',
+    source: sanitizeAlicizationMemoryEvidenceText(item.candidate.source, 120, sanitizerContext) || 'memory',
     confidence: clamp01(item.candidate.confidence),
     salience: finiteNumberOrNull(item.candidate.salience),
     updatedAt: finiteNumberOrNull(item.candidate.updatedAt),
     occurredAt: finiteNumberOrNull(item.candidate.occurredAt),
-    threadId: sanitizeAlicizationMemoryEvidenceText(item.candidate.threadId, 160) || null,
-    threadAnchor: sanitizeAlicizationMemoryEvidenceText(item.candidate.threadAnchor, 180) || null,
+    threadId: sanitizeAlicizationMemoryEvidenceText(item.candidate.threadId, 160, sanitizerContext) || null,
+    threadAnchor: sanitizeAlicizationMemoryEvidenceText(item.candidate.threadAnchor, 180, sanitizerContext) || null,
     cues: sanitizeList(item.candidate.cues, 12, 120),
     entities: sanitizeList(item.candidate.entities, 12, 120),
     sensitivity: item.candidate.sensitivity ?? null,

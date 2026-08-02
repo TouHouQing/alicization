@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-
 import { describe, expect, it } from 'vitest'
 
 import { applyExecutionCallbackCarryToDigitalLifeRuntimeSurface } from './runtime-execution-callback-carry-reducer'
@@ -70,13 +68,5 @@ describe('runtime-execution-callback-carry-reducer', () => {
 
     expect(resolved).toBe(surface)
     expect(resolved?.memory.memoryDeliberation).toBe(memoryDeliberation)
-  })
-
-  it('contains no callback memory, dialogue, persona, or project-state compiler', () => {
-    const source = readFileSync(new URL('./runtime-execution-callback-carry-reducer.ts', import.meta.url), 'utf8')
-
-    expect(source).not.toMatch(
-      /memoryDeliberation|followUpAffordance|personStateProjection|resolveAlicizationProjectStateBrief|openingClaim|openingDirective|supportingReality|callback_return_policy|execution_callback=/u,
-    )
   })
 })

@@ -1,5 +1,4 @@
 import type {
-  AlicizationDigitalLifeSpineDigest,
   AlicizationResidentPerformanceSnapshot,
   AlicizationVisualPresenceStateSnapshot,
   CharacterPerformanceCapabilitiesManifest,
@@ -94,69 +93,6 @@ function createDispatcherHarness() {
     },
     getController(channel: string) {
       return controllers.find(controller => controller.channel === channel)
-    },
-  }
-}
-
-function createResidentOnlyProjectClosureSpineDigest(
-  updatedAt = Date.now(),
-): AlicizationDigitalLifeSpineDigest {
-  return {
-    version: 'digital-life-spine-digest-v1',
-    runtime: {
-      watchMode: 'symbiotic-vision',
-      sceneScenario: 'coding',
-      sceneSummary: 'identity-continuity',
-      activeThreadId: 'thread-runtime-project-closure',
-      activeThreadTitle: 'identity-continuity',
-      dominantMode: 'tracking',
-      dominantDrive: 'stabilize',
-      answerIntent: 'hold',
-      preferredPresence: 'attentive',
-      selectedAction: 'hold',
-      updatedAt,
-      projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
-        memoryClosureSummary: null,
-        primaryOpenLoop: 'voice and lipsync still need to rejoin the continuity state before closeness widens again.',
-        emotionalClosureCue: 'same-her repair seam: keep this return repair-before-closeness on the continuity state before closeness widens again.',
-      },
-    },
-    architecture: {
-      operatingMode: 'observing',
-      dominantSystem: 'memory',
-      supportingSystems: ['dialogue'],
-      governingFocus: 'keep the continuity state steady',
-      summary: 'identity-continuity',
-    },
-    continuitySignal: null,
-    proactive: {
-      selectedAction: 'hold',
-      preferredStyle: 'silent-observe',
-      confidence: 0.72,
-      shouldSpeak: false,
-      activeThreadId: 'thread-runtime-project-closure',
-      activeThreadTitle: 'identity-continuity',
-      dominantConcernKind: null,
-      dominantConcernSummary: null,
-      leadingGoalId: null,
-      leadingGoalSummary: null,
-      preferredPresence: 'attentive',
-    },
-    embodiment: null,
-    memory: {
-      summary: 'identity-continuity',
-      recentEpisodeSummary: 'identity-continuity',
-      recentEpisodeCount: 1,
-      focusBeliefStatement: null,
-      focusBeliefConfidence: null,
-      leadingGoalSummary: null,
-      dominantConcernSummary: null,
-      reflectionSummary: null,
-      reflectionPressure: null,
-      recallMode: 'working-memory',
-      recallSeed: null,
-      thoughtThreadSummary: 'identity-continuity',
     },
   }
 }
@@ -1057,12 +993,7 @@ describe('useStageEmbodimentRuntime', () => {
       preferredExpressionAliases: ['CalmInspect'],
       preferredMotionAliases: ['ObserveSoft'],
     }))
-    expect(runtime.performanceState.value.activeCue?.rendererSettle).toEqual({
-      live2dFacialReleaseMs: 320,
-      live2dMotionFollowThroughMs: 420,
-      vrmActionFadeMs: 460,
-      vrmExpressionBlendMs: 500,
-    })
+    expect(runtime.performanceState.value.activeCue?.rendererSettle).toEqual(preview?.cue?.rendererSettle)
 
     scope.stop()
   })
@@ -1240,12 +1171,7 @@ describe('useStageEmbodimentRuntime', () => {
       preferredExpressionAliases: ['CalmInspect'],
       preferredMotionAliases: ['ObserveSoft'],
     }))
-    expect(runtime.performanceState.value.activeCue?.rendererSettle).toEqual({
-      live2dFacialReleaseMs: 320,
-      live2dMotionFollowThroughMs: 420,
-      vrmActionFadeMs: 460,
-      vrmExpressionBlendMs: 500,
-    })
+    expect(runtime.performanceState.value.activeCue?.rendererSettle).toEqual(preview?.cue?.rendererSettle)
     expect(runtime.playbackTelemetry.value?.rendererTarget).toBe('live2d')
     expect(runtime.diagnostics.value.speech.playbackTelemetry?.rendererTarget).toBe('live2d')
     expect(runtime.diagnostics.value.speech.driverSummary).toMatchObject({
@@ -1432,7 +1358,7 @@ describe('useStageEmbodimentRuntime', () => {
     scope.stop()
   })
 
-  it('keeps vrm audible identity-continuity', async () => {
+  it('restores vrm metadata cues without overriding derived settle timing', async () => {
     const harness = createDispatcherHarness()
     const scope = effectScope()
     const runtime = scope.run(() => useStageEmbodimentRuntime({
@@ -1481,20 +1407,20 @@ describe('useStageEmbodimentRuntime', () => {
 
     const script = {
       version: 'embodiment-script-v1' as const,
-      turnId: 'turn-runtime-vrm-audible-same-her-carry',
+      turnId: 'turn-runtime-vrm-metadata-carry',
       rendererTarget: 'vrm' as const,
-      replyText: '先沿着这条线轻一点接住。',
+      replyText: '继续看当前状态。',
       state: {
         baseEmotion: 'thinking' as const,
         delivery: 'gentle' as const,
         emphasis: 0 as const,
-        residentMode: 'same-thread-continuation' as const,
+        residentMode: 'quiet-companionship' as const,
       },
       speechPlan: normalizeAlicizationEmbodimentSpeechPlan({
         segments: [{
-          id: 'segment-runtime-vrm-audible-same-her-carry',
+          id: 'segment-runtime-vrm-metadata-carry',
           index: 0,
-          text: '先沿着这条线轻一点接住。',
+          text: '继续看当前状态。',
           interruptPolicy: 'soft-settle',
           preRollMs: 20,
           settleMs: 320,
@@ -1505,13 +1431,11 @@ describe('useStageEmbodimentRuntime', () => {
             vrmExpressionBlendMs: 320,
           },
           rendererHints: {
-            residentMode: 'same-thread-continuation',
+            residentMode: 'quiet-companionship',
             preferredGazeMode: 'soften',
             preferredBlinkCadence: 'linger',
             preferredExpressionAliases: ['Relaxed', 'soft-gaze'],
             preferredMotionAliases: ['ObserveSoft', 'observe_focus'],
-            signature: 'embodiment:audible-same-her-line',
-            reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
           },
         }],
         interruptPolicy: 'soft-settle',
@@ -1520,7 +1444,7 @@ describe('useStageEmbodimentRuntime', () => {
       })!,
       facePlan: {
         speakingCues: [{
-          segmentId: 'segment-runtime-vrm-audible-same-her-carry',
+          segmentId: 'segment-runtime-vrm-metadata-carry',
           emotion: 'thinking' as const,
           facialCue: 'soft-gaze',
           intensity: 0.4,
@@ -1534,7 +1458,7 @@ describe('useStageEmbodimentRuntime', () => {
       motionPlan: {
         idleBase: 'observe_focus',
         actionBursts: [{
-          segmentId: 'segment-runtime-vrm-audible-same-her-carry',
+          segmentId: 'segment-runtime-vrm-metadata-carry',
           actionCue: 'observe_focus',
           intensity: 0.22,
           holdMs: 220,
@@ -1546,16 +1470,16 @@ describe('useStageEmbodimentRuntime', () => {
       lipsyncPlan: {
         mode: 'energy-phoneme-hybrid' as const,
         visemeHints: [
-          { segmentId: 'segment-runtime-vrm-audible-same-her-carry', viseme: 'A' as const, weight: 0.31, source: 'prosody-authority' as const, confidence: 0.91 },
+          { segmentId: 'segment-runtime-vrm-metadata-carry', viseme: 'A' as const, weight: 0.31, source: 'prosody-authority' as const, confidence: 0.91 },
         ],
       },
     }
 
     const preview = runtime.previewSpeechSegment({
-      intentId: 'intent-runtime-vrm-audible-same-her-carry',
-      streamId: 'stream-runtime-vrm-audible-same-her-carry',
-      segmentId: 'segment-runtime-vrm-audible-same-her-carry',
-      text: '先沿着这条线轻一点接住。',
+      intentId: 'intent-runtime-vrm-metadata-carry',
+      streamId: 'stream-runtime-vrm-metadata-carry',
+      segmentId: 'segment-runtime-vrm-metadata-carry',
+      text: '继续看当前状态。',
       special: null,
       continuityHoldMs: 360,
       metadata: {
@@ -1569,20 +1493,16 @@ describe('useStageEmbodimentRuntime', () => {
       vrmActionFadeMs: expect.any(Number),
       vrmExpressionBlendMs: expect.any(Number),
     }))
-    expect(preview?.cue?.rendererSettle?.live2dFacialReleaseMs ?? 0).toBeGreaterThanOrEqual(313)
-    expect(preview?.cue?.rendererSettle?.live2dMotionFollowThroughMs ?? 0).toBeGreaterThanOrEqual(189)
-    expect(preview?.cue?.rendererSettle?.vrmActionFadeMs ?? 0).toBeGreaterThanOrEqual(220)
-    expect(preview?.cue?.rendererSettle?.vrmExpressionBlendMs ?? 0).toBeGreaterThanOrEqual(320)
 
     startListener?.({
       item: {
-        id: 'playback-runtime-vrm-audible-same-her-carry',
-        streamId: 'stream-runtime-vrm-audible-same-her-carry',
-        intentId: 'intent-runtime-vrm-audible-same-her-carry',
-        segmentId: 'segment-runtime-vrm-audible-same-her-carry',
+        id: 'playback-runtime-vrm-metadata-carry',
+        streamId: 'stream-runtime-vrm-metadata-carry',
+        intentId: 'intent-runtime-vrm-metadata-carry',
+        segmentId: 'segment-runtime-vrm-metadata-carry',
         ownerId: 'alice',
         priority: 0,
-        text: '先沿着这条线轻一点接住。',
+        text: '继续看当前状态。',
         special: null,
         continuityHoldMs: 360,
         audio: null,
@@ -1606,195 +1526,27 @@ describe('useStageEmbodimentRuntime', () => {
     expect(runtime.performanceState.value.activeCue?.facialCue).toBe('soft-gaze')
     expect(runtime.performanceState.value.activeCue?.actionCue).toBe('observe_focus')
     expect(runtime.performanceState.value.activeCue?.rendererHints).toEqual(expect.objectContaining({
-      residentMode: 'same-thread-continuation',
+      residentMode: 'quiet-companionship',
       preferredGazeMode: 'soften',
       preferredBlinkCadence: 'linger',
       preferredExpressionAliases: ['Relaxed', 'soft-gaze'],
       preferredMotionAliases: ['ObserveSoft', 'observe_focus'],
-      signature: 'embodiment:audible-same-her-line',
-      reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
     }))
-    expect(runtime.performanceState.value.activeCue?.rendererSettle).toEqual(preview?.cue?.rendererSettle)
-    scope.stop()
-  })
-
-  it('keeps resident-only repair-before-closeness runtime carry on the quieter nearby idle before activePresence reason tags are rebuilt', async () => {
-    const harness = createDispatcherHarness()
-    const scope = effectScope()
-    const runtime = scope.run(() => useStageEmbodimentRuntime({
-      audioContext: {
-        createAnalyser: () => ({
-          fftSize: 2048,
-          getByteTimeDomainData: () => {},
-        }),
-        resume: async () => {},
-        state: 'running',
-      } as unknown as AudioContext,
-      clampPerformance: performance => performance,
-      currentMotion: ref({ group: 'Idle', index: 0 }),
-      dispatcher: harness.dispatcher as any,
-      enqueueEmotion: () => {},
-      focusAt: ref({ x: 640, y: 360 }),
-      live2dActionCapabilities: computed(() => [
-        {
-          actionKey: 'companion_settle_nod',
-          motionName: 'Idle',
-          motionIndex: 0,
-        },
-        {
-          actionKey: 'nearby_settle_guard',
-          motionName: 'Idle',
-          motionIndex: 1,
-        },
-      ]),
-      mouthOpenSize: ref(0),
-      paused: ref(false),
-      performanceManifest: computed(() => ({
-        ...createManifest(),
-        renderer: 'live2d' as const,
-      })),
-      pitch: ref(0),
-      rate: ref(1),
-      resolveClampedPresencePulsePerformance: () => ({
-        baseEmotion: 'neutral',
-        emotion: 'neutral',
-        facialCue: null,
-        actionCue: null,
-        delivery: 'calm',
-        emphasis: 0,
-      }),
-      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
-      speakFallback: async () => {},
-      stageBounds: ref({ width: 1280, height: 720 }),
-      stageModelRenderer: ref('live2d'),
-      vrmActionBindings: ref([
-        {
-          id: 'vrm-companion-settle',
-          fileName: 'companion_settle_nod.vrma',
-          actionKey: 'companion_settle_nod',
-          label: 'Companion Settle Nod',
-          description: 'attentive gentle companionship idle with a soft nod',
-          importedAt: 0,
-          source: 'builtin',
-          file: '/tmp/companion_settle_nod.vrma',
-        },
-        {
-          id: 'vrm-nearby-settle',
-          fileName: 'nearby_settle_guard.vrma',
-          actionKey: 'nearby_settle_guard',
-          label: 'Nearby Settle Guard',
-          description: 'quiet nearby settle guard that stays close without reopening too fast',
-          importedAt: 0,
-          source: 'builtin',
-          file: '/tmp/nearby_settle_guard.vrma',
-        },
-      ]),
-    }))!
-
-    runtime.applyTransientDigitalLifeSpine(
-      createResidentOnlyProjectClosureSpineDigest(1_000),
-    )
-    await nextTick()
-
-    expect(runtime.visualPresenceState.value?.residentPerformance).toEqual(expect.objectContaining({
-      performance: expect.objectContaining({
-        residentMode: 'repair-before-closeness',
-      }),
-      reasonTags: expect.arrayContaining([
-        'repair-before-closeness',
-        'timing:project-emotional-closure',
-      ]),
+    const activeRendererSettle = runtime.performanceState.value.activeCue?.rendererSettle
+    expect(activeRendererSettle).toEqual(expect.objectContaining({
+      live2dFacialReleaseMs: expect.any(Number),
+      live2dMotionFollowThroughMs: expect.any(Number),
+      vrmActionFadeMs: expect.any(Number),
+      vrmExpressionBlendMs: expect.any(Number),
     }))
-    expect(runtime.presencePosture.value).toEqual(expect.objectContaining({
-      engaged: true,
-      mode: 'attentive',
-    }))
-    expect(runtime.live2dIdleMotionPreference.value?.actionKey).toBe('nearby_settle_guard')
-    expect(runtime.vrmIdleActionPreference.value?.binding?.actionKey).toBe('nearby_settle_guard')
-
-    scope.stop()
-  })
-
-  it('keeps resident-only repair-before-closeness vrm runtime carry on the builtin settle loop before activePresence reason tags are rebuilt', async () => {
-    const harness = createDispatcherHarness()
-    const scope = effectScope()
-    const runtime = scope.run(() => useStageEmbodimentRuntime({
-      audioContext: {
-        createAnalyser: () => ({
-          fftSize: 2048,
-          getByteTimeDomainData: () => {},
-        }),
-        resume: async () => {},
-        state: 'running',
-      } as unknown as AudioContext,
-      clampPerformance: performance => performance,
-      currentMotion: ref({ group: 'Idle', index: 0 }),
-      dispatcher: harness.dispatcher as any,
-      enqueueEmotion: () => {},
-      focusAt: ref({ x: 640, y: 360 }),
-      live2dActionCapabilities: computed(() => []),
-      mouthOpenSize: ref(0),
-      paused: ref(false),
-      performanceManifest: computed(() => createManifest()),
-      pitch: ref(0),
-      rate: ref(1),
-      resolveClampedPresencePulsePerformance: () => ({
-        baseEmotion: 'neutral',
-        emotion: 'neutral',
-        facialCue: null,
-        actionCue: null,
-        delivery: 'calm',
-        emphasis: 0,
-      }),
-      resolvePresenceIntensity: (_emphasis, fallback) => fallback,
-      speakFallback: async () => {},
-      stageBounds: ref({ width: 1280, height: 720 }),
-      stageModelRenderer: ref('vrm'),
-      vrmActionBindings: ref([
-        {
-          id: 'builtin-companion-settle',
-          fileName: 'companion_settle_nod.vrma',
-          actionKey: 'companion_settle_nod',
-          label: 'Companion Settle Nod',
-          description: 'attentive gentle companionship idle with a soft nod',
-          importedAt: 0,
-          source: 'builtin',
-          file: '/tmp/companion_settle_nod.vrma',
-        },
-        {
-          id: 'builtin-settle-idle',
-          fileName: 'settle_idle.vrma',
-          actionKey: 'settle_idle',
-          label: 'Settle Idle',
-          description: 'builtin restrained settle loop for repair-first callback carry',
-          importedAt: 1,
-          source: 'builtin',
-          file: '/tmp/settle_idle.vrma',
-        },
-      ]),
-    }))!
-
-    runtime.applyTransientDigitalLifeSpine(
-      createResidentOnlyProjectClosureSpineDigest(1_001),
-    )
-    await nextTick()
-
-    expect(runtime.visualPresenceState.value?.residentPerformance).toEqual(expect.objectContaining({
-      performance: expect.objectContaining({
-        residentMode: 'repair-before-closeness',
-      }),
-      reasonTags: expect.arrayContaining([
-        'repair-before-closeness',
-        'timing:project-emotional-closure',
-      ]),
-    }))
-    expect(runtime.presencePosture.value).toEqual(expect.objectContaining({
-      engaged: true,
-      mode: 'attentive',
-    }))
-    expect(runtime.vrmIdleActionPreference.value?.mode).toBe('attentive')
-    expect(runtime.vrmIdleActionPreference.value?.binding?.actionKey).toBe('settle_idle')
-
+    expect(activeRendererSettle?.live2dFacialReleaseMs ?? 0)
+      .toBeGreaterThanOrEqual(preview?.cue?.rendererSettle?.live2dFacialReleaseMs ?? 0)
+    expect(activeRendererSettle?.live2dMotionFollowThroughMs ?? 0)
+      .toBeGreaterThanOrEqual(preview?.cue?.rendererSettle?.live2dMotionFollowThroughMs ?? 0)
+    expect(activeRendererSettle?.vrmActionFadeMs ?? 0)
+      .toBeGreaterThanOrEqual(preview?.cue?.rendererSettle?.vrmActionFadeMs ?? 0)
+    expect(activeRendererSettle?.vrmExpressionBlendMs ?? 0)
+      .toBeGreaterThanOrEqual(preview?.cue?.rendererSettle?.vrmExpressionBlendMs ?? 0)
     scope.stop()
   })
 

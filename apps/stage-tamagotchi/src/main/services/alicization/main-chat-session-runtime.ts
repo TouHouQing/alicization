@@ -10,7 +10,6 @@ import type {
 import type { Message } from '@xsai/shared-chat'
 
 import type {
-  AlicizationAnswerPlannerSnapshot,
   AlicizationChatStartPayload,
   AlicizationConversationStateSnapshot,
   AlicizationCurrentConsciousFrameSnapshot,
@@ -37,6 +36,7 @@ import type {
   AlicizationExecutionCallbackContext,
   AlicizationExecutionCallbackDigest,
 } from './execution-callback-runtime'
+import type { buildAlicizationExecutionRuntimeContext } from './execution-runtime-context'
 import type { WorkingMemorySnapshot } from './life-core/working-memory'
 import type { WorkingMemoryRecentTurnInput } from './life-core/working-memory-builder'
 import type { WorkingMemoryStore } from './life-core/working-memory-store'
@@ -70,13 +70,13 @@ import type { AlicizationMainChatReplyAuthoritySurface, AlicizationMainChatReply
 import { errorMessageFrom } from '@moeru/std'
 import {
   containsAlicizationFixedTemplateResidue,
+  normalizeAlicizationRuntimeDigest,
   resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
 
 import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
-import { buildAlicizationExecutionRuntimeContext } from './execution-runtime-context'
 import { buildWorkingMemorySnapshot } from './life-core/working-memory-builder'
 import {
   buildWorkingMemoryOwnerContext,
@@ -105,10 +105,6 @@ import { buildAlicizationPersonStateProjection } from './person-state-projection
 import {
   deriveRuntimeProjectionRelationshipCarry,
 } from './prepared-runtime-continuity'
-import {
-  isAlicizationThinProjectAwarenessLine,
-  scoreAlicizationProjectAwarenessLine,
-} from './project-state-brief'
 import { reduceRuntimeAnswerPlanner } from './runtime-answer-planner-reducer'
 import { reduceRuntimeConsciousFrame } from './runtime-conscious-frame-reducer'
 import { applyExecutionCallbackCarryToDigitalLifeRuntimeSurface } from './runtime-execution-callback-carry-reducer'
@@ -205,77 +201,6 @@ interface PreparedRuntimeSurfaceChainDiagnostics {
   answerPlannerReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
 }
 
-type ProviderFacingProjectState = NonNullable<AlicizationMindTurnContractSnapshot['projectState']>
-const emptyProjectStateBrief = Object.freeze({
-  identity: '',
-  currentPhase: '',
-  latestProgress: '',
-  continuityProgressSummary: '',
-  primaryOpenLoop: '',
-  openLoops: [] as string[],
-  nextClosureTarget: '',
-  sameHerSelfLine: '',
-  sameHerDriftRisk: '',
-  sameHerHoldDetail: null as string | null,
-  emotionalClosureSummary: null as string | null,
-  continuityRestraint: null as ProviderFacingProjectState['continuityRestraint'],
-  preflightSummary: null as string | null,
-  preDialogueAwarenessLine: null as string | null,
-})
-
-interface SessionMirrorProjectStateFallback {
-  identity: string
-  currentPhase: string | null
-  preflightSummary: string | null
-  preDialogueAwarenessLine: string | null
-  preDialogueAwarenessSummary: string | null
-  awarenessLine: string | null
-  latestLandedProgress: string | null
-  primaryOpenLoop: string | null
-  openFocusSummary: string | null
-  nextClosureTarget: string | null
-  nextFocusSummary: string | null
-  sameHerSelfLine: string | null
-  sameHerDriftRisk: string | null
-  sameHerHoldDetail: string | null
-  emotionalClosureSummary: string | null
-  continuityRestraint: ProviderFacingProjectState['continuityRestraint']
-  continuityArcStage: string | null
-  continuityCue: string | null
-  continuityPreferredTiming: ProviderFacingProjectState['continuityPreferredTiming']
-  continuityCadence: string | null
-  preferredBlinkCadence: ProviderFacingProjectState['preferredBlinkCadence']
-  preferredGazeMode: ProviderFacingProjectState['preferredGazeMode']
-  preferredPauseMode: ProviderFacingProjectState['preferredPauseMode']
-  preferredLipsyncMode: ProviderFacingProjectState['preferredLipsyncMode']
-  preferredVoiceMode: ProviderFacingProjectState['preferredVoiceMode']
-  preferredPacingMode: ProviderFacingProjectState['preferredPacingMode']
-}
-
-function buildFallbackProviderFacingAnswerPlanner(input: {
-  contract: AlicizationMindTurnContractSnapshot | null
-  now: number
-}): AlicizationAnswerPlannerSnapshot {
-  return {
-    act: input.contract?.answerAct ?? 'answer',
-    evidenceMode: input.contract?.evidenceMode ?? 'dialogue-grounded',
-    confidence: 0.5,
-    governingFocus: input.contract?.governingFocus ?? '',
-    governingProject: null,
-    openingMove: '',
-    answerIntent: input.contract?.answerIntent ?? '',
-    relationshipPosture: input.contract?.relationshipPosture ?? 'restrained',
-    activeClosenessContext: input.contract?.activeClosenessContext ?? null,
-    activeClosenessRung: input.contract?.activeClosenessRung ?? null,
-    shouldAskForGrounding: false,
-    shouldAcknowledgeRepair: false,
-    mustDo: [],
-    mustNotDo: [],
-    narrative: [],
-    updatedAt: input.now,
-  }
-}
-
 interface WorkingMemoryConversationTurnRecord {
   turnId: string | null
   sessionId: string
@@ -288,10 +213,8 @@ interface WorkingMemoryConversationTurnRecord {
 interface CreateAlicizationMainChatSessionRuntimeOptions {
   buildMainRuntimeCorePromptBlocks: (input: {
     hostName: string
-    includeProjectStateContext?: boolean
     personaKernel?: AlicizationPersonaKernelSnapshot | null
   }) => string[]
-  buildPerformanceManifestSystemBlocks: (manifest: CharacterPerformanceCapabilitiesManifest | null) => string[]
   dialogueSessionManager?: AlicizationDialogueSessionManager
   dialogueSessionMirrorTtlMs?: number
   workingMemoryStore?: WorkingMemoryStore
@@ -413,18 +336,6 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     }
     rebuiltMindTurnContract: AlicizationMindTurnContractSnapshot | null
     normalizedMindTurnContract: AlicizationMindTurnContractSnapshot | null
-    runtimeGroundedInputProjectStateAwarenessFields: {
-      preDialogueAwarenessLine: string | null
-      preDialogueAwarenessSummary: string | null
-      awarenessLine: string | null
-      companionHeadlineLine: string | null
-    }
-    runtimeGroundedContractProjectState: {
-      preDialogueAwarenessLine: string | null
-      preDialogueAwarenessSummary: string | null
-      awarenessLine: string | null
-      companionHeadlineLine: string | null
-    } | null
     mirrorFlowDiagnostics?: {
       incomingPreludeDialogueSessionMirror: AlicizationDialogueSessionMirror | null
       rawSessionMirror: AlicizationDialogueSessionMirror | null
@@ -445,21 +356,6 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
       raw: string | null
       cognition: string | null
     }
-    effectiveStageProjectStateSources?: {
-      dialogueExistingNextClosureTarget: string | null
-      rawRuntimeDigestNextClosureTarget: string | null
-      preferredExistingNextClosureTarget: string | null
-      resolvedNextClosureTarget: string | null
-      effectiveDialogueNextClosureTarget: string | null
-    } | null
-    baseRuntimeSurfaceProjectState?: {
-      dialogueLatestLandedProgress: string | null
-      dialoguePrimaryOpenLoop: string | null
-      dialogueNextClosureTarget: string | null
-      rawLatestLandedProgress: string | null
-      rawPrimaryOpenLoop: string | null
-      rawNextClosureTarget: string | null
-    } | null
     selectedFresherNextClosureTargets?: {
       dialogue: string | null
       raw: string | null
@@ -469,27 +365,6 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
       rawRuntimeSurfaceDialogue: string | null
       finalRuntimeSurfaceDialogue: string | null
     }
-    providerFacingAwarenessResolutionDiagnostics?: {
-      explicitPayloadProjectAwarenessLine: string | null
-      explicitPayloadProjectPreflightSummary: string | null
-      explicitPayloadProjectSameHerDriftRisk: string | null
-      rebuiltPreDialogueAwarenessLine: string | null
-      normalizedPreDialogueAwarenessLine: string | null
-      rebuiltPreflightSummary: string | null
-      normalizedPreflightSummary: string | null
-      rebuiltSameHerDriftRisk: string | null
-      normalizedSameHerDriftRisk: string | null
-    } | null
-    providerFacingNormalization?: {
-      normalizedProjectStatePreDialogueAwarenessExplicit: string | null
-      normalizedProjectStatePreDialogueAwarenessFallback: string | null
-      normalizedProjectState: Record<string, unknown> | null
-      finalProjectState: Record<string, unknown> | null
-      normalizedReturnProjectState: Record<string, unknown> | null
-      fullyConvergedReturnProjectState: Record<string, unknown> | null
-    } | null
-    runtimeGroundedInputProjectState?: Record<string, unknown> | null
-    finalReturnedRuntimeSurfaceProjectState?: Record<string, unknown> | null
     answerPlannerReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
     baseDigitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
     runtimeSurfaceForBuilder: AlicizationDigitalLifeRuntimeSurface | null
@@ -580,7 +455,7 @@ function buildUnavailableLongTermMemoryEvidenceBundle(
       mode: 'none',
       shouldRecall: false,
       confidence: 0,
-      rationale: 'Long-term memory recall is unavailable.',
+      rationale: 'recall:unavailable',
       temporalFocus: 'unspecified',
       targetKinds: [],
       queryHints: [],
@@ -609,46 +484,19 @@ function buildUnavailableLongTermMemoryEvidenceBundle(
   }
 }
 
-function isolateProviderMindTurnContractFromProjectGovernance(
+function normalizeProviderReplyAuthorityContract(
   contract: AlicizationMindTurnContractSnapshot,
-) {
+): AlicizationMindTurnContractSnapshot {
   return {
-    ...contract,
-    mustDo: [],
-    mustNotDo: [],
-    governingFocus: '',
-    governingConcern: null,
-    governingCommitment: null,
-    governingInquiry: null,
-    governingProject: null,
-    emotionalClosureCue: null,
-    emotionalClosureSummary: null,
-    relationshipTruthDoctrine: null,
-    projectState: null,
-    preDialogueClosure: null,
-    reasons: [],
-  } satisfies AlicizationMindTurnContractSnapshot
-}
-
-function sanitizeOrdinaryDialogueAnswerPlanner(
-  answerPlanner: AlicizationAnswerPlannerSnapshot | null | undefined,
-): AlicizationAnswerPlannerSnapshot | null | undefined {
-  if (!answerPlanner)
-    return answerPlanner
-
-  return {
-    ...answerPlanner,
-    governingProject: null,
-    mustDo: [],
-    mustNotDo: [],
-  } satisfies AlicizationAnswerPlannerSnapshot
-}
-
-function sanitizeOrdinaryDialogueRuntimeSurfacePlanning(surface: AlicizationDigitalLifeRuntimeSurface | null | undefined) {
-  if (!surface?.dialogue?.answerPlanner)
-    return
-
-  surface.dialogue.answerPlanner = sanitizeOrdinaryDialogueAnswerPlanner(surface.dialogue.answerPlanner) as typeof surface.dialogue.answerPlanner
+    version: 'mind-turn-contract-v1',
+    expectedVisibleReplyAuthority: contract.expectedVisibleReplyAuthority === 'llm-mind'
+      ? contract.expectedVisibleReplyAuthority
+      : 'llm-mind',
+    replyRealizationMode: 'provider-mind-required',
+    updatedAt: Number.isFinite(contract.updatedAt)
+      ? Math.max(0, Math.floor(contract.updatedAt))
+      : Date.now(),
+  }
 }
 
 function buildWorkingMemoryRecentTurns(
@@ -820,12 +668,14 @@ function mapPersistedConversationTurnsToWorkingMemory(
             allowTraining: false,
           }
         : null,
-      contaminated: containsAlicizationFixedTemplateResidue(assistantText ?? ''),
+      contaminated: containsAlicizationFixedTemplateResidue(assistantText ?? '', {
+        provenance: 'internal-structured-fact',
+      }),
     }
   })
 }
 
-function buildWorkingMemoryPromptBlockFromRuntime(input: {
+function buildWorkingMemoryOwnerContextFromRuntime(input: {
   cardId: string
   currentConsciousFrame: AlicizationCurrentConsciousFrameSnapshot | null
   conversationState: AlicizationConversationStateSnapshot | null
@@ -917,277 +767,10 @@ function normalizeProviderFacingProjectText(raw: unknown, maxChars = 1600) {
   return normalized || null
 }
 
-function isBlockedFixedTemplateEvidence(value: unknown) {
-  const normalized = normalizeProviderFacingProjectText(value, 2400)?.toLowerCase() ?? ''
-  if (!normalized)
-    return false
-
-  return containsAlicizationFixedTemplateResidue(normalized)
-    || normalized.includes('reason=continuity-residue')
-    || normalized.includes('content_withheld')
-    || normalized.includes('visibility=internal-structured')
-    || normalized.includes('phase1_local_digital_life')
-    || normalized.includes('runtime_personhood')
-    || normalized.includes('life_core')
-    || normalized.includes('owner=project_state_governance')
-    || /^keep\b.*\bproject identity\b/iu.test(normalized)
-}
-
 const SELF_CONTINUITY_AUTHORITY_LINE_MAX_CHARS = 320
 const SELF_CONTINUITY_AUTHORITY_SUMMARY_MAX_CHARS = 1600
 
-function normalizeProviderFacingResponseMode(
-  raw: unknown,
-  fallback: AlicizationMindTurnContractSnapshot['responseMode'] = 'answer-naturally',
-): AlicizationMindTurnContractSnapshot['responseMode'] {
-  const normalized = normalizeProviderFacingProjectText(raw, 64)
-  return normalized === 'repair-and-reanchor'
-    || normalized === 'guide-current-knot'
-    || normalized === 'care-with-boundary'
-    || normalized === 'accompany-lightly'
-    || normalized === 'answer-naturally'
-    ? normalized
-    : fallback
-}
-
-function normalizeProviderFacingReplyRealizationMode(
-  raw: unknown,
-  fallback: AlicizationMindTurnContractSnapshot['replyRealizationMode'] = 'provider-mind-required',
-): AlicizationMindTurnContractSnapshot['replyRealizationMode'] {
-  const normalized = normalizeProviderFacingProjectText(raw, 64)
-  return normalized === 'provider-mind-required' || normalized === 'fallback-locally-allowed'
-    ? normalized
-    : fallback
-}
-
-function normalizeProviderFacingClosenessContext(
-  raw: unknown,
-): AlicizationMindTurnContractSnapshot['activeClosenessContext'] {
-  const normalized = normalizeProviderFacingProjectText(raw, 64)
-  return normalized === 'focused-work'
-    || normalized === 'repair-window'
-    || normalized === 'late-night-care'
-    || normalized === 'execution-callback'
-    || normalized === 'open-companionship'
-    || normalized === 'general'
-    ? normalized
-    : null
-}
-
-function normalizeProviderFacingClosenessRung(
-  raw: unknown,
-): AlicizationMindTurnContractSnapshot['activeClosenessRung'] {
-  const normalized = normalizeProviderFacingProjectText(raw, 64)
-  return normalized === 'space-first'
-    || normalized === 'measured-room'
-    || normalized === 'nearby-soft'
-    || normalized === 'warm-near'
-    || normalized === 'close-hold'
-    ? normalized
-    : null
-}
-
-function normalizeProviderFacingRelationshipPosture(
-  raw: unknown,
-  fallback: AlicizationMindTurnContractSnapshot['relationshipPosture'] = 'restrained',
-): AlicizationMindTurnContractSnapshot['relationshipPosture'] {
-  return raw === 'restrained' || raw === 'warm' || raw === 'tender'
-    ? raw
-    : fallback
-}
-
-function isThinProjectAwarenessAuthorityLine(value: unknown) {
-  const normalized = normalizeProviderFacingProjectText(value, 1600)
-  if (!normalized)
-    return true
-  if (isBlockedFixedTemplateEvidence(normalized))
-    return true
-  const lowerCased = normalized.toLowerCase()
-
-  return isAlicizationThinProjectAwarenessLine(normalized)
-    || /same digital life \| keep the closure seam explicit/u.test(lowerCased)
-    || /keep (?:this|the) same digital life project in view/u.test(lowerCased)
-    || /\blanded=thin runtime progress only\b|\bopen=thin runtime open(?: loop)? only\b|\bnext=thin runtime next only\b/u.test(lowerCased)
-    || (
-      /泛化工程说明|泛化项目播报/u.test(normalized)
-      && /数字生命项目|local-first digital life project/u.test(normalized)
-      && !/memory|recall|persona|relationship|tool|provider|error|timeout|记忆|回想|人格|关系|工具|模型|失败|超时/u.test(lowerCased)
-    )
-}
-
-function isSpecificProviderFacingProjectLine(value: unknown) {
-  const normalized = normalizeProviderFacingProjectText(value, 1600)
-  if (!normalized || isBlockedFixedTemplateEvidence(normalized) || isThinProjectAwarenessAuthorityLine(normalized))
-    return false
-
-  if (isLegacyProjectAwarenessTemplateShell(normalized) || isCanonicalStructuredProjectAwareness(normalized))
-    return false
-
-  const lowerCased = normalized.toLowerCase()
-  return hasModalitySpecificEmbodimentCue(normalized)
-    || /\b(?:memory|recall|working memory|long-term memory|episode|reflection|persona|relationship|tool|provider|latency|error|timeout)\b/u.test(lowerCased)
-    || /记忆|回想|长期|短期|人格|关系|工具|模型|失败|超时/u.test(normalized)
-}
-
-function isStructuredProjectAwarenessLine(value: unknown) {
-  const normalized = normalizeProviderFacingProjectText(value, 1600)
-  if (!normalized)
-    return false
-  if (isBlockedFixedTemplateEvidence(normalized))
-    return false
-
-  return isCanonicalStructuredProjectAwareness(normalized)
-    || /(?:^|[\s|;])(?:landed|open|next|status|provider|tool|recall|memory|embedding|latency|error)=/iu.test(normalized)
-}
-
-function isStrongerProviderFacingProjectLine(candidate: unknown, baseline?: unknown) {
-  const candidateText = normalizeProviderFacingProjectText(candidate, 1600)
-  if (!candidateText || isBlockedFixedTemplateEvidence(candidateText) || isThinProjectAwarenessAuthorityLine(candidateText))
-    return false
-
-  if (!isCanonicalStructuredProjectAwareness(candidateText) && containsAlicizationFixedTemplateResidue(candidateText))
-    return false
-
-  const scoreProjectLine = (line: string) => {
-    let score = scoreAlicizationProjectAwarenessLine(line) + Math.min(line.length, 400) / 400
-    if (isStructuredProjectAwarenessLine(line))
-      score += 3
-    if (isSpecificProviderFacingProjectLine(line))
-      score += 1
-    return score
-  }
-  const candidateScore = scoreProjectLine(candidateText)
-  const baselineText = normalizeProviderFacingProjectText(baseline, 1600)
-  if (!baselineText)
-    return candidateScore > 0
-
-  return candidateScore > scoreProjectLine(baselineText)
-}
-
-function hasDistinctEmbodimentClosureCue(value: unknown) {
-  const normalized = normalizeProviderFacingProjectText(value, 1600)?.toLowerCase() ?? ''
-  if (!normalized)
-    return false
-
-  return /body|face|motion|lipsync|voice|embodiment|cross-modal/u.test(normalized)
-}
-
-function hasModalitySpecificEmbodimentCue(value: unknown) {
-  const normalized = normalizeProviderFacingProjectText(value, 1600)?.toLowerCase() ?? ''
-  if (!normalized)
-    return false
-
-  return /body|face|motion|lipsync|voice|cross-modal/u.test(normalized)
-}
-
-function isLegacyProjectAwarenessTemplateShell(value: unknown) {
-  const normalized = normalizeProviderFacingProjectText(value, 2400)
-  return Boolean(normalized && containsAlicizationFixedTemplateResidue(normalized))
-}
-
-function scoreRuntimeProjectStateDetail(
-  value: unknown,
-  kind: 'identity' | 'landed' | 'open' | 'next' | 'continuity' | 'drift' | 'awareness',
-) {
-  const text = normalizeProviderFacingProjectText(value, 1600)
-  if (!text)
-    return Number.NEGATIVE_INFINITY
-  if (isBlockedFixedTemplateEvidence(text))
-    return Number.NEGATIVE_INFINITY
-
-  const normalized = text.toLowerCase()
-  let score = scoreAlicizationProjectAwarenessLine(text) + Math.min(text.length, 400) / 200
-
-  if (/thin runtime .* only|placeholder|generic .* only/iu.test(normalized))
-    score -= 6
-  if (isStructuredProjectAwarenessLine(text))
-    score += 3
-  if (hasDistinctEmbodimentClosureCue(text))
-    score += 1
-
-  const kindMarkers: Record<typeof kind, RegExp> = {
-    identity: /identity|persona|relationship|profile|self|身份|人格|关系|自我/iu,
-    landed: /landed|completed|applied|verified|persisted|updated|success|已落地|完成|通过|持久化/iu,
-    open: /open|pending|missing|remaining|todo|unresolved|failed|未完成|待处理|缺失|失败/iu,
-    next: /next|target|action|reindex|retry|validate|continue|下一步|继续|重建|验证/iu,
-    continuity: /continuity|thread|session|memory|recall|relationship|anchor|连续|上下文|记忆|关系/iu,
-    drift: /drift|risk|fallback|detached|generic|error|failed|风险|漂移|回退|失败/iu,
-    awareness: /awareness|summary|context|status|health|signal|状态|上下文|摘要|指标/iu,
-  }
-
-  if (kindMarkers[kind].test(text))
-    score += 3
-
-  return score
-}
-
-function isCanonicalStructuredProjectAwareness(value: unknown) {
-  const normalized = normalizeProviderFacingProjectText(value, 1600)?.toLowerCase() ?? ''
-  if (!normalized)
-    return false
-
-  return !isLegacyProjectAwarenessTemplateShell(normalized)
-    && /(?:^|\|\s*)(?:identity|phase|visibility|landed|open|next|continuity_anchor)=/iu.test(normalized)
-}
-
-function scoreProjectContinuitySummary(value: unknown) {
-  const normalized = normalizeProviderFacingProjectText(value, 4000)?.toLowerCase() ?? ''
-  if (!normalized)
-    return Number.NEGATIVE_INFINITY
-  if (isBlockedFixedTemplateEvidence(normalized))
-    return Number.NEGATIVE_INFINITY
-
-  let score = normalized.length >= 320 ? 2 : normalized.length >= 180 ? 1 : 0
-  for (const marker of ['project_preflight=', 'landed=', 'open=', 'next=', 'drift_risk=', 'phase=', 'preflight=', 'unresolved=', 'project=']) {
-    if (normalized.includes(marker))
-      score += 2
-  }
-  for (const marker of ['open-focus=', 'next-focus=', 'open_focus=', 'next_focus=']) {
-    if (normalized.includes(marker))
-      score += 2
-  }
-  if (
-    /memory, initiative, and embodiment/u.test(normalized)
-    && /continuity_line|open_loop|runtime_loop_validation/u.test(normalized)
-  ) {
-    score += 3
-  }
-  if (normalized.includes('same digital life | keep the closure seam explicit'))
-    score -= 3
-  if (normalized.includes('keep the same digital life project in view'))
-    score -= 3
-
-  return score
-}
-
-function appendMissingContinuitySummaryMarkers(input: {
-  preferredSummary: unknown
-  sourceSummary: unknown
-  markers: string[]
-  maxChars?: number
-}) {
-  const preferredSummary = normalizeProviderFacingProjectText(input.preferredSummary, input.maxChars ?? 4000)
-  const sourceSummary = normalizeProviderFacingProjectText(input.sourceSummary, input.maxChars ?? 4000)
-  if (!preferredSummary || !sourceSummary)
-    return preferredSummary
-
-  let mergedSummary = preferredSummary
-  for (const marker of input.markers) {
-    if (readContinuitySummaryMarker(mergedSummary, [marker], input.maxChars ?? 4000))
-      continue
-    const sourceValue = readContinuitySummaryMarker(sourceSummary, [marker], input.maxChars ?? 4000)
-    if (!sourceValue)
-      continue
-    mergedSummary = normalizeProviderFacingProjectText(`${mergedSummary} | ${marker}=${sourceValue}`, input.maxChars ?? 4000)
-      ?? mergedSummary
-  }
-
-  return mergedSummary
-}
-
 function preferIncomingDialogueSessionMirror<T extends {
-  continuityArcSummary?: unknown
-  continuityProjectSummary?: unknown
   recollection?: OrganicMemoryRecollectionCarry | null
 }>(input: {
   incoming: T | null | undefined
@@ -1200,258 +783,22 @@ function preferIncomingDialogueSessionMirror<T extends {
   if (!generated)
     return incoming
 
-  const preferredArc = scoreProjectContinuitySummary(incoming.continuityArcSummary) >= scoreProjectContinuitySummary(generated.continuityArcSummary)
-    ? normalizeProviderFacingProjectText(incoming.continuityArcSummary, 4000) ?? normalizeProviderFacingProjectText(generated.continuityArcSummary, 4000)
-    : normalizeProviderFacingProjectText(generated.continuityArcSummary, 4000) ?? normalizeProviderFacingProjectText(incoming.continuityArcSummary, 4000)
-  const preservedArc = appendMissingContinuitySummaryMarkers({
-    preferredSummary: preferredArc,
-    sourceSummary: incoming.continuityArcSummary,
-    markers: [
-      'stage',
-      'loop',
-      'handoff',
-      'thread',
-      'carry',
-      'defer',
-      'why_now',
-      'drift_risk',
-      'same_her',
-      'project_preflight',
-      'open-focus',
-      'next-focus',
-    ],
-    maxChars: 4000,
-  })
-  const preferredProjectSummary = scoreProjectContinuitySummary(incoming.continuityProjectSummary) >= scoreProjectContinuitySummary(generated.continuityProjectSummary)
-    ? normalizeProviderFacingProjectText(incoming.continuityProjectSummary, 4000) ?? normalizeProviderFacingProjectText(generated.continuityProjectSummary, 4000)
-    : normalizeProviderFacingProjectText(generated.continuityProjectSummary, 4000) ?? normalizeProviderFacingProjectText(incoming.continuityProjectSummary, 4000)
-
   return {
-    ...generated,
     ...incoming,
-    continuityArcSummary: preservedArc,
-    continuityProjectSummary: preferredProjectSummary,
+    ...generated,
     recollection: generated.recollection ?? incoming.recollection ?? null,
   } as T
-}
-
-function readContinuitySummaryMarker(
-  value: unknown,
-  markers: string[],
-  maxChars = 1600,
-) {
-  const summary = normalizeProviderFacingProjectText(value, 4000)
-  if (!summary)
-    return null
-
-  for (const marker of markers) {
-    const match = new RegExp(`(?:^|\\|\\s*)${marker}=([^|]+)`, 'iu').exec(summary)
-    const resolved = normalizeProviderFacingProjectText(match?.[1], maxChars)
-    if (resolved)
-      return resolved
-  }
-
-  return null
-}
-
-function readProjectStateFallbackFromSessionMirror(
-  mirror: AlicizationDialogueSessionMirror | null | undefined,
-): SessionMirrorProjectStateFallback {
-  void mirror
-  return {
-    identity: '',
-    currentPhase: null,
-    preflightSummary: null,
-    preDialogueAwarenessLine: null,
-    preDialogueAwarenessSummary: null,
-    awarenessLine: null,
-    latestLandedProgress: '',
-    primaryOpenLoop: '',
-    openFocusSummary: null,
-    nextClosureTarget: '',
-    nextFocusSummary: null,
-    sameHerSelfLine: '',
-    sameHerDriftRisk: '',
-    sameHerHoldDetail: null,
-    emotionalClosureSummary: null,
-    continuityRestraint: null,
-    continuityArcStage: null,
-    continuityCue: null,
-    continuityPreferredTiming: null,
-    continuityCadence: null,
-    preferredBlinkCadence: null,
-    preferredGazeMode: null,
-    preferredPauseMode: null,
-    preferredLipsyncMode: null,
-    preferredVoiceMode: null,
-    preferredPacingMode: null,
-  }
-}
-
-function readRuntimeProjectStateFromSurface(
-  surface: AlicizationDigitalLifeRuntimeSurface | null | undefined,
-): NonNullable<AlicizationMindTurnContractSnapshot['projectState']> {
-  const sources = [
-    surface?.dialogue?.currentConsciousFrame?.projectState,
-    surface?.dialogue?.runtimeDigest?.projectState,
-    surface?.raw?.runtime?.projectState,
-    surface?.raw?.runtimeDigest?.projectState,
-    surface?.cognition?.runtimeDigest?.projectState,
-  ] as Array<Record<string, unknown> | null | undefined>
-  const readFact = (keys: string[]) => {
-    for (const source of sources) {
-      for (const key of keys) {
-        const value = normalizeProviderFacingProjectText(source?.[key], 12000)
-        if (value && !isBlockedFixedTemplateEvidence(value))
-          return value
-      }
-    }
-    return ''
-  }
-  const latestLandedProgress = readFact(['latestLandedProgress', 'latestProgress', 'landedProgressSummary'])
-  const primaryOpenLoop = readFact(['primaryOpenLoop', 'openClosureSummary'])
-  const nextClosureTarget = readFact(['nextClosureTarget', 'nextClosureTargetSummary'])
-
-  return {
-    ...emptyProjectStateBrief,
-    awarenessLine: null,
-    companionBriefingLine: null,
-    companionHeadlineLine: null,
-    preDialogueAwarenessSummary: null,
-    latestLandedProgress,
-    latestProgress: latestLandedProgress,
-    landedProgressSummary: latestLandedProgress,
-    primaryOpenLoop,
-    openClosureSummary: primaryOpenLoop,
-    nextClosureTarget,
-    nextClosureTargetSummary: nextClosureTarget,
-    sameHerSelfLine: '',
-    sameHerDriftRisk: '',
-    sameHerDriftRiskSummary: '',
-    sameHerHoldDetail: null,
-    emotionalClosureCue: null,
-    emotionalClosureSummary: null,
-    continuityArcStage: null,
-    continuityCue: null,
-    continuityPreferredTiming: null,
-    continuityCadence: null,
-    preferredBlinkCadence: null,
-    preferredGazeMode: null,
-    preferredPauseMode: null,
-    preferredLipsyncMode: null,
-    preferredVoiceMode: null,
-    preferredPacingMode: null,
-  }
 }
 
 function createDefaultProviderFacingMindTurnContract(input: {
   governance: AlicizationMindTurnGovernance | null
 }): AlicizationMindTurnContractSnapshot {
+  void input.governance
   return {
     version: 'mind-turn-contract-v1',
-    answerIntent: input.governance?.answerIntent ?? null,
-    answerAct: input.governance?.answerAct ?? null,
-    turnMode: input.governance?.turnMode ?? 'answer',
-    responseMode: normalizeProviderFacingResponseMode(input.governance?.responseMode),
-    evidenceMode: input.governance?.evidenceMode ?? null,
-    openingStyle: input.governance?.openingStyle ?? 'direct-answer',
-    expectedVisibleReplyAuthority: input.governance?.expectedVisibleReplyAuthority ?? 'llm-mind',
-    replyRealizationMode: normalizeProviderFacingReplyRealizationMode(input.governance?.replyRealizationMode),
-    personaKernelMode: input.governance?.personaKernelMode ?? 'full',
-    activeClosenessContext: normalizeProviderFacingClosenessContext(input.governance?.activeClosenessContext),
-    activeClosenessRung: normalizeProviderFacingClosenessRung(input.governance?.activeClosenessRung),
-    relationshipPosture: normalizeProviderFacingRelationshipPosture(input.governance?.relationshipPosture),
-    labelCarryAsMemory: input.governance?.labelCarryAsMemory ?? false,
-    allowAffectionatePreface: input.governance?.allowAffectionatePreface ?? false,
-    allowStageDirections: input.governance?.allowStageDirections ?? false,
-    allowBodyNarration: input.governance?.allowBodyNarration ?? false,
-    maxParagraphs: input.governance?.maxParagraphs ?? 2,
-    maxSentences: input.governance?.maxSentences ?? 4,
-    mustDo: [],
-    mustNotDo: [],
-    governingFocus: input.governance?.governingFocus ?? '',
-    governingConcern: input.governance?.governingConcern ?? null,
-    governingCommitment: input.governance?.governingCommitment ?? null,
-    governingInquiry: input.governance?.governingInquiry ?? null,
-    governingProject: input.governance?.governingProject ?? null,
-    emotionalClosureCue: input.governance?.emotionalClosureCue ?? null,
-    projectState: null,
-    preDialogueClosure: null,
-    reasons: input.governance?.reasons ?? [],
+    expectedVisibleReplyAuthority: 'llm-mind',
+    replyRealizationMode: 'provider-mind-required',
     updatedAt: Date.now(),
-  }
-}
-
-function stripProjectStateContinuityTiming(
-  surface: AlicizationDigitalLifeRuntimeSurface | null,
-): AlicizationDigitalLifeRuntimeSurface | null {
-  if (!surface)
-    return surface
-
-  const stripCurrentConsciousFrame = (
-    frame: AlicizationDigitalLifeRuntimeSurface['dialogue']['currentConsciousFrame'],
-  ) => {
-    if (!frame)
-      return frame
-
-    return {
-      ...frame,
-      continuityArcStage: undefined,
-      continuityPreferredTiming: undefined,
-      continuityCadence: undefined,
-      projectState: undefined,
-    }
-  }
-
-  const stripRuntimeDigest = <T extends Record<string, unknown> | null | undefined>(digest: T) => {
-    if (!digest)
-      return digest
-
-    const activeLoop = digest.activeLoop && typeof digest.activeLoop === 'object'
-      ? {
-          ...(digest.activeLoop as Record<string, unknown>),
-          continuityArcStage: undefined,
-          continuityPreferredTiming: undefined,
-        }
-      : digest.activeLoop
-
-    return {
-      ...digest,
-      activeLoop,
-      projectState: undefined,
-      continuityRestraint: undefined,
-      emotionalClosureCue: undefined,
-      currentConsciousFrame: stripCurrentConsciousFrame(
-        digest.currentConsciousFrame as AlicizationDigitalLifeRuntimeSurface['dialogue']['currentConsciousFrame'],
-      ),
-    }
-  }
-
-  return {
-    ...surface,
-    dialogue: {
-      ...surface.dialogue,
-      currentConsciousFrame: stripCurrentConsciousFrame(surface.dialogue.currentConsciousFrame) as typeof surface.dialogue.currentConsciousFrame,
-      runtimeDigest: stripRuntimeDigest(
-        surface.dialogue.runtimeDigest as Record<string, unknown> | null | undefined,
-      ) as typeof surface.dialogue.runtimeDigest,
-      answerPlanner: sanitizeOrdinaryDialogueAnswerPlanner(surface.dialogue.answerPlanner),
-    },
-    raw: {
-      ...surface.raw,
-      runtimeDigest: stripRuntimeDigest(
-        surface.raw?.runtimeDigest as Record<string, unknown> | null | undefined,
-      ) as any,
-      runtime: stripRuntimeDigest(
-        surface.raw?.runtime as Record<string, unknown> | null | undefined,
-      ) as any,
-    },
-    cognition: {
-      ...surface.cognition,
-      runtimeDigest: stripRuntimeDigest(
-        surface.cognition.runtimeDigest as Record<string, unknown> | null | undefined,
-      ) as typeof surface.cognition.runtimeDigest,
-    },
   }
 }
 
@@ -1590,14 +937,41 @@ function restorePreparedRuntimeRelationshipCarry(
 function ensurePreparedRuntimeSurfaceShape(
   surface: AlicizationDigitalLifeRuntimeSurface | null | undefined,
 ): AlicizationDigitalLifeRuntimeSurface | null {
-  const strippedSurface = stripProjectStateContinuityTiming(surface ?? null)
-  if (!strippedSurface)
+  if (!surface)
     return null
-  surface = strippedSurface
+
+  const currentConsciousFrame = surface.dialogue?.currentConsciousFrame
+    ? {
+        subject: surface.dialogue.currentConsciousFrame.subject,
+        centerOfGravity: surface.dialogue.currentConsciousFrame.centerOfGravity,
+        truthDiscipline: surface.dialogue.currentConsciousFrame.truthDiscipline,
+        consciousNeed: surface.dialogue.currentConsciousFrame.consciousNeed,
+        consciousNeedSource: surface.dialogue.currentConsciousFrame.consciousNeedSource,
+        consciousTension: surface.dialogue.currentConsciousFrame.consciousTension,
+        speakingIntention: surface.dialogue.currentConsciousFrame.speakingIntention,
+        focusAnchor: surface.dialogue.currentConsciousFrame.focusAnchor,
+        focusAnchorSource: surface.dialogue.currentConsciousFrame.focusAnchorSource,
+        withheldImpulse: surface.dialogue.currentConsciousFrame.withheldImpulse,
+        shouldWithholdSpecificity: surface.dialogue.currentConsciousFrame.shouldWithholdSpecificity,
+        shouldSelfRevise: surface.dialogue.currentConsciousFrame.shouldSelfRevise,
+        confidence: surface.dialogue.currentConsciousFrame.confidence,
+        reasonTags: Array.isArray(surface.dialogue.currentConsciousFrame.reasonTags)
+          ? surface.dialogue.currentConsciousFrame.reasonTags.filter((tag): tag is string => typeof tag === 'string')
+          : [],
+        updatedAt: surface.dialogue.currentConsciousFrame.updatedAt,
+      }
+    : null
+  const rawRuntimeDigest = normalizeAlicizationRuntimeDigest(surface.raw?.runtimeDigest)
+  const cognitionRuntimeDigest = normalizeAlicizationRuntimeDigest(surface.cognition?.runtimeDigest)
 
   return {
     version: 'digital-life-runtime-surface-v1',
-    raw: surface.raw ?? null,
+    raw: surface.raw
+      ? {
+          personStateProjection: surface.raw.personStateProjection ?? null,
+          runtimeDigest: rawRuntimeDigest,
+        }
+      : null,
     perception: {
       ...surface.perception,
       watchMode: surface.perception?.watchMode ?? 'idle',
@@ -1632,6 +1006,7 @@ function ensurePreparedRuntimeSurfaceShape(
       mindDynamics: surface.cognition?.mindDynamics ?? null,
       mindKernel: surface.cognition?.mindKernel ?? null,
       privateThought: surface.cognition?.privateThought ?? null,
+      runtimeDigest: cognitionRuntimeDigest,
     } as AlicizationDigitalLifeRuntimeSurface['cognition'],
     memory: {
       ...surface.memory,
@@ -1680,10 +1055,10 @@ function ensurePreparedRuntimeSurfaceShape(
       dialogueWorldThread: surface.dialogue?.dialogueWorldThread ?? null,
       dialogueActKernel: surface.dialogue?.dialogueActKernel ?? null,
       answerCompiler: surface.dialogue?.answerCompiler ?? null,
-      currentConsciousFrame: surface.dialogue?.currentConsciousFrame ?? null,
+      currentConsciousFrame,
       claimEvidenceLedger: surface.dialogue?.claimEvidenceLedger ?? null,
       replyDeliberation: surface.dialogue?.replyDeliberation ?? null,
-      answerPlanner: surface.dialogue?.answerPlanner ?? null,
+      answerPlanner: null,
     },
     agency: {
       ...surface.agency,
@@ -1735,37 +1110,6 @@ function applyPersonMemoryCapsuleToDigitalLifeRuntimeSurface(input: {
       personMemoryCapsule: buildAlicizationPersonMemoryCapsule(input.context, input.memoryTurnArtifact),
     },
   } satisfies AlicizationDigitalLifeRuntimeSurface
-}
-
-function enrichExecutionProjectBriefingWithPersonMemoryCapsule(
-  projectBriefing: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['projectBriefing'],
-  surface: AlicizationDigitalLifeRuntimeSurface | null | undefined,
-): Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['projectBriefing'] {
-  const capsule = surface?.memory?.personMemoryCapsule ?? null
-  if (!projectBriefing || !capsule)
-    return projectBriefing
-
-  const executionLine = normalizeProviderFacingProjectText([
-    capsule.modules.execution.carrySummary ? `execution_capsule=${capsule.modules.execution.carrySummary}` : null,
-    capsule.modules.execution.threadAnchor ? `thread=${capsule.modules.execution.threadAnchor}` : null,
-    capsule.modules.learning.nextAction ? `learning=${capsule.modules.learning.nextAction}` : null,
-    capsule.modules.learning.reason ? `reason=${capsule.modules.learning.reason}` : null,
-  ].filter(Boolean).join(' | '), 320)
-  const memoryLine = normalizeProviderFacingProjectText(capsule.modules.memory.selectedMemory, 220)
-  if (!executionLine && !memoryLine)
-    return projectBriefing
-
-  return {
-    ...projectBriefing,
-    companionBriefingLine: normalizeProviderFacingProjectText([
-      projectBriefing.companionBriefingLine,
-      executionLine,
-    ].filter(Boolean).join(' | '), 320) ?? projectBriefing.companionBriefingLine ?? null,
-    continuityCue: normalizeProviderFacingProjectText([
-      projectBriefing.continuityCue,
-      memoryLine ? `memory_capsule=${memoryLine}` : null,
-    ].filter(Boolean).join(' | '), 220) ?? projectBriefing.continuityCue ?? null,
-  }
 }
 
 function seedPreparedRuntimeProjectAwareness(input: {
@@ -1891,12 +1235,6 @@ function inheritPreparedRuntimeSurfacePersonMemoryCapsuleIfMissing(input: {
   } satisfies AlicizationDigitalLifeRuntimeSurface
 }
 
-function alignPreparedRuntimeSurfaceProjectStateCarry(
-  surface: AlicizationDigitalLifeRuntimeSurface | null,
-): AlicizationDigitalLifeRuntimeSurface | null {
-  return ensurePreparedRuntimeSurfaceShape(surface)
-}
-
 export function resolvePreparedRuntimeSurfaceSelection(input: {
   answerPlannerReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
   baseDigitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
@@ -1912,7 +1250,7 @@ export function resolvePreparedRuntimeSurfaceSelection(input: {
     && input.answerPlannerReducedRuntimeSurface?.dialogue?.currentConsciousFrame
     ? input.answerPlannerReducedRuntimeSurface
     : null
-  const preAdjustmentSelectedRuntimeSurface = alignPreparedRuntimeSurfaceProjectStateCarry(memoryDeliberationReducedRuntimeSurface
+  const preAdjustmentSelectedRuntimeSurface = ensurePreparedRuntimeSurfaceShape(memoryDeliberationReducedRuntimeSurface
     ?? resolvePreferredRuntimeSurface({
       preparedRuntimeSurface: input.answerPlannerReducedRuntimeSurface ?? null,
       spineRuntimeSurface: input.digitalLifeSpine?.runtimeSurface ?? input.baseDigitalLifeRuntimeSurface ?? null,
@@ -1922,7 +1260,7 @@ export function resolvePreparedRuntimeSurfaceSelection(input: {
     input.answerPlannerReducedRuntimeSurface ?? null,
     input.digitalLifeSpine?.runtimeSurface ?? null,
   ]
-  const fresherRuntimeSurface = alignPreparedRuntimeSurfaceProjectStateCarry(
+  const fresherRuntimeSurface = ensurePreparedRuntimeSurfaceShape(
     inheritPreparedRuntimeSurfacePersonMemoryCapsuleIfMissing({
       surface: inheritPreparedRuntimeSurfaceMemoryClosureTraceIfMissing({
         surface: inheritPreparedRuntimeSurfaceSessionMirrorIfMissing({
@@ -1937,7 +1275,7 @@ export function resolvePreparedRuntimeSurfaceSelection(input: {
       fallbackSurfaces: runtimeSurfaceFallbacks,
     }),
   )
-  const runtimeSurfaceForBuilder = alignPreparedRuntimeSurfaceProjectStateCarry(
+  const runtimeSurfaceForBuilder = ensurePreparedRuntimeSurfaceShape(
     inheritPreparedRuntimeSurfacePersonMemoryCapsuleIfMissing({
       surface: inheritPreparedRuntimeSurfaceMemoryClosureTraceIfMissing({
         surface: inheritPreparedRuntimeSurfaceSessionMirrorIfMissing({
@@ -2013,25 +1351,25 @@ export function buildPreparedRuntimeSurfaceChain(input: {
   consciousFrameReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
   answerPlannerReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
 } {
-  const effectiveDigitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = alignPreparedRuntimeSurfaceProjectStateCarry(restorePreparedRuntimeRelationshipCarry(
-    stripProjectStateContinuityTiming(applyMemoryDeliberationToDigitalLifeRuntimeSurface({
+  const effectiveDigitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = ensurePreparedRuntimeSurfaceShape(restorePreparedRuntimeRelationshipCarry(
+    applyMemoryDeliberationToDigitalLifeRuntimeSurface({
       surface: input.baseDigitalLifeRuntimeSurface,
       governance: input.governance,
       context: input.context,
       now: input.now,
-    })) as AlicizationDigitalLifeRuntimeSurface | null,
+    }) as AlicizationDigitalLifeRuntimeSurface | null,
     input.context,
   ))
-  const sociallyShapedDigitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = alignPreparedRuntimeSurfaceProjectStateCarry(restorePreparedRuntimeRelationshipCarry(
-    stripProjectStateContinuityTiming(applyHostPersonModelToDigitalLifeRuntimeSurface({
+  const sociallyShapedDigitalLifeRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = ensurePreparedRuntimeSurfaceShape(restorePreparedRuntimeRelationshipCarry(
+    applyHostPersonModelToDigitalLifeRuntimeSurface({
       surface: effectiveDigitalLifeRuntimeSurface,
       governance: input.governance,
       context: input.context,
       now: input.now,
-    })) as AlicizationDigitalLifeRuntimeSurface | null,
+    }) as AlicizationDigitalLifeRuntimeSurface | null,
     input.context,
   ))
-  const executionCallbackCarryRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = alignPreparedRuntimeSurfaceProjectStateCarry(restorePreparedRuntimeRelationshipCarry(
+  const executionCallbackCarryRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = ensurePreparedRuntimeSurfaceShape(restorePreparedRuntimeRelationshipCarry(
     applyExecutionCallbackCarryToDigitalLifeRuntimeSurface({
       surface: sociallyShapedDigitalLifeRuntimeSurface,
       governance: input.governance,
@@ -2040,12 +1378,12 @@ export function buildPreparedRuntimeSurfaceChain(input: {
     }) as AlicizationDigitalLifeRuntimeSurface | null,
     input.context,
   ))
-  const consciousFrameReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = alignPreparedRuntimeSurfaceProjectStateCarry(reduceRuntimeConsciousFrame({
+  const consciousFrameReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = ensurePreparedRuntimeSurfaceShape(reduceRuntimeConsciousFrame({
     surface: executionCallbackCarryRuntimeSurface,
     governance: input.governance,
     now: input.now,
   }) as AlicizationDigitalLifeRuntimeSurface | null)
-  const answerPlannerReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = alignPreparedRuntimeSurfaceProjectStateCarry(reduceRuntimeAnswerPlanner({
+  const answerPlannerReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null = ensurePreparedRuntimeSurfaceShape(reduceRuntimeAnswerPlanner({
     surface: consciousFrameReducedRuntimeSurface,
     governance: input.governance,
     now: input.now,
@@ -2072,7 +1410,7 @@ export function rebuildProviderFacingMindTurnContract(input: {
     governance: input.governance,
   })
 
-  return isolateProviderMindTurnContractFromProjectGovernance(baseContract)
+  return normalizeProviderReplyAuthorityContract(baseContract)
 }
 
 export function normalizeProviderFacingMindTurnContract(
@@ -2083,78 +1421,8 @@ export function normalizeProviderFacingMindTurnContract(
   void rawPayload
   void runtimeSurface
   return contract
-    ? isolateProviderMindTurnContractFromProjectGovernance(contract)
+    ? normalizeProviderReplyAuthorityContract(contract)
     : null
-}
-
-function readProviderFacingPayloadProjectState(
-  rawPayload: AlicizationChatStartPayload | null | undefined,
-) {
-  void rawPayload
-  return {
-    explicitPayloadProjectHeadline: null,
-    explicitPayloadProjectAwarenessLine: null,
-    explicitPayloadProjectPreflightSummary: null,
-    explicitPayloadProjectSameHerDriftRisk: null,
-    explicitPayloadNextClosureTarget: null,
-    hasDirectPayloadProjectHeadline: false,
-    hasDirectPayloadProjectAwarenessLine: false,
-    hasDirectPayloadProjectPreflightSummary: false,
-    hasDirectPayloadProjectSameHerDriftRisk: false,
-    hasDirectPayloadNextClosureTarget: false,
-  }
-}
-
-function applyProviderFacingProjectStateToRuntimeSurface(input: {
-  runtimeSurface: AlicizationMainChatRuntimeSurface
-  projectState: AlicizationMindTurnContractSnapshot['projectState'] | null | undefined
-}) {
-  void input.projectState
-  input.runtimeSurface.digitalLifeRuntimeSurface = stripProjectStateContinuityTiming(
-    input.runtimeSurface.digitalLifeRuntimeSurface,
-  )
-  if (input.runtimeSurface.digitalLifeSpine?.runtimeSurface) {
-    input.runtimeSurface.digitalLifeSpine.runtimeSurface = stripProjectStateContinuityTiming(
-      input.runtimeSurface.digitalLifeSpine.runtimeSurface,
-    ) ?? input.runtimeSurface.digitalLifeSpine.runtimeSurface
-  }
-  return null
-}
-
-function overrideMindTurnContractNextClosureTarget(input: {
-  contract: AlicizationMindTurnContractSnapshot | null
-  nextClosureTarget: string | null | undefined
-}) {
-  void input.nextClosureTarget
-  return input.contract
-}
-
-function rescueReturnedProviderFacingProjectAwareness(input: {
-  contract: AlicizationMindTurnContractSnapshot | null
-  rawPayload?: AlicizationChatStartPayload | null
-  prelude?: AlicizationPreparedMainChatPrelude
-}) {
-  void input.rawPayload
-  void input.prelude
-  return input.contract
-    ? isolateProviderMindTurnContractFromProjectGovernance(input.contract)
-    : null
-}
-
-export const __alicizationTestOnly = {
-  applyProviderFacingProjectStateToRuntimeSurface,
-  enrichExecutionProjectBriefingWithPersonMemoryCapsule,
-  isBlockedFixedTemplateEvidence,
-  isStrongerProviderFacingProjectLine,
-  isThinProjectAwarenessAuthorityLine,
-  scoreRuntimeProjectStateDetail,
-  overrideMindTurnContractNextClosureTarget,
-  preferIncomingDialogueSessionMirror,
-  readProjectStateFallbackFromSessionMirror,
-  readRuntimeProjectStateFromSurface,
-  readProviderFacingPayloadProjectState,
-  rescueReturnedProviderFacingProjectAwareness,
-  resolvePreferredRuntimeSurface,
 }
 
 export function createAlicizationMainChatSessionRuntime(options: CreateAlicizationMainChatSessionRuntimeOptions) {
@@ -2263,7 +1531,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       spine: digitalLifeSpine,
     })
     const provisionalHasVisualGrounding = !effectiveExecutionRoutingIntent && options.latestUserMessageContainsVisualInput(messages)
-    const [contextualString, executionCallbackContext, executionLedgerContext, sessionContinuitySignals, agentSessionSensorySnapshot] = await Promise.all([
+    const [contextualString, executionCallbackContext, executionLedgerContext, sessionContinuitySignals] = await Promise.all([
       agentTurn.trackPhase('contextual-memory', async () => await prelude.contextualStringPromise, {
         turnId: payload.turnId,
       }),
@@ -2289,9 +1557,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         agentTurn.ingestContinuitySignals(mergedSignals)
         return mergedSignals
       }, {
-        cardId: payload.cardId,
-      }),
-      agentTurn.trackPhase('agent-session-context', async () => await agentTurn.getSensorySnapshot(), {
         cardId: payload.cardId,
       }),
     ])
@@ -2427,7 +1692,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       ? buildMainGatewayExecutionRoutingToolChoice(effectiveExecutionRoutingIntent)
       : undefined
 
-    let executionRuntimeProjectBriefing: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['projectBriefing'] = null
     let executionRuntimeAffectiveResidue: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['affectiveResidue'] = null
     let executionRuntimeDerivedMindStateBundle: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['derivedMindStateBundle'] = null
     let executionRuntimeMemoryClosureTrace: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['memoryClosureTrace'] = null
@@ -2462,7 +1726,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           decisionTraceId: toolContext.decisionTraceId ?? null,
           derivedMindStateBundle: executionRuntimeDerivedMindStateBundle ?? null,
           memoryClosureTrace: executionRuntimeMemoryClosureTrace ?? null,
-          projectBriefing: executionRuntimeProjectBriefing ?? undefined,
           sessionId: toolContext.sessionId ?? agentTurn.conversationSessionId,
         })
       },
@@ -2944,7 +2207,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
 
     const runtimeCorePromptBlocks = options.buildMainRuntimeCorePromptBlocks({
       hostName,
-      includeProjectStateContext: false,
       personaKernel,
     })
     const hasVisualGrounding = provisionalHasVisualGrounding
@@ -2995,23 +2257,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     executionRuntimeAffectiveResidue = runtimeSurfaceForBuilder?.memory?.affectiveResidue ?? null
     executionRuntimeDerivedMindStateBundle = runtimeSurfaceForBuilder?.memory?.derivedMindStateBundle ?? null
     executionRuntimeMemoryClosureTrace = runtimeSurfaceForBuilder?.memory?.memoryClosureTrace ?? null
-    executionRuntimeProjectBriefing = runtimeSurfaceForBuilder
-      ? buildAlicizationExecutionRuntimeContext({
-        agentSessionId: agentTurn.agentSessionId,
-        affectiveResidue: executionRuntimeAffectiveResidue ?? null,
-        cardId: payload.cardId,
-        turnId: payload.turnId,
-        decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,
-        derivedMindStateBundle: executionRuntimeDerivedMindStateBundle ?? null,
-        memoryClosureTrace: executionRuntimeMemoryClosureTrace ?? null,
-        sessionId: agentTurn.conversationSessionId,
-        projectBriefing: enrichExecutionProjectBriefingWithPersonMemoryCapsule(
-          readRuntimeProjectStateFromSurface(runtimeSurfaceForBuilder),
-          runtimeSurfaceForBuilder,
-        ),
-        sensorySnapshot: agentSessionSensorySnapshot,
-      }).projectBriefing ?? null
-      : null
     const effectiveDigitalLifeSpine = buildEffectiveDigitalLifeSpine({
       digitalLifeSpine,
       fresherRuntimeSurface: preparedRuntimeSurfaceSelection.fresherRuntimeSurface,
@@ -3106,7 +2351,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           return []
         })
       : []
-    const workingMemoryPrompt = buildWorkingMemoryPromptBlockFromRuntime({
+    const workingMemoryOwner = buildWorkingMemoryOwnerContextFromRuntime({
       cardId: payload.cardId,
       currentConsciousFrame: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame ?? null,
       conversationState: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.conversationState ?? null,
@@ -3119,7 +2364,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       previousSnapshot: workingMemoryStore.get(payload.cardId, workingMemorySessionId),
       sessionId: workingMemorySessionId,
     })
-    workingMemoryStore.upsert(workingMemoryPrompt.snapshot)
+    workingMemoryStore.upsert(workingMemoryOwner.snapshot)
     let longTermMemoryBundle: LongTermMemoryEvidenceBundle | null = null
     const currentUserText = readLatestUserMessageText(providerPlanningMessages)
     if (options.retrieveLongTermMemoryEvidence) {
@@ -3127,9 +2372,9 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         longTermMemoryBundle = await options.retrieveLongTermMemoryEvidence({
           cardId: payload.cardId,
           currentUserText,
-          workingMemoryQueryHints: workingMemoryPrompt.ownerContext.queryHints,
-          currentThreadTitle: workingMemoryPrompt.ownerContext.current.threadTitle,
-          activeTask: workingMemoryPrompt.ownerContext.current.activeTask,
+          workingMemoryQueryHints: workingMemoryOwner.ownerContext.queryHints,
+          currentThreadTitle: workingMemoryOwner.ownerContext.current.threadTitle,
+          activeTask: workingMemoryOwner.ownerContext.current.activeTask,
           limit: 5,
         })
       }
@@ -3167,15 +2412,15 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       })
     }
     const memoryContext = buildAlicizationMainChatMemoryContext({
-      workingMemory: workingMemoryPrompt.ownerContext,
+      workingMemory: workingMemoryOwner.ownerContext,
       longTermRecall: longTermMemoryBundle,
     })
-    if (workingMemoryPrompt.ownerContext.longTermQueue.length > 0 && options.enqueueWorkingMemoryLongTermQueue) {
+    if (workingMemoryOwner.ownerContext.longTermQueue.length > 0 && options.enqueueWorkingMemoryLongTermQueue) {
       try {
         await options.enqueueWorkingMemoryLongTermQueue({
           cardId: payload.cardId,
           sessionId: workingMemorySessionId,
-          items: workingMemoryPrompt.ownerContext.longTermQueue,
+          items: workingMemoryOwner.ownerContext.longTermQueue,
         })
         await options.drainWorkingMemoryLongTermQueue?.(4)
       }
@@ -3194,7 +2439,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     }
     const workingMemoryOwnedRuntimeSurface = applyWorkingMemoryOwnerToDigitalLifeRuntimeSurface({
       surface: runtimeSurface.digitalLifeRuntimeSurface,
-      snapshot: workingMemoryPrompt.snapshot,
+      snapshot: workingMemoryOwner.snapshot,
     })
     if (workingMemoryOwnedRuntimeSurface) {
       runtimeSurface.digitalLifeRuntimeSurface = workingMemoryOwnedRuntimeSurface
@@ -3235,43 +2480,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       rawPayload,
       runtimeSurface,
     )
-    const finalizedReturnedMindTurnContract = rescueReturnedProviderFacingProjectAwareness({
-      contract: normalizedMindTurnContract,
-      rawPayload,
-      prelude,
-    })
-    const finalReturnedRuntimeSurfaceProjectState = applyProviderFacingProjectStateToRuntimeSurface({
-      runtimeSurface,
-      projectState: finalizedReturnedMindTurnContract?.projectState ?? null,
-    })
-    const providerFacingRuntimeSurface = runtimeSurface.digitalLifeRuntimeSurface
-    const providerFacingAnswerPlannerSeed: AlicizationAnswerPlannerSnapshot | null
-      = providerFacingRuntimeSurface?.dialogue?.answerPlanner
-        ?? runtimeSurface.digitalLifeSpine?.runtimeSurface?.dialogue?.answerPlanner
-        ?? preparedRuntimeSurfaceSelection.fresherRuntimeSurface?.dialogue?.answerPlanner
-        ?? runtimeSurfaceForBuilder?.dialogue?.answerPlanner
-        ?? answerPlannerReducedRuntimeSurface?.dialogue?.answerPlanner
-        ?? (
-          normalizedMindTurnContract
-            ? buildFallbackProviderFacingAnswerPlanner({
-                contract: normalizedMindTurnContract,
-                now,
-              })
-            : null
-        )
-        ?? null
-    if (providerFacingRuntimeSurface?.dialogue && providerFacingAnswerPlannerSeed) {
-      providerFacingRuntimeSurface.dialogue.answerPlanner = {
-        ...providerFacingAnswerPlannerSeed,
-        governingProject: null,
-      } satisfies AlicizationAnswerPlannerSnapshot
-    }
+    const finalizedReturnedMindTurnContract = normalizedMindTurnContract
     messages = runtimeSurface.messages
     messages = filterAlicizationProviderSystemMessages(messages)
     messages = injectAlicizationMainChatMemoryContext(messages, memoryContext)
     messages = filterAlicizationProviderSystemMessages(messages)
-    sanitizeOrdinaryDialogueRuntimeSurfacePlanning(runtimeSurface.digitalLifeRuntimeSurface)
-    sanitizeOrdinaryDialogueRuntimeSurfacePlanning(runtimeSurface.digitalLifeSpine?.runtimeSurface ?? null)
     runtimeSurface.messages = messages
 
     if (options.onPreparedExecutionDiagnostics) {
@@ -3293,18 +2506,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         },
         rebuiltMindTurnContract,
         normalizedMindTurnContract,
-        runtimeGroundedInputProjectStateAwarenessFields: {
-          preDialogueAwarenessLine: null,
-          preDialogueAwarenessSummary: null,
-          awarenessLine: null,
-          companionHeadlineLine: null,
-        },
-        runtimeGroundedContractProjectState: null,
         mirrorFlowDiagnostics: null,
-        providerFacingAwarenessResolutionDiagnostics: null,
-        providerFacingNormalization: null,
-        runtimeGroundedInputProjectState: null,
-        finalReturnedRuntimeSurfaceProjectState,
         answerPlannerReducedRuntimeSurface: preparedRuntimeSurfaceChainDiagnostics?.answerPlannerReducedRuntimeSurface ?? null,
         baseDigitalLifeRuntimeSurface: baseDigitalLifeRuntimeSurfaceDiagnostics,
         runtimeSurfaceForBuilder: builderSurface,

@@ -63,7 +63,7 @@ function buildThread(input: {
       : statusFromPressures(surfacePressure, silencePressure),
     summary: sanitizeText(input.summary, 180),
     question: sanitizeText(input.question, 180) || undefined,
-    desiredOutcome: sanitizeText(input.desiredOutcome, 180) || 'stay aligned with the living moment',
+    desiredOutcome: sanitizeText(input.desiredOutcome, 180),
     focusBeliefId: input.focusBeliefId ?? null,
     focusInquiryId: input.focusInquiryId ?? null,
     concernId: input.concernId ?? null,
@@ -128,27 +128,28 @@ export function buildDeliberationState(input: {
     const anchor = focusBelief?.statement
       ?? primaryInquiry?.question
       ?? input.worldModel.activeThread?.title
-      ?? 'scene'
-    const thread = buildThread({
-      kind,
-      anchor,
-      summary: primaryInquiry?.question
+      ?? ''
+    if (anchor) {
+      const summary = primaryInquiry?.question
         ?? focusBelief?.statement
-        ?? 'The current world still needs another pass before it should be treated as settled.',
-      desiredOutcome: kind === 'repair-misread'
-        ? 'notice where continuity drifted away from the current world'
-        : 'see the live scene cleanly before committing to an interpretation',
-      question: primaryInquiry?.question,
-      focusBeliefId: focusBelief?.id ?? null,
-      focusInquiryId: primaryInquiry?.id ?? null,
-      concernId: dominantConcern?.id ?? null,
-      surfacePressure: 0.18 + input.beliefRevision.contradictionPressure * 0.18,
-      silencePressure: 0.42 + input.beliefRevision.groundingNeed * 0.42 + input.beliefRevision.hostCorrectionWeight * 0.12,
-      embodiedPresence: 'hesitant',
-      now: input.now,
-      previous: previousThreads.get(stableThreadId(kind, anchor)) ?? null,
-    })
-    threads.push(thread)
+        ?? input.worldModel.activeThread?.summary
+        ?? anchor
+      threads.push(buildThread({
+        kind,
+        anchor,
+        summary,
+        desiredOutcome: summary,
+        question: primaryInquiry?.question,
+        focusBeliefId: focusBelief?.id ?? null,
+        focusInquiryId: primaryInquiry?.id ?? null,
+        concernId: dominantConcern?.id ?? null,
+        surfacePressure: 0.18 + input.beliefRevision.contradictionPressure * 0.18,
+        silencePressure: 0.42 + input.beliefRevision.groundingNeed * 0.42 + input.beliefRevision.hostCorrectionWeight * 0.12,
+        embodiedPresence: 'hesitant',
+        now: input.now,
+        previous: previousThreads.get(stableThreadId(kind, anchor)) ?? null,
+      }))
+    }
   }
 
   if (
@@ -160,24 +161,28 @@ export function buildDeliberationState(input: {
       ?? dominantConcern?.summary
       ?? leadingGoal?.label
       ?? input.worldModel.activeThread?.title
-      ?? 'problem'
-    threads.push(buildThread({
-      kind: 'localize-problem',
-      anchor,
-      summary: dominantConcern?.summary
+      ?? ''
+    if (anchor) {
+      const summary = dominantConcern?.summary
         ?? primaryInquiry?.question
-        ?? 'There is a concrete knot here that should be approached at the right locus, not vaguely.',
-      desiredOutcome: 'locate the exact line, hunk, panel, or symptom that carries the real knot',
-      question: primaryInquiry?.question,
-      focusBeliefId: focusBelief?.id ?? null,
-      focusInquiryId: primaryInquiry?.id ?? null,
-      concernId: dominantConcern?.id ?? null,
-      surfacePressure: 0.38 + (dominantConcern?.tension ?? 0) * 0.24 + (input.beliefRevision.stability === 'stable' ? 0.14 : 0),
-      silencePressure: 0.18 + input.beliefRevision.groundingNeed * 0.26 + (input.relationshipModel.climate === 'guarded' ? 0.12 : 0),
-      embodiedPresence: 'attentive',
-      now: input.now,
-      previous: previousThreads.get(stableThreadId('localize-problem', anchor)) ?? null,
-    }))
+        ?? input.worldModel.activeThread?.summary
+        ?? anchor
+      threads.push(buildThread({
+        kind: 'localize-problem',
+        anchor,
+        summary,
+        desiredOutcome: summary,
+        question: primaryInquiry?.question,
+        focusBeliefId: focusBelief?.id ?? null,
+        focusInquiryId: primaryInquiry?.id ?? null,
+        concernId: dominantConcern?.id ?? null,
+        surfacePressure: 0.38 + (dominantConcern?.tension ?? 0) * 0.24 + (input.beliefRevision.stability === 'stable' ? 0.14 : 0),
+        silencePressure: 0.18 + input.beliefRevision.groundingNeed * 0.26 + (input.relationshipModel.climate === 'guarded' ? 0.12 : 0),
+        embodiedPresence: 'attentive',
+        now: input.now,
+        previous: previousThreads.get(stableThreadId('localize-problem', anchor)) ?? null,
+      }))
+    }
   }
 
   if (
@@ -185,19 +190,22 @@ export function buildDeliberationState(input: {
     || input.context.relationship.fatigue >= 55
     || input.worldModel.activeThread?.kind === 'late-night-endurance'
   ) {
-    const anchor = dominantConcern?.summary ?? input.worldModel.activeThread?.summary ?? 'care'
-    threads.push(buildThread({
-      kind: 'protect-host',
-      anchor,
-      summary: dominantConcern?.summary ?? 'The host is moving toward a threshold where care matters more than correctness.',
-      desiredOutcome: 'reduce harm to the host before the thread turns into exhaustion',
-      concernId: dominantConcern?.id ?? null,
-      surfacePressure: 0.46 + (input.context.relationship.fatigue / 100) * 0.28 + (dominantConcern?.careWeight ?? 0) * 0.14,
-      silencePressure: 0.14 + (input.relationshipModel.climate === 'guarded' ? 0.08 : 0),
-      embodiedPresence: 'concerned',
-      now: input.now,
-      previous: previousThreads.get(stableThreadId('protect-host', anchor)) ?? null,
-    }))
+    const anchor = dominantConcern?.summary ?? input.worldModel.activeThread?.summary ?? ''
+    if (anchor) {
+      const summary = dominantConcern?.summary ?? input.worldModel.activeThread?.summary ?? anchor
+      threads.push(buildThread({
+        kind: 'protect-host',
+        anchor,
+        summary,
+        desiredOutcome: summary,
+        concernId: dominantConcern?.id ?? null,
+        surfacePressure: 0.46 + (input.context.relationship.fatigue / 100) * 0.28 + (dominantConcern?.careWeight ?? 0) * 0.14,
+        silencePressure: 0.14 + (input.relationshipModel.climate === 'guarded' ? 0.08 : 0),
+        embodiedPresence: 'concerned',
+        now: input.now,
+        previous: previousThreads.get(stableThreadId('protect-host', anchor)) ?? null,
+      }))
+    }
   }
 
   if (
@@ -208,19 +216,22 @@ export function buildDeliberationState(input: {
     const anchor = resurfacingDesire?.reason
       ?? leadingGoal?.label
       ?? input.worldModel.activeThread?.summary
-      ?? 'stay-near'
-    threads.push(buildThread({
-      kind: 'stay-near',
-      anchor,
-      summary: resurfacingDesire?.reason ?? 'The shared moment is still warm enough that quiet continued presence matters.',
-      desiredOutcome: 'keep soft continuity with the host without flattening the moment into an interruption',
-      concernId: dominantConcern?.id ?? null,
-      surfacePressure: 0.3 + (input.context.system.inputActivity === 'idle' ? 0.12 : 0.02) + (input.worldModel.continuity.afterglowOpen ? 0.12 : 0),
-      silencePressure: 0.22 + (input.relationshipModel.climate === 'guarded' ? 0.12 : 0.04),
-      embodiedPresence: input.context.system.inputActivity === 'active' ? 'glance' : 'attentive',
-      now: input.now,
-      previous: previousThreads.get(stableThreadId('stay-near', anchor)) ?? null,
-    }))
+      ?? ''
+    if (anchor) {
+      const summary = resurfacingDesire?.reason ?? leadingGoal?.label ?? input.worldModel.activeThread?.summary ?? anchor
+      threads.push(buildThread({
+        kind: 'stay-near',
+        anchor,
+        summary,
+        desiredOutcome: summary,
+        concernId: dominantConcern?.id ?? null,
+        surfacePressure: 0.3 + (input.context.system.inputActivity === 'idle' ? 0.12 : 0.02) + (input.worldModel.continuity.afterglowOpen ? 0.12 : 0),
+        silencePressure: 0.22 + (input.relationshipModel.climate === 'guarded' ? 0.12 : 0.04),
+        embodiedPresence: input.context.system.inputActivity === 'active' ? 'glance' : 'attentive',
+        now: input.now,
+        previous: previousThreads.get(stableThreadId('stay-near', anchor)) ?? null,
+      }))
+    }
   }
 
   if (
@@ -229,22 +240,25 @@ export function buildDeliberationState(input: {
   ) {
     const anchor = primaryInquiry?.question
       ?? input.relationshipModel.climate
-      ?? 'return-later'
-    threads.push(buildThread({
-      kind: 'return-later',
-      anchor,
-      summary: primaryInquiry?.question ?? 'The moment feels real, but crowding it now would cost more than waiting.',
-      desiredOutcome: 'keep the thread alive without forcing an ill-timed surface move',
-      question: primaryInquiry?.question,
-      focusBeliefId: focusBelief?.id ?? null,
-      focusInquiryId: primaryInquiry?.id ?? null,
-      concernId: dominantConcern?.id ?? null,
-      surfacePressure: 0.12 + (resurfacingDesire?.strength ?? 0) * 0.08,
-      silencePressure: 0.44 + input.relationshipModel.correctionSensitivity * 0.28,
-      embodiedPresence: 'hesitant',
-      now: input.now,
-      previous: previousThreads.get(stableThreadId('return-later', anchor)) ?? null,
-    }))
+      ?? ''
+    if (anchor) {
+      const summary = primaryInquiry?.question ?? input.worldModel.activeThread?.summary ?? anchor
+      threads.push(buildThread({
+        kind: 'return-later',
+        anchor,
+        summary,
+        desiredOutcome: summary,
+        question: primaryInquiry?.question,
+        focusBeliefId: focusBelief?.id ?? null,
+        focusInquiryId: primaryInquiry?.id ?? null,
+        concernId: dominantConcern?.id ?? null,
+        surfacePressure: 0.12 + (resurfacingDesire?.strength ?? 0) * 0.08,
+        silencePressure: 0.44 + input.relationshipModel.correctionSensitivity * 0.28,
+        embodiedPresence: 'hesitant',
+        now: input.now,
+        previous: previousThreads.get(stableThreadId('return-later', anchor)) ?? null,
+      }))
+    }
   }
 
   const rankedThreads = threads

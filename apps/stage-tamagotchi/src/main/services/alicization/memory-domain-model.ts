@@ -359,54 +359,54 @@ export function resolveDomainNativeMemoryConflict(view: AlicizationDomainNativeM
   if (view.validationStatus === 'superseded') {
     return {
       conflictState: 'superseded',
-      resolverReason: `${view.conflictResolver}: superseded memory must not anchor current recall`,
+      resolverReason: `${view.conflictResolver}:superseded`,
     }
   }
   if (view.domain === 'procedure') {
     if (view.verificationNeed >= 0.42) {
       return {
         conflictState: 'verify-first',
-        resolverReason: 'versioned-procedure: procedure carries enough contradiction or weak validation to require verification before reuse',
+        resolverReason: 'versioned-procedure:verify-required',
       }
     }
     return {
       conflictState: 'usable',
-      resolverReason: 'versioned-procedure: stable enough to reuse as a skill-like memory',
+      resolverReason: 'versioned-procedure:usable',
     }
   }
   if (view.domain === 'relationship') {
     if (view.repairArcPressure >= 0.48 || view.contradictionCount >= 2) {
       return {
         conflictState: 'verify-first',
-        resolverReason: `relationship-era: era=${view.eraSeparationKey} needs separation before being surfaced`,
+        resolverReason: `relationship-era:verify-required;era=${view.eraSeparationKey}`,
       }
     }
     return {
       conflictState: 'usable',
-      resolverReason: `relationship-era: era=${view.eraSeparationKey} is stable enough for relationship continuity`,
+      resolverReason: `relationship-era:usable;era=${view.eraSeparationKey}`,
     }
   }
   if (view.domain === 'self-model') {
     if (view.staleBeliefRisk >= 0.26 || view.contradictionCount >= 2) {
       return {
         conflictState: 'suppress-stale',
-        resolverReason: 'self-narrative: stale self belief risk is too high for current self-continuity',
+        resolverReason: 'self-narrative:suppress-stale',
       }
     }
     return {
       conflictState: 'usable',
-      resolverReason: 'self-narrative: self line is stable enough to inform identity continuity',
+      resolverReason: 'self-narrative:usable',
     }
   }
   if (view.validationNeed >= 0.36) {
     return {
       conflictState: 'verify-first',
-      resolverReason: 'source-validation: world fact needs stronger source validation before use',
+      resolverReason: 'source-validation:verify-required',
     }
   }
   return {
     conflictState: 'usable',
-    resolverReason: 'source-validation: world fact is validated enough to retrieve',
+    resolverReason: 'source-validation:usable',
   }
 }
 

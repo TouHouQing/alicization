@@ -64,9 +64,7 @@ export interface AlicizationPersonStateProjection {
   activeClosenessRung: AlicizationPersonStateClosenessRung
   closenessLadder: AlicizationPersonStateClosenessLadderEntry[]
   relationshipPosture: AlicizationPersonStateRelationshipPosture | null
-  openingGuidance: string | null
   preferredProactiveStyle: AlicizationProactiveStyle | null
-  manifestationCadenceSummary: string | null
   preferenceText: string
   sensitivityText: string
   repairTriggerText: string
@@ -602,9 +600,7 @@ export function buildAlicizationPersonStateProjection(input: {
     activeClosenessRung,
     closenessLadder,
     relationshipPosture,
-    openingGuidance: null,
     preferredProactiveStyle,
-    manifestationCadenceSummary: null,
     preferenceText: hostGuidance.preferenceText || activeClosenessEntry?.preference || '',
     sensitivityText: hostGuidance.sensitivityText,
     repairTriggerText: hostGuidance.repairTriggerText,

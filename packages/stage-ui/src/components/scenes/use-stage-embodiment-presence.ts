@@ -37,66 +37,6 @@ interface Live2DActionCapability {
   motionIndex: number
 }
 
-const legacyDialogueProjectStateCueKeys = new Set([
-  'preDialogueAwarenessLine',
-  'preDialogueAwarenessSummary',
-  'awarenessLine',
-  'companionHeadlineLine',
-  'companionBriefingLine',
-  'companionNextClosureLine',
-  'sameHerSelfLine',
-  'sameHerSummary',
-  'sameHerHoldDetail',
-  'sameHerDriftRisk',
-  'sameHerDriftRiskLine',
-  'sameHerDriftRiskSummary',
-  'emotionalClosureCue',
-  'emotionalClosureSummary',
-  'continuityCue',
-  'continuityAnchor',
-  'continuityHold',
-  'continuityDriftRisk',
-  'proactiveSameHerGap',
-  'proactiveSameHerGapSummary',
-])
-
-function isLegacyDialogueProjectStateCueKey(key: string) {
-  return legacyDialogueProjectStateCueKeys.has(key)
-}
-
-function sanitizeLegacyDialogueGovernanceFields<T>(value: T): T {
-  if (Array.isArray(value))
-    return value.map(item => sanitizeLegacyDialogueGovernanceFields(item)) as T
-
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .filter(([key]) => !isLegacyDialogueProjectStateCueKey(key))
-        .map(([key, item]) => [key, sanitizeLegacyDialogueGovernanceFields(item)]),
-    ) as T
-  }
-
-  return value
-}
-
-function sanitizeFallbackProjectState(
-  projectState: AlicizationDialogueRespondedPayload['structured']['projectState'] | null | undefined,
-) {
-  if (!projectState || typeof projectState !== 'object' || Array.isArray(projectState))
-    return null
-
-  return sanitizeLegacyDialogueGovernanceFields(projectState)
-}
-
-function sanitizeFallbackRuntimeDigest(
-  runtimeDigest: AlicizationDialogueRespondedPayload['structured']['runtimeDigest'] | null | undefined,
-) {
-  if (!runtimeDigest || typeof runtimeDigest !== 'object' || Array.isArray(runtimeDigest))
-    return null
-
-  return sanitizeLegacyDialogueGovernanceFields(runtimeDigest)
-}
-
 export interface UseStageEmbodimentPresenceOptions {
   applyAttentionPerformance?: (performance: AlicizationDialoguePerformancePayload, payload: AlicizationDialogueRespondedPayload) => Promise<void> | void
   applyAttentionPresencePulse?: (payload: AlicizationPresencePulsePayload) => Promise<void> | void
@@ -126,7 +66,6 @@ export interface UseStageEmbodimentPresenceOptions {
     performance: AlicizationDialoguePerformancePayload,
     metadata?: {
       embodimentScript?: AlicizationEmbodimentScriptV1 | null
-      projectState?: AlicizationDialogueRespondedPayload['structured']['projectState'] | null
       runtimeDigest?: AlicizationDialogueRespondedPayload['structured']['runtimeDigest'] | null
     } | null,
   ) => Promise<void> | void
@@ -505,7 +444,6 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
         preferCurrentTurnVariationToken: true,
       }),
       digitalLifeSpine: payload.structured.digitalLifeSpine ?? null,
-      projectState: payload.structured.projectState ?? null,
       performanceManifest: options.performanceManifest.value,
     }) ?? rawTimeline
   }
@@ -583,7 +521,6 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
           }),
           speechTimeline: resolveAuthoritativeSpeechTimeline(payload, plannedPerformance),
           digitalLifeSpine: payload.structured.digitalLifeSpine ?? null,
-          projectState: payload.structured.projectState ?? null,
           performanceManifest: options.performanceManifest.value,
         })
         if (rebuiltDigitalLife)
@@ -826,10 +763,8 @@ export function useStageEmbodimentPresence(options: UseStageEmbodimentPresenceOp
       })
 
       const embodimentScript = resolveEmbodimentScriptMetadata(payload, plannedPerformance)
-      const projectState = sanitizeFallbackProjectState(payload.structured.projectState)
-      const runtimeDigest = sanitizeFallbackRuntimeDigest(payload.structured.runtimeDigest)
+      const runtimeDigest = payload.structured.runtimeDigest ?? null
       await options.speakFallback(reply, plannedPerformance, {
-        ...(projectState ? { projectState } : {}),
         ...(runtimeDigest ? { runtimeDigest } : {}),
         ...(embodimentScript ? { embodimentScript } : {}),
       })

@@ -26,10 +26,6 @@ import { useAiriCardStore } from '@proj-alicization/stage-ui/stores/modules/airi
 import { useConsciousnessStore } from '@proj-alicization/stage-ui/stores/modules/consciousness'
 import { usePerfTracerBridgeStore } from '@proj-alicization/stage-ui/stores/perf-tracer-bridge'
 import { listProvidersForPluginHost, shouldPublishPluginHostCapabilities } from '@proj-alicization/stage-ui/stores/plugin-host-capabilities'
-import {
-  projectStateObservationToContinuitySnapshot,
-  readConversationTurnProjectStateObservation,
-} from '@proj-alicization/stage-ui/stores/project-state-observation'
 import { useProvidersStore } from '@proj-alicization/stage-ui/stores/providers'
 import { useSettings } from '@proj-alicization/stage-ui/stores/settings'
 import { useTheme } from '@proj-alicization/ui'
@@ -382,29 +378,6 @@ function summarizeAlicizationVisibleReplyClosureForRenderer(
     summary.finalCriticStatus = raw.finalCriticStatus.trim()
 
   return summary
-}
-
-async function readLatestRendererProjectStateObservation() {
-  const sessionId = activeSessionId.value?.trim() ?? ''
-  if (!sessionId)
-    return null
-
-  const turns = await alicizationListConversationTurns({
-    ...resolveAlicizationScope(),
-    sessionId,
-    limit: 240,
-  }).catch(() => [])
-
-  for (let index = turns.length - 1; index >= 0; index -= 1) {
-    const observation = readConversationTurnProjectStateObservation({
-      ...turns[index],
-      origin: 'user-turn',
-    })
-    if (observation)
-      return observation
-  }
-
-  return null
 }
 
 function cloneProviderCredentials() {
@@ -1081,10 +1054,6 @@ setAlicizationBridge({
   memoryWorkbenchListEmbeddingModels: async payload => await memoryWorkbenchListEmbeddingModels({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchTestEmbeddingConnection: async payload => await memoryWorkbenchTestEmbeddingConnection({ ...resolveAlicizationScope(), ...payload }),
   getOrganicMemorySnapshot: async () => await alicizationGetOrganicMemorySnapshot(resolveAlicizationScope()),
-  getLatestProjectStateObservation: async () => await readLatestRendererProjectStateObservation(),
-  getProjectStateContinuitySnapshot: async () => projectStateObservationToContinuitySnapshot(
-    await readLatestRendererProjectStateObservation(),
-  ),
   getSelfEvolutionState: async () => await alicizationGetSelfEvolutionState(resolveAlicizationScope()),
   searchOrganicSubconsciousFragments: async payload => await alicizationSearchOrganicSubconsciousFragments({ ...resolveAlicizationScope(), ...payload }),
   getPerformanceManifest: async () => sanitizeCharacterPerformanceManifest(

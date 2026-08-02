@@ -74,7 +74,6 @@ const validHostGoals = new Set<AlicizationHostGoalHypothesis>([
   'keep-going',
   'finish-one-more-step',
   'resume-work',
-  'continue-phase-1-line',
   'unknown',
 ])
 

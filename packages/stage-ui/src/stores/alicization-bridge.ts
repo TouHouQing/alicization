@@ -94,7 +94,6 @@ import type {
   AlicizationRunReplayBenchmarkInput as SharedAlicizationRunReplayBenchmarkInput,
   AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
   AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
-  AlicizationRuntimeProjectStateDigest as SharedAlicizationRuntimeProjectStateDigest,
   AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfEvolutionVersionRuntimeSnapshot as SharedAlicizationSelfEvolutionVersionRuntimeSnapshot,
   AlicizationSensoryCacheSnapshot as SharedAlicizationSensoryCacheSnapshot,
@@ -674,99 +673,6 @@ export interface AlicizationConversationTurnInput {
   createdAt?: number
 }
 
-export interface AlicizationProjectStateObservation {
-  turnId: string
-  sessionId: string
-  origin: 'user-turn' | 'subconscious-proactive'
-  nonHumanAuthoredStatus: string | null
-  preDialogueAwareness?: {
-    status: 'grounded' | 'partial' | 'drift'
-    summaryLine: string | null
-    companionHeadlineLine?: string | null
-    companionBriefingLine?: string | null
-    companionNextClosureLine?: string | null
-    awarenessLine?: string | null
-    emotionalClosureCue?: string | null
-    reasonPreview: string[]
-  } | null
-  preDialogueClosure?: {
-    status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
-    summaryLine: string | null
-    emotionalClosureCue?: string | null
-    companionHeadlineLine?: string | null
-    sameHerDriftRiskLine?: string | null
-    companionshipReasonLine?: string | null
-    companionBriefingLine?: string | null
-    companionNextClosureLine?: string | null
-    briefingLines?: string[]
-    reasons: string[]
-  } | null
-  projectState: {
-    identity: string
-    currentPhase: string
-    latestLandedProgress: string | null
-    latestProgress?: string | null
-    primaryOpenLoop: string | null
-    nextClosureTarget: string
-    continuitySummary?: string | null
-    continuityRestraint?: string | null
-    continuityArcStage?: string | null
-    continuityPreferredTiming?: string | null
-    continuityCadence?: string | null
-    continuityCue?: string | null
-    sameHerSelfLine?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRisk?: string | null
-    proactiveSameHerGap?: string | null
-  }
-}
-
-export interface AlicizationProjectStateContinuitySnapshot {
-  identity: string | null
-  currentPhase: string | null
-  latestLandedProgress: string | null
-  latestProgress?: string | null
-  primaryOpenLoop: string | null
-  nextClosureTarget: string | null
-  continuitySummary?: string | null
-  continuityRestraint?: string | null
-  continuityArcStage?: string | null
-  continuityPreferredTiming?: string | null
-  continuityCadence?: string | null
-  continuityCue?: string | null
-  sameHerSelfLine?: string | null
-  sameHerHoldDetail?: string | null
-  sameHerDriftRisk?: string | null
-  proactiveSameHerGap?: string | null
-  emotionalClosureCue?: string | null
-  preDialogueAwareness?: {
-    status: 'grounded' | 'partial' | 'drift'
-    summaryLine: string | null
-    companionHeadlineLine?: string | null
-    companionBriefingLine?: string | null
-    companionNextClosureLine?: string | null
-    awarenessLine?: string | null
-    emotionalClosureCue?: string | null
-    reasonPreview: string[]
-  } | null
-  preDialogueClosure?: {
-    status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
-    summaryLine: string | null
-    emotionalClosureCue?: string | null
-    companionHeadlineLine?: string | null
-    sameHerDriftRiskLine?: string | null
-    companionshipReasonLine?: string | null
-    companionBriefingLine?: string | null
-    companionNextClosureLine?: string | null
-    briefingLines?: string[]
-    reasons: string[]
-  } | null
-  nonHumanAuthoredStatus: string | null
-  turnId: string
-  sessionId: string
-  origin: 'user-turn' | 'subconscious-proactive'
-}
-
 export type AlicizationMindTurnEventKind = SharedAlicizationMindTurnEventKind
 
 export type AlicizationMindTurnEventRecord = SharedAlicizationMindTurnEventRecord
@@ -960,7 +866,6 @@ export type AlicizationHostGoalHypothesis
     | 'keep-going'
     | 'finish-one-more-step'
     | 'resume-work'
-    | 'continue-phase-1-line'
     | 'unknown'
 export type AlicizationRelationshipNeed = 'space' | 'companionship' | 'guidance' | 'care' | 'unclear'
 export type AlicizationConcernKind
@@ -1639,7 +1544,6 @@ export interface AlicizationExecutiveCycleSnapshot {
 
 export type AlicizationDialogueAnswerSubject
   = | 'alicization-self'
-    | 'project-state'
     | 'relationship'
     | 'host-state'
     | 'task-knot'
@@ -2084,8 +1988,6 @@ export interface AlicizationInitiativeSnapshot {
     silenceReconnect: string | null
     comfortStyle: string | null
     preferredProactiveStyle: string | null
-    manifestationCadenceSummary: string | null
-    openingGuidance: string | null
     whySummary: string | null
   } | null
   why: string
@@ -2248,7 +2150,6 @@ export type AlicizationEmbodimentScriptV1 = SharedAlicizationEmbodimentScriptV1
 export type AlicizationDigitalLifeEnvelope = SharedAlicizationDigitalLifeEnvelope
 export type AlicizationDigitalLifeSpineDigest = SharedAlicizationDigitalLifeSpineDigest
 export type AlicizationRuntimeDigest = SharedAlicizationRuntimeDigest
-export type AlicizationRuntimeProjectStateDigest = SharedAlicizationRuntimeProjectStateDigest
 export type AlicizationEmotionalKernelSnapshot = SharedAlicizationEmotionalKernelSnapshot
 export type AlicizationDialogueSpeechTimeline = SharedAlicizationDialogueSpeechTimeline
 export type AlicizationResidentPerformanceSnapshot = SharedAlicizationResidentPerformanceSnapshot
@@ -2402,8 +2303,6 @@ interface AlicizationBridge {
   memoryWorkbenchListEmbeddingModels?: (payload: Omit<AlicizationMemoryEmbeddingModelListPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingModelListResult>
   memoryWorkbenchTestEmbeddingConnection?: (payload: Omit<AlicizationMemoryEmbeddingConnectionTestPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingConnectionTestResult>
   getOrganicMemorySnapshot?: () => Promise<AlicizationOrganicMemorySnapshot>
-  getLatestProjectStateObservation?: () => Promise<AlicizationProjectStateObservation | null>
-  getProjectStateContinuitySnapshot?: () => Promise<AlicizationProjectStateContinuitySnapshot | null>
   getSelfEvolutionState?: () => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot>
   searchOrganicSubconsciousFragments?: (payload: { query: string, limit?: number }) => Promise<AlicizationSubconsciousFragment[]>
   getPerformanceManifest?: () => Promise<CharacterPerformanceCapabilitiesManifest | null>

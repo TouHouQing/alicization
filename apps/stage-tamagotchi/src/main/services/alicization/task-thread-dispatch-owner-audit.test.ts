@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 import {
+  collectAlicizationExecutionDispatchCandidateFiles,
+} from './execution-dispatch-entrypoint-candidate-audit'
+import {
   collectAlicizationExecutionDispatchOwnerFiles,
   resolveAlicizationTaskThreadDispatchOwnerAuditFiles,
   resolveAlicizationTaskThreadDispatchOwnerAuditRegistry,
@@ -18,12 +21,13 @@ describe('task-thread dispatch owner audit', () => {
       .toEqual(discoveredFiles)
   })
 
-  it('requires adjacent route-level governance proofs to reuse one shared execution-dispatch discovery helper instead of drifting through copy-pasted scanners', () => {
-    const registrySource = readFileSync(new URL('./entrypoint-governance-registry-audit.test.ts', import.meta.url), 'utf8')
-    const routeAuthoritySource = readFileSync(new URL('./project-awareness-route-authority-audit.test.ts', import.meta.url), 'utf8')
+  it('keeps the broader execution-dispatch candidate scan aligned with the independent owner registry', () => {
+    const rootDir = new URL('.', import.meta.url).pathname
+    const registeredFiles = new Set<string>(resolveAlicizationTaskThreadDispatchOwnerAuditFiles())
+    const uncoveredCandidates = collectAlicizationExecutionDispatchCandidateFiles(rootDir)
+      .filter(relativePath => !registeredFiles.has(relativePath))
 
-    expect(registrySource).toContain('collectAlicizationExecutionDispatchOwnerFiles(')
-    expect(routeAuthoritySource).toContain('collectAlicizationExecutionDispatchOwnerFiles(')
+    expect(uncoveredCandidates).toEqual([])
   })
 
   it('requires invoke-handler owners to keep kill-switch and DB wiring explicit before direct task dispatch', () => {

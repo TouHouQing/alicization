@@ -332,10 +332,3 @@ export function buildClaimEvidenceLedger(input: {
     updatedAt: input.now,
   }
 }
-
-export function buildClaimEvidenceLedgerSystemBlock(
-  state: AlicizationClaimEvidenceLedgerSnapshot | null | undefined,
-) {
-  void state
-  return ''
-}

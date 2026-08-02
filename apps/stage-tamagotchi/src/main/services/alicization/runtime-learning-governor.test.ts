@@ -65,10 +65,6 @@ describe('runtime learning governor', () => {
     )
     expect(scheduleOrganicLearningAction).toHaveBeenCalledWith(expect.objectContaining({
       context: expect.objectContaining({
-        projectStatePreDialogueAwarenessLine: null,
-        projectStatePreflightSummary: null,
-        projectStateContinuity: null,
-        activeContinuityGovernance: null,
         recentMemoryReflections: expect.arrayContaining([
           expect.objectContaining({
             id: 'reflection-1',

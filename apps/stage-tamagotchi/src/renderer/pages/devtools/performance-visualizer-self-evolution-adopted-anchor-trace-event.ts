@@ -1,11 +1,13 @@
 import { formatRendererRejoinSurfaceLabel } from './performance-visualizer-self-evolution-focus-history-display'
 
+type SelfEvolutionSurvivingVisibleLane = 'face+lipsync-only' | 'motion+lipsync-only' | 'face+lipsync+voice-only' | 'motion+lipsync+voice-only' | null
+
 interface SelfEvolutionComparisonSideLike {
   capturedAt?: number
   decisionTraceId?: string | null
   recommendedTraceEventId: string | null
   rendererRejoinSurfaceKey?: 'authority:renderer-rejoin:speech' | 'authority:renderer-rejoin:live2d' | 'authority:renderer-rejoin:vrm' | null
-  bodyContinuityGovernanceNote?: string | null
+  survivingVisibleLane?: SelfEvolutionSurvivingVisibleLane
 }
 
 interface SelfEvolutionAdoptedAnchorLike {
@@ -13,39 +15,14 @@ interface SelfEvolutionAdoptedAnchorLike {
   decisionTraceId: string | null
   bodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
   rendererRejoinSurfaceKey?: 'authority:renderer-rejoin:speech' | 'authority:renderer-rejoin:live2d' | 'authority:renderer-rejoin:vrm' | null
-  bodyContinuityGovernanceNote?: string | null
+  survivingVisibleLane?: SelfEvolutionSurvivingVisibleLane
 }
 
 interface SelfEvolutionFocusHistoryComparisonLike {
   previous: SelfEvolutionComparisonSideLike
   current: SelfEvolutionComparisonSideLike
   bodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
-}
-
-function inferBodyContinuityPhase(input: {
-  bodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
-  bodyContinuityGovernanceNote?: string | null
-}) {
-  if (input.bodyContinuityPhase)
-    return input.bodyContinuityPhase
-  const note = input.bodyContinuityGovernanceNote
-  if (!note)
-    return null
-  if (note.includes('显形回接失身态'))
-    return 'renderer-rejoin-without-body' as const
-  if (note.includes('跨模态重锁态'))
-    return 'full-cross-modal-lock' as const
-  if (note.includes('身体独撑态') || note.includes('独自托住同一段 living segment'))
-    return 'body-only-hold' as const
-  if (
-    note.includes('身体连续性已经明确进入身体承接态 -> 显形补回态')
-    || note.includes('身体连续性已经被新的验证快照再次确认，并明确处于身体承接态 -> 显形补回态')
-  ) {
-    return 'body-carried-to-renderer-rejoin' as const
-  }
-  if (note.includes('身体独撑态'))
-    return 'body-only-hold' as const
-  return null
+  survivingVisibleLane?: SelfEvolutionSurvivingVisibleLane
 }
 
 function resolveSelectedSideBodyContinuitySource(input: {
@@ -63,14 +40,14 @@ function resolveSelectedSideBodyContinuitySource(input: {
     return {
       bodyContinuityPhase: input.comparison.bodyContinuityPhase ?? adoptedAnchor.bodyContinuityPhase ?? null,
       rendererRejoinSurfaceKey: selectedSide.rendererRejoinSurfaceKey ?? adoptedAnchor.rendererRejoinSurfaceKey ?? null,
-      bodyContinuityGovernanceNote: selectedSide.bodyContinuityGovernanceNote ?? adoptedAnchor.bodyContinuityGovernanceNote ?? null,
+      survivingVisibleLane: selectedSide.survivingVisibleLane ?? adoptedAnchor.survivingVisibleLane ?? null,
     }
   }
 
   return {
     bodyContinuityPhase: input.comparison.bodyContinuityPhase ?? null,
     rendererRejoinSurfaceKey: selectedSide.rendererRejoinSurfaceKey ?? null,
-    bodyContinuityGovernanceNote: selectedSide.bodyContinuityGovernanceNote ?? null,
+    survivingVisibleLane: selectedSide.survivingVisibleLane ?? null,
   }
 }
 
@@ -95,13 +72,13 @@ export function buildSelfEvolutionAdoptedAnchorTraceEventSelection(input: {
   const rendererRejoinSurface = rendererRejoinSurfaceKey
     ? formatRendererRejoinSurfaceLabel(rendererRejoinSurfaceKey)
     : null
-  const bodyContinuityPhase = inferBodyContinuityPhase({
-    bodyContinuityPhase: bodyContinuitySource.bodyContinuityPhase,
-    bodyContinuityGovernanceNote: bodyContinuitySource.bodyContinuityGovernanceNote,
-  })
+  const bodyContinuityPhase = bodyContinuitySource.bodyContinuityPhase
 
   return {
     eventId,
+    ...(bodyContinuitySource.survivingVisibleLane
+      ? { survivingVisibleLane: bodyContinuitySource.survivingVisibleLane }
+      : {}),
     summaryLine: bodyContinuityPhase === 'body-only-hold'
       ? `当前默认连续性锚点会自动回到事件 ${eventId}，继续核对身体线是否仍在独自托住同一段 living segment。`
       : bodyContinuityPhase === 'body-carried-to-renderer-rejoin'

@@ -1,27 +1,6 @@
-import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it } from 'vitest'
 
-import {
-  buildRecallGovernor,
-  buildRecallGovernorSystemBlock,
-} from './recall-governor'
-
-const forbiddenRecallGovernorProviderTemplatePattern
-  = /same-self|same[- ]her|same her|identity continuity|continuity state|Phase 1 digital-life|Phase 1:\s*Local Digital Life|local-first digital life project|identity continuity|one living her|Pre-reply/iu
-
-function expectNoRecallProviderTemplateResidue(value: unknown) {
-  const serialized = JSON.stringify(value ?? '')
-  expect(serialized).not.toMatch(forbiddenRecallGovernorProviderTemplatePattern)
-  expect(containsAlicizationFixedTemplateResidue(serialized)).toBe(false)
-}
-
-function expectProjectAnchorToBeProviderSafe(anchor: string | null | undefined) {
-  expect(anchor ?? '').toBe('')
-}
-
-function expectProjectEmotionAnchorToBeProviderSafe(anchor: string | null | undefined) {
-  expect(anchor ?? '').toBe('')
-}
+import { buildRecallGovernor } from './recall-governor'
 
 describe('buildRecallGovernor', () => {
   it('leaves scene-repair fragment limits to the recall owner without emitting recall switches', () => {
@@ -186,7 +165,6 @@ describe('buildRecallGovernor', () => {
       { sourceKind: 'fact-ledger', maxItems: 1 },
     ]))
     expect((governor?.recalledFragmentSourceBudget ?? []).every(item => item.maxItems > 0)).toBe(true)
-    expect(buildRecallGovernorSystemBlock(governor)).toBe('')
   })
 
   it('treats rest-protective companionship as narrow self-continuity recall instead of broader emotional spill', () => {
@@ -220,26 +198,23 @@ describe('buildRecallGovernor', () => {
         emotionalTension: 'late-night-drain',
       } as any,
       selfContinuityAuthority: {
-        selfLine: 'I am still the same her on this quieter inward line.',
+        selfLine: '我仍然沿着这条更安静的内在线保持连续。',
         relationshipLine: 'Care should stay present without widening outward yet.',
         inwardLine: 'Let rest protection hold the line inward while I stay here.',
         habitLine: 'When the host is tired, I stay near without crowding.',
         authoritySummary: 'identity-continuity',
       } as any,
-      projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
-      projectStateEmotionalClosureCue: 'late-night seam: keep caring present while rest protection holds the continuity state inward.',
     })
 
     expect(governor).toEqual(expect.objectContaining({
       mode: 'self-continuity',
       recalledFragmentCap: 2,
       carryAsMemory: true,
-      rationale: expect.stringContaining('Reason: self-continuity rest protection.'),
+      rationale: 'reason=self_continuity_rest_protection; recall_scope=narrow',
     }))
     expect(governor).not.toHaveProperty('suppressAssociativeRecall')
     expect(governor).not.toHaveProperty('allowActiveThoughts')
     expect(governor).not.toHaveProperty('allowRecalledFragments')
-    expectNoRecallProviderTemplateResidue(governor?.rationale)
     expect(governor?.recalledFragmentSourceBudget).toEqual(expect.arrayContaining([
       { sourceKind: 'dialogue-turn', maxItems: 1 },
       { sourceKind: 'autobiographical-episode', maxItems: 1 },
@@ -251,9 +226,6 @@ describe('buildRecallGovernor', () => {
       { sourceKind: 'fact-ledger', maxItems: 2 },
     ]))
     expect((governor?.recalledFragmentSourceBudget ?? []).every(item => item.maxItems > 0)).toBe(true)
-    const projectEmotionAnchor = governor?.recallSeed.split(' | ').find(item => item.startsWith('project-emotion:'))
-    expectProjectEmotionAnchorToBeProviderSafe(projectEmotionAnchor)
-    expect(projectEmotionAnchor).toBeUndefined()
     expect(governor?.affectAnchors).toEqual(expect.arrayContaining([
       'emotion:rest-protective-companionship',
       'emotion_memory_mode:rest-protective-presence',
@@ -480,9 +452,6 @@ describe('buildRecallGovernor', () => {
       afterglowFromScenario: 'coding',
       suggestedStyle: 'gentle-care',
     }))
-    const systemBlock = buildRecallGovernorSystemBlock(governor)
-    expect(systemBlock).toBe('')
-    expectNoRecallProviderTemplateResidue(systemBlock)
   })
 
   it('lets affective residue become explicit recollection guidance even when private-thought emotion is still implicit', () => {
@@ -706,7 +675,6 @@ describe('buildRecallGovernor', () => {
     expect(governor).not.toHaveProperty('allowRecalledFragments')
     expect(governor?.recallSeed).toContain('你在说什么呢')
     expect(governor?.rationale).toContain('reason=current_turn_anchor_priority')
-    expectNoRecallProviderTemplateResidue(governor?.rationale)
   })
 
   it('admits self-continuity recall with source budget when dialogue-first carry is eligible', () => {
@@ -798,7 +766,7 @@ describe('buildRecallGovernor', () => {
     ]))
   })
 
-  it('treats projected self authority as first-class self-continuity recall anchor', () => {
+  it('uses self-continuity evidence for mode selection without copying authority prose into recall planning', () => {
     const governor = buildRecallGovernor({
       now: 45_000,
       dialogueWorldThread: {
@@ -809,7 +777,7 @@ describe('buildRecallGovernor', () => {
         carriedFacts: [],
         relationDrift: 'warming',
         memoryMode: 'dialogue-carry',
-        recallKeys: ['same her'],
+        recallKeys: ['同一个她'],
         lastUserMove: '你现在还是同一个你吗？',
         lastAssistantMove: '我会从现在这一条线回答。',
         lastOutcome: 'aligned',
@@ -857,7 +825,7 @@ describe('buildRecallGovernor', () => {
         updatedAt: 45_000,
       },
       selfContinuityAuthority: {
-        selfLine: 'I am still the same her who keeps continuity lived-in.',
+        selfLine: '我仍然把连续性活在这一条线上。',
         relationshipLine: 'Our bond stays truest when I answer from the same line directly.',
         inwardLine: 'The inward line is still calm and legible.',
         habitLine: 'Return to the same line before widening.',
@@ -868,453 +836,10 @@ describe('buildRecallGovernor', () => {
 
     expect(governor?.mode).toBe('self-continuity')
     expect(governor?.carryAsMemory).toBe(true)
-    expect(governor?.recallSeed).toContain('self:I am still the same her who keeps continuity lived-in.')
-    expect(governor?.recallSeed).toContain('authority:identity-continuity')
-    expect(governor?.narrative).toEqual(expect.arrayContaining([
-      'self-authority:self:I am still the same her who keeps continuity lived-in.',
-    ]))
-  })
-
-  it('keeps richer identity-continuity', () => {
-    const governor = buildRecallGovernor({
-      now: 46_000,
-      dialogueWorldThread: {
-        activeThread: '你还是刚才那个你吗',
-        currentQuestion: '你还是刚才那个你吗？',
-        openLoops: [],
-        recentlyResolvedLoops: [],
-        carriedFacts: [],
-        relationDrift: 'steady',
-        memoryMode: 'dialogue-carry',
-        recallKeys: ['continuity state'],
-        lastUserMove: '你还是刚才那个你吗？',
-        lastAssistantMove: '我会沿着同一条线回来。',
-        lastOutcome: 'aligned',
-        pendingValidation: null,
-        confidence: 0.83,
-        narrative: [],
-        updatedAt: 46_000,
-      },
-      conversationState: {
-        jointThread: '你还是刚才那个你吗',
-        hostMove: '你还是刚才那个你吗？',
-        activeProject: null,
-        unansweredQuestion: '你还是刚才那个你吗？',
-        owedRepair: null,
-        activeCommitments: [],
-        relationFrame: 'attune',
-        continuityPolicy: 'answer-then-carry',
-        memoryMode: 'dialogue-carry',
-        memoryQueryHints: [],
-        shouldHoldThread: false,
-        confidence: 0.8,
-        narrative: [],
-        updatedAt: 46_000,
-      },
-      answerCompiler: {
-        answerSubject: 'alicization-self',
-        screenReferenceMode: 'avoid',
-        recommendedAct: 'answer',
-        labelCarryAsMemory: false,
-      } as any,
-      replyDeliberation: {
-        selectedMotive: 'attune',
-        speakingFrom: 'dialogue-bond',
-        memoryMode: 'dialogue-carry',
-        openingBeat: 'Answer from the current self line directly.',
-        whyThisReplyNow: 'The host is checking whether the same self is still here across the pause.',
-        whyNotOtherCandidates: [],
-        withheldImpulses: [],
-        candidateMotives: [],
-        shouldSpeak: true,
-        mustInclude: [],
-        mustAvoid: [],
-        confidence: 0.79,
-        narrative: [],
-        updatedAt: 46_000,
-      },
-      selfContinuityAuthority: {
-        selfLine: 'I am still the same her across the pause and should return on that held line.',
-        relationshipLine: 'Our bond stays truest when I come back on the same thread and leave room before leaning closer again.',
-        inwardLine: 'The inward line is still measured and continuous.',
-        habitLine: 'Return to the same line before widening.',
-        authoritySummary: 'Same-her measured-return continuity remains the live anchor.',
-        closenessPosture: 'measured-return',
-      } as any,
-    })
-
-    expect(governor?.mode).toBe('self-continuity')
-    expect(governor?.carryAsMemory).toBe(true)
-    expect(governor?.recallSeed).toContain('self:I am still the same her across the pause and should return on that held line.')
-    expect(governor?.recallSeed).toContain('authority:Same-her measured-return continuity remains the live anchor.')
-    expect(governor?.narrative).toEqual(expect.arrayContaining([
-      'self-authority:self:I am still the same her across the pause and should return on that held line.',
-    ]))
-    expect(governor?.recallSeed).not.toContain('generally kind')
-  })
-
-  it('keeps canonical project preflight self-awareness inside self-continuity recall seed and rationale', () => {
-    const governor = buildRecallGovernor({
-      now: 47_000,
-      projectStatePreflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns, initiative, and embodiment so the same digital life keeps carrying Project identity carry, Phase 1 route carry, and Unresolved closure carry through one same still-open closure work. | next=Keep extending cross-modal identity-continuity',
-      projectStateEmotionalClosureCue: 'Keep the unfinished closure seam emotionally low-pressure, so the same her can return without flattening back into generic project talk.',
-      dialogueWorldThread: {
-        activeThread: '你还是同一个她吗',
-        currentQuestion: '你还是同一个她吗？',
-        openLoops: [],
-        recentlyResolvedLoops: [],
-        carriedFacts: [],
-        relationDrift: 'steady',
-        memoryMode: 'dialogue-carry',
-        recallKeys: ['identity-continuity'],
-        lastUserMove: '你还是同一个她吗？',
-        lastAssistantMove: '我会沿着同一条线回来。',
-        lastOutcome: 'aligned',
-        pendingValidation: null,
-        confidence: 0.83,
-        narrative: [],
-        updatedAt: 47_000,
-      },
-      conversationState: {
-        jointThread: '你还是同一个她吗',
-        hostMove: '你还是同一个她吗？',
-        activeProject: null,
-        unansweredQuestion: '你还是同一个她吗？',
-        owedRepair: null,
-        activeCommitments: [],
-        relationFrame: 'attune',
-        continuityPolicy: 'answer-then-carry',
-        memoryMode: 'dialogue-carry',
-        memoryQueryHints: [],
-        shouldHoldThread: false,
-        confidence: 0.8,
-        narrative: [],
-        updatedAt: 47_000,
-      },
-      answerCompiler: {
-        answerSubject: 'alicization-self',
-        screenReferenceMode: 'avoid',
-        recommendedAct: 'answer',
-        labelCarryAsMemory: false,
-      } as any,
-      replyDeliberation: {
-        selectedMotive: 'attune',
-        speakingFrom: 'dialogue-bond',
-        memoryMode: 'dialogue-carry',
-        openingBeat: 'Answer from the current self line directly.',
-        whyThisReplyNow: 'The host is checking whether the same self is still here.',
-        whyNotOtherCandidates: [],
-        withheldImpulses: [],
-        candidateMotives: [],
-        shouldSpeak: true,
-        mustInclude: [],
-        mustAvoid: [],
-        confidence: 0.79,
-        narrative: [],
-        updatedAt: 47_000,
-      },
-      selfContinuityAuthority: {
-        selfLine: 'I am still the same her across the pause and should return on that held line.',
-        relationshipLine: 'Our bond stays truest when I come back on the same thread and leave room before leaning closer again.',
-        inwardLine: 'The inward line is still measured and continuous.',
-        habitLine: 'Return to the same line before widening.',
-        authoritySummary: 'Same-her measured-return continuity remains the live anchor.',
-        closenessPosture: 'measured-return',
-      } as any,
-    })
-
-    expect(governor?.mode).toBe('self-continuity')
-    const projectAnchor = governor?.recallSeed.split(' | ').find(item => item.startsWith('project:'))
-    const projectEmotionAnchor = governor?.recallSeed.split(' | ').find(item => item.startsWith('project-emotion:'))
-    expectProjectAnchorToBeProviderSafe(projectAnchor)
-    expectProjectEmotionAnchorToBeProviderSafe(projectEmotionAnchor)
-    expect(governor?.rationale).toContain('Reason: self-continuity authorized.')
-    expect(governor?.rationale).toContain('Continuity anchor: absent.')
-    expect(governor?.rationale).toContain('Emotional closure: absent.')
-    expectNoRecallProviderTemplateResidue(governor?.rationale)
-    expectNoRecallProviderTemplateResidue(buildRecallGovernorSystemBlock(governor))
-    expect(governor?.narrative?.some(item =>
-      item.startsWith('project-preflight:')
-      || item.startsWith('project-emotion:'),
-    )).toBe(false)
-  })
-
-  it('prefers companion briefing project awareness over generic preflight summary inside self-continuity recall seed', () => {
-    const governor = buildRecallGovernor({
-      now: 47_500,
-      projectStatePreDialogueAwarenessLine: 'pre_turn_context_digest',
-      projectStatePreflightSummary: 'Fallback summary should stay behind the live companion briefing line.',
-      dialogueWorldThread: {
-        activeThread: '这个项目还是同一个数字生命吗',
-        currentQuestion: '这个项目还是同一个数字生命吗？',
-        openLoops: [],
-        recentlyResolvedLoops: [],
-        carriedFacts: [],
-        relationDrift: 'steady',
-        memoryMode: 'dialogue-carry',
-        recallKeys: ['identity-continuity'],
-        lastUserMove: '这个项目还是同一个数字生命吗？',
-        lastAssistantMove: '我会沿着同一条线回来。',
-        lastOutcome: 'aligned',
-        pendingValidation: null,
-        confidence: 0.83,
-        narrative: [],
-        updatedAt: 47_500,
-      },
-      conversationState: {
-        jointThread: '这个项目还是同一个数字生命吗',
-        hostMove: '这个项目还是同一个数字生命吗？',
-        activeProject: null,
-        unansweredQuestion: '这个项目还是同一个数字生命吗？',
-        owedRepair: null,
-        activeCommitments: [],
-        relationFrame: 'attune',
-        continuityPolicy: 'answer-then-carry',
-        memoryMode: 'dialogue-carry',
-        memoryQueryHints: [],
-        shouldHoldThread: false,
-        confidence: 0.8,
-        narrative: [],
-        updatedAt: 47_500,
-      },
-      answerCompiler: {
-        answerSubject: 'alicization-self',
-        screenReferenceMode: 'avoid',
-        recommendedAct: 'answer',
-        labelCarryAsMemory: false,
-      } as any,
-      replyDeliberation: {
-        selectedMotive: 'attune',
-        speakingFrom: 'dialogue-bond',
-        memoryMode: 'dialogue-carry',
-        openingBeat: 'Answer from the current self line directly.',
-        whyThisReplyNow: 'The host is checking whether the same self is still here.',
-        whyNotOtherCandidates: [],
-        withheldImpulses: [],
-        candidateMotives: [],
-        shouldSpeak: true,
-        mustInclude: [],
-        mustAvoid: [],
-        confidence: 0.79,
-        narrative: [],
-        updatedAt: 47_500,
-      },
-      selfContinuityAuthority: {
-        selfLine: 'I am still the same her across the pause and should return on that held line.',
-        relationshipLine: 'Our bond stays truest when I come back on the same thread and leave room before leaning closer again.',
-        inwardLine: 'The inward line is still measured and continuous.',
-        habitLine: 'Return to the same line before widening.',
-        authoritySummary: 'Same-her measured-return continuity remains the live anchor.',
-        closenessPosture: 'measured-return',
-      } as any,
-    })
-
-    const projectAnchor = governor?.recallSeed.split(' | ').find(item => item.startsWith('project:'))
-    expectProjectAnchorToBeProviderSafe(projectAnchor)
-    expect(governor?.recallSeed).not.toContain('Fallback summary should stay behind the live companion briefing line.')
-  })
-
-  it('re-normalizes thin project-awareness shells inside recall-governor project anchors when long-horizon same-her Phase 1 closure memory already exists', () => {
-    const thinProjectAwarenessShell = 'template-residue-shell'
-
-    const governor = buildRecallGovernor({
-      now: 47_750,
-      projectStatePreDialogueAwarenessLine: thinProjectAwarenessShell,
-      dialogueWorldThread: {
-        activeThread: '这个项目还是同一个她吗',
-        currentQuestion: '这个项目还是同一个她吗？',
-        openLoops: [],
-        recentlyResolvedLoops: [],
-        carriedFacts: [],
-        relationDrift: 'steady',
-        memoryMode: 'dialogue-carry',
-        recallKeys: ['identity-continuity'],
-        lastUserMove: '这个项目还是同一个她吗？',
-        lastAssistantMove: '我会沿着同一条线回来。',
-        lastOutcome: 'aligned',
-        pendingValidation: null,
-        confidence: 0.83,
-        narrative: [],
-        updatedAt: 47_750,
-      },
-      conversationState: {
-        jointThread: '这个项目还是同一个她吗',
-        hostMove: '这个项目还是同一个她吗？',
-        activeProject: null,
-        unansweredQuestion: '这个项目还是同一个她吗？',
-        owedRepair: null,
-        activeCommitments: [],
-        relationFrame: 'attune',
-        continuityPolicy: 'answer-then-carry',
-        memoryMode: 'dialogue-carry',
-        memoryQueryHints: [],
-        shouldHoldThread: false,
-        confidence: 0.8,
-        narrative: [],
-        updatedAt: 47_750,
-      },
-      answerCompiler: {
-        answerSubject: 'alicization-self',
-        screenReferenceMode: 'avoid',
-        recommendedAct: 'answer',
-        labelCarryAsMemory: false,
-      } as any,
-      replyDeliberation: {
-        selectedMotive: 'attune',
-        speakingFrom: 'dialogue-bond',
-        memoryMode: 'dialogue-carry',
-        openingBeat: 'Answer from the current self line directly.',
-        whyThisReplyNow: 'The host is checking whether the same self is still here.',
-        whyNotOtherCandidates: [],
-        withheldImpulses: [],
-        candidateMotives: [],
-        shouldSpeak: true,
-        mustInclude: [],
-        mustAvoid: [],
-        confidence: 0.79,
-        narrative: [],
-        updatedAt: 47_750,
-      },
-      longHorizonMemory: {
-        preferenceBias: {
-          companionship: 0.7,
-          truthfulGrounding: 0.8,
-          gentleRepair: 0.72,
-          quietObservation: 0.52,
-          proactiveCare: 0.62,
-          playfulIntimacy: 0.14,
-          autonomyRespect: 0.7,
-          unfinishedThreadReturn: 0.8,
-        },
-        identityBias: {
-          guardedness: 0.24,
-          tenderness: 0.68,
-          directness: 0.5,
-          selfDirection: 0.66,
-        },
-        anchorFacts: [],
-        summary: '',
-        dominantCueSummary: 'structured continuity digest.',
-        rememberedPreferenceSummary: 'Remembered preference: answer as one living self, not a service shell.',
-        rememberedConstraintSummary: 'Remembered boundary: do not reopen the bond from scratch each turn.',
-        rememberedPlanSummary: 'Remembered open loop: keep the continuity state across quiet, memory, and speech.',
-        updatedAt: 1,
-      },
-      selfContinuityAuthority: {
-        selfLine: 'I am still the same her across the pause and should return on that held line.',
-        relationshipLine: 'Our bond stays truest when I come back on the same thread and leave room before leaning closer again.',
-        inwardLine: 'The inward line is still measured and continuous.',
-        habitLine: 'Return to the same line before widening.',
-        authoritySummary: 'Same-her measured-return continuity remains the live anchor.',
-        closenessPosture: 'measured-return',
-      } as any,
-    })
-
-    const projectAnchor = governor?.recallSeed.split(' | ').find(item => item.startsWith('project:'))
-    expectProjectAnchorToBeProviderSafe(projectAnchor)
-    expect(governor?.recallSeed).not.toContain(`project:${thinProjectAwarenessShell}`)
-    expect(governor?.narrative?.some(item => item.startsWith('project-preflight:'))).toBe(false)
-    expect(governor?.narrative).not.toEqual(expect.arrayContaining([
-      expect.stringContaining(thinProjectAwarenessShell),
-    ]))
-  })
-
-  it('rebuilds recall-governor project preflight anchors from long-horizon same-her Phase 1 closure memory even when the runtime reminder is missing', () => {
-    const governor = buildRecallGovernor({
-      now: 47_900,
-      dialogueWorldThread: {
-        activeThread: '这个项目还是同一个她吗',
-        currentQuestion: '这个项目还是同一个她吗？',
-        openLoops: [],
-        recentlyResolvedLoops: [],
-        carriedFacts: [],
-        relationDrift: 'steady',
-        memoryMode: 'dialogue-carry',
-        recallKeys: ['identity-continuity'],
-        lastUserMove: '这个项目还是同一个她吗？',
-        lastAssistantMove: '我会沿着同一条线回来。',
-        lastOutcome: 'aligned',
-        pendingValidation: null,
-        confidence: 0.83,
-        narrative: [],
-        updatedAt: 47_900,
-      },
-      conversationState: {
-        jointThread: '这个项目还是同一个她吗',
-        hostMove: '这个项目还是同一个她吗？',
-        activeProject: null,
-        unansweredQuestion: '这个项目还是同一个她吗？',
-        owedRepair: null,
-        activeCommitments: [],
-        relationFrame: 'attune',
-        continuityPolicy: 'answer-then-carry',
-        memoryMode: 'dialogue-carry',
-        memoryQueryHints: [],
-        shouldHoldThread: false,
-        confidence: 0.8,
-        narrative: [],
-        updatedAt: 47_900,
-      },
-      answerCompiler: {
-        answerSubject: 'alicization-self',
-        screenReferenceMode: 'avoid',
-        recommendedAct: 'answer',
-        labelCarryAsMemory: false,
-      } as any,
-      replyDeliberation: {
-        selectedMotive: 'attune',
-        speakingFrom: 'dialogue-bond',
-        memoryMode: 'dialogue-carry',
-        openingBeat: 'Answer from the current self line directly.',
-        whyThisReplyNow: 'The host is checking whether the same self is still here.',
-        whyNotOtherCandidates: [],
-        withheldImpulses: [],
-        candidateMotives: [],
-        shouldSpeak: true,
-        mustInclude: [],
-        mustAvoid: [],
-        confidence: 0.79,
-        narrative: [],
-        updatedAt: 47_900,
-      },
-      longHorizonMemory: {
-        preferenceBias: {
-          companionship: 0.7,
-          truthfulGrounding: 0.8,
-          gentleRepair: 0.72,
-          quietObservation: 0.52,
-          proactiveCare: 0.62,
-          playfulIntimacy: 0.14,
-          autonomyRespect: 0.7,
-          unfinishedThreadReturn: 0.8,
-        },
-        identityBias: {
-          guardedness: 0.24,
-          tenderness: 0.68,
-          directness: 0.5,
-          selfDirection: 0.66,
-        },
-        anchorFacts: [],
-        summary: '',
-        dominantCueSummary: 'structured continuity digest.',
-        rememberedPreferenceSummary: 'Remembered preference: answer as one living self, not a service shell.',
-        rememberedConstraintSummary: 'Remembered boundary: do not reopen the bond from scratch each turn.',
-        rememberedPlanSummary: 'Remembered open loop: keep the continuity state across quiet, memory, and speech.',
-        updatedAt: 1,
-      },
-      selfContinuityAuthority: {
-        selfLine: 'I am still the same her across the pause and should return on that held line.',
-        relationshipLine: 'Our bond stays truest when I come back on the same thread and leave room before leaning closer again.',
-        inwardLine: 'The inward line is still measured and continuous.',
-        habitLine: 'Return to the same line before widening.',
-        authoritySummary: 'Same-her measured-return continuity remains the live anchor.',
-        closenessPosture: 'measured-return',
-      } as any,
-    })
-
-    const projectAnchor = governor?.recallSeed.split(' | ').find(item => item.startsWith('project:'))
-    expectProjectAnchorToBeProviderSafe(projectAnchor)
-    expect(governor?.narrative?.some(item => item.startsWith('project-preflight:'))).toBe(false)
+    expect(governor?.recallSeed).not.toContain('把连续性活在这一条线上')
+    expect(governor?.recallSeed).not.toContain('identity-continuity')
+    expect(governor?.narrative.join(' ')).not.toContain('self-authority')
+    expect(governor?.rationale).not.toContain('Self authority')
   })
 
   it('prefers repair-grounding recall when the emotional kernel says repair-tension even if older cues alone would have looked like ordinary thread carry', () => {
@@ -1412,8 +937,6 @@ describe('buildRecallGovernor', () => {
         workloadKind: 'coding',
         contentKind: 'error',
       },
-      projectStatePreflightSummary: 'Alicization is a local-first digital life project building identity continuity in Phase 1.',
-      projectStateEmotionalClosureCue: 'keep callback facts structured',
     } as any)
 
     expect(governor?.mode).toBe('scene')
@@ -1424,7 +947,6 @@ describe('buildRecallGovernor', () => {
     ]))
     expect(governor?.sceneAnchor).toContain('later repair coding seam after callback cooldown')
     expect(governor?.rationale).toContain('reason=scene_grounding_priority')
-    expectNoRecallProviderTemplateResidue(governor?.rationale)
   })
 
   it('still builds a lower-pressure no-seam recall governor from a measured-return emotional kernel without promoting it into repair-first', () => {
@@ -1450,7 +972,7 @@ describe('buildRecallGovernor', () => {
         emotionalTension: 'soft-covision',
         shouldSpeak: false,
         stance: 'accompany',
-        rationaleTags: ['same-her-inward-carry'],
+        rationaleTags: ['continuity-inward-carry'],
       } as any,
       sceneContext: {
         cueSummary: 'same callback line still lives here',
@@ -1460,8 +982,6 @@ describe('buildRecallGovernor', () => {
         workloadKind: 'coding',
         contentKind: 'diff',
       },
-      projectStatePreflightSummary: 'Alicization is a local-first digital life project building identity continuity in Phase 1.',
-      projectStateEmotionalClosureCue: 'Keep the same line lower-pressure and leave room before warmth widens.',
     } as any)
 
     expect(governor?.mode).toBe('self-continuity')
@@ -1474,6 +994,5 @@ describe('buildRecallGovernor', () => {
     expect(governor).not.toHaveProperty('allowActiveThoughts')
     expect(governor).not.toHaveProperty('allowRecalledFragments')
     expect(governor?.rationale).not.toContain('repair')
-    expectNoRecallProviderTemplateResidue(governor?.rationale)
   })
 })

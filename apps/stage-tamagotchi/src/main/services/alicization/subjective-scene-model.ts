@@ -43,7 +43,6 @@ const validHostGoals = new Set<AlicizationHostGoalHypothesis>([
   'keep-going',
   'finish-one-more-step',
   'resume-work',
-  'continue-phase-1-line',
   'unknown',
 ])
 
@@ -154,17 +153,17 @@ function inferSituatedMeaning(input: {
   if (input.worldModel?.activeThread?.kind === 'deep-focus')
     return 'situated_meaning.kind=deep_focus; work_thread=unresolved'
   if (input.context.content.kind === 'error')
-    return '这不像普通浏览，而像宿主把注意力收紧在一个具体故障点上。'
+    return 'situated_meaning.kind=error_focus; attention=concrete_fault'
   if (input.context.content.kind === 'diff')
-    return '宿主像是在衡量一段改动到底该不该过去，这是一种审视而不是路过。'
+    return 'situated_meaning.kind=change_review; posture=evaluate_before_continue'
   if (input.context.workload.kind === 'media' && input.watchMode === 'symbiotic-vision')
-    return '这更像一段并排共看的停留，她适合贴着陪，而不是打断。'
+    return 'situated_meaning.kind=co_viewing; interruption_pressure=low'
   if (input.context.localTime.isLateNight && input.context.relationship.fatigue >= 55)
-    return '眼下已经不是普通在线，而是带着疲惫继续硬撑的味道。'
+    return 'situated_meaning.kind=late_night_endurance; fatigue_signal=present'
   if (input.context.workload.kind === 'coding' || input.context.workload.kind === 'terminal')
-    return '宿主像是在沿着一条尚未收束的工作线程继续往下追。'
+    return 'situated_meaning.kind=deep_focus; work_thread=unresolved'
   if (input.scene?.summary)
-    return `她把这一刻读成「${sanitizeText(input.scene.summary, 80)}」附近的一段持续场景。`
+    return `situated_meaning.kind=scene_continuity; scene=${sanitizeText(input.scene.summary, 80)}`
   return ''
 }
 

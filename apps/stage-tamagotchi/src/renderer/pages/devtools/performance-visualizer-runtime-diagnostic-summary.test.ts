@@ -8,12 +8,12 @@ import {
 } from './performance-visualizer-runtime-diagnostic-summary'
 
 describe('performance visualizer runtime diagnostic summary', () => {
-  it('surfaces execution safety-gate restraint from same-her reason tags as a readable runtime diagnostic', () => {
+  it('surfaces execution safety-gate restraint from continuity reason tags as a readable runtime diagnostic', () => {
     expect(buildRuntimeAuthoritySummaryEntries({
       rendererTarget: 'vrm',
       authoritySegmentId: 'resident-safety-gate-frame-1',
-      sameHerSignature: 'resident|measured-return|execution-restraint',
-      sameHerReasonTags: [
+      continuitySignature: 'resident|measured-return|execution-restraint',
+      continuityReasonTags: [
         'execution-safety-gate:blocked-dispatch-restraint',
         'execution-safety-gate:confirmation-required',
         'execution-safety-gate:no-process-started',
@@ -22,7 +22,7 @@ describe('performance visualizer runtime diagnostic summary', () => {
     } as any)).toEqual([
       { key: 'renderer-target', label: '渲染目标', value: 'vrm' },
       { key: 'authority-segment', label: '权威片段', value: 'resident-safety-gate-frame-1' },
-      { key: 'same-her-signature', label: '同一人签名', value: 'resident|measured-return|execution-restraint' },
+      { key: 'continuity-signature', label: '同一人签名', value: 'resident|measured-return|execution-restraint' },
       {
         key: 'execution-safety-gate',
         label: '执行安全门',
@@ -30,7 +30,7 @@ describe('performance visualizer runtime diagnostic summary', () => {
         technicalValue: 'execution-safety-gate:blocked-dispatch-restraint, execution-safety-gate:confirmation-required, execution-safety-gate:no-process-started',
       },
       {
-        key: 'same-her-reasons',
+        key: 'continuity-reasons',
         label: '同一人线索',
         value: 'execution-safety-gate:blocked-dispatch-restraint, execution-safety-gate:confirmation-required, execution-safety-gate:no-process-started, embodiment-carry:measured-return',
       },
@@ -665,7 +665,7 @@ describe('performance visualizer runtime diagnostic summary', () => {
     ])
   })
 
-  it('rebuilds body-carried same-her trust from settle and binding summaries when no explicit trust summary is present', () => {
+  it('rebuilds body-carried continuity trust from settle and binding summaries when no explicit trust summary is present', () => {
     expect(resolveAuthorityTrustSummaryFromSettleAuthority({
       authorityTrustSummary: null,
       authorityBindingSummary: 'target=vrm | drivers=body, lipsync | sources=prosody-authority, voice-segment | matches=body:yes face:no motion:no lipsync:yes | lane=body+lipsync-only',

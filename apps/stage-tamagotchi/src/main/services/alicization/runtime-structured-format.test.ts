@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveAlicizationAutonomousDialogueFamilySignals } from './entrypoint-governance-registry-audit'
 import {
   autonomousDialogueOrigins,
   autonomousDialogueStructuredFormats,
@@ -65,12 +64,7 @@ describe('runtime structured format', () => {
     expect(resolveAlicizationStructuredFormatLane('fallback-v1')).toBe('infra-fallback')
   })
 
-  it('keeps runtime-owned autonomous dialogue family markers on one shared source of truth so reminder, subconscious, and callback entrypoints cannot quietly drift apart', () => {
-    const registeredSignals = resolveAlicizationAutonomousDialogueFamilySignals()
-      .map(signal => `${signal.signalKind}:${signal.value}`)
-      .slice()
-      .sort()
-
+  it('keeps runtime-owned autonomous dialogue family markers explicit so reminder, subconscious, and callback entrypoints cannot quietly drift apart', () => {
     expect(autonomousDialogueStructuredFormats.slice().sort()).toEqual([
       'subconscious-proactive-llm-v1',
       'subconscious-proactive-v1',
@@ -84,12 +78,6 @@ describe('runtime structured format', () => {
     expect(autonomousDialogueOrigins.slice().sort()).toEqual([
       'subconscious-proactive',
     ])
-    expect(registeredSignals).toEqual([
-      ...autonomousDialogueStructuredFormats.map(format => `structured-format:${format}`),
-      ...autonomousDialogueTurnIdPrefixes.map(prefix => `turn-id-prefix:${prefix}`),
-      ...autonomousDialogueOrigins.map(origin => `origin:${origin}`),
-    ].sort())
-
     expect(isAlicizationAutonomousDialogueFamily({
       turnId: 'reminder:default:task-1:123',
       rawFormat: 'mind-turn-v1',

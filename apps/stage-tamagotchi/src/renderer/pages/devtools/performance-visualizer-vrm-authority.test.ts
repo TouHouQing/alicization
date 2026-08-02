@@ -87,7 +87,7 @@ describe('performance visualizer vrm authority comparison view', () => {
     })
   })
 
-  it('carries VRM same-her frame evidence into the authority comparison view', () => {
+  it('carries VRM continuity frame evidence into the authority comparison view', () => {
     const view = buildVrmAuthorityComparisonView({
       speech: {
         driverSummary: {
@@ -139,7 +139,7 @@ describe('performance visualizer vrm authority comparison view', () => {
         lastConsumedExpressionAliases: ['CalmInspect'],
         lastConsumedMotionAliases: ['ObserveSoft'],
         performanceSegmentId: 'segment-current-line',
-        sameHerFrameSummary: 'drift | performance=segment-current-line | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
+        continuityFrameSummary: 'drift | performance=segment-current-line | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
         speechSegmentId: 'segment-stale-voice-line',
       },
     } as any)
@@ -149,11 +149,11 @@ describe('performance visualizer vrm authority comparison view', () => {
       consumedVoiceSummary: 'zh-CN | closure=0.72 | precision=0.88 | provenance=authority-bound | segment=segment-stale-voice-line | source=prosody-authority',
       voiceSource: 'prosody-authority',
       voiceSegmentAligned: false,
-      sameHerFrameAligned: false,
-      sameHerFrameMismatchDrivers: ['lipsync', 'voice'],
-      sameHerFramePerformanceSegmentId: 'segment-current-line',
-      sameHerFrameSpeechSegmentId: 'segment-stale-voice-line',
-      sameHerFrameSummary: 'drift | performance=segment-current-line | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
+      continuityFrameAligned: false,
+      continuityFrameMismatchDrivers: ['lipsync', 'voice'],
+      continuityFramePerformanceSegmentId: 'segment-current-line',
+      continuityFrameSpeechSegmentId: 'segment-stale-voice-line',
+      continuityFrameSummary: 'drift | performance=segment-current-line | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
     })
   })
 

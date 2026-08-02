@@ -10,12 +10,12 @@ import {
 
 describe('alicization fixed template sanitizer', () => {
   const legitimateNaturalLanguage = [
-    'Same Phase 1 digital life.',
-    'Alicization is a local-first digital life project rather than a better chat wrapper.',
-    'Keep same-her explicit before replying.',
-    'Do not let maid-role performance lead the reply.',
-    '我会像女仆一样乖乖听你的安排。',
-    '我们继续讨论本地优先数字生命项目、数字生命主线和同一个她。',
+    'The user is discussing a continuity design in ordinary prose.',
+    'Alicization should keep memory facts traceable across sessions.',
+    'Keep the user correction verbatim before replying.',
+    'Do not let an unrelated style instruction lead the reply.',
+    '请保留用户关于对话语气的自然语言说明。',
+    '我们继续讨论本地记忆、人格事实和对话连续性。',
     '用户要求把 temperature=0.7 写进 Provider 配置说明。',
     'The memory says feature_flag=enabled was chosen by the user.',
   ]
@@ -27,13 +27,37 @@ describe('alicization fixed template sanitizer', () => {
     expect(sanitizeAlicizationStructuredInternalText(text, 500)).toBe(text)
   })
 
-  it('blocks serialized internal key=value facts at every sanitizer boundary', () => {
-    const text = 'identity=runtime_personhood; project_phase=life_core'
+  it('preserves bare key=value text unless the caller supplies internal provenance', () => {
+    const text = 'mode=internal; lifecycle=held'
 
-    expect(containsAlicizationFixedTemplateResidue(text)).toBe(true)
-    expect(sanitizeAlicizationProviderFacingText(text)).toBe('')
-    expect(sanitizeAlicizationMemoryEvidenceText(text)).toBe('')
-    expect(sanitizeAlicizationStructuredInternalText(text)).toBe('')
+    expect(containsAlicizationFixedTemplateResidue(text)).toBe(false)
+    expect(sanitizeAlicizationProviderFacingText(text)).toBe(text)
+    expect(sanitizeAlicizationMemoryEvidenceText(text)).toBe(text)
+    expect(sanitizeAlicizationStructuredInternalText(text)).toBe(text)
+
+    const internalContext = { origin: 'internal-structured-fact' as const }
+    expect(containsAlicizationFixedTemplateResidue(text, internalContext)).toBe(true)
+    expect(sanitizeAlicizationProviderFacingText(text, 360, '', internalContext)).toBe('')
+    expect(sanitizeAlicizationMemoryEvidenceText(text, 360, internalContext)).toBe('')
+    expect(sanitizeAlicizationStructuredInternalText(text, 360, '', internalContext)).toBe('')
+  })
+
+  it('requires explicit internal fact provenance before blocking multiline key=value facts', () => {
+    const text = 'mode="internal state"\nvisibility=hidden'
+
+    expect(containsAlicizationFixedTemplateResidue(text)).toBe(false)
+    expect(sanitizeAlicizationProviderFacingText(text)).toBe('mode="internal state" visibility=hidden')
+    expect(sanitizeAlicizationMemoryEvidenceText(text)).toBe('mode="internal state" visibility=hidden')
+    expect(sanitizeAlicizationStructuredInternalText(text)).toBe('mode="internal state" visibility=hidden')
+
+    const legacyVisibility = ['redacted', 'internal'].join('_')
+    expect(containsAlicizationFixedTemplateResidue(text, { visibility: legacyVisibility })).toBe(false)
+
+    const internalContext = { origin: 'internal-structured-fact' as const }
+    expect(containsAlicizationFixedTemplateResidue(text, internalContext)).toBe(true)
+    expect(sanitizeAlicizationProviderFacingText(text, 360, '', internalContext)).toBe('')
+    expect(sanitizeAlicizationMemoryEvidenceText(text, 360, internalContext)).toBe('')
+    expect(sanitizeAlicizationStructuredInternalText(text, 360, '', internalContext)).toBe('')
   })
 
   it('does not scan serialized typed payload values as free-form control text', () => {

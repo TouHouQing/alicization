@@ -15,7 +15,7 @@ describe('runtime reply authority helpers', () => {
     }))
   })
 
-  it('derives reply authority governance through memory and social reducers before forcing llm mind', () => {
+  it('keeps memory gate state out of reply-writing rules before forcing provider authority', () => {
     const applyMemoryDeliberationToGovernance = vi.fn(() => ({
       answerIntent: 'memory-shaped',
     }) as any)
@@ -50,9 +50,11 @@ describe('runtime reply authority helpers', () => {
 
     expect(applyMemoryDeliberationToGovernance).toHaveBeenCalled()
     expect(applyHostPersonModelToGovernance).toHaveBeenCalled()
-    expect(result.effectiveMindTurnGovernanceWithRecollection).toEqual(expect.objectContaining({
-      mustDo: expect.arrayContaining(['memory_turn_gate.status=inward-only']),
-    }))
+    expect(result.effectiveMindTurnGovernanceWithRecollection).toEqual({
+      answerIntent: 'memory-shaped',
+    })
+    expect(result.effectiveMindTurnGovernanceWithRecollection).not.toHaveProperty('mustDo')
+    expect(result.effectiveMindTurnGovernanceWithRecollection).not.toHaveProperty('mustNotDo')
     expect(result.llmMindAuthorityGovernance).toEqual(expect.objectContaining({
       answerIntent: 'host-shaped',
       visibleReplyAuthority: 'llm-mind',

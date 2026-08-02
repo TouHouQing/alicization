@@ -77,7 +77,7 @@ function register() {
 }
 
 describe('runtime invoke handlers chat', () => {
-  it('strips legacy fields from the Eventa chat-start route without adding debug summaries', async () => {
+  it('forwards the Eventa chat-start payload unchanged', async () => {
     const harness = register()
     const invokeRegistration = harness.registerInvokeHandler.mock.calls.find(
       call => call[0] === electronAlicizationChatStart,
@@ -97,12 +97,9 @@ describe('runtime invoke handlers chat', () => {
       providerConfig: { apiKey: 'test' },
       messages: [{ role: 'user', content: '你好' }],
     }, { raw: { event: 'invoke' } })
-    expect(JSON.stringify(harness.appendRuntimeDebugLine.mock.calls)).not.toMatch(
-      /preDialogue|LEGACY_INVOKE/iu,
-    )
   })
 
-  it('strips legacy fields from the direct ipc chat-start route', async () => {
+  it('forwards the direct ipc chat-start payload unchanged', async () => {
     const harness = register()
     const directRegistration = harness.ipcMainHandle.mock.calls.find(
       call => call[0] === alicizationChatStartInvokeChannel,

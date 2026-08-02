@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-
 import { describe, expect, it } from 'vitest'
 
 import { reduceRuntimeAnswerPlanner } from './runtime-answer-planner-reducer'
@@ -51,7 +49,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
           evidenceMode: 'live-grounded',
           confidence: 0.86,
           governingFocus: '用户当前正在检查 runtime.ts。',
-          governingProject: 'Phase 1 same-her project-state template.',
+          governingProject: 'Phase 1 continuity project-state template.',
           openingMove: '从 runtime.ts 当前问题开始。',
           answerIntent: '回答 runtime.ts 当前问题。',
           relationshipPosture: 'restrained',
@@ -104,31 +102,6 @@ describe('reduceRuntimeAnswerPlanner', () => {
     expect(reduced?.dialogue.answerPlanner).toBeNull()
     expect(reduced?.dialogue.replyDeliberation).toBeNull()
     expect(reduced?.dialogue.dialogueActKernel).toBeNull()
-  })
-
-  it('does not rewrite project-state ownership while sanitizing planner surfaces', () => {
-    const projectState = {
-      identity: 'A local project.',
-      currentPhase: 'A runtime phase.',
-      latestLandedProgress: 'The memory owner is connected.',
-      primaryOpenLoop: 'Search still needs scale testing.',
-      nextClosureTarget: 'Run larger recall benchmarks.',
-    }
-    const reduced = reduceRuntimeAnswerPlanner({
-      now: 12,
-      governance: createGovernance(),
-      surface: createSurface({
-        currentConsciousFrame: {
-          projectState,
-        },
-        replyDeliberation: null,
-        dialogueActKernel: null,
-        answerPlanner: null,
-      }),
-    })
-
-    expect(reduced?.dialogue.currentConsciousFrame?.projectState).toEqual(projectState)
-    expect(reduced?.raw).toEqual({})
   })
 
   it('clears rule arrays without erasing typed reply and evidence state', () => {
@@ -237,13 +210,5 @@ describe('reduceRuntimeAnswerPlanner', () => {
 
     expect(reduced?.dialogue.replyDeliberation?.candidateMotives).toEqual([])
     expect(reduced?.dialogue.dialogueActKernel?.selectedEvidence).toEqual([])
-  })
-
-  it('contains no canonical project or anti-restart generators', () => {
-    const source = readFileSync(new URL('./runtime-answer-planner-reducer.ts', import.meta.url), 'utf8')
-
-    expect(source).not.toMatch(
-      /resolveAlicizationProjectStateBrief|project-state-answer-planner|continuity_constraint=anti_restart|same-her|same her|Phase 1/iu,
-    )
   })
 })

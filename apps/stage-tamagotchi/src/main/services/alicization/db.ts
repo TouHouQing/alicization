@@ -1056,12 +1056,6 @@ function sanitizeLearningTaskPayloadText(raw: unknown, maxChars: number) {
 function parseLearningTaskPayload(raw: string): AlicizationLearningTaskPayload {
   try {
     const candidate = JSON.parse(raw) as Partial<AlicizationLearningTaskPayload> | null
-    const projectStateContinuity
-      = candidate?.projectStateContinuity
-        && typeof candidate.projectStateContinuity === 'object'
-        && !Array.isArray(candidate.projectStateContinuity)
-        ? candidate.projectStateContinuity
-        : null
     return {
       sourceTurnId: typeof candidate?.sourceTurnId === 'string' && candidate.sourceTurnId.trim() ? candidate.sourceTurnId.trim() : null,
       decisionTraceId: typeof candidate?.decisionTraceId === 'string' && candidate.decisionTraceId.trim() ? candidate.decisionTraceId.trim() : null,
@@ -1070,22 +1064,6 @@ function parseLearningTaskPayload(raw: string): AlicizationLearningTaskPayload {
         ? candidate.action
         : 'record',
       reason: sanitizeLearningTaskPayloadText(candidate?.reason, 280),
-      projectStateContinuity: projectStateContinuity
-        ? {
-            identity: sanitizeLearningTaskPayloadText(projectStateContinuity.identity, 220),
-            currentPhase: sanitizeLearningTaskPayloadText(projectStateContinuity.currentPhase, 160),
-            sameHerSummary: sanitizeLearningTaskPayloadText(projectStateContinuity.sameHerSummary, 220),
-            landedProgressSummary: sanitizeLearningTaskPayloadText(projectStateContinuity.landedProgressSummary, 220),
-            openClosureSummary: sanitizeLearningTaskPayloadText(projectStateContinuity.openClosureSummary, 220),
-            proactiveSameHerGap: sanitizeLearningTaskPayloadText(projectStateContinuity.proactiveSameHerGap, 220),
-            nextClosureTarget: sanitizeLearningTaskPayloadText(projectStateContinuity.nextClosureTarget, 220),
-            preDialogueAwarenessLine: sanitizeLearningTaskPayloadText(projectStateContinuity.preDialogueAwarenessLine, 320),
-            emotionalClosureCue: sanitizeLearningTaskPayloadText(projectStateContinuity.emotionalClosureCue, 220),
-            sameHerSelfLine: sanitizeLearningTaskPayloadText(projectStateContinuity.sameHerSelfLine, 220),
-            sameHerHoldDetail: sanitizeLearningTaskPayloadText(projectStateContinuity.sameHerHoldDetail, 220),
-            sameHerDriftRisk: sanitizeLearningTaskPayloadText(projectStateContinuity.sameHerDriftRisk, 320),
-          }
-        : null,
       focuses: Array.isArray(candidate?.focuses) ? candidate.focuses.map(item => sanitizeLearningTaskPayloadText(item, 220)).filter((item): item is string => Boolean(item)).slice(0, 12) : [],
       dominantTrajectory: sanitizeLearningTaskPayloadText(candidate?.dominantTrajectory, 220),
       sourceSignals: Array.isArray(candidate?.sourceSignals) ? candidate.sourceSignals.map(item => sanitizeLearningTaskPayloadText(item, 220)).filter((item): item is string => Boolean(item)).slice(0, 12) : [],
@@ -1107,7 +1085,6 @@ function parseLearningTaskPayload(raw: string): AlicizationLearningTaskPayload {
       sourceSessionId: null,
       action: 'record',
       reason: null,
-      projectStateContinuity: null,
       focuses: [],
       dominantTrajectory: null,
       sourceSignals: [],

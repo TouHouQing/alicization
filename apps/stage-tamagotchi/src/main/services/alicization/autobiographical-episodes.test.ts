@@ -179,12 +179,12 @@ describe('autobiographical episodes', () => {
                 createdAt: 100,
               },
               {
-                id: 'reflection::same-her-repair',
-                summary: 'The same-her repair line is still the meaningful autobiographical lesson carry.',
+                id: 'reflection::continuity-repair',
+                summary: 'The continuity repair line is still the meaningful autobiographical lesson carry.',
                 expectation: 'The steadier repair line should stay active until a newer meaningful reflection replaces it.',
                 observedOutcome: 'The continuity state still needs a measured return.',
                 outcome: 'missed',
-                revision: 'Keep the same-her repair line active instead of reopening from temporary noise.',
+                revision: 'Keep the continuity repair line active instead of reopening from temporary noise.',
                 confidenceShift: -0.08,
                 createdAt: 80,
               },
@@ -205,7 +205,7 @@ describe('autobiographical episodes', () => {
       } as any,
     })
 
-    expect(fragment).toContain('episode_lesson:Keep the same-her repair line active instead of reopening from temporary noise.')
+    expect(fragment).toContain('episode_lesson:Keep the continuity repair line active instead of reopening from temporary noise.')
     expect(fragment).not.toContain('temporary wobble')
   })
 })

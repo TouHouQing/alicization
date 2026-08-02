@@ -367,7 +367,6 @@ describe('runtime governance visible reply authority', () => {
       visibleReplyValidationStatus: 'unknown',
     }))
     expect(normalized?.visibleReplyRealization).not.toHaveProperty('internalMarker')
-    expect(normalized?.visibleReplyRealization).not.toHaveProperty('projectStateAudit')
   })
 
   it('removes second-pass authority from shared contracts and runtime authority helpers', () => {
@@ -405,7 +404,6 @@ describe('runtime governance visible reply authority', () => {
       './main-chat-background-run.ts',
       './main-chat-runtime-surface.ts',
       './main-chat-stream-runner.ts',
-      './project-state-brief.ts',
       './proactive-mind/visible-utterance-realization.ts',
       './runtime.ts',
       './visual-episodic-memory.ts',

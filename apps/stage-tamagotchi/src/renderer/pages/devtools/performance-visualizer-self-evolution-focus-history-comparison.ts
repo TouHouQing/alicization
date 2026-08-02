@@ -5,6 +5,8 @@ import {
   formatSelfEvolutionTraceSectionLabel,
 } from './performance-visualizer-self-evolution-focus-history-display'
 
+type SelfEvolutionSurvivingVisibleLane = 'face+lipsync-only' | 'motion+lipsync-only' | 'face+lipsync+voice-only' | 'motion+lipsync+voice-only' | null
+
 interface SelfEvolutionFocusSnapshotRecord {
   version: string
   candidateId: string | null
@@ -14,7 +16,7 @@ interface SelfEvolutionFocusSnapshotRecord {
   explanation: string | null
   bodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
   rendererRejoinSurfaceKey?: 'authority:renderer-rejoin:speech' | 'authority:renderer-rejoin:live2d' | 'authority:renderer-rejoin:vrm' | null
-  bodyContinuityGovernanceNote?: string | null
+  survivingVisibleLane?: SelfEvolutionSurvivingVisibleLane
   highlightedEvidencePanelIds: string[]
   highlightedTraceSectionIds: string[]
   recommendedTraceEventId: string | null
@@ -64,72 +66,9 @@ function formatRendererRejoinSurfaceLabel(
   return null
 }
 
-function inferBodyContinuityPhaseFromExplanation(
-  explanation: string | null | undefined,
-) {
-  if (!explanation)
-    return null
-
-  if (explanation.includes('显形回接失身态'))
-    return 'renderer-rejoin-without-body' as const
-
-  if (explanation.includes('跨模态重锁态'))
-    return 'full-cross-modal-lock' as const
-
-  if (
-    explanation.includes('身体独撑态')
-    || explanation.includes('独自托住同一段 living segment')
-  ) {
-    return 'body-only-hold' as const
-  }
-
-  if (
-    explanation.includes('身体连续性已经明确进入身体承接态 -> 显形补回态')
-    || explanation.includes('身体连续性已经被新的验证快照再次确认，并明确处于身体承接态 -> 显形补回态')
-  ) {
-    return 'body-carried-to-renderer-rejoin' as const
-  }
-
-  return null
-}
-
-function inferBodyContinuityPhaseFromGovernanceNote(
-  note: string | null | undefined,
-) {
-  if (!note)
-    return null
-
-  if (note.includes('显形回接失身态'))
-    return 'renderer-rejoin-without-body' as const
-
-  if (note.includes('跨模态重锁态'))
-    return 'full-cross-modal-lock' as const
-
-  if (
-    note.includes('身体独撑态')
-    || note.includes('独自托住同一段 living segment')
-  ) {
-    return 'body-only-hold' as const
-  }
-
-  if (
-    note.includes('身体连续性已经明确进入身体承接态 -> 显形补回态')
-    || note.includes('身体连续性已经被新的验证快照再次确认，并明确处于身体承接态 -> 显形补回态')
-    || note.includes('沿同一条连续身体线补回')
-  ) {
-    return 'body-carried-to-renderer-rejoin' as const
-  }
-
-  return null
-}
-
 function resolveBodyContinuityPhase(params: {
   previousBodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
   currentBodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
-  previousBodyContinuityGovernanceNote?: string | null
-  currentBodyContinuityGovernanceNote?: string | null
-  previousExplanation?: string | null
-  currentExplanation?: string | null
   previousEvidenceIds: string[]
   currentEvidenceIds: string[]
   previousTraceSectionIds: string[]
@@ -154,30 +93,6 @@ function resolveBodyContinuityPhase(params: {
   ) {
     return params.previousBodyContinuityPhase
   }
-
-  const currentGovernanceNotePhase = inferBodyContinuityPhaseFromGovernanceNote(
-    params.currentBodyContinuityGovernanceNote,
-  )
-  if (currentGovernanceNotePhase)
-    return currentGovernanceNotePhase
-
-  const previousGovernanceNotePhase = inferBodyContinuityPhaseFromGovernanceNote(
-    params.previousBodyContinuityGovernanceNote,
-  )
-  if (previousGovernanceNotePhase)
-    return previousGovernanceNotePhase
-
-  const currentExplainedPhase = inferBodyContinuityPhaseFromExplanation(
-    params.currentExplanation,
-  )
-  if (currentExplainedPhase)
-    return currentExplainedPhase
-
-  const previousExplainedPhase = inferBodyContinuityPhaseFromExplanation(
-    params.previousExplanation,
-  )
-  if (previousExplainedPhase)
-    return previousExplainedPhase
 
   const previousEvidence = new Set(params.previousEvidenceIds)
   const currentEvidence = new Set(params.currentEvidenceIds)
@@ -232,10 +147,6 @@ export function buildSelfEvolutionFocusHistoryComparison(input: {
     ?? resolveBodyContinuityPhase({
       previousBodyContinuityPhase: previous.bodyContinuityPhase ?? null,
       currentBodyContinuityPhase: current.bodyContinuityPhase ?? null,
-      previousBodyContinuityGovernanceNote: previous.bodyContinuityGovernanceNote ?? null,
-      currentBodyContinuityGovernanceNote: current.bodyContinuityGovernanceNote ?? null,
-      previousExplanation: previous.explanation ?? null,
-      currentExplanation: current.explanation ?? null,
       previousEvidenceIds: previous.highlightedEvidencePanelIds,
       currentEvidenceIds: current.highlightedEvidencePanelIds,
       previousTraceSectionIds: previous.highlightedTraceSectionIds,
@@ -243,6 +154,9 @@ export function buildSelfEvolutionFocusHistoryComparison(input: {
       previousRecommendedTraceEventId: previous.recommendedTraceEventId,
       currentRecommendedTraceEventId: current.recommendedTraceEventId,
     })
+  const survivingVisibleLane = current.survivingVisibleLane
+    ?? previous.survivingVisibleLane
+    ?? null
   const rendererRejoinSurfaceLabel = formatRendererRejoinSurfaceLabel(
     current.rendererRejoinSurfaceKey ?? previous.rendererRejoinSurfaceKey ?? null,
   )
@@ -292,8 +206,8 @@ export function buildSelfEvolutionFocusHistoryComparison(input: {
       ...(previous.rendererRejoinSurfaceKey
         ? { rendererRejoinSurfaceKey: previous.rendererRejoinSurfaceKey }
         : {}),
-      ...(previous.bodyContinuityGovernanceNote
-        ? { bodyContinuityGovernanceNote: previous.bodyContinuityGovernanceNote }
+      ...(previous.survivingVisibleLane
+        ? { survivingVisibleLane: previous.survivingVisibleLane }
         : {}),
       evidenceTargets: previous.highlightedEvidencePanelIds,
       traceTargets: previous.highlightedTraceSectionIds,
@@ -308,8 +222,8 @@ export function buildSelfEvolutionFocusHistoryComparison(input: {
       ...(current.rendererRejoinSurfaceKey
         ? { rendererRejoinSurfaceKey: current.rendererRejoinSurfaceKey }
         : {}),
-      ...(current.bodyContinuityGovernanceNote
-        ? { bodyContinuityGovernanceNote: current.bodyContinuityGovernanceNote }
+      ...(current.survivingVisibleLane
+        ? { survivingVisibleLane: current.survivingVisibleLane }
         : {}),
       evidenceTargets: current.highlightedEvidencePanelIds,
       traceTargets: current.highlightedTraceSectionIds,
@@ -321,6 +235,7 @@ export function buildSelfEvolutionFocusHistoryComparison(input: {
     traceTargetsGained,
     traceTargetsLost,
     bodyContinuityPhase,
+    ...(survivingVisibleLane ? { survivingVisibleLane } : {}),
     summaryLines,
   }
 }

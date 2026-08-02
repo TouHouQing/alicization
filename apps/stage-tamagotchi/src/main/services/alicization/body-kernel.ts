@@ -54,17 +54,10 @@ function resolveBodyKernelDynamicInwardPreoccupation(state: AlicizationVisualPre
 }
 
 function hasMeasuredReturnContinuityAuthority(state: AlicizationVisualPresenceStateSnapshot) {
-  const continuityRestraint = state.initiative?.continuityRestraint
-  const thoughtTags = state.privateThought?.rationaleTags ?? []
-  const consciousFrameTags = state.currentConsciousFrame?.reasonTags ?? []
-  const residentPerformanceTags = state.residentPerformance?.reasonTags ?? []
   const emotionalKernel = state.emotionalKernel ?? null
   const cadenceMode = state.affectiveResidue?.relationshipCadence?.cadenceMode ?? null
-  const cadenceReasonTags = state.affectiveResidue?.relationshipCadence?.reasonTags ?? []
 
   return hasActiveBodyDrivingEmotionalTransitionDecay(state, 'measured-return')
-    || continuityRestraint === 'measured-return'
-    || continuityRestraint === 'lower-pressure'
     || cadenceMode === 'measured-return'
     || cadenceMode === 'cooldown'
     || emotionalKernel?.embodimentTone === 'measured-return'
@@ -75,92 +68,48 @@ function hasMeasuredReturnContinuityAuthority(state: AlicizationVisualPresenceSt
     )
     || emotionalKernel?.initiativeMode === 'observe'
     || emotionalKernel?.dominantEmotion === 'measured-companionship'
-    || emotionalKernel?.reasonTags?.includes('measured-return')
-    || emotionalKernel?.reasonTags?.includes('self-continuity')
-    || thoughtTags.includes('measured-return')
-    || consciousFrameTags.includes('memory-deliberation-cadence:measured-return')
-    || consciousFrameTags.includes('memory-deliberation-cadence:lower-pressure')
-    || consciousFrameTags.includes('continuity-arc:hold-for-opening')
-    || consciousFrameTags.includes('continuity-arc:gentle-reopen')
-    || residentPerformanceTags.includes('measured-return')
-    || cadenceReasonTags.includes('relationship-cadence:measured-return')
 }
 
 function hasRepairBeforeClosenessAuthority(state: AlicizationVisualPresenceStateSnapshot) {
-  const continuityRestraint = state.initiative?.continuityRestraint
-  const thoughtTags = state.privateThought?.rationaleTags ?? []
-  const consciousFrameTags = state.currentConsciousFrame?.reasonTags ?? []
-  const residentPerformanceTags = state.residentPerformance?.reasonTags ?? []
   const emotionalKernel = state.emotionalKernel ?? null
   const affectiveResidue = state.affectiveResidue ?? null
   const cadenceMode = affectiveResidue?.relationshipCadence?.cadenceMode ?? null
   const shouldDelayWarmth = affectiveResidue?.relationshipCadence?.shouldDelayWarmth === true
-  const cadenceReasonTags = affectiveResidue?.relationshipCadence?.reasonTags ?? []
 
   return hasActiveBodyDrivingEmotionalTransitionDecay(state, 'repair-before-closeness')
-    || continuityRestraint === 'repair-before-closeness'
     || cadenceMode === 'repair'
     || (affectiveResidue?.dominantResidueKind === 'repair' && shouldDelayWarmth)
     || emotionalKernel?.embodimentTone === 'repair-before-closeness'
     || emotionalKernel?.initiativeMode === 'repair'
     || emotionalKernel?.dominantEmotion === 'repair-tension'
-    || emotionalKernel?.reasonTags?.includes('repair-before-closeness')
-    || thoughtTags.includes('repair-before-closeness')
-    || consciousFrameTags.includes('memory-deliberation-cadence:repair-before-closeness')
-    || residentPerformanceTags.includes('repair-before-closeness')
-    || cadenceReasonTags.includes('relationship-cadence:repair-before-closeness')
 }
 
-function hasDurableSelfCoreProjectionEmbodimentAuthority(state: AlicizationVisualPresenceStateSnapshot) {
+function hasRestrainedPersonStateEmbodimentAuthority(state: AlicizationVisualPresenceStateSnapshot) {
   const projection = state.personStateProjection ?? null
-  const sourceTags = projection?.selfContinuityAuthority?.sourceTags ?? []
-  return sourceTags.includes('durable-self-core')
-    && (
-      projection?.restrained === true
-      || projection?.cautious === true
-      || projection?.relationshipPosture === 'restrained'
-    )
+  return projection?.restrained === true
+    || projection?.cautious === true
+    || projection?.relationshipPosture === 'restrained'
 }
 
 function hasRestProtectiveCompanionshipAuthority(state: AlicizationVisualPresenceStateSnapshot) {
-  const continuityRestraint = state.initiative?.continuityRestraint
-  const thoughtTags = state.privateThought?.rationaleTags ?? []
-  const consciousFrameTags = state.currentConsciousFrame?.reasonTags ?? []
-  const residentPerformanceTags = state.residentPerformance?.reasonTags ?? []
   const emotionalKernel = state.emotionalKernel ?? null
 
   return hasActiveBodyDrivingEmotionalTransitionDecay(state, 'rest-protective')
-    || continuityRestraint === 'rest-protective'
     || emotionalKernel?.embodimentTone === 'rest-protective'
     || emotionalKernel?.initiativeMode === 'rest-guard'
     || emotionalKernel?.memoryRecallMode === 'rest-protective-presence'
     || emotionalKernel?.dominantEmotion === 'rest-protective-companionship'
-    || emotionalKernel?.reasonTags?.includes('rest-protective')
-    || emotionalKernel?.reasonTags?.includes('rest-protective-companionship')
-    || thoughtTags.includes('rest-protective')
-    || thoughtTags.includes('rest-protective-companionship')
-    || consciousFrameTags.includes('memory-deliberation-cadence:rest-protective')
-    || residentPerformanceTags.includes('rest-protective')
 }
 
 function hasGuardedCareConfirmationBoundaryAuthority(state: AlicizationVisualPresenceStateSnapshot) {
-  const thoughtTags = state.privateThought?.rationaleTags ?? []
-  const consciousFrameTags = state.currentConsciousFrame?.reasonTags ?? []
   const emotionalKernel = state.emotionalKernel ?? null
 
-  return (
-    emotionalKernel?.dominantEmotion === 'guarded-care'
+  return emotionalKernel?.dominantEmotion === 'guarded-care'
     || (
       emotionalKernel?.initiativeMode === 'hold'
       && emotionalKernel?.memoryRecallMode === 'self-continuity'
       && emotionalKernel?.embodimentTone === 'protective-watch'
     )
-    || (emotionalKernel?.reasonTags ?? []).includes('execution-safety-gate')
-    || (emotionalKernel?.reasonTags ?? []).includes('confirmation-boundary')
-    || (emotionalKernel?.reasonTags ?? []).includes('wait-for-confirmation')
-    || consciousFrameTags.includes('execution-safety-gate:confirmation-boundary')
-    || thoughtTags.includes('execution-safety-gate')
-  )
 }
 
 export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernelOptions = {}) {
@@ -249,7 +198,7 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
       const repairBeforeClosenessAuthority = hasRepairBeforeClosenessAuthority(input.candidateState)
       const restProtectiveCompanionshipAuthority = hasRestProtectiveCompanionshipAuthority(input.candidateState)
       const guardedCareConfirmationBoundaryAuthority = hasGuardedCareConfirmationBoundaryAuthority(input.candidateState)
-      const durableSelfCoreProjectionEmbodimentAuthority = hasDurableSelfCoreProjectionEmbodimentAuthority(input.candidateState)
+      const restrainedPersonStateEmbodimentAuthority = hasRestrainedPersonStateEmbodimentAuthority(input.candidateState)
       const continuityAuthority = repairBeforeClosenessAuthority
         ? {
             currentBodyState: 'recovering' as const,
@@ -268,7 +217,7 @@ export function createAlicizationBodyKernel(options: CreateAlicizationBodyKernel
                 continuityMode: 'protective-watch' as const,
                 quietLineMs: Math.max(authority.quietLineMs, 180_000),
               }
-            : durableSelfCoreProjectionEmbodimentAuthority
+            : restrainedPersonStateEmbodimentAuthority
               ? {
                   currentBodyState: 'accompanying' as const,
                   continuityMode: 'quiet-accompaniment' as const,

@@ -179,6 +179,8 @@ describe('buildBeliefLedger', () => {
     expect(ledger.beliefs.some(belief => belief.scope === 'scene' && belief.source === 'percept')).toBe(true)
     expect(ledger.beliefs.some(belief => belief.scope === 'host' && belief.source === 'inference')).toBe(true)
     expect(ledger.focusBeliefId).toBeTruthy()
+    expect(JSON.stringify(ledger)).not.toContain('The current scene is centered on')
+    expect(JSON.stringify(ledger)).not.toContain('The host may accept guidance')
   })
 
   it('marks stale scene continuity as contradicted when a new grounded scene conflicts with it', () => {
@@ -203,5 +205,50 @@ describe('buildBeliefLedger', () => {
 
     expect(next.unresolvedContradictions.length).toBeGreaterThan(0)
     expect(next.beliefs.some(belief => belief.status === 'contradicted')).toBe(true)
+    expect(next.unresolvedContradictions.every(contradiction => contradiction.startsWith('belief-conflict:'))).toBe(true)
+  })
+
+  it('keeps carry-over memory beliefs as structured anchors instead of fixed prose', () => {
+    const worldModel = createWorldModel()
+    const ledger = buildBeliefLedger({
+      now: 6_000,
+      context: createContext(),
+      scene: null,
+      worldModel: {
+        ...worldModel,
+        activeThread: null,
+        lingeringThreads: [{
+          id: 'thread::review',
+          kind: 'change-review',
+          status: 'active',
+          source: 'working-memory',
+          title: 'review.diff',
+          summary: 'The host was reviewing a concrete diff.',
+          confidence: 0.72,
+          significance: 0.7,
+          unresolved: true,
+          beganAt: 1_000,
+          lastUpdatedAt: 5_000,
+          target: null,
+        }],
+        epistemicState: {
+          ...worldModel.epistemicState,
+          certainty: 'lingering',
+          freshness: 'stale',
+        },
+        continuity: {
+          ...worldModel.continuity,
+          label: 'afterglow',
+          afterglowOpen: false,
+        },
+      },
+      entityWorld: createEntityWorld(),
+      appraisal: createAppraisal(),
+      previous: null,
+    })
+
+    const memoryBelief = ledger.beliefs.find(belief => belief.source === 'memory')
+
+    expect(memoryBelief?.statement).toBe('memory-thread:review.diff')
   })
 })

@@ -8,10 +8,7 @@ import type {
   AlicizationEmotion,
   CharacterPerformanceCapabilitiesManifest,
 } from './alicization-performance-contracts'
-import type {
-  AlicizationDigitalLifeSpineDigest,
-  AlicizationRuntimeProjectStateDigest,
-} from './alicization-transport-contracts'
+import type { AlicizationDigitalLifeSpineDigest } from './alicization-transport-contracts'
 import type { StageEmbodimentMotorState } from './stage-embodiment-motor-state'
 import type { StageEmbodimentPresencePostureMode } from './stage-embodiment-presence-posture'
 import type { StageEmbodimentSpeechStyleProfile } from './stage-embodiment-profile'
@@ -101,7 +98,6 @@ export interface BuildAlicizationDigitalLifeEnvelopeInput {
   speechTimeline?: AlicizationDialogueSpeechTimeline | null
   performanceManifest?: CharacterPerformanceCapabilitiesManifest | null
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
-  projectState?: AlicizationRuntimeProjectStateDigest | null
 }
 
 function clampUnit(value: number | null | undefined, fallback: number = 0) {
@@ -1500,13 +1496,13 @@ function resolveVoicePlan(input: {
   performance: AlicizationDialoguePerformancePayload
   segments: AlicizationDialogueSpeechTimelineSegment[]
   speechStyle: StageEmbodimentSpeechStyleProfile
-  projectState?: AlicizationRuntimeProjectStateDigest | null
+  rendererHints?: AlicizationDialogueEmbodimentRendererHints | null
 }): AlicizationDigitalLifeVoicePlan {
   const averageProsody = averageWeight(input.segments, segment => segment.prosodyWeight)
   const averageBeat = averageWeight(input.segments, segment => segment.beatWeight)
   const averageMouth = averageWeight(input.segments, segment => segment.mouthWeight)
-  const preferredVoiceMode = input.projectState?.preferredVoiceMode ?? null
-  const preferredPacingMode = input.projectState?.preferredPacingMode ?? null
+  const preferredVoiceMode = input.rendererHints?.preferredVoiceMode ?? null
+  const preferredPacingMode = input.rendererHints?.preferredPacingMode ?? null
 
   let rateMultiplier = input.speechStyle.rateMultiplier
   let energyFactor = 1
@@ -1693,7 +1689,6 @@ function resolveFrame(input: {
   baseVoice: AlicizationDigitalLifeVoicePlan
   baseLipSync: AlicizationDigitalLifeLipSyncPlan
   digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
-  projectState?: AlicizationRuntimeProjectStateDigest | null
 }): AlicizationDigitalLifeFrame {
   const actionCue = normalizeCue(input.segment.actionCue)
   const facialCue = normalizeCue(input.segment.facialCue)
@@ -1709,13 +1704,6 @@ function resolveFrame(input: {
     : facialCue
       ? 'blend'
       : 'recover'
-  const residentMode = input.segment.rendererHints?.residentMode ?? input.envelope.rendererHints?.residentMode ?? null
-  const digitalLifeSpineProjectState = input.projectState ?? null
-  const sameThreadMeasuredReturnProjectClosure
-    = residentMode === 'measured-return'
-      && digitalLifeSpineProjectState?.continuityArcStage === 'same-thread-continuation'
-      && digitalLifeSpineProjectState?.continuityPreferredTiming === 'next-open-window'
-      && input.digitalLifeSpine?.proactive?.continuityRestraint === 'measured-return'
   const voice: AlicizationDigitalLifeVoicePlan = {
     pitchDelta: input.baseVoice.pitchDelta,
     rateMultiplier: clampRateMultiplier(
@@ -1723,31 +1711,16 @@ function resolveFrame(input: {
       * (1 + (input.segment.prosodyWeight - 0.5) * 0.12 + (input.segment.beatWeight - 0.4) * 0.06),
     ),
     energy: roundHundredths(
-      sameThreadMeasuredReturnProjectClosure
-        ? Math.max(
-            0.49,
-            input.baseVoice.energy * 0.82
-            + clampUnit(input.segment.prosodyWeight) * 0.12
-            + clampUnit(input.segment.gestureWeight) * 0.03
-            + clampUnit(input.segment.beatWeight) * 0.03,
-          )
-        : input.baseVoice.energy * 0.62
-          + clampUnit(input.segment.prosodyWeight) * 0.22
-          + clampUnit(input.segment.gestureWeight) * 0.08
-          + clampUnit(input.segment.beatWeight) * 0.08,
+      input.baseVoice.energy * 0.62
+      + clampUnit(input.segment.prosodyWeight) * 0.22
+      + clampUnit(input.segment.gestureWeight) * 0.08
+      + clampUnit(input.segment.beatWeight) * 0.08,
       input.baseVoice.energy,
     ),
     cadence: roundHundredths(
-      sameThreadMeasuredReturnProjectClosure
-        ? Math.max(
-            0.49,
-            input.baseVoice.cadence * 0.84
-            + clampUnit(input.segment.prosodyWeight) * 0.08
-            + clampUnit(input.segment.beatWeight) * 0.1,
-          )
-        : input.baseVoice.cadence * 0.58
-          + clampUnit(input.segment.prosodyWeight) * 0.16
-          + clampUnit(input.segment.beatWeight) * 0.26,
+      input.baseVoice.cadence * 0.58
+      + clampUnit(input.segment.prosodyWeight) * 0.16
+      + clampUnit(input.segment.beatWeight) * 0.26,
       input.baseVoice.cadence,
     ),
   }
@@ -1856,12 +1829,11 @@ export function buildAlicizationDigitalLifeEnvelope(
     embodiment.performance,
     embodiment.emotion,
   )
-  const projectState = input.projectState ?? input.digitalLifeSpine?.runtime?.projectState ?? null
   const voice = resolveVoicePlan({
     performance,
     segments: speechTimeline.segments,
     speechStyle: embodiment.speechStyle,
-    projectState,
+    rendererHints: embodiment.rendererHints,
   })
   const lipSync = resolveLipSyncPlan({
     performance,
@@ -1923,7 +1895,6 @@ export function buildAlicizationDigitalLifeEnvelope(
     baseVoice: voice,
     baseLipSync: lipSync,
     digitalLifeSpine: input.digitalLifeSpine,
-    projectState,
   }))
 
   return {

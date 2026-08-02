@@ -13,18 +13,6 @@ export interface AlicizationFeedbackMemoryExperience {
   tags?: string[] | null
 }
 
-export interface AlicizationExecutionFeedbackProjectBriefing {
-  identity?: string | null
-  currentPhase?: string | null
-  latestLandedProgress?: string | null
-  primaryOpenLoop?: string | null
-  nextClosureTarget?: string | null
-  sameHerSelfLine?: string | null
-  sameHerDriftRisk?: string | null
-  preflightSummary?: string | null
-  preDialogueAwarenessLine?: string | null
-}
-
 interface AlicizationReplyMemoryCoherenceState {
   coherenceState: string | null
   surfacePolicy: string | null
@@ -496,7 +484,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
     outcome?: string | null
     feedbackExperience?: AlicizationFeedbackMemoryExperience | null
     memoryClosureExecution?: AlicizationExecutionRuntimeMemoryClosureExecution | null
-    projectBriefing?: AlicizationExecutionFeedbackProjectBriefing | null
     safetyGateSummary?: string | null
     resumeConfirmationSummary?: string | null
   }) => {
@@ -504,7 +491,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
     if (!decisionTraceId || !input.feedback)
       return
 
-    void input.projectBriefing
     const safetyGateSummary = options.sanitizeText(input.safetyGateSummary, '').slice(0, 240) || null
     const resumeConfirmationSummary = options.sanitizeText(input.resumeConfirmationSummary, '').slice(0, 360) || null
     const feedbackExperience = sanitizeFeedbackMemoryExperience(input.feedbackExperience, options.sanitizeText)

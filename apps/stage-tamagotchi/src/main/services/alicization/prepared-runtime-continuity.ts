@@ -6,7 +6,6 @@ import {
   mergePreferredSelfContinuityAuthority,
   resolvePreferredSelfContinuityAuthority,
 } from './person-state-projection-resolution'
-import { resolveAlicizationProjectStateSnapshot } from './project-state-brief'
 import { resolvePreferredRuntimeSurface } from './runtime-surface-continuity-selection'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 
@@ -36,6 +35,28 @@ function fillAuthoritySummaryIfMissing<T extends Partial<AlicizationSelfContinui
     : authority
 }
 
+function normalizePreparedSelfContinuityAuthority(
+  raw: unknown,
+): Partial<AlicizationSelfContinuityAuthority> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const authority = raw as Record<string, unknown>
+  const readText = (value: unknown) => typeof value === 'string' ? value : undefined
+
+  return {
+    selfLine: readText(authority.selfLine),
+    relationshipLine: readText(authority.relationshipLine),
+    motiveLine: readText(authority.motiveLine),
+    habitLine: readText(authority.habitLine),
+    inwardLine: readText(authority.inwardLine),
+    authoritySummary: readText(authority.authoritySummary),
+    sourceTags: Array.isArray(authority.sourceTags)
+      ? authority.sourceTags.filter((tag): tag is string => typeof tag === 'string')
+      : undefined,
+  }
+}
+
 export function deriveRuntimeProjectionRelationshipCarry(_projection: unknown) {
   return null
 }
@@ -47,16 +68,6 @@ export function resolvePreferredPreparedRuntimeSurface(
     spineRuntimeSurface: runtimeSurface?.digitalLifeSpine?.runtimeSurface ?? null,
     preparedRuntimeSurface: runtimeSurface?.digitalLifeRuntimeSurface ?? null,
   })
-}
-
-/**
- * Project-state is retained only for diagnostics and migration compatibility.
- * It must not be promoted into prepared dialogue continuity.
- */
-export function resolvePreparedRuntimeProjectState(
-  _prepared?: AlicizationPreparedMainChatExecutionResult | null,
-) {
-  return null
 }
 
 export function resolvePreparedRuntimeSelfContinuityAuthority(
@@ -75,8 +86,12 @@ export function resolvePreparedRuntimeSelfContinuityAuthority(
   if (runtimeSurfaceAuthority)
     return fillAuthoritySummaryIfMissing(runtimeSurfaceAuthority)
 
-  const bundleAuthority = bundleProjection?.selfContinuityAuthority ?? null
-  const runtimeAuthority = runtimeProjection?.selfContinuityAuthority ?? null
+  const bundleAuthority = normalizePreparedSelfContinuityAuthority(
+    bundleProjection?.selfContinuityAuthority,
+  )
+  const runtimeAuthority = normalizePreparedSelfContinuityAuthority(
+    runtimeProjection?.selfContinuityAuthority,
+  )
   const mergedAuthority = mergePreferredSelfContinuityAuthority<Partial<AlicizationSelfContinuityAuthority>>({
     bundleAuthority,
     runtimeAuthority,
@@ -90,16 +105,4 @@ export function resolvePreparedRuntimeSelfContinuityAuthority(
   return fillAuthoritySummaryIfMissing(
     selectedAuthority,
   )
-}
-
-export function resolvePreparedRuntimeProjectStateSnapshot(
-  _prepared?: AlicizationPreparedMainChatExecutionResult | null,
-) {
-  return resolveAlicizationProjectStateSnapshot()
-}
-
-export function resolvePreparedRuntimeProjectPreDialogueAwarenessSummary(
-  _prepared?: AlicizationPreparedMainChatExecutionResult | null,
-) {
-  return null
 }

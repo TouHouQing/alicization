@@ -21,16 +21,6 @@ export interface AlicizationSelfEvolutionRuntime {
     finalReplayGatePassed?: boolean | null
     productionGoldSampleCount?: number | null
     productionGoldCoverage?: number | null
-    projectStateContinuityDrift?: boolean | null
-    projectStateSummary?: {
-      comparedTurnCount: number
-      identityHitCount: number
-      phaseHitCount: number
-      openLoopHitCount: number
-      sameHerHitCount?: number
-      proactiveSameHerGapHitCount?: number
-      continuityHitCount: number
-    } | null
   }) => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot>
   rollbackVersion: (input: {
     candidateId: string
@@ -41,16 +31,6 @@ export interface AlicizationSelfEvolutionRuntime {
     finalReplayGatePassed?: boolean | null
     productionGoldSampleCount?: number | null
     productionGoldCoverage?: number | null
-    projectStateContinuityDrift?: boolean | null
-    projectStateSummary?: {
-      comparedTurnCount: number
-      identityHitCount: number
-      phaseHitCount: number
-      openLoopHitCount: number
-      sameHerHitCount?: number
-      proactiveSameHerGapHitCount?: number
-      continuityHitCount: number
-    } | null
   }) => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot>
 }
 
@@ -66,16 +46,6 @@ export function createAlicizationSelfEvolutionRuntime(options: {
     finalReplayGatePassed?: boolean | null
     productionGoldSampleCount?: number | null
     productionGoldCoverage?: number | null
-    projectStateContinuityDrift?: boolean | null
-    projectStateSummary?: {
-      comparedTurnCount: number
-      identityHitCount: number
-      phaseHitCount: number
-      openLoopHitCount: number
-      sameHerHitCount?: number
-      proactiveSameHerGapHitCount?: number
-      continuityHitCount: number
-    } | null
   }) {
     const snapshot = await versionRuntime.getSnapshot()
     let next = snapshot
@@ -88,8 +58,6 @@ export function createAlicizationSelfEvolutionRuntime(options: {
         finalReplayGatePassed: input.finalReplayGatePassed,
         productionGoldSampleCount: input.productionGoldSampleCount,
         productionGoldCoverage: input.productionGoldCoverage,
-        projectStateContinuityDrift: input.projectStateContinuityDrift,
-        projectStateSummary: input.projectStateSummary,
       })
     }
     return next

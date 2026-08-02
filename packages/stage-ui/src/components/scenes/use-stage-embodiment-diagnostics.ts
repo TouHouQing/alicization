@@ -372,7 +372,6 @@ export interface StageEmbodimentDiagnosticsSnapshot {
         preferredPresence: string | null
         selectedAction: string | null
         personaBiasSummary: string | null
-        personaOpeningGuidance: string | null
         scene: string | null
         scenario: string | null
       }
@@ -1158,11 +1157,7 @@ function normalizeRuntimeDynamicsSummary(
       activeThreadTitle: normalizeSummaryString(input.digitalLifeSpineDigest?.runtime.activeThreadTitle),
       preferredPresence: normalizeSummaryString(input.digitalLifeSpineDigest?.runtime.preferredPresence),
       selectedAction: normalizeSummaryString(input.digitalLifeSpineDigest?.runtime.selectedAction),
-      personaBiasSummary: normalizeSummaryString(
-        input.digitalLifeSpineDigest?.proactive?.personaBias?.manifestationCadenceSummary
-        ?? input.digitalLifeSpineDigest?.proactive?.personaBias?.whySummary,
-      ),
-      personaOpeningGuidance: normalizeSummaryString(input.digitalLifeSpineDigest?.proactive?.personaBias?.openingGuidance),
+      personaBiasSummary: normalizeSummaryString(input.digitalLifeSpineDigest?.proactive?.personaBias?.whySummary),
       scene: normalizeSummaryString(input.visualPresenceState?.currentScene?.workloadKind),
       scenario: normalizeSummaryString(input.visualPresenceState?.currentScene?.scenario),
     },
@@ -2472,7 +2467,7 @@ function normalizeSpeechAlerts(input: {
     motionSegmentId: input.drivers?.motion?.segmentId,
     lipsyncSegmentId: input.drivers?.lipsync?.segmentId,
   })
-  const hasExplicitAudibleSameHerMetadata = (entry: {
+  const hasExplicitAudibleContinuityMetadata = (entry: {
     signature?: string | null
     reasonTags?: string[] | null
   } | null | undefined) => {
@@ -2896,37 +2891,37 @@ function normalizeSpeechAlerts(input: {
     || hasSameSegmentBodyVoiceRecovery(input.rendererAlignment.vrm)
   const hasRendererBodyLipsyncVoiceRecovery = hasSameSegmentBodyLipsyncVoiceRecovery(input.rendererAlignment.live2d)
     || hasSameSegmentBodyLipsyncVoiceRecovery(input.rendererAlignment.vrm)
-  const hasExplicitAudibleSameHerRecovery = (
+  const hasExplicitAudibleContinuityRecovery = (
     (input.rendererAlignment.live2d
-      && hasExplicitAudibleSameHerMetadata(input.rendererAlignment.live2d)
+      && hasExplicitAudibleContinuityMetadata(input.rendererAlignment.live2d)
       && (
         hasSameSegmentBodyVoiceRecovery(input.rendererAlignment.live2d)
         || hasSameSegmentLipsyncVoiceRecovery(input.rendererAlignment.live2d)
       ))
       || (input.rendererAlignment.vrm
-        && hasExplicitAudibleSameHerMetadata(input.rendererAlignment.vrm)
+        && hasExplicitAudibleContinuityMetadata(input.rendererAlignment.vrm)
         && (
           hasSameSegmentBodyVoiceRecovery(input.rendererAlignment.vrm)
           || hasSameSegmentLipsyncVoiceRecovery(input.rendererAlignment.vrm)
         ))
   )
-  const hasBodyVoiceSameHerLane = hasResidentBodyLane
+  const hasBodyVoiceContinuityLane = hasResidentBodyLane
     && hasVoiceLane
     && !hasLipsyncLane
-  const hasAudibleBodySameHerLane = hasResidentBodyLane
+  const hasAudibleBodyContinuityLane = hasResidentBodyLane
     && (
       hasRendererBodyLipsyncVoiceRecovery
-      || (hasExplicitAudibleSameHerRecovery && hasLipsyncLane)
+      || (hasExplicitAudibleContinuityRecovery && hasLipsyncLane)
     )
-  const hasBodyVoiceSameHerLag = hasBodyVoiceSameHerLane
+  const hasBodyVoiceContinuityLag = hasBodyVoiceContinuityLane
     && effectiveAuthority.faceSegmentMatched === false
     && effectiveAuthority.motionSegmentMatched === false
-  const hasExplicitAudibleSameHerLag = hasResidentBodyLane
-    && hasExplicitAudibleSameHerRecovery
+  const hasExplicitAudibleContinuityLag = hasResidentBodyLane
+    && hasExplicitAudibleContinuityRecovery
     && hasLipsyncLane
     && effectiveAuthority.faceSegmentMatched === false
     && effectiveAuthority.motionSegmentMatched === false
-  const hasAudibleBodyPartialLaneDominance = hasAudibleBodySameHerLane
+  const hasAudibleBodyPartialLaneDominance = hasAudibleBodyContinuityLane
     && effectiveAuthority.faceSegmentMatched === false
     && effectiveAuthority.motionSegmentMatched === false
   if (
@@ -2952,9 +2947,9 @@ function normalizeSpeechAlerts(input: {
     alerts.push({
       severity: 'warn',
       code: 'cross-modal-partial-lane-dominance',
-      message: hasExplicitAudibleSameHerLag || hasAudibleBodyPartialLaneDominance
+      message: hasExplicitAudibleContinuityLag || hasAudibleBodyPartialLaneDominance
         ? 'The resident body lane is still holding together with one audible identity-continuity lane, but face and motion have not yet rejoined the same active segment.'
-        : hasBodyVoiceSameHerLag || hasRendererBodyVoiceRecovery
+        : hasBodyVoiceContinuityLag || hasRendererBodyVoiceRecovery
           ? 'The resident body lane is still holding together with the identity-continuity voice line, but lipsync, face, and motion have not yet rejoined the same active segment.'
           : hasResidentBodyLane
             ? 'The resident body lane is still holding together with one other embodiment lane, but full cross-modal continuity has already narrowed.'

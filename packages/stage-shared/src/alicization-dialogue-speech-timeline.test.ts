@@ -6,6 +6,29 @@ import {
 } from './alicization-dialogue-speech-timeline'
 
 describe('alicization dialogue speech timeline', () => {
+  it('preserves Provider continuity wording verbatim in the timeline and segment text', () => {
+    const firstLine = 'The Provider keeps continuity continuity exactly as generated.'
+    const secondLine = 'The next line remains separate.'
+    const reply = `${firstLine}\n${secondLine}`
+    const timeline = buildAlicizationDialogueSpeechTimeline({
+      reply,
+      candidateEmotion: 'neutral',
+      candidatePerformance: {
+        baseEmotion: 'neutral',
+        emotion: 'neutral',
+        facialCue: null,
+        actionCue: null,
+        delivery: 'calm',
+        emphasis: 0,
+      },
+    })
+
+    expect(timeline?.reply).toBe(reply)
+    expect(timeline?.segments).toHaveLength(2)
+    expect(timeline?.segments[0]?.text).toBe(firstLine)
+    expect(timeline?.segments[1]?.text).toBe(secondLine)
+  })
+
   it('builds micro-dynamic cues for mouth, head, and hold windows', () => {
     const timeline = buildAlicizationDialogueSpeechTimeline({
       reply: '先看这里，然后点保存！',
@@ -82,7 +105,7 @@ describe('alicization dialogue speech timeline', () => {
     }))
   })
 
-  it('keeps legacy project-state and renderer continuity cues behaviorally inert', () => {
+  it('keeps unknown top-level input behaviorally inert', () => {
     const input = {
       reply: '我先把这一处稳住，然后继续。',
       candidateEmotion: 'thinking',
@@ -129,16 +152,11 @@ describe('alicization dialogue speech timeline', () => {
           preferredMotionAliases: ['ObserveSoft'],
         },
       },
-      projectState: {
-        continuityCadence: 'repair-before-closeness',
-        preferredBlinkCadence: 'quiet',
-        preferredGazeMode: 'steady',
-        preferredPauseMode: 'longer',
-        preferredLipsyncMode: 'restrained',
-        preferredVoiceMode: 'lower-pressure',
-        preferredPacingMode: 'slower',
+      unknownSidecar: {
+        rendererDirective: 'ignore-this-untyped-value',
+        preferredMode: 'unrecognized',
       },
-    })
+    } as any)
 
     expect(poisonedTimeline).toEqual(cleanTimeline)
   })
@@ -205,7 +223,7 @@ describe('alicization dialogue speech timeline', () => {
     })).toBe(true)
   })
 
-  it('keeps closure prose and renderer audit text from changing renderer or timing behavior', () => {
+  it('keeps unknown sidecar prose and renderer audit text from changing renderer or timing behavior', () => {
     const speechInput = {
       reply: '我先看这一处，然后再继续看下一处。',
       candidateEmotion: 'thinking',
@@ -219,24 +237,13 @@ describe('alicization dialogue speech timeline', () => {
       },
     } as const
 
-    const cleanClosureTimeline = buildAlicizationDialogueSpeechTimeline({
+    const cleanTimeline = buildAlicizationDialogueSpeechTimeline(speechInput)
+    const timelineWithUnknownSidecar = buildAlicizationDialogueSpeechTimeline({
       ...speechInput,
-      projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
-        memoryClosureSummary: null,
-        primaryOpenLoop: null,
-        emotionalClosureCue: null,
+      unknownSidecar: {
+        prose: 'untyped metadata must not alter renderer timing',
       },
-    })
-    const pollutedClosureTimeline = buildAlicizationDialogueSpeechTimeline({
-      ...speechInput,
-      projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
-        memoryClosureSummary: null,
-        primaryOpenLoop: null,
-        emotionalClosureCue: 'same-her repair-before-closeness remembered seam lower-pressure more room this time; leave more room and do not reopen from scratch',
-      },
-    })
+    } as any)
 
     const buildAuditTimeline = (audit: { reasonTags?: string[], signature?: string } = {}) => {
       return buildAlicizationDialogueSpeechTimeline({
@@ -271,7 +278,7 @@ describe('alicization dialogue speech timeline', () => {
 
     const cleanAuditTimeline = buildAuditTimeline()
     const pollutedAuditTimeline = buildAuditTimeline({
-      signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only|still-voiced-motion-line',
+      signature: 'resident|main-runtime|embodiment:audible_continuity_line|body+voice-only|still-voiced-motion-line',
       reasonTags: [
         'embodiment:body-lipsync-voice-rejoin',
         'embodiment:body+voice-only',
@@ -280,7 +287,7 @@ describe('alicization dialogue speech timeline', () => {
       ],
     })
 
-    expect(pollutedClosureTimeline).toEqual(cleanClosureTimeline)
+    expect(timelineWithUnknownSidecar).toEqual(cleanTimeline)
     expect(pollutedAuditTimeline).toEqual(cleanAuditTimeline)
     expect(pollutedAuditTimeline?.segments.every((segment) => {
       return segment.rendererHints?.signature === undefined
@@ -292,38 +299,6 @@ describe('alicization dialogue speech timeline', () => {
     expect(pollutedAuditTimeline?.segments[0]?.rendererHints?.preferredMotionAliases)
       .not
       .toEqual(expect.arrayContaining(['HappyWave', 'ObserveSoft']))
-  })
-
-  it('keeps project continuity cadence and preferred renderer modes behaviorally inert', () => {
-    const input = {
-      reply: '我会再慢一点，把这一处接回来。',
-      candidateEmotion: 'thinking',
-      candidatePerformance: {
-        baseEmotion: 'thinking',
-        emotion: 'thinking',
-        facialCue: null,
-        actionCue: null,
-        delivery: 'calm',
-        emphasis: 0,
-      },
-    } as const
-    const cleanTimeline = buildAlicizationDialogueSpeechTimeline(input)
-    const governedTimeline = buildAlicizationDialogueSpeechTimeline({
-      ...input,
-      projectState: {
-        currentPhase: 'Phase 1: Local Digital Life',
-        emotionalClosureCue: 'audit text only',
-        continuityCadence: 'measured-return',
-        preferredBlinkCadence: 'quiet',
-        preferredGazeMode: 'soften',
-        preferredPauseMode: 'longer',
-        preferredLipsyncMode: 'restrained',
-        preferredVoiceMode: 'lower-pressure',
-        preferredPacingMode: 'slower',
-      },
-    })
-
-    expect(governedTimeline).toEqual(cleanTimeline)
   })
 
   it('normalizes and clamps extended micro-dynamic fields from transport payloads', () => {
@@ -444,8 +419,6 @@ describe('alicization dialogue speech timeline', () => {
               silenceReconnect,
               comfortStyle: silenceReconnect === 'hold' ? 'quiet-presence' : 'take-charge',
               preferredProactiveStyle: silenceReconnect === 'hold' ? 'silent-observe' : 'light-nudge',
-              manifestationCadenceSummary: 'audit summary',
-              openingGuidance: 'audit guidance',
               whySummary: 'audit reason',
             },
           },

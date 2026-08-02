@@ -11,7 +11,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
     })).toBeNull()
   })
 
-  it('projects an active persona-thought workflow focus into a compact repair heading and target sets', () => {
+  it('projects an active action workflow focus into a compact repair heading and target sets', () => {
     expect(buildSelfEvolutionActiveWorkflowFocus({
       activePatternKey: 'pattern-persona',
       patternContextByKey: {
@@ -24,13 +24,13 @@ describe('performance visualizer self evolution active workflow focus', () => {
       },
       patternGuidanceByKey: {
         'pattern-persona': {
-          governanceLayer: 'persona-thought',
-          governanceLayerDisplay: '人格/思绪层',
-          repairOwnerHint: '私有思绪治理',
+          governanceLayer: 'proactive-action',
+          governanceLayerDisplay: '主动行动层',
+          repairOwnerHint: '主动行动链',
           prosodyAuthorityHint: null,
           rendererRejoinSurfaceKey: null,
           recommendedEvidencePanels: [
-            'private-thought-governance-chain',
+            'proactive-action-chain',
             'runtime-continuity-projection',
           ],
           recommendedTraceSections: [
@@ -40,22 +40,22 @@ describe('performance visualizer self evolution active workflow focus', () => {
           recommendedEventKinds: [
             'takeover-audit',
             'person-state-updated',
-            'governance-normalized',
+            'learning-executed',
           ],
-          summaryLine: '疑似反复出现的人格/思绪漂移。',
+          summaryLine: '主动行动证据出现反复偏移。',
         },
       },
     })).toEqual({
-      title: '当前工作流焦点：人格/思绪层',
+      title: '当前工作流焦点：主动行动层',
       summaryLine: '正在修复该反复漂移模式的当前侧。',
-      repairOwnerHint: '私有思绪治理',
+      repairOwnerHint: '主动行动链',
       prosodyAuthorityHint: null,
       bodyContinuityHint: null,
       bodyContinuityPhase: null,
       rendererRejoinSurfaceKey: null,
       rendererTarget: null,
       evidencePanels: new Set([
-        'private-thought-governance-chain',
+        'proactive-action-chain',
         'runtime-continuity-projection',
       ]),
       traceSections: new Set([
@@ -65,7 +65,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
       eventKinds: new Set([
         'takeover-audit',
         'person-state-updated',
-        'governance-normalized',
+        'learning-executed',
       ]),
     })
   })
@@ -83,6 +83,38 @@ describe('performance visualizer self evolution active workflow focus', () => {
       },
       patternGuidanceByKey: {},
     })).toBeNull()
+  })
+
+  it('does not infer body phase or visible lane from descriptive text', () => {
+    const oldBodyHint = ['身体承接态', ' -> ', '显形补回态'].join('')
+    expect(buildSelfEvolutionActiveWorkflowFocus({
+      activePatternKey: 'pattern-body-description',
+      patternContextByKey: {
+        'pattern-body-description': {
+          currentCapturedAt: 500,
+          previousCapturedAt: 400,
+          side: 'current',
+          summaryLine: '当前侧。',
+        },
+      },
+      patternGuidanceByKey: {
+        'pattern-body-description': {
+          governanceLayer: 'body-continuity',
+          governanceLayerDisplay: '身体同步层',
+          repairOwnerHint: '显形诊断',
+          prosodyAuthorityHint: null,
+          bodyContinuityHint: oldBodyHint,
+          recommendedEvidencePanels: ['renderer-authority-projection'],
+          recommendedTraceSections: ['trace-timeline'],
+          recommendedEventKinds: ['person-state-updated'],
+          summaryLine: oldBodyHint,
+        },
+      },
+    })).toEqual(expect.objectContaining({
+      bodyContinuityPhase: null,
+      rendererRejoinSurfaceKey: null,
+      rendererTarget: null,
+    }))
   })
 
   it('projects renderer target hints into the active workflow focus so repair session summaries do not depend on handwritten display text', () => {
@@ -142,28 +174,27 @@ describe('performance visualizer self evolution active workflow focus', () => {
     })
   })
 
-  it('keeps project-state continuity workflow focus explicit instead of flattening it into generic same-her drift wording', () => {
+  it('keeps runtime evidence workflow focus explicit', () => {
     expect(buildSelfEvolutionActiveWorkflowFocus({
-      activePatternKey: 'pattern-project-state',
+      activePatternKey: 'pattern-runtime',
       patternContextByKey: {
-        'pattern-project-state': {
+        'pattern-runtime': {
           currentCapturedAt: 620,
           previousCapturedAt: 520,
           side: 'previous',
-          summaryLine: '将项目状态连续性工作流应用到 1970-01-01T00:00:00.520Z -> 1970-01-01T00:00:00.620Z 的前一侧。',
+          summaryLine: '将运行时证据工作流应用到 1970-01-01T00:00:00.520Z -> 1970-01-01T00:00:00.620Z 的前一侧。',
         },
       },
       patternGuidanceByKey: {
-        'pattern-project-state': {
-          governanceLayer: 'project-state-continuity',
-          governanceLayerDisplay: '项目状态连续性层',
-          repairOwnerHint: '项目状态连续性治理',
+        'pattern-runtime': {
+          governanceLayer: 'runtime-continuity',
+          governanceLayerDisplay: '运行时证据层',
+          repairOwnerHint: '运行时证据',
           prosodyAuthorityHint: null,
           recommendedEvidencePanels: [
-            'internalization-readiness-summary',
             'candidate-trajectory-summary',
             'proactive-decision-consumption-summary',
-            'identity-drift-governance-summary',
+            'runtime-continuity-projection',
           ],
           recommendedTraceSections: [
             'trace-consumption',
@@ -171,25 +202,24 @@ describe('performance visualizer self evolution active workflow focus', () => {
           ],
           recommendedEventKinds: [
             'takeover-audit',
-            'governance-normalized',
+            'person-state-updated',
           ],
-          summaryLine: '这更像项目状态连续性治理反复失稳，而不是普通 same-her 漂移修复。先核对项目身份是否被继续带着，再确认 Phase 1 本地主数字生命主线和未闭环 open loops 是否稳定延续。',
+          summaryLine: '运行时证据出现反复偏移。',
         },
       },
     })).toEqual({
-      title: '当前工作流焦点：项目状态连续性层',
+      title: '当前工作流焦点：运行时证据层',
       summaryLine: '正在修复该反复漂移模式的前一侧。',
-      repairOwnerHint: '项目状态连续性治理',
+      repairOwnerHint: '运行时证据',
       prosodyAuthorityHint: null,
       bodyContinuityHint: null,
       bodyContinuityPhase: null,
       rendererRejoinSurfaceKey: null,
       rendererTarget: null,
       evidencePanels: new Set([
-        'internalization-readiness-summary',
         'candidate-trajectory-summary',
         'proactive-decision-consumption-summary',
-        'identity-drift-governance-summary',
+        'runtime-continuity-projection',
       ]),
       traceSections: new Set([
         'trace-consumption',
@@ -197,7 +227,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
       ]),
       eventKinds: new Set([
         'takeover-audit',
-        'governance-normalized',
+        'person-state-updated',
       ]),
     })
   })
@@ -218,7 +248,9 @@ describe('performance visualizer self evolution active workflow focus', () => {
           governanceLayer: 'body-continuity',
           governanceLayerDisplay: '身体连续性层',
           repairOwnerHint: '身体连续性治理',
-          prosodyAuthorityHint: '优先核对当前片段的身体线是否仍托住同一段 living segment，再确认 speech 显形权威是否正在沿同一条连续身体线补回。',
+          prosodyAuthorityHint: null,
+          bodyContinuityHint: 'speech 显形仍在等待身体状态完成回接。',
+          bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
           rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech',
           recommendedEvidencePanels: [
             'renderer-authority-projection',
@@ -233,7 +265,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
             'takeover-audit',
             'person-state-updated',
           ],
-          summaryLine: '这更像身体连续性治理反复失稳，而不是普通显形权威漂移。先确认身体线是否仍托住同一段 living segment，再核对 speech 显形权威是否沿着同一条连续身体线补回。',
+          summaryLine: 'speech 显形状态正在回接。',
         },
       },
     })).toEqual({
@@ -241,7 +273,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
       summaryLine: '正在修复该反复漂移模式的当前侧。',
       repairOwnerHint: '身体连续性治理',
       prosodyAuthorityHint: null,
-      bodyContinuityHint: '优先核对当前片段的身体线是否仍托住同一段 living segment，再确认 speech 显形权威是否正在沿同一条连续身体线补回。',
+      bodyContinuityHint: 'speech 显形仍在等待身体状态完成回接。',
       bodyContinuityPhase: 'body-carried-to-renderer-rejoin',
       rendererRejoinSurfaceKey: 'authority:renderer-rejoin:speech',
       rendererTarget: 'speech',
@@ -277,7 +309,9 @@ describe('performance visualizer self evolution active workflow focus', () => {
           governanceLayer: 'body-continuity',
           governanceLayerDisplay: '身体连续性层',
           repairOwnerHint: '身体连续性治理',
-          prosodyAuthorityHint: '优先核对当前片段的身体线是否仍托住同一段 living segment，再确认 Live2D 显形权威是否仍稳定锁在同一段 living segment 上。',
+          prosodyAuthorityHint: null,
+          bodyContinuityHint: '身体与 Live2D 显形状态已经完成同步。',
+          bodyContinuityPhase: 'full-cross-modal-lock',
           rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
           recommendedEvidencePanels: [
             'renderer-authority-projection',
@@ -292,7 +326,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
             'takeover-audit',
             'person-state-updated',
           ],
-          summaryLine: '这更像身体连续性治理反复失稳，而不是普通显形权威漂移。先确认身体线与 Live2D 显形权威是否仍稳定锁在同一段 living segment 上，而不是把这段稳定回归误写成短暂同步。',
+          summaryLine: '身体与 Live2D 显形状态保持同步。',
         },
       },
     })).toEqual({
@@ -300,7 +334,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
       summaryLine: '正在修复该反复漂移模式的当前侧。',
       repairOwnerHint: '身体连续性治理',
       prosodyAuthorityHint: null,
-      bodyContinuityHint: '优先核对当前片段的身体线是否仍托住同一段 living segment，再确认 Live2D 显形权威是否仍稳定锁在同一段 living segment 上。',
+      bodyContinuityHint: '身体与 Live2D 显形状态已经完成同步。',
       bodyContinuityPhase: 'full-cross-modal-lock',
       rendererRejoinSurfaceKey: 'authority:renderer-rejoin:live2d',
       rendererTarget: 'live2d',
@@ -320,7 +354,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
     })
   })
 
-  it('keeps quieter face+lipsync identity-continuity', () => {
+  it('keeps quieter face+lipsync continuity', () => {
     expect(buildSelfEvolutionActiveWorkflowFocus({
       activePatternKey: 'pattern-quieter-face-lipsync',
       patternContextByKey: {
@@ -336,7 +370,8 @@ describe('performance visualizer self evolution active workflow focus', () => {
           governanceLayer: 'body-continuity',
           governanceLayerDisplay: '身体连续性层',
           repairOwnerHint: '身体连续性治理',
-          prosodyAuthorityHint: '优先核对当前是否仍只有 face 和 lipsync 这条 same-her 生命线与同一段 living segment 对齐，再确认为什么 body、motion 和 voice 还没有重新接回这条表情口型线。',
+          prosodyAuthorityHint: null,
+          bodyContinuityHint: '当前可见通道：face+lipsync-only。',
           survivingVisibleLane: 'face+lipsync-only',
           recommendedEvidencePanels: [
             'renderer-authority-projection',
@@ -351,7 +386,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
             'takeover-audit',
             'person-state-updated',
           ],
-          summaryLine: '这更像身体连续性治理反复失稳，而不是普通显形权威漂移。先确认当前是否仍只有 face 和 lipsync 这条 same-her 生命线与同一段 living segment 对齐，再核对为什么 body、motion 和 voice 还没有重新接回这条表情口型线，避免把这次 quieter carry 误写成修复完成。',
+          summaryLine: '显形通道状态来自 survivingVisibleLane。',
         },
       },
     })).toEqual({
@@ -359,7 +394,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
       summaryLine: '正在修复该反复漂移模式的当前侧。',
       repairOwnerHint: '身体连续性治理',
       prosodyAuthorityHint: null,
-      bodyContinuityHint: '优先核对当前是否仍只有 face 和 lipsync 这条 same-her 生命线与同一段 living segment 对齐，再确认为什么 body、motion 和 voice 还没有重新接回这条表情口型线。',
+      bodyContinuityHint: '当前可见通道：face+lipsync-only。',
       bodyContinuityPhase: 'renderer-rejoin-without-body',
       rendererRejoinSurfaceKey: null,
       survivingVisibleLane: 'face+lipsync-only',
@@ -380,7 +415,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
     })
   })
 
-  it('keeps quieter motion+lipsync identity-continuity', () => {
+  it('keeps quieter motion+lipsync continuity', () => {
     expect(buildSelfEvolutionActiveWorkflowFocus({
       activePatternKey: 'pattern-quieter-motion-lipsync',
       patternContextByKey: {
@@ -396,7 +431,8 @@ describe('performance visualizer self evolution active workflow focus', () => {
           governanceLayer: 'body-continuity',
           governanceLayerDisplay: '身体连续性层',
           repairOwnerHint: '身体连续性治理',
-          prosodyAuthorityHint: '优先核对当前是否仍只有 motion 和 lipsync 这条 same-her 生命线与同一段 living segment 对齐，再确认为什么 body、face 和 voice 还没有重新接回这条动作口型线。',
+          prosodyAuthorityHint: null,
+          bodyContinuityHint: '当前可见通道：motion+lipsync-only。',
           survivingVisibleLane: 'motion+lipsync-only',
           recommendedEvidencePanels: [
             'renderer-authority-projection',
@@ -411,7 +447,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
             'takeover-audit',
             'person-state-updated',
           ],
-          summaryLine: '这更像身体连续性治理反复失稳，而不是普通显形权威漂移。先确认当前是否仍只有 motion 和 lipsync 这条 same-her 生命线与同一段 living segment 对齐，再核对为什么 body、face 和 voice 还没有重新接回这条动作口型线，避免把这次 quieter carry 误写成修复完成。',
+          summaryLine: '显形通道状态来自 survivingVisibleLane。',
         },
       },
     })).toEqual({
@@ -419,7 +455,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
       summaryLine: '正在修复该反复漂移模式的当前侧。',
       repairOwnerHint: '身体连续性治理',
       prosodyAuthorityHint: null,
-      bodyContinuityHint: '优先核对当前是否仍只有 motion 和 lipsync 这条 same-her 生命线与同一段 living segment 对齐，再确认为什么 body、face 和 voice 还没有重新接回这条动作口型线。',
+      bodyContinuityHint: '当前可见通道：motion+lipsync-only。',
       bodyContinuityPhase: 'renderer-rejoin-without-body',
       rendererRejoinSurfaceKey: null,
       survivingVisibleLane: 'motion+lipsync-only',
@@ -440,7 +476,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
     })
   })
 
-  it('keeps quieter face+lipsync+voice identity-continuity', () => {
+  it('keeps quieter face+lipsync+voice continuity', () => {
     expect(buildSelfEvolutionActiveWorkflowFocus({
       activePatternKey: 'pattern-quieter-face-lipsync-voice',
       patternContextByKey: {
@@ -456,7 +492,8 @@ describe('performance visualizer self evolution active workflow focus', () => {
           governanceLayer: 'body-continuity',
           governanceLayerDisplay: '身体连续性层',
           repairOwnerHint: '身体连续性治理',
-          prosodyAuthorityHint: '优先核对当前是否仍只有 face、lipsync 和 voice 这条 same-her 生命线与同一段 living segment 对齐，再确认为什么 body、motion 还没有重新接回这条表情口型声音线。',
+          prosodyAuthorityHint: null,
+          bodyContinuityHint: '当前可见通道：face+lipsync+voice-only。',
           survivingVisibleLane: 'face+lipsync+voice-only',
           recommendedEvidencePanels: [
             'renderer-authority-projection',
@@ -471,7 +508,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
             'takeover-audit',
             'person-state-updated',
           ],
-          summaryLine: '这更像身体连续性治理反复失稳，而不是普通显形权威漂移。先确认当前是否仍只有 face、lipsync 和 voice 这条 same-her 生命线与同一段 living segment 对齐，再核对为什么 body、motion 还没有重新接回这条表情口型声音线，避免把这次 quieter carry 误写成修复完成。',
+          summaryLine: '显形通道状态来自 survivingVisibleLane。',
         },
       },
     })).toEqual({
@@ -479,7 +516,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
       summaryLine: '正在修复该反复漂移模式的当前侧。',
       repairOwnerHint: '身体连续性治理',
       prosodyAuthorityHint: null,
-      bodyContinuityHint: '优先核对当前是否仍只有 face、lipsync 和 voice 这条 same-her 生命线与同一段 living segment 对齐，再确认为什么 body、motion 还没有重新接回这条表情口型声音线。',
+      bodyContinuityHint: '当前可见通道：face+lipsync+voice-only。',
       bodyContinuityPhase: 'renderer-rejoin-without-body',
       rendererRejoinSurfaceKey: null,
       survivingVisibleLane: 'face+lipsync+voice-only',
@@ -500,7 +537,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
     })
   })
 
-  it('keeps quieter motion+lipsync+voice identity-continuity', () => {
+  it('keeps quieter motion+lipsync+voice continuity', () => {
     expect(buildSelfEvolutionActiveWorkflowFocus({
       activePatternKey: 'pattern-quieter-motion-lipsync-voice',
       patternContextByKey: {
@@ -516,7 +553,8 @@ describe('performance visualizer self evolution active workflow focus', () => {
           governanceLayer: 'body-continuity',
           governanceLayerDisplay: '身体连续性层',
           repairOwnerHint: '身体连续性治理',
-          prosodyAuthorityHint: '优先核对当前是否仍只有 motion、lipsync 和 voice 这条 same-her 生命线与同一段 living segment 对齐，再确认为什么 body、face 还没有重新接回这条动作口型声音线。',
+          prosodyAuthorityHint: null,
+          bodyContinuityHint: '当前可见通道：motion+lipsync+voice-only。',
           survivingVisibleLane: 'motion+lipsync+voice-only',
           recommendedEvidencePanels: [
             'renderer-authority-projection',
@@ -531,7 +569,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
             'takeover-audit',
             'person-state-updated',
           ],
-          summaryLine: '这更像身体连续性治理反复失稳，而不是普通显形权威漂移。先确认当前是否仍只有 motion、lipsync 和 voice 这条 same-her 生命线与同一段 living segment 对齐，再核对为什么 body、face 还没有重新接回这条动作口型声音线，避免把这次 quieter carry 误写成修复完成。',
+          summaryLine: '显形通道状态来自 survivingVisibleLane。',
         },
       },
     })).toEqual({
@@ -539,7 +577,7 @@ describe('performance visualizer self evolution active workflow focus', () => {
       summaryLine: '正在修复该反复漂移模式的当前侧。',
       repairOwnerHint: '身体连续性治理',
       prosodyAuthorityHint: null,
-      bodyContinuityHint: '优先核对当前是否仍只有 motion、lipsync 和 voice 这条 same-her 生命线与同一段 living segment 对齐，再确认为什么 body、face 还没有重新接回这条动作口型声音线。',
+      bodyContinuityHint: '当前可见通道：motion+lipsync+voice-only。',
       bodyContinuityPhase: 'renderer-rejoin-without-body',
       rendererRejoinSurfaceKey: null,
       survivingVisibleLane: 'motion+lipsync+voice-only',

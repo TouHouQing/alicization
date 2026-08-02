@@ -532,7 +532,7 @@ evidence: `apps/stage-tamagotchi/src/main/services/alicization/replay-benchmark-
 `learning_task_failure_rate`
 `reopen_recovery_rate`
 `misinternalization_rate`
-`relationship_cadence_regression_rate`
+`relationship_response_regression_rate`
 `self_model_stale_belief_rate`
 evidence: `packages/stage-shared/src/alicization-memory-stats.ts`, `packages/stage-shared/src/alicization-transport-contracts.ts`, `apps/stage-tamagotchi/src/main/services/alicization/memory-retrieval-telemetry.ts`, `apps/stage-tamagotchi/src/main/services/alicization/memory-stats-projection.ts`, `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-replay-harness.ts`, `apps/stage-tamagotchi/src/main/services/alicization/replay-benchmark-runtime.ts`, `packages/stage-ui/src/stores/alicization-mind-replay.ts`, tests: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/memory-retrieval-telemetry.test.ts apps/stage-tamagotchi/src/main/services/alicization/memory-stats-projection.test.ts apps/stage-tamagotchi/src/main/services/alicization/replay-benchmark-runtime.test.ts packages/stage-ui/src/stores/alicization-mind-replay.test.ts`
 

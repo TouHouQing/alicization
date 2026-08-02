@@ -53,7 +53,6 @@ function desiredHostGoalKind(appraisal: AlicizationSubjectiveSceneAppraisal): Al
     case 'rest': return 'rest'
     case 'chat': return 'chat'
     case 'browse': return 'browse'
-    case 'continue-phase-1-line': return 'chat'
     default: return 'browse'
   }
 }
@@ -178,23 +177,9 @@ function desiredAlicizationGoalKind(input: {
   return 'guard-focus' as const
 }
 
-function goalLabel(kind: AlicizationGoalKind, anchor: string, appraisal: AlicizationSubjectiveSceneAppraisal) {
-  const subject = sanitizeText(anchor, 120) || 'this moment'
-  switch (kind) {
-    case 'resolve-problem': return `host is trying to resolve ${subject}`
-    case 'inspect-change': return `host is reviewing whether ${subject} should pass`
-    case 'consume-media': return `host is staying inside ${subject}`
-    case 'rest': return `host should be winding down around ${subject}`
-    case 'chat': return `host is attending to ${subject}`
-    case 'browse': return `host is browsing ${subject}`
-    case 'stay-near': return `stay near ${subject} without crowding it`
-    case 'guard-focus': return `protect the host focus around ${subject}`
-    case 'clarify-scene': return `scene clarity around ${subject}`
-    case 'help-resolve': return `help the host resolve ${subject}`
-    case 'care-body': return `care for the host body before ${subject} hardens`
-    case 'recover-thread': return `recover the broken foreground thread around ${subject}`
-    default: return appraisal.situatedMeaning ?? `stay with ${subject}`
-  }
+function goalLabel(anchor: string, appraisal: AlicizationSubjectiveSceneAppraisal) {
+  return sanitizeText(appraisal.situatedMeaning, 160)
+    || sanitizeText(anchor, 120)
 }
 
 function buildGoal(input: {
@@ -215,7 +200,7 @@ function buildGoal(input: {
     owner: input.owner,
     kind: input.kind,
     status: input.blocked ? 'blocked' : 'active',
-    label: goalLabel(input.kind, input.anchor, {
+    label: goalLabel(input.anchor, {
       inferredHostGoal: 'unknown',
       confidence: 0,
       surprise: 0,
@@ -494,7 +479,7 @@ export function buildGoalStack(input: {
     previous: previousHostGoals?.find(goal => goal.id === stableGoalId('host', hostGoalKind, anchor)),
     blocked: hostBlocked,
   })
-  currentHostGoal.label = goalLabel(hostGoalKind, anchor, input.appraisal)
+  currentHostGoal.label = goalLabel(anchor, input.appraisal)
 
   const currentAlicizationGoal = buildGoal({
     owner: 'alicization',
@@ -530,7 +515,7 @@ export function buildGoalStack(input: {
     previous: previousAliceGoals?.find(goal => goal.id === stableGoalId('alicization', aliceGoalKind, anchor)),
     blocked: aliceBlocked,
   })
-  currentAlicizationGoal.label = goalLabel(aliceGoalKind, anchor, input.appraisal)
+  currentAlicizationGoal.label = goalLabel(anchor, input.appraisal)
   const autonomousAgendaGoals = buildAutonomousAgendaGoals({
     now: input.now,
     anchor,

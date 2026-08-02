@@ -20,7 +20,6 @@ export const useCharacterOrchestratorStore = defineStore('character-orchestrator
   const providersStore = useProvidersStore()
   const characterStore = useCharacterStore()
   const notebookStore = useCharacterNotebookStore()
-  const { systemPrompt } = storeToRefs(characterStore)
   const modsServerChannelStore = useModsServerChannelStore()
 
   const processing = ref(false)
@@ -47,7 +46,6 @@ export const useCharacterOrchestratorStore = defineStore('character-orchestrator
     getProviderInstance: name => providersStore.getProviderInstance(name),
     onReactionDelta: (eventId, text) => characterStore.onSparkNotifyReactionStreamEvent(eventId, text),
     onReactionEnd: (eventId, text) => characterStore.onSparkNotifyReactionStreamEnd(eventId, text),
-    getSystemPrompt: () => systemPrompt.value,
     getProcessing: () => processing.value,
     setProcessing: next => processing.value = next,
     getPending: () => pendingNotifies.value,

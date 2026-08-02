@@ -35,13 +35,14 @@ export interface PerformanceVisualizerLive2DAuthorityComparisonView {
   consumedLive2dMotionFollowThroughMs: number | null
   live2dMotionFollowThroughAligned?: boolean | null
   motionFollowThroughAligned?: boolean | null
-  sameHerExecutionAligned?: boolean | null
-  sameHerExecutionAuthoritySegmentId?: string | null
-  sameHerExecutionMismatchDrivers?: Array<'face' | 'motion' | 'lipsync' | 'voice'>
-  sameHerExecutionSummary?: string | null
+  continuityExecutionAligned?: boolean | null
+  continuityExecutionAuthoritySegmentId?: string | null
+  continuityExecutionActiveDrivers?: Array<'face' | 'motion' | 'lipsync' | 'voice'>
+  continuityExecutionMismatchDrivers?: Array<'face' | 'motion' | 'lipsync' | 'voice'>
+  continuityExecutionSummary?: string | null
 }
 
-type Live2DSameHerExecutionDriver = 'face' | 'motion' | 'lipsync' | 'voice'
+type Live2DContinuityExecutionDriver = 'face' | 'motion' | 'lipsync' | 'voice'
 
 function normalizeText(value: unknown) {
   return typeof value === 'string' && value.trim()
@@ -106,15 +107,15 @@ function resolveNumberAlignment(plannedValue: number | null, consumedValue: numb
   return plannedValue === consumedValue
 }
 
-function buildSameHerExecutionSummary(input: {
-  activeDrivers: Live2DSameHerExecutionDriver[]
+function buildContinuityExecutionSummary(input: {
+  activeDrivers: Live2DContinuityExecutionDriver[]
   authoritySegmentId: string | null
-  mismatchDrivers: Live2DSameHerExecutionDriver[]
+  mismatchDrivers: Live2DContinuityExecutionDriver[]
 }) {
   if (input.activeDrivers.length === 0)
     return null
 
-  const allDrivers: Live2DSameHerExecutionDriver[] = ['face', 'motion', 'lipsync', 'voice']
+  const allDrivers: Live2DContinuityExecutionDriver[] = ['face', 'motion', 'lipsync', 'voice']
   const activeSummary = input.activeDrivers.join(', ')
   const mismatchDriverSet = new Set(input.mismatchDrivers)
   const matchedDrivers = input.activeDrivers.filter(driver => !mismatchDriverSet.has(driver))
@@ -297,28 +298,28 @@ export function buildLive2DAuthorityComparisonView(snapshot: {
   const voiceSegmentAligned = hasVoiceAuthoritySignal
     ? resolveDriverAuthorityAlignment(authority?.voiceSegmentMatched, cueId, voiceSegmentId)
     : null
-  const sameHerExecutionActiveDrivers = [
+  const continuityExecutionActiveDrivers = [
     faceSegmentAligned != null ? 'face' : null,
     motionSegmentAligned != null ? 'motion' : null,
     lipsyncSegmentAligned != null ? 'lipsync' : null,
     voiceSegmentAligned != null ? 'voice' : null,
-  ].filter((driver): driver is Live2DSameHerExecutionDriver => Boolean(driver))
-  const sameHerExecutionMismatchDrivers = [
+  ].filter((driver): driver is Live2DContinuityExecutionDriver => Boolean(driver))
+  const continuityExecutionMismatchDrivers = [
     faceSegmentAligned === false ? 'face' : null,
     motionSegmentAligned === false ? 'motion' : null,
     lipsyncSegmentAligned === false ? 'lipsync' : null,
     voiceSegmentAligned === false ? 'voice' : null,
-  ].filter((driver): driver is Live2DSameHerExecutionDriver => Boolean(driver))
-  const sameHerExecutionAligned = sameHerExecutionActiveDrivers.length > 0
-    ? sameHerExecutionMismatchDrivers.length === 0
+  ].filter((driver): driver is Live2DContinuityExecutionDriver => Boolean(driver))
+  const continuityExecutionAligned = continuityExecutionActiveDrivers.length > 0
+    ? continuityExecutionMismatchDrivers.length === 0
     : null
-  const sameHerExecutionAuthoritySegmentId = normalizeText(authority?.segmentId) ?? cueId
-  const sameHerExecutionSummary = buildSameHerExecutionSummary({
-    activeDrivers: sameHerExecutionActiveDrivers,
-    authoritySegmentId: sameHerExecutionAuthoritySegmentId,
-    mismatchDrivers: sameHerExecutionMismatchDrivers,
+  const continuityExecutionAuthoritySegmentId = normalizeText(authority?.segmentId) ?? cueId
+  const continuityExecutionSummary = buildContinuityExecutionSummary({
+    activeDrivers: continuityExecutionActiveDrivers,
+    authoritySegmentId: continuityExecutionAuthoritySegmentId,
+    mismatchDrivers: continuityExecutionMismatchDrivers,
   })
-  const hasSameHerExecutionEvidence = sameHerExecutionAligned != null || sameHerExecutionSummary != null
+  const hasContinuityExecutionEvidence = continuityExecutionAligned != null || continuityExecutionSummary != null
 
   return {
     cueId: cueId ?? 'n/a',
@@ -352,12 +353,13 @@ export function buildLive2DAuthorityComparisonView(snapshot: {
       plannedLive2dMotionFollowThroughMs,
       consumedLive2dMotionFollowThroughMs,
     ),
-    ...(hasSameHerExecutionEvidence
+    ...(hasContinuityExecutionEvidence
       ? {
-          sameHerExecutionAligned,
-          sameHerExecutionAuthoritySegmentId,
-          sameHerExecutionMismatchDrivers,
-          sameHerExecutionSummary,
+          continuityExecutionAligned,
+          continuityExecutionAuthoritySegmentId,
+          continuityExecutionActiveDrivers,
+          continuityExecutionMismatchDrivers,
+          continuityExecutionSummary,
         }
       : {}),
   }

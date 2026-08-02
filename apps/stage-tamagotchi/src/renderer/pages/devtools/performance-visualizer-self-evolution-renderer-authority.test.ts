@@ -248,10 +248,9 @@ describe('performance visualizer self evolution renderer authority projection', 
       reasons: [
         'Runtime dynamics still publish focused/observe_focus with tired/gentle output, so the renderer runtime is carrying the same embodiment projection rather than inventing a separate shell state.',
         'Playback cue and driver execution both still consume focused and observe_focus, so the visible face and action are the same ones projected by the resident line.',
-        'Resident projection is still carrying one continuous manifestation line into renderer authority, so the visible embodiment remains downstream of persona-guided private thought rather than a detached renderer-only posture.',
+        'resident-projection:typed-embodiment-output',
         'Authority matching remains face:yes motion:yes lipsync:yes on vrm, which shows the bound renderer segment is the one the desktop runtime actually executed.',
-        'Renderer lanes have rejoined on VRM manifestation, but the body line is no longer carrying that same living segment, so the visible recovery should still be treated as same-her drift risk rather than a completed embodiment repair.',
-        'Prosody authority still anchors energy-phoneme-hybrid on segment-vrm-1, so the mouth-driving chain remains attributable to one authoritative speech segment instead of a renderer-local guess.',
+        'Renderer lanes have rejoined on VRM manifestation, but the body line is no longer carrying that same living segment, so the visible recovery should still be treated as continuity drift risk rather than a completed embodiment repair.',
       ],
     })
   })
@@ -387,7 +386,7 @@ describe('performance visualizer self evolution renderer authority projection', 
     expect(projection?.bodyContinuityPhase).toBe('full-cross-modal-lock')
     expect(projection?.rendererRejoinSurfaceKey).toBe('authority:renderer-rejoin:live2d')
     expect(projection?.reasons).toContain(
-      'Body continuity and Live2D manifestation are now locked back onto the same living segment together, so voice, face, motion, and lipsync are re-forming one explicit same-her embodiment line instead of merely approximating it.',
+      'Body continuity and Live2D manifestation are now locked back onto the same living segment together, so voice, face, motion, and lipsync are re-forming one explicit continuity embodiment line instead of merely approximating it.',
     )
   })
 
@@ -590,12 +589,12 @@ describe('performance visualizer self evolution renderer authority projection', 
 
     expect(projection?.status).toBe('drift')
     expect(projection?.driftingSignals.length).toBeGreaterThan(0)
-    expect(projection?.reasons).toContain('Resident projection is still carrying one continuous manifestation line into renderer authority, so the visible embodiment remains downstream of persona-guided private thought rather than a detached renderer-only posture.')
+    expect(projection?.reasons).toContain('resident-projection:typed-embodiment-output')
+    expect(projection?.reasons.some(reason => reason.includes('private thought'))).toBe(false)
     expect(projection?.reasons.some(reason => reason.includes('Renderer drift still shows'))).toBe(true)
-    expect(projection?.reasons).toContain('Prosody authority still anchors energy-phoneme-hybrid on segment-live2d-1, so the mouth-driving chain remains attributable to one authoritative speech segment instead of a renderer-local guess.')
   })
 
-  it('projects body-led renderer rejoin as identity-continuity', () => {
+  it('projects body-led renderer rejoin as continuity', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       speechEmbodiment: {
         runtimeDynamics: {
@@ -648,7 +647,7 @@ describe('performance visualizer self evolution renderer authority projection', 
 
     expect(projection?.bodyContinuityPhase).toBe('body-carried-to-renderer-rejoin')
     expect(projection?.rendererRejoinSurfaceKey).toBe('authority:renderer-rejoin:live2d')
-    expect(projection?.reasons).toContain('Body continuity is still carrying the same living segment while Live2D manifestation rejoins that exact line, so the visible renderer recovery is a same-her manifestation repair instead of a fresh shell takeover.')
+    expect(projection?.reasons).toContain('Body continuity is still carrying the same living segment while Live2D manifestation rejoins that exact line, so the visible renderer recovery is a continuity manifestation repair instead of a fresh shell takeover.')
   })
 
   it('projects speech manifestation rejoin when body continuity persists through the same voice segment', () => {
@@ -687,21 +686,23 @@ describe('performance visualizer self evolution renderer authority projection', 
           cueId: 'segment-speech-1',
           segmentId: 'segment-speech-1',
           matchSummary: 'body:yes face:no motion:no lipsync:no',
-          matchedDrivers: ['body'],
-          matchedSources: ['body-kernel', 'prosody-authority'],
+          rendererTarget: 'speech',
+          matchedDrivers: ['body', 'voice'],
+          matchedSources: ['body-kernel', 'voice-segment'],
           settleSummary: 'segment=segment-speech-1 | target=speech | drivers=body, voice | sources=body-kernel, prosody-authority',
         },
       } as any,
       playbackCueAuthorityView: {
         cueId: 'segment-speech-1',
         authoritySegmentId: 'segment-speech-1',
-        authorityRendererTarget: null,
-        authorityMatchedDrivers: ['body'],
-        authoritySources: ['body-kernel', 'prosody-authority'],
+        authorityRendererTarget: 'speech',
+        authorityMatchedDrivers: ['body', 'voice'],
+        authoritySources: ['body-kernel', 'voice-segment'],
         bodySegmentMatched: true,
         faceSegmentMatched: false,
         motionSegmentMatched: false,
         lipsyncSegmentMatched: false,
+        voiceSegmentMatched: true,
         authorityBindingSummary: 'target=speech | drivers=body, voice | sources=body-kernel, prosody-authority',
         authorityMatchSummary: 'body:yes face:no motion:no lipsync:no',
         settleAuthoritySummary: 'segment=segment-speech-1 | target=speech | drivers=body, voice | sources=body-kernel, prosody-authority',
@@ -717,7 +718,7 @@ describe('performance visualizer self evolution renderer authority projection', 
     expect(projection?.bodyContinuityPhase).toBe('body-carried-to-renderer-rejoin')
     expect(projection?.rendererRejoinSurfaceKey).toBe('authority:renderer-rejoin:speech')
     expect(projection?.matchedSignals).toContain('authority-voice:yes')
-    expect(projection?.reasons).toContain('Body continuity is still carrying the same living segment while speech manifestation rejoins that exact line, so the visible renderer recovery is a same-her manifestation repair instead of a fresh shell takeover.')
+    expect(projection?.reasons).toContain('Body continuity is still carrying the same living segment while speech manifestation rejoins that exact line, so the visible renderer recovery is a continuity manifestation repair instead of a fresh shell takeover.')
   })
 
   it('keeps renderer rejoin surface unknown when body continuity persists but the returning manifestation surface has not been identified yet', () => {
@@ -781,7 +782,7 @@ describe('performance visualizer self evolution renderer authority projection', 
     expect(projection?.bodyContinuityPhase).toBe('body-carried-to-renderer-rejoin')
     expect(projection?.rendererRejoinSurfaceKey).toBeNull()
     expect(projection?.reasons).toContain(
-      'Body continuity is still carrying the same living segment while manifestation authority rejoins that exact line, so the visible renderer recovery is a same-her manifestation repair instead of a fresh shell takeover.',
+      'Body continuity is still carrying the same living segment while manifestation authority rejoins that exact line, so the visible renderer recovery is a continuity manifestation repair instead of a fresh shell takeover.',
     )
   })
 
@@ -1694,11 +1695,12 @@ describe('performance visualizer self evolution renderer authority projection', 
         cueId: 'segment-runtime-realigned-projection',
         authoritySegmentId: 'segment-runtime-realigned-projection',
         authorityRendererTarget: 'vrm',
-        authorityMatchedDrivers: ['lipsync'],
-        authoritySources: ['prosody-authority'],
+        authorityMatchedDrivers: ['lipsync', 'voice'],
+        authoritySources: ['prosody-authority', 'voice-segment'],
         faceSegmentMatched: false,
         motionSegmentMatched: false,
         lipsyncSegmentMatched: true,
+        voiceSegmentMatched: true,
         authorityBindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes',
         authorityMatchSummary: 'face:no motion:no lipsync:yes',
         settleAuthoritySummary: 'authority-bound | segment=segment-runtime-realigned-projection | target=vrm | drivers=lipsync | sources=prosody-authority',
@@ -2181,7 +2183,7 @@ describe('performance visualizer self evolution renderer authority projection', 
     expect(projection?.authorityMismatchDisplay).not.toContain('timeline-projection')
   })
 
-  it('surfaces voice as a same-segment surviving lane when face and motion drift away but the active voice summary still stays on the authority segment', () => {
+  it('surfaces voice as a typed surviving lane when face and motion drift away', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       embodimentOutputProjection: {
         status: 'grounded',
@@ -2297,11 +2299,12 @@ describe('performance visualizer self evolution renderer authority projection', 
         cueId: 'segment-voice-lane-1',
         authoritySegmentId: 'segment-voice-lane-1',
         authorityRendererTarget: 'vrm',
-        authorityMatchedDrivers: ['lipsync'],
-        authoritySources: ['prosody-authority'],
+        authorityMatchedDrivers: ['lipsync', 'voice'],
+        authoritySources: ['prosody-authority', 'voice-segment'],
         faceSegmentMatched: false,
         motionSegmentMatched: false,
         lipsyncSegmentMatched: true,
+        voiceSegmentMatched: true,
         authorityBindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
         authorityMatchSummary: 'face:no motion:no lipsync:yes',
         settleAuthoritySummary: 'authority-bound | segment=segment-voice-lane-1 | target=vrm | drivers=lipsync | sources=prosody-authority | lane=lipsync-only',
@@ -2442,6 +2445,7 @@ describe('performance visualizer self evolution renderer authority projection', 
         faceSegmentMatched: false,
         motionSegmentMatched: false,
         lipsyncSegmentMatched: true,
+        voiceSegmentMatched: false,
         authorityBindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
         authorityMatchSummary: 'face:no motion:no lipsync:yes',
         settleAuthoritySummary: 'authority-bound | segment=segment-upstream-voice-only-1 | target=vrm | drivers=lipsync | sources=prosody-authority | lane=lipsync-only',
@@ -2488,6 +2492,7 @@ describe('performance visualizer self evolution renderer authority projection', 
         faceSegmentMatched: false,
         motionSegmentMatched: false,
         lipsyncSegmentMatched: true,
+        voiceSegmentMatched: false,
         authorityBindingSummary: 'target=vrm | drivers=lipsync | sources=prosody-authority | matches=face:no motion:no lipsync:yes | lane=lipsync-only',
         authorityMatchSummary: 'face:no motion:no lipsync:yes',
         settleAuthoritySummary: 'authority-bound | segment=segment-voice-drift-1 | target=vrm | drivers=lipsync | sources=prosody-authority | lane=lipsync-only',
@@ -2546,11 +2551,10 @@ describe('performance visualizer self evolution renderer authority projection', 
     expect(projection?.matchedSignals).toContain('authority-body:yes')
     expect(projection?.matchedSignals).toContain('authority-face:yes')
     expect(projection?.matchedSignals).toContain('authority-motion:yes')
-    expect(projection?.matchedSignals).toContain('remaining-open=lipsync+voice')
     expect(projection?.driftingSignals).toContain('authority-lipsync:no')
   })
 
-  it('keeps audible body-carried identity-continuity', () => {
+  it('keeps audible body-carried continuity', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       embodimentOutputProjection: {
         status: 'grounded',
@@ -2667,11 +2671,11 @@ describe('performance visualizer self evolution renderer authority projection', 
     expect(projection?.driftingSignals).toContain('authority-face:no')
     expect(projection?.driftingSignals).toContain('authority-motion:no')
     expect(projection?.reasons).toContain(
-      'Body continuity is still carrying the same living segment while VRM manifestation rejoins that exact line, so the visible renderer recovery is a same-her manifestation repair instead of a fresh shell takeover.',
+      'Body continuity is still carrying the same living segment while VRM manifestation rejoins that exact line, so the visible renderer recovery is a continuity manifestation repair instead of a fresh shell takeover.',
     )
   })
 
-  it('surfaces body-led identity-continuity', () => {
+  it('surfaces body-led continuity', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       embodimentOutputProjection: {
         status: 'grounded',
@@ -2869,7 +2873,7 @@ describe('performance visualizer self evolution renderer authority projection', 
     )
   })
 
-  it('treats body-segment authority loss as real drift because identity-continuity', () => {
+  it('treats body-segment authority loss as real drift because continuity', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       embodimentOutputProjection: {
         status: 'grounded',
@@ -2957,11 +2961,11 @@ describe('performance visualizer self evolution renderer authority projection', 
     expect(projection?.driftingSignals).toContain('authority-body:no')
     expect(projection?.matchedSignals).not.toContain('authority-body:yes')
     expect(projection?.reasons).toContain(
-      'Renderer lanes have rejoined on VRM manifestation, but the body line is no longer carrying that same living segment, so the visible recovery should still be treated as same-her drift risk rather than a completed embodiment repair.',
+      'Renderer lanes have rejoined on VRM manifestation, but the body line is no longer carrying that same living segment, so the visible recovery should still be treated as continuity drift risk rather than a completed embodiment repair.',
     )
   })
 
-  it('keeps thin affective settle reasons visible in renderer authority projection when playback cue authority still carries them', () => {
+  it('keeps thin affective settle reasons out of renderer authority projection when they only appear in summary text', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       embodimentOutputProjection: {
         status: 'grounded',
@@ -3094,10 +3098,10 @@ describe('performance visualizer self evolution renderer authority projection', 
       },
     })
 
-    expect(projection?.reasons.some(reason => reason.includes('余韵还在，先留白，别立刻把温度放大'))).toBe(true)
+    expect(projection?.reasons.some(reason => reason.includes('余韵还在，先留白，别立刻把温度放大'))).toBe(false)
   })
 
-  it('keeps thin affective companionship wording visible in renderer authority projection when only authority trust still carries it', () => {
+  it('keeps thin affective companionship wording out of renderer authority projection when only authority trust carries free text', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       embodimentOutputProjection: {
         status: 'grounded',
@@ -3230,10 +3234,10 @@ describe('performance visualizer self evolution renderer authority projection', 
       },
     })
 
-    expect(projection?.reasons.some(reason => reason.includes('余韵还在，先留白，别立刻把温度放大'))).toBe(true)
+    expect(projection?.reasons.some(reason => reason.includes('余韵还在，先留白，别立刻把温度放大'))).toBe(false)
   })
 
-  it('carries VRM same-her frame drift into self-evolution renderer authority projection', () => {
+  it('carries VRM continuity frame drift into self-evolution renderer authority projection', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       speechEmbodiment: {
         playbackTelemetry: {
@@ -3253,11 +3257,11 @@ describe('performance visualizer self evolution renderer authority projection', 
       } as any,
       vrmAuthorityView: {
         cueId: 'segment-self-evolution-vrm-frame',
-        sameHerFrameAligned: false,
-        sameHerFrameMismatchDrivers: ['lipsync', 'voice'],
-        sameHerFramePerformanceSegmentId: 'segment-self-evolution-vrm-frame',
-        sameHerFrameSpeechSegmentId: 'segment-stale-voice-line',
-        sameHerFrameSummary: 'drift | performance=segment-self-evolution-vrm-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
+        continuityFrameAligned: false,
+        continuityFrameMismatchDrivers: ['lipsync', 'voice'],
+        continuityFramePerformanceSegmentId: 'segment-self-evolution-vrm-frame',
+        continuityFrameSpeechSegmentId: 'segment-stale-voice-line',
+        continuityFrameSummary: 'drift | performance=segment-self-evolution-vrm-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice',
       } as any,
       playbackCueAuthorityView: {
         cueId: 'segment-self-evolution-vrm-frame',
@@ -3283,13 +3287,13 @@ describe('performance visualizer self evolution renderer authority projection', 
     })
 
     expect(projection?.status).toBe('drift')
-    expect(projection?.driftingSignals).toContain('same-her-frame:lipsync')
-    expect(projection?.driftingSignals).toContain('same-her-frame:voice')
-    expect(projection?.driftingSignals).toContain('renderer-drift:drift | performance=segment-self-evolution-vrm-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice')
-    expect(projection?.reasons).toContain('VRM same-her frame evidence reports drift | performance=segment-self-evolution-vrm-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice, so self-evolution should treat this as an embodiment lane drift inside the same digital-life thread rather than a separate renderer personality.')
+    expect(projection?.driftingSignals).toContain('continuity-frame:lipsync')
+    expect(projection?.driftingSignals).toContain('continuity-frame:voice')
+    expect(projection?.driftingSignals).not.toContain('renderer-drift:drift | performance=segment-self-evolution-vrm-frame | speech=segment-stale-voice-line | active=body, face, motion, lipsync, voice | mismatch=lipsync, voice')
+    expect(projection?.reasons.some(reason => reason.includes('continuity frame evidence reports drift'))).toBe(false)
   })
 
-  it('carries Live2D same-her execution drift into self-evolution renderer authority projection', () => {
+  it('carries Live2D continuity execution drift into self-evolution renderer authority projection', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       speechEmbodiment: {
         playbackTelemetry: {
@@ -3307,10 +3311,10 @@ describe('performance visualizer self evolution renderer authority projection', 
       } as any,
       live2dAuthorityView: {
         cueId: 'segment-self-evolution-live2d-execution',
-        sameHerExecutionAligned: false,
-        sameHerExecutionAuthoritySegmentId: 'segment-self-evolution-live2d-execution',
-        sameHerExecutionMismatchDrivers: ['lipsync'],
-        sameHerExecutionSummary: 'drift | authority=segment-self-evolution-live2d-execution | active=face, motion, lipsync | mismatch=lipsync',
+        continuityExecutionAligned: false,
+        continuityExecutionAuthoritySegmentId: 'segment-self-evolution-live2d-execution',
+        continuityExecutionMismatchDrivers: ['lipsync'],
+        continuityExecutionSummary: 'drift | authority=segment-self-evolution-live2d-execution | active=face, motion, lipsync | mismatch=lipsync',
       } as any,
       playbackCueAuthorityView: {
         cueId: 'segment-self-evolution-live2d-execution',
@@ -3334,12 +3338,12 @@ describe('performance visualizer self evolution renderer authority projection', 
     })
 
     expect(projection?.status).toBe('drift')
-    expect(projection?.driftingSignals).toContain('same-her-execution:lipsync')
-    expect(projection?.driftingSignals).toContain('renderer-drift:drift | authority=segment-self-evolution-live2d-execution | active=face, motion, lipsync | mismatch=lipsync')
-    expect(projection?.reasons).toContain('Live2D same-her execution evidence reports drift | authority=segment-self-evolution-live2d-execution | active=face, motion, lipsync | mismatch=lipsync, so self-evolution should treat this as an execution-lane drift inside the same digital-life thread rather than a separate Live2D shell personality.')
+    expect(projection?.driftingSignals).toContain('continuity-execution:lipsync')
+    expect(projection?.driftingSignals).not.toContain('renderer-drift:drift | authority=segment-self-evolution-live2d-execution | active=face, motion, lipsync | mismatch=lipsync')
+    expect(projection?.reasons.some(reason => reason.includes('continuity execution evidence reports drift'))).toBe(false)
   })
 
-  it('infers renderer rejoin continuity from structured Live2D same-her execution evidence even when explicit authority snapshots are missing', () => {
+  it('does not infer renderer rejoin continuity from summary-only Live2D continuity execution evidence', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       speechEmbodiment: {
         playbackTelemetry: {
@@ -3352,20 +3356,56 @@ describe('performance visualizer self evolution renderer authority projection', 
       } as any,
       live2dAuthorityView: {
         cueId: 'segment-live2d-summary-only-rejoin',
-        sameHerExecutionAligned: true,
-        sameHerExecutionAuthoritySegmentId: 'segment-live2d-summary-only-rejoin',
-        sameHerExecutionMismatchDrivers: [],
-        sameHerExecutionSummary: 'aligned | authority=segment-live2d-summary-only-rejoin | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
+        continuityExecutionAligned: true,
+        continuityExecutionAuthoritySegmentId: 'segment-live2d-summary-only-rejoin',
+        continuityExecutionMismatchDrivers: [],
+        continuityExecutionSummary: 'aligned | authority=segment-live2d-summary-only-rejoin | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
       } as any,
       playbackCueAuthorityView: null,
       vrmAuthorityView: null,
     })
 
-    expect(projection?.bodyContinuityPhase).toBe('renderer-rejoin-without-body')
-    expect(projection?.rendererRejoinSurfaceKey).toBe('authority:renderer-rejoin:live2d')
+    expect(projection?.bodyContinuityPhase).toBeNull()
+    expect(projection?.rendererRejoinSurfaceKey).toBeNull()
   })
 
-  it('does not infer renderer rejoin continuity from stale Live2D same-her execution evidence when the current playback cue belongs to another living segment', () => {
+  it('keeps typed renderer target instead of parsing summary-only target cues', () => {
+    const projection = buildSelfEvolutionRendererAuthorityProjection({
+      speechEmbodiment: {
+        playbackTelemetry: {
+          rendererTarget: 'vrm',
+          cue: {
+            id: 'segment-typed-vrm',
+          },
+          driverAuthority: null,
+        },
+      } as any,
+      playbackCueAuthorityView: {
+        cueId: 'segment-typed-vrm',
+        authoritySegmentId: 'segment-typed-vrm',
+        authorityRendererTarget: 'vrm',
+        authorityMatchedDrivers: [],
+        authoritySources: [],
+        authorityBindingSummary: null,
+        authorityMatchSummary: null,
+        settleAuthoritySummary: 'target=speech | segment=segment-typed-vrm | closure=renderer-rejoin-without-body',
+        preferredExpressionAliases: [],
+        preferredMotionAliases: [],
+        live2dFacialReleaseMs: null,
+        live2dMotionFollowThroughMs: null,
+        vrmActionFadeMs: null,
+        vrmExpressionBlendMs: null,
+      },
+      live2dAuthorityView: null,
+      vrmAuthorityView: null,
+    })
+
+    expect(projection?.rendererTarget).toBe('vrm')
+    expect(projection?.bodyContinuityPhase).toBeNull()
+    expect(projection?.rendererRejoinSurfaceKey).toBeNull()
+  })
+
+  it('does not infer renderer rejoin continuity from stale Live2D continuity execution evidence when the current playback cue belongs to another living segment', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       speechEmbodiment: {
         playbackTelemetry: {
@@ -3378,10 +3418,10 @@ describe('performance visualizer self evolution renderer authority projection', 
       } as any,
       live2dAuthorityView: {
         cueId: 'segment-live2d-current-cue',
-        sameHerExecutionAligned: true,
-        sameHerExecutionAuthoritySegmentId: 'segment-live2d-stale-cue',
-        sameHerExecutionMismatchDrivers: [],
-        sameHerExecutionSummary: 'aligned | authority=segment-live2d-stale-cue | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
+        continuityExecutionAligned: true,
+        continuityExecutionAuthoritySegmentId: 'segment-live2d-stale-cue',
+        continuityExecutionMismatchDrivers: [],
+        continuityExecutionSummary: 'aligned | authority=segment-live2d-stale-cue | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
       } as any,
       playbackCueAuthorityView: null,
       vrmAuthorityView: null,
@@ -3389,10 +3429,10 @@ describe('performance visualizer self evolution renderer authority projection', 
 
     expect(projection?.bodyContinuityPhase).toBeNull()
     expect(projection?.rendererRejoinSurfaceKey).toBeNull()
-    expect(projection?.matchedSignals).not.toContain('same-her-execution:aligned')
+    expect(projection?.matchedSignals).not.toContain('continuity-execution:aligned')
   })
 
-  it('does not carry stale Live2D same-her execution drift into the current self-evolution renderer authority projection', () => {
+  it('does not carry stale Live2D continuity execution drift into the current self-evolution renderer authority projection', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       speechEmbodiment: {
         playbackTelemetry: {
@@ -3414,10 +3454,10 @@ describe('performance visualizer self evolution renderer authority projection', 
       } as any,
       live2dAuthorityView: {
         cueId: 'segment-self-evolution-live2d-current-grounded',
-        sameHerExecutionAligned: false,
-        sameHerExecutionAuthoritySegmentId: 'segment-self-evolution-live2d-stale-drift',
-        sameHerExecutionMismatchDrivers: ['lipsync'],
-        sameHerExecutionSummary: 'drift | authority=segment-self-evolution-live2d-stale-drift | active=face, motion, lipsync | mismatch=lipsync',
+        continuityExecutionAligned: false,
+        continuityExecutionAuthoritySegmentId: 'segment-self-evolution-live2d-stale-drift',
+        continuityExecutionMismatchDrivers: ['lipsync'],
+        continuityExecutionSummary: 'drift | authority=segment-self-evolution-live2d-stale-drift | active=face, motion, lipsync | mismatch=lipsync',
       } as any,
       playbackCueAuthorityView: {
         cueId: 'segment-self-evolution-live2d-current-grounded',
@@ -3443,12 +3483,12 @@ describe('performance visualizer self evolution renderer authority projection', 
     })
 
     expect(projection?.status).toBe('grounded')
-    expect(projection?.driftingSignals).not.toContain('same-her-execution:lipsync')
+    expect(projection?.driftingSignals).not.toContain('continuity-execution:lipsync')
     expect(projection?.driftingSignals).not.toContain('renderer-drift:drift | authority=segment-self-evolution-live2d-stale-drift | active=face, motion, lipsync | mismatch=lipsync')
-    expect(projection?.reasons).not.toContain('Live2D same-her execution evidence reports drift | authority=segment-self-evolution-live2d-stale-drift | active=face, motion, lipsync | mismatch=lipsync, so self-evolution should treat this as an execution-lane drift inside the same digital-life thread rather than a separate Live2D shell personality.')
+    expect(projection?.reasons).not.toContain('Live2D continuity execution evidence reports drift | authority=segment-self-evolution-live2d-stale-drift | active=face, motion, lipsync | mismatch=lipsync, so self-evolution should treat this as an execution-lane drift inside the same digital-life thread rather than a separate Live2D shell personality.')
   })
 
-  it('does not carry stale VRM same-her frame drift into the current self-evolution renderer authority projection', () => {
+  it('does not carry stale VRM continuity frame drift into the current self-evolution renderer authority projection', () => {
     const projection = buildSelfEvolutionRendererAuthorityProjection({
       speechEmbodiment: {
         playbackTelemetry: {
@@ -3493,17 +3533,17 @@ describe('performance visualizer self evolution renderer authority projection', 
       },
       vrmAuthorityView: {
         cueId: 'segment-self-evolution-vrm-current-grounded',
-        sameHerFrameAligned: false,
-        sameHerFrameMismatchDrivers: ['voice'],
-        sameHerFramePerformanceSegmentId: 'segment-self-evolution-vrm-stale-frame',
-        sameHerFrameSpeechSegmentId: 'segment-self-evolution-vrm-stale-frame',
-        sameHerFrameSummary: 'drift | performance=segment-self-evolution-vrm-stale-frame | speech=segment-self-evolution-vrm-stale-frame | active=body, face, motion, lipsync, voice | mismatch=voice',
+        continuityFrameAligned: false,
+        continuityFrameMismatchDrivers: ['voice'],
+        continuityFramePerformanceSegmentId: 'segment-self-evolution-vrm-stale-frame',
+        continuityFrameSpeechSegmentId: 'segment-self-evolution-vrm-stale-frame',
+        continuityFrameSummary: 'drift | performance=segment-self-evolution-vrm-stale-frame | speech=segment-self-evolution-vrm-stale-frame | active=body, face, motion, lipsync, voice | mismatch=voice',
       } as any,
     })
 
     expect(projection?.status).toBe('grounded')
-    expect(projection?.driftingSignals).not.toContain('same-her-frame:voice')
+    expect(projection?.driftingSignals).not.toContain('continuity-frame:voice')
     expect(projection?.driftingSignals).not.toContain('renderer-drift:drift | performance=segment-self-evolution-vrm-stale-frame | speech=segment-self-evolution-vrm-stale-frame | active=body, face, motion, lipsync, voice | mismatch=voice')
-    expect(projection?.reasons).not.toContain('VRM same-her frame evidence reports drift | performance=segment-self-evolution-vrm-stale-frame | speech=segment-self-evolution-vrm-stale-frame | active=body, face, motion, lipsync, voice | mismatch=voice, so self-evolution should treat this as an embodiment lane drift inside the same digital-life thread rather than a separate renderer personality.')
+    expect(projection?.reasons).not.toContain('VRM continuity frame evidence reports drift | performance=segment-self-evolution-vrm-stale-frame | speech=segment-self-evolution-vrm-stale-frame | active=body, face, motion, lipsync, voice | mismatch=voice, so self-evolution should treat this as an embodiment lane drift inside the same digital-life thread rather than a separate renderer personality.')
   })
 })

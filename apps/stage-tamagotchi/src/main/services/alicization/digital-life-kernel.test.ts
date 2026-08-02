@@ -295,7 +295,6 @@ describe('digital life kernel', () => {
     }
     state.raw = {
       personStateProjection: null,
-      projectState: null,
       runtime: null,
       runtimeDigest: {
         ...state.runtimeDigest,
@@ -309,109 +308,12 @@ describe('digital life kernel', () => {
     expect(surface.raw?.runtimeDigest?.emotionalKernel).toEqual(currentKernel)
     expect(surface.cognition.runtimeDigest?.emotionalKernel).toEqual(currentKernel)
     expect(surface.dialogue.runtimeDigest?.emotionalKernel).toEqual(currentKernel)
-  })
-
-  it('does not prefer a persisted person-state projection because it contains legacy continuity prose', () => {
-    const state = createDefaultVisualPresenceState(8_000)
-    state.autobiographicalSelf = {
-      latestInflection: 'structured continuity digest.',
-      relationshipDoctrine: 'Keep identity continuity explicit while the same callback line keeps continuing lower-pressure.',
-      updatedAt: 8_000,
-    } as any
-    state.privateThought = {
-      stance: 'observe',
-      confidence: 0.74,
-      rationaleTags: ['continuity-regression'],
-      thoughtText: 'Stay on the same callback line and keep continuing lower-pressure instead of reopening from zero.',
-      shouldSpeak: false,
-      suggestedStyle: 'silent-observe',
-      embodiedPresence: 'attentive',
-      expiresAt: 12_000,
-      afterglowFromScenario: null,
-      emotionalTension: 'soft-covision',
-    } as any
-    state.personStateProjection = {
-      summary: 'relationship_line=stay exact | project_continuity=the same callback line is still continuing lower-pressure after another detour | cadence=lower-pressure',
-      openingGuidance: 'Stay on the same callback line and keep continuing lower-pressure; this callback opening should continue without reopening from scratch.',
-      manifestationCadenceSummary: 'measured-return still holds while the same callback line keeps continuing after another detour',
-      selfContinuityAuthority: {
-        authoritySummary: 'Carry the unfinished Phase 1 digital-life closure forward as the continuity state, not as detached project bookkeeping.',
-        inwardLine: 'structured continuity digest.',
-        sourceTags: ['autobiographical-self', 'project-state-carry', 'continuity-execution-callback-project-carry'],
-      },
-    } as any
-
-    const surface = buildAlicizationDigitalLifeRuntimeSurface(state)
-
-    expect(surface.memory.personStateProjection?.summary).not.toContain('project_continuity=the same callback line is still continuing lower-pressure after another detour')
-    expect(surface.memory.personStateProjection?.openingGuidance ?? '').not.toContain('same callback line')
-    expect(surface.memory.personStateProjection?.selfContinuityAuthority?.sourceTags ?? []).not.toContain('project-state-carry')
-  })
-
-  it('does not manufacture project-state authority tags from current-frame prose', () => {
-    const state = createDefaultVisualPresenceState(9_000)
-    state.autobiographicalSelf = {
-      latestInflection: 'structured continuity digest.',
-      relationshipDoctrine: 'Keep the continuity state inward for now, and leave room before widening outward again.',
-      updatedAt: 9_000,
-    } as any
-    state.privateThought = {
-      stance: 'accompany',
-      confidence: 0.78,
-      rationaleTags: ['same-line-runtime-surface'],
-      thoughtText: 'same callback line still alive after the noisy detour',
-      shouldSpeak: false,
-      suggestedStyle: 'silent-observe',
-      embodiedPresence: 'attentive',
-      expiresAt: 14_000,
-      afterglowFromScenario: null,
-      emotionalTension: 'measured-return',
-    } as any
-    state.initiative = {
-      continuityRestraint: 'measured-return',
-      why: 'This still looks like the same callback line, and the reopening should remain measured-return even after extra detours.',
-      shouldSpeak: false,
-      selectedAction: 'hover',
-      confidence: 0.78,
-      motives: {},
-      speakDrive: 0.2,
-      silenceDrive: 0.7,
-      preferredStyle: 'silent-observe',
-      preferredPresence: 'attentive',
-      shouldSurface: true,
-    } as any
-    state.currentConsciousFrame = {
-      focusAnchor: 'Keep the continuity state inward for now, and leave room before widening outward again.',
-      projectState: {
-        sameHerSelfLine: 'structured continuity digest.',
-        continuityCue: 'Keep the continuity state inward for now, and leave room before widening outward again.',
-      },
-    } as any
-    state.personStateProjection = {
-      summary: 'project_continuity=the same callback line is still continuing lower-pressure after another detour',
-      selfContinuityAuthority: {
-        selfLine: 'I am still here answering on the return.',
-        relationshipLine: 'Stay usefully close but measured.',
-        motiveLine: 'Keep helping on the unfinished seam.',
-        habitLine: 'Return with proof, not with pressure.',
-        inwardLine: 'Keep moving on the current return.',
-        authoritySummary: 'Current return stays useful and grounded.',
-        sourceTags: [
-          'durable-self-core',
-          'motive:unfinished-thread-return',
-          'habit:return-with-proof',
-          'ecology:warm-attentive',
-          'private-thought:uncertain',
-          'motive:self-direction',
-          'private-thought:accompany',
-          'ecology:focused-guarded',
-        ],
-      },
-    } as any
-
-    const surface = buildAlicizationDigitalLifeRuntimeSurface(state)
-
-    expect(surface.memory.personStateProjection?.selfContinuityAuthority?.sourceTags ?? []).not.toContain('project-state-carry')
+    expect(Object.keys(surface.raw ?? {}).sort()).toEqual([
+      'personStateProjection',
+      'residentPerformance',
+      'runtime',
+      'runtimeDigest',
+    ])
   })
 
   it('derives a stable continuity signal from the runtime surface', () => {
@@ -865,7 +767,7 @@ describe('digital life kernel', () => {
       world: {
         worldModel: {
           activeThread: {
-            id: 'thread-same-her-carry',
+            id: 'thread-continuity-carry',
             kind: 'problem',
             title: 'identity-continuity',
             summary: 'Keep the continuity state explicit after another sparse carry.',
@@ -910,23 +812,8 @@ describe('digital life kernel', () => {
             authoritySummary: 'structured continuity digest.',
           },
         },
-        derivedMindStateBundle: {
-          activeContinuityGovernance: {
-            mode: 'same-her-baseline',
-            summary: 'same-her-baseline | lower-pressure | continuity state',
-            reasonCodes: ['hold-same-her-line'],
-            lanes: ['reply', 'embodiment'],
-          },
-        },
       },
-      dialogue: {
-        currentConsciousFrame: {
-          projectState: {
-            currentPhase: 'Phase 1: Local Digital Life',
-            sameHerSelfLine: 'structured continuity digest.',
-          },
-        },
-      },
+      dialogue: {},
       agency: {
         inquiryLoop: {
           primaryInquiryId: 'inquiry-missing-array',
@@ -947,13 +834,13 @@ describe('digital life kernel', () => {
 
     expect(signal?.metadata).toEqual(expect.objectContaining({
       watchMode: 'symbiotic-vision',
-      activeThreadId: 'thread-same-her-carry',
+      activeThreadId: 'thread-continuity-carry',
       dominantMode: 'tracking',
       preferredPresence: 'attentive',
     }))
     expect(selection).toEqual(expect.objectContaining({
       activeThread: expect.objectContaining({
-        id: 'thread-same-her-carry',
+        id: 'thread-continuity-carry',
       }),
       focusBelief: null,
       primaryInquiry: null,
@@ -962,10 +849,6 @@ describe('digital life kernel', () => {
       livingWorldObject: null,
       governorIntention: null,
       thoughtThread: null,
-    }))
-    expect(policy.activeContinuityGovernance).toEqual(expect.objectContaining({
-      mode: 'same-her-baseline',
-      summary: expect.stringContaining('continuity state'),
     }))
     expect(policy.continuityDeliberation?.kind).toBe('none')
   })

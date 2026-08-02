@@ -89,12 +89,6 @@ function mergeAuthoritySourceTags(...tagLists: Array<readonly string[] | null | 
       if (!hasText(rawTag))
         continue
       const tag = rawTag.trim()
-      if (
-        tag.startsWith('project-state-')
-        || tag.includes('project-carry')
-      ) {
-        continue
-      }
       if (!mergedTags.includes(tag))
         mergedTags.push(tag)
     }

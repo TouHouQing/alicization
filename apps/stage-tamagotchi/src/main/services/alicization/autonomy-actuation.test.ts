@@ -1,3 +1,5 @@
+import type { AlicizationDispatchTaskThreadRuntimeInput } from './task-thread-dispatcher'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -95,17 +97,6 @@ function createExecutionRuntimeContext(overrides: Record<string, unknown> = {}) 
     turnId: 'turn-autonomy-runtime',
     sessionId: 'session-runtime',
     decisionTraceId: 'mind:trace:autonomy-runtime',
-    projectBriefing: {
-      identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-      currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-      latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
-      primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so project identity carry remains explicit.',
-      nextClosureTarget: 'Keep extending identity-continuity',
-      sameHerSelfLine: 'structured continuity digest.',
-      sameHerDriftRisk: 'If execution reopens as a generic shell before the project brief lands, treat it as unfinished same-her drift.',
-      preflightSummary: 'Alicization is a local-first digital life project. phase=Phase 1: Local Digital Life | open=Memory still needs stronger end-to-end closure across turns so project identity carry remains explicit. | next=Keep extending identity-continuity',
-      preDialogueAwarenessLine: 'pre_turn_context_digest',
-    },
     sensory: {
       collectedAt: 1_710_000_000_123,
       running: true,
@@ -130,6 +121,26 @@ function createExecutionRuntimeContext(overrides: Record<string, unknown> = {}) 
 }
 
 describe('autonomy actuation', () => {
+  it('omits retired structured context instead of replacing it with a fixed placeholder', () => {
+    const retiredStructuredSummary = [
+      `${['opening', 'policy'].join('_')}=memory-led`,
+      `${['relationship', 'cadence'].join('_')}=lower-pressure`,
+    ].join('; ')
+    const dispatch = buildAutonomousObserveDispatchInput({
+      threadId: 'thread-structured-context',
+      requestedDispatchChannel: 'codex',
+      task: {
+        kind: 'observe',
+        goal: 'Inspect the current task.',
+      } as any,
+      summary: retiredStructuredSummary,
+    })
+
+    const prompt = dispatch.codex?.prompt ?? ''
+    expect(prompt).not.toContain('Task context:')
+    expect(prompt).not.toContain('structured_context=')
+  })
+
   it('derives a revisit reminder from deferred act readiness', () => {
     const reminder = deriveAutonomyRevisitReminder({
       cardId: 'default',
@@ -146,7 +157,7 @@ describe('autonomy actuation', () => {
     expect(reminder?.message).toContain('status=awaiting_opening')
   })
 
-  it('threads identity-continuity', () => {
+  it('does not append project-state prose to a revisit reminder', () => {
     const reminder = deriveAutonomyRevisitReminder({
       cardId: 'default',
       digitalLifeSpine: createSpine({
@@ -199,8 +210,7 @@ describe('autonomy actuation', () => {
       }),
     })
 
-    expect(reminder?.message).toContain('legacy phase-one template')
-    expect(reminder?.message).toMatch(/Unfinished closure still needs|continuity state/i)
+    expect(reminder?.message).toContain('target=return later without crowding')
   })
 
   it('keeps a deferred autonomy reminder alive when a sparse spine only preserves autonomy carry', () => {
@@ -241,10 +251,9 @@ describe('autonomy actuation', () => {
       minutes: 16,
       sourceTurnId: expect.stringContaining('autonomy-revisit:'),
     }))
-    expect(reminder?.message).toContain('legacy phase-one template')
   })
 
-  it('keeps corrected same-person settling and quieter embodiment carry visible in revisit reminders instead of collapsing into a generic later-opening nudge', () => {
+  it('does not assign special reminder timing to legacy continuity defer reasons', () => {
     const reminder = deriveAutonomyRevisitReminder({
       cardId: 'default',
       digitalLifeSpine: createSpine({
@@ -298,12 +307,10 @@ describe('autonomy actuation', () => {
     })
 
     expect(reminder).toEqual(expect.objectContaining({
-      minutes: 14,
+      minutes: 12,
       sourceTurnId: expect.stringContaining('autonomy-revisit:'),
     }))
-    expect(reminder?.message).toContain('corrected same-person continuity')
-    expect(reminder?.message).toContain('embodiment quieter')
-    expect(reminder?.message).not.toContain('Return when the opening is riper')
+    expect(reminder?.reasonTags).toContain('defer:corrected-same-person-settling')
   })
 
   it('derives a proactive observe task when coding-like actuation is ripe', () => {
@@ -540,7 +547,9 @@ describe('autonomy actuation', () => {
     expect(payload.codex).toEqual(expect.objectContaining({
       cwd: '/repo',
       sandbox: 'read-only',
-      runtimeContext,
+      runtimeContext: expect.objectContaining({
+        turnId: runtimeContext.turnId,
+      }),
     }))
     expect(payload.codex?.prompt).toContain('Read-only investigation only')
   })
@@ -563,7 +572,7 @@ describe('autonomy actuation', () => {
         disposition: 'planned',
       },
     })) as any
-    const dispatchTaskThread = vi.fn(async () => ({}))
+    const dispatchTaskThread = vi.fn(async (_payload: AlicizationDispatchTaskThreadRuntimeInput) => ({}))
 
     const result = await runAutonomyActuation({
       now: 1_000,
@@ -590,11 +599,6 @@ describe('autonomy actuation', () => {
         sandbox: 'read-only',
         runtimeContext: expect.objectContaining({
           turnId: expect.stringContaining('autonomy-task:default:1000:'),
-          projectBriefing: expect.objectContaining({
-            currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-            primaryOpenLoop: expect.stringContaining('Memory still needs stronger end-to-end closure'),
-            sameHerSelfLine: expect.stringContaining('legacy phase-one template'),
-          }),
         }),
       }),
     }))
@@ -607,7 +611,7 @@ describe('autonomy actuation', () => {
   })
 
   it('auto-dispatches low-risk proactive code edits through workspace-write code agents', async () => {
-    const dispatchTaskThread = vi.fn(async () => ({}))
+    const dispatchTaskThread = vi.fn(async (_payload: AlicizationDispatchTaskThreadRuntimeInput) => ({}))
     const buildExecutionRuntimeContext = vi.fn(async ({ turnId }: { turnId: string }) => createExecutionRuntimeContext({
       turnId,
     }))
@@ -730,11 +734,6 @@ describe('autonomy actuation', () => {
         sandbox: 'workspace-write',
         runtimeContext: expect.objectContaining({
           turnId: expect.stringContaining('autonomy-task:default:1000:'),
-          projectBriefing: expect.objectContaining({
-            currentPhase: expect.stringContaining('Phase 1: Local Digital Life'),
-            nextClosureTarget: expect.stringContaining('Keep extending identity-continuity'),
-            preDialogueAwarenessLine: expect.stringContaining('pre_turn_context_digest'),
-          }),
         }),
       }),
     }))
@@ -797,15 +796,12 @@ describe('autonomy actuation', () => {
     expect(proposal?.reply).toContain('execution_proposal=explicit_consent')
     expect(proposal?.reply).toContain('status=awaiting_user_confirmation')
     expect(proposal?.reply).toContain('goal=Publish the current foreground draft')
-    expect(proposal?.thought).toContain('sameHer=legacy phase-one template')
-    expect(proposal?.thought).toContain('closure=')
-    expect(proposal?.thought).toMatch(/closure=Unfinished cl|closure=Unfinished closure/i)
     expect(proposal?.reasonTags).toContain('execution-proposal')
   })
 
-  it('threads identity-continuity', () => {
+  it('preserves task context without inserting a fixed continuity marker', () => {
     const payload = buildAutonomousTaskDispatchInput({
-      threadId: 'thread-same-her-dispatch',
+      threadId: 'thread-continuity-dispatch',
       requestedDispatchChannel: 'codex',
       task: {
         kind: 'codebase-edit',
@@ -822,9 +818,8 @@ describe('autonomy actuation', () => {
     })
 
     expect(payload.codex?.prompt).toContain('Task context:')
-    expect(payload.codex?.prompt).toContain('structured_context=withheld_fixed_template_residue')
+    expect(payload.codex?.prompt).toContain('structured continuity digest.')
     expect(payload.codex?.prompt).not.toContain('Continuity focus:')
-    expect(payload.codex?.prompt).not.toMatch(/legacy phase-one template|Unfinished closure still needs|continuity state/i)
   })
 
   it('makes proposal copy more direct after learning drifts toward directness and successful execution', () => {
@@ -1022,7 +1017,9 @@ describe('autonomy actuation', () => {
     expect(payload.codex).toEqual(expect.objectContaining({
       cwd: '/repo',
       sandbox: 'workspace-write',
-      runtimeContext,
+      runtimeContext: expect.objectContaining({
+        turnId: runtimeContext.turnId,
+      }),
     }))
     expect(payload.codex?.prompt).toContain('smallest safe code change')
   })

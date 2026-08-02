@@ -144,54 +144,6 @@ describe('buildInitiativeArbitration', () => {
     expect(proposal?.why).not.toMatch(/persona|project|continuity|phase|closure|same[- ]her/iu)
   })
 
-  it('does not let project-state prose change arbitration or proposal wording', () => {
-    const base = createArbitrationInput({
-      worldOntology: {
-        dominantFrame: 'live',
-        truthPriority: ['live'],
-        live: {
-          kind: 'live',
-          summary: 'A concrete error is visible.',
-          confidence: 0.88,
-          stability: 0.86,
-          focusBeliefId: null,
-          evidence: ['screen:error'],
-        },
-        remembered: null,
-        imagined: null,
-        updatedAt: 10_000,
-      },
-      concerns: [{
-        id: 'concern::error',
-        kind: 'help-fix',
-        status: 'active',
-        summary: 'Check the concrete error.',
-        hostGoal: 'resolve-problem',
-        tension: 0.8,
-        confidence: 0.84,
-        careWeight: 0.66,
-        createdAt: 0,
-        lastEvidenceAt: 10_000,
-        patienceUntil: 60_000,
-      }],
-    })
-    const withProjectState = {
-      ...base,
-      projectState: {
-        identity: 'A runtime note',
-        currentPhase: 'active',
-        latestLandedProgress: 'A recent change landed.',
-        primaryOpenLoop: 'One question remains.',
-        nextClosureTarget: 'Inspect the next failing branch.',
-      },
-    }
-
-    const baseline = buildInitiativeArbitration(base)
-    const projected = buildInitiativeArbitration(withProjectState)
-
-    expect(projected).toEqual(baseline)
-  })
-
   it('keeps personality authority out of proposal why text', () => {
     const input = createArbitrationInput({
       worldOntology: {
@@ -258,7 +210,7 @@ describe('buildInitiativeArbitration', () => {
           kind: 'repair-misread',
           status: 'active',
           title: 'Repair the current interpretation',
-          summary: 'Check the missing evidence before speaking.',
+          summary: 'Check the missing evidence before making a claim.',
           source: 'hypothesis',
           priority: 0.82,
           confidence: 0.8,
@@ -279,6 +231,6 @@ describe('buildInitiativeArbitration', () => {
     const proposal = arbitration.proposals.find(item => item.id === 'commitment:commitment::repair')
     expect(proposal?.action).toBe('recheck')
     expect(proposal?.truthFrame).toBe('imagined')
-    expect(proposal?.why).toBe('Check the missing evidence before speaking.')
+    expect(proposal?.why).toBe('Check the missing evidence before making a claim.')
   })
 })

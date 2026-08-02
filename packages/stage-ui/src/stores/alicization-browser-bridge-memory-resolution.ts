@@ -51,11 +51,7 @@ export function buildBrowserRecollectionForeground(input: {
   })
   const summary = sanitizeBriefText(selected.summary || selected.lesson || selected.periodKey, 220)
   const evidence = sanitizeBriefText(selected.lesson || selected.summary, 220)
-  const surfaceSummary = selected.kind === 'procedural'
-    ? sanitizeBriefText(`surface=inward | mode=execution-procedure | evidence=${evidence}`, 220)
-    : input.hostPersonModel?.trustLadder.stage === 'guarded'
-      ? sanitizeBriefText(`surface=inward | mode=relationship-history | evidence=${evidence}`, 220)
-      : sanitizeBriefText(`surface=visible-optional | mode=${mode} | evidence=${evidence}`, 220)
+  const surfaceSummary = sanitizeBriefText(evidence || summary, 220) || null
 
   return {
     mode,
@@ -119,26 +115,30 @@ export function buildBrowserRecollectionPlan(input: {
 
 export function buildBrowserRecollectionSpeechPlan(input: {
   recollectionForeground: AlicizationOrganicMemorySnapshot['recollectionForeground']
+  hostPersonModel?: AlicizationHostPersonModelSnapshot | null
 }) {
   const foreground = input.recollectionForeground
   if (!foreground)
     return null
 
-  const shouldSurface = Boolean(foreground.surfaceSummary && !foreground.surfaceSummary.includes('surface=inward'))
+  const guardedRelationship = foreground.mode === 'relationship-history'
+    && input.hostPersonModel?.trustLadder.stage === 'guarded'
+  const shouldSurface = foreground.mode !== 'execution-procedure' && !guardedRelationship
+  const surfaceMode = shouldSurface
+    ? foreground.mode === 'relationship-history'
+      ? 'relationship-continuity' as const
+      : 'gist-first' as const
+    : foreground.mode === 'execution-procedure'
+      ? 'procedural-carry' as const
+      : 'internal-only' as const
   return {
     shouldSurface,
-    surfaceMode: foreground.mode === 'execution-procedure'
-      ? 'procedural-carry'
-      : foreground.mode === 'relationship-history'
-        ? 'relationship-continuity'
-        : shouldSurface
-          ? 'gist-first'
-          : 'internal-only',
+    surfaceMode,
     placement: shouldSurface
       ? 'inside-payoff'
       : 'internal-only',
     certainty: foreground.certainty,
-    rationale: `source=browser-memory | surface=${shouldSurface ? 'visible-optional' : 'inward'} | mode=${foreground.mode}`,
+    rationale: `source=browser-memory | placement=${shouldSurface ? 'inside-payoff' : 'internal-only'} | mode=${foreground.mode}`,
     confidence: foreground.confidence,
   } satisfies NonNullable<AlicizationOrganicMemorySnapshot['recollectionSpeechPlan']>
 }
@@ -153,7 +153,8 @@ export function buildBrowserKnowledgeEvidence(input: {
     ? 1
     : 0
   const stronglyValidatedProcedureCount = input.consolidations.filter(item => item.kind === 'procedural' && item.confidence >= 0.76).length
-  const contradictionHeavyFactCount = input.recollectionForeground?.surfaceSummary?.includes('surface=inward')
+  const contradictionHeavyFactCount = input.recollectionForeground?.mode === 'relationship-history'
+    && input.hostPersonModel?.trustLadder.stage === 'guarded'
     ? 1
     : 0
   return {
@@ -261,7 +262,7 @@ export function buildBrowserMemoryStageReplay(input: {
         latencyMs: 0,
         budgetClass: 'realtime-reply',
         outputs: [input.recollectionForeground?.mode ?? 'none'],
-        diagnostics: [input.recollectionForeground?.surfaceSummary ?? '', `recall-action=${input.recallLatencyPolicy?.recallAction ?? 'shallow-answer'}`],
+        diagnostics: [input.recollectionForeground?.summary ?? '', `recall-action=${input.recallLatencyPolicy?.recallAction ?? 'shallow-answer'}`],
       },
       {
         stage: 'surface-planning',
@@ -336,7 +337,7 @@ export function buildBrowserMemoryResolutionLedger(input: {
     finalSurfacePolicy: input.recollectionSpeechPlan?.surfaceMode ?? null,
     shouldStayInward,
     shouldDelayUntilAfterPayoff: input.recollectionSpeechPlan?.placement === 'after-payoff',
-    stableCoreOnly: input.recollectionForeground?.surfaceSummary?.includes('surface=inward') ?? false,
+    stableCoreOnly: shouldStayInward,
     suppressionTags: [],
     closureState,
     surfaceConfidence,

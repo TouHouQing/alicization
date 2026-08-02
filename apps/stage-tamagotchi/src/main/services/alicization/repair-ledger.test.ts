@@ -132,8 +132,8 @@ describe('buildRepairLedger', () => {
           id: 'commitment::recheck-scene::runtime',
           kind: 'recheck-scene',
           status: 'active',
-          title: 'Recheck Scene',
-          summary: 'She still wants a cleaner grounding pass.',
+          title: 'recheck-scene',
+          summary: 'commitment:recheck-scene',
           source: 'continuity',
           priority: 0.76,
           confidence: 0.7,
@@ -170,6 +170,12 @@ describe('buildRepairLedger', () => {
     })
 
     expect(ledger.entries.some(entry => entry.kind === 'reground-scene')).toBe(true)
+    const regroundEntry = ledger.entries.find(entry => entry.kind === 'reground-scene')
+    expect(regroundEntry?.rationale).toBe(regroundEntry?.summary)
+    const truthBoundaryEntry = ledger.entries.find(entry => entry.kind === 'present-tense-boundary')
+    expect(truthBoundaryEntry?.summary).toBe('The diff knot is present but not fully grounded.')
+    expect(truthBoundaryEntry?.summary).not.toMatch(/^truth:/u)
+    expect(truthBoundaryEntry?.rationale).not.toMatch(/^truth-state:/u)
     expect(ledger.shouldConstrainPresentTense).toBe(true)
     expect(ledger.repairPressure).toBeGreaterThan(0.45)
   })
@@ -271,7 +277,88 @@ describe('buildRepairLedger', () => {
     })
 
     expect(ledger.entries.some(entry => entry.kind === 'stale-scene-anchor')).toBe(true)
+    const staleAnchorEntry = ledger.entries.find(entry => entry.kind === 'stale-scene-anchor')
+    expect(staleAnchorEntry?.rationale).toBe(staleAnchorEntry?.summary)
     expect(ledger.shouldConstrainPresentTense).toBe(true)
+  })
+
+  it('keeps belief contradiction repair text grounded in the conflicting evidence', () => {
+    const ledger = buildRepairLedger({
+      now: 52_000,
+      context: baseContext,
+      currentScene: null,
+      worldModel: {
+        activeThread: {
+          id: 'thread::belief-conflict',
+          kind: 'change-review',
+          status: 'active',
+          source: 'observed-scene',
+          title: 'runtime conflict',
+          summary: 'The current read conflicts with the carried runtime interpretation.',
+          confidence: 0.62,
+          significance: 0.72,
+          unresolved: true,
+          beganAt: 0,
+          lastUpdatedAt: 52_000,
+          target: null,
+        },
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'recent',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'staying-with-thread',
+          sceneAgeMs: 10_000,
+          attentionAgeMs: 10_000,
+          sameSceneAsBefore: true,
+          sameAttentionAsBefore: true,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+        updatedAt: 52_000,
+      },
+      beliefRevision: {
+        dominantBeliefId: null,
+        stability: 'fluid',
+        revisionPressure: 0.58,
+        groundingNeed: 0.32,
+        contradictionPressure: 0.74,
+        hostCorrectionWeight: 0.18,
+        narrative: [],
+        updatedAt: 52_000,
+      },
+      hypothesisGraph: {
+        activeHypothesisId: 'hypothesis::misread',
+        hypotheses: [{
+          id: 'hypothesis::misread',
+          kind: 'misread-drift',
+          status: 'active',
+          summary: 'The carried interpretation may be misreading the live diff.',
+          confidence: 0.72,
+          evidence: [],
+          createdAt: 52_000,
+          updatedAt: 52_000,
+        }],
+        contradictionPressure: 0.74,
+        narrative: [],
+        updatedAt: 52_000,
+      } as any,
+      previous: null,
+    })
+
+    const contradictionEntry = ledger.entries.find(entry => entry.kind === 'belief-contradiction')
+    expect(contradictionEntry?.summary).toBe('The carried interpretation may be misreading the live diff.')
+    expect(contradictionEntry?.rationale).toBe(contradictionEntry?.summary)
+    expect(contradictionEntry?.rationale).not.toMatch(/^contradiction:/u)
   })
 
   it('prefers runtime surface truth cues over conflicting raw repair inputs', () => {
@@ -358,8 +445,8 @@ describe('buildRepairLedger', () => {
           id: 'commitment::recheck-scene::runtime',
           kind: 'recheck-scene',
           status: 'active',
-          title: 'Recheck Scene',
-          summary: 'She still wants a cleaner grounding pass.',
+          title: 'recheck-scene',
+          summary: 'commitment:recheck-scene',
           source: 'continuity',
           priority: 0.76,
           confidence: 0.7,

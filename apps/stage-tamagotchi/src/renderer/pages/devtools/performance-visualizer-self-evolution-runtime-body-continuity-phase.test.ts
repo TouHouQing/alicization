@@ -74,11 +74,11 @@ describe('performance visualizer self evolution runtime body continuity phase', 
     }))).toBe('renderer-rejoin-without-body')
   })
 
-  it('infers full cross-modal lock from structured VRM same-her frame evidence when authority lane flags are still missing', () => {
+  it('infers full cross-modal lock from typed VRM continuity frame evidence when authority lane flags are still missing', () => {
     expect(resolveSelfEvolutionRuntimeBodyContinuityPhase({
       ...createAuthorityView({
-        cueId: 'segment-same-her-lock-1',
-        authoritySegmentId: 'segment-same-her-lock-1',
+        cueId: 'segment-continuity-lock-1',
+        authoritySegmentId: 'segment-continuity-lock-1',
         authorityMatchedDrivers: [],
         bodySegmentMatched: null,
         faceSegmentMatched: null,
@@ -89,17 +89,19 @@ describe('performance visualizer self evolution runtime body continuity phase', 
         authorityMatchSummary: null,
         settleAuthoritySummary: null,
       }),
-      sameHerFramePerformanceSegmentId: 'segment-same-her-lock-1',
-      sameHerFrameSpeechSegmentId: 'segment-same-her-lock-1',
-      sameHerFrameSummary: 'aligned | segment=segment-same-her-lock-1 | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
+      continuityFrameActiveDrivers: ['body', 'face', 'motion', 'lipsync', 'voice'],
+      continuityFrameMismatchDrivers: [],
+      continuityFramePerformanceSegmentId: 'segment-continuity-lock-1',
+      continuityFrameSpeechSegmentId: 'segment-continuity-lock-1',
+      continuityFrameSummary: 'aligned | segment=segment-continuity-lock-1 | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
     } as any)).toBe('full-cross-modal-lock')
   })
 
-  it('infers body-carried renderer rejoin from structured VRM same-her frame evidence when only body, face, and motion have rejoined so far', () => {
+  it('infers body-carried renderer rejoin from typed VRM continuity frame evidence when only body, face, and motion have rejoined so far', () => {
     expect(resolveSelfEvolutionRuntimeBodyContinuityPhase({
       ...createAuthorityView({
-        cueId: 'segment-same-her-body-face-motion-1',
-        authoritySegmentId: 'segment-same-her-body-face-motion-1',
+        cueId: 'segment-continuity-body-face-motion-1',
+        authoritySegmentId: 'segment-continuity-body-face-motion-1',
         authorityMatchedDrivers: [],
         bodySegmentMatched: null,
         faceSegmentMatched: null,
@@ -110,17 +112,19 @@ describe('performance visualizer self evolution runtime body continuity phase', 
         authorityMatchSummary: null,
         settleAuthoritySummary: null,
       }),
-      sameHerFramePerformanceSegmentId: 'segment-same-her-body-face-motion-1',
-      sameHerFrameSpeechSegmentId: 'segment-same-her-body-face-motion-1',
-      sameHerFrameSummary: 'aligned | segment=segment-same-her-body-face-motion-1 | active=body, face, motion | lane=body+face+motion-only | remaining-open=lipsync+voice',
+      continuityFrameActiveDrivers: ['body', 'face', 'motion'],
+      continuityFrameMismatchDrivers: [],
+      continuityFramePerformanceSegmentId: 'segment-continuity-body-face-motion-1',
+      continuityFrameSpeechSegmentId: 'segment-continuity-body-face-motion-1',
+      continuityFrameSummary: 'aligned | segment=segment-continuity-body-face-motion-1 | active=body, face, motion | lane=body+face+motion-only | remaining-open=lipsync+voice',
     } as any)).toBe('body-carried-to-renderer-rejoin')
   })
 
-  it('infers renderer rejoin without body from structured Live2D same-her execution evidence when authority lane flags are missing', () => {
+  it('infers renderer rejoin without body from typed Live2D continuity execution evidence when authority lane flags are missing', () => {
     expect(resolveSelfEvolutionRuntimeBodyContinuityPhase({
       ...createAuthorityView({
-        cueId: 'segment-same-her-live2d-rejoin-1',
-        authoritySegmentId: 'segment-same-her-live2d-rejoin-1',
+        cueId: 'segment-continuity-live2d-rejoin-1',
+        authoritySegmentId: 'segment-continuity-live2d-rejoin-1',
         authorityMatchedDrivers: [],
         bodySegmentMatched: null,
         faceSegmentMatched: null,
@@ -131,12 +135,14 @@ describe('performance visualizer self evolution runtime body continuity phase', 
         authorityMatchSummary: null,
         settleAuthoritySummary: null,
       }),
-      sameHerExecutionAuthoritySegmentId: 'segment-same-her-live2d-rejoin-1',
-      sameHerExecutionSummary: 'aligned | authority=segment-same-her-live2d-rejoin-1 | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
+      continuityExecutionActiveDrivers: ['face', 'motion', 'lipsync', 'voice'],
+      continuityExecutionMismatchDrivers: [],
+      continuityExecutionAuthoritySegmentId: 'segment-continuity-live2d-rejoin-1',
+      continuityExecutionSummary: 'aligned | authority=segment-continuity-live2d-rejoin-1 | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
     } as any)).toBe('renderer-rejoin-without-body')
   })
 
-  it('does not infer renderer rejoin without body from stale Live2D same-her execution evidence owned by another living segment', () => {
+  it('does not infer renderer rejoin without body from stale Live2D continuity execution evidence owned by another living segment', () => {
     expect(resolveSelfEvolutionRuntimeBodyContinuityPhase({
       ...createAuthorityView({
         cueId: 'segment-current-self-evolution-line',
@@ -151,12 +157,14 @@ describe('performance visualizer self evolution runtime body continuity phase', 
         authorityMatchSummary: null,
         settleAuthoritySummary: null,
       }),
-      sameHerExecutionAuthoritySegmentId: 'segment-stale-self-evolution-line',
-      sameHerExecutionSummary: 'aligned | authority=segment-stale-self-evolution-line | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
+      continuityExecutionActiveDrivers: ['face', 'motion', 'lipsync', 'voice'],
+      continuityExecutionMismatchDrivers: [],
+      continuityExecutionAuthoritySegmentId: 'segment-stale-self-evolution-line',
+      continuityExecutionSummary: 'aligned | authority=segment-stale-self-evolution-line | active=face, motion, lipsync, voice | closure=renderer-rejoin-without-body | lane=face+motion+lipsync+voice-only | remaining-open=none',
     } as any)).toBeNull()
   })
 
-  it('does not infer full cross-modal lock from stale VRM same-her frame evidence owned by another living segment', () => {
+  it('does not infer full cross-modal lock from stale VRM continuity frame evidence owned by another living segment', () => {
     expect(resolveSelfEvolutionRuntimeBodyContinuityPhase({
       ...createAuthorityView({
         cueId: 'segment-current-self-evolution-frame',
@@ -171,9 +179,11 @@ describe('performance visualizer self evolution runtime body continuity phase', 
         authorityMatchSummary: null,
         settleAuthoritySummary: null,
       }),
-      sameHerFramePerformanceSegmentId: 'segment-stale-self-evolution-frame',
-      sameHerFrameSpeechSegmentId: 'segment-stale-self-evolution-frame',
-      sameHerFrameSummary: 'aligned | segment=segment-stale-self-evolution-frame | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
+      continuityFrameActiveDrivers: ['body', 'face', 'motion', 'lipsync', 'voice'],
+      continuityFrameMismatchDrivers: [],
+      continuityFramePerformanceSegmentId: 'segment-stale-self-evolution-frame',
+      continuityFrameSpeechSegmentId: 'segment-stale-self-evolution-frame',
+      continuityFrameSummary: 'aligned | segment=segment-stale-self-evolution-frame | active=body, face, motion, lipsync, voice | closure=full-cross-modal-lock | lane=full-driver-rejoin | remaining-open=none',
     } as any)).toBeNull()
   })
 

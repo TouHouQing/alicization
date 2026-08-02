@@ -15,12 +15,9 @@ import type { AlicizationAuditLogInput } from '../../../shared/eventa'
 import type { AlicizationLocalVisualDispatchSurface } from './executor-adapters/local-visual'
 
 import {
-  isAlicizationThinProjectAwarenessLine,
   normalizeAlicizationExecutionRuntimeContext,
-  resolveAlicizationProjectPreDialogueAwarenessLine,
 } from '@proj-alicization/stage-shared'
 
-import { preferStrongerContinuityClosureAuthority } from './continuity-closure-authority'
 import { resolveExecutionTransportChannel } from './executor-adapters/embodied-channel'
 import { prepareTaskThreadDispatch } from './executor-adapters/registry'
 
@@ -97,130 +94,6 @@ function resolvePersistedExecutionRuntimeContext(
   )
 }
 
-function looksLikeGenericDispatchSameHerHoldDetail(text: string | null | undefined) {
-  const normalized = typeof text === 'string'
-    ? text.trim().toLowerCase()
-    : ''
-  if (!normalized)
-    return false
-
-  return /project-state answer before widening|keep the line gentle for now|generic project continuity hold/u.test(normalized)
-}
-
-function preferDispatchProjectSameHerHoldDetail(input: {
-  payloadProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
-  storedProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
-}) {
-  const payloadSameHerHoldDetail = input.payloadProjectBriefing?.sameHerHoldDetail ?? null
-  const continuityCue = input.payloadProjectBriefing?.continuityCue
-    ?? input.storedProjectBriefing?.continuityCue
-    ?? null
-  const storedSameHerHoldDetail = input.storedProjectBriefing?.sameHerHoldDetail ?? null
-
-  if (
-    payloadSameHerHoldDetail
-    && storedSameHerHoldDetail
-    && looksLikeGenericDispatchSameHerHoldDetail(payloadSameHerHoldDetail)
-    && !looksLikeGenericDispatchSameHerHoldDetail(storedSameHerHoldDetail)
-  ) {
-    return storedSameHerHoldDetail
-  }
-
-  const preferredPayload = preferStrongerContinuityClosureAuthority(payloadSameHerHoldDetail, continuityCue)
-    ?? payloadSameHerHoldDetail
-    ?? continuityCue
-    ?? null
-  const preferredFinal = preferStrongerContinuityClosureAuthority(preferredPayload, storedSameHerHoldDetail)
-    ?? preferredPayload
-    ?? storedSameHerHoldDetail
-    ?? null
-
-  return preferredFinal
-}
-
-function buildDispatchProjectAwarenessState(
-  projectBriefing: AlicizationExecutionRuntimeContext['projectBriefing'],
-) {
-  if (!projectBriefing)
-    return null
-
-  return {
-    ...projectBriefing,
-    awarenessLine: projectBriefing.preDialogueAwarenessLine ?? null,
-  }
-}
-
-function preferDispatchPreDialogueAwarenessLine(input: {
-  payloadProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
-  storedProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
-}) {
-  const resolved = resolveAlicizationProjectPreDialogueAwarenessLine({
-    runtimeProjectState: buildDispatchProjectAwarenessState(input.payloadProjectBriefing),
-    fallbackProjectState: buildDispatchProjectAwarenessState(input.storedProjectBriefing),
-  })
-
-  return resolved ?? null
-}
-
-function preferDispatchPreDialogueAwarenessSummary(input: {
-  payloadProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
-  storedProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
-}) {
-  const payloadSummary = input.payloadProjectBriefing?.preDialogueAwarenessSummary ?? null
-  const storedSummary = input.storedProjectBriefing?.preDialogueAwarenessSummary ?? null
-
-  if (payloadSummary && !isAlicizationThinProjectAwarenessLine(payloadSummary))
-    return payloadSummary
-
-  if (storedSummary && !isAlicizationThinProjectAwarenessLine(storedSummary))
-    return storedSummary
-
-  return preferDispatchPreDialogueAwarenessLine(input)
-}
-
-function mergeProjectBriefing(input: {
-  payloadProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
-  storedProjectBriefing: AlicizationExecutionRuntimeContext['projectBriefing']
-}): AlicizationExecutionRuntimeContext['projectBriefing'] {
-  const { payloadProjectBriefing, storedProjectBriefing } = input
-  if (!payloadProjectBriefing)
-    return storedProjectBriefing ?? null
-  if (!storedProjectBriefing)
-    return payloadProjectBriefing
-
-  const merged = {
-    identity: payloadProjectBriefing.identity ?? storedProjectBriefing.identity ?? null,
-    currentPhase: payloadProjectBriefing.currentPhase ?? storedProjectBriefing.currentPhase ?? null,
-    latestLandedProgress: payloadProjectBriefing.latestLandedProgress ?? storedProjectBriefing.latestLandedProgress ?? null,
-    primaryOpenLoop: payloadProjectBriefing.primaryOpenLoop ?? storedProjectBriefing.primaryOpenLoop ?? null,
-    nextClosureTarget: payloadProjectBriefing.nextClosureTarget ?? storedProjectBriefing.nextClosureTarget ?? null,
-    sameHerSelfLine: payloadProjectBriefing.sameHerSelfLine ?? storedProjectBriefing.sameHerSelfLine ?? null,
-    sameHerHoldDetail: preferDispatchProjectSameHerHoldDetail({
-      payloadProjectBriefing,
-      storedProjectBriefing,
-    }),
-    sameHerDriftRisk: payloadProjectBriefing.sameHerDriftRisk ?? storedProjectBriefing.sameHerDriftRisk ?? null,
-    companionBriefingLine: payloadProjectBriefing.companionBriefingLine ?? storedProjectBriefing.companionBriefingLine ?? null,
-    emotionalClosureSummary: payloadProjectBriefing.emotionalClosureSummary ?? storedProjectBriefing.emotionalClosureSummary ?? null,
-    continuityCue: payloadProjectBriefing.continuityCue ?? storedProjectBriefing.continuityCue ?? null,
-    continuityPreferredTiming: payloadProjectBriefing.continuityPreferredTiming ?? storedProjectBriefing.continuityPreferredTiming ?? null,
-    continuityCadence: payloadProjectBriefing.continuityCadence ?? storedProjectBriefing.continuityCadence ?? null,
-    preferredBlinkCadence: payloadProjectBriefing.preferredBlinkCadence ?? storedProjectBriefing.preferredBlinkCadence ?? null,
-    preferredGazeMode: payloadProjectBriefing.preferredGazeMode ?? storedProjectBriefing.preferredGazeMode ?? null,
-    preflightSummary: payloadProjectBriefing.preflightSummary ?? storedProjectBriefing.preflightSummary ?? null,
-    preDialogueAwarenessLine: preferDispatchPreDialogueAwarenessLine({
-      payloadProjectBriefing,
-      storedProjectBriefing,
-    }),
-    preDialogueAwarenessSummary: preferDispatchPreDialogueAwarenessSummary({
-      payloadProjectBriefing,
-      storedProjectBriefing,
-    }),
-  } satisfies NonNullable<AlicizationExecutionRuntimeContext['projectBriefing']>
-
-  return Object.values(merged).some(Boolean) ? merged : null
-}
-
 function mergeExecutionRuntimeContexts(input: {
   payloadRuntimeContext: AlicizationExecutionRuntimeContext | null
   storedRuntimeContext: AlicizationExecutionRuntimeContext | null
@@ -239,10 +112,6 @@ function mergeExecutionRuntimeContexts(input: {
     turnId: payloadRuntimeContext.turnId ?? storedRuntimeContext.turnId ?? null,
     sessionId: payloadRuntimeContext.sessionId ?? storedRuntimeContext.sessionId ?? null,
     agentSessionId: payloadRuntimeContext.agentSessionId ?? storedRuntimeContext.agentSessionId ?? null,
-    projectBriefing: mergeProjectBriefing({
-      payloadProjectBriefing: payloadRuntimeContext.projectBriefing,
-      storedProjectBriefing: storedRuntimeContext.projectBriefing,
-    }),
     recentActions: payloadRuntimeContext.recentActions && payloadRuntimeContext.recentActions.length > 0
       ? payloadRuntimeContext.recentActions
       : storedRuntimeContext.recentActions ?? [],

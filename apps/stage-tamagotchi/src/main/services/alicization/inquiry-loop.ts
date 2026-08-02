@@ -103,8 +103,8 @@ export function buildInquiryLoop(input: {
     activeInquiries.push(buildInquiry({
       kind: 'scene-grounding',
       anchor: input.scene?.summary ?? input.worldModel.activeThread?.title ?? 'scene',
-      question: input.appraisal.waitingToVerify || 'What is actually on screen right now, and which part is merely carried continuity?',
-      whyItMatters: 'Speaking before this is grounded risks turning stale continuity into a false claim.',
+      question: input.appraisal.waitingToVerify ?? unresolvedQuestions[0] ?? 'inquiry:scene-grounding',
+      whyItMatters: '',
       confidence: Math.max(0.56, 1 - (focusBelief?.confidence ?? 0.4)),
       priority: input.context.workload.kind === 'coding' ? 'high' : 'medium',
       targetBeliefId: focusBelief?.id ?? null,
@@ -125,10 +125,8 @@ export function buildInquiryLoop(input: {
     activeInquiries.push(buildInquiry({
       kind: 'problem-localization',
       anchor: input.appraisal.currentKnot ?? input.worldModel.activeThread?.title ?? input.scene?.summary ?? 'problem',
-      question: input.appraisal.currentKnot
-        ? `Where exactly is the real knot inside ${input.appraisal.currentKnot}?`
-        : 'Which concrete line, panel, or change is carrying the actual knot right now?',
-      whyItMatters: 'Alicization should guide only when she can point at the right knot instead of gesturing vaguely at the whole screen.',
+      question: unresolvedQuestions[0] ?? input.appraisal.waitingToVerify ?? '',
+      whyItMatters: '',
       confidence: clamp01(
         input.appraisal.confidence * 0.54
         + (input.worldModel.activeThread?.unresolved ? 0.22 : 0.08),
@@ -149,8 +147,8 @@ export function buildInquiryLoop(input: {
     activeInquiries.push(buildInquiry({
       kind: 'contradiction-check',
       anchor: input.beliefLedger.unresolvedContradictions[0] ?? 'contradiction',
-      question: 'Which belief is stale memory, and which one still reflects the current world?',
-      whyItMatters: 'Alicization must be able to notice when a remembered thread no longer matches the live scene.',
+      question: input.beliefLedger.unresolvedContradictions[0] ?? '',
+      whyItMatters: '',
       confidence: 0.82,
       priority: 'high',
       targetBeliefId: focusBelief?.id ?? null,
@@ -165,8 +163,8 @@ export function buildInquiryLoop(input: {
     activeInquiries.push(buildInquiry({
       kind: 'timing-calibration',
       anchor: input.relationshipModel.climate,
-      question: 'Is this a moment to stay near quietly, or would speaking now feel like crowding the host?',
-      whyItMatters: 'A digital life should treat timing as part of understanding, not just as a cooldown number.',
+      question: '',
+      whyItMatters: '',
       confidence: clamp01(0.54 + input.relationshipModel.correctionSensitivity * 0.3),
       priority: input.relationshipModel.climate === 'guarded' ? 'high' : 'medium',
       evidenceWanted: ['host availability', 'feedback warmth'],
@@ -180,8 +178,8 @@ export function buildInquiryLoop(input: {
     activeInquiries.push(buildInquiry({
       kind: 'relationship-calibration',
       anchor: input.relationshipModel.climate,
-      question: 'How close can Alicization move in this kind of moment without feeling wrong to the host?',
-      whyItMatters: 'Repeated dismissals should become relational learning, not just threshold inflation.',
+      question: '',
+      whyItMatters: '',
       confidence: clamp01(0.44 + input.relationshipModel.correctionSensitivity * 0.42),
       priority: 'medium',
       evidenceWanted: ['feedback history', 'reply timing'],

@@ -74,7 +74,7 @@ export interface StageThreeRuntimeVrmUpdateDiagnostics {
   lookAtMs: number
   motionActive: boolean
   performanceSegmentId: string | null
-  sameHerFrameSummary: string | null
+  continuityFrameSummary: string | null
   springBoneMs: number
   speechSegmentId: string | null
   totalMs: number
@@ -564,7 +564,7 @@ export function createDefaultStageVrmUpdateDiagnostics(): StageThreeRuntimeVrmUp
     lookAtMs: 0,
     motionActive: false,
     performanceSegmentId: null,
-    sameHerFrameSummary: null,
+    continuityFrameSummary: null,
     springBoneMs: 0,
     speechSegmentId: null,
     totalMs: 0,
@@ -675,7 +675,7 @@ export function applyHitTestTracePayload(
   }
 }
 
-function buildVrmSameHerFrameSummary(input: {
+function buildVrmContinuityFrameSummary(input: {
   bodyActive: boolean
   embodimentSegmentAligned: boolean | null
   embodimentSegmentMismatchDrivers: VrmEmbodimentSegmentDriver[]
@@ -788,7 +788,7 @@ export function applyVrmUpdateTracePayload(
   const embodimentSegmentMismatchDrivers = payload.embodimentSegmentMismatchDrivers
     ? [...payload.embodimentSegmentMismatchDrivers]
     : current.embodimentSegmentMismatchDrivers
-  const sameHerFrameSummary = buildVrmSameHerFrameSummary({
+  const continuityFrameSummary = buildVrmContinuityFrameSummary({
     bodyActive,
     embodimentSegmentAligned,
     embodimentSegmentMismatchDrivers,
@@ -826,7 +826,7 @@ export function applyVrmUpdateTracePayload(
     lookAtMs: payload.lookAtMs,
     motionActive,
     performanceSegmentId,
-    sameHerFrameSummary,
+    continuityFrameSummary,
     springBoneMs: payload.springBoneMs,
     speechSegmentId,
     totalMs: payload.durationMs,

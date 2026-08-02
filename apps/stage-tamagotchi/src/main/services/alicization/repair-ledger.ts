@@ -65,6 +65,18 @@ function activeHypothesis(hypothesisGraph?: AlicizationHypothesisGraphSnapshot |
     ?? null
 }
 
+function resolvePresentTenseBoundarySummary(input: {
+  worldModel: AlicizationWorldModelSnapshot
+  worldOntology?: AlicizationWorldOntologySnapshot | null
+  currentHypothesis?: ReturnType<typeof activeHypothesis>
+}) {
+  return sanitizeText(input.worldModel.activeThread?.summary, 180)
+    || sanitizeText(input.currentHypothesis?.summary, 180)
+    || sanitizeText(input.worldModel.epistemicState.openQuestions[0], 180)
+    || sanitizeText(input.worldOntology?.remembered?.summary, 180)
+    || sanitizeText(input.worldOntology?.imagined?.summary, 180)
+}
+
 function governingConcern(concernContinuity?: AlicizationConcernContinuityLedgerSnapshot | null) {
   return concernContinuity?.entries.find(entry => entry.id === concernContinuity.governingEntryId)
     ?? concernContinuity?.entries[0]
@@ -186,31 +198,34 @@ export function buildRepairLedger(input: {
     const summary = currentPlan?.question
       ?? currentCommitment?.summary
       ?? worldModel.epistemicState.openQuestions[0]
-      ?? 'The live scene still needs one cleaner grounding pass.'
-    const id = stableRepairId('reground-scene', summary)
-    entries.push(createEntry({
-      now: input.now,
-      kind: 'reground-scene',
-      summary,
-      rationale: `Epistemic certainty is ${worldModel.epistemicState.certainty}; grounding need is ${(beliefRevision?.groundingNeed ?? 0).toFixed(2)}.`,
-      urgency: clamp01(
-        (beliefRevision?.groundingNeed ?? 0.28) * 0.42
-        + (worldModel.epistemicState.certainty === 'uncertain' ? 0.28 : worldModel.epistemicState.certainty === 'lingering' ? 0.18 : 0)
-        + (currentPlan?.askForGrounding ? 0.12 : 0)
-        + (currentCommitment?.kind === 'recheck-scene' ? 0.12 : 0),
-      ),
-      confidence: clamp01(
-        (currentPlan ? 0.18 : 0)
-        + (beliefRevision?.revisionPressure ?? 0.24) * 0.24
-        + (currentConcern?.repairAffinity ?? 0.22) * 0.26
-        + 0.3,
-      ),
-      targetConcernEntryId: currentConcern?.id ?? null,
-      targetCommitmentId: currentCommitment?.id ?? null,
-      targetInquiryPlanId: currentPlan?.id ?? null,
-      targetBeliefId: focusBelief?.id ?? null,
-      previous: previousEntries.get(id) ?? null,
-    }))
+      ?? currentHypothesis?.summary
+      ?? ''
+    if (summary) {
+      const id = stableRepairId('reground-scene', summary)
+      entries.push(createEntry({
+        now: input.now,
+        kind: 'reground-scene',
+        summary,
+        rationale: summary,
+        urgency: clamp01(
+          (beliefRevision?.groundingNeed ?? 0.28) * 0.42
+          + (worldModel.epistemicState.certainty === 'uncertain' ? 0.28 : worldModel.epistemicState.certainty === 'lingering' ? 0.18 : 0)
+          + (currentPlan?.askForGrounding ? 0.12 : 0)
+          + (currentCommitment?.kind === 'recheck-scene' ? 0.12 : 0),
+        ),
+        confidence: clamp01(
+          (currentPlan ? 0.18 : 0)
+          + (beliefRevision?.revisionPressure ?? 0.24) * 0.24
+          + (currentConcern?.repairAffinity ?? 0.22) * 0.26
+          + 0.3,
+        ),
+        targetConcernEntryId: currentConcern?.id ?? null,
+        targetCommitmentId: currentCommitment?.id ?? null,
+        targetInquiryPlanId: currentPlan?.id ?? null,
+        targetBeliefId: focusBelief?.id ?? null,
+        previous: previousEntries.get(id) ?? null,
+      }))
+    }
   }
 
   if (
@@ -226,29 +241,32 @@ export function buildRepairLedger(input: {
   ) {
     const summary = currentConcern?.summary
       ?? worldModel.activeThread?.summary
-      ?? 'The carried scene anchor may be outrunning the live view.'
-    const id = stableRepairId('stale-scene-anchor', summary)
-    entries.push(createEntry({
-      now: input.now,
-      kind: 'stale-scene-anchor',
-      summary,
-      rationale: 'The current thread is being held by continuity rather than fresh sight, so old screen anchors need correction before they are spoken as if live.',
-      urgency: clamp01(
-        (currentConcern?.repairAffinity ?? 0.2) * 0.3
-        + (truthContract.shouldLabelMemory ? 0.24 : 0)
-        + (worldModel.activeThread?.source === 'continuity' ? 0.2 : 0)
-        + (worldModel.activeThread?.source === 'working-memory' ? 0.18 : 0),
-      ),
-      confidence: clamp01(
-        (currentConcern?.confidence ?? 0.42) * 0.24
-        + (truthContract.shouldLabelMemory ? 0.34 : 0.18)
-        + 0.22,
-      ),
-      targetConcernEntryId: currentConcern?.id ?? null,
-      targetCommitmentId: currentCommitment?.id ?? null,
-      targetInquiryPlanId: currentPlan?.id ?? null,
-      previous: previousEntries.get(id) ?? null,
-    }))
+      ?? currentHypothesis?.summary
+      ?? ''
+    if (summary) {
+      const id = stableRepairId('stale-scene-anchor', summary)
+      entries.push(createEntry({
+        now: input.now,
+        kind: 'stale-scene-anchor',
+        summary,
+        rationale: summary,
+        urgency: clamp01(
+          (currentConcern?.repairAffinity ?? 0.2) * 0.3
+          + (truthContract.shouldLabelMemory ? 0.24 : 0)
+          + (worldModel.activeThread?.source === 'continuity' ? 0.2 : 0)
+          + (worldModel.activeThread?.source === 'working-memory' ? 0.18 : 0),
+        ),
+        confidence: clamp01(
+          (currentConcern?.confidence ?? 0.42) * 0.24
+          + (truthContract.shouldLabelMemory ? 0.34 : 0.18)
+          + 0.22,
+        ),
+        targetConcernEntryId: currentConcern?.id ?? null,
+        targetCommitmentId: currentCommitment?.id ?? null,
+        targetInquiryPlanId: currentPlan?.id ?? null,
+        previous: previousEntries.get(id) ?? null,
+      }))
+    }
   }
 
   if (
@@ -260,51 +278,60 @@ export function buildRepairLedger(input: {
   ) {
     const summary = currentHypothesis?.summary
       ?? focusBelief?.statement
-      ?? 'Part of the carried interpretation is colliding with newer evidence.'
-    const id = stableRepairId('belief-contradiction', summary)
-    entries.push(createEntry({
-      now: input.now,
-      kind: 'belief-contradiction',
-      summary,
-      rationale: `Contradiction pressure is ${(beliefRevision?.contradictionPressure ?? 0).toFixed(2)} and the active hypothesis is ${currentHypothesis?.kind ?? 'unknown'}.`,
-      urgency: clamp01(
-        (beliefRevision?.contradictionPressure ?? 0.28) * 0.46
-        + (currentHypothesis?.kind === 'misread-drift' ? 0.26 : 0),
-      ),
-      confidence: clamp01(
-        (focusBelief?.confidence ?? 0.4) * 0.18
-        + (currentHypothesis?.confidence ?? 0.4) * 0.28
-        + 0.28,
-      ),
-      targetConcernEntryId: currentConcern?.id ?? null,
-      targetCommitmentId: currentCommitment?.id ?? null,
-      targetInquiryPlanId: currentPlan?.id ?? null,
-      targetBeliefId: focusBelief?.id ?? null,
-      previous: previousEntries.get(id) ?? null,
-    }))
+      ?? currentConcern?.summary
+      ?? ''
+    if (summary) {
+      const id = stableRepairId('belief-contradiction', summary)
+      entries.push(createEntry({
+        now: input.now,
+        kind: 'belief-contradiction',
+        summary,
+        rationale: summary,
+        urgency: clamp01(
+          (beliefRevision?.contradictionPressure ?? 0.28) * 0.46
+          + (currentHypothesis?.kind === 'misread-drift' ? 0.26 : 0),
+        ),
+        confidence: clamp01(
+          (focusBelief?.confidence ?? 0.4) * 0.18
+          + (currentHypothesis?.confidence ?? 0.4) * 0.28
+          + 0.28,
+        ),
+        targetConcernEntryId: currentConcern?.id ?? null,
+        targetCommitmentId: currentCommitment?.id ?? null,
+        targetInquiryPlanId: currentPlan?.id ?? null,
+        targetBeliefId: focusBelief?.id ?? null,
+        previous: previousEntries.get(id) ?? null,
+      }))
+    }
   }
 
   if (!truthContract.canDescribeCurrentSceneAsFact) {
-    const summary = truthContract.rationale || 'The current scene should not be spoken as fully live fact yet.'
-    const id = stableRepairId('present-tense-boundary', summary)
-    entries.push(createEntry({
-      now: input.now,
-      kind: 'present-tense-boundary',
-      summary,
-      rationale: truthContract.rationale,
-      urgency: clamp01(
-        (truthContract.truthState === 'uncertain' ? 0.42 : truthContract.truthState === 'remembered' ? 0.28 : 0.2)
-        + (posture.requiresRegroundBeforeSurface ? 0.12 : 0),
-      ),
-      confidence: clamp01(
-        (truthContract.shouldLabelMemory ? 0.42 : 0.22)
-        + (worldModel.activeThread?.confidence ?? 0.28) * 0.18,
-      ),
-      targetConcernEntryId: currentConcern?.id ?? null,
-      targetCommitmentId: currentCommitment?.id ?? null,
-      targetInquiryPlanId: currentPlan?.id ?? null,
-      previous: previousEntries.get(id) ?? null,
-    }))
+    const summary = resolvePresentTenseBoundarySummary({
+      worldModel,
+      worldOntology,
+      currentHypothesis,
+    })
+    if (summary) {
+      const id = stableRepairId('present-tense-boundary', summary)
+      entries.push(createEntry({
+        now: input.now,
+        kind: 'present-tense-boundary',
+        summary,
+        rationale: summary,
+        urgency: clamp01(
+          (truthContract.truthState === 'uncertain' ? 0.42 : truthContract.truthState === 'remembered' ? 0.28 : 0.2)
+          + (posture.requiresRegroundBeforeSurface ? 0.12 : 0),
+        ),
+        confidence: clamp01(
+          (truthContract.shouldLabelMemory ? 0.42 : 0.22)
+          + (worldModel.activeThread?.confidence ?? 0.28) * 0.18,
+        ),
+        targetConcernEntryId: currentConcern?.id ?? null,
+        targetCommitmentId: currentCommitment?.id ?? null,
+        targetInquiryPlanId: currentPlan?.id ?? null,
+        previous: previousEntries.get(id) ?? null,
+      }))
+    }
   }
 
   for (const previous of input.previous?.entries ?? []) {
@@ -339,7 +366,7 @@ export function buildRepairLedger(input: {
     + (worldModel.activeThread?.source === 'continuity' || worldModel.activeThread?.source === 'working-memory' ? 0.12 : 0),
   )
   const narrative = governingRepair
-    ? [`Current governing repair is ${governingRepair.kind}: ${governingRepair.summary.toLowerCase()}.`]
+    ? [`governing:${governingRepair.kind}`]
     : []
 
   return {

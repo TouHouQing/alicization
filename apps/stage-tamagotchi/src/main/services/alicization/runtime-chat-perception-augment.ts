@@ -3,7 +3,6 @@ import type { Message } from '@xsai/shared-chat'
 import type {
   AlicizationAuditLogInput,
   AlicizationMindTurnEventRecord,
-  AlicizationRecallGovernorSnapshot,
   AlicizationSoulSnapshot,
   AlicizationVisualPresenceStateSnapshot,
 } from '../../../shared/eventa'
@@ -14,10 +13,8 @@ import { deriveAlicizationRuntimeSnapshot } from './alicization-runtime-architec
 import {
   getActiveAttentionAnchor,
   getActivePerceptionSceneResidue,
-  isInternalAlicizationRepairPrompt,
 } from './attention-anchor'
 import { updateVisualAttentionModel } from './attention-model'
-import { buildAlicizationMindTurnGovernance } from './chat-mind-governance'
 import { commitAlicizationDigitalLifeSpine } from './digital-life-spine'
 import { resolveHumanlikeMemoryRecallSeedFromEventHistory } from './humanlike-memory-recall-seed'
 import { buildMindContinuityRecallSeed } from './mind-continuity'
@@ -30,12 +27,10 @@ import {
   buildChatPerceptionSystemBlock,
 } from './runtime-chat-prompt-blocks'
 import {
-  compactMindGovernedChatMessages,
   resolveInspectionGroundingContinuity,
   shouldSuppressWeakGenericBrowserInspectionAnchor,
   shouldUsePerceptionResidueAsLiveSceneSummary,
 } from './runtime-perception-helpers'
-import { buildAlicizationVisibleReplySurfacePlan } from './visible-reply/facade'
 import { buildVisualHeartbeat } from './visual-heartbeat'
 
 interface CreateAlicizationChatPerceptionAugmentRuntimeOptions {
@@ -65,7 +60,6 @@ interface CreateAlicizationChatPerceptionAugmentRuntimeOptions {
   visualPresenceCapturePersistDebounceWindowMs: number
   buildVisualPresenceCapturePersistFingerprint: (state: AlicizationVisualPresenceStateSnapshot) => string
   appendAuditLog: (input: AlicizationAuditLogInput, cardId?: string) => Promise<void>
-  getActiveSelfRevisionStatePatch?: () => Promise<Parameters<typeof buildAlicizationVisibleReplySurfacePlan>[0]['selfRevisionPatch']>
   listHumanlikeMemoryRecallEvents?: (input: {
     kind?: AlicizationMindTurnEventRecord['kind']
     limit: number
@@ -85,7 +79,6 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
     visualPresenceCapturePersistDebounceWindowMs,
     buildVisualPresenceCapturePersistFingerprint,
     appendAuditLog,
-    getActiveSelfRevisionStatePatch,
     listHumanlikeMemoryRecallEvents,
   } = options
 
@@ -96,29 +89,6 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
     senderWebContentsId?: number | null
     skipInspectionGrounding?: boolean
   }) {
-    if (isInternalAlicizationRepairPrompt(input.userText)) {
-      return {
-        messages: input.messages,
-        systemBlocks: [] as string[],
-        promptSystemBlocks: [] as string[],
-        digitalLifeSpine: null,
-        digitalLifeRuntimeSurface: null,
-        memoryRecallSeed: '',
-        recallGovernor: null as AlicizationRecallGovernorSnapshot | null,
-        capture: {
-          inspectionRequested: false,
-          groundedThisTurn: false,
-          snapshot: null,
-          fallbackReason: null,
-        },
-        chatGovernance: {
-          turnMode: 'answer' as const,
-          personaKernelMode: 'full' as const,
-          mindTurnGovernance: null,
-        },
-      }
-    }
-
     const preparedPerception = await sensoryRuntime.prepareInteractivePerceptionPrelude({
       cardId: input.cardId,
       userText: input.userText,
@@ -129,7 +99,7 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
     const now = preparedPerception.now
     const perceptionState = preparedPerception.perceptionState
     let visualPresenceState = preparedPerception.visualPresenceState
-    let messages = preparedPerception.messages
+    const messages = preparedPerception.messages
     const sensorySnapshot = preparedPerception.sensorySnapshot
     const inspectionIntent = preparedPerception.inspectionIntent
     const inspectionRequested = preparedPerception.inspectionRequested
@@ -245,69 +215,9 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
     visualPresenceState = committedChatDigitalLifeSpine.nextState
     const chatRuntimeSurface = committedChatDigitalLifeSpine.current.runtimeSurface
     const chatDigitalLifeArchitecture = committedChatDigitalLifeSpine.current.architecture
-    const activeSelfRevisionPatch = await getActiveSelfRevisionStatePatch?.().catch(() => null) ?? null
-    const visibleReplySurfacePlan = buildAlicizationVisibleReplySurfacePlan({
-      now,
-      context: chatLayeredContext,
-      state: visualPresenceState,
-      runtimeSurface: chatRuntimeSurface,
-      inspectionRequested,
-      groundedThisTurn,
-      perceptionState,
-      currentForeground,
-      dialogueActKernel: chatMindState.dialogueActKernel ?? undefined,
-      dialogueEncounter: chatMindState.dialogueEncounter ?? undefined,
-      dialogueSemantics: chatMindState.dialogueSemantics ?? undefined,
-      dialogueObligation: chatMindState.dialogueObligation ?? undefined,
-      dialogueFocus: chatMindState.dialogueFocus ?? undefined,
-      discourseState: chatMindState.discourseState ?? undefined,
-      mindSynthesis: chatMindState.mindSynthesis ?? undefined,
-      answerCompiler: chatMindState.answerCompiler ?? undefined,
-      currentConsciousFrame: chatMindState.currentConsciousFrame ?? undefined,
-      claimEvidenceLedger: chatMindState.claimEvidenceLedger ?? undefined,
-      includeProjectStateFacts: false,
-      selfRevisionPatch: activeSelfRevisionPatch,
-    })
-    const responseCharter = visibleReplySurfacePlan.responseCharter
-    const executiveAnswerBrief = visibleReplySurfacePlan.executiveAnswerBrief
-    const responseSurfaceContract = visibleReplySurfacePlan.responseSurfaceContract
-    const mindTurnContract = visibleReplySurfacePlan.mindTurnContract
-    const compactedMessages = executiveAnswerBrief.brief.shouldCompactHistory
-      ? compactMindGovernedChatMessages({
-          messages,
-          keepRecentUserTurns: executiveAnswerBrief.brief.maxRecentUserTurns,
-        })
-      : {
-          messages,
-          beforeCount: messages.length,
-          afterCount: messages.length,
-        }
-    messages = compactedMessages.messages
     await persistVisualPresenceState(input.cardId, visualPresenceState, {
       debounceWindowMs: visualPresenceCapturePersistDebounceWindowMs,
       fingerprint: buildVisualPresenceCapturePersistFingerprint(visualPresenceState),
-    })
-    const mindTurnGovernance = buildAlicizationMindTurnGovernance({
-      brief: executiveAnswerBrief.brief,
-      charter: responseCharter,
-      surfaceContract: responseSurfaceContract.contract,
-      mindTurnContract,
-      mindTurnFrame: visualPresenceState.mindTurnFrame,
-      kernel: visualPresenceState.dialogueActKernel,
-      discourseState: visualPresenceState.discourseState,
-      conversationState: visualPresenceState.conversationState,
-      dialogueWorldThread: visualPresenceState.dialogueWorldThread,
-      answerCompiler: visualPresenceState.answerCompiler,
-      answerPlanner: visualPresenceState.answerPlanner,
-      replyDeliberation: visualPresenceState.replyDeliberation,
-      recallGovernor: visualPresenceState.recallGovernor,
-      claimEvidenceLedger: visualPresenceState.claimEvidenceLedger,
-      privateThought: visualPresenceState.privateThought,
-      mindMode: visualPresenceState.mindKernel?.dominantMode ?? null,
-      dialogueEncounter: chatMindState.dialogueEncounter ?? undefined,
-      dialogueFocus: chatMindState.dialogueFocus ?? undefined,
-      groundedThisTurn,
-      runtimeSurface: chatRuntimeSurface,
     })
     const chatRuntimeSnapshot = deriveAlicizationRuntimeSnapshot({
       spine: committedChatDigitalLifeSpine.current,
@@ -364,15 +274,6 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
             source: groundingContinuity.source,
             overlapScore: groundingContinuity.overlapScore,
           },
-          executiveBrief: {
-            turnMode: executiveAnswerBrief.brief.turnMode,
-            truthState: executiveAnswerBrief.brief.truthState,
-            liveSurface: executiveAnswerBrief.brief.liveSurface,
-            carriedThread: executiveAnswerBrief.brief.carriedThread,
-            separateCarryFromSurface: executiveAnswerBrief.brief.separateCarryFromSurface,
-            shouldCompactHistory: executiveAnswerBrief.brief.shouldCompactHistory,
-            maxRecentUserTurns: executiveAnswerBrief.brief.maxRecentUserTurns,
-          },
           digitalLifeArchitecture: chatDigitalLifeArchitecture
             ? {
                 operatingMode: chatDigitalLifeArchitecture.operatingMode,
@@ -392,15 +293,9 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
                 summary: chatRuntimeSnapshot.summary,
               }
             : null,
-          responseSurface: {
-            openingStyle: responseSurfaceContract.contract.openingStyle,
-            maxParagraphs: responseSurfaceContract.contract.maxParagraphs,
-            maxSentences: responseSurfaceContract.contract.maxSentences,
-            activeSelfRevisionPatchId: responseSurfaceContract.contract.activeSelfRevisionPatchId ?? null,
-          },
-          historyCompaction: {
-            beforeCount: compactedMessages.beforeCount,
-            afterCount: compactedMessages.afterCount,
+          providerDialogue: {
+            messageCount: messages.length,
+            ordinaryReplyOwner: 'provider',
           },
           visualPresence: {
             watchMode: visualPresenceState.watchMode,
@@ -448,10 +343,10 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
         fallbackReason: captureGovernance.fallbackReason,
       },
       chatGovernance: {
-        turnMode: executiveAnswerBrief.brief.turnMode,
-        personaKernelMode: mindTurnContract.personaKernelMode,
-        mindTurnContract,
-        mindTurnGovernance,
+        turnMode: 'answer' as const,
+        personaKernelMode: 'full' as const,
+        mindTurnContract: null,
+        mindTurnGovernance: null,
       },
     }
   }

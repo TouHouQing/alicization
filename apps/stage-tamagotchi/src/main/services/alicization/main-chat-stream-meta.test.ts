@@ -23,14 +23,14 @@ function buildMinimalPayloadInput() {
     speechTimeline: {
       version: 'speech-timeline-v1',
       variationToken: 'turn-stream-meta',
-      reply: '模型回复里可以原样讨论 opening_policy 这个代码字段。',
+      reply: '模型回复里可以原样讨论 sample_runtime_field 这个代码字段。',
       emotion: 'thinking',
       segments: [{
         id: 'segment-stream-meta',
         index: 0,
         startOffset: 0,
         endOffset: 34,
-        text: '模型回复里可以原样讨论 opening_policy 这个代码字段。',
+        text: '模型回复里可以原样讨论 sample_runtime_field 这个代码字段。',
         emotion: 'thinking',
         gestureWeight: 0,
         facialWeight: 0,
@@ -42,9 +42,6 @@ function buildMinimalPayloadInput() {
     digitalLifeSpine: {
       runtime: {
         sceneScenario: 'coding',
-        projectState: {
-          sameHerHoldDetail: 'relationship_cadence=measured_return',
-        },
       },
       memory: {
         recallMode: 'working-and-long-term',
@@ -61,8 +58,6 @@ function buildMinimalPayloadInput() {
         phase: 'dialogue',
         dominantChannel: 'active-memory',
         handoffTarget: 'active-dialogue',
-        continuityArcStage: 'same-thread-continuation',
-        continuityPreferredTiming: 'next-open-window',
         dialogueReady: true,
         controlReady: false,
         memoryCarry: true,
@@ -77,15 +72,7 @@ function buildMinimalPayloadInput() {
         focusAnchor: '当前用户问题',
         consciousNeed: '回答当前问题',
         speakingIntention: '基于记忆自然回应',
-        continuityArcStage: 'same-thread-continuation',
       },
-      projectState: {
-        identity: 'fixed project identity',
-        sameHerSelfLine: 'same-her fixed life line',
-        emotionalClosureCue: 'repair-before-closeness',
-      },
-      emotionalClosureCue: 'repair-before-closeness',
-      continuityRestraint: 'measured-return',
       shouldProactivelySpeak: true,
       shouldProactivelyAct: false,
       continuityPressure: 0.72,
@@ -103,24 +90,15 @@ function buildMinimalPayloadInput() {
 }
 
 describe('main chat stream meta', () => {
-  it('removes legacy governance recursively while preserving literal reply and memory facts', () => {
+  it('preserves literal reply and memory facts without adding reply-governance payloads', () => {
     const payload = buildAlicizationChatMetaPayload(buildMinimalPayloadInput())
 
-    expect(payload.projectState).toBeNull()
-    expect(payload.preDialogueAwareness).toBeNull()
-    expect(payload.runtimeDigest).not.toHaveProperty('projectState')
-    expect(payload.runtimeDigest).not.toHaveProperty('emotionalClosureCue')
-    expect(payload.runtimeDigest).not.toHaveProperty('continuityRestraint')
-    expect(payload.runtimeDigest?.activeLoop).not.toHaveProperty('continuityArcStage')
-    expect(payload.runtimeDigest?.activeLoop).not.toHaveProperty('continuityPreferredTiming')
-    expect(payload.runtimeDigest?.currentConsciousFrame).not.toHaveProperty('continuityArcStage')
-    expect(payload.digitalLifeSpine?.runtime).not.toHaveProperty('projectState')
     expect(payload.digitalLifeSpine?.memory).toEqual(expect.objectContaining({
       recallMode: 'working-and-long-term',
       recentEpisodeCount: 2,
     }))
-    expect(payload.speechTimeline?.reply).toContain('opening_policy')
-    expect(payload.speechTimeline?.segments[0]?.text).toContain('opening_policy')
+    expect(payload.speechTimeline?.reply).toContain('sample_runtime_field')
+    expect(payload.speechTimeline?.segments[0]?.text).toContain('sample_runtime_field')
   })
 
   it('uses embodiment-script digital-life output when it is the available explicit authority', () => {
@@ -151,19 +129,14 @@ describe('main chat stream meta', () => {
     expect(signature.digitalLife.frames).toHaveLength(1)
   })
 
-  it('changes signatures for real runtime facts but ignores legacy project governance', () => {
+  it('changes signatures for real runtime facts', () => {
     const original = buildMinimalPayloadInput()
     const changedMemory = buildMinimalPayloadInput()
     changedMemory.runtimeDigest.channels[0].readiness = 0.42
-    const changedGovernance = buildMinimalPayloadInput()
-    changedGovernance.runtimeDigest.projectState.sameHerSelfLine = 'another fixed line'
-    changedGovernance.runtimeDigest.projectState.emotionalClosureCue = 'another fixed cue'
 
     expect(buildAlicizationChatMetaSignature(original))
       .not
       .toBe(buildAlicizationChatMetaSignature(changedMemory))
-    expect(buildAlicizationChatMetaSignature(original))
-      .toBe(buildAlicizationChatMetaSignature(changedGovernance))
   })
 
   it('deduplicates unchanged emitted metadata and tracks the latest reply', () => {
@@ -190,8 +163,6 @@ describe('main chat stream meta', () => {
     expect(emit.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
       cardId: 'card-emitter',
       turnId: 'turn-emitter',
-      projectState: null,
-      preDialogueAwareness: null,
       runtimeDigest: expect.objectContaining({
         dominantChannel: 'active-memory',
       }),

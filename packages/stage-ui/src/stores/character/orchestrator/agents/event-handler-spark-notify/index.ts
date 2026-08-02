@@ -58,7 +58,6 @@ export interface SparkNotifyAgentDeps {
   ) => Promise<R>
   onReactionDelta: (eventId: string, text: string) => void
   onReactionEnd: (eventId: string, text: string) => void
-  getSystemPrompt: () => string
   getProcessing: () => boolean
   setProcessing: (next: boolean) => void
   getPending: () => Array<WebSocketEventOf<'spark:notify'>>
@@ -199,13 +198,10 @@ export function setupAgentSparkNotifyHandler(deps: SparkNotifyAgentDeps) {
 
     const systemMessage: Message = {
       role: 'system',
-      content: [
-        deps.getSystemPrompt(),
-        buildAlicizationProviderFactBlock('alicization-spark-event', {
-          source: getEventSourceKey(event),
-          event: 'spark:notify',
-        }),
-      ].filter(Boolean).join('\n\n'),
+      content: buildAlicizationProviderFactBlock('alicization-spark-event', {
+        source: getEventSourceKey(event),
+        event: 'spark:notify',
+      }),
     }
 
     const userMessage: Message = {

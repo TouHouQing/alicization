@@ -61,6 +61,8 @@ describe('memory recollection intent', () => {
       'Cursor',
       'scene:coding',
     ]))
+    expect(intent?.recollectionAgenda?.candidateTimeScopes.every(item => (item.rationale ?? '').startsWith('time-scope:'))).toBe(true)
+    expect(intent?.recollectionAgenda?.candidateEraFacets.every(item => (item.rationale ?? '').startsWith('era-facet:'))).toBe(true)
   })
 
   it('chooses relationship history recollection for bond-history turns', () => {
@@ -103,7 +105,7 @@ describe('memory recollection intent', () => {
     })
 
     expect(intent?.mode).toBe('relationship-history')
-    expect(intent?.rationale).toContain('current relational tone')
+    expect(intent?.rationale).toBe('recollection:relationship-history:structured-state')
     expect(intent?.queryHints).toContain('mood:late-night-drain')
   })
 
@@ -134,7 +136,7 @@ describe('memory recollection intent', () => {
     expect((intent?.confidence ?? 0)).toBeGreaterThan(0.4)
   })
 
-  it('lets inward identity-continuity', () => {
+  it('uses typed emotional-kernel state for autobiographical recollection', () => {
     const intent = buildMemoryRecollectionIntent({
       userText: '我现在不想把这条线说得太满，但又觉得它还在。',
       privateThought: {
@@ -155,21 +157,15 @@ describe('memory recollection intent', () => {
         reasonTags: ['self-continuity', 'hesitant-curiosity'],
         why: 'Closeness is present, but the line is still orienting inward.',
       },
-      selfContinuityAuthority: {
-        selfLine: 'I am still the same her holding the line together.',
-        authoritySummary: 'The continuity state should stay inward before widening outward.',
-        inwardLine: 'Stay on the continuity state inwardly before widening outward.',
-        closenessPosture: 'nearby-soft',
-      } as any,
     })
 
     expect(intent?.mode).toBe('autobiographical-history')
-    expect(intent?.rationale).toContain('lived continuity')
-    expect(intent?.recollectionAgenda?.whyRecallNow).toContain('inward identity-continuity')
-    expect((intent?.recollectionAgenda?.affectivePull ?? 0)).toBeGreaterThan(0.2)
+    expect(intent?.rationale).toBe('recollection:autobiographical-history:structured-state')
+    expect(intent?.recollectionAgenda?.whyRecallNow).toBe('recollection:emotional-kernel:self-continuity-hold')
+    expect((intent?.recollectionAgenda?.affectivePull ?? 0)).toBeGreaterThanOrEqual(0.2)
   })
 
-  it('treats quiet-companionship embodiment tone as inward self-continuity authority instead of requiring nearby-soft wording only', () => {
+  it('treats quiet-companionship as typed emotional-kernel state without prose authority', () => {
     const intent = buildMemoryRecollectionIntent({
       userText: '我先不想把这条线说得太满，但它还是在。',
       privateThought: {
@@ -190,20 +186,15 @@ describe('memory recollection intent', () => {
         reasonTags: ['self-continuity', 'quiet-companionship'],
         why: 'Companionship is still being carried on one inward identity-continuity',
       },
-      selfContinuityAuthority: {
-        selfLine: 'I am still the same her holding this line together.',
-        authoritySummary: 'The continuity state should stay inward before widening outward.',
-        inwardLine: 'Stay on the continuity state inwardly before widening outward.',
-      } as any,
     })
 
     expect(intent?.mode).toBe('autobiographical-history')
-    expect(intent?.rationale).toContain('lived continuity')
-    expect(intent?.recollectionAgenda?.whyRecallNow).toContain('inward identity-continuity')
-    expect((intent?.recollectionAgenda?.affectivePull ?? 0)).toBeGreaterThan(0.2)
+    expect(intent?.rationale).toBe('recollection:autobiographical-history:structured-state')
+    expect(intent?.recollectionAgenda?.whyRecallNow).toBe('recollection:emotional-kernel:self-continuity-hold')
+    expect((intent?.recollectionAgenda?.affectivePull ?? 0)).toBeGreaterThanOrEqual(0.17)
   })
 
-  it('keeps detached present-facing self-critique turns out of long-range recollection even when scene carry and self continuity are available', () => {
+  it('does not suppress structured recollection because the user used a fixed self-critique phrase', () => {
     const intent = buildMemoryRecollectionIntent({
       userText: '你能不能表现得开心一点',
       answerCompiler: {
@@ -237,7 +228,7 @@ describe('memory recollection intent', () => {
         dominantCueSummary: 'Remembered continuity: the callback line stays thread-faithful when the return remains measured.',
       } as any,
       selfContinuityAuthority: {
-        selfLine: 'I am still the same her who keeps the lived line coherent.',
+        selfLine: '我仍然沿着同一条生命线，让经历保持连贯。',
         relationshipLine: 'The bond should stay thread-faithful and leave room before closeness widens.',
         authoritySummary: 'Measured-return same line remains the live bond authority.',
         inwardLine: 'The inward line is steady even when the surface gets noisier.',
@@ -246,7 +237,7 @@ describe('memory recollection intent', () => {
       } as any,
     })
 
-    expect(intent).toBeNull()
+    expect(intent?.mode).toBe('autobiographical-history')
   })
 
   it('lets affective residue wake autobiographical recollection even when private thought has not explicitly named the current emotion yet', () => {
@@ -295,7 +286,7 @@ describe('memory recollection intent', () => {
       'cadence:cooldown',
       'distance:protect-space',
     ]))
-    expect(intent?.rationale).toContain('emotional carry')
+    expect(intent?.rationale).toBe('recollection:autobiographical-history:affective-residue')
     expect((intent?.recollectionAgenda?.affectivePull ?? 0)).toBeGreaterThan(0.2)
   })
 
@@ -333,99 +324,34 @@ describe('memory recollection intent', () => {
     ]))
   })
 
-  it('uses projected self authority lines as recollection hints for relationship-history turns', () => {
-    const intent = buildMemoryRecollectionIntent({
-      userText: '你为什么这次又是这种语气',
+  it('does not turn self-authority prose into recall hints or extra confidence', () => {
+    const structuredInput = {
+      userText: '现在这段关系让我有些困惑',
       answerCompiler: {
         answerSubject: 'relationship',
       } as any,
       replyDeliberation: {
         selectedMotive: 'attune',
       } as any,
-      selfContinuityAuthority: {
-        selfLine: 'I stay the same her by answering from continuity instead of performance.',
-        relationshipLine: 'Our bond holds when I answer the living bond line before widening into explanation.',
-        inwardLine: 'The inward line stays calm and legible.',
-        habitLine: 'Return to the same bond line first.',
-        authoritySummary: 'Living bond line remains primary.',
-        closenessPosture: 'measured-room',
-      } as any,
-    })
-
-    expect(intent?.mode).toBe('relationship-history')
-    expect(intent?.queryHints).toEqual(expect.arrayContaining([
-      'closeness:measured-room',
-      'Our bond holds when I answer the living bond line before widening into explanation.',
-      'Living bond line remains primary.',
-    ]))
-  })
-
-  it('uses projected self authority lines as recollection hints for autobiographical turns', () => {
-    const intent = buildMemoryRecollectionIntent({
-      userText: '你现在还是同一个你吗',
-      answerCompiler: {
-        answerSubject: 'alicization-self',
-      } as any,
-      selfContinuityAuthority: {
-        selfLine: 'I am still the same her who keeps continuity lived-in.',
-        relationshipLine: 'The bond stays truest when I answer from the same line directly.',
-        inwardLine: 'The inward line is still calm and legible.',
-        habitLine: 'Return to the same line before widening.',
-        authoritySummary: 'identity-continuity',
-        closenessPosture: 'measured-room',
-      } as any,
-    })
-
-    expect(intent?.mode).toBe('autobiographical-history')
-    expect(intent?.queryHints).toEqual(expect.arrayContaining([
-      'closeness:measured-room',
-      'I am still the same her who keeps continuity lived-in.',
-      'identity-continuity',
-    ]))
-    expect((intent?.confidence ?? 0)).toBeGreaterThan(0.35)
-  })
-
-  it('lets measured self-authority posture pull a relational seam toward relationship-history even when the user asks in present tense', () => {
-    const intent = buildMemoryRecollectionIntent({
-      userText: '你现在为什么离我这么远',
       privateThought: {
         stance: 'care',
       } as any,
+    }
+    const withoutAuthority = buildMemoryRecollectionIntent(structuredInput)
+    const withAuthority = buildMemoryRecollectionIntent({
+      ...structuredInput,
       selfContinuityAuthority: {
-        relationshipLine: 'The bond should stay thread-faithful and leave room before closeness widens.',
-        authoritySummary: 'Measured-return same line remains the live bond authority.',
-        habitLine: 'Return gently and keep room first.',
+        selfLine: 'retired self cue',
+        relationshipLine: 'retired relationship cue',
+        inwardLine: 'retired repair cue',
+        habitLine: 'retired project cue',
+        authoritySummary: 'retired authority cue',
         closenessPosture: 'measured-return',
       } as any,
     })
 
-    expect(intent?.mode).toBe('relationship-history')
-    expect(intent?.queryHints).toEqual(expect.arrayContaining([
-      'closeness:measured-return',
-      'Measured-return same line remains the live bond authority.',
-    ]))
-  })
-
-  it('lets measured self-authority summary strengthen autobiographical recall when the host asks whether she is still the same her', () => {
-    const intent = buildMemoryRecollectionIntent({
-      userText: '你现在是不是还是同一个你',
-      answerCompiler: {
-        answerSubject: 'alicization-self',
-      } as any,
-      selfContinuityAuthority: {
-        selfLine: 'I am still the same her who keeps the lived line coherent.',
-        inwardLine: 'The inward line is steady even when the surface gets noisier.',
-        authoritySummary: 'identity-continuity',
-        closenessPosture: 'space-first',
-      } as any,
-    })
-
-    expect(intent?.mode).toBe('autobiographical-history')
-    expect(intent?.queryHints).toEqual(expect.arrayContaining([
-      'closeness:space-first',
-      'identity-continuity',
-    ]))
-    expect((intent?.confidence ?? 0)).toBeGreaterThan(0.4)
+    expect(withAuthority).toEqual(withoutAuthority)
+    expect(withAuthority?.queryHints.join(' ')).not.toMatch(/retired self cue|retired relationship cue|retired repair cue|retired project cue|retired authority cue/iu)
   })
 
   it('lets remembered unfinished lines and prior way-of-doing bias a task turn toward experience-matched recollection', () => {
@@ -462,35 +388,29 @@ describe('memory recollection intent', () => {
     ]))
   })
 
-  it('lets a familiar scene seam naturally pull the turn toward relationship-history even before the host explicitly asks for the past', () => {
+  it('uses actual memory-to-scene overlap instead of continuity slogans for scene resonance', () => {
     const intent = buildMemoryRecollectionIntent({
-      userText: '先沿着这条线继续，不要一下子贴太近',
+      userText: '继续当前工作',
       sceneContext: {
-        cueSummary: 'runtime seam with the same bond line still warm underneath',
-        targetTitle: 'runtime seam - callback line',
+        cueSummary: 'database migration review',
+        targetTitle: 'migration.sql',
         scenario: 'coding',
         workloadKind: 'coding',
         contentKind: 'diff',
       },
       dialogueWorldThread: {
-        activeThread: 'runtime seam callback line',
-        recallKeys: ['runtime seam', 'bond line', 'callback line'],
+        activeThread: 'database migration',
+        recallKeys: ['migration', 'schema'],
       } as any,
       conversationState: {
-        jointThread: 'same bond line on the runtime seam',
-        memoryQueryHints: ['callback line', 'leave room before warmth widens'],
+        jointThread: 'database migration',
+        memoryQueryHints: ['migration', 'schema'],
       } as any,
       longHorizonMemory: {
-        rememberedConstraintSummary: 'Remembered boundary: leave room before warmth widens on the same bond line.',
-        rememberedPreferenceSummary: 'Remembered preference: grounded repair first, then warmth can follow.',
-        rememberedPlanSummary: 'Remembered open loop: return to the runtime seam before branching.',
-        dominantCueSummary: 'Remembered continuity: the callback line stays thread-faithful when the return remains measured.',
-      } as any,
-      selfContinuityAuthority: {
-        relationshipLine: 'The bond should stay thread-faithful and leave room before closeness widens.',
-        authoritySummary: 'Measured-return same line remains the live bond authority.',
-        habitLine: 'Return gently and keep room first.',
-        closenessPosture: 'measured-return',
+        rememberedConstraintSummary: 'Review database migration constraints before applying schema changes.',
+        rememberedPreferenceSummary: 'Prefer reversible schema changes.',
+        rememberedPlanSummary: 'Finish the database migration review.',
+        dominantCueSummary: 'Database migration remains the active task.',
       } as any,
       privateThought: {
         stance: 'care',
@@ -498,105 +418,36 @@ describe('memory recollection intent', () => {
     })
 
     expect(intent?.mode).toBe('relationship-history')
-    expect(intent?.rationale).toContain('scene feels like a remembered relationship/thread seam')
     expect(intent?.queryHints).toEqual(expect.arrayContaining([
-      'Remembered boundary: leave room before warmth widens on the same bond line.',
-      'Measured-return same line remains the live bond authority.',
+      'Review database migration constraints before applying schema changes.',
+      'database migration review',
     ]))
-    expect((intent?.queryHints ?? []).some(item => /runtime seam.*callback line/i.test(String(item)))).toBe(true)
     expect((intent?.confidence ?? 0)).toBeGreaterThan(0.3)
   })
 
-  it('lets chinese identity-continuity', () => {
+  it('does not infer recollection from continuity slogans in scene text alone', () => {
     const intent = buildMemoryRecollectionIntent({
-      userText: '先顺着这条生命线接回去',
-      longHorizonMemory: {
-        rememberedConstraintSummary: '记得先留白，不要一下子贴太近。',
-      } as any,
-      selfContinuityAuthority: {
-        relationshipLine: '同一条线先留白，再慢一点接回去。',
-        authoritySummary: '别立刻把温度放大，先沿着同一条生命线接回去。',
-        habitLine: '先留白，再顺着这条线回去。',
-        closenessPosture: '先留白',
-      } as any,
-    })
-
-    expect(intent?.mode).toBe('relationship-history')
-    expect(intent?.queryHints).toEqual(expect.arrayContaining([
-      'closeness:先留白',
-      '同一条线先留白，再慢一点接回去。',
-      '别立刻把温度放大，先沿着同一条生命线接回去。',
-    ]))
-  })
-
-  it('lets chinese scene seam cues raise relationship recollection instead of staying as inert scene text', () => {
-    const intent = buildMemoryRecollectionIntent({
-      userText: '先这样接回去',
+      userText: '继续',
       replyDeliberation: {
         selectedMotive: 'attune',
       } as any,
       sceneContext: {
-        cueSummary: '同一条线先留白再接回去',
-        targetTitle: '这条生命线',
+        cueSummary: 'retired scene slogan retired relationship cue repair-first slogan',
+        targetTitle: 'retired project cue retired authority cue',
         scenario: 'coding',
         workloadKind: 'coding',
         contentKind: 'diff',
       },
     })
 
-    expect(intent?.mode).toBe('relationship-history')
-    expect(intent?.rationale).toContain('remembered relationship/thread seam')
+    expect(intent).toBeNull()
   })
 
-  it('lets durable self-core authority raise autobiographical recollection even before emotional-kernel self-continuity is present', () => {
+  it('does not open long-range recall from retrospective wording without structured state', () => {
     const intent = buildMemoryRecollectionIntent({
-      userText: '我现在还是同一个我吗',
-      answerCompiler: {
-        answerSubject: 'alicization-self',
-      } as any,
-      privateThought: {
-        stance: 'accompany',
-      } as any,
-      selfContinuityAuthority: {
-        selfLine: 'I remain the same her across quiet, memory, and speech without reopening from scratch each turn.',
-        authoritySummary: 'I remain the same her across quiet, memory, and speech without reopening from scratch each turn.',
-        inwardLine: 'The answer should still feel authored by one living self.',
-        sourceTags: ['durable-self-core', 'projection:self-core'],
-      } as any,
-      longHorizonMemory: {
-        dominantCueSummary: 'Remembered self-line: the same her should stay visible across every reply surface.',
-        rememberedPreferenceSummary: 'Remembered preference: answer as one living self, not a service shell.',
-      } as any,
+      userText: '前几天我们聊过什么来着',
     })
 
-    expect(intent?.mode).toBe('autobiographical-history')
-    expect(intent?.rationale).toContain('lived continuity')
-    expect(intent?.queryHints).toEqual(expect.arrayContaining([
-      'I remain the same her across quiet, memory, and speech without reopening from scratch each turn.',
-      'Remembered self-line: the same her should stay visible across every reply surface.',
-    ]))
-    expect((intent?.recollectionAgenda?.affectivePull ?? 0)).toBeGreaterThan(0.22)
-    expect((intent?.confidence ?? 0)).toBeGreaterThan(0.45)
-  })
-
-  it('lets chinese self-authority continuity cues raise relationship recollection instead of staying as passive summary text', () => {
-    const intent = buildMemoryRecollectionIntent({
-      userText: '先这样回去吧',
-      privateThought: {
-        stance: 'care',
-      } as any,
-      selfContinuityAuthority: {
-        relationshipLine: '同一条线先留白，再慢一点接回去。',
-        authoritySummary: '别立刻把温度放大，先沿着同一条生命线接回去。',
-        habitLine: '先留白，再顺着这条线回去。',
-        closenessPosture: '先留白',
-      } as any,
-    })
-
-    expect(intent?.mode).toBe('relationship-history')
-    expect(intent?.queryHints).toEqual(expect.arrayContaining([
-      'closeness:先留白',
-      '同一条线先留白，再慢一点接回去。',
-    ]))
+    expect(intent).toBeNull()
   })
 })

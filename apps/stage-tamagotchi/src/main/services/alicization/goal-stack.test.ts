@@ -178,8 +178,7 @@ describe('buildGoalStack', () => {
 
     expect(goalStack.hostGoals[0]?.status).toBe('blocked')
     expect(goalStack.alicizationGoals[0]?.kind).toBe('clarify-scene')
-    expect(goalStack.alicizationGoals[0]?.label).toBe('scene clarity around TypeScript error')
-    expect(goalStack.alicizationGoals[0]?.label).not.toMatch(/before speaking|before answering/iu)
+    expect(goalStack.alicizationGoals[0]?.label).toBe('TypeScript error')
     expect(goalStack.unresolvedSummary).toContain('没')
   })
 

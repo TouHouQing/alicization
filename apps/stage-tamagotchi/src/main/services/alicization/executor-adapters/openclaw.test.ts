@@ -102,21 +102,6 @@ describe('openclaw executor adapter', () => {
           cardId: 'default',
           turnId: 'turn-openclaw-1',
           decisionTraceId: 'mind:trace:openclaw-1',
-          projectBriefing: {
-            identity: 'legacy identity prompt must not reach openclaw',
-            currentPhase: 'legacy phase prompt must not reach openclaw',
-            latestLandedProgress: 'Runtime context normalization is complete.',
-            sameHerSelfLine: 'legacy persona prompt must not reach openclaw',
-            sameHerHoldDetail: null,
-            primaryOpenLoop: 'OpenClaw still needs typed task facts.',
-            nextClosureTarget: 'Dispatch runtime and task facts without prose wrappers.',
-            sameHerDriftRisk: null,
-            continuityCue: null,
-            continuityPreferredTiming: 'after-payoff',
-            preferredGazeMode: 'soften',
-            preflightSummary: 'legacy preflight prompt must not reach openclaw',
-            preDialogueAwarenessLine: 'legacy awareness prompt must not reach openclaw',
-          },
           sensory: {
             collectedAt: 1_710_000_000_123,
             running: true,
@@ -173,28 +158,15 @@ describe('openclaw executor adapter', () => {
           cardId: 'default',
           turnId: 'turn-openclaw-1',
         }),
-        execution: expect.objectContaining({
-          status: {
-            latest: 'Runtime context normalization is complete.',
-            open: 'OpenClaw still needs typed task facts.',
-            next: 'Dispatch runtime and task facts without prose wrappers.',
-          },
-          continuity: expect.objectContaining({
-            preferredTiming: 'after-payoff',
-          }),
-          embodiment: expect.objectContaining({
-            gazeMode: 'soften',
-          }),
-        }),
       }),
     }))
+    expect(runtimeFact.data).not.toHaveProperty('execution')
     expect(taskFact).toEqual({
       type: 'alicization-execution-task',
       data: {
         instruction: 'Inspect the active window and dismiss the visible blocking modal.',
       },
     })
-    expect(prompt).not.toMatch(/\[ALICIZATION_EXECUTION_|legacy (?:identity|phase|persona|preflight|awareness) prompt/iu)
     expect(sentBody.meta.alicization_runtime_context).toEqual(expect.objectContaining({
       cardId: 'default',
       turnId: 'turn-openclaw-1',

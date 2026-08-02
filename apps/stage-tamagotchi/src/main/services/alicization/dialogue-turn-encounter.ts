@@ -139,8 +139,3 @@ export function buildDialogueTurnEncounter(input: {
     ]),
   }
 }
-
-export function buildDialogueTurnEncounterSystemBlock(encounter: AlicizationDialogueTurnEncounterSnapshot) {
-  void encounter
-  return ''
-}

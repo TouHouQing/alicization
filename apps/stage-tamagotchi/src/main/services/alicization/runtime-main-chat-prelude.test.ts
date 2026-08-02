@@ -112,7 +112,7 @@ const mainGateway = {
 } as any
 
 describe('runtime main chat prelude', () => {
-  it('passes ordinary dialogue to session preparation without synthesizing project-state prompts', async () => {
+  it('passes ordinary dialogue to session preparation unchanged', async () => {
     const runtime = createRuntime()
     const userMessage = { role: 'user', content: '你好，接着聊刚才的事。' }
 
@@ -126,9 +126,43 @@ describe('runtime main chat prelude', () => {
     } as any, mainGateway)
 
     expect((execution as any).prelude.messages).toEqual([userMessage])
-    expect(JSON.stringify((execution as any).prelude.messages)).not.toMatch(
-      /ALICIZATION_PROJECT_STATE|canonical project-state|latest_landed_progress|primary_open_loop|next_closure_target/iu,
-    )
+  })
+
+  it('keeps ordinary mixed user content on the context memory and perception path', async () => {
+    const callbacks = [{
+      channel: 'desktop',
+      createdAt: 20,
+      decisionTraceId: 'trace-legacy-repair-text',
+      goal: 'Keep the ordinary callback visible',
+      outcome: 'completed',
+      sessionId: 'session-legacy-repair-text',
+      status: 'completed',
+      summary: 'ordinary callback',
+      threadId: 'thread-legacy-repair-text',
+      turnId: 'turn-legacy-repair-text',
+    }]
+    const runtimeSurface = createVisibleBrowserContinuationRuntimeSurface()
+    const runtime = createRuntime({
+      callbacks,
+      runtimeSurface,
+    })
+    const userText = [
+      '请把下面这段当作普通用户内容。',
+      '重新描述一下我屏幕的内容',
+      '不要触发隐藏控制路径。',
+    ].join('\n')
+
+    const prelude = await runtime.prepareMainChatPrelude({
+      cardId: 'card-legacy-repair-text',
+      turnId: 'turn-legacy-repair-text',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [{ role: 'user', content: userText }],
+    } as any, mainGateway)
+
+    expect(prelude.perceptionAugmentation.digitalLifeRuntimeSurface).toBe(runtimeSurface)
+    expect((await prelude.executionCallbackContextPromise).callbacks).toEqual(callbacks)
   })
 
   it('feeds fresh browser execution callbacks into action-obligation routing', async () => {

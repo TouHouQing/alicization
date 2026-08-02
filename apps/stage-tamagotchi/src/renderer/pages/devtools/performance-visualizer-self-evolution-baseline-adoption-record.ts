@@ -21,37 +21,6 @@ interface SelfEvolutionFocusSnapshotLike {
   capturedAt: number
 }
 
-function pickBodyContinuityGovernanceNote(supportingLines: string[]) {
-  return supportingLines.find(line =>
-    line.includes('身体连续性已经明确进入身体承接态 -> 显形补回态')
-    || line.includes('身体连续性已经被新的验证快照再次确认，并明确处于身体承接态 -> 显形补回态')
-    || line.includes('身体线已经先把这段 living segment 托住')
-    || line.includes('同一条连续身体线')
-    || line.includes('身体连续性已经明确处于身体独撑态')
-    || line.includes('独自托住同一段 living segment')
-    || line.includes('跨模态重锁态')
-    || line.includes('显形回接失身态'),
-  ) ?? null
-}
-
-function inferBodyContinuityPhaseFromGovernanceNote(note: string | null) {
-  if (!note)
-    return null
-  if (note.includes('显形回接失身态'))
-    return 'renderer-rejoin-without-body' as const
-  if (note.includes('跨模态重锁态'))
-    return 'full-cross-modal-lock' as const
-  if (note.includes('身体独撑态') || note.includes('独自托住同一段 living segment'))
-    return 'body-only-hold' as const
-  if (
-    note.includes('身体连续性已经明确进入身体承接态 -> 显形补回态')
-    || note.includes('身体连续性已经被新的验证快照再次确认，并明确处于身体承接态 -> 显形补回态')
-  ) {
-    return 'body-carried-to-renderer-rejoin' as const
-  }
-  return null
-}
-
 export function buildSelfEvolutionBaselineAdoptionRecord(input: {
   baselineAdoption: SelfEvolutionBaselineAdoptionLike | null
   latestSnapshot: SelfEvolutionFocusSnapshotLike | null
@@ -62,25 +31,6 @@ export function buildSelfEvolutionBaselineAdoptionRecord(input: {
 }) {
   if (!input.baselineAdoption || input.baselineAdoption.mode !== 'adopt-now' || !input.latestSnapshot)
     return null
-
-  const prosodyAuthorityNote = input.prosodyAuthorityNote
-    ?? input.baselineAdoption.supportingLines.find(line => line.includes('韵律权威链'))
-    ?? null
-  const continuityGovernanceNote = input.baselineAdoption.supportingLines.find(line =>
-    line.includes('identity-continuity 连续性治理已经再次确认'),
-  ) ?? null
-  const projectStateContinuityGovernanceNote = input.baselineAdoption.supportingLines.find(line =>
-    line.includes('项目状态连续性治理已经再次确认'),
-  ) ?? null
-  const relationshipCadenceGovernanceNote = input.baselineAdoption.supportingLines.find(line =>
-    line.includes('relationship cadence 治理已经再次确认'),
-  ) ?? input.baselineAdoption.supportingLines.find(line =>
-    line.includes('relationship cadence 治理已经再次确认，并开始内化为长期关系节律'),
-  ) ?? null
-  const bodyContinuityGovernanceNote = pickBodyContinuityGovernanceNote(input.baselineAdoption.supportingLines)
-  const bodyContinuityPhase = input.latestSnapshot.bodyContinuityPhase
-    ?? inferBodyContinuityPhaseFromGovernanceNote(bodyContinuityGovernanceNote)
-    ?? null
 
   return {
     version: 'self-evolution-baseline-adoption/v1',
@@ -94,15 +44,11 @@ export function buildSelfEvolutionBaselineAdoptionRecord(input: {
     repairOwnerHint: input.repairOwnerHint,
     adoptionMode: input.baselineAdoption.mode,
     summaryLine: input.baselineAdoption.summaryLine,
-    bodyContinuityPhase,
+    bodyContinuityPhase: input.latestSnapshot.bodyContinuityPhase ?? null,
     rendererRejoinSurfaceKey: input.latestSnapshot.rendererRejoinSurfaceKey ?? null,
     ...(input.latestSnapshot.survivingVisibleLane
       ? { survivingVisibleLane: input.latestSnapshot.survivingVisibleLane }
       : {}),
-    prosodyAuthorityNote,
-    continuityGovernanceNote,
-    relationshipCadenceGovernanceNote,
-    projectStateContinuityGovernanceNote,
-    bodyContinuityGovernanceNote,
+    prosodyAuthorityNote: input.prosodyAuthorityNote,
   }
 }

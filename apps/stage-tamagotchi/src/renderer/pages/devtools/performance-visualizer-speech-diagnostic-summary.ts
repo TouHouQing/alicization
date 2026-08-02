@@ -54,8 +54,8 @@ interface BuildSpeechDiagnosticSummaryEntriesInput {
   rendererDriftSummary?: string | null
   settleAuthoritySummary?: string | null
   traceEmbodimentSummary?: string | null
-  sameHerSignature?: string | null
-  sameHerReasonTags?: string[] | null
+  continuitySignature?: string | null
+  continuityReasonTags?: string[] | null
   includeSettleAuthority?: boolean
   speechEvidence?: PerformanceVisualizerSpeechEvidenceSnapshot | null
 }
@@ -711,14 +711,14 @@ export function buildSpeechDiagnosticSummaryEntries(
       value: authorityTrustSummary!,
     })
   }
-  if (hasValue(input.sameHerSignature)) {
+  if (hasValue(input.continuitySignature)) {
     pushEntry({
       key: 'continuity-signature',
       label: '同一人签名',
-      value: input.sameHerSignature!,
+      value: input.continuitySignature!,
     })
   }
-  const executionSafetyGate = resolveExecutionSafetyGateDiagnostic(input.sameHerReasonTags)
+  const executionSafetyGate = resolveExecutionSafetyGateDiagnostic(input.continuityReasonTags)
   if (executionSafetyGate) {
     pushEntry({
       key: 'execution-safety-gate',
@@ -726,12 +726,12 @@ export function buildSpeechDiagnosticSummaryEntries(
       ...executionSafetyGate,
     })
   }
-  const sameHerReasons = formatList(input.sameHerReasonTags)
-  if (sameHerReasons) {
+  const continuityReasons = formatList(input.continuityReasonTags)
+  if (continuityReasons) {
     pushEntry({
       key: 'continuity-reasons',
       label: '同一人线索',
-      value: sameHerReasons,
+      value: continuityReasons,
     })
   }
   if (hasValue(input.authorityMismatchDisplay) || hasValue(input.authorityMismatchReasonSummary) || hasValue(input.authorityMismatchSummary)) {

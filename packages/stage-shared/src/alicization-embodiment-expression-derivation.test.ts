@@ -118,7 +118,7 @@ describe('alicization embodiment expression derivation', () => {
     expect(rememberedSeamMotionBurst.actionCue).toBe(genericMotionBurst.actionCue)
   })
 
-  it('keeps audited same-her tokens from changing lipsync, face, or motion derivation', () => {
+  it('keeps audited continuity tokens from changing lipsync, face, or motion derivation', () => {
     const cleanRendererHints = {
       residentMode: 'same-thread-continuation',
       preferredBlinkCadence: 'linger',
@@ -129,12 +129,12 @@ describe('alicization embodiment expression derivation', () => {
     const auditedRendererHintCases = [
       {
         ...cleanRendererHints,
-        signature: 'embodiment:audible-same-her-line',
+        signature: 'embodiment:audible-continuity-line',
         reasonTags: ['embodiment:body-lipsync-voice-rejoin'],
       },
       {
         ...cleanRendererHints,
-        signature: 'resident|main-runtime|embodiment:audible_same_her_line|body+voice-only',
+        signature: 'resident|main-runtime|embodiment:audible_continuity_line|body+voice-only',
         reasonTags: ['embodiment:body+voice-only'],
       },
       {
@@ -300,7 +300,7 @@ describe('alicization embodiment expression derivation', () => {
     }
   })
 
-  it('keeps pending same-her repair pressure tags from changing lipsync, face, or motion derivation', () => {
+  it('keeps pending continuity repair pressure tags from changing lipsync, face, or motion derivation', () => {
     const ordinaryRendererHints = {
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
@@ -314,7 +314,7 @@ describe('alicization embodiment expression derivation', () => {
       preferredGazeMode: 'soften',
       preferredExpressionAliases: ['calm_inspect', 'soft-gaze'],
       preferredMotionAliases: ['observe_focus', 'stillness_guard'],
-      reasonTags: ['same-her-causality-repair-pressure', 'runtimeSameHerEmbodimentCausality'],
+      reasonTags: ['continuity-causality-repair-pressure', 'runtimeContinuityEmbodimentCausality'],
     } as const
 
     const ordinaryLipSyncHints = buildAlicizationEmbodimentLipSyncHints({

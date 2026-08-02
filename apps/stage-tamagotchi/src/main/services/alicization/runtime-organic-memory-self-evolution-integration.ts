@@ -78,33 +78,18 @@ export function buildOrganicMemoryEvolutionState(input: {
   learningExecutionState?: AlicizationLearningExecutionStateSnapshot | null
   recallLatencyPolicy?: OrganicMemoryPromptContext['recallLatencyPolicy'] | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
-  affectiveResidueAuthority?: 'relationship-owner' | null
   recentRelationshipOutcomes?: OrganicMemoryPromptContext['recentRelationshipOutcomes'] | null
   recentMemoryReflections?: OrganicMemoryPromptContext['recentMemoryReflections'] | null
   relationshipDynamics?: AlicizationRelationshipDynamicsState | null
   activeSelfEvolutionCandidateId?: string | null
   activeSelfRevisionPatch?: AlicizationSelfRevisionStatePatch | null
-  activeContinuityGovernance?: {
-    source: 'active-self-evolution-version'
-    mode: 'same-her-baseline'
-    candidateId: string | null
-    patchId: string | null
-    decisionTraceId: string | null
-    summary: string | null
-    lanes: string[]
-    reasonCodes: string[]
-  } | null
 }) {
   const knowledgeEvidence = deriveKnowledgeEvidence({
     retrievedFacts: input.retrievedFacts,
     proceduralMemories: input.proceduralMemories,
   })
   const activeSelfRevisionPatch = input.activeSelfRevisionPatch ?? null
-  const legacyProjectGovernancePatch = Boolean(activeSelfRevisionPatch?.projectStateContinuity)
   const activeSelfRevisionReasonCodes = activeSelfRevisionPatch?.reasonCodes ?? []
-  const ownedAffectiveResidue = input.affectiveResidueAuthority === 'relationship-owner'
-    ? input.affectiveResidue ?? null
-    : null
   const affectiveResidue = input.affectiveResidue ?? buildAlicizationAffectiveResidueMemory({
     now: input.producedAt,
     recentRelationshipOutcomes: input.recentRelationshipOutcomes ?? null,
@@ -118,13 +103,7 @@ export function buildOrganicMemoryEvolutionState(input: {
     personStateEvolutionSummary: input.personStateEvolutionSummary ?? null,
     hostPersonModel: input.hostPersonModel,
     knowledgeEvidence,
-    relationshipCadenceEvidence: ownedAffectiveResidue?.relationshipCadence
-      ? {
-          source: 'owned-affective-residue',
-          cadence: ownedAffectiveResidue.relationshipCadence,
-        }
-      : null,
-    learningPolicyState: activeSelfRevisionPatch && !legacyProjectGovernancePatch
+    learningPolicyState: activeSelfRevisionPatch
       ? {
           strictnessBias: activeSelfRevisionPatch.memoryPolicy.strictnessBias ?? 0,
           wrongThreadSuppressionBias: activeSelfRevisionPatch.memoryPolicy.wrongThreadSuppressionBias ?? 0,
@@ -145,7 +124,6 @@ export function buildOrganicMemoryEvolutionState(input: {
           selfRevisionResponsePostureBias: Math.max(
             activeSelfRevisionPatch.responsePosture.hypothesisLabelBias ?? 0,
             activeSelfRevisionPatch.responsePosture.specificityClampBias ?? 0,
-            activeSelfRevisionPatch.responsePosture.templateShellSuppressionBias ?? 0,
           ),
           selfRevisionProactivePolicyBias: Math.max(
             activeSelfRevisionPatch.proactivePolicy.restraintBias ?? 0,
@@ -178,11 +156,10 @@ export function buildOrganicMemoryEvolutionState(input: {
           patchId: activeSelfRevisionPatch.id,
           patchDecisionTraceId: activeSelfRevisionPatch.decisionTraceId,
           lanes: [...activeSelfRevisionPatch.lanes],
-          reasonCodes: legacyProjectGovernancePatch ? [] : [...activeSelfRevisionReasonCodes],
-          summary: legacyProjectGovernancePatch ? null : activeSelfRevisionPatch.summary,
+          reasonCodes: [...activeSelfRevisionReasonCodes],
+          summary: activeSelfRevisionPatch.summary,
         }
       : null,
-    activeContinuityGovernance: null,
     selfEvolution,
     affectiveResidue,
     learningExecutionState: deriveAlicizationLearningExecutionProjection({

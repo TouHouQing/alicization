@@ -257,7 +257,7 @@ describe('stage desktop page helpers', () => {
       const ingest = vi.fn(async () => undefined)
 
       await dispatchDesktopVoiceTurn({
-        text: '继续沿着这条数字生命主线推进',
+        text: '继续把这轮记忆测试推进',
         providerId: 'mock-provider',
         model: 'mock-model',
         chatProvider: createMockChatProvider(),
@@ -266,7 +266,7 @@ describe('stage desktop page helpers', () => {
         ingest,
       })
 
-      expect(ingest).toHaveBeenCalledWith('继续沿着这条数字生命主线推进', expect.objectContaining({
+      expect(ingest).toHaveBeenCalledWith('继续把这轮记忆测试推进', expect.objectContaining({
         providerId: 'mock-provider',
         model: 'mock-model',
         chatProvider: expect.objectContaining({
@@ -275,8 +275,6 @@ describe('stage desktop page helpers', () => {
         providerConfig: { apiKey: 'test-key' },
         origin: 'ui-user',
       }))
-      const ingestOptions = (ingest.mock.calls[0] as unknown[] | undefined)?.[1]
-      expect(ingestOptions).not.toHaveProperty('preDialogueSendIdentity')
     })
   })
 })

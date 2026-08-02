@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-
 import { describe, expect, it } from 'vitest'
 
 import { buildAnswerPlanner } from './answer-planner'
@@ -76,19 +74,5 @@ describe('answer-planner template independence', () => {
     expect(planner.mustDo).toEqual([])
     expect(planner.mustNotDo).toEqual([])
     expect(planner.narrative).toEqual([])
-  })
-
-  it('contains no project-personhood system block or fixed reply governance generators', () => {
-    const source = readFileSync(new URL('./answer-planner.ts', import.meta.url), 'utf8')
-
-    expect(source).not.toMatch(
-      /ALICIZATION_ANSWER_PLAN|buildAlicizationAnswerPlannerSystemBlock|resolveAlicizationProjectStateBrief|Phase 1|same-her|same her/iu,
-    )
-    expect(source).not.toMatch(
-      /function buildMustDo|function buildMustNotDo|Keep the still-open project closure explicit|Open with low pressure and protect rest/iu,
-    )
-    expect(source).not.toMatch(
-      /hasContinuityRestraintRelationshipSignal|hasNeutralRelationshipSignal/u,
-    )
   })
 })

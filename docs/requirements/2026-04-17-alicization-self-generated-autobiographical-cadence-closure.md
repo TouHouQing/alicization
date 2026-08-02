@@ -19,7 +19,7 @@
 但还存在三个核心缺口：
 
 1. `goalStack / desireMemory` 仍然过度依赖当前 `activeThread` 和当前 knot。
-2. autobiographical self 虽然已经被构建出来，但 recall / dialogue fast path 还没有稳定把这条连续性接回当前回答。
+2. autobiographical self 虽然已经被构建出来，但 recall owner 还没有稳定把自传证据接回统一 Provider 主链路。
 3. 主动开口更多像一次次离散触发，而不是一个会随历史、opening、关系状态逐步涨落的 cadence。
 
 ## Architectural Direction
@@ -36,7 +36,7 @@
 3. 在 `recall-governor`、`mind-continuity`、`organic recall` 上增强 autobiographical continuity 的检索和续写。
 4. 在 `proactive-feedback / proactive-policy / runtime-subconscious-tick` 上增加持续运行的 cadence state，让 opening momentum 和 initiative trust 随历史变化。
 5. 新增 `host-rhythm-model`，让 relationship / habit 识别宿主更像 deep-focus、steady-open、drifting 还是 recovery。
-6. 在 `main-chat-active-dialogue-loop` 的 identity / present-state 快路上接入 continuity cue，避免前台问自我相关问题时绕开深层心智链。
+6. 在统一 Provider 主链路中接入 autobiographical recall evidence，避免自我相关问题绕开记忆 owner。
 7. 在 `intention-stream` 上接入 autobiographical goal / motive agenda / resurfacing desire，让内在 project 更像会 simmer 的长期线。
 
 ## Deliverable
@@ -62,7 +62,7 @@
 3. 自传 episode fragment 会进入 subconscious fragments，并能参与 recall source budget。
 4. proactive policy 会受到持续 cadence state 影响，使主动开口更像节律而不是尖峰触发。
 5. relationship / habit 会读入宿主节律特征，而不是只看当前 busy/not busy。
-6. identity / present-state fast path 可以读到新的 autobiographical continuity cue。
+6. identity / present-state 对话可以读到新的 autobiographical recall evidence。
 7. Targeted tests 通过。
 8. `pnpm -F @proj-alicization/stage-tamagotchi typecheck` 通过。
 
@@ -83,7 +83,7 @@
 只有在以下条件都满足时，才允许使用“已完成”措辞：
 
 1. self-generated goals, autobiographical recall, proactive cadence 三个闭环都已接上现有 runtime。
-2. fast path self-facing dialogue 不再绕开 continuity cue。
+2. self-facing dialogue 不再绕开 autobiographical recall owner。
 3. targeted tests 通过。
 4. `stage-tamagotchi` typecheck 通过。
 

@@ -248,4 +248,74 @@ describe('alicization-affective-residue-memory', () => {
     expect(residue.relationshipCadence.shouldProtectRest).toBe(true)
     expect(residue.summary).not.toContain('Browser fallback')
   })
+
+  it('does not derive main-runtime residue from reflection prose alone', () => {
+    const residue = buildAlicizationAffectiveResidueMemory({
+      now: 1_700_000_222_000,
+      recentMemoryReflections: [{
+        id: 'reflection-prose-only',
+        cardId: 'default',
+        decisionTraceId: 'trace-prose-only',
+        turnId: 'turn-prose-only',
+        sessionId: 'session-prose-only',
+        targetScope: 'task',
+        sourceKind: 'maintenance',
+        status: 'confirmed',
+        summary: 'repair trust rest warm closeness burden',
+        lesson: 'repair trust rest warm closeness burden',
+        supportingFactIds: [],
+        supportingOutcomeIds: [],
+        confidence: 0.9,
+        createdAt: 1_700_000_222_000,
+        updatedAt: 1_700_000_222_000,
+        confirmedAt: 1_700_000_222_000,
+        deniedAt: null,
+      }],
+    })
+
+    expect(residue.dominantResidueKind).toBeNull()
+    expect(residue.residues).toEqual([])
+  })
+
+  it('does not derive browser fallback residue from episodic prose alone', () => {
+    const residue = buildAlicizationBrowserAffectiveResidueMemory({
+      now: 1_700_000_333_000,
+      recentEpisodicEvents: [{
+        id: 'event-prose-only',
+        cardId: 'default',
+        decisionTraceId: null,
+        turnId: 'turn-prose-only',
+        sessionId: 'session-prose-only',
+        sourceKind: 'reply',
+        provenance: 'observed',
+        occurredAt: 1_700_000_333_000,
+        whereSummary: 'chat',
+        withWhom: ['host'],
+        threadAnchor: null,
+        whatHappened: 'late night repair stayed warm and protected rest',
+        felt: 'warm repair rest',
+        emotionTags: [],
+        whatChanged: null,
+        relationshipMeaning: 'repair warm rest trust',
+        lesson: 'repair warm rest trust',
+        sourceSummary: null,
+        confidence: 0.9,
+        salience: 0.8,
+        sceneAttachment: 0.2,
+        consolidationPriority: 0.2,
+        relationshipShift: null,
+        derivedFrom: [],
+        tags: [],
+        createdAt: 1_700_000_333_000,
+        updatedAt: 1_700_000_333_000,
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+        latestReconsolidation: null,
+      }],
+    })
+
+    expect(residue.dominantResidueKind).toBeNull()
+    expect(residue.residues).toEqual([])
+  })
 })

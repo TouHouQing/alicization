@@ -312,9 +312,7 @@ export function buildAlicizationMemoryClosureTrace(input: {
     220,
   )
   const embodimentCadence = normalizeText(
-    input.context.personStateProjection?.manifestationCadenceSummary
-    ?? input.context.personStateProjection?.openingGuidance
-    ?? input.context.personStateProjection?.summary
+    input.context.personStateProjection?.summary
     ?? null,
     240,
   )

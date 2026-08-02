@@ -13,7 +13,7 @@ function cleaned(overrides: Partial<WorkingMemoryLongTermCleanedCandidate> = {})
     cardId: 'default',
     sessionId: 'session-1',
     summary: '不要固定模板回复，要数字生命自身人格。',
-    reason: 'User corrected Alicization persona expression during the current dialogue.',
+    reason: 'candidate:correction',
     sourceTurnIds: ['turn-1:user'],
     evidenceSnippets: ['不要固定模板回复，要数字生命自身人格。'],
     retrievalCues: ['人格纠正', '固定模板', '数字生命人格'],
@@ -51,11 +51,10 @@ describe('working memory long-term projection', () => {
       turnId: 'turn-1:user',
       sourceKind: 'reply',
       targetScope: 'boundary',
-      lesson: 'lesson_code=fixed_template_rejection; source=working_memory_owner; reply_authority=provider_mind_or_failure_surface; visible_wording=false; failure_transparency=true',
+      lesson: '不要固定模板回复，要数字生命自身人格。',
       status: 'pending',
       confidence: 0.78,
     })])
-    expect(projection.memoryReflections[0]?.lesson).not.toMatch(/\b(?:When the user rejects|reply from available memory evidence|Alicization should)\b/iu)
     expect(projection.episodicEvents).toEqual([])
     expect(projection.personaReinforcements).toEqual([])
     expect(projection.trainingArtifacts).toEqual([])
@@ -126,10 +125,9 @@ describe('working memory long-term projection', () => {
     expect(relationship.memoryReflections).toEqual([expect.objectContaining({
       targetScope: 'relationship',
       summary: '用户希望出错或超时时直接说明问题，不要固定安抚模板。',
-      lesson: 'lesson_code=relationship_boundary_transparency; source=working_memory_owner; visible_wording=false; failure_transparency=true',
+      lesson: '用户希望出错或超时时直接说明问题，不要固定安抚模板。',
       status: 'pending',
     })])
-    expect(relationship.memoryReflections[0]?.lesson).not.toMatch(/\b(?:Alicization should|answer transparently|preserve this relationship boundary)\b/iu)
     expect(relationship.personaReinforcements).toEqual([expect.objectContaining({
       dimension: 'truthful-grounding',
       valence: 'reinforce',

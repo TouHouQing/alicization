@@ -30,6 +30,8 @@ function sanitizeText(raw: unknown, maxChars = 180) {
 }
 
 function normalize01(raw: unknown) {
+  if (raw == null || (typeof raw === 'string' && !raw.trim()))
+    return null
   const value = Number(raw)
   if (!Number.isFinite(value))
     return null
@@ -73,7 +75,7 @@ function buildRecallSeed(parts: {
     parts.reflectionSummary ? `memory_reflection:${parts.reflectionSummary}` : '',
     parts.recallMode ? `memory_recall_mode:${parts.recallMode}` : '',
     parts.recollectionSummary ? `memory_recollection:${parts.recollectionSummary}` : '',
-    parts.mirrorMemorySummary ? `mirror_memory:${parts.mirrorMemorySummary}` : '',
+    parts.mirrorMemorySummary ? `memory_session_summary:${parts.mirrorMemorySummary}` : '',
     parts.reflectionPressure != null
       ? `memory_reflection_pressure:${parts.reflectionPressure.toFixed(2)}`
       : '',
@@ -137,16 +139,7 @@ export function deriveAlicizationDialogueMemoryCarryPolicyFromDigest(
     leadingGoal ? `goal:${leadingGoal}` : '',
   ], 6, 120)
 
-  const summary = mode === 'quiet'
-    ? 'Mode: quiet.'
-    : compactUnique([
-        `Mode: ${mode}.`,
-        recallMode ? `Recall: ${recallMode}.` : '',
-        recollectionSummary ? `Recollection: ${recollectionSummary}.` : '',
-        reflectionPressure != null ? `Reflection pressure: ${reflectionPressure.toFixed(2)}.` : '',
-        allowMirrorCarry ? 'Mirror carry is allowed.' : '',
-        leadingGoal ? `Goal: ${leadingGoal}.` : '',
-      ], 6, 180).join(' | ')
+  const summary = reasonTags.join(' | ')
 
   return {
     allowMirrorCarry,
@@ -156,11 +149,4 @@ export function deriveAlicizationDialogueMemoryCarryPolicyFromDigest(
     reflectionPressure,
     summary,
   }
-}
-
-export function buildAlicizationDialogueMemoryCarrySystemBlock(
-  policy: AlicizationDialogueMemoryCarryPolicy,
-) {
-  void policy
-  return ''
 }

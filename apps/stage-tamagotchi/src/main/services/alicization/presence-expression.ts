@@ -25,15 +25,6 @@ function normalizeGeneratedText(raw: unknown) {
     : ''
 }
 
-function isBannedPresenceExpressionText(text: string) {
-  const normalized = text
-    .replace(/[，。！？、,.!?]/g, '')
-    .replace(/\s+/g, '')
-    .trim()
-
-  return normalized === '我在旁边先不打扰你'
-}
-
 function buildPresenceExpressionGroundingSourceRefs(state: Record<string, any> | null | undefined) {
   const sourceRefs = [
     state?.privateThought ? 'privateThought' : '',
@@ -63,7 +54,7 @@ export async function buildAlicizationPresenceExpression(input: GeneratePresence
         ? (generated as Record<string, unknown>).text
         : null,
   )
-  if (!text || isBannedPresenceExpressionText(text))
+  if (!text)
     return null
 
   const groundingSourceRefs = buildPresenceExpressionGroundingSourceRefs(input.state)

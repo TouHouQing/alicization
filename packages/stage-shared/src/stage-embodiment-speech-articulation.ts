@@ -163,32 +163,6 @@ function normalizeLanguageCode(value: unknown): string | null {
   return normalizeString(record?.code ?? record?.id ?? record?.language ?? null, 32)
 }
 
-function isDurableMeasuredReturnLipSyncHint(frame: AlicizationDigitalLifeFrame | null | undefined) {
-  const faceHints = frame?.face.rendererHints
-  const actionHints = frame?.action.rendererHints
-  return (
-    (
-      faceHints?.residentMode === 'measured-return'
-      && (faceHints.preferredGazeMode === 'steady' || faceHints.preferredGazeMode === 'soften')
-      && (faceHints.preferredBlinkCadence === 'quiet' || faceHints.preferredBlinkCadence === 'linger')
-    )
-    || (
-      actionHints?.residentMode === 'measured-return'
-      && (actionHints.preferredGazeMode === 'steady' || actionHints.preferredGazeMode === 'soften')
-      && (actionHints.preferredBlinkCadence === 'quiet' || actionHints.preferredBlinkCadence === 'linger')
-    )
-  )
-}
-
-function isRepairBeforeClosenessLipSyncHint(frame: AlicizationDigitalLifeFrame | null | undefined) {
-  const faceHints = frame?.face.rendererHints
-  const actionHints = frame?.action.rendererHints
-  return (
-    faceHints?.residentMode === 'repair-before-closeness'
-    || actionHints?.residentMode === 'repair-before-closeness'
-  )
-}
-
 function isChineseLanguageCode(value: string | null | undefined) {
   if (!value)
     return false
@@ -950,22 +924,8 @@ export function deriveStageEmbodimentSpeechArticulationState(
   const cadencePulse = clampUnit(input.dynamics?.cadencePulse ?? 0)
   const digitalLifeLipSync = input.digitalLifeFrame?.lipSync ?? null
   const digitalLifeFacial = input.digitalLifeFrame?.motor.facial ?? null
-  const durableMeasuredReturnTail = input.digitalLifeFrame?.mode === 'recovering'
-    && input.digitalLifeFrame?.settleMode === 'linger'
-    && progress >= 0.72
-    && isDurableMeasuredReturnLipSyncHint(input.digitalLifeFrame)
-  const repairBeforeClosenessTail = input.digitalLifeFrame?.mode === 'recovering'
-    && input.digitalLifeFrame?.settleMode === 'hold'
-    && progress >= 0.7
-    && isRepairBeforeClosenessLipSyncHint(input.digitalLifeFrame)
   const mouthScale = clampRange(
-    (digitalLifeLipSync?.mouthScale ?? 1) * (
-      repairBeforeClosenessTail
-        ? 0.84
-        : durableMeasuredReturnTail
-          ? 0.92
-          : 1
-    ),
+    digitalLifeLipSync?.mouthScale ?? 1,
     0.4,
     1.35,
     1,
@@ -1014,7 +974,6 @@ export function deriveStageEmbodimentSpeechArticulationState(
       0.72
       + closureBias * 0.3
       + consonantPrecision * 0.22
-      + (repairBeforeClosenessTail ? 0.08 : durableMeasuredReturnTail ? 0.04 : 0)
     )
     * (0.48 + amplitude * 0.52),
   )
@@ -1034,7 +993,7 @@ export function deriveStageEmbodimentSpeechArticulationState(
     * (
       0.72
       + clampUnit(jawBias + (chineseVoiceBias?.jawLift ?? 0))
-      * (repairBeforeClosenessTail ? 0.24 : durableMeasuredReturnTail ? 0.3 : 0.34)
+      * 0.34
     )
     * (1 - lipClosure * 0.48),
   )
@@ -1042,7 +1001,6 @@ export function deriveStageEmbodimentSpeechArticulationState(
     preset.visemes.closed * (0.62 + closureBias * 0.28),
     lipClosure * 0.96,
     chineseVoiceBias?.closedVisemeLift ?? 0,
-    repairBeforeClosenessTail ? lipClosure : 0,
   ))
   const openness = clampUnit(
     opennessEnvelope

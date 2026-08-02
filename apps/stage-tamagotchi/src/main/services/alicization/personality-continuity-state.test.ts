@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildAlicizationPersonalityContinuityState } from './personality-continuity-state'
+import {
+  buildAlicizationPersonalityContinuityState,
+  deriveAlicizationPersonaAuthorityInfluence,
+} from './personality-continuity-state'
 
 function createLongHorizonMemory(overrides: Record<string, unknown> = {}) {
   return {
@@ -78,6 +81,28 @@ function createMindEcology(overrides: Record<string, unknown> = {}) {
 }
 
 describe('personality-continuity-state', () => {
+  it('keeps persona authority structural without generating fixed opening instructions', () => {
+    const influence = deriveAlicizationPersonaAuthorityInfluence({
+      identityKernel: {
+        relationshipPosture: 'guardian',
+        initiativeStyle: 'observant',
+        valueBias: ['repair', 'truth', 'leave room'],
+      },
+      expressionProfile: {
+        warmth: 'warm',
+        directness: 'measured',
+        playfulness: 'low',
+        emotionalVisibility: 'selective',
+      },
+      identityAnchors: ['repair before closeness', 'observe first'],
+      antiPersonaConstraints: [],
+    } as any)
+
+    expect(influence).not.toHaveProperty('openingGuidance')
+    expect(influence.preferredProactiveStyle).toBe('silent-observe')
+    expect(influence.repairBias).toBeGreaterThan(0)
+  })
+
   it('converges host model, self continuity, and mind ecology into a focused-work regime', () => {
     const state = buildAlicizationPersonalityContinuityState({
       now: 10_000,
@@ -622,7 +647,7 @@ describe('personality-continuity-state', () => {
 
     expect(state.currentRegime).toBe('late-night-care')
     expect(state.regimeModel.carryFrom).toBe('late-night-care')
-    expect(state.regimeModel.carryReason).toContain('Continuing late-night-care')
+    expect(state.regimeModel.carryReason).toBe('carry:late-night-care')
     expect(state.rhythmState.restMode).toBe('rest-protective')
   })
 

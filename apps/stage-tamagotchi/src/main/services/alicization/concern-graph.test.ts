@@ -52,6 +52,37 @@ function createContext() {
 }
 
 describe('updateConcernGraph', () => {
+  it('uses a structural concern code when no observed summary exists', () => {
+    const context = createContext()
+    context.localTime.isLateNight = true
+    context.relationship.fatigue = 70
+    context.workload.kind = 'unknown' as any
+    context.content.kind = 'unknown' as any
+
+    const concerns = updateConcernGraph({
+      now: 1_000,
+      previousConcerns: [],
+      context,
+      worldModel: {
+        activeThread: null,
+      } as any,
+      appraisal: {
+        inferredHostGoal: 'rest',
+        confidence: 0.7,
+        surprise: 0,
+        carePressure: 0.8,
+        interruptionCost: 0.4,
+        desireToSpeak: 0.2,
+        notes: [],
+      },
+      scene: null,
+      recentTransition: null,
+      durabilityPulse: null,
+    })
+
+    expect(concerns[0]?.summary).toBe('concern:care-body;subject=host-fatigue')
+  })
+
   it('creates a stable unresolved thread instead of discarding concern every tick', () => {
     const worldModel = buildWorldModel({
       now: 10_000,

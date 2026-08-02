@@ -146,7 +146,6 @@ describe('runtime-organic-memory-access', () => {
         responsePosture: {
           hypothesisLabelBias: 0.06,
           specificityClampBias: 0.08,
-          templateShellSuppressionBias: 0.04,
         },
         proactivePolicy: {
           restraintBias: 0.22,
@@ -209,7 +208,6 @@ describe('runtime-organic-memory-access', () => {
   })
 
   it('does not translate active self-revision project-state residue into self-evolution cadence', async () => {
-    const richerEmotionalClosureCue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the continuity state.'
     const runtime = createAlicizationOrganicMemoryAccessRuntime({
       getActiveCardId: () => 'default',
       getSoulSnapshot: () => null,
@@ -281,7 +279,6 @@ describe('runtime-organic-memory-access', () => {
         responsePosture: {
           hypothesisLabelBias: 0.04,
           specificityClampBias: 0.08,
-          templateShellSuppressionBias: 0.24,
         },
         proactivePolicy: {
           restraintBias: 0.18,
@@ -293,14 +290,7 @@ describe('runtime-organic-memory-access', () => {
           requiresRevalidation: false,
           rollbackPlan: [],
         },
-        projectStateContinuity: {
-          sameHerSelfLine: 'identity continuity on the continuity state',
-          sameHerDriftRisk: 'If later learning flattens this into a generic assistant shell, the callback may sound capable but lose the living line that makes her believable.',
-          emotionalClosureCue: richerEmotionalClosureCue,
-          continuityGuard: 'identity continuity on the continuity state ; If later learning flattens this into a generic assistant shell, the callback may sound capable but lose the living line that makes her believable.',
-          continuityPressure: 0.74,
-        },
-        reasonCodes: ['domain:relationship', 'same-her-emotional-closure-carry-active'],
+        reasonCodes: ['domain:relationship'],
         summary: 'Relationship patch stays careful about callback continuity.',
       } as any),
       getActiveSelfEvolutionCandidateId: async () => 'candidate-emotional-carry-1',
@@ -311,7 +301,6 @@ describe('runtime-organic-memory-access', () => {
     expect(snapshot.selfEvolution).toEqual(expect.objectContaining({
       version: 'self-evolution-kernel-v1',
     }))
-    expect(snapshot.selfEvolution?.relationshipCadenceSummary?.toLowerCase()).not.toMatch(/repair-before-closeness|continuity state/u)
     expect(snapshot.selfEvolution?.summary?.toLowerCase()).not.toMatch(/repair-before-closeness|continuity state/u)
     expect(snapshot.derivedMindStateBundle?.activeSelfRevision).toEqual(expect.objectContaining({
       patchId: 'patch-emotional-carry-1',
@@ -452,7 +441,7 @@ describe('runtime-organic-memory-access', () => {
         provenance: 'remembered' as const,
         confidence: 0.92,
         reason: 'The callback memory was rebound to the continuity state.',
-        emotionTags: ['execution-callback', 'same-her'],
+        emotionTags: ['execution-callback', 'continuity'],
         relationshipMeaning: 'The callback belongs to the continuity state.',
         lesson: 'Keep the callback on the continuity state before expansion',
       },
@@ -547,7 +536,7 @@ describe('runtime-organic-memory-access', () => {
       recallGovernor: {
         mode: 'relationship',
         threadAnchors: ['execution callback seam'],
-        affectAnchors: ['execution-callback', 'same-her'],
+        affectAnchors: ['execution-callback', 'continuity'],
         relationshipAnchors: ['continuity state'],
         carryAsMemory: true,
         recollectionIntent: {

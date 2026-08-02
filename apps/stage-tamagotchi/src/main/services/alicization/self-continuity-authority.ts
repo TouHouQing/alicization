@@ -81,7 +81,6 @@ export function buildSelfContinuityAuthority(input: {
     || input.mindEcology
     || input.privateThought
     || input.motiveEngine
-    || input.habitPolicy
     || input.reflectionLedger,
   )
   const continuityLines = hasPrimaryOwner
@@ -109,10 +108,7 @@ export function buildSelfContinuityAuthority(input: {
     asArray(input.motiveEngine?.longTermGoals)[0]?.summary,
     autobiographicalGoal?.summary,
   ])
-  const habitLine = firstCleanLine([
-    asArray(input.habitPolicy?.narrative)[0],
-    input.habitPolicy?.dominantMode,
-  ])
+  const habitLine = null
   const ownerInwardLines = uniqueList([
     input.privateThought?.thoughtText,
     input.mindEcology?.currentPreoccupation,

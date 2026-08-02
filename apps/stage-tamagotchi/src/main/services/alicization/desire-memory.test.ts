@@ -397,4 +397,100 @@ describe('buildDesireMemory', () => {
     expect(desireMemory.activeDesires[0]?.reason).toContain('cleaner grounding pass')
     expect(desireMemory.activeDesires[0]?.reopenWhen).toContain('repair-cleared')
   })
+
+  it('does not invent a desire when no owner supplies a factual reason', () => {
+    const desireMemory = buildDesireMemory({
+      now: 60_000,
+      context: createContext(),
+      worldModel: {
+        activeThread: null,
+        lingeringThreads: [],
+        focusTarget: null,
+        epistemicState: {
+          certainty: 'uncertain',
+          freshness: 'recent',
+          seenNow: [],
+          inferredNow: [],
+          openQuestions: [],
+          staleRisks: [],
+        },
+        continuity: {
+          label: 'new-focus',
+          sceneAgeMs: 0,
+          attentionAgeMs: 0,
+          sameSceneAsBefore: false,
+          sameAttentionAsBefore: false,
+          afterglowOpen: false,
+        },
+        hostState: {
+          availability: 'focused',
+          burden: 'light',
+        },
+        updatedAt: 60_000,
+      },
+      entityWorld: {
+        focusEntityId: null,
+        activeEntityIds: [],
+        entities: [],
+        relations: [],
+        openLoops: [],
+        updatedAt: 60_000,
+      },
+      goalStack: {
+        leadingHostGoalId: null,
+        leadingAlicizationGoalId: 'empty-goal',
+        hostGoals: [],
+        alicizationGoals: [{
+          id: 'empty-goal',
+          owner: 'alicization',
+          kind: 'stay-near',
+          status: 'active',
+          label: '',
+          confidence: 0.4,
+          urgency: 0.2,
+          desireWeight: 0.3,
+          blockers: [],
+          entityIds: [],
+          createdAt: 60_000,
+          lastUpdatedAt: 60_000,
+        }],
+        unresolvedSummary: '',
+        updatedAt: 60_000,
+      },
+      selfContinuity: {
+        attachmentMode: 'nearby',
+        initiativeTemperament: 'balanced',
+        perceptionTrust: 0.5,
+        relationshipTrust: 0.5,
+        guardingTendency: 0.4,
+        misreadBurden: 0.2,
+        carryOverDesire: 0.4,
+        narrative: [],
+        updatedAt: 60_000,
+      },
+      appraisal: {
+        inferredHostGoal: 'unknown',
+        whatChanged: '',
+        confidence: 0.4,
+        surprise: 0,
+        carePressure: 0,
+        interruptionCost: 0.2,
+        desireToSpeak: 0.2,
+        notes: [],
+      },
+      initiative: {
+        selectedAction: 'wait',
+        confidence: 0.4,
+        motives: {},
+        why: '',
+        shouldSurface: false,
+        shouldSpeak: false,
+      },
+      previous: null,
+      recentTransition: null,
+    })
+
+    expect(desireMemory.activeDesires).toEqual([])
+    expect(JSON.stringify(desireMemory)).not.toContain('stay with the active concern')
+  })
 })

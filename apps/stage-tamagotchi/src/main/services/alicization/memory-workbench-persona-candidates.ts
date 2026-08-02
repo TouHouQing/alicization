@@ -210,7 +210,9 @@ export function createMemoryWorkbenchPersonaCandidateRuntime(input: {
           candidate.behaviorLesson,
           candidate.positiveExample,
           candidate.negativeExample,
-        ].filter(Boolean).join(' ')),
+        ].filter(Boolean).join(' '), {
+          provenance: 'internal-structured-fact',
+        }),
       }).allowPersonaLearning)
       .map(candidate => ({
         candidate,

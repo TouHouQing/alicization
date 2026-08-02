@@ -5,17 +5,9 @@ import type {
   AlicizationTaskThreadUpsertInput,
 } from '@proj-alicization/stage-shared'
 
-import { readFileSync } from 'node:fs'
-
-import { containsAlicizationFixedTemplateResidue } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import { dispatchTaskThread } from './task-thread-dispatcher'
-
-function expectNoFixedTemplateResidue(value: unknown) {
-  expect(JSON.stringify(value ?? '')).not.toMatch(/Before (?:answering|speaking|acting)|Right now I am|legacy phase-one template|same[- ]her|continuity state|one living her|identity continuity|local-first digital life project|Phase 1: Local Digital Life|同一个她|同一个 her|数字生命主线|女仆|\bmaid\b/iu)
-  expect(containsAlicizationFixedTemplateResidue(String(value ?? ''))).toBe(false)
-}
 
 function createThread(overrides: Partial<AlicizationTaskThreadRecord> = {}): AlicizationTaskThreadRecord {
   return {
@@ -89,43 +81,14 @@ function createPort(initialThread: AlicizationTaskThreadRecord) {
 }
 
 function createExecutionRuntimeContext(
-  overrides: Omit<Partial<AlicizationExecutionRuntimeContext>, 'projectBriefing'> & {
-    projectBriefing?: Partial<NonNullable<AlicizationExecutionRuntimeContext['projectBriefing']>> | null
-  } = {},
+  overrides: Partial<AlicizationExecutionRuntimeContext> = {},
 ): AlicizationExecutionRuntimeContext {
-  const {
-    projectBriefing: projectBriefingOverrides,
-    ...restOverrides
-  } = overrides
-
   return {
     generatedAt: 1_710_000_000_000,
     cardId: 'default',
     turnId: 'turn-dispatch-1',
     decisionTraceId: 'mind:trace:dispatch-1',
     sessionId: 'session-dispatch-1',
-    projectBriefing: projectBriefingOverrides === null
-      ? null
-      : {
-          identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-          currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-          latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
-          primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.',
-          nextClosureTarget: 'Keep extending identity-continuity',
-          sameHerSelfLine: 'structured continuity digest.',
-          sameHerHoldDetail: 'identity-continuity',
-          sameHerDriftRisk: 'If project-state continuity survives only as generic guidance, treat it as unfinished closure drift.',
-          companionBriefingLine: 'pre_turn_context_digest',
-          emotionalClosureSummary: 'Keep the return low-pressure so the continuity state does not restart from scratch.',
-          continuityCue: 'Keep this execution return on the same project-aware living line before widening outward.',
-          continuityPreferredTiming: 'next-open-window',
-          continuityCadence: 'measured-return',
-          preferredBlinkCadence: 'quiet',
-          preferredGazeMode: 'soften',
-          preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory still needs stronger identity-continuity',
-          preDialogueAwarenessLine: 'pre_turn_context_digest',
-          ...projectBriefingOverrides,
-        },
     sensory: {
       collectedAt: 1_710_000_000_123,
       running: true,
@@ -145,7 +108,7 @@ function createExecutionRuntimeContext(
         degradedReasons: [],
       },
     },
-    ...restOverrides,
+    ...overrides,
   }
 }
 
@@ -560,19 +523,6 @@ describe('task-thread dispatcher', () => {
           cardId: 'default',
           turnId: 'turn-dispatch-1',
           decisionTraceId: 'mind:trace:dispatch-1',
-          projectBriefing: {
-            identity: 'Alicization is a local-first digital life project building identity continuity on the host computer.',
-            currentPhase: 'Phase 1: Local Digital Life. The primary proving ground is apps/stage-tamagotchi.',
-            latestLandedProgress: 'Same-session mirror carry and measured-return continuity now survive longer noisy detours.',
-            primaryOpenLoop: 'Memory still needs stronger end-to-end closure across turns so Project identity carry remains explicit.',
-            nextClosureTarget: 'Keep extending identity-continuity',
-            sameHerSelfLine: 'structured continuity digest.',
-            sameHerHoldDetail: 'identity-continuity',
-            sameHerDriftRisk: 'If project-state continuity survives only as generic guidance, treat it as unfinished closure drift.',
-            continuityCue: 'Keep this execution return on the same project-aware living line before widening outward.',
-            preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory still needs stronger identity-continuity',
-            preDialogueAwarenessLine: 'pre_turn_context_digest',
-          },
           sensory: {
             collectedAt: 1_710_000_000_123,
             running: true,
@@ -600,8 +550,6 @@ describe('task-thread dispatcher', () => {
     expect(result.ok).toBe(true)
     expect(result.summary).toContain('dispatcher context ok')
     expect(result.summary).not.toContain('project_continuity=')
-    expect(result.summary).not.toContain('Project identity carry')
-    expectNoFixedTemplateResidue(port.readThread().metadata)
     expect(port.readThread().metadata).toEqual(expect.objectContaining({
       execution: expect.objectContaining({
         runtimeContext: expect.objectContaining({
@@ -611,10 +559,6 @@ describe('task-thread dispatcher', () => {
             foregroundWindow: expect.objectContaining({
               appName: 'Cursor',
             }),
-          }),
-          projectBriefing: expect.objectContaining({
-            latestLandedProgress: expect.stringContaining('Same-session mirror carry'),
-            primaryOpenLoop: expect.stringContaining('Project identity carry'),
           }),
         }),
       }),
@@ -647,14 +591,12 @@ describe('task-thread dispatcher', () => {
     expect(result.thread.status).toBe('completed')
     expect(result.summary).toContain('stored runtime context reused')
     expect(result.summary).not.toContain('project_continuity=')
-    expectNoFixedTemplateResidue(result.summary)
   })
 
-  it('uses refreshed sensory context without restoring stripped project briefing', async () => {
+  it('uses refreshed sensory context without adding retired governance fields', async () => {
     const storedRuntimeContext = createExecutionRuntimeContext()
     const payloadRuntimeContext = createExecutionRuntimeContext({
       generatedAt: 1_710_000_000_500,
-      projectBriefing: null,
       sensory: {
         collectedAt: 1_710_000_000_555,
         running: true,
@@ -684,25 +626,19 @@ describe('task-thread dispatcher', () => {
       threadId: 'thread-dispatch-1',
       cli: {
         command: 'node',
-        args: ['-e', 'const ctx = JSON.parse(process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_JSON || "{}"); console.log(`${ctx.sensory?.foregroundWindow?.appName || "missing-sensory"}:${ctx.projectBriefing?.currentPhase || "missing-project"}`)'],
+        args: ['-e', 'const ctx = JSON.parse(process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_JSON || "{}"); console.log(ctx.sensory?.foregroundWindow?.appName || "missing-sensory")'],
         runtimeContext: payloadRuntimeContext,
       },
       workspaceRoot: process.cwd(),
     })
 
     expect(result.ok).toBe(true)
-    expect(result.summary).toContain('Terminal:missing-project')
+    expect(result.summary).toContain('Terminal')
     expect(result.summary).not.toContain('project_continuity=')
-    expectNoFixedTemplateResidue(port.readThread().metadata)
     expect(port.readThread().metadata).toEqual(expect.objectContaining({
       execution: expect.objectContaining({
         runtimeContext: expect.objectContaining({
           generatedAt: 1_710_000_000_500,
-          projectBriefing: expect.objectContaining({
-            identity: null,
-            currentPhase: null,
-            primaryOpenLoop: expect.stringContaining('Project identity carry'),
-          }),
           sensory: expect.objectContaining({
             foregroundWindow: expect.objectContaining({
               appName: 'Terminal',
@@ -756,7 +692,6 @@ describe('task-thread dispatcher', () => {
 
     const payloadRuntimeContext = createExecutionRuntimeContext({
       generatedAt: 1_710_000_000_510,
-      projectBriefing: null,
       sensory: {
         collectedAt: 1_710_000_000_566,
         running: true,
@@ -811,128 +746,5 @@ describe('task-thread dispatcher', () => {
         }),
       }),
     }))
-  })
-
-  it('keeps execution details without refilling stripped project persona fields', async () => {
-    const storedRuntimeContext = createExecutionRuntimeContext()
-    const payloadRuntimeContext = createExecutionRuntimeContext({
-      generatedAt: 1_710_000_000_600,
-      projectBriefing: {
-        identity: null,
-        currentPhase: 'Phase 1: Local Digital Life. Payload refreshed phase wording.',
-        latestLandedProgress: null,
-        primaryOpenLoop: null,
-        nextClosureTarget: 'Payload asks dispatcher to keep the refreshed closure target.',
-        sameHerSelfLine: null,
-        sameHerHoldDetail: null,
-        sameHerDriftRisk: null,
-        continuityCue: null,
-        preflightSummary: null,
-        preDialogueAwarenessLine: null,
-      },
-    })
-    const port = createPort(createThread({
-      metadata: {
-        task: {
-          permissionMode: 'implicit',
-          effect: 'mutate',
-        },
-        execution: {
-          runtimeContext: storedRuntimeContext,
-        },
-      },
-    }))
-
-    const result = await dispatchTaskThread(port, {
-      threadId: 'thread-dispatch-1',
-      cli: {
-        command: 'node',
-        args: ['-e', 'const ctx = JSON.parse(process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_JSON || "{}"); console.log(`${ctx.projectBriefing?.identity || "missing-identity"} | ${ctx.projectBriefing?.currentPhase || "missing-phase"} | ${ctx.projectBriefing?.primaryOpenLoop || "missing-open-loop"} | ${ctx.projectBriefing?.nextClosureTarget || "missing-next"}`)'],
-        runtimeContext: payloadRuntimeContext,
-      },
-      workspaceRoot: process.cwd(),
-    })
-
-    expect(result.ok).toBe(true)
-    expectNoFixedTemplateResidue(result.summary)
-    expect(result.summary).toContain('missing-identity')
-    expect(result.summary).toContain('missing-phase')
-    expect(result.summary).toContain('Project identity carry')
-    expect(result.summary).toContain('Payload asks dispatcher to keep the refreshed closure target')
-    expectNoFixedTemplateResidue(port.readThread().metadata)
-    expect(port.readThread().metadata).toEqual(expect.objectContaining({
-      execution: expect.objectContaining({
-        runtimeContext: expect.objectContaining({
-          projectBriefing: expect.objectContaining({
-            identity: null,
-            currentPhase: null,
-            latestLandedProgress: expect.stringContaining('Same-session mirror carry'),
-            primaryOpenLoop: expect.stringContaining('Project identity carry'),
-            nextClosureTarget: 'Payload asks dispatcher to keep the refreshed closure target.',
-            sameHerSelfLine: null,
-          }),
-        }),
-      }),
-    }))
-  })
-
-  it('drops legacy same-her hold and continuity cues during dispatch runtime-context merging', async () => {
-    const storedRuntimeContext = createExecutionRuntimeContext()
-    const payloadRuntimeContext = createExecutionRuntimeContext({
-      generatedAt: 1_710_000_000_700,
-      projectBriefing: {
-        ...createExecutionRuntimeContext().projectBriefing!,
-        sameHerHoldDetail: 'identity-continuity"her".',
-        continuityCue: 'continuity state: some closure already landed, so project-state carry should keep continuing as the same Phase 1 digital life before widening outward.',
-      },
-    })
-    const port = createPort(createThread({
-      metadata: {
-        task: {
-          permissionMode: 'implicit',
-          effect: 'mutate',
-        },
-        execution: {
-          runtimeContext: storedRuntimeContext,
-        },
-      },
-    }))
-
-    const result = await dispatchTaskThread(port, {
-      threadId: 'thread-dispatch-1',
-      cli: {
-        command: 'node',
-        args: ['-e', 'const ctx = JSON.parse(process.env.ALICIZATION_EXECUTION_RUNTIME_CONTEXT_JSON || "{}"); console.log(`${ctx.projectBriefing?.sameHerHoldDetail || "missing-hold"} | ${ctx.projectBriefing?.continuityCue || "missing-continuity"}`)'],
-        runtimeContext: payloadRuntimeContext,
-      },
-      workspaceRoot: process.cwd(),
-    })
-
-    expect(result.ok).toBe(true)
-    expectNoFixedTemplateResidue(result.summary)
-    expect(result.summary).toContain('missing-hold | missing-continuity')
-    expect(result.summary).not.toContain('project_continuity=')
-    expect(port.readThread().metadata).toEqual(expect.objectContaining({
-      execution: expect.objectContaining({
-        runtimeContext: expect.objectContaining({
-          generatedAt: 1_710_000_000_700,
-          projectBriefing: expect.objectContaining({
-            sameHerHoldDetail: null,
-            continuityCue: null,
-          }),
-        }),
-      }),
-    }))
-  })
-
-  it('does not keep raw pre-dialogue fallbacks after the structured resolver rejects them', () => {
-    const source = readFileSync(new URL('./task-thread-dispatcher.ts', import.meta.url), 'utf8')
-
-    expect(source).not.toMatch(
-      /return resolved\s*\?\?\s*input\.payloadProjectBriefing\?\.preDialogueAwarenessLine/iu,
-    )
-    expect(source).not.toMatch(
-      /return payloadSummary\s*\?\?\s*storedSummary\s*\?\?\s*preferDispatchPreDialogueAwarenessLine/iu,
-    )
   })
 })

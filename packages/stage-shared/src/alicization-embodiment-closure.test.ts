@@ -10,7 +10,6 @@ import { containsAlicizationFixedTemplateResidue } from './alicization-fixed-tem
 
 function expectNoFixedTemplateResidue(value: unknown) {
   expect(containsAlicizationFixedTemplateResidue(JSON.stringify(value ?? ''))).toBe(false)
-  expect(String(value ?? '')).not.toMatch(/Right now|Same Phase 1|same-her|same digital life|one living her/iu)
 }
 
 function expectNaturalEmbodimentClosureFacts(

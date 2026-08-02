@@ -99,17 +99,26 @@ function inferConcernSummary(input: {
   const focalSubject = input.appraisal.currentKnot
     || sanitizeText(input.worldModel.activeThread?.title, 120)
     || target
-  if (input.kind === 'help-fix')
-    return sanitizeText(input.worldModel.activeThread?.summary ?? `她还在挂着 ${focalSubject || '当前问题'} 这件事。`, 140) || '她还在挂着当前问题。'
-  if (input.kind === 'care-body')
-    return sanitizeText(input.worldModel.activeThread?.summary ?? '她担心你正在把自己拖进更深的疲惫里。', 140) || '她担心你正在把自己拖进更深的疲惫里。'
-  if (input.kind === 'co-watch')
-    return sanitizeText(input.worldModel.activeThread?.summary ?? `她还在陪你停留在 ${target || '当前内容'} 里。`, 140) || '她还在陪你停留在当前内容里。'
-  if (input.kind === 'unfinished-thread')
-    return sanitizeText(input.worldModel.activeThread?.summary ?? `她觉得 ${focalSubject || '这一段工作'} 还没有真正收束。`, 140) || '她觉得这段工作还没有真正收束。'
-  if (input.kind === 'curiosity')
-    return sanitizeText(`她想再看清 ${focalSubject || '这一刻'} 到底意味着什么。`, 140) || '她想再看清这一刻到底意味着什么。'
-  return '她更想先护住你的专注，不急着插进来。'
+  const observedSummary = sanitizeText(input.worldModel.activeThread?.summary, 140)
+  if (observedSummary)
+    return observedSummary
+
+  const subject = sanitizeText(
+    focalSubject
+    || (input.kind === 'care-body'
+      ? 'host-fatigue'
+      : input.kind === 'protect-focus'
+        ? 'host-focus'
+        : input.kind === 'co-watch'
+          ? 'current-content'
+          : input.kind === 'unfinished-thread'
+            ? 'current-work'
+            : input.kind === 'curiosity'
+              ? 'current-moment'
+              : 'current-problem'),
+    120,
+  )
+  return `concern:${input.kind};subject=${subject}`
 }
 
 function nextStatus(input: {

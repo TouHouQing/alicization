@@ -164,6 +164,9 @@ describe('buildCommitmentLedger', () => {
 
     expect(ledger.governingCommitmentId).toBeTruthy()
     expect(ledger.commitments.some(commitment => commitment.kind === 'hold-problem')).toBe(true)
+    expect(ledger.commitments.find(commitment => commitment.kind === 'hold-problem')?.title)
+      .toBe('The real knot is narrow enough to keep holding onto.')
+    expect(JSON.stringify(ledger)).not.toContain('is the strongest carried obligation')
     expect(ledger.carryPressure).toBeGreaterThan(0.3)
   })
 

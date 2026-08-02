@@ -72,117 +72,10 @@ function formatRendererManifestationLabel(rendererTarget: 'live2d' | 'vrm' | 'sp
   return 'manifestation authority'
 }
 
-function extractSettleReasonSummary(summary: string | null | undefined) {
-  const normalized = normalizeText(summary)
-  if (!normalized)
-    return null
-
-  const matched = normalized.match(/(?:^|\|\s*)reason=([^|]+)$/u)
-  return normalizeText(matched?.[1] ?? null)
-}
-
-function extractSummaryField(
-  summary: string | null | undefined,
-  field: string,
-) {
-  const normalized = normalizeText(summary)
-  if (!normalized)
-    return null
-
-  for (const part of normalized.split('|').map(part => part.trim()).filter(Boolean)) {
-    const separatorIndex = part.indexOf('=')
-    if (separatorIndex < 0)
-      continue
-    const key = part.slice(0, separatorIndex).trim()
-    const rawValue = part.slice(separatorIndex + 1).trim()
-    if (key === field)
-      return normalizeText(rawValue)
-  }
-
-  return null
-}
-
-function extractThinAffectiveAuthorityTrustReason(summary: string | null | undefined) {
-  const normalized = normalizeText(summary)
-  if (!normalized)
-    return null
-
-  const matched = normalized.match(/余韵还在[^”"]*|先留白[^”"]*|别立刻把温度放大[^”"]*|别把温度放大[^”"]*|不要立刻把温度放大[^”"]*/u)
-  return normalizeText(matched?.[0] ?? null)
-}
-
-function summarizeProsodyAuthority(value: string | null | undefined) {
-  const normalized = normalizeText(value)
-  if (!normalized)
-    return null
-
-  let mode: string | null = null
-  let segment: string | null = null
-
-  for (const part of normalized.split('|').map(part => part.trim()).filter(Boolean)) {
-    const separatorIndex = part.indexOf('=')
-    if (separatorIndex < 0)
-      continue
-    const key = part.slice(0, separatorIndex).trim()
-    const rawValue = part.slice(separatorIndex + 1).trim()
-    if (key === 'mode')
-      mode = rawValue
-    else if (key === 'segment')
-      segment = rawValue
-  }
-
-  if (!mode && !segment)
-    return null
-
-  return `Prosody authority still anchors ${mode ?? 'n/a'} on ${segment ?? 'n/a'}, so the mouth-driving chain remains attributable to one authoritative speech segment instead of a renderer-local guess.`
-}
-
-function extractStructuredSegmentId(value: string | null | undefined) {
-  const normalized = normalizeText(value)
-  if (!normalized)
-    return null
-
-  const parts = normalized
-    .split('|')
-    .map(part => part.trim())
-    .filter(Boolean)
-  const segmentPart = parts.find(part => part.startsWith('segment='))
-    ?? parts.find(part => part.startsWith('seg='))
-  if (!segmentPart)
-    return null
-
-  return normalizeText(segmentPart.slice(segmentPart.indexOf('=') + 1))
-}
-
-function extractStructuredSameHerSegmentIds(value: string | null | undefined) {
-  const normalized = normalizeText(value)
-  if (!normalized) {
-    return {
-      authoritySegmentId: null,
-      summarySegmentId: null,
-      performanceSegmentId: null,
-      speechSegmentId: null,
-    }
-  }
-
-  return {
-    authoritySegmentId: extractSummaryField(normalized, 'authority'),
-    summarySegmentId: extractSummaryField(normalized, 'segment')
-      ?? extractSummaryField(normalized, 'seg'),
-    performanceSegmentId: extractSummaryField(normalized, 'performance'),
-    speechSegmentId: extractSummaryField(normalized, 'speech'),
-  }
-}
-
 function matchesScopedSegment(segmentId: string | null | undefined, activeSegmentId: string | null | undefined) {
   const normalizedSegmentId = normalizeText(segmentId)
   const normalizedActiveSegmentId = normalizeText(activeSegmentId)
   return !normalizedSegmentId || !normalizedActiveSegmentId || normalizedSegmentId === normalizedActiveSegmentId
-}
-
-function structuredSummaryMatchesScopedSegment(summary: string | null | undefined, activeSegmentId: string | null | undefined) {
-  const structuredSegmentId = extractStructuredSegmentId(summary)
-  return matchesScopedSegment(structuredSegmentId, activeSegmentId)
 }
 
 function resolveRendererDriftSummary(
@@ -198,27 +91,15 @@ function resolveRendererDriftSummary(
   return resolvePrimaryRendererAlignmentSummary(speech?.rendererAlignment)
 }
 
-function resolveVoiceSummarySegmentId(value: string | null | undefined) {
-  return extractStructuredSegmentId(value)
-}
-
-function resolveSameHerEvidenceBelongsToActiveSegment(input: {
+function resolveContinuityEvidenceBelongsToActiveSegment(input: {
   activeSegmentId: string | null | undefined
-  summary: string | null | undefined
   segmentIds?: Array<string | null | undefined>
 }) {
   const normalizedActiveSegmentId = normalizeText(input.activeSegmentId)
   if (!normalizedActiveSegmentId)
     return true
 
-  const summarySegmentIds = extractStructuredSameHerSegmentIds(input.summary)
-  const candidateSegmentIds = pushUnique([
-    ...(input.segmentIds ?? []),
-    summarySegmentIds.authoritySegmentId,
-    summarySegmentIds.summarySegmentId,
-    summarySegmentIds.performanceSegmentId,
-    summarySegmentIds.speechSegmentId,
-  ])
+  const candidateSegmentIds = pushUnique(input.segmentIds ?? [])
 
   if (candidateSegmentIds.length === 0)
     return true
@@ -228,27 +109,49 @@ function resolveSameHerEvidenceBelongsToActiveSegment(input: {
 
 function resolveVoiceSegmentMatched(input: {
   authoritySegmentId: string | null | undefined
-  voiceSummary: string | null | undefined
   matchedDrivers?: string[] | null | undefined
   matchedSources?: string[] | null | undefined
 }) {
   const authoritySegmentId = normalizeText(input.authoritySegmentId)
-  if (!authoritySegmentId)
-    return null
-
-  const voiceSegmentId = resolveVoiceSummarySegmentId(input.voiceSummary)
-  if (voiceSegmentId)
-    return authoritySegmentId === voiceSegmentId
-
   const matchedDrivers = pushUnique(input.matchedDrivers ?? [])
-  if (matchedDrivers.includes('voice'))
+  if (matchedDrivers.includes('voice') && authoritySegmentId)
     return true
 
   const matchedSources = pushUnique(input.matchedSources ?? [])
-  if (matchedSources.includes('voice-segment'))
+  if (matchedSources.includes('voice-segment') && authoritySegmentId)
     return true
 
   return null
+}
+
+interface AuthoritySegmentTruth {
+  bodySegmentMatched?: boolean | null
+  faceSegmentMatched?: boolean | null
+  motionSegmentMatched?: boolean | null
+  lipsyncSegmentMatched?: boolean | null
+  voiceSegmentMatched?: boolean | null
+}
+
+function mergeMatchFlag(values: Array<boolean | null | undefined>) {
+  if (values.includes(true))
+    return true
+  if (values.includes(false))
+    return false
+  return null
+}
+
+function mergeAuthoritySegmentTruth(values: Array<AuthoritySegmentTruth | null | undefined>) {
+  const presentValues = values.filter((value): value is AuthoritySegmentTruth => Boolean(value))
+  if (presentValues.length === 0)
+    return null
+
+  return {
+    bodySegmentMatched: mergeMatchFlag(presentValues.map(value => value.bodySegmentMatched)),
+    faceSegmentMatched: mergeMatchFlag(presentValues.map(value => value.faceSegmentMatched)),
+    motionSegmentMatched: mergeMatchFlag(presentValues.map(value => value.motionSegmentMatched)),
+    lipsyncSegmentMatched: mergeMatchFlag(presentValues.map(value => value.lipsyncSegmentMatched)),
+    voiceSegmentMatched: mergeMatchFlag(presentValues.map(value => value.voiceSegmentMatched)),
+  }
 }
 
 function resolveAuthorityLaneSummary(input: {
@@ -291,6 +194,16 @@ function resolveRendererRejoinSurfaceKey(rendererTarget: 'live2d' | 'vrm' | 'spe
   return null
 }
 
+function normalizeContinuityDrivers(values: unknown[] | null | undefined) {
+  return (values ?? []).filter((driver): driver is 'body' | 'face' | 'motion' | 'lipsync' | 'voice' =>
+    driver === 'body'
+    || driver === 'face'
+    || driver === 'motion'
+    || driver === 'lipsync'
+    || driver === 'voice',
+  )
+}
+
 export function buildSelfEvolutionRendererAuthorityProjection(input: {
   embodimentOutputProjection?: SelfEvolutionEvidencePanelInput['embodimentOutputProjection']
   speechEmbodiment?: StageThreeRuntimeSpeechEmbodimentDiagnostics | null
@@ -304,18 +217,8 @@ export function buildSelfEvolutionRendererAuthorityProjection(input: {
   const playbackCue = speech?.playbackTelemetry?.cue ?? null
   const driverFaceCue = speech?.playbackTelemetry?.drivers?.face?.facialCue ?? speech?.driverSummary?.face?.cue ?? null
   const driverActionCue = speech?.playbackTelemetry?.drivers?.motion?.actionCue ?? speech?.driverSummary?.motion?.cue ?? null
-  const explicitSpeechRendererTarget = (
-    normalizeText(input.playbackCueAuthorityView?.authorityRendererTarget) === 'speech'
-    || normalizeText(extractSummaryField(input.playbackCueAuthorityView?.authorityBindingSummary, 'target')) === 'speech'
-    || normalizeText(extractSummaryField(input.playbackCueAuthorityView?.settleAuthoritySummary, 'target')) === 'speech'
-    || normalizeText(extractSummaryField(speech?.authoritySummary?.bindingSummary, 'target')) === 'speech'
-    || normalizeText(extractSummaryField(speech?.authoritySummary?.settleSummary, 'target')) === 'speech'
-  )
-    ? 'speech'
-    : null
-
-  const rendererTarget = explicitSpeechRendererTarget
-    ?? input.playbackCueAuthorityView?.authorityRendererTarget
+  const rendererTarget = input.playbackCueAuthorityView?.authorityRendererTarget
+    ?? speech?.authoritySummary?.rendererTarget
     ?? speech?.playbackTelemetry?.rendererTarget
     ?? speech?.driverSummary?.rendererTarget
     ?? null
@@ -354,68 +257,36 @@ export function buildSelfEvolutionRendererAuthorityProjection(input: {
   const authoritySummarySegmentId = normalizeText(speech?.authoritySummary?.segmentId)
   const authoritySummaryMatchesPlaybackCue = !authoritySummaryCueId || !playbackCueAuthorityCueId || authoritySummaryCueId === playbackCueAuthorityCueId
   const authoritySummaryMatchesPlaybackSegment = matchesScopedSegment(authoritySummarySegmentId, activePlaybackSegmentId)
-  const authoritySummaryTrustSummary = authoritySummaryMatchesPlaybackCue && authoritySummaryMatchesPlaybackSegment && structuredSummaryMatchesScopedSegment(
-    speech?.authoritySummary?.authorityTrustSummary,
-    activePlaybackSegmentId,
-  )
-    ? normalizeText(speech?.authoritySummary?.authorityTrustSummary)
-    : null
-  const authoritySummarySettleSummary = authoritySummaryMatchesPlaybackCue && authoritySummaryMatchesPlaybackSegment && structuredSummaryMatchesScopedSegment(
-    speech?.authoritySummary?.settleSummary,
-    activePlaybackSegmentId,
-  )
-    ? normalizeText(speech?.authoritySummary?.settleSummary)
-    : null
   const preferUpstreamAuthoritySummary = authoritySummaryMatchesPlaybackCue && authoritySummaryMatchesPlaybackSegment && Boolean(speech?.authoritySummary)
   const normalizedSpeechEvidenceProsodyAuthoritySummary = normalizeText(speech?.speechEvidence?.prosodyAuthoritySummary)
-  const speechEvidenceProsodySegmentId = extractStructuredSegmentId(normalizedSpeechEvidenceProsodyAuthoritySummary)
-  const scopedSpeechEvidenceProsodyAuthoritySummary = normalizedSpeechEvidenceProsodyAuthoritySummary && speechEvidenceProsodySegmentId && playbackCueId && speechEvidenceProsodySegmentId !== playbackCueId
-    ? null
-    : normalizedSpeechEvidenceProsodyAuthoritySummary
-  const voiceSummary = normalizeText(speech?.speechEvidence?.voiceSummary)
-    ?? normalizeText(speech?.articulationSummary?.voice)
   const authorityMatchSummary = preferUpstreamAuthoritySummary
     ? normalizeText(speech?.authoritySummary?.matchSummary)
     : normalizeText(input.playbackCueAuthorityView?.authorityMatchSummary)
-  const authorityBindingSummary = preferUpstreamAuthoritySummary
-    ? normalizeText((speech?.authoritySummary as { bindingSummary?: string | null } | null | undefined)?.bindingSummary)
-    : normalizeText(input.playbackCueAuthorityView?.authorityBindingSummary)
-  const settleAuthoritySummary = preferUpstreamAuthoritySummary
-    ? authoritySummarySettleSummary
-    : normalizeText(input.playbackCueAuthorityView?.settleAuthoritySummary)
-  const sameHerFrameSummary = normalizeText(input.vrmAuthorityView?.sameHerFrameSummary)
-  const rawSameHerFrameAligned = typeof input.vrmAuthorityView?.sameHerFrameAligned === 'boolean'
-    ? input.vrmAuthorityView.sameHerFrameAligned
+  const rawContinuityFrameAligned = typeof input.vrmAuthorityView?.continuityFrameAligned === 'boolean'
+    ? input.vrmAuthorityView.continuityFrameAligned
     : null
-  const rawSameHerFrameMismatchDrivers = pushUnique(input.vrmAuthorityView?.sameHerFrameMismatchDrivers ?? [])
-  const sameHerExecutionSummary = normalizeText(input.live2dAuthorityView?.sameHerExecutionSummary)
-  const rawSameHerExecutionAligned = typeof input.live2dAuthorityView?.sameHerExecutionAligned === 'boolean'
-    ? input.live2dAuthorityView.sameHerExecutionAligned
+  const rawContinuityFrameMismatchDrivers = pushUnique(input.vrmAuthorityView?.continuityFrameMismatchDrivers ?? [])
+  const rawContinuityExecutionAligned = typeof input.live2dAuthorityView?.continuityExecutionAligned === 'boolean'
+    ? input.live2dAuthorityView.continuityExecutionAligned
     : null
-  const rawSameHerExecutionMismatchDrivers = pushUnique(input.live2dAuthorityView?.sameHerExecutionMismatchDrivers ?? [])
-  const sameHerFrameBelongsToActiveSegment = resolveSameHerEvidenceBelongsToActiveSegment({
+  const rawContinuityExecutionMismatchDrivers = pushUnique(input.live2dAuthorityView?.continuityExecutionMismatchDrivers ?? [])
+  const continuityFrameBelongsToActiveSegment = resolveContinuityEvidenceBelongsToActiveSegment({
     activeSegmentId: activePlaybackSegmentId,
-    summary: sameHerFrameSummary,
     segmentIds: [
-      input.vrmAuthorityView?.sameHerFramePerformanceSegmentId,
-      input.vrmAuthorityView?.sameHerFrameSpeechSegmentId,
+      input.vrmAuthorityView?.continuityFramePerformanceSegmentId,
+      input.vrmAuthorityView?.continuityFrameSpeechSegmentId,
     ],
   })
-  const sameHerExecutionBelongsToActiveSegment = resolveSameHerEvidenceBelongsToActiveSegment({
+  const continuityExecutionBelongsToActiveSegment = resolveContinuityEvidenceBelongsToActiveSegment({
     activeSegmentId: activePlaybackSegmentId,
-    summary: sameHerExecutionSummary,
     segmentIds: [
-      input.live2dAuthorityView?.sameHerExecutionAuthoritySegmentId,
+      input.live2dAuthorityView?.continuityExecutionAuthoritySegmentId,
     ],
   })
-  const sameHerFrameAligned = sameHerFrameBelongsToActiveSegment ? rawSameHerFrameAligned : null
-  const sameHerFrameMismatchDrivers = sameHerFrameBelongsToActiveSegment ? rawSameHerFrameMismatchDrivers : []
-  const scopedSameHerFrameSummary = sameHerFrameBelongsToActiveSegment ? sameHerFrameSummary : null
-  const sameHerExecutionAligned = sameHerExecutionBelongsToActiveSegment ? rawSameHerExecutionAligned : null
-  const sameHerExecutionMismatchDrivers = sameHerExecutionBelongsToActiveSegment ? rawSameHerExecutionMismatchDrivers : []
-  const scopedSameHerExecutionSummary = sameHerExecutionBelongsToActiveSegment ? sameHerExecutionSummary : null
-  const remainingOpenAuthoritySummary = extractSummaryField(authorityBindingSummary, 'remaining-open')
-    ?? extractSummaryField(settleAuthoritySummary, 'remaining-open')
+  const continuityFrameAligned = continuityFrameBelongsToActiveSegment ? rawContinuityFrameAligned : null
+  const continuityFrameMismatchDrivers = continuityFrameBelongsToActiveSegment ? rawContinuityFrameMismatchDrivers : []
+  const continuityExecutionAligned = continuityExecutionBelongsToActiveSegment ? rawContinuityExecutionAligned : null
+  const continuityExecutionMismatchDrivers = continuityExecutionBelongsToActiveSegment ? rawContinuityExecutionMismatchDrivers : []
   const upstreamMatchedDrivers = preferUpstreamAuthoritySummary
     ? pushUnique(
       (speech?.authoritySummary?.matchedDrivers ?? [])
@@ -427,76 +298,70 @@ export function buildSelfEvolutionRendererAuthorityProjection(input: {
   const upstreamAuthorityMismatchSummary = preferUpstreamAuthoritySummary
     ? normalizeText(speech?.authoritySummary?.authorityMismatchSummary)
     : null
-  const upstreamAuthorityLaneTruth = preferUpstreamAuthoritySummary
-    ? resolveAuthorityLaneTruth({
-        matchSummary: authorityMatchSummary,
-        matchedDrivers: upstreamMatchedDrivers,
-        authorityMismatchSummary: upstreamAuthorityMismatchSummary,
-      })
-    : null
-  const authority = preferUpstreamAuthoritySummary
+  const upstreamAuthority = preferUpstreamAuthoritySummary
     ? {
-        bodySegmentMatched: upstreamAuthorityLaneTruth?.authority.bodySegmentMatched ?? null,
-        faceSegmentMatched: upstreamAuthorityLaneTruth?.authority.faceSegmentMatched ?? null,
-        motionSegmentMatched: upstreamAuthorityLaneTruth?.authority.motionSegmentMatched ?? null,
-        lipsyncSegmentMatched: upstreamAuthorityLaneTruth?.authority.lipsyncSegmentMatched ?? null,
+        bodySegmentMatched: upstreamMatchedDrivers.includes('body') ? true : null,
+        faceSegmentMatched: upstreamMatchedDrivers.includes('face') ? true : null,
+        motionSegmentMatched: upstreamMatchedDrivers.includes('motion') ? true : null,
+        lipsyncSegmentMatched: upstreamMatchedDrivers.includes('lipsync') ? true : null,
         voiceSegmentMatched: resolveVoiceSegmentMatched({
           authoritySegmentId: speech?.authoritySummary?.segmentId ?? speech?.authoritySummary?.cueId ?? null,
-          voiceSummary,
           matchedDrivers: upstreamMatchedDrivers,
           matchedSources: speech?.authoritySummary?.matchedSources ?? null,
         }),
       }
-    : input.playbackCueAuthorityView
-      ? {
-          bodySegmentMatched: input.playbackCueAuthorityView.bodySegmentMatched,
-          faceSegmentMatched: input.playbackCueAuthorityView.faceSegmentMatched,
-          motionSegmentMatched: input.playbackCueAuthorityView.motionSegmentMatched,
-          lipsyncSegmentMatched: input.playbackCueAuthorityView.lipsyncSegmentMatched,
-          voiceSegmentMatched: resolveVoiceSegmentMatched({
+    : null
+  const playbackAuthority = input.playbackCueAuthorityView
+    ? {
+        bodySegmentMatched: input.playbackCueAuthorityView.bodySegmentMatched,
+        faceSegmentMatched: input.playbackCueAuthorityView.faceSegmentMatched,
+        motionSegmentMatched: input.playbackCueAuthorityView.motionSegmentMatched,
+        lipsyncSegmentMatched: input.playbackCueAuthorityView.lipsyncSegmentMatched,
+        voiceSegmentMatched: input.playbackCueAuthorityView.voiceSegmentMatched
+          ?? resolveVoiceSegmentMatched({
             authoritySegmentId: input.playbackCueAuthorityView.authoritySegmentId ?? input.playbackCueAuthorityView.cueId ?? null,
-            voiceSummary,
             matchedDrivers: input.playbackCueAuthorityView.authorityMatchedDrivers,
             matchedSources: input.playbackCueAuthorityView.authoritySources,
           }),
-        }
-      : speech?.playbackTelemetry?.driverAuthority
-        ? {
-            bodySegmentMatched: speech.playbackTelemetry.driverAuthority.bodySegmentMatched,
-            faceSegmentMatched: speech.playbackTelemetry.driverAuthority.faceSegmentMatched,
-            motionSegmentMatched: speech.playbackTelemetry.driverAuthority.motionSegmentMatched,
-            lipsyncSegmentMatched: speech.playbackTelemetry.driverAuthority.lipsyncSegmentMatched,
-            voiceSegmentMatched: resolveVoiceSegmentMatched({
-              authoritySegmentId: speech.playbackTelemetry.driverAuthority.segmentId ?? null,
-              voiceSummary,
-              matchedDrivers: speech.playbackTelemetry.driverAuthority.matchedDrivers,
-              matchedSources: speech.playbackTelemetry.driverAuthority.matchedSources
-                ?? speech.playbackTelemetry.driverAuthority.sources
-                ?? null,
-            }),
-          }
-        : null
+      }
+    : null
+  const telemetryAuthority = speech?.playbackTelemetry?.driverAuthority
+    ? {
+        bodySegmentMatched: speech.playbackTelemetry.driverAuthority.bodySegmentMatched,
+        faceSegmentMatched: speech.playbackTelemetry.driverAuthority.faceSegmentMatched,
+        motionSegmentMatched: speech.playbackTelemetry.driverAuthority.motionSegmentMatched,
+        lipsyncSegmentMatched: speech.playbackTelemetry.driverAuthority.lipsyncSegmentMatched,
+        voiceSegmentMatched: speech.playbackTelemetry.driverAuthority.voiceSegmentMatched
+          ?? resolveVoiceSegmentMatched({
+            authoritySegmentId: speech.playbackTelemetry.driverAuthority.segmentId ?? null,
+            matchedDrivers: speech.playbackTelemetry.driverAuthority.matchedDrivers,
+            matchedSources: speech.playbackTelemetry.driverAuthority.matchedSources
+              ?? speech.playbackTelemetry.driverAuthority.sources
+              ?? null,
+          }),
+      }
+    : null
+  const authority = mergeAuthoritySegmentTruth([upstreamAuthority, playbackAuthority, telemetryAuthority])
+  const authorityMatchedDrivers = pushUnique([
+    ...upstreamMatchedDrivers,
+    ...(input.playbackCueAuthorityView?.authorityMatchedDrivers ?? []),
+    ...(speech?.playbackTelemetry?.driverAuthority?.matchedDrivers ?? []),
+  ]) as Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
+  const authoritySources = pushUnique([
+    ...(preferUpstreamAuthoritySummary ? speech?.authoritySummary?.matchedSources ?? [] : []),
+    ...(input.playbackCueAuthorityView?.authoritySources ?? []),
+    ...(speech?.playbackTelemetry?.driverAuthority?.matchedSources ?? []),
+    ...(speech?.playbackTelemetry?.driverAuthority?.sources ?? []),
+  ])
   const authorityLaneSummary = resolveAuthorityLaneSummary(authority ?? undefined)
   const bodyContinuityPhase = resolveSelfEvolutionRuntimeBodyContinuityPhase({
     cueId: playbackCueId,
     authoritySegmentId: activePlaybackSegmentId,
     authorityRendererTarget: rendererTarget,
-    authorityMatchedDrivers: (
-      preferUpstreamAuthoritySummary
-        ? upstreamMatchedDrivers
-        : input.playbackCueAuthorityView?.authorityMatchedDrivers
-    ) ?? [],
-    authoritySources: (
-      preferUpstreamAuthoritySummary
-        ? speech?.authoritySummary?.matchedSources
-        : input.playbackCueAuthorityView?.authoritySources
-    ) ?? [],
-    authorityTrustSummary: preferUpstreamAuthoritySummary
-      ? authoritySummaryTrustSummary
-      : normalizeText(input.playbackCueAuthorityView?.authorityTrustSummary),
-    prosodyAuthoritySummary: preferUpstreamAuthoritySummary
-      ? scopedSpeechEvidenceProsodyAuthoritySummary
-      : null,
+    authorityMatchedDrivers,
+    authoritySources,
+    authorityTrustSummary: null,
+    prosodyAuthoritySummary: null,
     traceEmbodimentSummary: null,
     residentMode: null,
     preferredBlinkCadence: null,
@@ -506,14 +371,26 @@ export function buildSelfEvolutionRendererAuthorityProjection(input: {
     motionSegmentMatched: authority?.motionSegmentMatched ?? null,
     lipsyncSegmentMatched: authority?.lipsyncSegmentMatched ?? null,
     voiceSegmentMatched: authority?.voiceSegmentMatched ?? null,
-    sameHerFramePerformanceSegmentId: sameHerFrameBelongsToActiveSegment ? normalizeText(input.vrmAuthorityView?.sameHerFramePerformanceSegmentId) : null,
-    sameHerFrameSpeechSegmentId: sameHerFrameBelongsToActiveSegment ? normalizeText(input.vrmAuthorityView?.sameHerFrameSpeechSegmentId) : null,
-    sameHerFrameSummary: scopedSameHerFrameSummary,
-    sameHerExecutionAuthoritySegmentId: sameHerExecutionBelongsToActiveSegment ? normalizeText(input.live2dAuthorityView?.sameHerExecutionAuthoritySegmentId) : null,
-    sameHerExecutionSummary: scopedSameHerExecutionSummary,
-    authorityBindingSummary,
-    authorityMatchSummary,
-    settleAuthoritySummary,
+    continuityFrameActiveDrivers: continuityFrameBelongsToActiveSegment
+      ? normalizeContinuityDrivers(input.vrmAuthorityView?.continuityFrameActiveDrivers)
+      : [],
+    continuityFrameMismatchDrivers: continuityFrameBelongsToActiveSegment
+      ? normalizeContinuityDrivers(input.vrmAuthorityView?.continuityFrameMismatchDrivers)
+      : [],
+    continuityFramePerformanceSegmentId: continuityFrameBelongsToActiveSegment ? normalizeText(input.vrmAuthorityView?.continuityFramePerformanceSegmentId) : null,
+    continuityFrameSpeechSegmentId: continuityFrameBelongsToActiveSegment ? normalizeText(input.vrmAuthorityView?.continuityFrameSpeechSegmentId) : null,
+    continuityFrameSummary: null,
+    continuityExecutionActiveDrivers: continuityExecutionBelongsToActiveSegment
+      ? normalizeContinuityDrivers(input.live2dAuthorityView?.continuityExecutionActiveDrivers)
+      : [],
+    continuityExecutionMismatchDrivers: continuityExecutionBelongsToActiveSegment
+      ? normalizeContinuityDrivers(input.live2dAuthorityView?.continuityExecutionMismatchDrivers)
+      : [],
+    continuityExecutionAuthoritySegmentId: continuityExecutionBelongsToActiveSegment ? normalizeText(input.live2dAuthorityView?.continuityExecutionAuthoritySegmentId) : null,
+    continuityExecutionSummary: null,
+    authorityBindingSummary: null,
+    authorityMatchSummary: null,
+    settleAuthoritySummary: null,
   })
   const rendererRejoinSurfaceKey = (
     bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
@@ -586,31 +463,9 @@ export function buildSelfEvolutionRendererAuthorityProjection(input: {
       authorityMismatchReasonSummary,
     })
   const rendererDriftSummary = resolveRendererDriftSummary(speech)
-  const normalizedPlaybackTelemetryProsodyAuthoritySummary = normalizeText(
-    (speech as { playbackTelemetry?: { prosodyAuthority?: { summary?: string | null } | null } | null } | null | undefined)?.playbackTelemetry?.prosodyAuthority?.summary,
-  )
-  const playbackTelemetryProsodyAuthoritySummarySegmentId = extractStructuredSegmentId(
-    normalizedPlaybackTelemetryProsodyAuthoritySummary,
-  )
-  const scopedPlaybackTelemetryProsodyAuthoritySummary = normalizedPlaybackTelemetryProsodyAuthoritySummary
-    && playbackTelemetryProsodyAuthoritySummarySegmentId
-    && resolvedProsodyAuthority?.segmentId
-    && playbackTelemetryProsodyAuthoritySummarySegmentId !== resolvedProsodyAuthority.segmentId
-    ? null
-    : normalizedPlaybackTelemetryProsodyAuthoritySummary
-  const prosodyAuthoritySummary = scopedSpeechEvidenceProsodyAuthoritySummary
-    ?? scopedPlaybackTelemetryProsodyAuthoritySummary
-    ?? formatResolvedProsodyAuthoritySummary(resolvedProsodyAuthority)
-  const prosodyAuthorityReason = summarizeProsodyAuthority(prosodyAuthoritySummary)
-  const companionshipReasonSummary = extractSettleReasonSummary(
-    preferUpstreamAuthoritySummary
-      ? authoritySummarySettleSummary
-      : normalizeText(input.playbackCueAuthorityView?.settleAuthoritySummary),
-  ) ?? extractThinAffectiveAuthorityTrustReason(
-    preferUpstreamAuthoritySummary
-      ? authoritySummaryTrustSummary
-      : normalizeText(input.playbackCueAuthorityView?.authorityTrustSummary),
-  ) ?? resolveAlicizationCompanionshipReasonSummary({
+  const prosodyAuthoritySummary = formatResolvedProsodyAuthoritySummary(resolvedProsodyAuthority)
+    ?? normalizedSpeechEvidenceProsodyAuthoritySummary
+  const companionshipReasonSummary = resolveAlicizationCompanionshipReasonSummary({
     residentMode: normalizeText(input.playbackCueAuthorityView?.residentMode)
       ?? normalizeText(runtimeDynamics?.provenance?.continuityMode),
   })
@@ -632,9 +487,8 @@ export function buildSelfEvolutionRendererAuthorityProjection(input: {
     authority?.lipsyncSegmentMatched === true ? 'authority-lipsync:yes' : null,
     authority?.voiceSegmentMatched === true ? 'authority-voice:yes' : null,
     authorityLaneSummary,
-    remainingOpenAuthoritySummary ? `remaining-open=${remainingOpenAuthoritySummary}` : null,
-    sameHerFrameAligned === true ? 'identity-continuity-frame:aligned' : null,
-    sameHerExecutionAligned === true ? 'identity-continuity-execution:aligned' : null,
+    continuityFrameAligned === true ? 'continuity-frame:aligned' : null,
+    continuityExecutionAligned === true ? 'continuity-execution:aligned' : null,
   ])
 
   const missingSignals = pushUnique([
@@ -667,19 +521,17 @@ export function buildSelfEvolutionRendererAuthorityProjection(input: {
     authority?.motionSegmentMatched === false ? 'authority-motion:no' : null,
     authority?.lipsyncSegmentMatched === false ? 'authority-lipsync:no' : null,
     authority?.voiceSegmentMatched === false ? 'authority-voice:no' : null,
-    ...(sameHerFrameAligned === false
-      ? sameHerFrameMismatchDrivers.length > 0
-        ? sameHerFrameMismatchDrivers.map(driver => `identity-continuity-frame:${driver}`)
-        : ['identity-continuity-frame:drift']
+    ...(continuityFrameAligned === false
+      ? continuityFrameMismatchDrivers.length > 0
+        ? continuityFrameMismatchDrivers.map(driver => `continuity-frame:${driver}`)
+        : ['continuity-frame:drift']
       : []),
-    ...(sameHerExecutionAligned === false
-      ? sameHerExecutionMismatchDrivers.length > 0
-        ? sameHerExecutionMismatchDrivers.map(driver => `identity-continuity-execution:${driver}`)
-        : ['identity-continuity-execution:drift']
+    ...(continuityExecutionAligned === false
+      ? continuityExecutionMismatchDrivers.length > 0
+        ? continuityExecutionMismatchDrivers.map(driver => `continuity-execution:${driver}`)
+        : ['continuity-execution:drift']
       : []),
     rendererDriftSummary ? `renderer-drift:${rendererDriftSummary}` : null,
-    sameHerFrameAligned === false && scopedSameHerFrameSummary ? `renderer-drift:${scopedSameHerFrameSummary}` : null,
-    sameHerExecutionAligned === false && scopedSameHerExecutionSummary ? `renderer-drift:${scopedSameHerExecutionSummary}` : null,
     authorityMismatchDisplay ? `authority-mismatch:${authorityMismatchDisplay}` : null,
   ])
 
@@ -720,7 +572,7 @@ export function buildSelfEvolutionRendererAuthorityProjection(input: {
         ? `Playback cue and driver execution both still consume ${playbackCueFacialCue ?? normalizeText(driverFaceCue) ?? 'n/a'} and ${playbackCueActionCue ?? normalizeText(driverActionCue) ?? 'n/a'}, so the visible face and action are the same ones projected by the resident line.`
         : null,
       embodiment
-        ? 'Resident projection is still carrying one continuous manifestation line into renderer authority, so the visible embodiment remains downstream of persona-guided private thought rather than a detached renderer-only posture.'
+        ? 'resident-projection:typed-embodiment-output'
         : null,
       authorityMatchSummary && rendererTarget
         ? `Authority matching remains ${authorityMatchSummary} on ${rendererTarget}, which shows the bound renderer segment is the one the desktop runtime actually executed.`
@@ -729,26 +581,19 @@ export function buildSelfEvolutionRendererAuthorityProjection(input: {
         ? 'Body continuity is still the only lane carrying this same living segment, so the current embodiment should be read as identity continuity being held inward rather than as a renderer-neutral idle settle.'
         : null,
       bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
-        ? `Body continuity is still carrying the same living segment while ${formatRendererManifestationLabel(rendererTarget)} rejoins that exact line, so the visible renderer recovery is a identity-continuity manifestation repair instead of a fresh shell takeover.`
+        ? `Body continuity is still carrying the same living segment while ${formatRendererManifestationLabel(rendererTarget)} rejoins that exact line, so the visible renderer recovery is a continuity manifestation repair instead of a fresh shell takeover.`
         : null,
       bodyContinuityPhase === 'full-cross-modal-lock'
-        ? `Body continuity and ${formatRendererManifestationLabel(rendererTarget)} are now locked back onto the same living segment together, so voice, face, motion, and lipsync are re-forming one explicit identity-continuity embodiment line instead of merely approximating it.`
+        ? `Body continuity and ${formatRendererManifestationLabel(rendererTarget)} are now locked back onto the same living segment together, so voice, face, motion, and lipsync are re-forming one explicit continuity embodiment line instead of merely approximating it.`
         : null,
       bodyContinuityPhase === 'renderer-rejoin-without-body'
-        ? `Renderer lanes have rejoined on ${formatRendererManifestationLabel(rendererTarget)}, but the body line is no longer carrying that same living segment, so the visible recovery should still be treated as identity-continuity drift risk rather than a completed embodiment repair.`
+        ? `Renderer lanes have rejoined on ${formatRendererManifestationLabel(rendererTarget)}, but the body line is no longer carrying that same living segment, so the visible recovery should still be treated as continuity drift risk rather than a completed embodiment repair.`
         : null,
       companionshipReasonSummary
         ? `Companionship restraint is still carrying "${companionshipReasonSummary}", so renderer authority is preserving the same lower-pressure relationship line instead of flattening the body back into a generic technical settle.`
         : null,
-      prosodyAuthorityReason,
       rendererDriftSummary
         ? `Renderer drift still shows ${rendererDriftSummary}, so the visible face is diverging after mind-to-render projection rather than before it.`
-        : null,
-      sameHerFrameAligned === false && scopedSameHerFrameSummary
-        ? `VRM identity-continuity frame evidence reports ${scopedSameHerFrameSummary}, so self-evolution should treat this as an embodiment lane drift inside the same digital-life thread rather than a separate renderer personality.`
-        : null,
-      sameHerExecutionAligned === false && scopedSameHerExecutionSummary
-        ? `Live2D identity-continuity execution evidence reports ${scopedSameHerExecutionSummary}, so self-evolution should treat this as an execution-lane drift inside the same digital-life thread rather than a separate Live2D shell personality.`
         : null,
       authorityMismatchDisplay,
     ]),

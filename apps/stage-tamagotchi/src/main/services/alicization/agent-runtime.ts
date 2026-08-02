@@ -22,7 +22,6 @@ type AlicizationAgentTaskKind = 'executor' | 'mcp' | 'runtime' | 'sensory'
 type AlicizationAgentTaskStatus = 'completed' | 'failed' | 'pending'
 export type AlicizationAgentContinuityKind = 'dialogue' | 'execution-callback' | 'presence' | 'proactive' | 'reminder' | 'runtime'
 export type AlicizationAgentContinuityState = 'fresh' | 'observed' | 'pending'
-type AlicizationExecutionProjectBriefingInput = NonNullable<Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['projectBriefing']>
 
 export interface AlicizationAgentSessionActionInput {
   finishedAt?: number | null
@@ -109,7 +108,6 @@ export interface AlicizationAgentTurnRuntime {
       affectiveResidue?: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['affectiveResidue']
       derivedMindStateBundle?: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['derivedMindStateBundle']
       memoryClosureTrace?: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['memoryClosureTrace']
-      projectBriefing?: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['projectBriefing']
       sensorySnapshot?: AlicizationSensoryCacheSnapshot
     },
   ) => Promise<AlicizationExecutionRuntimeContext>
@@ -298,11 +296,6 @@ function selectRecentTasksForExecutionContext(tasks: AlicizationAgentTaskRecord[
     .sort((left, right) => left.startedAt - right.startedAt)
 }
 
-function sanitizeContinuityFactSlug(raw: unknown, maxChars = 64) {
-  const value = sanitizeText(raw, maxChars)
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(value) ? value : null
-}
-
 function isDeferredAutonomyContinuitySignal(
   signal: Pick<AlicizationAgentContinuityRecord, 'kind' | 'label' | 'metadata'>,
 ) {
@@ -384,58 +377,6 @@ function cloneDigitalLifeSpine(
   spine: AlicizationDigitalLifeSpineSnapshot | null,
 ): AlicizationDigitalLifeSpineSnapshot | null {
   return spine ? structuredClone(spine) : null
-}
-
-function normalizeAgentExecutionEnum<T extends string>(
-  raw: unknown,
-  values: readonly T[],
-): T | null {
-  const value = sanitizeText(raw, 64)
-  return values.includes(value as T) ? value as T : null
-}
-
-function resolveAgentExecutionFactBriefing(
-  session: AlicizationAgentSessionRecord,
-): AlicizationExecutionProjectBriefingInput | null {
-  const runtimeSurface = session.digitalLifeSpine?.runtimeSurface ?? null
-  if (!runtimeSurface)
-    return null
-
-  const rawProjectState = asRecord(asRecord(asRecord(runtimeSurface.raw)?.runtimeDigest)?.projectState)
-  const cognitionProjectState = asRecord(asRecord(asRecord(runtimeSurface.cognition)?.runtimeDigest)?.projectState)
-  const dialogueProjectState = asRecord(asRecord(asRecord(runtimeSurface.dialogue)?.runtimeDigest)?.projectState)
-  const currentConsciousProjectState = asRecord(asRecord(asRecord(runtimeSurface.dialogue)?.currentConsciousFrame)?.projectState)
-  const source = {
-    ...rawProjectState,
-    ...cognitionProjectState,
-    ...dialogueProjectState,
-    ...currentConsciousProjectState,
-  }
-  const briefing = {
-    continuityArcStage: sanitizeContinuityFactSlug(source.continuityArcStage, 120),
-    continuityRestraint: normalizeAgentExecutionEnum(source.continuityRestraint, [
-      'lower-pressure',
-      'measured-return',
-      'repair-before-closeness',
-      'rest-protective',
-      'single-thread',
-    ] as const),
-    continuityPreferredTiming: normalizeAgentExecutionEnum(source.continuityPreferredTiming, [
-      'internal-only',
-      'after-payoff',
-      'same-turn-if-invited',
-      'next-open-window',
-    ] as const),
-    continuityCadence: sanitizeContinuityFactSlug(source.continuityCadence, 120),
-    preferredBlinkCadence: normalizeAgentExecutionEnum(source.preferredBlinkCadence, ['normal', 'linger', 'quiet'] as const),
-    preferredGazeMode: normalizeAgentExecutionEnum(source.preferredGazeMode, ['steady', 'soften', 'drift'] as const),
-    preferredPauseMode: normalizeAgentExecutionEnum(source.preferredPauseMode, ['longer', 'natural'] as const),
-    preferredLipsyncMode: normalizeAgentExecutionEnum(source.preferredLipsyncMode, ['restrained', 'matched'] as const),
-    preferredVoiceMode: normalizeAgentExecutionEnum(source.preferredVoiceMode, ['lower-pressure', 'even'] as const),
-    preferredPacingMode: normalizeAgentExecutionEnum(source.preferredPacingMode, ['slower', 'natural'] as const),
-  } satisfies AlicizationExecutionProjectBriefingInput
-
-  return Object.values(briefing).some(Boolean) ? briefing : null
 }
 
 export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRuntimeOptions) {
@@ -694,7 +635,6 @@ export function createAlicizationAgentRuntime(options: CreateAlicizationAgentRun
         derivedMindStateBundle: identity?.derivedMindStateBundle ?? null,
         memoryClosureTrace: identity?.memoryClosureTrace ?? null,
         sessionId: sanitizeText(identity?.sessionId, 160) || conversationSessionId,
-        projectBriefing: identity?.projectBriefing ?? resolveAgentExecutionFactBriefing(session),
         recentActions: recentTasks.map(toExecutionActionDigest),
         sensorySnapshot,
       })

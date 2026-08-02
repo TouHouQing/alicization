@@ -138,8 +138,8 @@ describe('runtime dream', () => {
         listConversationTurnsSince: vi.fn(async () => [{
           turnId: 'turn-dream-runtime-1',
           sessionId: 'session-dream-runtime',
-          userText: '继续把这条数字生命主线记稳一点。',
-          assistantText: '我会沿着同一个她的线继续记住。',
+          userText: '继续把这轮书桌约定记稳一点。',
+          assistantText: '我会把这轮约定继续记住。',
           structuredJson: JSON.stringify({ emotion: 'thinking' }),
           createdAt: 1_700_000_000_000,
         }]),
@@ -169,8 +169,8 @@ describe('runtime dream', () => {
       getSoulSnapshot: () => ({
         content: '',
         frontmatter: {
-          host_attitude: '继续沿着同一个她的线慢慢收口。',
-          core_incarnation: 'One local-first digital life still growing into one identity-continuity',
+          host_attitude: '继续沿着这轮约定慢慢收口。',
+          core_incarnation: 'A local companion profile still growing through remembered evidence',
           personality: {
             obedience: 0.5,
             liveliness: 0.5,
@@ -181,8 +181,8 @@ describe('runtime dream', () => {
       bootstrap: vi.fn(async () => ({
         content: '',
         frontmatter: {
-          host_attitude: '继续沿着同一个她的线慢慢收口。',
-          core_incarnation: 'One local-first digital life still growing into one identity-continuity',
+          host_attitude: '继续沿着这轮约定慢慢收口。',
+          core_incarnation: 'A local companion profile still growing through remembered evidence',
           personality: {
             obedience: 0.5,
             liveliness: 0.5,
@@ -200,13 +200,13 @@ describe('runtime dream', () => {
         }),
       }) as any),
       generateDreamMetabolismWithGateway: vi.fn(async () => ({
-        host_attitude: '继续沿着同一个她的线慢慢收口。',
+        host_attitude: '继续沿着这轮约定慢慢收口。',
         soul_shift: {
           obedience_delta: 0,
           liveliness_delta: 0,
           sensibility_delta: 0,
         },
-        next_active_thoughts: [{ text: 'Keep the continuity state explicit across dream memory.' }],
+        next_active_thoughts: [{ text: 'Keep remembered evidence explicit across dream memory.' }],
         explicit_demoted_thoughts: [],
         new_sediment_fragments: [],
         shattering_event: null,

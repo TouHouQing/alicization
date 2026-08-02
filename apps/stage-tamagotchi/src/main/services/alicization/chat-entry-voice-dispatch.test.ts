@@ -16,7 +16,7 @@ function createMockChatProvider(): ChatProvider {
 }
 
 function expectMemoryOwnedVoiceDispatch(ingest: ReturnType<typeof vi.fn>, origin?: string) {
-  expect(ingest).toHaveBeenCalledWith('继续沿着这条数字生命主线推进', expect.objectContaining({
+  expect(ingest).toHaveBeenCalledWith('继续把这轮记忆测试推进', expect.objectContaining({
     providerId: 'mock-provider',
     model: 'mock-model',
     chatProvider: expect.objectContaining({
@@ -25,8 +25,6 @@ function expectMemoryOwnedVoiceDispatch(ingest: ReturnType<typeof vi.fn>, origin
     providerConfig: { apiKey: 'test-key' },
     ...(origin ? { origin } : {}),
   }))
-
-  expect(ingest.mock.calls[0]?.[1]).not.toHaveProperty('preDialogueSendIdentity')
 }
 
 describe('chat entry voice dispatch', () => {
@@ -34,7 +32,7 @@ describe('chat entry voice dispatch', () => {
     const ingest = vi.fn(async () => undefined)
 
     await dispatchDesktopVoiceTurn({
-      text: '继续沿着这条数字生命主线推进',
+      text: '继续把这轮记忆测试推进',
       providerId: 'mock-provider',
       model: 'mock-model',
       chatProvider: createMockChatProvider(),
@@ -50,7 +48,7 @@ describe('chat entry voice dispatch', () => {
     const ingest = vi.fn(async () => undefined)
 
     await dispatchWebVoiceTurn({
-      text: '继续沿着这条数字生命主线推进',
+      text: '继续把这轮记忆测试推进',
       providerId: 'mock-provider',
       model: 'mock-model',
       chatProvider: createMockChatProvider(),
@@ -65,7 +63,7 @@ describe('chat entry voice dispatch', () => {
     const ingest = vi.fn(async () => undefined)
 
     await dispatchPocketVoiceTurn({
-      text: '继续沿着这条数字生命主线推进',
+      text: '继续把这轮记忆测试推进',
       providerId: 'mock-provider',
       model: 'mock-model',
       chatProvider: createMockChatProvider(),

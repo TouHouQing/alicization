@@ -33,7 +33,6 @@ export interface PerformanceVisualizerExecutionTelemetrySummaryEntry {
     | 'resident-presence'
     | 'resident-selected-action'
     | 'resident-persona-bias'
-    | 'resident-opening-guidance'
     | 'resident-scene'
     | 'resident-transition'
     | 'resident-rationale-tags'
@@ -442,8 +441,6 @@ export function buildResidentRuntimeTelemetrySummaryEntries(
     pushSummaryEntry(entries, { key: 'resident-selected-action', label: '已选动作', value: provenance.selectedAction! })
   if (hasValue(provenance?.personaBiasSummary))
     pushSummaryEntry(entries, { key: 'resident-persona-bias', label: '人设偏压', value: provenance.personaBiasSummary! })
-  if (hasValue(provenance?.personaOpeningGuidance))
-    pushSummaryEntry(entries, { key: 'resident-opening-guidance', label: '开场指导', value: provenance.personaOpeningGuidance! })
   if (hasValue(provenance?.scenario) || hasValue(provenance?.scene)) {
     const technicalValue = `${provenance?.scenario ?? 'n/a'} / ${provenance?.scene ?? 'n/a'}`
     pushSummaryEntry(entries, {

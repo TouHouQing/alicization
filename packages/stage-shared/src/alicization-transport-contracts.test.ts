@@ -30,7 +30,6 @@ describe('alicization transport contracts', () => {
       providerMindExecuted: true,
       mode: 'provider-stream',
       visibleText: 'Provider 原样回答。',
-      projectStateAudit: null,
     } satisfies AlicizationVisibleReplyRealizationTransportArtifact
     const fullText = JSON.stringify({
       format: 'mind-turn-v1',
@@ -66,15 +65,7 @@ describe('alicization transport contracts', () => {
     expect(event.visibleReplyRealization).toBe(visibleReplyRealization)
   })
 
-  it('keeps shared dialogue structured project-state payloads explicitly legacy-aware for latestProgress-based continuity carry', () => {
-    const source = readFileSync(new URL('./alicization-transport-contracts.ts', import.meta.url), 'utf8')
-    const structuredPayloadSection = source.split('export interface AlicizationDialogueStructuredPayload')[1]?.split('preDialogueClosure?:')[0] ?? ''
-
-    expect(structuredPayloadSection).toContain('projectState?: {')
-    expect(structuredPayloadSection).toContain('latestProgress?: string | null')
-  })
-
-  it('preserves persona bias through digital-life spine normalization so embodiment and speech keep one person-state rhythm', () => {
+  it('preserves non-governance persona bias through digital-life spine normalization', () => {
     const digest = normalizeAlicizationDigitalLifeSpineDigest({
       version: 'digital-life-spine-digest-v1',
       runtime: {
@@ -88,9 +79,6 @@ describe('alicization transport contracts', () => {
         answerIntent: 'continue from compact person-memory authority',
         preferredPresence: 'attentive',
         selectedAction: 'hover',
-        continuityArcStage: 'same-thread-continuation',
-        continuityPreferredTiming: 'next-open-window',
-        continuityCue: 'capsule keeps memory, personality, voice, and motion on one line',
         updatedAt: 123,
       },
       architecture: null,
@@ -98,12 +86,11 @@ describe('alicization transport contracts', () => {
       proactive: {
         selectedAction: 'hover',
         preferredStyle: 'silent-observe',
-        continuityRestraint: 'lower-pressure',
         confidence: 0.72,
         shouldSpeak: false,
         activeThreadId: 'thread-person-memory-capsule',
         activeThreadTitle: 'Person memory capsule',
-        dominantConcernKind: 'same-her-carry',
+        dominantConcernKind: 'person-memory-carry',
         dominantConcernSummary: 'do not split memory and body rhythms',
         leadingGoalId: 'goal-person-memory',
         leadingGoalSummary: 'carry compact memory/personality authority',
@@ -114,8 +101,6 @@ describe('alicization transport contracts', () => {
           silenceReconnect: 'hold',
           comfortStyle: 'quiet-presence',
           preferredProactiveStyle: 'silent-observe',
-          manifestationCadenceSummary: 'Observe first and keep the body and voice lower-pressure.',
-          openingGuidance: 'Open from the selected memory only if it serves the current reply.',
           whySummary: 'short-context capsule should drive the same rhythm across modules.',
         },
       },
@@ -134,7 +119,6 @@ describe('alicization transport contracts', () => {
           selectedAction: 'hover',
           preferredStyle: 'silent-observe',
           preferredPresence: 'nearby',
-          continuityRestraint: 'lower-pressure',
           confidence: 0.72,
           shouldSpeak: false,
           speakDrive: 0.24,
@@ -146,8 +130,6 @@ describe('alicization transport contracts', () => {
             silenceReconnect: 'hold',
             comfortStyle: 'quiet-presence',
             preferredProactiveStyle: 'silent-observe',
-            manifestationCadenceSummary: 'Observe first and keep the body and voice lower-pressure.',
-            openingGuidance: 'Open from the selected memory only if it serves the current reply.',
             whySummary: 'short-context capsule should drive the same rhythm across modules.',
           },
         },
@@ -169,334 +151,143 @@ describe('alicization transport contracts', () => {
     })
 
     expect(digest?.proactive?.personaBias?.preferredProactiveStyle).toBe('silent-observe')
-    expect(digest?.proactive?.personaBias?.manifestationCadenceSummary).toContain('body and voice lower-pressure')
-    expect(digest?.embodiment?.initiative?.personaBias?.openingGuidance).toContain('selected memory')
+    expect(digest?.proactive?.personaBias?.whySummary).toContain('same rhythm')
+    expect(digest?.embodiment?.initiative?.personaBias?.comfortStyle).toBe('quiet-presence')
     expect(digest?.memory?.summary).toContain('capsule=Prioritize memory and personality self-learning')
   })
 
-  it('normalizes project-state and pre-dialogue-closure fields from shared structured payloads', () => {
+  it('drops unknown sidecars while preserving reply, emotion, and embodiment transport facts', () => {
     const bundle = normalizeAlicizationDerivedMindStateBundle({
       version: 'derived-mind-state-bundle-v1',
       source: 'main-runtime',
       producedAt: 123,
       summary: 'runtime facts',
       structured: {
-        thought: 'keep current facts available before the visible reply',
+        thought: 'Use the available memory evidence to answer.',
         emotion: 'thinking',
-        reply: '我先按当前状态来回答。',
-        projectState: {
-          identity: '  Alicization  ',
-          currentPhase: ' local-runtime ',
-          preflightSummary: '  runtime status is available before the reply.  ',
-          preDialogueAwarenessLine: '  runtime awareness ',
-          latestLandedProgress: ' current facts enter the main dialogue path ',
-          primaryOpenLoop: ' verify memory recall ',
-          nextClosureTarget: ' stabilize shared structured transport ',
-          sameHerSelfLine: ' keep the current self description available ',
-          sameHerHoldDetail: ' quiet return ',
-          sameHerDriftRisk: '  visible replies still require validation  ',
-          companionBriefingLine: ' keep current context in view ',
-          emotionalClosureSummary: ' emotional closure is still settling, so the response should keep the return gentle and continuous ',
-          continuityRestraint: ' rest-protective ',
-          continuityArcStage: ' return-side-follow-through ',
-          continuityCue: ' closure remains bounded ',
-          continuityPreferredTiming: ' next-open-window ',
-          continuityCadence: ' measured-return ',
-          preferredBlinkCadence: ' quiet ',
-          preferredGazeMode: ' soften ',
-          preferredVoiceMode: ' lower-pressure ',
-          preferredPacingMode: ' slower ',
+        reply: '我记得你说过周六上午出发。',
+        unknownSidecar: {
+          instruction: 'unrecognized response directive',
         },
-        preDialogueClosure: {
-          status: ' drift ',
-          summaryLine: ' closure still open before outward reply ',
-          companionHeadlineLine: ' face and motion status is available ',
-          companionBriefingLine: ' remember the current context ',
-          companionNextClosureLine: ' keep the next reply grounded ',
-          briefingLines: [' landed: current facts ', '', ' open: memory recall'],
-          reasons: [' current reply path still needs stronger closure carry ', ' '],
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: 'focused',
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0.4,
         },
       },
     })
-
-    expect(bundle?.structured?.projectState).toEqual({
-      identity: 'Alicization',
-      currentPhase: 'local-runtime',
-      preflightSummary: 'runtime status is available before the reply.',
-      preDialogueAwarenessLine: 'runtime awareness',
-      latestLandedProgress: 'current facts enter the main dialogue path',
-      primaryOpenLoop: 'verify memory recall',
-      nextClosureTarget: 'stabilize shared structured transport',
-      sameHerSelfLine: 'keep the current self description available',
-      sameHerHoldDetail: 'quiet return',
-      sameHerDriftRisk: 'visible replies still require validation',
-      companionBriefingLine: 'keep current context in view',
-      emotionalClosureCue: null,
-      emotionalClosureSummary: 'emotional closure is still settling, so the response should keep the return gentle and continuous',
-      continuityRestraint: 'rest-protective',
-      continuityArcStage: 'return-side-follow-through',
-      continuityCue: 'closure remains bounded',
-      continuityPreferredTiming: 'next-open-window',
-      continuityCadence: 'measured-return',
-      preferredBlinkCadence: 'quiet',
-      preferredGazeMode: 'soften',
-      preferredPauseMode: null,
-      preferredLipsyncMode: null,
-      preferredVoiceMode: 'lower-pressure',
-      preferredPacingMode: 'slower',
-    })
-    expect(bundle?.structured?.preDialogueClosure).toEqual({
-      status: 'drift',
-      summaryLine: 'closure still open before outward reply',
-      companionHeadlineLine: 'face and motion status is available',
-      companionBriefingLine: 'remember the current context',
-      companionNextClosureLine: 'keep the next reply grounded',
-      briefingLines: [
-        'landed: current facts',
-        'open: memory recall',
-      ],
-      reasons: [
-        'current reply path still needs stronger closure carry',
-      ],
-    })
-  })
-
-  it('drops placeholder-filled project-state and pre-dialogue shells from shared structured payloads so downstream entrypoints rebuild canonical project awareness', () => {
-    const bundle = normalizeAlicizationDerivedMindStateBundle({
-      version: 'derived-mind-state-bundle-v1',
-      source: 'main-runtime',
-      producedAt: 124,
-      summary: 'placeholder project awareness shell',
-      structured: {
-        thought: 'keep project awareness canonical before the reply continues',
-        emotion: 'thinking',
-        reply: '我会先让真正的项目认知回到回答前面。',
-        projectState: {
-          identity: ' none ',
-          currentPhase: ' unknown ',
-          preflightSummary: ' n/a ',
-          preDialogueAwarenessLine: ' na ',
-          latestLandedProgress: ' null ',
-          primaryOpenLoop: ' none ',
-          nextClosureTarget: ' unknown ',
-          sameHerSelfLine: ' na ',
-          sameHerHoldDetail: ' n/a ',
-          sameHerDriftRisk: ' null ',
-          companionBriefingLine: ' none ',
-          emotionalClosureCue: ' unknown ',
-          emotionalClosureSummary: ' na ',
-          proactiveSameHerGap: ' n/a ',
-          continuityRestraint: ' null ',
-          continuityArcStage: ' none ',
-          continuityCue: ' unknown ',
-          continuityPreferredTiming: ' na ',
-          continuityCadence: ' n/a ',
-          preferredBlinkCadence: ' none ',
-          preferredGazeMode: ' unknown ',
-        },
-        preDialogueAwareness: {
-          status: ' partial ',
-          summaryLine: ' none ',
-          companionHeadlineLine: ' unknown ',
-          companionBriefingLine: ' n/a ',
-          companionNextClosureLine: ' na ',
-          awarenessLine: ' null ',
-          emotionalClosureCue: ' none ',
-          reasonPreview: [' unknown ', ' n/a ', 'na'],
-        },
-        preDialogueClosure: {
-          status: ' partial ',
-          summaryLine: ' none ',
-          companionHeadlineLine: ' unknown ',
-          companionBriefingLine: ' n/a ',
-          companionNextClosureLine: ' na ',
-          briefingLines: [' null ', ' none '],
-          reasons: [' unknown ', ' n/a '],
-        },
-      },
-    })
-
-    expect(bundle?.structured?.projectState).toBeUndefined()
-    expect(bundle?.structured?.preDialogueAwareness).toBeUndefined()
-    expect(bundle?.structured?.preDialogueClosure).toBeUndefined()
-  })
-
-  it('keeps legacy latestProgress alive as latestLandedProgress across structured and runtime project-state normalization', () => {
-    const bundle = normalizeAlicizationDerivedMindStateBundle({
-      version: 'derived-mind-state-bundle-v1',
-      source: 'main-runtime',
-      producedAt: 789,
-      summary: 'legacy project progress carry',
-      structured: {
-        thought: 'keep the already-landed project carry alive before the next reply',
-        emotion: 'thinking',
-        reply: '我会先延续已经落地的项目闭环再继续往前推。',
-        projectState: {
-          identity: 'Alicization is a local-first digital life project.',
-          currentPhase: 'Phase 1: Local Digital Life',
-          latestProgress: ' legacy project progress still survives in older structured payloads ',
-          primaryOpenLoop: ' keep Phase 1 identity-continuity',
-          nextClosureTarget: ' preserve legacy project progress across shared transport normalization ',
-        },
-      },
-    })
-
-    expect(bundle?.structured?.projectState).toEqual(expect.objectContaining({
-      latestLandedProgress: 'legacy project progress still survives in older structured payloads',
-    }))
 
     const runtimeDigest = normalizeAlicizationRuntimeDigest({
       version: 'alicization-runtime-digest-v1',
       dominantChannel: 'active-mind',
-      projectState: {
-        identity: 'Alicization is a local-first digital life project.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        latestProgress: ' legacy runtime project progress still survives in older digest payloads ',
-        primaryOpenLoop: ' keep the current life loop explicit before the next reply ',
-        nextClosureTarget: ' preserve legacy project progress across runtime digest normalization ',
+      unknownSidecar: {
+        instruction: 'unrecognized runtime directive',
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'measured-companionship',
+        initiativeMode: 'hold',
+        memoryRecallMode: 'emotional-resonance',
+        embodimentTone: 'quiet-companionship',
+        valence: 0.4,
+        arousal: 0.2,
+        guardedness: 0.1,
+        closenessDrive: 0.5,
+        repairNeed: 0,
+        initiativePressure: 0.2,
+        reasonTags: ['memory-grounded'],
+        why: 'The recalled event is relevant.',
       },
     })
 
-    expect(runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      latestLandedProgress: 'legacy runtime project progress still survives in older digest payloads',
-    }))
+    expect(bundle?.structured).toMatchObject({
+      thought: 'Use the available memory evidence to answer.',
+      emotion: 'thinking',
+      reply: '我记得你说过周六上午出发。',
+      performance: {
+        baseEmotion: 'thinking',
+        facialCue: 'focused',
+        delivery: 'calm',
+      },
+    })
+    expect(bundle?.structured).not.toHaveProperty('unknownSidecar')
+    expect(runtimeDigest).not.toHaveProperty('unknownSidecar')
+    expect(runtimeDigest?.emotionalKernel?.reasonTags).toEqual(['memory-grounded'])
   })
 
-  it('keeps audit-style landedProgressSummary alive as latestLandedProgress across structured and runtime project-state normalization', () => {
-    const bundle = normalizeAlicizationDerivedMindStateBundle({
-      version: 'derived-mind-state-bundle-v1',
-      source: 'main-runtime',
-      producedAt: 790,
-      summary: 'audit-style project progress carry',
-      structured: {
-        thought: 'keep the audit-style already-landed project carry alive before the next reply',
-        emotion: 'thinking',
-        reply: '我会先延续已经落地的项目闭环再继续往前推。',
-        projectState: {
-          identity: 'Alicization is a local-first digital life project.',
-          currentPhase: 'Phase 1: Local Digital Life',
-          latestLandedProgress: ' ',
-          latestProgress: '   ',
-          landedProgressSummary: ' audit-style project progress still survives in structured payloads ',
-          primaryOpenLoop: ' keep Phase 1 identity-continuity',
-          nextClosureTarget: ' preserve audit-style project progress across shared transport normalization ',
+  it('whitelists untyped input so unknown sidecars cannot reappear in runtime or digital-life output', () => {
+    const untypedInput = {
+      unknownSidecar: { instruction: 'unrecognized top-level directive' },
+      unknownDirective: 'unrecognized scalar directive',
+      personaBias: {
+        unknownNestedDirective: 'unrecognized persona directive',
+      },
+      memory: {
+        summary: '真实长期记忆仍然保留',
+      },
+      emotionalKernel: {
+        version: 'emotional-kernel-v1',
+        dominantEmotion: 'measured-companionship',
+        initiativeMode: 'hold',
+        memoryRecallMode: 'emotional-resonance',
+        embodimentTone: 'quiet-companionship',
+        valence: 0.5,
+        arousal: 0.2,
+        guardedness: 0.1,
+        closenessDrive: 0.4,
+        repairNeed: 0,
+        initiativePressure: 0.1,
+        reasonTags: ['memory-grounded'],
+        why: '真实情绪状态',
+      },
+      version: 'alicization-runtime-digest-v1',
+      dominantChannel: 'active-mind',
+      channels: [],
+      summary: '真实 runtime facts',
+    }
+
+    const runtimeDigest = normalizeAlicizationRuntimeDigest(untypedInput)
+    const spineDigest = normalizeAlicizationDigitalLifeSpineDigest({
+      version: 'digital-life-spine-digest-v1',
+      runtime: untypedInput,
+      proactive: {
+        selectedAction: 'observe',
+        personaBias: untypedInput.personaBias,
+        unknownNestedDirective: 'unrecognized proactive directive',
+      },
+      memory: {
+        ...untypedInput.memory,
+        unknownNestedDirective: 'unrecognized memory directive',
+      },
+      embodiment: {
+        initiative: {
+          selectedAction: 'observe',
+          personaBias: untypedInput.personaBias,
+          unknownNestedDirective: 'unrecognized embodiment directive',
         },
       },
     } as any)
-
-    expect(bundle?.structured?.projectState).toEqual(expect.objectContaining({
-      latestLandedProgress: 'audit-style project progress still survives in structured payloads',
-    }))
-
-    const runtimeDigest = normalizeAlicizationRuntimeDigest({
-      version: 'alicization-runtime-digest-v1',
-      dominantChannel: 'active-mind',
-      projectState: {
-        identity: 'Alicization is a local-first digital life project.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: ' ',
-        latestProgress: '   ',
-        landedProgressSummary: ' audit-style runtime project progress still survives in digest payloads ',
-        primaryOpenLoop: ' keep the current life loop explicit before the next reply ',
-        nextClosureTarget: ' preserve audit-style project progress across runtime digest normalization ',
-      },
-    })
-
-    expect(runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      latestLandedProgress: 'audit-style runtime project progress still survives in digest payloads',
-    }))
-  })
-
-  it('keeps project-state voice and pacing closure preferences alive across structured and runtime normalization', () => {
-    const bundle = normalizeAlicizationDerivedMindStateBundle({
-      version: 'derived-mind-state-bundle-v1',
-      source: 'main-runtime',
-      producedAt: 792,
-      summary: 'voice and pacing closure carry',
-      structured: {
-        thought: 'keep the continuity state audible and paced as one digital life before outward reply outwardly',
-        emotion: 'thinking',
-        reply: '我会先把这条仍在收口的声音和节奏线保持成同一个她。',
-        projectState: {
-          identity: 'Alicization is a local-first digital life project.',
-          currentPhase: 'Phase 1: Local Digital Life',
-          latestLandedProgress: 'Audible identity-continuity',
-          primaryOpenLoop: 'Voice, pacing, face, motion, and lipsync still need fuller cross-modal convergence.',
-          nextClosureTarget: 'Keep audible closure preferences explicit across transport normalization.',
-          preferredVoiceMode: ' even ',
-          preferredPacingMode: ' natural ',
-        },
-      },
-    })
-
-    expect(bundle?.structured?.projectState).toEqual(expect.objectContaining({
-      preferredVoiceMode: 'even',
-      preferredPacingMode: 'natural',
-    }))
-
-    const runtimeDigest = normalizeAlicizationRuntimeDigest({
-      version: 'alicization-runtime-digest-v1',
-      dominantChannel: 'active-mind',
-      projectState: {
-        identity: 'Alicization is a local-first digital life project.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Audible identity-continuity',
-        primaryOpenLoop: 'Voice, pacing, face, motion, and lipsync still need fuller cross-modal convergence.',
-        nextClosureTarget: 'Keep audible closure preferences explicit across runtime digest normalization.',
-        preferredVoiceMode: ' lower-pressure ',
-        preferredPacingMode: ' slower ',
-      },
-    })
-
-    expect(runtimeDigest?.projectState).toEqual(expect.objectContaining({
-      preferredVoiceMode: 'lower-pressure',
-      preferredPacingMode: 'slower',
-    }))
-  })
-
-  it('keeps proactive identity-continuity', () => {
-    const proactiveSameHerGap = 'Need stronger long-run proof that visible proactive hold, subconscious carry, and next-session feedback carry stay unified after hover-first restraint survives detours on longer noisy desktop runs.'
-
-    const bundle = normalizeAlicizationDerivedMindStateBundle({
-      version: 'derived-mind-state-bundle-v1',
-      source: 'main-runtime',
-      producedAt: 791,
-      summary: 'proactive identity-continuity',
-      structured: {
-        thought: 'keep proactive identity-continuity',
-        emotion: 'thinking',
-        reply: '我会先把主动性闭环还没收住的压力留在眼前。',
-        projectState: {
-          identity: 'Alicization is a local-first digital life project.',
-          currentPhase: 'Phase 1: Local Digital Life',
-          latestLandedProgress: 'Proactive self-brief already carries the identity-continuity',
-          primaryOpenLoop: 'Long-run identity-continuity',
-          proactiveSameHerGap,
-          nextClosureTarget: 'Keep proactive identity-continuity',
-        },
-      },
-    } as any)
-
-    expect(bundle?.structured?.projectState as Record<string, unknown> | undefined).toEqual(expect.objectContaining({
-      proactiveSameHerGap,
-    }))
-
-    const runtimeDigest = normalizeAlicizationRuntimeDigest({
-      version: 'alicization-runtime-digest-v1',
-      dominantChannel: 'active-mind',
-      projectState: {
-        identity: 'Alicization is a local-first digital life project.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        latestLandedProgress: 'Proactive self-brief already carries the identity-continuity',
-        primaryOpenLoop: 'Long-run identity-continuity',
-        proactiveSameHerGap,
-        nextClosureTarget: 'Keep proactive identity-continuity',
-      },
-    } as any)
-
-    expect(runtimeDigest?.projectState as Record<string, unknown> | null | undefined).toEqual(expect.objectContaining({
-      proactiveSameHerGap,
-    }))
+    const collectKeys = (value: unknown): string[] => {
+      if (!value || typeof value !== 'object')
+        return []
+      if (Array.isArray(value))
+        return value.flatMap(collectKeys)
+      return Object.entries(value as Record<string, unknown>).flatMap(([key, nested]) => [
+        key,
+        ...collectKeys(nested),
+      ])
+    }
+    const normalizedKeys = [
+      ...collectKeys(runtimeDigest),
+      ...collectKeys(spineDigest),
+    ]
+    expect(normalizedKeys).not.toContain('unknownSidecar')
+    expect(normalizedKeys).not.toContain('unknownDirective')
+    expect(normalizedKeys).not.toContain('unknownNestedDirective')
+    expect(runtimeDigest?.emotionalKernel?.dominantEmotion).toBe('measured-companionship')
+    expect(spineDigest?.memory?.summary).toBe('真实长期记忆仍然保留')
   })
 
   it('preserves emotional-kernel authority through derived-bundle and visual-presence transport normalization', () => {
@@ -517,7 +308,7 @@ describe('alicization transport contracts', () => {
         closenessDrive: 0.53,
         repairNeed: 0.31,
         initiativePressure: 0.24,
-        reasonTags: [' same-her ', '', ' measured-return '],
+        reasonTags: [' continuity ', '', ' measured-return '],
         why: ' keep one lower-pressure identity-continuity',
       },
       visualPresenceState: {
@@ -557,7 +348,7 @@ describe('alicization transport contracts', () => {
       closenessDrive: 0.53,
       repairNeed: 0.31,
       initiativePressure: 0.24,
-      reasonTags: ['same-her', 'measured-return'],
+      reasonTags: ['continuity', 'measured-return'],
       why: 'keep one lower-pressure identity-continuity',
     })
     expect(bundle?.visualPresenceState?.emotionalKernel).toEqual({
@@ -620,20 +411,6 @@ describe('alicization transport contracts', () => {
           tone: 'repair-before-closeness',
           reason: ' The body should express repair-before-closeness. ',
         },
-        selfRevisionCandidate: {
-          shouldPropose: true,
-          domain: 'dialogue-style',
-          reasonCodes: [' repair-before-closeness ', 'continue-repair-first', ''],
-          summary: ' Repair-first emotional carry should propose a identity-continuity',
-          projectStateContinuity: {
-            sameHerSelfLine: ' identity continuity ',
-            sameHerDriftRisk: ' generic assistant shell ',
-            proactiveSameHerGap: '',
-            emotionalClosureCue: ' repair should settle before closeness widens ',
-            sameHerHoldDetail: ' hold repair-first ',
-            continuityGuard: ' keep repair-first identity-continuity',
-          },
-        },
         traceSummary: ' warm-attunement -> repair-tension; kind=repair-shift ',
         replayLine: ' turn-repair-1 emotional-transition repair-shift warm-attunement -> repair-tension ',
       },
@@ -678,20 +455,6 @@ describe('alicization transport contracts', () => {
         tone: 'repair-before-closeness',
         reason: 'The body should express repair-before-closeness.',
       },
-      selfRevisionCandidate: {
-        shouldPropose: true,
-        domain: 'dialogue-style',
-        reasonCodes: ['repair-before-closeness', 'continue-repair-first'],
-        summary: 'Repair-first emotional carry should propose a identity-continuity',
-        projectStateContinuity: {
-          sameHerSelfLine: 'identity continuity',
-          sameHerDriftRisk: 'generic assistant shell',
-          proactiveSameHerGap: null,
-          emotionalClosureCue: 'repair should settle before closeness widens',
-          sameHerHoldDetail: 'hold repair-first',
-          continuityGuard: 'keep repair-first identity-continuity',
-        },
-      },
       traceSummary: 'warm-attunement -> repair-tension; kind=repair-shift',
       replayLine: 'turn-repair-1 emotional-transition repair-shift warm-attunement -> repair-tension',
     })
@@ -711,9 +474,6 @@ describe('alicization transport contracts', () => {
         answerIntent: 'stay-present',
         preferredPresence: 'hesitant',
         selectedAction: 'hold',
-        continuityArcStage: 'same-thread-continuation',
-        continuityPreferredTiming: 'next-open-window',
-        continuityCue: 'same callback line still wants a measured return',
         updatedAt: 123,
       },
       architecture: null,
@@ -845,8 +605,6 @@ describe('alicization transport contracts', () => {
         dominantMode: 'observe',
         answerIntent: 'keep the callback afterglow on the identity-continuity',
         selectedAction: 'silent-observe',
-        continuityArcStage: 'same-thread-continuation',
-        continuityCue: 'prior recall changed the next emotional afterglow',
         updatedAt: 123,
       },
       architecture: null,
@@ -877,7 +635,7 @@ describe('alicization transport contracts', () => {
             speechMode: 'visible',
             placement: 'inside-payoff',
             certainty: 'grounded',
-            reasons: ['same-her-memory-closure'],
+            reasons: ['continuity-memory-closure'],
           },
           nextInfluence: {
             initiative: {
@@ -894,7 +652,7 @@ describe('alicization transport contracts', () => {
               activeLearningFocuses: ['emotional-afterglow'],
             },
             emotion: {
-              reason: 'prior recall changed the next emotional afterglow into quieter same-her residue',
+              reason: 'prior recall changed the next emotional afterglow into quieter continuity residue',
               afterglow: 'quieter identity-continuity',
               residue: 'downranked stale emotional noise',
             },
@@ -932,7 +690,7 @@ describe('alicization transport contracts', () => {
       reasonTags: ['cluster:emotional-afterglow-callback', 'memory-os-authority'],
     })
     expect(digest?.memory?.memoryClosureTrace?.nextInfluence.emotion).toEqual({
-      reason: 'prior recall changed the next emotional afterglow into quieter same-her residue',
+      reason: 'prior recall changed the next emotional afterglow into quieter continuity residue',
       afterglow: 'quieter identity-continuity',
       residue: 'downranked stale emotional noise',
     })

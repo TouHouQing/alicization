@@ -1,20 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { containsAlicizationFixedTemplateResidue } from './alicization-fixed-template-sanitizer'
 import { normalizeAlicizationRuntimeDigest } from './alicization-transport-contracts'
-
-const fixedTemplateResiduePattern = new RegExp([
-  'Before (?:answering|speaking|acting)',
-  'Right now I am',
-  'legacy phase-one template',
-  'same-her',
-  'continuity state',
-  'one living her',
-  'identity continuity',
-  'host computer',
-  'better chat wrapper',
-  '同一个她',
-  '数字生命主线',
-].join('|'), 'iu')
 
 function collectStringValues(value: unknown): string[] {
   if (typeof value === 'string')
@@ -31,11 +18,11 @@ function collectStringValues(value: unknown): string[] {
 
 function expectNoFixedTemplateResidue(value: unknown) {
   for (const text of collectStringValues(value))
-    expect(text, text).not.toMatch(fixedTemplateResiduePattern)
+    expect(containsAlicizationFixedTemplateResidue(text), text).toBe(false)
 }
 
 describe('alicization-runtime-digest transport normalization', () => {
-  it('preserves active-loop continuity fields while dropping fixed project-state slogans', () => {
+  it('preserves active-loop core fields while ignoring unknown sidecars', () => {
     const digest = normalizeAlicizationRuntimeDigest({
       version: 'alicization-runtime-digest-v1',
       dominantChannel: 'active-memory',
@@ -44,8 +31,7 @@ describe('alicization-runtime-digest transport normalization', () => {
         phase: 'integrate',
         dominantChannel: 'active-memory',
         handoffTarget: 'active-memory',
-        continuityArcStage: 'hold-for-opening',
-        continuityPreferredTiming: 'next-open-window',
+        unknownDirective: 'unrecognized nested input',
         dialogueReady: true,
         controlReady: false,
         memoryCarry: true,
@@ -53,91 +39,57 @@ describe('alicization-runtime-digest transport normalization', () => {
         observationHeavy: false,
         initiativeBudget: 0.68,
         coherence: 0.74,
-        summary: 'phase=integrate | handoff=active-memory | continuity-arc=hold-for-opening',
+        summary: 'integrating active memory handoff',
       },
-      projectState: {
-        identity: 'Alicization is a local-first digital life project building identity continuity.',
-        sameHerSelfLine: 'Keep identity continuity explicit from self-understanding into the host-visible reply.',
-        continuityArcStage: 'hold-for-opening',
-        continuityPreferredTiming: 'next-open-window',
+      unknownSidecar: {
+        instruction: 'unrecognized top-level input',
       },
-      summary: 'dominant=active-memory',
+      summary: 'active memory digest',
     })
 
-    expect(digest?.activeLoop?.continuityArcStage).toBe('hold-for-opening')
-    expect(digest?.activeLoop?.continuityPreferredTiming).toBe('next-open-window')
-    expect(digest?.projectState?.identity).toBeUndefined()
-    expect(digest?.projectState?.sameHerSelfLine).toBeUndefined()
-    expect(digest?.projectState?.continuityArcStage).toBe('hold-for-opening')
-    expect(digest?.projectState?.continuityPreferredTiming).toBe('next-open-window')
+    expect(digest?.activeLoop).toMatchObject({
+      phase: 'integrate',
+      dominantChannel: 'active-memory',
+      handoffTarget: 'active-memory',
+      dialogueReady: true,
+      controlReady: false,
+      memoryCarry: true,
+      companionshipReady: true,
+      observationHeavy: false,
+      initiativeBudget: 0.68,
+      coherence: 0.74,
+      summary: 'integrating active memory handoff',
+    })
+    expect((digest?.activeLoop as Record<string, unknown> | undefined)?.unknownDirective).toBeUndefined()
+    expect((digest as Record<string, unknown> | null)?.unknownSidecar).toBeUndefined()
     expectNoFixedTemplateResidue(digest)
   })
 
-  it('preserves structured project-state continuity and delivery preferences', () => {
+  it('drops unknown input while preserving runtime pressure fields', () => {
     const digest = normalizeAlicizationRuntimeDigest({
       version: 'alicization-runtime-digest-v1',
       dominantChannel: 'active-memory',
-      projectState: {
-        identity: 'project_state_scope=visible_governance',
-        currentPhase: 'runtime_context=local_runtime',
-        sameHerSelfLine: 'continuity_context=present',
-        continuityRestraint: 'rest-protective',
-        continuityArcStage: 'same-thread-continuation',
-        continuityPreferredTiming: 'next-open-window',
-        continuityCadence: 'rest-protective',
-        continuityCue: 'continuity_cue=project-state-carry',
-        preferredBlinkCadence: 'quiet',
-        preferredGazeMode: 'soften',
+      unknownSidecar: {
+        instruction: 'unrecognized runtime input',
       },
-      continuityRestraint: 'rest-protective',
-      summary: 'dominant=active-memory | restraint=rest-protective',
+      unknownDirective: 'unrecognized directive',
+      continuityPressure: 1.2,
+      companionshipPressure: 0.63,
+      rulingMotive: 'memory-review',
+      habitMode: 'quiet-return',
+      truthDisciplinePressure: 0.8,
+      boundaryPressure: -1,
+      summary: 'active memory restraint evidence',
     })
 
-    expect(digest?.projectState?.identity).toBe('project_state_scope=visible_governance')
-    expect(digest?.projectState?.currentPhase).toBe('runtime_context=local_runtime')
-    expect(digest?.projectState?.sameHerSelfLine).toBe('continuity_context=present')
-    expect(digest?.projectState?.continuityRestraint).toBe('rest-protective')
-    expect(digest?.projectState?.continuityCadence).toBe('rest-protective')
-    expect(digest?.projectState?.continuityCue).toBe('continuity_cue=project-state-carry')
-    expect(digest?.projectState?.preferredBlinkCadence).toBe('quiet')
-    expect(digest?.projectState?.preferredGazeMode).toBe('soften')
-    expect(digest?.continuityRestraint).toBe('rest-protective')
-    expectNoFixedTemplateResidue(digest)
-  })
-
-  it('drops fixed pre-dialogue project-awareness and closure cue fields while preserving real evidence', () => {
-    const digest = normalizeAlicizationRuntimeDigest({
-      version: 'alicization-runtime-digest-v1',
-      dominantChannel: 'active-memory',
-      projectState: {
-        identity: 'Alicization is a local-first digital life project building identity continuity.',
-        currentPhase: 'Phase 1: Local Digital Life',
-        preflightSummary: 'Alicization is a local-first digital life project | Phase 1: Local Digital Life | open=memory, initiative, and embodiment still need stronger identity-continuity',
-        preDialogueAwarenessLine: 'pre_turn_context_digest',
-        latestLandedProgress: 'Project-state continuity already survives into runtime preparation before visible reply authoring.',
-        memoryClosureSummary: 'Project-state continuity already survives into runtime preparation before visible reply authoring.',
-        primaryOpenLoop: 'memory, initiative, and embodiment review still needs closure.',
-        nextClosureTarget: 'keep closure evidence structured before the visible reply forms.',
-        sameHerSelfLine: 'Keep identity continuity explicit from self-understanding into the host-visible reply.',
-        sameHerDriftRisk: 'If the answer collapses back into generic project narration, treat that as unfinished same-her drift.',
-        continuityArcStage: 'same-thread-continuation',
-        continuityPreferredTiming: 'next-open-window',
-      },
-      emotionalClosureCue: 'identity-continuity',
-      summary: 'dominant=active-memory | project-awareness=pre-dialogue-grounded',
-    })
-
-    expect(digest?.projectState?.identity).toBeUndefined()
-    expect(digest?.projectState?.currentPhase).toBeUndefined()
-    expect(digest?.projectState?.preflightSummary).toBeUndefined()
-    expect(digest?.projectState?.preDialogueAwarenessLine).toBeUndefined()
-    expect(digest?.projectState?.latestLandedProgress).toContain('Project-state continuity already survives')
-    expect(digest?.projectState?.memoryClosureSummary).toContain('runtime preparation')
-    expect(digest?.projectState?.primaryOpenLoop).toContain('memory, initiative, and embodiment review')
-    expect(digest?.projectState?.nextClosureTarget).toContain('keep closure evidence structured')
-    expect(digest?.projectState?.sameHerSelfLine).toBeUndefined()
-    expect(digest?.projectState?.sameHerDriftRisk).toBeUndefined()
-    expect(digest?.emotionalClosureCue).toBeNull()
+    expect((digest as Record<string, unknown> | null)?.unknownSidecar).toBeUndefined()
+    expect((digest as Record<string, unknown> | null)?.unknownDirective).toBeUndefined()
+    expect(digest?.continuityPressure).toBe(1)
+    expect(digest?.companionshipPressure).toBe(0.63)
+    expect(digest?.rulingMotive).toBe('memory-review')
+    expect(digest?.habitMode).toBe('quiet-return')
+    expect(digest?.truthDisciplinePressure).toBe(0.8)
+    expect(digest?.boundaryPressure).toBe(0)
     expectNoFixedTemplateResidue(digest)
   })
 
@@ -146,23 +98,22 @@ describe('alicization-runtime-digest transport normalization', () => {
       version: 'alicization-runtime-digest-v1',
       dominantChannel: 'active-memory',
       currentConsciousFrame: {
-        reasonTags: ['runtime-conscious-frame', 'continuity-arc:same-thread-continuation'],
-        signature: 'embodiment:audible-same-her-line',
+        reasonTags: ['runtime-conscious-frame', 'memory-grounded'],
+        signature: 'embodiment:audible-continuity-line',
         focusAnchor: 'callback line after noisy detours',
-        continuityArcStage: 'same-thread-continuation',
-        continuityPreferredTiming: 'next-open-window',
+        unknownDirective: 'unrecognized nested input',
       },
-      summary: 'dominant=active-memory',
+      summary: 'active memory digest',
     })
 
     expect(digest?.currentConsciousFrame?.reasonTags).toEqual([
       'runtime-conscious-frame',
-      'continuity-arc:same-thread-continuation',
+      'memory-grounded',
     ])
-    expect(digest?.currentConsciousFrame?.signature).toBe('embodiment:audible-same-her-line')
+    expect(digest?.currentConsciousFrame?.signature).toBe('embodiment:audible-continuity-line')
     expect(digest?.currentConsciousFrame?.focusAnchor).toBe('callback line after noisy detours')
-    expect(digest?.currentConsciousFrame?.continuityArcStage).toBe('same-thread-continuation')
-    expect(digest?.currentConsciousFrame?.continuityPreferredTiming).toBe('next-open-window')
+    expect((digest?.currentConsciousFrame as Record<string, unknown> | undefined)?.unknownDirective).toBeUndefined()
+    expectNoFixedTemplateResidue(digest)
   })
 
   it('preserves emotional-kernel authority in runtime digest as structured emotional carry', () => {
@@ -184,7 +135,7 @@ describe('alicization-runtime-digest transport normalization', () => {
         reasonTags: [' late-night-drain ', ' continuity-review '],
         why: ' keep initiative, memory, and embodiment on one rest-protective reviewed line until the host settles ',
       },
-      summary: 'dominant=active-memory | closure=rest-protective',
+      summary: 'active memory rest protective carry',
     })
 
     expect(digest?.emotionalKernel).toEqual({
@@ -287,7 +238,7 @@ describe('alicization-runtime-digest transport normalization', () => {
           summary: 'repair residue still holds the callback line inward',
         },
       },
-      summary: 'dominant=active-memory | closure=affective-residue',
+      summary: 'active memory affective residue',
     })
 
     expect(digest?.affectiveResidue?.dominantResidueKind).toBe('afterglow')
@@ -297,186 +248,5 @@ describe('alicization-runtime-digest transport normalization', () => {
     expect(digest?.derivedMindStateBundle?.affectiveResidue?.relationshipCadence.cadenceMode).toBe('repair')
     expect(digest?.derivedMindStateBundle?.affectiveResidue?.summary).toContain('callback line inward')
     expectNoFixedTemplateResidue(digest)
-  })
-
-  it('preserves runtime project-state continuity summary and proactive gap alias', () => {
-    const digest = normalizeAlicizationRuntimeDigest({
-      version: 'alicization-runtime-digest-v1',
-      dominantChannel: 'active-memory',
-      projectState: {
-        continuitySummary: 'Runtime digest ingress keeps the durable continuity summary.',
-        proactiveSameHerGapSummary: 'Runtime digest ingress keeps the proactive gap alias.',
-      },
-      channels: [],
-      summary: 'runtime project-state alias ingress',
-    })
-
-    expect(digest?.projectState).toMatchObject({
-      continuitySummary: 'Runtime digest ingress keeps the durable continuity summary.',
-      proactiveSameHerGap: 'Runtime digest ingress keeps the proactive gap alias.',
-      proactiveSameHerGapSummary: 'Runtime digest ingress keeps the proactive gap alias.',
-    })
-  })
-
-  it('keeps omitted runtime project-state fields undeclared', () => {
-    const digest = normalizeAlicizationRuntimeDigest({
-      version: 'alicization-runtime-digest-v1',
-      dominantChannel: 'active-memory',
-      projectState: {
-        identity: 'Local owner record 42.',
-      },
-      channels: [],
-      summary: 'runtime project-state sparse ingress',
-    })
-
-    expect(digest?.projectState).toMatchObject({
-      identity: 'Local owner record 42.',
-    })
-    expect(digest?.projectState).not.toHaveProperty('primaryOpenLoop')
-    expect(digest?.projectState).not.toHaveProperty('proactiveSameHerGap')
-    expect(digest?.projectState).not.toHaveProperty('proactiveSameHerGapSummary')
-  })
-
-  it.each([
-    ['missing', undefined],
-    ['blank object', {}],
-  ])('keeps %s runtime project-state owner undeclared', (_label, projectState) => {
-    const digest = normalizeAlicizationRuntimeDigest({
-      version: 'alicization-runtime-digest-v1',
-      dominantChannel: 'active-memory',
-      ...(projectState === undefined ? {} : { projectState }),
-      channels: [],
-      summary: 'runtime project-state owner declaration',
-    })
-
-    expect(digest?.projectState).toBeUndefined()
-  })
-
-  it('preserves an explicit runtime project-state owner clear', () => {
-    const digest = normalizeAlicizationRuntimeDigest({
-      version: 'alicization-runtime-digest-v1',
-      dominantChannel: 'active-memory',
-      projectState: null,
-      channels: [],
-      summary: 'runtime project-state owner clear',
-    })
-
-    expect(digest?.projectState).toBeNull()
-  })
-
-  it('keeps blank runtime project-state fields undeclared beside a valid owner field', () => {
-    const digest = normalizeAlicizationRuntimeDigest({
-      version: 'alicization-runtime-digest-v1',
-      dominantChannel: 'active-memory',
-      projectState: {
-        identity: 'Local owner record 42.',
-        primaryOpenLoop: '   ',
-        nextClosureTarget: 'n/a',
-      },
-      channels: [],
-      summary: 'runtime project-state blank ingress',
-    })
-
-    expect(digest?.projectState).toMatchObject({
-      identity: 'Local owner record 42.',
-    })
-    expect(digest?.projectState).not.toHaveProperty('primaryOpenLoop')
-    expect(digest?.projectState).not.toHaveProperty('nextClosureTarget')
-  })
-
-  it('preserves alias-only null without synthesizing a canonical clear', () => {
-    const digest = normalizeAlicizationRuntimeDigest({
-      version: 'alicization-runtime-digest-v1',
-      dominantChannel: 'active-memory',
-      projectState: {
-        identity: 'Local owner record 42.',
-        proactiveSameHerGapSummary: null,
-      },
-      channels: [],
-      summary: 'runtime project-state alias-only clear',
-    })
-
-    expect(digest?.projectState).toMatchObject({
-      identity: 'Local owner record 42.',
-      proactiveSameHerGapSummary: null,
-    })
-    expect(digest?.projectState).not.toHaveProperty('proactiveSameHerGap')
-  })
-
-  it.each([
-    [
-      'canonical null',
-      {
-        proactiveSameHerGap: null,
-        proactiveSameHerGapSummary: 'Stale alias must not restore canonical state.',
-      },
-      {
-        proactiveSameHerGap: null,
-        proactiveSameHerGapSummary: null,
-      },
-    ],
-    [
-      'alias null',
-      {
-        proactiveSameHerGap: 'Current canonical initiative gap.',
-        proactiveSameHerGapSummary: null,
-      },
-      {
-        proactiveSameHerGap: 'Current canonical initiative gap.',
-        proactiveSameHerGapSummary: null,
-      },
-    ],
-  ])('honors explicit %s in runtime project-state canonical/alias conflicts', (_label, projectState, expected) => {
-    const digest = normalizeAlicizationRuntimeDigest({
-      version: 'alicization-runtime-digest-v1',
-      dominantChannel: 'active-memory',
-      projectState: {
-        identity: 'Local owner record 42.',
-        ...projectState,
-      },
-      channels: [],
-      summary: 'runtime project-state alias conflict',
-    })
-
-    expect(digest?.projectState).toMatchObject({
-      identity: 'Local owner record 42.',
-      ...expected,
-    })
-  })
-
-  it('drops placeholder-filled runtime project-state shells', () => {
-    const digest = normalizeAlicizationRuntimeDigest({
-      version: 'alicization-runtime-digest-v1',
-      dominantChannel: 'active-memory',
-      projectState: {
-        identity: ' none ',
-        currentPhase: ' unknown ',
-        preflightSummary: ' n/a ',
-        preDialogueAwarenessLine: ' na ',
-        latestLandedProgress: ' null ',
-        memoryClosureSummary: ' none ',
-        primaryOpenLoop: ' unknown ',
-        nextClosureTarget: ' n/a ',
-        sameHerSelfLine: ' na ',
-        sameHerHoldDetail: ' null ',
-        sameHerDriftRisk: ' none ',
-        emotionalClosureCue: ' unknown ',
-        proactiveSameHerGap: ' n/a ',
-        continuityRestraint: ' null ',
-        continuityArcStage: ' none ',
-        continuityPreferredTiming: ' na ',
-        continuityCadence: ' n/a ',
-        continuityCue: ' unknown ',
-        preferredBlinkCadence: ' none ',
-        preferredGazeMode: ' unknown ',
-      },
-      continuityRestraint: ' none ',
-      emotionalClosureCue: ' unknown ',
-      summary: 'dominant=active-memory | project-awareness=placeholder-shell',
-    })
-
-    expect(digest?.projectState).toBeUndefined()
-    expect(digest?.continuityRestraint).toBeNull()
-    expect(digest?.emotionalClosureCue).toBeNull()
   })
 })

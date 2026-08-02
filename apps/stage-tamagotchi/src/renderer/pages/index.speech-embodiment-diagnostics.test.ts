@@ -554,7 +554,7 @@ describe('index speech embodiment diagnostics mapping', () => {
     })
   })
 
-  it('keeps same-her restraint lineage visible in renderer diagnostics when deeper runtime carry is measured-return', () => {
+  it('keeps continuity restraint lineage visible in renderer diagnostics when deeper runtime carry is measured-return', () => {
     const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
       phase: 'playing',
       playbackPhase: 'playing',
@@ -601,7 +601,7 @@ describe('index speech embodiment diagnostics mapping', () => {
             reason: 'same callback line continued without reopening from scratch',
             occurredAt: 9_876,
           },
-          rationaleTags: ['same-her-hold', 'measured-return', 'durable-relationship-rhythm'],
+          rationaleTags: ['continuity-hold', 'measured-return', 'durable-relationship-rhythm'],
           focusBeliefId: 'belief-measured-1',
           focusInquiryId: null,
           commitmentId: 'commitment-measured-1',
@@ -705,7 +705,7 @@ describe('index speech embodiment diagnostics mapping', () => {
         personaOpeningGuidance: 'Stay on the same line and keep the return lower-pressure.',
       }),
       eventPointers: expect.objectContaining({
-        rationaleTags: expect.arrayContaining(['same-her-hold', 'measured-return', 'durable-relationship-rhythm']),
+        rationaleTags: expect.arrayContaining(['continuity-hold', 'measured-return', 'durable-relationship-rhythm']),
       }),
     }))
     expect(mapped.driverSummary).toEqual(expect.objectContaining({
@@ -962,7 +962,7 @@ describe('index speech embodiment diagnostics mapping', () => {
     })
   })
 
-  it('keeps body lipsync voice same-her lanes explicit in snapshot-native trace embodiment summaries', () => {
+  it('keeps body lipsync voice continuity lanes explicit in snapshot-native trace embodiment summaries', () => {
     const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
       phase: 'playing',
       playbackPhase: 'playing',
@@ -1219,7 +1219,7 @@ describe('index speech embodiment diagnostics mapping', () => {
             reason: 'same callback line reopened again, but this time more inward',
             occurredAt: 12_468,
           },
-          rationaleTags: ['same-her-hold', 'repair-before-closeness'],
+          rationaleTags: ['continuity-hold', 'repair-before-closeness'],
           focusBeliefId: 'belief-tightened-callback-1',
           focusInquiryId: null,
           commitmentId: 'commitment-tightened-callback-1',
@@ -1242,7 +1242,7 @@ describe('index speech embodiment diagnostics mapping', () => {
         truthState: 'remembered',
         repairState: 'none',
         finalSurfacePolicy: 'same-thread-continuation',
-        closureState: 'same-her-carry',
+        closureState: 'continuity-carry',
         suppressionTags: ['continuity-next-open-window'],
       },
       recentDrivingTraceEvents: [],
@@ -1253,7 +1253,7 @@ describe('index speech embodiment diagnostics mapping', () => {
         truthState: 'remembered',
         repairState: 'none',
         finalSurfacePolicy: 'same-thread-continuation',
-        closureState: 'same-her-carry',
+        closureState: 'continuity-carry',
         activeThreadId: 'runtime-thread-tightened-callback-1',
         suppressionTags: ['continuity-next-open-window'],
         latestEventSummary: 'identity-continuity',
@@ -1352,7 +1352,7 @@ describe('index speech embodiment diagnostics mapping', () => {
     }))
   })
 
-  it('keeps interruption-tail same-her narration when renderer diagnostics map an owner-canceled callback-line resume', () => {
+  it('keeps interruption-tail continuity narration when renderer diagnostics map an owner-canceled callback-line resume', () => {
     const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
       phase: 'playing',
       playbackPhase: 'playing',
@@ -1369,7 +1369,7 @@ describe('index speech embodiment diagnostics mapping', () => {
         truthState: 'remembered',
         repairState: 'none',
         finalSurfacePolicy: 'same-thread-continuation',
-        closureState: 'same-her-carry',
+        closureState: 'continuity-carry',
         suppressionTags: ['continuity-next-open-window', 'interrupt-tail'],
       },
       recentDrivingTraceEvents: [],
@@ -1380,7 +1380,7 @@ describe('index speech embodiment diagnostics mapping', () => {
         truthState: 'remembered',
         repairState: 'none',
         finalSurfacePolicy: 'same-thread-continuation',
-        closureState: 'same-her-carry',
+        closureState: 'continuity-carry',
         activeThreadId: 'runtime-thread-interrupt-callback-1',
         suppressionTags: ['continuity-next-open-window', 'interrupt-tail'],
         latestEventSummary: 'owner-canceled interruption happened, but the identity-continuity',
@@ -1691,7 +1691,7 @@ describe('index speech embodiment diagnostics mapping', () => {
     }))
   })
 
-  it('preserves same-her renderer hint signature and reason tags when mapping renderer page diagnostics', () => {
+  it('preserves continuity renderer hint signature and reason tags when mapping renderer page diagnostics', () => {
     const mapped = mapSpeechEmbodimentDiagnosticsForRenderer({
       phase: 'playing',
       playbackPhase: 'playing',
@@ -1727,7 +1727,7 @@ describe('index speech embodiment diagnostics mapping', () => {
         rendererTarget: 'live2d',
         driverAuthority: null,
         cue: {
-          id: 'segment-same-her-renderer-hints',
+          id: 'segment-continuity-renderer-hints',
           text: '我还在这条线里。',
           rendererHints: {
             residentMode: 'measured-return',
@@ -1736,7 +1736,7 @@ describe('index speech embodiment diagnostics mapping', () => {
             preferredExpressionAliases: ['RecoverSoft'],
             preferredMotionAliases: ['IdleSettle'],
             reasonTags: [
-              'embodiment:audible-same-her-line',
+              'embodiment:audible-continuity-line',
               'embodiment:still-voiced-motion-line',
             ],
             signature: 'embodiment:body-lipsync-voice-rejoin',
@@ -1759,7 +1759,7 @@ describe('index speech embodiment diagnostics mapping', () => {
       preferredExpressionAliases: ['RecoverSoft'],
       preferredMotionAliases: ['IdleSettle'],
       reasonTags: [
-        'embodiment:audible-same-her-line',
+        'embodiment:audible-continuity-line',
         'embodiment:still-voiced-motion-line',
       ],
       signature: 'embodiment:body-lipsync-voice-rejoin',

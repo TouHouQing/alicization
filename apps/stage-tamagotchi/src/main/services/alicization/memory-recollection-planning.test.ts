@@ -1,3 +1,5 @@
+import type { OrganicMemoryRecollectionPlanningStageInput } from './memory-recollection-planning'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import { resolveOrganicMemoryRecollectionPlanningStage } from './memory-recollection-planning'
@@ -27,8 +29,20 @@ function createRecollectionIntent() {
 }
 
 describe('memory recollection planning stage', () => {
-  it('skips provider-side recollection planning when the turn is an ordinary greeting fast lane', async () => {
-    const planMemoryRecollection = vi.fn(async () => null)
+  it('does not let a legacy skip flag bypass provider-side recollection planning', async () => {
+    const planMemoryRecollection = vi.fn(async () => ({
+      selectedConsolidationIds: [],
+      selectedWindowIds: ['window-greeting'],
+      selectedProceduralIds: [],
+      selectedEpisodeIds: [],
+      selectedConversationTurnIds: ['turn-1'],
+      selectedRelationshipLines: [],
+      searchTrace: null,
+      opening: '',
+      certainty: 'approximate' as const,
+      rationale: 'The available relationship memory remains eligible for planning.',
+      confidence: 0.7,
+    }))
     const planRecollectionSpeech = vi.fn(async () => null)
     const planMemoryDeliberation = vi.fn(async () => null)
 
@@ -60,18 +74,23 @@ describe('memory recollection planning stage', () => {
       planMemoryRecollection,
       planRecollectionSpeech,
       planMemoryDeliberation,
-      resolveRecollectionPlanSearch: input => input.recollectionPlan,
-    })
+      resolveRecollectionPlanSearch: (
+        input: Parameters<OrganicMemoryRecollectionPlanningStageInput['resolveRecollectionPlanSearch']>[0],
+      ) => input.recollectionPlan,
+    } as any)
 
-    expect(planMemoryRecollection).not.toHaveBeenCalled()
-    expect(planRecollectionSpeech).not.toHaveBeenCalled()
-    expect(planMemoryDeliberation).not.toHaveBeenCalled()
-    expect(result.recollectionPlan).toBeNull()
+    expect(planMemoryRecollection).toHaveBeenCalledOnce()
+    expect(planRecollectionSpeech).toHaveBeenCalledOnce()
+    expect(planMemoryDeliberation).toHaveBeenCalledOnce()
+    expect(result.recollectionPlan).toEqual(expect.objectContaining({
+      selectedWindowIds: ['window-greeting'],
+      selectedConversationTurnIds: ['turn-1'],
+    }))
     expect(result.recollectionSpeechPlan).toBeNull()
     expect(result.rawMemoryDeliberation).toBeNull()
     expect(result.plannedWindows).toHaveLength(1)
     expect(result.plannedConversationHistory).toHaveLength(1)
-    expect(result.recollectionNarratives).toEqual([])
+    expect(result.recollectionNarratives).toHaveLength(1)
   })
 
   it('clears first-pass owner selections when final deliberation explicitly selects no owners', async () => {

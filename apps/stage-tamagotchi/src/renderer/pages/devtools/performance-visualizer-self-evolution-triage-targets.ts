@@ -5,19 +5,13 @@ import type {
 
 export type SelfEvolutionEvidencePanelId = SelfEvolutionEvidencePanel['id']
 
-function isBodyContinuityRendererRejoin(detail: string) {
-  return detail.includes('body-led-same-segment-carry')
-    || detail.includes('body authority carry')
-    || detail.includes('renderer rejoin')
-    || detail.includes('显形补回')
-}
-
 function isBodyContinuityWorkflow(card: PerformanceVisualizerSelfEvolutionTriageCard) {
   return card.bodyContinuityPhase === 'body-only-hold'
     || card.bodyContinuityPhase === 'body-carried-to-renderer-rejoin'
     || card.bodyContinuityPhase === 'full-cross-modal-lock'
     || card.bodyContinuityPhase === 'renderer-rejoin-without-body'
-    || isBodyContinuityRendererRejoin(card.detail)
+    || card.rendererRejoinSurfaceKey != null
+    || card.survivingVisibleLane != null
 }
 
 export function buildSelfEvolutionTriageTargets(
@@ -27,44 +21,22 @@ export function buildSelfEvolutionTriageTargets(
 
   for (const card of triageCards) {
     if (card.id === 'repair-owner') {
-      if (card.detail === 'evolution') {
+      if (isBodyContinuityWorkflow(card)) {
+        targets[card.id] = [
+          'renderer-authority-projection',
+          'runtime-continuity-projection',
+        ]
+      }
+      else if (card.layer === 'persona') {
         targets[card.id] = [
           'persona-bias-provenance',
+          'proactive-action-chain',
           'proactive-manifestation-chain',
-          'private-thought-governance-chain',
           'runtime-continuity-projection',
         ]
       }
-      else if (card.detail === 'renderer authority') {
+      else if (card.layer === 'renderer') {
         targets[card.id] = [
-          'renderer-authority-projection',
-          'runtime-continuity-projection',
-        ]
-      }
-      else if (card.detail === 'identity-continuity continuity governance') {
-        targets[card.id] = [
-          'candidate-trajectory-summary',
-          'proactive-decision-consumption-summary',
-          'identity-drift-governance-summary',
-        ]
-      }
-      else if (card.detail === 'body continuity governance') {
-        targets[card.id] = [
-          'renderer-authority-projection',
-          'runtime-continuity-projection',
-        ]
-      }
-      else if (card.detail === 'project-state continuity governance') {
-        targets[card.id] = [
-          'candidate-trajectory-summary',
-          'proactive-decision-consumption-summary',
-          'identity-drift-governance-summary',
-        ]
-      }
-      else if (card.detail === 'relationship cadence governance') {
-        targets[card.id] = [
-          'companionship-transition-summary',
-          'resident-performance-projection',
           'renderer-authority-projection',
           'runtime-continuity-projection',
         ]
@@ -75,8 +47,8 @@ export function buildSelfEvolutionTriageTargets(
       if (card.layer === 'persona') {
         targets[card.id] = [
           'persona-bias-provenance',
+          'proactive-action-chain',
           'proactive-manifestation-chain',
-          'private-thought-governance-chain',
         ]
       }
       else if (card.layer === 'renderer') {
@@ -85,69 +57,42 @@ export function buildSelfEvolutionTriageTargets(
         ]
       }
       else if (card.layer === 'continuity') {
-        targets[card.id] = card.detail.includes('companionship transition summary')
+        targets[card.id] = isBodyContinuityWorkflow(card)
           ? [
-              'companionship-transition-summary',
-              'resident-performance-projection',
               'renderer-authority-projection',
               'runtime-continuity-projection',
             ]
-          : isBodyContinuityWorkflow(card)
-            ? [
-                'renderer-authority-projection',
-                'runtime-continuity-projection',
-              ]
-            : card.detail.includes('project-state carry')
-              ? [
-                  'candidate-trajectory-summary',
-                  'proactive-decision-consumption-summary',
-                  'identity-drift-governance-summary',
-                ]
-              : [
-                  'candidate-trajectory-summary',
-                  'proactive-decision-consumption-summary',
-                  'identity-drift-governance-summary',
-                ]
+          : [
+              'candidate-trajectory-summary',
+              'proactive-decision-consumption-summary',
+            ]
       }
     }
 
     if (card.id === 'repair-path') {
-      if (card.detail.startsWith('persona drift ')) {
-        targets[card.id] = [
-          'private-thought-governance-chain',
-          'runtime-continuity-projection',
-        ]
-      }
-      else if (card.detail.startsWith('renderer drift ')) {
+      if (isBodyContinuityWorkflow(card)) {
         targets[card.id] = [
           'renderer-authority-projection',
           'runtime-continuity-projection',
         ]
       }
-      else if (card.detail.startsWith('continuity governance ')) {
-        targets[card.id] = card.detail.includes('companionship-')
-          ? [
-              'companionship-transition-summary',
-              'resident-performance-projection',
-              'renderer-authority-projection',
-              'runtime-continuity-projection',
-            ]
-          : isBodyContinuityWorkflow(card)
-            ? [
-                'renderer-authority-projection',
-                'runtime-continuity-projection',
-              ]
-            : card.detail.includes('project-state-continuity-drift')
-              ? [
-                  'candidate-trajectory-summary',
-                  'proactive-decision-consumption-summary',
-                  'identity-drift-governance-summary',
-                ]
-              : [
-                  'candidate-trajectory-summary',
-                  'proactive-decision-consumption-summary',
-                  'identity-drift-governance-summary',
-                ]
+      else if (card.layer === 'persona') {
+        targets[card.id] = [
+          'proactive-action-chain',
+          'runtime-continuity-projection',
+        ]
+      }
+      else if (card.layer === 'renderer') {
+        targets[card.id] = [
+          'renderer-authority-projection',
+          'runtime-continuity-projection',
+        ]
+      }
+      else if (card.layer === 'continuity') {
+        targets[card.id] = [
+          'candidate-trajectory-summary',
+          'proactive-decision-consumption-summary',
+        ]
       }
     }
   }

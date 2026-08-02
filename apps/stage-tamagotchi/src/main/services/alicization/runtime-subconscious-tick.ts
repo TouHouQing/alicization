@@ -1,18 +1,12 @@
 import type { AlicizationChatFailureKind } from '@proj-alicization/stage-shared'
 
-import type { AlicizationPersonStateProjection } from './person-state-projection'
-
-import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
-
 import { derivePostPolicyQuietHoldRuntimeSnapshot } from './alicization-runtime-architecture'
 import { buildAutobiographicalEpisodeFragment } from './autobiographical-episodes'
 import { deriveAutonomyExecutionProposalSurface, runAutonomyActuation } from './autonomy-actuation'
 import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
-import { buildAlicizationEmotionalKernel } from './emotional-kernel'
 import { resolveAlicizationEmotionalTransitionDecay } from './emotional-ledger'
 import { adjustProactiveStyleFromHostPersonModel, buildHostSocialContexts } from './host-social-guidance'
 import { resolveHumanlikeMemoryRecallSeedFromEventHistory } from './humanlike-memory-recall-seed'
-import { resolvePreferredPersonStateProjection } from './person-state-projection-resolution'
 import { buildAlicizationPresenceExpression } from './presence-expression'
 import { applyProactiveMemoryBoundaryRestraint } from './proactive-memory-boundary'
 import { resolveAlicizationProactiveVisibleUtterance } from './proactive-mind/visible-utterance-realization'
@@ -54,63 +48,6 @@ export function resolveProactiveProviderFailureKind(input: {
   if (/\b(?:network|connect|connection|econn|http 5\d\d)\b|网络/u.test(reason))
     return 'provider-network'
   return 'stream-failure'
-}
-
-function sanitizePresenceOnlyReasonTags(reasonTags: readonly unknown[]) {
-  return reasonTags
-    .map(tag => sanitizeAlicizationProviderFacingText(tag, 120, ''))
-    .filter((tag): tag is string => Boolean(tag))
-}
-
-function normalizePresenceOnlyHoldCarryText(raw: unknown, maxChars = 420) {
-  if (typeof raw !== 'string')
-    return ''
-  const normalized = raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-  if (!normalized)
-    return ''
-  const sanitized = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
-  if (sanitized)
-    return sanitized
-  const fragments = normalized
-    .split(/\s*(?:[。.!?！？]\s*|\|\s*|;\s*)/u)
-    .map(fragment => sanitizeAlicizationProviderFacingText(fragment, Math.min(260, maxChars), ''))
-    .filter((fragment): fragment is string => Boolean(fragment))
-  return fragments.join(' | ')
-}
-
-const presenceOnlyLegacyProjectStateKeys = new Set([
-  'identity',
-  'currentPhase',
-  'latestLandedProgress',
-  'latestProgress',
-  'landedProgressSummary',
-  'primaryOpenLoop',
-  'openClosureSummary',
-  'nextClosureTarget',
-  'nextClosureTargetSummary',
-  'sameHerSelfLine',
-  'sameHerDriftRisk',
-  'sameHerDriftRiskSummary',
-  'sameHerHoldDetail',
-  'preflightSummary',
-  'preDialogueAwarenessLine',
-  'awarenessLine',
-  'companionHeadlineLine',
-  'companionBriefingLine',
-  'emotionalClosureCue',
-  'emotionalClosureSummary',
-  'continuityRestraint',
-  'continuityArcStage',
-  'continuityPreferredTiming',
-  'continuityCadence',
-  'continuityCue',
-])
-
-export function stripPresenceOnlyLegacyProjectState(projectState: Record<string, unknown>) {
-  return Object.fromEntries(
-    Object.entries(projectState)
-      .filter(([key]) => !presenceOnlyLegacyProjectStateKeys.has(key)),
-  )
 }
 
 export function normalizeDeferredAutonomyContinuitySignal(
@@ -284,178 +221,10 @@ export function normalizeDeferredAutonomyContinuitySignal(
   }
 }
 
-type PresenceOnlyPersistedEmotionalKernelInput = Parameters<typeof buildAlicizationEmotionalKernel>[0]
-type PresenceOnlyProjection = Record<string, any> & {
-  summary?: string | null
-  openingGuidance?: string | null
-  manifestationCadenceSummary?: string | null
-  sameHerHoldDetail?: string | null
-  selfContinuityAuthority?: {
-    inwardLine?: string | null
-    sourceTags?: string[] | null
-  } | null
-}
 interface PresenceOnlyRuntimeAction {
   kind?: string | null
   label?: string | null
   status?: string | null
-}
-
-export function buildPresenceOnlyHoldContinuityProjection(input: {
-  previousProjection: {
-    summary?: string | null
-    manifestationCadenceSummary?: string | null
-    openingGuidance?: string | null
-    selfContinuityAuthority?: {
-      inwardLine?: string | null
-      sourceTags?: string[] | null
-    } | null
-  } | null | undefined
-  openingGuidance?: string | null
-  continuityRestraint?: 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'lower-pressure' | null
-  initiativeWhy?: string | null
-  projectContinuityCue?: string | null
-}) {
-  if (
-    input.continuityRestraint !== 'measured-return'
-    && input.continuityRestraint !== 'repair-before-closeness'
-    && input.continuityRestraint !== 'rest-protective'
-  ) {
-    return null
-  }
-
-  const previousProjection = input.previousProjection ?? null
-  const openingGuidance = normalizePresenceOnlyHoldCarryText(
-    previousProjection?.openingGuidance,
-    320,
-  )
-  const inwardLine = normalizePresenceOnlyHoldCarryText(
-    previousProjection?.selfContinuityAuthority?.inwardLine,
-    240,
-  )
-
-  return {
-    ...previousProjection,
-    summary: normalizePresenceOnlyHoldCarryText(previousProjection?.summary, 420),
-    openingGuidance,
-    manifestationCadenceSummary: normalizePresenceOnlyHoldCarryText(
-      previousProjection?.manifestationCadenceSummary,
-      420,
-    ),
-    sameHerHoldDetail: null,
-    selfContinuityAuthority: {
-      ...previousProjection?.selfContinuityAuthority,
-      inwardLine: inwardLine || null,
-      sourceTags: sanitizePresenceOnlyReasonTags(
-        (previousProjection?.selfContinuityAuthority?.sourceTags ?? []) as string[],
-      ),
-    },
-  }
-}
-
-export function preserveResidentSameLineProjection(input: {
-  previousProjection: PresenceOnlyProjection | null | undefined
-  nextProjection: PresenceOnlyProjection | null | undefined
-  conversationState: {
-    carryReason?: string | null
-  } | null | undefined
-  dialogueWorldThread: {
-    openLoops?: string[] | null
-    narrative?: string[] | null
-  } | null | undefined
-}): PresenceOnlyProjection | null {
-  return resolvePreferredPersonStateProjection({
-    bundleProjection: input.previousProjection as Partial<AlicizationPersonStateProjection> | null | undefined,
-    runtimeProjection: input.nextProjection as Partial<AlicizationPersonStateProjection> | null | undefined,
-  }) as PresenceOnlyProjection | null
-}
-
-export function buildPresenceOnlyHoldInitiativeFallback(input: {
-  existingInitiative: Record<string, any> | null | undefined
-  decision: {
-    style?: string | null
-    confidence?: number | null
-    whyNow?: string | null
-  } | null | undefined
-  continuityRestraint: 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'lower-pressure' | null
-  projectContinuityCue?: string | null
-  privateThought?: {
-    thoughtText?: string | null
-  } | null
-}) {
-  const continuityRestraint = input.continuityRestraint
-  const preferredStyle = input.decision?.style === 'silent-observe'
-    ? 'silent-observe'
-    : null
-  const structuredHoldActive = preferredStyle === 'silent-observe'
-    || continuityRestraint === 'measured-return'
-    || continuityRestraint === 'repair-before-closeness'
-    || continuityRestraint === 'rest-protective'
-    || continuityRestraint === 'lower-pressure'
-  if (!structuredHoldActive)
-    return input.existingInitiative ?? null
-  if (
-    preferredStyle !== 'silent-observe'
-    && continuityRestraint !== 'measured-return'
-    && continuityRestraint !== 'repair-before-closeness'
-    && continuityRestraint !== 'rest-protective'
-    && continuityRestraint !== 'lower-pressure'
-  ) {
-    return null
-  }
-
-  const preferredPresence = continuityRestraint === 'repair-before-closeness'
-    ? 'concerned'
-    : continuityRestraint === 'rest-protective'
-      ? 'concerned'
-      : continuityRestraint === 'lower-pressure'
-        ? 'hesitant'
-        : 'attentive'
-
-  if (input.existingInitiative && typeof input.existingInitiative === 'object') {
-    return {
-      ...input.existingInitiative,
-      preferredStyle: preferredStyle ?? input.existingInitiative.preferredStyle ?? 'silent-observe',
-      preferredPresence,
-      continuityRestraint: continuityRestraint ?? input.existingInitiative.continuityRestraint ?? null,
-      shouldSurface: false,
-      shouldSpeak: false,
-      silenceDrive: 1,
-      speakDrive: 0,
-    }
-  }
-
-  if (
-    preferredStyle !== 'silent-observe'
-    && continuityRestraint !== 'measured-return'
-    && continuityRestraint !== 'repair-before-closeness'
-    && continuityRestraint !== 'rest-protective'
-    && continuityRestraint !== 'lower-pressure'
-  ) {
-    return null
-  }
-
-  return {
-    selectedAction: 'recheck',
-    confidence: Number.isFinite(Number(input.decision?.confidence))
-      ? Math.max(0, Math.min(1, Number(input.decision?.confidence)))
-      : 0.72,
-    motives: {},
-    speakDrive: 0,
-    silenceDrive: 1,
-    preferredStyle: preferredStyle ?? 'silent-observe',
-    preferredPresence,
-    continuityRestraint,
-    why: null,
-    shouldSurface: false,
-    shouldSpeak: false,
-  }
-}
-
-function derivePresenceOnlyHoldAuthorityContinuityRestraint(input: {
-  currentContinuityRestraint: 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'lower-pressure' | null
-}) {
-  return input.currentContinuityRestraint
 }
 
 export function buildDeferredAutonomyContinuitySignalFallback(input: {
@@ -574,101 +343,6 @@ export function buildDeferredAutonomyContinuitySignalFallback(input: {
     turnId,
     whyNow,
   })
-}
-
-export function buildPresenceOnlyHoldCurrentConsciousFrame(input: {
-  currentConsciousFrame: Record<string, any> | null | undefined
-  continuityRestraint: 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'lower-pressure' | null
-  holdDetail?: string | null
-  projectStateCarry?: {
-    sameHerSummary?: string | null
-    sameHerDriftRisk?: string | null
-    emotionalClosureSummary?: string | null
-    continuityCue?: string | null
-  } | null
-}) {
-  const frame = input.currentConsciousFrame && typeof input.currentConsciousFrame === 'object'
-    ? input.currentConsciousFrame
-    : null
-  if (!frame)
-    return frame
-
-  if (
-    input.continuityRestraint !== 'measured-return'
-    && input.continuityRestraint !== 'repair-before-closeness'
-    && input.continuityRestraint !== 'rest-protective'
-    && input.continuityRestraint !== 'lower-pressure'
-  ) {
-    return frame
-  }
-
-  const reasonTags = Array.isArray(frame.reasonTags) ? sanitizePresenceOnlyReasonTags(frame.reasonTags) : []
-  const projectState = frame.projectState && typeof frame.projectState === 'object'
-    ? frame.projectState as Record<string, unknown>
-    : {}
-  const nextProjectState = Object.fromEntries(
-    Object.entries(stripPresenceOnlyLegacyProjectState(projectState))
-      .map(([key, value]) => [
-        key,
-        typeof value === 'string'
-          ? normalizePresenceOnlyHoldCarryText(value, 560)
-          : value,
-      ])
-      .filter(([, value]) => value !== ''),
-  )
-
-  return {
-    ...frame,
-    reasonTags,
-    projectState: nextProjectState,
-  }
-}
-
-export function rebuildPresenceOnlyPersistedEmotionalKernel(input: {
-  initiative?: Record<string, any> | null
-  privateThought?: PresenceOnlyPersistedEmotionalKernelInput['privateThought']
-  selfState?: PresenceOnlyPersistedEmotionalKernelInput['selfState']
-  affectiveResidue?: PresenceOnlyPersistedEmotionalKernelInput['affectiveResidue']
-  personStateProjection?: PresenceOnlyPersistedEmotionalKernelInput['personStateProjection'] | PresenceOnlyProjection | null
-  derivedMindStateBundle?: Record<string, any> | null
-  fallbackEmotionalKernel?: Record<string, any> | null
-}) {
-  const continuityRestraint = input.initiative?.continuityRestraint as 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'lower-pressure' | null | undefined
-  if (
-    !input.initiative
-    || input.initiative.shouldSpeak !== false
-    || input.initiative.preferredStyle !== 'silent-observe'
-    || (
-      continuityRestraint !== 'measured-return'
-      && continuityRestraint !== 'repair-before-closeness'
-      && continuityRestraint !== 'rest-protective'
-    )
-  ) {
-    return input.fallbackEmotionalKernel ?? null
-  }
-
-  const rebuiltKernel = buildAlicizationEmotionalKernel({
-    selfState: input.selfState ?? null,
-    privateThought: input.privateThought ?? null,
-    affectiveResidue: input.affectiveResidue ?? input.derivedMindStateBundle?.affectiveResidue ?? null,
-    personStateProjection: (input.personStateProjection ?? null) as PresenceOnlyPersistedEmotionalKernelInput['personStateProjection'],
-  })
-
-  if (continuityRestraint !== 'rest-protective')
-    return rebuiltKernel
-
-  return {
-    ...rebuiltKernel,
-    dominantEmotion: 'rest-protective-companionship',
-    initiativeMode: 'observe',
-    memoryRecallMode: 'rest-protective-presence',
-    embodimentTone: 'rest-protective',
-    reasonTags: Array.from(new Set([
-      ...(Array.isArray(rebuiltKernel.reasonTags) ? rebuiltKernel.reasonTags : []),
-      'rest-protective',
-      'quiet-companionship',
-    ])),
-  }
 }
 
 export function createAlicizationSubconsciousTickRuntime(options: any) {
@@ -1513,7 +1187,6 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             memoryBoundaryAdjustedDecision,
             organicPromptContext,
             perceptionState,
-            visualPresenceState,
             {
               turnId,
             },
@@ -1633,7 +1306,7 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
         const explicitContinuityAfterglowHold = deliveryDecision.reasonCodes.includes('relationship-residue-delay-warmth')
           || deliveryDecision.reasonCodes.includes('continuity-execution-callback-afterglow-hold')
           || (
-            deliveryDecision.reasonCodes.includes('continuity-execution-callback-project-carry')
+            deliveryDecision.reasonCodes.includes('continuity-execution-callback-carry')
             && !worldModelVerifyFirstVisibleNudge
           )
         const explicitNextOpenWindowHold = deliveryDecision.reasonCodes.includes('continuity-next-open-window')
@@ -1726,90 +1399,24 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
                 reason: proactiveVisibleUtterance.decision.reason,
               },
             ) ?? policyAdjustedRuntimeSnapshot ?? proactiveRuntimeSnapshot
-            const projectContinuityCue
-              = persistedPresenceState.privateThought?.thoughtText
+            const persistedInitiative
+              = latestRuntimeSurface.agency?.initiative
+                ?? persistedPresenceState.initiative
                 ?? null
-            const authoritativePresenceOnlyContinuityRestraint = derivePresenceOnlyHoldAuthorityContinuityRestraint({
-              currentContinuityRestraint:
-                digitalLifeRuntimeSurface.mind?.initiative?.continuityRestraint
-                ?? (deliveryDecision.style === 'silent-observe' ? 'lower-pressure' : null),
-            })
-            const persistedInitiative = buildPresenceOnlyHoldInitiativeFallback({
-              existingInitiative: digitalLifeRuntimeSurface.mind?.initiative ?? null,
-              decision: deliveryDecision,
-              continuityRestraint: authoritativePresenceOnlyContinuityRestraint,
-              projectContinuityCue,
-              privateThought: persistedPresenceState.privateThought ?? null,
-            })
-            const persistedPrivateThought = persistedPresenceState.privateThought
-              ? {
-                  ...persistedPresenceState.privateThought,
-                  shouldSpeak: persistedInitiative?.shouldSpeak ?? persistedPresenceState.privateThought.shouldSpeak,
-                  suggestedStyle: persistedInitiative?.preferredStyle ?? persistedPresenceState.privateThought.suggestedStyle,
-                  embodiedPresence: persistedInitiative?.preferredPresence === 'concerned'
-                    ? 'concerned'
-                    : persistedInitiative?.preferredPresence === 'hesitant'
-                      ? 'hesitant'
-                      : persistedInitiative?.preferredPresence === 'attentive'
-                        ? 'attentive'
-                        : persistedPresenceState.privateThought.embodiedPresence,
-                  emotionalTension: persistedInitiative?.continuityRestraint === 'repair-before-closeness'
-                    ? 'soft-covision'
-                    : persistedInitiative?.continuityRestraint === 'rest-protective'
-                      ? 'late-night-drain'
-                      : persistedInitiative?.continuityRestraint === 'measured-return' || persistedInitiative?.continuityRestraint === 'lower-pressure'
-                        ? 'soft-covision'
-                        : persistedPresenceState.privateThought.emotionalTension,
-                  thoughtText: persistedInitiative?.why
-                    || persistedPresenceState.privateThought.thoughtText,
-                  rationaleTags: Array.from(new Set([
-                    ...(persistedPresenceState.privateThought.rationaleTags ?? []),
-                    persistedInitiative?.continuityRestraint === 'repair-before-closeness'
-                      ? 'repair-before-closeness'
-                      : persistedInitiative?.continuityRestraint === 'rest-protective'
-                        ? 'rest-protective'
-                        : persistedInitiative?.continuityRestraint === 'measured-return' || persistedInitiative?.continuityRestraint === 'lower-pressure'
-                          ? 'measured-return'
-                          : '',
-                    persistedInitiative?.preferredStyle === 'silent-observe'
-                      ? 'quiet-companionship'
-                      : '',
-                  ].filter(Boolean))),
-                }
-              : persistedPresenceState.privateThought
-            const continuityProjectionFallback = buildPresenceOnlyHoldContinuityProjection({
-              previousProjection: persistedPresenceState.personStateProjection ?? null,
-              openingGuidance: structured?.proactive?.openingGuidance ?? null,
-              continuityRestraint: persistedInitiative?.continuityRestraint ?? null,
-              initiativeWhy: persistedInitiative?.why ?? null,
-              projectContinuityCue: projectContinuityCue ?? persistedPrivateThought?.thoughtText ?? null,
-            })
-            const resolvedProjectContinuityCueCandidates = [
-              typeof continuityProjectionFallback?.openingGuidance === 'string'
-                ? continuityProjectionFallback.openingGuidance
-                : null,
-              projectContinuityCue,
-              persistedPrivateThought?.thoughtText ?? null,
-            ].filter((candidate): candidate is string => typeof candidate === 'string' && candidate.trim().length > 0)
-            const resolvedProjectContinuityCue = resolvedProjectContinuityCueCandidates[0] ?? null
-            const persistedPersonStateProjection = preserveResidentSameLineProjection({
-              previousProjection: persistedPresenceState.personStateProjection ?? null,
-              nextProjection: latestRuntimeSurface.dialogue?.personStateProjection ?? continuityProjectionFallback,
-              conversationState: latestRuntimeSurface.dialogue?.conversationState ?? null,
-              dialogueWorldThread: latestRuntimeSurface.dialogue?.dialogueWorldThread ?? null,
-            })
-            const resolvedPersonStateProjection = persistedPersonStateProjection ?? continuityProjectionFallback
-            const resolvedCurrentConsciousFrame = buildPresenceOnlyHoldCurrentConsciousFrame({
-              currentConsciousFrame: proactiveRuntimeSnapshot?.currentConsciousFrame ?? latestRuntimeSurface.dialogue?.currentConsciousFrame ?? null,
-              continuityRestraint: persistedInitiative?.continuityRestraint ?? null,
-              holdDetail:
-                typeof continuityProjectionFallback?.sameHerHoldDetail === 'string'
-                  ? continuityProjectionFallback.sameHerHoldDetail
-                  : null,
-              projectStateCarry: {
-                continuityCue: resolvedProjectContinuityCue,
-              },
-            })
+            const persistedPrivateThought
+              = latestRuntimeSurface.cognition?.privateThought
+                ?? persistedPresenceState.privateThought
+                ?? null
+            const resolvedPersonStateProjection
+              = latestRuntimeSurface.dialogue?.personStateProjection
+                ?? latestRuntimeSurface.memory?.personStateProjection
+                ?? persistedPresenceState.personStateProjection
+                ?? null
+            const resolvedCurrentConsciousFrame
+              = persistedPresenceRuntimeSnapshot?.currentConsciousFrame
+                ?? latestRuntimeSurface.dialogue?.currentConsciousFrame
+                ?? persistedPresenceState.currentConsciousFrame
+                ?? null
             const persistedDerivedMindStateBundle
               = latestRuntimeSurface.memory?.derivedMindStateBundle
                 ?? persistedPresenceState.derivedMindStateBundle
@@ -1830,18 +1437,10 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
                 ?? persistedPresenceState.selfEvolution
                 ?? persistedPresenceState.derivedMindStateBundle?.selfEvolution
                 ?? null
-            const persistedEmotionalKernel = rebuildPresenceOnlyPersistedEmotionalKernel({
-              initiative: persistedInitiative,
-              privateThought: persistedPrivateThought,
-              selfState: persistedSelfState,
-              affectiveResidue: persistedAffectiveResidue,
-              personStateProjection: resolvedPersonStateProjection,
-              derivedMindStateBundle: persistedDerivedMindStateBundle,
-              fallbackEmotionalKernel:
-                latestRuntimeSurface.memory?.emotionalKernel
+            const persistedEmotionalKernel
+              = latestRuntimeSurface.memory?.emotionalKernel
                 ?? persistedPresenceState.emotionalKernel
-                ?? null,
-            })
+                ?? null
             const nextPresenceState = updateVisualPresenceState({
               now,
               previousState: persistedPresenceState,
@@ -1872,23 +1471,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
               nextSuggestedProbeMs: persistedPresenceState.nextSuggestedProbeMs,
               initiative: persistedInitiative,
             })
-            if (persistedPresenceRuntimeSnapshot) {
+            if (persistedPresenceRuntimeSnapshot)
               nextPresenceState.runtimeDigest = persistedPresenceRuntimeSnapshot as typeof nextPresenceState.runtimeDigest
-              if (nextPresenceState.runtimeDigest.projectState) {
-                nextPresenceState.runtimeDigest.projectState
-                  = stripPresenceOnlyLegacyProjectState(nextPresenceState.runtimeDigest.projectState)
-                nextPresenceState.runtimeDigest.continuityRestraint = null
-              }
-            }
-            if (!nextPresenceState.currentConsciousFrame && persistedPresenceRuntimeSnapshot?.currentConsciousFrame) {
-              nextPresenceState.currentConsciousFrame = persistedPresenceRuntimeSnapshot.currentConsciousFrame as typeof nextPresenceState.currentConsciousFrame
-            }
-            if (!nextPresenceState.initiative && persistedInitiative) {
-              nextPresenceState.initiative = persistedInitiative as typeof nextPresenceState.initiative
-            }
-            if (!nextPresenceState.personStateProjection && continuityProjectionFallback) {
-              nextPresenceState.personStateProjection = continuityProjectionFallback as typeof nextPresenceState.personStateProjection
-            }
             const nextPresenceStateWithBodyAuthority = bodyKernel.applyToVisualPresenceState({
               now,
               previousState: persistedPresenceState,
@@ -1970,9 +1554,8 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
           const proactiveStructuredForPersistence = (() => {
             if (!proactiveVisibleUtterance.structuredForPersistence)
               return proactiveVisibleUtterance.structuredForPersistence
-            const { projectState: _projectState, ...structuredWithoutProjectState } = proactiveVisibleUtterance.structuredForPersistence
             return {
-              ...structuredWithoutProjectState,
+              ...proactiveVisibleUtterance.structuredForPersistence,
               digitalLifeSpine: proactiveVisibleUtterance.structuredForPersistence.digitalLifeSpine
                 ?? projectAlicizationDigitalLifeSpineDigest(committedDigitalLifeSpine.current),
             }
@@ -1992,10 +1575,9 @@ export function createAlicizationSubconsciousTickRuntime(options: any) {
             : null
           const persistedStructured = normalizedProactiveDialoguePayload?.structured
             ? (() => {
-                const { projectState: _projectState, ...normalizedWithoutProjectState } = normalizedProactiveDialoguePayload.structured
                 return {
                   ...proactiveStructuredForPersistence,
-                  ...normalizedWithoutProjectState,
+                  ...normalizedProactiveDialoguePayload.structured,
                   digitalLifeSpine: normalizedProactiveDialoguePayload.structured.digitalLifeSpine
                     ?? proactiveStructuredForPersistence?.digitalLifeSpine
                     ?? projectAlicizationDigitalLifeSpineDigest(committedDigitalLifeSpine.current),

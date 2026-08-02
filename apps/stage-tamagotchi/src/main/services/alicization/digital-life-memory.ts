@@ -168,7 +168,6 @@ export function buildAlicizationDigitalLifeMemoryDigest(
     selfEvolution: selfEvolution
       ? {
           relationshipDoctrine: sanitizeText(selfEvolution.relationshipDoctrine, 220) || null,
-          relationshipCadenceSummary: sanitizeText(selfEvolution.relationshipCadenceSummary, 220) || null,
           latestInflection: sanitizeText(selfEvolution.latestInflection, 220) || null,
           burdenLine: sanitizeText(selfEvolution.burdenLine, 220) || null,
           trustMeaning: sanitizeText(selfEvolution.trustMeaning, 220) || null,
@@ -193,9 +192,7 @@ export function buildAlicizationDigitalLifeMemoryDigest(
           activeClosenessContext: sanitizeText(personStateProjection.activeClosenessContext, 64) || null,
           activeClosenessRung: sanitizeText(personStateProjection.activeClosenessRung, 64) || null,
           relationshipPosture: sanitizeText(personStateProjection.relationshipPosture, 64) || null,
-          openingGuidance: sanitizeText(personStateProjection.openingGuidance, 220) || null,
           preferredProactiveStyle: sanitizeText(personStateProjection.preferredProactiveStyle, 64) || null,
-          manifestationCadenceSummary: sanitizeText(personStateProjection.manifestationCadenceSummary, 220) || null,
         }
       : null,
     memoryClosureTrace: memory?.memoryClosureTrace ?? null,

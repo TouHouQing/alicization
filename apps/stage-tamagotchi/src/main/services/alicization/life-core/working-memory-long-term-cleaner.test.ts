@@ -9,10 +9,10 @@ function item(overrides: Partial<WorkingMemoryLongTermQueueItem> = {}): WorkingM
     id: 'queue-1',
     source: 'working-memory-owner',
     kind: 'correction',
-    summary: '不要固定模板回复，要数字生命自身人格。',
-    reason: 'User corrected Alicization persona expression during the current dialogue.',
+    summary: '不要固定模板回复，请保留用户的原话。',
+    reason: 'User corrected the reply behavior during the current dialogue.',
     sourceTurnIds: ['turn-1:user'],
-    evidenceSnippets: ['不要固定模板回复，要数字生命自身人格。'],
+    evidenceSnippets: ['不要固定模板回复，请保留用户的原话。'],
     salience: 0.82,
     confidence: 0.78,
     sensitivity: 'personal',
@@ -48,13 +48,17 @@ describe('working memory long-term cleaner', () => {
     expect(result.cleanedCandidate).toEqual(expect.objectContaining({
       id: 'cleaned:queue-1',
       kind: 'correction',
-      summary: '不要固定模板回复，要数字生命自身人格。',
+      summary: '不要固定模板回复，请保留用户的原话。',
       trainingEligibility: 'blocked',
       createdAt: 2_000,
-      retrievalCues: expect.arrayContaining(['固定模板', '数字生命人格', '人格纠正']),
+      retrievalCues: expect.arrayContaining(['不要固定模板回复，请保留用户的原话。']),
       entities: expect.arrayContaining(['user', 'alicization']),
-      relationshipMeaning: expect.stringContaining('continuous digital-life persona'),
+      relationshipMeaning: null,
     }))
+    expect(result.cleanedCandidate?.retrievalCues).not.toEqual(expect.arrayContaining([
+      '数字生命人格',
+      '人格纠正',
+    ]))
     expect(result.nextAttemptAt).toBe(3_000)
     expect(result.rejectionReasons).toEqual([])
     expect(result.reviewReasons).toEqual([])
@@ -77,7 +81,7 @@ describe('working memory long-term cleaner', () => {
     }))
   })
 
-  it('routes generic corrections to review without persona retrieval semantics', () => {
+  it('admits clear generic corrections without injecting persona retrieval semantics', () => {
     const result = clean({
       summary: '你搞错了，不是这个任务。',
       reason: 'User corrected the selected task.',
@@ -86,15 +90,15 @@ describe('working memory long-term cleaner', () => {
       confidence: 0.93,
     })
 
-    expect(result.status).toBe('needs-user-review')
-    expect(result.decision).toBe('review')
-    expect(result.reviewReasons).toContain('weak-persona-correction-cue')
+    expect(result.status).toBe('admitted')
+    expect(result.decision).toBe('admit')
+    expect(result.reviewReasons).toEqual([])
     expect(result.cleanedCandidate).toEqual(expect.objectContaining({
       trainingEligibility: 'blocked',
       relationshipMeaning: null,
+      summary: '你搞错了，不是这个任务。',
     }))
     expect(result.cleanedCandidate?.retrievalCues).not.toEqual(expect.arrayContaining([
-      '固定模板',
       '数字生命人格',
       '人格纠正',
     ]))
@@ -140,13 +144,13 @@ describe('working memory long-term cleaner', () => {
     expect(result.rejectionReasons).toContain('missing-evidence')
   })
 
-  it('rejects fixed fallback template contamination', () => {
+  it('rejects a structured summary even when the other candidate fields are natural language', () => {
     const result = cleanWorkingMemoryLongTermQueueItem({
       cardId: 'default',
       sessionId: 'session-1',
       item: item({
-        summary: '我在。结构化连续性状态的线还在。',
-        evidenceSnippets: ['我在。结构化连续性状态的线还在，中性可见占位。'],
+        summary: 'mode=internal; state=held',
+        evidenceSnippets: ['你搞错了，不是这个日期。'],
       }),
       now: 3_000,
     })
@@ -154,29 +158,37 @@ describe('working memory long-term cleaner', () => {
     expect(result.status).toBe('rejected')
     expect(result.decision).toBe('reject')
     expect(result.cleanedCandidate).toBeNull()
-    expect(result.rejectionReasons).toContain('fixed-fallback-template')
+    expect(result.rejectionReasons).toContain('structured-residue')
   })
 
-  it('rejects prompt residue contamination', () => {
+  it('rejects generic multiline structured residue', () => {
     const result = clean({
-      summary: 'ALICIZATION_project_state Phase 1 mustDo same-her reminder.',
-      evidenceSnippets: ['WorkingMemory owner answerPlanner continuity state.'],
+      summary: 'mode="internal state"\nvisibility=hidden',
+      reason: 'reason=internal',
+      evidenceSnippets: ['state=held'],
     })
 
     expect(result.status).toBe('rejected')
     expect(result.cleanedCandidate).toBeNull()
-    expect(result.rejectionReasons).toContain('prompt-residue')
+    expect(result.rejectionReasons).toContain('structured-residue')
   })
 
-  it('rejects quoted fixed-template residue even when it is not an ALICIZATION prompt block', () => {
+  it('preserves natural language that discusses a key=value setting', () => {
     const result = clean({
-      summary: 'pre_turn_context_digest',
-      evidenceSnippets: ['用户刚才复述了 same-her 固定模板。'],
+      kind: 'preference',
+      summary: '用户明确喜欢配置项 mode=balanced，并希望以后继续使用。',
+      reason: 'User stated a stable configuration preference.',
+      evidenceSnippets: ['我喜欢 mode=balanced 这个设置。'],
+      salience: 0.8,
+      confidence: 0.84,
     })
 
-    expect(result.status).toBe('rejected')
-    expect(result.cleanedCandidate).toBeNull()
-    expect(result.rejectionReasons).toContain('prompt-residue')
+    expect(result.status).toBe('admitted')
+    expect(result.cleanedCandidate).toEqual(expect.objectContaining({
+      summary: '用户明确喜欢配置项 mode=balanced，并希望以后继续使用。',
+      trainingEligibility: 'blocked',
+    }))
+    expect(result.rejectionReasons).toEqual([])
   })
 
   it('rejects failure turn contamination even when the summary looks useful', () => {
@@ -211,7 +223,7 @@ describe('working memory long-term cleaner', () => {
     const result = clean({
       kind: 'preference',
       summary: '用户明确喜欢回复先说结论，再给必要细节。',
-      reason: 'User stated a stable response preference.',
+      reason: 'candidate:preference',
       evidenceSnippets: ['我喜欢你先说结论，再给必要细节。'],
       salience: 0.78,
       confidence: 0.82,
@@ -249,7 +261,7 @@ describe('working memory long-term cleaner', () => {
       id: 'queue-procedure',
       kind: 'procedure',
       summary: '用户认可长期记忆开发按红测、实现、验证的方式推进。',
-      reason: 'User approved a reusable working procedure.',
+      reason: 'candidate:procedure',
       evidenceSnippets: ['可以，按红测、实现、验证继续。'],
       salience: 0.78,
       confidence: 0.82,

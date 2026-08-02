@@ -11,9 +11,9 @@ describe('runtime soul custom directives', () => {
   it('preserves user-authored persona guidance verbatim', () => {
     const directives = [
       '优先诚实，不要臆测。',
-      'opening_policy=measured-return | 说话自然一点。',
-      'relationship_cadence=hold-for-opening',
-      'Before answering, remember Alicization is the same local-first digital life project.',
+      '说话自然一点。',
+      '失败时直接说明失败来源。',
+      '不要把不确定的事情说成已经确认。',
     ].join('\n')
 
     expect(normalizeCustomDirectives(`\r\n${directives.replaceAll('\n', '\r\n')}\r\n`)).toBe(directives)
@@ -112,10 +112,20 @@ describe('runtime soul persona kernel seeding', () => {
     })
 
     expect(frontmatter.host_attitude).not.toBe(defaultFrontmatter.host_attitude)
-    expect(frontmatter.host_attitude).toContain('主人')
-    expect(frontmatter.core_incarnation).toContain('Identity name: 小艾')
-    expect(frontmatter.core_incarnation).toContain('Relation: 女仆')
-    expect(frontmatter.core_incarnation).toContain('User directive: 先接住主人情绪')
+    expect(JSON.parse(frontmatter.host_attitude)).toMatchObject({
+      profile: {
+        hostName: '主人',
+        alicizationName: '小艾',
+      },
+    })
+    expect(JSON.parse(frontmatter.core_incarnation)).toMatchObject({
+      profile: {
+        alicizationName: '小艾',
+        relationship: '女仆',
+      },
+      customDirectives: '先接住主人情绪，再给建议。',
+    })
+    expect(frontmatter.core_incarnation).not.toContain('Respond from')
   })
 
   it('preserves already-evolved host attitude and core incarnation', () => {
@@ -199,6 +209,9 @@ describe('runtime soul persona kernel seeding', () => {
     expect(body).toContain('## Anti-Persona Constraints')
     expect(body).toContain('## Identity Anchors')
     expect(body).toContain('## Personality Baseline')
+    expect(body).not.toContain('你是 Alicization')
+    expect(body).not.toContain('## Boundary')
+    expect(body).not.toContain('遇到高风险执行必须先请求用户确认')
     expect(body).not.toContain('## Output Contract')
     expect(body).not.toContain('thought / emotion / reply')
   })

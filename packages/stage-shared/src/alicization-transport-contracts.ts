@@ -18,7 +18,6 @@ import type {
 import { normalizeAlicizationDialogueSpeechTimeline } from './alicization-dialogue-speech-timeline'
 import { normalizeAlicizationDigitalLifeEnvelope } from './alicization-digital-life'
 import { normalizeAlicizationEmbodimentScript } from './alicization-embodiment-script'
-import { containsAlicizationFixedTemplateResidue } from './alicization-fixed-template-sanitizer'
 import {
   normalizeAlicizationEmotion,
   normalizeAlicizationPerformancePayload,
@@ -867,33 +866,6 @@ export interface AlicizationExecutionRuntimeContext {
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   memoryClosureExecution?: AlicizationExecutionRuntimeMemoryClosureExecution | null
-  projectBriefing?: {
-    identity: string | null
-    currentPhase: string | null
-    latestLandedProgress: string | null
-    primaryOpenLoop: string | null
-    nextClosureTarget: string | null
-    sameHerSelfLine: string | null
-    sameHerHoldDetail: string | null
-    continuityRestraint?: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'single-thread' | null
-    continuityArcStage?: string | null
-    sameHerDriftRisk: string | null
-    proactiveSameHerGap?: string | null
-    companionBriefingLine?: string | null
-    emotionalClosureSummary?: string | null
-    continuityCue: string | null
-    continuityPreferredTiming?: 'internal-only' | 'after-payoff' | 'same-turn-if-invited' | 'next-open-window' | null
-    continuityCadence?: string | null
-    preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
-    preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
-    preferredPauseMode?: 'longer' | 'natural' | null
-    preferredLipsyncMode?: 'restrained' | 'matched' | null
-    preferredVoiceMode?: 'lower-pressure' | 'even' | null
-    preferredPacingMode?: 'slower' | 'natural' | null
-    preflightSummary: string | null
-    preDialogueAwarenessLine: string | null
-    preDialogueAwarenessSummary?: string | null
-  } | null
   recentActions?: AlicizationExecutionRuntimeContextActionDigest[] | null
   sensory: AlicizationExecutionRuntimeContextSensory
 }
@@ -1334,7 +1306,7 @@ export type AlicizationMindTruthState
     | 'imagined'
     | 'uncertain'
 export type AlicizationMindRelationshipPosture = 'restrained' | 'warm' | 'tender'
-export type AlicizationMindAnswerSubject = 'alicization-self' | 'project-state' | 'relationship' | 'host-state' | 'task-knot' | 'visible-scene' | 'general'
+export type AlicizationMindAnswerSubject = 'alicization-self' | 'relationship' | 'host-state' | 'task-knot' | 'visible-scene' | 'general'
 export type AlicizationMindScreenReferenceMode = 'required' | 'helpful' | 'incidental' | 'avoid'
 export type AlicizationNormalVisibleReplyAuthority = 'llm-mind'
 export type AlicizationInfraVisibleReplyAuthority = 'local-deterministic-fallback' | 'non-human-authored-blocked'
@@ -1350,48 +1322,6 @@ export interface AlicizationBridgeVisibleReplyExecution {
 
 export type AlicizationVisibleReplyRealizationTransportMode = AlicizationBridgeVisibleReplyExecution['mode']
 export type AlicizationVisibleReplyRealizationValidationStatus = 'approved' | 'blocked' | 'unknown'
-export type AlicizationVisibleReplyRealizationProjectStateEvidenceStatus = 'present' | 'missing' | 'unknown'
-
-export interface AlicizationVisibleReplyRealizationProjectStateAudit {
-  sameHerSummary: string | null
-  sameHerHoldDetail?: string | null
-  continuityArcStage?: string | null
-  continuityCue?: string | null
-  sameHerDriftRiskSummary?: string | null
-  proactiveSameHerGapSummary?: string | null
-  currentPhaseSummary?: string | null
-  landedProgressSummary?: string | null
-  openClosureSummary?: string | null
-  openFocusSummary?: string | null
-  nextFocusSummary?: string | null
-  nextClosureTargetSummary?: string | null
-  memoryClosureSummary?: string | null
-  recallWhySummary?: string | null
-  emotionalClosureSummary?: string | null
-  emotionalClosureCue?: string | null
-  continuitySummary?: string | null
-  embodimentClosureSummary?: string | null
-  preDialogueAwarenessSummary?: string | null
-}
-
-export interface AlicizationVisibleReplyRealizationEmotionalClosureAudit {
-  activeCue: string | null
-  lowPressureRequired?: boolean
-  antiRestartRequired?: boolean
-}
-
-export interface AlicizationVisibleReplyRealizationSelfAuthorityAudit {
-  authoritySummary: string | null
-  closenessPosture: string | null
-}
-
-export interface AlicizationVisibleReplyRealizationOpeningEmbodimentAudit {
-  firstBeatPosture: 'quiet-companionship' | 'measured-return' | 'repair-before-closeness' | 'rest-protective'
-  delivery: 'calm'
-  facialCue: 'soften' | 'settle-repair' | 'quiet' | 'rest-soften'
-  actionCue: 'stillness' | 'leave-room' | 'repair-settle' | 'rest-settle'
-  derivedFrom: string
-}
 
 export type AlicizationVisibleReplyRealizationCriticStatus = 'pass' | 'blocked'
 
@@ -1418,16 +1348,8 @@ export interface AlicizationVisibleReplyRealizationTransportArtifact {
   mode?: AlicizationVisibleReplyRealizationTransportMode | null
   visibleText?: string | null
   visibleReplyValidationStatus?: AlicizationVisibleReplyRealizationValidationStatus | null
-  projectStateEvidenceStatus?: AlicizationVisibleReplyRealizationProjectStateEvidenceStatus | null
-  sameHerInwardCarry?: string | null
   nonHumanAuthoredStatus?: string | null
   blockedReasons?: string[]
-  emotionalClosureAudit?: AlicizationVisibleReplyRealizationEmotionalClosureAudit | null
-  selfAuthorityAudit?: AlicizationVisibleReplyRealizationSelfAuthorityAudit | null
-  projectStateAudit?: AlicizationVisibleReplyRealizationProjectStateAudit | null
-  openingGuidanceHoldDetail?: string | null
-  companionshipHoldMode?: 'quiet-companionship' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | null
-  openingEmbodimentAudit?: AlicizationVisibleReplyRealizationOpeningEmbodimentAudit | null
   reason?: string | null
   critic?: AlicizationVisibleReplyRealizationCriticSummary | null
   closure?: AlicizationVisibleReplyRealizationClosureSummary | null
@@ -1590,7 +1512,6 @@ export interface AlicizationMindTurnGovernance {
   replyRealizationMode?: string | null
   activeClosenessContext?: string | null
   activeClosenessRung?: string | null
-  emotionalClosureCue?: string | null
   carriedThread?: string | null
   labelCarryAsMemory: boolean
   shouldAskForGrounding: boolean
@@ -1763,7 +1684,6 @@ export interface AlicizationSelfRevisionStatePatchSnapshot {
   responsePosture: {
     hypothesisLabelBias: number
     specificityClampBias: number
-    templateShellSuppressionBias: number
   }
   proactivePolicy: {
     restraintBias: number
@@ -1814,9 +1734,9 @@ export interface AlicizationSelfEvolutionBaselineAdoptionRecordSnapshot {
   adoptionMode: 'adopt-now'
   summaryLine: string
   prosodyAuthorityNote?: string | null
-  continuityGovernanceNote?: string | null
-  relationshipCadenceGovernanceNote?: string | null
-  projectStateContinuityGovernanceNote?: string | null
+  bodyContinuityPhase?: 'body-only-hold' | 'body-carried-to-renderer-rejoin' | 'full-cross-modal-lock' | 'renderer-rejoin-without-body' | null
+  rendererRejoinSurfaceKey?: 'authority:renderer-rejoin:speech' | 'authority:renderer-rejoin:live2d' | 'authority:renderer-rejoin:vrm' | null
+  survivingVisibleLane?: 'face+lipsync-only' | 'motion+lipsync-only' | 'face+lipsync+voice-only' | 'motion+lipsync+voice-only' | null
 }
 
 export interface AlicizationSelfEvolutionVersionRuntimeSnapshot {
@@ -1976,9 +1896,9 @@ export interface AlicizationReplayBenchmarkTelemetryPatch {
     silentPresenceNuisanceRate?: number
     continuityMindCarryRate?: number
     roomFirstCadenceRespectRate?: number
-    longRunSameHerClosureRate?: number
-    longRunSameHerSessionClosureRate?: number
-    runtimeLongRunSameHerSessionClosureRate?: number
+    longRunContinuityClosureRate?: number
+    longRunContinuitySessionClosureRate?: number
+    runtimeLongRunContinuitySessionClosureRate?: number
     runtimeMemoryClosureLongRunClosureRate?: number
     learningTaskCompletionCount?: number
     learningTaskFailureCount?: number
@@ -2025,23 +1945,6 @@ export interface AlicizationReplayBenchmarkTracePointer {
   decisionTraceId: string | null
   sessionId: string | null
   activeThreadId: string | null
-}
-
-export type AlicizationReplayBenchmarkVisibleReplyValidationStatus = 'approved' | 'blocked' | 'unknown'
-export type AlicizationReplayBenchmarkProjectStateEvidenceStatus = 'present' | 'missing' | 'unknown'
-
-export interface AlicizationReplayBenchmarkValidationStatusSummary {
-  knownTurnCount: number
-  approvedTurnCount: number
-  blockedTurnCount: number
-  unknownTurnCount: number
-}
-
-export interface AlicizationReplayBenchmarkEvidenceStatusSummary {
-  knownTurnCount: number
-  presentTurnCount: number
-  missingTurnCount: number
-  unknownTurnCount: number
 }
 
 export interface AlicizationReplayBenchmarkFailureTurnRecord {
@@ -2116,12 +2019,6 @@ export interface AlicizationReplayBenchmarkFailureTurnRecord {
     delayed: string[]
     unresolved: string[]
   } | null
-  selfAuthoritySummary?: {
-    authoritySummary: string | null
-    closenessPosture: string | null
-    visibleReplyValidationStatus: AlicizationReplayBenchmarkVisibleReplyValidationStatus
-    projectStateEvidenceStatus: AlicizationReplayBenchmarkProjectStateEvidenceStatus
-  } | null
 }
 
 export interface AlicizationReplayBenchmarkDatasetFeedback {
@@ -2130,62 +2027,8 @@ export interface AlicizationReplayBenchmarkDatasetFeedback {
   totalCount: number
   persisted: boolean
   humanRatingRubric?: AlicizationReplayHumanRatingRubric | null
-  driftSignals?: Array<keyof AlicizationReplayBenchmarkStandardsRecord | 'recentOnlyDrift' | 'closenessLadderDrift' | 'eventGraphRecallCollapse' | 'emotionalClosureDrift' | 'preDialogueBriefingDrift' | 'selfAuthorityDrift' | 'projectStateAuditDrift' | 'projectStateSameHerSelfLineDrift'> | null
-  projectStateSummary?: {
-    comparedTurnCount: number
-    identityHitCount: number
-    phaseHitCount: number
-    openLoopHitCount: number
-    sameHerHitCount: number
-    proactiveSameHerGapHitCount?: number
-    continuityHitCount: number
-  } | null
-  preDialogueBriefingSummary?: {
-    comparedTurnCount: number
-    identityHitCount: number
-    phaseHitCount: number
-    landedProgressHitCount: number
-    openLoopHitCount: number
-    nextClosureHitCount: number
-    emotionalClosureHitCount: number
-    fullyBriefedTurnCount: number
-  } | null
-  emotionalClosureSummary?: {
-    comparedTurnCount: number
-    activeCueTurnCount: number
-    lowPressureRequiredTurnCount: number
-    antiRestartRequiredTurnCount: number
-    validationStatus: AlicizationReplayBenchmarkValidationStatusSummary
-  } | null
-  selfAuthoritySummary?: {
-    comparedTurnCount: number
-    authoritySummaryTurnCount: number
-    closenessPostureTurnCount: number
-    contentCompleteTurnCount: number
-    validationStatus: AlicizationReplayBenchmarkValidationStatusSummary
-  } | null
-  projectStateAuditSummary?: {
-    comparedTurnCount: number
-    sameHerSummaryTurnCount: number
-    sameHerSelfLineTurnCount: number
-    sameHerHoldDetailTurnCount?: number
-    continuityArcStageTurnCount?: number
-    continuityCueTurnCount?: number
-    currentPhaseTurnCount: number
-    landedProgressTurnCount: number
-    openClosureTurnCount: number
-    nextClosureTargetTurnCount: number
-    emotionalClosureTurnCount: number
-    preDialogueAwarenessTurnCount: number
-    richPreDialogueAwarenessTurnCount: number
-    continuitySummaryTurnCount: number
-    embodimentClosureTurnCount: number
-    preDialogueClosureTurnCount: number
-    contentCompleteTurnCount: number
-    validationStatus: AlicizationReplayBenchmarkValidationStatusSummary
-    evidenceStatus: AlicizationReplayBenchmarkEvidenceStatusSummary
-  } | null
-  longRunSameHerSessionSummary?: {
+  driftSignals?: Array<keyof AlicizationReplayBenchmarkStandardsRecord | 'recentOnlyDrift' | 'closenessLadderDrift' | 'eventGraphRecallCollapse'> | null
+  longRunContinuitySessionSummary?: {
     comparedSessionCount: number
     closedSessionCount: number
     singleTurnSessionCount: number
@@ -2202,7 +2045,7 @@ export interface AlicizationReplayBenchmarkDatasetFeedback {
       maxConsecutiveClosedTransitionCount: number
       maxConsecutiveEventRoleProofTurnCount?: number
       turnIds: string[]
-      failureReasons: Array<'single-turn-session' | 'too-short-noisy-desktop-run' | 'missing-same-her-closure-turn' | 'missing-same-her-transition' | 'missing-noisy-desktop-event-role-proof' | 'missing-consecutive-noisy-desktop-event-role-proof' | 'missing-memory-metabolism-proof' | 'missing-memory-metabolism-transition' | 'missing-memory-identity-continuity' | 'missing-runtime-decision-trace-provenance'>
+      failureReasons: Array<'single-turn-session' | 'too-short-noisy-desktop-run' | 'missing-noisy-desktop-event-role-proof' | 'missing-consecutive-noisy-desktop-event-role-proof' | 'missing-memory-metabolism-proof' | 'missing-memory-metabolism-transition' | 'missing-memory-identity-continuity' | 'missing-runtime-decision-trace-provenance'>
       runtimeEvidence: {
         source: 'runtime-sampling-backlog' | 'mixed-runtime-and-conversation' | 'conversation-sample' | 'dataset-backlog' | 'static-pack' | 'unknown'
         runtimeTurnCount: number
@@ -2439,7 +2282,7 @@ export interface AlicizationReplayHumanRatingRubric {
 }
 
 export interface AlicizationReplayBenchmarkShipGateRow {
-  key: 'benchmark-gate' | 'human-rating-gate' | 'latency-gate' | 'wrong-thread-gate' | 'self-model-suppression-gate' | 'relationship-era-suppression-gate' | 'template-leakage-gate' | 'presence-qa-gate' | 'learning-domain-gate' | 'browser-main-parity-gate' | 'visible-reply-authority-gate' | 'project-state-continuity-gate' | 'project-state-audit-gate' | 'final-replay-gate'
+  key: 'benchmark-gate' | 'human-rating-gate' | 'latency-gate' | 'wrong-thread-gate' | 'self-model-suppression-gate' | 'relationship-era-suppression-gate' | 'template-leakage-gate' | 'presence-qa-gate' | 'learning-domain-gate' | 'browser-main-parity-gate' | 'visible-reply-authority-gate' | 'final-replay-gate'
   status: 'pass' | 'fail'
   detail: string
 }
@@ -2590,10 +2433,6 @@ export interface AlicizationDigitalLifeSpineRuntimeDigest {
   answerIntent: string | null
   preferredPresence: string | null
   selectedAction: string | null
-  projectState?: AlicizationRuntimeProjectStateDigest | null
-  continuityArcStage?: string | null
-  continuityPreferredTiming?: string | null
-  continuityCue?: string | null
   updatedAt: number | null
 }
 
@@ -2622,7 +2461,6 @@ export interface AlicizationDigitalLifeSpineContinuityDigest {
 export interface AlicizationDigitalLifeSpineProactiveDigest {
   selectedAction: string | null
   preferredStyle: string | null
-  continuityRestraint?: string | null
   confidence: number | null
   shouldSpeak: boolean | null
   activeThreadId: string | null
@@ -2638,8 +2476,6 @@ export interface AlicizationDigitalLifeSpineProactiveDigest {
     silenceReconnect: string | null
     comfortStyle: string | null
     preferredProactiveStyle: string | null
-    manifestationCadenceSummary: string | null
-    openingGuidance: string | null
     whySummary: string | null
   } | null
 }
@@ -2787,20 +2623,6 @@ export interface AlicizationLearningTaskPayload {
   sourceSessionId: string | null
   action: AlicizationLearningAction
   reason: string | null
-  projectStateContinuity?: {
-    identity: string | null
-    currentPhase: string | null
-    sameHerSummary: string | null
-    landedProgressSummary: string | null
-    openClosureSummary: string | null
-    proactiveSameHerGap: string | null
-    nextClosureTarget: string | null
-    preDialogueAwarenessLine: string | null
-    emotionalClosureCue: string | null
-    sameHerSelfLine: string | null
-    sameHerHoldDetail: string | null
-    sameHerDriftRisk: string | null
-  } | null
   focuses: string[]
   dominantTrajectory: string | null
   sourceSignals: string[]
@@ -2989,27 +2811,6 @@ export interface AlicizationPersonStateUpdateSurface {
   version: 'person-state-update-surface-v1'
   updatedAt: number
   summary: string
-  projectStateContinuity?: {
-    identity?: string | null
-    currentPhase?: string | null
-    sameHerSummary?: string | null
-    landedProgressSummary?: string | null
-    openClosureSummary?: string | null
-    nextClosureTarget?: string | null
-    preDialogueAwarenessLine?: string | null
-    emotionalClosureCue?: string | null
-    sameHerSelfLine?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRisk?: string | null
-    proactiveSameHerGap?: string | null
-    continuityRestraint?: 'lower-pressure' | 'measured-return' | 'repair-before-closeness' | 'rest-protective' | 'single-thread' | null
-    preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
-    preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
-    preferredPauseMode?: 'longer' | 'natural' | null
-    preferredLipsyncMode?: 'restrained' | 'matched' | null
-    preferredVoiceMode?: 'lower-pressure' | 'even' | null
-    preferredPacingMode?: 'slower' | 'natural' | null
-  } | null
   dominantContexts: string[]
   relationshipShift: AlicizationPersonStateUpdateRelationshipShift
   reinforcementBias: Partial<Record<AlicizationPersonaReinforcementDimension, number>>
@@ -3200,7 +3001,6 @@ export interface AlicizationSelfEvolutionKernelSnapshot {
   latestInflection: string | null
   burdenLine: string | null
   trustMeaning: string | null
-  relationshipCadenceSummary?: string | null
   nextLearningAction: 'record' | 'reflect' | 'verify' | 'revise' | 'internalize' | 'hold'
   nextLearningReason: string | null
   shouldRecord: boolean
@@ -3344,20 +3144,6 @@ export interface AlicizationEmotionalTransitionLedgerSnapshot {
     tone: AlicizationEmotionalKernelSnapshot['embodimentTone'] | null
     reason: string
   }
-  selfRevisionCandidate: {
-    shouldPropose: boolean
-    domain: 'dialogue-style' | 'proactive-policy' | 'relationship'
-    reasonCodes: string[]
-    summary: string | null
-    projectStateContinuity: {
-      sameHerSelfLine: string | null
-      sameHerDriftRisk: string | null
-      proactiveSameHerGap: string | null
-      emotionalClosureCue: string | null
-      sameHerHoldDetail: string | null
-      continuityGuard: string | null
-    }
-  }
   traceSummary: string
   replayLine: string
   memoryClosureCausality?: AlicizationMemoryClosureCausalitySnapshot<'emotion'> | null
@@ -3384,12 +3170,6 @@ export interface AlicizationEmbodimentContinuityLedgerSnapshot {
     shouldWrite: boolean
     lane: 'none' | 'cross-modal-continuity' | 'rejoin'
     reason: string
-  }
-  selfRevisionCandidate: {
-    shouldPropose: boolean
-    domain: 'dialogue-style'
-    reasonCodes: string[]
-    summary: string | null
   }
   traceSummary: string
   replayLine: string
@@ -3688,10 +3468,6 @@ function normalizeAlicizationEmotionalTransitionLedgerSnapshot(raw: unknown): Al
   const embodimentDrive = candidate.embodimentDrive && typeof candidate.embodimentDrive === 'object' && !Array.isArray(candidate.embodimentDrive)
     ? candidate.embodimentDrive as Record<string, unknown>
     : null
-  const selfRevisionCandidate = candidate.selfRevisionCandidate && typeof candidate.selfRevisionCandidate === 'object' && !Array.isArray(candidate.selfRevisionCandidate)
-    ? candidate.selfRevisionCandidate as Record<string, unknown>
-    : null
-
   return {
     version: 'emotional-transition-ledger-v1',
     createdAt: normalizeNonNegativeInteger(candidate.createdAt),
@@ -3756,29 +3532,6 @@ function normalizeAlicizationEmotionalTransitionLedgerSnapshot(raw: unknown): Al
         ? normalizeAlicizationEmotionalKernelEmbodimentTone(embodimentDrive.tone)
         : null,
       reason: sanitizeAlicizationDigitalLifeDigestText(embodimentDrive?.reason, 220) || '',
-    },
-    selfRevisionCandidate: {
-      shouldPropose: selfRevisionCandidate?.shouldPropose === true,
-      domain: selfRevisionCandidate?.domain === 'dialogue-style'
-        || selfRevisionCandidate?.domain === 'proactive-policy'
-        || selfRevisionCandidate?.domain === 'relationship'
-        ? selfRevisionCandidate.domain
-        : 'dialogue-style',
-      reasonCodes: Array.isArray(selfRevisionCandidate?.reasonCodes)
-        ? selfRevisionCandidate.reasonCodes
-            .map(item => sanitizeAlicizationDigitalLifeDigestText(item, 120))
-            .filter(Boolean)
-            .slice(0, 8)
-        : [],
-      summary: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate?.summary, 220) || null,
-      projectStateContinuity: {
-        sameHerSelfLine: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate && typeof selfRevisionCandidate.projectStateContinuity === 'object' ? (selfRevisionCandidate.projectStateContinuity as Record<string, unknown>).sameHerSelfLine : '', 220) || null,
-        sameHerDriftRisk: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate && typeof selfRevisionCandidate.projectStateContinuity === 'object' ? (selfRevisionCandidate.projectStateContinuity as Record<string, unknown>).sameHerDriftRisk : '', 220) || null,
-        proactiveSameHerGap: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate && typeof selfRevisionCandidate.projectStateContinuity === 'object' ? (selfRevisionCandidate.projectStateContinuity as Record<string, unknown>).proactiveSameHerGap : '', 220) || null,
-        emotionalClosureCue: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate && typeof selfRevisionCandidate.projectStateContinuity === 'object' ? (selfRevisionCandidate.projectStateContinuity as Record<string, unknown>).emotionalClosureCue : '', 220) || null,
-        sameHerHoldDetail: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate && typeof selfRevisionCandidate.projectStateContinuity === 'object' ? (selfRevisionCandidate.projectStateContinuity as Record<string, unknown>).sameHerHoldDetail : '', 220) || null,
-        continuityGuard: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate && typeof selfRevisionCandidate.projectStateContinuity === 'object' ? (selfRevisionCandidate.projectStateContinuity as Record<string, unknown>).continuityGuard : '', 220) || null,
-      },
     },
     traceSummary: sanitizeAlicizationDigitalLifeDigestText(candidate.traceSummary, 260) || '',
     replayLine: sanitizeAlicizationDigitalLifeDigestText(candidate.replayLine, 260) || '',
@@ -3857,9 +3610,6 @@ function normalizeAlicizationEmbodimentContinuityLedgerSnapshot(raw: unknown): A
   const memoryWriteback = candidate.memoryWriteback && typeof candidate.memoryWriteback === 'object' && !Array.isArray(candidate.memoryWriteback)
     ? candidate.memoryWriteback as Record<string, unknown>
     : null
-  const selfRevisionCandidate = candidate.selfRevisionCandidate && typeof candidate.selfRevisionCandidate === 'object' && !Array.isArray(candidate.selfRevisionCandidate)
-    ? candidate.selfRevisionCandidate as Record<string, unknown>
-    : null
   const carryingLanes = lanes
     ? laneNames.filter(lane => lanes[lane].status === 'carrying-continuity')
     : normalizeAlicizationEmbodimentContinuityLaneList(candidate.carryingLanes).slice(0, 5)
@@ -3893,17 +3643,6 @@ function normalizeAlicizationEmbodimentContinuityLedgerSnapshot(raw: unknown): A
         ? memoryWriteback.lane
         : 'none',
       reason: sanitizeAlicizationDigitalLifeDigestText(memoryWriteback?.reason, 240) || '',
-    },
-    selfRevisionCandidate: {
-      shouldPropose: selfRevisionCandidate?.shouldPropose === true,
-      domain: 'dialogue-style',
-      reasonCodes: Array.isArray(selfRevisionCandidate?.reasonCodes)
-        ? selfRevisionCandidate.reasonCodes
-            .map(reason => sanitizeAlicizationDigitalLifeDigestText(reason, 120))
-            .filter(Boolean)
-            .slice(0, 16)
-        : [],
-      summary: sanitizeAlicizationDigitalLifeDigestText(selfRevisionCandidate?.summary, 260) || null,
     },
     traceSummary: sanitizeAlicizationDigitalLifeDigestText(candidate.traceSummary, 360) || '',
     replayLine: sanitizeAlicizationDigitalLifeDigestText(candidate.replayLine, 360) || '',
@@ -4212,210 +3951,12 @@ function normalizeAlicizationDialogueStructuredPayload(raw: unknown): Alicizatio
     return null
 
   const emotion = normalizeAlicizationEmotion(candidate.emotion)
-  const projectStateCandidate = candidate.projectState && typeof candidate.projectState === 'object' && !Array.isArray(candidate.projectState)
-    ? candidate.projectState as Record<string, unknown>
-    : null
-  const preDialogueAwarenessCandidate = candidate.preDialogueAwareness && typeof candidate.preDialogueAwareness === 'object' && !Array.isArray(candidate.preDialogueAwareness)
-    ? candidate.preDialogueAwareness as Record<string, unknown>
-    : null
-  const preDialogueClosureCandidate = candidate.preDialogueClosure && typeof candidate.preDialogueClosure === 'object' && !Array.isArray(candidate.preDialogueClosure)
-    ? candidate.preDialogueClosure as Record<string, unknown>
-    : null
   const normalizedEmbodimentScript = normalizeAlicizationEmbodimentScript(candidate.embodimentScript)
 
   return {
     thought,
     emotion: emotion.emotion,
     reply,
-    projectState: (() => {
-      if (!projectStateCandidate)
-        return undefined
-
-      const identity = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.identity, 220)
-      const currentPhase = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.currentPhase, 120)
-      const preflightSummary = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preflightSummary, 320) || null
-      const preDialogueAwarenessLine = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preDialogueAwarenessLine, 320) || null
-      const latestLandedProgress = (() => {
-        const latest = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.latestLandedProgress, 320)
-        const legacy = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.latestProgress, 320)
-        const audit = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.landedProgressSummary, 320)
-        return latest || legacy || audit || null
-      })()
-      const primaryOpenLoop = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.primaryOpenLoop, 320) || null
-      const nextClosureTarget = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.nextClosureTarget, 320)
-      const sameHerSelfLine = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.sameHerSelfLine, 220) || null
-      const sameHerHoldDetail = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.sameHerHoldDetail, 220) || null
-      const sameHerDriftRisk = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.sameHerDriftRisk, 320) || null
-      const companionBriefingLine = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.companionBriefingLine, 220) || null
-      const emotionalClosureCue = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.emotionalClosureCue, 220) || null
-      const proactiveSameHerGap = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.proactiveSameHerGap, 320) || null
-      const emotionalClosureSummary = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.emotionalClosureSummary, 240) || null
-      const continuityRestraint = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuityRestraint, 64) || null
-      const continuityArcStage = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuityArcStage, 120) || null
-      const continuityCue = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuityCue, 220) || null
-      const continuityPreferredTiming = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuityPreferredTiming, 120) || null
-      const continuityCadence = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuityCadence, 120) || null
-      const preferredBlinkCadence = normalizeAlicizationProjectStateBlinkCadence(
-        sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preferredBlinkCadence, 32),
-      )
-      const preferredGazeMode = normalizeAlicizationProjectStateGazeMode(
-        sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preferredGazeMode, 32),
-      )
-      const preferredPauseMode = normalizeAlicizationProjectStatePauseMode(
-        sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preferredPauseMode, 32),
-      )
-      const preferredLipsyncMode = normalizeAlicizationProjectStateLipsyncMode(
-        sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preferredLipsyncMode, 32),
-      )
-      const preferredVoiceMode = normalizeAlicizationProjectStateVoiceMode(
-        sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preferredVoiceMode, 32),
-      )
-      const preferredPacingMode = normalizeAlicizationProjectStatePacingMode(
-        sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preferredPacingMode, 32),
-      )
-
-      if (!hasAlicizationProjectAwarenessContent([
-        identity,
-        currentPhase,
-        preflightSummary,
-        preDialogueAwarenessLine,
-        latestLandedProgress,
-        primaryOpenLoop,
-        nextClosureTarget,
-        sameHerSelfLine,
-        sameHerHoldDetail,
-        sameHerDriftRisk,
-        companionBriefingLine,
-        emotionalClosureCue,
-        proactiveSameHerGap,
-        emotionalClosureSummary,
-        continuityRestraint,
-        continuityArcStage,
-        continuityCue,
-        continuityPreferredTiming,
-        continuityCadence,
-        preferredBlinkCadence,
-        preferredGazeMode,
-        preferredPauseMode,
-        preferredLipsyncMode,
-        preferredVoiceMode,
-        preferredPacingMode,
-      ])) {
-        return undefined
-      }
-
-      return {
-        identity,
-        currentPhase,
-        preflightSummary,
-        preDialogueAwarenessLine,
-        latestLandedProgress,
-        primaryOpenLoop,
-        nextClosureTarget,
-        sameHerSelfLine,
-        sameHerHoldDetail,
-        sameHerDriftRisk,
-        companionBriefingLine,
-        emotionalClosureCue,
-        ...(proactiveSameHerGap ? { proactiveSameHerGap } : {}),
-        emotionalClosureSummary,
-        continuityRestraint,
-        continuityArcStage,
-        continuityCue,
-        continuityPreferredTiming,
-        continuityCadence,
-        preferredBlinkCadence,
-        preferredGazeMode,
-        preferredPauseMode,
-        preferredLipsyncMode,
-        preferredVoiceMode,
-        preferredPacingMode,
-      }
-    })(),
-    preDialogueAwareness: (() => {
-      const rawStatus = sanitizeAlicizationDigitalLifeDigestText(preDialogueAwarenessCandidate?.status, 40)?.toLowerCase()
-      const status = rawStatus === 'grounded' || rawStatus === 'partial' || rawStatus === 'drift'
-        ? rawStatus
-        : null
-      if (!status)
-        return undefined
-
-      const summaryLine = sanitizeAlicizationProjectAwarenessDigestText(preDialogueAwarenessCandidate?.summaryLine, 320) || null
-      const companionHeadlineLine = sanitizeAlicizationProjectAwarenessDigestText(preDialogueAwarenessCandidate?.companionHeadlineLine, 320) || null
-      const companionBriefingLine = sanitizeAlicizationProjectAwarenessDigestText(preDialogueAwarenessCandidate?.companionBriefingLine, 320) || null
-      const companionNextClosureLine = sanitizeAlicizationProjectAwarenessDigestText(preDialogueAwarenessCandidate?.companionNextClosureLine, 320) || null
-      const awarenessLine = sanitizeAlicizationProjectAwarenessDigestText(preDialogueAwarenessCandidate?.awarenessLine, 320) || null
-      const emotionalClosureCue = sanitizeAlicizationProjectAwarenessDigestText(preDialogueAwarenessCandidate?.emotionalClosureCue, 320) || null
-      const reasonPreview = Array.isArray(preDialogueAwarenessCandidate?.reasonPreview)
-        ? preDialogueAwarenessCandidate.reasonPreview
-            .map(reason => sanitizeAlicizationProjectAwarenessDigestText(reason, 320) || '')
-            .filter(Boolean)
-        : []
-
-      if (!hasAlicizationProjectAwarenessContent([
-        summaryLine,
-        companionHeadlineLine,
-        companionBriefingLine,
-        companionNextClosureLine,
-        awarenessLine,
-        emotionalClosureCue,
-        reasonPreview,
-      ])) {
-        return undefined
-      }
-
-      return {
-        status,
-        summaryLine,
-        companionHeadlineLine,
-        companionBriefingLine,
-        companionNextClosureLine,
-        awarenessLine,
-        emotionalClosureCue,
-        reasonPreview,
-      } satisfies NonNullable<AlicizationDialogueStructuredPayload['preDialogueAwareness']>
-    })(),
-    preDialogueClosure: (() => {
-      if (!preDialogueClosureCandidate)
-        return undefined
-
-      const status = sanitizeAlicizationDigitalLifeDigestText(preDialogueClosureCandidate.status, 80) || ''
-      const summaryLine = sanitizeAlicizationProjectAwarenessDigestText(preDialogueClosureCandidate.summaryLine, 320) || null
-      const companionHeadlineLine = sanitizeAlicizationProjectAwarenessDigestText(preDialogueClosureCandidate.companionHeadlineLine, 320) || null
-      const companionBriefingLine = sanitizeAlicizationProjectAwarenessDigestText(preDialogueClosureCandidate.companionBriefingLine, 320) || null
-      const companionNextClosureLine = sanitizeAlicizationProjectAwarenessDigestText(preDialogueClosureCandidate.companionNextClosureLine, 320) || null
-      const briefingLines = Array.isArray(preDialogueClosureCandidate.briefingLines)
-        ? preDialogueClosureCandidate.briefingLines
-            .map(line => sanitizeAlicizationProjectAwarenessDigestText(line, 320) || '')
-            .filter(Boolean)
-        : []
-      const reasons = Array.isArray(preDialogueClosureCandidate.reasons)
-        ? preDialogueClosureCandidate.reasons
-            .map(reason => sanitizeAlicizationProjectAwarenessDigestText(reason, 320) || '')
-            .filter(Boolean)
-        : []
-
-      if (!hasAlicizationProjectAwarenessContent([
-        summaryLine,
-        companionHeadlineLine,
-        companionBriefingLine,
-        companionNextClosureLine,
-        briefingLines,
-        reasons,
-      ])) {
-        return undefined
-      }
-
-      return {
-        status,
-        summaryLine,
-        companionHeadlineLine,
-        companionBriefingLine,
-        companionNextClosureLine,
-        briefingLines,
-        reasons,
-      }
-    })(),
     performance: normalizeAlicizationPerformancePayload(candidate.performance, emotion.emotion),
     embodimentScript: normalizedEmbodimentScript,
     speechTimeline: normalizeAlicizationDialogueSpeechTimelinePayload(candidate.speechTimeline),
@@ -4900,7 +4441,6 @@ export interface AlicizationDigitalLifeSpineMemoryDigest {
   longHorizonCueCount?: number | null
   selfEvolution?: {
     relationshipDoctrine: string | null
-    relationshipCadenceSummary?: string | null
     latestInflection: string | null
     burdenLine: string | null
     trustMeaning: string | null
@@ -4922,9 +4462,7 @@ export interface AlicizationDigitalLifeSpineMemoryDigest {
     activeClosenessContext: string | null
     activeClosenessRung: string | null
     relationshipPosture: string | null
-    openingGuidance: string | null
     preferredProactiveStyle: string | null
-    manifestationCadenceSummary: string | null
   } | null
   memoryClosureTrace?: AlicizationDigitalLifeSpineMemoryClosureTrace | null
 }
@@ -5025,7 +4563,6 @@ export interface AlicizationDigitalLifeSpineEmbodimentDigest {
     selectedAction: string | null
     preferredStyle: string | null
     preferredPresence: string | null
-    continuityRestraint?: string | null
     confidence: number | null
     shouldSpeak: boolean | null
     speakDrive: number | null
@@ -5037,8 +4574,6 @@ export interface AlicizationDigitalLifeSpineEmbodimentDigest {
       silenceReconnect: string | null
       comfortStyle: string | null
       preferredProactiveStyle: string | null
-      manifestationCadenceSummary: string | null
-      openingGuidance: string | null
       whySummary: string | null
     } | null
   } | null
@@ -5128,8 +4663,6 @@ export interface AlicizationActiveLoopDigest {
   phase: AlicizationActiveLoopPhase
   dominantChannel: AlicizationRuntimeChannelId | null
   handoffTarget: AlicizationRuntimeChannelId | null
-  continuityArcStage?: string | null
-  continuityPreferredTiming?: string | null
   dialogueReady: boolean
   controlReady: boolean
   memoryCarry: boolean
@@ -5155,47 +4688,11 @@ export interface AlicizationRuntimeAutonomyDigest {
   whyNow: string | null
 }
 
-export interface AlicizationRuntimeProjectStateDigest {
-  preflightSummary?: string | null
-  preDialogueAwarenessLine?: string | null
-  preDialogueAwarenessSummary?: string | null
-  continuitySummary?: string | null
-  awarenessLine?: string | null
-  companionHeadlineLine?: string | null
-  companionBriefingLine?: string | null
-  identity?: string | null
-  currentPhase?: string | null
-  latestLandedProgress?: string | null
-  latestProgress?: string | null
-  landedProgressSummary?: string | null
-  memoryClosureSummary?: string | null
-  primaryOpenLoop?: string | null
-  nextClosureTarget?: string | null
-  sameHerSelfLine?: string | null
-  sameHerHoldDetail?: string | null
-  sameHerDriftRisk?: string | null
-  emotionalClosureCue?: string | null
-  proactiveSameHerGap?: string | null
-  proactiveSameHerGapSummary?: string | null
-  continuityRestraint?: string | null
-  continuityArcStage?: string | null
-  continuityPreferredTiming?: string | null
-  continuityCadence?: string | null
-  continuityCue?: string | null
-  preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
-  preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
-  preferredPauseMode?: 'longer' | 'natural' | null
-  preferredLipsyncMode?: 'restrained' | 'matched' | null
-  preferredVoiceMode?: 'lower-pressure' | 'even' | null
-  preferredPacingMode?: 'slower' | 'natural' | null
-}
-
 export interface AlicizationRuntimeDigest {
   version: 'alicization-runtime-digest-v1'
   dominantChannel: AlicizationRuntimeChannelId
   activeLoop?: AlicizationActiveLoopDigest | null
   autonomy?: AlicizationRuntimeAutonomyDigest | null
-  projectState?: AlicizationRuntimeProjectStateDigest | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   currentConsciousFrame?: {
@@ -5204,12 +4701,7 @@ export interface AlicizationRuntimeDigest {
     focusAnchor?: string | null
     consciousNeed?: string | null
     speakingIntention?: string | null
-    continuityArcStage?: string | null
-    continuityPreferredTiming?: string | null
-    continuityCadence?: string | null
   } | null
-  continuityRestraint?: string | null
-  emotionalClosureCue?: string | null
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   shouldProactivelySpeak: boolean
   shouldProactivelyAct: boolean
@@ -5260,39 +4752,10 @@ function normalizeAlicizationRuntimeDigestDerivedMindStateBundle(
   })
 }
 
-const ALICIZATION_PROJECT_AWARENESS_PLACEHOLDER_VALUES = new Set([
-  'none',
-  'null',
-  'unknown',
-  'n/a',
-  'na',
-])
-
 function sanitizeAlicizationDigitalLifeDigestText(raw: unknown, maxChars = 160) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-}
-
-function sanitizeAlicizationProjectAwarenessDigestText(raw: unknown, maxChars = 160) {
-  const normalized = sanitizeAlicizationDigitalLifeDigestText(raw, maxChars)
-  if (!normalized)
-    return ''
-
-  return ALICIZATION_PROJECT_AWARENESS_PLACEHOLDER_VALUES.has(normalized.toLowerCase())
-    || containsAlicizationFixedTemplateResidue(normalized)
-    ? ''
-    : normalized
-}
-
-function hasAlicizationProjectAwarenessContent(values: unknown[]) {
-  return values.some((value) => {
-    if (typeof value === 'string')
-      return value.trim().length > 0
-    if (Array.isArray(value))
-      return value.length > 0
-    return value != null
-  })
 }
 
 function normalizeAlicizationDigitalLifeDigestNumber(raw: unknown) {
@@ -5344,8 +4807,6 @@ function normalizeAlicizationDigitalLifePersonaBias(raw: unknown): NonNullable<A
     silenceReconnect: sanitizeAlicizationDigitalLifeDigestText(candidate.silenceReconnect, 64) || null,
     comfortStyle: sanitizeAlicizationDigitalLifeDigestText(candidate.comfortStyle, 64) || null,
     preferredProactiveStyle: sanitizeAlicizationDigitalLifeDigestText(candidate.preferredProactiveStyle, 64) || null,
-    manifestationCadenceSummary: sanitizeAlicizationDigitalLifeDigestText(candidate.manifestationCadenceSummary, 220) || null,
-    openingGuidance: sanitizeAlicizationDigitalLifeDigestText(candidate.openingGuidance, 220) || null,
     whySummary: sanitizeAlicizationDigitalLifeDigestText(candidate.whySummary, 320) || null,
   }
 
@@ -5683,69 +5144,7 @@ function normalizeAlicizationRuntimeConsciousFrameDigest(raw: unknown) {
     focusAnchor: sanitizeAlicizationDigitalLifeDigestText(candidate.focusAnchor, 160) || null,
     consciousNeed: sanitizeAlicizationDigitalLifeDigestText(candidate.consciousNeed, 420) || null,
     speakingIntention: sanitizeAlicizationDigitalLifeDigestText(candidate.speakingIntention, 420) || null,
-    continuityArcStage: sanitizeAlicizationDigitalLifeDigestText(candidate.continuityArcStage, 120) || null,
-    continuityPreferredTiming: sanitizeAlicizationDigitalLifeDigestText(candidate.continuityPreferredTiming, 120) || null,
-    continuityCadence: sanitizeAlicizationDigitalLifeDigestText(candidate.continuityCadence, 120) || null,
   }
-}
-
-function normalizeAlicizationProjectStateBlinkCadence(raw: unknown) {
-  const normalized = sanitizeAlicizationProjectAwarenessDigestText(raw, 32)
-  return normalized === 'normal'
-    || normalized === 'linger'
-    || normalized === 'quiet'
-    ? normalized
-    : null
-}
-
-function normalizeAlicizationProjectStateGazeMode(raw: unknown) {
-  const normalized = sanitizeAlicizationProjectAwarenessDigestText(raw, 32)
-  return normalized === 'steady'
-    || normalized === 'soften'
-    || normalized === 'drift'
-    ? normalized
-    : null
-}
-
-function normalizeAlicizationProjectStateVoiceMode(raw: unknown) {
-  const normalized = sanitizeAlicizationProjectAwarenessDigestText(raw, 32)
-  return normalized === 'lower-pressure'
-    || normalized === 'even'
-    ? normalized
-    : null
-}
-
-function normalizeAlicizationProjectStatePauseMode(raw: unknown) {
-  const normalized = sanitizeAlicizationProjectAwarenessDigestText(raw, 32)
-  return normalized === 'longer'
-    || normalized === 'natural'
-    ? normalized
-    : null
-}
-
-function normalizeAlicizationProjectStateLipsyncMode(raw: unknown) {
-  const normalized = sanitizeAlicizationProjectAwarenessDigestText(raw, 32)
-  return normalized === 'restrained'
-    || normalized === 'matched'
-    ? normalized
-    : null
-}
-
-function normalizeAlicizationProjectStatePacingMode(raw: unknown) {
-  const normalized = sanitizeAlicizationProjectAwarenessDigestText(raw, 32)
-  return normalized === 'slower'
-    || normalized === 'natural'
-    ? normalized
-    : null
-}
-
-function resolveAlicizationProjectStateLatestLandedProgress(
-  projectState: Record<string, unknown>,
-) {
-  return sanitizeAlicizationProjectAwarenessDigestText(projectState.latestLandedProgress, 320)
-    || sanitizeAlicizationProjectAwarenessDigestText(projectState.latestProgress, 320)
-    || sanitizeAlicizationProjectAwarenessDigestText(projectState.landedProgressSummary, 320)
-    || null
 }
 
 export function normalizeAlicizationRuntimeDigest(raw: unknown): AlicizationRuntimeDigest | null {
@@ -5811,8 +5210,6 @@ export function normalizeAlicizationRuntimeDigest(raw: unknown): AlicizationRunt
             }),
           dominantChannel: normalizeAlicizationRuntimeChannelId(activeLoopCandidate.dominantChannel) ?? dominantChannel,
           handoffTarget: normalizeAlicizationRuntimeChannelId(activeLoopCandidate.handoffTarget),
-          continuityArcStage: sanitizeAlicizationDigitalLifeDigestText((activeLoopCandidate as Record<string, unknown>).continuityArcStage, 120) || null,
-          continuityPreferredTiming: sanitizeAlicizationDigitalLifeDigestText((activeLoopCandidate as Record<string, unknown>).continuityPreferredTiming, 120) || null,
           dialogueReady,
           controlReady,
           memoryCarry: activeLoopCandidate.memoryCarry === true,
@@ -5839,127 +5236,9 @@ export function normalizeAlicizationRuntimeDigest(raw: unknown): AlicizationRunt
           whyNow: sanitizeAlicizationDigitalLifeDigestText(autonomyCandidate.whyNow, 220) || null,
         }
       : null,
-    projectState: (() => {
-      if (!Object.prototype.hasOwnProperty.call(candidate, 'projectState'))
-        return undefined
-      if (candidate.projectState === null)
-        return null
-      const projectStateCandidate = candidate.projectState && typeof candidate.projectState === 'object'
-        ? candidate.projectState as Record<string, unknown>
-        : null
-      if (!projectStateCandidate)
-        return undefined
-
-      const preflightSummary = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preflightSummary, 320) || null
-      const preDialogueAwarenessLine = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.preDialogueAwarenessLine, 320) || null
-      const continuitySummary = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuitySummary, 320) || null
-      const identity = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.identity, 220) || null
-      const currentPhase = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.currentPhase, 120) || null
-      const latestLandedProgress = resolveAlicizationProjectStateLatestLandedProgress(projectStateCandidate)
-      const memoryClosureSummary = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.memoryClosureSummary, 220) || null
-      const primaryOpenLoop = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.primaryOpenLoop, 220) || null
-      const nextClosureTarget = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.nextClosureTarget, 220) || null
-      const sameHerSelfLine = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.sameHerSelfLine, 220) || null
-      const sameHerHoldDetail = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.sameHerHoldDetail, 220) || null
-      const sameHerDriftRisk = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.sameHerDriftRisk, 320) || null
-      const emotionalClosureCue = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.emotionalClosureCue, 220) || null
-      const hasProactiveSameHerGap = Object.prototype.hasOwnProperty.call(projectStateCandidate, 'proactiveSameHerGap')
-      const hasProactiveSameHerGapSummary = Object.prototype.hasOwnProperty.call(projectStateCandidate, 'proactiveSameHerGapSummary')
-      const canonicalProactiveSameHerGap = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.proactiveSameHerGap, 320) || null
-      const aliasProactiveSameHerGap = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.proactiveSameHerGapSummary, 320) || null
-      const proactiveSameHerGap = hasProactiveSameHerGap && projectStateCandidate.proactiveSameHerGap === null
-        ? null
-        : canonicalProactiveSameHerGap || aliasProactiveSameHerGap
-      const proactiveSameHerGapSummary = hasProactiveSameHerGap && projectStateCandidate.proactiveSameHerGap === null
-        ? null
-        : hasProactiveSameHerGapSummary && projectStateCandidate.proactiveSameHerGapSummary === null
-          ? null
-          : aliasProactiveSameHerGap || proactiveSameHerGap
-      const continuityRestraint = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuityRestraint, 64) || null
-      const continuityArcStage = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuityArcStage, 120) || null
-      const continuityPreferredTiming = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuityPreferredTiming, 120) || null
-      const continuityCadence = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuityCadence, 120) || null
-      const continuityCue = sanitizeAlicizationProjectAwarenessDigestText(projectStateCandidate.continuityCue, 220) || null
-      const preferredBlinkCadence = normalizeAlicizationProjectStateBlinkCadence(projectStateCandidate.preferredBlinkCadence)
-      const preferredGazeMode = normalizeAlicizationProjectStateGazeMode(projectStateCandidate.preferredGazeMode)
-      const preferredPauseMode = normalizeAlicizationProjectStatePauseMode(projectStateCandidate.preferredPauseMode)
-      const preferredLipsyncMode = normalizeAlicizationProjectStateLipsyncMode(projectStateCandidate.preferredLipsyncMode)
-      const preferredVoiceMode = normalizeAlicizationProjectStateVoiceMode(projectStateCandidate.preferredVoiceMode)
-      const preferredPacingMode = normalizeAlicizationProjectStatePacingMode(projectStateCandidate.preferredPacingMode)
-
-      const normalizedProjectState: AlicizationRuntimeProjectStateDigest = {}
-      let hasExplicitNull = false
-      const assign = (
-        key: keyof AlicizationRuntimeProjectStateDigest,
-        value: unknown,
-        rawKeys: string[] = [key],
-      ) => {
-        if (!rawKeys.some(rawKey => Object.prototype.hasOwnProperty.call(projectStateCandidate, rawKey)))
-          return
-        const hasRawExplicitNull = rawKeys.some(rawKey =>
-          Object.prototype.hasOwnProperty.call(projectStateCandidate, rawKey)
-          && projectStateCandidate[rawKey] === null,
-        )
-        if ((value === null || value === undefined) && !hasRawExplicitNull)
-          return
-        hasExplicitNull ||= hasRawExplicitNull
-        ;(normalizedProjectState as Record<string, unknown>)[key] = value
-      }
-
-      assign('preflightSummary', preflightSummary)
-      assign('preDialogueAwarenessLine', preDialogueAwarenessLine)
-      assign('continuitySummary', continuitySummary)
-      assign('identity', identity)
-      assign('currentPhase', currentPhase)
-      assign('latestLandedProgress', latestLandedProgress, [
-        'latestLandedProgress',
-        'latestProgress',
-        'landedProgressSummary',
-      ])
-      assign('memoryClosureSummary', memoryClosureSummary)
-      assign('primaryOpenLoop', primaryOpenLoop)
-      assign('nextClosureTarget', nextClosureTarget)
-      assign('sameHerSelfLine', sameHerSelfLine)
-      assign('sameHerHoldDetail', sameHerHoldDetail)
-      assign('sameHerDriftRisk', sameHerDriftRisk)
-      assign('emotionalClosureCue', emotionalClosureCue)
-      if (hasProactiveSameHerGap || hasProactiveSameHerGapSummary) {
-        if (hasProactiveSameHerGap || aliasProactiveSameHerGap) {
-          assign('proactiveSameHerGap', proactiveSameHerGap, hasProactiveSameHerGap
-            ? ['proactiveSameHerGap']
-            : ['proactiveSameHerGapSummary'])
-        }
-        assign('proactiveSameHerGapSummary', proactiveSameHerGapSummary, [
-          'proactiveSameHerGap',
-          'proactiveSameHerGapSummary',
-        ])
-      }
-      assign('continuityRestraint', continuityRestraint)
-      assign('continuityArcStage', continuityArcStage)
-      assign('continuityPreferredTiming', continuityPreferredTiming)
-      assign('continuityCadence', continuityCadence)
-      assign('continuityCue', continuityCue)
-      assign('preferredBlinkCadence', preferredBlinkCadence)
-      assign('preferredGazeMode', preferredGazeMode)
-      assign('preferredPauseMode', preferredPauseMode)
-      assign('preferredLipsyncMode', preferredLipsyncMode)
-      assign('preferredVoiceMode', preferredVoiceMode)
-      assign('preferredPacingMode', preferredPacingMode)
-
-      if (
-        !hasExplicitNull
-        && !hasAlicizationProjectAwarenessContent(Object.values(normalizedProjectState))
-      ) {
-        return undefined
-      }
-
-      return normalizedProjectState
-    })(),
     affectiveResidue,
     derivedMindStateBundle,
     currentConsciousFrame: currentConsciousFrameCandidate,
-    continuityRestraint: sanitizeAlicizationProjectAwarenessDigestText(candidate.continuityRestraint, 64) || null,
-    emotionalClosureCue: sanitizeAlicizationProjectAwarenessDigestText(candidate.emotionalClosureCue, 220) || null,
     emotionalKernel: normalizeAlicizationEmotionalKernelSnapshot(candidate.emotionalKernel),
     shouldProactivelySpeak: candidate.shouldProactivelySpeak === true,
     shouldProactivelyAct: candidate.shouldProactivelyAct === true,
@@ -6054,9 +5333,6 @@ export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): Aliciz
       answerIntent: sanitizeAlicizationDigitalLifeDigestText(runtimeCandidate?.answerIntent, 64) || null,
       preferredPresence: sanitizeAlicizationDigitalLifeDigestText(runtimeCandidate?.preferredPresence, 48) || null,
       selectedAction: sanitizeAlicizationDigitalLifeDigestText(runtimeCandidate?.selectedAction, 48) || null,
-      continuityArcStage: sanitizeAlicizationDigitalLifeDigestText(runtimeCandidate?.continuityArcStage, 120) || null,
-      continuityPreferredTiming: sanitizeAlicizationDigitalLifeDigestText(runtimeCandidate?.continuityPreferredTiming, 120) || null,
-      continuityCue: sanitizeAlicizationDigitalLifeDigestText(runtimeCandidate?.continuityCue, 220) || null,
       updatedAt: normalizeAlicizationDigitalLifeDigestNumber(runtimeCandidate?.updatedAt),
     },
     architecture: architectureCandidate
@@ -6087,7 +5363,6 @@ export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): Aliciz
       ? {
           selectedAction: sanitizeAlicizationDigitalLifeDigestText(proactiveCandidate.selectedAction, 48) || null,
           preferredStyle: sanitizeAlicizationDigitalLifeDigestText(proactiveCandidate.preferredStyle, 48) || null,
-          continuityRestraint: sanitizeAlicizationDigitalLifeDigestText(proactiveCandidate.continuityRestraint, 64) || null,
           confidence: normalizeAlicizationDigitalLifeDigestUnit(proactiveCandidate.confidence),
           shouldSpeak: typeof proactiveCandidate.shouldSpeak === 'boolean'
             ? proactiveCandidate.shouldSpeak
@@ -6287,7 +5562,6 @@ export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): Aliciz
                 selectedAction: sanitizeAlicizationDigitalLifeDigestText(initiativeCandidate.selectedAction, 48) || null,
                 preferredStyle: sanitizeAlicizationDigitalLifeDigestText(initiativeCandidate.preferredStyle, 48) || null,
                 preferredPresence: sanitizeAlicizationDigitalLifeDigestText(initiativeCandidate.preferredPresence, 48) || null,
-                continuityRestraint: sanitizeAlicizationDigitalLifeDigestText(initiativeCandidate.continuityRestraint, 64) || null,
                 confidence: normalizeAlicizationDigitalLifeDigestUnit(initiativeCandidate.confidence),
                 shouldSpeak: normalizeAlicizationDigitalLifeDigestBoolean(initiativeCandidate.shouldSpeak),
                 speakDrive: normalizeAlicizationDigitalLifeDigestUnit(initiativeCandidate.speakDrive),
@@ -6320,46 +5594,69 @@ export function normalizeAlicizationDigitalLifeSpineDigest(raw: unknown): Aliciz
           rememberedConstraintSummary: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.rememberedConstraintSummary, 180) || null,
           rememberedPlanSummary: sanitizeAlicizationDigitalLifeDigestText(memoryCandidate.rememberedPlanSummary, 180) || null,
           longHorizonCueCount: Math.max(0, Math.floor(normalizeAlicizationDigitalLifeDigestNumber(memoryCandidate.longHorizonCueCount) ?? 0)),
-          selfEvolution: memoryCandidate.selfEvolution && typeof memoryCandidate.selfEvolution === 'object'
-            ? {
-                relationshipDoctrine: sanitizeAlicizationDigitalLifeDigestText((memoryCandidate.selfEvolution as Record<string, unknown>).relationshipDoctrine, 220) || null,
-                relationshipCadenceSummary: sanitizeAlicizationDigitalLifeDigestText((memoryCandidate.selfEvolution as Record<string, unknown>).relationshipCadenceSummary, 220) || null,
-                latestInflection: sanitizeAlicizationDigitalLifeDigestText((memoryCandidate.selfEvolution as Record<string, unknown>).latestInflection, 220) || null,
-                burdenLine: sanitizeAlicizationDigitalLifeDigestText((memoryCandidate.selfEvolution as Record<string, unknown>).burdenLine, 220) || null,
-                trustMeaning: sanitizeAlicizationDigitalLifeDigestText((memoryCandidate.selfEvolution as Record<string, unknown>).trustMeaning, 220) || null,
-                summary: sanitizeAlicizationDigitalLifeDigestText((memoryCandidate.selfEvolution as Record<string, unknown>).summary, 220) || null,
-              }
-            : null,
+          selfEvolution: (() => {
+            const selfEvolutionCandidate = memoryCandidate.selfEvolution
+              && typeof memoryCandidate.selfEvolution === 'object'
+              && !Array.isArray(memoryCandidate.selfEvolution)
+              ? memoryCandidate.selfEvolution as Record<string, unknown>
+              : null
+            if (!selfEvolutionCandidate)
+              return null
+
+            const normalized = {
+              relationshipDoctrine: sanitizeAlicizationDigitalLifeDigestText(selfEvolutionCandidate.relationshipDoctrine, 220) || null,
+              latestInflection: sanitizeAlicizationDigitalLifeDigestText(selfEvolutionCandidate.latestInflection, 220) || null,
+              burdenLine: sanitizeAlicizationDigitalLifeDigestText(selfEvolutionCandidate.burdenLine, 220) || null,
+              trustMeaning: sanitizeAlicizationDigitalLifeDigestText(selfEvolutionCandidate.trustMeaning, 220) || null,
+              summary: sanitizeAlicizationDigitalLifeDigestText(selfEvolutionCandidate.summary, 220) || null,
+            }
+            return Object.values(normalized).some(Boolean) ? normalized : null
+          })(),
           affectiveResidue: normalizeAlicizationRuntimeDigestAffectiveResidue(memoryCandidate.affectiveResidue),
           derivedMindStateBundle: normalizeAlicizationRuntimeDigestDerivedMindStateBundle(memoryCandidate.derivedMindStateBundle),
-          personStateProjection: memoryCandidate.personStateProjection && typeof memoryCandidate.personStateProjection === 'object'
-            ? {
-                summary: sanitizeAlicizationDigitalLifeDigestText((memoryCandidate.personStateProjection as Record<string, unknown>).summary, 220) || null,
-                selfContinuityAuthority: (memoryCandidate.personStateProjection as Record<string, unknown>).selfContinuityAuthority
-                  && typeof (memoryCandidate.personStateProjection as Record<string, unknown>).selfContinuityAuthority === 'object'
-                  ? {
-                      sourceTags: Array.isArray(((memoryCandidate.personStateProjection as Record<string, unknown>).selfContinuityAuthority as Record<string, unknown>).sourceTags)
-                        ? (((memoryCandidate.personStateProjection as Record<string, unknown>).selfContinuityAuthority as Record<string, unknown>).sourceTags as unknown[])
-                            .map((tag: unknown) => sanitizeAlicizationDigitalLifeDigestText(tag, 64))
-                            .filter(Boolean)
-                            .slice(0, 8)
-                        : [],
-                      selfLine: sanitizeAlicizationDigitalLifeDigestText((((memoryCandidate.personStateProjection as Record<string, unknown>).selfContinuityAuthority as Record<string, unknown>).selfLine), 220) || null,
-                      relationshipLine: sanitizeAlicizationDigitalLifeDigestText((((memoryCandidate.personStateProjection as Record<string, unknown>).selfContinuityAuthority as Record<string, unknown>).relationshipLine), 220) || null,
-                      motiveLine: sanitizeAlicizationDigitalLifeDigestText((((memoryCandidate.personStateProjection as Record<string, unknown>).selfContinuityAuthority as Record<string, unknown>).motiveLine), 220) || null,
-                      habitLine: sanitizeAlicizationDigitalLifeDigestText((((memoryCandidate.personStateProjection as Record<string, unknown>).selfContinuityAuthority as Record<string, unknown>).habitLine), 220) || null,
-                      inwardLine: sanitizeAlicizationDigitalLifeDigestText((((memoryCandidate.personStateProjection as Record<string, unknown>).selfContinuityAuthority as Record<string, unknown>).inwardLine), 220) || null,
-                      authoritySummary: sanitizeAlicizationDigitalLifeDigestText((((memoryCandidate.personStateProjection as Record<string, unknown>).selfContinuityAuthority as Record<string, unknown>).authoritySummary), 220) || null,
-                    }
-                  : null,
-                activeClosenessContext: sanitizeAlicizationDigitalLifeDigestText((memoryCandidate.personStateProjection as Record<string, unknown>).activeClosenessContext, 64) || null,
-                activeClosenessRung: sanitizeAlicizationDigitalLifeDigestText((memoryCandidate.personStateProjection as Record<string, unknown>).activeClosenessRung, 64) || null,
-                relationshipPosture: sanitizeAlicizationDigitalLifeDigestText((memoryCandidate.personStateProjection as Record<string, unknown>).relationshipPosture, 64) || null,
-                openingGuidance: sanitizeAlicizationDigitalLifeDigestText((memoryCandidate.personStateProjection as Record<string, unknown>).openingGuidance, 220) || null,
-                preferredProactiveStyle: sanitizeAlicizationDigitalLifeDigestText((memoryCandidate.personStateProjection as Record<string, unknown>).preferredProactiveStyle, 64) || null,
-                manifestationCadenceSummary: sanitizeAlicizationDigitalLifeDigestText((memoryCandidate.personStateProjection as Record<string, unknown>).manifestationCadenceSummary, 220) || null,
-              }
-            : null,
+          personStateProjection: (() => {
+            const projectionCandidate = memoryCandidate.personStateProjection
+              && typeof memoryCandidate.personStateProjection === 'object'
+              && !Array.isArray(memoryCandidate.personStateProjection)
+              ? memoryCandidate.personStateProjection as Record<string, unknown>
+              : null
+            if (!projectionCandidate)
+              return null
+
+            const authorityCandidate = projectionCandidate.selfContinuityAuthority
+              && typeof projectionCandidate.selfContinuityAuthority === 'object'
+              && !Array.isArray(projectionCandidate.selfContinuityAuthority)
+              ? projectionCandidate.selfContinuityAuthority as Record<string, unknown>
+              : null
+            const selfContinuityAuthority = authorityCandidate
+              ? {
+                  sourceTags: normalizeAlicizationDigitalLifeDigestStringList(authorityCandidate.sourceTags, 8, 64),
+                  selfLine: sanitizeAlicizationDigitalLifeDigestText(authorityCandidate.selfLine, 220) || null,
+                  relationshipLine: sanitizeAlicizationDigitalLifeDigestText(authorityCandidate.relationshipLine, 220) || null,
+                  motiveLine: sanitizeAlicizationDigitalLifeDigestText(authorityCandidate.motiveLine, 220) || null,
+                  habitLine: sanitizeAlicizationDigitalLifeDigestText(authorityCandidate.habitLine, 220) || null,
+                  inwardLine: sanitizeAlicizationDigitalLifeDigestText(authorityCandidate.inwardLine, 220) || null,
+                  authoritySummary: sanitizeAlicizationDigitalLifeDigestText(authorityCandidate.authoritySummary, 220) || null,
+                }
+              : null
+            const normalizedAuthority = selfContinuityAuthority
+              && (
+                selfContinuityAuthority.sourceTags.length > 0
+                || Object.entries(selfContinuityAuthority)
+                  .some(([key, value]) => key !== 'sourceTags' && Boolean(value))
+              )
+              ? selfContinuityAuthority
+              : null
+            const normalized = {
+              summary: sanitizeAlicizationDigitalLifeDigestText(projectionCandidate.summary, 220) || null,
+              selfContinuityAuthority: normalizedAuthority,
+              activeClosenessContext: sanitizeAlicizationDigitalLifeDigestText(projectionCandidate.activeClosenessContext, 64) || null,
+              activeClosenessRung: sanitizeAlicizationDigitalLifeDigestText(projectionCandidate.activeClosenessRung, 64) || null,
+              relationshipPosture: sanitizeAlicizationDigitalLifeDigestText(projectionCandidate.relationshipPosture, 64) || null,
+              preferredProactiveStyle: sanitizeAlicizationDigitalLifeDigestText(projectionCandidate.preferredProactiveStyle, 64) || null,
+            }
+            return Object.values(normalized).some(Boolean) ? normalized : null
+          })(),
           memoryClosureTrace: normalizeAlicizationDigitalLifeSpineMemoryClosureTrace(memoryCandidate.memoryClosureTrace),
         }
       : null,
@@ -6377,29 +5674,6 @@ export type AlicizationBridgeChatStreamEvent
   | {
     type: 'meta'
     governance: AlicizationMindTurnGovernance | null
-    projectState?: AlicizationRuntimeProjectStateDigest | null
-    preDialogueAwareness?: {
-      status: 'grounded' | 'partial' | 'drift'
-      summaryLine: string | null
-      companionHeadlineLine?: string | null
-      companionBriefingLine?: string | null
-      companionNextClosureLine?: string | null
-      awarenessLine?: string | null
-      emotionalClosureCue?: string | null
-      reasonPreview: string[]
-    } | null
-    preDialogueClosure?: {
-      status: 'grounded' | 'partial' | 'drift' | 'rewritten' | null
-      summaryLine: string | null
-      companionHeadlineLine?: string | null
-      sameHerDriftRiskLine?: string | null
-      companionshipReasonLine?: string | null
-      companionBriefingLine?: string | null
-      companionNextClosureLine?: string | null
-      emotionalClosureCue?: string | null
-      briefingLines?: string[]
-      reasons: string[]
-    } | null
     embodiment?: AlicizationDialogueEmbodimentEnvelope | null
     embodimentScript?: AlicizationEmbodimentScriptV1 | null
     speechTimeline?: AlicizationDialogueSpeechTimeline | null
@@ -6508,13 +5782,9 @@ export type AlicizationProactiveStaticReasonCode
     | 'continuity-next-open-window'
     | 'continuity-execution-callback'
     | 'continuity-execution-callback-afterglow-hold'
-    | 'continuity-execution-callback-project-carry'
+    | 'continuity-execution-callback-carry'
     | 'held-autonomy-carry'
     | 'presence-only-hold'
-    | 'project-phase1-life-loop-open'
-    | 'project-continuity-pressure'
-    | 'project-measured-return-pressure'
-    | 'project-next-closure-pressure'
     | 'relationship-cadence-residue'
     | 'relationship-residue-delay-warmth'
     | 'relationship-residue-protect-rest'
@@ -6536,61 +5806,12 @@ export interface AlicizationProactiveDecision {
 
 export interface AlicizationProactiveMetadata extends AlicizationProactiveDecision {
   feedbackWindowMs: number
-  openingGuidance?: string | null
 }
 
 export interface AlicizationDialogueStructuredPayload {
   thought: string
   emotion: AlicizationEmotion
   reply: string
-  projectState?: {
-    identity: string
-    currentPhase: string
-    preflightSummary?: string | null
-    preDialogueAwarenessLine?: string | null
-    latestProgress?: string | null
-    landedProgressSummary?: string | null
-    latestLandedProgress: string | null
-    primaryOpenLoop: string | null
-    nextClosureTarget: string
-    sameHerSelfLine?: string | null
-    sameHerHoldDetail?: string | null
-    sameHerDriftRisk?: string | null
-    companionBriefingLine?: string | null
-    emotionalClosureCue?: string | null
-    proactiveSameHerGap?: string | null
-    emotionalClosureSummary?: string | null
-    continuityRestraint?: string | null
-    continuityArcStage?: string | null
-    continuityCue?: string | null
-    continuityPreferredTiming?: string | null
-    continuityCadence?: string | null
-    preferredBlinkCadence?: 'normal' | 'linger' | 'quiet' | null
-    preferredGazeMode?: 'steady' | 'soften' | 'drift' | null
-    preferredPauseMode?: 'longer' | 'natural' | null
-    preferredLipsyncMode?: 'restrained' | 'matched' | null
-    preferredVoiceMode?: 'lower-pressure' | 'even' | null
-    preferredPacingMode?: 'slower' | 'natural' | null
-  } | null
-  preDialogueAwareness?: {
-    status: 'grounded' | 'partial' | 'drift'
-    summaryLine: string | null
-    companionHeadlineLine?: string | null
-    companionBriefingLine?: string | null
-    companionNextClosureLine?: string | null
-    awarenessLine?: string | null
-    emotionalClosureCue?: string | null
-    reasonPreview: string[]
-  } | null
-  preDialogueClosure?: {
-    status: string
-    summaryLine?: string | null
-    companionHeadlineLine?: string | null
-    companionBriefingLine?: string | null
-    companionNextClosureLine?: string | null
-    briefingLines: string[]
-    reasons: string[]
-  } | null
   visibleReplyAuthority?: AlicizationVisibleReplyExecutionAuthority | null
   performance: AlicizationDialoguePerformancePayload
   embodiment?: AlicizationDialogueEmbodimentEnvelope | null

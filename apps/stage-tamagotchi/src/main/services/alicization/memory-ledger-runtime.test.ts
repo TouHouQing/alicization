@@ -75,8 +75,8 @@ describe('memory ledger runtime', () => {
     expect(context.recallText).not.toContain('execution_boundary:')
     expect(context.recallText).not.toContain('execution_project_identity:')
     expect(context.recallText).not.toContain('execution_project_phase:')
-    expect(context.recallText).not.toContain('execution_same_her_line:')
-    expect(context.recallText).not.toContain('execution_same_her_hold:')
+    expect(context.recallText).not.toContain('execution_continuity_line:')
+    expect(context.recallText).not.toContain('execution_continuity_hold:')
     expect(context.recallText).not.toContain('execution_project_continuity:')
     expect(context.entries).toEqual([{
       activityAt: 2_000,

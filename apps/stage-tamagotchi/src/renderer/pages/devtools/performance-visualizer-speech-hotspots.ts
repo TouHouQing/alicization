@@ -547,8 +547,8 @@ export function buildSpeechAuthorityHotspots(
       authorityMatchedDrivers: [...resolvedAuthorityMatchedDrivers],
       authorityVoiceSegmentMatched: resolvedAuthorityVoiceSegmentMatched,
       authorityTrustSummary: resolvedAuthorityTrustSummary,
-      sameHerSignature: speechRow.sameHerSignature ?? null,
-      sameHerReasonTags: speechRow.sameHerReasonTags ?? null,
+      continuitySignature: speechRow.continuitySignature ?? null,
+      continuityReasonTags: speechRow.continuityReasonTags ?? null,
       authorityMismatchSummary,
       authorityMismatchReasonSummary,
       authorityMismatchDisplay: authorityMismatchDisplay

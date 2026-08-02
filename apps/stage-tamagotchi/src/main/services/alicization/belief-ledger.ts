@@ -74,7 +74,9 @@ function buildCurrentSceneBelief(input: {
 }): AlicizationBeliefSnapshot | null {
   if (!input.scene)
     return null
-  const subject = summarizeScene(input.scene) || input.worldModel.activeThread?.title || 'current-scene'
+  const subject = summarizeScene(input.scene) || input.worldModel.activeThread?.title
+  if (!subject)
+    return null
   const source = sourceFromScene(input.scene)
   const confidence = clamp01(
     Math.max(input.scene.confidence, input.worldModel.activeThread?.confidence ?? 0)
@@ -90,7 +92,7 @@ function buildCurrentSceneBelief(input: {
       source,
       certainty: input.worldModel.epistemicState.certainty,
     }),
-    statement: sanitizeText(`The current scene is centered on ${subject}.`, 180) || 'The current scene is still being understood.',
+    statement: subject,
     confidence,
     salience: clamp01(
       input.scene.confidence * 0.6
@@ -114,19 +116,23 @@ function buildHostGoalBelief(input: {
   appraisal: AlicizationSubjectiveSceneAppraisal
   worldModel: AlicizationWorldModelSnapshot
   entityWorld: AlicizationEntityWorldModelSnapshot
-}): AlicizationBeliefSnapshot {
+}): AlicizationBeliefSnapshot | null {
   const subject = sanitizeText(
     input.appraisal.currentKnot
     ?? input.worldModel.activeThread?.title
     ?? input.entityWorld.entities.find(entity => entity.id === input.entityWorld.focusEntityId)?.label
-    ?? 'current-thread',
+    ?? '',
     120,
-  ) || 'current-thread'
+  )
+  if (!subject || !input.appraisal.inferredHostGoal)
+    return null
   const statement = sanitizeText(
     input.appraisal.situatedMeaning
-    ?? `The host is likely trying to ${input.appraisal.inferredHostGoal.replaceAll('-', ' ')} around ${subject}.`,
+    ?? '',
     180,
-  ) || 'The host intent is still forming.'
+  )
+  if (!statement)
+    return null
   const confidence = clamp01(
     input.appraisal.confidence * 0.72
     + (input.worldModel.activeThread?.confidence ?? 0) * 0.18
@@ -170,18 +176,7 @@ function buildRelationshipBelief(input: {
   if (relationshipNeed === 'unclear' && input.worldModel.hostState.availability === 'open')
     return null
 
-  const statement = sanitizeText(
-    input.appraisal.relationshipNeed === 'space'
-      ? 'The host likely needs space more than intervention right now.'
-      : input.appraisal.relationshipNeed === 'guidance'
-        ? 'The host may accept guidance if Alicization stays close to the actual problem.'
-        : input.appraisal.relationshipNeed === 'care'
-          ? 'The host currently feels close to a threshold where care matters more than correctness.'
-          : input.appraisal.relationshipNeed === 'companionship'
-            ? 'The host seems more open to quiet shared presence than to hard interruption.'
-            : '',
-    180,
-  )
+  const statement = sanitizeText(input.appraisal.relationshipNeed, 180)
   if (!statement)
     return null
 
@@ -239,12 +234,7 @@ function buildCarryOverMemoryBelief(input: {
       source: 'memory',
       certainty: input.worldModel.epistemicState.certainty,
     }),
-    statement: sanitizeText(
-      input.worldModel.continuity.afterglowOpen
-        ? `A previous thread around ${anchor} is still emotionally present even if the surface scene has shifted.`
-        : `A recent thread around ${anchor} may still matter even if it is not fully visible now.`,
-      180,
-    ) || 'A recent thread is still lingering in memory.',
+    statement: `memory-thread:${anchor}`,
     confidence,
     salience: clamp01(carriedThread.significance * 0.48 + (input.worldModel.continuity.afterglowOpen ? 0.24 : 0.08)),
     evidence: [
@@ -361,12 +351,14 @@ export function buildBeliefLedger(input: {
   })
   if (currentSceneBelief)
     currentBeliefs.push(currentSceneBelief)
-  currentBeliefs.push(buildHostGoalBelief({
+  const hostGoalBelief = buildHostGoalBelief({
     now: input.now,
     appraisal: input.appraisal,
     worldModel: input.worldModel,
     entityWorld: input.entityWorld,
-  }))
+  })
+  if (hostGoalBelief)
+    currentBeliefs.push(hostGoalBelief)
   const relationshipBelief = buildRelationshipBelief({
     now: input.now,
     appraisal: input.appraisal,
@@ -413,12 +405,7 @@ export function buildBeliefLedger(input: {
       })
     }
 
-    contradictions.push(
-      sanitizeText(
-        `Current scene belief conflicts with earlier scene continuity: ${sanitizeText(belief.statement, 96)}`,
-        180,
-      ),
-    )
+    contradictions.push(`belief-conflict:${belief.id}->${currentSceneBelief.id}`)
     return {
       ...belief,
       source: belief.source === 'memory' ? 'memory' : 'contradiction',

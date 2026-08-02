@@ -4,6 +4,7 @@ import type {
   AlicizationChannelCapabilityManifestRecord,
   AlicizationClawTaskIntent,
   AlicizationDispatchTaskThreadPayload,
+  AlicizationExecutionChannel,
   AlicizationExecutionEventInput,
   AlicizationExecutionEventRecord,
   AlicizationTaskThreadRecord,
@@ -19,9 +20,6 @@ import { randomUUID } from 'node:crypto'
 import { env, platform } from 'node:process'
 
 import { errorMessageFrom } from '@moeru/std'
-import {
-  analyzeAlicizationExecutionSemanticSignals,
-} from '@proj-alicization/stage-shared'
 
 import { locateAlicizationExecutionBinary } from './execution-command-env'
 import { readExecutionOutcome, readLatestExecutionEvent, readTaskThreadActivityAt, sanitizeExecutionLedgerText } from './execution-ledger-shared'
@@ -128,53 +126,67 @@ function mergeExecutionCapabilities(
   return [...capabilityMap.values()]
 }
 
-export function inferPreferredProcedureChannel(text: string) {
-  const semanticSignals = analyzeAlicizationExecutionSemanticSignals(text)
-  const mentionedChannel = semanticSignals.mentionedChannels.find(channel =>
-    channel === 'cli'
-    || channel === 'codex'
-    || channel === 'claude-code'
-    || channel === 'openclaw',
+const executionChannels = new Set<AlicizationExecutionChannel>([
+  'cli',
+  'codex',
+  'claude-code',
+  'openclaw',
+  'openfang',
+  'browser',
+  'software',
+  'desktop',
+])
+
+function normalizeTypedExecutionChannel(raw: unknown): AlicizationExecutionChannel | null {
+  return typeof raw === 'string' && executionChannels.has(raw as AlicizationExecutionChannel)
+    ? raw as AlicizationExecutionChannel
+    : null
+}
+
+function readPreferredChannelFromMetadata(raw: unknown) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+  const metadata = raw as Record<string, unknown>
+  const execution = metadata.execution && typeof metadata.execution === 'object' && !Array.isArray(metadata.execution)
+    ? metadata.execution as Record<string, unknown>
+    : null
+  return normalizeTypedExecutionChannel(
+    metadata.preferredChannel
+    ?? metadata.channel
+    ?? execution?.preferredChannel
+    ?? execution?.channel,
   )
-  if (mentionedChannel) {
+}
+
+export function inferPreferredProcedureChannel(input: {
+  selectedChannel?: unknown
+  proposedChannel?: unknown
+  metadata?: unknown
+  summary?: unknown
+}) {
+  const selectedChannel = normalizeTypedExecutionChannel(input.selectedChannel)
+  if (selectedChannel) {
     return {
-      channel: mentionedChannel,
-      reason: `remembered-procedure-mentioned-channel:${mentionedChannel}`,
+      channel: selectedChannel,
+      reason: 'remembered-procedure-selected-channel',
     } as const
   }
 
-  if (/\bterminal\b|\bshell\b|\bcommand\b|\bcli\b|补丁|\bpatch\b|\bverify\b|测试|\btest\b/iu.test(text)) {
+  const proposedChannel = normalizeTypedExecutionChannel(input.proposedChannel)
+  if (proposedChannel) {
     return {
-      channel: 'cli' as const,
-      reason: 'remembered-procedure-cli-shape',
-    }
-  }
-  if (/codex/iu.test(text)) {
-    return {
-      channel: 'codex' as const,
-      reason: 'remembered-procedure-codex-shape',
-    }
-  }
-  if (/claude[- ]?code|claude code/iu.test(text)) {
-    return {
-      channel: 'claude-code' as const,
-      reason: 'remembered-procedure-claude-shape',
-    }
-  }
-  if (/browser|page|tab|url|link|search|网页|页面|标签页|浏览器/u.test(text)) {
-    return {
-      channel: 'browser' as const,
-      reason: 'remembered-procedure-browser-shape',
-    }
-  }
-  if (/desktop|window|dialog|file chooser|桌面|窗口|弹窗|对话框|文件选择/u.test(text)) {
-    return {
-      channel: 'desktop' as const,
-      reason: 'remembered-procedure-desktop-shape',
-    }
+      channel: proposedChannel,
+      reason: 'remembered-procedure-proposed-channel',
+    } as const
   }
 
-  return null
+  const metadataChannel = readPreferredChannelFromMetadata(input.metadata)
+  if (!metadataChannel)
+    return null
+  return {
+    channel: metadataChannel,
+    reason: 'remembered-procedure-metadata-channel',
+  } as const
 }
 
 function inferPlanningHostContexts(goal: string) {
@@ -324,12 +336,12 @@ async function buildRememberedProcedureTracesFromExecution(input: {
       ...orderedEvents
         .filter(event => event.kind === 'cancel' || event.threadStatus === 'failed' || event.threadStatus === 'blocked' || event.threadStatus === 'cancelled')
         .map(event => extractExecutionEventStep(event)),
-      /failed|blocked|cancelled/iu.test(thread.status)
+      ['failed', 'blocked', 'cancelled'].includes(thread.status)
         ? normalizeHintText(thread.summary, 180)
         : '',
     ].filter(Boolean).slice(0, 3)
     const repairMoves = orderedEvents
-      .filter(event => event.kind === 'resume' || event.kind === 'takeover' || /verify|repair|fix|retry|resume|repair/iu.test(extractExecutionEventStep(event)))
+      .filter(event => event.kind === 'resume' || event.kind === 'takeover')
       .map(event => extractExecutionEventStep(event))
       .filter(Boolean)
       .slice(0, 3)
@@ -340,22 +352,19 @@ async function buildRememberedProcedureTracesFromExecution(input: {
       ...repairMoves,
       ...failurePoints,
     ], 4)[0] ?? ''
-    const procedureText = [
-      thread.goal,
-      thread.summary ?? '',
-      result,
-      ...eventSteps,
-      ...failurePoints,
-      ...repairMoves,
-      lesson,
-    ].join(' ')
     const preferenceBoost = computeRememberedProcedureHostPreferenceBoost({
-      procedureText,
       contexts: input.contexts,
       relationshipDynamics: input.relationshipDynamics,
       hostPersonModel: input.hostPersonModel,
+      channel,
+      threadStatus: thread.status,
+      hasRepairEvent: repairMoves.length > 0,
     })
-    const preferred = inferPreferredProcedureChannel(procedureText)
+    const preferred = inferPreferredProcedureChannel({
+      selectedChannel: thread.selectedChannel,
+      proposedChannel: thread.proposedChannel,
+      metadata: thread.metadata,
+    })
     const label = sanitizePlanningText(thread.goal, 160) || sanitizePlanningText(thread.summary, 160) || 'remembered execution trace'
     const situation = [
       channel ? `channel=${channel}` : '',
@@ -431,31 +440,30 @@ function buildHostProcedureHints(input: {
       hints.push(burden)
     hints.push(hostPersonModel.trustLadder.rationale)
   }
-  if (input.relationshipDynamics?.hostAttitude)
-    hints.push(input.relationshipDynamics.hostAttitude)
   return [...new Set(hints.map(item => normalizeHintText(item)).filter(Boolean))].slice(0, 12)
 }
 
 function computeRememberedProcedureHostPreferenceBoost(input: {
-  procedureText: string
   contexts: string[]
   relationshipDynamics: AlicizationRelationshipDynamicsState | null
   hostPersonModel: ReturnType<typeof buildHostPersonModelSnapshot> | null
+  channel?: AlicizationExecutionChannel | null
+  threadStatus?: AlicizationTaskThreadRecord['status'] | null
+  hasRepairEvent?: boolean
 }) {
-  const text = input.procedureText.toLowerCase()
   let boost = 0
 
   const trustStage = input.hostPersonModel?.trustLadder.stage ?? 'cautious-open'
-  if ((trustStage === 'guarded' || trustStage === 'cautious-open') && /verify|bounded|consent|lighter|space|room|quiet|repair/iu.test(text))
-    boost += 0.12
-  if ((trustStage === 'warming' || trustStage === 'trusted') && /direct|warm|follow through|keep going|continue/iu.test(text))
-    boost += 0.08
-  if (input.contexts.includes('focused-work') && /verify|quiet|space|bounded|patch|test|cli|codex|claude/iu.test(text))
-    boost += 0.12
-  if (input.contexts.includes('late-night') && /rest|gentle|lighter|wait|quiet/iu.test(text))
+  if ((trustStage === 'guarded' || trustStage === 'cautious-open') && input.hasRepairEvent)
     boost += 0.1
-  if (input.relationshipDynamics?.hostAttitude && /focus|观察|谨慎|克制|space|pressure/iu.test(input.relationshipDynamics.hostAttitude) && /lighter|verify|space|quiet/iu.test(text))
+  if ((trustStage === 'warming' || trustStage === 'trusted') && input.threadStatus === 'completed')
+    boost += 0.06
+  if (input.contexts.includes('focused-work') && input.channel && ['cli', 'codex', 'claude-code'].includes(input.channel))
+    boost += 0.12
+  if (input.contexts.includes('late-night') && (input.hostPersonModel?.recurrentBurdens.length ?? 0) > 0)
     boost += 0.08
+  if ((input.relationshipDynamics?.sensibilityDelta ?? 0) > 0.05 && input.hasRepairEvent)
+    boost += 0.04
 
   return Math.max(0, Math.min(0.3, boost))
 }
@@ -471,26 +479,23 @@ function buildRememberedProcedures(
   return records
     .filter(record => record.kind === 'procedural' || (record.kind === 'autobiographical' && record.facet === 'task-era'))
     .map((record) => {
-      const procedureText = [
-        sanitizeTextLike(record.summary),
-        sanitizeTextLike(record.lesson),
-        ...(record.cues ?? []).map(cue => sanitizeTextLike(cue)),
-      ].filter(Boolean).join(' ')
+      const preferred = inferPreferredProcedureChannel({
+        metadata: record.metadata,
+      })
       const preferenceBoost = computeRememberedProcedureHostPreferenceBoost({
-        procedureText,
         contexts,
         relationshipDynamics,
         hostPersonModel,
+        channel: preferred?.channel ?? null,
       })
       return {
         record,
-        procedureText,
+        preferred,
         preferenceBoost,
       }
     })
     .sort((left, right) => (right.record.confidence + right.preferenceBoost) - (left.record.confidence + left.preferenceBoost))
     .map((record) => {
-      const preferred = inferPreferredProcedureChannel(record.procedureText)
       return {
         id: record.record.id,
         sourceKind: record.record.kind === 'procedural' ? 'procedural' as const : 'autobiographical' as const,
@@ -510,9 +515,9 @@ function buildRememberedProcedures(
           ...(record.record.cues ?? []).map(cue => sanitizeTextLike(cue)),
           ...contexts,
         ].filter(Boolean))].slice(0, 6),
-        preferredChannel: preferred?.channel ?? null,
-        preferredChannelReason: preferred?.reason
-          ? `${preferred.reason}${record.preferenceBoost > 0 ? ':host-context-biased' : ''}`
+        preferredChannel: record.preferred?.channel ?? null,
+        preferredChannelReason: record.preferred?.reason
+          ? `${record.preferred.reason}${record.preferenceBoost > 0 ? ':host-context-biased' : ''}`
           : record.preferenceBoost > 0
             ? 'host-context-biased-procedure'
             : null,
@@ -750,7 +755,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         searchConversations: false,
         searchProceduralExperience: true,
         queryHints: [input.task.goal, ...planningContexts],
-        rationale: 'Remembered procedure should inform task planning before execution starts.',
+        rationale: 'recall:execution-procedure',
         confidence: 0.84,
       },
     }).catch(() => [])
@@ -812,7 +817,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         stage: 'plan',
         thread: planning.thread,
         plan: planning.plan,
-        summary: planning.thread.summary ?? 'Task thread planning collapsed into an existing active execution thread.',
+        summary: planning.thread.summary ?? 'task-thread:duplicate',
         createdEventKinds: planning.createdEventKinds,
       }
     }
@@ -823,7 +828,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         stage: 'plan',
         thread: planning.thread,
         plan: planning.plan,
-        summary: planning.thread.summary ?? (planning.plan.narrative.join(' ').trim() || 'Task thread planning was not routed.'),
+        summary: planning.thread.summary ?? (planning.plan.narrative.join(' ').trim() || 'task-thread:not-routed'),
       }
     }
 
@@ -876,7 +881,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     const resumeChannel = thread.selectedChannel ?? thread.proposedChannel
     const goal = options.sanitizeText(thread.goal) || 'the current task'
     const summary = options.sanitizeText(thread.summary) || 'none'
-    const failureTransparency = 'Report execution blockers, tool failures, and uncertainty directly.'
+    const failureTransparency = 'failure-transparency:required'
     const instruction = `Continue the already-confirmed task directly.\nGoal: ${goal}\nSummary: ${summary}\n${failureTransparency}`
 
     if (resumeChannel === 'codex') {
@@ -1019,7 +1024,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         plan: {
           state: 'blocked',
         },
-        summary: 'Task thread cannot resume because no structured channel was preserved.',
+        summary: 'task-thread-resume:channel-missing',
         errorCode: 'TASK_THREAD_RESUME_CHANNEL_MISSING',
         errorMessage: 'No structured channel is available for resume.',
       }

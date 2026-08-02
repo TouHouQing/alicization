@@ -12,13 +12,10 @@ import type { MainGatewayResolvedConfig } from './runtime-soul'
 
 import { detectAlicizationExecutionCapabilityInquiry } from '@proj-alicization/stage-shared'
 
-import { isInternalAlicizationRepairPrompt } from './attention-anchor'
-import { emptyAlicizationExecutionCallbackContext } from './execution-callback-runtime'
 import { deriveMainChatActionObligation } from './main-chat-action-obligation'
 import {
   detectMainGatewayExecutionRoutingIntent,
 } from './main-chat-execution-surface'
-import { emptyAlicizationExecutionLedgerContext } from './memory-ledger-runtime'
 import { preserveLatestUserMultimodalContent } from './runtime-transport-content'
 
 interface CreateAlicizationMainChatPreludeRuntimeOptions {
@@ -76,27 +73,18 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
       userText: latestUserText || '',
       capabilityInquiry: executionCapabilityInquiry,
     })
-    const shouldBypassPerception = latestUserText
-      ? isInternalAlicizationRepairPrompt(latestUserText)
-      : false
     let messages = resolveChatMessages(normalizedPayload, {
-      redactStaleInspectionHistoryForUserText: shouldBypassPerception ? '' : latestUserText,
+      redactStaleInspectionHistoryForUserText: latestUserText,
     })
     messages = preserveLatestUserMultimodalContent({
       originalMessages: normalizedPayload.messages,
       resolvedMessages: messages,
     })
 
-    const contextualStringPromise = shouldBypassPerception
-      ? Promise.resolve('')
-      : buildMainChatContextualString(normalizedPayload)
-    const executionCallbackContextPromise = shouldBypassPerception
-      ? Promise.resolve(emptyAlicizationExecutionCallbackContext)
-      : buildMainChatExecutionCallbackContext(normalizedPayload)
-    const executionLedgerContextPromise = shouldBypassPerception
-      ? Promise.resolve(emptyAlicizationExecutionLedgerContext)
-      : buildMainChatExecutionLedgerContext(normalizedPayload)
-    const perceptionAugmentation = latestUserText && !shouldBypassPerception
+    const contextualStringPromise = buildMainChatContextualString(normalizedPayload)
+    const executionCallbackContextPromise = buildMainChatExecutionCallbackContext(normalizedPayload)
+    const executionLedgerContextPromise = buildMainChatExecutionLedgerContext(normalizedPayload)
+    const perceptionAugmentation = latestUserText
       ? await augmentMainChatMessagesWithPerception({
           cardId: normalizedPayload.cardId,
           userText: latestUserText,
@@ -128,12 +116,10 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
       userText: latestUserText || '',
       capabilityInquiry: executionCapabilityInquiry,
       explicitRoutingIntent: explicitExecutionRoutingIntent,
-      pendingAffirmationThread: latestUserText && !shouldBypassPerception
+      pendingAffirmationThread: latestUserText
         ? await buildMainChatPendingAffirmationThread(normalizedPayload)
         : null,
-      recentExecutionCallbacks: shouldBypassPerception
-        ? []
-        : (await executionCallbackContextPromise).callbacks,
+      recentExecutionCallbacks: (await executionCallbackContextPromise).callbacks,
       runtimeSurface: perceptionAugmentation.digitalLifeRuntimeSurface,
     })
 

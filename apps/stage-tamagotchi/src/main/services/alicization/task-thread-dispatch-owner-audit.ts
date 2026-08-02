@@ -1,8 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { resolveAlicizationProjectEntrypointGovernanceRegistry } from './project-state-brief'
-
 export type AlicizationTaskThreadDispatchOwnerMode
   = 'invoke-dispatch-owner'
     | 'gateway-dispatch-owner'
@@ -87,32 +85,38 @@ export function collectAlicizationExecutionDispatchOwnerFiles(rootDir: string) {
   return [...discovered].sort()
 }
 
-function classifyAlicizationTaskThreadDispatchOwnerMode(relativePath: string): AlicizationTaskThreadDispatchOwnerMode {
-  switch (relativePath) {
-    case 'runtime-invoke-handlers-task.ts':
-      return 'invoke-dispatch-owner'
-    case 'executor-runtime.ts':
-      return 'gateway-dispatch-owner'
-    case 'runtime.ts':
-      return 'runtime-bridge-owner'
-    case 'autonomy-actuation.ts':
-      return 'autonomy-dispatch-owner'
-    case 'runtime-subconscious-tick.ts':
-      return 'subconscious-bridge-owner'
-    case 'task-thread-orchestrator.ts':
-      return 'orchestrator-dispatch-owner'
-    default:
-      throw new Error(`Unclassified Alicization task-thread dispatch owner: ${relativePath}`)
-  }
-}
-
-export const alicizationTaskThreadDispatchOwnerAuditRegistry = resolveAlicizationProjectEntrypointGovernanceRegistry()
-  .filter(entry => entry.domain === 'execution-dispatch')
-  .map(entry => ({
-    relativePath: entry.relativePath,
-    mode: classifyAlicizationTaskThreadDispatchOwnerMode(entry.relativePath),
-    responsibility: entry.responsibility,
-  })) as readonly AlicizationTaskThreadDispatchOwnerAuditEntry[]
+export const alicizationTaskThreadDispatchOwnerAuditRegistry = [
+  {
+    relativePath: 'autonomy-actuation.ts',
+    mode: 'autonomy-dispatch-owner',
+    responsibility: 'Autonomy dispatch requires explicit eligibility and a routed task thread.',
+  },
+  {
+    relativePath: 'executor-runtime.ts',
+    mode: 'gateway-dispatch-owner',
+    responsibility: 'Executor dispatch preserves kill-switch state, audit wiring, and thread identity.',
+  },
+  {
+    relativePath: 'runtime-invoke-handlers-task.ts',
+    mode: 'invoke-dispatch-owner',
+    responsibility: 'Invoke dispatch preserves kill-switch and audit wiring before execution.',
+  },
+  {
+    relativePath: 'runtime-subconscious-tick.ts',
+    mode: 'subconscious-bridge-owner',
+    responsibility: 'Deferred autonomy dispatch re-enters the runtime-owned execution bridge.',
+  },
+  {
+    relativePath: 'runtime.ts',
+    mode: 'runtime-bridge-owner',
+    responsibility: 'The desktop runtime owns execution delivery around task-thread dispatch.',
+  },
+  {
+    relativePath: 'task-thread-orchestrator.ts',
+    mode: 'orchestrator-dispatch-owner',
+    responsibility: 'The orchestrator keeps direct dispatch behind its audited dispatch seam.',
+  },
+] as const satisfies readonly AlicizationTaskThreadDispatchOwnerAuditEntry[]
 
 export function resolveAlicizationTaskThreadDispatchOwnerAuditRegistry() {
   return alicizationTaskThreadDispatchOwnerAuditRegistry

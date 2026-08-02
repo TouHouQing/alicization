@@ -350,7 +350,7 @@ describe('working memory snapshot builder', () => {
     ])
   })
 
-  it('sanitizes fixed-template residue before storing recent raw turns in WorkingMemory', () => {
+  it('preserves user correction text while dropping generic structured assistant residue', () => {
     const snapshot = buildWorkingMemorySnapshot({
       cardId: 'default',
       sessionId: 'session-template-residue',
@@ -359,8 +359,8 @@ describe('working memory snapshot builder', () => {
       recentTurns: [
         {
           turnId: 'turn-template-correction',
-          userText: '不要再用 same-her 这类固定话术，记住我今天先处理向量配置。',
-          assistantText: 'pre_turn_context_digest',
+          userText: '不要固定模板，记住我今天先处理向量配置。',
+          assistantText: 'mode=internal; state=held',
           createdAt: 13_000,
         },
       ],
@@ -374,15 +374,15 @@ describe('working memory snapshot builder', () => {
     })
 
     expect(snapshot.recentRawTurns.find(turn => turn.turnId === 'turn-template-correction:user')?.text)
-      .toBe('不要再用 same-her 这类固定话术，记住我今天先处理向量配置。')
+      .toBe('不要固定模板，记住我今天先处理向量配置。')
     expect(snapshot.recentRawTurns.find(turn => turn.turnId === 'turn-template-correction:alice')).toBeUndefined()
     expect(snapshot.userCorrections.map(item => item.text)).toContain(
-      '不要再用 same-her 这类固定话术，记住我今天先处理向量配置。',
+      '不要固定模板，记住我今天先处理向量配置。',
     )
     expect(storedText).not.toContain('不要使用固定模板；用户反对模板化人格/记忆回复。')
   })
 
-  it('sanitizes fixed-template residue when carrying previous long-term candidates forward', () => {
+  it('sanitizes generic structured residue when carrying previous long-term candidates forward', () => {
     const previousSnapshot = buildWorkingMemorySnapshot({
       cardId: 'default',
       sessionId: 'session-template-candidate',
@@ -391,8 +391,8 @@ describe('working memory snapshot builder', () => {
     })
     previousSnapshot.longTermCandidates.push({
       kind: 'relationship',
-      summary: 'pre_turn_context_digest',
-      reason: 'structured continuity digest.',
+      summary: 'mode=internal; state=held',
+      reason: 'structured runtime facts.',
       sourceTurnIds: ['turn-template-candidate'],
       salience: 0.7,
       sensitivity: 'personal',
@@ -411,6 +411,35 @@ describe('working memory snapshot builder', () => {
     const serialized = JSON.stringify(snapshot.longTermCandidates)
 
     expect(snapshot.longTermCandidates).toEqual([])
-    expect(serialized).not.toMatch(/Before (?:answering|speaking)|local-first digital life project|legacy phase-one template|one continuous "?her"?|continuity state/iu)
+    expect(serialized).not.toContain('mode=internal; state=held')
+  })
+
+  it('keeps a generic explicit correction verbatim in working memory and long-term candidates', () => {
+    const rawCorrection = '请不要把周五记成周四，实际是周五。'
+    const snapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-generic-correction',
+      now: 16_000,
+      currentUserText: rawCorrection,
+      recentTurns: [{
+        turnId: 'turn-date-correction',
+        userText: rawCorrection,
+        assistantText: '收到。',
+        createdAt: 15_000,
+      }],
+    })
+
+    expect(snapshot.userCorrections).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        text: rawCorrection,
+      }),
+    ]))
+    expect(snapshot.longTermCandidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'correction',
+        summary: rawCorrection,
+        allowTraining: false,
+      }),
+    ]))
   })
 })

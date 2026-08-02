@@ -1572,8 +1572,6 @@ describe('stage embodiment performance runtime', () => {
       silenceReconnect: 'hold',
       comfortStyle: 'quiet-presence',
       preferredProactiveStyle: 'silent-observe',
-      manifestationCadenceSummary: 'untrusted audit text',
-      openingGuidance: 'untrusted audit text',
       whySummary: 'untrusted audit text',
     })
     const direct = await createSpeakingPersonaRuntime({
@@ -1582,8 +1580,6 @@ describe('stage embodiment performance runtime', () => {
       silenceReconnect: 'direct-approach',
       comfortStyle: 'quiet-presence',
       preferredProactiveStyle: 'gentle-check-in',
-      manifestationCadenceSummary: 'untrusted audit text',
-      openingGuidance: 'untrusted audit text',
       whySummary: 'untrusted audit text',
     })
 
@@ -1617,8 +1613,6 @@ describe('stage embodiment performance runtime', () => {
           silenceReconnect: 'hold',
           comfortStyle: 'quiet-presence',
           preferredProactiveStyle: 'silent-observe',
-          manifestationCadenceSummary: 'Audit summary for the current relationship cadence.',
-          openingGuidance: 'Open by observing first and keep the approach lighter.',
           whySummary: 'stay nearby without pressing in.',
         },
       },

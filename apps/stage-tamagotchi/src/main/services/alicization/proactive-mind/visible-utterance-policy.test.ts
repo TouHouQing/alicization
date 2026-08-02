@@ -61,7 +61,6 @@ describe('proactive visible utterance policy', () => {
         responsePosture: {
           hypothesisLabelBias: 0,
           specificityClampBias: 0,
-          templateShellSuppressionBias: 0,
         },
         proactivePolicy: {
           restraintBias: 0.6,
@@ -72,13 +71,6 @@ describe('proactive visible utterance policy', () => {
           requiresRollbackCheck: false,
           requiresRevalidation: false,
           rollbackPlan: [],
-        },
-        projectStateContinuity: {
-          sameHerSelfLine: 'structured continuity digest.',
-          sameHerDriftRisk: 'If proactive speech persists just because text exists, Alicization can sound agentic while losing restrained digital-life continuity.',
-          emotionalClosureCue: 'Keep this proactive hold lower-pressure until the continuity state is safe to reopen outward.',
-          continuityGuard: 'Hold visible proactive speech as same-her restraint, not as a generic mute switch.',
-          continuityPressure: 0.68,
         },
         reasonCodes: ['self-revision-proactive-restraint'],
         summary: 'recent proactive learning says hold visible interruptions briefly',
@@ -119,7 +111,6 @@ describe('proactive visible utterance policy', () => {
         responsePosture: {
           hypothesisLabelBias: 0,
           specificityClampBias: 0,
-          templateShellSuppressionBias: 0,
         },
         proactivePolicy: {
           restraintBias: 0,
@@ -131,7 +122,6 @@ describe('proactive visible utterance policy', () => {
           requiresRevalidation: false,
           rollbackPlan: [],
         },
-        projectStateContinuity: null,
         reasonCodes: ['domain:relationship', 'remembered-familiarity-restraint'],
         summary: 'remembered familiarity should stay explicitly remembered before visible closeness widens again',
       },
@@ -171,7 +161,6 @@ describe('proactive visible utterance policy', () => {
         responsePosture: {
           hypothesisLabelBias: 0.22,
           specificityClampBias: 0.28,
-          templateShellSuppressionBias: 0.24,
         },
         proactivePolicy: {
           restraintBias: 0.12,
@@ -183,7 +172,6 @@ describe('proactive visible utterance policy', () => {
           requiresRevalidation: true,
           rollbackPlan: [],
         },
-        projectStateContinuity: null,
         reasonCodes: ['domain:world-model', 'world-model-revalidation-required'],
         summary: 'World-model carry remains verify-first.',
       },
@@ -196,7 +184,7 @@ describe('proactive visible utterance policy', () => {
     expect(decision.reason).toBe('mind-authored-proactive-utterance')
   })
 
-  it('still allows a verify-first world-model proactive nudge to surface as visible speech when it is not a same-her relationship reopening', () => {
+  it('still allows a verify-first world-model proactive nudge to surface as visible speech when it is not a continuity relationship reopening', () => {
     const decision = decideAlicizationProactiveVisibleUtterance({
       hasMindAuthoredStructured: true,
       selfRevisionPatch: {
@@ -224,7 +212,6 @@ describe('proactive visible utterance policy', () => {
         responsePosture: {
           hypothesisLabelBias: 0.22,
           specificityClampBias: 0.28,
-          templateShellSuppressionBias: 0.24,
         },
         proactivePolicy: {
           restraintBias: 0.12,
@@ -236,7 +223,6 @@ describe('proactive visible utterance policy', () => {
           requiresRevalidation: true,
           rollbackPlan: [],
         },
-        projectStateContinuity: null,
         reasonCodes: ['domain:world-model', 'world-model-revalidation-required'],
         summary: 'World-model carry remains verify-first.',
       },

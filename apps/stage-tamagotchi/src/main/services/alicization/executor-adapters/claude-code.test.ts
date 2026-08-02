@@ -71,21 +71,6 @@ describe('claude-code executor adapter', () => {
           cardId: 'default',
           turnId: 'turn-claude-code-1',
           decisionTraceId: 'mind:trace:claude-code-1',
-          projectBriefing: {
-            identity: 'legacy identity prompt must not reach claude code',
-            currentPhase: 'legacy phase prompt must not reach claude code',
-            latestLandedProgress: 'Runtime context normalization is complete.',
-            sameHerSelfLine: 'legacy persona prompt must not reach claude code',
-            sameHerHoldDetail: null,
-            primaryOpenLoop: 'Claude Code still needs typed task facts.',
-            nextClosureTarget: 'Dispatch runtime and task facts without prose wrappers.',
-            sameHerDriftRisk: null,
-            continuityRestraint: 'measured-return',
-            continuityCue: null,
-            preferredVoiceMode: 'even',
-            preflightSummary: 'legacy preflight prompt must not reach claude code',
-            preDialogueAwarenessLine: 'legacy awareness prompt must not reach claude code',
-          },
           sensory: {
             collectedAt: 1_710_000_000_123,
             running: true,
@@ -146,28 +131,15 @@ describe('claude-code executor adapter', () => {
           cardId: 'default',
           turnId: 'turn-claude-code-1',
         }),
-        execution: expect.objectContaining({
-          status: {
-            latest: 'Runtime context normalization is complete.',
-            open: 'Claude Code still needs typed task facts.',
-            next: 'Dispatch runtime and task facts without prose wrappers.',
-          },
-          continuity: expect.objectContaining({
-            restraint: 'measured-return',
-          }),
-          embodiment: expect.objectContaining({
-            voiceMode: 'even',
-          }),
-        }),
       }),
     }))
+    expect(runtimeFact.data).not.toHaveProperty('execution')
     expect(taskFact).toEqual({
       type: 'alicization-execution-task',
       data: {
         instruction: 'Inspect the current patch and summarize risks.',
       },
     })
-    expect(prompt).not.toMatch(/\[ALICIZATION_EXECUTION_|legacy (?:identity|phase|persona|preflight|awareness) prompt/iu)
     expect(result.events[0]?.payload).toEqual(expect.objectContaining({
       hasRuntimeContext: true,
       runtimeContext: expect.objectContaining({

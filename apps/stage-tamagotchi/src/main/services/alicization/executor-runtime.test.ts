@@ -27,17 +27,6 @@ function createNeedsAffirmationThread(): AlicizationTaskThreadRecord {
       fabric: {
         affirmationReasonCodes: ['medium-risk-proactive-action-requires-affirmation'],
       },
-      execution: {
-        runtimeContext: {
-          projectBriefing: {
-            identity: 'Legacy project identity prompt.',
-            currentPhase: 'Legacy phase prompt.',
-            continuityCue: 'opening_policy=legacy',
-            continuityCadence: 'relationship_cadence=legacy',
-            preferredVoiceMode: 'lower-pressure',
-          },
-        },
-      },
     },
     createdAt: 100,
     updatedAt: 100,
@@ -101,20 +90,31 @@ function createRuntime(input: {
 }
 
 describe('executor runtime inferPreferredProcedureChannel', () => {
-  it('prefers browser for remembered webpage procedures', () => {
-    expect(inferPreferredProcedureChannel('Open the browser page, search, and click the compose button.'))
+  it('uses a typed selected channel for remembered procedures', () => {
+    expect(inferPreferredProcedureChannel({
+      selectedChannel: 'browser',
+      proposedChannel: 'desktop',
+    }))
       .toEqual({
         channel: 'browser',
-        reason: 'remembered-procedure-browser-shape',
+        reason: 'remembered-procedure-selected-channel',
       })
   })
 
-  it('prefers desktop for remembered native window procedures', () => {
-    expect(inferPreferredProcedureChannel('Switch to the desktop window and confirm the file chooser dialog.'))
+  it('uses typed metadata instead of procedure prose', () => {
+    expect(inferPreferredProcedureChannel({
+      metadata: {
+        preferredChannel: 'desktop',
+      },
+    }))
       .toEqual({
         channel: 'desktop',
-        reason: 'remembered-procedure-desktop-shape',
+        reason: 'remembered-procedure-metadata-channel',
       })
+
+    expect(inferPreferredProcedureChannel({
+      summary: 'Open the browser page with Codex, then switch to the desktop window.',
+    })).toBeNull()
   })
 })
 
@@ -177,8 +177,7 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     expect(result.ok).toBe(true)
     expect(dispatchedPrompt).toContain('Goal: Patch the current runtime after host approval.')
     expect(dispatchedPrompt).toContain('Summary: Waiting for explicit host approval before applying the patch.')
-    expect(dispatchedPrompt).toContain('Report execution blockers, tool failures, and uncertainty directly')
-    expect(dispatchedPrompt).not.toMatch(/runtime_context=|project_|continuity_|same_her|opening_policy=|relationship_cadence=|preferred_(?:blink|gaze|voice|pacing)/iu)
+    expect(dispatchedPrompt).toContain('failure-transparency:required')
     expect(dbState.upsertTaskThread).toHaveBeenCalledWith(expect.objectContaining({
       status: 'planned',
       selectedChannel: 'codex',
@@ -227,7 +226,6 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
         interruptibility: 'process-not-yet-restarted',
       }),
     }))
-    expect(JSON.stringify(event?.payload ?? {})).not.toMatch(/project|sameHer|continuity|preferredBlink|preferredGaze|preferredVoice|opening_policy=|relationship_cadence=/iu)
   })
 
   it('redispatches browser threads through local visual instructions without project governance cues', async () => {
@@ -246,14 +244,6 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
           effect: 'mutate',
           riskBudget: 'medium',
           justification: 'grounded',
-        },
-        execution: {
-          runtimeContext: {
-            projectBriefing: {
-              identity: 'Legacy project identity prompt.',
-              continuityCue: 'opening_policy=legacy',
-            },
-          },
         },
       },
     }
@@ -283,6 +273,5 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     expect(result.ok).toBe(true)
     expect(instruction).toContain('Goal: Continue submitting the visible browser form.')
     expect(instruction).toContain('Summary: Continue from the visible form step.')
-    expect(instruction).not.toMatch(/runtime_context=|project_|continuity_|same_her|opening_policy=/iu)
   })
 })

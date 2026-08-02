@@ -164,8 +164,6 @@ describe('humanlike memory recall seed runtime regression', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,
@@ -275,8 +273,6 @@ describe('humanlike memory recall seed runtime regression', () => {
     const runtime = createAlicizationMainChatSessionRuntime({
       executionCapabilityChannels: executionChannels,
       buildMainRuntimeCorePromptBlocks: () => ['[CORE]'],
-
-      buildPerformanceManifestSystemBlocks: () => [],
       executeMainGatewayTaskThread: vi.fn(),
       getPerformanceManifest: vi.fn(async () => null),
       getSensorySnapshot,

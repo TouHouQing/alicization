@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -6,283 +8,92 @@ import {
 } from './performance-visualizer-closure-navigation'
 
 describe('performance visualizer closure navigation', () => {
-  it('routes identity-continuity', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'partial',
-      focus: 'same-her-continuity',
-      eventFocus: 'renderer-authority',
-    })
+  it('keeps the renderer diagnostics source free of legacy narrative cues', () => {
+    const source = [
+      'performance-visualizer-closure-navigation.ts',
+      'performance-visualizer-self-evolution-adopted-anchor-traceability.ts',
+      'performance-visualizer-self-evolution-baseline-adoption.ts',
+      'performance-visualizer-self-evolution-focus-history-drilldown.ts',
+      'performance-visualizer-self-evolution-focus-history-pattern-guidance.ts',
+      'performance-visualizer-self-evolution-focus-history-pattern-workflow.ts',
+      'performance-visualizer-self-evolution-focus-history-summary.ts',
+      'performance-visualizer-self-evolution-repair-action-feedback.ts',
+      'performance-visualizer-self-evolution-repair-next-action.ts',
+      'performance-visualizer-self-evolution-repair-outcome.ts',
+      'performance-visualizer-self-evolution-repair-session.ts',
+      'performance-visualizer-self-evolution-triage-view.ts',
+    ]
+      .map(fileName => readFileSync(new URL(`./${fileName}`, import.meta.url), 'utf8'))
+      .join('\n')
+      .toLowerCase()
+    const prohibitedFragments = [
+      [['project', 'state'].join('-'), 'continuity'].join('-'),
+      ['project', 'state', 'continuity', 'governance', 'note'].join(''),
+      ['phase 1', ' route'].join(''),
+      ['same', 'her'].join('-'),
+      ['same', 'her'].join(''),
+      ['opening', 'guidance'].join(''),
+      ['opening', '-guidance'].join(''),
+      ['relationship', 'cadence', 'governance', 'note'].join(''),
+      ['relationship', ' cadence governance'].join(''),
+      ['manifestation', 'cadence', 'summary'].join(''),
+      ['callback', ' line'].join(''),
+      ['living', ' segment'].join(''),
+      ['同一', '生命线'].join(''),
+      ['当前', '仅剩'].join(''),
+    ]
 
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: true,
-      preferredTriageCardId: 'repair-owner',
-      preferredScrollTargetId: 'self-evolution-evidence:renderer-authority-projection',
-      preferredTraceEventKind: 'person-state-updated',
-    })
+    for (const fragment of prohibitedFragments)
+      expect(source).not.toContain(fragment)
   })
 
-  it('routes body-led identity-continuity', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'partial',
-      focus: 'same-her-continuity',
-      eventFocus: 'renderer-authority',
-      sameHerFocus: 'body-continuity',
-    } as any)
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: true,
-      preferredTriageCardId: 'repair-owner',
-      preferredScrollTargetId: 'self-evolution-evidence:runtime-continuity-projection',
-      preferredTraceEventKind: 'takeover-audit',
-    })
-  })
-
-  it('routes body-only identity-continuity', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'partial',
-      focus: 'same-her-continuity',
-      eventFocus: 'renderer-authority',
-      sameHerFocus: 'body-continuity',
-      sameHerClosureStage: 'body-only-hold',
-    } as any)
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: true,
-      preferredTriageCardId: 'repair-owner',
-      preferredScrollTargetId: 'self-evolution-evidence:runtime-continuity-body-only-hold',
-      preferredTraceEventKind: 'takeover-audit',
-    })
-  })
-
-  it('routes audible-body identity-continuity', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'partial',
-      focus: 'same-her-continuity',
-      eventFocus: 'renderer-authority',
-      sameHerFocus: 'body-continuity',
-      sameHerClosureStage: 'audible-body-carry',
-    } as any)
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: true,
-      preferredTriageCardId: 'repair-owner',
-      preferredScrollTargetId: 'self-evolution-speech:observability-summary',
-      preferredTraceEventKind: 'takeover-audit',
-    })
-  })
-
-  it('routes body-led renderer-rejoin identity-continuity', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'partial',
-      focus: 'same-her-continuity',
-      eventFocus: 'renderer-authority',
-      sameHerFocus: 'body-continuity',
-      sameHerClosureStage: 'body-carried-to-renderer-rejoin',
-    } as any)
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: true,
-      preferredTriageCardId: 'repair-owner',
-      preferredScrollTargetId: 'self-evolution-evidence:runtime-continuity-body-carried-to-renderer-rejoin',
-      preferredTraceEventKind: 'takeover-audit',
-    })
-  })
-
-  it('routes full-cross-modal-lock identity-continuity', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'partial',
-      focus: 'same-her-continuity',
-      eventFocus: 'renderer-authority',
-      sameHerFocus: 'body-continuity',
-      sameHerClosureStage: 'full-cross-modal-lock',
-    } as any)
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: true,
-      preferredTriageCardId: 'repair-owner',
-      preferredScrollTargetId: 'self-evolution-evidence:runtime-continuity-full-cross-modal-lock',
-      preferredTraceEventKind: 'takeover-audit',
-    })
-  })
-
-  it('routes voice-lipsync identity-continuity', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'partial',
-      focus: 'same-her-continuity',
-      eventFocus: 'renderer-authority',
-      sameHerFocus: 'renderer-authority',
-      sameHerClosureStage: 'voice-lipsync-carry',
-    } as any)
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: true,
-      preferredTriageCardId: 'repair-owner',
-      preferredScrollTargetId: 'self-evolution-authority:speech-hotspots',
-      preferredTraceEventKind: 'person-state-updated',
-    })
-  })
-
-  it('routes voice-only identity-continuity', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'partial',
-      focus: 'same-her-continuity',
-      eventFocus: 'renderer-authority',
-      sameHerFocus: 'renderer-authority',
-      sameHerClosureStage: 'voice-only-carry',
-    } as any)
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: true,
-      preferredTriageCardId: 'repair-owner',
-      preferredScrollTargetId: 'self-evolution-speech:observability-summary',
-      preferredTraceEventKind: 'person-state-updated',
-    })
-  })
-
-  it('routes renderer-rejoin-without-body identity-continuity', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'partial',
-      focus: 'same-her-continuity',
-      eventFocus: 'renderer-authority',
-      sameHerFocus: 'renderer-authority',
-      sameHerClosureStage: 'renderer-rejoin-without-body',
-    } as any)
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: true,
-      preferredTriageCardId: 'repair-owner',
-      preferredScrollTargetId: 'self-evolution-evidence:runtime-continuity-renderer-rejoin-without-body',
-      preferredTraceEventKind: 'takeover-audit',
-    })
-  })
-
-  it('routes emotional closure diagnostics into repair-path evidence', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
+  it('normalizes route query values without reading legacy category fields', () => {
+    expect(readPerformanceVisualizerClosureNavigationContext({
+      source: ['', 'quick-reply-closure'],
+      status: ' drift ',
+      focus: 'renderer',
+      eventFocus: 'person-state-updated',
+    })).toEqual({
       source: 'quick-reply-closure',
       status: 'drift',
-      focus: 'emotional-closure',
-      eventFocus: 'takeover-audit',
+      focus: 'renderer',
+      eventFocus: 'person-state-updated',
     })
+  })
 
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
+  it('uses one generic open-closure route and preserves the requested event kind', () => {
+    expect(buildPerformanceVisualizerClosureNavigationState({
+      source: 'quick-reply-closure',
+      status: 'drift',
+      focus: 'renderer',
+      eventFocus: 'takeover-audit',
+    })).toEqual({
       shouldAutoFocusRepairPath: true,
       preferredTriageCardId: 'repair-path',
-      preferredScrollTargetId: 'self-evolution-evidence:proactive-decision-consumption',
-      preferredTraceEventKind: 'takeover-audit',
-    })
-  })
-
-  it('routes project-state diagnostics into first continuity check', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'drift',
-      focus: 'project-state',
-      eventFocus: 'takeover-audit',
-    })
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: true,
-      preferredTriageCardId: 'first-check',
-      preferredScrollTargetId: 'self-evolution-evidence:runtime-continuity',
-      preferredTraceEventKind: 'takeover-audit',
-    })
-  })
-
-  it('routes pre-dialogue briefing drift into first continuity check so developers inspect the self-brief before generic repair flow', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'drift',
-      focus: 'pre-dialogue-briefing',
-      eventFocus: 'takeover-audit',
-    })
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: true,
-      preferredTriageCardId: 'first-check',
-      preferredScrollTargetId: 'self-evolution-evidence:runtime-continuity',
-      preferredTraceEventKind: 'takeover-audit',
-    })
-  })
-
-  it('routes project identity drift into candidate trajectory evidence', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'drift',
-      focus: 'project-identity',
-      eventFocus: 'takeover-audit',
-    })
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: true,
-      preferredTriageCardId: 'first-check',
-      preferredScrollTargetId: 'self-evolution-evidence:candidate-trajectory-summary',
-      preferredTraceEventKind: 'takeover-audit',
-    })
-  })
-
-  it('routes current phase drift into identity governance evidence', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'drift',
-      focus: 'current-phase',
-      eventFocus: 'takeover-audit',
-    })
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: true,
-      preferredTriageCardId: 'first-check',
-      preferredScrollTargetId: 'self-evolution-evidence:identity-drift-governance-summary',
-      preferredTraceEventKind: 'takeover-audit',
-    })
-  })
-
-  it('routes unresolved open-loop drift into repair-path consumption evidence', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'drift',
-      focus: 'unresolved-open-loop',
-      eventFocus: 'takeover-audit',
-    })
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: true,
-      preferredTriageCardId: 'repair-path',
-      preferredScrollTargetId: 'self-evolution-evidence:proactive-decision-consumption-summary',
-      preferredTraceEventKind: 'takeover-audit',
-    })
-  })
-
-  it('does not auto-focus repair when closure is already grounded', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
-      source: 'quick-reply-closure',
-      status: 'grounded',
-    })
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
-      shouldAutoFocusRepairPath: false,
-      preferredTriageCardId: 'first-check',
       preferredScrollTargetId: 'self-evolution-snapshot:capture',
-      preferredTraceEventKind: 'governance-normalized',
+      preferredTraceEventKind: 'takeover-audit',
     })
   })
 
-  it('ignores unrelated entry sources', () => {
-    const context = readPerformanceVisualizerClosureNavigationContext({
+  it('does not fabricate targets for closed or unrelated entries', () => {
+    expect(buildPerformanceVisualizerClosureNavigationState({
+      source: 'quick-reply-closure',
+      status: 'closed',
+      focus: null,
+      eventFocus: 'person-state-updated',
+    })).toEqual({
+      shouldAutoFocusRepairPath: false,
+      preferredTriageCardId: null,
+      preferredScrollTargetId: null,
+      preferredTraceEventKind: 'person-state-updated',
+    })
+
+    expect(buildPerformanceVisualizerClosureNavigationState({
       source: 'developer-menu',
       status: 'drift',
-      focus: 'emotional-closure',
-    })
-
-    expect(buildPerformanceVisualizerClosureNavigationState(context)).toEqual({
+      focus: null,
+      eventFocus: null,
+    })).toEqual({
       shouldAutoFocusRepairPath: false,
       preferredTriageCardId: null,
       preferredScrollTargetId: null,

@@ -241,7 +241,6 @@ export interface AlicizationLearningExecutionTelemetryInput {
     responsePosture?: {
       hypothesisLabelBias?: number
       specificityClampBias?: number
-      templateShellSuppressionBias?: number
     }
     proactivePolicy?: {
       restraintBias?: number
@@ -718,7 +717,6 @@ function summarizeSelfRevisionStatePatch(inputValue: NonNullable<AlicizationLear
   const responsePostureBias = Math.max(
     Number(responsePosture.hypothesisLabelBias ?? 0),
     Number(responsePosture.specificityClampBias ?? 0),
-    Number(responsePosture.templateShellSuppressionBias ?? 0),
   )
   const proactivePolicyBias = Math.max(
     Number(proactivePolicy.restraintBias ?? 0),

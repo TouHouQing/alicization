@@ -262,12 +262,12 @@ describe('buildReflectionLedger', () => {
           createdAt: 88_000,
         },
         {
-          id: 'reflection::same-her-repair',
-          summary: 'The steadier same-her repair line is still the meaningful carry for this thread.',
+          id: 'reflection::continuity-repair',
+          summary: 'The steadier continuity repair line is still the meaningful carry for this thread.',
           expectation: 'Relationship repair should stay active until a newer meaningful reflection replaces it.',
           observedOutcome: 'The digital-life continuity line is still the living repair thread.',
           outcome: 'missed',
-          revision: 'Keep the same-her repair lesson active instead of letting released noise become the latest carry.',
+          revision: 'Keep the continuity repair lesson active instead of letting released noise become the latest carry.',
           confidenceShift: -0.08,
           createdAt: 84_000,
         },
@@ -275,8 +275,8 @@ describe('buildReflectionLedger', () => {
       previous: null,
     })
 
-    expect(ledger.latestEntryId).toBe('reflection::same-her-repair')
+    expect(ledger.latestEntryId).toBe('reflection::continuity-repair')
     expect(ledger.entries.find(entry => entry.id === 'reflection::temporary-noise')?.outcome).toBe('released')
-    expect(ledger.entries.find(entry => entry.id === ledger.latestEntryId)?.revision).toContain('same-her repair lesson')
+    expect(ledger.entries.find(entry => entry.id === ledger.latestEntryId)?.revision).toContain('continuity repair lesson')
   })
 })

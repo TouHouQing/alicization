@@ -590,10 +590,3 @@ export function buildAlicizationDigitalLifeArchitecture(
     systems,
   }
 }
-
-export function buildAlicizationDigitalLifeArchitectureSystemBlock(
-  architecture: AlicizationDigitalLifeArchitectureSnapshot | null | undefined,
-) {
-  void architecture
-  return ''
-}

@@ -25,11 +25,15 @@ interface SelfEvolutionRuntimeBodyContinuityAuthorityView {
   motionSegmentMatched?: boolean | null
   lipsyncSegmentMatched?: boolean | null
   voiceSegmentMatched?: boolean | null
-  sameHerFramePerformanceSegmentId?: string | null
-  sameHerFrameSpeechSegmentId?: string | null
-  sameHerFrameSummary?: string | null
-  sameHerExecutionAuthoritySegmentId?: string | null
-  sameHerExecutionSummary?: string | null
+  continuityFrameActiveDrivers?: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
+  continuityFrameMismatchDrivers?: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
+  continuityFramePerformanceSegmentId?: string | null
+  continuityFrameSpeechSegmentId?: string | null
+  continuityFrameSummary?: string | null
+  continuityExecutionActiveDrivers?: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
+  continuityExecutionMismatchDrivers?: Array<'body' | 'face' | 'motion' | 'lipsync' | 'voice'>
+  continuityExecutionAuthoritySegmentId?: string | null
+  continuityExecutionSummary?: string | null
 }
 
 type ContinuityDriver = 'body' | 'face' | 'motion' | 'lipsync' | 'voice'
@@ -40,127 +44,40 @@ function normalizeText(value: unknown) {
     : null
 }
 
-function extractSummaryField(summary: string | null | undefined, field: string) {
-  const normalized = normalizeText(summary)
-  if (!normalized)
-    return null
-
-  for (const part of normalized.split('|').map(part => part.trim()).filter(Boolean)) {
-    const separatorIndex = part.indexOf('=')
-    if (separatorIndex < 0)
-      continue
-
-    const key = part.slice(0, separatorIndex).trim()
-    const rawValue = part.slice(separatorIndex + 1).trim()
-    if (key === field)
-      return normalizeText(rawValue)
-  }
-
-  return null
-}
-
-function parseDriverList(value: string | null | undefined) {
-  const normalized = normalizeText(value)
-  if (!normalized || normalized === 'none')
-    return []
-
-  return normalized
-    .split(',')
-    .map(part => normalizeText(part))
-    .filter((driver): driver is ContinuityDriver =>
-      driver === 'body'
-      || driver === 'face'
-      || driver === 'motion'
-      || driver === 'lipsync'
-      || driver === 'voice',
-    )
-}
-
-function parseLaneDrivers(value: string | null | undefined) {
-  const normalized = normalizeText(value)
-  if (!normalized)
-    return []
-
-  const laneValue = normalized.endsWith('-only')
-    ? normalized.slice(0, -'-only'.length)
-    : normalized
-
-  if (laneValue === 'full-driver-rejoin')
-    return ['body', 'face', 'motion', 'lipsync', 'voice'] satisfies ContinuityDriver[]
-
-  return laneValue
-    .split('+')
-    .map(part => normalizeText(part))
-    .filter((driver): driver is ContinuityDriver =>
-      driver === 'body'
-      || driver === 'face'
-      || driver === 'motion'
-      || driver === 'lipsync'
-      || driver === 'voice',
-    )
-}
-
 function matchesScopedSegment(segmentId: string | null | undefined, activeSegmentId: string | null | undefined) {
   const normalizedSegmentId = normalizeText(segmentId)
   const normalizedActiveSegmentId = normalizeText(activeSegmentId)
   return !normalizedSegmentId || !normalizedActiveSegmentId || normalizedSegmentId === normalizedActiveSegmentId
 }
 
-function extractStructuredSameHerSegmentId(summary: string | null | undefined) {
-  const normalized = normalizeText(summary)
-  if (!normalized)
-    return null
-
-  return extractSummaryField(normalized, 'authority')
-    ?? extractSummaryField(normalized, 'segment')
-    ?? extractSummaryField(normalized, 'performance')
-    ?? extractSummaryField(normalized, 'speech')
+function normalizeContinuityDrivers(values: ContinuityDriver[] | null | undefined) {
+  return (values ?? []).filter((driver): driver is ContinuityDriver =>
+    driver === 'body'
+    || driver === 'face'
+    || driver === 'motion'
+    || driver === 'lipsync'
+    || driver === 'voice',
+  )
 }
 
-function structuredSameHerSummaryMatchesSegment(summary: string | null | undefined, activeSegmentId: string | null | undefined) {
-  const structuredSegmentId = extractStructuredSameHerSegmentId(summary)
-  return matchesScopedSegment(structuredSegmentId, activeSegmentId)
-}
-
-function resolveMatchedDriversFromSameHerSummary(input: {
+function resolveMatchedDriversFromContinuitySignals(input: {
   activeSegmentId: string | null
+  activeDrivers?: ContinuityDriver[] | null
+  mismatchDrivers?: ContinuityDriver[] | null
   authoritySegmentId?: string | null
   performanceSegmentId?: string | null
   speechSegmentId?: string | null
-  summary: string | null | undefined
 }) {
-  const normalized = normalizeText(input.summary)
-  if (!normalized)
-    return []
-
   if (!matchesScopedSegment(input.authoritySegmentId, input.activeSegmentId))
     return []
   if (!matchesScopedSegment(input.performanceSegmentId, input.activeSegmentId))
     return []
   if (!matchesScopedSegment(input.speechSegmentId, input.activeSegmentId))
     return []
-  if (!structuredSameHerSummaryMatchesSegment(normalized, input.activeSegmentId))
-    return []
 
-  const activeDrivers = parseDriverList(extractSummaryField(normalized, 'active'))
-  const mismatchDrivers = new Set(parseDriverList(extractSummaryField(normalized, 'mismatch')))
-  const matchedActiveDrivers = activeDrivers.filter(driver => !mismatchDrivers.has(driver))
-  if (matchedActiveDrivers.length > 0)
-    return matchedActiveDrivers
-
-  const closure = extractSummaryField(normalized, 'closure')
-  if (closure === 'full-cross-modal-lock')
-    return ['body', 'face', 'motion', 'lipsync', 'voice'] satisfies ContinuityDriver[]
-  if (closure === 'audible-body-carry')
-    return ['body', 'lipsync', 'voice'] satisfies ContinuityDriver[]
-  if (closure === 'voice-lipsync-carry')
-    return ['lipsync', 'voice'] satisfies ContinuityDriver[]
-  if (closure === 'body-only-hold')
-    return ['body'] satisfies ContinuityDriver[]
-  if (closure === 'renderer-rejoin-without-body')
-    return parseLaneDrivers(extractSummaryField(normalized, 'lane'))
-
-  return parseLaneDrivers(extractSummaryField(normalized, 'lane'))
+  const activeDrivers = normalizeContinuityDrivers(input.activeDrivers)
+  const mismatchDrivers = new Set(normalizeContinuityDrivers(input.mismatchDrivers))
+  return activeDrivers.filter(driver => !mismatchDrivers.has(driver))
 }
 
 export function resolveSelfEvolutionRuntimeBodyContinuityPhase(
@@ -187,20 +104,22 @@ export function resolveSelfEvolutionRuntimeBodyContinuityPhase(
     authorityView.lipsyncSegmentMatched === true,
     authorityView.voiceSegmentMatched === true,
   ].filter(Boolean).length
-  const sameHerMatchedDrivers = resolveMatchedDriversFromSameHerSummary({
+  const continuityMatchedDrivers = resolveMatchedDriversFromContinuitySignals({
     activeSegmentId,
-    performanceSegmentId: authorityView.sameHerFramePerformanceSegmentId,
-    speechSegmentId: authorityView.sameHerFrameSpeechSegmentId,
-    summary: authorityView.sameHerFrameSummary,
+    activeDrivers: authorityView.continuityFrameActiveDrivers,
+    mismatchDrivers: authorityView.continuityFrameMismatchDrivers,
+    performanceSegmentId: authorityView.continuityFramePerformanceSegmentId,
+    speechSegmentId: authorityView.continuityFrameSpeechSegmentId,
   })
-  const sameHerExecutionMatchedDrivers = resolveMatchedDriversFromSameHerSummary({
+  const continuityExecutionMatchedDrivers = resolveMatchedDriversFromContinuitySignals({
     activeSegmentId,
-    authoritySegmentId: authorityView.sameHerExecutionAuthoritySegmentId,
-    summary: authorityView.sameHerExecutionSummary,
+    activeDrivers: authorityView.continuityExecutionActiveDrivers,
+    mismatchDrivers: authorityView.continuityExecutionMismatchDrivers,
+    authoritySegmentId: authorityView.continuityExecutionAuthoritySegmentId,
   })
-  const fallbackMatchedDrivers = sameHerMatchedDrivers.length > 0
-    ? sameHerMatchedDrivers
-    : sameHerExecutionMatchedDrivers
+  const fallbackMatchedDrivers = continuityMatchedDrivers.length > 0
+    ? continuityMatchedDrivers
+    : continuityExecutionMatchedDrivers
   const bodyHeld = hasExplicitBodyEvidence
     ? explicitBodyHeld
     : fallbackMatchedDrivers.includes('body')

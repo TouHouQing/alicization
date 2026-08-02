@@ -8,7 +8,6 @@ function normalizeComparisonText(raw: unknown) {
   return sanitizeText(raw, 240).normalize('NFKC').toLowerCase()
 }
 
-const internalScreenNarrationPattern = /living seam|current knot|carried continuity|truth seam|epistemic|governing|foreground thread|residue|afterglow|repair ahead of fluency|which belief is stale memory|still reflects the current world|where exactly is the real knot|present-tense scene claims are constrained|stale anchor or ungrounded seam|window-level cues only explain surface context|窗口级线索只能说明表层上下文|宿主(?:正在审视|还在沿着|刚从|现在更像是在浏览|正?把当前注意力放在|停留在|正?把注意力压在)|她(?:还没重新看见|还想再确认一次|把这一刻读成|更想先护住|像是在沿着|像是在衡量)|真正卡住的是哪一处|误把路过窗口当作问题核心/iu
 const shellOnlyCuePattern = /^(?:screen(?:\s*\d+)?|display(?:\s*\d+)?|entire screen|desktop|workspace|window(?:\s*\d+)?|current screen|current view|当前屏幕|当前画面|unknown|none|null|n\/a)$/iu
 const vagueAppCuePattern = /^(?:code|browser|terminal|player|music|video|chat|document|editor|ide|app|application)$/iu
 const genericFallbackCueSet = new Set([
@@ -67,17 +66,11 @@ function countSemanticTokens(raw: string) {
   return extractSemanticTokens(raw).length
 }
 
-function cueLooksInternal(raw: string) {
-  return internalScreenNarrationPattern.test(raw)
-}
-
 export function isWeakAlicizationScreenSurfaceCue(raw: unknown) {
   const normalized = sanitizeText(raw, 180)
   if (!normalized)
     return true
   const normalizedLower = normalizeComparisonText(normalized)
-  if (cueLooksInternal(normalized))
-    return true
   if (shellOnlyCuePattern.test(normalized))
     return true
   if (genericFallbackCueSet.has(normalizedLower))
@@ -97,10 +90,7 @@ function isVagueAppCue(raw: string) {
 }
 
 function normalizeCueCandidate(raw: unknown) {
-  const normalized = sanitizeText(raw, 180)
-  if (!normalized || cueLooksInternal(normalized))
-    return ''
-  return normalized
+  return sanitizeText(raw, 180)
 }
 
 function similarity(left: string, right: string) {

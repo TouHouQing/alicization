@@ -45,9 +45,6 @@ function sanitizeMemoryClosureWritebackValue<T>(value: T, key = ''): T {
 
   const next: Record<string, unknown> = {}
   for (const [entryKey, entryValue] of Object.entries(value)) {
-    const retiredCadenceKey = ['project', 'Cadence'].join('')
-    if (entryKey.startsWith('projectState') || entryKey === retiredCadenceKey)
-      continue
     next[entryKey] = sanitizeMemoryClosureWritebackValue(entryValue, entryKey)
   }
   return next as T

@@ -2,8 +2,6 @@ import type { AlicizationMemoryDomain } from '../../../../shared/eventa'
 import type { AlicizationLearningPolicyFeedback } from '../learning-state-machine'
 import type { AlicizationSelfRevisionEvent } from './self-revision-ledger'
 
-import { sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
-
 export type AlicizationSelfRevisionStatePatchLane
   = | 'memory-policy'
     | 'relationship-posture'
@@ -36,7 +34,6 @@ export interface AlicizationSelfRevisionStatePatch {
   responsePosture: {
     hypothesisLabelBias: number
     specificityClampBias: number
-    templateShellSuppressionBias: number
   }
   proactivePolicy: {
     restraintBias: number
@@ -48,15 +45,6 @@ export interface AlicizationSelfRevisionStatePatch {
     requiresRevalidation: boolean
     rollbackPlan: string[]
   }
-  projectStateContinuity: {
-    sameHerSelfLine: string | null
-    sameHerDriftRisk: string | null
-    proactiveSameHerGap?: string | null
-    emotionalClosureCue: string | null
-    sameHerHoldDetail?: string | null
-    continuityGuard: string | null
-    continuityPressure: number
-  } | null
   reasonCodes: string[]
   summary: string | null
 }
@@ -68,7 +56,9 @@ function clamp01(value: number) {
 }
 
 function sanitizeText(raw: unknown, maxChars = 220) {
-  return sanitizeAlicizationProviderFacingText(raw, maxChars)
+  if (typeof raw !== 'string')
+    return ''
+  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
 function uniqueList(values: Array<string | null | undefined>, maxItems = 12) {
@@ -174,11 +164,6 @@ export function buildAlicizationSelfRevisionStatePatch(input: {
       + memoryPolicy.provenanceLabelBias * 0.3
       + (worldModel ? 0.08 : 0),
     ),
-    templateShellSuppressionBias: clamp01(
-      0.1
-      + (relationshipLike || selfLike ? 0.12 : 0)
-      + (event.domain === 'dialogue-style' ? 0.18 : 0),
-    ),
   }
 
   const proactivePolicy = {
@@ -239,7 +224,6 @@ export function buildAlicizationSelfRevisionStatePatch(input: {
       requiresRevalidation,
       rollbackPlan: uniqueList(event.rollbackPlan, 8),
     },
-    projectStateContinuity: null,
     reasonCodes,
     summary: sanitizeText(event.proposedRevision.summary, 240) || null,
   }

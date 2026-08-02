@@ -90,8 +90,8 @@ interface PerformanceVisualizerRuntimeAuthoritySummaryInput {
   authorityMatchSummary?: string | null
   embodimentClosureStage?: string | null
   authorityTrustSummary?: string | null
-  sameHerSignature?: string | null
-  sameHerReasonTags?: string[] | null
+  continuitySignature?: string | null
+  continuityReasonTags?: string[] | null
   runtimeMemoryClosureIdentityKey?: string | null
   runtimeMemoryClosureIdentityReasonTags?: string[] | null
   prosodyAuthoritySummary?: string | null
@@ -184,7 +184,7 @@ function formatAuthorityDriver(value: string) {
   return value
 }
 
-function formatSameHerContinuityLaneTruth(value: string) {
+function formatContinuityLaneTruth(value: string) {
   const normalizedLane = value.trim()
   if (normalizedLane === 'face+lipsync+voice-only') {
     return '当前仅剩表情、口型、声音维持同一段连续性，可见 identity-continuity continuity 还没有断开，但 body、motion 还没有重新接回这条表情口型声音线'
@@ -487,9 +487,9 @@ function formatAuthorityLaneDisplay(
   }
 
   const normalizedLane = value.trim()
-  const explicitSameHerLaneTruth = formatSameHerContinuityLaneTruth(normalizedLane)
-  if (explicitSameHerLaneTruth)
-    return explicitSameHerLaneTruth
+  const explicitContinuityLaneTruth = formatContinuityLaneTruth(normalizedLane)
+  if (explicitContinuityLaneTruth)
+    return explicitContinuityLaneTruth
 
   const laneMatch = normalizedLane.match(/^([a-z+]+)-only$/)
   if (!laneMatch)
@@ -817,14 +817,14 @@ export function buildRuntimeAuthoritySummaryEntries(
       value: authorityTrustSummary!,
     })
   }
-  if (hasValue(overview.sameHerSignature)) {
+  if (hasValue(overview.continuitySignature)) {
     pushSummaryEntry(entries, {
       key: 'identity-continuity-signature',
       label: '同一人签名',
-      value: overview.sameHerSignature!,
+      value: overview.continuitySignature!,
     })
   }
-  const executionSafetyGate = resolveExecutionSafetyGateDiagnostic(overview.sameHerReasonTags)
+  const executionSafetyGate = resolveExecutionSafetyGateDiagnostic(overview.continuityReasonTags)
   if (executionSafetyGate) {
     pushSummaryEntry(entries, {
       key: 'execution-safety-gate',
@@ -832,12 +832,12 @@ export function buildRuntimeAuthoritySummaryEntries(
       ...executionSafetyGate,
     })
   }
-  const sameHerReasons = formatList(overview.sameHerReasonTags ?? undefined)
-  if (sameHerReasons) {
+  const continuityReasons = formatList(overview.continuityReasonTags ?? undefined)
+  if (continuityReasons) {
     pushSummaryEntry(entries, {
       key: 'identity-continuity-reasons',
       label: '同一人线索',
-      value: sameHerReasons,
+      value: continuityReasons,
     })
   }
   if (hasValue(overview.runtimeMemoryClosureIdentityKey)) {
@@ -961,12 +961,12 @@ export function buildPlaybackCueAuthoritySummaryEntries(
       value: (view as { signature?: string | null }).signature!,
     })
   }
-  const sameHerReasons = formatList((view as { reasonTags?: string[] | null }).reasonTags ?? undefined)
-  if (sameHerReasons) {
+  const continuityReasons = formatList((view as { reasonTags?: string[] | null }).reasonTags ?? undefined)
+  if (continuityReasons) {
     pushSummaryEntry(entries, {
       key: 'identity-continuity-reasons',
       label: '同一人线索',
-      value: sameHerReasons,
+      value: continuityReasons,
     })
   }
   if (hasValue(view.prosodyAuthoritySummary)) {

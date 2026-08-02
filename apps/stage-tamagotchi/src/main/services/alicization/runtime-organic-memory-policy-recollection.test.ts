@@ -42,7 +42,7 @@ describe('runtime-organic-memory-policy-recollection', () => {
         afterthoughtState: 'ripe',
         certainty: 'approximate',
         confidence: 0.8,
-        foreground: 'Same Phase 1 digital life. Keep the same-her closure line explicit.',
+        foreground: 'retired_policy=observe_first',
         mode: 'execution-procedure',
         placement: 'internal-only',
         surfaceMode: 'internal-only',

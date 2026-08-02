@@ -293,5 +293,7 @@ describe('buildDeliberationState', () => {
 
     expect(state.threads.some(thread => thread.kind === 'stay-near')).toBe(true)
     expect(state.dominantNeed).toBe('companionship')
+    expect(JSON.stringify(state)).not.toContain('The shared moment is still warm enough')
+    expect(JSON.stringify(state)).not.toContain('keep soft continuity with the host')
   })
 })

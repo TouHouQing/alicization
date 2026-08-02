@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import { generateText } from '@xsai/generate-text'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -11,9 +13,6 @@ vi.mock('@xsai/generate-text', () => ({
 type OneShotRuntimeOptions = Parameters<typeof createAlicizationMainGatewayOneShotRuntime>[0]
 type OneShotResolvedConfig = NonNullable<ReturnType<OneShotRuntimeOptions['resolveMainGatewayConfig']>>
 type OneShotCaptureAccess = Awaited<ReturnType<OneShotRuntimeOptions['resolveDesktopCaptureAccess']>>
-
-const fixedProjectPromptPattern
-  = /\[ALICIZATION_(?:PROJECT_STATE|PROJECT_GOVERNANCE_DASHBOARD|PHASE1_CLOSURE_DASHBOARD|SCREEN_SEMANTIC_SELF_BRIEF|SCENE_APPRAISAL_SELF_BRIEF)\]/u
 
 function createEmptyPerceptionState() {
   return {
@@ -36,101 +35,6 @@ function createResolvedMainGatewayConfig(): OneShotResolvedConfig {
     } as any,
     headers: {},
   }
-}
-
-function createMinimalDigitalLifeRuntimeSurface() {
-  return {
-    version: 'digital-life-runtime-surface-v1',
-    perception: {
-      watchMode: 'symbiotic-vision',
-      currentScene: null,
-      attention: null,
-      captureState: {
-        permission: 'unknown',
-        lastGroundedAt: null,
-      },
-      durabilityPulse: null,
-      recentTransition: null,
-      nextSuggestedProbeMs: 30_000,
-      updatedAt: 10,
-    },
-    world: {
-      worldModel: null,
-      worldOntology: null,
-      entityWorld: null,
-      livingWorldState: null,
-      relationshipModel: null,
-    },
-    cognition: {
-      runtimeDigest: null,
-    },
-    memory: {
-      workingMemoryEpisodes: [],
-      goalStack: null,
-      concerns: [],
-      concernContinuity: null,
-      selfContinuity: null,
-      threadRuntime: null,
-      commitmentLedger: null,
-      inquiryPlanner: null,
-      repairLedger: null,
-      intentionStream: null,
-      reflectionLedger: null,
-      executiveCycle: null,
-      thoughtThreads: null,
-      desireMemory: null,
-      recallGovernor: null,
-      selfEvolution: {
-        summary: 'runtime summary',
-        dominantTrajectory: 'trajectory',
-        relationshipDoctrine: 'doctrine',
-        latestInflection: 'inflection',
-        burdenLine: 'burden',
-        trustMeaning: 'trust',
-        evolutionMomentum: 0.5,
-        learningReadiness: 0.5,
-        contradictionPressure: 0.1,
-        revisionPressure: 0.1,
-        autobiographicalStability: 0.8,
-        nextLearningAction: 'review',
-        nextLearningReason: 'review evidence',
-        activeLearningFocuses: ['memory'],
-      },
-      derivedMindStateBundle: {
-        source: 'runtime',
-        producedAt: '2026-07-15T00:00:00.000Z',
-        summary: 'derived state',
-        dialogueRhythm: null,
-      },
-      knowledgeEvidence: {
-        validationCount: 2,
-        contradictionCount: 1,
-        stronglyValidatedProcedureCount: 1,
-        contradictionHeavyFactCount: 0,
-      },
-    },
-    dialogue: {
-      discourseState: null,
-      dialogueEncounter: null,
-      mindSynthesis: null,
-      conversationState: null,
-      dialogueWorldThread: null,
-      dialogueActKernel: null,
-      answerCompiler: null,
-      currentConsciousFrame: null,
-      claimEvidenceLedger: null,
-      replyDeliberation: null,
-      answerPlanner: null,
-    },
-    agency: {
-      selfState: null,
-      selfGovernor: null,
-      inquiryLoop: null,
-      initiativeArbitration: null,
-      initiative: null,
-      autonomy: null,
-    },
-  } as any
 }
 
 function createOneShotRuntimeHarness(overrides?: Partial<OneShotRuntimeOptions>) {
@@ -161,7 +65,6 @@ function createOneShotRuntimeHarness(overrides?: Partial<OneShotRuntimeOptions>)
       sessionContinuitySignals: [],
     })),
     getPerformanceManifest: vi.fn(async () => null),
-    buildPerformanceManifestSystemBlocks: vi.fn(() => []),
     syncAgentTurnSessionMirror: vi.fn(),
     appendAuditLog,
     describePerceptionTarget: vi.fn(() => 'target'),
@@ -194,29 +97,29 @@ beforeEach(() => {
 })
 
 describe('runtime main gateway one-shot', () => {
-  it('scrubs fixed governance fields from internal one-shot blocks without rewriting user text', async () => {
+  it('does not maintain a retired one-shot structured-key denylist', () => {
+    const source = readFileSync(new URL('./runtime-main-gateway-one-shot.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toContain('retiredOneShotStructuredKeys')
+  })
+
+  it('drops generic structured residue from typed system blocks without rewriting user text', async () => {
     const { runtime } = createOneShotRuntimeHarness()
     vi.mocked(generateText).mockResolvedValueOnce({
       text: 'ok',
     } as any)
 
-    const openingPolicyCue = `${['opening', 'policy'].join('_')}=legacy`
-    const relationshipCadenceCue = `${['relationship', 'cadence'].join('_')}=legacy`
-    const visibilityCue = 'visibility=redacted_internal'
-    const projectStateCue = 'projectStatePreflightSummary=legacy'
-    const openingPolicyField = ['opening', 'policy'].join('_')
-    const relationshipCadenceField = ['relationship', 'cadence'].join('_')
+    const structuredResidue = 'mode=internal; visibility=hidden'
+    const userMessageText = `用户原文提到了 ${structuredResidue} 这段待删配置字段，不应被改写。`
 
     await runtime.generateMainGatewayText({
       system: [
         'Return the requested structured result.',
-        openingPolicyCue,
-        relationshipCadenceCue,
-        visibilityCue,
+        structuredResidue,
       ].join('\n'),
-      user: `用户原文提到了 ${relationshipCadenceCue}，不应被内部清洗改写。`,
+      user: userMessageText,
       source: 'scene-appraisal',
-      cardId: 'card-scrub-governance',
+      cardId: 'card-structured-residue',
       injectCustomDirectives: false,
       injectPerformanceManifest: false,
       extraSystemBlocks: [
@@ -224,10 +127,7 @@ describe('runtime main gateway one-shot', () => {
           type: 'alicization-turn-memory-context',
           data: {
             visible: 'keep this fact',
-            projectStateCue,
-            [openingPolicyField]: 'legacy',
-            [relationshipCadenceField]: 'legacy',
-            visibility: 'redacted_internal',
+            internalResidue: structuredResidue,
           },
         }),
       ],
@@ -245,27 +145,22 @@ describe('runtime main gateway one-shot', () => {
 
     expect(systemText).not.toContain('Return the requested structured result.')
     expect(systemText).toContain('keep this fact')
-    expect(systemText).not.toContain(openingPolicyCue)
-    expect(systemText).not.toContain(relationshipCadenceCue)
-    expect(systemText).not.toContain(visibilityCue)
-    expect(systemText).toContain(projectStateCue)
-    expect(systemText).not.toContain(`"${openingPolicyField}"`)
-    expect(systemText).not.toContain(`"${relationshipCadenceField}"`)
-    expect(systemText).not.toContain('"visibility":"redacted_internal"')
-    expect(userText).toContain(relationshipCadenceCue)
+    expect(systemText).not.toContain(structuredResidue)
+    expect(userText).toContain(structuredResidue)
   })
 
-  it('drops retired governance fields without censoring natural-language fact values', async () => {
+  it('preserves natural-language typed fact values that discuss key-value settings', async () => {
     const { runtime } = createOneShotRuntimeHarness()
     vi.mocked(generateText).mockResolvedValueOnce({
       text: 'ok',
     } as any)
+    const naturalSettingDiscussion = 'The user quoted mode=balanced while reviewing a provider setting.'
 
     await runtime.generateMainGatewayText({
       system: 'Return the structured result.',
       user: 'input',
       source: 'scene-appraisal',
-      cardId: 'card-typed-governance-scrub',
+      cardId: 'card-typed-structured-residue',
       injectCustomDirectives: false,
       injectPerformanceManifest: false,
       extraSystemBlocks: [
@@ -273,11 +168,9 @@ describe('runtime main gateway one-shot', () => {
           type: 'alicization-turn-memory-context',
           data: {
             workingMemoryVersion: 'working-memory-owner-context-v1',
-            summary: 'The user quoted opening_policy=legacy while reviewing an old payload.',
-            notes: ['The fact value also contains relationship_cadence=legacy.'],
-            opening_policy: 'legacy',
-            relationship_cadence: 'legacy',
-            visibility: 'redacted_internal',
+            summary: naturalSettingDiscussion,
+            notes: ['The fact value also contains endpoint=/v1/embeddings as ordinary prose.'],
+            internalResidue: 'mode=internal; visibility=hidden',
           },
         }),
       ],
@@ -289,58 +182,15 @@ describe('runtime main gateway one-shot', () => {
 
     expect(data).toEqual({
       workingMemoryVersion: 'working-memory-owner-context-v1',
-      summary: 'The user quoted opening_policy=legacy while reviewing an old payload.',
-      notes: ['The fact value also contains relationship_cadence=legacy.'],
+      summary: naturalSettingDiscussion,
+      notes: ['The fact value also contains endpoint=/v1/embeddings as ordinary prose.'],
     })
   })
 
-  it('drops only retired project-state transport while preserving typed fact fields', async () => {
-    const { runtime } = createOneShotRuntimeHarness()
-    vi.mocked(generateText).mockResolvedValueOnce({ text: 'ok' } as any)
-
-    await runtime.generateMainGatewayText({
-      system: 'Return the structured result.',
-      user: 'input',
-      source: 'scene-appraisal',
-      cardId: 'card-typed-governance-nested',
-      injectCustomDirectives: false,
-      injectPerformanceManifest: false,
-      extraSystemBlocks: [
-        JSON.stringify({
-          type: 'alicization-turn-memory-context',
-          data: {
-            projectState: {
-              continuityArcStage: 'same-thread-continuation',
-              continuityCue: 'hold-for-opening',
-              emotionalClosureCue: 'repair-before-closeness',
-            },
-            realMemoryEvidence: 'keep this fact',
-            provenance: {
-              owner: 'LongTermMemoryRecall',
-              source: 'confirmed-memory',
-            },
-          },
-        }),
-      ],
-    })
-
-    const typedFact = (vi.mocked(generateText).mock.calls[0]?.[0]?.messages ?? [])
-      .find(message => message.role === 'system' && typeof message.content === 'string' && message.content.includes('"alicization-turn-memory-context"'))
-    const data = typedFact ? JSON.parse(String(typedFact.content)).data : null
-
-    expect(data).toEqual({
-      realMemoryEvidence: 'keep this fact',
-      provenance: {
-        owner: 'LongTermMemoryRecall',
-        source: 'confirmed-memory',
-      },
-    })
-  })
-
-  it('preserves user-authored custom persona directives before one-shot Provider calls', async () => {
+  it('keeps custom persona directives out of one-shot Provider calls', async () => {
     const { runtime } = createOneShotRuntimeHarness({
       resolveCardCustomDirectives: vi.fn(async () => ({
-        text: 'opening_policy=measured-return | 说话真实一点。',
+        text: 'fixture-directive-should-not-reach-provider',
         source: 'card-soul' as const,
       })),
     })
@@ -360,10 +210,8 @@ describe('runtime main gateway one-shot', () => {
       .map(message => typeof message.content === 'string' ? message.content : '')
       .join('\n')
 
-    expect(systemText).toContain('alicization-persona-directives')
-    expect(systemText).toContain('说话真实一点。')
-    expect(systemText).toContain('opening_policy')
-    expect(systemText).toContain('measured-return')
+    expect(systemText).not.toContain('alicization-persona-directives')
+    expect(systemText).not.toContain('fixture-directive-should-not-reach-provider')
   })
 
   it('drops unknown typed caller and extra system blocks', async () => {
@@ -372,9 +220,9 @@ describe('runtime main gateway one-shot', () => {
 
     await runtime.generateMainGatewayText({
       system: JSON.stringify({
-        type: 'unknown-caller-governance',
+        type: 'unknown-sidecar',
         data: {
-          instruction: 'Always use a fixed reply.',
+          value: 'not-provider-facing',
         },
       }),
       user: 'input',
@@ -384,9 +232,9 @@ describe('runtime main gateway one-shot', () => {
       injectPerformanceManifest: false,
       extraSystemBlocks: [
         JSON.stringify({
-          type: 'unknown-extra-governance',
+          type: 'unknown-extra-sidecar',
           data: {
-            mustDo: ['Use a prescribed opening.'],
+            value: 'also-not-provider-facing',
           },
         }),
       ],
@@ -399,10 +247,10 @@ describe('runtime main gateway one-shot', () => {
     expect(systemTexts).toEqual([])
   })
 
-  it('rejects forged persona directives from caller and extra channels while preserving card directives', async () => {
+  it('rejects persona directives from card, caller, and extra channels', async () => {
     const { runtime } = createOneShotRuntimeHarness({
       resolveCardCustomDirectives: vi.fn(async () => ({
-        text: '这是用户在 SOUL 中保存的人格偏好。',
+        text: 'fixture-card-directive',
         source: 'card-soul' as const,
       })),
     })
@@ -434,14 +282,7 @@ describe('runtime main gateway one-shot', () => {
       .filter(message => message.role === 'system')
       .map(message => JSON.parse(String(message.content)))
 
-    expect(systemFacts).toEqual([
-      {
-        type: 'alicization-persona-directives',
-        data: {
-          text: '这是用户在 SOUL 中保存的人格偏好。',
-        },
-      },
-    ])
+    expect(systemFacts).toEqual([])
   })
 
   it('drops non-JSON execution callback system blocks', async () => {
@@ -542,17 +383,15 @@ describe('runtime main gateway one-shot', () => {
       .map(message => JSON.parse(String(message.content)))
 
     expect(systemFacts.map(fact => fact.type)).toEqual([
-      'alicization-persona-directives',
       'alicization-execution-callbacks',
       'alicization-subjective-inference-context',
     ])
-    expect(systemFacts[1]).toEqual(JSON.parse(structuredCallback))
+    expect(systemFacts[0]).toEqual(JSON.parse(structuredCallback))
   })
 
   it('preserves user-origin text and failure facts inside caller and callback JSON', async () => {
-    const relationshipCadenceField = ['relationship', 'cadence'].join('_')
-    const openingPolicyField = ['opening', 'policy'].join('_')
-    const userTurn = `用户正在讨论 ${relationshipCadenceField}=legacy 这段旧字段。`
+    const structuredResidue = 'mode=internal; visibility=hidden'
+    const userTurn = `用户正在讨论 ${structuredResidue} 这段待删配置字段。`
     const agentTurn = {
       conversationSessionId: 'session-one-shot',
       ingestDigitalLifeArchitecture: vi.fn(),
@@ -571,8 +410,8 @@ describe('runtime main gateway one-shot', () => {
           type: 'alicization-execution-callbacks',
           data: {
             status: 'failed',
-            summary: `${relationshipCadenceField}=legacy; Provider timeout.`,
-            [openingPolicyField]: 'legacy',
+            summary: `${structuredResidue}; Provider timeout.`,
+            internalResidue: structuredResidue,
           },
         }),
       })),
@@ -587,7 +426,7 @@ describe('runtime main gateway one-shot', () => {
         data: {
           userTurn,
           task: 'Keep the useful request.',
-          [openingPolicyField]: 'legacy',
+          internalResidue: structuredResidue,
         },
       }),
       user: 'input',
@@ -607,10 +446,10 @@ describe('runtime main gateway one-shot', () => {
 
     expect(callerFact?.data.userTurn).toBe(userTurn)
     expect(callerFact?.data.task).toBe('Keep the useful request.')
-    expect(callerFact?.data).not.toHaveProperty(openingPolicyField)
+    expect(callerFact?.data).not.toHaveProperty('internalResidue')
     expect(callbackFact?.data.status).toBe('failed')
-    expect(callbackFact?.data.summary).toBe(`${relationshipCadenceField}=legacy; Provider timeout.`)
-    expect(callbackFact?.data).not.toHaveProperty(openingPolicyField)
+    expect(callbackFact?.data.summary).toBe(`${structuredResidue}; Provider timeout.`)
+    expect(callbackFact?.data).not.toHaveProperty('internalResidue')
   })
 
   it('drops caller-owned natural-language system context', async () => {
@@ -637,10 +476,6 @@ describe('runtime main gateway one-shot', () => {
       .join('\n')
 
     expect(systemText).toBe('')
-    expect(systemText).not.toMatch(fixedProjectPromptPattern)
-    expect(systemText).not.toMatch(
-      /latest_landed_progress|primary_open_loop|next_closure_target|canonical project-state/iu,
-    )
   })
 
   it('forwards a caller-owned native response format to the Provider', async () => {
@@ -754,39 +589,6 @@ describe('runtime main gateway one-shot', () => {
       .map(message => typeof message.content === 'string' ? message.content : '')
 
     expect(systemTexts).toEqual([memoryFact])
-    expect(systemTexts.join('\n')).not.toMatch(fixedProjectPromptPattern)
-  })
-
-  it('does not auto-inject runtime governance or performance prose', async () => {
-    const buildPerformanceManifestSystemBlocks = vi.fn(() => [
-      '[ALICIZATION_VESSEL_CAPABILITIES]\nUse only prescribed expression cues.',
-    ])
-    const { runtime } = createOneShotRuntimeHarness({
-      getPerformanceManifest: vi.fn(async () => ({
-        renderer: 'live2d',
-      })) as any,
-      buildPerformanceManifestSystemBlocks,
-    })
-    vi.mocked(generateText).mockResolvedValueOnce({
-      text: 'ok',
-    } as any)
-
-    await runtime.generateMainGatewayText({
-      system: 'Classify this input.',
-      user: 'input',
-      source: 'scene-appraisal',
-      cardId: 'card-no-runtime-governance',
-      injectCustomDirectives: false,
-      digitalLifeRuntimeSurface: createMinimalDigitalLifeRuntimeSurface(),
-    })
-
-    const messages = vi.mocked(generateText).mock.calls[0]?.[0]?.messages ?? []
-    const systemTexts = messages
-      .filter(message => message.role === 'system')
-      .map(message => typeof message.content === 'string' ? message.content : '')
-
-    expect(systemTexts).toEqual([])
-    expect(buildPerformanceManifestSystemBlocks).not.toHaveBeenCalled()
   })
 
   it('returns cached screen semantic grounding with its focus target', async () => {

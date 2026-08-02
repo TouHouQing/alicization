@@ -1,10 +1,7 @@
 import type { CreateAlicizationOrganicMemoryPromptRuntimeOptions } from './runtime-organic-memory-prompt'
 
 import { buildMemoryRecollectionIntent } from './memory-recollection-intent'
-import {
-  buildRecallGovernor,
-  buildRecallGovernorSystemBlock,
-} from './recall-governor'
+import { buildRecallGovernor } from './recall-governor'
 import { createAlicizationOrganicMemoryPromptRuntime } from './runtime-organic-memory-prompt'
 
 export interface CreateAlicizationMemorySearchRuntimeOptions {
@@ -12,7 +9,6 @@ export interface CreateAlicizationMemorySearchRuntimeOptions {
 }
 
 export const buildTurnRecallGovernor = buildRecallGovernor
-export const buildMemorySearchGovernorSystemBlock = buildRecallGovernorSystemBlock
 export const buildHeuristicRecollectionIntent = buildMemoryRecollectionIntent
 
 // Centralize turn-time memory search entry so the runtime calls one façade
@@ -28,7 +24,6 @@ export function createAlicizationMemorySearchRuntime(
 
   return {
     buildTurnRecallGovernor,
-    buildRecallGovernorSystemBlock: buildMemorySearchGovernorSystemBlock,
     buildHeuristicRecollectionIntent,
     ...organicMemoryPromptRuntime,
   }

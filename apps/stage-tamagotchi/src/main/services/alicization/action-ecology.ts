@@ -65,19 +65,6 @@ export function buildActionEcology(input: {
   inquiryPlanner?: AlicizationInquiryPlannerSnapshot | null
   mindKernel?: AlicizationMindKernelSnapshot | null
   counterfactualDeliberation?: AlicizationCounterfactualDeliberationSnapshot | null
-  projectState?: {
-    preflightSummary?: string | null
-    identity?: string | null
-    currentPhase?: string | null
-    latestLandedProgress?: string | null
-    landedProgressSummary?: string | null
-    primaryOpenLoop?: string | null
-    openClosureSummary?: string | null
-    nextClosureTarget?: string | null
-    nextClosureTargetSummary?: string | null
-    sameHerSelfLine?: string | null
-    emotionalClosureSummary?: string | null
-  } | null
 }): AlicizationActionEcologySnapshot {
   const runtimeThreads = asArray(input.threadRuntime?.threads)
   const deliberationThreads = asArray(input.deliberationState.threads)

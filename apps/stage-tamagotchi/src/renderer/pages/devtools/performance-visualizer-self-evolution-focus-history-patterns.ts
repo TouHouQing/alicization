@@ -35,7 +35,7 @@ interface SelfEvolutionFocusSnapshotRecord {
   explanation: string | null
   bodyContinuityPhase?: SelfEvolutionBodyContinuityPhase
   rendererRejoinSurfaceKey?: SelfEvolutionRendererRejoinSurfaceKey
-  bodyContinuityGovernanceNote?: string | null
+  survivingVisibleLane?: SelfEvolutionSurvivingVisibleLane
   highlightedEvidencePanelIds: string[]
   highlightedTraceSectionIds: string[]
   recommendedTraceEventId: string | null
@@ -52,6 +52,21 @@ function diffLost(current: string[], previous: string[]) {
 
 function sortValues(values: string[]) {
   return [...values].sort((left, right) => left.localeCompare(right))
+}
+
+function hashPatternIdentity(value: string, seed: number) {
+  let hash = seed >>> 0
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, '0')
+}
+
+function buildOpaquePatternKey(patternIdentity: string) {
+  return `pattern:${hashPatternIdentity(patternIdentity, 0x811C9DC5)}${hashPatternIdentity(patternIdentity, 0x9E3779B9)}`
 }
 
 function formatSignedList(
@@ -89,159 +104,40 @@ function formatRendererRejoinSurfaceName(
   return null
 }
 
-function normalizeSummarySentence(value: string) {
-  return value.trim().replace(/[。.]$/u, '')
-}
-
-function inferSurvivingVisibleLaneFromText(
-  value: string | null | undefined,
-): SelfEvolutionSurvivingVisibleLane {
-  if (!value)
-    return null
-
-  if (
-    value.includes('lane=face+lipsync+voice-only')
-    || value.includes('当前仅剩表情、口型、声音维持同一段连续性')
-  ) {
-    return 'face+lipsync+voice-only'
-  }
-
-  if (
-    value.includes('lane=motion+lipsync+voice-only')
-    || value.includes('当前仅剩动作、口型、声音维持同一段连续性')
-  ) {
-    return 'motion+lipsync+voice-only'
-  }
-
-  if (
-    value.includes('lane=face+lipsync-only')
-    || value.includes('当前只有 face 和 lipsync 这条 identity-continuity 生命线')
-  ) {
-    return 'face+lipsync-only'
-  }
-
-  if (
-    value.includes('lane=motion+lipsync-only')
-    || value.includes('当前只有 motion 和 lipsync 这条 identity-continuity 生命线')
-  ) {
-    return 'motion+lipsync-only'
-  }
-
-  return null
-}
-
-function extractSurvivingVisibleLaneTruth(
-  value: string | null | undefined,
-) {
-  return inferSurvivingVisibleLaneFromText(value)
-    ? normalizeSummarySentence(value!)
-    : null
-}
-
-function inferBodyContinuityPhaseFromExplanation(
-  explanation: string | null | undefined,
-) {
-  if (!explanation)
-    return null
-
-  if (explanation.includes('显形回接失身态'))
-    return 'renderer-rejoin-without-body' as const
-
-  if (explanation.includes('跨模态重锁态'))
-    return 'full-cross-modal-lock' as const
-
-  if (
-    explanation.includes('身体独撑态')
-    || explanation.includes('独自托住同一段 living segment')
-  ) {
-    return 'body-only-hold' as const
-  }
-
-  if (
-    explanation.includes('身体连续性已经明确进入身体承接态 -> 显形补回态')
-    || explanation.includes('身体连续性已经被新的验证快照再次确认，并明确处于身体承接态 -> 显形补回态')
-  ) {
-    return 'body-carried-to-renderer-rejoin' as const
-  }
-
-  return null
-}
-
-function inferBodyContinuityPhaseFromGovernanceNote(
-  note: string | null | undefined,
-) {
-  if (!note)
-    return null
-
-  if (note.includes('显形回接失身态'))
-    return 'renderer-rejoin-without-body' as const
-
-  if (note.includes('跨模态重锁态'))
-    return 'full-cross-modal-lock' as const
-
-  if (
-    note.includes('身体独撑态')
-    || note.includes('独自托住同一段 living segment')
-  ) {
-    return 'body-only-hold' as const
-  }
-
-  if (
-    note.includes('身体连续性已经明确进入身体承接态 -> 显形补回态')
-    || note.includes('身体连续性已经被新的验证快照再次确认，并明确处于身体承接态 -> 显形补回态')
-    || note.includes('沿同一条连续身体线补回')
-  ) {
-    return 'body-carried-to-renderer-rejoin' as const
-  }
-
-  return null
-}
-
 function resolveBodyContinuityPhase(params: {
   currentBodyContinuityPhase: SelfEvolutionBodyContinuityPhase
   previousBodyContinuityPhase: SelfEvolutionBodyContinuityPhase
-  currentBodyContinuityGovernanceNote: string | null
-  previousBodyContinuityGovernanceNote: string | null
-  currentExplanation: string | null
-  previousExplanation: string | null
 }) {
   return params.currentBodyContinuityPhase
     ?? params.previousBodyContinuityPhase
-    ?? inferBodyContinuityPhaseFromGovernanceNote(params.currentBodyContinuityGovernanceNote)
-    ?? inferBodyContinuityPhaseFromGovernanceNote(params.previousBodyContinuityGovernanceNote)
-    ?? inferBodyContinuityPhaseFromExplanation(params.currentExplanation)
-    ?? inferBodyContinuityPhaseFromExplanation(params.previousExplanation)
 }
 
 function resolveSurvivingVisibleLane(params: {
-  currentBodyContinuityGovernanceNote: string | null
-  previousBodyContinuityGovernanceNote: string | null
-  currentExplanation: string | null
-  previousExplanation: string | null
+  currentSurvivingVisibleLane: SelfEvolutionSurvivingVisibleLane
+  previousSurvivingVisibleLane: SelfEvolutionSurvivingVisibleLane
 }) {
-  return inferSurvivingVisibleLaneFromText(params.currentBodyContinuityGovernanceNote)
-    ?? inferSurvivingVisibleLaneFromText(params.previousBodyContinuityGovernanceNote)
-    ?? inferSurvivingVisibleLaneFromText(params.currentExplanation)
-    ?? inferSurvivingVisibleLaneFromText(params.previousExplanation)
+  return params.currentSurvivingVisibleLane
+    ?? params.previousSurvivingVisibleLane
 }
 
-function resolveSurvivingVisibleLaneTruth(params: {
-  currentBodyContinuityGovernanceNote: string | null
-  previousBodyContinuityGovernanceNote: string | null
-  currentExplanation: string | null
-  previousExplanation: string | null
-}) {
-  return extractSurvivingVisibleLaneTruth(params.currentBodyContinuityGovernanceNote)
-    ?? extractSurvivingVisibleLaneTruth(params.previousBodyContinuityGovernanceNote)
-    ?? extractSurvivingVisibleLaneTruth(params.currentExplanation)
-    ?? extractSurvivingVisibleLaneTruth(params.previousExplanation)
+function formatSurvivingVisibleLaneSummary(
+  survivingVisibleLane: SelfEvolutionSurvivingVisibleLane,
+) {
+  if (survivingVisibleLane === 'face+lipsync+voice-only')
+    return '当前仅剩表情、口型、声音维持同一段连续性'
+  if (survivingVisibleLane === 'motion+lipsync+voice-only')
+    return '当前仅剩动作、口型、声音维持同一段连续性'
+  if (survivingVisibleLane === 'face+lipsync-only')
+    return '当前只有 face 和 lipsync 这条连续性线'
+  if (survivingVisibleLane === 'motion+lipsync-only')
+    return '当前只有 motion 和 lipsync 这条连续性线'
+  return null
 }
 
 function formatBodyContinuityPatternLabel(params: {
   bodyContinuityPhase: SelfEvolutionBodyContinuityPhase
   rendererRejoinSurfaceKey: SelfEvolutionRendererRejoinSurfaceKey
   survivingVisibleLane: SelfEvolutionSurvivingVisibleLane
-  survivingVisibleLaneTruth: string | null
 }) {
   const rendererRejoinSurface = formatRendererRejoinSurfaceName(params.rendererRejoinSurfaceKey)
 
@@ -258,8 +154,9 @@ function formatBodyContinuityPatternLabel(params: {
   }
 
   if (params.bodyContinuityPhase === 'renderer-rejoin-without-body') {
-    if (params.survivingVisibleLane && params.survivingVisibleLaneTruth)
-      return params.survivingVisibleLaneTruth
+    const survivingVisibleLaneSummary = formatSurvivingVisibleLaneSummary(params.survivingVisibleLane)
+    if (survivingVisibleLaneSummary)
+      return survivingVisibleLaneSummary
 
     return rendererRejoinSurface
       ? `显形回接失身态（${rendererRejoinSurface}）`
@@ -283,10 +180,6 @@ function isBodyContinuityPattern(params: {
   currentEvidenceIds: string[]
   previousTraceSectionIds: string[]
   currentTraceSectionIds: string[]
-  previousBodyContinuityGovernanceNote: string | null
-  currentBodyContinuityGovernanceNote: string | null
-  previousExplanation: string | null
-  currentExplanation: string | null
 }) {
   if (resolveBodyContinuityPhase(params)) {
     return true
@@ -332,6 +225,10 @@ export function buildSelfEvolutionFocusHistoryPatterns(
 
   const patternMap = new Map<string, {
     patternKey: string
+    bodyContinuityPattern: boolean
+    bodyContinuityPhase: SelfEvolutionBodyContinuityPhase
+    rendererRejoinSurfaceKey: SelfEvolutionRendererRejoinSurfaceKey
+    survivingVisibleLane: SelfEvolutionSurvivingVisibleLane
     occurrenceCount: number
     summaryLine: string
     focusCardTransition: string
@@ -359,22 +256,10 @@ export function buildSelfEvolutionFocusHistoryPatterns(
     const bodyContinuityPhase = resolveBodyContinuityPhase({
       currentBodyContinuityPhase: current.bodyContinuityPhase ?? null,
       previousBodyContinuityPhase: previous.bodyContinuityPhase ?? null,
-      currentBodyContinuityGovernanceNote: current.bodyContinuityGovernanceNote ?? null,
-      previousBodyContinuityGovernanceNote: previous.bodyContinuityGovernanceNote ?? null,
-      currentExplanation: current.explanation ?? null,
-      previousExplanation: previous.explanation ?? null,
     })
     const survivingVisibleLane = resolveSurvivingVisibleLane({
-      currentBodyContinuityGovernanceNote: current.bodyContinuityGovernanceNote ?? null,
-      previousBodyContinuityGovernanceNote: previous.bodyContinuityGovernanceNote ?? null,
-      currentExplanation: current.explanation ?? null,
-      previousExplanation: previous.explanation ?? null,
-    })
-    const survivingVisibleLaneTruth = resolveSurvivingVisibleLaneTruth({
-      currentBodyContinuityGovernanceNote: current.bodyContinuityGovernanceNote ?? null,
-      previousBodyContinuityGovernanceNote: previous.bodyContinuityGovernanceNote ?? null,
-      currentExplanation: current.explanation ?? null,
-      previousExplanation: previous.explanation ?? null,
+      currentSurvivingVisibleLane: current.survivingVisibleLane ?? null,
+      previousSurvivingVisibleLane: previous.survivingVisibleLane ?? null,
     })
     const rendererRejoinSurfaceKey = current.rendererRejoinSurfaceKey ?? previous.rendererRejoinSurfaceKey ?? null
     const bodyContinuityPattern = isBodyContinuityPattern({
@@ -386,13 +271,9 @@ export function buildSelfEvolutionFocusHistoryPatterns(
       currentEvidenceIds: current.highlightedEvidencePanelIds,
       previousTraceSectionIds: previous.highlightedTraceSectionIds,
       currentTraceSectionIds: current.highlightedTraceSectionIds,
-      previousBodyContinuityGovernanceNote: previous.bodyContinuityGovernanceNote ?? null,
-      currentBodyContinuityGovernanceNote: current.bodyContinuityGovernanceNote ?? null,
-      previousExplanation: previous.explanation ?? null,
-      currentExplanation: current.explanation ?? null,
     })
 
-    const patternKey = [
+    const patternIdentity = [
       bodyContinuityPattern ? 'signature:body-continuity' : null,
       bodyContinuityPattern ? `phase:${bodyContinuityPhase ?? 'derived'}` : null,
       bodyContinuityPattern ? `surface:${rendererRejoinSurfaceKey ?? 'unknown'}` : null,
@@ -406,6 +287,7 @@ export function buildSelfEvolutionFocusHistoryPatterns(
         ? [...traceTargetsGained.map(value => `+${value}`), ...traceTargetsLost.map(value => `-${value}`)].join(',')
         : 'none'}`,
     ].filter(Boolean).join('|')
+    const patternKey = buildOpaquePatternKey(patternIdentity)
 
     const summaryParts = [
       bodyContinuityPattern
@@ -413,7 +295,6 @@ export function buildSelfEvolutionFocusHistoryPatterns(
             bodyContinuityPhase,
             rendererRejoinSurfaceKey,
             survivingVisibleLane,
-            survivingVisibleLaneTruth,
           })
         : null,
       `${formatSelfEvolutionFocusCardLabel(previous.selectedCardId)} -> ${formatSelfEvolutionFocusCardLabel(current.selectedCardId)}`,
@@ -434,7 +315,7 @@ export function buildSelfEvolutionFocusHistoryPatterns(
         : null,
     ].filter(Boolean) as string[]
 
-    const existing = patternMap.get(patternKey)
+    const existing = patternMap.get(patternIdentity)
     if (existing) {
       existing.occurrenceCount += 1
       existing.summaryLine = `${existing.occurrenceCount}次 ${summaryParts.join(' | ')}`
@@ -445,8 +326,12 @@ export function buildSelfEvolutionFocusHistoryPatterns(
       continue
     }
 
-    patternMap.set(patternKey, {
+    patternMap.set(patternIdentity, {
       patternKey,
+      bodyContinuityPattern,
+      bodyContinuityPhase,
+      rendererRejoinSurfaceKey,
+      survivingVisibleLane,
       occurrenceCount: 1,
       summaryLine: `1次 ${summaryParts.join(' | ')}`,
       focusCardTransition,

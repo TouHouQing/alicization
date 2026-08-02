@@ -17,7 +17,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
     expect(source).toContain(') ?? persistedPersonStateUpdateSurface')
     expect(source).toContain('personStateUpdateSurface: previousPersonStateUpdateSurface,')
     expect(source).toContain('personStateUpdateSurface,')
-    expect(source).toContain('stripProjectGovernanceMetadataFromVisualPresenceState')
+    expect(source).toContain('projectVisualPresenceStateForMindRuntime')
     expect(source).not.toContain('activeContinuityGovernance')
   })
 
@@ -40,7 +40,6 @@ describe('runtime-mind-state emotional kernel regression', () => {
       : ''
 
     expect(emotionalKernelBlock).toContain('personStateProjection: preferredResidentPersonStateProjection')
-    expect(emotionalKernelBlock).not.toContain('projectState')
     expect(initiativeBaseBlock).toContain('personStateProjection: preferredResidentPersonStateProjection')
     expect(initiativeBaseBlock).toContain('recollectionIntent: input.organicMemoryContext?.recollectionIntent')
     expect(emotionalKernelBlock).not.toContain('personStateProjection: input.previousVisualPresenceState.personStateProjection ?? null')
@@ -102,7 +101,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
     expect(source).toContain('const embodimentContinuityLedger = buildAlicizationEmbodimentContinuityLedger({')
     expect(source).not.toContain('buildAlicizationEmotionalSelfRevisionStatePatch')
     expect(source).not.toContain('buildAlicizationEmbodimentSelfRevisionStatePatch')
-    expect(source).not.toContain('same-her-baseline')
+    expect(source).not.toContain('continuity-baseline')
     expect(source).toContain('activeSelfRevision: existingDerivedMindStateBundle?.activeSelfRevision ?? null')
     expect(source).not.toContain('activeContinuityGovernance')
   })
@@ -497,7 +496,6 @@ describe('runtime-mind-state emotional kernel regression', () => {
       'emotion_tone:rest-protective',
     ]))
     expect(result.recallGovernor?.affectiveCarry?.summary).toContain('rest-protective-companionship')
-    expect(result.initiative.continuityRestraint).toBe('rest-protective')
     expect(result.initiative.preferredStyle).toBe('silent-observe')
     expect(result.initiative.preferredPresence).toBe('concerned')
     expect(result.initiative.shouldSpeak).toBe(false)
@@ -973,7 +971,6 @@ describe('runtime-mind-state emotional kernel regression', () => {
       'emotion_memory_mode:self-continuity',
       'emotion_tone:protective-watch',
     ]))
-    expect(result.initiative.continuityRestraint).toBe('single-thread')
     expect(result.initiative.preferredStyle).toBe('silent-observe')
     expect(result.initiative.preferredPresence).toBe('hesitant')
     expect(result.initiative.shouldSpeak).toBe(false)
@@ -1119,7 +1116,6 @@ describe('runtime-mind-state emotional kernel regression', () => {
             relationshipLine: 'Relationship line is neutral.',
           },
           openingGuidance: 'Thin runtime shell line.',
-          manifestationCadenceSummary: 'generic carry only.',
         } as any,
       } as any,
       visualHeartbeat: {
@@ -1148,7 +1144,6 @@ describe('runtime-mind-state emotional kernel regression', () => {
             motiveLine: 'Protect the same quiet continuity before closeness widens.',
           },
           openingGuidance: 'Stay on the same callback line and keep the return lower-pressure before widening.',
-          manifestationCadenceSummary: 'Relationship timing should stay measured-return while the same line continues.',
           personalityContinuityState: {
             currentRegime: 'execution-callback',
             trustStage: 'earned',
@@ -1181,7 +1176,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
             afterglowCarry: 0.48,
             shouldDelayWarmth: true,
             shouldProtectRest: false,
-            reasonTags: ['same-her', 'lower-pressure'],
+            reasonTags: ['continuity', 'lower-pressure'],
             summary: 'measured-return still holds while the same line continues lower-pressure.',
           },
           sourceSignals: ['shared seam still glowing'],
@@ -1438,7 +1433,6 @@ describe('runtime-mind-state emotional kernel regression', () => {
       } as any,
     })
 
-    expect(result.initiative.continuityRestraint).toBe('measured-return')
     expect(result.initiative.preferredStyle).toBe('silent-observe')
     expect(result.initiative.shouldSpeak).toBe(false)
     expect(['hover', 'wait', 'recheck']).toContain(result.initiative.selectedAction)
@@ -1626,7 +1620,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
             afterglowCarry: 0.48,
             shouldDelayWarmth: true,
             shouldProtectRest: false,
-            reasonTags: ['same-her', 'lower-pressure'],
+            reasonTags: ['continuity', 'lower-pressure'],
             summary: 'measured-return still holds while the same line continues lower-pressure.',
           },
           sourceSignals: ['shared seam still glowing'],
@@ -1850,8 +1844,10 @@ describe('runtime-mind-state emotional kernel regression', () => {
       version: 'embodiment-continuity-ledger-v1',
       continuityPhase: expect.stringMatching(/partial-carry|fragmented|quiet|rejoining|fully-rejoined/),
       memoryWriteback: expect.any(Object),
-      selfRevisionCandidate: expect.any(Object),
     }))
+    expect(result.derivedMindStateBundle?.embodimentContinuityLedger)
+      .not
+      .toHaveProperty('selfRevisionCandidate')
     expect(result.derivedMindStateBundle?.summary).toContain('embodiment_phase=')
   })
 
@@ -1866,8 +1862,8 @@ describe('runtime-mind-state emotional kernel regression', () => {
       producedAt: 69_000,
       ...(input
         ? {
-            sameHerCausalityRepairPressure: {
-              version: 'same-her-causality-repair-pressure-v1',
+            continuityCausalityRepairPressure: {
+              version: 'continuity-causality-repair-pressure-v1',
               source: 'memory-tuning-advice',
               status: 'pending-runtime-evidence',
               updatedAt: 69_000,
@@ -1970,9 +1966,9 @@ describe('runtime-mind-state emotional kernel regression', () => {
   }
 
   it.each([
-    ['initiative-execution', 'runtimeSameHerInitiativeExecutionCausality'],
-    ['emotion', 'runtimeSameHerEmotionalCausality'],
-    ['embodiment', 'runtimeSameHerEmbodimentCausality'],
+    ['initiative-execution', 'runtimeContinuityInitiativeExecutionCausality'],
+    ['emotion', 'runtimeContinuityEmotionalCausality'],
+    ['embodiment', 'runtimeContinuityEmbodimentCausality'],
   ] as const)('ignores %s replay repair pressure across runtime behavior and derived state', async (lane, focusDimension) => {
     const baseline = await buildResultWithRepairPressure()
     const pressured = await buildResultWithRepairPressure({ lane, focusDimension })
@@ -1986,12 +1982,12 @@ describe('runtime-mind-state emotional kernel regression', () => {
       .toEqual(baseline.derivedMindStateBundle?.embodimentContinuityLedger)
     expect(pressured.derivedMindStateBundle?.emotionalTransitionLedger?.sourceTags ?? [])
       .not
-      .toContain('same-her-causality-repair-pressure')
+      .toContain('continuity-causality-repair-pressure')
     expect(pressured.derivedMindStateBundle?.embodimentContinuityLedger?.sourceTags ?? [])
       .not
-      .toContain('same-her-causality-repair-pressure')
-    expect(pressured.derivedMindStateBundle?.embodimentContinuityLedger?.selfRevisionCandidate.reasonCodes ?? [])
+      .toContain('continuity-causality-repair-pressure')
+    expect(pressured.derivedMindStateBundle?.embodimentContinuityLedger)
       .not
-      .toContain('same-her-causality-repair-pressure')
+      .toHaveProperty('selfRevisionCandidate')
   })
 })

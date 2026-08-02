@@ -133,9 +133,7 @@ function pickSurfaceClaimDistinctFrom(hostMove: unknown, ...values: unknown[]) {
 function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
   const result: string[] = []
   for (const value of values) {
-    const rawValue = typeof value === 'string' ? value.trim() : ''
-    const maxChars = rawValue.startsWith('pre-dialogue project awareness:') ? 960 : 220
-    const normalized = sanitizeDialogueSurfaceText(value, maxChars) || sanitizeText(value, maxChars)
+    const normalized = sanitizeDialogueSurfaceText(value, 220) || sanitizeText(value, 220)
     if (!normalized || result.includes(normalized))
       continue
     result.push(normalized)
@@ -910,8 +908,4 @@ export function buildAnswerCompiler(input: {
     ], 10),
     updatedAt: input.now,
   } satisfies AlicizationAnswerCompilerSnapshot
-}
-
-export function buildAnswerCompilerSystemBlock(_state: AlicizationAnswerCompilerSnapshot | null | undefined) {
-  return ''
 }

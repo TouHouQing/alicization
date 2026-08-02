@@ -27,41 +27,6 @@ type BroadcastCloneSafeValue
     | BroadcastCloneSafeValue[]
     | { [key: string]: BroadcastCloneSafeValue }
 
-const legacyDialogueGovernanceKeys = new Set([
-  'preDialogueSendIdentity',
-  'preDialogueAwareness',
-  'preDialogueClosure',
-  'visibleReplyRealization',
-  'preDialogueAwarenessLine',
-  'preDialogueAwarenessSummary',
-  'awarenessLine',
-  'companionHeadlineLine',
-  'companionBriefingLine',
-  'companionNextClosureLine',
-  'sameHerSelfLine',
-  'sameHerSummary',
-  'sameHerHoldDetail',
-  'sameHerDriftRisk',
-  'sameHerDriftRiskLine',
-  'sameHerDriftRiskSummary',
-  'emotionalClosureCue',
-  'emotionalClosureSummary',
-  'continuityCue',
-  'continuityAnchor',
-  'continuityHold',
-  'continuityDriftRisk',
-  'proactiveSameHerGap',
-  'proactiveSameHerGapSummary',
-])
-
-function isLegacyDialogueGovernanceKey(key: string) {
-  return legacyDialogueGovernanceKeys.has(key)
-    || key.startsWith('companion')
-    || key.startsWith('sameHer')
-    || key.startsWith('emotionalClosure')
-    || key.startsWith('proactiveSameHer')
-}
-
 function sanitizeBroadcastCloneSafeValue(
   value: unknown,
   seen: WeakSet<object>,
@@ -142,8 +107,6 @@ function sanitizeBroadcastCloneSafeValue(
 
   const next: Record<string, BroadcastCloneSafeValue> = {}
   for (const [entryKey, entryValue] of Object.entries(value)) {
-    if (isLegacyDialogueGovernanceKey(entryKey))
-      continue
     const sanitized = sanitizeBroadcastCloneSafeValue(entryValue, seen)
     if (sanitized !== undefined)
       next[entryKey] = sanitized

@@ -6,11 +6,11 @@ import {
 } from './performance-visualizer-speech-diagnostic-summary'
 
 describe('performance visualizer speech diagnostic summary', () => {
-  it('surfaces execution safety-gate reason tags as a readable speech diagnostic line before raw same-her reasons', () => {
+  it('surfaces execution safety-gate reason tags as a readable speech diagnostic line before raw continuity reasons', () => {
     const entries = buildSpeechDiagnosticSummaryEntries({
       includeSettleAuthority: false,
-      sameHerSignature: 'resident|measured-return|execution-restraint',
-      sameHerReasonTags: [
+      continuitySignature: 'resident|measured-return|execution-restraint',
+      continuityReasonTags: [
         'execution-safety-gate:blocked-dispatch-restraint',
         'execution-safety-gate:confirmation-required',
         'execution-safety-gate:no-process-started',
@@ -20,7 +20,7 @@ describe('performance visualizer speech diagnostic summary', () => {
     } as any)
 
     expect(entries).toEqual([
-      { key: 'same-her-signature', label: '同一人签名', value: 'resident|measured-return|execution-restraint' },
+      { key: 'continuity-signature', label: '同一人签名', value: 'resident|measured-return|execution-restraint' },
       {
         key: 'execution-safety-gate',
         label: '执行安全门',
@@ -28,16 +28,16 @@ describe('performance visualizer speech diagnostic summary', () => {
         technicalValue: 'execution-safety-gate:blocked-dispatch-restraint, execution-safety-gate:confirmation-required, execution-safety-gate:no-process-started',
       },
       {
-        key: 'same-her-reasons',
+        key: 'continuity-reasons',
         label: '同一人线索',
         value: 'execution-safety-gate:blocked-dispatch-restraint, execution-safety-gate:confirmation-required, execution-safety-gate:no-process-started, embodiment-carry:measured-return',
       },
     ])
 
     expect(buildSpeechDiagnosticSummaryLines(entries)).toEqual([
-      'same-her-signature: resident|measured-return|execution-restraint',
+      'continuity-signature: resident|measured-return|execution-restraint',
       'execution-safety-gate: blocked dispatch 已被安全门拦住；需要确认；没有启动进程。',
-      'same-her-reasons: execution-safety-gate:blocked-dispatch-restraint, execution-safety-gate:confirmation-required, execution-safety-gate:no-process-started, embodiment-carry:measured-return',
+      'continuity-reasons: execution-safety-gate:blocked-dispatch-restraint, execution-safety-gate:confirmation-required, execution-safety-gate:no-process-started, embodiment-carry:measured-return',
     ])
   })
 
@@ -422,34 +422,34 @@ describe('performance visualizer speech diagnostic summary', () => {
     expect(entries.find(entry => entry.key === 'authority-trust')?.value).toContain('余韵还在，先留白，别立刻把温度放大')
   })
 
-  it('surfaces same-her signature and reason tags in speech summaries when playback authority already proved the shared living line', () => {
+  it('surfaces continuity signature and reason tags in speech summaries when playback authority already proved the shared living line', () => {
     const entries = buildSpeechDiagnosticSummaryEntries({
       authorityBindingSummary: 'target=vrm | drivers=body, lipsync | sources=prosody-authority, voice-segment | matches=body:yes face:no motion:no lipsync:yes | lane=body+lipsync+voice-only',
       authorityMatchSummary: 'body:yes face:no motion:no lipsync:yes',
       includeSettleAuthority: false,
-      sameHerSignature: 'embodiment:body-lipsync-voice-rejoin',
-      sameHerReasonTags: [
-        'embodiment:audible-same-her-line',
+      continuitySignature: 'embodiment:body-lipsync-voice-rejoin',
+      continuityReasonTags: [
+        'embodiment:audible-continuity-line',
         'embodiment:still-voiced-motion-line',
       ],
       speechEvidence: null,
     } as any)
 
     expect(entries).toContainEqual({
-      key: 'same-her-signature',
+      key: 'continuity-signature',
       label: '同一人签名',
       value: 'embodiment:body-lipsync-voice-rejoin',
     })
     expect(entries).toContainEqual({
-      key: 'same-her-reasons',
+      key: 'continuity-reasons',
       label: '同一人线索',
-      value: 'embodiment:audible-same-her-line, embodiment:still-voiced-motion-line',
+      value: 'embodiment:audible-continuity-line, embodiment:still-voiced-motion-line',
     })
     expect(buildSpeechDiagnosticSummaryLines(entries)).toContain(
-      'same-her-signature: embodiment:body-lipsync-voice-rejoin',
+      'continuity-signature: embodiment:body-lipsync-voice-rejoin',
     )
     expect(buildSpeechDiagnosticSummaryLines(entries)).toContain(
-      'same-her-reasons: embodiment:audible-same-her-line, embodiment:still-voiced-motion-line',
+      'continuity-reasons: embodiment:audible-continuity-line, embodiment:still-voiced-motion-line',
     )
   })
 

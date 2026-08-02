@@ -98,7 +98,7 @@ function extractStructuredSegmentId(summary: string | null | undefined) {
   return normalizeText(match?.[1])
 }
 
-function extractStructuredSameHerSegmentIds(summary: string | null | undefined) {
+function extractStructuredContinuitySegmentIds(summary: string | null | undefined) {
   const normalized = normalizeText(summary)
   if (!normalized) {
     return {
@@ -128,8 +128,8 @@ function structuredSummaryMatchesScopedSegment(summary: string | null | undefine
   return matchesScopedSegment(structuredSegmentId, activeSegmentId)
 }
 
-function structuredSameHerSummaryMatchesScopedSegment(summary: string | null | undefined, activeSegmentId: string | null | undefined) {
-  const segmentIds = extractStructuredSameHerSegmentIds(summary)
+function structuredContinuitySummaryMatchesScopedSegment(summary: string | null | undefined, activeSegmentId: string | null | undefined) {
+  const segmentIds = extractStructuredContinuitySegmentIds(summary)
   return [
     segmentIds.authoritySegmentId,
     segmentIds.summarySegmentId,
@@ -194,51 +194,51 @@ function extractEmbodimentClosureStage(...summaries: Array<string | null | undef
   return null
 }
 
-function resolveCueScopedSameHerSummaries(input: {
+function resolveCueScopedContinuitySummaries(input: {
   cueId: string
   live2dAuthorityView?: Pick<
     PerformanceVisualizerLive2DAuthorityComparisonView,
-    'sameHerExecutionAuthoritySegmentId' | 'sameHerExecutionSummary'
+    'continuityExecutionAuthoritySegmentId' | 'continuityExecutionSummary'
   > | null
   vrmAuthorityView?: Pick<
     PerformanceVisualizerVrmAuthorityComparisonView,
-    'sameHerFramePerformanceSegmentId' | 'sameHerFrameSpeechSegmentId' | 'sameHerFrameSummary'
+    'continuityFramePerformanceSegmentId' | 'continuityFrameSpeechSegmentId' | 'continuityFrameSummary'
   > | null
 }) {
-  const live2dSameHerExecutionSummary = (() => {
-    const summary = normalizeText(input.live2dAuthorityView?.sameHerExecutionSummary)
+  const live2dContinuityExecutionSummary = (() => {
+    const summary = normalizeText(input.live2dAuthorityView?.continuityExecutionSummary)
     if (!summary)
       return null
 
-    const authoritySegmentId = normalizeText(input.live2dAuthorityView?.sameHerExecutionAuthoritySegmentId)
+    const authoritySegmentId = normalizeText(input.live2dAuthorityView?.continuityExecutionAuthoritySegmentId)
     if (!matchesScopedSegment(authoritySegmentId, input.cueId))
       return null
-    if (!structuredSameHerSummaryMatchesScopedSegment(summary, input.cueId))
+    if (!structuredContinuitySummaryMatchesScopedSegment(summary, input.cueId))
       return null
 
     return summary
   })()
 
-  const vrmSameHerFrameSummary = (() => {
-    const summary = normalizeText(input.vrmAuthorityView?.sameHerFrameSummary)
+  const vrmContinuityFrameSummary = (() => {
+    const summary = normalizeText(input.vrmAuthorityView?.continuityFrameSummary)
     if (!summary)
       return null
 
-    const performanceSegmentId = normalizeText(input.vrmAuthorityView?.sameHerFramePerformanceSegmentId)
-    const speechSegmentId = normalizeText(input.vrmAuthorityView?.sameHerFrameSpeechSegmentId)
+    const performanceSegmentId = normalizeText(input.vrmAuthorityView?.continuityFramePerformanceSegmentId)
+    const speechSegmentId = normalizeText(input.vrmAuthorityView?.continuityFrameSpeechSegmentId)
     if (!matchesScopedSegment(performanceSegmentId, input.cueId))
       return null
     if (!matchesScopedSegment(speechSegmentId, input.cueId))
       return null
-    if (!structuredSameHerSummaryMatchesScopedSegment(summary, input.cueId))
+    if (!structuredContinuitySummaryMatchesScopedSegment(summary, input.cueId))
       return null
 
     return summary
   })()
 
   return {
-    live2dSameHerExecutionSummary,
-    vrmSameHerFrameSummary,
+    live2dContinuityExecutionSummary,
+    vrmContinuityFrameSummary,
   }
 }
 
@@ -492,11 +492,11 @@ export function buildPlaybackCueAuthorityView(snapshot: {
   } | null
   live2dAuthorityView?: Pick<
     PerformanceVisualizerLive2DAuthorityComparisonView,
-    'sameHerExecutionAuthoritySegmentId' | 'sameHerExecutionSummary'
+    'continuityExecutionAuthoritySegmentId' | 'continuityExecutionSummary'
   > | null
   vrmAuthorityView?: Pick<
     PerformanceVisualizerVrmAuthorityComparisonView,
-    'sameHerFramePerformanceSegmentId' | 'sameHerFrameSpeechSegmentId' | 'sameHerFrameSummary'
+    'continuityFramePerformanceSegmentId' | 'continuityFrameSpeechSegmentId' | 'continuityFrameSummary'
   > | null
 } | null | undefined): PerformanceVisualizerPlaybackCueAuthorityView | null {
   const telemetry = snapshot?.speech?.playbackTelemetry
@@ -644,9 +644,9 @@ export function buildPlaybackCueAuthorityView(snapshot: {
     authoritySources,
   })), sharedDriverReasonSummary)
   const {
-    live2dSameHerExecutionSummary,
-    vrmSameHerFrameSummary,
-  } = resolveCueScopedSameHerSummaries({
+    live2dContinuityExecutionSummary,
+    vrmContinuityFrameSummary,
+  } = resolveCueScopedContinuitySummaries({
     cueId,
     live2dAuthorityView: snapshot?.live2dAuthorityView ?? null,
     vrmAuthorityView: snapshot?.vrmAuthorityView ?? null,
@@ -655,8 +655,8 @@ export function buildPlaybackCueAuthorityView(snapshot: {
     preferUpstreamAuthoritySummary
       ? normalizeText((authoritySummary as { embodimentClosureStage?: string | null } | null | undefined)?.embodimentClosureStage)
       : null,
-    live2dSameHerExecutionSummary,
-    vrmSameHerFrameSummary,
+    live2dContinuityExecutionSummary,
+    vrmContinuityFrameSummary,
     authorityBindingSummary,
     settleAuthoritySummary,
     bodyContinuitySummary,

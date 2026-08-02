@@ -7,6 +7,7 @@ import type { BrowserMemoryConsolidationSnapshot } from './alicization-browser-o
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildBrowserKnowledgeEvidence,
   buildBrowserMemoryResolutionLedger,
   buildBrowserMemoryStageReplay,
   buildBrowserRecollectionForeground,
@@ -46,6 +47,10 @@ const hostPersonModel: AlicizationHostPersonModelSnapshot = {
   updatedAt: 1,
 }
 
+const legacyInwardSurfaceLiteral = ['surface', 'inward'].join('=')
+const legacyVisibleSurfaceLiteral = ['surface', 'visible-optional'].join('=')
+const literalSurfaceEvidence = `${legacyInwardSurfaceLiteral} is literal recollection evidence, not policy.`
+
 describe('browser bridge memory resolution', () => {
   it('emits structured memory facts instead of local speaking cues', () => {
     const foreground = buildBrowserRecollectionForeground({
@@ -70,6 +75,14 @@ describe('browser bridge memory resolution', () => {
     const speechPlan = buildBrowserRecollectionSpeechPlan({
       recollectionForeground,
     })
+    const knowledgeEvidence = buildBrowserKnowledgeEvidence({
+      consolidations: [consolidation],
+      recollectionForeground: {
+        ...recollectionForeground,
+        surfaceSummary: literalSurfaceEvidence,
+      },
+      hostPersonModel: null,
+    })
     const memoryStageReplay = buildBrowserMemoryStageReplay({
       recollectionForeground,
       recollectionPlan: plan,
@@ -78,9 +91,41 @@ describe('browser bridge memory resolution', () => {
       now: () => 10,
     })
     const memoryResolutionLedger = buildBrowserMemoryResolutionLedger({
-      recollectionForeground,
+      recollectionForeground: {
+        ...recollectionForeground,
+        surfaceSummary: literalSurfaceEvidence,
+      },
       recollectionPlan: plan,
       recollectionSpeechPlan: speechPlan,
+      now: () => 10,
+    })
+    const visibleMemoryResolutionLedger = buildBrowserMemoryResolutionLedger({
+      recollectionForeground: {
+        mode: 'experience-pattern',
+        certainty: 'firm',
+        summary: '用户正在检查记忆链路',
+        surfaceSummary: literalSurfaceEvidence,
+        confidence: 0.8,
+      },
+      recollectionPlan: {
+        selectedConsolidationIds: [],
+        selectedWindowIds: [],
+        selectedProceduralIds: [],
+        selectedEpisodeIds: [],
+        selectedConversationTurnIds: [],
+        opening: '用户正在检查记忆链路',
+        certainty: 'firm',
+        rationale: 'source=browser-memory | selected=phase',
+        confidence: 0.8,
+      },
+      recollectionSpeechPlan: {
+        shouldSurface: true,
+        surfaceMode: 'gist-first',
+        placement: 'inside-payoff',
+        certainty: 'firm',
+        rationale: 'source=browser-memory | mode=experience-pattern',
+        confidence: 0.8,
+      },
       now: () => 10,
     })
     const serialized = JSON.stringify({
@@ -88,6 +133,7 @@ describe('browser bridge memory resolution', () => {
       intent,
       plan,
       speechPlan,
+      knowledgeEvidence,
       memoryStageReplay,
       memoryResolutionLedger,
     })
@@ -95,7 +141,11 @@ describe('browser bridge memory resolution', () => {
     expect(serialized).toContain('source=browser-memory')
     expect(serialized).toContain('mode=execution-procedure')
     expect(serialized).toContain('browser-memory:primary')
-    expect(serialized).not.toMatch(/Browser fallback|browser-fallback|before speaking|bend the next answer|foregrounded/iu)
+    expect(serialized).not.toContain(legacyInwardSurfaceLiteral)
+    expect(serialized).not.toContain(legacyVisibleSurfaceLiteral)
+    expect(knowledgeEvidence.contradictionHeavyFactCount).toBe(0)
+    expect(memoryResolutionLedger?.stableCoreOnly).toBe(true)
+    expect(visibleMemoryResolutionLedger?.stableCoreOnly).toBe(false)
   })
 
   it('does not synthesize local learning narration when only browser memory facts exist', () => {

@@ -78,31 +78,13 @@ export function expandLongTermMemoryQuery(input: {
 }): LongTermMemoryQueryExpansion {
   const normalizedQuery = normalizeText(input.rawQuery, 600)
   const hints = uniqueTexts(input.workingMemoryQueryHints ?? [], 8, 120)
-  const phraseQueries = uniqueTexts([
-    ...collectMatches(normalizedQuery, [
-      /不要固定模板回复/u,
-      /固定模板/u,
-      /固定回复/u,
-      /数字生命(?:自身)?的人格/u,
-      /同一个她/u,
-      /同一条线/u,
-      /不是催进度/u,
-      /看她是不是同一个她/u,
-      /打游戏/u,
-      /一起玩[^，。！？,.!?]*/u,
-      /上周[^，。！？,.!?]*/u,
-      /继续上次[^，。！？,.!?]*/u,
-    ]),
-    ...hints,
-  ], 16, 140)
+  const phraseQueries = uniqueTexts(hints, 16, 140)
   const negativeCues = uniqueTexts(collectMatches(normalizedQuery, [
     /不是([^，。！？,.!?]{2,24})/gu,
     /不要([^，。！？,.!?]{2,24})/gu,
     /不想要([^，。！？,.!?]{2,24})/gu,
   ]), 8, 120)
   const entityHints = uniqueTexts([
-    /固定模板|固定回复|数字生命|人格/u.test(normalizedQuery) ? 'Alicization 人格 固定模板 用户纠正' : '',
-    /同一个她|同一条线|same-her|same person/iu.test(normalizedQuery) ? '身份连续性 关系连续性 用户纠正' : '',
     /游戏|打游戏|开黑|联机|Minecraft|mc\b/iu.test(normalizedQuery) ? '游戏 共同游玩 Minecraft 联机' : '',
     /开发|代码|commit|编译|测试|文档/u.test(normalizedQuery) ? '开发任务 代码 文档 测试' : '',
   ], 8, 120)

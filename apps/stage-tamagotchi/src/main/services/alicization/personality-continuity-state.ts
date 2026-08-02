@@ -73,7 +73,6 @@ export interface AlicizationPersonalityContinuityStateSnapshot {
 
 export interface AlicizationPersonaAuthorityInfluence {
   summary: string | null
-  openingGuidance: string | null
   preferredProactiveStyle: AlicizationProactiveStyle | null
   cadenceBias: number
   roomBias: number
@@ -198,7 +197,6 @@ export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPer
   if (!input) {
     return {
       summary: null,
-      openingGuidance: null,
       preferredProactiveStyle: null,
       cadenceBias: 0,
       roomBias: 0,
@@ -264,21 +262,10 @@ export function deriveAlicizationPersonaAuthorityInfluence(input: AlicizationPer
           ? 'gentle-care'
           : null
 
-  const openingGuidance = repairBias >= 0.22
-    ? 'Repair the seam before leaning closer.'
-    : roomBias >= 0.22 && directnessBias < 0.2
-      ? 'Open by observing first and keep the approach lighter.'
-      : directnessBias >= 0.24
-        ? 'Open directly with the live answer, then keep the approach light and bounded.'
-        : warmthBias >= 0.18
-          ? 'Open gently, but keep the opening bounded and real.'
-          : null
-
   const summary = deriveAlicizationPersonalityStateSummary(input)
 
   return {
     summary,
-    openingGuidance,
     preferredProactiveStyle,
     cadenceBias,
     roomBias,
@@ -479,7 +466,7 @@ function buildAlicizationPersonalityRegimeModel(input: {
   const primaryReason = pickMatchingLine(signalLines, regimePatterns[dominantRegime])
   const carryFrom = previousRegime === dominantRegime ? previousRegime : null
   const carryReason = carryFrom
-    ? sanitizeText(`Continuing ${carryFrom} because the new turn still matches the same interpersonal window.`, 180)
+    ? `carry:${carryFrom}`
     : null
   const signals = uniqueList([
     primaryReason,
