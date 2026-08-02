@@ -1,6 +1,4 @@
 import type {
-  AlicizationAffectiveResidueMemorySnapshot,
-  AlicizationEpisodicEventRecord,
   AlicizationMindTurnEventRecord,
   AlicizationPersonaReinforcementDimension,
   AlicizationRelationshipOutcomeSourceKind,
@@ -9,29 +7,20 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationOutcomeClosureResult } from './outcome-reinforcement'
 
-import {
-  normalizeAlicizationDerivedMindStateBundle,
-  readAffectiveResidueFromDerivedMindStateBundle,
-} from '@proj-alicization/stage-shared'
-
-import { deriveMemorySupersessionSignal } from './humanlike-memory'
+import { Buffer } from 'node:buffer'
 
 export type AlicizationPersonStateUpdateSurface = SharedAlicizationPersonStateUpdateSurface
 export type AlicizationPersonStateUpdateRecord = SharedAlicizationPersonStateUpdateRecord
 
-const focusedContextPattern = /focused|focus|debug|coding|cursor|terminal|runtime|工作|写代码|调试/iu
-const lateNightPattern = /late[- ]?night|drain|夜|熬夜|很晚|疲惫|累/iu
-const executionContextPattern = /execution|result|proposal|callback|cli|codex|claude|task|执行|结果|提案|回调/iu
-const openContextPattern = /open|warming|聊天|陪|一起|靠近|轻松|放松/iu
-const closenessPattern = /warm|gentle|care|companionship|陪|温和|柔和|靠近/iu
-const spacePattern = /space|boundary|lighter|light touch|quiet|room|边界|空间|轻一点|安静|留白/iu
-const repairPattern = /repair|clarify|recheck|not this|missed|澄清|修复|重说|不是这个|没答到/iu
-const burdenPattern = /burden|tired|busy|drained|interrupt|压力|累|忙|打断|疲惫|不想被催/iu
-const intrusivePattern = /intrusive|heavy|pressure|挤|黏|压迫|太近|太重|打扰/iu
-const roboticPattern = /robotic|template|system|模板|机械|机器人|系统口气/iu
-const initiativeStrategyPattern = /future follow-ups|follow-up timing|clearer opening|fresher opening|leave more room|less eager|quieter timing|memory-led|still receiving them|reopening this line/iu
-const acceptedInitiativeStrategyPattern = /memory-led|still receiving them|received without obvious resistance|accepted or continued/iu
-const structuredOutcomeLabelPattern = /(?:^|[|;]\s*)(?:action|feedback|host_availability|observe_first|outcome|proactive_outcome|repair_first|reply_outcome|scenario|style|thread)=/iu
+const reinforcementDimensions: AlicizationPersonaReinforcementDimension[] = [
+  'companionship',
+  'truthful-grounding',
+  'gentle-repair',
+  'autonomy-respect',
+  'unfinished-thread-return',
+  'temper-guardedness',
+  'temper-directness',
+]
 
 function clamp(value: number, maxAbs = 0.5) {
   if (!Number.isFinite(value))
@@ -45,21 +34,40 @@ function sanitizeText(raw: unknown, maxChars = 180) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
+type AlicizationPersonStateEvidenceKind = 'relationship-outcome' | 'reinforcement'
+
+export function buildAlicizationPersonStateEvidenceRef(
+  kind: AlicizationPersonStateEvidenceKind,
+  rawId: unknown,
+) {
+  const normalized = sanitizeText(rawId, 220)
+  if (!normalized)
+    return ''
+  return `${kind}:${Buffer.from(normalized, 'utf8').toString('base64url')}`
+}
+
+function sanitizeEvidenceId(raw: unknown, maxChars = 180) {
+  const normalized = sanitizeText(raw, maxChars)
+  const match = /^(relationship-outcome|reinforcement):([\w-]+)$/u.exec(normalized)
+  if (!match)
+    return ''
+  const decoded = Buffer.from(match[2], 'base64url').toString('utf8')
+  return buildAlicizationPersonStateEvidenceRef(
+    match[1] as AlicizationPersonStateEvidenceKind,
+    decoded,
+  ) === normalized
+    ? normalized
+    : ''
+}
+
+export function isAlicizationPersonStateEvidenceId(raw: unknown) {
+  return Boolean(sanitizeEvidenceId(raw))
+}
+
 function asObject(raw: unknown) {
   return raw && typeof raw === 'object' && !Array.isArray(raw)
     ? raw as Record<string, unknown>
     : null
-}
-
-function normalizeAffectiveResidue(raw: unknown): AlicizationAffectiveResidueMemorySnapshot | null {
-  const derivedMindStateBundle = normalizeAlicizationDerivedMindStateBundle({
-    version: 'derived-mind-state-bundle-v1',
-    source: 'browser-fallback',
-    producedAt: 0,
-    summary: 'person-state-update-affective-residue',
-    affectiveResidue: raw,
-  })
-  return readAffectiveResidueFromDerivedMindStateBundle(derivedMindStateBundle)
 }
 
 function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
@@ -77,149 +85,30 @@ function uniqueList(values: Array<string | null | undefined>, maxItems = 8) {
   return result
 }
 
-function stringListFrom(raw: unknown, maxItems = 8) {
-  if (!Array.isArray(raw))
-    return []
-  return uniqueList(
-    raw.map(item => typeof item === 'string' ? item : ''),
-    maxItems,
-  )
-}
-
 function numericOr(raw: unknown, fallback = 0) {
   const value = Number(raw)
   return Number.isFinite(value) ? value : fallback
 }
 
-function normalizeClosureEpisodicReconsolidation(
-  event: AlicizationOutcomeClosureResult['episodicEvents'][number],
-  fallbackAt: number,
-) {
-  const raw = asObject(event)?.latestReconsolidation
-  const normalized = asObject(raw)
-  if (!normalized)
-    return null
-
-  return {
-    at: numericOr(normalized.at, fallbackAt),
-    decisionTraceId: sanitizeText(normalized.decisionTraceId, 96) || null,
-    provenance: event.provenance,
-    confidence: numericOr(normalized.confidence, event.confidence),
-    reason: sanitizeText(normalized.reason, 220),
-    emotionTags: uniqueList(stringListFrom(normalized.emotionTags ?? [], 8), 8),
-    relationshipMeaning: sanitizeText(normalized.relationshipMeaning, 220) || null,
-    lesson: sanitizeText(normalized.lesson, 220) || null,
-  }
-}
-
-function closureEventToComparableRecord(
-  event: AlicizationOutcomeClosureResult['episodicEvents'][number],
-  index: number,
-): AlicizationEpisodicEventRecord {
-  const occurredAt = numericOr(event.occurredAt, event.createdAt ?? event.updatedAt ?? index + 1)
-  const latestReconsolidation = normalizeClosureEpisodicReconsolidation(event, occurredAt)
-  const reconsolidationCount = numericOr(asObject(event)?.reconsolidationCount, 0)
-
-  return {
-    id: sanitizeText(event.id, 120) || `closure-episodic-${index + 1}`,
-    cardId: event.cardId,
-    decisionTraceId: sanitizeText(event.decisionTraceId, 120) || null,
-    turnId: sanitizeText(event.turnId, 120) || null,
-    sessionId: sanitizeText(event.sessionId, 120) || null,
-    sourceKind: event.sourceKind,
-    provenance: event.provenance,
-    occurredAt,
-    whereSummary: sanitizeText(event.whereSummary, 180) || null,
-    withWhom: event.withWhom ?? [],
-    threadAnchor: sanitizeText(event.threadAnchor, 180) || null,
-    whatHappened: sanitizeText(event.whatHappened, 220),
-    felt: sanitizeText(event.felt, 220) || null,
-    emotionTags: uniqueList(event.emotionTags ?? [], 8),
-    whatChanged: sanitizeText(event.whatChanged, 220) || null,
-    relationshipMeaning: sanitizeText(event.relationshipMeaning, 220) || null,
-    lesson: sanitizeText(event.lesson, 220) || null,
-    sourceSummary: sanitizeText(event.sourceSummary, 220) || null,
-    confidence: numericOr(event.confidence, 0),
-    salience: numericOr(event.salience, 0.5),
-    sceneAttachment: numericOr(event.sceneAttachment, 0),
-    consolidationPriority: numericOr(event.consolidationPriority, 0),
-    relationshipShift: event.relationshipShift ?? null,
-    derivedFrom: event.derivedFrom ?? [],
-    tags: uniqueList(event.tags ?? [], 8),
-    createdAt: numericOr(event.createdAt, occurredAt),
-    updatedAt: numericOr(event.updatedAt, occurredAt),
-    lastRecalledAt: null,
-    recallCount: 0,
-    reconsolidationCount,
-    latestReconsolidation,
-  }
-}
-
-function filterSupersededClosureEpisodicEvents(
-  events: AlicizationOutcomeClosureResult['episodicEvents'],
-) {
-  const comparable = events.map((event, index) => ({
-    event,
-    record: closureEventToComparableRecord(event, index),
-  }))
-
-  return comparable
-    .filter((current, _index, all) => !all.some((candidate) => {
-      if (candidate.record.id === current.record.id)
-        return false
-      return deriveMemorySupersessionSignal({
-        current: current.record,
-        candidate: candidate.record,
-      }).suppressCurrent
-    }))
-    .map(item => item.event)
-}
-
-function inferContexts(text: string) {
-  const contexts = ['general']
-  if (lateNightPattern.test(text))
-    contexts.push('late-night')
-  if (focusedContextPattern.test(text))
-    contexts.push('focused-work')
-  if (executionContextPattern.test(text))
-    contexts.push('execution')
-  if (openContextPattern.test(text) || closenessPattern.test(text))
-    contexts.push('open-window')
-  return [...new Set(contexts)]
-}
-
-function inferPreferenceHints(text: string) {
-  if (structuredOutcomeLabelPattern.test(text))
-    return ''
-  return spacePattern.test(text) || closenessPattern.test(text) ? text : ''
-}
-
-function inferSensitivityHints(text: string) {
-  if (structuredOutcomeLabelPattern.test(text))
-    return ''
-  return intrusivePattern.test(text) || roboticPattern.test(text) || spacePattern.test(text) ? text : ''
-}
-
-function inferRepairHints(text: string) {
-  if (structuredOutcomeLabelPattern.test(text))
-    return ''
-  return initiativeStrategyPattern.test(text) || acceptedInitiativeStrategyPattern.test(text)
-    || repairPattern.test(text) || roboticPattern.test(text)
-    ? text
-    : ''
-}
-
-function inferBurdenHints(text: string) {
-  if (structuredOutcomeLabelPattern.test(text))
-    return ''
-  return burdenPattern.test(text) || lateNightPattern.test(text) || focusedContextPattern.test(text) ? text : ''
+function contextFromSourceKind(raw: unknown) {
+  const normalized = sanitizeText(raw, 48).toLowerCase()
+  if (normalized === 'execution' || normalized === 'execution-proposal' || normalized === 'execution-result')
+    return 'execution'
+  if (normalized === 'reply' || normalized === 'dialogue-feedback')
+    return 'dialogue'
+  if (normalized === 'proactive' || normalized === 'dream' || normalized === 'dream-reforge')
+    return 'proactive'
+  return null
 }
 
 function mergeSurface(previous: AlicizationPersonStateUpdateSurface | null, next: AlicizationPersonStateUpdateSurface) {
   if (!previous)
     return next
 
-  const mergedTrail = [...next.sourceTrail, ...previous.sourceTrail]
+  const mergedTrail = [
+    ...next.sourceTrail,
+    ...normalizePersonStateSourceTrail(previous.sourceTrail, previous.updatedAt),
+  ]
     .sort((left, right) => right.createdAt - left.createdAt)
     .filter((entry, index, array) => array.findIndex(candidate => candidate.kind === entry.kind && candidate.summary === entry.summary) === index)
     .slice(0, 12)
@@ -232,9 +121,13 @@ function mergeSurface(previous: AlicizationPersonStateUpdateSurface | null, next
     repairDelta: clamp(previous.relationshipShift.repairDelta + next.relationshipShift.repairDelta),
   }
 
-  const mergedReinforcementBias: AlicizationPersonStateUpdateSurface['reinforcementBias'] = {
-    ...previous.reinforcementBias,
-  }
+  const mergedReinforcementBias
+    = reinforcementDimensions.reduce<AlicizationPersonStateUpdateSurface['reinforcementBias']>((acc, dimension) => {
+      const value = previous.reinforcementBias[dimension]
+      if (typeof value === 'number' && Number.isFinite(value))
+        acc[dimension] = clamp(value, 0.8)
+      return acc
+    }, {})
   for (const [dimension, delta] of Object.entries(next.reinforcementBias)) {
     const key = dimension as AlicizationPersonaReinforcementDimension
     mergedReinforcementBias[key] = clamp(Number(mergedReinforcementBias[key] ?? 0) + Number(delta ?? 0), 0.8)
@@ -243,17 +136,61 @@ function mergeSurface(previous: AlicizationPersonStateUpdateSurface | null, next
   return {
     ...next,
     updatedAt: Math.max(previous.updatedAt, next.updatedAt),
-    summary: uniqueList([next.summary, previous.summary], 2)[0] ?? next.summary,
-    dominantContexts: uniqueList([...next.dominantContexts, ...previous.dominantContexts], 6),
+    summary: sanitizeEvidenceId(next.summary),
+    dominantContexts: uniqueList([
+      ...next.dominantContexts,
+      ...normalizePersonStateContexts(previous.dominantContexts),
+    ], 6),
     relationshipShift: mergedRelationshipShift,
     reinforcementBias: mergedReinforcementBias,
-    preferenceHints: uniqueList(next.preferenceHints, 6),
-    sensitivityHints: uniqueList(next.sensitivityHints, 6),
-    repairHints: uniqueList(next.repairHints, 6),
-    burdenHints: uniqueList(next.burdenHints, 6),
-    narrative: uniqueList([...next.narrative, ...previous.narrative], 8),
+    preferenceHints: [],
+    sensitivityHints: [],
+    repairHints: [],
+    burdenHints: [],
+    narrative: [],
     sourceTrail: mergedTrail,
+    affectiveResidue: null,
   }
+}
+
+function buildPersonStateClosureEvidence(input: {
+  closure: AlicizationOutcomeClosureResult
+  now: number
+}) {
+  const relationship = input.closure.relationshipOutcomes.map((outcome, index) => ({
+    kind: 'relationship-outcome' as const,
+    id: buildAlicizationPersonStateEvidenceRef(
+      'relationship-outcome',
+      outcome.id || `relationship-outcome-${numericOr(outcome.createdAt, input.now)}-${index + 1}`,
+    ),
+    sourceKind: outcome.sourceKind,
+    createdAt: numericOr(outcome.createdAt, input.now),
+  }))
+  const reinforcement = input.closure.reinforcementEvents.map((event, index) => ({
+    kind: 'reinforcement' as const,
+    id: buildAlicizationPersonStateEvidenceRef(
+      'reinforcement',
+      event.id || `reinforcement-${numericOr(event.createdAt, input.now)}-${index + 1}`,
+    ),
+    sourceKind: event.sourceKind,
+    createdAt: numericOr(event.createdAt, input.now),
+  }))
+  return {
+    relationship,
+    reinforcement,
+    all: [...relationship, ...reinforcement]
+      .sort((left, right) => right.createdAt - left.createdAt),
+  }
+}
+
+export function collectAlicizationPersonStateClosureEvidenceIds(
+  closure: AlicizationOutcomeClosureResult,
+  now: number,
+) {
+  return buildPersonStateClosureEvidence({
+    closure,
+    now,
+  }).all.map(item => item.id)
 }
 
 export function buildAlicizationPersonStateUpdateSurface(input: {
@@ -261,7 +198,6 @@ export function buildAlicizationPersonStateUpdateSurface(input: {
   previous?: AlicizationPersonStateUpdateSurface | null
   now: number
 }) {
-  const filteredEpisodicEvents = filterSupersededClosureEpisodicEvents(input.closure.episodicEvents)
   const relationshipShift = input.closure.relationshipOutcomes.reduce((acc, outcome) => ({
     trustDelta: clamp(acc.trustDelta + outcome.trustDelta),
     closenessDelta: clamp(acc.closenessDelta + outcome.closenessDelta),
@@ -282,71 +218,45 @@ export function buildAlicizationPersonStateUpdateSurface(input: {
     return acc
   }, {})
 
-  const allTexts = uniqueList([
-    ...input.closure.relationshipOutcomes.flatMap(outcome => [outcome.summary, outcome.actionSummary]),
-    ...input.closure.reinforcementEvents.map(event => event.summary),
-    ...filteredEpisodicEvents.flatMap(event => [event.relationshipMeaning, event.lesson, event.whatChanged, event.whatHappened]),
-  ], 64)
-  const dominantContexts = uniqueList(allTexts.flatMap(text => inferContexts(sanitizeText(text, 220))), 6)
-  const preferenceHints = uniqueList(allTexts.map(text => inferPreferenceHints(sanitizeText(text, 220))), 6)
-  const sensitivityHints = uniqueList(allTexts.map(text => inferSensitivityHints(sanitizeText(text, 220))), 6)
-  const repairHints = uniqueList(allTexts.map(text => inferRepairHints(sanitizeText(text, 220))), 6)
-  const burdenHints = uniqueList(allTexts.map(text => inferBurdenHints(sanitizeText(text, 220))), 6)
-  const narrative = uniqueList([
-    ...input.closure.relationshipOutcomes.map(outcome => outcome.summary),
-    ...input.closure.reinforcementEvents.map(event => event.summary),
-    ...filteredEpisodicEvents.map(event => event.relationshipMeaning || event.lesson || event.whatChanged || event.whatHappened),
-  ], 8)
+  const evidence = buildPersonStateClosureEvidence({
+    closure: input.closure,
+    now: input.now,
+  })
+  const dominantContexts = uniqueList([
+    'general',
+    ...evidence.all.map(item => contextFromSourceKind(item.sourceKind)),
+  ], 6)
   const sourceTrail = [
-    ...input.closure.relationshipOutcomes.map(outcome => ({
-      kind: 'relationship-outcome' as const,
-      sourceKind: outcome.sourceKind,
-      summary: sanitizeText(outcome.summary, 180),
-      createdAt: outcome.createdAt ?? input.now,
-    })),
-    ...input.closure.reinforcementEvents.map(event => ({
-      kind: 'reinforcement' as const,
-      sourceKind: event.sourceKind,
-      summary: sanitizeText(event.summary, 180),
-      createdAt: event.createdAt ?? input.now,
-    })),
+    ...evidence.relationship,
+    ...evidence.reinforcement,
   ]
-    .filter(entry => entry.summary)
+    .map(entry => ({
+      kind: entry.kind,
+      sourceKind: entry.sourceKind,
+      summary: entry.id,
+      createdAt: entry.createdAt,
+    }))
     .sort((left, right) => right.createdAt - left.createdAt)
     .slice(0, 12)
-  const affectiveResidue = normalizeAffectiveResidue(input.closure.affectiveResidue)
-    ?? input.previous?.affectiveResidue
-    ?? null
-
   const next: AlicizationPersonStateUpdateSurface = {
     version: 'person-state-update-surface-v1',
     updatedAt: input.now,
-    summary: narrative[0] ?? sourceTrail[0]?.summary ?? '',
+    summary: evidence.all[0]?.id ?? '',
     projectStateContinuity: null,
     dominantContexts,
     relationshipShift,
     reinforcementBias,
-    preferenceHints,
-    sensitivityHints,
-    repairHints,
-    burdenHints,
-    narrative,
+    preferenceHints: [],
+    sensitivityHints: [],
+    repairHints: [],
+    burdenHints: [],
+    narrative: [],
     sourceTrail,
-    affectiveResidue,
+    affectiveResidue: null,
   }
 
   return mergeSurface(input.previous ?? null, next)
 }
-
-const reinforcementDimensions: AlicizationPersonaReinforcementDimension[] = [
-  'companionship',
-  'truthful-grounding',
-  'gentle-repair',
-  'autonomy-respect',
-  'unfinished-thread-return',
-  'temper-guardedness',
-  'temper-directness',
-]
 
 function normalizeOutcomeSourceKind(raw: unknown): AlicizationRelationshipOutcomeSourceKind | null {
   const normalized = sanitizeText(raw, 48).toLowerCase()
@@ -357,6 +267,87 @@ function normalizeOutcomeSourceKind(raw: unknown): AlicizationRelationshipOutcom
   if (normalized === 'execution' || normalized === 'execution-proposal' || normalized === 'execution-result')
     return 'execution'
   return null
+}
+
+const personStateContexts = new Set(['general', 'execution', 'dialogue', 'proactive'])
+
+function normalizePersonStateContexts(raw: unknown) {
+  if (!Array.isArray(raw))
+    return []
+  return uniqueList(
+    raw
+      .filter((item): item is string => typeof item === 'string')
+      .map(item => sanitizeText(item, 32).toLowerCase())
+      .filter(item => personStateContexts.has(item)),
+    8,
+  )
+}
+
+function normalizePersonStateSourceTrail(raw: unknown, fallbackCreatedAt: number) {
+  if (!Array.isArray(raw))
+    return []
+  return raw
+    .map((entry) => {
+      const candidate = asObject(entry)
+      const sourceKind = normalizeOutcomeSourceKind(candidate?.sourceKind)
+      const kind = sanitizeText(candidate?.kind, 64)
+      const summary = sanitizeEvidenceId(candidate?.summary, 180)
+      if (!sourceKind || (kind !== 'relationship-outcome' && kind !== 'reinforcement') || !summary)
+        return null
+      return {
+        kind: kind as 'relationship-outcome' | 'reinforcement',
+        sourceKind,
+        summary,
+        createdAt: Math.max(0, Math.floor(Number(candidate?.createdAt ?? fallbackCreatedAt))),
+      }
+    })
+    .filter((entry): entry is AlicizationPersonStateUpdateRecord['sourceTrail'][number] => Boolean(entry))
+    .slice(0, 12)
+}
+
+export function normalizeAlicizationPersonStateUpdateSurface(raw: unknown): AlicizationPersonStateUpdateSurface | null {
+  const candidate = asObject(raw)
+  if (sanitizeText(candidate?.version, 48) !== 'person-state-update-surface-v1')
+    return null
+
+  const summary = sanitizeEvidenceId(candidate?.summary, 220)
+  if (!summary)
+    return null
+
+  const relationshipShift = asObject(candidate?.relationshipShift)
+  const reinforcementBias = asObject(candidate?.reinforcementBias)
+  const updatedAt = Math.max(0, Math.floor(Number(candidate?.updatedAt ?? 0)))
+  const sourceTrail = normalizePersonStateSourceTrail(candidate?.sourceTrail, updatedAt)
+  if (!sourceTrail.some(entry => entry.summary === summary))
+    return null
+
+  return {
+    version: 'person-state-update-surface-v1',
+    updatedAt,
+    summary,
+    projectStateContinuity: null,
+    dominantContexts: normalizePersonStateContexts(candidate?.dominantContexts),
+    relationshipShift: {
+      trustDelta: clamp(normalizeNumeric(relationshipShift?.trustDelta)),
+      closenessDelta: clamp(normalizeNumeric(relationshipShift?.closenessDelta)),
+      burdenDelta: clamp(normalizeNumeric(relationshipShift?.burdenDelta)),
+      boundaryDelta: clamp(normalizeNumeric(relationshipShift?.boundaryDelta)),
+      repairDelta: clamp(normalizeNumeric(relationshipShift?.repairDelta)),
+    },
+    reinforcementBias: reinforcementDimensions.reduce<Partial<Record<AlicizationPersonaReinforcementDimension, number>>>((acc, dimension) => {
+      const value = reinforcementBias?.[dimension]
+      if (typeof value === 'number' && Number.isFinite(value))
+        acc[dimension] = clamp(value, 0.8)
+      return acc
+    }, {}),
+    preferenceHints: [],
+    sensitivityHints: [],
+    repairHints: [],
+    burdenHints: [],
+    narrative: [],
+    sourceTrail,
+    affectiveResidue: null,
+  }
 }
 
 function inferPersonStateUpdateOrigin(sourceKinds: AlicizationRelationshipOutcomeSourceKind[]) {
@@ -423,6 +414,12 @@ export function buildAlicizationPersonStateUpdateRecord(input: {
     : metadata.createdAt > 0
       ? metadata.createdAt
       : input.surface.updatedAt
+  const sourceTrail = normalizePersonStateSourceTrail(input.surface.sourceTrail, createdAt)
+  const summary = sanitizeEvidenceId(input.surface.summary, 220)
+  const knownEvidenceIds = new Set([
+    ...collectAlicizationPersonStateClosureEvidenceIds(input.closure, input.surface.updatedAt),
+    ...sourceTrail.map(entry => entry.summary),
+  ])
 
   return {
     decisionTraceId: metadata.decisionTraceId,
@@ -433,9 +430,9 @@ export function buildAlicizationPersonStateUpdateRecord(input: {
     activeThreadId: sanitizeText(input.activeThreadId, 120) || null,
     version: input.surface.version,
     updatedAt: input.surface.updatedAt,
-    summary: sanitizeText(input.surface.summary, 220),
+    summary: knownEvidenceIds.has(summary) ? summary : '',
     projectStateContinuity: null,
-    dominantContexts: uniqueList(input.surface.dominantContexts, 8),
+    dominantContexts: normalizePersonStateContexts(input.surface.dominantContexts),
     relationshipShift: {
       trustDelta: clamp(input.surface.relationshipShift.trustDelta),
       closenessDelta: clamp(input.surface.relationshipShift.closenessDelta),
@@ -449,21 +446,13 @@ export function buildAlicizationPersonStateUpdateRecord(input: {
         acc[dimension] = clamp(value, 0.8)
       return acc
     }, {}),
-    preferenceHints: uniqueList(input.surface.preferenceHints, 8),
-    sensitivityHints: uniqueList(input.surface.sensitivityHints, 8),
-    repairHints: uniqueList(input.surface.repairHints, 8),
-    burdenHints: uniqueList(input.surface.burdenHints, 8),
-    narrative: uniqueList(input.surface.narrative, 10),
-    sourceTrail: input.surface.sourceTrail
-      .map(entry => ({
-        kind: entry.kind,
-        sourceKind: entry.sourceKind,
-        summary: sanitizeText(entry.summary, 180),
-        createdAt: Math.max(0, Math.floor(Number(entry.createdAt ?? createdAt))),
-      }))
-      .filter(entry => entry.summary)
-      .slice(0, 12),
-    affectiveResidue: normalizeAffectiveResidue(input.surface.affectiveResidue),
+    preferenceHints: [],
+    sensitivityHints: [],
+    repairHints: [],
+    burdenHints: [],
+    narrative: [],
+    sourceTrail,
+    affectiveResidue: null,
     sourceKinds: metadata.sourceKinds,
     sourceCounts: {
       relationshipOutcomes: input.closure.relationshipOutcomes.length,
@@ -483,76 +472,18 @@ export function personStateUpdateRecordFromMindTurnEvent(event: AlicizationMindT
   if (!payload)
     return null
 
-  const version = sanitizeText(payload.version, 48)
-  const summary = sanitizeText(payload.summary, 220)
-  if (version !== 'person-state-update-surface-v1' || !summary)
+  const surface = normalizeAlicizationPersonStateUpdateSurface(payload)
+  if (!surface)
     return null
 
-  const relationshipShift = asObject(payload.relationshipShift)
-
   return {
+    ...surface,
     decisionTraceId: sanitizeText(event.decisionTraceId, 96) || null,
     turnId: sanitizeText(event.turnId, 96) || null,
     sessionId: sanitizeText(event.sessionId, 96) || null,
     origin: event.origin,
     createdAt: Math.max(0, Math.floor(Number(event.createdAt ?? 0))),
     activeThreadId: sanitizeText(payload.activeThreadId, 120) || null,
-    version: 'person-state-update-surface-v1',
-    updatedAt: Math.max(0, Math.floor(Number(payload.updatedAt ?? event.createdAt ?? 0))),
-    summary,
-    projectStateContinuity: null,
-    dominantContexts: Array.isArray(payload.dominantContexts)
-      ? uniqueList(payload.dominantContexts.filter((item): item is string => typeof item === 'string'), 8)
-      : [],
-    relationshipShift: {
-      trustDelta: clamp(normalizeNumeric(relationshipShift?.trustDelta)),
-      closenessDelta: clamp(normalizeNumeric(relationshipShift?.closenessDelta)),
-      burdenDelta: clamp(normalizeNumeric(relationshipShift?.burdenDelta)),
-      boundaryDelta: clamp(normalizeNumeric(relationshipShift?.boundaryDelta)),
-      repairDelta: clamp(normalizeNumeric(relationshipShift?.repairDelta)),
-    },
-    reinforcementBias: reinforcementDimensions.reduce<Partial<Record<AlicizationPersonaReinforcementDimension, number>>>((acc, dimension) => {
-      const source = asObject(payload.reinforcementBias)
-      const value = source?.[dimension]
-      if (typeof value === 'number' && Number.isFinite(value))
-        acc[dimension] = clamp(value, 0.8)
-      return acc
-    }, {}),
-    preferenceHints: Array.isArray(payload.preferenceHints)
-      ? uniqueList(payload.preferenceHints.filter((item): item is string => typeof item === 'string'), 8)
-      : [],
-    sensitivityHints: Array.isArray(payload.sensitivityHints)
-      ? uniqueList(payload.sensitivityHints.filter((item): item is string => typeof item === 'string'), 8)
-      : [],
-    repairHints: Array.isArray(payload.repairHints)
-      ? uniqueList(payload.repairHints.filter((item): item is string => typeof item === 'string'), 8)
-      : [],
-    burdenHints: Array.isArray(payload.burdenHints)
-      ? uniqueList(payload.burdenHints.filter((item): item is string => typeof item === 'string'), 8)
-      : [],
-    narrative: Array.isArray(payload.narrative)
-      ? uniqueList(payload.narrative.filter((item): item is string => typeof item === 'string'), 10)
-      : [],
-    sourceTrail: Array.isArray(payload.sourceTrail)
-      ? payload.sourceTrail
-          .map((entry) => {
-            const candidate = asObject(entry)
-            const sourceKind = normalizeOutcomeSourceKind(candidate?.sourceKind)
-            const kind = sanitizeText(candidate?.kind, 64)
-            const trailSummary = sanitizeText(candidate?.summary, 180)
-            if (!sourceKind || (kind !== 'relationship-outcome' && kind !== 'reinforcement') || !trailSummary)
-              return null
-            return {
-              kind: kind as 'relationship-outcome' | 'reinforcement',
-              sourceKind,
-              summary: trailSummary,
-              createdAt: Math.max(0, Math.floor(Number(candidate?.createdAt ?? event.createdAt ?? 0))),
-            }
-          })
-          .filter((entry): entry is AlicizationPersonStateUpdateRecord['sourceTrail'][number] => Boolean(entry))
-          .slice(0, 12)
-      : [],
-    affectiveResidue: normalizeAffectiveResidue(payload.affectiveResidue),
     sourceKinds: Array.isArray(payload.sourceKinds)
       ? payload.sourceKinds
           .map(item => normalizeOutcomeSourceKind(item))

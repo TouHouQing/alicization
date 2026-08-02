@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { createAlicizationPersonStateEvolutionRuntime, summarizePersonStateEvolutionLog } from './person-state-evolution-runtime'
+import { buildAlicizationPersonStateEvidenceRef } from './person-state-update-surface'
 
 describe('person-state-evolution-runtime', () => {
   it('appends evolution entries and summarizes recent shifts', async () => {
+    const evidenceRef = buildAlicizationPersonStateEvidenceRef('relationship-outcome', 'outcome-1')
     const inserted: unknown[][] = []
     const runtime = createAlicizationPersonStateEvolutionRuntime({
       database: {} as never,
@@ -22,16 +24,21 @@ describe('person-state-evolution-runtime', () => {
         session_id: 'session-1',
         active_thread_id: 'thread-runtime',
         source_kind: 'person-state-update',
-        summary: 'Recent outcomes nudged trust upward.',
-        contexts_json: JSON.stringify(['focused-work']),
-        relationship_doctrine: 'Repair before closeness.',
-        burden_line: 'Focused work gets overloaded quickly by extra conversational pressure.',
-        trust_meaning: 'Trust grew when the seam stayed bounded.',
-        dominant_rung: 'space-first',
-        source_trail_json: JSON.stringify([]),
+        summary: evidenceRef,
+        contexts_json: JSON.stringify(['general', 'dialogue']),
+        relationship_doctrine: 'legacy doctrine',
+        burden_line: 'legacy burden',
+        trust_meaning: 'legacy trust',
+        dominant_rung: 'legacy rung',
+        source_trail_json: JSON.stringify([{
+          kind: 'relationship-outcome',
+          sourceKind: 'reply',
+          summary: evidenceRef,
+          createdAt: 1_000,
+        }]),
         shifts_json: JSON.stringify([
-          { kind: 'trust-shift', delta: 0.08, rationale: 'Recent outcomes made trust easier to grant in this line.' },
-          { kind: 'burden-shift', delta: 0.04, rationale: 'Burden rose, so extra pressure needs more restraint now.' },
+          { kind: 'trust-shift', delta: 0.08, rationale: evidenceRef },
+          { kind: 'burden-shift', delta: 0.04, rationale: evidenceRef },
         ]),
         created_at: 1_000,
       }] as T[],
@@ -46,16 +53,21 @@ describe('person-state-evolution-runtime', () => {
       sessionId: 'session-1',
       activeThreadId: 'thread-runtime',
       sourceKind: 'person-state-update',
-      summary: 'Recent outcomes nudged trust upward.',
-      contexts: ['focused-work'],
-      relationshipDoctrine: 'Repair before closeness.',
-      burdenLine: 'Focused work gets overloaded quickly by extra conversational pressure.',
-      trustMeaning: 'Trust grew when the seam stayed bounded.',
-      dominantRung: 'space-first',
-      sourceTrail: [],
+      summary: evidenceRef,
+      contexts: ['general', 'dialogue'],
+      relationshipDoctrine: null,
+      burdenLine: null,
+      trustMeaning: null,
+      dominantRung: null,
+      sourceTrail: [{
+        kind: 'relationship-outcome',
+        sourceKind: 'reply',
+        summary: evidenceRef,
+        createdAt: 1_000,
+      }],
       shifts: [
-        { kind: 'trust-shift', delta: 0.08, rationale: 'Recent outcomes made trust easier to grant in this line.' },
-        { kind: 'burden-shift', delta: 0.04, rationale: 'Burden rose, so extra pressure needs more restraint now.' },
+        { kind: 'trust-shift', delta: 0.08, rationale: evidenceRef },
+        { kind: 'burden-shift', delta: 0.04, rationale: evidenceRef },
       ],
       createdAt: 1_000,
     }])
@@ -66,8 +78,10 @@ describe('person-state-evolution-runtime', () => {
     const summary = await runtime.summarizeEvolution({ cardId: 'default' })
     expect(summary.trustShift).toBe(0.08)
     expect(summary.burdenShift).toBe(0.04)
-    expect(summary.latestDominantRung).toBe('space-first')
-    expect(summary.latestDoctrine).toContain('Repair before closeness')
+    expect(summary.latestDominantRung).toBeNull()
+    expect(summary.latestDoctrine).toBeNull()
+    expect(summary.recentSummaries).toEqual([])
+    expect(summary.explanation).toEqual([])
   })
 
   it('summarizes multiple evolution entries into one replayable explanation', () => {
@@ -118,6 +132,11 @@ describe('person-state-evolution-runtime', () => {
     expect(summary.trustShift).toBe(0.08)
     expect(summary.repairShift).toBe(0.05)
     expect(summary.burdenShift).toBe(0.07)
-    expect(summary.explanation.length).toBeGreaterThan(0)
+    expect(summary.latestDoctrine).toBeNull()
+    expect(summary.latestBurdenLine).toBeNull()
+    expect(summary.latestTrustMeaning).toBeNull()
+    expect(summary.latestDominantRung).toBeNull()
+    expect(summary.recentSummaries).toEqual([])
+    expect(summary.explanation).toEqual([])
   })
 })

@@ -2021,34 +2021,13 @@ function buildClosenessPreferencesFromOutcomes(outcomes: AlicizationRelationship
     .slice(0, 4)
 }
 
-function buildClosenessPreferencesFromPersonStateUpdateSurface(surface: AlicizationPersonStateUpdateSurface | null | undefined) {
-  const current = surface ?? null
-  if (!current)
-    return []
-  const contexts = current.dominantContexts.length > 0
-    ? current.dominantContexts
-    : ['general']
-  return contexts
-    .slice(0, 4)
-    .map((context, index) => ({
-      context,
-      preference: sanitizeHumanlikeMemoryFactText(
-        current.preferenceHints[index] ?? current.preferenceHints[0] ?? current.summary,
-        180,
-      ),
-      confidence: clamp01(0.52 - index * 0.08 + Math.min(0.18, Math.abs(current.relationshipShift.trustDelta) + Math.abs(current.relationshipShift.closenessDelta))),
-    }))
-    .filter(item => Boolean(item.preference))
-}
-
 function mergeClosenessPreferences(input: {
   events: AlicizationHostPersonClosenessPreference[]
   consolidations: AlicizationHostPersonClosenessPreference[]
   outcomes?: AlicizationHostPersonClosenessPreference[]
-  updates?: AlicizationHostPersonClosenessPreference[]
 }) {
   const merged = new Map<string, AlicizationHostPersonClosenessPreference>()
-  for (const item of [...input.events, ...input.consolidations, ...(input.outcomes ?? []), ...(input.updates ?? [])]) {
+  for (const item of [...input.events, ...input.consolidations, ...(input.outcomes ?? [])]) {
     const existing = merged.get(item.context)
     if (!existing || item.confidence >= existing.confidence)
       merged.set(item.context, item)
@@ -2129,7 +2108,6 @@ export function buildHostPersonModelSnapshot(input: {
     ...consolidationLines.filter(line => intrusivePattern.test(line) || roboticPattern.test(line) || spacePattern.test(line) || burdenPattern.test(line) || repairPattern.test(line)),
     ...relationshipOutcomeLines.filter(line => intrusivePattern.test(line) || roboticPattern.test(line) || spacePattern.test(line) || burdenPattern.test(line)),
     ...reinforcementLines.filter(line => intrusivePattern.test(line) || roboticPattern.test(line) || spacePattern.test(line) || burdenPattern.test(line)),
-    ...(input.personStateUpdateSurface?.sensitivityHints ?? []),
     ...factLines.filter(line => intrusivePattern.test(line) || roboticPattern.test(line) || spacePattern.test(line) || burdenPattern.test(line)),
   ], 6, 220)
   const repairTriggers = sanitizeHumanlikeMemoryFactList([
@@ -2137,7 +2115,6 @@ export function buildHostPersonModelSnapshot(input: {
     ...consolidationLines.filter(line => repairPattern.test(line) || roboticPattern.test(line) || spacePattern.test(line)),
     ...relationshipOutcomeLines.filter(line => repairPattern.test(line) || roboticPattern.test(line) || spacePattern.test(line)),
     ...reinforcementLines.filter(line => repairPattern.test(line) || roboticPattern.test(line) || spacePattern.test(line)),
-    ...(input.personStateUpdateSurface?.repairHints ?? []),
     ...factLines.filter(line => repairPattern.test(line) || roboticPattern.test(line)),
   ], 5, 220)
   const recurrentBurdens = sanitizeHumanlikeMemoryFactList([
@@ -2145,14 +2122,12 @@ export function buildHostPersonModelSnapshot(input: {
     ...consolidationLines.filter(line => burdenPattern.test(line) || lateNightPattern.test(line) || focusedContextPattern.test(line) || executionContextPattern.test(line)),
     ...relationshipOutcomeLines.filter(line => burdenPattern.test(line) || lateNightPattern.test(line) || focusedContextPattern.test(line) || executionContextPattern.test(line)),
     ...reinforcementLines.filter(line => burdenPattern.test(line) || lateNightPattern.test(line) || focusedContextPattern.test(line) || executionContextPattern.test(line)),
-    ...(input.personStateUpdateSurface?.burdenHints ?? []),
     ...factLines.filter(line => burdenPattern.test(line) || lateNightPattern.test(line) || focusedContextPattern.test(line)),
   ], 5, 220)
   const preferredClosenessByContext = mergeClosenessPreferences({
     events: buildClosenessPreferences(events),
     consolidations: buildClosenessPreferencesFromConsolidations(consolidations),
     outcomes: buildClosenessPreferencesFromOutcomes(relationshipOutcomes),
-    updates: buildClosenessPreferencesFromPersonStateUpdateSurface(input.personStateUpdateSurface ?? null),
   })
   const trustScore = (() => {
     let score = computeTrustScore(events, input.relationshipDynamics ?? null)
@@ -2187,7 +2162,6 @@ export function buildHostPersonModelSnapshot(input: {
   const stage = trustStage(trustScore)
   const summary = normalizeHumanlikeMemoryRawText(
     sanitizeHumanlikeMemoryFactList([
-      input.personStateUpdateSurface?.summary ?? null,
       input.relationshipDynamics?.hostAttitude ?? null,
       routines[0] ?? null,
       sensitivities[0] ?? null,
@@ -2211,9 +2185,7 @@ export function buildHostPersonModelSnapshot(input: {
     recurrentBurdens,
     narrative: sanitizeHumanlikeMemoryFactList([
       summary,
-      input.personStateUpdateSurface?.summary ?? null,
       input.relationshipDynamics?.hostAttitude ?? null,
-      ...(input.personStateUpdateSurface?.narrative ?? []).slice(0, 4),
       ...consolidations.slice(0, 4).map(record => record.summary || record.periodKey),
       ...relationshipOutcomes.slice(0, 4).map(record => record.summary || record.actionSummary),
       ...reinforcementEvents.slice(0, 4).map(record => record.summary),

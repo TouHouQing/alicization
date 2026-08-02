@@ -9,7 +9,6 @@ import type {
   AlicizationPersonalityState,
   AlicizationPersonaReinforcementEventRecord,
   AlicizationPersonStateEvolutionSummary,
-  AlicizationPersonStateUpdateSurface,
   AlicizationRecollectionPlan,
   AlicizationRecollectionSpeechPlan,
   AlicizationRelationshipOutcomeRecord,
@@ -103,6 +102,7 @@ import {
   mergePreferredSelfContinuityAuthority,
   resolvePreferredPersonStateProjection,
 } from './person-state-projection-resolution'
+import { normalizeAlicizationPersonStateUpdateSurface } from './person-state-update-surface'
 import { buildAlicizationPersonalityContinuityState } from './personality-continuity-state'
 import { buildPrivateThoughtLoop } from './private-thought-loop'
 import { buildReflectionLedger } from './reflection-ledger'
@@ -1745,7 +1745,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       persistedReflectionLedger,
       persistedMotiveEngine,
       persistedHabitPolicy,
-      persistedPersonStateUpdateSurface,
+      persistedPersonStateUpdateSurfaceRaw,
       recentRelationshipOutcomes,
       recentReinforcementEvents,
       recentMemoryReflections,
@@ -1756,13 +1756,14 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       readMindHead<AlicizationVisualPresenceStateSnapshot['reflectionLedger']>(input.cardId, 'reflection-ledger').catch(() => null),
       readMindHead<AlicizationVisualPresenceStateSnapshot['motiveEngine']>(input.cardId, 'motive-engine').catch(() => null),
       readMindHead<AlicizationVisualPresenceStateSnapshot['habitPolicy']>(input.cardId, 'habit-policy').catch(() => null),
-      readMindHead<AlicizationPersonStateUpdateSurface>(input.cardId, 'person-state-update-surface').catch(() => null),
+      readMindHead<unknown>(input.cardId, 'person-state-update-surface').catch(() => null),
       listRelationshipOutcomes(input.cardId, 12).catch(() => []),
       listPersonaReinforcementEvents(input.cardId, 16).catch(() => []),
       listMemoryReflections(input.cardId, 8).catch(() => []),
       listMemoryConsolidations?.(8).catch(() => []) ?? Promise.resolve([]),
       getPersonStateEvolutionSummary?.({ cardId: input.cardId, limit: 16 }).catch(() => null) ?? Promise.resolve(null),
     ])
+    const persistedPersonStateUpdateSurface = normalizeAlicizationPersonStateUpdateSurface(persistedPersonStateUpdateSurfaceRaw)
     const previousAutobiographicalSelf = stripLegacyProjectGovernanceOwner(
       input.previousVisualPresenceState.autobiographicalSelf ?? persistedAutobiographicalSelf ?? null,
     )
@@ -1773,9 +1774,9 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     const previousHabitPolicy = stripLegacyProjectGovernanceOwner(
       input.previousVisualPresenceState.habitPolicy ?? persistedHabitPolicy ?? null,
     )
-    const previousPersonStateUpdateSurface = stripLegacyProjectGovernanceOwner(
-      input.previousVisualPresenceState.personStateUpdateSurface ?? persistedPersonStateUpdateSurface ?? null,
-    )
+    const previousPersonStateUpdateSurface = normalizeAlicizationPersonStateUpdateSurface(
+      input.previousVisualPresenceState.personStateUpdateSurface,
+    ) ?? persistedPersonStateUpdateSurface
     const personStateUpdateSurface = previousPersonStateUpdateSurface
     const persistedReflectionEntries = recentMemoryReflections.map(mapPersistedReflectionRecordToEntry)
     const previousLongHorizonMemory = input.previousVisualPresenceState.longHorizonMemory ?? null

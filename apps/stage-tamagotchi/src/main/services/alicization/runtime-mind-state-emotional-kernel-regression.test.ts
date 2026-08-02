@@ -6,17 +6,19 @@ import { createAlicizationMindStateRuntime } from './runtime-mind-state'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('runtime-mind-state emotional kernel regression', () => {
-  it('sanitizes persisted governance metadata before routing person-state carry through autobiographical self', () => {
+  it('normalizes persisted and in-memory person-state evidence before routing it into the life loop', () => {
     const source = readFileSync(new URL('./runtime-mind-state.ts', import.meta.url), 'utf8')
 
     expect(source).toContain('readMindHead<AlicizationVisualPresenceStateSnapshot[\'autobiographicalSelf\']>(input.cardId, \'autobiographical-self\')')
-    expect(source).toContain('readMindHead<AlicizationPersonStateUpdateSurface>(input.cardId, \'person-state-update-surface\')')
-    expect(source).toContain('const previousPersonStateUpdateSurface = stripLegacyProjectGovernanceOwner(')
-    expect(source).toContain('input.previousVisualPresenceState.personStateUpdateSurface ?? persistedPersonStateUpdateSurface ?? null,')
+    expect(source).toContain('readMindHead<unknown>(input.cardId, \'person-state-update-surface\')')
+    expect(source).toContain('const persistedPersonStateUpdateSurface = normalizeAlicizationPersonStateUpdateSurface(persistedPersonStateUpdateSurfaceRaw)')
+    expect(source).toContain('const previousPersonStateUpdateSurface = normalizeAlicizationPersonStateUpdateSurface(')
+    expect(source).toContain('input.previousVisualPresenceState.personStateUpdateSurface,')
+    expect(source).toContain(') ?? persistedPersonStateUpdateSurface')
     expect(source).toContain('personStateUpdateSurface: previousPersonStateUpdateSurface,')
     expect(source).toContain('personStateUpdateSurface,')
     expect(source).toContain('stripProjectGovernanceMetadataFromVisualPresenceState')
-    expect(source).toContain('activeContinuityGovernance: null')
+    expect(source).not.toContain('activeContinuityGovernance')
   })
 
   it('builds emotional-kernel and initiative projection inputs from the fresher preferred resident projection instead of only the persisted previous shell', () => {
@@ -38,7 +40,6 @@ describe('runtime-mind-state emotional kernel regression', () => {
       : ''
 
     expect(emotionalKernelBlock).toContain('personStateProjection: preferredResidentPersonStateProjection')
-    expect(emotionalKernelBlock).toContain('selfEvolution')
     expect(emotionalKernelBlock).not.toContain('projectState')
     expect(initiativeBaseBlock).toContain('personStateProjection: preferredResidentPersonStateProjection')
     expect(initiativeBaseBlock).toContain('recollectionIntent: input.organicMemoryContext?.recollectionIntent')
@@ -73,7 +74,6 @@ describe('runtime-mind-state emotional kernel regression', () => {
     expect(source).toContain('let emotionalKernel = bootstrapEmotionalKernel')
     expect(source).toContain('emotionalKernel = buildAlicizationEmotionalKernel({')
     expect(source).toContain('privateThought')
-    expect(source).toContain('selfEvolution')
     expect(source.indexOf('const bootstrapEmotionalKernel = buildAlicizationEmotionalKernel({')).toBeLessThan(
       source.indexOf('emotionalKernel = buildAlicizationEmotionalKernel({'),
     )
@@ -104,7 +104,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
     expect(source).not.toContain('buildAlicizationEmbodimentSelfRevisionStatePatch')
     expect(source).not.toContain('same-her-baseline')
     expect(source).toContain('activeSelfRevision: existingDerivedMindStateBundle?.activeSelfRevision ?? null')
-    expect(source).toContain('activeContinuityGovernance: null')
+    expect(source).not.toContain('activeContinuityGovernance')
   })
 
   it('keeps embodiment lane evidence structural when a lane has no current observation', () => {
@@ -497,11 +497,6 @@ describe('runtime-mind-state emotional kernel regression', () => {
       'emotion_tone:rest-protective',
     ]))
     expect(result.recallGovernor?.affectiveCarry?.summary).toContain('rest-protective-companionship')
-    expect(result.recallGovernor?.recalledFragmentCap).toBe(2)
-    expect(result.recallGovernor?.recalledFragmentSourceBudget).toEqual(expect.arrayContaining([
-      expect.objectContaining({ sourceKind: 'mind-continuity', maxItems: 2 }),
-      expect.objectContaining({ sourceKind: 'dream-fragment', maxItems: 0 }),
-    ]))
     expect(result.initiative.continuityRestraint).toBe('rest-protective')
     expect(result.initiative.preferredStyle).toBe('silent-observe')
     expect(result.initiative.preferredPresence).toBe('concerned')
@@ -1443,20 +1438,6 @@ describe('runtime-mind-state emotional kernel regression', () => {
       } as any,
     })
 
-    expect(result.emotionalKernel?.dominantEmotion).toBe('measured-companionship')
-    expect(result.emotionalKernel?.initiativeMode).toBe('observe')
-    expect(result.emotionalKernel?.memoryRecallMode).toBe('low-pressure-presence')
-    expect(result.emotionalKernel?.embodimentTone).toBe('measured-return')
-    expect(result.emotionalKernel?.reasonTags).toEqual(expect.arrayContaining([
-      'measured-return',
-      'quiet-companionship',
-      'embodiment-recall-cautious',
-    ]))
-    expect(result.recallGovernor?.affectAnchors).toEqual(expect.arrayContaining([
-      'emotion:measured-companionship',
-      'emotion_memory_mode:low-pressure-presence',
-      'emotion_tone:measured-return',
-    ]))
     expect(result.initiative.continuityRestraint).toBe('measured-return')
     expect(result.initiative.preferredStyle).toBe('silent-observe')
     expect(result.initiative.shouldSpeak).toBe(false)
@@ -2003,11 +1984,6 @@ describe('runtime-mind-state emotional kernel regression', () => {
       .toEqual(baseline.derivedMindStateBundle?.emotionalTransitionLedger)
     expect(pressured.derivedMindStateBundle?.embodimentContinuityLedger)
       .toEqual(baseline.derivedMindStateBundle?.embodimentContinuityLedger)
-    expect(pressured.derivedMindStateBundle?.activeContinuityGovernance)
-      .toEqual(baseline.derivedMindStateBundle?.activeContinuityGovernance)
-    expect(pressured.derivedMindStateBundle?.sameHerCausalityRepairPressure)
-      .toBe(baseline.derivedMindStateBundle?.sameHerCausalityRepairPressure)
-    expect(pressured.derivedMindStateBundle?.sameHerCausalityRepairPressure).toBeNull()
     expect(pressured.derivedMindStateBundle?.emotionalTransitionLedger?.sourceTags ?? [])
       .not
       .toContain('same-her-causality-repair-pressure')

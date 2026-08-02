@@ -18,7 +18,6 @@ import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibil
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationMemoryRetrievalBudgetClass, AlicizationMemoryRetrievalTelemetrySnapshot } from './memory-retrieval-telemetry'
 import type { AlicizationMemoryTuningAdvice } from './memory-tuning-advice'
-import type { AlicizationPersonStateUpdateSurface } from './person-state-update-surface'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 import type { ContextualConversationTurn } from './runtime-soul'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
@@ -40,6 +39,7 @@ import {
 } from './memory-tuning-advice'
 import { filterOrganicMemoryEntries, isPersonaResidueMemoryText } from './organic-memory-hygiene'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
+import { normalizeAlicizationPersonStateUpdateSurface } from './person-state-update-surface'
 import {
   parsePerformanceManifestFromMeta,
   sanitizePerformanceManifest,
@@ -600,14 +600,15 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
   }): Promise<AlicizationHostPersonModelSnapshot | null> {
     const now = Number.isFinite(input?.now) ? Number(input?.now) : Date.now()
     const cardId = options.getActiveCardId()
-    const [events, consolidations, relationshipDynamics, relationshipOutcomes, reinforcementEvents, personStateUpdateSurface] = await Promise.all([
+    const [events, consolidations, relationshipDynamics, relationshipOutcomes, reinforcementEvents, personStateUpdateSurfaceRaw] = await Promise.all([
       options.listRecentEpisodicEvents(18).catch(() => []),
       options.listMemoryConsolidations(16).catch(() => []),
       options.getLatestRelationshipDynamics().catch(() => null),
       options.listRelationshipOutcomes({ cardId, limit: 16 }).catch(() => []),
       options.listPersonaReinforcementEvents({ cardId, limit: 24 }).catch(() => []),
-      options.readMindHead<AlicizationPersonStateUpdateSurface>(cardId, 'person-state-update-surface').catch(() => null),
+      options.readMindHead<unknown>(cardId, 'person-state-update-surface').catch(() => null),
     ])
+    const personStateUpdateSurface = normalizeAlicizationPersonStateUpdateSurface(personStateUpdateSurfaceRaw)
     if (
       events.length === 0
       && consolidations.length === 0

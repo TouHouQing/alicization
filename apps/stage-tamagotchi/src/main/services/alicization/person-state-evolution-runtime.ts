@@ -9,6 +9,8 @@ import type {
   AlicizationPersonStateUpdateSourceTrailEntry,
 } from '../../../shared/eventa'
 
+import { isAlicizationPersonStateEvidenceId } from './person-state-update-surface'
+
 interface DbPersonStateEvolutionRow {
   id: string
   card_id: string
@@ -96,7 +98,7 @@ function parseStringArray(raw: string | null) {
 function normalizeShift(raw: AlicizationPersonStateEvolutionShift): AlicizationPersonStateEvolutionShift | null {
   const kind = sanitizeText(raw.kind, 64) as AlicizationPersonStateEvolutionShiftKind
   const rationale = sanitizeText(raw.rationale, 220)
-  if (!kind || !rationale)
+  if (!kind || !isAlicizationPersonStateEvidenceId(rationale))
     return null
   return {
     kind,
@@ -112,8 +114,13 @@ function mapSourceTrail(raw: string | null): AlicizationPersonStateUpdateSourceT
       const sourceKind = sanitizeText(item.sourceKind, 64)
       const summary = sanitizeText(item.summary, 180)
       const createdAt = Number(item.createdAt)
-      if (!kind || !sourceKind || !summary)
+      if (
+        (kind !== 'relationship-outcome' && kind !== 'reinforcement')
+        || (sourceKind !== 'reply' && sourceKind !== 'proactive' && sourceKind !== 'execution')
+        || !isAlicizationPersonStateEvidenceId(summary)
+      ) {
         return null
+      }
       return {
         kind: kind as AlicizationPersonStateUpdateSourceTrailEntry['kind'],
         sourceKind: sourceKind as AlicizationPersonStateUpdateSourceTrailEntry['sourceKind'],
@@ -125,6 +132,8 @@ function mapSourceTrail(raw: string | null): AlicizationPersonStateUpdateSourceT
 }
 
 function mapEvolutionRow(row: DbPersonStateEvolutionRow): AlicizationPersonStateEvolutionEntryRecord {
+  const sourceTrail = mapSourceTrail(row.source_trail_json)
+  const summary = sanitizeText(row.summary, 220)
   return {
     id: row.id,
     cardId: row.card_id,
@@ -133,13 +142,16 @@ function mapEvolutionRow(row: DbPersonStateEvolutionRow): AlicizationPersonState
     sessionId: row.session_id,
     activeThreadId: row.active_thread_id,
     sourceKind: row.source_kind,
-    summary: row.summary,
-    contexts: parseStringArray(row.contexts_json),
-    relationshipDoctrine: row.relationship_doctrine,
-    burdenLine: row.burden_line,
-    trustMeaning: row.trust_meaning,
-    dominantRung: row.dominant_rung,
-    sourceTrail: mapSourceTrail(row.source_trail_json),
+    summary: isAlicizationPersonStateEvidenceId(summary) && sourceTrail.some(entry => entry.summary === summary)
+      ? summary
+      : '',
+    contexts: parseStringArray(row.contexts_json)
+      .filter(context => context === 'general' || context === 'dialogue' || context === 'execution' || context === 'proactive'),
+    relationshipDoctrine: null,
+    burdenLine: null,
+    trustMeaning: null,
+    dominantRung: null,
+    sourceTrail,
     shifts: asObjectArray(row.shifts_json)
       .map(item => normalizeShift(item as unknown as AlicizationPersonStateEvolutionShift))
       .filter((item): item is AlicizationPersonStateEvolutionShift => Boolean(item)),
@@ -165,7 +177,6 @@ export function summarizePersonStateEvolutionLog(
       totals[shift.kind] = clampDelta(totals[shift.kind] + shift.delta, 4)
   }
 
-  const latest = entries[0] ?? null
   return {
     trustShift: totals['trust-shift'],
     closenessShift: totals['closeness-shift'],
@@ -174,18 +185,13 @@ export function summarizePersonStateEvolutionLog(
     burdenShift: totals['burden-shift'],
     executionTrustShift: totals['execution-trust-shift'],
     relationshipDoctrineShift: totals['relationship-doctrine-shift'],
-    latestDoctrine: latest?.relationshipDoctrine ?? null,
-    latestBurdenLine: latest?.burdenLine ?? null,
-    latestTrustMeaning: latest?.trustMeaning ?? null,
-    latestDominantRung: latest?.dominantRung ?? null,
-    recentSummaries: entries.map(entry => entry.summary).slice(0, 6),
-    explanation: uniqueList([
-      ...entries.flatMap(entry => entry.shifts.map(shift => shift.rationale)),
-      latest?.burdenLine,
-      latest?.trustMeaning,
-      latest?.relationshipDoctrine,
-    ], 8),
-    updatedAt: latest?.createdAt ?? null,
+    latestDoctrine: null,
+    latestBurdenLine: null,
+    latestTrustMeaning: null,
+    latestDominantRung: null,
+    recentSummaries: [],
+    explanation: [],
+    updatedAt: entries[0]?.createdAt ?? null,
   }
 }
 
@@ -200,14 +206,32 @@ export function createAlicizationPersonStateEvolutionRuntime(
       .map((entry) => {
         const cardId = sanitizeText(entry.cardId, 120)
         const summary = sanitizeText(entry.summary, 220)
-        const shifts = (entry.shifts ?? [])
-          .map(normalizeShift)
-          .filter((item): item is AlicizationPersonStateEvolutionShift => Boolean(item))
-        if (!cardId || !summary || shifts.length === 0)
-          return null
         const createdAt = Number.isFinite(entry.createdAt)
           ? Math.max(0, Math.floor(Number(entry.createdAt)))
           : options.now()
+        const sourceTrail = (entry.sourceTrail ?? [])
+          .map(item => ({
+            kind: item.kind,
+            sourceKind: item.sourceKind,
+            summary: sanitizeText(item.summary, 180),
+            createdAt: Number.isFinite(item.createdAt) ? Math.max(0, Math.floor(item.createdAt)) : createdAt,
+          }))
+          .filter(item =>
+            (item.kind === 'relationship-outcome' || item.kind === 'reinforcement')
+            && (item.sourceKind === 'reply' || item.sourceKind === 'proactive' || item.sourceKind === 'execution')
+            && isAlicizationPersonStateEvidenceId(item.summary),
+          )
+        const shifts = (entry.shifts ?? [])
+          .map(normalizeShift)
+          .filter((item): item is AlicizationPersonStateEvolutionShift => Boolean(item))
+        if (
+          !cardId
+          || !isAlicizationPersonStateEvidenceId(summary)
+          || !sourceTrail.some(item => item.summary === summary)
+          || shifts.length === 0
+        ) {
+          return null
+        }
         return {
           id: sanitizeText(entry.id, 120) || options.randomUUID(),
           cardId,
@@ -217,17 +241,13 @@ export function createAlicizationPersonStateEvolutionRuntime(
           activeThreadId: sanitizeText(entry.activeThreadId, 160) || null,
           sourceKind: entry.sourceKind,
           summary,
-          contextsJson: JSON.stringify(uniqueList(entry.contexts ?? [], 8)),
-          relationshipDoctrine: sanitizeText(entry.relationshipDoctrine, 220) || null,
-          burdenLine: sanitizeText(entry.burdenLine, 180) || null,
-          trustMeaning: sanitizeText(entry.trustMeaning, 180) || null,
-          dominantRung: sanitizeText(entry.dominantRung, 64) || null,
-          sourceTrailJson: JSON.stringify((entry.sourceTrail ?? []).map(item => ({
-            kind: sanitizeText(item.kind, 64),
-            sourceKind: sanitizeText(item.sourceKind, 64),
-            summary: sanitizeText(item.summary, 180),
-            createdAt: Number.isFinite(item.createdAt) ? Math.max(0, Math.floor(item.createdAt)) : createdAt,
-          }))),
+          contextsJson: JSON.stringify(uniqueList(entry.contexts ?? [], 8)
+            .filter(context => context === 'general' || context === 'dialogue' || context === 'execution' || context === 'proactive')),
+          relationshipDoctrine: null,
+          burdenLine: null,
+          trustMeaning: null,
+          dominantRung: null,
+          sourceTrailJson: JSON.stringify(sourceTrail),
           shiftsJson: JSON.stringify(shifts),
           createdAt,
         }

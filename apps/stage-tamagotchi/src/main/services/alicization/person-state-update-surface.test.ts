@@ -2,173 +2,42 @@ import type { AlicizationOutcomeClosureResult } from './outcome-reinforcement'
 
 import { describe, expect, it } from 'vitest'
 
-import { buildProactiveFeedbackOutcomeClosure } from './outcome-reinforcement'
 import {
+  buildAlicizationPersonStateEvidenceRef,
   buildAlicizationPersonStateUpdateRecord,
   buildAlicizationPersonStateUpdateSurface,
+  normalizeAlicizationPersonStateUpdateSurface,
   personStateUpdateRecordFromMindTurnEvent,
 } from './person-state-update-surface'
 
+function createClosure(
+  overrides: Partial<AlicizationOutcomeClosureResult> = {},
+): AlicizationOutcomeClosureResult {
+  return {
+    relationshipOutcomes: [],
+    reinforcementEvents: [],
+    memoryFacts: [],
+    reflections: [],
+    episodicEvents: [],
+    ...overrides,
+  }
+}
+
 describe('person-state-update-surface', () => {
-  it('aggregates outcome closure into a replayable person-state update surface', () => {
+  it('derives person state from structured outcome fields and evidence ids only', () => {
+    const outcomeRef = buildAlicizationPersonStateEvidenceRef('relationship-outcome', 'outcome-1')
+    const reinforcementRef = buildAlicizationPersonStateEvidenceRef('reinforcement', 'reinforce-1')
     const surface = buildAlicizationPersonStateUpdateSurface({
       now: 10_000,
-      closure: {
-        relationshipOutcomes: [
-          {
-            id: 'outcome-1',
-            cardId: 'card-1',
-            decisionTraceId: null,
-            turnId: 'turn-1',
-            sessionId: 'session-1',
-            sourceKind: 'execution',
-            actionSummary: 'execution callback landed during focused work',
-            closenessDelta: -0.02,
-            trustDelta: 0.08,
-            burdenDelta: 0.06,
-            boundaryDelta: -0.04,
-            misreadDelta: 0,
-            repairDelta: 0.03,
-            openLoopDelta: 0.04,
-            summary: 'The callback was useful, but it still needed lighter interruption pressure while the host stayed focused.',
-            createdAt: 9_500,
-          },
-        ],
-        reinforcementEvents: [
-          {
-            id: 'reinforce-1',
-            cardId: 'card-1',
-            decisionTraceId: null,
-            turnId: 'turn-1',
-            sessionId: 'session-1',
-            sourceKind: 'execution',
-            dimension: 'autonomy-respect',
-            delta: 0.08,
-            valence: 'reinforce',
-            summary: 'Respecting working space kept the callback acceptable.',
-            createdAt: 9_600,
-          },
-        ],
-        memoryFacts: [],
-        reflections: [],
-        episodicEvents: [],
-      },
-    })
-
-    expect(surface.version).toBe('person-state-update-surface-v1')
-    expect(surface.projectStateContinuity).toBeNull()
-    expect(surface.dominantContexts).toContain('focused-work')
-    expect(surface.preferenceHints).toContain(
-      'The callback was useful, but it still needed lighter interruption pressure while the host stayed focused.',
-    )
-    expect(surface.burdenHints).toContain(
-      'The callback was useful, but it still needed lighter interruption pressure while the host stayed focused.',
-    )
-    expect(surface.summary).toContain('The callback was useful')
-    expect(surface.summary).not.toMatch(/Preference shift:|Repair line:|Burden line:/u)
-    expect(surface.reinforcementBias['autonomy-respect']).toBeGreaterThan(0)
-  })
-
-  it('keeps richer emotional closure evidence in the narrative without rebuilding project-state governance', () => {
-    const richerEmotionalClosureCue = 'late-night-drain closure: keep reply low-pressure, initiative rest-protective, and embodiment repair-before-closeness on the continuity state.'
-    const surface = buildAlicizationPersonStateUpdateSurface({
-      now: 12_000,
-      closure: {
-        relationshipOutcomes: [
-          {
-            id: 'outcome-emotional-1',
-            cardId: 'card-1',
-            decisionTraceId: null,
-            turnId: 'turn-emotional-1',
-            sessionId: 'session-1',
-            sourceKind: 'proactive',
-            actionSummary: richerEmotionalClosureCue,
-            closenessDelta: 0.04,
-            trustDelta: 0.06,
-            burdenDelta: -0.02,
-            boundaryDelta: 0.01,
-            misreadDelta: 0,
-            repairDelta: 0.08,
-            openLoopDelta: 0.02,
-            summary: 'Late-night care landed best when the return stayed low-pressure, rest-protective, and repair-before-closeness on the continuity state.',
-            createdAt: 11_700,
-          },
-        ],
-        reinforcementEvents: [
-          {
-            id: 'reinforce-emotional-1',
-            cardId: 'card-1',
-            decisionTraceId: null,
-            turnId: 'turn-emotional-1',
-            sessionId: 'session-1',
-            sourceKind: 'proactive',
-            dimension: 'companionship',
-            delta: 0.06,
-            valence: 'reinforce',
-            summary: 'Rest-protective companionship kept the continuity state believable.',
-            createdAt: 11_750,
-          },
-        ],
-        memoryFacts: [],
-        reflections: [],
-        episodicEvents: [{
-          cardId: 'card-1',
-          sourceKind: 'proactive',
-          provenance: 'remembered',
-          occurredAt: 11_800,
-          withWhom: ['host'],
-          whatHappened: 'The late-night reopening stayed quieter and more body-aware.',
-          relationshipMeaning: richerEmotionalClosureCue,
-          confidence: 0.78,
-        }],
-      },
-    })
-
-    expect(surface.projectStateContinuity).toBeNull()
-    expect(surface.narrative).toContain(richerEmotionalClosureCue)
-  })
-
-  it('merges newer closure updates into the previous surface without dropping the trail', () => {
-    const previous = buildAlicizationPersonStateUpdateSurface({
-      now: 10_000,
-      closure: {
+      closure: createClosure({
         relationshipOutcomes: [{
           id: 'outcome-1',
           cardId: 'card-1',
           decisionTraceId: null,
           turnId: 'turn-1',
           sessionId: 'session-1',
-          sourceKind: 'reply',
-          actionSummary: 'reply repair landed',
-          closenessDelta: 0.02,
-          trustDelta: 0.06,
-          burdenDelta: 0,
-          boundaryDelta: 0,
-          misreadDelta: -0.03,
-          repairDelta: 0.05,
-          openLoopDelta: 0,
-          summary: 'Repair-first dialogue made the thread feel safer again.',
-          createdAt: 9_000,
-        }],
-        reinforcementEvents: [],
-        memoryFacts: [],
-        reflections: [],
-        episodicEvents: [],
-      },
-    })
-
-    const merged = buildAlicizationPersonStateUpdateSurface({
-      now: 20_000,
-      previous,
-      closure: {
-        relationshipOutcomes: [{
-          id: 'outcome-2',
-          cardId: 'card-1',
-          decisionTraceId: null,
-          turnId: 'turn-2',
-          sessionId: 'session-1',
           sourceKind: 'execution',
-          actionSummary: 'execution callback landed during focused work',
+          actionSummary: 'untrusted action interpretation',
           closenessDelta: -0.02,
           trustDelta: 0.08,
           burdenDelta: 0.06,
@@ -176,281 +45,182 @@ describe('person-state-update-surface', () => {
           misreadDelta: 0,
           repairDelta: 0.03,
           openLoopDelta: 0.04,
-          summary: 'The callback was useful, but it still needed lighter interruption pressure while the host stayed focused.',
-          createdAt: 19_500,
+          summary: 'untrusted relationship interpretation',
+          createdAt: 9_500,
         }],
         reinforcementEvents: [{
           id: 'reinforce-1',
           cardId: 'card-1',
           decisionTraceId: null,
-          turnId: 'turn-2',
+          turnId: 'turn-1',
           sessionId: 'session-1',
           sourceKind: 'execution',
           dimension: 'autonomy-respect',
           delta: 0.08,
           valence: 'reinforce',
-          summary: 'Respecting working space kept the callback acceptable.',
-          createdAt: 19_600,
-        }],
-        memoryFacts: [],
-        reflections: [],
-        episodicEvents: [],
-      },
-    })
-
-    expect(merged.updatedAt).toBe(20_000)
-    expect(merged.sourceTrail).toHaveLength(3)
-    expect(merged.relationshipShift.trustDelta).toBeGreaterThan(previous.relationshipShift.trustDelta)
-  })
-
-  it('does not synthesize proactive strategy prose from outcome labels alone', () => {
-    const surface = buildAlicizationPersonStateUpdateSurface({
-      now: 25_000,
-      closure: buildProactiveFeedbackOutcomeClosure({
-        now: 24_900,
-        cardId: 'card-1',
-        outcomes: [{
-          turnId: 'turn-proactive-strategy-surface-1',
-          scenario: 'general',
-          outcome: 'dismiss',
-          createdAt: 24_900,
+          summary: 'untrusted reinforcement prose',
+          createdAt: 9_600,
         }],
       }),
     })
 
+    expect(surface.summary).toBe(reinforcementRef)
+    expect(surface.dominantContexts).toEqual(['general', 'execution'])
+    expect(surface.relationshipShift).toEqual(expect.objectContaining({
+      trustDelta: 0.08,
+      burdenDelta: 0.06,
+    }))
+    expect(surface.reinforcementBias['autonomy-respect']).toBe(0.08)
     expect(surface.preferenceHints).toEqual([])
+    expect(surface.sensitivityHints).toEqual([])
     expect(surface.repairHints).toEqual([])
-    expect(surface.narrative.join(' ')).not.toMatch(/more room|lower-pressure|clearer opening/iu)
+    expect(surface.burdenHints).toEqual([])
+    expect(surface.narrative).toEqual([])
+    expect(surface.affectiveResidue).toBeNull()
+    expect(surface.sourceTrail.map(entry => entry.summary)).toEqual([
+      reinforcementRef,
+      outcomeRef,
+    ])
+    expect(JSON.stringify(surface)).not.toContain('untrusted')
   })
 
-  it('keeps corrected same-person continuity authoritative in person-state surface instead of carrying the older generic status-shell narrative forward', () => {
+  it('does not promote episodic interpretation or emotional cadence into person state', () => {
+    const marker = 'interpretation-must-stay-outside-person-state'
     const surface = buildAlicizationPersonStateUpdateSurface({
-      now: 26_000,
-      closure: {
-        relationshipOutcomes: [],
-        reinforcementEvents: [],
-        memoryFacts: [],
-        reflections: [],
-        episodicEvents: [
-          {
-            cardId: 'card-1',
-            sourceKind: 'dialogue-feedback',
-            provenance: 'observed',
-            occurredAt: 25_100,
-            whereSummary: 'same continuity seam during execution callback',
-            withWhom: ['host'],
-            threadAnchor: 'same-person continuity closure',
-            whatHappened: 'I treated the host turn like a concise status recap request and answered as a generic status shell.',
-            felt: 'I rushed into a task-shell framing.',
-            emotionTags: ['generic-status', 'misread'],
-            whatChanged: 'trust down 0.08, burden up 0.05',
-            relationshipMeaning: 'This looked like a concise progress recap request.',
-            lesson: 'Answer this line with a concise status recap first.',
-            sourceSummary: 'older generic status recap interpretation',
-            confidence: 0.84,
-            tags: ['status-recap', 'generic-shell'],
-          },
-          {
-            cardId: 'card-1',
-            sourceKind: 'dialogue-feedback',
-            provenance: 'reconstructed',
-            occurredAt: 25_500,
-            whereSummary: 'same continuity seam during execution callback',
-            withWhom: ['host'],
-            threadAnchor: 'same-person continuity closure',
-            whatHappened: 'The host was checking same-person continuity, not asking for a status report.',
-            felt: 'I needed to return as the continuity state before giving any recap.',
-            emotionTags: ['same-person continuity', 'repair', 'continuity-check'],
-            whatChanged: 'trust up 0.05, repair activated 0.08, leave more room, lower-pressure return',
-            relationshipMeaning: 'This corrected same-person continuity should stay authoritative before any status recap.',
-            lesson: 'Repair continuity first and keep the line lower-pressure instead of defending the first interpretation.',
-            sourceSummary: 'corrected same-person continuity interpretation',
-            confidence: 0.89,
-            tags: ['same-person-test', 'corrected-continuity'],
-            reconsolidationCount: 2,
-            latestReconsolidation: {
-              at: 25_800,
-              decisionTraceId: null,
-              provenance: 'reconstructed',
-              confidence: 0.86,
-              reason: 'Revised older memory traces: corrected same-person continuity, not a status report, should stay authoritative before any status recap.',
-              emotionTags: ['same-person continuity', 'repair'],
-              relationshipMeaning: 'This corrected same-person continuity should stay authoritative before any status recap.',
-              lesson: 'Repair continuity first and keep the line lower-pressure instead of defending the first interpretation.',
-            },
-          } as any,
-        ],
-      },
+      now: 12_000,
+      closure: createClosure({
+        episodicEvents: [{
+          id: 'episode-1',
+          cardId: 'card-1',
+          sourceKind: 'dialogue-feedback',
+          provenance: 'observed',
+          occurredAt: 11_800,
+          withWhom: ['host'],
+          whatHappened: 'A factual event occurred.',
+          felt: marker,
+          whatChanged: marker,
+          relationshipMeaning: marker,
+          lesson: marker,
+          sourceSummary: marker,
+          confidence: 0.78,
+        }],
+        affectiveResidue: {
+          version: 'affective-residue-memory-v1',
+          updatedAt: 11_900,
+          residues: [],
+          dominantResidueKind: 'afterglow',
+          afterglowPressure: 0.2,
+          repairPressure: 0.1,
+          burdenPressure: 0,
+          trustPressure: 0.1,
+          restProtectivePressure: 0,
+          relationshipCadence: null,
+          sourceSignals: [marker],
+          summary: marker,
+        } as any,
+      }),
     })
 
-    expect(surface.summary.toLowerCase()).toContain('same-person continuity')
-    expect(surface.summary.toLowerCase()).not.toContain('concise progress recap request')
-    expect(surface.narrative).toContain('This corrected same-person continuity should stay authoritative before any status recap.')
-    expect(surface.narrative).not.toContain('This looked like a concise progress recap request.')
-    expect(surface.narrative).not.toContain('Answer this line with a concise status recap first.')
+    expect(surface.summary).toBe('')
+    expect(surface.dominantContexts).toEqual(['general'])
+    expect(surface.sourceTrail).toEqual([])
+    expect(surface.preferenceHints).toEqual([])
+    expect(surface.sensitivityHints).toEqual([])
+    expect(surface.repairHints).toEqual([])
+    expect(surface.burdenHints).toEqual([])
+    expect(surface.narrative).toEqual([])
+    expect(surface.affectiveResidue).toBeNull()
+    expect(JSON.stringify(surface)).not.toContain(marker)
   })
 
-  it('persists proactive affective residue into the person-state surface and replay record instead of leaving cadence carry in the current turn only', () => {
-    const closure = buildProactiveFeedbackOutcomeClosure({
-      now: 26_900,
-      cardId: 'card-1',
-      outcomes: [{
-        turnId: 'turn-proactive-residue-surface-1',
-        scenario: 'general',
-        outcome: 'dismiss',
-        createdAt: 26_900,
-      }],
-      affectiveResidue: {
-        version: 'affective-residue-memory-v1',
-        updatedAt: 26_850,
-        residues: [],
-        dominantResidueKind: 'afterglow',
-        afterglowPressure: 0.24,
-        repairPressure: 0.11,
-        burdenPressure: 0.04,
-        trustPressure: 0.2,
-        restProtectivePressure: 0.03,
-        relationshipCadence: {
-          cadenceMode: 'measured-return',
-          distancePosture: 'measured-room',
-          companionshipDensity: 0.34,
-          repairRecovery: 0.41,
-          overreachRisk: 0.31,
-          fatigueGuard: 0.18,
-          afterglowCarry: 0.52,
-          shouldDelayWarmth: true,
-          shouldProtectRest: false,
-          reasonTags: ['same-her', 'initiative-learning'],
-          summary: 'Keep the same proactive line settling lower-pressure before warming wider.',
-        },
-        sourceSignals: ['proactive outcome learning'],
-        summary: 'The proactive reopening should return measured and lower-pressure on the same line.',
-      } as any,
-    })
-
-    const surface = buildAlicizationPersonStateUpdateSurface({
-      now: 27_000,
-      closure,
-    })
-
-    expect(surface.affectiveResidue).toEqual(expect.objectContaining({
-      dominantResidueKind: 'afterglow',
-      summary: expect.stringContaining('lower-pressure'),
-      relationshipCadence: expect.objectContaining({
-        cadenceMode: 'measured-return',
-        distancePosture: 'measured-room',
-      }),
-    }))
-
-    const record = buildAlicizationPersonStateUpdateRecord({
-      closure,
-      surface,
-      createdAt: 27_050,
-    })
-
-    expect(record.affectiveResidue).toEqual(expect.objectContaining({
-      dominantResidueKind: 'afterglow',
-      summary: expect.stringContaining('same line'),
-      relationshipCadence: expect.objectContaining({
-        cadenceMode: 'measured-return',
-      }),
-    }))
-
-    const normalized = personStateUpdateRecordFromMindTurnEvent({
-      id: 'evt-proactive-residue-surface-1',
-      decisionTraceId: 'mind:abc123:proactive-residue-surface',
-      turnId: 'turn-proactive-residue-surface-1',
-      sessionId: 'session-1',
-      origin: 'subconscious-proactive',
-      kind: 'person-state-updated',
-      payload: {
-        version: record.version,
-        updatedAt: record.updatedAt,
-        summary: record.summary,
-        projectStateContinuity: record.projectStateContinuity,
-        dominantContexts: record.dominantContexts,
-        relationshipShift: record.relationshipShift,
-        reinforcementBias: record.reinforcementBias,
-        preferenceHints: record.preferenceHints,
-        sensitivityHints: record.sensitivityHints,
-        repairHints: record.repairHints,
-        burdenHints: record.burdenHints,
-        narrative: record.narrative,
-        sourceTrail: record.sourceTrail,
-        sourceKinds: record.sourceKinds,
-        sourceCounts: record.sourceCounts,
-        affectiveResidue: record.affectiveResidue,
-      },
-      createdAt: record.createdAt,
-    })
-
-    expect(normalized?.affectiveResidue).toEqual(expect.objectContaining({
-      dominantResidueKind: 'afterglow',
-      summary: expect.stringContaining('measured'),
-      relationshipCadence: expect.objectContaining({
-        cadenceMode: 'measured-return',
-        shouldDelayWarmth: true,
-      }),
-    }))
-  })
-
-  it('builds a replayable person-state update record from the closure and normalizes it back from a mind event', () => {
-    const closure: AlicizationOutcomeClosureResult = {
-      relationshipOutcomes: [
-        {
+  it('merges numeric state and traceable source ids without reviving old prose', () => {
+    const outcomeRef = buildAlicizationPersonStateEvidenceRef('relationship-outcome', 'outcome-1')
+    const reinforcementRef = buildAlicizationPersonStateEvidenceRef('reinforcement', 'reinforce-2')
+    const previous = buildAlicizationPersonStateUpdateSurface({
+      now: 10_000,
+      closure: createClosure({
+        relationshipOutcomes: [{
           id: 'outcome-1',
           cardId: 'card-1',
-          decisionTraceId: 'mind:abc123:feedfacecafe',
+          decisionTraceId: null,
           turnId: 'turn-1',
           sessionId: 'session-1',
-          sourceKind: 'proactive',
-          actionSummary: 'late-night proactive care landed softly',
-          closenessDelta: 0.08,
+          sourceKind: 'reply',
+          actionSummary: 'older prose',
+          closenessDelta: 0.02,
           trustDelta: 0.06,
-          burdenDelta: -0.02,
+          burdenDelta: 0,
           boundaryDelta: 0,
           misreadDelta: 0,
-          repairDelta: 0.04,
+          repairDelta: 0.05,
           openLoopDelta: 0,
-          summary: 'Late-night care landed softly without feeling pushy.',
-          createdAt: 29_500,
-        },
-      ],
-      reinforcementEvents: [
-        {
-          id: 'reinforce-1',
+          summary: 'older prose',
+          createdAt: 9_000,
+        }],
+      }),
+    })
+    const merged = buildAlicizationPersonStateUpdateSurface({
+      now: 20_000,
+      previous,
+      closure: createClosure({
+        reinforcementEvents: [{
+          id: 'reinforce-2',
           cardId: 'card-1',
-          decisionTraceId: 'mind:abc123:feedfacecafe',
-          turnId: 'turn-1',
+          decisionTraceId: null,
+          turnId: 'turn-2',
           sessionId: 'session-1',
-          sourceKind: 'proactive',
-          dimension: 'companionship',
-          delta: 0.06,
+          sourceKind: 'execution',
+          dimension: 'truthful-grounding',
+          delta: 0.1,
           valence: 'reinforce',
-          summary: 'Soft companionship was received well in the late-night window.',
-          createdAt: 29_600,
-        },
-      ],
-      memoryFacts: [],
-      reflections: [],
-      episodicEvents: [],
-    }
+          summary: 'newer prose',
+          createdAt: 19_600,
+        }],
+      }),
+    })
 
+    expect(merged.summary).toBe(reinforcementRef)
+    expect(merged.sourceTrail.map(entry => entry.summary)).toEqual([
+      reinforcementRef,
+      outcomeRef,
+    ])
+    expect(merged.relationshipShift.trustDelta).toBe(previous.relationshipShift.trustDelta)
+    expect(merged.reinforcementBias['truthful-grounding']).toBe(0.1)
+    expect(JSON.stringify(merged)).not.toMatch(/older prose|newer prose/u)
+  })
+
+  it('round-trips only structured person-state evidence from a mind event', () => {
+    const outcomeRef = buildAlicizationPersonStateEvidenceRef('relationship-outcome', 'outcome-proactive-1')
+    const closure = createClosure({
+      relationshipOutcomes: [{
+        id: 'outcome-proactive-1',
+        cardId: 'card-1',
+        decisionTraceId: 'mind:abc123:feedfacecafe',
+        turnId: 'turn-1',
+        sessionId: 'session-1',
+        sourceKind: 'proactive',
+        actionSummary: 'untrusted action prose',
+        closenessDelta: 0.08,
+        trustDelta: 0.06,
+        burdenDelta: -0.02,
+        boundaryDelta: 0,
+        misreadDelta: 0,
+        repairDelta: 0.04,
+        openLoopDelta: 0,
+        summary: 'untrusted outcome prose',
+        createdAt: 29_500,
+      }],
+    })
     const surface = buildAlicizationPersonStateUpdateSurface({
       now: 30_000,
-      closure: structuredClone(closure),
+      closure,
     })
     const record = buildAlicizationPersonStateUpdateRecord({
-      closure: structuredClone(closure),
+      closure,
       surface,
       createdAt: 29_900,
     })
-
-    expect(record.origin).toBe('subconscious-proactive')
-    expect(record.sourceKinds).toEqual(['proactive'])
-    expect(record.sourceCounts.relationshipOutcomes).toBe(1)
-    expect(record.projectStateContinuity).toBeNull()
-
+    const marker = 'persisted-prose-must-not-return'
     const normalized = personStateUpdateRecordFromMindTurnEvent({
       id: 'evt-1',
       decisionTraceId: 'mind:abc123:feedfacecafe',
@@ -459,35 +229,197 @@ describe('person-state-update-surface', () => {
       origin: 'subconscious-proactive',
       kind: 'person-state-updated',
       payload: {
-        version: record.version,
-        updatedAt: record.updatedAt,
+        ...record,
         summary: record.summary,
-        projectStateContinuity: {
-          sameHerSelfLine: 'legacy same-her template',
-          emotionalClosureCue: 'relationship_cadence=measured-return',
-        },
-        dominantContexts: record.dominantContexts,
-        relationshipShift: record.relationshipShift,
-        reinforcementBias: record.reinforcementBias,
-        preferenceHints: record.preferenceHints,
-        sensitivityHints: record.sensitivityHints,
-        repairHints: record.repairHints,
-        burdenHints: record.burdenHints,
-        narrative: record.narrative,
-        sourceTrail: record.sourceTrail,
-        sourceKinds: record.sourceKinds,
-        sourceCounts: record.sourceCounts,
+        projectStateContinuity: { note: marker },
+        preferenceHints: [marker],
+        sensitivityHints: [marker],
+        repairHints: [marker],
+        burdenHints: [marker],
+        narrative: [marker],
+        affectiveResidue: { summary: marker },
       },
       createdAt: record.createdAt,
     })
 
+    expect(record.origin).toBe('subconscious-proactive')
+    expect(record.summary).toBe(outcomeRef)
+    expect(record.sourceKinds).toEqual(['proactive'])
     expect(normalized).toEqual(expect.objectContaining({
-      decisionTraceId: 'mind:abc123:feedfacecafe',
-      origin: 'subconscious-proactive',
-      summary: record.summary,
+      summary: outcomeRef,
       projectStateContinuity: null,
-      dominantContexts: expect.arrayContaining(record.dominantContexts),
-      sourceKinds: ['proactive'],
+      preferenceHints: [],
+      sensitivityHints: [],
+      repairHints: [],
+      burdenHints: [],
+      narrative: [],
+      affectiveResidue: null,
     }))
+    expect(JSON.stringify(normalized)).not.toContain(marker)
+  })
+
+  it('does not carry an old free-text summary when the new closure has no evidence', () => {
+    const previous = {
+      ...buildAlicizationPersonStateUpdateSurface({
+        closure: createClosure(),
+        now: 10_000,
+      }),
+      summary: 'legacy narrative that must not be persisted',
+      sourceTrail: [],
+      reinforcementBias: {
+        'truthful-grounding': 0.1,
+        'legacy-status': 0.8,
+      } as any,
+    }
+
+    const surface = buildAlicizationPersonStateUpdateSurface({
+      previous,
+      closure: createClosure(),
+      now: 11_000,
+    })
+
+    expect(surface.summary).toBe('')
+    expect(surface.reinforcementBias).toEqual({
+      'truthful-grounding': 0.1,
+    })
+    expect(buildAlicizationPersonStateUpdateRecord({
+      closure: createClosure(),
+      surface: {
+        ...surface,
+        summary: 'legacy-status',
+      },
+      createdAt: 11_000,
+    }).summary).toBe('')
+  })
+
+  it('normalizes persisted person state to evidence ids and approved contexts only', () => {
+    const marker = 'legacy person-state prose must not re-enter memory'
+    const reinforcementRef = buildAlicizationPersonStateEvidenceRef('reinforcement', 'reinforce-1')
+    const normalized = normalizeAlicizationPersonStateUpdateSurface({
+      version: 'person-state-update-surface-v1',
+      updatedAt: 12_000,
+      summary: reinforcementRef,
+      dominantContexts: ['general', 'execution', marker],
+      relationshipShift: {
+        trustDelta: 0.2,
+        closenessDelta: -0.1,
+        burdenDelta: 0.04,
+        boundaryDelta: 0,
+        repairDelta: 0.03,
+      },
+      reinforcementBias: {
+        'truthful-grounding': 0.1,
+      },
+      preferenceHints: [marker],
+      sensitivityHints: [marker],
+      repairHints: [marker],
+      burdenHints: [marker],
+      narrative: [marker],
+      sourceTrail: [
+        {
+          kind: 'reinforcement',
+          sourceKind: 'execution',
+          summary: reinforcementRef,
+          createdAt: 12_000,
+        },
+        {
+          kind: 'reinforcement',
+          sourceKind: 'execution',
+          summary: marker,
+          createdAt: 11_000,
+        },
+      ],
+      affectiveResidue: {
+        summary: marker,
+      },
+    })
+
+    expect(normalized).toEqual(expect.objectContaining({
+      summary: reinforcementRef,
+      dominantContexts: ['general', 'execution'],
+      preferenceHints: [],
+      sensitivityHints: [],
+      repairHints: [],
+      burdenHints: [],
+      narrative: [],
+      affectiveResidue: null,
+    }))
+    expect(normalized?.sourceTrail).toEqual([{
+      kind: 'reinforcement',
+      sourceKind: 'execution',
+      summary: reinforcementRef,
+      createdAt: 12_000,
+    }])
+    expect(JSON.stringify(normalized)).not.toContain(marker)
+  })
+
+  it('preserves arbitrary upstream ids as opaque references and rejects untraceable event summaries', () => {
+    expect(normalizeAlicizationPersonStateUpdateSurface({
+      version: 'person-state-update-surface-v1',
+      updatedAt: 12_500,
+      summary: buildAlicizationPersonStateEvidenceRef('reinforcement', 'outcome-more-room-first'),
+      dominantContexts: ['general'],
+      relationshipShift: {},
+      reinforcementBias: {},
+      sourceTrail: [{
+        kind: 'reinforcement',
+        sourceKind: 'execution',
+        summary: buildAlicizationPersonStateEvidenceRef('reinforcement', 'different-source'),
+        createdAt: 12_500,
+      }],
+    })).toBeNull()
+
+    const upstreamId = 'custom upstream id/42'
+    const upstreamRef = buildAlicizationPersonStateEvidenceRef('relationship-outcome', upstreamId)
+    const surface = buildAlicizationPersonStateUpdateSurface({
+      now: 13_000,
+      closure: createClosure({
+        relationshipOutcomes: [{
+          id: upstreamId,
+          cardId: 'card-1',
+          decisionTraceId: null,
+          turnId: 'turn-1',
+          sessionId: 'session-1',
+          sourceKind: 'reply',
+          actionSummary: '',
+          closenessDelta: 0.02,
+          trustDelta: 0.04,
+          burdenDelta: 0,
+          boundaryDelta: 0,
+          misreadDelta: 0,
+          repairDelta: 0,
+          openLoopDelta: 0,
+          summary: '',
+          createdAt: 12_900,
+        }],
+      }),
+    })
+
+    expect(surface.summary).toBe(upstreamRef)
+    expect(surface.sourceTrail[0]?.summary).toBe(surface.summary)
+
+    expect(personStateUpdateRecordFromMindTurnEvent({
+      id: 'evt-forged',
+      decisionTraceId: 'mind:forged',
+      turnId: null,
+      sessionId: null,
+      origin: 'system',
+      kind: 'person-state-updated',
+      payload: {
+        version: 'person-state-update-surface-v1',
+        updatedAt: 13_000,
+        summary: upstreamRef,
+        dominantContexts: ['general'],
+        relationshipShift: {},
+        reinforcementBias: {},
+        sourceTrail: [{
+          kind: 'relationship-outcome',
+          sourceKind: 'reply',
+          summary: buildAlicizationPersonStateEvidenceRef('relationship-outcome', 'different-source'),
+          createdAt: 13_000,
+        }],
+      },
+      createdAt: 13_000,
+    })).toBeNull()
   })
 })
