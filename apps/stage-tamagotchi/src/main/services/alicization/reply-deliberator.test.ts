@@ -785,7 +785,6 @@ describe('buildReplyDeliberation', () => {
     )
 
     expect(source).not.toContain('buildReplyDeliberationSystemBlock')
-    expect(source).not.toContain('project-state-brief')
     expect(source).not.toContain('AlicizationMindSynthesisSnapshot')
     expect(source).not.toMatch(/currentConsciousFrame\?\.(?:consciousNeed|consciousTension|speakingIntention|focusAnchor)/u)
     for (const excludedField of [

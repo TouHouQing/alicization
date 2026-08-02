@@ -254,6 +254,12 @@ function sanitizeHumanlikeMemoryFactText(raw: unknown, maxChars = 420) {
   return sanitizeAlicizationMemoryEvidenceText(raw, maxChars)
 }
 
+function sanitizeHumanlikeInternalFactText(raw: unknown, maxChars = 420) {
+  return sanitizeAlicizationMemoryEvidenceText(raw, maxChars, {
+    provenance: 'internal-structured-fact',
+  })
+}
+
 function sanitizeHumanlikeMemoryFactList(
   values: Array<string | null | undefined>,
   maxItems = 6,
@@ -366,7 +372,7 @@ function collectHumanlikeMemorySourceChannels(input: AlicizationHumanlikeMemoryC
   const channels: AlicizationHumanlikeMemorySourceChannel[] = []
   if (normalizeHumanlikeMemoryRawText(input.dialogue?.userText) || normalizeHumanlikeMemoryRawText(input.dialogue?.assistantText))
     channels.push('dialogue')
-  if (sanitizeHumanlikeMemoryFactText(input.execution?.summary))
+  if (sanitizeHumanlikeInternalFactText(input.execution?.summary))
     channels.push('execution')
   if (
     normalizeHumanlikeMemoryRawText(input.initiative?.outcome, 80)
@@ -374,9 +380,9 @@ function collectHumanlikeMemorySourceChannels(input: AlicizationHumanlikeMemoryC
   ) {
     channels.push('initiative')
   }
-  if (normalizeHumanlikeMemoryRawText(input.hostEmotion?.label, 80) || sanitizeHumanlikeMemoryFactText(input.hostEmotion?.summary))
+  if (normalizeHumanlikeMemoryRawText(input.hostEmotion?.label, 80) || sanitizeHumanlikeInternalFactText(input.hostEmotion?.summary))
     channels.push('host-emotion')
-  if (normalizeHumanlikeMemoryRawText(input.selfEmotion?.label, 80) || sanitizeHumanlikeMemoryFactText(input.selfEmotion?.summary))
+  if (normalizeHumanlikeMemoryRawText(input.selfEmotion?.label, 80) || sanitizeHumanlikeInternalFactText(input.selfEmotion?.summary))
     channels.push('self-emotion')
   if (
     normalizeHumanlikeMemoryRawText(input.embodiment?.summary)
@@ -414,9 +420,9 @@ function buildHumanlikeDialogueFactLabels(userText: string | null | undefined) {
 function buildHumanlikeMemoryEvidence(input: AlicizationHumanlikeMemoryCandidateInput) {
   const initiativeOutcome = normalizeHumanlikeMemoryRawText(input.initiative?.outcome, 80)
   const initiativeReaction = normalizeHumanlikeMemoryRawText(input.initiative?.userReaction, 80)
-  const relationshipSummary = sanitizeHumanlikeMemoryFactText(input.relationship?.summary, 420)
-  const executionSummary = sanitizeHumanlikeMemoryFactText(input.execution?.summary, 420)
-  const hostEmotionSummary = sanitizeHumanlikeMemoryFactText(input.hostEmotion?.summary, 320)
+  const relationshipSummary = sanitizeHumanlikeInternalFactText(input.relationship?.summary, 420)
+  const executionSummary = sanitizeHumanlikeInternalFactText(input.execution?.summary, 420)
+  const hostEmotionSummary = sanitizeHumanlikeInternalFactText(input.hostEmotion?.summary, 320)
   const selfEmotionLabel = normalizeHumanlikeMemoryRawText(input.selfEmotion?.label, 80)
   const hostEmotionLabel = normalizeHumanlikeMemoryRawText(input.hostEmotion?.label, 80)
   const affectiveResidueKind = normalizeHumanlikeMemoryRawText(input.affectiveResidue?.dominantResidueKind, 48)
@@ -654,9 +660,9 @@ function buildHumanlikeRelationshipRepairLearningProfile(...rawValues: Array<str
 function buildHumanlikeRelationshipContext(input: AlicizationHumanlikeMemoryCandidateInput) {
   const corrections = normalizeHumanlikeHostCorrections(input.hostCorrections)
   const relationshipCorrection = findLatestHumanlikeHostCorrection(corrections, 'relationshipContext')
-  const threadAnchor = sanitizeHumanlikeMemoryFactText(input.relationship?.threadAnchor, 120)
+  const threadAnchor = sanitizeHumanlikeInternalFactText(input.relationship?.threadAnchor, 120)
     || 'current-relationship-thread'
-  const explicitSummary = sanitizeHumanlikeMemoryFactText(input.relationship?.summary, 420)
+  const explicitSummary = sanitizeHumanlikeInternalFactText(input.relationship?.summary, 420)
   const primaryIntent: AlicizationHumanlikeRelationshipPrimaryIntent = 'ordinary-relationship'
   const signals = uniqueTexts([
     relationshipCorrection ? 'host-corrected' : null,
@@ -674,7 +680,7 @@ function buildHumanlikeRelationshipContext(input: AlicizationHumanlikeMemoryCand
     summary,
     evidence: sanitizeHumanlikeMemoryFactList([
       explicitSummary,
-      sanitizeHumanlikeMemoryFactText(input.hostEmotion?.summary, 320),
+      sanitizeHumanlikeInternalFactText(input.hostEmotion?.summary, 320),
       ...corrections.map(correction => `host-correction:${correction.correctedValue}`),
     ], 6, 420),
     primaryIntent,
@@ -852,8 +858,8 @@ function buildHumanlikeEmotionalResidue(input: {
       `relationship-intent:${input.relationshipContext.primaryIntent}`,
       input.relationshipContext.hostCorrectionApplied ? 'host-correction-applied' : null,
       input.candidateInput.hostEmotion?.label ? `host:${input.candidateInput.hostEmotion.label} intensity:${clamp01(Number(input.candidateInput.hostEmotion.intensity ?? 0)).toFixed(2)}` : null,
-      sanitizeHumanlikeMemoryFactText(input.candidateInput.hostEmotion?.summary, 260)
-        ? `host-reason:${sanitizeHumanlikeMemoryFactText(input.candidateInput.hostEmotion?.summary, 260)}`
+      sanitizeHumanlikeInternalFactText(input.candidateInput.hostEmotion?.summary, 260)
+        ? `host-reason:${sanitizeHumanlikeInternalFactText(input.candidateInput.hostEmotion?.summary, 260)}`
         : null,
       input.candidateInput.selfEmotion?.label ? `self:${input.candidateInput.selfEmotion.label} intensity:${clamp01(Number(input.candidateInput.selfEmotion.intensity ?? 0)).toFixed(2)}` : null,
       input.candidateInput.initiative?.outcome || input.candidateInput.initiative?.userReaction

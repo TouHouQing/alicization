@@ -407,7 +407,7 @@ describe('dialogue-focus-governor', () => {
     expect(focus.focusSummary).toBe('The runtime diff is still the live knot.')
   })
 
-  it('does not let legacy project-state tags override the declared focus subject', () => {
+  it('does not let retired continuity tags override the declared focus subject', () => {
     const focus = buildDialogueFocusGovernance({
       semantics: {
         act: 'ask-help',

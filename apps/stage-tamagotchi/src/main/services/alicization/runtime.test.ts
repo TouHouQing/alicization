@@ -736,7 +736,7 @@ async function waitForChatToolCallEvent(turnId: string) {
   })
 }
 
-describe('alicization runtime project-state audit helpers', () => {
+describe('alicization runtime audit helpers', () => {
   it('uses userDataPathOverride and enables fs.watch only after genesis', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({

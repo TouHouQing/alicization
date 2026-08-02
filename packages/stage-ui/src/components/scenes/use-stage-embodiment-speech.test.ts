@@ -222,7 +222,7 @@ function createDigitalLifeFrameFixture(
     },
   }
 }describe('stage embodiment speech contract', () => {
-  it('does not interpret project-state or continuity governance cues as speech authority', () => {
+  it('does not interpret internal continuity governance as speech authority', () => {
     const source = readFileSync(new URL('./use-stage-embodiment-speech.ts', import.meta.url), 'utf8')
 
     expect(source).not.toMatch(

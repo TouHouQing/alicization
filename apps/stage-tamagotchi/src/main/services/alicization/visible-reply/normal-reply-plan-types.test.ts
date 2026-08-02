@@ -3,7 +3,6 @@ import type {
   AlicizationVisibleReplyExecutionMode,
 } from '../../../../shared/eventa'
 import type {
-  AlicizationMainChatReplyAuthoritySurface,
   AlicizationMainChatReplyExecutionPlanSurface,
 } from './runtime-surface-authority'
 
@@ -16,21 +15,12 @@ const providerStream: AlicizationMainChatReplyExecutionPlanSurface['preferredMod
 const providerOneShot: AlicizationMainChatReplyExecutionPlanSurface['preferredMode'] = 'provider-one-shot'
 const transparentFailureMode: AlicizationVisibleReplyExecutionMode = 'local-fallback'
 
-// @ts-expect-error Normal dialogue realization always requires the Provider mind.
-const retiredSharedReplyMode: AlicizationReplyRealizationMode = 'fallback-locally-allowed'
-// @ts-expect-error Runtime reply authority cannot authorize a locally authored normal reply.
-const retiredAuthorityReplyMode: AlicizationMainChatReplyAuthoritySurface['replyRealizationMode'] = 'fallback-locally-allowed'
 // @ts-expect-error local-fallback is an execution result for transparent failures, not a normal dialogue plan.
 const retiredPlannedExecutionMode: AlicizationMainChatReplyExecutionPlanSurface['preferredMode'] = 'local-fallback'
-const retiredCompileTimeFixtures = [
-  retiredSharedReplyMode,
-  retiredAuthorityReplyMode,
-  retiredPlannedExecutionMode,
-]
 
 describe('normal visible reply plan types', () => {
   it('only exposes Provider-backed modes for normal dialogue planning', () => {
-    expect(retiredCompileTimeFixtures).toHaveLength(3)
+    expect(retiredPlannedExecutionMode).toBe('local-fallback')
     expect([
       providerMindRequired,
       providerStream,

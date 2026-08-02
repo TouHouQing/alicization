@@ -207,7 +207,7 @@ describe('runtime-organic-memory-access', () => {
     expect(snapshot.derivedMindStateBundle).not.toHaveProperty('activeContinuityGovernance')
   })
 
-  it('does not translate active self-revision project-state residue into self-evolution cadence', async () => {
+  it('does not translate active self-revision residue into self-evolution cadence', async () => {
     const runtime = createAlicizationOrganicMemoryAccessRuntime({
       getActiveCardId: () => 'default',
       getSoulSnapshot: () => null,

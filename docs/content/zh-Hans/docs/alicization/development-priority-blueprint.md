@@ -263,11 +263,11 @@ flowchart LR
 pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts
 pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/dialogue-anchor-coherence.test.ts
 pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/mind-turn-frame.test.ts
-pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/response-charter.test.ts
-pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.test.ts
+pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/main-chat-single-dialogue-mainline-audit.test.ts
+pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/runtime-card-prompt.test.ts
 pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/mind-governance-trace.test.ts
 pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/truth-discipline.test.ts
-pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/chat-mind-governance.test.ts
+pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/runtime-governance.test.ts
 pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/db.test.ts
 ```
 

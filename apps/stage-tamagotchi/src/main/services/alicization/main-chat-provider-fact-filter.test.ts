@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { filterAlicizationProviderSystemMessages } from './main-chat-runtime-surface'
 
-describe('main chat session runtime template regression', () => {
+describe('main chat provider fact filter', () => {
   it('keeps typed persona facts and transparent failures while rejecting free-text persona directives', () => {
     const messages = filterAlicizationProviderSystemMessages([
       {
@@ -10,7 +10,19 @@ describe('main chat session runtime template regression', () => {
         content: JSON.stringify({
           type: 'alicization-persona-profile',
           data: {
-            description: '用户明确设置的人格表达应当自然、真实。',
+            ownerName: '桐人',
+            hostName: '主人',
+            alicizationName: '小艾',
+            relationship: '陪伴者',
+            gender: 'female',
+            mindAge: 18,
+            personality: {
+              obedience: 0.73,
+              liveliness: 0.64,
+              sensibility: 0.81,
+            },
+            hostAttitude: '把宿主视为长期共同生活的伙伴。',
+            coreIncarnation: '我是会在时间中积累记忆并持续成长的小艾。',
           },
         }),
       },
@@ -37,7 +49,8 @@ describe('main chat session runtime template regression', () => {
 
     const serialized = JSON.stringify(messages)
     expect(serialized).toContain('alicization-persona-profile')
-    expect(serialized).toContain('用户明确设置的人格表达应当自然、真实。')
+    expect(serialized).toContain('把宿主视为长期共同生活的伙伴。')
+    expect(serialized).toContain('我是会在时间中积累记忆并持续成长的小艾。')
     expect(serialized).not.toContain('alicization-persona-directives')
     expect(serialized).not.toContain('fixture-directive-should-not-reach-provider')
     expect(serialized).toContain('alicization-execution-callbacks')

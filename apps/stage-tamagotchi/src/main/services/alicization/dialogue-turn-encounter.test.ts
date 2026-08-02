@@ -305,7 +305,7 @@ describe('dialogue-turn-encounter', () => {
     expect(encounter.shouldBypassScreenRepair).toBe(false)
   })
 
-  it('surfaces project-state identity-continuity', () => {
+  it('keeps identity-continuity as an internal encounter subject', () => {
     const encounter = buildDialogueTurnEncounter({
       semantics: {
         act: 'ask-help',

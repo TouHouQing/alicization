@@ -8,6 +8,8 @@ describe('runtime card prompt persona kernel', () => {
     const frontmatter = normalizeFrontmatter({
       initialized: true,
       custom_directives: '说话真实一点。',
+      host_attitude: '把宿主视为长期共同生活的伙伴。',
+      core_incarnation: '我是会在时间中积累记忆并持续成长的小艾。',
       profile: {
         ownerName: '指挥官',
         hostName: '主人',
@@ -51,7 +53,10 @@ describe('runtime card prompt persona kernel', () => {
     })
 
     expect(personaKernel?.profile.alicizationName).toBe('小艾')
-    expect(blocks.map(block => JSON.parse(block))).toContainEqual({
+    const personaProfile = blocks
+      .map(block => JSON.parse(block))
+      .find(block => block.type === 'alicization-persona-profile')
+    expect(personaProfile).toMatchObject({
       type: 'alicization-persona-profile',
       data: {
         ownerName: '指挥官',
@@ -60,8 +65,17 @@ describe('runtime card prompt persona kernel', () => {
         relationship: '女仆',
         gender: 'female',
         mindAge: 18,
+        personality: {
+          obedience: 0.73,
+          liveliness: 0.64,
+          sensibility: 0.81,
+        },
+        hostAttitude: '把宿主视为长期共同生活的伙伴。',
+        coreIncarnation: '我是会在时间中积累记忆并持续成长的小艾。',
       },
     })
+    expect(personaProfile.data).not.toHaveProperty('customDirectives')
+    expect(JSON.stringify(personaProfile)).not.toContain('说话真实一点。')
     expect(blocks.map(block => JSON.parse(block))).toContainEqual({
       type: 'alicization-host',
       data: {

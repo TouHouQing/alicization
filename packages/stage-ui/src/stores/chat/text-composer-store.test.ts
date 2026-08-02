@@ -98,7 +98,7 @@ describe('chat text composer', () => {
     }))
   })
 
-  it('leaves explicit project-state questions to memory recall or real tool facts', async () => {
+  it('leaves project progress questions to memory recall or real tool facts', async () => {
     ingestMock.mockResolvedValueOnce(undefined)
 
     const store = useChatTextComposerStore()

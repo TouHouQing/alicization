@@ -66,7 +66,7 @@ evidence: `runtime-organic-memory-prompt.test.ts` / `response-surface-contract.t
 - [x] 删除正常路径里的 deterministic/local-only 用户可见回复
 说明：
 Greeting / identity / repair / memory follow-up / execution follow-up 等正常内容都由 Provider 生成；失败使用类型化透明失败面。
-evidence: `main-chat-single-dialogue-mainline-audit.test.ts` / `main-chat-session-runtime-fixed-template-regression.test.ts`
+evidence: `main-chat-single-dialogue-mainline-audit.test.ts` / `main-chat-provider-fact-filter.test.ts`
 
 - [x] 做 memory mention gating
 说明：

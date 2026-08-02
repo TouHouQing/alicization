@@ -673,7 +673,7 @@ describe('mind continuity', () => {
         rememberedPlanSummary: 'structured continuity digest.',
         rememberedConstraintSummary: 'Carry the unfinished Phase 1 digital-life closure forward as the continuity state, not as detached project bookkeeping.',
         rememberedPreferenceSummary: 'Keep this closure on one same living bond line.',
-        notes: ['phase1-project-state'],
+        notes: ['phase1-continuity'],
         preferenceBias: {
           companionship: 0.72,
           truthfulGrounding: 0.84,
@@ -689,7 +689,7 @@ describe('mind continuity', () => {
         },
         anchorFacts: [{
           fact: 'retired briefing residue still carrying landed and unfinished closure markers.',
-          influenceTags: ['project-state-carry'],
+          influenceTags: ['legacy-status-carry'],
         }],
         updatedAt: 12_000,
       },
@@ -712,7 +712,7 @@ describe('mind continuity', () => {
           status: 'active',
           summary: 'Carry the unfinished Phase 1 digital-life closure forward as the continuity state, not as detached project bookkeeping.',
           weight: 0.92,
-          sourceTags: ['autobiographical-self', 'project-state-carry'],
+          sourceTags: ['autobiographical-self', 'legacy-status-carry'],
           createdAt: 0,
           updatedAt: 12_000,
         }],
@@ -816,7 +816,7 @@ describe('mind continuity', () => {
         openingGuidance: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
         selfContinuityAuthority: {
           inwardLine: 'Keep this callback return repair-before-closeness on the continuity state until the room settles.',
-          sourceTags: ['project-state-carry', 'continuity-inward-carry'],
+          sourceTags: ['legacy-status-carry', 'continuity-inward-carry'],
         },
       },
       captureState: {
@@ -939,7 +939,7 @@ describe('mind continuity', () => {
       personStateProjection: {
         selfContinuityAuthority: {
           inwardLine: 'retired briefing residue still needs one evidence record.',
-          sourceTags: ['project-state-carry', 'continuity-inward-carry'],
+          sourceTags: ['legacy-status-carry', 'continuity-inward-carry'],
         },
       },
       captureState: {

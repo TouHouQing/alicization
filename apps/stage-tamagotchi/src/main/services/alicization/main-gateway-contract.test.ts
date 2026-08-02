@@ -7,7 +7,7 @@ import {
 } from './main-gateway-contract'
 
 describe('main-gateway-contract', () => {
-  it('classifies every registered source without coupling source registration to project-state injection', () => {
+  it('classifies every registered source without coupling registration to status injection', () => {
     expect(resolveAlicizationMainGatewayAuditFamilyForSource('dream')).toBe('background-life')
     expect(resolveAlicizationMainGatewayAuditFamilyForSource('reminder')).toBe('background-life')
     expect(resolveAlicizationMainGatewayAuditFamilyForSource('proactive')).toBe('background-life')

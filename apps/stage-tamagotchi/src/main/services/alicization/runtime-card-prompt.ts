@@ -148,6 +148,12 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
   function buildPersonaProfileSystemBlock(personaKernel?: AlicizationPersonaKernelSnapshot | null) {
     if (!personaKernel || !hasAlicizationPersonaIdentity(personaKernel.profile))
       return ''
+    const hostAttitude = personaKernel.hostAttitude === personaKernel.hostAttitudeSeed
+      ? null
+      : personaKernel.hostAttitude
+    const coreIncarnation = personaKernel.coreIncarnation === personaKernel.coreIncarnationSeed
+      ? null
+      : personaKernel.coreIncarnation
     return buildAlicizationProviderFactBlock('alicization-persona-profile', {
       ownerName: personaKernel.profile.ownerName,
       hostName: personaKernel.profile.hostName,
@@ -155,6 +161,9 @@ export function createAlicizationCardPromptRuntime(options: CreateAlicizationCar
       relationship: personaKernel.profile.relationship,
       gender: personaKernel.profile.gender,
       mindAge: personaKernel.profile.mindAge,
+      personality: personaKernel.personality,
+      hostAttitude,
+      coreIncarnation,
     })
   }
 

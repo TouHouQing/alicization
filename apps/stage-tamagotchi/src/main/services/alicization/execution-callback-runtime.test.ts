@@ -218,7 +218,7 @@ describe('execution callback runtime', () => {
     }))
   })
 
-  it('preserves host-confirmed resume facts without project-state cue text', async () => {
+  it('preserves host-confirmed resume facts without internal continuity cue text', async () => {
     const runtime = createRuntime({
       threads: [createThread({
         selectedChannel: 'codex',

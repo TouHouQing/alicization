@@ -197,7 +197,7 @@ describe('visual episodic memory', () => {
         relationMove: 'guide',
         turnMode: 'guide-current-knot',
         responseMode: 'guide-current-knot',
-        replyRealizationMode: 'fallback-locally-allowed',
+        replyRealizationMode: 'local-fallback',
         expectedVisibleReplyAuthority: 'llm-mind',
         recommendedAct: 'guide',
         evidenceMode: 'dialogue-grounded',

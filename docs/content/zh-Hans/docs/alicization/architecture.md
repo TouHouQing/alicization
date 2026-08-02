@@ -345,60 +345,52 @@ P1 的目标是把“对话意图、责任、认知焦点、证据预算”压�
    - `apps/stage-tamagotchi/src/main/services/alicization/mind-turn-frame.test.ts`
    - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`
 
-## 12. Alicization P2 强约束（真实回答面约束）
+## 12. Alicization P2（Provider 主回复与透明失败边界）
 
-P2 的目标是让“可见回答”受到真值纪律约束，而不是只在内部治理层正确。
+P2 的目标是让正常回答只由 Provider 基于结构化事实、短期记忆和长期召回生成；运行时只负责传输、结构解析、结算和失败呈现。
 
-1. **回答章程 + 表面合约双层门禁**
-   - 每轮最终回答前必须构建 `responseCharter` 与 `responseSurfaceContract`。
-   - 两者 system block 都必须进入最终提示词面，且优先级高于 persona 表演习惯。
+1. **Provider 是正常回答唯一作者**
+   - 普通对话只允许 `provider-stream` 或 `provider-one-shot`。
+   - 本地代码不生成正常对话文案，不追加固定开场、固定关怀句、固定记忆壳或修复提示。
 
-2. **不支持细节防火墙**
-   - 当 `claimEvidenceLedger.forbidUnsupportedSpecificity === true` 时，运行时必须拦截或覆盖未被本轮证据支持的文件名、类名、枚举名、字段级细节。
-   - 覆盖行为必须在 `mind-governance-takeover` 审计里留下原因与命中 cue。
+2. **输入只提供事实与记忆**
+   - `alicization-persona-profile` 只承载 SOUL 中的结构化人格事实。
+   - `alicization-turn-memory-context` 只承载 WorkingMemory 与已确认的 LongTermMemoryRecall。
+   - 工具、感知和执行上下文只以可追溯事实进入 Provider，不携带回复姿态或隐藏模板。
 
-3. **假设显式标注**
-   - 当 `claimEvidenceLedger.shouldLabelHypothesis === true` 时，回答必须明确区分“可观察事实”和“推测”。
-   - 禁止把粗粒度场景推断伪装为确定事实。
+3. **失败必须透明**
+   - 超时、Provider 失败、工具失败、结构协议失败和授权失败必须以明确失败面返回。
+   - 失败面不得伪装成正常人格回复，也不得进入 persona 学习候选。
 
-4. **空壳回答禁令**
-   - 回答合约必须禁止“先宣言后空转”的壳句（如只说“我会直接回答”但不真正回答）。
-   - 当前轮次的 answer/care/accompany 义务必须在同一条可见回复中完成。
+4. **结构化结算不改写正常回复**
+   - `visible-reply` 只验证 Provider 输出的结构协议、记录来源和结算结果。
+   - 结算失败可以阻止错误数据进入 UI，但不得用固定自然语言替换正常 Provider 内容。
 
-5. **治理接管审计完整性**
-   - `mind-governance-takeover` 审计 payload 必须至少包含：
-     anchor 冲突信息、specificity budget、unsupported cues、fallback reason、reply before/after 摘要。
-   - 保证每次接管都可复盘“为什么修、怎么修、修了什么”。
-
-6. **P2 验收测试锚点**
-   - `apps/stage-tamagotchi/src/main/services/alicization/response-charter.test.ts`
-   - `apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.test.ts`
+5. **P2 验收测试锚点**
+   - `apps/stage-tamagotchi/src/main/services/alicization/reply-authority-invariants.test.ts`
+   - `apps/stage-tamagotchi/src/main/services/alicization/runtime-governance-visible-reply-authority.test.ts`
    - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`
 
-## 13. Alicization P3 强约束（可追溯心智治理）
+## 13. Alicization P3（运行事实可追溯）
 
-P3 的目标不是再加一层“更聪明”文案，而是让每个心智决策都可追踪、可复盘、可验证。
+P3 只记录运行时事实和数据流，不重新建立一套回复作者。
 
 1. **Decision Trace ID 全链路贯通**
-   - 每个受治理轮次必须具备 `decisionTraceId`，并跟随 `AlicizationMindTurnGovernance` 在治理生成、结构化落盘、meta 流事件、治理接管审计中全链路保留。
-   - 不允许中途重建治理对象时丢失 trace id。
+   - 每轮对话保留 `decisionTraceId`，用于把 Provider 请求、记忆召回、工具执行、结构化结算和 UI 事件串成一条可复盘链路。
+   - trace 丢失属于可观测性错误，不应触发文案补写。
 
-2. **Truth Discipline 单一归约器**
-   - 回答表面合约（response surface）与 runtime 覆盖判定（reply override）必须复用同一个 truth-discipline 归约器：
-     `deriveAlicizationTruthDiscipline(...)`。
-   - 禁止两套各自演化的条件树导致“合约要求”和“运行时接管”口径漂移。
+2. **事实与记忆来源可审计**
+   - `claimEvidence`、WorkingMemory、LongTermMemoryRecall 和工具结果只作为结构化证据记录。
+   - 证据记录不能变成自然语言 system prompt，也不能变成固定回复规则。
 
-3. **细节真实性防火墙一致性**
-   - unsupported specificity 判定必须由 claim evidence + truth discipline 共同驱动。
-   - 当 truth discipline 要求禁止伪具体时，runtime 必须进入可审计覆盖路径，且审计记录需包含具体命中 cue。
+3. **失败与阻断可解释**
+   - `takeover-audit` 只记录结构协议无效、权限、工具或 Provider 失败等真实原因。
+   - 审计 payload 记录输入来源、失败阶段和可见失败面，不记录或生成“修正后的固定回答”。
 
-4. **Dialogue-first 去污染语义一致**
-   - dialogue-first 回答去污染逻辑必须以 truth-discipline 的 `dialogueFirst` 语义为主，不得只依赖单一字段（例如仅 `screenReferenceMode`）做简化判断。
-
-5. **P3 验收测试锚点**
+4. **P3 验收测试锚点**
    - `apps/stage-tamagotchi/src/main/services/alicization/mind-governance-trace.test.ts`
    - `apps/stage-tamagotchi/src/main/services/alicization/truth-discipline.test.ts`
-   - `apps/stage-tamagotchi/src/main/services/alicization/chat-mind-governance.test.ts`
+   - `apps/stage-tamagotchi/src/main/services/alicization/runtime-governance.test.ts`
    - `apps/stage-tamagotchi/src/main/services/alicization/runtime.test.ts`
 
 ## 14. Alicization P4 强约束（可重放心智事件账本）

@@ -65,7 +65,7 @@ describe('runtime-organic-memory-prompt-blocks', () => {
       coreIncarnation: 'The host remembers Phase 1 as part of our identity continuity.',
       activeThoughts: [{
         id: 'thought-identity-memory',
-        text: 'This project-state memory belongs to the long-term story, not a prompt template.',
+        text: 'This remembered milestone belongs to the long-term story.',
       } as any],
     })))
     const selfContext = facts.find(fact => fact.type === 'alicization-organic-self-context')
@@ -73,7 +73,7 @@ describe('runtime-organic-memory-prompt-blocks', () => {
     expect(selfContext?.data).toEqual(expect.objectContaining({
       coreIncarnation: 'The host remembers Phase 1 as part of our identity continuity.',
       activeThoughts: [
-        'This project-state memory belongs to the long-term story, not a prompt template.',
+        'This remembered milestone belongs to the long-term story.',
       ],
     }))
   })

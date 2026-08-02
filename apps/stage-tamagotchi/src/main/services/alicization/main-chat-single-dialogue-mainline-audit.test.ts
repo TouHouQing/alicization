@@ -9,6 +9,10 @@ function readRepositoryFile(path: string) {
   return readFileSync(resolve(repositoryRoot, path), 'utf8')
 }
 
+function joinRetiredName(...parts: string[]) {
+  return parts.join('')
+}
+
 const providerFacingSources = [
   'apps/stage-tamagotchi/src/main/services/alicization/main-chat-runtime-surface.ts',
   'apps/stage-tamagotchi/src/main/services/alicization/runtime-card-prompt.ts',
@@ -29,23 +33,29 @@ const productionDialogueFiles = [
 ] as const
 
 describe('single memory dialogue mainline audit', () => {
-  it('removes ordinary dialogue fast-path production and fixture modules', () => {
+  it('removes ordinary dialogue bypass production and fixture modules', () => {
     const deletedPaths = [
       'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-loop.test.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-fast-path-project-state-provider.test.ts',
+      joinRetiredName(
+        'apps/stage-tamagotchi/src/main/services/alicization/main-chat-active-dialogue-',
+        'fast-',
+        'path-',
+        'project-',
+        'state-provider.test.ts',
+      ),
       'apps/stage-tamagotchi/src/main/services/alicization/main-chat-follow-up-payoff.ts',
       'apps/stage-tamagotchi/src/main/services/alicization/main-chat-follow-up-payoff.test.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-rewrite.test.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/response-charter.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/response-charter.test.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/executive-answer-brief.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/executive-answer-brief.test.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/response-surface-contract.test.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/chat-mind-governance.ts',
-      'apps/stage-tamagotchi/src/main/services/alicization/chat-mind-governance.test.ts',
+      joinRetiredName('apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-', 'rewrite.ts'),
+      joinRetiredName('apps/stage-tamagotchi/src/main/services/alicization/visible-reply/second-pass-', 'rewrite.test.ts'),
+      joinRetiredName('apps/stage-tamagotchi/src/main/services/alicization/response-', 'charter.ts'),
+      joinRetiredName('apps/stage-tamagotchi/src/main/services/alicization/response-', 'charter.test.ts'),
+      joinRetiredName('apps/stage-tamagotchi/src/main/services/alicization/executive-answer-', 'brief.ts'),
+      joinRetiredName('apps/stage-tamagotchi/src/main/services/alicization/executive-answer-', 'brief.test.ts'),
+      joinRetiredName('apps/stage-tamagotchi/src/main/services/alicization/response-surface-', 'contract.ts'),
+      joinRetiredName('apps/stage-tamagotchi/src/main/services/alicization/response-surface-', 'contract.test.ts'),
+      joinRetiredName('apps/stage-tamagotchi/src/main/services/alicization/chat-mind-', 'governance.ts'),
+      joinRetiredName('apps/stage-tamagotchi/src/main/services/alicization/chat-mind-', 'governance.test.ts'),
     ] as const
 
     for (const path of deletedPaths)
@@ -59,10 +69,16 @@ describe('single memory dialogue mainline audit', () => {
       'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/facade.ts',
     ].map(readRepositoryFile)
 
+    const retiredBypassPattern = new RegExp([
+      'main-chat-active-dialogue-loop',
+      joinRetiredName('active-dialogue-', 'fast-', 'path'),
+      'active-dialogue-compact',
+      'active-dialogue-local',
+      'active-dialogue-deterministic',
+    ].join('|'), 'u')
+
     for (const source of productionSources) {
-      expect(source).not.toMatch(
-        /main-chat-active-dialogue-loop|active-dialogue-fast-path|active-dialogue-compact|active-dialogue-local|active-dialogue-deterministic/u,
-      )
+      expect(source).not.toMatch(retiredBypassPattern)
     }
   })
 

@@ -214,11 +214,11 @@ description: Alicization Epoch 1-5 路线图、当前状态、风险与阶段门
 | --- | --- | --- | --- |
 | P0 | 已完成 | 运行时单一治理、跨进程契约真源、Card Scope 一致性、Browser Bridge 对齐、异步记忆抽取闭环 | `runtime.ts`、`packages/stage-shared`、`packages/stage-ui` |
 | P1 | 已完成 | 对话心智链闭环：`dialogueTurnEncounter`、`currentConsciousFrame`、`claimEvidenceLedger` 成为统一治理基线 | `dialogue-turn-encounter.ts`、`current-conscious-frame.ts`、`claim-evidence-ledger.ts` |
-| P2 | 已完成 | 真实回答面约束：`responseCharter` + `responseSurfaceContract` 双层门禁，细节真实性审计可追溯 | `response-charter.ts`、`response-surface-contract.ts`、`runtime.ts` |
-| P3 | 已完成 | 可追溯心智治理：`decisionTraceId` 全链路、`truth-discipline` 单一归约器、接管审计口径统一 | `chat-mind-governance.ts`、`runtime.ts`、`truth-discipline.ts` |
+| P2 | 已完成 | Provider 唯一正常回答作者、人格/短期记忆/长期召回结构化输入、透明失败和结构化结算 | `main-chat-runtime-surface.ts`、`main-chat-memory-context.ts`、`visible-reply/settlement.ts` |
+| P3 | 已完成 | 运行事实可追溯：`decisionTraceId`、记忆来源、工具结果和失败阶段统一进入事件链 | `runtime-governance.ts`、`runtime.ts`、`alicization-memory-decision-trace.ts` |
 | P4 | 已完成 | 可重放心智事件账本：`mind_turn_events` 按 trace/turn 查询，治理链路可复盘 | `db.ts`、`runtime.ts`、`eventa.ts` |
 
 约束说明：
 
 - P1/P2/P3/P4 不是替代 Epoch，而是保证 Epoch 3 的多模态增强不会把回答链路退化回“黑箱回复器”。
-- P1/P2/P3/P4 的验收以测试通过为硬条件，至少覆盖 `runtime.test.ts`、`mind-turn-frame.test.ts`、`dialogue-anchor-coherence.test.ts`、`response-charter.test.ts`、`response-surface-contract.test.ts`、`db.test.ts`。
+- P1/P2/P3/P4 的验收以测试通过为硬条件，至少覆盖 `runtime.test.ts`、`mind-turn-frame.test.ts`、`dialogue-anchor-coherence.test.ts`、`main-chat-single-dialogue-mainline-audit.test.ts`、`runtime-card-prompt.test.ts`、`db.test.ts`。

@@ -725,7 +725,7 @@ describe('humanlike memory helpers', () => {
     ])
   })
 
-  it('drops project-state template residue while retaining the real template complaint fact', () => {
+  it('drops internal template residue while retaining the real template complaint fact', () => {
     const candidate = buildHumanlikeMemoryCandidate({
       now: 86_000,
       turnId: 'turn-template-complaint',

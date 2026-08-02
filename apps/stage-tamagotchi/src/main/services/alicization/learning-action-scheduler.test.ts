@@ -192,7 +192,7 @@ describe('learning action scheduler', () => {
     expect(scheduledMessage).not.toMatch(/continuity|identity continuity|project|stay anchored|risk is tracked|continuity progress/u)
   })
 
-  it('omits obsolete project-state continuity from delayed learning payloads', async () => {
+  it('omits obsolete continuity governance from delayed learning payloads', async () => {
     const insertLearningTask = vi.fn(async (input: any): Promise<AlicizationLearningTaskRecord> => ({
       id: `row:${input.taskId}`,
       cardId: input.cardId,

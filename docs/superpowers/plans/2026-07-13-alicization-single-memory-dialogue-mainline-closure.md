@@ -67,7 +67,7 @@ Timeout, Provider, tool, permission, protocol, recall, persistence, and structur
 ```bash
 pnpm exec vitest run \
   apps/stage-tamagotchi/src/main/services/alicization/main-chat-single-dialogue-mainline-audit.test.ts \
-  apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime-fixed-template-regression.test.ts \
+  apps/stage-tamagotchi/src/main/services/alicization/main-chat-provider-fact-filter.test.ts \
   apps/stage-tamagotchi/src/main/services/alicization/fixed-reply-governance-removal.test.ts \
   packages/stage-ui/src/stores/chat.test.ts \
   packages/stage-ui/src/stores/chat.test.ts

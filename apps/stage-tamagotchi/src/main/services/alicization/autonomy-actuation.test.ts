@@ -157,7 +157,7 @@ describe('autonomy actuation', () => {
     expect(reminder?.message).toContain('status=awaiting_opening')
   })
 
-  it('does not append project-state prose to a revisit reminder', () => {
+  it('does not append internal continuity prose to a revisit reminder', () => {
     const reminder = deriveAutonomyRevisitReminder({
       cardId: 'default',
       digitalLifeSpine: createSpine({

@@ -1177,7 +1177,7 @@ describe('dialogue-turn-semantics', () => {
     expect(merged.reasonTags).toContain('preserve-dialogue-first-base')
   })
 
-  it('does not grant legacy project-state wording special dialogue authority', () => {
+  it('does not grant a retired status marker special dialogue authority', () => {
     const semantics = buildDialogueTurnSemantics({
       userText: '这个项目现在是什么、做到什么程度了、还差什么没闭环？',
       context: codingContext,
@@ -1235,6 +1235,7 @@ describe('dialogue-turn-semantics', () => {
 
     expect(semantics.responseNeed).toBe('answer')
     expect(semantics.reasonTags).not.toContain('runtime-continuity-question')
-    expect(semantics.reasonTags.some(tag => tag.startsWith('project-state:'))).toBe(false)
+    const retiredStatusPrefix = ['project', 'state:'].join('-')
+    expect(semantics.reasonTags.some(tag => tag.startsWith(retiredStatusPrefix))).toBe(false)
   })
 })

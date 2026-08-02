@@ -171,7 +171,7 @@ describe('self evolution version runtime', () => {
     expect(validated.candidates[0]?.validation.activationBlockedReasons).not.toContain('self-evolution:production-gold-required')
   })
 
-  it('does not let legacy project-state lexical diagnostics block a replay-validated candidate', () => {
+  it('does not let retired lexical diagnostics block a replay-validated candidate', () => {
     const candidate = buildAlicizationSelfEvolutionVersionCandidate({
       event: baseEvent,
       patch: basePatch,
@@ -317,9 +317,9 @@ describe('self evolution version runtime', () => {
       snapshotCapturedAt: 160,
       candidateId: candidate.id,
       decisionTraceId: candidate.decisionTraceId,
-      activeThreadId: 'thread-project-state',
-      selectedCardId: 'project-state-carry',
-      activePatternKey: 'pattern-project-state-governance',
+      activeThreadId: 'thread-continuity',
+      selectedCardId: 'continuity-carry',
+      activePatternKey: 'pattern-continuity-governance',
       repairOwnerHint: 'project state continuity governance',
       adoptionMode: 'adopt-now' as const,
       summaryLine: '现在就可以采纳这张基线，作为后续连续性会话的默认参照。',

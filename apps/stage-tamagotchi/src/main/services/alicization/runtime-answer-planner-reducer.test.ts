@@ -49,7 +49,7 @@ describe('reduceRuntimeAnswerPlanner', () => {
           evidenceMode: 'live-grounded',
           confidence: 0.86,
           governingFocus: '用户当前正在检查 runtime.ts。',
-          governingProject: 'Phase 1 continuity project-state template.',
+          governingProject: 'A stale internal status marker.',
           openingMove: '从 runtime.ts 当前问题开始。',
           answerIntent: '回答 runtime.ts 当前问题。',
           relationshipPosture: 'restrained',
