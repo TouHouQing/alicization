@@ -75,7 +75,6 @@ export interface AlicizationMainChatRuntimeSurface {
 }
 
 const alicizationProviderFactTypes = new Set([
-  'alicization-datetime',
   'alicization-execution-callbacks',
   'alicization-execution-capabilities',
   'alicization-execution-ledger',

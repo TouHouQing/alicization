@@ -56,6 +56,9 @@ describe('single memory dialogue mainline audit', () => {
       joinRetiredName('apps/stage-tamagotchi/src/main/services/alicization/response-surface-', 'contract.test.ts'),
       joinRetiredName('apps/stage-tamagotchi/src/main/services/alicization/chat-mind-', 'governance.ts'),
       joinRetiredName('apps/stage-tamagotchi/src/main/services/alicization/chat-mind-', 'governance.test.ts'),
+      'apps/stage-tamagotchi/src/main/services/alicization/time-query-semantics.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/reply-authority-policy.ts',
+      'apps/stage-tamagotchi/src/main/services/alicization/visible-reply/reply-authority-policy.test.ts',
     ] as const
 
     for (const path of deletedPaths)
@@ -130,6 +133,7 @@ describe('single memory dialogue mainline audit', () => {
     expect(source).toContain('alicizationProviderFactTypes')
     expect(source).toContain('filterAlicizationProviderSystemMessages')
     expect(source).toContain('alicization-turn-memory-context')
+    expect(source).not.toContain('alicization-datetime')
   })
 
   it('does not rebuild retired reply posture governance in the perception or facade layers', () => {
