@@ -100,6 +100,59 @@ describe('buildDialogueTurnMemoryFragment', () => {
     expect(fragment).toContain('assistant:先锁定这段 risky hunk，我们从这里开始拆。')
   })
 
+  it('does not persist internal reply planning prose as dialogue memory', () => {
+    const fragment = buildDialogueTurnMemoryFragment({
+      payload: {
+        turnId: 'turn-no-reply-plan-memory',
+        sessionId: 'session-no-reply-plan-memory',
+        origin: 'user-turn',
+        userText: '你还记得我们昨天约定的测试吗？',
+        assistantText: '记得，我们约好今天继续验证长期召回。',
+      },
+      governance: {
+        turnMode: 'guide-current-knot',
+        truthState: 'remembered',
+        personaKernelMode: 'backgrounded',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'task-knot',
+        screenReferenceMode: 'avoid',
+        answerAct: 'answer',
+        evidenceMode: 'continuity-carry',
+        repairState: 'none',
+        focusAnchor: 'Internal focus anchor.',
+        answerIntent: 'Internal answer intent.',
+        carriedThread: 'Internal carried thread.',
+        labelCarryAsMemory: true,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      runtimeSurface: buildAlicizationDigitalLifeRuntimeSurface({
+        conversationState: {
+          jointThread: '验证昨天约定的长期召回。',
+          continuityPolicy: 'stay-on-thread',
+        },
+        dialogueWorldThread: {
+          activeThread: '验证昨天约定的长期召回。',
+        },
+        answerPlanner: {
+          governingFocus: 'Internal governing focus.',
+        },
+      } as any),
+    })
+
+    expect(fragment).toContain('dialogue_thread:验证昨天约定的长期召回。')
+    expect(fragment).toContain('user:你还记得我们昨天约定的测试吗？')
+    expect(fragment).toContain('assistant:记得，我们约好今天继续验证长期召回。')
+    expect(fragment).not.toContain('Internal focus anchor.')
+    expect(fragment).not.toContain('Internal answer intent.')
+    expect(fragment).not.toContain('Internal carried thread.')
+    expect(fragment).not.toContain('Internal governing focus.')
+  })
+
   it('returns empty when the turn is not governed', () => {
     const fragment = buildDialogueTurnMemoryFragment({
       payload: {
@@ -162,7 +215,7 @@ describe('buildDialogueTurnMemoryFragment', () => {
     expect(fragment).toBe('')
   })
 
-  it('prefers dialogue memory cues from the runtime surface', () => {
+  it('prefers durable dialogue facts from the runtime surface', () => {
     const fragment = buildDialogueTurnMemoryFragment({
       payload: {
         turnId: 'turn-surface',
@@ -266,6 +319,6 @@ describe('buildDialogueTurnMemoryFragment', () => {
 
     expect(fragment).toContain('dialogue_thread:继续顺着当前 knot 往下拆')
     expect(fragment).toContain('continuity_policy:answer-then-carry')
-    expect(fragment).toContain('answer_focus:先继续沿着当前 knot 讲')
+    expect(fragment).not.toContain('answer_focus:')
   })
 })

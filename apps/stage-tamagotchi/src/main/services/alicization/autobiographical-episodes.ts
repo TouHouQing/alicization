@@ -47,7 +47,7 @@ function resolveEpisodeEcology(surface: AlicizationDigitalLifeRuntimeSurface | n
     desireMemory: surface.memory.desireMemory ?? null,
     privateThought: surface.cognition.privateThought ?? null,
     actionEcology: surface.agency.actionEcology ?? null,
-    answerPlanner: surface.dialogue.answerPlanner ?? null,
+    answerPlanner: null,
     conversationState: surface.dialogue.conversationState ?? null,
   })
 }
@@ -93,8 +93,6 @@ export function buildAutobiographicalEpisodeFragment(input: {
   const summary = sanitizeText(
     continuityLines[0]
     || nextSurface.cognition.privateThought?.thoughtText
-    || nextSurface.dialogue.replyDeliberation?.whyThisReplyNow
-    || nextSurface.dialogue.answerPlanner?.governingFocus
     || nextSurface.memory.motiveEngine?.backgroundAgendas[0]?.summary
     || dominantGoal?.summary
     || nextSurface.world.worldModel?.activeThread?.summary

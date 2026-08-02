@@ -126,6 +126,43 @@ describe('outcome reinforcement closure', () => {
     expectEvidenceOnlyClosure(closure)
   })
 
+  it('does not persist answer planning prose into reply outcome memory', () => {
+    const closure = buildReplyOutcomeClosure({
+      now: 12_150,
+      cardId: 'card-1',
+      turnId: 'turn-no-answer-plan-memory',
+      sessionId: 'session-no-answer-plan-memory',
+      decisionTraceId: 'trace-no-answer-plan-memory',
+      userText: '继续验证真实记忆。',
+      assistantText: '我们继续验证昨天的约定。',
+      runtimeSurface: {
+        world: {
+          worldModel: {
+            hostState: {
+              availability: 'open',
+            },
+            activeThread: null,
+          },
+        },
+        dialogue: {
+          answerPlanner: {
+            act: 'answer',
+            evidenceMode: 'memory-held',
+            answerIntent: 'Internal repair and clarify plan.',
+          },
+          conversationState: {
+            jointThread: '验证昨天的约定。',
+          },
+        },
+      },
+    } as any)
+
+    expect(JSON.stringify(closure)).not.toContain('Internal repair and clarify plan.')
+    expect(closure.episodicEvents[0]?.threadAnchor).toBe('验证昨天的约定。')
+    expect(closure.episodicEvents[0]?.emotionTags).toContain('presence')
+    expect(closure.episodicEvents[0]?.emotionTags).not.toContain('repair')
+  })
+
   it('does not self-reinforce an ordinary reply without user evaluation', () => {
     const closure = buildReplyOutcomeClosure({
       now: 12_200,

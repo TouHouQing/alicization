@@ -13,8 +13,8 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
 }
 
-// This layer distills a governed dialogue turn into stable recall text so future
-// turns can re-open the same conversational intention without replaying full logs.
+// Keep recall text grounded in the persisted dialogue and machine-readable turn
+// metadata. Reply planning prose is intentionally excluded from memory.
 export function buildDialogueTurnMemoryFragment(input: {
   payload: AlicizationConversationTurnInput
   governance?: AlicizationMindTurnGovernance | null
@@ -36,12 +36,8 @@ export function buildDialogueTurnMemoryFragment(input: {
   if (!userText && !assistantText)
     return ''
 
-  const focus = sanitizeText(governance.focusAnchor, 120)
-  const answerIntent = sanitizeText(governance.answerIntent, 160)
-  const carriedThread = sanitizeText(governance.carriedThread, 140)
   const dialogueThread = sanitizeText(input.runtimeSurface?.dialogue.dialogueWorldThread?.activeThread ?? input.state?.dialogueWorldThread?.activeThread, 160)
   const continuityPolicy = sanitizeText(input.runtimeSurface?.dialogue.conversationState?.continuityPolicy ?? input.state?.conversationState?.continuityPolicy, 64)
-  const answerFocus = sanitizeText(input.runtimeSurface?.dialogue.answerPlanner?.governingFocus ?? input.state?.answerPlanner?.governingFocus, 160)
 
   return [
     `dialogue_turn_mode:${governance.turnMode}`,
@@ -50,12 +46,8 @@ export function buildDialogueTurnMemoryFragment(input: {
     governance.answerAct ? `dialogue_act:${governance.answerAct}` : '',
     governance.evidenceMode ? `dialogue_evidence:${governance.evidenceMode}` : '',
     governance.screenReferenceMode ? `dialogue_screen:${governance.screenReferenceMode}` : '',
-    focus ? `dialogue_focus:${focus}` : '',
-    answerIntent ? `dialogue_intent:${answerIntent}` : '',
-    carriedThread ? `carried_thread:${carriedThread}` : '',
     dialogueThread ? `dialogue_thread:${dialogueThread}` : '',
     continuityPolicy ? `continuity_policy:${continuityPolicy}` : '',
-    answerFocus ? `answer_focus:${answerFocus}` : '',
     userText ? `user:${userText}` : '',
     assistantText ? `assistant:${assistantText}` : '',
   ]

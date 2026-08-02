@@ -87,6 +87,58 @@ function filterDialogueCarryFacts(values: Array<string | null | undefined>, anch
     })
 }
 
+function comparableFactText(raw: unknown) {
+  return sanitizeDialogueFact(raw, 180)
+    .toLowerCase()
+    .normalize('NFKC')
+    .replace(/[\s\p{P}\p{S}]+/gu, '')
+}
+
+function factMatchesGroundedAnchor(fact: string, anchor: string) {
+  const normalizedFact = comparableFactText(fact)
+  const normalizedAnchor = comparableFactText(anchor)
+  if (!normalizedFact || !normalizedAnchor)
+    return false
+  if (normalizedFact === normalizedAnchor)
+    return true
+
+  const shorter = normalizedFact.length <= normalizedAnchor.length ? normalizedFact : normalizedAnchor
+  const longer = shorter === normalizedFact ? normalizedAnchor : normalizedFact
+  return shorter.length >= 8 && longer.includes(shorter)
+}
+
+export function resolveGroundedSupportingReality(input: {
+  answerCompiler?: AlicizationAnswerCompilerSnapshot | null
+  conversationState?: AlicizationConversationStateSnapshot | null
+  worldModel?: AlicizationWorldModelSnapshot | null
+}) {
+  const answerCompiler = input.answerCompiler ?? null
+  if (
+    answerCompiler?.evidenceMode !== 'live-grounded'
+    && answerCompiler?.evidenceMode !== 'live-observed'
+  ) {
+    return []
+  }
+
+  const groundedAnchors = uniqueList([
+    input.conversationState?.primaryTurnAnchor,
+    input.conversationState?.hostMove,
+    input.conversationState?.jointThread,
+    input.conversationState?.activeProject,
+    input.conversationState?.unansweredQuestion,
+    input.conversationState?.owedRepair,
+    ...(input.conversationState?.activeCommitments ?? []),
+    input.worldModel?.activeThread?.title,
+    input.worldModel?.activeThread?.summary,
+  ], 12)
+
+  return uniqueList(
+    (answerCompiler.supportingReality ?? [])
+      .filter(fact => groundedAnchors.some(anchor => factMatchesGroundedAnchor(fact, anchor))),
+    8,
+  )
+}
+
 function resolveRelationDrift(input: {
   conversationState: AlicizationConversationStateSnapshot
   discourseState?: AlicizationDiscourseStateSnapshot | null
@@ -141,7 +193,6 @@ export function buildDialogueWorldThread(input: {
   const runtimeSurface = input.runtimeSurface ?? null
   const conversationState = runtimeSurface?.dialogue.conversationState ?? input.conversationState ?? null
   const discourseState = runtimeSurface?.dialogue.discourseState ?? input.discourseState ?? null
-  const mindSynthesis = runtimeSurface?.dialogue.mindSynthesis ?? input.mindSynthesis ?? null
   const worldModel = runtimeSurface?.world.worldModel ?? input.worldModel ?? null
   const replyDeliberation = runtimeSurface?.dialogue.replyDeliberation ?? input.replyDeliberation ?? null
   const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
@@ -172,13 +223,16 @@ export function buildDialogueWorldThread(input: {
     || previous?.activeThread
     || worldModel?.activeThread?.summary
     || worldModel?.activeThread?.title
-    || mindSynthesis?.interiorSummary
-    || answerCompiler?.openingClaim
     || '',
     220,
   )
   const conversationCarryEligible = conversationState.carryEligible
     ?? Boolean(primaryTurnAnchor && conversationState.shouldHoldThread)
+  const groundedSupportingReality = resolveGroundedSupportingReality({
+    answerCompiler,
+    conversationState,
+    worldModel,
+  })
 
   const currentQuestion = sanitizeText(
     conversationState.unansweredQuestion
@@ -218,14 +272,14 @@ export function buildDialogueWorldThread(input: {
   ], 6)
   const carriedFacts = dialogueCarry
     ? uniqueList(filterDialogueCarryFacts([
-        ...(answerCompiler?.supportingReality ?? []),
+        ...groundedSupportingReality,
         ...(carryPreviousDialogueAnchor ? (previous?.carriedFacts ?? []) : []),
       ], dialogueCarryAnchors), 6)
     : uniqueList([
-        ...(answerCompiler?.supportingReality ?? []),
+        ...groundedSupportingReality,
+        conversationState.activeProject,
         worldModel?.activeThread?.title,
         worldModel?.activeThread?.summary,
-        ...(previous?.carriedFacts ?? []),
       ], 6)
   const recentlyResolvedLoops = dialogueCarry
     ? uniqueList(filterDialogueCarryFacts(
@@ -271,7 +325,7 @@ export function buildDialogueWorldThread(input: {
     recallKeys,
     carryEligible: conversationCarryEligible,
     carryReason: conversationState.carryReason ?? null,
-    lastUserMove: sanitizeText(conversationState.hostMove, 220) || previous?.lastUserMove || activeThread,
+    lastUserMove: sanitizeText(conversationState.hostMove, 220) || previous?.lastUserMove || '',
     lastAssistantMove: previous?.lastAssistantMove ?? null,
     lastOutcome: previous?.lastOutcome ?? 'none',
     pendingValidation: previous?.pendingValidation ?? null,

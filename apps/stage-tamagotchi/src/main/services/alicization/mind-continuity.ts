@@ -185,7 +185,7 @@ function buildMindContinuityEcology(state: AlicizationMindContinuitySource | nul
     desireMemory: state.desireMemory ?? null,
     privateThought: state.privateThought ?? null,
     actionEcology: state.actionEcology ?? null,
-    answerPlanner: state.answerPlanner ?? null,
+    answerPlanner: null,
     conversationState: state.conversationState ?? null,
   })
 }
@@ -333,10 +333,7 @@ export function buildMindContinuityFragment(input: {
     || nextState.executiveCycle?.currentLine
     || nextState.dialogueWorldThread?.activeThread
     || nextState.dialogueWorldThread?.currentQuestion
-    || nextState.answerPlanner?.governingFocus
-    || nextState.replyDeliberation?.whyThisReplyNow
     || nextState.conversationState?.jointThread
-    || nextState.actionEcology?.why
     || dominantAutobiographicalGoal?.summary
     || nextState.autobiographicalSelf?.latestInflection
     || ecology?.currentPreoccupation

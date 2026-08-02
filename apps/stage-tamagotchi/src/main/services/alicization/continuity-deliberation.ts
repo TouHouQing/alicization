@@ -324,9 +324,7 @@ function deriveThinResidentContinuityEvidence(input: {
 
   return {
     arcStage: 'same-thread-continuation',
-    summary: sanitizeText(input.personStateProjection?.summary, 180)
-      || sanitizeText(initiative?.why, 180)
-      || null,
+    summary: sanitizeText(input.personStateProjection?.summary, 180) || null,
     sourceTags: uniqueTextList([
       'resident:thin-continuity',
       'thread:continuation',
@@ -431,8 +429,14 @@ function deriveAlicizationContinuityDeliberationCore(input: {
       return {
         kind,
         arcStage: deriveArcStage(affordance.preferredTiming),
-        summary: affordance.summary,
-        whyNow: affordance.whyNow,
+        summary: dialogueContinuityEvidence.summary
+          || backgroundContinuityEvidence.summary
+          || stayingWithThreadContinuityEvidence.summary
+          || null,
+        whyNow: dialogueContinuityEvidence.summary
+          || backgroundContinuityEvidence.summary
+          || stayingWithThreadContinuityEvidence.summary
+          || null,
         pressure,
         intrusionRisk: affordance.intrusionRisk,
         payoffDependency: affordance.payoffDependency,
@@ -459,8 +463,14 @@ function deriveAlicizationContinuityDeliberationCore(input: {
     return {
       kind: 'execution-callback',
       arcStage: deriveArcStage(autonomy.shouldSpeak === false ? 'after-payoff' : 'same-turn-if-invited'),
-      summary: sanitizeText(autonomy.executionIntent?.summary, 180) || sanitizeText(autonomy.whyNow, 180) || null,
-      whyNow: sanitizeText(autonomy.whyNow, 220) || null,
+      summary: backgroundContinuityEvidence.summary
+        || stayingWithThreadContinuityEvidence.summary
+        || dialogueContinuityEvidence.summary
+        || null,
+      whyNow: backgroundContinuityEvidence.summary
+        || stayingWithThreadContinuityEvidence.summary
+        || dialogueContinuityEvidence.summary
+        || null,
       pressure: clamp01((autonomy.actReadiness ?? 0) * 0.46 + (autonomy.confidence ?? 0) * 0.34 + 0.1),
       intrusionRisk: autonomy.shouldSpeak === false ? 'medium' : 'low',
       payoffDependency: 'requires-current-payoff',
@@ -478,13 +488,8 @@ function deriveAlicizationContinuityDeliberationCore(input: {
     replyDeliberation?.memoryMode === 'dialogue-carry'
     || replyDeliberation?.speakingFrom === 'held-memory'
   ) {
-    const summary = sanitizeText(replyDeliberation.whyThisReplyNow, 180)
-      || sanitizeText(replyDeliberation.openingBeat, 180)
-      || dialogueContinuityEvidence.summary
-      || null
-    const whyNow = sanitizeText(replyDeliberation.whyThisReplyNow, 220)
-      || dialogueContinuityEvidence.summary
-      || null
+    const summary = dialogueContinuityEvidence.summary
+    const whyNow = dialogueContinuityEvidence.summary
     const sourceTags = uniqueTextList([
       'reply-deliberation',
       'kind:dialogue-carry',
@@ -514,7 +519,6 @@ function deriveAlicizationContinuityDeliberationCore(input: {
 
   if (
     thinResidentContinuityEvidence.arcStage === 'same-thread-continuation'
-    && thinResidentContinuityEvidence.summary
     && thinResidentContinuityEvidence.preferNextOpenWindow
     && (
       thinResidentContinuityEvidence.sourceTags.includes('cadence:measured-return')

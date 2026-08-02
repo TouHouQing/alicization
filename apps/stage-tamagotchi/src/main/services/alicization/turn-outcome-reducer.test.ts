@@ -8,13 +8,184 @@ import {
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('turn-outcome-reducer', () => {
-  it('uses dialogue carry when an assistant turn has no prior memory mode', () => {
+  it('does not create a dialogue thread from assistant text alone', () => {
     const next = registerDialogueWorldThreadAssistantTurn({
       now: 10_000,
       assistantText: '我们继续。',
     })
 
-    expect(next?.memoryMode).toBe('dialogue-carry')
+    expect(next).toBeNull()
+  })
+
+  it('does not create dialogue facts from reply planning text alone', () => {
+    const next = registerDialogueWorldThreadAssistantTurn({
+      now: 15_000,
+      replyDeliberation: {
+        selectedMotive: 'guide',
+        speakingFrom: 'task-thread',
+        memoryMode: 'task-thread',
+        openingBeat: 'Internal opening beat.',
+        whyThisReplyNow: 'Internal reply rationale.',
+        whyNotOtherCandidates: [],
+        withheldImpulses: [],
+        candidateMotives: [],
+        shouldSpeak: true,
+        mustInclude: [],
+        mustAvoid: [],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 15_000,
+      },
+      answerCompiler: {
+        recommendedAct: 'guide',
+        openingClaim: 'Internal opening claim.',
+        supportingReality: [],
+        confidence: 0.84,
+      } as any,
+    })
+
+    expect(next).toBeNull()
+  })
+
+  it('preserves real dialogue facts when an assistant turn has no visible output', () => {
+    const next = registerDialogueWorldThreadAssistantTurn({
+      now: 18_000,
+      previous: {
+        activeThread: '用户正在测试长期记忆召回。',
+        currentQuestion: '她是否记得昨天的约定？',
+        openLoops: ['验证昨天的约定。'],
+        recentlyResolvedLoops: [],
+        carriedFacts: ['昨天约定周末继续测试。'],
+        relationDrift: 'steady',
+        memoryMode: 'task-thread',
+        recallKeys: ['昨天的约定'],
+        lastUserMove: '你还记得昨天说过什么吗？',
+        lastAssistantMove: '我记得我们约好周末继续测试。',
+        lastOutcome: 'aligned',
+        pendingValidation: null,
+        confidence: 0.82,
+        narrative: [],
+        updatedAt: 16_000,
+      },
+      replyDeliberation: {
+        selectedMotive: 'guide',
+        speakingFrom: 'task-thread',
+        memoryMode: 'task-thread',
+        openingBeat: 'Internal opening beat.',
+        whyThisReplyNow: 'Internal reply rationale.',
+        whyNotOtherCandidates: [],
+        withheldImpulses: [],
+        candidateMotives: [],
+        shouldSpeak: true,
+        mustInclude: [],
+        mustAvoid: [],
+        confidence: 0.86,
+        narrative: [],
+        updatedAt: 18_000,
+      },
+      answerCompiler: {
+        recommendedAct: 'guide',
+        openingClaim: 'Internal opening claim.',
+        supportingReality: [],
+        confidence: 0.84,
+      } as any,
+    })
+
+    expect(next?.activeThread).toBe('用户正在测试长期记忆召回。')
+    expect(next?.lastAssistantMove).toBe('我记得我们约好周末继续测试。')
+    expect(next?.lastUserMove).toBe('你还记得昨天说过什么吗？')
+  })
+
+  it('does not carry internal compiler prose into the assistant turn facts', () => {
+    const next = registerDialogueWorldThreadAssistantTurn({
+      now: 19_000,
+      previous: {
+        activeThread: '当前运行时 diff',
+        currentQuestion: null,
+        openLoops: [],
+        recentlyResolvedLoops: [],
+        carriedFacts: [],
+        relationDrift: 'steady',
+        memoryMode: 'task-thread',
+        recallKeys: [],
+        lastUserMove: '继续看这个 diff',
+        lastAssistantMove: null,
+        lastOutcome: 'none',
+        pendingValidation: null,
+        confidence: 0.7,
+        narrative: [],
+        updatedAt: 18_000,
+      },
+      conversationState: {
+        jointThread: '当前运行时 diff',
+        hostMove: '继续看这个 diff',
+        activeProject: '运行时 diff',
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'guide',
+        continuityPolicy: 'stay-on-thread',
+        memoryMode: 'task-thread',
+        memoryQueryHints: [],
+        shouldHoldThread: true,
+        confidence: 0.8,
+        narrative: [],
+        updatedAt: 19_000,
+      } as any,
+      answerCompiler: {
+        evidenceMode: 'live-observed',
+        supportingReality: [
+          '内部 execution rationale：继续使用固定治理语气。',
+          '运行时 diff',
+        ],
+      } as any,
+      assistantText: '我继续看这个 diff。',
+    })
+
+    expect(next?.carriedFacts).toContain('运行时 diff')
+    expect(next?.carriedFacts).not.toContain('内部 execution rationale：继续使用固定治理语气。')
+  })
+
+  it('does not infer a user move from the active thread on an assistant turn', () => {
+    const next = registerDialogueWorldThreadAssistantTurn({
+      now: 20_000,
+      previous: {
+        activeThread: '只存在于内部线程状态的内容',
+        currentQuestion: null,
+        openLoops: [],
+        recentlyResolvedLoops: [],
+        carriedFacts: [],
+        relationDrift: 'steady',
+        memoryMode: 'task-thread',
+        recallKeys: [],
+        lastUserMove: '',
+        lastAssistantMove: null,
+        lastOutcome: 'none',
+        pendingValidation: null,
+        confidence: 0.7,
+        narrative: [],
+        updatedAt: 19_000,
+      },
+      conversationState: {
+        jointThread: '只存在于内部线程状态的内容',
+        hostMove: '',
+        activeProject: null,
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'neutral',
+        continuityPolicy: 'stay-on-thread',
+        memoryMode: 'task-thread',
+        memoryQueryHints: [],
+        shouldHoldThread: true,
+        confidence: 0.7,
+        narrative: [],
+        updatedAt: 20_000,
+      } as any,
+      assistantText: '继续。',
+    })
+
+    expect(next?.lastUserMove).toBe('')
   })
 
   it('marks the previous assistant move as aligned when the user stays on the same seam', () => {
@@ -312,6 +483,7 @@ describe('turn-outcome-reducer', () => {
 
     expect(next?.activeThread).toBe('Runtime governed diff.')
     expect(next?.pendingValidation?.expectedMode).toBe('guide')
-    expect(next?.carriedFacts).toContain('Runtime broken guard')
+    expect(next?.carriedFacts).not.toContain('Runtime broken guard')
+    expect(next?.carriedFacts).toContain('Runtime diff')
   })
 })

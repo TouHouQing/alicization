@@ -819,12 +819,6 @@ export function buildAnswerCompiler(input: {
     sanitizeDialogueSurfaceText(sceneCue, 220) || null,
     sanitizeDialogueSurfaceText(conversationState?.jointThread, 220) || null,
     conversationState?.hostMove,
-    mindSynthesis.beliefs[0]?.summary,
-    mindSynthesis.beliefs[1]?.summary,
-    mindSynthesis.concerns[0]?.summary,
-    mindSynthesis.commitments[0]?.summary,
-    discourseState.unresolvedCarry,
-    discourseState.ruptureRepair,
     worldModel?.activeThread?.summary,
   ], 5)
   const supportingReality = dialogueFirstTurn

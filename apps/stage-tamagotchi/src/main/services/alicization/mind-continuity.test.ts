@@ -4,6 +4,41 @@ import { buildAlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel
 import { buildMindContinuityFragment, buildMindContinuityRecallSeed } from './mind-continuity'
 
 describe('mind continuity', () => {
+  it('does not create mind continuity from reply planning prose alone', () => {
+    const fragment = buildMindContinuityFragment({
+      previousState: null,
+      nextState: {
+        answerPlanner: {
+          act: 'answer',
+          evidenceMode: 'memory-held',
+          governingFocus: 'Internal governing focus.',
+          updatedAt: 10_000,
+        },
+        replyDeliberation: {
+          selectedMotive: 'guide',
+          speakingFrom: 'held-memory',
+          whyThisReplyNow: 'Internal reply rationale.',
+        },
+      } as any,
+    })
+
+    expect(fragment).toBe('')
+  })
+
+  it('does not create mind continuity from action planning rationale alone', () => {
+    const fragment = buildMindContinuityFragment({
+      previousState: null,
+      nextState: {
+        actionEcology: {
+          mode: 'repair-before-speaking',
+          why: 'Internal action planning rationale.',
+        },
+      } as any,
+    })
+
+    expect(fragment).toBe('')
+  })
+
   it('writes a searchable fragment when the inner line materially changes', () => {
     const fragment = buildMindContinuityFragment({
       previousState: {

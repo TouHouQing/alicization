@@ -30,6 +30,64 @@ describe('buildDialogueWorldThread', () => {
     expect(state?.activeThread).not.toContain('Stay with the current dialogue seam')
   })
 
+  it('does not promote an internal opening claim into the active dialogue thread', () => {
+    const state = buildDialogueWorldThread({
+      now: 12_000,
+      conversationState: {
+        jointThread: '',
+        hostMove: '',
+        activeProject: null,
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'neutral',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: [],
+        shouldHoldThread: false,
+        confidence: 0,
+        narrative: [],
+        updatedAt: 12_000,
+      } as any,
+      answerCompiler: {
+        openingClaim: 'Internal answer opening plan.',
+        supportingReality: [],
+        confidence: 0.8,
+      } as any,
+    })
+
+    expect(state?.activeThread).toBe('')
+    expect(state?.recallKeys).not.toContain('Internal answer opening plan.')
+  })
+
+  it('does not promote an interior mind summary into the active dialogue thread', () => {
+    const state = buildDialogueWorldThread({
+      now: 13_000,
+      conversationState: {
+        jointThread: '',
+        hostMove: '',
+        activeProject: null,
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'neutral',
+        continuityPolicy: 'dialogue-before-scene',
+        memoryMode: 'dialogue-carry',
+        memoryQueryHints: [],
+        shouldHoldThread: false,
+        confidence: 0,
+        narrative: [],
+        updatedAt: 13_000,
+      } as any,
+      mindSynthesis: {
+        interiorSummary: 'Internal mind synthesis summary.',
+      } as any,
+    })
+
+    expect(state?.activeThread).toBe('')
+    expect(state?.recallKeys).not.toContain('Internal mind synthesis summary.')
+  })
+
   it('does not turn reply posture into a relationship recall cue', () => {
     const state = buildDialogueWorldThread({
       now: 15_000,
@@ -60,6 +118,64 @@ describe('buildDialogueWorldThread', () => {
 
     expect(state?.relationDrift).toBe('steady')
     expect(state?.recallKeys).not.toContain('relation:guarded')
+  })
+
+  it('keeps internal compiler prose out of grounded carried facts', () => {
+    const state = buildDialogueWorldThread({
+      now: 17_000,
+      conversationState: {
+        primaryTurnAnchor: '当前运行时 diff',
+        jointThread: '继续检查当前运行时 diff。',
+        hostMove: '请继续看这个 diff。',
+        activeProject: '运行时 diff',
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'guide',
+        continuityPolicy: 'stay-on-thread',
+        memoryMode: 'task-thread',
+        memoryQueryHints: [],
+        shouldHoldThread: true,
+        confidence: 0.82,
+        narrative: [],
+        updatedAt: 17_000,
+      } as any,
+      answerCompiler: {
+        evidenceMode: 'live-grounded',
+        supportingReality: [
+          '内部 answer intent：先维持固定回复姿态。',
+          '运行时 diff',
+        ],
+      } as any,
+    })
+
+    expect(state?.carriedFacts).toContain('运行时 diff')
+    expect(state?.carriedFacts).not.toContain('内部 answer intent：先维持固定回复姿态。')
+  })
+
+  it('does not turn an active thread into a user move when the host has not spoken', () => {
+    const state = buildDialogueWorldThread({
+      now: 18_000,
+      conversationState: {
+        jointThread: '当前真实对话线程',
+        hostMove: '',
+        activeProject: null,
+        unansweredQuestion: null,
+        owedRepair: null,
+        activeCommitments: [],
+        relationFrame: 'neutral',
+        continuityPolicy: 'stay-on-thread',
+        memoryMode: 'task-thread',
+        memoryQueryHints: [],
+        shouldHoldThread: true,
+        confidence: 0.82,
+        narrative: [],
+        updatedAt: 18_000,
+      } as any,
+    })
+
+    expect(state?.activeThread).toBe('当前真实对话线程')
+    expect(state?.lastUserMove).toBe('')
   })
 
   it('carries the live coding seam across turns instead of flattening it into generic memory', () => {
@@ -502,7 +618,8 @@ describe('buildDialogueWorldThread', () => {
     })
 
     expect(state?.activeThread).toBe('Runtime governed diff.')
-    expect(state?.carriedFacts).toContain('Runtime broken guard')
+    expect(state?.carriedFacts).not.toContain('Runtime broken guard')
+    expect(state?.carriedFacts).toContain('Runtime diff')
     expect(state?.lastUserMove).toBe('Show me the failing runtime diff.')
     expect(state?.recallKeys.join(' | ')).toContain('reply_motive:guide')
   })

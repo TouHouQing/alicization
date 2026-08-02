@@ -229,12 +229,14 @@ export function buildReplyOutcomeClosure(input: {
   const hostAvailability = surface.world?.worldModel?.hostState.availability ?? 'open'
   const selectedAction = sanitizeText(surface.agency?.initiative?.selectedAction, 48)
   const preferredStyle = sanitizeText(surface.agency?.initiative?.preferredStyle, 48)
-  const answerIntent = sanitizeText(surface.dialogue?.answerPlanner?.answerIntent, 80)
+  const answerAct = sanitizeText(surface.dialogue?.answerPlanner?.act, 48)
+  const answerEvidenceMode = sanitizeText(surface.dialogue?.answerPlanner?.evidenceMode, 48)
   const actionMode = sanitizeText(surface.agency?.actionEcology?.mode, 64)
   const repairFirst = selectedAction === 'recheck'
     || actionMode === 'repair-before-speaking'
-    || answerIntent.includes('repair')
-    || answerIntent.includes('clarify')
+    || answerAct === 'ask-reground'
+    || answerAct === 'correct-stale-anchor'
+    || answerEvidenceMode === 'repair-first'
   const observeFirst = selectedAction === 'hover'
     || selectedAction === 'wait'
     || preferredStyle === 'silent-observe'
@@ -244,7 +246,8 @@ export function buildReplyOutcomeClosure(input: {
   const actionSummary = sanitizeText([
     selectedAction ? `action=${selectedAction}` : 'action=reply',
     preferredStyle ? `style=${preferredStyle}` : '',
-    answerIntent ? `intent=${answerIntent}` : '',
+    answerAct ? `act=${answerAct}` : '',
+    answerEvidenceMode ? `evidence=${answerEvidenceMode}` : '',
   ].filter(Boolean).join('; '), 220)
   const episodeRelationshipOutcome: AlicizationRelationshipOutcomeInput = {
     cardId: input.cardId,
@@ -297,7 +300,13 @@ export function buildReplyOutcomeClosure(input: {
       surface.world?.worldModel?.activeThread?.title ? `thread:${surface.world.worldModel.activeThread.title}` : '',
     ].filter(Boolean).join(' | '), 180),
     withWhom: ['host'],
-    threadAnchor: sanitizeText(surface.world?.worldModel?.activeThread?.title ?? answerIntent ?? '', 160),
+    threadAnchor: sanitizeText(
+      surface.world?.worldModel?.activeThread?.title
+      ?? surface.dialogue?.dialogueWorldThread?.activeThread
+      ?? surface.dialogue?.conversationState?.jointThread
+      ?? '',
+      160,
+    ),
     whatHappened: [...dialogueEvidence, ...runtimeEvidence, actionSummary].join(' | '),
     emotionTags: [
       repairFirst ? 'repair' : 'presence',

@@ -3,6 +3,51 @@ import { describe, expect, it } from 'vitest'
 import { buildAutobiographicalEpisodeFragment } from './autobiographical-episodes'
 
 describe('autobiographical episodes', () => {
+  it('does not create an autobiographical episode from reply planning prose alone', () => {
+    const fragment = buildAutobiographicalEpisodeFragment({
+      previousRuntimeSurface: null,
+      nextRuntimeSurface: {
+        perception: {
+          updatedAt: 2,
+          watchMode: 'mnemonic-passive',
+          currentScene: null,
+        },
+        world: {
+          worldModel: {
+            activeThread: null,
+          },
+          relationshipModel: null,
+        },
+        cognition: {
+          privateThought: null,
+        },
+        memory: {
+          autobiographicalSelf: null,
+          motiveEngine: null,
+          reflectionLedger: null,
+          longHorizonMemory: null,
+          goalStack: null,
+          desireMemory: null,
+        },
+        agency: {
+          actionEcology: null,
+        },
+        dialogue: {
+          replyDeliberation: {
+            selectedMotive: 'guide',
+            whyThisReplyNow: 'Internal reply rationale.',
+          },
+          answerPlanner: {
+            governingFocus: 'Internal governing focus.',
+          },
+          conversationState: null,
+        },
+      } as any,
+    })
+
+    expect(fragment).toBe('')
+  })
+
   it('writes an autobiographical episode fragment when inner motive or self line shifts', () => {
     const fragment = buildAutobiographicalEpisodeFragment({
       previousRuntimeSurface: {

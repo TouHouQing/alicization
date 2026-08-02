@@ -7,6 +7,8 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationDigitalLifeRuntimeSurface } from './digital-life-kernel'
 
+import { resolveGroundedSupportingReality } from './dialogue-world-thread'
+
 function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
@@ -165,12 +167,13 @@ export function registerDialogueWorldThreadAssistantTurn(input: {
   const conversationState = runtimeSurface?.dialogue.conversationState ?? input.conversationState ?? null
   const replyDeliberation = runtimeSurface?.dialogue.replyDeliberation ?? input.replyDeliberation ?? null
   const answerCompiler = runtimeSurface?.dialogue.answerCompiler ?? input.answerCompiler ?? null
+  const assistantText = sanitizeText(input.assistantText, 220)
+  if (!assistantText)
+    return previous
+
   const activeThread = sanitizeText(
     conversationState?.jointThread
-    || previous?.activeThread
-    || answerCompiler?.openingClaim
-    || input.assistantText
-    || '',
+    || previous?.activeThread,
     220,
   )
   if (!activeThread)
@@ -191,6 +194,11 @@ export function registerDialogueWorldThreadAssistantTurn(input: {
     expectedMode !== 'defer'
     && (validationQuestion || conversationState?.shouldHoldThread || expectedMode === 'repair' || expectedMode === 'guide'),
   )
+  const groundedSupportingReality = resolveGroundedSupportingReality({
+    answerCompiler,
+    conversationState,
+    worldModel: runtimeSurface?.world.worldModel ?? null,
+  })
 
   return {
     activeThread,
@@ -204,7 +212,7 @@ export function registerDialogueWorldThreadAssistantTurn(input: {
     recentlyResolvedLoops: previous?.recentlyResolvedLoops ?? [],
     carriedFacts: uniqueList([
       ...(previous?.carriedFacts ?? []),
-      ...(answerCompiler?.supportingReality ?? []),
+      ...groundedSupportingReality,
       conversationState?.activeProject,
     ], 6),
     relationDrift: previous?.relationDrift ?? 'steady',
@@ -215,13 +223,8 @@ export function registerDialogueWorldThreadAssistantTurn(input: {
       validationQuestion,
       ...(conversationState?.memoryQueryHints ?? []),
     ], 10),
-    lastUserMove: conversationState?.hostMove ?? previous?.lastUserMove ?? activeThread,
-    lastAssistantMove: sanitizeText(
-      input.assistantText
-      || replyDeliberation?.openingBeat
-      || answerCompiler?.openingClaim,
-      220,
-    ) || previous?.lastAssistantMove || null,
+    lastUserMove: conversationState?.hostMove ?? previous?.lastUserMove ?? '',
+    lastAssistantMove: assistantText,
     lastOutcome: shouldTrackValidation
       ? 'pending'
       : expectedMode === 'defer'
@@ -242,7 +245,7 @@ export function registerDialogueWorldThreadAssistantTurn(input: {
     ),
     narrative: uniqueList([
       ...(previous?.narrative ?? []),
-      `assistant:${sanitizeText(input.assistantText, 120) || expectedMode}`,
+      `assistant:${sanitizeText(assistantText, 120)}`,
       `validation:${shouldTrackValidation ? expectedMode : 'none'}`,
     ], 10),
     updatedAt: input.now,

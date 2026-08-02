@@ -72,6 +72,29 @@ describe('continuity deliberation', () => {
     expect(deliberation.arcStage).toBe('hold-for-opening')
     expect(deliberation.preferredTiming).toBe('next-open-window')
     expect(deliberation.shouldStayOnThread).toBe(true)
+    expect(deliberation.summary).toBeNull()
+    expect(deliberation.whyNow).toBeNull()
+  })
+
+  it('does not persist execution planning prose without a structured thread', () => {
+    const deliberation = deriveAlicizationContinuityDeliberationFromSurface(baseSurface({
+      agency: {
+        autonomy: {
+          executionIntent: {
+            kind: 'follow-through',
+            summary: 'Internal execution plan.',
+          },
+          whyNow: 'Internal execution rationale.',
+          shouldSpeak: true,
+          confidence: 0.8,
+          actReadiness: 0.7,
+        },
+      },
+    }))
+
+    expect(deliberation.kind).toBe('execution-callback')
+    expect(deliberation.summary).toBeNull()
+    expect(deliberation.whyNow).toBeNull()
   })
 
   it('carries an eligible active dialogue thread from structured conversation state', () => {
@@ -224,6 +247,8 @@ describe('continuity deliberation', () => {
     expect(deliberation.arcStage).toBe('same-thread-continuation')
     expect(deliberation.preferredTiming).toBe('next-open-window')
     expect(deliberation.shouldSpeakNow).toBe(false)
+    expect(deliberation.summary).toBeNull()
+    expect(deliberation.whyNow).toBeNull()
   })
 
   it('does not manufacture thread continuity from restraint without a thread id', () => {
@@ -282,6 +307,9 @@ describe('continuity deliberation', () => {
 
     expect(deliberation.preferredTiming).toBe('next-open-window')
     expect(deliberation.shouldSpeakNow).toBe(false)
+    expect(deliberation.summary).toBe('open loop')
+    expect(deliberation.whyNow).toBe('open loop')
+    expect(deliberation.summary).not.toContain('model-authored')
   })
 
   it('keeps model-authored summary changes from changing a structured decision', () => {
