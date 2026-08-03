@@ -159,6 +159,11 @@ interface SqliteStatementResult {
   lastID: number
 }
 
+interface LongTermMemoryEvidenceRetrievalDiagnostics {
+  bundle: LongTermMemoryEvidenceBundle
+  semanticError: string | null
+}
+
 interface MetaRow {
   value: string
 }
@@ -5419,7 +5424,8 @@ export async function setupAlicizationDb(
       available: false,
     }))
     try {
-      const bundle = await retrieveLongTermMemoryEvidenceInternal(input)
+      const result = await retrieveLongTermMemoryEvidenceInternal(input)
+      const { bundle } = result
       await appendMemoryWorkbenchRecallMetricSafely({
         cardId: input.cardId,
         query: input.currentUserText,
@@ -5427,7 +5433,7 @@ export async function setupAlicizationDb(
         latencyMs: now() - startedAt,
         evidenceCount: bundle.evidence.length,
         semanticAvailable: semantic.available,
-        error: null,
+        error: result.semanticError,
       })
       return bundle
     }
@@ -5452,7 +5458,7 @@ export async function setupAlicizationDb(
     currentThreadTitle?: string | null
     activeTask?: string | null
     limit?: number
-  }): Promise<LongTermMemoryEvidenceBundle> {
+  }): Promise<LongTermMemoryEvidenceRetrievalDiagnostics> {
     const intent = deriveLongTermMemoryRecallIntent({
       currentUserText: input.currentUserText,
       workingMemoryQueryHints: input.workingMemoryQueryHints,
@@ -5468,13 +5474,16 @@ export async function setupAlicizationDb(
     })
     const safeLimit = Math.max(1, Math.min(8, Math.floor(input.limit ?? 5)))
     if (!intent.shouldRecall) {
-      return buildLongTermMemoryEvidenceBundle({
-        intent,
-        plan,
-        candidates: [],
-        now: now(),
-        limit: safeLimit,
-      })
+      return {
+        bundle: buildLongTermMemoryEvidenceBundle({
+          intent,
+          plan,
+          candidates: [],
+          now: now(),
+          limit: safeLimit,
+        }),
+        semanticError: null,
+      }
     }
 
     const recallSeed = [
@@ -5516,21 +5525,27 @@ export async function setupAlicizationDb(
     ]
     const tombstonedSourceIds = await listTombstonedLongTermMemorySourceIds(candidates.map(candidate => candidate.id))
     const visibleCandidates = candidates.filter(candidate => !tombstonedSourceIds.has(candidate.id))
-    const semanticScores = await retrieveLongTermMemorySemanticScores({
+    const semantic = await retrieveLongTermMemorySemanticScores({
       cardId: input.cardId,
       plan,
       candidates: visibleCandidates,
       limit: safeLimit,
-    }).catch(() => ({}))
+    }).catch(error => ({
+      scores: {},
+      error: errorMessageFrom(error) ?? String(error),
+    }))
 
-    return buildLongTermMemoryEvidenceBundle({
-      intent,
-      plan,
-      now: now(),
-      limit: safeLimit,
-      candidates: visibleCandidates,
-      semanticScores,
-    })
+    return {
+      bundle: buildLongTermMemoryEvidenceBundle({
+        intent,
+        plan,
+        now: now(),
+        limit: safeLimit,
+        candidates: visibleCandidates,
+        semanticScores: semantic.scores,
+      }),
+      semanticError: semantic.error,
+    }
   }
 
   async function retrieveLongTermMemorySemanticScores(input: {
@@ -5541,7 +5556,7 @@ export async function setupAlicizationDb(
   }) {
     const provider = resolveLongTermMemoryEmbeddingProvider()
     if (!provider || input.candidates.length === 0)
-      return {}
+      return { scores: {}, error: null }
 
     const queryText = normalizeOrganicMemoryText([
       input.plan.normalizedQuery,
@@ -5554,15 +5569,25 @@ export async function setupAlicizationDb(
       ...input.plan.threadHints,
     ].filter(Boolean).join(' '), 1000)
     if (!queryText)
-      return {}
+      return { scores: {}, error: null }
 
     const embedded = await safeEmbedLongTermMemoryTexts({
       provider,
       texts: [queryText],
     })
+    if (embedded.status === 'failed' || embedded.error) {
+      return {
+        scores: {},
+        error: embedded.error ?? 'embedding failed',
+      }
+    }
     const queryEmbedding = embedded.embeddings[0]
-    if (!queryEmbedding)
-      return {}
+    if (!queryEmbedding) {
+      return {
+        scores: {},
+        error: embedded.status === 'unavailable' ? null : 'embedding provider returned no valid query vector',
+      }
+    }
 
     const candidateIds = new Set(input.candidates.map(candidate => candidate.id))
     const results = await longTermMemoryVectorStore.searchVectors(queryEmbedding.vector, {
@@ -5584,7 +5609,7 @@ export async function setupAlicizationDb(
         continue
       semanticScores[matchingCandidateId] = Math.max(semanticScores[matchingCandidateId] ?? 0, result.score)
     }
-    return semanticScores
+    return { scores: semanticScores, error: null }
   }
 
   function safeMemoryWorkbenchLimit(limit: unknown, fallback = 50) {
@@ -5874,11 +5899,12 @@ export async function setupAlicizationDb(
       }
     }
     try {
-      const bundle = await retrieveLongTermMemoryEvidenceInternal({
+      const result = await retrieveLongTermMemoryEvidenceInternal({
         cardId: input.cardId,
         currentUserText: query,
         limit: input.limit,
       })
+      const { bundle } = result
       const latencyMs = now() - startedAt
       await appendMemoryWorkbenchRecallMetricSafely({
         cardId: input.cardId,
@@ -5887,7 +5913,7 @@ export async function setupAlicizationDb(
         latencyMs,
         evidenceCount: bundle.evidence.length,
         semanticAvailable: semantic.available,
-        error: null,
+        error: result.semanticError,
       })
       return {
         query,
@@ -5921,7 +5947,7 @@ export async function setupAlicizationDb(
         })),
         semantic,
         latencyMs,
-        errors: [],
+        errors: result.semanticError ? [result.semanticError] : [],
       }
     }
     catch (error) {

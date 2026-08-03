@@ -172,4 +172,44 @@ describe('memory workbench health', () => {
       await db.close()
     }
   })
+
+  it('keeps lexical recall usable but records semantic provider failures in recall health', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      embeddingProvider: {
+        modelId: 'broken-local-embedding',
+        dimensions: 3,
+        embedTexts: async () => {
+          throw new Error('embedding model not loaded')
+        },
+      },
+    })
+    try {
+      await db.upsertMemoryReflections([{
+        id: 'reflection-transparent-failures',
+        cardId: 'default',
+        sourceKind: 'reply',
+        targetScope: 'boundary',
+        summary: '用户希望失败时明确说明真实原因。',
+        lesson: 'Provider 或工具失败时透明说明，不用模板遮盖。',
+        status: 'confirmed',
+        confidence: 0.9,
+        createdAt: 10,
+        updatedAt: 10,
+      }])
+
+      const bundle = await db.retrieveLongTermMemoryEvidence({
+        cardId: 'default',
+        currentUserText: '你还记得我说过失败时要明确说明真实原因吗？',
+        limit: 4,
+      })
+
+      expect(bundle.evidence.map(item => item.candidate.id)).toContain('reflection-transparent-failures')
+      const recall = await db.getMemoryWorkbenchRecallHealth({ cardId: 'default' })
+      expect(recall.lastLatencyMs).not.toBeNull()
+      expect(recall.lastError).toContain('embedding model not loaded')
+    }
+    finally {
+      await db.close()
+    }
+  })
 })
