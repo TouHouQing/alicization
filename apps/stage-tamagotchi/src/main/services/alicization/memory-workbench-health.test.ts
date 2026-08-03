@@ -2,15 +2,14 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { afterEach } from 'vitest'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
+import { setupAlicizationDb } from './db'
 import {
   calculateMemoryWorkbenchP95Latency,
   deriveMemoryWorkbenchStatus,
   summarizeMemoryWorkbenchQueueRows,
 } from './memory-workbench-health'
-import { setupAlicizationDb } from './db'
 
 const sandboxDirs: string[] = []
 
@@ -149,6 +148,25 @@ describe('memory workbench health', () => {
       const recall = await db.getMemoryWorkbenchRecallHealth({ cardId: 'default' })
       expect(recall.lastLatencyMs).not.toBeNull()
       expect(recall.p95LatencyMs).not.toBeNull()
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('records real dialogue long-term recall latency into workbench health', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.retrieveLongTermMemoryEvidence({
+        cardId: 'default',
+        currentUserText: '你还记得我之前说过不要固定模板回复吗？',
+        limit: 4,
+      })
+
+      const recall = await db.getMemoryWorkbenchRecallHealth({ cardId: 'default' })
+      expect(recall.lastLatencyMs).not.toBeNull()
+      expect(recall.p95LatencyMs).not.toBeNull()
+      expect(recall.lastError).toBeNull()
     }
     finally {
       await db.close()

@@ -4964,6 +4964,16 @@ export async function setupAlicizationDb(
     all,
     enqueueWrite,
   })
+  async function appendMemoryWorkbenchRecallMetricSafely(
+    metric: Parameters<typeof memoryWorkbenchHealthRuntime.appendRecallMetric>[0],
+  ) {
+    try {
+      await memoryWorkbenchHealthRuntime.appendRecallMetric(metric)
+    }
+    catch {
+      // Recall telemetry must not turn a usable memory result into a dialogue failure.
+    }
+  }
   const longTermMemoryVectorStore = createPersistentLongTermMemoryVectorStore({
     database,
     now,
@@ -5404,6 +5414,45 @@ export async function setupAlicizationDb(
     activeTask?: string | null
     limit?: number
   }): Promise<LongTermMemoryEvidenceBundle> {
+    const startedAt = now()
+    const semantic = await getMemoryWorkbenchRecallProbeSemantic({ cardId: input.cardId }).catch(() => ({
+      available: false,
+    }))
+    try {
+      const bundle = await retrieveLongTermMemoryEvidenceInternal(input)
+      await appendMemoryWorkbenchRecallMetricSafely({
+        cardId: input.cardId,
+        query: input.currentUserText,
+        mode: bundle.intent.mode,
+        latencyMs: now() - startedAt,
+        evidenceCount: bundle.evidence.length,
+        semanticAvailable: semantic.available,
+        error: null,
+      })
+      return bundle
+    }
+    catch (error) {
+      await appendMemoryWorkbenchRecallMetricSafely({
+        cardId: input.cardId,
+        query: input.currentUserText,
+        mode: 'none',
+        latencyMs: now() - startedAt,
+        evidenceCount: 0,
+        semanticAvailable: semantic.available,
+        error: errorMessageFrom(error) ?? String(error),
+      })
+      throw error
+    }
+  }
+
+  async function retrieveLongTermMemoryEvidenceInternal(input: {
+    cardId: string
+    currentUserText: string
+    workingMemoryQueryHints?: string[]
+    currentThreadTitle?: string | null
+    activeTask?: string | null
+    limit?: number
+  }): Promise<LongTermMemoryEvidenceBundle> {
     const intent = deriveLongTermMemoryRecallIntent({
       currentUserText: input.currentUserText,
       workingMemoryQueryHints: input.workingMemoryQueryHints,
@@ -5825,13 +5874,13 @@ export async function setupAlicizationDb(
       }
     }
     try {
-      const bundle = await retrieveLongTermMemoryEvidence({
+      const bundle = await retrieveLongTermMemoryEvidenceInternal({
         cardId: input.cardId,
         currentUserText: query,
         limit: input.limit,
       })
       const latencyMs = now() - startedAt
-      await memoryWorkbenchHealthRuntime.appendRecallMetric({
+      await appendMemoryWorkbenchRecallMetricSafely({
         cardId: input.cardId,
         query,
         mode: bundle.intent.mode,
@@ -5878,7 +5927,7 @@ export async function setupAlicizationDb(
     catch (error) {
       const latencyMs = now() - startedAt
       const message = errorMessageFrom(error) ?? String(error)
-      await memoryWorkbenchHealthRuntime.appendRecallMetric({
+      await appendMemoryWorkbenchRecallMetricSafely({
         cardId: input.cardId,
         query,
         mode: 'none',
