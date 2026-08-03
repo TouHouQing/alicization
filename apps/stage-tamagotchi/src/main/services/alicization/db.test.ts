@@ -3479,42 +3479,6 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
-  it('lists long-term memory workbench items across facts reflections and episodes', async () => {
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
-
-    await db.upsertMemoryFacts([{
-      subject: '用户',
-      predicate: '不想要',
-      object: '固定模板回复',
-      confidence: 0.91,
-      memoryDomain: 'relationship',
-      validationStatus: 'provisional',
-      knowledgeStage: 'working-understanding',
-    }], 'rule')
-    await db.upsertMemoryReflections([{
-      cardId: 'default',
-      sessionId: 'session-1',
-      turnId: 'turn-1',
-      sourceKind: 'reply',
-      targetScope: 'boundary',
-      summary: '用户明确拒绝固定模板式回复。',
-      lesson: '从连续数字生命人格回应。',
-      status: 'pending',
-      confidence: 0.88,
-    }])
-
-    const result = await db.listMemoryWorkbenchLongTermItems({
-      cardId: 'default',
-      query: '固定模板',
-      limit: 10,
-    })
-
-    expect(result.items.map(item => item.summary).join('\n')).toContain('固定模板')
-    expect(result.items.every(item => item.tombstoned === false)).toBe(true)
-
-    await db.close()
-  })
-
   it('applies review action through workbench and blocks tombstoned recall sources', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
 

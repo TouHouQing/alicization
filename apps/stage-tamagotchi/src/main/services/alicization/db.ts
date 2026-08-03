@@ -120,6 +120,7 @@ import {
   applyLongTermMemoryReviewDecision as applyLongTermMemoryReviewDecisionToTransaction,
   createLongTermMemoryReviewItemFromTransaction,
 } from './long-term-memory-review-queue'
+import { createLongTermMemorySearchIndexRuntime } from './long-term-memory-search-index'
 import { buildMemoryConsolidationRecords, searchMemoryConsolidationRecords } from './memory-consolidation'
 import { createAlicizationMemoryConsolidationRuntime } from './memory-consolidation-runtime'
 import { rankAlicizationConversationTurnsForRecall } from './memory-conversation-retrieval'
@@ -142,7 +143,7 @@ import {
 } from './memory-tiering'
 import { createMemoryWorkbenchHealthRuntime } from './memory-workbench-health'
 import { createMemoryWorkbenchPersonaCandidateRuntime } from './memory-workbench-persona-candidates'
-import { createMemoryWorkbenchPolicyStoreRuntime, mergeMemoryWorkbenchPolicy } from './memory-workbench-policy-store'
+import { createMemoryWorkbenchPolicyStoreRuntime } from './memory-workbench-policy-store'
 import { createAlicizationPersonStateEvolutionRuntime } from './person-state-evolution-runtime'
 import { normalizeOrganicRecallText } from './runtime-organic-recall'
 import {
@@ -1392,6 +1393,7 @@ export interface AlicizationDbService {
     limit?: number
     cursor?: string | null
   }) => Promise<{ items: AlicizationMemoryWorkbenchItem[], nextCursor: string | null }>
+  rebuildLongTermMemorySearchIndex: (input: { cardId: string }) => Promise<{ indexed: number }>
   listMemoryWorkbenchReviewItems: (input: { cardId: string, limit?: number }) => Promise<AlicizationLongTermMemoryReviewItem[]>
   applyMemoryWorkbenchReviewAction: (input: {
     cardId: string
@@ -1947,6 +1949,7 @@ export async function setupAlicizationDb(
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_model ON long_term_memory_vectors(card_id, model_id, dimensions, status)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_source ON long_term_memory_vectors(card_id, source_id, source)')
+    await longTermMemorySearchIndexRuntime.initializeSchema()
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS persona_training_candidate_reviews (
@@ -3318,6 +3321,7 @@ export async function setupAlicizationDb(
       }])
       await drainMemoryIngestJournal()
     })
+    await rebuildLongTermMemorySearchIndexForCard(cardId, 'memory consolidation search index rebuild')
 
     return prepared.map(record => mapMemoryConsolidationRow({
       card_id: cardId,
@@ -3341,14 +3345,6 @@ export async function setupAlicizationDb(
   async function listMemoryConsolidations(limit = 16) {
     return await memoryConsolidationRuntime.listMemoryConsolidations({
       cardId: hasBoundCardScope ? boundCardId : undefined,
-      limit,
-    })
-  }
-
-  async function listMemoryConsolidationsForCard(cardIdRaw: string, limit = 16) {
-    const cardId = resolveMemoryCardId(cardIdRaw, 'memory consolidation list')
-    return await memoryConsolidationRuntime.listMemoryConsolidations({
-      cardId,
       limit,
     })
   }
@@ -4826,6 +4822,7 @@ export async function setupAlicizationDb(
       }])
       await drainMemoryIngestJournal()
     })
+    await rebuildLongTermMemorySearchIndexForCard(cardId, 'memory fact search index rebuild')
   }
 
   async function retrieveMemoryFacts(query: string, limit = 6) {
@@ -4962,6 +4959,7 @@ export async function setupAlicizationDb(
         }
       })
     })
+    await rebuildLongTermMemorySearchIndexForCard(boundCardId, 'memory fact correction search index rebuild')
   }
 
   async function listMemoryFacts() {
@@ -5025,7 +5023,9 @@ export async function setupAlicizationDb(
 
     const prepared = events
       .map((event) => {
-        const cardId = event.cardId.trim()
+        const cardId = hasBoundCardScope
+          ? resolveMemoryCardId(event.cardId, 'episodic event write')
+          : event.cardId.trim()
         const whatHappened = normalizeOrganicMemoryText(event.whatHappened, 320)
         if (!cardId || !whatHappened)
           return null
@@ -5090,6 +5090,10 @@ export async function setupAlicizationDb(
       }])
       await drainMemoryIngestJournal()
     })
+    await rebuildLongTermMemorySearchIndexForCards(
+      prepared.map(event => event.cardId),
+      'episodic event search index rebuild',
+    )
 
     return prepared.map(event => mapEpisodicEventRow({
       id: event.id,
@@ -5196,6 +5200,14 @@ export async function setupAlicizationDb(
     enqueueWrite,
     runInTransaction,
   })
+  const longTermMemorySearchIndexRuntime = createLongTermMemorySearchIndexRuntime({
+    database,
+    run,
+    get,
+    all,
+    enqueueWrite,
+    runInTransaction,
+  })
   const memoryWorkbenchHealthRuntime = createMemoryWorkbenchHealthRuntime({
     database,
     now,
@@ -5237,6 +5249,30 @@ export async function setupAlicizationDb(
     listPersonaReinforcementEvents: memoryRelationshipRuntime.listPersonaReinforcementEvents,
     listTombstonedLongTermMemorySourceIds,
   })
+
+  async function rebuildLongTermMemorySearchIndexForCard(cardIdRaw: string, operation: string) {
+    const cardId = resolveMemoryCardId(cardIdRaw, operation)
+    return await longTermMemorySearchIndexRuntime.rebuildLongTermMemorySearchIndex({ cardId })
+  }
+
+  async function rebuildLongTermMemorySearchIndexForCards(cardIds: string[], operation: string) {
+    const uniqueCardIds = [...new Set(cardIds.map(cardId => normalizeOrganicMemoryText(cardId, 120)).filter(Boolean))]
+    for (const cardId of uniqueCardIds)
+      await rebuildLongTermMemorySearchIndexForCard(cardId, operation)
+  }
+
+  async function upsertMemoryReflections(entries: AlicizationMemoryReflectionInput[]) {
+    if (hasBoundCardScope) {
+      for (const entry of entries)
+        resolveMemoryCardId(entry.cardId, 'memory reflection write')
+    }
+    const records = await memoryRelationshipRuntime.upsertMemoryReflections(entries)
+    await rebuildLongTermMemorySearchIndexForCards(
+      records.map(record => record.cardId),
+      'memory reflection search index rebuild',
+    )
+    return records
+  }
 
   async function persistWorkingMemoryLongTermTransaction(
     transaction: Parameters<typeof workingMemoryLongTermCleaningStore.updateTransaction>[0],
@@ -5369,7 +5405,7 @@ export async function setupAlicizationDb(
           await upsertMemoryFacts(projections.memoryFacts, 'rule')
         }
         if (projections.memoryReflections.length > 0)
-          persistedReflections = await memoryRelationshipRuntime.upsertMemoryReflections(projections.memoryReflections)
+          persistedReflections = await upsertMemoryReflections(projections.memoryReflections)
         if (projections.episodicEvents.length > 0)
           persistedEpisodes = await appendEpisodicEvents(projections.episodicEvents)
         if (projections.personaReinforcements.length > 0)
@@ -5651,8 +5687,10 @@ export async function setupAlicizationDb(
       reconsolidationDecisionTraceId: input.reconsolidationDecisionTraceId,
     })
     if ((input.carryAsMemory || input.reconsolidationDecisionTraceId) && returned.length > 0) {
-      for (const cardId of new Set(returned.map(event => event.cardId).filter(Boolean)))
+      for (const cardId of new Set(returned.map(event => event.cardId).filter(Boolean))) {
         await rebuildMemoryConsolidationsFromEvents(cardId)
+        await rebuildLongTermMemorySearchIndexForCard(cardId, 'episodic reconsolidation search index rebuild')
+      }
     }
     await recordMemoryGraphRetrievalLatency(now() - retrievalStartedAt)
 
@@ -5861,68 +5899,6 @@ export async function setupAlicizationDb(
     return { scores: semanticScores, error: null }
   }
 
-  function safeMemoryWorkbenchLimit(limit: unknown, fallback = 50) {
-    return Math.max(1, Math.min(100, Math.floor(Number(limit ?? fallback))))
-  }
-
-  function encodeMemoryWorkbenchCursor(input: { updatedAt: number, id: string }) {
-    return Buffer.from(JSON.stringify(input), 'utf8').toString('base64url')
-  }
-
-  function decodeMemoryWorkbenchCursor(raw: string | null | undefined) {
-    if (!raw)
-      return null
-    try {
-      const parsed = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as { updatedAt?: unknown, id?: unknown }
-      if (!Number.isFinite(parsed.updatedAt) || typeof parsed.id !== 'string' || !parsed.id.trim())
-        return null
-      return {
-        updatedAt: Number(parsed.updatedAt),
-        id: parsed.id.trim(),
-      }
-    }
-    catch {
-      return null
-    }
-  }
-
-  function memoryWorkbenchMatchesQuery(item: AlicizationMemoryWorkbenchItem, query: string) {
-    if (!query)
-      return true
-    const haystack = [
-      item.summary,
-      item.source,
-      item.kind,
-      ...item.evidenceSnippets,
-      ...item.sourceIds,
-    ].join(' ').toLowerCase()
-    return haystack.includes(query.toLowerCase())
-  }
-
-  function projectLongTermEvidenceCandidateForWorkbench(
-    candidate: ReturnType<typeof memoryFactToLongTermEvidenceCandidate>,
-  ): AlicizationMemoryWorkbenchItem {
-    const updatedAt = Number.isFinite(candidate.updatedAt) ? Number(candidate.updatedAt) : 0
-    const sensitivity = candidate.sensitivity ?? 'personal'
-    return {
-      id: candidate.id,
-      kind: candidate.kind,
-      summary: candidate.summary,
-      evidenceSnippets: candidate.cues ?? [],
-      sourceIds: [candidate.id],
-      confidence: candidate.confidence,
-      salience: candidate.salience ?? 0,
-      sensitivity,
-      visibility: sensitivity === 'private' || sensitivity === 'secret' ? 'inward-only' : 'explicit',
-      training: 'blocked',
-      source: candidate.source,
-      createdAt: candidate.occurredAt ?? updatedAt,
-      updatedAt,
-      lastAccessedAt: null,
-      tombstoned: false,
-    }
-  }
-
   async function findProjectedMemoryFactSourcesByCandidateId(cardId: string, candidateId: string) {
     const sourceLabel = `working-memory-owner:${candidateId}`
     if (hasBoundCardScope)
@@ -5961,77 +5937,15 @@ export async function setupAlicizationDb(
     limit?: number
     cursor?: string | null
   }) {
-    const safeLimit = safeMemoryWorkbenchLimit(input.limit)
-    const query = normalizeOrganicMemoryText(input.query, 240)
-    const sourceLimit = query ? Math.max(50, safeLimit * 8) : Math.max(256, safeLimit * 16)
-    const [facts, reflections, episodes, consolidations] = await Promise.all([
-      query ? retrieveMemoryFacts(query, sourceLimit).catch(() => []) : listMemoryFacts().catch(() => []),
-      memoryRelationshipRuntime.listMemoryReflections({
-        cardId: input.cardId,
-        limit: sourceLimit,
-        query: query || undefined,
-      }).catch(() => []),
-      query
-        ? searchEpisodicEvents({ recallSeed: query, limit: sourceLimit }).catch(() => [])
-        : listRecentEpisodicEvents(sourceLimit).catch(() => []),
-      query
-        ? searchMemoryConsolidationsForCard({ cardId: input.cardId, query, limit: sourceLimit }).catch(() => [])
-        : listMemoryConsolidationsForCard(input.cardId, sourceLimit).catch(() => []),
-    ])
-    const candidates = [
-      ...facts.map(memoryFactToLongTermEvidenceCandidate),
-      ...reflections.map(memoryReflectionToLongTermEvidenceCandidate),
-      ...episodes.filter(event => event.cardId === input.cardId).map(episodicEventToLongTermEvidenceCandidate),
-      ...consolidations.map(memoryConsolidationToLongTermEvidenceCandidate),
-    ]
-    const tombstonedSourceIds = await listTombstonedLongTermMemorySourceIds(candidates.map(candidate => candidate.id), input.cardId)
-    const candidateSourceIds = candidates.map(candidate => candidate.id)
-    const policies = await memoryWorkbenchPolicyStore.listPolicyOverrides({
-      cardId: input.cardId,
-      sourceIds: candidateSourceIds,
+    const cardId = resolveMemoryCardId(input.cardId, 'memory workbench long-term list')
+    return await longTermMemorySearchIndexRuntime.listLongTermMemorySearchItems({
+      ...input,
+      cardId,
     })
-    const policyBySource = new Map(policies.map(policy => [`${policy.source}:${policy.sourceId}`, policy]))
-    const cursor = decodeMemoryWorkbenchCursor(input.cursor)
-    const sortedItems = candidates
-      .filter(candidate => !tombstonedSourceIds.has(candidate.id))
-      .map((candidate) => {
-        const item = projectLongTermEvidenceCandidateForWorkbench(candidate)
-        const policy = item.sourceIds
-          .map(sourceId => policyBySource.get(`${item.source}:${sourceId}`))
-          .find(Boolean) ?? null
-        const mergedPolicy = mergeMemoryWorkbenchPolicy({
-          sourceId: item.sourceIds[0] ?? item.id,
-          source: item.source,
-          sensitivity: item.sensitivity,
-          override: policy,
-          tombstoned: false,
-        })
-        return {
-          ...item,
-          visibility: mergedPolicy.visibleMode,
-          training: mergedPolicy.training,
-          tombstoned: mergedPolicy.tombstoned,
-        }
-      })
-      .filter(item => !input.kind || input.kind === 'all' || item.kind === input.kind)
-      .filter(item => !input.sensitivity || input.sensitivity === 'all' || item.sensitivity === input.sensitivity)
-      .filter(item => !input.visibility || input.visibility === 'all' || item.visibility === input.visibility)
-      .filter(item => !input.training || input.training === 'all' || item.training === input.training)
-      .filter(item => !input.source || item.source === input.source)
-      .filter(item => memoryWorkbenchMatchesQuery(item, query))
-      .sort((left, right) => {
-        const updatedDiff = right.updatedAt - left.updatedAt
-        return updatedDiff !== 0 ? updatedDiff : left.id.localeCompare(right.id)
-      })
-    const afterCursor = cursor
-      ? sortedItems.filter(item => item.updatedAt < cursor.updatedAt || (item.updatedAt === cursor.updatedAt && item.id > cursor.id))
-      : sortedItems
-    const items = afterCursor.slice(0, safeLimit)
-    const next = afterCursor.length > safeLimit ? items[items.length - 1] : null
-    return {
-      items,
-      nextCursor: next ? encodeMemoryWorkbenchCursor({ updatedAt: next.updatedAt, id: next.id }) : null,
-    }
+  }
+
+  async function rebuildLongTermMemorySearchIndex(input: { cardId: string }) {
+    return await rebuildLongTermMemorySearchIndexForCard(input.cardId, 'memory search index rebuild')
   }
 
   async function listMemoryWorkbenchReviewItems(input: { cardId: string, limit?: number }) {
@@ -6519,6 +6433,7 @@ export async function setupAlicizationDb(
         await upsertMeta(markerKey, String(currentTs))
       })
     })
+    await rebuildLongTermMemorySearchIndexForCard(cardId, 'legacy memory search index rebuild')
 
     await appendAuditLog({
       level: 'notice',
@@ -6620,6 +6535,7 @@ export async function setupAlicizationDb(
   await enqueueWrite(async () => {
     await drainMemoryIngestJournal()
   })
+  await rebuildLongTermMemorySearchIndexForCard(boundCardId, 'initial long-term memory search index rebuild')
 
   return {
     dbPath,
@@ -6659,6 +6575,7 @@ export async function setupAlicizationDb(
     retrieveMemoryFacts,
     retrieveLongTermMemoryEvidence,
     listMemoryWorkbenchLongTermItems,
+    rebuildLongTermMemorySearchIndex,
     listMemoryWorkbenchReviewItems,
     applyMemoryWorkbenchReviewAction,
     runMemoryWorkbenchRecallProbe,
@@ -6673,7 +6590,7 @@ export async function setupAlicizationDb(
     listLongTermMemoryReviewItems,
     applyLongTermMemoryReviewDecision,
     tombstoneLongTermMemorySources,
-    upsertMemoryReflections: memoryRelationshipRuntime.upsertMemoryReflections,
+    upsertMemoryReflections,
     listMemoryReflections: memoryRelationshipRuntime.listMemoryReflections,
     appendRelationshipOutcomes: memoryRelationshipRuntime.appendRelationshipOutcomes,
     listRelationshipOutcomes: memoryRelationshipRuntime.listRelationshipOutcomes,
