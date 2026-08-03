@@ -1,12 +1,12 @@
 import type sqlite3 from 'sqlite3'
+
 import type {
+  LongTermMemoryVectorRecord,
   LongTermMemoryVectorReindexPlan,
   LongTermMemoryVectorSearchResult,
 } from './long-term-memory-vector-store'
 
 import { createHash } from 'node:crypto'
-
-import type { LongTermMemoryVectorRecord } from './long-term-memory-vector-store'
 
 export interface PersistentLongTermMemoryVectorRecord extends LongTermMemoryVectorRecord {
   cardId: string
@@ -143,9 +143,57 @@ export function createPersistentLongTermMemoryVectorStore(input: {
         metadata_json TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
-        UNIQUE(card_id, source_id, source, model_id)
+        UNIQUE(card_id, source_id, source, model_id, dimensions)
       )
     `)
+    await input.run(input.database, `
+      CREATE TABLE IF NOT EXISTS long_term_memory_tombstones (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        reason TEXT,
+        created_at INTEGER NOT NULL,
+        UNIQUE(card_id, source_id, source)
+      )
+    `)
+    const uniqueIndexes = await input.all<{ name: string, unique: number }>(
+      input.database,
+      'PRAGMA index_list(long_term_memory_vectors)',
+    )
+    let hasDimensionScopedUnique = false
+    for (const index of uniqueIndexes.filter(index => index.unique === 1)) {
+      const columns = await input.all<{ name: string }>(
+        input.database,
+        `PRAGMA index_info("${index.name.replaceAll('"', '""')}")`,
+      )
+      if (columns.map(column => column.name).join(',') === 'card_id,source_id,source,model_id,dimensions') {
+        hasDimensionScopedUnique = true
+        break
+      }
+    }
+    if (!hasDimensionScopedUnique) {
+      await input.run(input.database, 'DROP TABLE IF EXISTS long_term_memory_vectors')
+      await input.run(input.database, `
+        CREATE TABLE long_term_memory_vectors (
+          id TEXT PRIMARY KEY,
+          card_id TEXT NOT NULL,
+          source_id TEXT NOT NULL,
+          source TEXT NOT NULL,
+          text_hash TEXT NOT NULL,
+          text TEXT NOT NULL,
+          vector_blob BLOB NOT NULL,
+          model_id TEXT NOT NULL,
+          dimensions INTEGER NOT NULL,
+          status TEXT NOT NULL,
+          last_error TEXT,
+          metadata_json TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          UNIQUE(card_id, source_id, source, model_id, dimensions)
+        )
+      `)
+    }
     await input.run(input.database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_model ON long_term_memory_vectors(card_id, model_id, dimensions, status)')
     await input.run(input.database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_source ON long_term_memory_vectors(card_id, source_id, source)')
   }
@@ -203,7 +251,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
             created_at,
             updated_at
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(card_id, source_id, source, model_id) DO UPDATE SET
+          ON CONFLICT(card_id, source_id, source, model_id, dimensions) DO UPDATE SET
             id = excluded.id,
             text_hash = excluded.text_hash,
             text = excluded.text,
@@ -252,6 +300,12 @@ export function createPersistentLongTermMemoryVectorStore(input: {
         AND model_id = ?
         AND dimensions = ?
         AND status = 'indexed'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM long_term_memory_tombstones tomb
+          WHERE tomb.card_id = long_term_memory_vectors.card_id
+            AND tomb.source_id = long_term_memory_vectors.source_id
+        )
         AND (? IS NULL OR source = ?)
       `,
       [
