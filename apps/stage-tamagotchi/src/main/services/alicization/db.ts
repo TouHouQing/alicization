@@ -5712,7 +5712,7 @@ export async function setupAlicizationDb(
   }) {
     const safeLimit = safeMemoryWorkbenchLimit(input.limit)
     const query = normalizeOrganicMemoryText(input.query, 240)
-    const sourceLimit = query ? Math.max(50, safeLimit * 8) : safeLimit * 4
+    const sourceLimit = query ? Math.max(50, safeLimit * 8) : Math.max(256, safeLimit * 16)
     const [facts, reflections, episodes, consolidations] = await Promise.all([
       query ? retrieveMemoryFacts(query, sourceLimit).catch(() => []) : listMemoryFacts().catch(() => []),
       memoryRelationshipRuntime.listMemoryReflections({

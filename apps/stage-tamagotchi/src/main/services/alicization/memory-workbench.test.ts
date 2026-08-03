@@ -248,6 +248,41 @@ describe('memory workbench projection', () => {
     }
   })
 
+  it('continues paginating long-term memory past the first source fetch window', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryReflections(Array.from({ length: 10 }, (_, index) => ({
+        id: `reflection-page-${index + 1}`,
+        cardId: 'default',
+        sourceKind: 'reply' as const,
+        targetScope: 'task' as const,
+        summary: `长期分页记忆 ${index + 1}`,
+        lesson: '加载更多不能漏掉旧记忆。',
+        status: 'confirmed' as const,
+        confidence: 0.8,
+        createdAt: 10 + index,
+        updatedAt: 100 - index,
+      })))
+
+      const ids: string[] = []
+      let cursor: string | null = null
+      do {
+        const page = await db.listMemoryWorkbenchLongTermItems({
+          cardId: 'default',
+          limit: 2,
+          cursor,
+        })
+        ids.push(...page.items.map(item => item.id))
+        cursor = page.nextCursor
+      } while (cursor)
+
+      expect(ids).toEqual(Array.from({ length: 10 }, (_, index) => `reflection-page-${index + 1}`))
+    }
+    finally {
+      await db.close()
+    }
+  })
+
   it('searches older long-term reflections without being capped by the first recent page', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {
