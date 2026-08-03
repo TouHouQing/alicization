@@ -15,12 +15,12 @@ import {
   electronAlicizationMemoryImportLegacy,
   electronAlicizationMemoryRetrieveFacts,
   electronAlicizationMemoryUpsertFacts,
-  electronAlicizationMemoryWorkbenchApplyReviewAction,
   electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction,
+  electronAlicizationMemoryWorkbenchApplyReviewAction,
   electronAlicizationMemoryWorkbenchGetSnapshot,
   electronAlicizationMemoryWorkbenchListEmbeddingModels,
-  electronAlicizationMemoryWorkbenchListPersonaCandidates,
   electronAlicizationMemoryWorkbenchListLongTerm,
+  electronAlicizationMemoryWorkbenchListPersonaCandidates,
   electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
   electronAlicizationMemoryWorkbenchTestEmbeddingConnection,
@@ -30,11 +30,11 @@ import {
   electronAlicizationSetPerformanceManifest,
   electronAlicizationUpdateMemoryStats,
 } from '../../../shared/eventa'
-import { buildMemoryWorkbenchSnapshot } from './memory-workbench'
 import {
   listOpenAICompatibleLongTermMemoryEmbeddingModels,
   testOpenAICompatibleLongTermMemoryEmbeddingConnection,
 } from './long-term-memory-openai-embedding-provider'
+import { buildMemoryWorkbenchSnapshot } from './memory-workbench'
 import {
   resolveAlicizationAutonomousDialogueFamilyClassification,
   resolveAlicizationAutonomousDialogueOrigin,
@@ -100,9 +100,20 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
       cardId,
       sessionId,
       now: () => Date.now(),
-      getWorkingMemory: () => sessionId
-        ? workingMemoryStore.get(cardId, sessionId)
-        : workingMemoryStore.latest(cardId),
+      getWorkingMemory: async () => {
+        const inMemorySnapshot = sessionId
+          ? workingMemoryStore.get(cardId, sessionId)
+          : workingMemoryStore.latest(cardId)
+        if (inMemorySnapshot)
+          return inMemorySnapshot
+
+        const persistedSnapshot = sessionId
+          ? await alicizationDb.getWorkingMemoryCheckpoint(cardId, sessionId)
+          : (await alicizationDb.listWorkingMemoryCheckpoints(cardId, { limit: 1 }))[0] ?? null
+        if (persistedSnapshot)
+          workingMemoryStore.upsert(persistedSnapshot)
+        return persistedSnapshot
+      },
       listLongTermItems: async () => (await alicizationDb.listMemoryWorkbenchLongTermItems({ cardId, limit: 24 })).items,
       listReviewItems: async () => await alicizationDb.listMemoryWorkbenchReviewItems({ cardId, limit: 24 }),
       getQueueHealth: async () => await alicizationDb.getMemoryWorkbenchQueueHealth({ cardId }),

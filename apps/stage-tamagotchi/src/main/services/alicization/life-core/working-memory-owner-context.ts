@@ -31,6 +31,16 @@ export interface WorkingMemoryOwnerContext {
     activeTask: string | null
     taskStatus: WorkingMemoryTask['status'] | null
   }
+  compressedTimeline: Array<{
+    id: string
+    sourceTurnIds: string[]
+    summary: string
+    thread: string | null
+    commitments: string[]
+    corrections: string[]
+    importance: number
+    createdAt: number
+  }>
   obligations: string[]
   queryHints: string[]
   audit: {
@@ -50,6 +60,13 @@ function compact(raw: unknown, maxChars = 220) {
   return sanitizeAlicizationProviderFacingText(normalized, maxChars)
 }
 
+function compactInternalStructuredFact(raw: unknown, maxChars = 220) {
+  const normalized = normalizeWorkingMemoryText(raw, maxChars)
+  return sanitizeAlicizationProviderFacingText(normalized, maxChars, '', {
+    provenance: 'internal-structured-fact',
+  })
+}
+
 function compactRaw(raw: unknown, maxChars = 220) {
   return normalizeWorkingMemoryText(raw, maxChars)
 }
@@ -57,6 +74,14 @@ function compactRaw(raw: unknown, maxChars = 220) {
 function uniqueLines(values: string[], maxItems = 10) {
   return uniqueWorkingMemoryTexts(
     values.map(value => compact(value, 260)),
+    maxItems,
+    260,
+  )
+}
+
+function uniqueInternalStructuredFactLines(values: string[], maxItems = 10) {
+  return uniqueWorkingMemoryTexts(
+    values.map(value => compactInternalStructuredFact(value, 260)),
     maxItems,
     260,
   )
@@ -85,6 +110,22 @@ function buildOwnerObligations(snapshot: WorkingMemorySnapshot) {
   ].filter(Boolean), 12, 220)
 }
 
+function buildOwnerCompressedTimeline(snapshot: WorkingMemorySnapshot): WorkingMemoryOwnerContext['compressedTimeline'] {
+  return snapshot.compressedTimeline
+    .slice(-8)
+    .map(episodelet => ({
+      id: compactInternalStructuredFact(episodelet.id, 180),
+      sourceTurnIds: uniqueWorkingMemoryTexts(episodelet.sourceTurnIds, 40, 120),
+      summary: compactInternalStructuredFact(episodelet.summary, 520),
+      thread: compactInternalStructuredFact(episodelet.thread, 220) || null,
+      commitments: uniqueInternalStructuredFactLines(episodelet.commitments, 6),
+      corrections: uniqueInternalStructuredFactLines(episodelet.corrections, 6),
+      importance: Math.max(0, Math.min(1, numberOrZero(episodelet.importance))),
+      createdAt: numberOrZero(episodelet.createdAt),
+    }))
+    .filter(episodelet => episodelet.summary || episodelet.commitments.length > 0 || episodelet.corrections.length > 0)
+}
+
 export function buildWorkingMemoryOwnerContext(snapshot: WorkingMemorySnapshot): WorkingMemoryOwnerContext {
   return {
     version: 'working-memory-owner-context-v1',
@@ -99,15 +140,16 @@ export function buildWorkingMemoryOwnerContext(snapshot: WorkingMemorySnapshot):
       },
     },
     current: {
-      threadTitle: compact(snapshot.currentThread?.title, 220) || null,
+      threadTitle: compactInternalStructuredFact(snapshot.currentThread?.title, 220) || null,
       threadMode: snapshot.currentThread?.mode ?? null,
       shouldHoldThread: Boolean(snapshot.currentThread?.shouldHold),
       currentUserMove: normalizeWorkingMemoryText(snapshot.currentThread?.currentUserMove, 220) || null,
-      activeTask: compact(snapshot.activeTask?.summary, 220) || null,
+      activeTask: compactInternalStructuredFact(snapshot.activeTask?.summary, 220) || null,
       taskStatus: snapshot.activeTask?.status ?? null,
     },
+    compressedTimeline: buildOwnerCompressedTimeline(snapshot),
     obligations: buildOwnerObligations(snapshot),
-    queryHints: uniqueLines(snapshot.memoryQueryHints, 8),
+    queryHints: uniqueInternalStructuredFactLines(snapshot.memoryQueryHints, 8),
     audit: {
       failureTurnIds: uniqueWorkingMemoryTexts(snapshot.audit.failureTurnIds, 20, 120),
       excludedLongTermCandidateTurnIds: uniqueWorkingMemoryTexts(snapshot.audit.excludedLongTermCandidateTurnIds, 20, 120),

@@ -9,20 +9,20 @@ describe('long-term memory harness', () => {
     const result = runLongTermMemoryHarnessFixture({
       now,
       fixture: {
-        id: 'fixed-template-correction',
-        currentUserText: '你还记得我不要固定模板回复吗？',
+        id: 'provider-failure-transparency-correction',
+        currentUserText: '你还记得我纠正过你，Provider 失败要透明告诉我吗？',
         expectedMode: 'relationship',
-        expectedTopIds: ['reflection-fixed-template'],
+        expectedTopIds: ['reflection-provider-failure-transparency'],
         forbiddenTopIds: ['episode-progress'],
         candidates: [
           {
-            id: 'reflection-fixed-template',
+            id: 'reflection-provider-failure-transparency',
             kind: 'reflection',
-            summary: '用户纠正过 Alicization：不要固定模板回复，要从连续数字生命人格回应。',
+            summary: '用户纠正过 Alicization：Provider 超时、模型失败、工具失败要透明告诉用户，不要伪装成正常回复。',
             source: 'memory_reflections',
             confidence: 0.86,
             salience: 0.88,
-            cues: ['不要固定模板回复', '固定模板', '数字生命人格'],
+            cues: ['Provider 失败透明', '模型失败', '工具失败'],
           },
           {
             id: 'episode-progress',
@@ -38,7 +38,7 @@ describe('long-term memory harness', () => {
     })
 
     expect(result.passed).toBe(true)
-    expect(result.topIds[0]).toBe('reflection-fixed-template')
+    expect(result.topIds[0]).toBe('reflection-provider-failure-transparency')
     expect(result.hitRate).toBe(1)
     expect(result.mrr).toBe(1)
     expect(result.falseRecallCount).toBe(0)
@@ -127,15 +127,15 @@ describe('long-term memory harness', () => {
     const result = runLongTermMemoryHarnessFixture({
       now,
       fixture: {
-        id: 'semantic-fixed-template-correction',
-        currentUserText: '你还记得我不要固定模板回复吗？',
+        id: 'semantic-provider-failure-transparency-correction',
+        currentUserText: '你还记得我纠正过你，模型或工具失败要透明说出来吗？',
         expectedMode: 'relationship',
-        expectedTopIds: ['reflection-fixed-template'],
+        expectedTopIds: ['reflection-provider-failure-transparency'],
         forbiddenTopIds: ['generic-progress'],
-        blockedIds: ['tombstoned-fixed-template'],
-        semanticExpectedIds: ['reflection-fixed-template'],
+        blockedIds: ['tombstoned-provider-failure-transparency'],
+        semanticExpectedIds: ['reflection-provider-failure-transparency'],
         semanticScores: {
-          'reflection-fixed-template': 0.92,
+          'reflection-provider-failure-transparency': 0.92,
           'generic-progress': 0.2,
         },
         semantic: {
@@ -147,13 +147,13 @@ describe('long-term memory harness', () => {
         },
         candidates: [
           {
-            id: 'reflection-fixed-template',
+            id: 'reflection-provider-failure-transparency',
             kind: 'reflection',
-            summary: '用户纠正过：不要固定模板回复，要透明说失败。',
+            summary: '用户纠正过：模型失败、Provider 超时、工具失败都要透明告诉用户。',
             source: 'memory_reflections',
             confidence: 0.9,
             salience: 0.9,
-            cues: ['固定模板', '失败透明'],
+            cues: ['失败透明', 'Provider 超时', '工具失败'],
           },
           {
             id: 'generic-progress',
@@ -165,13 +165,13 @@ describe('long-term memory harness', () => {
             cues: ['进度'],
           },
           {
-            id: 'tombstoned-fixed-template',
+            id: 'tombstoned-provider-failure-transparency',
             kind: 'reflection',
             summary: '这条旧纠正已经被 tombstone，不应召回。',
             source: 'memory_reflections',
             confidence: 0.95,
             salience: 0.95,
-            cues: ['固定模板'],
+            cues: ['失败透明'],
           },
         ],
       },
@@ -182,7 +182,7 @@ describe('long-term memory harness', () => {
     expect(result.metrics.semanticHitRate).toBe(1)
     expect(result.metrics.blockedLeakCount).toBe(0)
     expect(result.trace.owner).toBe('LongTermMemoryRecall')
-    expect(result.trace.rankReasonsById['reflection-fixed-template']).toEqual(
+    expect(result.trace.rankReasonsById['reflection-provider-failure-transparency']).toEqual(
       expect.arrayContaining(['rrf:semantic:semantic-score']),
     )
     expect(result.trace.semantic).toEqual(expect.objectContaining({

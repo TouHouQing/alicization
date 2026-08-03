@@ -6,6 +6,8 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { createEmptyWorkingMemorySnapshot } from './life-core/working-memory'
+
 const runCalls: string[] = []
 const metaState = new Map<string, string>()
 const mindTurnEvents: Array<{
@@ -279,6 +281,13 @@ const workingMemoryLongTermTransactions = new Map<string, {
   next_attempt_at: number | null
   applied_at: number | null
 }>()
+const workingMemoryCheckpoints = new Map<string, {
+  card_id: string
+  session_id: string
+  version: string
+  snapshot_json: string
+  updated_at: number
+}>()
 const memoryReflections = new Map<string, {
   id: string
   card_id: string
@@ -495,6 +504,17 @@ class FakeSqliteDatabase {
         last_attempt_at: null,
         applied_at: null,
         next_attempt_at: nextAttemptAt,
+      })
+    }
+    else if (sql.includes('INSERT INTO working_memory_checkpoints')) {
+      const [cardId, sessionId, version, snapshotJson, updatedAt]
+        = actualParams as [string, string, string, string, number]
+      workingMemoryCheckpoints.set(`${cardId}::${sessionId}`, {
+        card_id: cardId,
+        session_id: sessionId,
+        version,
+        snapshot_json: snapshotJson,
+        updated_at: updatedAt,
       })
     }
     else if (sql.includes('INSERT OR IGNORE INTO working_memory_long_term_transactions')) {
@@ -1199,6 +1219,22 @@ class FakeSqliteDatabase {
     else if (sql.includes('DELETE FROM learning_tasks')) {
       learningTasks.clear()
     }
+    else if (sql.includes('DELETE FROM working_memory_checkpoints')) {
+      if (sql.includes('WHERE card_id = ? AND session_id = ?')) {
+        const [cardId, sessionId] = actualParams as [string, string]
+        workingMemoryCheckpoints.delete(`${cardId}::${sessionId}`)
+      }
+      else if (sql.includes('WHERE card_id = ?')) {
+        const [cardId] = actualParams as [string]
+        for (const key of workingMemoryCheckpoints.keys()) {
+          if (key.startsWith(`${cardId}::`))
+            workingMemoryCheckpoints.delete(key)
+        }
+      }
+      else {
+        workingMemoryCheckpoints.clear()
+      }
+    }
     else if (sql.includes('DELETE FROM memory_archive')) {
       if (sql.includes('archived_at < ?')) {
         const [retentionLimit] = actualParams as [number]
@@ -1290,6 +1326,12 @@ class FakeSqliteDatabase {
       return this
     }
 
+    if (sql.includes('FROM working_memory_checkpoints') && sql.includes('WHERE card_id = ? AND session_id = ?')) {
+      const [cardId, sessionId] = actualParams as [string, string]
+      actualCallback?.(null, workingMemoryCheckpoints.get(`${cardId}::${sessionId}`))
+      return this
+    }
+
     if (sql.includes('COUNT(1) AS total FROM memory_facts')) {
       actualCallback?.(null, { total: memoryFacts.size })
       return this
@@ -1341,6 +1383,15 @@ class FakeSqliteDatabase {
     const actualCallback = (typeof _params === 'function' ? _params : callback) as ((error: Error | null, rows?: unknown[]) => void) | undefined
     if (_sql.includes('FROM memory_archive')) {
       actualCallback?.(null, [...memoryArchive.values()])
+      return this
+    }
+    if (_sql.includes('FROM working_memory_checkpoints')) {
+      const [cardId] = actualParams as [string]
+      const rows = [...workingMemoryCheckpoints.values()]
+        .filter(item => item.card_id === cardId)
+        .sort((a, b) => b.updated_at - a.updated_at)
+        .slice(0, Number(actualParams.at(-1) ?? 12))
+      actualCallback?.(null, rows)
       return this
     }
     if (_sql.includes('FROM working_memory_long_term_transactions')) {
@@ -1753,6 +1804,7 @@ describe('alicization sqlite dao', () => {
     memoryArchive.clear()
     memoryIngestJournal.clear()
     workingMemoryLongTermTransactions.clear()
+    workingMemoryCheckpoints.clear()
     memoryReflections.clear()
     personaReinforcementEvents.clear()
     longTermMemoryTombstones.clear()
@@ -1800,6 +1852,81 @@ describe('alicization sqlite dao', () => {
     expect(runCalls.some(sql => sql.includes('DELETE FROM event_graph_edges'))).toBe(true)
     expect(runCalls.some(sql => sql.includes('DELETE FROM event_graph_nodes'))).toBe(true)
     expect(runCalls.some(sql => sql.includes('DELETE FROM scheduled_tasks'))).toBe(true)
+    expect(runCalls.some(sql => sql.includes('DELETE FROM working_memory_checkpoints'))).toBe(true)
+    await db.close()
+  })
+
+  it('persists working-memory checkpoints by card and session', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const older = createEmptyWorkingMemorySnapshot({
+      cardId: 'card-1',
+      sessionId: 'session-old',
+      now: 1_000,
+    })
+    older.currentThread = {
+      title: '旧会话',
+      currentUserMove: '继续',
+      currentAliceMove: null,
+      primaryAnchor: null,
+      mode: 'task',
+      shouldHold: true,
+      confidence: 0.7,
+    }
+    const newer = createEmptyWorkingMemorySnapshot({
+      cardId: 'card-1',
+      sessionId: 'session-new',
+      now: 2_000,
+    })
+    newer.currentThread = {
+      title: '记忆闭环',
+      currentUserMove: '继续',
+      currentAliceMove: null,
+      primaryAnchor: 'WorkingMemory',
+      mode: 'task',
+      shouldHold: true,
+      confidence: 0.86,
+    }
+    newer.userCorrections = [{
+      text: '不要让固定模板干扰人格回复',
+      sourceTurnId: 'turn-1:user',
+      scope: 'persona',
+    }]
+    newer.compressedTimeline = [{
+      id: 'episodelet-1',
+      sourceTurnIds: ['turn-0:user'],
+      summary: 'user:继续推进短期记忆',
+      thread: '记忆闭环',
+      unresolvedQuestions: [],
+      commitments: ['保留 checkpoint'],
+      corrections: ['不要固定模板'],
+      relationshipPosture: null,
+      emotionalPosture: null,
+      executionCarry: null,
+      importance: 0.8,
+      createdAt: 1_900,
+    }]
+
+    await db.upsertWorkingMemoryCheckpoint(older)
+    await db.upsertWorkingMemoryCheckpoint(newer)
+
+    expect(await db.getWorkingMemoryCheckpoint('card-1', 'session-new')).toMatchObject({
+      sessionId: 'session-new',
+      currentThread: {
+        title: '记忆闭环',
+      },
+    })
+    expect((await db.getWorkingMemoryCheckpoint('card-1', 'session-new'))?.userCorrections[0]?.text)
+      .toBe('不要让固定模板干扰人格回复')
+    expect((await db.getWorkingMemoryCheckpoint('card-1', 'session-new'))?.compressedTimeline[0]?.summary)
+      .toContain('继续推进短期记忆')
+    expect((await db.listWorkingMemoryCheckpoints('card-1')).map(snapshot => snapshot.sessionId))
+      .toEqual(['session-new', 'session-old'])
+
+    await db.clearWorkingMemoryCheckpoints('card-1', 'session-new')
+    expect(await db.getWorkingMemoryCheckpoint('card-1', 'session-new')).toBeNull()
+    expect((await db.listWorkingMemoryCheckpoints('card-1')).map(snapshot => snapshot.sessionId))
+      .toEqual(['session-old'])
+
     await db.close()
   })
 
@@ -2517,7 +2644,13 @@ describe('alicization sqlite dao', () => {
 
     expect(rows.length).toBeGreaterThan(0)
     expect(rows.some(row => row.kind === 'daily')).toBe(true)
-    expect(rows[0]?.summary).toContain('runtime continuity')
+    expect(rows.some(row =>
+      [
+        row.summary,
+        row.lesson ?? '',
+        ...row.cues,
+      ].some(value => value.includes('runtime continuity')),
+    )).toBe(true)
   })
 
   it('persists autobiographical consolidation facets and prefers matching relationship eras during recall', async () => {

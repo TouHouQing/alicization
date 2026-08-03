@@ -26,6 +26,7 @@ function createTestMemoryContext() {
         taskStatus: null,
       },
       obligations: [],
+      compressedTimeline: [],
       queryHints: [],
       audit: {
         failureTurnIds: [],

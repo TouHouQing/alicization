@@ -1909,6 +1909,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     drainWorkingMemoryLongTermQueue: async limit => await alicizationDb.drainWorkingMemoryLongTermQueue(limit),
     listConversationTurnsBySession: async (sessionId, options) =>
       await alicizationDb.listConversationTurnsBySession(sessionId, options),
+    getWorkingMemoryCheckpoint: async (cardId, sessionId) =>
+      await alicizationDb.getWorkingMemoryCheckpoint(cardId, sessionId),
+    persistWorkingMemoryCheckpoint: async snapshot =>
+      await alicizationDb.upsertWorkingMemoryCheckpoint(snapshot),
     retrieveLongTermMemoryEvidence: async input => await alicizationDb.retrieveLongTermMemoryEvidence(input),
     executionCapabilityChannels: alicizationExecutionCapabilityChannels,
     executeMainGatewayTaskThread,
@@ -3831,6 +3835,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
               || (
                 stage !== 'long-term-memory-recall'
                 && stage !== 'working-memory-history'
+                && stage !== 'working-memory-checkpoint-load'
+                && stage !== 'working-memory-checkpoint-save'
                 && stage !== 'working-memory-long-term-queue'
               )
             ) {

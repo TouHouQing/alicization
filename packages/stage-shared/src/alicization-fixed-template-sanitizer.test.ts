@@ -60,6 +60,25 @@ describe('alicization fixed template sanitizer', () => {
     expect(sanitizeAlicizationStructuredInternalText(text, 360, '', internalContext)).toBe('')
   })
 
+  it('requires explicit internal provenance before blocking legacy internal cue labels', () => {
+    const cues = [
+      'structured continuity digest.',
+      'pre_turn_context_digest',
+      'runtime_mind_state',
+    ]
+
+    for (const cue of cues) {
+      expect(containsAlicizationFixedTemplateResidue(cue)).toBe(false)
+      expect(sanitizeAlicizationProviderFacingText(cue, 360)).toBe(cue)
+      expect(sanitizeAlicizationMemoryEvidenceText(cue, 360)).toBe(cue)
+
+      const internalContext = { provenance: 'internal-structured-fact' as const }
+      expect(containsAlicizationFixedTemplateResidue(cue, internalContext)).toBe(true)
+      expect(sanitizeAlicizationProviderFacingText(cue, 360, '', internalContext)).toBe('')
+      expect(sanitizeAlicizationMemoryEvidenceText(cue, 360, internalContext)).toBe('')
+    }
+  })
+
   it('does not scan serialized typed payload values as free-form control text', () => {
     const serialized = JSON.stringify({
       type: 'alicization-runtime-fact',

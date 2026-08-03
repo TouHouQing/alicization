@@ -72,6 +72,7 @@ import type {
   AlicizationTaskThreadStatus,
   AlicizationTaskThreadUpsertInput,
 } from '../../../shared/eventa'
+import type { WorkingMemorySnapshot } from './life-core/working-memory'
 import type { WorkingMemoryLongTermQueueItem } from './life-core/working-memory-long-term-queue'
 import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
 import type {
@@ -94,6 +95,10 @@ import { errorMessageFrom } from '@moeru/std'
 import { normalizeAlicizationMemoryProvenance, sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
 
 import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
+import {
+  parseWorkingMemoryCheckpoint,
+  serializeWorkingMemoryCheckpoint,
+} from './life-core/working-memory-checkpoint'
 import { cleanWorkingMemoryLongTermQueueItem } from './life-core/working-memory-long-term-cleaner'
 import { createWorkingMemoryLongTermCleaningTransaction } from './life-core/working-memory-long-term-cleaning'
 import { createWorkingMemoryLongTermCleaningStoreRuntime } from './life-core/working-memory-long-term-cleaning-store'
@@ -160,6 +165,14 @@ interface MetaRow {
 
 interface JournalModeRow {
   journal_mode: string
+}
+
+interface DbWorkingMemoryCheckpointRow {
+  card_id: string
+  session_id: string
+  version: string
+  snapshot_json: string
+  updated_at: number
 }
 
 interface DbMemoryFactRow {
@@ -1292,6 +1305,10 @@ export interface AlicizationDbService {
   getMetaValue: (key: string) => Promise<string | undefined>
   setMetaValue: (key: string, value: string) => Promise<void>
   getLatestConversationSessionId: () => Promise<string | undefined>
+  getWorkingMemoryCheckpoint: (cardId: string, sessionId: string) => Promise<WorkingMemorySnapshot | null>
+  listWorkingMemoryCheckpoints: (cardId: string, options?: { limit?: number }) => Promise<WorkingMemorySnapshot[]>
+  upsertWorkingMemoryCheckpoint: (snapshot: WorkingMemorySnapshot) => Promise<void>
+  clearWorkingMemoryCheckpoints: (cardId?: string, sessionId?: string) => Promise<void>
   listConversationTurnsSince: (sinceExclusive: number, options?: { limit?: number }) => Promise<Array<{
     turnId: string | null
     sessionId: string
@@ -2210,6 +2227,18 @@ export async function setupAlicizationDb(
     `)
 
     await run(database, `
+      CREATE TABLE IF NOT EXISTS working_memory_checkpoints (
+        card_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        version TEXT NOT NULL,
+        snapshot_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY(card_id, session_id)
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_working_memory_checkpoints_card_updated ON working_memory_checkpoints(card_id, updated_at DESC)')
+
+    await run(database, `
       CREATE TABLE IF NOT EXISTS scheduled_tasks (
         id TEXT PRIMARY KEY,
         task_id TEXT NOT NULL UNIQUE,
@@ -2564,6 +2593,116 @@ export async function setupAlicizationDb(
       return undefined
     const normalized = row.session_id.trim()
     return normalized || undefined
+  }
+
+  function normalizeWorkingMemoryCheckpointKey(raw: unknown, maxChars: number) {
+    return typeof raw === 'string'
+      ? raw.trim().replace(/\s+/g, ' ').slice(0, maxChars).trim()
+      : ''
+  }
+
+  async function getWorkingMemoryCheckpoint(cardIdRaw: string, sessionIdRaw: string) {
+    const cardId = normalizeWorkingMemoryCheckpointKey(cardIdRaw, 120)
+    const sessionId = normalizeWorkingMemoryCheckpointKey(sessionIdRaw, 160)
+    if (!cardId || !sessionId)
+      return null
+
+    const row = await get<DbWorkingMemoryCheckpointRow>(
+      database,
+      `
+      SELECT card_id, session_id, version, snapshot_json, updated_at
+      FROM working_memory_checkpoints
+      WHERE card_id = ? AND session_id = ?
+      LIMIT 1
+      `,
+      [cardId, sessionId],
+    )
+
+    return parseWorkingMemoryCheckpoint(row?.snapshot_json, {
+      cardId,
+      sessionId,
+    })
+  }
+
+  async function listWorkingMemoryCheckpoints(cardIdRaw: string, options?: { limit?: number }) {
+    const cardId = normalizeWorkingMemoryCheckpointKey(cardIdRaw, 120)
+    if (!cardId)
+      return []
+
+    const limit = Math.max(1, Math.min(64, Math.floor(options?.limit ?? 12)))
+    const rows = await all<DbWorkingMemoryCheckpointRow>(
+      database,
+      `
+      SELECT card_id, session_id, version, snapshot_json, updated_at
+      FROM working_memory_checkpoints
+      WHERE card_id = ?
+      ORDER BY updated_at DESC
+      LIMIT ?
+      `,
+      [cardId, limit],
+    )
+
+    return rows
+      .map(row => parseWorkingMemoryCheckpoint(row.snapshot_json, {
+        cardId: row.card_id,
+        sessionId: row.session_id,
+      }))
+      .filter((snapshot): snapshot is WorkingMemorySnapshot => snapshot !== null)
+  }
+
+  async function upsertWorkingMemoryCheckpoint(snapshot: WorkingMemorySnapshot) {
+    const cardId = normalizeWorkingMemoryCheckpointKey(snapshot.cardId, 120)
+    const sessionId = normalizeWorkingMemoryCheckpointKey(snapshot.sessionId, 160)
+    if (!cardId || !sessionId)
+      throw new Error('working memory checkpoint requires cardId and sessionId')
+
+    const snapshotJson = serializeWorkingMemoryCheckpoint({
+      ...snapshot,
+      cardId,
+      sessionId,
+    })
+    await enqueueWrite(async () => {
+      await run(
+        database,
+        `
+        INSERT INTO working_memory_checkpoints (
+          card_id,
+          session_id,
+          version,
+          snapshot_json,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(card_id, session_id)
+        DO UPDATE SET
+          version = excluded.version,
+          snapshot_json = excluded.snapshot_json,
+          updated_at = excluded.updated_at
+        `,
+        [
+          cardId,
+          sessionId,
+          'working-memory-v1',
+          snapshotJson,
+          snapshot.updatedAt,
+        ],
+      )
+    })
+  }
+
+  async function clearWorkingMemoryCheckpoints(cardIdRaw?: string, sessionIdRaw?: string) {
+    const cardId = normalizeWorkingMemoryCheckpointKey(cardIdRaw, 120)
+    const sessionId = normalizeWorkingMemoryCheckpointKey(sessionIdRaw, 160)
+    await enqueueWrite(async () => {
+      if (cardId && sessionId) {
+        await run(database, 'DELETE FROM working_memory_checkpoints WHERE card_id = ? AND session_id = ?', [cardId, sessionId])
+        return
+      }
+      if (cardId) {
+        await run(database, 'DELETE FROM working_memory_checkpoints WHERE card_id = ?', [cardId])
+        return
+      }
+      await run(database, 'DELETE FROM working_memory_checkpoints')
+    })
   }
 
   async function listConversationTurnsSince(sinceExclusive: number, options?: { limit?: number }) {
@@ -3787,6 +3926,7 @@ export async function setupAlicizationDb(
       await run(database, 'DELETE FROM memory_consolidations')
       await run(database, 'DELETE FROM persona_reinforcement_events')
       await run(database, 'DELETE FROM conversation_turns')
+      await run(database, 'DELETE FROM working_memory_checkpoints')
       await run(database, 'DELETE FROM mind_turn_events')
       await run(database, 'DELETE FROM task_threads')
       await run(database, 'DELETE FROM executor_sessions')
@@ -6272,6 +6412,10 @@ export async function setupAlicizationDb(
       })
     },
     getLatestConversationSessionId,
+    getWorkingMemoryCheckpoint,
+    listWorkingMemoryCheckpoints,
+    upsertWorkingMemoryCheckpoint,
+    clearWorkingMemoryCheckpoints,
     listConversationTurnsSince,
     listConversationTurnsBySession,
     searchConversationTurnsForRecall,

@@ -40,6 +40,8 @@ export interface AlicizationChatFailureSurface extends AlicizationVisibleArtifac
 export type AlicizationChatMemoryFailureStage
   = | 'long-term-memory-recall'
     | 'working-memory-history'
+    | 'working-memory-checkpoint-load'
+    | 'working-memory-checkpoint-save'
     | 'working-memory-long-term-queue'
 
 export interface AlicizationChatMemoryFailureSurface extends AlicizationChatFailureSurface {

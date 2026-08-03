@@ -105,4 +105,52 @@ describe('memory procedural abstraction', () => {
 
     expect(abstractions).toEqual([])
   })
+
+  it('treats legacy episodic records with missing typed arrays as non-procedural instead of throwing', () => {
+    const abstractions = buildProceduralMemoryAbstractions({
+      intent: {
+        mode: 'execution-procedure',
+        temporalFocus: 'experience-matched',
+        searchEpisodes: true,
+        searchConversations: false,
+        searchProceduralExperience: true,
+        queryHints: [],
+        rationale: 'legacy records should stay readable',
+        confidence: 0.8,
+      },
+      episodes: [{
+        id: 'event-legacy',
+        cardId: 'default',
+        decisionTraceId: null,
+        turnId: 'turn-legacy',
+        sessionId: 'session-legacy',
+        sourceKind: 'reply',
+        provenance: 'observed',
+        occurredAt: 1,
+        whereSummary: 'chat',
+        withWhom: ['host'],
+        threadAnchor: null,
+        whatHappened: '普通对话',
+        felt: null,
+        emotionTags: [],
+        whatChanged: null,
+        relationshipMeaning: null,
+        lesson: null,
+        sourceSummary: null,
+        confidence: 0.7,
+        salience: 0.5,
+        sceneAttachment: 0,
+        consolidationPriority: 0,
+        relationshipShift: null,
+        createdAt: 1,
+        updatedAt: 1,
+        lastRecalledAt: null,
+        recallCount: 0,
+        reconsolidationCount: 0,
+        latestReconsolidation: null,
+      } as any],
+    })
+
+    expect(abstractions).toEqual([])
+  })
 })

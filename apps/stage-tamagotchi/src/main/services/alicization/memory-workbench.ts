@@ -81,7 +81,7 @@ export interface BuildMemoryWorkbenchSnapshotInput {
   cardId: string
   sessionId: string | null
   now: () => number
-  getWorkingMemory: () => WorkingMemorySnapshot | null
+  getWorkingMemory: () => WorkingMemorySnapshot | null | Promise<WorkingMemorySnapshot | null>
   listLongTermItems: () => Promise<AlicizationMemoryWorkbenchItem[]>
   listReviewItems: () => Promise<AlicizationLongTermMemoryReviewItem[]>
   getQueueHealth: () => Promise<AlicizationMemoryWorkbenchHealth['queue']>
@@ -91,7 +91,10 @@ export interface BuildMemoryWorkbenchSnapshotInput {
 
 export async function buildMemoryWorkbenchSnapshot(input: BuildMemoryWorkbenchSnapshotInput): Promise<AlicizationMemoryWorkbenchSnapshot> {
   const errors: string[] = []
-  const workingMemory = input.getWorkingMemory()
+  const workingMemory = await Promise.resolve(input.getWorkingMemory()).catch((error: unknown) => {
+    errors.push(error instanceof Error ? error.message : String(error))
+    return null
+  })
   const longTermItems = await input.listLongTermItems().catch((error: unknown) => {
     errors.push(error instanceof Error ? error.message : String(error))
     return [] as AlicizationMemoryWorkbenchItem[]

@@ -19,6 +19,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { createAlicizationAgentRuntime } from './agent-runtime'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
+import { createEmptyWorkingMemorySnapshot } from './life-core/working-memory'
 import { createWorkingMemoryStore } from './life-core/working-memory-store'
 import { filterAlicizationProviderSystemMessages } from './main-chat-runtime-surface'
 import {
@@ -4449,6 +4450,119 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(recentText).toContain('最新纠正是先合并尚未落盘的消息')
     expect(recentText).toContain('先保留这条最新纠正')
     expect(recentText.match(/旧问题/gu)).toHaveLength(1)
+  })
+
+  it('hydrates WorkingMemory from a persisted checkpoint when the process store is empty', async () => {
+    const workingMemoryStore = createWorkingMemoryStore()
+    const checkpoint = createEmptyWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-1',
+      now: 100,
+    })
+    checkpoint.currentThread = {
+      title: '短期记忆 checkpoint',
+      currentUserMove: '继续',
+      currentAliceMove: '我会从 checkpoint 恢复',
+      primaryAnchor: 'WorkingMemory',
+      mode: 'task',
+      shouldHold: true,
+      confidence: 0.8,
+    }
+    checkpoint.activeTask = {
+      summary: '把短期记忆重启连续性接上',
+      status: 'active',
+      evidenceTurnIds: ['turn-old:user'],
+    }
+    checkpoint.userCorrections = [{
+      text: '不要让固定模板干扰人格回复',
+      sourceTurnId: 'turn-old:user',
+      scope: 'persona',
+    }]
+    checkpoint.commitments = [{
+      text: '读写 checkpoint 失败要透明告诉用户',
+      sourceTurnId: 'turn-old:user',
+    }]
+
+    const getWorkingMemoryCheckpoint = vi.fn(async () => checkpoint)
+    const persistWorkingMemoryCheckpoint = vi.fn(async () => {})
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      workingMemoryStore,
+      getWorkingMemoryCheckpoint,
+      persistWorkingMemoryCheckpoint,
+      listConversationTurnsBySession: vi.fn(async () => []),
+    })
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '继续',
+      } as Message],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-checkpoint-hydrate',
+        messages: [{
+          role: 'user',
+          content: '继续',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    expect(getWorkingMemoryCheckpoint).toHaveBeenCalledWith('default', 'session-1')
+    expect(persistWorkingMemoryCheckpoint).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'default',
+      sessionId: 'session-1',
+    }))
+    expect(workingMemoryStore.get('default', 'session-1')?.activeTask?.summary)
+      .toBe('把短期记忆重启连续性接上')
+    expect(result.memoryContext.workingMemory.current.threadTitle)
+      .toBe('短期记忆 checkpoint')
+    expect(result.memoryContext.workingMemory.rememberedItems).toEqual(expect.arrayContaining([
+      '不要让固定模板干扰人格回复',
+      '读写 checkpoint 失败要透明告诉用户',
+    ]))
+  })
+
+  it('reports WorkingMemory checkpoint persistence failure without blocking the Provider context', async () => {
+    const persistWorkingMemoryCheckpoint = vi.fn(async () => {
+      throw new Error('checkpoint disk offline')
+    })
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      persistWorkingMemoryCheckpoint,
+      listConversationTurnsBySession: vi.fn(async () => []),
+    })
+    const prelude = createReflectivePrelude({
+      messages: [{
+        role: 'user',
+        content: '继续把短期记忆落盘',
+      } as Message],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-checkpoint-save-failure',
+        messages: [{
+          role: 'user',
+          content: '继续把短期记忆落盘',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    expect(result.memoryContext.workingMemory.current.currentUserMove)
+      .toContain('继续把短期记忆落盘')
+    expect(result.memoryFailures).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'memory-persistence',
+        stage: 'working-memory-checkpoint-save',
+        errorSummary: 'checkpoint disk offline',
+      }),
+    ]))
   })
 
   it('injects one typed memory context for a normal turn and carries the working-memory owner', async () => {

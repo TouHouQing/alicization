@@ -32,6 +32,7 @@ const workingMemoryFixture: WorkingMemoryOwnerContext & { authorityLine: string 
   obligations: [
     'honor_commitment:finish the typed memory context foundation',
   ],
+  compressedTimeline: [],
   queryHints: [
     'typed memory context',
     'provider evidence',
@@ -147,6 +148,48 @@ describe('main chat memory context', () => {
     ])
     expect(context.providerSystemBlock).not.toContain('respect_correction(')
     expect(context.providerSystemBlock).not.toContain('honor_commitment:')
+  })
+
+  it('projects compressed working-memory timeline into the Provider envelope without legacy internal cues', () => {
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: {
+        ...workingMemoryFixture,
+        compressedTimeline: [
+          {
+            id: 'episodelet-internal',
+            sourceTurnIds: ['turn-internal'],
+            summary: 'structured continuity digest.',
+            thread: 'pre_turn_context_digest',
+            commitments: [],
+            corrections: [],
+            importance: 0.8,
+            createdAt: 80,
+          },
+          {
+            id: 'episodelet-1',
+            sourceTurnIds: ['turn-1:user', 'turn-2:alice'],
+            summary: 'user:继续长期记忆分页 | alice:先保留短期 checkpoint',
+            thread: '长期记忆分页',
+            commitments: ['透明提示 checkpoint 失败'],
+            corrections: ['不要让固定模板干扰人格回复'],
+            importance: 0.9,
+            createdAt: 90,
+          },
+        ],
+      },
+      longTermRecall: null,
+    })
+    const parsed = JSON.parse(context.providerSystemBlock)
+
+    expect(parsed.data.workingMemory.compressedTimeline).toEqual([{
+      summary: 'user:继续长期记忆分页 | alice:先保留短期 checkpoint',
+      thread: '长期记忆分页',
+      sourceTurnIds: ['turn-1:user', 'turn-2:alice'],
+      commitments: ['透明提示 checkpoint 失败'],
+      corrections: ['不要让固定模板干扰人格回复'],
+    }])
+    expect(context.providerSystemBlock).not.toContain('structured continuity digest')
+    expect(context.providerSystemBlock).not.toContain('pre_turn_context_digest')
   })
 
   it('drops generic structured residue from provider evidence while keeping confirmed memory', () => {
@@ -353,6 +396,7 @@ describe('main chat memory context', () => {
         taskStatus: workingMemoryFixture.current.taskStatus,
       },
       rememberedItems: ['finish the typed memory context foundation'],
+      compressedTimeline: [],
     })
     expect(context.workingMemory).not.toHaveProperty('authorityLine')
     expect(context.workingMemory).not.toHaveProperty('longTermQueue')

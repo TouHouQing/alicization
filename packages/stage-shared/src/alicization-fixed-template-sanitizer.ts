@@ -68,6 +68,29 @@ function looksLikeStructuredInternalFactText(text: string) {
   )
 }
 
+function looksLikeInternalCueText(text: string) {
+  const normalized = text
+    .trim()
+    .replace(/[。.!！]+$/u, '')
+    .replace(/\s+/gu, ' ')
+    .toLowerCase()
+
+  if (!normalized)
+    return false
+
+  if (/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$/u.test(normalized)) {
+    return /digest|cue|policy|governance|canonical|prompt|visibility|project|runtime|state|cadence|opening/u
+      .test(normalized)
+  }
+
+  return [
+    'structured continuity digest',
+    'project state brief',
+    'runtime mind state',
+    'canonical reply',
+  ].includes(normalized)
+}
+
 export function containsAlicizationFixedTemplateResidue(
   raw: unknown,
   context?: AlicizationFixedTemplateSanitizerContext | null,
@@ -77,7 +100,10 @@ export function containsAlicizationFixedTemplateResidue(
   if (typeof raw === 'string' && isSerializedStructuredPayload(raw.trim()))
     return false
   const normalized = normalizeStructuredFactCandidate(raw, 2400)
-  return Boolean(normalized) && looksLikeStructuredInternalFactText(normalized)
+  return Boolean(normalized) && (
+    looksLikeStructuredInternalFactText(normalized)
+    || looksLikeInternalCueText(normalized)
+  )
 }
 
 export function sanitizeAlicizationProviderFacingText(

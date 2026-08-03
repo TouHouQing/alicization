@@ -61,9 +61,9 @@ const proceduralTags = new Set([
 function isTypedProceduralEpisode(event: AlicizationEpisodicEventRecord) {
   if (event.sourceKind === 'execution-proposal' || event.sourceKind === 'execution-result')
     return true
-  if (event.derivedFrom.some(reference => reference.kind === 'execution-event' || reference.kind === 'task-thread'))
+  if ((event.derivedFrom ?? []).some(reference => reference.kind === 'execution-event' || reference.kind === 'task-thread'))
     return true
-  return event.tags.some(tag => proceduralTags.has(tag.trim().toLowerCase()))
+  return (event.tags ?? []).some(tag => proceduralTags.has(tag.trim().toLowerCase()))
 }
 
 export function buildProceduralMemoryAbstractions(input: {

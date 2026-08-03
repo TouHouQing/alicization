@@ -228,6 +228,8 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     sessionId: string,
     options?: { limit?: number },
   ) => Promise<WorkingMemoryConversationTurnRecord[]>
+  getWorkingMemoryCheckpoint?: (cardId: string, sessionId: string) => Promise<WorkingMemorySnapshot | null>
+  persistWorkingMemoryCheckpoint?: (snapshot: WorkingMemorySnapshot) => Promise<void>
   retrieveLongTermMemoryEvidence?: (input: {
     cardId: string
     currentUserText: string
@@ -2351,6 +2353,29 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           return []
         })
       : []
+    let previousWorkingMemorySnapshot = workingMemoryStore.get(payload.cardId, workingMemorySessionId)
+    if (!previousWorkingMemorySnapshot && options.getWorkingMemoryCheckpoint) {
+      try {
+        previousWorkingMemorySnapshot = await options.getWorkingMemoryCheckpoint(
+          payload.cardId,
+          workingMemorySessionId,
+        )
+        if (previousWorkingMemorySnapshot)
+          workingMemoryStore.upsert(previousWorkingMemorySnapshot)
+      }
+      catch (error) {
+        memoryFailures.push({
+          ...resolveAlicizationChatFailureSurface({
+            kind: 'recall-failure',
+          }),
+          stage: 'working-memory-checkpoint-load',
+          cardId: payload.cardId,
+          turnId: payload.turnId,
+          occurredAt: now,
+          errorSummary: normalizeAlicizationMemoryFailureErrorSummary(error),
+        })
+      }
+    }
     const workingMemoryOwner = buildWorkingMemoryOwnerContextFromRuntime({
       cardId: payload.cardId,
       currentConsciousFrame: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame ?? null,
@@ -2361,10 +2386,27 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       messages: providerPlanningMessages,
       now,
       persistedRecentTurns,
-      previousSnapshot: workingMemoryStore.get(payload.cardId, workingMemorySessionId),
+      previousSnapshot: previousWorkingMemorySnapshot,
       sessionId: workingMemorySessionId,
     })
     workingMemoryStore.upsert(workingMemoryOwner.snapshot)
+    if (options.persistWorkingMemoryCheckpoint) {
+      try {
+        await options.persistWorkingMemoryCheckpoint(workingMemoryOwner.snapshot)
+      }
+      catch (error) {
+        memoryFailures.push({
+          ...resolveAlicizationChatFailureSurface({
+            kind: 'memory-persistence',
+          }),
+          stage: 'working-memory-checkpoint-save',
+          cardId: payload.cardId,
+          turnId: payload.turnId,
+          occurredAt: now,
+          errorSummary: normalizeAlicizationMemoryFailureErrorSummary(error),
+        })
+      }
+    }
     let longTermMemoryBundle: LongTermMemoryEvidenceBundle | null = null
     const currentUserText = readLatestUserMessageText(providerPlanningMessages)
     if (options.retrieveLongTermMemoryEvidence) {

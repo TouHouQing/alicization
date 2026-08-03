@@ -96,6 +96,8 @@ function isRecordPayload(value: unknown): value is Record<string, unknown> {
 const memoryFailureStages = new Set<AlicizationChatMemoryFailureSurface['stage']>([
   'long-term-memory-recall',
   'working-memory-history',
+  'working-memory-checkpoint-load',
+  'working-memory-checkpoint-save',
   'working-memory-long-term-queue',
 ])
 
@@ -112,6 +114,7 @@ function normalizeTransportMemoryFailures(raw: unknown): AlicizationChatMemoryFa
       ? value.stage as AlicizationChatMemoryFailureSurface['stage']
       : null
     const expectedKind = stage === 'working-memory-long-term-queue'
+      || stage === 'working-memory-checkpoint-save'
       ? 'memory-persistence'
       : 'recall-failure'
     const reply = typeof value.reply === 'string' ? value.reply.trim() : ''

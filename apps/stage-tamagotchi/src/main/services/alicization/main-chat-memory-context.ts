@@ -11,6 +11,13 @@ export interface AlicizationWorkingMemoryProviderContext {
     WorkingMemoryOwnerContext['current'],
     'threadTitle' | 'currentUserMove' | 'activeTask' | 'taskStatus'
   >
+  compressedTimeline: Array<{
+    summary: string
+    thread: string | null
+    sourceTurnIds: string[]
+    commitments: string[]
+    corrections: string[]
+  }>
   rememberedItems: string[]
 }
 
@@ -59,11 +66,37 @@ function projectProviderWorkingMemory(
       activeTask: sanitizeProviderMemoryFactText(context.current.activeTask, 220) || null,
       taskStatus: context.current.taskStatus,
     },
+    compressedTimeline: projectProviderCompressedTimeline(context),
     rememberedItems: context.obligations
       .map(normalizeProviderWorkingMemoryLine)
       .map(value => sanitizeProviderMemoryFactText(value, 260))
       .filter(Boolean),
   }
+}
+
+function projectProviderCompressedTimeline(context: WorkingMemoryOwnerContext): AlicizationWorkingMemoryProviderContext['compressedTimeline'] {
+  return context.compressedTimeline
+    .slice(-6)
+    .map((episodelet) => {
+      const summary = sanitizeProviderMemoryFactText(episodelet.summary, 520)
+      const sanitizeList = (values: string[], maxItems: number, maxChars: number) =>
+        values
+          .map(value => sanitizeProviderMemoryFactText(value, maxChars))
+          .filter(Boolean)
+          .slice(0, maxItems)
+
+      return {
+        summary,
+        thread: sanitizeProviderMemoryFactText(episodelet.thread, 220) || null,
+        sourceTurnIds: episodelet.sourceTurnIds
+          .map(value => sanitizeProviderMemoryFactText(value, 120))
+          .filter(Boolean)
+          .slice(0, 24),
+        commitments: sanitizeList(episodelet.commitments, 4, 220),
+        corrections: sanitizeList(episodelet.corrections, 4, 220),
+      }
+    })
+    .filter(episodelet => episodelet.summary || episodelet.commitments.length > 0 || episodelet.corrections.length > 0)
 }
 
 function normalizeProviderCurrentUserMove(raw: unknown) {
