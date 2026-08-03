@@ -4628,6 +4628,43 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(providerText).not.toMatch(/\[[A-Z][A-Z0-9_]{4,}\]/u)
   })
 
+  it('applies the production token budget after injecting WorkingMemory and returns an audit report', async () => {
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      promptBudgetTokens: 512,
+    })
+    const prelude = createReflectivePrelude({
+      messages: [
+        { role: 'system', content: '人格锚点'.repeat(100) } as Message,
+        { role: 'assistant', content: '旧历史'.repeat(900) } as Message,
+        { role: 'user', content: '当前用户回合：继续处理短期记忆。' } as Message,
+      ],
+    })
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-budget',
+        messages: [
+          { role: 'system', content: '人格锚点'.repeat(100) },
+          { role: 'assistant', content: '旧历史'.repeat(900) },
+          { role: 'user', content: '当前用户回合：继续处理短期记忆。' },
+        ],
+        supportsTools: true,
+      } as any,
+      prelude,
+    })
+
+    expect(result.promptBudgetReport).toBeDefined()
+    expect(result.promptBudgetReport!.totalAfterTokens)
+      .toBeLessThanOrEqual(result.promptBudgetReport!.totalBeforeTokens)
+    expect(result.promptBudgetReport!.truncated).toBe(true)
+    expect(result.promptBudgetReport!.sections.memory.afterTokens).toBeGreaterThan(0)
+    expect(result.messages.map(message => String(message.content ?? '')).join('\n'))
+      .toContain('当前用户回合：继续处理短期记忆。')
+    expect(findOnlyAlicizationTurnMemoryContextMessage(result.messages).context.workingMemory.owner)
+      .toBe('working-memory')
+  })
+
   it('projects the working-memory owner into the runtime surface instead of leaving it prompt-only', async () => {
     const { runtime } = createWorkingMemoryRuntimeFixture()
     const prelude = createReflectivePrelude({

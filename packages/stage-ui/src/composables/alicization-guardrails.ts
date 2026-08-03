@@ -107,11 +107,13 @@ const defaultPromptAssembly: Required<PromptAssemblyOptions> = {
 }
 
 const runtimeSensoryFactType = 'alicization-sensory-context'
-const safeModeRuntimeNotice = buildAlicizationProviderFactBlock('alicization-prompt-budget-state', {
-  reason: 'soul-overflow',
-  memoryIncluded: false,
-  historyIncluded: false,
-})
+function buildSafeModeRuntimeNotice(memoryIncluded: boolean) {
+  return buildAlicizationProviderFactBlock('alicization-prompt-budget-state', {
+    reason: 'soul-overflow',
+    memoryIncluded,
+    historyIncluded: false,
+  })
+}
 
 const defaultSanitizeOptions: Required<SanitizeOptions> = {
   timeBudgetMs: 50,
@@ -358,9 +360,99 @@ function trimMemoryByConfidence(text: string, budgetTokens: number) {
   return trimTextToTokenBudget(reduced, budgetTokens, 'middle')
 }
 
+function trimTypedMemoryContext(text: string, budgetTokens: number) {
+  if (estimateTokens(text) <= budgetTokens)
+    return text
+
+  const parsed = readProviderFactBlock(text)
+  if (!parsed || parsed.type !== 'alicization-turn-memory-context')
+    return trimMemoryByConfidence(text, budgetTokens)
+
+  const data = parsed.data && typeof parsed.data === 'object' && !Array.isArray(parsed.data)
+    ? structuredClone(parsed.data) as Record<string, any>
+    : null
+  if (!data)
+    return trimMemoryByConfidence(text, budgetTokens)
+
+  const serialize = () => JSON.stringify({
+    type: parsed.type,
+    data,
+  })
+
+  const workingMemory = data.workingMemory && typeof data.workingMemory === 'object'
+    ? data.workingMemory as Record<string, any>
+    : null
+  const longTermRecall = data.longTermRecall && typeof data.longTermRecall === 'object'
+    ? data.longTermRecall as Record<string, any>
+    : null
+
+  const dropTail = (key: string) => {
+    const values = workingMemory?.[key]
+    if (Array.isArray(values) && values.length > 0) {
+      values.pop()
+      return true
+    }
+    return false
+  }
+
+  while (estimateTokens(serialize()) > budgetTokens) {
+    if (longTermRecall && Array.isArray(longTermRecall.evidence) && longTermRecall.evidence.length > 0) {
+      longTermRecall.evidence.pop()
+      continue
+    }
+    if (dropTail('compressedTimeline'))
+      continue
+    if (dropTail('rememberedItems'))
+      continue
+    if (dropTail('unresolvedQuestions'))
+      continue
+    if (dropTail('commitments'))
+      continue
+    if (dropTail('corrections'))
+      continue
+
+    if (workingMemory?.current && typeof workingMemory.current === 'object') {
+      const current = workingMemory.current as Record<string, unknown>
+      const currentKey = ['activeTask', 'threadTitle', 'currentUserMove']
+        .find(key => typeof current[key] === 'string' && String(current[key]).length > 48)
+      if (currentKey) {
+        current[currentKey] = trimTextToTokenBudget(String(current[currentKey]), 12, 'tail') || null
+        continue
+      }
+    }
+
+    break
+  }
+
+  const compacted = serialize()
+  return estimateTokens(compacted) <= budgetTokens
+    ? compacted
+    : JSON.stringify({
+        type: parsed.type,
+        data: {
+          version: typeof data.version === 'string' ? data.version : null,
+          workingMemory: {
+            version: typeof workingMemory?.version === 'string' ? workingMemory.version : null,
+            owner: workingMemory?.owner === 'working-memory' ? 'working-memory' : null,
+            scope: workingMemory?.scope ?? null,
+            current: {},
+            compressedTimeline: [],
+            rememberedItems: [],
+            unresolvedQuestions: [],
+            commitments: [],
+            corrections: [],
+            relationshipPosture: null,
+            emotionalPosture: null,
+            executionState: null,
+          },
+          longTermRecall: null,
+        },
+      })
+}
+
 function isMemoryMessage(message: Message) {
   const text = readMessageText(message)
-  return /"type":"alicization-memory-context"/u.test(text)
+  return /"type":"(?:alicization-memory-context|alicization-turn-memory-context|alicization-long-term-memory-recall)"/u.test(text)
     || /Relevant memory facts:/i.test(text)
     || /confidence\s*=/i.test(text)
 }
@@ -537,8 +629,17 @@ export function applyPromptBudget(messages: Message[], options?: PromptBudgetOpt
     }
     minimalMessages.push({
       role: 'system',
-      content: safeModeRuntimeNotice,
+      content: buildSafeModeRuntimeNotice(memoryIndex >= 0),
     })
+
+    if (memoryIndex >= 0 && result[memoryIndex]) {
+      const memoryText = readMessageText(result[memoryIndex]!)
+      const nextMemoryText = trimTypedMemoryContext(
+        memoryText,
+        Math.max(64, memoryBudget),
+      )
+      minimalMessages.push(writeMessageText(result[memoryIndex]!, nextMemoryText))
+    }
 
     if (currentTurnIndex >= 0 && result[currentTurnIndex]) {
       const currentText = readMessageText(result[currentTurnIndex]!)
@@ -548,6 +649,7 @@ export function applyPromptBudget(messages: Message[], options?: PromptBudgetOpt
 
     const totalBefore = messages.reduce((sum, message) => sum + estimateMessageTokens(message), 0)
     const totalAfter = minimalMessages.reduce((sum, message) => sum + estimateMessageTokens(message), 0)
+    const memoryMessage = minimalMessages.find(message => isMemoryMessage(message))
 
     return {
       messages: minimalMessages,
@@ -566,7 +668,9 @@ export function applyPromptBudget(messages: Message[], options?: PromptBudgetOpt
           },
           memory: {
             beforeTokens: sectionBefore.memory,
-            afterTokens: 0,
+            afterTokens: memoryMessage
+              ? estimateMessageTokens(memoryMessage)
+              : 0,
           },
           currentTurn: {
             beforeTokens: sectionBefore.currentTurn,
@@ -591,7 +695,7 @@ export function applyPromptBudget(messages: Message[], options?: PromptBudgetOpt
 
   if (memoryIndex >= 0 && memoryIndex !== runtimeIndex) {
     const memoryText = readMessageText(result[memoryIndex]!)
-    const nextMemoryText = trimMemoryByConfidence(memoryText, memoryBudget)
+    const nextMemoryText = trimTypedMemoryContext(memoryText, memoryBudget)
     result[memoryIndex] = writeMessageText(result[memoryIndex]!, nextMemoryText)
   }
 
@@ -607,7 +711,7 @@ export function applyPromptBudget(messages: Message[], options?: PromptBudgetOpt
     const maxMemoryTokens = Math.max(0, totalBudget - protectedSoulTokens - protectedCurrentTokens)
     const currentMemoryText = readMessageText(result[memoryIndex]!)
     if (estimateTokens(currentMemoryText) > maxMemoryTokens) {
-      const minimizedMemory = trimMemoryByConfidence(currentMemoryText, maxMemoryTokens)
+      const minimizedMemory = trimTypedMemoryContext(currentMemoryText, maxMemoryTokens)
       result[memoryIndex] = writeMessageText(result[memoryIndex]!, minimizedMemory)
     }
   }

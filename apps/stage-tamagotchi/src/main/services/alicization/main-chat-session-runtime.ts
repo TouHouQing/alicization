@@ -7,6 +7,7 @@ import type {
   AlicizationExecutionRoutingIntent,
   AlicizationPersonaKernelSnapshot,
 } from '@proj-alicization/stage-shared'
+import type { PromptBudgetReport } from '@proj-alicization/stage-ui/composables/alicization-guardrails'
 import type { Message } from '@xsai/shared-chat'
 
 import type {
@@ -73,6 +74,7 @@ import {
   normalizeAlicizationRuntimeDigest,
   resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
+import { applyPromptBudget } from '@proj-alicization/stage-ui/composables/alicization-guardrails'
 
 import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
@@ -177,6 +179,7 @@ export interface AlicizationPreparedMainChatExecutionResult extends PreparedMain
   getSessionTrace: () => AlicizationRuntimeCallChainSnapshot
   memoryContext: AlicizationMainChatMemoryContext
   memoryFailures: AlicizationMainChatMemoryFailureSurface[]
+  promptBudgetReport?: PromptBudgetReport
   mindTurnContract: AlicizationMindTurnContractSnapshot | null
   organicMemoryContext?: OrganicMemoryPromptContext
   memoryTurnArtifact?: ReturnType<typeof buildAlicizationMemoryTurnArtifact>
@@ -230,6 +233,7 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
   ) => Promise<WorkingMemoryConversationTurnRecord[]>
   getWorkingMemoryCheckpoint?: (cardId: string, sessionId: string) => Promise<WorkingMemorySnapshot | null>
   persistWorkingMemoryCheckpoint?: (snapshot: WorkingMemorySnapshot) => Promise<void>
+  promptBudgetTokens?: number
   retrieveLongTermMemoryEvidence?: (input: {
     cardId: string
     currentUserText: string
@@ -2455,6 +2459,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     }
     const memoryContext = buildAlicizationMainChatMemoryContext({
       workingMemory: workingMemoryOwner.ownerContext,
+      workingMemorySnapshot: workingMemoryOwner.snapshot,
       longTermRecall: longTermMemoryBundle,
     })
     if (workingMemoryOwner.ownerContext.longTermQueue.length > 0 && options.enqueueWorkingMemoryLongTermQueue) {
@@ -2527,6 +2532,13 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     messages = filterAlicizationProviderSystemMessages(messages)
     messages = injectAlicizationMainChatMemoryContext(messages, memoryContext)
     messages = filterAlicizationProviderSystemMessages(messages)
+    const promptBudgetResult = applyPromptBudget(
+      messages,
+      Number.isFinite(options.promptBudgetTokens)
+        ? { totalTokens: options.promptBudgetTokens }
+        : undefined,
+    )
+    messages = promptBudgetResult.messages
     runtimeSurface.messages = messages
 
     if (options.onPreparedExecutionDiagnostics) {
@@ -2603,6 +2615,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       governance: runtimeSurface.governance,
       memoryContext,
       memoryFailures,
+      promptBudgetReport: promptBudgetResult.report,
       mindTurnContract: finalizedReturnedMindTurnContract,
       organicMemoryContext: organicPromptContext,
       memoryTurnArtifact,

@@ -1,3 +1,4 @@
+import type { WorkingMemorySnapshot } from './life-core/working-memory'
 import type { WorkingMemoryOwnerContext } from './life-core/working-memory-owner-context'
 import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
 
@@ -19,6 +20,24 @@ export interface AlicizationWorkingMemoryProviderContext {
     corrections: string[]
   }>
   rememberedItems: string[]
+  unresolvedQuestions: string[]
+  commitments: string[]
+  corrections: Array<{
+    text: string
+    scope: WorkingMemorySnapshot['userCorrections'][number]['scope']
+  }>
+  relationshipPosture: {
+    summary: string
+    source: NonNullable<WorkingMemorySnapshot['relationshipPosture']>['source']
+  } | null
+  emotionalPosture: {
+    summary: string
+    source: NonNullable<WorkingMemorySnapshot['emotionalPosture']>['source']
+  } | null
+  executionState: {
+    summary: string
+    source: NonNullable<WorkingMemorySnapshot['executionState']>['source']
+  } | null
 }
 
 export interface AlicizationLongTermMemoryRecallProviderEvidence {
@@ -55,7 +74,42 @@ export interface AlicizationMainChatMemoryContext {
 
 function projectProviderWorkingMemory(
   context: WorkingMemoryOwnerContext,
+  snapshot?: WorkingMemorySnapshot | null,
 ): AlicizationWorkingMemoryProviderContext {
+  const unresolvedQuestions = (snapshot?.unresolvedQuestions ?? [])
+    .map(question => sanitizeProviderMemoryFactText(question.text, 260))
+    .filter(Boolean)
+    .slice(0, 8)
+  const commitments = (snapshot?.commitments ?? [])
+    .map(commitment => sanitizeProviderMemoryFactText(commitment.text, 260))
+    .filter(Boolean)
+    .slice(0, 8)
+  const corrections = (snapshot?.userCorrections ?? [])
+    .map(correction => ({
+      text: sanitizeProviderMemoryFactText(correction.text, 260),
+      scope: correction.scope,
+    }))
+    .filter(correction => correction.text)
+    .slice(0, 8)
+  const relationshipPosture = snapshot?.relationshipPosture
+    ? {
+        summary: sanitizeProviderMemoryFactText(snapshot.relationshipPosture.summary, 260),
+        source: snapshot.relationshipPosture.source,
+      }
+    : null
+  const emotionalPosture = snapshot?.emotionalPosture
+    ? {
+        summary: sanitizeProviderMemoryFactText(snapshot.emotionalPosture.summary, 260),
+        source: snapshot.emotionalPosture.source,
+      }
+    : null
+  const executionState = snapshot?.executionState
+    ? {
+        summary: sanitizeProviderMemoryFactText(snapshot.executionState.summary, 260),
+        source: snapshot.executionState.source,
+      }
+    : null
+
   return {
     version: context.version,
     owner: context.owner,
@@ -71,6 +125,18 @@ function projectProviderWorkingMemory(
       .map(normalizeProviderWorkingMemoryLine)
       .map(value => sanitizeProviderMemoryFactText(value, 260))
       .filter(Boolean),
+    unresolvedQuestions,
+    commitments,
+    corrections,
+    relationshipPosture: relationshipPosture?.summary
+      ? relationshipPosture
+      : null,
+    emotionalPosture: emotionalPosture?.summary
+      ? emotionalPosture
+      : null,
+    executionState: executionState?.summary
+      ? executionState
+      : null,
   }
 }
 
@@ -187,10 +253,12 @@ function sanitizeLongTermRecallEvidence(
 
 function normalizeWorkingMemoryProviderContext(
   context: WorkingMemoryOwnerContext,
+  snapshot?: WorkingMemorySnapshot | null,
 ): AlicizationWorkingMemoryProviderContext {
   const cloned = structuredClone(context)
+  const clonedSnapshot = snapshot ? structuredClone(snapshot) : null
 
-  return projectProviderWorkingMemory(cloned)
+  return projectProviderWorkingMemory(cloned, clonedSnapshot)
 }
 
 function normalizeLongTermRecallProviderContext(
@@ -228,10 +296,14 @@ function normalizeLongTermRecallProviderContext(
 
 export function buildAlicizationMainChatMemoryContext(input: {
   workingMemory: WorkingMemoryOwnerContext
+  workingMemorySnapshot?: WorkingMemorySnapshot | null
   longTermRecall: LongTermMemoryEvidenceBundle | null
 }): AlicizationMainChatMemoryContext {
   const version = 'alicization-main-chat-memory-context-v1'
-  const workingMemory = normalizeWorkingMemoryProviderContext(input.workingMemory)
+  const workingMemory = normalizeWorkingMemoryProviderContext(
+    input.workingMemory,
+    input.workingMemorySnapshot,
+  )
   const longTermRecall = input.longTermRecall
     ? normalizeLongTermRecallProviderContext(input.longTermRecall)
     : null

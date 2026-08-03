@@ -3,6 +3,7 @@ import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
 
 import { describe, expect, it } from 'vitest'
 
+import { createEmptyWorkingMemorySnapshot } from './life-core/working-memory'
 import { buildAlicizationMainChatMemoryContext } from './main-chat-memory-context'
 
 const ownerInternalMetadata = 'owner-internal-metadata'
@@ -59,6 +60,38 @@ const workingMemoryFixture: WorkingMemoryOwnerContext & { authorityLine: string 
     contaminationFlags: [],
     createdAt: 90,
   }],
+}
+
+const workingMemorySnapshotFixture = createEmptyWorkingMemorySnapshot({
+  cardId: 'card-1',
+  sessionId: 'session-1',
+  now: 100,
+})
+
+workingMemorySnapshotFixture.unresolvedQuestions = [{
+  text: '上下文压缩后如何继续追踪这个问题？',
+  sourceTurnId: 'turn-1:user',
+}]
+workingMemorySnapshotFixture.commitments = [{
+  text: '保留当前任务的连续性',
+  sourceTurnId: 'turn-2:alice',
+}]
+workingMemorySnapshotFixture.userCorrections = [{
+  text: '请保留用户刚刚明确的纠正',
+  sourceTurnId: 'turn-1:user',
+  scope: 'reply',
+}]
+workingMemorySnapshotFixture.relationshipPosture = {
+  summary: '保持真实、连续的协作关系',
+  source: 'conversation-state',
+}
+workingMemorySnapshotFixture.emotionalPosture = {
+  summary: '当前专注于把短期记忆接回对话',
+  source: 'conscious-frame',
+}
+workingMemorySnapshotFixture.executionState = {
+  summary: '当前没有待完成的工具执行',
+  source: 'execution-ledger',
 }
 
 function createEvidence(
@@ -128,6 +161,40 @@ const longTermRecallFixture: LongTermMemoryEvidenceBundle = {
 }
 
 describe('main chat memory context', () => {
+  it('projects every compressed and checkpointed WorkingMemory field as independent provider data', () => {
+    const context = buildAlicizationMainChatMemoryContext({
+      workingMemory: workingMemoryFixture,
+      workingMemorySnapshot: workingMemorySnapshotFixture,
+      longTermRecall: null,
+    })
+    const parsed = JSON.parse(context.providerSystemBlock).data.workingMemory
+
+    expect(parsed).toMatchObject({
+      owner: 'working-memory',
+      unresolvedQuestions: ['上下文压缩后如何继续追踪这个问题？'],
+      commitments: ['保留当前任务的连续性'],
+      corrections: [{
+        text: '请保留用户刚刚明确的纠正',
+        scope: 'reply',
+      }],
+      relationshipPosture: {
+        summary: '保持真实、连续的协作关系',
+        source: 'conversation-state',
+      },
+      emotionalPosture: {
+        summary: '当前专注于把短期记忆接回对话',
+        source: 'conscious-frame',
+      },
+      executionState: {
+        summary: '当前没有待完成的工具执行',
+        source: 'execution-ledger',
+      },
+    })
+    expect(parsed).not.toHaveProperty('queryHints')
+    expect(parsed).not.toHaveProperty('audit')
+    expect(context.workingMemory.owner).toBe('working-memory')
+  })
+
   it('removes legacy owner prefixes while preserving the underlying working-memory text', () => {
     const rawCorrection = '不是这个，今天先处理长期记忆分页。'
     const context = buildAlicizationMainChatMemoryContext({

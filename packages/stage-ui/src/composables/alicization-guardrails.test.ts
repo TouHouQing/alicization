@@ -137,7 +137,7 @@ describe('alicization guardrails', () => {
       type: 'alicization-prompt-budget-state',
       data: {
         reason: 'soul-overflow',
-        memoryIncluded: false,
+        memoryIncluded: true,
         historyIncluded: false,
       },
     })
@@ -146,6 +146,50 @@ describe('alicization guardrails', () => {
     const currentTurn = nextMessages.at(-1)
     expect(currentTurn?.role).toBe('user')
     expect(typeof currentTurn?.content === 'string' ? currentTurn.content : JSON.stringify(currentTurn?.content)).toContain('修复登录流程')
+  })
+
+  it('protects the typed WorkingMemory context as the memory section under token pressure', () => {
+    const memoryContext = JSON.stringify({
+      type: 'alicization-turn-memory-context',
+      data: {
+        version: 'alicization-main-chat-memory-context-v1',
+        workingMemory: {
+          version: 'working-memory-owner-context-v1',
+          owner: 'working-memory',
+          unresolvedQuestions: ['继续追踪压缩后的问题'],
+          commitments: ['保留当前任务'],
+          corrections: [{ text: '保留用户纠正', scope: 'reply' }],
+          relationshipPosture: { summary: '保持连续关系', source: 'conversation-state' },
+          emotionalPosture: { summary: '当前专注', source: 'conscious-frame' },
+          executionState: { summary: '没有待完成执行', source: 'execution-ledger' },
+        },
+        longTermRecall: null,
+      },
+    })
+    const result = applyPromptBudget([
+      { role: 'system', content: '人格锚点'.repeat(100) },
+      { role: 'system', content: memoryContext },
+      { role: 'assistant', content: '旧历史'.repeat(900) },
+      { role: 'user', content: '保留当前用户回合：继续处理短期记忆。' },
+    ], {
+      totalTokens: 900,
+    })
+
+    const memoryMessage = result.messages.find(message =>
+      message.role === 'system'
+      && typeof message.content === 'string'
+      && message.content.includes('"type":"alicization-turn-memory-context"'),
+    )
+
+    expect(memoryMessage).toBeTruthy()
+    expect(result.report.sections.memory.afterTokens).toBeGreaterThan(0)
+    expect(result.report.totalAfterTokens).toBeLessThanOrEqual(900)
+    expect(JSON.parse(String(memoryMessage?.content))).toMatchObject({
+      type: 'alicization-turn-memory-context',
+    })
+    expect(result.report.anchorPreserved).toBe(true)
+    expect(JSON.stringify(result.messages)).toContain('继续处理短期记忆')
+    expect(JSON.stringify(result.messages)).not.toMatch(/Output contract|Response contract|strict JSON/iu)
   })
 
   it('keeps system[0] soul anchor unchanged across 10k budget rounds', () => {
