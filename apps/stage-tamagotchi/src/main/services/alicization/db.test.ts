@@ -1,6 +1,6 @@
 import type { AlicizationMemoryLegacySnapshot } from '../../../shared/eventa'
 
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createEmptyWorkingMemorySnapshot } from './life-core/working-memory'
 
 const runCalls: string[] = []
+const queryCalls: string[] = []
 const metaState = new Map<string, string>()
 const mindTurnEvents: Array<{
   id: string
@@ -1415,6 +1416,7 @@ class FakeSqliteDatabase {
   }
 
   all(_sql: string, _params: unknown[] | ((error: Error | null, rows?: unknown[]) => void), callback?: (error: Error | null, rows?: unknown[]) => void) {
+    queryCalls.push(_sql)
     const actualParams = Array.isArray(_params) ? _params : []
     const actualCallback = (typeof _params === 'function' ? _params : callback) as ((error: Error | null, rows?: unknown[]) => void) | undefined
     if (_sql.includes('FROM memory_archive')) {
@@ -1834,11 +1836,59 @@ vi.mock('sqlite3', () => {
   }
 })
 
+const actualSqliteModule = await vi.importActual<any>('sqlite3')
+const actualSqliteDriver = actualSqliteModule.default ?? actualSqliteModule
+
+function openActualSqlite(filepath: string) {
+  return new Promise<any>((resolve, reject) => {
+    const database = new actualSqliteDriver.Database(filepath, (error: Error | null) => {
+      if (error)
+        reject(error)
+      else
+        resolve(database)
+    })
+  })
+}
+
+function runActualSqlite(database: any, sql: string, params: unknown[] = []) {
+  return new Promise<void>((resolve, reject) => {
+    database.run(sql, params, (error: Error | null) => {
+      if (error)
+        reject(error)
+      else
+        resolve()
+    })
+  })
+}
+
+function allActualSqlite<T>(database: any, sql: string, params: unknown[] = []) {
+  return new Promise<T[]>((resolve, reject) => {
+    database.all(sql, params, (error: Error | null, rows?: T[]) => {
+      if (error)
+        reject(error)
+      else
+        resolve(rows ?? [])
+    })
+  })
+}
+
+function closeActualSqlite(database: any) {
+  return new Promise<void>((resolve, reject) => {
+    database.close((error: Error | null) => {
+      if (error)
+        reject(error)
+      else
+        resolve()
+    })
+  })
+}
+
 const { setupAlicizationDb } = await import('./db')
 
 describe('alicization sqlite dao', () => {
   afterEach(async () => {
     runCalls.length = 0
+    queryCalls.length = 0
     metaState.clear()
     scheduledTasks.clear()
     mindTurnEvents.length = 0
@@ -1879,6 +1929,384 @@ describe('alicization sqlite dao', () => {
     expect(runCalls.some(sql => sql.includes('PRAGMA journal_mode = WAL'))).toBe(true)
     expect(runCalls.some(sql => sql.includes('PRAGMA busy_timeout = 2000'))).toBe(true)
     expect(await db.getJournalMode()).toBe('wal')
+    await db.close()
+  })
+
+  it('rejects an unbound database outside explicit migration/test scope', async () => {
+    await expect(setupAlicizationDb(await createSandboxUserDataPath(), {
+      allowUnboundScope: false,
+    })).rejects.toThrow('requires cardId')
+  })
+
+  it('deletes legacy global memory and rebuilds canonical card-scoped tables', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'cards', 'card-a')
+    await mkdir(rootDir, { recursive: true })
+    const dbPath = join(rootDir, 'alicization.db')
+    const legacyDatabase = await openActualSqlite(dbPath)
+    await runActualSqlite(legacyDatabase, `
+      CREATE TABLE memory_facts (
+        id TEXT PRIMARY KEY,
+        subject TEXT NOT NULL,
+        predicate TEXT NOT NULL,
+        object TEXT NOT NULL,
+        confidence REAL NOT NULL,
+        source TEXT NOT NULL,
+        dedupe_key TEXT NOT NULL UNIQUE,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `)
+    await runActualSqlite(legacyDatabase, `
+      CREATE TABLE memory_consolidations (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        period_key TEXT NOT NULL,
+        period_started_at INTEGER NOT NULL,
+        period_ended_at INTEGER NOT NULL,
+        summary TEXT NOT NULL,
+        confidence REAL NOT NULL,
+        dominant_provenance TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `)
+    await runActualSqlite(legacyDatabase, `
+      INSERT INTO memory_facts (
+        id, subject, predicate, object, confidence, source, dedupe_key, created_at, updated_at
+      ) VALUES ('legacy-fact', 'user', 'prefers', 'legacy', 0.9, 'rule', 'legacy-fact', 1, 1)
+    `)
+    await runActualSqlite(legacyDatabase, `
+      INSERT INTO memory_consolidations (
+        id, kind, period_key, period_started_at, period_ended_at, summary, confidence, dominant_provenance, updated_at
+      ) VALUES ('legacy-consolidation', 'daily', '2026-08-03', 1, 2, 'legacy', 0.8, 'remembered', 2)
+    `)
+    await closeActualSqlite(legacyDatabase)
+
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+    await db.close()
+
+    const migratedDatabase = await openActualSqlite(dbPath)
+    const factsColumns = await allActualSqlite<{ name: string }>(migratedDatabase, 'PRAGMA table_info(memory_facts)')
+    const consolidationColumns = await allActualSqlite<{ name: string }>(migratedDatabase, 'PRAGMA table_info(memory_consolidations)')
+    const factCount = await allActualSqlite<{ total: number }>(migratedDatabase, 'SELECT COUNT(*) AS total FROM memory_facts')
+    const consolidationCount = await allActualSqlite<{ total: number }>(migratedDatabase, 'SELECT COUNT(*) AS total FROM memory_consolidations')
+    await closeActualSqlite(migratedDatabase)
+
+    expect(factsColumns.map(column => column.name)).toContain('card_id')
+    expect(consolidationColumns.map(column => column.name)).toContain('card_id')
+    expect(factCount[0]?.total).toBe(0)
+    expect(consolidationCount[0]?.total).toBe(0)
+  })
+
+  it('deletes intermediate consolidation schema without the canonical period unique constraint', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'cards', 'card-a')
+    await mkdir(rootDir, { recursive: true })
+    const dbPath = join(rootDir, 'alicization.db')
+    const legacyDatabase = await openActualSqlite(dbPath)
+    await runActualSqlite(legacyDatabase, `
+      CREATE TABLE memory_consolidations (
+        card_id TEXT NOT NULL,
+        id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        facet TEXT,
+        period_key TEXT NOT NULL,
+        period_started_at INTEGER NOT NULL,
+        period_ended_at INTEGER NOT NULL,
+        summary TEXT NOT NULL,
+        lesson TEXT,
+        cues_json TEXT,
+        confidence REAL NOT NULL,
+        dominant_provenance TEXT NOT NULL,
+        derived_event_ids_json TEXT,
+        metadata_json TEXT,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY(card_id, id)
+      )
+    `)
+    await runActualSqlite(legacyDatabase, `
+      INSERT INTO memory_consolidations (
+        card_id, id, kind, facet, period_key, period_started_at, period_ended_at, summary,
+        lesson, cues_json, confidence, dominant_provenance, derived_event_ids_json, metadata_json, updated_at
+      ) VALUES ('card-a', 'intermediate', 'daily', 'phase', '2026-08-03', 1, 2, 'intermediate', NULL, NULL, 0.8, 'remembered', NULL, NULL, 2)
+    `)
+    await closeActualSqlite(legacyDatabase)
+
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+    await db.close()
+
+    const migratedDatabase = await openActualSqlite(dbPath)
+    const uniqueIndexes = await allActualSqlite<{ name: string, unique: number }>(migratedDatabase, 'PRAGMA index_list(memory_consolidations)')
+    const canonicalIndexColumns = await Promise.all(
+      uniqueIndexes
+        .filter(index => Number(index.unique) === 1)
+        .map(async index => ({
+          name: index.name,
+          columns: (await allActualSqlite<{ name: string }>(migratedDatabase, `PRAGMA index_info("${index.name}")`))
+            .map(column => ({ name: column.name })),
+        })),
+    )
+    const consolidationCount = await allActualSqlite<{ total: number }>(migratedDatabase, 'SELECT COUNT(*) AS total FROM memory_consolidations')
+    await closeActualSqlite(migratedDatabase)
+
+    expect(canonicalIndexColumns).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        columns: [
+          { name: 'card_id' },
+          { name: 'period_key' },
+          { name: 'kind' },
+          { name: 'facet' },
+        ],
+      }),
+    ]))
+    expect(consolidationCount[0]?.total).toBe(0)
+  })
+
+  it('rebuilds the vector namespace unique constraint with dimensions before provider upsert', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'cards', 'card-a')
+    await mkdir(rootDir, { recursive: true })
+    const dbPath = join(rootDir, 'alicization.db')
+    const legacyDatabase = await openActualSqlite(dbPath)
+    await runActualSqlite(legacyDatabase, `
+      CREATE TABLE long_term_memory_vectors (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        text_hash TEXT NOT NULL,
+        text TEXT NOT NULL,
+        vector_blob BLOB NOT NULL,
+        model_id TEXT NOT NULL,
+        dimensions INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        last_error TEXT,
+        metadata_json TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(card_id, source_id, source, model_id)
+      )
+    `)
+    await runActualSqlite(legacyDatabase, `
+      INSERT INTO long_term_memory_vectors (
+        id, card_id, source_id, source, text_hash, text, vector_blob, model_id, dimensions,
+        status, created_at, updated_at
+      ) VALUES ('legacy-vector', 'card-a', 'memory-1', 'memory_facts', 'hash', 'legacy', X'00000000', 'model', 1, 'indexed', 1, 1)
+    `)
+    await closeActualSqlite(legacyDatabase)
+
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+    await db.close()
+
+    const migratedDatabase = await openActualSqlite(dbPath)
+    const uniqueIndexes = await allActualSqlite<{ name: string, unique: number }>(
+      migratedDatabase,
+      'PRAGMA index_list(long_term_memory_vectors)',
+    )
+    const uniqueIndexColumns = await Promise.all(
+      uniqueIndexes
+        .filter(index => Number(index.unique) === 1)
+        .map(async index => (await allActualSqlite<{ name: string }>(
+          migratedDatabase,
+          `PRAGMA index_info("${index.name}")`,
+        )).map(column => column.name)),
+    )
+    const vectorCount = await allActualSqlite<{ total: number }>(
+      migratedDatabase,
+      'SELECT COUNT(*) AS total FROM long_term_memory_vectors',
+    )
+    await closeActualSqlite(migratedDatabase)
+
+    expect(uniqueIndexColumns).toContainEqual([
+      'card_id',
+      'source_id',
+      'source',
+      'model_id',
+      'dimensions',
+    ])
+    expect(vectorCount[0]?.total).toBe(0)
+  })
+
+  it('keeps tombstone rows isolated by card and source', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations')
+    const cardA = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+    await cardA.importLegacyMemory({
+      facts: [{
+        id: 'shared-source-id',
+        subject: 'user',
+        predicate: 'prefers',
+        object: 'card a',
+        confidence: 0.9,
+        source: 'rule',
+        dedupeKey: 'card-a-shared',
+        createdAt: 1,
+        updatedAt: 1,
+        lastAccessAt: null,
+        accessCount: 0,
+        provenance: 'remembered',
+      }],
+      archive: [],
+      lastPrunedAt: null,
+    })
+    await cardA.tombstoneLongTermMemorySources({
+      sourceIds: ['shared-source-id'],
+      reason: 'card-a-only',
+    })
+    await cardA.close()
+
+    const cardB = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-b',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+    await cardB.importLegacyMemory({
+      facts: [{
+        id: 'shared-source-id',
+        subject: 'user',
+        predicate: 'prefers',
+        object: 'card b',
+        confidence: 0.9,
+        source: 'rule',
+        dedupeKey: 'card-b-shared',
+        createdAt: 1,
+        updatedAt: 1,
+        lastAccessAt: null,
+        accessCount: 0,
+        provenance: 'remembered',
+      }],
+      archive: [],
+      lastPrunedAt: null,
+    })
+    await cardB.tombstoneLongTermMemorySources({
+      sourceIds: ['shared-source-id'],
+      reason: 'card-b-only',
+    })
+    await cardB.close()
+
+    const database = await openActualSqlite(join(rootDir, 'alicization.db'))
+    const tombstones = await allActualSqlite<{ card_id: string, source: string, source_id: string }>(
+      database,
+      'SELECT card_id, source, source_id FROM long_term_memory_tombstones ORDER BY card_id',
+    )
+    await closeActualSqlite(database)
+
+    expect(tombstones).toEqual([
+      { card_id: 'card-a', source: 'long_term_memory', source_id: 'shared-source-id' },
+      { card_id: 'card-b', source: 'long_term_memory', source_id: 'shared-source-id' },
+    ])
+  })
+
+  it('clears only the active card conversation derivatives from a real sqlite database', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations')
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+    await db.close()
+
+    const database = await openActualSqlite(join(rootDir, 'alicization.db'))
+    await runActualSqlite(database, `
+      INSERT INTO memory_facts (
+        id, card_id, subject, predicate, object, confidence, source, dedupe_key,
+        created_at, updated_at
+      ) VALUES
+        ('fact-a', 'card-a', 'user', 'prefers', 'a', 0.9, 'rule', 'fact-a', 1, 1),
+        ('fact-b', 'card-b', 'user', 'prefers', 'b', 0.9, 'rule', 'fact-b', 1, 1)
+    `)
+    await runActualSqlite(database, `
+      INSERT INTO long_term_memory_tombstones (
+        id, card_id, source_id, source, reason, created_at
+      ) VALUES
+        ('tombstone-a', 'card-a', 'fact-a', 'memory_facts', 'test', 1),
+        ('tombstone-b', 'card-b', 'fact-b', 'memory_facts', 'test', 1)
+    `)
+    await runActualSqlite(database, `
+      INSERT INTO long_term_memory_policy_overrides (
+        id, card_id, source_id, source, visible_mode, allow_training, review_state, reason, created_at, updated_at
+      ) VALUES
+        ('policy-a', 'card-a', 'fact-a', 'memory_facts', 'visible', 0, 'pending', NULL, 1, 1),
+        ('policy-b', 'card-b', 'fact-b', 'memory_facts', 'visible', 0, 'pending', NULL, 1, 1)
+    `)
+    await runActualSqlite(database, `
+      INSERT INTO long_term_memory_vectors (
+        id, card_id, source_id, source, text_hash, text, vector_blob, model_id, dimensions, status, created_at, updated_at
+      ) VALUES
+        ('vector-a', 'card-a', 'fact-a', 'memory_facts', 'hash-a', 'a', X'00000000', 'model', 1, 'ready', 1, 1),
+        ('vector-b', 'card-b', 'fact-b', 'memory_facts', 'hash-b', 'b', X'00000000', 'model', 1, 'ready', 1, 1)
+    `)
+    await closeActualSqlite(database)
+
+    const scopedDb = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+    await scopedDb.clearConversationData()
+    await scopedDb.close()
+
+    const remainingDatabase = await openActualSqlite(join(rootDir, 'alicization.db'))
+    const remaining = await allActualSqlite<{ card_id: string, total: number }>(
+      remainingDatabase,
+      `
+      SELECT card_id, COUNT(*) AS total
+      FROM (
+        SELECT card_id FROM memory_facts
+        UNION ALL
+        SELECT card_id FROM long_term_memory_tombstones
+        UNION ALL
+        SELECT card_id FROM long_term_memory_policy_overrides
+        UNION ALL
+        SELECT card_id FROM long_term_memory_vectors
+      )
+      GROUP BY card_id
+      ORDER BY card_id
+      `,
+    )
+    await closeActualSqlite(remainingDatabase)
+
+    expect(remaining).toEqual([
+      { card_id: 'card-b', total: 4 },
+    ])
+  })
+
+  it('includes the active card and source in tombstone lookup SQL', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertMemoryFacts([{
+      subject: 'user',
+      predicate: 'prefers',
+      object: 'source-aware tombstones',
+      confidence: 0.8,
+    }], 'rule')
+    await db.retrieveLongTermMemoryEvidence({
+      cardId: 'default',
+      currentUserText: '你还记得 source-aware tombstones 吗？',
+      limit: 4,
+    })
+
+    expect(queryCalls.some(sql => (
+      sql.includes('FROM long_term_memory_tombstones')
+      && sql.includes('card_id = ?')
+      && sql.includes('source = ?')
+    ))).toBe(true)
     await db.close()
   })
 

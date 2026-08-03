@@ -104,4 +104,17 @@ describe('memory consolidation runtime', () => {
       }),
     ]))
   })
+
+  it('rejects unbound consolidation reads unless the caller explicitly enables migration/test scope', async () => {
+    const runtime = createAlicizationMemoryConsolidationRuntime({
+      database: {} as never,
+      all: vi.fn(async () => []) as any,
+      run: vi.fn(async () => ({})),
+      mapRow: vi.fn(),
+      buildRecords: vi.fn(() => []) as any,
+      searchRecords: vi.fn(() => []),
+    })
+
+    await expect(runtime.listMemoryConsolidations({ limit: 4 })).rejects.toThrow('cardId')
+  })
 })

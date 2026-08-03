@@ -1168,7 +1168,11 @@ function assertWriteNotAborted(options?: DbWriteOptions) {
   throw createAbortError(options.signal.reason)
 }
 
-function openDatabase(filepath: string) {
+interface SqliteDriver {
+  Database: typeof sqlite3.Database
+}
+
+function openDatabase(filepath: string, driver: SqliteDriver = sqlite3) {
   return new Promise<sqlite3.Database>((resolve, reject) => {
     let database: sqlite3.Database | null = null
     const onOpen = (error: Error | null) => {
@@ -1190,7 +1194,7 @@ function openDatabase(filepath: string) {
       })
     }
 
-    database = new sqlite3.Database(filepath, onOpen)
+    database = new driver.Database(filepath, onOpen)
   })
 }
 
@@ -1455,6 +1459,7 @@ export interface AlicizationDbService {
   }) => Promise<LongTermMemoryReviewItem | null>
   tombstoneLongTermMemorySources: (input: {
     sourceIds: string[]
+    source?: string
     reason?: string | null
   }) => Promise<void>
   upsertMemoryReflections: (entries: AlicizationMemoryReflectionInput[]) => Promise<AlicizationMemoryReflectionRecord[]>
@@ -1592,6 +1597,8 @@ export async function setupAlicizationDb(
   options?: {
     rootDir?: string
     cardId?: string
+    allowUnboundScope?: boolean
+    sqliteDriver?: SqliteDriver
     embeddingProvider?: LongTermMemoryEmbeddingProvider | null
     resolveEmbeddingProvider?: () => LongTermMemoryEmbeddingProvider | null
   },
@@ -1599,12 +1606,15 @@ export async function setupAlicizationDb(
   const configuredCardId = normalizeOrganicMemoryText(options?.cardId, 120)
   const boundCardId = configuredCardId || 'default'
   const hasBoundCardScope = Boolean(configuredCardId)
+  const allowUnboundScope = options?.allowUnboundScope ?? process.env.NODE_ENV === 'test'
+  if (!hasBoundCardScope && !allowUnboundScope)
+    throw new Error('setupAlicizationDb requires cardId outside explicit migration/test scope')
   const rootDir = options?.rootDir
     ?? (options?.cardId ? join(userDataPath, 'alicizations', 'cards', options.cardId) : join(userDataPath, 'alicizations'))
   const dbPath = join(rootDir, 'alicization.db')
   await mkdir(rootDir, { recursive: true })
 
-  const database = await openDatabase(dbPath)
+  const database = await openDatabase(dbPath, options?.sqliteDriver)
 
   let writeQueue = Promise.resolve<unknown>(undefined)
 
@@ -1676,7 +1686,9 @@ export async function setupAlicizationDb(
     await run(database, 'PRAGMA foreign_keys = ON;')
     await run(database, 'PRAGMA synchronous = NORMAL;')
 
-    const tableExists = async (tableName: 'memory_facts' | 'memory_consolidations' | 'memory_archive' | 'long_term_memory_tombstones') => {
+    const tableExists = async (
+      tableName: 'memory_facts' | 'memory_consolidations' | 'memory_archive' | 'long_term_memory_tombstones' | 'long_term_memory_vectors',
+    ) => {
       const row = await get<{ name: string }>(
         database,
         'SELECT name FROM sqlite_master WHERE type = ? AND name = ?',
@@ -1684,14 +1696,17 @@ export async function setupAlicizationDb(
       )
       return Boolean(row)
     }
-    const tableHasColumn = async (tableName: 'memory_facts' | 'memory_consolidations' | 'memory_archive' | 'long_term_memory_tombstones', columnName: string) => {
+    const tableHasColumn = async (
+      tableName: 'memory_facts' | 'memory_consolidations' | 'memory_archive' | 'long_term_memory_tombstones' | 'long_term_memory_vectors',
+      columnName: string,
+    ) => {
       if (!await tableExists(tableName))
         return false
       const columns = await all<{ name: string }>(database, `PRAGMA table_info(${tableName})`)
       return columns.some(column => column.name === columnName)
     }
     const tableHasColumns = async (
-      tableName: 'memory_facts' | 'memory_consolidations' | 'memory_archive' | 'long_term_memory_tombstones',
+      tableName: 'memory_facts' | 'memory_consolidations' | 'memory_archive' | 'long_term_memory_tombstones' | 'long_term_memory_vectors',
       columnNames: string[],
     ) => {
       if (!await tableExists(tableName))
@@ -1701,7 +1716,7 @@ export async function setupAlicizationDb(
       return columnNames.every(columnName => names.has(columnName))
     }
     const tableHasUniqueColumns = async (
-      tableName: 'memory_facts' | 'memory_consolidations' | 'long_term_memory_tombstones',
+      tableName: 'memory_facts' | 'memory_consolidations' | 'long_term_memory_tombstones' | 'long_term_memory_vectors',
       columnNames: string[],
     ) => {
       if (!await tableExists(tableName))
@@ -1717,11 +1732,12 @@ export async function setupAlicizationDb(
       }
       return false
     }
-    const [hasFactsTable, hasConsolidationsTable, hasArchiveTable, hasTombstonesTable] = await Promise.all([
+    const [hasFactsTable, hasConsolidationsTable, hasArchiveTable, hasTombstonesTable, hasVectorsTable] = await Promise.all([
       tableExists('memory_facts'),
       tableExists('memory_consolidations'),
       tableExists('memory_archive'),
       tableExists('long_term_memory_tombstones'),
+      tableExists('long_term_memory_vectors'),
     ])
     const [factsHaveCardId, consolidationsHaveCardId, archiveHaveCardId, tombstonesHaveCardId] = await Promise.all([
       tableHasColumn('memory_facts', 'card_id'),
@@ -1735,9 +1751,12 @@ export async function setupAlicizationDb(
       factsHaveCanonicalPrimaryKey,
       consolidationsHaveCanonicalColumns,
       consolidationsHaveCanonicalUnique,
+      consolidationsHaveCanonicalPeriodUnique,
       archiveHaveCanonicalColumns,
       tombstonesHaveCanonicalColumns,
       tombstonesHaveCanonicalUnique,
+      vectorsHaveCanonicalColumns,
+      vectorsHaveCanonicalUnique,
     ] = await Promise.all([
       tableHasColumns('memory_facts', [
         'card_id',
@@ -1756,6 +1775,7 @@ export async function setupAlicizationDb(
       tableHasUniqueColumns('memory_facts', ['card_id', 'id']),
       tableHasColumns('memory_consolidations', ['card_id', 'id', 'facet', 'metadata_json']),
       tableHasUniqueColumns('memory_consolidations', ['card_id', 'id']),
+      tableHasUniqueColumns('memory_consolidations', ['card_id', 'period_key', 'kind', 'facet']),
       tableHasColumns('memory_archive', [
         'card_id',
         'original_id',
@@ -1772,19 +1792,26 @@ export async function setupAlicizationDb(
       ]),
       tableHasColumns('long_term_memory_tombstones', ['card_id', 'source_id', 'source']),
       tableHasUniqueColumns('long_term_memory_tombstones', ['card_id', 'source_id', 'source']),
+      tableHasColumns('long_term_memory_vectors', ['card_id', 'source_id', 'source', 'model_id', 'dimensions']),
+      tableHasUniqueColumns('long_term_memory_vectors', ['card_id', 'source_id', 'source', 'model_id', 'dimensions']),
     ])
     const shouldRebuildFacts = hasFactsTable && (!factsHaveCardId || !factsHaveCanonicalColumns || !factsHaveCanonicalDedupeUnique || !factsHaveCanonicalPrimaryKey)
-    const shouldRebuildConsolidations = hasConsolidationsTable && (!consolidationsHaveCardId || !consolidationsHaveCanonicalColumns || !consolidationsHaveCanonicalUnique)
+    const shouldRebuildConsolidations = hasConsolidationsTable && (!consolidationsHaveCardId || !consolidationsHaveCanonicalColumns || !consolidationsHaveCanonicalUnique || !consolidationsHaveCanonicalPeriodUnique)
     const shouldRebuildArchive = (hasArchiveTable && (!archiveHaveCardId || !archiveHaveCanonicalColumns)) || shouldRebuildFacts
     const shouldRebuildTombstones = hasTombstonesTable && (!tombstonesHaveCardId || !tombstonesHaveCanonicalColumns || !tombstonesHaveCanonicalUnique)
+    const shouldRebuildVectors = hasVectorsTable && (!vectorsHaveCanonicalColumns || !vectorsHaveCanonicalUnique)
 
-    if (shouldRebuildFacts || shouldRebuildConsolidations || shouldRebuildArchive || shouldRebuildTombstones) {
+    if (shouldRebuildFacts || shouldRebuildConsolidations || shouldRebuildArchive || shouldRebuildTombstones || shouldRebuildVectors) {
       // Historical rows cannot be attributed or indexed safely once schemas drift from the canonical card-scoped shape.
       // This project has no production data, so delete them instead of guessing an owner.
       await run(database, `DELETE FROM long_term_memory_vectors
         WHERE source IN ('memory_facts', 'memory_consolidations')`).catch(() => {})
       await run(database, `DELETE FROM long_term_memory_policy_overrides
         WHERE source IN ('memory_facts', 'memory_consolidations')`).catch(() => {})
+      await run(database, `DELETE FROM long_term_memory_search_documents
+        WHERE source IN ('memory_facts', 'memory_consolidations')`).catch(() => {})
+      await run(database, 'DELETE FROM persona_training_candidate_reviews').catch(() => {})
+      await run(database, 'DELETE FROM working_memory_long_term_transactions').catch(() => {})
       await run(database, 'DELETE FROM long_term_memory_tombstones').catch(() => {})
       await run(database, `DELETE FROM memory_ingest_journal
         WHERE operation_kind IN ('upsert-memory-facts', 'upsert-memory-consolidations')`).catch(() => {})
@@ -1800,6 +1827,8 @@ export async function setupAlicizationDb(
       await run(database, 'DROP TABLE IF EXISTS memory_consolidations')
     if (shouldRebuildTombstones)
       await run(database, 'DROP TABLE IF EXISTS long_term_memory_tombstones')
+    if (shouldRebuildVectors)
+      await run(database, 'DROP TABLE IF EXISTS long_term_memory_vectors')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS memory_facts (
@@ -1944,11 +1973,12 @@ export async function setupAlicizationDb(
         metadata_json TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
-        UNIQUE(card_id, source_id, source, model_id)
+        UNIQUE(card_id, source_id, source, model_id, dimensions)
       )
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_model ON long_term_memory_vectors(card_id, model_id, dimensions, status)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_source ON long_term_memory_vectors(card_id, source_id, source)')
+    await longTermMemoryVectorStore.initialize()
     await longTermMemorySearchIndexRuntime.initializeSchema()
 
     await run(database, `
@@ -2145,7 +2175,8 @@ export async function setupAlicizationDb(
         derived_event_ids_json TEXT,
         metadata_json TEXT,
         updated_at INTEGER NOT NULL,
-        PRIMARY KEY(card_id, id)
+        PRIMARY KEY(card_id, id),
+        UNIQUE(card_id, period_key, kind, facet)
       )
     `)
     await run(database, 'ALTER TABLE memory_consolidations ADD COLUMN facet TEXT').catch(() => {})
@@ -2996,6 +3027,7 @@ export async function setupAlicizationDb(
 
   const memoryConsolidationRuntime = createAlicizationMemoryConsolidationRuntime({
     database,
+    allowUnboundScope,
     all,
     run,
     mapRow: mapMemoryConsolidationRow,
@@ -3345,6 +3377,7 @@ export async function setupAlicizationDb(
   async function listMemoryConsolidations(limit = 16) {
     return await memoryConsolidationRuntime.listMemoryConsolidations({
       cardId: hasBoundCardScope ? boundCardId : undefined,
+      allowUnboundScope,
       limit,
     })
   }
@@ -3353,6 +3386,7 @@ export async function setupAlicizationDb(
     return await memoryConsolidationRuntime.searchMemoryConsolidations({
       ...input,
       cardId: hasBoundCardScope ? boundCardId : undefined,
+      allowUnboundScope,
     })
   }
 
@@ -4139,23 +4173,44 @@ export async function setupAlicizationDb(
 
   async function clearConversationData() {
     await enqueueWrite(async () => await runInTransaction(database, async () => {
-      await run(database, 'DELETE FROM memory_reflections')
-      await run(database, 'DELETE FROM relationship_outcomes')
-      await run(database, 'DELETE FROM person_state_evolution_log')
-      await run(database, 'DELETE FROM episodic_events')
-      await run(database, 'DELETE FROM episodic_reconsolidation_overlays')
-      await run(database, 'DELETE FROM event_graph_edges')
-      await run(database, 'DELETE FROM event_graph_nodes')
-      await run(database, 'DELETE FROM memory_consolidations')
-      await run(database, 'DELETE FROM persona_reinforcement_events')
+      const deleteCardScoped = async (tableName: string) => {
+        await run(
+          database,
+          hasBoundCardScope
+            ? `DELETE FROM ${tableName} WHERE card_id = ?`
+            : `DELETE FROM ${tableName}`,
+          hasBoundCardScope ? [boundCardId] : [],
+        )
+      }
+
+      await deleteCardScoped('memory_facts')
+      await deleteCardScoped('memory_archive')
+      await deleteCardScoped('long_term_memory_tombstones')
+      await deleteCardScoped('long_term_memory_policy_overrides')
+      await deleteCardScoped('long_term_memory_vectors')
+      await deleteCardScoped('persona_training_candidate_reviews')
+      await deleteCardScoped('memory_reflections')
+      await deleteCardScoped('relationship_outcomes')
+      await deleteCardScoped('person_state_evolution_log')
+      await deleteCardScoped('episodic_events')
+      await deleteCardScoped('event_graph_edges')
+      await deleteCardScoped('event_graph_nodes')
+      await deleteCardScoped('memory_consolidations')
+      await deleteCardScoped('persona_reinforcement_events')
+      await deleteCardScoped('working_memory_long_term_transactions')
+      await deleteCardScoped('working_memory_checkpoints')
+      await deleteCardScoped('learning_tasks')
+      await deleteCardScoped('long_term_memory_search_documents')
+      await deleteCardScoped('long_term_memory_search_documents_fts')
+
+      await run(database, 'DELETE FROM episodic_reconsolidation_overlays WHERE event_id NOT IN (SELECT id FROM episodic_events)')
       await run(database, 'DELETE FROM conversation_turns')
-      await run(database, 'DELETE FROM working_memory_checkpoints')
       await run(database, 'DELETE FROM mind_turn_events')
       await run(database, 'DELETE FROM task_threads')
       await run(database, 'DELETE FROM executor_sessions')
       await run(database, 'DELETE FROM executor_events')
       await run(database, 'DELETE FROM scheduled_tasks')
-      await run(database, 'DELETE FROM learning_tasks')
+      await run(database, 'DELETE FROM memory_ingest_journal')
       await run(database, 'DELETE FROM alicization_meta WHERE key LIKE ?', ['mind-head:%'])
     }))
   }
@@ -5137,10 +5192,11 @@ export async function setupAlicizationDb(
       `
       SELECT *
       FROM episodic_events
+      ${hasBoundCardScope ? 'WHERE card_id = ?' : ''}
       ORDER BY occurred_at DESC, created_at DESC
       LIMIT ?
       `,
-      [safeLimit],
+      hasBoundCardScope ? [boundCardId, safeLimit] : [safeLimit],
     )
     const overlayByEventId = await loadLatestEpisodicReconsolidationOverlayByEventId(
       database,
@@ -5527,10 +5583,11 @@ export async function setupAlicizationDb(
 
   async function tombstoneLongTermMemorySources(input: {
     sourceIds: string[]
+    source?: string
     reason?: string | null
   }) {
     const cardId = boundCardId
-    const source = 'long_term_memory'
+    const source = normalizeOrganicMemoryText(input.source, 120) || 'long_term_memory'
     const sourceIds = normalizeLongTermMemorySourceIds(input.sourceIds)
     if (sourceIds.length === 0)
       return
@@ -5566,16 +5623,24 @@ export async function setupAlicizationDb(
     })
   }
 
-  async function listTombstonedLongTermMemorySourceIds(sourceIds: string[], cardIdRaw = boundCardId) {
+  async function listTombstonedLongTermMemorySourceIds(
+    sourceIds: string[],
+    cardIdRaw = boundCardId,
+    sourceRaw = 'long_term_memory',
+  ) {
     const sourceSet = new Set(normalizeLongTermMemorySourceIds(sourceIds))
     if (sourceSet.size === 0)
       return new Set<string>()
     const cardId = resolveMemoryCardId(cardIdRaw, 'long-term memory tombstone lookup')
+    const source = normalizeOrganicMemoryText(sourceRaw, 120) || 'long_term_memory'
 
     const rows = await all<{ source_id: string }>(
       database,
-      'SELECT source_id FROM long_term_memory_tombstones WHERE card_id = ?',
-      [cardId],
+      `SELECT source_id
+       FROM long_term_memory_tombstones
+       WHERE card_id = ?
+         AND (source = ? OR source = 'long_term_memory')`,
+      [cardId, source],
     )
     return new Set(rows.map(row => row.source_id).filter(sourceId => sourceSet.has(sourceId)))
   }
@@ -5619,9 +5684,11 @@ export async function setupAlicizationDb(
       `
       SELECT *
       FROM episodic_events
+      ${hasBoundCardScope ? 'WHERE card_id = ?' : ''}
       ORDER BY occurred_at DESC, created_at DESC
       LIMIT 4000
       `,
+      hasBoundCardScope ? [boundCardId] : [],
     )
     const nowTs = now()
     const recollectionIntent = input.recollectionIntent ?? null
@@ -5810,8 +5877,18 @@ export async function setupAlicizationDb(
       ...episodes.map(episodicEventToLongTermEvidenceCandidate),
       ...consolidations.map(memoryConsolidationToLongTermEvidenceCandidate),
     ]
-    const tombstonedSourceIds = await listTombstonedLongTermMemorySourceIds(candidates.map(candidate => candidate.id), input.cardId)
-    const visibleCandidates = candidates.filter(candidate => !tombstonedSourceIds.has(candidate.id))
+    const tombstonedSourceIdsBySource = new Map<string, Set<string>>()
+    for (const source of new Set(candidates.map(candidate => candidate.source))) {
+      tombstonedSourceIdsBySource.set(
+        source,
+        await listTombstonedLongTermMemorySourceIds(
+          candidates.filter(candidate => candidate.source === source).map(candidate => candidate.id),
+          input.cardId,
+          source,
+        ),
+      )
+    }
+    const visibleCandidates = candidates.filter(candidate => !tombstonedSourceIdsBySource.get(candidate.source)?.has(candidate.id))
     const semantic = await retrieveLongTermMemorySemanticScores({
       cardId: input.cardId,
       plan,

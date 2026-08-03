@@ -23,6 +23,7 @@ interface MemoryConsolidationRowLike {
 
 interface MemoryConsolidationSearchInputLike {
   cardId?: string
+  allowUnboundScope?: boolean
   query: string
   limit?: number
   recollectionIntent?: {
@@ -58,6 +59,7 @@ interface MemoryConsolidationSearchInputLike {
 
 interface CreateAlicizationMemoryConsolidationRuntimeOptions {
   database: sqlite3.Database
+  allowUnboundScope?: boolean
   all: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T[]>
   run: (database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<unknown>
   mapRow: (row: MemoryConsolidationRowLike) => AlicizationMemoryConsolidationRecord
@@ -76,8 +78,10 @@ interface CreateAlicizationMemoryConsolidationRuntimeOptions {
 export function createAlicizationMemoryConsolidationRuntime(
   input: CreateAlicizationMemoryConsolidationRuntimeOptions,
 ) {
-  const listMemoryConsolidations = async (listInput: { cardId?: string, limit?: number }) => {
+  const listMemoryConsolidations = async (listInput: { cardId?: string, limit?: number, allowUnboundScope?: boolean }) => {
     const cardId = listInput.cardId?.trim() || ''
+    if (!cardId && !(listInput.allowUnboundScope ?? input.allowUnboundScope))
+      throw new Error('memory consolidation list requires cardId')
     const safeLimit = Math.max(1, Math.min(100, Math.floor(listInput.limit ?? 16)))
     const whereClause = cardId ? 'WHERE card_id = ?' : ''
     const rows = await input.all<MemoryConsolidationRowLike>(
@@ -161,6 +165,7 @@ export function createAlicizationMemoryConsolidationRuntime(
     const records = await listMemoryConsolidations({
       cardId: searchInput.cardId,
       limit: 48,
+      allowUnboundScope: searchInput.allowUnboundScope,
     })
     return input.searchRecords({
       query: searchInput.query,
