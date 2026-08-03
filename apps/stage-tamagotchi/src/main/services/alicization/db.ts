@@ -182,6 +182,7 @@ interface DbWorkingMemoryCheckpointRow {
 
 interface DbMemoryFactRow {
   id: string
+  card_id: string
   subject: string
   predicate: string
   object: string
@@ -214,6 +215,7 @@ type AlicizationMemoryIngestOperationKind
 
 interface PreparedMemoryFactWrite {
   id: string
+  cardId: string
   subject: string
   predicate: string
   object: string
@@ -233,6 +235,7 @@ interface PreparedMemoryFactWrite {
 }
 
 interface PreparedMemoryConsolidationWrite {
+  cardId: string
   id: string
   kind: AlicizationMemoryConsolidationRecord['kind']
   facet: AlicizationMemoryConsolidationRecord['facet']
@@ -342,6 +345,7 @@ interface DbEpisodicReconsolidationOverlayRow {
 }
 
 interface DbMemoryConsolidationRow {
+  card_id: string
   id: string
   kind: AlicizationMemoryConsolidationRecord['kind']
   facet: AlicizationMemoryConsolidationRecord['facet']
@@ -1590,6 +1594,9 @@ export async function setupAlicizationDb(
     resolveEmbeddingProvider?: () => LongTermMemoryEmbeddingProvider | null
   },
 ): Promise<AlicizationDbService> {
+  const configuredCardId = normalizeOrganicMemoryText(options?.cardId, 120)
+  const boundCardId = configuredCardId || 'default'
+  const hasBoundCardScope = Boolean(configuredCardId)
   const rootDir = options?.rootDir
     ?? (options?.cardId ? join(userDataPath, 'alicizations', 'cards', options.cardId) : join(userDataPath, 'alicizations'))
   const dbPath = join(rootDir, 'alicization.db')
@@ -1598,6 +1605,15 @@ export async function setupAlicizationDb(
   const database = await openDatabase(dbPath)
 
   let writeQueue = Promise.resolve<unknown>(undefined)
+
+  const resolveMemoryCardId = (cardIdRaw: unknown, operation: string) => {
+    const cardId = normalizeOrganicMemoryText(cardIdRaw, 120)
+    if (!cardId)
+      throw new Error(`${operation} requires cardId`)
+    if (hasBoundCardScope && cardId !== boundCardId)
+      throw new Error(`${operation} card scope does not match the active card`)
+    return cardId
+  }
 
   const enqueueWrite = async <T>(task: () => Promise<T>, options?: DbWriteOptions) => {
     assertWriteNotAborted(options)
@@ -1658,15 +1674,141 @@ export async function setupAlicizationDb(
     await run(database, 'PRAGMA foreign_keys = ON;')
     await run(database, 'PRAGMA synchronous = NORMAL;')
 
+    const tableExists = async (tableName: 'memory_facts' | 'memory_consolidations' | 'memory_archive' | 'long_term_memory_tombstones') => {
+      const row = await get<{ name: string }>(
+        database,
+        'SELECT name FROM sqlite_master WHERE type = ? AND name = ?',
+        ['table', tableName],
+      )
+      return Boolean(row)
+    }
+    const tableHasColumn = async (tableName: 'memory_facts' | 'memory_consolidations' | 'memory_archive' | 'long_term_memory_tombstones', columnName: string) => {
+      if (!await tableExists(tableName))
+        return false
+      const columns = await all<{ name: string }>(database, `PRAGMA table_info(${tableName})`)
+      return columns.some(column => column.name === columnName)
+    }
+    const tableHasColumns = async (
+      tableName: 'memory_facts' | 'memory_consolidations' | 'memory_archive' | 'long_term_memory_tombstones',
+      columnNames: string[],
+    ) => {
+      if (!await tableExists(tableName))
+        return false
+      const columns = await all<{ name: string }>(database, `PRAGMA table_info(${tableName})`)
+      const names = new Set(columns.map(column => column.name))
+      return columnNames.every(columnName => names.has(columnName))
+    }
+    const tableHasUniqueColumns = async (
+      tableName: 'memory_facts' | 'memory_consolidations' | 'long_term_memory_tombstones',
+      columnNames: string[],
+    ) => {
+      if (!await tableExists(tableName))
+        return false
+      const indexes = await all<{ name: string, unique: number }>(database, `PRAGMA index_list(${tableName})`)
+      for (const index of indexes) {
+        if (Number(index.unique) !== 1)
+          continue
+        const info = await all<{ name: string }>(database, `PRAGMA index_info(${index.name})`)
+        const indexedColumns = info.map(column => column.name)
+        if (indexedColumns.length === columnNames.length && indexedColumns.every((column, index) => column === columnNames[index]))
+          return true
+      }
+      return false
+    }
+    const [hasFactsTable, hasConsolidationsTable, hasArchiveTable, hasTombstonesTable] = await Promise.all([
+      tableExists('memory_facts'),
+      tableExists('memory_consolidations'),
+      tableExists('memory_archive'),
+      tableExists('long_term_memory_tombstones'),
+    ])
+    const [factsHaveCardId, consolidationsHaveCardId, archiveHaveCardId, tombstonesHaveCardId] = await Promise.all([
+      tableHasColumn('memory_facts', 'card_id'),
+      tableHasColumn('memory_consolidations', 'card_id'),
+      tableHasColumn('memory_archive', 'card_id'),
+      tableHasColumn('long_term_memory_tombstones', 'card_id'),
+    ])
+    const [
+      factsHaveCanonicalColumns,
+      factsHaveCanonicalDedupeUnique,
+      factsHaveCanonicalPrimaryKey,
+      consolidationsHaveCanonicalColumns,
+      consolidationsHaveCanonicalUnique,
+      archiveHaveCanonicalColumns,
+      tombstonesHaveCanonicalColumns,
+      tombstonesHaveCanonicalUnique,
+    ] = await Promise.all([
+      tableHasColumns('memory_facts', [
+        'card_id',
+        'last_access_at',
+        'access_count',
+        'knowledge_stage',
+        'validation_status',
+        'memory_domain',
+        'validation_count',
+        'contradiction_count',
+        'source_label',
+        'conflicts_with_json',
+        'supersedes_json',
+      ]),
+      tableHasUniqueColumns('memory_facts', ['card_id', 'dedupe_key']),
+      tableHasUniqueColumns('memory_facts', ['card_id', 'id']),
+      tableHasColumns('memory_consolidations', ['card_id', 'id', 'facet', 'metadata_json']),
+      tableHasUniqueColumns('memory_consolidations', ['card_id', 'id']),
+      tableHasColumns('memory_archive', [
+        'card_id',
+        'original_id',
+        'last_access_at',
+        'access_count',
+        'knowledge_stage',
+        'validation_status',
+        'memory_domain',
+        'validation_count',
+        'contradiction_count',
+        'source_label',
+        'conflicts_with_json',
+        'supersedes_json',
+      ]),
+      tableHasColumns('long_term_memory_tombstones', ['card_id', 'source_id', 'source']),
+      tableHasUniqueColumns('long_term_memory_tombstones', ['card_id', 'source_id', 'source']),
+    ])
+    const shouldRebuildFacts = hasFactsTable && (!factsHaveCardId || !factsHaveCanonicalColumns || !factsHaveCanonicalDedupeUnique || !factsHaveCanonicalPrimaryKey)
+    const shouldRebuildConsolidations = hasConsolidationsTable && (!consolidationsHaveCardId || !consolidationsHaveCanonicalColumns || !consolidationsHaveCanonicalUnique)
+    const shouldRebuildArchive = (hasArchiveTable && (!archiveHaveCardId || !archiveHaveCanonicalColumns)) || shouldRebuildFacts
+    const shouldRebuildTombstones = hasTombstonesTable && (!tombstonesHaveCardId || !tombstonesHaveCanonicalColumns || !tombstonesHaveCanonicalUnique)
+
+    if (shouldRebuildFacts || shouldRebuildConsolidations || shouldRebuildArchive || shouldRebuildTombstones) {
+      // Historical rows cannot be attributed or indexed safely once schemas drift from the canonical card-scoped shape.
+      // This project has no production data, so delete them instead of guessing an owner.
+      await run(database, `DELETE FROM long_term_memory_vectors
+        WHERE source IN ('memory_facts', 'memory_consolidations')`).catch(() => {})
+      await run(database, `DELETE FROM long_term_memory_policy_overrides
+        WHERE source IN ('memory_facts', 'memory_consolidations')`).catch(() => {})
+      await run(database, 'DELETE FROM long_term_memory_tombstones').catch(() => {})
+      await run(database, `DELETE FROM memory_ingest_journal
+        WHERE operation_kind IN ('upsert-memory-facts', 'upsert-memory-consolidations')`).catch(() => {})
+    }
+    if (shouldRebuildFacts) {
+      await run(database, 'DROP TABLE IF EXISTS memory_facts')
+      await run(database, 'DROP TABLE IF EXISTS memory_archive')
+    }
+    else if (shouldRebuildArchive) {
+      await run(database, 'DROP TABLE IF EXISTS memory_archive')
+    }
+    if (shouldRebuildConsolidations)
+      await run(database, 'DROP TABLE IF EXISTS memory_consolidations')
+    if (shouldRebuildTombstones)
+      await run(database, 'DROP TABLE IF EXISTS long_term_memory_tombstones')
+
     await run(database, `
       CREATE TABLE IF NOT EXISTS memory_facts (
-        id TEXT PRIMARY KEY,
+        id TEXT NOT NULL,
+        card_id TEXT NOT NULL,
         subject TEXT NOT NULL,
         predicate TEXT NOT NULL,
         object TEXT NOT NULL,
         confidence REAL NOT NULL,
         source TEXT NOT NULL,
-        dedupe_key TEXT NOT NULL UNIQUE,
+        dedupe_key TEXT NOT NULL,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         last_access_at INTEGER,
@@ -1678,7 +1820,9 @@ export async function setupAlicizationDb(
         contradiction_count INTEGER NOT NULL DEFAULT 0,
         source_label TEXT,
         conflicts_with_json TEXT,
-        supersedes_json TEXT
+        supersedes_json TEXT,
+        PRIMARY KEY(card_id, id),
+        UNIQUE(card_id, dedupe_key)
       )
     `)
     await run(database, 'ALTER TABLE memory_facts ADD COLUMN knowledge_stage TEXT').catch(() => {})
@@ -1689,8 +1833,8 @@ export async function setupAlicizationDb(
     await run(database, 'ALTER TABLE memory_facts ADD COLUMN source_label TEXT').catch(() => {})
     await run(database, 'ALTER TABLE memory_facts ADD COLUMN conflicts_with_json TEXT').catch(() => {})
     await run(database, 'ALTER TABLE memory_facts ADD COLUMN supersedes_json TEXT').catch(() => {})
-    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_facts_updated_at ON memory_facts(updated_at DESC)')
-    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_facts_last_access_at ON memory_facts(last_access_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_facts_card_updated_at ON memory_facts(card_id, updated_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_facts_card_last_access_at ON memory_facts(card_id, last_access_at DESC)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS memory_ingest_journal (
@@ -1739,12 +1883,15 @@ export async function setupAlicizationDb(
     await run(database, `
       CREATE TABLE IF NOT EXISTS long_term_memory_tombstones (
         id TEXT PRIMARY KEY,
-        source_id TEXT NOT NULL UNIQUE,
+        card_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        source TEXT NOT NULL,
         reason TEXT,
-        created_at INTEGER NOT NULL
+        created_at INTEGER NOT NULL,
+        UNIQUE(card_id, source_id, source)
       )
     `)
-    await run(database, 'CREATE INDEX IF NOT EXISTS idx_long_term_memory_tombstones_source_id ON long_term_memory_tombstones(source_id)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_long_term_memory_tombstones_card_source_id ON long_term_memory_tombstones(card_id, source_id, source)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS long_term_memory_policy_overrides (
@@ -1980,7 +2127,8 @@ export async function setupAlicizationDb(
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS memory_consolidations (
-        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        id TEXT NOT NULL,
         kind TEXT NOT NULL,
         facet TEXT,
         period_key TEXT NOT NULL,
@@ -1993,13 +2141,14 @@ export async function setupAlicizationDb(
         dominant_provenance TEXT NOT NULL,
         derived_event_ids_json TEXT,
         metadata_json TEXT,
-        updated_at INTEGER NOT NULL
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY(card_id, id)
       )
     `)
     await run(database, 'ALTER TABLE memory_consolidations ADD COLUMN facet TEXT').catch(() => {})
     await run(database, 'ALTER TABLE memory_consolidations ADD COLUMN metadata_json TEXT').catch(() => {})
-    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_consolidations_kind_period ON memory_consolidations(kind, period_ended_at DESC)')
-    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_consolidations_updated_at ON memory_consolidations(updated_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_consolidations_card_kind_period ON memory_consolidations(card_id, kind, period_ended_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_consolidations_card_updated_at ON memory_consolidations(card_id, updated_at DESC)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS persona_reinforcement_events (
@@ -2022,6 +2171,7 @@ export async function setupAlicizationDb(
     await run(database, `
       CREATE TABLE IF NOT EXISTS memory_archive (
         id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
         original_id TEXT,
         subject TEXT NOT NULL,
         predicate TEXT NOT NULL,
@@ -2052,7 +2202,7 @@ export async function setupAlicizationDb(
     await run(database, 'ALTER TABLE memory_archive ADD COLUMN source_label TEXT').catch(() => {})
     await run(database, 'ALTER TABLE memory_archive ADD COLUMN conflicts_with_json TEXT').catch(() => {})
     await run(database, 'ALTER TABLE memory_archive ADD COLUMN supersedes_json TEXT').catch(() => {})
-    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_archive_archived_at ON memory_archive(archived_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_archive_card_archived_at ON memory_archive(card_id, archived_at DESC)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS active_thoughts (
@@ -2370,13 +2520,20 @@ export async function setupAlicizationDb(
   const recordMemoryGraphRetrievalLatency = memoryRetrievalTelemetryRuntime.recordGraphLatency
 
   async function restoreArchivedFactsIntoActiveMemory() {
-    const archivedRows = await all<DbMemoryArchiveRow>(database, 'SELECT * FROM memory_archive')
+    const archivedRows = await all<DbMemoryArchiveRow>(
+      database,
+      `SELECT * FROM memory_archive ${hasBoundCardScope ? 'WHERE card_id = ?' : ''}`,
+      hasBoundCardScope ? [boundCardId] : [],
+    )
     if (archivedRows.length === 0)
       return 0
 
     await enqueueWrite(async () => {
       await runInTransaction(database, async () => {
         for (const row of archivedRows) {
+          const cardId = hasBoundCardScope
+            ? resolveMemoryCardId(row.card_id, 'archive restore')
+            : normalizeOrganicMemoryText(row.card_id, 120) || boundCardId
           const subject = row.subject?.trim()
           const predicate = row.predicate?.trim()
           const object = row.object?.trim()
@@ -2389,6 +2546,7 @@ export async function setupAlicizationDb(
             `
             INSERT INTO memory_facts (
               id,
+              card_id,
               subject,
               predicate,
               object,
@@ -2407,8 +2565,8 @@ export async function setupAlicizationDb(
               source_label,
               conflicts_with_json,
               supersedes_json
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(dedupe_key)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(card_id, dedupe_key)
             DO UPDATE SET
               confidence = MAX(memory_facts.confidence, excluded.confidence),
               source = excluded.source,
@@ -2431,6 +2589,7 @@ export async function setupAlicizationDb(
             `,
             [
               row.original_id?.trim() || row.id || randomUUID(),
+              cardId,
               subject,
               predicate,
               object,
@@ -2453,7 +2612,11 @@ export async function setupAlicizationDb(
           )
         }
 
-        await run(database, 'DELETE FROM memory_archive')
+        await run(
+          database,
+          `DELETE FROM memory_archive ${hasBoundCardScope ? 'WHERE card_id = ?' : ''}`,
+          hasBoundCardScope ? [boundCardId] : [],
+        )
       })
     })
 
@@ -2472,9 +2635,17 @@ export async function setupAlicizationDb(
 
   async function getMemoryStats() {
     const [rows, episodicRows, consolidationRows, pendingSyncCount, ingestHealth, lastPrunedAt, retrievalTelemetry] = await Promise.all([
-      all<DbMemoryFactRow>(database, 'SELECT * FROM memory_facts'),
+      all<DbMemoryFactRow>(
+        database,
+        `SELECT * FROM memory_facts ${hasBoundCardScope ? 'WHERE card_id = ?' : ''}`,
+        hasBoundCardScope ? [boundCardId] : [],
+      ),
       all<DbEpisodicEventRow>(database, 'SELECT * FROM episodic_events'),
-      all<DbMemoryConsolidationRow>(database, 'SELECT * FROM memory_consolidations'),
+      all<DbMemoryConsolidationRow>(
+        database,
+        `SELECT * FROM memory_consolidations ${hasBoundCardScope ? 'WHERE card_id = ?' : ''}`,
+        hasBoundCardScope ? [boundCardId] : [],
+      ),
       countPendingMemoryIngestEntries(),
       deriveMemoryIngestHealth(),
       getLastPrunedAt(),
@@ -2830,6 +3001,11 @@ export async function setupAlicizationDb(
   })
 
   async function rebuildMemoryConsolidationsFromEvents(cardId: string) {
+    const scopedCardId = hasBoundCardScope
+      ? resolveMemoryCardId(cardId, 'memory consolidation rebuild')
+      : normalizeOrganicMemoryText(cardId, 120)
+    if (!scopedCardId)
+      return
     const rows = await all<DbEpisodicEventRow>(
       database,
       `
@@ -2839,7 +3015,7 @@ export async function setupAlicizationDb(
       ORDER BY occurred_at DESC, created_at DESC
       LIMIT 4000
       `,
-      [cardId],
+      [scopedCardId],
     )
     const overlayByEventId = await loadLatestEpisodicReconsolidationOverlayByEventId(
       database,
@@ -2847,26 +3023,33 @@ export async function setupAlicizationDb(
       rows.map(row => row.id),
     )
     await memoryConsolidationRuntime.rebuildMemoryConsolidationsFromEvents(
-      rows.map((row) => {
-        const overlay = overlayByEventId.get(row.id)
-        return mapEpisodicEventRow(row, overlay
-          ? {
-              latest: overlay.latest ? mapEpisodicReconsolidationOverlayRow(overlay.latest) : null,
-              count: overlay.count,
-            }
-          : null)
-      }),
-      now(),
+      {
+        cardId: scopedCardId,
+        events: rows.map((row) => {
+          const overlay = overlayByEventId.get(row.id)
+          return mapEpisodicEventRow(row, overlay
+            ? {
+                latest: overlay.latest ? mapEpisodicReconsolidationOverlayRow(overlay.latest) : null,
+                count: overlay.count,
+              }
+            : null)
+        }),
+        now: now(),
+      },
     )
   }
 
   async function applyPreparedMemoryFacts(prepared: PreparedMemoryFactWrite[]) {
     for (const fact of prepared) {
+      const cardId = hasBoundCardScope
+        ? resolveMemoryCardId(fact.cardId, 'memory fact write')
+        : normalizeOrganicMemoryText(fact.cardId, 120) || boundCardId
       await run(
         database,
         `
         INSERT INTO memory_facts (
           id,
+          card_id,
           subject,
           predicate,
           object,
@@ -2885,8 +3068,8 @@ export async function setupAlicizationDb(
           source_label,
           conflicts_with_json,
           supersedes_json
-	        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(dedupe_key)
+	        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(card_id, dedupe_key)
         DO UPDATE SET
           confidence = MAX(memory_facts.confidence, excluded.confidence),
           source = excluded.source,
@@ -2902,6 +3085,7 @@ export async function setupAlicizationDb(
         `,
         [
           fact.id,
+          cardId,
           fact.subject,
           fact.predicate,
           fact.object,
@@ -2927,10 +3111,16 @@ export async function setupAlicizationDb(
 
   async function applyPreparedMemoryConsolidations(prepared: PreparedMemoryConsolidationWrite[]) {
     for (const record of prepared) {
+      const cardId = hasBoundCardScope
+        ? resolveMemoryCardId(record.cardId, 'memory consolidation write')
+        : normalizeOrganicMemoryText(record.cardId, 120)
+      if (!cardId)
+        continue
       await run(
         database,
         `
         INSERT INTO memory_consolidations (
+          card_id,
           id,
           kind,
           facet,
@@ -2945,8 +3135,8 @@ export async function setupAlicizationDb(
           derived_event_ids_json,
           metadata_json,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(card_id, id)
         DO UPDATE SET
           kind = excluded.kind,
           facet = excluded.facet,
@@ -2963,6 +3153,7 @@ export async function setupAlicizationDb(
           updated_at = excluded.updated_at
         `,
         [
+          cardId,
           record.id,
           record.kind,
           record.facet,
@@ -3085,13 +3276,15 @@ export async function setupAlicizationDb(
       await rebuildMemoryConsolidationsFromEvents(cardId)
   }
 
-  const listMemoryConsolidations = memoryConsolidationRuntime.listMemoryConsolidations
-
-  async function upsertMemoryConsolidations(records: AlicizationMemoryConsolidationRecord[]) {
+  async function upsertMemoryConsolidations(
+    records: AlicizationMemoryConsolidationRecord[],
+  ) {
     if (records.length === 0)
       return []
+    const cardId = boundCardId
 
     const prepared = records.map(record => ({
+      cardId,
       id: record.id.trim(),
       kind: record.kind,
       facet: record.facet === 'phase' || record.facet === 'relationship-era' || record.facet === 'task-era' || record.facet === 'self-era'
@@ -3127,6 +3320,7 @@ export async function setupAlicizationDb(
     })
 
     return prepared.map(record => mapMemoryConsolidationRow({
+      card_id: cardId,
       id: record.id,
       kind: record.kind,
       facet: record.facet,
@@ -3144,7 +3338,35 @@ export async function setupAlicizationDb(
     }))
   }
 
-  const searchMemoryConsolidations = memoryConsolidationRuntime.searchMemoryConsolidations
+  async function listMemoryConsolidations(limit = 16) {
+    return await memoryConsolidationRuntime.listMemoryConsolidations({
+      cardId: hasBoundCardScope ? boundCardId : undefined,
+      limit,
+    })
+  }
+
+  async function listMemoryConsolidationsForCard(cardIdRaw: string, limit = 16) {
+    const cardId = resolveMemoryCardId(cardIdRaw, 'memory consolidation list')
+    return await memoryConsolidationRuntime.listMemoryConsolidations({
+      cardId,
+      limit,
+    })
+  }
+
+  async function searchMemoryConsolidations(input: AlicizationMemoryConsolidationSearchInput) {
+    return await memoryConsolidationRuntime.searchMemoryConsolidations({
+      ...input,
+      cardId: hasBoundCardScope ? boundCardId : undefined,
+    })
+  }
+
+  async function searchMemoryConsolidationsForCard(input: AlicizationMemoryConsolidationSearchInput & { cardId: string }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'memory consolidation search')
+    return await memoryConsolidationRuntime.searchMemoryConsolidations({
+      ...input,
+      cardId,
+    })
+  }
   const appendMindTurnEvents = memoryMindStateRuntime.appendMindTurnEvents
   const listMindTurnEvents = memoryMindStateRuntime.listMindTurnEvents
 
@@ -4538,6 +4760,7 @@ export async function setupAlicizationDb(
   }
 
   async function upsertMemoryFacts(facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource) {
+    const cardId = boundCardId
     if (facts.length === 0)
       return
 
@@ -4551,6 +4774,7 @@ export async function setupAlicizationDb(
 
         return {
           id: randomUUID(),
+          cardId,
           subject,
           predicate,
           object,
@@ -4610,7 +4834,12 @@ export async function setupAlicizationDb(
       return []
 
     const retrievalStartedAt = now()
-    const rows = await all<DbMemoryFactRow>(database, 'SELECT * FROM memory_facts')
+    const scopeClause = hasBoundCardScope ? 'WHERE card_id = ?' : ''
+    const rows = await all<DbMemoryFactRow>(
+      database,
+      `SELECT * FROM memory_facts ${scopeClause}`,
+      hasBoundCardScope ? [boundCardId] : [],
+    )
     if (rows.length === 0) {
       await recordMemorySemanticRetrievalLatency(now() - retrievalStartedAt)
       return []
@@ -4639,9 +4868,9 @@ export async function setupAlicizationDb(
             UPDATE memory_facts
             SET access_count = access_count + 1,
                 last_access_at = ?
-            WHERE id = ?
+            WHERE ${hasBoundCardScope ? 'card_id = ? AND ' : ''}id = ?
             `,
-            [currentTs, item.fact.id],
+            hasBoundCardScope ? [currentTs, boundCardId, item.fact.id] : [currentTs, item.fact.id],
           )
         }
       })
@@ -4678,8 +4907,8 @@ export async function setupAlicizationDb(
         for (const correction of normalizedCorrections) {
           const row = await get<DbMemoryFactRow>(
             database,
-            'SELECT * FROM memory_facts WHERE id = ?',
-            [correction.targetFactId],
+            `SELECT * FROM memory_facts WHERE ${hasBoundCardScope ? 'card_id = ? AND ' : ''}id = ?`,
+            hasBoundCardScope ? [boundCardId, correction.targetFactId] : [correction.targetFactId],
           )
           if (!row)
             continue
@@ -4715,7 +4944,7 @@ export async function setupAlicizationDb(
                 conflicts_with_json = ?,
                 supersedes_json = ?,
                 updated_at = ?
-            WHERE id = ?
+            WHERE ${hasBoundCardScope ? 'card_id = ? AND ' : ''}id = ?
             `,
             [
               correction.nextValidationStatus,
@@ -4726,6 +4955,7 @@ export async function setupAlicizationDb(
               mergedConflictsWith,
               mergedSupersedes,
               now(),
+              ...(hasBoundCardScope ? [boundCardId] : []),
               correction.targetFactId,
             ],
           )
@@ -4735,7 +4965,12 @@ export async function setupAlicizationDb(
   }
 
   async function listMemoryFacts() {
-    const rows = await all<DbMemoryFactRow>(database, 'SELECT * FROM memory_facts')
+    const scopeClause = hasBoundCardScope ? 'WHERE card_id = ?' : ''
+    const rows = await all<DbMemoryFactRow>(
+      database,
+      `SELECT * FROM memory_facts ${scopeClause} ORDER BY updated_at DESC, id ASC`,
+      hasBoundCardScope ? [boundCardId] : [],
+    )
     return rows.map(mapFactRow)
   }
 
@@ -5092,7 +5327,7 @@ export async function setupAlicizationDb(
           cleanedTransaction.cleanedCandidate.id,
           cleanedTransaction.queueItemId,
         ]
-        const tombstonedCandidateSourceIds = await listTombstonedLongTermMemorySourceIds(candidateSourceIds)
+        const tombstonedCandidateSourceIds = await listTombstonedLongTermMemorySourceIds(candidateSourceIds, cleanedTransaction.cardId)
         if (tombstonedCandidateSourceIds.size > 0) {
           rejected += 1
           await persistWorkingMemoryLongTermTransaction({
@@ -5128,8 +5363,11 @@ export async function setupAlicizationDb(
 
         let persistedReflections: AlicizationMemoryReflectionRecord[] = []
         let persistedEpisodes: AlicizationEpisodicEventRecord[] = []
-        if (projections.memoryFacts.length > 0)
+        if (projections.memoryFacts.length > 0) {
+          if (hasBoundCardScope)
+            resolveMemoryCardId(cleanedTransaction.cardId, 'working memory projection')
           await upsertMemoryFacts(projections.memoryFacts, 'rule')
+        }
         if (projections.memoryReflections.length > 0)
           persistedReflections = await memoryRelationshipRuntime.upsertMemoryReflections(projections.memoryReflections)
         if (projections.episodicEvents.length > 0)
@@ -5137,7 +5375,10 @@ export async function setupAlicizationDb(
         if (projections.personaReinforcements.length > 0)
           await memoryRelationshipRuntime.appendPersonaReinforcementEvents(projections.personaReinforcements)
 
-        const projectedFactSources = await findProjectedMemoryFactSourcesByCandidateId(cleanedTransaction.cleanedCandidate.id)
+        const projectedFactSources = await findProjectedMemoryFactSourcesByCandidateId(
+          cleanedTransaction.cardId,
+          cleanedTransaction.cleanedCandidate.id,
+        )
         const projectedSources = [
           ...projectedFactSources,
           ...persistedReflections.map(item => ({ sourceId: item.id, source: 'memory_reflections' })),
@@ -5252,6 +5493,8 @@ export async function setupAlicizationDb(
     sourceIds: string[]
     reason?: string | null
   }) {
+    const cardId = boundCardId
+    const source = 'long_term_memory'
     const sourceIds = normalizeLongTermMemorySourceIds(input.sourceIds)
     if (sourceIds.length === 0)
       return
@@ -5266,14 +5509,18 @@ export async function setupAlicizationDb(
             `
             INSERT OR REPLACE INTO long_term_memory_tombstones (
               id,
+              card_id,
               source_id,
+              source,
               reason,
               created_at
-            ) VALUES (?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?)
             `,
             [
-              `ltm-tombstone:${sourceId}`,
+              `ltm-tombstone:${cardId}:${source}:${sourceId}`,
+              cardId,
               sourceId,
+              source,
               reason,
               createdAt,
             ],
@@ -5283,15 +5530,16 @@ export async function setupAlicizationDb(
     })
   }
 
-  async function listTombstonedLongTermMemorySourceIds(sourceIds: string[]) {
+  async function listTombstonedLongTermMemorySourceIds(sourceIds: string[], cardIdRaw = boundCardId) {
     const sourceSet = new Set(normalizeLongTermMemorySourceIds(sourceIds))
     if (sourceSet.size === 0)
       return new Set<string>()
+    const cardId = resolveMemoryCardId(cardIdRaw, 'long-term memory tombstone lookup')
 
     const rows = await all<{ source_id: string }>(
       database,
-      'SELECT source_id FROM long_term_memory_tombstones',
-      [],
+      'SELECT source_id FROM long_term_memory_tombstones WHERE card_id = ?',
+      [cardId],
     )
     return new Set(rows.map(row => row.source_id).filter(sourceId => sourceSet.has(sourceId)))
   }
@@ -5511,7 +5759,8 @@ export async function setupAlicizationDb(
         recallSeed,
         limit: sourceLimit,
       }).catch(() => []),
-      searchMemoryConsolidations({
+      searchMemoryConsolidationsForCard({
+        cardId: input.cardId,
         query: recallSeed,
         limit: sourceLimit,
       }).catch(() => []),
@@ -5523,7 +5772,7 @@ export async function setupAlicizationDb(
       ...episodes.map(episodicEventToLongTermEvidenceCandidate),
       ...consolidations.map(memoryConsolidationToLongTermEvidenceCandidate),
     ]
-    const tombstonedSourceIds = await listTombstonedLongTermMemorySourceIds(candidates.map(candidate => candidate.id))
+    const tombstonedSourceIds = await listTombstonedLongTermMemorySourceIds(candidates.map(candidate => candidate.id), input.cardId)
     const visibleCandidates = candidates.filter(candidate => !tombstonedSourceIds.has(candidate.id))
     const semantic = await retrieveLongTermMemorySemanticScores({
       cardId: input.cardId,
@@ -5674,8 +5923,10 @@ export async function setupAlicizationDb(
     }
   }
 
-  async function findProjectedMemoryFactSourcesByCandidateId(candidateId: string) {
+  async function findProjectedMemoryFactSourcesByCandidateId(cardId: string, candidateId: string) {
     const sourceLabel = `working-memory-owner:${candidateId}`
+    if (hasBoundCardScope)
+      resolveMemoryCardId(cardId, 'working memory fact projection lookup')
     const facts = await listMemoryFacts()
     return facts
       .filter(fact => fact.sourceLabel === sourceLabel)
@@ -5724,8 +5975,8 @@ export async function setupAlicizationDb(
         ? searchEpisodicEvents({ recallSeed: query, limit: sourceLimit }).catch(() => [])
         : listRecentEpisodicEvents(sourceLimit).catch(() => []),
       query
-        ? searchMemoryConsolidations({ query, limit: sourceLimit }).catch(() => [])
-        : listMemoryConsolidations(sourceLimit).catch(() => []),
+        ? searchMemoryConsolidationsForCard({ cardId: input.cardId, query, limit: sourceLimit }).catch(() => [])
+        : listMemoryConsolidationsForCard(input.cardId, sourceLimit).catch(() => []),
     ])
     const candidates = [
       ...facts.map(memoryFactToLongTermEvidenceCandidate),
@@ -5733,7 +5984,7 @@ export async function setupAlicizationDb(
       ...episodes.filter(event => event.cardId === input.cardId).map(episodicEventToLongTermEvidenceCandidate),
       ...consolidations.map(memoryConsolidationToLongTermEvidenceCandidate),
     ]
-    const tombstonedSourceIds = await listTombstonedLongTermMemorySourceIds(candidates.map(candidate => candidate.id))
+    const tombstonedSourceIds = await listTombstonedLongTermMemorySourceIds(candidates.map(candidate => candidate.id), input.cardId)
     const candidateSourceIds = candidates.map(candidate => candidate.id)
     const policies = await memoryWorkbenchPolicyStore.listPolicyOverrides({
       cardId: input.cardId,
@@ -6167,7 +6418,11 @@ export async function setupAlicizationDb(
     // NOTICE: API name retained for bridge compatibility. This no longer deletes or archives
     // memories; it only refreshes salience tiers so long-horizon recall stays lossless.
     await restoreArchivedFactsIntoActiveMemory()
-    const facts = (await all<DbMemoryFactRow>(database, 'SELECT * FROM memory_facts')).map(mapFactRow)
+    const facts = (await all<DbMemoryFactRow>(
+      database,
+      `SELECT * FROM memory_facts ${hasBoundCardScope ? 'WHERE card_id = ?' : ''}`,
+      hasBoundCardScope ? [boundCardId] : [],
+    )).map(mapFactRow)
     const coldTierCount = facts.filter(fact => (fact.memoryTier ?? deriveFactMemoryTier(fact, currentTs)) === 'cold').length
 
     await enqueueWrite(async () => {
@@ -6199,9 +6454,15 @@ export async function setupAlicizationDb(
     return normalized.slice(0, maxChars)
   }
 
-  async function importLegacyMemory(snapshot: AlicizationMemoryLegacySnapshot): Promise<AlicizationMemoryMigrationResult> {
+  async function importLegacyMemory(
+    snapshot: AlicizationMemoryLegacySnapshot,
+  ): Promise<AlicizationMemoryMigrationResult> {
+    const cardId = boundCardId
     const currentTs = now()
-    const marker = await getMetaValue(legacyMigrationMarker)
+    const markerKey = hasBoundCardScope
+      ? `${legacyMigrationMarker}:${cardId}`
+      : legacyMigrationMarker
+    const marker = await getMetaValue(markerKey)
     if (marker) {
       return {
         migrated: false,
@@ -6216,163 +6477,46 @@ export async function setupAlicizationDb(
 
     const importedFacts = legacyFacts.length
     const importedArchive = legacyArchive.length
+    const prepared = [...legacyFacts, ...legacyArchive]
+      .map((fact) => {
+        const subject = normalizeOrganicMemoryText(fact.subject, 160)
+        const predicate = normalizeOrganicMemoryText(fact.predicate, 160)
+        const object = normalizeOrganicMemoryText(fact.object, 320)
+        if (!subject || !predicate || !object)
+          return null
+        return {
+          id: normalizeOrganicMemoryText(fact.id, 240) || randomUUID(),
+          cardId,
+          subject,
+          predicate,
+          object,
+          confidence: clamp01(fact.confidence),
+          source: fact.source,
+          dedupeKey: normalizeOrganicMemoryText(fact.dedupeKey, 240) || buildDedupeKey(subject, predicate, object),
+          createdAt: Math.max(0, Math.floor(fact.createdAt)),
+          updatedAt: Math.max(0, Math.floor(fact.updatedAt)),
+          knowledgeStage: normalizeKnowledgeStage(fact.knowledgeStage),
+          validationStatus: normalizeValidationStatus(fact.validationStatus),
+          memoryDomain: normalizeMemoryDomain((fact as any).memoryDomain),
+          validationCount: Math.max(0, Math.floor(Number(fact.validationCount ?? 0))),
+          contradictionCount: Math.max(0, Math.floor(Number(fact.contradictionCount ?? 0))),
+          sourceLabel: normalizeOrganicMemoryText(fact.sourceLabel, 160) || null,
+          conflictsWithJson: JSON.stringify(fact.conflictsWith ?? []),
+          supersedesJson: JSON.stringify(fact.supersedes ?? []),
+        } satisfies PreparedMemoryFactWrite
+      })
+      .filter((fact): fact is PreparedMemoryFactWrite => Boolean(fact))
 
     await enqueueWrite(async () => {
       await runInTransaction(database, async () => {
-        for (const fact of legacyFacts) {
-          const subject = fact.subject?.trim()
-          const predicate = fact.predicate?.trim()
-          const object = fact.object?.trim()
-          if (!subject || !predicate || !object)
-            continue
-
-          const dedupeKey = fact.dedupeKey?.trim() || buildDedupeKey(subject, predicate, object)
-          await run(
-            database,
-            `
-            INSERT INTO memory_facts (
-              id,
-              subject,
-              predicate,
-              object,
-              confidence,
-              source,
-              dedupe_key,
-              created_at,
-              updated_at,
-              last_access_at,
-              access_count,
-              knowledge_stage,
-              validation_status,
-              memory_domain,
-              validation_count,
-              contradiction_count,
-          source_label,
-          conflicts_with_json,
-          supersedes_json
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(dedupe_key)
-            DO UPDATE SET
-              confidence = MAX(memory_facts.confidence, excluded.confidence),
-          source = excluded.source,
-          updated_at = excluded.updated_at,
-          knowledge_stage = excluded.knowledge_stage,
-          validation_status = excluded.validation_status,
-          memory_domain = excluded.memory_domain,
-          validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
-          contradiction_count = MAX(memory_facts.contradiction_count, excluded.contradiction_count),
-          source_label = excluded.source_label,
-          conflicts_with_json = excluded.conflicts_with_json,
-          supersedes_json = excluded.supersedes_json
-            `,
-            [
-              fact.id || randomUUID(),
-              subject,
-              predicate,
-              object,
-              clamp01(fact.confidence),
-              fact.source,
-              dedupeKey,
-              fact.createdAt,
-              fact.updatedAt,
-              fact.lastAccessAt,
-              Math.max(0, Math.floor(fact.accessCount)),
-              normalizeKnowledgeStage(fact.knowledgeStage),
-              normalizeValidationStatus(fact.validationStatus),
-              normalizeMemoryDomain((fact as any).memoryDomain),
-              Math.max(0, Math.floor(Number(fact.validationCount ?? 0))),
-              Math.max(0, Math.floor(Number(fact.contradictionCount ?? 0))),
-              fact.sourceLabel?.trim() || null,
-              JSON.stringify(fact.conflictsWith ?? []),
-              JSON.stringify(fact.supersedes ?? []),
-            ],
-          )
-        }
-
-        for (const item of legacyArchive) {
-          const subject = item.subject?.trim()
-          const predicate = item.predicate?.trim()
-          const object = item.object?.trim()
-          if (!subject || !predicate || !object)
-            continue
-
-          const dedupeKey = item.dedupeKey?.trim() || buildDedupeKey(subject, predicate, object)
-          await run(
-            database,
-            `
-            INSERT INTO memory_facts (
-              id,
-              subject,
-              predicate,
-              object,
-              confidence,
-              source,
-              dedupe_key,
-              created_at,
-              updated_at,
-              last_access_at,
-	              access_count,
-	              knowledge_stage,
-	              validation_status,
-	              memory_domain,
-	              validation_count,
-	              contradiction_count,
-              source_label,
-              conflicts_with_json,
-              supersedes_json
-	            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(dedupe_key)
-            DO UPDATE SET
-              confidence = MAX(memory_facts.confidence, excluded.confidence),
-              source = excluded.source,
-              created_at = MIN(memory_facts.created_at, excluded.created_at),
-              updated_at = MAX(memory_facts.updated_at, excluded.updated_at),
-              last_access_at = CASE
-                WHEN excluded.last_access_at IS NULL THEN memory_facts.last_access_at
-                WHEN memory_facts.last_access_at IS NULL THEN excluded.last_access_at
-                ELSE MAX(memory_facts.last_access_at, excluded.last_access_at)
-              END,
-              access_count = MAX(memory_facts.access_count, excluded.access_count),
-              knowledge_stage = excluded.knowledge_stage,
-              validation_status = excluded.validation_status,
-              memory_domain = excluded.memory_domain,
-              validation_count = MAX(memory_facts.validation_count, excluded.validation_count),
-              contradiction_count = MAX(memory_facts.contradiction_count, excluded.contradiction_count),
-              source_label = excluded.source_label,
-              conflicts_with_json = excluded.conflicts_with_json,
-              supersedes_json = excluded.supersedes_json
-            `,
-            [
-              item.id || randomUUID(),
-              subject,
-              predicate,
-              object,
-              clamp01(item.confidence),
-              item.source,
-              dedupeKey,
-              item.createdAt,
-              item.updatedAt,
-              item.lastAccessAt,
-              Math.max(0, Math.floor(item.accessCount)),
-              normalizeKnowledgeStage(item.knowledgeStage),
-              normalizeValidationStatus(item.validationStatus),
-              normalizeMemoryDomain((item as any).memoryDomain),
-              Math.max(0, Math.floor(Number(item.validationCount ?? 0))),
-              Math.max(0, Math.floor(Number(item.contradictionCount ?? 0))),
-              item.sourceLabel?.trim() || null,
-              JSON.stringify(item.conflictsWith ?? []),
-              JSON.stringify(item.supersedes ?? []),
-            ],
-          )
-        }
-
-        await run(database, 'DELETE FROM memory_archive')
+        await applyPreparedMemoryFacts(prepared)
+        await run(database, 'DELETE FROM memory_archive WHERE card_id = ?', [cardId])
 
         if (typeof snapshot.lastPrunedAt === 'number' && Number.isFinite(snapshot.lastPrunedAt)) {
           await upsertMeta(memoryLastPrunedAtKey, String(snapshot.lastPrunedAt))
         }
 
-        await upsertMeta(legacyMigrationMarker, String(currentTs))
+        await upsertMeta(markerKey, String(currentTs))
       })
     })
 

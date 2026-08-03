@@ -123,6 +123,7 @@ const eventGraphEdges = new Map<string, {
   updated_at: number
 }>()
 const memoryConsolidations = new Map<string, {
+  card_id: string
   id: string
   kind: 'daily' | 'weekly' | 'procedural' | 'autobiographical'
   facet: 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null
@@ -203,6 +204,7 @@ const learningTasks = new Map<string, {
   fired_turn_id: string | null
 }>()
 const memoryFacts = new Map<string, {
+  card_id: string
   id: string
   subject: string
   predicate: string
@@ -224,6 +226,7 @@ const memoryFacts = new Map<string, {
   supersedes_json: string | null
 }>()
 const memoryArchive = new Map<string, {
+  card_id: string
   id: string
   original_id: string | null
   subject: string
@@ -322,7 +325,9 @@ const personaReinforcementEvents = new Map<string, {
 }>()
 const longTermMemoryTombstones = new Map<string, {
   id: string
+  card_id: string
   source_id: string
+  source: string
   reason: string | null
   created_at: number
 }>()
@@ -336,6 +341,7 @@ async function createSandboxUserDataPath() {
 }
 
 function upsertMemoryFactRow(row: {
+  card_id: string
   id: string
   subject: string
   predicate: string
@@ -356,7 +362,7 @@ function upsertMemoryFactRow(row: {
   conflicts_with_json: string | null
   supersedes_json: string | null
 }) {
-  const existing = [...memoryFacts.values()].find(item => item.dedupe_key === row.dedupe_key)
+  const existing = [...memoryFacts.values()].find(item => item.card_id === row.card_id && item.dedupe_key === row.dedupe_key)
   if (!existing) {
     memoryFacts.set(row.id, row)
     return
@@ -401,10 +407,11 @@ class FakeSqliteDatabase {
     }
 
     if (sql.includes('INSERT INTO memory_facts')) {
-      const [id, subject, predicate, object, confidence, source, dedupeKey, createdAt, updatedAt, lastAccessAt, accessCount, knowledgeStage, validationStatus, memoryDomain, validationCount, contradictionCount, sourceLabel, conflictsWithJson, supersedesJson]
-        = actualParams as [string, string, string, string, number, string, string, number, number, number | null, number, string | null, string | null, string | null, number, number, string | null, string | null, string | null]
+      const [id, cardId, subject, predicate, object, confidence, source, dedupeKey, createdAt, updatedAt, lastAccessAt, accessCount, knowledgeStage, validationStatus, memoryDomain, validationCount, contradictionCount, sourceLabel, conflictsWithJson, supersedesJson]
+        = actualParams as [string, string, string, string, string, number, string, string, number, number, number | null, number, string | null, string | null, string | null, number, number, string | null, string | null, string | null]
       upsertMemoryFactRow({
         id,
+        card_id: cardId,
         subject,
         predicate,
         object,
@@ -427,7 +434,8 @@ class FakeSqliteDatabase {
     }
     else if (sql.includes('UPDATE memory_facts')) {
       if (sql.includes('SET access_count = access_count + 1')) {
-        const [lastAccessAt, id] = actualParams as [number | null, string]
+        const [lastAccessAt, ...rest] = actualParams as [number | null, ...string[]]
+        const id = String(rest.at(-1) ?? '')
         const fact = memoryFacts.get(id)
         if (!fact) {
           changes = 0
@@ -438,8 +446,9 @@ class FakeSqliteDatabase {
         }
       }
       else if (sql.includes('SET validation_status = ?')) {
-        const [validationStatus, knowledgeStage, sourceLabel, conflictsWithJson, supersedesJson, updatedAt, id]
-          = actualParams as [string, string | null, string | null, string, string, number, string]
+        const [validationStatus, knowledgeStage, sourceLabel, _validationStatusForCounter, _contradictionStatusForCounter, conflictsWithJson, supersedesJson, updatedAt, ...scopeAndId]
+          = actualParams as [string, string | null, string | null, string, string, string, string, number, ...string[]]
+        const id = String(scopeAndId.at(-1) ?? '')
         const fact = memoryFacts.get(id)
         if (!fact) {
           changes = 0
@@ -462,10 +471,11 @@ class FakeSqliteDatabase {
       }
     }
     else if (sql.includes('INSERT INTO memory_archive')) {
-      const [id, originalId, subject, predicate, object, confidence, source, dedupeKey, createdAt, updatedAt, lastAccessAt, accessCount, knowledgeStage, validationStatus, memoryDomain, validationCount, contradictionCount, sourceLabel, conflictsWithJson, supersedesJson, archivedAt]
-        = actualParams as [string, string | null, string, string, string, number, string, string, number, number, number | null, number, string | null, string | null, string | null, number, number, string | null, string | null, string | null, number]
+      const [id, cardId, originalId, subject, predicate, object, confidence, source, dedupeKey, createdAt, updatedAt, lastAccessAt, accessCount, knowledgeStage, validationStatus, memoryDomain, validationCount, contradictionCount, sourceLabel, conflictsWithJson, supersedesJson, archivedAt]
+        = actualParams as [string, string, string | null, string, string, string, number, string, string, number, number, number | null, number, string | null, string | null, string | null, number, number, string | null, string | null, string | null, number]
       memoryArchive.set(id, {
         id,
+        card_id: cardId,
         original_id: originalId ?? null,
         subject,
         predicate,
@@ -569,10 +579,12 @@ class FakeSqliteDatabase {
       }
     }
     else if (sql.includes('INSERT OR REPLACE INTO long_term_memory_tombstones')) {
-      const [id, sourceId, reason, createdAt] = actualParams as [string, string, string | null, number]
-      longTermMemoryTombstones.set(sourceId, {
+      const [id, cardId, sourceId, source, reason, createdAt] = actualParams as [string, string, string, string, string | null, number]
+      longTermMemoryTombstones.set(`${cardId}:${source}:${sourceId}`, {
         id,
+        card_id: cardId,
         source_id: sourceId,
+        source,
         reason: reason ?? null,
         created_at: createdAt,
       })
@@ -936,9 +948,10 @@ class FakeSqliteDatabase {
     }
 
     if (sql.includes('INSERT INTO memory_consolidations')) {
-      const [id, kind, facet, periodKey, periodStartedAt, periodEndedAt, summary, lesson, cuesJson, confidence, dominantProvenance, derivedEventIdsJson, metadataJson, updatedAt]
-        = actualParams as [string, 'daily' | 'weekly' | 'procedural' | 'autobiographical', 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null, string, number, number, string, string | null, string | null, number, string, string | null, string | null, number]
+      const [cardId, id, kind, facet, periodKey, periodStartedAt, periodEndedAt, summary, lesson, cuesJson, confidence, dominantProvenance, derivedEventIdsJson, metadataJson, updatedAt]
+        = actualParams as [string, string, 'daily' | 'weekly' | 'procedural' | 'autobiographical', 'phase' | 'relationship-era' | 'task-era' | 'self-era' | null, string, number, number, string, string | null, string | null, number, string, string | null, string | null, number]
       memoryConsolidations.set(id, {
+        card_id: cardId,
         id,
         kind,
         facet: facet ?? null,
@@ -1243,6 +1256,13 @@ class FakeSqliteDatabase {
             memoryArchive.delete(id)
         }
       }
+      else if (sql.includes('WHERE card_id = ?')) {
+        const cardId = String(actualParams[0] ?? '')
+        for (const [id, item] of memoryArchive.entries()) {
+          if (item.card_id === cardId)
+            memoryArchive.delete(id)
+        }
+      }
       else {
         memoryArchive.clear()
       }
@@ -1251,6 +1271,13 @@ class FakeSqliteDatabase {
       if (sql.includes('WHERE id IN (')) {
         for (const id of actualParams as string[])
           memoryFacts.delete(id)
+      }
+      else if (sql.includes('WHERE card_id = ?')) {
+        const cardId = String(actualParams[0] ?? '')
+        for (const [id, item] of memoryFacts.entries()) {
+          if (item.card_id === cardId)
+            memoryFacts.delete(id)
+        }
       }
       else {
         memoryFacts.clear()
@@ -1275,7 +1302,16 @@ class FakeSqliteDatabase {
       episodicReconsolidationOverlays.clear()
     }
     else if (sql.includes('DELETE FROM memory_consolidations')) {
-      memoryConsolidations.clear()
+      if (sql.includes('WHERE card_id = ?')) {
+        const cardId = String(actualParams[0] ?? '')
+        for (const [id, item] of memoryConsolidations.entries()) {
+          if (item.card_id === cardId)
+            memoryConsolidations.delete(id)
+        }
+      }
+      else {
+        memoryConsolidations.clear()
+      }
     }
     else if (sql.includes('DELETE FROM executor_sessions')) {
       executorSessions.clear()
@@ -1342,8 +1378,8 @@ class FakeSqliteDatabase {
       return this
     }
 
-    if (sql.includes('SELECT * FROM memory_facts WHERE id = ?')) {
-      const id = String(actualParams[0] ?? '')
+    if (sql.includes('FROM memory_facts') && sql.includes('WHERE') && sql.includes('id = ?')) {
+      const id = String(actualParams.at(-1) ?? '')
       actualCallback?.(null, id ? memoryFacts.get(id) : undefined)
       return this
     }
@@ -1382,7 +1418,10 @@ class FakeSqliteDatabase {
     const actualParams = Array.isArray(_params) ? _params : []
     const actualCallback = (typeof _params === 'function' ? _params : callback) as ((error: Error | null, rows?: unknown[]) => void) | undefined
     if (_sql.includes('FROM memory_archive')) {
-      actualCallback?.(null, [...memoryArchive.values()])
+      const cardId = _sql.includes('WHERE card_id = ?')
+        ? String(actualParams[0] ?? '')
+        : ''
+      actualCallback?.(null, [...memoryArchive.values()].filter(item => !cardId || item.card_id === cardId))
       return this
     }
     if (_sql.includes('FROM working_memory_checkpoints')) {
@@ -1433,11 +1472,17 @@ class FakeSqliteDatabase {
       return this
     }
     if (_sql.includes('FROM memory_facts')) {
-      actualCallback?.(null, [...memoryFacts.values()])
+      const cardId = _sql.includes('WHERE card_id = ?')
+        ? String(actualParams[0] ?? '')
+        : ''
+      actualCallback?.(null, [...memoryFacts.values()].filter(item => !cardId || item.card_id === cardId))
       return this
     }
     if (_sql.includes('FROM long_term_memory_tombstones')) {
-      actualCallback?.(null, [...longTermMemoryTombstones.values()])
+      const cardId = _sql.includes('WHERE card_id = ?')
+        ? String(actualParams[0] ?? '')
+        : ''
+      actualCallback?.(null, [...longTermMemoryTombstones.values()].filter(item => !cardId || item.card_id === cardId))
       return this
     }
     if (_sql.includes('FROM memory_reflections')) {
@@ -1757,8 +1802,12 @@ class FakeSqliteDatabase {
       return this
     }
     if (_sql.includes('FROM memory_consolidations')) {
+      const cardId = _sql.includes('WHERE card_id = ?')
+        ? String(actualParams[0] ?? '')
+        : ''
       const limit = Number(actualParams.at(-1) ?? 48)
       const rows = [...memoryConsolidations.values()]
+        .filter(item => !cardId || item.card_id === cardId)
         .sort((a, b) => {
           if (a.period_ended_at !== b.period_ended_at)
             return b.period_ended_at - a.period_ended_at

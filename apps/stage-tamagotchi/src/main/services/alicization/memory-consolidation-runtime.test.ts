@@ -42,6 +42,7 @@ describe('memory consolidation runtime', () => {
     })
 
     const rows = await runtime.searchMemoryConsolidations({
+      cardId: 'card-a',
       query: 'runtime continuity',
       recollectionIntent: null,
     })
@@ -82,14 +83,16 @@ describe('memory consolidation runtime', () => {
       searchRecords: vi.fn(() => []),
     })
 
-    const records = await runtime.rebuildMemoryConsolidationsFromEvents([
-      {
+    const records = await runtime.rebuildMemoryConsolidationsFromEvents({
+      cardId: 'card-a',
+      events: [{
         id: 'event-1',
-      } as any,
-    ], 3)
+      } as any],
+      now: 3,
+    })
 
     expect(records).toHaveLength(1)
-    expect(run).toHaveBeenCalledWith(expect.anything(), 'DELETE FROM memory_consolidations')
+    expect(run).toHaveBeenCalledWith(expect.anything(), 'DELETE FROM memory_consolidations WHERE card_id = ?', ['card-a'])
     expect(run).toHaveBeenCalledWith(expect.anything(), expect.stringContaining('INSERT INTO memory_consolidations'), expect.any(Array))
     expect(run.mock.calls[1]?.[2]).toEqual(expect.arrayContaining([
       JSON.stringify({

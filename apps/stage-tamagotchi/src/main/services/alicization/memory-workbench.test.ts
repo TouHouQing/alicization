@@ -3,9 +3,11 @@ import type {
   AlicizationPersonaCandidateWorkbenchItem,
 } from '../../../shared/eventa'
 
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+
+import sqlite3 from 'sqlite3'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -26,6 +28,50 @@ async function createSandboxUserDataPath() {
   return dir
 }
 
+function openRawDatabase(filepath: string) {
+  return new Promise<sqlite3.Database>((resolve, reject) => {
+    const database = new sqlite3.Database(filepath, (error) => {
+      if (error)
+        reject(error)
+      else
+        resolve(database)
+    })
+  })
+}
+
+function executeRawSql(database: sqlite3.Database, sql: string) {
+  return new Promise<void>((resolve, reject) => {
+    database.exec(sql, (error) => {
+      if (error)
+        reject(error)
+      else
+        resolve()
+    })
+  })
+}
+
+function queryRawRows<T>(database: sqlite3.Database, sql: string) {
+  return new Promise<T[]>((resolve, reject) => {
+    database.all(sql, (error, rows) => {
+      if (error)
+        reject(error)
+      else
+        resolve(rows as T[])
+    })
+  })
+}
+
+function closeRawDatabase(database: sqlite3.Database) {
+  return new Promise<void>((resolve, reject) => {
+    database.close((error) => {
+      if (error)
+        reject(error)
+      else
+        resolve()
+    })
+  })
+}
+
 afterEach(async () => {
   while (sandboxDirs.length > 0) {
     const dir = sandboxDirs.pop()
@@ -36,6 +82,304 @@ afterEach(async () => {
 })
 
 describe('memory workbench projection', () => {
+  it('deletes legacy global facts and makes new facts card-scoped', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations')
+    await mkdir(rootDir, { recursive: true })
+    const legacyDatabase = await openRawDatabase(join(rootDir, 'alicization.db'))
+    await executeRawSql(legacyDatabase, `
+      CREATE TABLE memory_facts (
+        id TEXT PRIMARY KEY,
+        subject TEXT NOT NULL,
+        predicate TEXT NOT NULL,
+        object TEXT NOT NULL,
+        confidence REAL NOT NULL,
+        source TEXT NOT NULL,
+        dedupe_key TEXT NOT NULL UNIQUE,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      INSERT INTO memory_facts VALUES (
+        'legacy-fact',
+        'user',
+        'prefers',
+        'the old global memory',
+        0.9,
+        'rule',
+        'legacy-key',
+        1,
+        1
+      );
+      CREATE TABLE memory_consolidations (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        period_key TEXT NOT NULL,
+        period_started_at INTEGER NOT NULL,
+        period_ended_at INTEGER NOT NULL,
+        summary TEXT NOT NULL,
+        confidence REAL NOT NULL,
+        dominant_provenance TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      INSERT INTO memory_consolidations VALUES (
+        'legacy-consolidation',
+        'daily',
+        'legacy-day',
+        1,
+        1,
+        'legacy global consolidation',
+        0.8,
+        'rule',
+        1
+      );
+    `)
+    await closeRawDatabase(legacyDatabase)
+
+    const cardA = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+    })
+    try {
+      expect(await cardA.listMemoryFacts()).toEqual([])
+      expect(await cardA.listMemoryConsolidations(8)).toEqual([])
+
+      await cardA.upsertMemoryFacts([{
+        subject: 'user',
+        predicate: 'prefers',
+        object: 'card A only',
+        confidence: 0.9,
+      }], 'rule')
+    }
+    finally {
+      await cardA.close()
+    }
+
+    const schemaDatabase = await openRawDatabase(join(rootDir, 'alicization.db'))
+    try {
+      const factColumns = await queryRawRows<{ name: string }>(schemaDatabase, 'PRAGMA table_info(memory_facts)')
+      const consolidationColumns = await queryRawRows<{ name: string }>(schemaDatabase, 'PRAGMA table_info(memory_consolidations)')
+      expect(factColumns.map(column => column.name)).toContain('card_id')
+      expect(consolidationColumns.map(column => column.name)).toContain('card_id')
+    }
+    finally {
+      await closeRawDatabase(schemaDatabase)
+    }
+
+    const cardB = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-b',
+    })
+    try {
+      await cardB.upsertMemoryFacts([{
+        subject: 'user',
+        predicate: 'prefers',
+        object: 'card B only',
+        confidence: 0.9,
+      }], 'rule')
+    }
+    finally {
+      await cardB.close()
+    }
+
+    const cardARead = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+    })
+    try {
+      expect(await cardARead.retrieveMemoryFacts('prefers', 8))
+        .toEqual([expect.objectContaining({ object: 'card A only' })])
+    }
+    finally {
+      await cardARead.close()
+    }
+
+    const cardBRead = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-b',
+    })
+    try {
+      expect(await cardBRead.retrieveMemoryFacts('prefers', 8))
+        .toEqual([expect.objectContaining({ object: 'card B only' })])
+    }
+    finally {
+      await cardBRead.close()
+    }
+  })
+
+  it('rebuilds stale card-scoped fact and consolidation schemas instead of keeping incompatible constraints', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations')
+    await mkdir(rootDir, { recursive: true })
+    const staleDatabase = await openRawDatabase(join(rootDir, 'alicization.db'))
+    await executeRawSql(staleDatabase, `
+      CREATE TABLE memory_facts (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        predicate TEXT NOT NULL,
+        object TEXT NOT NULL,
+        confidence REAL NOT NULL,
+        source TEXT NOT NULL,
+        dedupe_key TEXT NOT NULL UNIQUE,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      INSERT INTO memory_facts VALUES (
+        'stale-fact',
+        'card-a',
+        'user',
+        'prefers',
+        'stale constrained memory',
+        0.9,
+        'rule',
+        'stale-key',
+        1,
+        1
+      );
+      CREATE TABLE memory_consolidations (
+        card_id TEXT NOT NULL,
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        facet TEXT,
+        period_key TEXT NOT NULL,
+        period_started_at INTEGER NOT NULL,
+        period_ended_at INTEGER NOT NULL,
+        summary TEXT NOT NULL,
+        lesson TEXT,
+        cues_json TEXT,
+        confidence REAL NOT NULL,
+        dominant_provenance TEXT NOT NULL,
+        derived_event_ids_json TEXT,
+        metadata_json TEXT,
+        updated_at INTEGER NOT NULL
+      );
+      INSERT INTO memory_consolidations VALUES (
+        'card-a',
+        'stale-consolidation',
+        'daily',
+        NULL,
+        'stale-day',
+        1,
+        1,
+        'stale constrained consolidation',
+        NULL,
+        NULL,
+        0.8,
+        'rule',
+        NULL,
+        NULL,
+        1
+      );
+    `)
+    await closeRawDatabase(staleDatabase)
+
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+    })
+    try {
+      expect(await db.listMemoryFacts()).toEqual([])
+      expect(await db.listMemoryConsolidations(8)).toEqual([])
+
+      await db.upsertMemoryFacts([{
+        subject: 'user',
+        predicate: 'prefers',
+        object: 'fresh scoped memory',
+        confidence: 0.9,
+      }], 'rule')
+
+      await db.upsertMemoryConsolidations([{
+        id: 'fresh-consolidation',
+        kind: 'daily',
+        facet: null,
+        periodKey: 'fresh-day',
+        periodStartedAt: 1,
+        periodEndedAt: 2,
+        summary: 'fresh scoped consolidation',
+        lesson: null,
+        cues: ['fresh scoped'],
+        confidence: 0.9,
+        dominantProvenance: 'remembered',
+        derivedEventIds: [],
+        updatedAt: 3,
+      }])
+
+      expect(await db.retrieveMemoryFacts('fresh scoped', 8))
+        .toEqual([expect.objectContaining({ object: 'fresh scoped memory' })])
+      expect(await db.listMemoryConsolidations(8))
+        .toEqual([expect.objectContaining({ summary: 'fresh scoped consolidation' })])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('keeps tombstoned long-term memory sources scoped to the active card', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations')
+
+    const cardA = await setupAlicizationDb(userDataPath, { rootDir, cardId: 'card-a' })
+    try {
+      await cardA.importLegacyMemory({
+        facts: [{
+          id: 'shared-source-id',
+          subject: 'user',
+          predicate: 'prefers',
+          object: 'shared scoped recall',
+          confidence: 0.9,
+          source: 'rule',
+          dedupeKey: 'shared-source-key-a',
+          createdAt: 1,
+          updatedAt: 1,
+          lastAccessAt: null,
+          accessCount: 0,
+          provenance: 'remembered',
+        }],
+        archive: [],
+        lastPrunedAt: null,
+      })
+      await cardA.tombstoneLongTermMemorySources({
+        sourceIds: ['shared-source-id'],
+        reason: 'card-a-only',
+      })
+    }
+    finally {
+      await cardA.close()
+    }
+
+    const cardB = await setupAlicizationDb(userDataPath, { rootDir, cardId: 'card-b' })
+    try {
+      await cardB.importLegacyMemory({
+        facts: [{
+          id: 'shared-source-id',
+          subject: 'user',
+          predicate: 'prefers',
+          object: 'shared scoped recall',
+          confidence: 0.9,
+          source: 'rule',
+          dedupeKey: 'shared-source-key-b',
+          createdAt: 1,
+          updatedAt: 1,
+          lastAccessAt: null,
+          accessCount: 0,
+          provenance: 'remembered',
+        }],
+        archive: [],
+        lastPrunedAt: null,
+      })
+      const result = await cardB.listMemoryWorkbenchLongTermItems({
+        cardId: 'card-b',
+        query: 'shared scoped recall',
+        limit: 8,
+      })
+
+      expect(result.items.map(item => item.id)).toContain('shared-source-id')
+    }
+    finally {
+      await cardB.close()
+    }
+  })
+
   it('projects WorkingMemory owner state without exposing prompt internals', () => {
     const snapshot = createEmptyWorkingMemorySnapshot({
       cardId: 'default',

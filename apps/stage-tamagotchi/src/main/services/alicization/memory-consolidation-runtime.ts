@@ -4,6 +4,7 @@ import type { AlicizationEpisodicEventRecord } from '../../../shared/eventa'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 
 interface MemoryConsolidationRowLike {
+  card_id: string
   id: string
   kind: AlicizationMemoryConsolidationRecord['kind']
   facet: AlicizationMemoryConsolidationRecord['facet']
@@ -21,6 +22,7 @@ interface MemoryConsolidationRowLike {
 }
 
 interface MemoryConsolidationSearchInputLike {
+  cardId?: string
   query: string
   limit?: number
   recollectionIntent?: {
@@ -74,33 +76,44 @@ interface CreateAlicizationMemoryConsolidationRuntimeOptions {
 export function createAlicizationMemoryConsolidationRuntime(
   input: CreateAlicizationMemoryConsolidationRuntimeOptions,
 ) {
-  const listMemoryConsolidations = async (limit = 16) => {
-    const safeLimit = Math.max(1, Math.min(100, Math.floor(limit)))
+  const listMemoryConsolidations = async (listInput: { cardId?: string, limit?: number }) => {
+    const cardId = listInput.cardId?.trim() || ''
+    const safeLimit = Math.max(1, Math.min(100, Math.floor(listInput.limit ?? 16)))
+    const whereClause = cardId ? 'WHERE card_id = ?' : ''
     const rows = await input.all<MemoryConsolidationRowLike>(
       input.database,
       `
       SELECT *
       FROM memory_consolidations
+      ${whereClause}
       ORDER BY period_ended_at DESC, updated_at DESC
       LIMIT ?
       `,
-      [safeLimit],
+      cardId ? [cardId, safeLimit] : [safeLimit],
     )
     return rows.map(input.mapRow)
   }
 
-  const rebuildMemoryConsolidationsFromEvents = async (events: AlicizationEpisodicEventRecord[], now: number) => {
+  const rebuildMemoryConsolidationsFromEvents = async (rebuildInput: {
+    cardId: string
+    events: AlicizationEpisodicEventRecord[]
+    now: number
+  }) => {
+    const cardId = rebuildInput.cardId.trim()
+    if (!cardId)
+      return []
     const records = input.buildRecords({
-      events,
-      now,
+      events: rebuildInput.events,
+      now: rebuildInput.now,
     })
 
-    await input.run(input.database, 'DELETE FROM memory_consolidations')
+    await input.run(input.database, 'DELETE FROM memory_consolidations WHERE card_id = ?', [cardId])
     for (const record of records) {
       await input.run(
         input.database,
         `
         INSERT INTO memory_consolidations (
+          card_id,
           id,
           kind,
           facet,
@@ -115,9 +128,10 @@ export function createAlicizationMemoryConsolidationRuntime(
           derived_event_ids_json,
           metadata_json,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
+          cardId,
           record.id,
           record.kind,
           record.facet === 'phase' || record.facet === 'relationship-era' || record.facet === 'task-era' || record.facet === 'self-era'
@@ -144,7 +158,10 @@ export function createAlicizationMemoryConsolidationRuntime(
   }
 
   const searchMemoryConsolidations = async (searchInput: MemoryConsolidationSearchInputLike) => {
-    const records = await listMemoryConsolidations(48)
+    const records = await listMemoryConsolidations({
+      cardId: searchInput.cardId,
+      limit: 48,
+    })
     return input.searchRecords({
       query: searchInput.query,
       records,
