@@ -82,7 +82,20 @@ import type {
 } from './long-term-memory-recall'
 import type { LongTermMemoryReviewDecision, LongTermMemoryReviewItem } from './long-term-memory-review-queue'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
+import type {
+  MemoryEmbeddingReindexDeadLetterItem,
+  MemoryEmbeddingReindexProgress,
+} from './memory-embedding-reindex-runtime'
 import type { AlicizationEventGraphNeighborhood } from './memory-event-graph-runtime'
+import type {
+  PersonaTrainingDatasetCleaningProvenance,
+  PersonaTrainingDatasetConsentSnapshot,
+  PersonaTrainingDatasetExample,
+  PersonaTrainingDatasetManifest,
+  PersonaTrainingDatasetRepository,
+  PersonaTrainingDatasetSource,
+  PersonaTrainingDatasetVersion,
+} from './persona-training-dataset-runtime'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 
 import { randomUUID } from 'node:crypto'
@@ -103,12 +116,12 @@ import { cleanWorkingMemoryLongTermQueueItem } from './life-core/working-memory-
 import { createWorkingMemoryLongTermCleaningTransaction } from './life-core/working-memory-long-term-cleaning'
 import { createWorkingMemoryLongTermCleaningStoreRuntime } from './life-core/working-memory-long-term-cleaning-store'
 import { projectWorkingMemoryLongTermCandidate } from './life-core/working-memory-long-term-projection'
-import { safeEmbedLongTermMemoryTexts } from './long-term-memory-embedding-provider'
+import {
+  resolveLongTermMemoryVectorSpaceId,
+  safeEmbedLongTermMemoryTexts,
+} from './long-term-memory-embedding-provider'
 import {
   episodicEventToLongTermEvidenceCandidate,
-  memoryConsolidationToLongTermEvidenceCandidate,
-  memoryFactToLongTermEvidenceCandidate,
-  memoryReflectionToLongTermEvidenceCandidate,
 } from './long-term-memory-evidence'
 import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'
 import {
@@ -117,14 +130,21 @@ import {
   deriveLongTermMemoryRecallIntent,
 } from './long-term-memory-recall'
 import {
+  memoryWorkbenchItemToEvidenceCandidate,
+  persistentVectorRecordToEvidenceCandidate,
+} from './long-term-memory-recall-candidates'
+import {
   applyLongTermMemoryReviewDecision as applyLongTermMemoryReviewDecisionToTransaction,
   createLongTermMemoryReviewItemFromTransaction,
 } from './long-term-memory-review-queue'
 import { createLongTermMemorySearchIndexRuntime } from './long-term-memory-search-index'
+import { createSqliteVecLongTermMemoryVectorBackend } from './long-term-memory-sqlite-vec-backend'
+import { createLongTermMemoryVectorIndexAdapter } from './long-term-memory-vector-index-adapter'
 import { buildMemoryConsolidationRecords, searchMemoryConsolidationRecords } from './memory-consolidation'
 import { createAlicizationMemoryConsolidationRuntime } from './memory-consolidation-runtime'
 import { rankAlicizationConversationTurnsForRecall } from './memory-conversation-retrieval'
 import { inferMemoryDomainFromFact, normalizeMemoryDomain } from './memory-domain-model'
+import { createMemoryEmbeddingReindexRuntime } from './memory-embedding-reindex-runtime'
 import { createAlicizationMemoryEpisodicReconsolidationRuntime } from './memory-episodic-reconsolidation-runtime'
 import { rankAlicizationEpisodicEvents } from './memory-episodic-retrieval'
 import { createAlicizationMemoryEventGraphRuntime } from './memory-event-graph-runtime'
@@ -145,6 +165,7 @@ import { createMemoryWorkbenchHealthRuntime } from './memory-workbench-health'
 import { createMemoryWorkbenchPersonaCandidateRuntime } from './memory-workbench-persona-candidates'
 import { createMemoryWorkbenchPolicyStoreRuntime } from './memory-workbench-policy-store'
 import { createAlicizationPersonStateEvolutionRuntime } from './person-state-evolution-runtime'
+import { createPersonaTrainingDatasetRuntime } from './persona-training-dataset-runtime'
 import { normalizeOrganicRecallText } from './runtime-organic-recall'
 import {
   resolveAlicizationAutonomousDialogueFamilyClassification,
@@ -1417,11 +1438,16 @@ export interface AlicizationDbService {
   getMemoryWorkbenchEmbeddingHealth: (input: { cardId: string }) => Promise<AlicizationMemoryWorkbenchHealth['embedding']>
   reindexMemoryWorkbenchEmbeddings: (input: {
     cardId: string
+    action?: 'start' | 'status' | 'cancel' | 'retry-dead-letter'
+    jobId?: string
+    reason?: string | null
+    itemIds?: string[]
     source?: string
     sourceIds?: string[]
     modelId?: string
     limit?: number
   }) => Promise<AlicizationMemoryEmbeddingReindexResult>
+  resumePendingMemoryEmbeddingReindexJobs: () => Promise<string[]>
   listMemoryWorkbenchPersonaCandidates: (input: {
     cardId: string
     status?: AlicizationPersonaCandidateWorkbenchStatus | 'all'
@@ -1434,6 +1460,28 @@ export interface AlicizationDbService {
     decision: AlicizationPersonaCandidateWorkbenchDecision
     reason?: string | null
   }) => Promise<AlicizationPersonaCandidateWorkbenchItem | null>
+  getPersonaTrainingDataset: (input: { cardId: string }) => Promise<{
+    activeVersionId: string | null
+    versions: PersonaTrainingDatasetVersion[]
+    examples: PersonaTrainingDatasetExample[]
+  }>
+  stagePersonaTrainingDataset: (input: {
+    cardId: string
+    consent: Omit<PersonaTrainingDatasetConsentSnapshot, 'capturedAt'> & { capturedAt?: number }
+  }) => Promise<PersonaTrainingDatasetVersion>
+  exportPersonaTrainingDataset: (input: { cardId: string, datasetId?: string | null }) => Promise<{
+    dataset: PersonaTrainingDatasetVersion
+    manifest: PersonaTrainingDatasetManifest
+  }>
+  activatePersonaTrainingDataset: (input: { cardId: string, datasetId: string }) => Promise<PersonaTrainingDatasetVersion | null>
+  rollbackPersonaTrainingDataset: (input: { cardId: string, datasetId: string }) => Promise<PersonaTrainingDatasetVersion | null>
+  setPersonaTrainingDatasetExamplePolicy: (input: {
+    cardId: string
+    exampleId: string
+    allowTraining: boolean
+    consent: Omit<PersonaTrainingDatasetConsentSnapshot, 'capturedAt'> & { capturedAt?: number }
+  }) => Promise<PersonaTrainingDatasetExample | null>
+  revokePersonaTrainingDatasetSource: (input: { cardId: string, sourceId: string }) => Promise<{ affected: number }>
   enqueueWorkingMemoryLongTermQueueItems: (input: {
     cardId: string
     sessionId: string
@@ -1792,8 +1840,8 @@ export async function setupAlicizationDb(
       ]),
       tableHasColumns('long_term_memory_tombstones', ['card_id', 'source_id', 'source']),
       tableHasUniqueColumns('long_term_memory_tombstones', ['card_id', 'source_id', 'source']),
-      tableHasColumns('long_term_memory_vectors', ['card_id', 'source_id', 'source', 'model_id', 'dimensions']),
-      tableHasUniqueColumns('long_term_memory_vectors', ['card_id', 'source_id', 'source', 'model_id', 'dimensions']),
+      tableHasColumns('long_term_memory_vectors', ['card_id', 'source_id', 'source', 'model_id', 'dimensions', 'vector_space_id']),
+      tableHasUniqueColumns('long_term_memory_vectors', ['card_id', 'source_id', 'source', 'vector_space_id']),
     ])
     const shouldRebuildFacts = hasFactsTable && (!factsHaveCardId || !factsHaveCanonicalColumns || !factsHaveCanonicalDedupeUnique || !factsHaveCanonicalPrimaryKey)
     const shouldRebuildConsolidations = hasConsolidationsTable && (!consolidationsHaveCardId || !consolidationsHaveCanonicalColumns || !consolidationsHaveCanonicalUnique || !consolidationsHaveCanonicalPeriodUnique)
@@ -1968,17 +2016,19 @@ export async function setupAlicizationDb(
         vector_blob BLOB NOT NULL,
         model_id TEXT NOT NULL,
         dimensions INTEGER NOT NULL,
+        vector_space_id TEXT NOT NULL,
         status TEXT NOT NULL,
         last_error TEXT,
         metadata_json TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
-        UNIQUE(card_id, source_id, source, model_id, dimensions)
+        UNIQUE(card_id, source_id, source, vector_space_id)
       )
     `)
-    await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_model ON long_term_memory_vectors(card_id, model_id, dimensions, status)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_model ON long_term_memory_vectors(card_id, vector_space_id, model_id, dimensions, status)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_source ON long_term_memory_vectors(card_id, source_id, source)')
-    await longTermMemoryVectorStore.initialize()
+    await memoryEmbeddingReindexRuntime.initializeSchema()
+    await longTermMemoryVectorIndexAdapter.initialize()
     await longTermMemorySearchIndexRuntime.initializeSchema()
 
     await run(database, `
@@ -1995,6 +2045,73 @@ export async function setupAlicizationDb(
       )
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_candidate_reviews_card_updated ON persona_training_candidate_reviews(card_id, updated_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS persona_training_datasets (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        schema_version TEXT NOT NULL,
+        consent_snapshot_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        exported_at INTEGER,
+        active_at INTEGER,
+        rolled_back_at INTEGER,
+        UNIQUE(card_id, version)
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_training_datasets_card_version ON persona_training_datasets(card_id, version DESC)')
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS persona_training_dataset_examples (
+        id TEXT PRIMARY KEY,
+        dataset_id TEXT NOT NULL,
+        card_id TEXT NOT NULL,
+        schema_version TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        source_kind TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        behavior_lesson TEXT NOT NULL,
+	        positive_example TEXT NOT NULL,
+	        negative_example TEXT,
+	        sensitivity TEXT NOT NULL,
+	        pii_status TEXT NOT NULL,
+	        pii_reason TEXT,
+	        consent_snapshot_json TEXT NOT NULL,
+	        provenance_json TEXT,
+	        allow_training INTEGER NOT NULL DEFAULT 0,
+	        state TEXT NOT NULL,
+	        created_at INTEGER NOT NULL,
+	        revoked_at INTEGER,
+	        UNIQUE(dataset_id, content_hash)
+	      )
+	    `)
+    await run(database, 'ALTER TABLE persona_training_dataset_examples ADD COLUMN provenance_json TEXT').catch(() => {})
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_training_dataset_examples_card_source ON persona_training_dataset_examples(card_id, source_id)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_training_dataset_examples_dataset_state ON persona_training_dataset_examples(dataset_id, state, allow_training)')
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS persona_training_dataset_exports (
+        id TEXT PRIMARY KEY,
+        dataset_id TEXT NOT NULL,
+        card_id TEXT NOT NULL,
+        manifest_hash TEXT NOT NULL,
+        manifest_json TEXT NOT NULL,
+        exported_at INTEGER NOT NULL,
+        UNIQUE(dataset_id, manifest_hash)
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_training_dataset_exports_card_created ON persona_training_dataset_exports(card_id, exported_at DESC)')
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS persona_training_source_provenance (
+        card_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        source_kind TEXT NOT NULL,
+        cleaning_transaction_id TEXT NOT NULL,
+        cleaned_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY(card_id, source_id, source_kind)
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_training_source_provenance_transaction ON persona_training_source_provenance(card_id, cleaning_transaction_id)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS memory_reflections (
@@ -3390,13 +3507,6 @@ export async function setupAlicizationDb(
     })
   }
 
-  async function searchMemoryConsolidationsForCard(input: AlicizationMemoryConsolidationSearchInput & { cardId: string }) {
-    const cardId = resolveMemoryCardId(input.cardId, 'memory consolidation search')
-    return await memoryConsolidationRuntime.searchMemoryConsolidations({
-      ...input,
-      cardId,
-    })
-  }
   const appendMindTurnEvents = memoryMindStateRuntime.appendMindTurnEvents
   const listMindTurnEvents = memoryMindStateRuntime.listMindTurnEvents
 
@@ -5272,6 +5382,434 @@ export async function setupAlicizationDb(
     all,
     enqueueWrite,
   })
+  function parsePersonaTrainingDatasetConsent(raw: string): PersonaTrainingDatasetConsentSnapshot {
+    try {
+      const parsed = JSON.parse(raw) as Partial<PersonaTrainingDatasetConsentSnapshot>
+      return {
+        granted: parsed.granted === true,
+        policyVersion: typeof parsed.policyVersion === 'string' ? parsed.policyVersion : 'persona-training-consent-v1',
+        scope: typeof parsed.scope === 'string' ? parsed.scope : 'persona-dataset',
+        capturedAt: Number.isFinite(parsed.capturedAt) ? Number(parsed.capturedAt) : 0,
+      }
+    }
+    catch {
+      return {
+        granted: false,
+        policyVersion: 'persona-training-consent-v1',
+        scope: 'persona-dataset',
+        capturedAt: 0,
+      }
+    }
+  }
+  function parsePersonaTrainingDatasetProvenance(raw: string | null): PersonaTrainingDatasetCleaningProvenance | null {
+    const parsed = parseJsonObject(raw)
+    if (
+      parsed?.kind !== 'working-memory-cleaning'
+      || typeof parsed.cleaningTransactionId !== 'string'
+      || !parsed.cleaningTransactionId.trim()
+      || !Number.isFinite(parsed.cleanedAt)
+    ) {
+      return null
+    }
+    return {
+      kind: 'working-memory-cleaning',
+      cleaningTransactionId: parsed.cleaningTransactionId.trim(),
+      cleanedAt: Math.max(0, Math.floor(Number(parsed.cleanedAt))),
+    }
+  }
+  function mapPersonaTrainingDatasetVersionRow(row: {
+    id: string
+    card_id: string
+    version: number
+    schema_version: string
+    consent_snapshot_json: string
+    created_at: number
+    exported_at: number | null
+    active_at: number | null
+    rolled_back_at: number | null
+  }): PersonaTrainingDatasetVersion {
+    return {
+      id: row.id,
+      cardId: row.card_id,
+      version: row.version,
+      schemaVersion: row.schema_version,
+      consentSnapshot: parsePersonaTrainingDatasetConsent(row.consent_snapshot_json),
+      createdAt: row.created_at,
+      exportedAt: row.exported_at,
+      activeAt: row.active_at,
+      rolledBackAt: row.rolled_back_at,
+    }
+  }
+  function mapPersonaTrainingDatasetExampleRow(row: {
+    id: string
+    dataset_id: string
+    card_id: string
+    schema_version: string
+    source_id: string
+    source_kind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
+    content_hash: string
+    behavior_lesson: string
+    positive_example: string
+    negative_example: string | null
+    sensitivity: string
+    pii_status: 'clear' | 'detected' | 'not-checked'
+    pii_reason: string | null
+    consent_snapshot_json: string
+    provenance_json: string | null
+    allow_training: number
+    state: 'staged' | 'quarantined' | 'revoked'
+    created_at: number
+    revoked_at: number | null
+  }): PersonaTrainingDatasetExample {
+    return {
+      id: row.id,
+      datasetId: row.dataset_id,
+      cardId: row.card_id,
+      schemaVersion: row.schema_version,
+      sourceId: row.source_id,
+      sourceKind: row.source_kind,
+      contentHash: row.content_hash,
+      behaviorLesson: row.behavior_lesson,
+      positiveExample: row.positive_example,
+      negativeExample: row.negative_example,
+      sensitivity: row.sensitivity,
+      piiStatus: row.pii_status,
+      piiReason: row.pii_reason,
+      consentSnapshot: parsePersonaTrainingDatasetConsent(row.consent_snapshot_json),
+      provenance: parsePersonaTrainingDatasetProvenance(row.provenance_json),
+      allowTraining: row.allow_training === 1,
+      state: row.state,
+      createdAt: row.created_at,
+      revokedAt: row.revoked_at,
+    }
+  }
+  const personaTrainingDatasetRepository: PersonaTrainingDatasetRepository = {
+    listVersions: async (cardId) => {
+      const rows = await all<{
+        id: string
+        card_id: string
+        version: number
+        schema_version: string
+        consent_snapshot_json: string
+        created_at: number
+        exported_at: number | null
+        active_at: number | null
+        rolled_back_at: number | null
+      }>(
+        database,
+        'SELECT * FROM persona_training_datasets WHERE card_id = ? ORDER BY version DESC',
+        [cardId],
+      )
+      return rows.map(mapPersonaTrainingDatasetVersionRow)
+    },
+    createVersion: async (dataset) => {
+      await enqueueWrite(async () => {
+        await run(
+          database,
+          `
+          INSERT INTO persona_training_datasets (
+            id, card_id, version, schema_version, consent_snapshot_json, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?)
+          `,
+          [
+            dataset.id,
+            dataset.cardId,
+            dataset.version,
+            dataset.schemaVersion,
+            JSON.stringify(dataset.consentSnapshot),
+            dataset.createdAt,
+          ],
+        )
+      })
+      return {
+        ...dataset,
+        exportedAt: null,
+        activeAt: null,
+        rolledBackAt: null,
+      }
+    },
+    insertExamples: async (examples) => {
+      if (examples.length === 0)
+        return []
+      await enqueueWrite(async () => {
+        await runInTransaction(database, async () => {
+          for (const example of examples) {
+            await run(
+              database,
+              `
+              INSERT INTO persona_training_dataset_examples (
+	                id, dataset_id, card_id, schema_version, source_id, source_kind,
+	                content_hash, behavior_lesson, positive_example, negative_example,
+	                sensitivity, pii_status, pii_reason, consent_snapshot_json, provenance_json,
+	                allow_training, state, created_at, revoked_at
+	              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(dataset_id, content_hash) DO NOTHING
+              `,
+              [
+                example.id,
+                example.datasetId,
+                example.cardId,
+                example.schemaVersion,
+                example.sourceId,
+                example.sourceKind,
+                example.contentHash,
+                example.behaviorLesson,
+                example.positiveExample,
+                example.negativeExample,
+                example.sensitivity,
+                example.piiStatus,
+                example.piiReason,
+                JSON.stringify(example.consentSnapshot),
+                JSON.stringify(example.provenance ?? null),
+                example.allowTraining ? 1 : 0,
+                example.state,
+                example.createdAt,
+                example.revokedAt ?? null,
+              ],
+            )
+          }
+        })
+      })
+      return examples
+    },
+    listExamples: async (cardId, datasetId) => {
+      const rows = await all<Parameters<typeof mapPersonaTrainingDatasetExampleRow>[0]>(
+        database,
+        `
+        SELECT *
+        FROM persona_training_dataset_examples
+        WHERE card_id = ? AND dataset_id = ?
+        ORDER BY created_at ASC, id ASC
+        `,
+        [cardId, datasetId],
+      )
+      return rows.map(mapPersonaTrainingDatasetExampleRow)
+    },
+    appendExport: async (exportInput) => {
+      await enqueueWrite(async () => {
+        await run(
+          database,
+          `
+          INSERT INTO persona_training_dataset_exports (
+            id, dataset_id, card_id, manifest_hash, manifest_json, exported_at
+          ) VALUES (?, ?, ?, ?, ?, ?)
+          ON CONFLICT(dataset_id, manifest_hash) DO NOTHING
+          `,
+          [
+            exportInput.id,
+            exportInput.datasetId,
+            exportInput.cardId,
+            exportInput.manifestHash,
+            exportInput.manifestJson,
+            exportInput.exportedAt,
+          ],
+        )
+      })
+    },
+    markExported: async (cardId, datasetId, exportedAt) => {
+      await enqueueWrite(async () => {
+        await run(
+          database,
+          'UPDATE persona_training_datasets SET exported_at = ? WHERE card_id = ? AND id = ?',
+          [exportedAt, cardId, datasetId],
+        )
+      })
+    },
+    setActiveVersion: async (cardId, datasetId, at) => {
+      await enqueueWrite(async () => {
+        await runInTransaction(database, async () => {
+          await run(database, 'UPDATE persona_training_datasets SET active_at = NULL WHERE card_id = ?', [cardId])
+          await run(database, 'UPDATE persona_training_datasets SET active_at = ? WHERE card_id = ? AND id = ?', [at, cardId, datasetId])
+        })
+      })
+      const row = await get<Parameters<typeof mapPersonaTrainingDatasetVersionRow>[0]>(
+        database,
+        'SELECT * FROM persona_training_datasets WHERE card_id = ? AND id = ?',
+        [cardId, datasetId],
+      )
+      return row ? mapPersonaTrainingDatasetVersionRow(row) : null
+    },
+    rollbackToVersion: async (cardId, datasetId, at) => {
+      await enqueueWrite(async () => {
+        await runInTransaction(database, async () => {
+          const active = await get<{ id: string }>(
+            database,
+            'SELECT id FROM persona_training_datasets WHERE card_id = ? AND active_at IS NOT NULL LIMIT 1',
+            [cardId],
+          )
+          if (active?.id && active.id !== datasetId) {
+            await run(
+              database,
+              'UPDATE persona_training_datasets SET active_at = NULL, rolled_back_at = ? WHERE card_id = ? AND id = ?',
+              [at, cardId, active.id],
+            )
+          }
+          await run(database, 'UPDATE persona_training_datasets SET active_at = NULL WHERE card_id = ?', [cardId])
+          await run(
+            database,
+            'UPDATE persona_training_datasets SET active_at = ?, rolled_back_at = NULL WHERE card_id = ? AND id = ?',
+            [at, cardId, datasetId],
+          )
+        })
+      })
+      const row = await get<Parameters<typeof mapPersonaTrainingDatasetVersionRow>[0]>(
+        database,
+        'SELECT * FROM persona_training_datasets WHERE card_id = ? AND id = ?',
+        [cardId, datasetId],
+      )
+      return row ? mapPersonaTrainingDatasetVersionRow(row) : null
+    },
+    revokeSource: async (cardId, sourceId, at) => {
+      const result = await enqueueWrite(async () => await run(
+        database,
+        `
+        UPDATE persona_training_dataset_examples
+        SET state = 'revoked', allow_training = 0, revoked_at = ?
+        WHERE card_id = ? AND source_id = ? AND state != 'revoked'
+        `,
+        [at, cardId, sourceId],
+      )) as { changes?: number } | undefined
+      return Number(result?.changes ?? 0)
+    },
+    updateExamplePolicy: async (policyInput) => {
+      await enqueueWrite(async () => {
+        await run(
+          database,
+          `
+          UPDATE persona_training_dataset_examples
+          SET allow_training = ?, consent_snapshot_json = ?
+          WHERE card_id = ? AND id = ? AND state != 'revoked'
+          `,
+          [
+            policyInput.allowTraining ? 1 : 0,
+            JSON.stringify(policyInput.consentSnapshot),
+            policyInput.cardId,
+            policyInput.exampleId,
+          ],
+        )
+      })
+      const row = await get<Parameters<typeof mapPersonaTrainingDatasetExampleRow>[0]>(
+        database,
+        'SELECT * FROM persona_training_dataset_examples WHERE card_id = ? AND id = ?',
+        [policyInput.cardId, policyInput.exampleId],
+      )
+      return row ? mapPersonaTrainingDatasetExampleRow(row) : null
+    },
+  }
+  async function recordPersonaTrainingSourceProvenance(input: {
+    cardId: string
+    cleaningTransactionId: string
+    cleanedAt: number
+    sources: Array<{
+      sourceId: string
+      sourceKind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
+    }>
+  }) {
+    if (input.sources.length === 0)
+      return
+
+    await enqueueWrite(async () => {
+      await runInTransaction(database, async () => {
+        for (const source of input.sources) {
+          await run(
+            database,
+            `
+            INSERT INTO persona_training_source_provenance (
+              card_id, source_id, source_kind, cleaning_transaction_id, cleaned_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(card_id, source_id, source_kind)
+            DO UPDATE SET
+              cleaning_transaction_id = excluded.cleaning_transaction_id,
+              cleaned_at = excluded.cleaned_at
+            `,
+            [
+              input.cardId,
+              source.sourceId,
+              source.sourceKind,
+              input.cleaningTransactionId,
+              input.cleanedAt,
+              input.cleanedAt,
+            ],
+          )
+        }
+      })
+    })
+  }
+  const personaTrainingDatasetRuntime = createPersonaTrainingDatasetRuntime({
+    repository: personaTrainingDatasetRepository,
+    now,
+    randomUUID,
+    listSources: async (cardId): Promise<PersonaTrainingDatasetSource[]> => {
+      const [reflections, reinforcements] = await Promise.all([
+        memoryRelationshipRuntime.listMemoryReflections({ cardId, limit: 10000, status: 'confirmed' }),
+        memoryRelationshipRuntime.listPersonaReinforcementEvents({ cardId, limit: 10000 }),
+      ])
+      const provenanceRows = await all<{
+        source_id: string
+        source_kind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
+        cleaning_transaction_id: string
+        cleaned_at: number
+      }>(
+        database,
+        `
+        SELECT source_id, source_kind, cleaning_transaction_id, cleaned_at
+        FROM persona_training_source_provenance
+        WHERE card_id = ?
+        `,
+        [cardId],
+      )
+      const provenanceBySource = new Map(
+        provenanceRows.map(row => [
+          `${row.source_kind}:${row.source_id}`,
+          {
+            kind: 'working-memory-cleaning' as const,
+            cleaningTransactionId: row.cleaning_transaction_id,
+            cleanedAt: row.cleaned_at,
+          },
+        ]),
+      )
+      const sourceIds = [
+        ...reflections.map(item => item.id),
+        ...reinforcements.map(item => item.id),
+      ]
+      const policies = await memoryWorkbenchPolicyStore.listPolicyOverrides({ cardId, sourceIds })
+      const policyBySourceId = new Map(policies.map(policy => [policy.sourceId, policy]))
+      return [
+        ...reflections.map((reflection) => {
+          const provenance = provenanceBySource.get(`cleaned-long-term-reflection:${reflection.id}`) ?? null
+          return {
+            cardId,
+            sourceId: reflection.id,
+            sourceKind: 'cleaned-long-term-reflection' as const,
+            status: reflection.status,
+            cleaned: provenance != null,
+            summary: reflection.summary,
+            lesson: reflection.lesson,
+            sensitivity: 'personal' as const,
+            allowTraining: policyBySourceId.get(reflection.id)?.allowTraining === true,
+            provenance,
+          }
+        }),
+        ...reinforcements.map((reinforcement) => {
+          const provenance = provenanceBySource.get(`persona-reinforcement:${reinforcement.id}`) ?? null
+          return {
+            cardId,
+            sourceId: reinforcement.id,
+            sourceKind: 'persona-reinforcement' as const,
+            status: 'confirmed',
+            cleaned: provenance != null,
+            summary: reinforcement.summary,
+            lesson: reinforcement.summary,
+            positiveExample: reinforcement.valence === 'reinforce' ? reinforcement.summary : null,
+            negativeExample: reinforcement.valence === 'suppress' ? reinforcement.summary : null,
+            sensitivity: 'personal' as const,
+            allowTraining: policyBySourceId.get(reinforcement.id)?.allowTraining === true,
+            provenance,
+          }
+        }),
+      ]
+    },
+  })
   async function appendMemoryWorkbenchRecallMetricSafely(
     metric: Parameters<typeof memoryWorkbenchHealthRuntime.appendRecallMetric>[0],
   ) {
@@ -5289,9 +5827,49 @@ export async function setupAlicizationDb(
     all,
     enqueueWrite,
   })
+  const longTermMemoryVectorIndexAdapter = createLongTermMemoryVectorIndexAdapter({
+    store: longTermMemoryVectorStore,
+    native: createSqliteVecLongTermMemoryVectorBackend({
+      database,
+      now,
+      run,
+      get,
+      all,
+      enqueueWrite,
+    }),
+  })
   function resolveLongTermMemoryEmbeddingProvider() {
     return options?.resolveEmbeddingProvider?.() ?? options?.embeddingProvider ?? null
   }
+  const memoryEmbeddingReindexRuntime = createMemoryEmbeddingReindexRuntime({
+    database,
+    now,
+    randomUUID,
+    run,
+    get,
+    all,
+    enqueueWrite,
+    runInTransaction,
+    resolveProvider: resolveLongTermMemoryEmbeddingProvider,
+    upsertVector: async (record) => {
+      await longTermMemoryVectorIndexAdapter.upsert([{
+        id: `ltm-vector:${record.cardId}:${record.vectorSpaceId}:${record.source}:${record.sourceId}`,
+        cardId: record.cardId,
+        sourceId: record.sourceId,
+        source: record.source,
+        text: record.text,
+        textHash: record.textHash,
+        vector: record.vector,
+        modelId: record.modelId,
+        dimensions: record.dimensions,
+        vectorSpaceId: record.vectorSpaceId,
+        updatedAt: now(),
+        metadata: {
+          reindexJob: true,
+        },
+      }])
+    },
+  })
   const memoryWorkbenchPersonaCandidateRuntime = createMemoryWorkbenchPersonaCandidateRuntime({
     database,
     now,
@@ -5455,6 +6033,7 @@ export async function setupAlicizationDb(
 
         let persistedReflections: AlicizationMemoryReflectionRecord[] = []
         let persistedEpisodes: AlicizationEpisodicEventRecord[] = []
+        let persistedPersonaReinforcements: AlicizationPersonaReinforcementEventRecord[] = []
         if (projections.memoryFacts.length > 0) {
           if (hasBoundCardScope)
             resolveMemoryCardId(cleanedTransaction.cardId, 'working memory projection')
@@ -5465,7 +6044,23 @@ export async function setupAlicizationDb(
         if (projections.episodicEvents.length > 0)
           persistedEpisodes = await appendEpisodicEvents(projections.episodicEvents)
         if (projections.personaReinforcements.length > 0)
-          await memoryRelationshipRuntime.appendPersonaReinforcementEvents(projections.personaReinforcements)
+          persistedPersonaReinforcements = await memoryRelationshipRuntime.appendPersonaReinforcementEvents(projections.personaReinforcements)
+
+        await recordPersonaTrainingSourceProvenance({
+          cardId: cleanedTransaction.cardId,
+          cleaningTransactionId: cleanedTransaction.id,
+          cleanedAt: projectionTs,
+          sources: [
+            ...persistedReflections.map(item => ({
+              sourceId: item.id,
+              sourceKind: 'cleaned-long-term-reflection' as const,
+            })),
+            ...persistedPersonaReinforcements.map(item => ({
+              sourceId: item.id,
+              sourceKind: 'persona-reinforcement' as const,
+            })),
+          ],
+        })
 
         const projectedFactSources = await findProjectedMemoryFactSourcesByCandidateId(
           cleanedTransaction.cardId,
@@ -5621,6 +6216,12 @@ export async function setupAlicizationDb(
         }
       })
     })
+    for (const sourceId of sourceIds) {
+      await personaTrainingDatasetRuntime.revokeSource({
+        cardId,
+        sourceId,
+      }).catch(() => {})
+    }
   }
 
   async function listTombstonedLongTermMemorySourceIds(
@@ -5848,35 +6449,25 @@ export async function setupAlicizationDb(
       ...plan.episodicQueries,
     ].filter(Boolean).join(' ')
     const sourceLimit = Math.max(8, safeLimit * 4)
-    const [
-      facts,
-      reflections,
-      episodes,
-      consolidations,
-    ] = await Promise.all([
-      retrieveMemoryFacts(recallSeed, sourceLimit).catch(() => []),
-      memoryRelationshipRuntime.listMemoryReflections({
-        cardId: input.cardId,
-        limit: sourceLimit,
-        status: 'confirmed',
-      }).catch(() => []),
-      searchEpisodicEvents({
-        recallSeed,
-        limit: sourceLimit,
-      }).catch(() => []),
-      searchMemoryConsolidationsForCard({
+    const [indexed, episodes] = await Promise.all([
+      longTermMemorySearchIndexRuntime.listLongTermMemorySearchItems({
         cardId: input.cardId,
         query: recallSeed,
+        limit: Math.max(32, safeLimit * 8),
+      }).catch(() => ({ items: [], nextCursor: null })),
+      searchEpisodicEvents({
+        recallSeed,
         limit: sourceLimit,
       }).catch(() => []),
     ])
 
     const candidates = [
-      ...facts.map(memoryFactToLongTermEvidenceCandidate),
-      ...reflections.map(memoryReflectionToLongTermEvidenceCandidate),
+      ...indexed.items.map(memoryWorkbenchItemToEvidenceCandidate),
       ...episodes.map(episodicEventToLongTermEvidenceCandidate),
-      ...consolidations.map(memoryConsolidationToLongTermEvidenceCandidate),
     ]
+      .filter((candidate, index, values) =>
+        values.findIndex(other => other.id === candidate.id && other.source === candidate.source) === index,
+      )
     const tombstonedSourceIdsBySource = new Map<string, Set<string>>()
     for (const source of new Set(candidates.map(candidate => candidate.source))) {
       tombstonedSourceIdsBySource.set(
@@ -5896,8 +6487,20 @@ export async function setupAlicizationDb(
       limit: safeLimit,
     }).catch(error => ({
       scores: {},
+      candidates: [],
       error: errorMessageFrom(error) ?? String(error),
     }))
+    const semanticCandidates = semantic.candidates.filter(candidate =>
+      !visibleCandidates.some(existing => existing.id === candidate.id && existing.source === candidate.source),
+    )
+    const semanticTombstoned = await listTombstonedLongTermMemorySourceIds(
+      semanticCandidates.map(candidate => candidate.id),
+      input.cardId,
+    )
+    const mergedCandidates = [
+      ...visibleCandidates,
+      ...semanticCandidates.filter(candidate => !semanticTombstoned.has(candidate.id)),
+    ]
 
     return {
       bundle: buildLongTermMemoryEvidenceBundle({
@@ -5905,7 +6508,7 @@ export async function setupAlicizationDb(
         plan,
         now: now(),
         limit: safeLimit,
-        candidates: visibleCandidates,
+        candidates: mergedCandidates,
         semanticScores: semantic.scores,
       }),
       semanticError: semantic.error,
@@ -5919,8 +6522,8 @@ export async function setupAlicizationDb(
     limit: number
   }) {
     const provider = resolveLongTermMemoryEmbeddingProvider()
-    if (!provider || input.candidates.length === 0)
-      return { scores: {}, error: null }
+    if (!provider)
+      return { scores: {}, candidates: [], error: null }
 
     const queryText = normalizeOrganicMemoryText([
       input.plan.normalizedQuery,
@@ -5933,7 +6536,7 @@ export async function setupAlicizationDb(
       ...input.plan.threadHints,
     ].filter(Boolean).join(' '), 1000)
     if (!queryText)
-      return { scores: {}, error: null }
+      return { scores: {}, candidates: [], error: null }
 
     const embedded = await safeEmbedLongTermMemoryTexts({
       provider,
@@ -5942,6 +6545,7 @@ export async function setupAlicizationDb(
     if (embedded.status === 'failed' || embedded.error) {
       return {
         scores: {},
+        candidates: [],
         error: embedded.error ?? 'embedding failed',
       }
     }
@@ -5949,31 +6553,35 @@ export async function setupAlicizationDb(
     if (!queryEmbedding) {
       return {
         scores: {},
+        candidates: [],
         error: embedded.status === 'unavailable' ? null : 'embedding provider returned no valid query vector',
       }
     }
 
-    const candidateIds = new Set(input.candidates.map(candidate => candidate.id))
-    const results = await longTermMemoryVectorStore.searchVectors(queryEmbedding.vector, {
+    const results = await longTermMemoryVectorIndexAdapter.search({
+      queryVector: queryEmbedding.vector,
       cardId: input.cardId,
       modelId: queryEmbedding.modelId,
       dimensions: queryEmbedding.dimensions,
+      vectorSpaceId: queryEmbedding.vectorSpaceId,
       limit: Math.max(8, input.limit * 4),
     })
     const semanticScores: Record<string, number> = {}
+    const semanticCandidates: LongTermMemoryEvidenceCandidate[] = []
     for (const result of results) {
       const metadataWorkbenchItemId = typeof result.record.metadata?.workbenchItemId === 'string'
         ? normalizeOrganicMemoryText(result.record.metadata.workbenchItemId, 240)
         : ''
-      const matchingCandidateId = [
-        result.record.sourceId,
-        metadataWorkbenchItemId,
-      ].map(id => normalizeOrganicMemoryText(id, 240)).find(id => candidateIds.has(id))
-      if (!matchingCandidateId)
-        continue
-      semanticScores[matchingCandidateId] = Math.max(semanticScores[matchingCandidateId] ?? 0, result.score)
+      const matchingCandidate = input.candidates.find(candidate =>
+        [candidate.id, candidate.source].includes(metadataWorkbenchItemId)
+        || candidate.id === result.record.sourceId,
+      )
+      const candidate = matchingCandidate ?? persistentVectorRecordToEvidenceCandidate(result.record)
+      if (!semanticCandidates.some(existing => existing.id === candidate.id && existing.source === candidate.source))
+        semanticCandidates.push(candidate)
+      semanticScores[candidate.id] = Math.max(semanticScores[candidate.id] ?? 0, result.score)
     }
-    return { scores: semanticScores, error: null }
+    return { scores: semanticScores, candidates: semanticCandidates, error: null }
   }
 
   async function findProjectedMemoryFactSourcesByCandidateId(cardId: string, candidateId: string) {
@@ -6269,120 +6877,145 @@ export async function setupAlicizationDb(
   }
 
   async function getMemoryWorkbenchEmbeddingHealth(input: { cardId: string }): Promise<AlicizationMemoryWorkbenchHealth['embedding']> {
+    const cardId = resolveMemoryCardId(input.cardId, 'memory embedding health')
     const provider = resolveLongTermMemoryEmbeddingProvider()
-    return await longTermMemoryVectorStore.getHealth({
-      cardId: input.cardId,
-      activeModelId: provider?.modelId ?? null,
-      dimensions: provider?.dimensions ?? null,
-    })
+    const vectorSpaceId = provider ? resolveLongTermMemoryVectorSpaceId(provider) : null
+    const [indexHealth, reindexJob] = await Promise.all([
+      longTermMemoryVectorIndexAdapter.getHealth({
+        cardId,
+        modelId: provider?.modelId ?? null,
+        dimensions: provider?.dimensions ?? null,
+        vectorSpaceId,
+      }),
+      memoryEmbeddingReindexRuntime.getLatestReindexJob(cardId),
+    ])
+    return {
+      providerConfigured: indexHealth.providerConfigured,
+      modelId: indexHealth.modelId,
+      dimensions: indexHealth.dimensions,
+      vectorSpaceId: indexHealth.vectorSpaceId,
+      reindexRequired: indexHealth.reindexRequired
+        || !!(reindexJob && ['queued', 'running', 'cancel_requested', 'failed'].includes(reindexJob.status)),
+      indexMode: indexHealth.indexMode,
+      approximate: indexHealth.approximate,
+      degraded: indexHealth.degraded,
+      nativeIndexReady: indexHealth.nativeIndexReady,
+      searchReady: indexHealth.searchReady
+        && (!reindexJob || !['queued', 'running', 'cancel_requested', 'failed'].includes(reindexJob.status)),
+      lastError: indexHealth.lastError,
+      canonicalCount: indexHealth.canonicalCount,
+      indexedCount: indexHealth.indexedCount,
+      missingCount: indexHealth.missingCount,
+      textHashMismatchCount: indexHealth.textHashMismatchCount,
+      staleOrFailedCount: indexHealth.staleOrFailedCount,
+      orphanedCount: indexHealth.orphanedCount,
+      coverageRatio: indexHealth.coverageRatio,
+      reindexJob,
+    }
   }
 
-  function memoryWorkbenchEmbeddingText(item: AlicizationMemoryWorkbenchItem) {
-    return normalizeOrganicMemoryText([
-      item.summary,
-      ...item.evidenceSnippets,
-    ].filter(Boolean).join(' '), 1000)
+  function memoryEmbeddingReindexResult(
+    progress: MemoryEmbeddingReindexProgress | null,
+    errors: string[] = [],
+    deadLetterItems: MemoryEmbeddingReindexDeadLetterItem[] = [],
+  ): AlicizationMemoryEmbeddingReindexResult {
+    const visibleErrors = [
+      ...errors,
+      ...(progress?.lastError ? [progress.lastError] : []),
+    ].filter((error, index, values) => error && values.indexOf(error) === index)
+    return {
+      jobId: progress?.jobId ?? null,
+      status: progress?.status ?? null,
+      scheduled: progress?.total ?? 0,
+      indexed: progress?.indexed ?? 0,
+      failed: (progress?.deadLettered ?? 0) + (progress?.retryable ?? 0),
+      modelId: progress?.modelId ?? null,
+      dimensions: progress?.dimensions ?? null,
+      vectorSpaceId: progress?.vectorSpaceId ?? null,
+      errors: visibleErrors,
+      deadLetterItems,
+      progress,
+    }
   }
 
   async function reindexMemoryWorkbenchEmbeddings(input: {
     cardId: string
+    action?: 'start' | 'status' | 'cancel' | 'retry-dead-letter'
+    jobId?: string
+    reason?: string | null
+    itemIds?: string[]
     source?: string
     sourceIds?: string[]
     modelId?: string
     limit?: number
   }): Promise<AlicizationMemoryEmbeddingReindexResult> {
+    const cardId = resolveMemoryCardId(input.cardId, 'memory embedding reindex')
+    const action = input.action ?? 'start'
+    if (action !== 'start') {
+      const jobId = normalizeOrganicMemoryText(input.jobId, 240)
+      if (!jobId)
+        return memoryEmbeddingReindexResult(null, ['embedding reindex jobId is required'])
+      try {
+        const progress = action === 'status'
+          ? await memoryEmbeddingReindexRuntime.getReindexJob(jobId, cardId)
+          : action === 'cancel'
+            ? await memoryEmbeddingReindexRuntime.requestCancel(jobId, normalizeOrganicMemoryText(input.reason, 300) || undefined, cardId)
+            : await memoryEmbeddingReindexRuntime.retryDeadLetterItems(jobId, input.itemIds, cardId)
+        if (action === 'retry-dead-letter')
+          void memoryEmbeddingReindexRuntime.runJob(jobId).catch(() => {})
+        const deadLetterItems = await memoryEmbeddingReindexRuntime.listDeadLetterItems(jobId, cardId)
+        return memoryEmbeddingReindexResult(progress, [], deadLetterItems)
+      }
+      catch (error) {
+        return memoryEmbeddingReindexResult(null, [errorMessageFrom(error) ?? String(error)])
+      }
+    }
+
     const provider = resolveLongTermMemoryEmbeddingProvider()
     if (!provider) {
-      return {
-        scheduled: 0,
-        indexed: 0,
-        failed: 0,
-        modelId: null,
-        dimensions: null,
-        errors: ['embedding provider is not configured'],
-      }
+      return memoryEmbeddingReindexResult(null, ['embedding provider is not configured'])
     }
 
     const requestedModelId = normalizeOrganicMemoryText(input.modelId, 160)
     if (requestedModelId && requestedModelId !== provider.modelId) {
       const stale = await longTermMemoryVectorStore.reindexByModel({
-        cardId: input.cardId,
+        cardId,
         modelId: requestedModelId,
       })
-      return {
-        scheduled: stale.recordCount,
-        indexed: 0,
-        failed: 0,
+      return memoryEmbeddingReindexResult(null, [`embedding provider model is ${provider.modelId}; requested ${requestedModelId} was marked stale (${stale.recordCount} records)`])
+    }
+
+    const requestedLimit = Number.isFinite(input.limit) ? Math.max(1, Math.min(100_000, Math.floor(Number(input.limit)))) : null
+    const entries = await longTermMemorySearchIndexRuntime.listLongTermMemoryEmbeddingCorpus({
+      cardId,
+      source: input.source,
+      sourceIds: input.sourceIds,
+      limit: requestedLimit,
+    })
+
+    try {
+      const progress = await memoryEmbeddingReindexRuntime.scheduleReindexJob({
+        cardId,
         modelId: provider.modelId,
         dimensions: provider.dimensions,
-        errors: [`embedding provider model is ${provider.modelId}; requested ${requestedModelId} was marked stale`],
-      }
-    }
-
-    const sourceIds = new Set((input.sourceIds ?? []).map(id => normalizeOrganicMemoryText(id, 240)).filter(Boolean))
-    const listed = await listMemoryWorkbenchLongTermItems({
-      cardId: input.cardId,
-      source: input.source,
-      limit: input.limit,
-    })
-    const scheduledItems = listed.items
-      .filter(item => sourceIds.size === 0 || item.sourceIds.some(sourceId => sourceIds.has(sourceId)) || sourceIds.has(item.id))
-      .map(item => ({
-        item,
-        sourceId: item.sourceIds[0] ?? item.id,
-        text: memoryWorkbenchEmbeddingText(item),
-      }))
-      .filter(entry => entry.sourceId && entry.text)
-
-    const embedded = await safeEmbedLongTermMemoryTexts({
-      provider,
-      texts: scheduledItems.map(entry => entry.text),
-    })
-    const errors = embedded.error ? [embedded.error] : []
-    const itemQueuesByText = new Map<string, typeof scheduledItems>()
-    for (const entry of scheduledItems) {
-      const existing = itemQueuesByText.get(entry.text) ?? []
-      existing.push(entry)
-      itemQueuesByText.set(entry.text, existing)
-    }
-    const records = embedded.embeddings
-      .map((embedding) => {
-        const queue = itemQueuesByText.get(embedding.text)
-        const entry = queue?.shift()
-        if (!entry)
-          return null
-        return {
-          id: `ltm-vector:${input.cardId}:${embedding.modelId}:${entry.item.source}:${entry.sourceId}`,
-          cardId: input.cardId,
+        vectorSpaceId: resolveLongTermMemoryVectorSpaceId(provider),
+        entries: entries.map(entry => ({
           sourceId: entry.sourceId,
-          source: entry.item.source,
+          source: entry.source,
           text: entry.text,
-          vector: embedding.vector,
-          modelId: embedding.modelId,
-          dimensions: embedding.dimensions,
-          updatedAt: now(),
-          metadata: {
-            workbenchItemId: entry.item.id,
-            kind: entry.item.kind,
-          },
-        }
+          textHash: entry.textHash,
+        })),
       })
-      .filter((record): record is NonNullable<typeof record> => Boolean(record))
-
-    if (records.length > 0)
-      await longTermMemoryVectorStore.upsertVectors(records)
-    const failed = Math.max(0, scheduledItems.length - records.length)
-    if (failed > 0 && errors.length === 0)
-      errors.push('embedding provider returned fewer valid vectors than scheduled')
-
-    return {
-      scheduled: scheduledItems.length,
-      indexed: records.length,
-      failed,
-      modelId: provider.modelId,
-      dimensions: provider.dimensions,
-      errors,
+      void memoryEmbeddingReindexRuntime.runJob(progress.jobId).catch(() => {})
+      return memoryEmbeddingReindexResult(progress)
     }
+    catch (error) {
+      return memoryEmbeddingReindexResult(null, [errorMessageFrom(error) ?? String(error)])
+    }
+  }
+
+  async function resumePendingMemoryEmbeddingReindexJobs() {
+    return await memoryEmbeddingReindexRuntime.resumePendingJobs(8, boundCardId)
   }
 
   async function listMemoryWorkbenchPersonaCandidates(input: {
@@ -6401,6 +7034,69 @@ export async function setupAlicizationDb(
     reason?: string | null
   }) {
     return await memoryWorkbenchPersonaCandidateRuntime.applyPersonaCandidateAction(input)
+  }
+
+  async function getPersonaTrainingDataset(input: { cardId: string }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'persona training dataset snapshot')
+    return await personaTrainingDatasetRuntime.getSnapshot({ cardId })
+  }
+
+  async function stagePersonaTrainingDataset(input: {
+    cardId: string
+    consent: Omit<PersonaTrainingDatasetConsentSnapshot, 'capturedAt'> & { capturedAt?: number }
+  }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'persona training dataset staging')
+    return await personaTrainingDatasetRuntime.stageVersion({
+      cardId,
+      consent: input.consent,
+    })
+  }
+
+  async function exportPersonaTrainingDataset(input: { cardId: string, datasetId?: string | null }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'persona training dataset export')
+    return await personaTrainingDatasetRuntime.exportVersion({
+      cardId,
+      datasetId: input.datasetId,
+    })
+  }
+
+  async function activatePersonaTrainingDataset(input: { cardId: string, datasetId: string }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'persona training dataset activation')
+    return await personaTrainingDatasetRuntime.activateVersion({
+      cardId,
+      datasetId: input.datasetId,
+    })
+  }
+
+  async function rollbackPersonaTrainingDataset(input: { cardId: string, datasetId: string }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'persona training dataset rollback')
+    return await personaTrainingDatasetRuntime.rollbackVersion({
+      cardId,
+      datasetId: input.datasetId,
+    })
+  }
+
+  async function setPersonaTrainingDatasetExamplePolicy(input: {
+    cardId: string
+    exampleId: string
+    allowTraining: boolean
+    consent: Omit<PersonaTrainingDatasetConsentSnapshot, 'capturedAt'> & { capturedAt?: number }
+  }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'persona training dataset example policy')
+    return await personaTrainingDatasetRuntime.setExamplePolicy({
+      cardId,
+      exampleId: input.exampleId,
+      allowTraining: input.allowTraining,
+      consent: input.consent,
+    })
+  }
+
+  async function revokePersonaTrainingDatasetSource(input: { cardId: string, sourceId: string }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'persona training dataset source revoke')
+    return await personaTrainingDatasetRuntime.revokeSource({
+      cardId,
+      sourceId: input.sourceId,
+    })
   }
 
   async function runMemoryPrune() {
@@ -6613,10 +7309,14 @@ export async function setupAlicizationDb(
     await drainMemoryIngestJournal()
   })
   await rebuildLongTermMemorySearchIndexForCard(boundCardId, 'initial long-term memory search index rebuild')
+  await memoryEmbeddingReindexRuntime.resumePendingJobs(8, boundCardId)
 
   return {
     dbPath,
-    close: async () => await close(database),
+    close: async () => {
+      await memoryEmbeddingReindexRuntime.stop()
+      await close(database)
+    },
     getMetaValue,
     setMetaValue: async (key: string, value: string) => {
       await enqueueWrite(async () => {
@@ -6660,8 +7360,16 @@ export async function setupAlicizationDb(
     getMemoryWorkbenchRecallHealth,
     getMemoryWorkbenchEmbeddingHealth,
     reindexMemoryWorkbenchEmbeddings,
+    resumePendingMemoryEmbeddingReindexJobs,
     listMemoryWorkbenchPersonaCandidates,
     applyMemoryWorkbenchPersonaCandidateAction,
+    getPersonaTrainingDataset,
+    stagePersonaTrainingDataset,
+    exportPersonaTrainingDataset,
+    activatePersonaTrainingDataset,
+    rollbackPersonaTrainingDataset,
+    setPersonaTrainingDatasetExamplePolicy,
+    revokePersonaTrainingDatasetSource,
     enqueueWorkingMemoryLongTermQueueItems,
     drainWorkingMemoryLongTermQueue,
     listLongTermMemoryReviewItems,

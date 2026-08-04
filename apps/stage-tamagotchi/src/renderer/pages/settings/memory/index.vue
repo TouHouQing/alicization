@@ -5,6 +5,8 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 
 onMounted(() => {
+  // Memory governance, including persona dataset staging and rollback, lives in the
+  // single Workbench surface so the legacy route cannot become a second owner.
   void router.replace('/settings/modules/memory')
 })
 </script>

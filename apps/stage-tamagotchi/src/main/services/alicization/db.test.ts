@@ -2070,7 +2070,7 @@ describe('alicization sqlite dao', () => {
     expect(consolidationCount[0]?.total).toBe(0)
   })
 
-  it('rebuilds the vector namespace unique constraint with dimensions before provider upsert', async () => {
+  it('rebuilds the vector namespace unique constraint with vector space before provider upsert', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const rootDir = join(userDataPath, 'alicizations', 'cards', 'card-a')
     await mkdir(rootDir, { recursive: true })
@@ -2133,8 +2133,7 @@ describe('alicization sqlite dao', () => {
       'card_id',
       'source_id',
       'source',
-      'model_id',
-      'dimensions',
+      'vector_space_id',
     ])
     expect(vectorCount[0]?.total).toBe(0)
   })
@@ -2248,10 +2247,11 @@ describe('alicization sqlite dao', () => {
     `)
     await runActualSqlite(database, `
       INSERT INTO long_term_memory_vectors (
-        id, card_id, source_id, source, text_hash, text, vector_blob, model_id, dimensions, status, created_at, updated_at
+        id, card_id, source_id, source, text_hash, text, vector_blob, model_id, dimensions,
+        vector_space_id, status, created_at, updated_at
       ) VALUES
-        ('vector-a', 'card-a', 'fact-a', 'memory_facts', 'hash-a', 'a', X'00000000', 'model', 1, 'ready', 1, 1),
-        ('vector-b', 'card-b', 'fact-b', 'memory_facts', 'hash-b', 'b', X'00000000', 'model', 1, 'ready', 1, 1)
+        ('vector-a', 'card-a', 'fact-a', 'memory_facts', 'hash-a', 'a', X'00000000', 'model', 1, 'legacy:model:1', 'indexed', 1, 1),
+        ('vector-b', 'card-b', 'fact-b', 'memory_facts', 'hash-b', 'b', X'00000000', 'model', 1, 'legacy:model:1', 'indexed', 1, 1)
     `)
     await closeActualSqlite(database)
 
@@ -2288,25 +2288,43 @@ describe('alicization sqlite dao', () => {
     ])
   })
 
-  it('includes the active card and source in tombstone lookup SQL', async () => {
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+  it('applies tombstones only to the active card and matching source namespace', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'default',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
     await db.upsertMemoryFacts([{
       subject: 'user',
       predicate: 'prefers',
       object: 'source-aware tombstones',
       confidence: 0.8,
     }], 'rule')
-    await db.retrieveLongTermMemoryEvidence({
+    const [fact] = await db.listMemoryFacts()
+    expect(fact).toBeTruthy()
+
+    await db.tombstoneLongTermMemorySources({
+      sourceIds: [fact!.id],
+      source: 'memory_reflections',
+      reason: 'wrong-source-namespace',
+    })
+    const afterWrongSource = await db.retrieveLongTermMemoryEvidence({
       cardId: 'default',
       currentUserText: '你还记得 source-aware tombstones 吗？',
       limit: 4,
     })
+    expect(afterWrongSource.evidence.map(item => item.candidate.id)).toContain(fact!.id)
 
-    expect(queryCalls.some(sql => (
-      sql.includes('FROM long_term_memory_tombstones')
-      && sql.includes('card_id = ?')
-      && sql.includes('source = ?')
-    ))).toBe(true)
+    await db.tombstoneLongTermMemorySources({
+      sourceIds: [fact!.id],
+      source: 'memory_facts',
+      reason: 'matching-source-namespace',
+    })
+    const afterMatchingSource = await db.retrieveLongTermMemoryEvidence({
+      cardId: 'default',
+      currentUserText: '你还记得 source-aware tombstones 吗？',
+      limit: 4,
+    })
+    expect(afterMatchingSource.evidence.map(item => item.candidate.id)).not.toContain(fact!.id)
     await db.close()
   })
 
@@ -3792,7 +3810,10 @@ describe('alicization sqlite dao', () => {
   })
 
   it('retrieves unified long-term memory evidence across facts reflections and episodes', async () => {
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'default',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
 
     await db.upsertMemoryFacts([{
       subject: 'user',
@@ -3871,7 +3892,10 @@ describe('alicization sqlite dao', () => {
   })
 
   it('filters tombstoned long-term memory sources from unified recall evidence', async () => {
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'default',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
 
     await db.upsertMemoryFacts([{
       subject: 'user',

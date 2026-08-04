@@ -6,6 +6,7 @@ export interface LongTermMemoryVectorRecord {
   vector: number[]
   modelId: string
   dimensions: number
+  vectorSpaceId?: string
   updatedAt: number
   metadata?: Record<string, unknown>
 }
@@ -13,6 +14,7 @@ export interface LongTermMemoryVectorRecord {
 export interface LongTermMemoryVectorSearchFilters {
   modelId: string
   dimensions: number
+  vectorSpaceId?: string
   source?: string
   limit?: number
 }
@@ -32,7 +34,7 @@ export interface LongTermMemoryVectorStore {
   upsertVectors: (records: LongTermMemoryVectorRecord[]) => Promise<void>
   searchVectors: (
     queryVector: number[],
-    filters: LongTermMemoryVectorSearchFilters
+    filters: LongTermMemoryVectorSearchFilters,
   ) => Promise<LongTermMemoryVectorSearchResult[]>
   deleteVectorsBySource: (sourceIds: string[]) => Promise<number>
   reindexByModel: (modelId: string) => Promise<LongTermMemoryVectorReindexPlan>
@@ -78,6 +80,7 @@ export function createInMemoryLongTermMemoryVectorStore(): LongTermMemoryVectorS
       const source = normalizeText(record.source, 120)
       const modelId = normalizeText(record.modelId, 160)
       const dimensions = Math.max(1, Math.floor(Number(record.dimensions)))
+      const vectorSpaceId = normalizeText(record.vectorSpaceId, 240) || `legacy:${modelId}:${dimensions}`
       if (!id || !sourceId || !source || !modelId)
         continue
       if (!isValidVector(record.vector, dimensions))
@@ -89,6 +92,7 @@ export function createInMemoryLongTermMemoryVectorStore(): LongTermMemoryVectorS
         sourceId,
         source,
         modelId,
+        vectorSpaceId,
         dimensions,
         text: normalizeText(record.text, 800),
         vector: [...record.vector],
@@ -103,6 +107,7 @@ export function createInMemoryLongTermMemoryVectorStore(): LongTermMemoryVectorS
   ): Promise<LongTermMemoryVectorSearchResult[]> {
     const modelId = normalizeText(filters.modelId, 160)
     const dimensions = Math.max(1, Math.floor(Number(filters.dimensions)))
+    const vectorSpaceId = normalizeText(filters.vectorSpaceId, 240) || `legacy:${modelId}:${dimensions}`
     if (!modelId || !isValidVector(queryVector, dimensions))
       return []
 
@@ -110,6 +115,7 @@ export function createInMemoryLongTermMemoryVectorStore(): LongTermMemoryVectorS
     return [...records.values()]
       .filter(record => record.modelId === modelId)
       .filter(record => record.dimensions === dimensions)
+      .filter(record => record.vectorSpaceId === vectorSpaceId)
       .filter(record => !filters.source || record.source === filters.source)
       .map(record => ({
         record,

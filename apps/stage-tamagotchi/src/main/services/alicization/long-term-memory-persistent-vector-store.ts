@@ -6,10 +6,12 @@ import type {
   LongTermMemoryVectorSearchResult,
 } from './long-term-memory-vector-store'
 
-import { createHash } from 'node:crypto'
+import { resolveLongTermMemoryVectorSpaceId } from './long-term-memory-embedding-provider'
+import { hashLongTermMemoryEmbeddingText } from './long-term-memory-embedding-text'
 
 export interface PersistentLongTermMemoryVectorRecord extends LongTermMemoryVectorRecord {
   cardId: string
+  textHash?: string
   status?: 'indexed' | 'stale' | 'failed'
   lastError?: string | null
 }
@@ -18,8 +20,19 @@ export interface PersistentLongTermMemoryVectorSearchFilters {
   cardId: string
   modelId: string
   dimensions: number
+  vectorSpaceId?: string
   source?: string
   limit?: number
+}
+
+export interface PersistentLongTermMemoryVectorCoverage {
+  canonicalCount: number
+  indexedCount: number
+  missingCount: number
+  textHashMismatchCount: number
+  staleOrFailedCount: number
+  orphanedCount: number
+  coverageRatio: number | null
 }
 
 interface PersistentLongTermMemoryVectorRow {
@@ -27,10 +40,12 @@ interface PersistentLongTermMemoryVectorRow {
   card_id: string
   source_id: string
   source: string
+  text_hash: string
   text: string
   vector_blob: Buffer
   model_id: string
   dimensions: number
+  vector_space_id: string
   status: string
   last_error: string | null
   updated_at: number
@@ -77,10 +92,6 @@ function decodeVector(blob: Buffer | Uint8Array, dimensions: number) {
   return Array.from(array).slice(0, dimensions)
 }
 
-function textHash(text: string) {
-  return createHash('sha256').update(text).digest('hex')
-}
-
 function safeJson(raw: unknown) {
   try {
     return JSON.stringify(raw ?? {})
@@ -112,6 +123,8 @@ function mapRow(row: PersistentLongTermMemoryVectorRow): PersistentLongTermMemor
     vector: decodeVector(row.vector_blob, row.dimensions),
     modelId: row.model_id,
     dimensions: row.dimensions,
+    vectorSpaceId: row.vector_space_id,
+    textHash: row.text_hash,
     updatedAt: row.updated_at,
     metadata: parseMetadata(row.metadata_json),
     status: row.status === 'failed' || row.status === 'stale' ? row.status : 'indexed',
@@ -138,12 +151,13 @@ export function createPersistentLongTermMemoryVectorStore(input: {
         vector_blob BLOB NOT NULL,
         model_id TEXT NOT NULL,
         dimensions INTEGER NOT NULL,
+        vector_space_id TEXT NOT NULL,
         status TEXT NOT NULL,
         last_error TEXT,
         metadata_json TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
-        UNIQUE(card_id, source_id, source, model_id, dimensions)
+        UNIQUE(card_id, source_id, source, vector_space_id)
       )
     `)
     await input.run(input.database, `
@@ -161,18 +175,22 @@ export function createPersistentLongTermMemoryVectorStore(input: {
       input.database,
       'PRAGMA index_list(long_term_memory_vectors)',
     )
-    let hasDimensionScopedUnique = false
+    let hasVectorSpaceScopedUnique = false
     for (const index of uniqueIndexes.filter(index => index.unique === 1)) {
       const columns = await input.all<{ name: string }>(
         input.database,
         `PRAGMA index_info("${index.name.replaceAll('"', '""')}")`,
       )
-      if (columns.map(column => column.name).join(',') === 'card_id,source_id,source,model_id,dimensions') {
-        hasDimensionScopedUnique = true
+      if (columns.map(column => column.name).join(',') === 'card_id,source_id,source,vector_space_id') {
+        hasVectorSpaceScopedUnique = true
         break
       }
     }
-    if (!hasDimensionScopedUnique) {
+    const columns = await input.all<{ name: string }>(
+      input.database,
+      'PRAGMA table_info(long_term_memory_vectors)',
+    )
+    if (!hasVectorSpaceScopedUnique || !columns.some(column => column.name === 'vector_space_id')) {
       await input.run(input.database, 'DROP TABLE IF EXISTS long_term_memory_vectors')
       await input.run(input.database, `
         CREATE TABLE long_term_memory_vectors (
@@ -185,16 +203,17 @@ export function createPersistentLongTermMemoryVectorStore(input: {
           vector_blob BLOB NOT NULL,
           model_id TEXT NOT NULL,
           dimensions INTEGER NOT NULL,
+          vector_space_id TEXT NOT NULL,
           status TEXT NOT NULL,
           last_error TEXT,
           metadata_json TEXT,
           created_at INTEGER NOT NULL,
           updated_at INTEGER NOT NULL,
-          UNIQUE(card_id, source_id, source, model_id, dimensions)
+          UNIQUE(card_id, source_id, source, vector_space_id)
         )
       `)
     }
-    await input.run(input.database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_model ON long_term_memory_vectors(card_id, model_id, dimensions, status)')
+    await input.run(input.database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_model ON long_term_memory_vectors(card_id, vector_space_id, model_id, dimensions, status)')
     await input.run(input.database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_source ON long_term_memory_vectors(card_id, source_id, source)')
   }
 
@@ -207,8 +226,17 @@ export function createPersistentLongTermMemoryVectorStore(input: {
         const source = normalizeText(record.source, 120)
         const modelId = normalizeText(record.modelId, 160)
         const text = normalizeText(record.text, 1000)
+        const expectedTextHash = hashLongTermMemoryEmbeddingText(text)
+        const providedTextHash = normalizeText(record.textHash, 64)
         const dimensions = Math.max(1, Math.floor(Number(record.dimensions)))
+        const vectorSpaceId = resolveLongTermMemoryVectorSpaceId({
+          modelId,
+          dimensions,
+          vectorSpaceId: record.vectorSpaceId,
+        })
         if (!id || !cardId || !sourceId || !source || !modelId || !text)
+          return null
+        if (providedTextHash && providedTextHash !== expectedTextHash)
           return null
         if (!isValidVector(record.vector, dimensions))
           return null
@@ -219,9 +247,11 @@ export function createPersistentLongTermMemoryVectorStore(input: {
           sourceId,
           source,
           text,
+          textHash: providedTextHash || expectedTextHash,
           vectorBlob: encodeVector(record.vector),
           modelId,
           dimensions,
+          vectorSpaceId,
           status: record.status === 'failed' || record.status === 'stale' ? record.status : 'indexed',
           lastError: normalizeText(record.lastError, 240) || null,
           metadataJson: safeJson(record.metadata),
@@ -245,18 +275,20 @@ export function createPersistentLongTermMemoryVectorStore(input: {
             vector_blob,
             model_id,
             dimensions,
+            vector_space_id,
             status,
             last_error,
             metadata_json,
             created_at,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(card_id, source_id, source, model_id, dimensions) DO UPDATE SET
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(card_id, source_id, source, vector_space_id) DO UPDATE SET
             id = excluded.id,
             text_hash = excluded.text_hash,
             text = excluded.text,
             vector_blob = excluded.vector_blob,
             dimensions = excluded.dimensions,
+            vector_space_id = excluded.vector_space_id,
             status = excluded.status,
             last_error = excluded.last_error,
             metadata_json = excluded.metadata_json,
@@ -266,11 +298,12 @@ export function createPersistentLongTermMemoryVectorStore(input: {
           record.cardId,
           record.sourceId,
           record.source,
-          textHash(record.text),
+          record.textHash,
           record.text,
           record.vectorBlob,
           record.modelId,
           record.dimensions,
+          record.vectorSpaceId,
           record.status,
           record.lastError,
           record.metadataJson,
@@ -288,30 +321,47 @@ export function createPersistentLongTermMemoryVectorStore(input: {
     const cardId = normalizeText(filters.cardId, 120)
     const modelId = normalizeText(filters.modelId, 160)
     const dimensions = Math.max(1, Math.floor(Number(filters.dimensions)))
-    if (!cardId || !modelId || !isValidVector(queryVector, dimensions))
+    const vectorSpaceId = resolveLongTermMemoryVectorSpaceId({
+      modelId,
+      dimensions,
+      vectorSpaceId: filters.vectorSpaceId,
+    })
+    if (!cardId || !modelId || !vectorSpaceId || !isValidVector(queryVector, dimensions))
       return []
 
     const rows = await input.all<PersistentLongTermMemoryVectorRow>(
       input.database,
       `
-      SELECT *
-      FROM long_term_memory_vectors
-      WHERE card_id = ?
-        AND model_id = ?
-        AND dimensions = ?
-        AND status = 'indexed'
+      SELECT vector.*
+      FROM long_term_memory_vectors vector
+      JOIN long_term_memory_search_documents doc
+        ON doc.card_id = vector.card_id
+        AND doc.source = vector.source
+        AND doc.source_id = vector.source_id
+        AND doc.text_hash = vector.text_hash
+        AND doc.tombstoned = 0
+      WHERE vector.card_id = ?
+        AND vector.model_id = ?
+        AND vector.dimensions = ?
+        AND vector.vector_space_id = ?
+        AND vector.status = 'indexed'
         AND NOT EXISTS (
           SELECT 1
           FROM long_term_memory_tombstones tomb
-          WHERE tomb.card_id = long_term_memory_vectors.card_id
-            AND tomb.source_id = long_term_memory_vectors.source_id
+          WHERE tomb.card_id = vector.card_id
+            AND tomb.source_id = vector.source_id
+            AND (
+              tomb.source = vector.source
+              OR tomb.source = 'long_term_memory'
+            )
         )
-        AND (? IS NULL OR source = ?)
+        AND (? IS NULL OR vector.source = ?)
       `,
       [
         cardId,
         modelId,
         dimensions,
+        vectorSpaceId,
         filters.source ? normalizeText(filters.source, 120) : null,
         filters.source ? normalizeText(filters.source, 120) : null,
       ],
@@ -378,32 +428,163 @@ export function createPersistentLongTermMemoryVectorStore(input: {
     cardId: string
     activeModelId: string | null
     dimensions: number | null
+    vectorSpaceId?: string | null
   }) {
     const cardId = normalizeText(healthInput.cardId, 120)
     const activeModelId = normalizeText(healthInput.activeModelId, 160) || null
     const dimensions = Number.isFinite(healthInput.dimensions) ? Math.max(1, Math.floor(Number(healthInput.dimensions))) : null
+    const vectorSpaceId = activeModelId && dimensions
+      ? resolveLongTermMemoryVectorSpaceId({
+          modelId: activeModelId,
+          dimensions,
+          vectorSpaceId: healthInput.vectorSpaceId ?? undefined,
+        })
+      : null
     if (!cardId) {
       return {
         providerConfigured: Boolean(activeModelId && dimensions),
         modelId: activeModelId,
         dimensions,
+        searchReady: false,
         reindexRequired: false,
+        canonicalCount: 0,
+        indexedCount: 0,
+        missingCount: 0,
+        textHashMismatchCount: 0,
+        staleOrFailedCount: 0,
+        orphanedCount: 0,
+        coverageRatio: null,
       }
     }
-    const rows = await input.all<{ status: string, model_id: string, dimensions: number }>(
+    const providerConfigured = Boolean(activeModelId && dimensions && vectorSpaceId)
+    if (!providerConfigured) {
+      return {
+        providerConfigured: false,
+        modelId: activeModelId,
+        dimensions,
+        searchReady: false,
+        reindexRequired: false,
+        canonicalCount: 0,
+        indexedCount: 0,
+        missingCount: 0,
+        textHashMismatchCount: 0,
+        staleOrFailedCount: 0,
+        orphanedCount: 0,
+        coverageRatio: null,
+      }
+    }
+    const coverage = await input.all<PersistentLongTermMemoryVectorCoverage>(
       input.database,
-      'SELECT status, model_id, dimensions FROM long_term_memory_vectors WHERE card_id = ? ORDER BY updated_at DESC LIMIT 100',
-      [cardId],
+      `
+      WITH canonical AS (
+        SELECT doc.card_id, doc.source, doc.source_id, doc.text_hash
+        FROM long_term_memory_search_documents doc
+        WHERE doc.card_id = ?
+          AND doc.tombstoned = 0
+          AND NOT EXISTS (
+            SELECT 1
+            FROM long_term_memory_tombstones tomb
+            WHERE tomb.card_id = doc.card_id
+              AND tomb.source_id = doc.source_id
+              AND (tomb.source = doc.source OR tomb.source = 'long_term_memory')
+          )
+      ),
+      active_vectors AS (
+        SELECT vector.*
+        FROM long_term_memory_vectors vector
+        WHERE vector.card_id = ?
+          AND vector.model_id = ?
+          AND vector.dimensions = ?
+          AND vector.vector_space_id = ?
+      )
+      SELECT
+        (SELECT COUNT(*) FROM canonical) AS canonicalCount,
+        (
+          SELECT COUNT(*)
+          FROM canonical doc
+          WHERE EXISTS (
+            SELECT 1
+            FROM active_vectors vector
+            WHERE vector.source = doc.source
+              AND vector.source_id = doc.source_id
+              AND vector.text_hash = doc.text_hash
+              AND vector.status = 'indexed'
+          )
+        ) AS indexedCount,
+        (
+          SELECT COUNT(*)
+          FROM canonical doc
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM active_vectors vector
+            WHERE vector.source = doc.source
+              AND vector.source_id = doc.source_id
+          )
+        ) AS missingCount,
+        (
+          SELECT COUNT(*)
+          FROM canonical doc
+          WHERE EXISTS (
+            SELECT 1
+            FROM active_vectors vector
+            WHERE vector.source = doc.source
+              AND vector.source_id = doc.source_id
+              AND vector.text_hash != doc.text_hash
+          )
+        ) AS textHashMismatchCount,
+        (
+          SELECT COUNT(*)
+          FROM canonical doc
+          WHERE EXISTS (
+            SELECT 1
+            FROM active_vectors vector
+            WHERE vector.source = doc.source
+              AND vector.source_id = doc.source_id
+              AND vector.text_hash = doc.text_hash
+              AND vector.status != 'indexed'
+          )
+        ) AS staleOrFailedCount,
+        (
+          SELECT COUNT(*)
+          FROM active_vectors vector
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM canonical doc
+            WHERE doc.source = vector.source
+              AND doc.source_id = vector.source_id
+          )
+        ) AS orphanedCount,
+        NULL AS coverageRatio
+      `,
+      [cardId, cardId, activeModelId, dimensions, vectorSpaceId],
     )
-    const activeRows = activeModelId && dimensions
-      ? rows.filter(row => row.model_id === activeModelId && row.dimensions === dimensions)
-      : rows
-    const activeSpaceMissing = Boolean(activeModelId && dimensions && rows.length > 0 && activeRows.length === 0)
+    const row = coverage[0]
+    const canonicalCount = Number(row?.canonicalCount ?? 0)
+    const indexedCount = Number(row?.indexedCount ?? 0)
+    const missingCount = Number(row?.missingCount ?? 0)
+    const textHashMismatchCount = Number(row?.textHashMismatchCount ?? 0)
+    const staleOrFailedCount = Number(row?.staleOrFailedCount ?? 0)
+    const orphanedCount = Number(row?.orphanedCount ?? 0)
+    const coverageRatio = canonicalCount > 0
+      ? Number((indexedCount / canonicalCount).toFixed(4))
+      : null
+    const reindexRequired = missingCount > 0
+      || textHashMismatchCount > 0
+      || staleOrFailedCount > 0
+      || orphanedCount > 0
     return {
-      providerConfigured: Boolean(activeModelId && dimensions),
-      modelId: activeModelId ?? rows[0]?.model_id ?? null,
-      dimensions: dimensions ?? rows[0]?.dimensions ?? null,
-      reindexRequired: activeSpaceMissing || activeRows.some(row => row.status === 'stale' || row.status === 'failed'),
+      providerConfigured,
+      modelId: activeModelId,
+      dimensions,
+      searchReady: canonicalCount > 0 && !reindexRequired,
+      reindexRequired,
+      canonicalCount,
+      indexedCount,
+      missingCount,
+      textHashMismatchCount,
+      staleOrFailedCount,
+      orphanedCount,
+      coverageRatio,
     }
   }
 

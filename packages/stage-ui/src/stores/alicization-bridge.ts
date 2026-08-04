@@ -364,7 +364,22 @@ export interface AlicizationMemoryWorkbenchHealth {
     providerConfigured: boolean
     modelId: string | null
     dimensions: number | null
+    vectorSpaceId: string | null
     reindexRequired: boolean
+    indexMode: 'sqlite-vec' | 'hnsw' | 'ann' | 'brute-force'
+    approximate: boolean
+    degraded: boolean
+    nativeIndexReady: boolean
+    searchReady: boolean
+    lastError: string | null
+    canonicalCount: number
+    indexedCount: number
+    missingCount: number
+    textHashMismatchCount: number
+    staleOrFailedCount: number
+    orphanedCount: number
+    coverageRatio: number | null
+    reindexJob: AlicizationMemoryEmbeddingProgress | null
   }
   errors: string[]
 }
@@ -404,6 +419,91 @@ export interface AlicizationMemoryReviewActionPayload extends AlicizationCardSco
 export type AlicizationPersonaCandidateWorkbenchStatus = 'candidate' | 'approved' | 'rejected' | 'no-training'
 export type AlicizationPersonaCandidateWorkbenchDecision = 'approve' | 'reject' | 'no-training'
 
+export type AlicizationPersonaTrainingDatasetExampleState = 'staged' | 'quarantined' | 'revoked'
+export type AlicizationPersonaTrainingDatasetPiiStatus = 'clear' | 'detected' | 'not-checked'
+
+export interface AlicizationPersonaTrainingDatasetConsentSnapshot {
+  granted: boolean
+  policyVersion: string
+  scope: string
+  capturedAt: number
+}
+
+export interface AlicizationPersonaTrainingDatasetVersion {
+  id: string
+  cardId: string
+  version: number
+  schemaVersion: string
+  consentSnapshot: AlicizationPersonaTrainingDatasetConsentSnapshot
+  createdAt: number
+  exportedAt: number | null
+  activeAt: number | null
+  rolledBackAt: number | null
+}
+
+export interface AlicizationPersonaTrainingDatasetExample {
+  id: string
+  datasetId: string
+  cardId: string
+  schemaVersion: string
+  sourceId: string
+  sourceKind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
+  contentHash: string
+  behaviorLesson: string
+  positiveExample: string
+  negativeExample: string | null
+  sensitivity: string
+  piiStatus: AlicizationPersonaTrainingDatasetPiiStatus
+  piiReason: string | null
+  consentSnapshot: AlicizationPersonaTrainingDatasetConsentSnapshot
+  allowTraining: boolean
+  state: AlicizationPersonaTrainingDatasetExampleState
+  createdAt: number
+  revokedAt: number | null
+}
+
+export interface AlicizationPersonaTrainingDatasetSnapshot extends AlicizationCardScope {
+  activeVersionId: string | null
+  versions: AlicizationPersonaTrainingDatasetVersion[]
+  examples: AlicizationPersonaTrainingDatasetExample[]
+}
+
+export interface AlicizationPersonaTrainingDatasetStagePayload extends AlicizationCardScope {
+  consent: Omit<AlicizationPersonaTrainingDatasetConsentSnapshot, 'capturedAt'> & { capturedAt?: number }
+}
+
+export interface AlicizationPersonaTrainingDatasetVersionPayload extends AlicizationCardScope {
+  datasetId?: string | null
+}
+
+export interface AlicizationPersonaTrainingDatasetExportResult {
+  dataset: AlicizationPersonaTrainingDatasetVersion
+  manifest: {
+    datasetId: string
+    cardId: string
+    version: number
+    schemaVersion: string
+    exportedAt: number
+    consentSnapshot: AlicizationPersonaTrainingDatasetConsentSnapshot
+    examples: Array<{
+      id: string
+      sourceId: string
+      sourceKind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
+      contentHash: string
+      behaviorLesson: string
+      positiveExample: string
+      negativeExample: string | null
+    }>
+    manifestHash: string
+  }
+}
+
+export interface AlicizationPersonaTrainingDatasetExamplePolicyPayload extends AlicizationCardScope {
+  exampleId: string
+  allowTraining: boolean
+  consent: Omit<AlicizationPersonaTrainingDatasetConsentSnapshot, 'capturedAt'> & { capturedAt?: number }
+}
+
 export interface AlicizationPersonaCandidateWorkbenchItem {
   id: string
   sourceMemoryIds: string[]
@@ -436,19 +536,61 @@ export interface AlicizationPersonaCandidateActionPayload extends AlicizationCar
 }
 
 export interface AlicizationMemoryEmbeddingReindexPayload extends AlicizationCardScope {
+  action?: 'start' | 'status' | 'cancel' | 'retry-dead-letter'
+  jobId?: string
+  reason?: string | null
+  itemIds?: string[]
   source?: string
   sourceIds?: string[]
   modelId?: string
   limit?: number
 }
 
+export type AlicizationMemoryEmbeddingReindexJobStatus = 'queued' | 'running' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
+
+export interface AlicizationMemoryEmbeddingProgress {
+  jobId: string
+  cardId: string
+  status: AlicizationMemoryEmbeddingReindexJobStatus
+  modelId: string
+  dimensions: number
+  vectorSpaceId: string
+  total: number
+  pending: number
+  leased: number
+  indexed: number
+  retryable: number
+  deadLettered: number
+  cancelled: number
+  progress: number
+  lastError: string | null
+  createdAt: number
+  updatedAt: number
+  startedAt: number | null
+  completedAt: number | null
+  nextRetryAt: number | null
+}
+
+export interface AlicizationMemoryEmbeddingReindexDeadLetterItem {
+  itemId: string
+  source: string
+  sourceId: string
+  attemptCount: number
+  lastError: string | null
+}
+
 export interface AlicizationMemoryEmbeddingReindexResult {
+  jobId?: string | null
+  status?: AlicizationMemoryEmbeddingReindexJobStatus | null
   scheduled: number
   indexed: number
   failed: number
   modelId: string | null
   dimensions: number | null
+  vectorSpaceId: string | null
   errors: string[]
+  deadLetterItems: AlicizationMemoryEmbeddingReindexDeadLetterItem[]
+  progress?: AlicizationMemoryEmbeddingProgress | null
 }
 
 export interface AlicizationMemoryEmbeddingModelInfo {
@@ -2299,6 +2441,13 @@ interface AlicizationBridge {
   memoryWorkbenchRecallProbe?: (payload: Omit<AlicizationMemoryRecallProbePayload, 'cardId'>) => Promise<AlicizationMemoryRecallProbeResult>
   memoryWorkbenchListPersonaCandidates?: (payload: Omit<AlicizationPersonaCandidateListPayload, 'cardId'>) => Promise<AlicizationPersonaCandidateListResult>
   memoryWorkbenchApplyPersonaCandidateAction?: (payload: Omit<AlicizationPersonaCandidateActionPayload, 'cardId'>) => Promise<AlicizationPersonaCandidateWorkbenchItem | null>
+  memoryWorkbenchGetPersonaTrainingDataset?: () => Promise<AlicizationPersonaTrainingDatasetSnapshot>
+  memoryWorkbenchStagePersonaTrainingDataset?: (payload: Omit<AlicizationPersonaTrainingDatasetStagePayload, 'cardId'>) => Promise<AlicizationPersonaTrainingDatasetVersion>
+  memoryWorkbenchExportPersonaTrainingDataset?: (payload: Omit<AlicizationPersonaTrainingDatasetVersionPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingDatasetExportResult>
+  memoryWorkbenchActivatePersonaTrainingDataset?: (payload: Omit<Required<AlicizationPersonaTrainingDatasetVersionPayload>, 'cardId'>) => Promise<AlicizationPersonaTrainingDatasetVersion | null>
+  memoryWorkbenchRollbackPersonaTrainingDataset?: (payload: Omit<Required<AlicizationPersonaTrainingDatasetVersionPayload>, 'cardId'>) => Promise<AlicizationPersonaTrainingDatasetVersion | null>
+  memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy?: (payload: Omit<AlicizationPersonaTrainingDatasetExamplePolicyPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingDatasetExample | null>
+  memoryWorkbenchRevokePersonaTrainingDatasetSource?: (payload: { sourceId: string }) => Promise<{ affected: number }>
   memoryWorkbenchReindexEmbeddings?: (payload: Omit<AlicizationMemoryEmbeddingReindexPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingReindexResult>
   memoryWorkbenchListEmbeddingModels?: (payload: Omit<AlicizationMemoryEmbeddingModelListPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingModelListResult>
   memoryWorkbenchTestEmbeddingConnection?: (payload: Omit<AlicizationMemoryEmbeddingConnectionTestPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingConnectionTestResult>

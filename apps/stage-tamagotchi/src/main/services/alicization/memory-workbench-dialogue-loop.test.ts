@@ -17,6 +17,23 @@ async function createSandboxUserDataPath() {
   return dir
 }
 
+async function waitForEmbeddingReindex(
+  db: Awaited<ReturnType<typeof setupAlicizationDb>>,
+  jobId: string,
+) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const result = await db.reindexMemoryWorkbenchEmbeddings({
+      cardId: 'default',
+      action: 'status',
+      jobId,
+    })
+    if (['completed', 'cancelled', 'failed'].includes(result.status ?? ''))
+      return result
+    await new Promise(resolve => setTimeout(resolve, 5))
+  }
+  throw new Error(`embedding reindex did not reach a terminal state: ${jobId}`)
+}
+
 afterEach(async () => {
   while (sandboxDirs.length > 0) {
     const dir = sandboxDirs.pop()
@@ -403,8 +420,10 @@ describe('memory workbench dialogue loop acceptance', () => {
         cardId: 'default',
         limit: 4,
       })
+      expect(result.jobId).toBeTruthy()
+      const completed = await waitForEmbeddingReindex(db, result.jobId!)
 
-      expect(result).toMatchObject({
+      expect(completed).toMatchObject({
         scheduled: 1,
         indexed: 1,
         failed: 0,
@@ -479,7 +498,9 @@ describe('memory workbench dialogue loop acceptance', () => {
       }
 
       const reindex = await db.reindexMemoryWorkbenchEmbeddings({ cardId: 'default', limit: 4 })
-      expect(reindex).toMatchObject({
+      expect(reindex.jobId).toBeTruthy()
+      const completed = await waitForEmbeddingReindex(db, reindex.jobId!)
+      expect(completed).toMatchObject({
         indexed: 1,
         modelId: 'lazy-embedding',
       })

@@ -34,7 +34,7 @@ describe('openai-compatible long-term memory embedding provider', () => {
     expect(fetchImpl).toHaveBeenCalledWith('https://api.siliconflow.cn/v1/embeddings', expect.objectContaining({
       method: 'POST',
       headers: expect.objectContaining({
-        Authorization: 'Bearer test-key',
+        'Authorization': 'Bearer test-key',
         'Content-Type': 'application/json',
         'X-Test': 'yes',
       }),
@@ -69,6 +69,34 @@ describe('openai-compatible long-term memory embedding provider', () => {
       dimensions: 768,
       modelId: 'nomic-embed-text',
     })
+  })
+
+  it('isolates vector spaces by provider endpoint without hashing the api key', () => {
+    const first = createOpenAICompatibleLongTermMemoryEmbeddingProvider({
+      apiKey: 'first-secret',
+      baseUrl: 'https://provider-a.example/v1',
+      dimensions: 3,
+      fetch: vi.fn(),
+      model: 'same-model',
+    })
+    const sameEndpointWithRotatedKey = createOpenAICompatibleLongTermMemoryEmbeddingProvider({
+      apiKey: 'rotated-secret',
+      baseUrl: 'https://provider-a.example',
+      dimensions: 3,
+      fetch: vi.fn(),
+      model: 'same-model',
+    })
+    const differentEndpoint = createOpenAICompatibleLongTermMemoryEmbeddingProvider({
+      apiKey: 'first-secret',
+      baseUrl: 'https://provider-b.example',
+      dimensions: 3,
+      fetch: vi.fn(),
+      model: 'same-model',
+    })
+
+    expect(first.vectorSpaceId).toBe(sameEndpointWithRotatedKey.vectorSpaceId)
+    expect(first.vectorSpaceId).not.toBe(differentEndpoint.vectorSpaceId)
+    expect(first.vectorSpaceId).not.toContain('first-secret')
   })
 
   it('prefers the dedicated memory embedding config over the legacy workbench key', () => {

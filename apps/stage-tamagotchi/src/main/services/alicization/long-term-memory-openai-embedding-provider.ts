@@ -5,6 +5,8 @@ import type {
 } from '../../../shared/eventa'
 import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
 
+import { createHash } from 'node:crypto'
+
 import { errorMessageFrom } from '@moeru/std'
 
 const OPENAI_COMPATIBLE_EMBEDDING_BATCH_SIZE = 32
@@ -100,6 +102,21 @@ function isVector(raw: unknown, dimensions: number): raw is number[] {
 
 function embeddingsEndpoint(baseUrl: string) {
   return new URL('embeddings', normalizeOpenAICompatibleApiBaseUrl(baseUrl)).toString()
+}
+
+function vectorSpaceId(input: {
+  providerId?: string | null
+  baseUrl: string
+  modelId: string
+  dimensions: number
+}) {
+  const identity = JSON.stringify({
+    providerId: normalizeText(input.providerId, 160) || 'openai-compatible',
+    endpoint: embeddingsEndpoint(input.baseUrl),
+    modelId: normalizeText(input.modelId, 200),
+    dimensions: input.dimensions,
+  })
+  return `embedding-space:v1:${createHash('sha256').update(identity).digest('hex')}`
 }
 
 function modelsEndpoint(baseUrl: string) {
@@ -212,10 +229,11 @@ export async function listOpenAICompatibleLongTermMemoryEmbeddingModels(input: {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(new Error('embedding model discovery timeout')), timeoutMsFrom(input.timeoutMs, 10_000))
   try {
+    const headers = input.apiKey
+      ? { Authorization: `Bearer ${normalizeText(input.apiKey, 1000)}` }
+      : undefined
     const response = await fetchImpl(modelsEndpoint(baseUrl), {
-      headers: {
-        ...(input.apiKey ? { Authorization: `Bearer ${normalizeText(input.apiKey, 1000)}` } : {}),
-      },
+      headers,
       method: 'GET',
       signal: controller.signal,
     })
@@ -334,6 +352,12 @@ export function createOpenAICompatibleLongTermMemoryEmbeddingProvider(
   return {
     dimensions,
     modelId,
+    vectorSpaceId: vectorSpaceId({
+      providerId: 'openai-compatible',
+      baseUrl,
+      modelId,
+      dimensions,
+    }),
     embedTexts: async (texts) => {
       const input = texts.map(text => normalizeText(text, 2000)).filter(Boolean)
       if (input.length === 0)
@@ -371,10 +395,11 @@ export function resolveOpenAICompatibleLongTermMemoryEmbeddingProvider(
   const env = input.env ?? process.env
   const activeProviderId = normalizeText(input.activeProviderId, 160)
   const activeProviderConfig = activeProviderId ? input.providerCredentials[activeProviderId] ?? {} : {}
-  const memoryConfig = {
-    ...(input.providerCredentials.alicizationMemoryEmbedding ?? {}),
-    ...(input.providerCredentials.__alicizationMemoryEmbedding ?? {}),
-  }
+  const memoryConfig = Object.assign(
+    {},
+    input.providerCredentials.alicizationMemoryEmbedding,
+    input.providerCredentials.__alicizationMemoryEmbedding,
+  )
   const providerId = readFirstText(
     memoryConfig.providerId,
     activeProviderConfig.memoryEmbeddingProviderId,
@@ -382,10 +407,11 @@ export function resolveOpenAICompatibleLongTermMemoryEmbeddingProvider(
     env.ALICIZATION_MEMORY_EMBEDDING_PROVIDER_ID,
     activeProviderId,
   )
-  const providerConfig = {
-    ...(providerId ? input.providerCredentials[providerId] ?? {} : {}),
-    ...memoryConfig,
-  }
+  const providerConfig = Object.assign(
+    {},
+    providerId ? input.providerCredentials[providerId] : undefined,
+    memoryConfig,
+  )
   const model = readFirstText(
     memoryConfig.model,
     memoryConfig.memoryEmbeddingModel,

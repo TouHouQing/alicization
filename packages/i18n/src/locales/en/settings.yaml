@@ -547,6 +547,16 @@ pages:
         reset: Reset
         approve_candidate: Approve Candidate
         reject_candidate: Reject Candidate
+        stage_persona_dataset: Create Dataset Version
+        export_persona_dataset: Export Dataset Manifest
+        activate_persona_dataset: Activate Version
+        rollback_persona_dataset: Roll Back Version
+        revoke_persona_source: Revoke Source
+        allow_persona_training: Allow This Example
+        block_persona_training: Block This Example
+        cancel_reindex: Cancel Embedding Reindex
+        retry_dead_letter: Retry Dead-Letter Items
+        retry_dead_letter_item: Retry This Item
         discover_embedding_models: Discover Models
         test_embedding_connection: Test Connection
         save_embedding_config: Save Embedding Config
@@ -556,6 +566,41 @@ pages:
         empty_review: No memories currently need your review.
         empty_probe: Enter a sentence to see what she would recall.
         empty_persona: No persona candidates ready for review yet.
+        empty_persona_dataset: No persona dataset version yet. Create a governance-only staging version first.
+        empty_persona_dataset_examples: This version has no governable examples.
+        persona_dataset_staged: Persona dataset staging version created. No training was started.
+        persona_dataset_exported: Immutable export manifest created. No training was started.
+        persona_dataset_revoked: Source revocation propagated to dataset examples.
+        dataset_staged: Staged
+        dataset_quarantined: Quarantined
+        dataset_revoked: Revoked
+        pii_clear: No PII detected
+        pii_detected: Possible PII detected
+        pii_not_checked: Not checked
+        health_ok: Healthy
+        health_degraded: Degraded
+        health_error: Error
+        index_sqlite_vec: sqlite-vec
+        index_hnsw: HNSW
+        index_ann: ANN
+        index_brute_force: Brute-force (degraded)
+        yes: Yes
+        no: No
+        persona_candidate_candidate: Candidate
+        persona_candidate_approved: Approved
+        persona_candidate_rejected: Rejected
+        persona_candidate_no_training: No training
+        persona_privacy_public: Public
+        persona_privacy_personal_redacted: Personal (redacted)
+        configured: Configured
+        not_configured: Not configured
+        cancelled_by_user: Embedding reindex cancelled by user
+        reindex_queued: Queued
+        reindex_running: Reindexing
+        reindex_cancel_requested: Cancelling
+        reindex_completed: Completed
+        reindex_cancelled: Cancelled
+        reindex_failed: Failed
         empty_embedding_models: Fill the service base URL and API key, then discover embedding models. If the service does not list models, enter the model name manually.
         embedding_config_saved: Embedding config saved. Refreshing memory health.
         loading: Loading memory state...
@@ -595,6 +640,11 @@ pages:
         embedding_configuration_description: Configure the embedding model used for long-term semantic recall. Enter the service base URL, such as https://api.siliconflow.cn; Alicization will call /v1/embeddings automatically. Embeddings are retrieval representations, not persona identity; reindex after changing models.
         embedding_models: Available Models
         embedding_connection: Connection Test
+        reindex_required: Reindex required
+        reindex_status: Reindex status
+        reindex_progress: Reindex progress
+        indexed: Indexed
+        failed: Failed
         policy: Policy
         source: Source
         status: Status
@@ -608,6 +658,43 @@ pages:
         source_ids: Source IDs
         candidate_status: Candidate Status
         kind: Kind
+        persona_dataset: Persona Dataset
+        dataset_version: Dataset Version
+        dataset_schema: Dataset Schema
+        dataset_active: Active Version
+        dataset_consent: Consent Snapshot
+        dataset_policy_version: Consent Policy Version
+        dataset_scope: Consent Scope
+        dataset_manifest: Export Manifest
+        dataset_hash: Manifest Hash
+        dataset_versions: Dataset Versions
+        dataset_examples: Dataset Examples
+        persona_dataset_description: Only cleaned long-term reflections or persona reinforcement may enter. Training is blocked by default; every action only writes governance policy and never starts training automatically.
+        dataset_example_state: Example State
+        pii_status: PII Status
+        quarantined: Quarantined
+        revoked: Revoked
+        queue_pending: Pending
+        queue_review: Review
+        queue_applied: Applied
+        queue_failed: Failed
+        queue_dead_lettered: Dead Letter
+        dead_letter_items: Embedding Reindex Dead Letters
+        attempt_count: Attempts
+        recall_p95: P95 Latency
+        index_mode: Index Mode
+        approximate: Approximate Search
+        degraded: Degraded
+        native_index: Native Index
+        search_ready: Search Ready
+        canonical_count: Canonical Memory Corpus
+        indexed_count: Indexed in Active Space
+        missing_count: Missing Vectors
+        text_hash_mismatch_count: Text Hash Mismatches
+        stale_or_failed_count: Stale or Failed Vectors
+        orphaned_count: Orphaned Vectors
+        coverage_ratio: Vector Coverage
+        debug_details: Debug Details
       filters:
         kind:
           all: All Types

@@ -9,6 +9,7 @@ interface SyncAlicizationMainChatLlmRouteOptions {
   setActiveProviderId: (value: string) => void
   setActiveModelId: (value: string) => void
   persistLlmConfigToDisk: () => Promise<void> | void
+  resumePendingEmbeddingReindexJobs: () => Promise<unknown> | unknown
 }
 
 export async function syncAlicizationMainChatLlmRoute(
@@ -37,6 +38,7 @@ export async function syncAlicizationMainChatLlmRoute(
     input.setProviderCredentials(nextProviderCredentials)
 
   await input.persistLlmConfigToDisk()
+  await input.resumePendingEmbeddingReindexJobs()
 
   return {
     activeProviderId: input.mainGateway.providerId,

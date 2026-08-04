@@ -80,7 +80,7 @@ function getSafetyRequests() {
 
 function emitKillSwitchState(state: 'ACTIVE' | 'SUSPENDED', reason = 'test') {
   const snapshot = { state, reason, updatedAt: Date.now() }
-  for (const listener of [...killSwitchListeners]) {
+  for (const listener of killSwitchListeners) {
     listener(snapshot)
   }
 }

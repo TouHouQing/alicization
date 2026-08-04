@@ -205,4 +205,147 @@ describe('long-term memory search index', () => {
       await db.close()
     }
   })
+
+  it('lets semantic recall return an indexed distant memory outside the lexical source window', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const embeddingProvider = {
+      modelId: 'test-semantic-model',
+      dimensions: 3,
+      embedTexts: async (texts: string[]) => texts.map(text => ({
+        text,
+        vector: [1, 0, 0],
+      })),
+    }
+    const db = await setupAlicizationDb(userDataPath, {
+      cardId: 'card-semantic',
+      embeddingProvider,
+    })
+    try {
+      await db.upsertMemoryReflections([
+        {
+          id: 'distant-semantic-reflection',
+          cardId: 'card-semantic',
+          sourceKind: 'reply',
+          targetScope: 'habit',
+          summary: '用户在另一个时空记录了若干不可见于当前词面的个人倾向。',
+          lesson: '长期语义召回应能找回远期经验。',
+          status: 'confirmed',
+          confidence: 0.95,
+          createdAt: 10,
+          updatedAt: 10,
+        },
+        ...Array.from({ length: 24 }, (_, index) => ({
+          id: `recent-decoy-reflection-${index + 1}`,
+          cardId: 'card-semantic',
+          sourceKind: 'maintenance' as const,
+          targetScope: 'task' as const,
+          summary: `近期维护记录 ${index + 1}`,
+          lesson: '这条记录不包含查询语义。',
+          status: 'confirmed' as const,
+          confidence: 0.4,
+          createdAt: 100 + index,
+          updatedAt: 100 + index,
+        })),
+      ])
+      const reindex = await db.reindexMemoryWorkbenchEmbeddings({
+        cardId: 'card-semantic',
+        sourceIds: ['distant-semantic-reflection'],
+        limit: 1,
+      })
+      expect(reindex.jobId).toBeTruthy()
+      let status = reindex
+      for (let attempt = 0; attempt < 20 && status.status !== 'completed'; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, 5))
+        status = await db.reindexMemoryWorkbenchEmbeddings({
+          cardId: 'card-semantic',
+          action: 'status',
+          jobId: reindex.jobId!,
+        })
+      }
+      expect(status.status).toBe('completed')
+
+      const recalled = await db.retrieveLongTermMemoryEvidence({
+        cardId: 'card-semantic',
+        currentUserText: '你还记得我以前的旅行计划吗',
+        limit: 4,
+      })
+
+      expect(recalled.evidence.map(item => item.candidate.id)).toContain('distant-semantic-reflection')
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('reindexes the canonical search document text and invalidates vectors after the source text changes', async () => {
+    const embeddedTexts: string[] = []
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'card-canonical-embedding',
+      embeddingProvider: {
+        modelId: 'test-semantic-model',
+        dimensions: 3,
+        embedTexts: async (texts: string[]) => {
+          embeddedTexts.push(...texts)
+          return texts.map(text => ({
+            text,
+            vector: [1, 0, 0],
+          }))
+        },
+      },
+    })
+    try {
+      await db.upsertMemoryReflections([{
+        id: 'canonical-reflection',
+        cardId: 'card-canonical-embedding',
+        sourceKind: 'reply',
+        targetScope: 'habit',
+        summary: '用户喜欢在周末散步。',
+        lesson: '散步会让用户放松。',
+        status: 'confirmed',
+        confidence: 0.95,
+        createdAt: 10,
+        updatedAt: 10,
+      }])
+
+      const scheduled = await db.reindexMemoryWorkbenchEmbeddings({
+        cardId: 'card-canonical-embedding',
+        sourceIds: ['canonical-reflection'],
+      })
+      expect(scheduled.jobId).toBeTruthy()
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const progress = await db.reindexMemoryWorkbenchEmbeddings({
+          cardId: 'card-canonical-embedding',
+          action: 'status',
+          jobId: scheduled.jobId!,
+        })
+        if (progress.status === 'completed')
+          break
+        await new Promise(resolve => setTimeout(resolve, 5))
+      }
+
+      expect(embeddedTexts).toContain('用户喜欢在周末散步。 散步会让用户放松。')
+
+      await db.upsertMemoryReflections([{
+        id: 'canonical-reflection',
+        cardId: 'card-canonical-embedding',
+        sourceKind: 'reply',
+        targetScope: 'habit',
+        summary: '用户现在更喜欢在周末游泳。',
+        lesson: '游泳会让用户放松。',
+        status: 'confirmed',
+        confidence: 0.95,
+        createdAt: 10,
+        updatedAt: 20,
+      }])
+
+      const health = await db.getMemoryWorkbenchEmbeddingHealth({
+        cardId: 'card-canonical-embedding',
+      })
+      expect(health.reindexRequired).toBe(true)
+      expect(health.searchReady).toBe(false)
+    }
+    finally {
+      await db.close()
+    }
+  })
 })

@@ -100,6 +100,7 @@ catalog:
   playwright: 1.58.2
   posthog-js: 1.306.1
   splitpanes: ^4.0.4
+  sqlite-vec: 0.1.6
   sqlite3: ^5.1.7
   std-env: ^4.0.0-rc.1
   superjson: ^2.2.6

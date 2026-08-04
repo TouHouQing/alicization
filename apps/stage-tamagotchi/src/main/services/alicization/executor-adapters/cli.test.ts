@@ -216,7 +216,8 @@ describe('cli executor adapter', () => {
     expect(result.events[0]?.payload).toEqual(expect.objectContaining({
       aliasExpansionCount: expect.any(Number),
     }))
-    expect(Number((result.events[0]?.payload as { aliasExpansionCount?: unknown }).aliasExpansionCount ?? 0)).toBeGreaterThan(0)
+    const payload = result.events[0]?.payload as { aliasExpansionCount?: unknown } | undefined
+    expect(Number(payload?.aliasExpansionCount ?? 0)).toBeGreaterThan(0)
   })
 
   it('expands home-directory aliases inside option assignments', async () => {

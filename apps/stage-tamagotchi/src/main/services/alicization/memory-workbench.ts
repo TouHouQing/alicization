@@ -113,7 +113,27 @@ export async function buildMemoryWorkbenchSnapshot(input: BuildMemoryWorkbenchSn
   })
   const embedding = await input.getEmbeddingHealth().catch((error: unknown) => {
     errors.push(error instanceof Error ? error.message : String(error))
-    return { providerConfigured: false, modelId: null, dimensions: null, reindexRequired: false }
+    return {
+      providerConfigured: false,
+      modelId: null,
+      dimensions: null,
+      vectorSpaceId: null,
+      reindexRequired: false,
+      indexMode: 'brute-force' as const,
+      approximate: false,
+      degraded: true,
+      nativeIndexReady: false,
+      searchReady: false,
+      lastError: error instanceof Error ? error.message : String(error),
+      canonicalCount: 0,
+      indexedCount: 0,
+      missingCount: 0,
+      textHashMismatchCount: 0,
+      staleOrFailedCount: 0,
+      orphanedCount: 0,
+      coverageRatio: null,
+      reindexJob: null,
+    }
   })
   const byKind: AlicizationMemoryWorkbenchSnapshot['longTerm']['byKind'] = {}
   for (const item of longTermItems)
@@ -138,6 +158,7 @@ export async function buildMemoryWorkbenchSnapshot(input: BuildMemoryWorkbenchSn
         errors,
         queueFailed: queue.failed,
         embeddingConfigured: embedding.providerConfigured,
+        embeddingDegraded: embedding.degraded,
       }),
       queue,
       recall,

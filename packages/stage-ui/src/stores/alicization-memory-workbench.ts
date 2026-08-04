@@ -4,19 +4,26 @@ import type {
   AlicizationMemoryEmbeddingModelInfo,
   AlicizationMemoryEmbeddingModelListPayload,
   AlicizationMemoryEmbeddingModelListResult,
+  AlicizationMemoryEmbeddingProgress,
+  AlicizationMemoryEmbeddingReindexDeadLetterItem,
   AlicizationMemoryEmbeddingReindexPayload,
   AlicizationMemoryEmbeddingReindexResult,
   AlicizationMemoryRecallProbeResult,
   AlicizationMemoryReviewActionPayload,
-  AlicizationMemoryWorkbenchListPayload,
   AlicizationMemoryWorkbenchItem,
+  AlicizationMemoryWorkbenchListPayload,
   AlicizationMemoryWorkbenchSnapshot,
   AlicizationPersonaCandidateListPayload,
   AlicizationPersonaCandidateWorkbenchDecision,
   AlicizationPersonaCandidateWorkbenchItem,
+  AlicizationPersonaTrainingDatasetExamplePolicyPayload,
+  AlicizationPersonaTrainingDatasetExportResult,
+  AlicizationPersonaTrainingDatasetSnapshot,
+  AlicizationPersonaTrainingDatasetStagePayload,
 } from './alicization-bridge'
 
 import { errorMessageFrom } from '@moeru/std'
+import { useIntervalFn } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
@@ -45,8 +52,12 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   const personaCandidates = ref<AlicizationPersonaCandidateWorkbenchItem[]>([])
   const personaNextCursor = ref<string | null>(null)
   const personaLoading = ref(false)
+  const personaTrainingDataset = ref<AlicizationPersonaTrainingDatasetSnapshot | null>(null)
+  const personaTrainingDatasetLoading = ref(false)
+  const personaTrainingDatasetExport = ref<AlicizationPersonaTrainingDatasetExportResult | null>(null)
   const reindexLoading = ref(false)
   const reindexResult = ref<AlicizationMemoryEmbeddingReindexResult | null>(null)
+  const reindexDeadLetterItems = ref<AlicizationMemoryEmbeddingReindexDeadLetterItem[]>([])
   const embeddingModels = ref<AlicizationMemoryEmbeddingModelInfo[]>([])
   const embeddingModelDiscoveryLoading = ref(false)
   const embeddingModelDiscoveryResult = ref<AlicizationMemoryEmbeddingModelListResult | null>(null)
@@ -64,6 +75,44 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   const reviewItems = computed(() => snapshot.value?.review.items ?? [])
   const health = computed(() => snapshot.value?.health ?? null)
   const pendingReviewCount = computed(() => snapshot.value?.review.pending ?? 0)
+  const activeReindexStatuses = new Set(['queued', 'running', 'cancel_requested'])
+  const { pause: pauseReindexPolling, resume: resumeReindexPolling } = useIntervalFn(async () => {
+    const progress = reindexResult.value?.progress
+    if (!progress || !activeReindexStatuses.has(progress.status)) {
+      pauseReindexPolling()
+      return
+    }
+    if (!reindexLoading.value)
+      await refreshReindexJob(progress.jobId)
+  }, 2_000, { immediate: false })
+
+  function updateReindexResult(result: AlicizationMemoryEmbeddingReindexResult) {
+    reindexResult.value = result
+    reindexDeadLetterItems.value = result.deadLetterItems ?? []
+    lastError.value = result.errors[0] ?? result.progress?.lastError ?? null
+    if (result.progress && activeReindexStatuses.has(result.progress.status))
+      resumeReindexPolling()
+    else
+      pauseReindexPolling()
+  }
+
+  function restoreReindexProgress(progress: AlicizationMemoryEmbeddingProgress | null | undefined) {
+    if (!progress)
+      return
+    updateReindexResult({
+      jobId: progress.jobId,
+      status: progress.status,
+      scheduled: progress.total,
+      indexed: progress.indexed,
+      failed: progress.deadLettered,
+      modelId: progress.modelId,
+      dimensions: progress.dimensions,
+      vectorSpaceId: progress.vectorSpaceId,
+      errors: progress.lastError ? [progress.lastError] : [],
+      deadLetterItems: [],
+      progress,
+    })
+  }
 
   async function refreshSnapshot(sessionId?: string | null) {
     if (!hasAlicizationBridge()) {
@@ -83,7 +132,8 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       snapshot.value = next
       longTermItems.value = next.longTerm.items
       longTermNextCursor.value = null
-      lastError.value = null
+      restoreReindexProgress(next.health.embedding.reindexJob)
+      lastError.value = next.health.embedding.reindexJob?.lastError ?? null
       return next
     }
     catch (error) {
@@ -114,7 +164,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       return []
     longTermFilters.value = {
       ...longTermFilters.value,
-      ...(filters ?? {}),
+      ...filters,
     }
     longTermNextCursor.value = null
     listLoading.value = true
@@ -263,15 +313,221 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
   }
 
+  async function refreshPersonaTrainingDataset() {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchGetPersonaTrainingDataset)
+      return null
+    personaTrainingDatasetLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchGetPersonaTrainingDataset!()
+      personaTrainingDataset.value = result
+      lastError.value = null
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaTrainingDatasetLoading.value = false
+    }
+  }
+
+  async function stagePersonaTrainingDataset(
+    consent: Omit<AlicizationPersonaTrainingDatasetStagePayload['consent'], 'capturedAt'>,
+  ) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchStagePersonaTrainingDataset)
+      return null
+    personaTrainingDatasetLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchStagePersonaTrainingDataset!({ consent })
+      await refreshPersonaTrainingDataset()
+      lastError.value = null
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaTrainingDatasetLoading.value = false
+    }
+  }
+
+  async function exportPersonaTrainingDataset(datasetId?: string | null) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchExportPersonaTrainingDataset)
+      return null
+    personaTrainingDatasetLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchExportPersonaTrainingDataset!({ datasetId })
+      personaTrainingDatasetExport.value = result
+      await refreshPersonaTrainingDataset()
+      lastError.value = null
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaTrainingDatasetLoading.value = false
+    }
+  }
+
+  async function activatePersonaTrainingDataset(datasetId: string) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchActivatePersonaTrainingDataset)
+      return null
+    personaTrainingDatasetLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchActivatePersonaTrainingDataset!({ datasetId })
+      await refreshPersonaTrainingDataset()
+      lastError.value = null
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaTrainingDatasetLoading.value = false
+    }
+  }
+
+  async function rollbackPersonaTrainingDataset(datasetId: string) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRollbackPersonaTrainingDataset)
+      return null
+    personaTrainingDatasetLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchRollbackPersonaTrainingDataset!({ datasetId })
+      await refreshPersonaTrainingDataset()
+      lastError.value = null
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaTrainingDatasetLoading.value = false
+    }
+  }
+
+  async function setPersonaTrainingDatasetExamplePolicy(
+    payload: Omit<AlicizationPersonaTrainingDatasetExamplePolicyPayload, 'cardId'>,
+  ) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy)
+      return null
+    personaTrainingDatasetLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy!(payload)
+      await refreshPersonaTrainingDataset()
+      lastError.value = null
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaTrainingDatasetLoading.value = false
+    }
+  }
+
+  async function revokePersonaTrainingDatasetSource(sourceId: string) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRevokePersonaTrainingDatasetSource)
+      return null
+    personaTrainingDatasetLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchRevokePersonaTrainingDatasetSource!({ sourceId })
+      await refreshPersonaTrainingDataset()
+      lastError.value = null
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaTrainingDatasetLoading.value = false
+    }
+  }
+
   async function reindexEmbeddings(payload: Omit<AlicizationMemoryEmbeddingReindexPayload, 'cardId'> = {}) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchReindexEmbeddings)
       return null
     reindexLoading.value = true
     try {
-      const result = await getAlicizationBridge().memoryWorkbenchReindexEmbeddings!(payload)
-      reindexResult.value = result
-      lastError.value = result.errors[0] ?? null
+      const result = await getAlicizationBridge().memoryWorkbenchReindexEmbeddings!({
+        ...payload,
+        action: 'start',
+      })
+      updateReindexResult(result)
       await refreshSnapshot(snapshot.value?.sessionId ?? null)
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      reindexLoading.value = false
+    }
+  }
+
+  async function refreshReindexJob(jobId: string) {
+    if (!jobId.trim() || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchReindexEmbeddings)
+      return null
+    reindexLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchReindexEmbeddings!({
+        action: 'status',
+        jobId,
+      })
+      updateReindexResult(result)
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      reindexLoading.value = false
+    }
+  }
+
+  async function cancelReindexJob(jobId: string, reason?: string | null) {
+    if (!jobId.trim() || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchReindexEmbeddings)
+      return null
+    reindexLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchReindexEmbeddings!({
+        action: 'cancel',
+        jobId,
+        reason,
+      })
+      updateReindexResult(result)
+      await refreshSnapshot(snapshot.value?.sessionId ?? null)
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      reindexLoading.value = false
+    }
+  }
+
+  async function retryDeadLetterReindex(jobId: string, itemIds?: string[]) {
+    if (!jobId.trim() || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchReindexEmbeddings)
+      return null
+    reindexLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchReindexEmbeddings!({
+        action: 'retry-dead-letter',
+        jobId,
+        itemIds,
+      })
+      updateReindexResult(result)
       return result
     }
     catch (error) {
@@ -331,8 +587,12 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     personaCandidates,
     personaNextCursor,
     personaLoading,
+    personaTrainingDataset,
+    personaTrainingDatasetLoading,
+    personaTrainingDatasetExport,
     reindexLoading,
     reindexResult,
+    reindexDeadLetterItems,
     embeddingModels,
     embeddingModelDiscoveryLoading,
     embeddingModelDiscoveryResult,
@@ -356,7 +616,17 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     runRecallProbe,
     refreshPersonaCandidates,
     applyPersonaCandidateAction,
+    refreshPersonaTrainingDataset,
+    stagePersonaTrainingDataset,
+    exportPersonaTrainingDataset,
+    activatePersonaTrainingDataset,
+    rollbackPersonaTrainingDataset,
+    setPersonaTrainingDatasetExamplePolicy,
+    revokePersonaTrainingDatasetSource,
     reindexEmbeddings,
+    refreshReindexJob,
+    cancelReindexJob,
+    retryDeadLetterReindex,
     discoverEmbeddingModels,
     testEmbeddingConnection,
   }

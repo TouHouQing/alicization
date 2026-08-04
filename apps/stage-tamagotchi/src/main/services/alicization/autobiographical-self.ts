@@ -311,8 +311,9 @@ function buildPreferenceDurabilityFloor(input: {
   )
   const autonomySupport = clamp01(
     input.outcomeHistory.boundaryLift * 0.42
+    + input.outcomeHistory.boundaryPressure * 2.15
     + Math.max(0, input.reflectionHistory.boundary) * 0.34
-    + Math.max(0, input.reinforcement.autonomyRespect) * 0.32
+    + Math.max(0, input.reinforcement.autonomyRespect) * 0.56
     + (longHorizon?.preferenceBias.autonomyRespect ?? 0) * 0.22,
   )
   const unfinishedSupport = clamp01(
@@ -555,7 +556,7 @@ function buildPreferenceTargets(input: AlicizationAutobiographicalSelfInput) {
     + Math.max(0, reinforcement.autonomyRespect) * 0.18
     + Math.max(0, reinforcement.temperGuardedness) * 0.12
     + outcomeHistory.boundaryLift * 0.14
-    + outcomeHistory.boundaryPressure * 0.12
+    + outcomeHistory.boundaryPressure * 3.1
     + Math.max(0, reflectionHistory.boundary) * 0.16
     + (input.mindEcology?.replyHabit === 'observe-first' || input.mindEcology?.replyHabit === 'hover-first' ? 0.1 : 0)
     - positiveCount * 0.04,
@@ -594,7 +595,7 @@ function buildPreferenceTargets(input: AlicizationAutobiographicalSelfInput) {
     + personaAuthority.roomBias * 0.18
     + reinforcement.autonomyRespect * 0.34
     + outcomeHistory.boundaryLift * 0.22
-    + outcomeHistory.boundaryPressure * 0.1
+    + outcomeHistory.boundaryPressure * 0.7
     + Math.max(0, reflectionHistory.boundary) * 0.22
     - companionship * 0.06,
   )
@@ -683,14 +684,14 @@ function resolveAgencyStyle(input: {
 }) {
   if (
     input.selfContinuity?.initiativeTemperament === 'reserved'
-    || input.roomBias != null && input.directnessBias != null && input.roomBias >= input.directnessBias + 0.16
+    || (input.roomBias != null && input.directnessBias != null && input.roomBias >= input.directnessBias + 0.16)
     || input.quietObservation >= 0.62
   ) {
     return 'reserved' as const
   }
   if (
     input.selfContinuity?.initiativeTemperament === 'eager'
-    || input.directnessBias != null && input.directnessBias >= 0.24
+    || (input.directnessBias != null && input.directnessBias >= 0.24)
     || input.companionship >= 0.62
     || input.proactiveCare >= 0.62
   ) {

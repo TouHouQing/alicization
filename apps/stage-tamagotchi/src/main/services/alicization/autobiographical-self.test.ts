@@ -401,6 +401,51 @@ describe('autobiographical self', () => {
     expectTemplateFree(reinforced)
   })
 
+  it('treats boundary pressure as future autonomy learning without inflating closeness', () => {
+    const input = createBaseInput(93_000)
+    const baseline = buildAutobiographicalSelf(input)
+    const pressured = buildAutobiographicalSelf({
+      ...input,
+      previous: baseline,
+      recentRelationshipOutcomes: [{
+        id: 'outcome::intrusive-feedback',
+        cardId: 'card::1',
+        decisionTraceId: 'trace::1',
+        turnId: 'turn::1',
+        sessionId: 'session::1',
+        sourceKind: 'reply',
+        actionSummary: 'dialogue_feedback=intrusive',
+        closenessDelta: -0.04,
+        trustDelta: -0.06,
+        burdenDelta: 0.08,
+        boundaryDelta: -0.11,
+        misreadDelta: 0.03,
+        repairDelta: 0.03,
+        openLoopDelta: 0,
+        summary: 'The host said the reply felt too close.',
+        createdAt: 92_800,
+      }],
+      recentReinforcementEvents: [{
+        id: 'reinforcement::autonomy',
+        cardId: 'card::1',
+        decisionTraceId: 'trace::1',
+        turnId: 'turn::1',
+        sessionId: 'session::1',
+        sourceKind: 'reply',
+        dimension: 'autonomy-respect',
+        delta: 0.1,
+        valence: 'reinforce',
+        summary: 'Boundary pushback should teach more room next time.',
+        createdAt: 92_900,
+      }],
+    } as any)
+
+    expect(pressured.preferenceEvolution.autonomyRespect).toBeGreaterThan(baseline.preferenceEvolution.autonomyRespect)
+    expect(pressured.preferenceEvolution.quietObservation).toBeGreaterThan(baseline.preferenceEvolution.quietObservation)
+    expect(pressured.preferenceEvolution.companionship).toBeLessThanOrEqual(baseline.preferenceEvolution.companionship)
+    expectTemplateFree(pressured)
+  })
+
   it('absorbs relationship outcomes and reflections into numeric drift without fixed doctrine text', () => {
     const input = createBaseInput(94_000)
     const baseline = buildAutobiographicalSelf(input)

@@ -156,6 +156,81 @@ describe('buildHabitPolicy', () => {
     expect(policy.narrative).toContain('ground-before-surface')
   })
 
+  it('blocks direct speech in busy windows from autobiographical space-learning', () => {
+    const policy = buildHabitPolicy({
+      now: 10_000,
+      context: createContext({
+        system: {
+          ...createContext().system,
+          inputActivity: 'active',
+        },
+      }),
+      worldModel: createWorldModel({
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+      }),
+      relationshipModel: {
+        correctionSensitivity: 0.48,
+      } as any,
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'guarded',
+        },
+        preferenceEvolution: {
+          autonomyRespect: 0.52,
+          quietObservation: 0.62,
+        },
+      } as any,
+      motiveEngine: createMotiveEngine({
+        boundaryRespect: 0.42,
+        companionship: 0.36,
+      }),
+    })
+
+    expect(policy.blocksDirectSpeakWhenBusy).toBe(true)
+    expect(policy.narrative).toContain('busy-window:no-direct-speak')
+  })
+
+  it('honors focused relationship boundaries once space-learning has started', () => {
+    const policy = buildHabitPolicy({
+      now: 10_000,
+      context: createContext({
+        system: {
+          ...createContext().system,
+          inputActivity: 'active',
+        },
+      }),
+      worldModel: createWorldModel({
+        hostState: {
+          availability: 'focused',
+          burden: 'moderate',
+        },
+      }),
+      relationshipModel: {
+        approachVector: 'guide',
+        activeBoundaries: ['focus-protection'],
+        correctionSensitivity: 0.4,
+      } as any,
+      autobiographicalSelf: {
+        personaDrift: {
+          attachmentStyle: 'nearby',
+        },
+        preferenceEvolution: {
+          autonomyRespect: 0.45,
+          quietObservation: 0.44,
+        },
+      } as any,
+      motiveEngine: createMotiveEngine({
+        boundaryRespect: 0.38,
+      }),
+    })
+
+    expect(policy.blocksDirectSpeakWhenBusy).toBe(true)
+    expect(policy.narrative).toContain('busy-window:no-direct-speak')
+  })
+
   it('protects rest windows from current fatigue and rest pressure', () => {
     const baseContext = createContext()
     const policy = buildHabitPolicy({

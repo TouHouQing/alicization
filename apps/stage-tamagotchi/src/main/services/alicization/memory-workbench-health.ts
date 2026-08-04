@@ -66,8 +66,9 @@ export function deriveMemoryWorkbenchStatus(input: {
   errors: string[]
   queueFailed: number
   embeddingConfigured: boolean
+  embeddingDegraded?: boolean
 }): AlicizationMemoryWorkbenchStatus {
-  if (input.errors.length > 0 || input.queueFailed > 0)
+  if (input.errors.length > 0 || input.queueFailed > 0 || input.embeddingDegraded === true)
     return 'degraded'
   return 'ok'
 }

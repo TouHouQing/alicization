@@ -6,6 +6,7 @@ import sqlite3 from 'sqlite3'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { hashLongTermMemoryEmbeddingText } from './long-term-memory-embedding-text'
 import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'
 
 const sandboxDirs: string[] = []
@@ -35,7 +36,41 @@ function all<T>(database: sqlite3.Database, sql: string, params: unknown[] = [])
 async function createSandboxDatabase() {
   const dir = await mkdtemp(join(tmpdir(), 'alicization-persistent-vector-'))
   sandboxDirs.push(dir)
-  return new sqlite3.Database(join(dir, 'vectors.sqlite'))
+  const database = new sqlite3.Database(join(dir, 'vectors.sqlite'))
+  await run(database, `
+    CREATE TABLE long_term_memory_search_documents (
+      id TEXT PRIMARY KEY,
+      card_id TEXT NOT NULL,
+      source TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      text_hash TEXT NOT NULL,
+      tombstoned INTEGER NOT NULL DEFAULT 0
+    )
+  `)
+  return database
+}
+
+async function upsertCanonicalDocument(database: sqlite3.Database, input: {
+  cardId: string
+  sourceId: string
+  source: string
+  text: string
+}) {
+  await run(
+    database,
+    `
+    INSERT OR REPLACE INTO long_term_memory_search_documents (
+      id, card_id, source, source_id, text_hash, tombstoned
+    ) VALUES (?, ?, ?, ?, ?, 0)
+    `,
+    [
+      `doc:${input.cardId}:${input.source}:${input.sourceId}`,
+      input.cardId,
+      input.source,
+      input.sourceId,
+      hashLongTermMemoryEmbeddingText(input.text),
+    ],
+  )
 }
 
 afterEach(async () => {
@@ -58,6 +93,12 @@ describe('persistent long-term memory vector store', () => {
       now: () => 10,
     })
     await store.initialize()
+    await upsertCanonicalDocument(database, {
+      cardId: 'card-1',
+      sourceId: 'fact-1',
+      source: 'memory_facts',
+      text: '用户想打游戏放松。',
+    })
     await store.upsertVectors([{
       id: 'vector-1',
       cardId: 'card-1',
@@ -109,6 +150,12 @@ describe('persistent long-term memory vector store', () => {
       now: () => 10,
     })
     await store.initialize()
+    await upsertCanonicalDocument(database, {
+      cardId: 'card-1',
+      sourceId: 'reflection-1',
+      source: 'memory_reflections',
+      text: '失败要透明。',
+    })
     await store.upsertVectors([{
       id: 'vector-old',
       cardId: 'card-1',
@@ -146,6 +193,12 @@ describe('persistent long-term memory vector store', () => {
       now: () => 10,
     })
     await store.initialize()
+    await upsertCanonicalDocument(database, {
+      cardId: 'card-1',
+      sourceId: 'same-source',
+      source: 'memory_reflections',
+      text: '三维向量空间',
+    })
 
     await store.upsertVectors([
       {
@@ -180,6 +233,12 @@ describe('persistent long-term memory vector store', () => {
       dimensions: 3,
       limit: 4,
     })).resolves.toHaveLength(1)
+    await upsertCanonicalDocument(database, {
+      cardId: 'card-1',
+      sourceId: 'same-source',
+      source: 'memory_reflections',
+      text: '二维向量空间',
+    })
     await expect(store.searchVectors([1, 0], {
       cardId: 'card-1',
       modelId: 'same-model',
@@ -188,7 +247,7 @@ describe('persistent long-term memory vector store', () => {
     })).resolves.toHaveLength(1)
   })
 
-  it('does not recall vectors whose source has been tombstoned', async () => {
+  it('applies vector tombstones only to the matching source namespace', async () => {
     const database = await createSandboxDatabase()
     await run(database, `
       CREATE TABLE long_term_memory_tombstones (
@@ -208,6 +267,12 @@ describe('persistent long-term memory vector store', () => {
       now: () => 10,
     })
     await store.initialize()
+    await upsertCanonicalDocument(database, {
+      cardId: 'card-1',
+      sourceId: 'reflection-deleted',
+      source: 'memory_reflections',
+      text: '这条记忆已经删除。',
+    })
     await store.upsertVectors([{
       id: 'vector-tombstoned',
       cardId: 'card-1',
@@ -228,11 +293,22 @@ describe('persistent long-term memory vector store', () => {
       'tombstone-1',
       'card-1',
       'reflection-deleted',
-      'long_term_memory',
+      'memory_facts',
       'user deleted',
       11,
     ])
 
+    await expect(store.searchVectors([1, 0, 0], {
+      cardId: 'card-1',
+      modelId: 'model-a',
+      dimensions: 3,
+      limit: 4,
+    })).resolves.toHaveLength(1)
+
+    await run(database, 'UPDATE long_term_memory_tombstones SET source = ? WHERE id = ?', [
+      'memory_reflections',
+      'tombstone-1',
+    ])
     await expect(store.searchVectors([1, 0, 0], {
       cardId: 'card-1',
       modelId: 'model-a',

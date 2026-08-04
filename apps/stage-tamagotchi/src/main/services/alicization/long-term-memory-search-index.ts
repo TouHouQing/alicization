@@ -8,11 +8,30 @@ import type {
   AlicizationMemoryWorkbenchVisibility,
 } from '../../../shared/eventa'
 
-import { createHash } from 'node:crypto'
+import {
+  hashLongTermMemoryEmbeddingText,
+  normalizeLongTermMemoryEmbeddingText,
+} from './long-term-memory-embedding-text'
+
+export interface LongTermMemoryEmbeddingCorpusEntry {
+  cardId: string
+  documentId: string
+  source: string
+  sourceId: string
+  text: string
+  textHash: string
+  updatedAt: number
+}
 
 export interface LongTermMemorySearchIndexRuntime {
   initializeSchema: () => Promise<void>
   rebuildLongTermMemorySearchIndex: (input: { cardId: string }) => Promise<{ indexed: number }>
+  listLongTermMemoryEmbeddingCorpus: (input: {
+    cardId: string
+    source?: string
+    sourceIds?: string[]
+    limit?: number | null
+  }) => Promise<LongTermMemoryEmbeddingCorpusEntry[]>
   listLongTermMemorySearchItems: (input: {
     cardId: string
     kind?: AlicizationMemoryWorkbenchKind | 'all'
@@ -39,6 +58,7 @@ interface SearchDocument {
   salience: number
   sensitivity: AlicizationMemoryWorkbenchSensitivity
   searchText: string
+  embeddingText: string
   textHash: string
   createdAt: number
   updatedAt: number
@@ -58,6 +78,7 @@ interface SearchDocumentRow {
   salience: number
   sensitivity: AlicizationMemoryWorkbenchSensitivity
   search_text: string
+  embedding_text: string
   text_hash: string
   created_at: number
   updated_at: number
@@ -188,10 +209,6 @@ function uniqueTexts(values: Array<string | null | undefined>, maxItems = 10, ma
   return result
 }
 
-function textHash(text: string) {
-  return createHash('sha256').update(text).digest('hex')
-}
-
 function documentId(input: { cardId: string, source: string, sourceId: string }) {
   return `ltm-doc:${input.cardId}:${input.source}:${input.sourceId}`
 }
@@ -212,6 +229,10 @@ function buildSearchText(input: {
   ].filter(Boolean).join(' '), 2000)
 }
 
+function buildEmbeddingText(values: Array<string | null | undefined>) {
+  return normalizeLongTermMemoryEmbeddingText(uniqueTexts(values, 24, 360).join(' '))
+}
+
 function mapFactDocument(row: DbMemoryFactRow): SearchDocument | null {
   const sourceId = normalizeText(row.id, 240)
   const cardId = normalizeCardId(row.card_id)
@@ -230,6 +251,13 @@ function mapFactDocument(row: DbMemoryFactRow): SearchDocument | null {
   const source = 'memory_facts'
   const kind: AlicizationMemoryWorkbenchKind = 'fact'
   const searchText = buildSearchText({ summary, evidenceSnippets, source, sourceId, kind })
+  const embeddingText = buildEmbeddingText([
+    row.subject,
+    row.predicate,
+    row.object,
+    row.memory_domain,
+    row.source_label,
+  ])
   return {
     id: documentId({ cardId, source, sourceId }),
     cardId,
@@ -243,7 +271,8 @@ function mapFactDocument(row: DbMemoryFactRow): SearchDocument | null {
     salience: row.validation_status === 'validated' ? 0.78 : 0.58,
     sensitivity: 'personal',
     searchText,
-    textHash: textHash(searchText),
+    embeddingText,
+    textHash: hashLongTermMemoryEmbeddingText(embeddingText),
     createdAt: Math.max(0, Math.floor(Number(row.created_at) || 0)),
     updatedAt: Math.max(0, Math.floor(Number(row.updated_at) || 0)),
     lastAccessedAt: Number.isFinite(row.last_access_at) ? Math.max(0, Math.floor(Number(row.last_access_at))) : null,
@@ -267,6 +296,7 @@ function mapReflectionDocument(row: DbMemoryReflectionRow): SearchDocument | nul
   const source = 'memory_reflections'
   const kind: AlicizationMemoryWorkbenchKind = 'reflection'
   const searchText = buildSearchText({ summary, evidenceSnippets, source, sourceId, kind })
+  const embeddingText = buildEmbeddingText([row.summary, row.lesson])
   return {
     id: documentId({ cardId, source, sourceId }),
     cardId,
@@ -280,7 +310,8 @@ function mapReflectionDocument(row: DbMemoryReflectionRow): SearchDocument | nul
     salience: row.status === 'confirmed' ? 0.82 : 0.64,
     sensitivity: 'personal',
     searchText,
-    textHash: textHash(searchText),
+    embeddingText,
+    textHash: hashLongTermMemoryEmbeddingText(embeddingText),
     createdAt: Math.max(0, Math.floor(Number(row.created_at) || 0)),
     updatedAt: Math.max(0, Math.floor(Number(row.updated_at) || 0)),
     lastAccessedAt: null,
@@ -317,6 +348,19 @@ function mapEpisodeDocument(row: DbEpisodicEventRow): SearchDocument | null {
   const source = 'episodic_events'
   const kind: AlicizationMemoryWorkbenchKind = 'episode'
   const searchText = buildSearchText({ summary, evidenceSnippets, source, sourceId, kind })
+  const embeddingText = buildEmbeddingText([
+    row.thread_anchor,
+    row.what_happened,
+    row.felt,
+    row.what_changed,
+    row.relationship_meaning,
+    row.lesson,
+    row.source_summary,
+    row.where_summary,
+    ...withWhom,
+    ...tags,
+    ...emotionTags,
+  ])
   return {
     id: documentId({ cardId, source, sourceId }),
     cardId,
@@ -330,7 +374,8 @@ function mapEpisodeDocument(row: DbEpisodicEventRow): SearchDocument | null {
     salience: clamp01(row.salience),
     sensitivity: 'personal',
     searchText,
-    textHash: textHash(searchText),
+    embeddingText,
+    textHash: hashLongTermMemoryEmbeddingText(embeddingText),
     createdAt: Math.max(0, Math.floor(Number(row.occurred_at) || 0)),
     updatedAt: Math.max(0, Math.floor(Number(row.updated_at) || 0)),
     lastAccessedAt: Number.isFinite(row.last_recalled_at) ? Math.max(0, Math.floor(Number(row.last_recalled_at))) : null,
@@ -356,6 +401,12 @@ function mapConsolidationDocument(row: DbMemoryConsolidationRow): SearchDocument
   const source = 'memory_consolidations'
   const kind: AlicizationMemoryWorkbenchKind = 'consolidation'
   const searchText = buildSearchText({ summary, evidenceSnippets, source, sourceId, kind })
+  const embeddingText = buildEmbeddingText([
+    row.summary,
+    row.lesson,
+    row.facet,
+    ...cues,
+  ])
   return {
     id: documentId({ cardId, source, sourceId }),
     cardId,
@@ -369,7 +420,8 @@ function mapConsolidationDocument(row: DbMemoryConsolidationRow): SearchDocument
     salience: row.kind === 'autobiographical' ? 0.78 : 0.66,
     sensitivity: 'personal',
     searchText,
-    textHash: textHash(searchText),
+    embeddingText,
+    textHash: hashLongTermMemoryEmbeddingText(embeddingText),
     createdAt: Math.max(0, Math.floor(Number(row.period_ended_at) || 0)),
     updatedAt: Math.max(0, Math.floor(Number(row.updated_at) || 0)),
     lastAccessedAt: null,
@@ -419,10 +471,12 @@ function buildFtsQuery(query: string) {
   const normalized = normalizeText(query, 240)
   if (!normalized)
     return ''
-  return normalized
+  return [...new Set(normalized
     .split(/\s+/)
+    .map(term => term.trim())
+    .filter(Boolean))]
     .map(term => `"${term.replace(/"/g, '""')}"`)
-    .join(' ')
+    .join(' OR ')
 }
 
 function mapDocumentRow(row: SearchDocumentRow): AlicizationMemoryWorkbenchItem {
@@ -480,6 +534,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
       'salience',
       'sensitivity',
       'search_text',
+      'embedding_text',
       'text_hash',
       'created_at',
       'updated_at',
@@ -505,6 +560,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
         salience REAL NOT NULL,
         sensitivity TEXT NOT NULL,
         search_text TEXT NOT NULL,
+        embedding_text TEXT NOT NULL,
         text_hash TEXT NOT NULL,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
@@ -529,8 +585,22 @@ export function createLongTermMemorySearchIndexRuntime(input: {
 
   async function loadProjectionDocuments(cardId: string) {
     const [facts, reflections, episodes, consolidations] = await Promise.all([
-      input.all<DbMemoryFactRow>(input.database, 'SELECT * FROM memory_facts WHERE card_id = ?', [cardId]),
-      input.all<DbMemoryReflectionRow>(input.database, 'SELECT * FROM memory_reflections WHERE card_id = ?', [cardId]),
+      input.all<DbMemoryFactRow>(
+        input.database,
+        `SELECT *
+         FROM memory_facts
+         WHERE card_id = ?
+           AND COALESCE(validation_status, '') != 'superseded'`,
+        [cardId],
+      ),
+      input.all<DbMemoryReflectionRow>(
+        input.database,
+        `SELECT *
+         FROM memory_reflections
+         WHERE card_id = ?
+           AND status = 'confirmed'`,
+        [cardId],
+      ),
       input.all<DbEpisodicEventRow>(input.database, 'SELECT * FROM episodic_events WHERE card_id = ?', [cardId]),
       input.all<DbMemoryConsolidationRow>(input.database, 'SELECT * FROM memory_consolidations WHERE card_id = ?', [cardId]),
     ])
@@ -559,12 +629,13 @@ export function createLongTermMemorySearchIndexRuntime(input: {
         salience,
         sensitivity,
         search_text,
+        embedding_text,
         text_hash,
         created_at,
         updated_at,
         last_accessed_at,
         tombstoned
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
       ON CONFLICT(card_id, source, source_id)
       DO UPDATE SET
         kind = excluded.kind,
@@ -575,6 +646,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
         salience = excluded.salience,
         sensitivity = excluded.sensitivity,
         search_text = excluded.search_text,
+        embedding_text = excluded.embedding_text,
         text_hash = excluded.text_hash,
         created_at = excluded.created_at,
         updated_at = excluded.updated_at,
@@ -594,6 +666,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
         document.salience,
         document.sensitivity,
         document.searchText,
+        document.embeddingText,
         document.textHash,
         document.createdAt,
         document.updatedAt,
@@ -637,6 +710,81 @@ export function createLongTermMemorySearchIndexRuntime(input: {
       })
     })
     return { indexed: documents.length }
+  }
+
+  async function listLongTermMemoryEmbeddingCorpus(corpusInput: {
+    cardId: string
+    source?: string
+    sourceIds?: string[]
+    limit?: number | null
+  }) {
+    const cardId = normalizeCardId(corpusInput.cardId)
+    if (!cardId)
+      return []
+    const source = normalizeSource(corpusInput.source)
+    const sourceIds = [...new Set(
+      (corpusInput.sourceIds ?? [])
+        .map(sourceId => normalizeText(sourceId, 240))
+        .filter(Boolean),
+    )]
+    const clauses = [
+      'doc.card_id = ?',
+      'doc.tombstoned = 0',
+      'tomb.source_id IS NULL',
+    ]
+    const params: unknown[] = [cardId]
+    if (source) {
+      clauses.push('doc.source = ?')
+      params.push(source)
+    }
+    if (sourceIds.length > 0) {
+      clauses.push(`(doc.source_id IN (${sourceIds.map(() => '?').join(', ')}) OR doc.id IN (${sourceIds.map(() => '?').join(', ')}))`)
+      params.push(...sourceIds, ...sourceIds)
+    }
+    const limit = Number.isFinite(corpusInput.limit)
+      ? Math.max(1, Math.min(100_000, Math.floor(Number(corpusInput.limit))))
+      : null
+    if (limit)
+      params.push(limit)
+    const rows = await input.all<{
+      card_id: string
+      id: string
+      source: string
+      source_id: string
+      embedding_text: string
+      text_hash: string
+      updated_at: number
+    }>(
+      input.database,
+      `
+      SELECT
+        doc.card_id,
+        doc.id,
+        doc.source,
+        doc.source_id,
+        doc.embedding_text,
+        doc.text_hash,
+        doc.updated_at
+      FROM long_term_memory_search_documents doc
+      LEFT JOIN long_term_memory_tombstones tomb
+        ON tomb.card_id = doc.card_id
+        AND tomb.source_id = doc.source_id
+        AND (tomb.source = doc.source OR tomb.source = 'long_term_memory')
+      WHERE ${clauses.join(' AND ')}
+      ORDER BY doc.updated_at DESC, doc.id ASC
+      ${limit ? 'LIMIT ?' : ''}
+      `,
+      params,
+    )
+    return rows.map(row => ({
+      cardId: row.card_id,
+      documentId: row.id,
+      source: row.source,
+      sourceId: row.source_id,
+      text: row.embedding_text,
+      textHash: row.text_hash,
+      updatedAt: row.updated_at,
+    }))
   }
 
   function appendCommonFilters(
@@ -695,6 +843,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
       LEFT JOIN long_term_memory_tombstones tomb
         ON tomb.card_id = doc.card_id
         AND tomb.source_id = doc.source_id
+        AND (tomb.source = doc.source OR tomb.source = 'long_term_memory')
     `
   }
 
@@ -802,6 +951,7 @@ export function createLongTermMemorySearchIndexRuntime(input: {
   return {
     initializeSchema,
     rebuildLongTermMemorySearchIndex,
+    listLongTermMemoryEmbeddingCorpus,
     listLongTermMemorySearchItems,
   }
 }

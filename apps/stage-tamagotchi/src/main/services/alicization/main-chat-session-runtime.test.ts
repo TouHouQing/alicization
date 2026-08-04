@@ -5592,7 +5592,9 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         content: '继续把这个 runtime 问题理顺。',
       } as Message],
     })
-    ;(reflectivePrelude.perceptionAugmentation.digitalLifeRuntimeSurface?.memory as any).autobiographicalSelf = {
+    const runtimeMemory = reflectivePrelude.perceptionAugmentation.digitalLifeRuntimeSurface?.memory
+    expect(runtimeMemory).toBeTruthy()
+    ;(runtimeMemory as any).autobiographicalSelf = {
       personaDrift: {
         attachmentStyle: 'attuned',
         expressionStyle: 'warm',

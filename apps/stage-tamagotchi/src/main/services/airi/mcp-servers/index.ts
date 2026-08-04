@@ -925,7 +925,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     if (pendingPermissionRequests.size <= 0)
       return
 
-    for (const [token, pending] of [...pendingPermissionRequests.entries()]) {
+    for (const [token, pending] of pendingPermissionRequests.entries()) {
       clearTimeout(pending.timeout)
       pendingPermissionRequests.delete(token)
       await appendSafetyAudit({

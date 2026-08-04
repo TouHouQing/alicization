@@ -3,6 +3,7 @@ import { errorMessageFrom } from '@moeru/std'
 export interface LongTermMemoryEmbeddingProvider {
   modelId: string
   dimensions: number
+  vectorSpaceId?: string
   embedTexts: (texts: string[]) => Promise<Array<{ text: string, vector: number[] }>>
 }
 
@@ -11,6 +12,7 @@ export interface LongTermMemoryEmbeddingResult {
   vector: number[]
   modelId: string
   dimensions: number
+  vectorSpaceId: string
 }
 
 export interface SafeLongTermMemoryEmbeddingResult {
@@ -21,6 +23,11 @@ export interface SafeLongTermMemoryEmbeddingResult {
 
 function normalizeText(raw: unknown) {
   return typeof raw === 'string' ? raw.trim() : ''
+}
+
+export function resolveLongTermMemoryVectorSpaceId(provider: Pick<LongTermMemoryEmbeddingProvider, 'modelId' | 'dimensions' | 'vectorSpaceId'>) {
+  return normalizeText(provider.vectorSpaceId)
+    || `legacy:${normalizeText(provider.modelId)}:${Math.max(1, Math.floor(Number(provider.dimensions)))}`
 }
 
 function isValidVector(vector: unknown, dimensions: number): vector is number[] {
@@ -59,6 +66,7 @@ export async function safeEmbedLongTermMemoryTexts(input: {
         vector: item.vector,
         modelId: provider.modelId,
         dimensions: provider.dimensions,
+        vectorSpaceId: resolveLongTermMemoryVectorSpaceId(provider),
       }))
       .filter(item => item.text && isValidVector(item.vector, provider.dimensions))
 

@@ -134,6 +134,7 @@
     "rou3": "^0.7.12",
     "shiki": "^3.23.0",
     "splitpanes": "catalog:",
+    "sqlite-vec": "catalog:",
     "sqlite3": "5.1.7",
     "stackframe": "^1.3.4",
     "std-env": "^4.0.0-rc.1",

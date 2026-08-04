@@ -137,7 +137,7 @@ function createAutobiographicalSelf(overrides: Record<string, unknown> = {}) {
     playBias: 0.16,
     irritabilityThreshold: 0.62,
     stubbornness: 0.48,
-    ...((overrides.personaDrift as Record<string, unknown> | undefined) ?? {}),
+    ...(overrides.personaDrift as Record<string, unknown> | undefined),
   }
   const preferenceEvolution = {
     companionship: 0.58,
@@ -148,7 +148,7 @@ function createAutobiographicalSelf(overrides: Record<string, unknown> = {}) {
     playfulIntimacy: 0.18,
     autonomyRespect: 0.62,
     unfinishedThreadReturn: 0.58,
-    ...((overrides.preferenceEvolution as Record<string, unknown> | undefined) ?? {}),
+    ...(overrides.preferenceEvolution as Record<string, unknown> | undefined),
   }
   const restOverrides = { ...overrides }
   delete restOverrides.personaDrift

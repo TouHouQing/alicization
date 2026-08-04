@@ -65,6 +65,7 @@ interface RegisterAlicizationMaintenanceInvokeHandlersOptions {
   setActiveModelId: (value: string) => void
   setProviderCredentials: (value: Record<string, Record<string, unknown>>) => void
   persistLlmConfigToDisk: () => Promise<void>
+  resumePendingEmbeddingReindexJobs: () => Promise<unknown>
   getActiveProviderId: () => string
   getActiveModelId: () => string
   getProviderCredentials: () => Record<string, Record<string, unknown>>
@@ -106,6 +107,7 @@ export function registerAlicizationMaintenanceInvokeHandlers(options: RegisterAl
     setActiveModelId,
     setProviderCredentials,
     persistLlmConfigToDisk,
+    resumePendingEmbeddingReindexJobs,
     getActiveProviderId,
     getActiveModelId,
     getProviderCredentials,
@@ -190,6 +192,7 @@ export function registerAlicizationMaintenanceInvokeHandlers(options: RegisterAl
     setActiveModelId(sanitizeText(payload.activeModelId))
     setProviderCredentials(normalizeProviderCredentialsMap(payload.providerCredentials))
     await persistLlmConfigToDisk()
+    await resumePendingEmbeddingReindexJobs()
   })
 
   registerInvokeHandler(electronAlicizationLlmGetConfig, async () => {

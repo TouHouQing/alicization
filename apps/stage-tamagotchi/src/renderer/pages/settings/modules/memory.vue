@@ -2,7 +2,7 @@
 import { useAlicizationMemoryWorkbenchStore } from '@proj-alicization/stage-ui/stores/alicization-memory-workbench'
 import { Button } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import MemoryEmbeddingConfig from './components/memory-embedding-config.vue'
@@ -16,8 +16,12 @@ const {
   longTermNextCursor,
   personaCandidates,
   personaLoading,
+  personaTrainingDataset,
+  personaTrainingDatasetExport,
+  personaTrainingDatasetLoading,
   reindexLoading,
   reindexResult,
+  reindexDeadLetterItems,
   recallProbe,
   recallQuery,
   loading,
@@ -30,6 +34,11 @@ const {
   health,
   pendingReviewCount,
 } = storeToRefs(store)
+
+const reindexProgress = computed(() => reindexResult.value?.progress ?? null)
+const personaTrainingConsentGranted = ref(false)
+const personaTrainingPolicyVersion = ref('persona-training-consent-v1')
+const personaTrainingScope = ref('persona-dataset')
 
 const tabs = computed(() => [
   { id: 'working' as const, icon: 'i-solar:clipboard-list-bold-duotone', label: t('settings.pages.memory.workbench.tabs.working') },
@@ -73,6 +82,52 @@ const longTermFilterLabelKeys = {
   },
 } as const
 
+const reindexStatusLabelKeys = {
+  queued: 'settings.pages.memory.workbench.states.reindex_queued',
+  running: 'settings.pages.memory.workbench.states.reindex_running',
+  cancel_requested: 'settings.pages.memory.workbench.states.reindex_cancel_requested',
+  completed: 'settings.pages.memory.workbench.states.reindex_completed',
+  cancelled: 'settings.pages.memory.workbench.states.reindex_cancelled',
+  failed: 'settings.pages.memory.workbench.states.reindex_failed',
+} as const
+
+const datasetStateLabelKeys = {
+  staged: 'settings.pages.memory.workbench.states.dataset_staged',
+  quarantined: 'settings.pages.memory.workbench.states.dataset_quarantined',
+  revoked: 'settings.pages.memory.workbench.states.dataset_revoked',
+} as const
+
+const piiStatusLabelKeys = {
+  'clear': 'settings.pages.memory.workbench.states.pii_clear',
+  'detected': 'settings.pages.memory.workbench.states.pii_detected',
+  'not-checked': 'settings.pages.memory.workbench.states.pii_not_checked',
+} as const
+
+const healthStatusLabelKeys = {
+  ok: 'settings.pages.memory.workbench.states.health_ok',
+  degraded: 'settings.pages.memory.workbench.states.health_degraded',
+  error: 'settings.pages.memory.workbench.states.health_error',
+} as const
+
+const indexModeLabelKeys = {
+  'sqlite-vec': 'settings.pages.memory.workbench.states.index_sqlite_vec',
+  'hnsw': 'settings.pages.memory.workbench.states.index_hnsw',
+  'ann': 'settings.pages.memory.workbench.states.index_ann',
+  'brute-force': 'settings.pages.memory.workbench.states.index_brute_force',
+} as const
+
+const personaCandidateStatusLabelKeys = {
+  'candidate': 'settings.pages.memory.workbench.states.persona_candidate_candidate',
+  'approved': 'settings.pages.memory.workbench.states.persona_candidate_approved',
+  'rejected': 'settings.pages.memory.workbench.states.persona_candidate_rejected',
+  'no-training': 'settings.pages.memory.workbench.states.persona_candidate_no_training',
+} as const
+
+const personaPrivacyLabelKeys = {
+  'public': 'settings.pages.memory.workbench.states.persona_privacy_public',
+  'personal-redacted': 'settings.pages.memory.workbench.states.persona_privacy_personal_redacted',
+} as const
+
 const healthStatusClass = computed(() => {
   if (health.value?.status === 'ok')
     return 'text-emerald-600 dark:text-emerald-300'
@@ -95,6 +150,44 @@ function formatLongTermFilterLabel(group: LongTermFilterGroup, value: string) {
   return t(longTermFilterLabelKeys[group][value as keyof typeof longTermFilterLabelKeys[typeof group]] ?? value)
 }
 
+function formatReindexStatus(value: string) {
+  return t(reindexStatusLabelKeys[value as keyof typeof reindexStatusLabelKeys] ?? value)
+}
+
+function formatDatasetState(value: string) {
+  return t(datasetStateLabelKeys[value as keyof typeof datasetStateLabelKeys] ?? value)
+}
+
+function formatPiiStatus(value: string) {
+  return t(piiStatusLabelKeys[value as keyof typeof piiStatusLabelKeys] ?? value)
+}
+
+function formatHealthStatus(value: string) {
+  return t(healthStatusLabelKeys[value as keyof typeof healthStatusLabelKeys] ?? value)
+}
+
+function formatIndexMode(value: string) {
+  return t(indexModeLabelKeys[value as keyof typeof indexModeLabelKeys] ?? value)
+}
+
+function formatBoolean(value: boolean | null | undefined) {
+  return value ? t('settings.pages.memory.workbench.states.yes') : t('settings.pages.memory.workbench.states.no')
+}
+
+function formatCoverageRatio(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value))
+    return '-'
+  return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`
+}
+
+function formatPersonaCandidateStatus(value: string) {
+  return t(personaCandidateStatusLabelKeys[value as keyof typeof personaCandidateStatusLabelKeys] ?? value)
+}
+
+function formatPersonaPrivacyClass(value: string) {
+  return t(personaPrivacyLabelKeys[value as keyof typeof personaPrivacyLabelKeys] ?? value)
+}
+
 function resetLongTermFilters() {
   longTermFilters.value = {
     query: '',
@@ -107,9 +200,46 @@ function resetLongTermFilters() {
   void store.refreshLongTerm()
 }
 
+function currentPersonaConsent() {
+  return {
+    granted: personaTrainingConsentGranted.value,
+    policyVersion: personaTrainingPolicyVersion.value.trim() || 'persona-training-consent-v1',
+    scope: personaTrainingScope.value.trim() || 'persona-dataset',
+  }
+}
+
+function stagePersonaDataset() {
+  void store.stagePersonaTrainingDataset(currentPersonaConsent())
+}
+
+function exportPersonaDataset(datasetId?: string | null) {
+  void store.exportPersonaTrainingDataset(datasetId)
+}
+
+function activatePersonaDataset(datasetId: string) {
+  void store.activatePersonaTrainingDataset(datasetId)
+}
+
+function rollbackPersonaDataset(datasetId: string) {
+  void store.rollbackPersonaTrainingDataset(datasetId)
+}
+
+function updatePersonaExamplePolicy(exampleId: string, allowTraining: boolean) {
+  void store.setPersonaTrainingDatasetExamplePolicy({
+    exampleId,
+    allowTraining,
+    consent: currentPersonaConsent(),
+  })
+}
+
+function revokePersonaSource(sourceId: string) {
+  void store.revokePersonaTrainingDatasetSource(sourceId)
+}
+
 onMounted(() => {
   void store.refreshSnapshot()
   void store.refreshPersonaCandidates()
+  void store.refreshPersonaTrainingDataset()
 })
 </script>
 
@@ -139,7 +269,7 @@ onMounted(() => {
           {{ t('settings.pages.memory.workbench.fields.health') }}
         </div>
         <div :class="['mt-1', 'text-sm', 'font-semibold', healthStatusClass]">
-          {{ health?.status ?? '-' }}
+          {{ health?.status ? formatHealthStatus(health.status) : '-' }}
         </div>
       </div>
       <div :class="['border', 'border-neutral-200', 'bg-white/80', 'p-3', 'dark:border-neutral-800', 'dark:bg-neutral-950/50']">
@@ -353,6 +483,175 @@ onMounted(() => {
           <Button size="sm" variant="secondary" :label="t('settings.pages.memory.workbench.actions.no_training')" :loading="reviewActionLoadingId === item.id" @click="store.applyReviewAction(item.id, 'no-training')" />
         </div>
       </article>
+
+      <section :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <div :class="['flex', 'flex-col', 'gap-3', 'lg:flex-row', 'lg:items-start', 'lg:justify-between']">
+          <div>
+            <h2 :class="['text-sm', 'font-semibold']">
+              {{ t('settings.pages.memory.workbench.fields.persona_dataset') }}
+            </h2>
+            <p :class="['mt-1', 'text-xs', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.fields.persona_dataset_description') }}
+            </p>
+          </div>
+          <div :class="['flex', 'flex-wrap', 'gap-2']">
+            <Button
+              :label="t('settings.pages.memory.workbench.actions.stage_persona_dataset')"
+              icon="i-solar:layers-minimalistic-bold-duotone"
+              size="sm"
+              :loading="personaTrainingDatasetLoading"
+              @click="stagePersonaDataset()"
+            />
+            <Button
+              :label="t('settings.pages.memory.workbench.actions.export_persona_dataset')"
+              icon="i-solar:export-bold-duotone"
+              size="sm"
+              variant="secondary"
+              :loading="personaTrainingDatasetLoading"
+              :disabled="!personaTrainingDataset?.versions.length"
+              @click="exportPersonaDataset(personaTrainingDataset?.activeVersionId)"
+            />
+          </div>
+        </div>
+
+        <div :class="['mt-4', 'grid', 'grid-cols-1', 'gap-3', 'md:grid-cols-3']">
+          <label :class="['flex', 'items-center', 'gap-2', 'text-sm']">
+            <input v-model="personaTrainingConsentGranted" type="checkbox">
+            <span>{{ t('settings.pages.memory.workbench.fields.dataset_consent') }}</span>
+          </label>
+          <label :class="['grid', 'gap-1']">
+            <span :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.dataset_policy_version') }}</span>
+            <input
+              v-model="personaTrainingPolicyVersion"
+              :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+            >
+          </label>
+          <label :class="['grid', 'gap-1']">
+            <span :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.dataset_scope') }}</span>
+            <input
+              v-model="personaTrainingScope"
+              :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+            >
+          </label>
+        </div>
+
+        <div v-if="!personaTrainingDataset" :class="['mt-4', 'border', 'border-dashed', 'border-neutral-300', 'p-4', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
+          {{ t('settings.pages.memory.workbench.states.empty_persona_dataset') }}
+        </div>
+        <template v-else>
+          <div :class="['mt-4', 'grid', 'grid-cols-1', 'gap-2', 'text-sm', 'md:grid-cols-3']">
+            <div>{{ t('settings.pages.memory.workbench.fields.dataset_active') }}: {{ personaTrainingDataset.activeVersionId ?? '-' }}</div>
+            <div>{{ t('settings.pages.memory.workbench.fields.dataset_examples') }}: {{ personaTrainingDataset.examples.length }}</div>
+            <div v-if="personaTrainingDatasetExport">
+              {{ t('settings.pages.memory.workbench.fields.dataset_hash') }}: {{ personaTrainingDatasetExport.manifest.manifestHash }}
+            </div>
+          </div>
+
+          <div :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-4', 'dark:border-neutral-800']">
+            <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.fields.dataset_versions') }}
+            </div>
+            <div :class="['mt-2', 'flex', 'flex-col', 'gap-2']">
+              <article v-for="version in personaTrainingDataset.versions" :key="version.id" :class="['border', 'border-neutral-200', 'p-3', 'dark:border-neutral-800']">
+                <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
+                  <span>v{{ version.version }}</span>
+                  <span>{{ version.schemaVersion }}</span>
+                  <span>{{ t('settings.pages.memory.workbench.fields.dataset_active') }}: {{ formatBoolean(version.activeAt !== null) }}</span>
+                  <span>{{ t('settings.pages.memory.workbench.fields.dataset_manifest') }}: {{ formatBoolean(version.exportedAt !== null) }}</span>
+                </div>
+                <div :class="['mt-2', 'text-xs', 'text-neutral-500']">
+                  {{ t('settings.pages.memory.workbench.fields.dataset_consent') }}:
+                  {{ formatBoolean(version.consentSnapshot.granted) }}
+                  · {{ version.consentSnapshot.policyVersion }}
+                  · {{ version.consentSnapshot.scope }}
+                </div>
+                <div :class="['mt-2', 'flex', 'flex-wrap', 'gap-2']">
+                  <Button
+                    v-if="personaTrainingDataset.activeVersionId !== version.id"
+                    :label="t('settings.pages.memory.workbench.actions.activate_persona_dataset')"
+                    icon="i-solar:check-circle-bold-duotone"
+                    size="sm"
+                    variant="secondary"
+                    :loading="personaTrainingDatasetLoading"
+                    @click="activatePersonaDataset(version.id)"
+                  />
+                  <Button
+                    v-if="personaTrainingDataset.activeVersionId !== version.id"
+                    :label="t('settings.pages.memory.workbench.actions.rollback_persona_dataset')"
+                    icon="i-solar:history-2-bold-duotone"
+                    size="sm"
+                    variant="secondary"
+                    :loading="personaTrainingDatasetLoading"
+                    @click="rollbackPersonaDataset(version.id)"
+                  />
+                  <Button
+                    :label="t('settings.pages.memory.workbench.actions.export_persona_dataset')"
+                    icon="i-solar:export-bold-duotone"
+                    size="sm"
+                    variant="secondary"
+                    :loading="personaTrainingDatasetLoading"
+                    @click="exportPersonaDataset(version.id)"
+                  />
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-4', 'dark:border-neutral-800']">
+            <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.fields.dataset_examples') }}
+            </div>
+            <div v-if="personaTrainingDataset.examples.length === 0" :class="['mt-2', 'text-sm', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.states.empty_persona_dataset_examples') }}
+            </div>
+            <div v-else :class="['mt-2', 'flex', 'flex-col', 'gap-2']">
+              <article v-for="example in personaTrainingDataset.examples" :key="example.id" :class="['border', 'border-neutral-200', 'p-3', 'dark:border-neutral-800']">
+                <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
+                  <span>{{ formatDatasetState(example.state) }}</span>
+                  <span>{{ t('settings.pages.memory.workbench.fields.pii_status') }}: {{ formatPiiStatus(example.piiStatus) }}</span>
+                  <span>{{ t('settings.pages.memory.workbench.fields.training') }}: {{ formatBoolean(example.allowTraining) }}</span>
+                </div>
+                <div :class="['mt-2', 'text-sm', 'font-medium']">
+                  {{ example.behaviorLesson }}
+                </div>
+                <div :class="['mt-1', 'text-xs', 'text-neutral-500']">
+                  {{ example.sourceKind }} · {{ example.sourceId }}
+                </div>
+                <div v-if="example.piiReason" :class="['mt-1', 'text-xs', 'text-rose-600', 'dark:text-rose-300']">
+                  {{ example.piiReason }}
+                </div>
+                <div :class="['mt-2', 'flex', 'flex-wrap', 'gap-2']">
+                  <Button
+                    :label="t('settings.pages.memory.workbench.actions.allow_persona_training')"
+                    icon="i-solar:check-circle-bold-duotone"
+                    size="sm"
+                    variant="secondary"
+                    :disabled="!personaTrainingConsentGranted || example.state !== 'staged' || example.piiStatus !== 'clear'"
+                    :loading="personaTrainingDatasetLoading"
+                    @click="updatePersonaExamplePolicy(example.id, true)"
+                  />
+                  <Button
+                    :label="t('settings.pages.memory.workbench.actions.block_persona_training')"
+                    icon="i-solar:shield-cross-bold-duotone"
+                    size="sm"
+                    variant="secondary"
+                    :loading="personaTrainingDatasetLoading"
+                    @click="updatePersonaExamplePolicy(example.id, false)"
+                  />
+                  <Button
+                    :label="t('settings.pages.memory.workbench.actions.revoke_persona_source')"
+                    icon="i-solar:trash-bin-2-bold-duotone"
+                    size="sm"
+                    variant="danger"
+                    :loading="personaTrainingDatasetLoading"
+                    @click="revokePersonaSource(example.sourceId)"
+                  />
+                </div>
+              </article>
+            </div>
+          </div>
+        </template>
+      </section>
     </section>
 
     <section v-else-if="activeTab === 'probe'" :class="['flex', 'flex-col', 'gap-3']">
@@ -416,9 +715,9 @@ onMounted(() => {
       </div>
       <article v-for="item in personaCandidates" :key="item.id" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
         <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
-          <span>{{ t('settings.pages.memory.workbench.fields.candidate_status') }}: {{ item.status }}</span>
-          <span>{{ t('settings.pages.memory.workbench.fields.privacy_class') }}: {{ item.privacyClass }}</span>
-          <span>{{ t('settings.pages.memory.workbench.fields.training') }}: {{ item.allowTraining ? 'allowed' : 'blocked' }}</span>
+          <span>{{ t('settings.pages.memory.workbench.fields.candidate_status') }}: {{ formatPersonaCandidateStatus(item.status) }}</span>
+          <span>{{ t('settings.pages.memory.workbench.fields.privacy_class') }}: {{ formatPersonaPrivacyClass(item.privacyClass) }}</span>
+          <span>{{ t('settings.pages.memory.workbench.fields.training') }}: {{ item.allowTraining ? t('settings.pages.memory.workbench.filters.training.allowed') : t('settings.pages.memory.workbench.filters.training.blocked') }}</span>
         </div>
         <div :class="['mt-3', 'text-xs', 'font-semibold', 'text-neutral-500']">
           {{ t('settings.pages.memory.workbench.fields.behavior_lesson') }}
@@ -461,11 +760,11 @@ onMounted(() => {
           {{ t('settings.pages.memory.workbench.fields.queue_health') }}
         </div>
         <div :class="['mt-3', 'grid', 'grid-cols-2', 'gap-2', 'text-sm']">
-          <div>pending: {{ health?.queue.pending ?? 0 }}</div>
-          <div>review: {{ health?.queue.review ?? 0 }}</div>
-          <div>applied: {{ health?.queue.applied ?? 0 }}</div>
-          <div>failed: {{ health?.queue.failed ?? 0 }}</div>
-          <div>deadLettered: {{ health?.queue.deadLettered ?? 0 }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.queue_pending') }}: {{ health?.queue.pending ?? 0 }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.queue_review') }}: {{ health?.queue.review ?? 0 }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.queue_applied') }}: {{ health?.queue.applied ?? 0 }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.queue_failed') }}: {{ health?.queue.failed ?? 0 }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.queue_dead_lettered') }}: {{ health?.queue.deadLettered ?? 0 }}</div>
         </div>
       </div>
       <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
@@ -474,9 +773,9 @@ onMounted(() => {
         </div>
         <div :class="['mt-3', 'grid', 'grid-cols-1', 'gap-2', 'text-sm']">
           <div>{{ t('settings.pages.memory.workbench.fields.recall_latency') }}: {{ health?.recall.lastLatencyMs ?? '-' }} ms</div>
-          <div>p95: {{ health?.recall.p95LatencyMs ?? '-' }} ms</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.recall_p95') }}: {{ health?.recall.p95LatencyMs ?? '-' }} ms</div>
           <div>{{ t('settings.pages.memory.workbench.fields.errors') }}: {{ health?.recall.lastError ?? '-' }}</div>
-          <div>{{ t('settings.pages.memory.workbench.fields.semantic_channel') }}: {{ health?.embedding.providerConfigured ? 'available' : 'unavailable' }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.semantic_channel') }}: {{ health?.embedding.providerConfigured ? t('settings.pages.memory.workbench.fields.available') : t('settings.pages.memory.workbench.fields.unavailable') }}</div>
         </div>
       </div>
       <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
@@ -493,12 +792,82 @@ onMounted(() => {
           />
         </div>
         <div :class="['mt-3', 'grid', 'grid-cols-1', 'gap-2', 'text-sm']">
-          <div>{{ t('settings.pages.memory.workbench.fields.embedding') }}: {{ health?.embedding.providerConfigured ? 'configured' : 'not configured' }}</div>
-          <div>model: {{ health?.embedding.modelId ?? '-' }}</div>
-          <div>dimensions: {{ health?.embedding.dimensions ?? '-' }}</div>
-          <div>reindexRequired: {{ health?.embedding.reindexRequired ?? false }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.embedding') }}: {{ health?.embedding.providerConfigured ? t('settings.pages.memory.workbench.states.configured') : t('settings.pages.memory.workbench.states.not_configured') }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.model') }}: {{ health?.embedding.modelId ?? reindexProgress?.modelId ?? '-' }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.dimensions') }}: {{ health?.embedding.dimensions ?? reindexProgress?.dimensions ?? '-' }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.index_mode') }}: {{ health?.embedding.indexMode ? formatIndexMode(health.embedding.indexMode) : '-' }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.approximate') }}: {{ formatBoolean(health?.embedding.approximate) }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.degraded') }}: {{ formatBoolean(health?.embedding.degraded) }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.native_index') }}: {{ formatBoolean(health?.embedding.nativeIndexReady) }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.search_ready') }}: {{ formatBoolean(health?.embedding.searchReady) }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.reindex_required') }}: {{ formatBoolean(health?.embedding.reindexRequired) }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.canonical_count') }}: {{ health?.embedding.canonicalCount ?? 0 }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.indexed_count') }}: {{ health?.embedding.indexedCount ?? 0 }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.missing_count') }}: {{ health?.embedding.missingCount ?? 0 }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.text_hash_mismatch_count') }}: {{ health?.embedding.textHashMismatchCount ?? 0 }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.stale_or_failed_count') }}: {{ health?.embedding.staleOrFailedCount ?? 0 }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.orphaned_count') }}: {{ health?.embedding.orphanedCount ?? 0 }}</div>
+          <div>{{ t('settings.pages.memory.workbench.fields.coverage_ratio') }}: {{ formatCoverageRatio(health?.embedding.coverageRatio) }}</div>
+          <div v-if="reindexProgress">
+            {{ t('settings.pages.memory.workbench.fields.reindex_status') }}:
+            {{ formatReindexStatus(reindexProgress.status) }}
+            ({{ reindexProgress.indexed }}/{{ reindexProgress.total }})
+          </div>
+          <div v-if="reindexProgress">
+            {{ t('settings.pages.memory.workbench.fields.reindex_progress') }}:
+            {{ Math.round(reindexProgress.progress * 100) }}%
+          </div>
+          <div v-if="reindexProgress?.lastError" :class="['text-rose-600', 'dark:text-rose-300']">
+            {{ t('settings.pages.memory.workbench.fields.errors') }}: {{ reindexProgress.lastError }}
+          </div>
           <div v-if="reindexResult">
-            indexed: {{ reindexResult.indexed }} / failed: {{ reindexResult.failed }}
+            {{ t('settings.pages.memory.workbench.fields.indexed') }}: {{ reindexResult.indexed }} /
+            {{ t('settings.pages.memory.workbench.fields.failed') }}: {{ reindexResult.failed }}
+          </div>
+          <div v-if="reindexProgress && ['queued', 'running', 'cancel_requested'].includes(reindexProgress.status)" :class="['flex', 'flex-wrap', 'gap-2']">
+            <Button
+              :label="t('settings.pages.memory.workbench.actions.cancel_reindex')"
+              icon="i-solar:close-circle-bold-duotone"
+              size="sm"
+              variant="secondary"
+              :loading="reindexLoading"
+              @click="store.cancelReindexJob(reindexProgress.jobId, t('settings.pages.memory.workbench.states.cancelled_by_user'))"
+            />
+          </div>
+          <div v-if="reindexProgress?.status === 'failed' && reindexProgress.deadLettered > 0" :class="['flex', 'flex-wrap', 'gap-2']">
+            <Button
+              :label="t('settings.pages.memory.workbench.actions.retry_dead_letter')"
+              icon="i-solar:restart-bold-duotone"
+              size="sm"
+              variant="secondary"
+              :loading="reindexLoading"
+              @click="store.retryDeadLetterReindex(reindexProgress.jobId)"
+            />
+          </div>
+          <div v-if="reindexDeadLetterItems.length > 0" :class="['flex', 'flex-col', 'gap-2', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+            <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.fields.dead_letter_items') }}
+            </div>
+            <article v-for="deadLetterItem in reindexDeadLetterItems" :key="deadLetterItem.itemId" :class="['border', 'border-rose-200', 'p-3', 'dark:border-rose-900']">
+              <div :class="['text-xs', 'text-neutral-500']">
+                {{ deadLetterItem.source }} · {{ deadLetterItem.sourceId }}
+              </div>
+              <div :class="['mt-1', 'text-xs']">
+                {{ t('settings.pages.memory.workbench.fields.attempt_count') }}: {{ deadLetterItem.attemptCount }}
+              </div>
+              <div :class="['mt-1', 'text-xs', 'text-rose-600', 'dark:text-rose-300']">
+                {{ deadLetterItem.lastError ?? '-' }}
+              </div>
+              <Button
+                :class="['mt-2']"
+                :label="t('settings.pages.memory.workbench.actions.retry_dead_letter_item')"
+                icon="i-solar:restart-bold-duotone"
+                size="sm"
+                variant="secondary"
+                :loading="reindexLoading"
+                @click="store.retryDeadLetterReindex(reindexProgress!.jobId, [deadLetterItem.itemId])"
+              />
+            </article>
           </div>
         </div>
       </div>
@@ -512,7 +881,7 @@ onMounted(() => {
       </div>
       <details :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800', 'xl:col-span-2']">
         <summary :class="['cursor-pointer', 'text-sm', 'font-semibold']">
-          raw
+          {{ t('settings.pages.memory.workbench.fields.debug_details') }}
         </summary>
         <pre :class="['mt-3', 'whitespace-pre-wrap', 'text-xs']">{{ JSON.stringify(health, null, 2) }}</pre>
       </details>

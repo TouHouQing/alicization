@@ -3996,7 +3996,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         && normalizedPayload.origin === 'user-turn'
       ) {
         const retrievedFactsForLearning = Array.isArray(structured?.retrievedFacts)
-          ? (structured?.retrievedFacts as unknown[]).filter(item => item && typeof item === 'object')
+          ? (structured.retrievedFacts as unknown[]).filter(item => item && typeof item === 'object')
           : []
         await learningActionScheduler.scheduleLearningTask({
           context: {
@@ -6051,6 +6051,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           setActiveProviderId: value => activeProviderId = value,
           setActiveModelId: value => activeModelId = value,
           persistLlmConfigToDisk,
+          resumePendingEmbeddingReindexJobs: async () => await alicizationDb.resumePendingMemoryEmbeddingReindexJobs(),
         }),
       ensureMainGatewayReachable,
       appendRuntimeDebugLine,
@@ -6342,6 +6343,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     setActiveModelId: value => activeModelId = value,
     setProviderCredentials: value => providerCredentials = value,
     persistLlmConfigToDisk,
+    resumePendingEmbeddingReindexJobs: async () => await alicizationDb.resumePendingMemoryEmbeddingReindexJobs(),
     getActiveProviderId: () => activeProviderId,
     getActiveModelId: () => activeModelId,
     getProviderCredentials: () => providerCredentials,
@@ -6366,6 +6368,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   await restoreProactiveLoopState(activeCardId)
   await restoreExecutionDeliveryState(activeCardId)
   await restoreLlmConfigFromDisk()
+  await alicizationDb.resumePendingMemoryEmbeddingReindexJobs()
   const journalMode = await alicizationDb.getJournalMode().catch(() => '')
   if (journalMode !== 'wal') {
     await appendAuditLog({

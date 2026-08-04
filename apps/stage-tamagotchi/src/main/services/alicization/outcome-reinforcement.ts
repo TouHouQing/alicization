@@ -593,6 +593,18 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
       createdAt: input.now,
     })
   }
+  const addDialogueBoundaryFact = (object: string, confidence: number) => {
+    const normalized = sanitizeText(object, 240)
+    if (!normalized)
+      return
+    result.memoryFacts.push({
+      subject: 'relationship',
+      predicate: 'boundary',
+      object: normalized,
+      confidence,
+      sourceLabel: 'dialogue-feedback',
+    })
+  }
 
   if (input.feedback === 'received') {
     addReinforcement('companionship', 0.06, 'reinforce')
@@ -612,11 +624,13 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
     addReinforcement('autonomy-respect', 0.1, 'reinforce')
     addReinforcement('temper-directness', 0.05, 'suppress')
     addReinforcement('temper-guardedness', 0.04, 'reinforce')
+    addDialogueBoundaryFact('dialogue_feedback=intrusive; host needs more space before close replies', 0.84)
   }
   if (input.feedback === 'interrupted') {
     addReinforcement('autonomy-respect', 0.06, 'reinforce')
     addReinforcement('companionship', 0.03, 'suppress')
     addReinforcement('unfinished-thread-return', 0.03, 'suppress')
+    addDialogueBoundaryFact('dialogue_feedback=interrupted; pause direct continuation until host reopens thread', 0.78)
   }
 
   appendOutcomeEpisode({

@@ -212,4 +212,51 @@ describe('memory workbench health', () => {
       await db.close()
     }
   })
+
+  it('reports the truthful vector index mode and latest reindex job state', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      embeddingProvider: {
+        modelId: 'test-embedding',
+        dimensions: 3,
+        embedTexts: async texts => texts.map(text => ({ text, vector: [1, 0, 0] })),
+      },
+    })
+    try {
+      await db.upsertMemoryReflections([{
+        id: 'reflection-index-health',
+        cardId: 'default',
+        sourceKind: 'reply',
+        targetScope: 'task',
+        summary: '向量索引健康必须诚实显示实际运行模式。',
+        lesson: '没有 native ANN 时显示 brute-force 和 degraded。',
+        status: 'confirmed',
+        confidence: 0.9,
+      }])
+      const scheduled = await db.reindexMemoryWorkbenchEmbeddings({
+        cardId: 'default',
+        sourceIds: ['reflection-index-health'],
+        limit: 1,
+      })
+      const health = await db.getMemoryWorkbenchEmbeddingHealth({ cardId: 'default' })
+
+      expect(health).toMatchObject({
+        providerConfigured: true,
+        modelId: 'test-embedding',
+        dimensions: 3,
+        indexMode: 'sqlite-vec',
+        approximate: false,
+        degraded: false,
+        nativeIndexReady: true,
+        searchReady: false,
+        lastError: null,
+        reindexJob: {
+          jobId: scheduled.jobId,
+          cardId: 'default',
+        },
+      })
+    }
+    finally {
+      await db.close()
+    }
+  })
 })

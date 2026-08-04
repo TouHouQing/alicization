@@ -250,6 +250,36 @@ describe('outcome reinforcement closure', () => {
     ]))
   })
 
+  it('writes intrusive dialogue feedback as a cleaned boundary fact for long-horizon recall', () => {
+    const closure = buildDialogueReplyFeedbackOutcomeClosure({
+      now: 13_500,
+      cardId: 'card-1',
+      sessionId: 'session-dialogue-feedback',
+      turnId: 'turn-dialogue-feedback',
+      decisionTraceId: 'trace-dialogue-feedback',
+      feedback: 'intrusive',
+      userText: '先别这样安慰我，太挤了',
+      previousAssistantText: '你现在好累，那我先陪你缓一下。',
+    })
+
+    expectEvidenceOnlyClosure(closure)
+    expect(closure.memoryFacts).toEqual([
+      expect.objectContaining({
+        subject: 'relationship',
+        predicate: 'boundary',
+        object: 'dialogue_feedback=intrusive; host needs more space before close replies',
+        confidence: 0.84,
+        sourceLabel: 'dialogue-feedback',
+      }),
+    ])
+    expect(JSON.stringify(closure.memoryFacts)).not.toContain('太挤了')
+    expect(JSON.stringify(closure.memoryFacts)).not.toContain('你现在好累')
+    expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
+      'dialogue-feedback',
+      'feedback:intrusive',
+    ]))
+  })
+
   it('retains structured execution proposal feedback without unrelated runtime carry', () => {
     const closure = buildExecutionProposalFeedbackOutcomeClosure({
       now: 14_000,

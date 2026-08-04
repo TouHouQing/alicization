@@ -538,6 +538,16 @@ pages:
         reset: 重置
         approve_candidate: 批准候选
         reject_candidate: 拒绝候选
+        stage_persona_dataset: 生成数据集版本
+        export_persona_dataset: 导出数据集清单
+        activate_persona_dataset: 激活版本
+        rollback_persona_dataset: 回滚版本
+        revoke_persona_source: 撤回来源
+        allow_persona_training: 允许该样本训练
+        block_persona_training: 禁止该样本训练
+        cancel_reindex: 取消向量重建
+        retry_dead_letter: 重试死信项目
+        retry_dead_letter_item: 重试此项目
         discover_embedding_models: 检索模型
         test_embedding_connection: 测试连通
         save_embedding_config: 保存向量配置
@@ -547,6 +557,41 @@ pages:
         empty_review: 当前没有需要你审核的记忆。
         empty_probe: 输入一句话，查看她会回想起什么。
         empty_persona: 还没有可审查的人格候选。
+        empty_persona_dataset: 还没有人格数据集版本。先生成一个仅供治理的 staging 版本。
+        empty_persona_dataset_examples: 当前版本没有可治理的样本。
+        persona_dataset_staged: 人格数据集 staging 版本已生成，尚未训练。
+        persona_dataset_exported: 已生成不可变导出清单，仍不会自动训练。
+        persona_dataset_revoked: 来源撤回已传播到数据集样本。
+        dataset_staged: 待训练
+        dataset_quarantined: 已隔离
+        dataset_revoked: 已撤回
+        pii_clear: 未发现 PII
+        pii_detected: 检测到可能的 PII
+        pii_not_checked: 尚未检查
+        health_ok: 正常
+        health_degraded: 降级
+        health_error: 错误
+        index_sqlite_vec: sqlite-vec
+        index_hnsw: HNSW
+        index_ann: ANN
+        index_brute_force: 暴力扫描（降级）
+        yes: 是
+        no: 否
+        persona_candidate_candidate: 待审查
+        persona_candidate_approved: 已批准
+        persona_candidate_rejected: 已拒绝
+        persona_candidate_no_training: 禁止训练
+        persona_privacy_public: 普通
+        persona_privacy_personal_redacted: 个人（已脱敏）
+        configured: 已配置
+        not_configured: 未配置
+        cancelled_by_user: 用户取消向量重建
+        reindex_queued: 等待执行
+        reindex_running: 正在重建
+        reindex_cancel_requested: 正在取消
+        reindex_completed: 重建完成
+        reindex_cancelled: 已取消
+        reindex_failed: 重建失败
         empty_embedding_models: 填写服务根地址和 API Key 后检索可用向量模型；如果服务不返回列表，也可以直接输入模型名。
         embedding_config_saved: 向量配置已保存，正在刷新记忆健康状态。
         loading: 正在读取记忆状态...
@@ -586,6 +631,11 @@ pages:
         embedding_configuration_description: 这里配置长期记忆语义召回使用的 embedding 模型。只需要填写服务根地址，例如 https://api.siliconflow.cn，Alicization 会自动请求 /v1/embeddings。embedding 只是检索表示，不是人格本体；更换模型后需要重建向量索引。
         embedding_models: 可选模型
         embedding_connection: 连通测试
+        reindex_required: 需要重建索引
+        reindex_status: 重建状态
+        reindex_progress: 重建进度
+        indexed: 已索引
+        failed: 失败
         policy: 策略
         source: 来源
         status: 状态
@@ -599,6 +649,43 @@ pages:
         source_ids: 来源 ID
         candidate_status: 候选状态
         kind: 类型
+        persona_dataset: 人格数据集
+        dataset_version: 数据集版本
+        dataset_schema: 数据集 Schema
+        dataset_active: 当前激活版本
+        dataset_consent: Consent 快照
+        dataset_policy_version: Consent 策略版本
+        dataset_scope: Consent 范围
+        dataset_manifest: 导出 Manifest
+        dataset_hash: Manifest 哈希
+        dataset_versions: 数据集版本
+        dataset_examples: 数据集样本
+        persona_dataset_description: 只允许来自已清洗的长期反思或人格强化样本。默认不允许训练，所有动作只写治理策略，不会自动启动训练。
+        dataset_example_state: 样本状态
+        pii_status: PII 状态
+        quarantined: 已隔离
+        revoked: 已撤回
+        queue_pending: 待处理
+        queue_review: 待审核
+        queue_applied: 已应用
+        queue_failed: 失败
+        queue_dead_lettered: 死信
+        dead_letter_items: 向量重建死信明细
+        attempt_count: 已尝试次数
+        recall_p95: P95 延迟
+        index_mode: 索引模式
+        approximate: 近似检索
+        degraded: 降级
+        native_index: 原生索引
+        search_ready: 可检索
+        canonical_count: 长期记忆语料总数
+        indexed_count: 当前空间已索引
+        missing_count: 缺失向量
+        text_hash_mismatch_count: 内容哈希不一致
+        stale_or_failed_count: 过期或失败向量
+        orphaned_count: 孤儿向量
+        coverage_ratio: 向量覆盖率
+        debug_details: 调试详情
       filters:
         kind:
           all: 全部类型

@@ -29,6 +29,7 @@ function createInput(overrides?: Partial<Parameters<typeof syncAlicizationMainCh
     setActiveProviderId: vi.fn(),
     setActiveModelId: vi.fn(),
     persistLlmConfigToDisk: vi.fn(async () => {}),
+    resumePendingEmbeddingReindexJobs: vi.fn(async () => {}),
     ...overrides,
   }
 }
@@ -48,6 +49,7 @@ describe('main chat llm route sync', () => {
       },
     })
     expect(input.persistLlmConfigToDisk).toHaveBeenCalledTimes(1)
+    expect(input.resumePendingEmbeddingReindexJobs).toHaveBeenCalledTimes(1)
     expect(result).toEqual({
       activeProviderId: 'openai',
       activeModelId: 'gpt-4o-mini',

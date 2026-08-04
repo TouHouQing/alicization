@@ -64,6 +64,10 @@ export function buildHabitPolicy(input: {
   const correctionSensitivity = input.relationshipModel?.correctionSensitivity ?? 0.34
   const revisionPressure = input.reflectionLedger?.revisionPressure ?? 0
   const personalityAuthority = deriveAlicizationPersonaAuthorityInfluence(input.personalityAuthority ?? null)
+  const autonomyRespectPreference = input.autobiographicalSelf?.preferenceEvolution.autonomyRespect ?? 0
+  const quietObservationPreference = input.autobiographicalSelf?.preferenceEvolution.quietObservation ?? 0
+  const relationshipApproach = input.relationshipModel?.approachVector ?? null
+  const activeBoundaries = input.relationshipModel?.activeBoundaries ?? []
   void input.selfEvolution
 
   const requiresGroundingBeforeSurface
@@ -92,8 +96,15 @@ export function buildHabitPolicy(input: {
         boundaryDrive >= 0.56
         || correctionSensitivity >= 0.62
         || hostRhythm.workMode === 'deep-focus'
+        || relationshipApproach === 'give-space'
         || personalityAuthority.roomBias >= 0.22
-        || (input.autobiographicalSelf?.preferenceEvolution.autonomyRespect ?? 0) >= 0.62
+        || autonomyRespectPreference >= 0.62
+        || (
+          activeBoundaries.includes('focus-protection')
+          && autonomyRespectPreference >= 0.44
+          && quietObservationPreference >= 0.42
+        )
+        || (autonomyRespectPreference >= 0.5 && quietObservationPreference >= 0.56)
         || Boolean(relationshipEra?.lesson)
       )
   const protectsRestWindow

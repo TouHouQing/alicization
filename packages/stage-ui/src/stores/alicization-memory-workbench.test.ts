@@ -1,5 +1,5 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { clearAlicizationBridge, setAlicizationBridge } from './alicization-bridge'
 import { useAlicizationMemoryWorkbenchStore } from './alicization-memory-workbench'
@@ -8,6 +8,10 @@ describe('alicization memory workbench store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     clearAlicizationBridge()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('stays empty when bridge is unavailable', async () => {
@@ -93,6 +97,65 @@ describe('alicization memory workbench store', () => {
 
     expect(store.snapshot?.health.status).toBe('ok')
     expect(store.recallProbe?.intent.mode).toBe('episodic')
+  })
+
+  it('restores a persisted embedding reindex job from the health snapshot', async () => {
+    const reindexJob = {
+      jobId: 'job-restored',
+      cardId: 'default',
+      status: 'running',
+      modelId: 'local',
+      dimensions: 3,
+      total: 4,
+      pending: 2,
+      leased: 0,
+      indexed: 2,
+      retryable: 0,
+      deadLettered: 0,
+      cancelled: 0,
+      progress: 0.5,
+      lastError: null,
+      createdAt: 1,
+      updatedAt: 2,
+      startedAt: 1,
+      completedAt: null,
+      nextRetryAt: null,
+    } as const
+    setAlicizationBridge({
+      memoryWorkbenchGetSnapshot: vi.fn(async () => ({
+        cardId: 'default',
+        sessionId: null,
+        updatedAt: 2,
+        workingMemory: null,
+        longTerm: { total: 0, byKind: {}, items: [] },
+        review: { pending: 0, items: [] },
+        health: {
+          status: 'degraded',
+          queue: { pending: 0, review: 0, applied: 0, failed: 0, deadLettered: 0 },
+          recall: { lastLatencyMs: null, p95LatencyMs: null, lastError: null },
+          embedding: {
+            providerConfigured: true,
+            modelId: 'local',
+            dimensions: 3,
+            reindexRequired: true,
+            indexMode: 'brute-force',
+            approximate: false,
+            degraded: true,
+            nativeIndexReady: false,
+            searchReady: false,
+            lastError: null,
+            reindexJob,
+          },
+          errors: [],
+        },
+      })),
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.refreshSnapshot()
+
+    expect(store.reindexResult?.jobId).toBe('job-restored')
+    expect(store.reindexResult?.progress?.progress).toBe(0.5)
   })
 
   it('resets long-term cursor when filters change and appends when loading more', async () => {
@@ -183,6 +246,148 @@ describe('alicization memory workbench store', () => {
     expect(store.reindexResult?.indexed).toBe(1)
   })
 
+  it('controls a persisted reindex job through status, cancel, and dead-letter retry actions', async () => {
+    const progress = {
+      jobId: 'job-1',
+      cardId: 'default',
+      status: 'queued',
+      modelId: 'local',
+      dimensions: 3,
+      total: 2,
+      pending: 2,
+      leased: 0,
+      indexed: 0,
+      retryable: 0,
+      deadLettered: 0,
+      cancelled: 0,
+      progress: 0,
+      lastError: null,
+      createdAt: 1,
+      updatedAt: 1,
+      startedAt: null,
+      completedAt: null,
+      nextRetryAt: null,
+    } as const
+    const memoryWorkbenchReindexEmbeddings = vi.fn()
+      .mockResolvedValueOnce({ jobId: 'job-1', status: 'queued', scheduled: 2, indexed: 0, failed: 0, modelId: 'local', dimensions: 3, errors: [], progress })
+      .mockResolvedValueOnce({ jobId: 'job-1', status: 'running', scheduled: 2, indexed: 1, failed: 0, modelId: 'local', dimensions: 3, errors: [], progress: { ...progress, status: 'running', indexed: 1, pending: 1, progress: 0.5 } })
+      .mockResolvedValueOnce({ jobId: 'job-1', status: 'cancelled', scheduled: 2, indexed: 1, failed: 0, modelId: 'local', dimensions: 3, errors: ['用户取消 embedding 重建'], progress: { ...progress, status: 'cancelled', indexed: 1, pending: 0, cancelled: 1, progress: 1, lastError: '用户取消 embedding 重建' } })
+      .mockResolvedValueOnce({
+        jobId: 'job-1',
+        status: 'failed',
+        scheduled: 2,
+        indexed: 1,
+        failed: 1,
+        modelId: 'local',
+        dimensions: 3,
+        errors: ['provider rejected item'],
+        progress: { ...progress, status: 'failed', indexed: 1, pending: 0, deadLettered: 1, progress: 1, lastError: 'provider rejected item' },
+        deadLetterItems: [{
+          itemId: 'item-dead-letter',
+          source: 'memory_reflections',
+          sourceId: 'reflection-dead-letter',
+          attemptCount: 3,
+          lastError: 'provider rejected item',
+        }],
+      })
+      .mockResolvedValueOnce({ jobId: 'job-1', status: 'queued', scheduled: 2, indexed: 1, failed: 0, modelId: 'local', dimensions: 3, errors: [], progress: { ...progress, status: 'queued', indexed: 1, pending: 1, deadLettered: 0, progress: 0.5 }, deadLetterItems: [] })
+    setAlicizationBridge({ memoryWorkbenchReindexEmbeddings } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.reindexEmbeddings()
+    await store.refreshReindexJob('job-1')
+    await store.cancelReindexJob('job-1', '用户取消 embedding 重建')
+    await store.refreshReindexJob('job-1')
+    expect(store.reindexDeadLetterItems).toEqual([
+      expect.objectContaining({
+        itemId: 'item-dead-letter',
+        sourceId: 'reflection-dead-letter',
+        attemptCount: 3,
+      }),
+    ])
+    await store.retryDeadLetterReindex('job-1', ['item-dead-letter'])
+
+    expect(memoryWorkbenchReindexEmbeddings.mock.calls.map(call => call[0])).toEqual([
+      { action: 'start' },
+      { action: 'status', jobId: 'job-1' },
+      { action: 'cancel', jobId: 'job-1', reason: '用户取消 embedding 重建' },
+      { action: 'status', jobId: 'job-1' },
+      { action: 'retry-dead-letter', jobId: 'job-1', itemIds: ['item-dead-letter'] },
+    ])
+    expect(store.reindexResult?.status).toBe('queued')
+    expect(store.reindexDeadLetterItems).toEqual([])
+  })
+
+  it('polls an active reindex job until it reaches a terminal state', async () => {
+    vi.useFakeTimers()
+    const progress = {
+      jobId: 'job-polling',
+      cardId: 'default',
+      status: 'queued',
+      modelId: 'local',
+      dimensions: 3,
+      total: 2,
+      pending: 2,
+      leased: 0,
+      indexed: 0,
+      retryable: 0,
+      deadLettered: 0,
+      cancelled: 0,
+      progress: 0,
+      lastError: null,
+      createdAt: 1,
+      updatedAt: 1,
+      startedAt: null,
+      completedAt: null,
+      nextRetryAt: null,
+    } as const
+    const memoryWorkbenchReindexEmbeddings = vi.fn()
+      .mockResolvedValueOnce({
+        jobId: 'job-polling',
+        status: 'queued',
+        scheduled: 2,
+        indexed: 0,
+        failed: 0,
+        modelId: 'local',
+        dimensions: 3,
+        errors: [],
+        progress,
+      })
+      .mockResolvedValueOnce({
+        jobId: 'job-polling',
+        status: 'running',
+        scheduled: 2,
+        indexed: 1,
+        failed: 0,
+        modelId: 'local',
+        dimensions: 3,
+        errors: [],
+        progress: { ...progress, status: 'running', indexed: 1, pending: 1, progress: 0.5 },
+      })
+      .mockResolvedValueOnce({
+        jobId: 'job-polling',
+        status: 'completed',
+        scheduled: 2,
+        indexed: 2,
+        failed: 0,
+        modelId: 'local',
+        dimensions: 3,
+        errors: [],
+        progress: { ...progress, status: 'completed', indexed: 2, pending: 0, progress: 1, completedAt: 3 },
+      })
+    setAlicizationBridge({ memoryWorkbenchReindexEmbeddings } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.reindexEmbeddings()
+    await vi.advanceTimersByTimeAsync(4_000)
+
+    expect(store.reindexResult?.status).toBe('completed')
+    expect(memoryWorkbenchReindexEmbeddings).toHaveBeenCalledTimes(3)
+
+    await vi.advanceTimersByTimeAsync(4_000)
+    expect(memoryWorkbenchReindexEmbeddings).toHaveBeenCalledTimes(3)
+  })
+
   it('discovers embedding models and tests embedding connectivity through the bridge', async () => {
     const memoryWorkbenchListEmbeddingModels = vi.fn(async payload => ({
       items: [
@@ -229,5 +434,84 @@ describe('alicization memory workbench store', () => {
     expect(memoryWorkbenchTestEmbeddingConnection).toHaveBeenCalledWith(expect.objectContaining({
       model: 'text-embedding-3-small',
     }))
+  })
+
+  it('keeps persona dataset governance actions in the bridge without starting training', async () => {
+    const dataset = {
+      cardId: 'default',
+      activeVersionId: 'dataset:default:1',
+      versions: [{
+        id: 'dataset:default:1',
+        cardId: 'default',
+        version: 1,
+        schemaVersion: 'persona-training-dataset-v1',
+        consentSnapshot: {
+          granted: false,
+          policyVersion: 'v1',
+          scope: 'persona-dataset',
+          capturedAt: 1,
+        },
+        createdAt: 1,
+        exportedAt: null,
+        activeAt: null,
+        rolledBackAt: null,
+      }],
+      examples: [],
+    } as const
+    const memoryWorkbenchGetPersonaTrainingDataset = vi.fn(async () => dataset)
+    const memoryWorkbenchStagePersonaTrainingDataset = vi.fn(async () => dataset.versions[0])
+    const memoryWorkbenchExportPersonaTrainingDataset = vi.fn(async () => ({
+      dataset: dataset.versions[0],
+      manifest: {
+        datasetId: dataset.versions[0].id,
+        cardId: 'default',
+        version: 1,
+        schemaVersion: 'persona-training-dataset-v1',
+        exportedAt: 2,
+        consentSnapshot: dataset.versions[0].consentSnapshot,
+        examples: [],
+        manifestHash: 'hash',
+      },
+    }))
+    const memoryWorkbenchActivatePersonaTrainingDataset = vi.fn(async () => dataset.versions[0])
+    const memoryWorkbenchRollbackPersonaTrainingDataset = vi.fn(async () => dataset.versions[0])
+    const memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy = vi.fn(async () => null)
+    const memoryWorkbenchRevokePersonaTrainingDatasetSource = vi.fn(async () => ({ affected: 1 }))
+    setAlicizationBridge({
+      memoryWorkbenchGetPersonaTrainingDataset,
+      memoryWorkbenchStagePersonaTrainingDataset,
+      memoryWorkbenchExportPersonaTrainingDataset,
+      memoryWorkbenchActivatePersonaTrainingDataset,
+      memoryWorkbenchRollbackPersonaTrainingDataset,
+      memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy,
+      memoryWorkbenchRevokePersonaTrainingDatasetSource,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.refreshPersonaTrainingDataset()
+    await store.stagePersonaTrainingDataset({ granted: false, policyVersion: 'v1', scope: 'persona-dataset' })
+    await store.exportPersonaTrainingDataset(dataset.versions[0].id)
+    await store.activatePersonaTrainingDataset(dataset.versions[0].id)
+    await store.rollbackPersonaTrainingDataset(dataset.versions[0].id)
+    await store.setPersonaTrainingDatasetExamplePolicy({
+      exampleId: 'example-1',
+      allowTraining: true,
+      consent: { granted: true, policyVersion: 'v2', scope: 'persona-dataset' },
+    })
+    await store.revokePersonaTrainingDatasetSource('reflection-1')
+
+    expect(memoryWorkbenchStagePersonaTrainingDataset).toHaveBeenCalledWith(expect.objectContaining({
+      consent: { granted: false, policyVersion: 'v1', scope: 'persona-dataset' },
+    }))
+    expect(memoryWorkbenchExportPersonaTrainingDataset).toHaveBeenCalledWith({
+      datasetId: dataset.versions[0].id,
+    })
+    expect(memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy).toHaveBeenCalledWith(expect.objectContaining({
+      allowTraining: true,
+    }))
+    expect(memoryWorkbenchRevokePersonaTrainingDatasetSource).toHaveBeenCalledWith({
+      sourceId: 'reflection-1',
+    })
+    expect(store.personaTrainingDatasetExport?.manifest.manifestHash).toBe('hash')
   })
 })
