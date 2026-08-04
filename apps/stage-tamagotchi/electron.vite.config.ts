@@ -25,6 +25,12 @@ const shouldEnableVueI18nPlugin = processEnv.ALICIZATION_SKIP_VUE_I18N_PLUGIN !=
 const pnpmStoreDir = resolve(join(homedir(), 'Library', 'pnpm', 'store'))
 const onnxruntimeCommonPackageDir = resolve(join(appNodeModulesDir, 'onnxruntime-common'))
 const onnxruntimeCommonEntry = resolve(join(onnxruntimeCommonPackageDir, 'dist', 'esm', 'index.js'))
+const piniaPackageDir = resolve(join(appNodeModulesDir, 'pinia'))
+const piniaModuleEntry = resolve(join(piniaPackageDir, 'dist', 'pinia.mjs'))
+const vueI18nPackageDir = resolve(join(appNodeModulesDir, 'vue-i18n'))
+const vueI18nModuleEntry = resolve(join(vueI18nPackageDir, 'dist', 'vue-i18n.runtime.mjs'))
+const vueRouterPackageDir = resolve(join(appNodeModulesDir, 'vue-router'))
+const vueRouterModuleEntry = resolve(join(vueRouterPackageDir, 'dist', 'vue-router.mjs'))
 const threePackageDir = resolve(join(appNodeModulesDir, 'three'))
 const threeModuleEntry = resolve(join(threePackageDir, 'build', 'three.module.js'))
 const tresTemplateCompilerWhitelist = new Set([
@@ -169,7 +175,20 @@ export default defineConfig({
     },
 
     resolve: {
+      dedupe: ['pinia', 'vue-i18n', 'vue-router'],
       alias: [
+        {
+          find: /^pinia$/,
+          replacement: piniaModuleEntry,
+        },
+        {
+          find: /^vue-i18n$/,
+          replacement: vueI18nModuleEntry,
+        },
+        {
+          find: /^vue-router$/,
+          replacement: vueRouterModuleEntry,
+        },
         {
           find: '@proj-alicization/server-sdk',
           replacement: resolve(join(import.meta.dirname, '..', '..', 'packages', 'server-sdk', 'src')),

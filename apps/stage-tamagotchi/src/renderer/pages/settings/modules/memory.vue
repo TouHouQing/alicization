@@ -197,14 +197,6 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
 }
 
-function qualityTraceLabel(trace: Record<string, unknown>) {
-  return typeof trace.fixtureId === 'string'
-    ? trace.fixtureId
-    : typeof trace.id === 'string'
-      ? trace.id
-      : '-'
-}
-
 function qualityRankReasonSummary(trace: Record<string, unknown>) {
   const rankReasonsById = asRecord(trace.rankReasonsById)
   if (!rankReasonsById)
