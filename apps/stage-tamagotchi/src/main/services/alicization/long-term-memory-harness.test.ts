@@ -190,4 +190,84 @@ describe('long-term memory harness', () => {
       modelId: 'test-embedding',
     }))
   })
+
+  it('fails when only part of the expected memory set is recalled', () => {
+    const result = runLongTermMemoryHarnessFixture({
+      now,
+      fixture: {
+        id: 'partial-expected-set',
+        currentUserText: '继续修 embedding 配置和失败透明链路',
+        currentThreadTitle: 'embedding 配置质量闭环',
+        activeTask: '继续修 embedding 配置和失败透明链路',
+        expectedMode: 'task',
+        expectedTopIds: ['embedding-config', 'failure-transparency'],
+        limit: 1,
+        candidates: [
+          {
+            id: 'embedding-config',
+            kind: 'consolidation',
+            summary: 'embedding 配置要求只填 baseUrl，系统补 /v1/embeddings。',
+            source: 'memory_consolidations',
+            confidence: 0.9,
+            salience: 0.9,
+            cues: ['embedding 配置', 'baseUrl'],
+          },
+          {
+            id: 'failure-transparency',
+            kind: 'reflection',
+            summary: 'Provider 失败和工具失败必须明确告诉用户。',
+            source: 'memory_reflections',
+            confidence: 0.9,
+            salience: 0.9,
+            cues: ['失败透明', 'Provider 失败'],
+          },
+        ],
+      },
+    })
+
+    expect(result.metrics.recallAtK).toBe(0.5)
+    expect(result.passed).toBe(false)
+  })
+
+  it('fails when wrong-thread evidence leaks into selected recall', () => {
+    const result = runLongTermMemoryHarnessFixture({
+      now,
+      fixture: {
+        id: 'wrong-thread-leak-gate',
+        currentUserText: '继续上次那个开发任务',
+        currentThreadTitle: 'embedding 配置质量闭环',
+        activeTask: '修 embedding 配置质量 harness',
+        expectedMode: 'task',
+        expectedTopIds: ['embedding-config-current-thread'],
+        wrongThreadIds: ['legacy-fixed-template-thread'],
+        limit: 2,
+        candidates: [
+          {
+            id: 'embedding-config-current-thread',
+            kind: 'consolidation',
+            summary: '当前线程在修 embedding 配置质量 harness。',
+            source: 'memory_consolidations',
+            confidence: 0.82,
+            salience: 0.82,
+            cues: ['embedding 配置', '质量 harness'],
+            threadAnchor: 'embedding 配置质量闭环',
+          },
+          {
+            id: 'legacy-fixed-template-thread',
+            kind: 'consolidation',
+            summary: '旧线程也出现过继续上次那个开发任务，但主题是固定模板清理。',
+            source: 'memory_consolidations',
+            confidence: 0.95,
+            salience: 0.95,
+            cues: ['继续上次那个开发任务', '固定模板清理'],
+            threadAnchor: '固定模板清理旧线程',
+          },
+        ],
+      },
+    })
+
+    expect(result.topIds).toContain('legacy-fixed-template-thread')
+    expect(result.metrics.wrongThreadRate).toBeGreaterThan(0)
+    expect(result.passed).toBe(false)
+  })
 })

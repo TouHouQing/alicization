@@ -19,6 +19,7 @@ export interface LongTermMemoryHarnessFixture {
   expectedTopIds: string[]
   forbiddenTopIds?: string[]
   blockedIds?: string[]
+  blockedPolicy?: 'pre-filter' | 'observe'
   wrongThreadIds?: string[]
   semanticExpectedIds?: string[]
   semanticScores?: Record<string, number>
@@ -137,7 +138,9 @@ export function runLongTermMemoryHarnessFixture(input: {
   const bundle = buildLongTermMemoryEvidenceBundle({
     intent,
     plan,
-    candidates: fixture.candidates.filter(candidate => !(fixture.blockedIds ?? []).includes(candidate.id)),
+    candidates: fixture.blockedPolicy === 'observe'
+      ? fixture.candidates
+      : fixture.candidates.filter(candidate => !(fixture.blockedIds ?? []).includes(candidate.id)),
     now: input.now,
     limit: fixture.limit ?? 5,
     semanticScores: fixture.semanticScores,
@@ -153,12 +156,14 @@ export function runLongTermMemoryHarnessFixture(input: {
   const modePassed = fixture.expectedMode ? bundle.intent.mode === fixture.expectedMode : true
   const expectedPass = fixture.expectedTopIds.length === 0
     ? topIds.length === 0
-    : hitCount > 0
+    : hitCount >= fixture.expectedTopIds.length
   const blockedLeakCount = (fixture.blockedIds ?? []).filter(id => selectedSet.has(id)).length
   const wrongThreadCount = (fixture.wrongThreadIds ?? []).filter(id => selectedSet.has(id)).length
   const semanticExpectedIds = fixture.semanticExpectedIds ?? []
+  const evidenceById = new Map(bundle.evidence.map(item => [item.candidate.id, item]))
   const semanticHitCount = semanticExpectedIds.filter(id =>
-    selectedSet.has(id) && (fixture.semanticScores?.[id] ?? 0) > 0,
+    selectedSet.has(id)
+    && evidenceById.get(id)?.rankReasons.some(reason => reason.startsWith('rrf:semantic')) === true,
   ).length
   const metrics: LongTermMemoryHarnessMetrics = {
     recallAtK: fixture.expectedTopIds.length === 0 ? 1 : clamp01(hitCount / fixture.expectedTopIds.length),
@@ -193,6 +198,8 @@ export function runLongTermMemoryHarnessFixture(input: {
     error: null,
     createdAt: input.now,
   }
+  const semanticPass = semanticExpectedIds.length === 0
+    || (trace.semantic.available === true && metrics.semanticHitRate === 1)
 
   return {
     fixtureId: fixture.id,
@@ -205,7 +212,12 @@ export function runLongTermMemoryHarnessFixture(input: {
     sourceTraceRate: metrics.sourceTraceRate,
     metrics,
     trace,
-    passed: modePassed && expectedPass && falseRecallCount === 0 && blockedLeakCount === 0,
+    passed: modePassed
+      && expectedPass
+      && falseRecallCount === 0
+      && blockedLeakCount === 0
+      && wrongThreadCount === 0
+      && semanticPass,
   }
 }
 

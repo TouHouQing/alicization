@@ -13,10 +13,15 @@ import type {
   LongTermMemoryQueryPlan,
   LongTermMemoryRecallIntent,
 } from './long-term-memory-recall'
+import type {
+  MemoryUserTrialFinding,
+  MemoryUserTrialResult,
+} from './memory-user-trial-harness'
 
 import { errorMessageFrom } from '@moeru/std'
 
 import { runWorkingMemoryQualityHarnessFixture } from './life-core/working-memory-quality-harness'
+import { runMemoryUserTrialHarness } from './memory-user-trial-harness'
 
 export interface DbBackedLongTermMemoryQualityFixture {
   id: string
@@ -25,6 +30,7 @@ export interface DbBackedLongTermMemoryQualityFixture {
   expectedTopIds: string[]
   forbiddenTopIds?: string[]
   blockedIds?: string[]
+  wrongThreadIds?: string[]
   limit?: number
   semantic?: LongTermMemoryHarnessSemanticState
 }
@@ -55,14 +61,19 @@ export interface MemoryQualityHarnessReport {
   summary: {
     longTermFixtureCount: number
     workingMemoryFixtureCount: number
+    userTrialCount: number
     failingFixtureIds: string[]
     recallAtK: number
     compressionLossCount: number
     blockedLeakCount: number
+    optimizationFindingCount: number
     lastError: string | null
   }
   longTerm: DbBackedLongTermMemoryQualityResult[]
   workingMemory: WorkingMemoryQualityResult[]
+  userTrials: MemoryUserTrialResult[]
+  optimizationFindings: MemoryUserTrialFinding[]
+  recommendedNextActions: string[]
   traces: Array<LongTermMemoryHarnessTrace | WorkingMemoryQualityTrace>
 }
 
@@ -97,11 +108,18 @@ function defaultSemanticState(): LongTermMemoryHarnessSemanticState {
   }
 }
 
+function averageQualityMetric(values: number[], emptyValue = 1) {
+  return values.length === 0
+    ? emptyValue
+    : values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
 function metricFromBundle(input: {
   bundle: LongTermMemoryEvidenceBundle
   expectedTopIds: string[]
   forbiddenTopIds: string[]
   blockedIds: string[]
+  wrongThreadIds: string[]
   latencyMs: number
 }) {
   const topIds = input.bundle.evidence.map(item => item.candidate.id)
@@ -111,6 +129,8 @@ function metricFromBundle(input: {
   const hitCount = topIds.filter(id => expectedSet.has(id)).length
   const falseRecallCount = topIds.filter(id => forbiddenSet.has(id)).length
   const blockedLeakCount = topIds.filter(id => blockedSet.has(id)).length
+  const wrongThreadSet = new Set(input.wrongThreadIds)
+  const wrongThreadCount = topIds.filter(id => wrongThreadSet.has(id)).length
   const firstExpectedIndex = topIds.findIndex(id => expectedSet.has(id))
   const tracedCount = input.bundle.evidence.filter(item => item.candidate.id && item.candidate.source).length
   const semanticHitCount = input.bundle.evidence.filter(item =>
@@ -123,7 +143,7 @@ function metricFromBundle(input: {
     mrr: firstExpectedIndex >= 0 ? 1 / (firstExpectedIndex + 1) : 0,
     ndcg: binaryNdcgAtK(topIds, input.expectedTopIds),
     falseRecallRate: topIds.length === 0 ? 0 : clamp01(falseRecallCount / topIds.length),
-    wrongThreadRate: 0,
+    wrongThreadRate: topIds.length === 0 ? 0 : clamp01(wrongThreadCount / topIds.length),
     blockedLeakCount,
     semanticHitRate: input.expectedTopIds.length === 0 ? 1 : clamp01(semanticHitCount / input.expectedTopIds.length),
     sourceTraceRate: input.bundle.evidence.length === 0 ? 1 : clamp01(tracedCount / input.bundle.evidence.length),
@@ -221,6 +241,7 @@ export async function runDbBackedLongTermMemoryQualityFixture(input: DbBackedLon
       expectedTopIds: input.fixture.expectedTopIds,
       forbiddenTopIds: input.fixture.forbiddenTopIds ?? [],
       blockedIds: input.fixture.blockedIds ?? [],
+      wrongThreadIds: input.fixture.wrongThreadIds ?? [],
       latencyMs,
     })
     const trace = buildTrace({
@@ -238,8 +259,9 @@ export async function runDbBackedLongTermMemoryQualityFixture(input: DbBackedLon
       topIds: evaluated.topIds,
       metrics: evaluated.metrics,
       trace,
-      passed: evaluated.metrics.recallAtK > 0
+      passed: evaluated.metrics.recallAtK === 1
         && evaluated.metrics.falseRecallRate === 0
+        && evaluated.metrics.wrongThreadRate === 0
         && evaluated.metrics.blockedLeakCount === 0,
     }
   }
@@ -281,20 +303,34 @@ export async function runMemoryQualityHarnessSuite(input: {
   createdAt: number
   longTerm: DbBackedLongTermMemoryQualityInput[]
   workingMemory: WorkingMemoryQualityFixture[]
+  userTrials?: Parameters<typeof runMemoryUserTrialHarness>[0][]
 }): Promise<MemoryQualityHarnessReport> {
   const longTerm: DbBackedLongTermMemoryQualityResult[] = []
   for (const fixture of input.longTerm)
     longTerm.push(await runDbBackedLongTermMemoryQualityFixture(fixture))
   const workingMemory = input.workingMemory.map(fixture => runWorkingMemoryQualityHarnessFixture({ fixture }))
+  const userTrials = (input.userTrials ?? []).map(trial => runMemoryUserTrialHarness(trial))
+  const optimizationFindings = userTrials.flatMap(result => result.findings)
+  const recommendedNextActions = [...new Set(userTrials.flatMap(result => result.recommendedNextActions))]
+  const userTrialTraces = userTrials.flatMap(result => [
+    ...result.longTerm.map(item => item.trace),
+    ...result.workingMemory.map(item => item.trace),
+  ])
   const failingFixtureIds = [
     ...longTerm.filter(result => !result.passed).map(result => result.fixtureId),
     ...workingMemory.filter(result => !result.passed).map(result => result.fixtureId),
+    ...userTrials.filter(result => !result.passed).map(result => result.id),
   ]
   const traces = [
     ...longTerm.map(result => result.trace),
     ...workingMemory.map(result => result.trace),
+    ...userTrialTraces,
   ]
   const lastError = [...traces].reverse().find(trace => trace.error)?.error ?? null
+  const recallAtKScores = [
+    ...longTerm.map(result => result.metrics.recallAtK),
+    ...userTrials.map(result => result.metrics.recallAtK),
+  ]
 
   return {
     version: 'memory-quality-harness-v1',
@@ -303,14 +339,21 @@ export async function runMemoryQualityHarnessSuite(input: {
     summary: {
       longTermFixtureCount: longTerm.length,
       workingMemoryFixtureCount: workingMemory.length,
+      userTrialCount: userTrials.length,
       failingFixtureIds,
-      recallAtK: longTerm.length === 0 ? 1 : longTerm.reduce((sum, result) => sum + result.metrics.recallAtK, 0) / longTerm.length,
-      compressionLossCount: workingMemory.reduce((sum, result) => sum + result.metrics.compressionLossCount, 0),
-      blockedLeakCount: longTerm.reduce((sum, result) => sum + result.metrics.blockedLeakCount, 0),
+      recallAtK: averageQualityMetric(recallAtKScores),
+      compressionLossCount: workingMemory.reduce((sum, result) => sum + result.metrics.compressionLossCount, 0)
+        + userTrials.reduce((sum, result) => sum + result.metrics.compressionLossCount, 0),
+      blockedLeakCount: longTerm.reduce((sum, result) => sum + result.metrics.blockedLeakCount, 0)
+        + userTrials.reduce((sum, result) => sum + result.metrics.blockedLeakCount, 0),
+      optimizationFindingCount: optimizationFindings.length,
       lastError,
     },
     longTerm,
     workingMemory,
+    userTrials,
+    optimizationFindings,
+    recommendedNextActions,
     traces,
   }
 }
