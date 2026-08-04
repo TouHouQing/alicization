@@ -17,11 +17,18 @@ import type {
   MemoryUserTrialFinding,
   MemoryUserTrialResult,
 } from './memory-user-trial-harness'
+import type {
+  PersonaTrainingDatasetQualityFinding,
+  PersonaTrainingDatasetQualityFixture,
+  PersonaTrainingDatasetQualityResult,
+  PersonaTrainingDatasetQualityTrace,
+} from './persona-training-dataset-quality-harness'
 
 import { errorMessageFrom } from '@moeru/std'
 
 import { runWorkingMemoryQualityHarnessFixture } from './life-core/working-memory-quality-harness'
 import { runMemoryUserTrialHarness } from './memory-user-trial-harness'
+import { runPersonaTrainingDatasetQualityHarnessFixture } from './persona-training-dataset-quality-harness'
 
 export interface DbBackedLongTermMemoryQualityFixture {
   id: string
@@ -62,6 +69,7 @@ export interface MemoryQualityHarnessReport {
     longTermFixtureCount: number
     workingMemoryFixtureCount: number
     userTrialCount: number
+    personaTrainingFixtureCount: number
     failingFixtureIds: string[]
     recallAtK: number
     compressionLossCount: number
@@ -72,9 +80,10 @@ export interface MemoryQualityHarnessReport {
   longTerm: DbBackedLongTermMemoryQualityResult[]
   workingMemory: WorkingMemoryQualityResult[]
   userTrials: MemoryUserTrialResult[]
-  optimizationFindings: MemoryUserTrialFinding[]
+  personaTraining: PersonaTrainingDatasetQualityResult[]
+  optimizationFindings: Array<MemoryUserTrialFinding | PersonaTrainingDatasetQualityFinding>
   recommendedNextActions: string[]
-  traces: Array<LongTermMemoryHarnessTrace | WorkingMemoryQualityTrace>
+  traces: Array<LongTermMemoryHarnessTrace | WorkingMemoryQualityTrace | PersonaTrainingDatasetQualityTrace>
 }
 
 function clamp01(value: number) {
@@ -304,14 +313,24 @@ export async function runMemoryQualityHarnessSuite(input: {
   longTerm: DbBackedLongTermMemoryQualityInput[]
   workingMemory: WorkingMemoryQualityFixture[]
   userTrials?: Parameters<typeof runMemoryUserTrialHarness>[0][]
+  personaTraining?: PersonaTrainingDatasetQualityFixture[]
 }): Promise<MemoryQualityHarnessReport> {
   const longTerm: DbBackedLongTermMemoryQualityResult[] = []
   for (const fixture of input.longTerm)
     longTerm.push(await runDbBackedLongTermMemoryQualityFixture(fixture))
   const workingMemory = input.workingMemory.map(fixture => runWorkingMemoryQualityHarnessFixture({ fixture }))
   const userTrials = (input.userTrials ?? []).map(trial => runMemoryUserTrialHarness(trial))
-  const optimizationFindings = userTrials.flatMap(result => result.findings)
-  const recommendedNextActions = [...new Set(userTrials.flatMap(result => result.recommendedNextActions))]
+  const personaTraining = (input.personaTraining ?? []).map(fixture =>
+    runPersonaTrainingDatasetQualityHarnessFixture({ fixture }),
+  )
+  const optimizationFindings = [
+    ...userTrials.flatMap(result => result.findings),
+    ...personaTraining.flatMap(result => result.findings),
+  ]
+  const recommendedNextActions = [...new Set([
+    ...userTrials.flatMap(result => result.recommendedNextActions),
+    ...personaTraining.flatMap(result => result.recommendedNextActions),
+  ])]
   const userTrialTraces = userTrials.flatMap(result => [
     ...result.longTerm.map(item => item.trace),
     ...result.workingMemory.map(item => item.trace),
@@ -320,11 +339,13 @@ export async function runMemoryQualityHarnessSuite(input: {
     ...longTerm.filter(result => !result.passed).map(result => result.fixtureId),
     ...workingMemory.filter(result => !result.passed).map(result => result.fixtureId),
     ...userTrials.filter(result => !result.passed).map(result => result.id),
+    ...personaTraining.filter(result => !result.passed).map(result => result.fixtureId),
   ]
   const traces = [
     ...longTerm.map(result => result.trace),
     ...workingMemory.map(result => result.trace),
     ...userTrialTraces,
+    ...personaTraining.map(result => result.trace),
   ]
   const lastError = [...traces].reverse().find(trace => trace.error)?.error ?? null
   const recallAtKScores = [
@@ -340,6 +361,7 @@ export async function runMemoryQualityHarnessSuite(input: {
       longTermFixtureCount: longTerm.length,
       workingMemoryFixtureCount: workingMemory.length,
       userTrialCount: userTrials.length,
+      personaTrainingFixtureCount: personaTraining.length,
       failingFixtureIds,
       recallAtK: averageQualityMetric(recallAtKScores),
       compressionLossCount: workingMemory.reduce((sum, result) => sum + result.metrics.compressionLossCount, 0)
@@ -352,6 +374,7 @@ export async function runMemoryQualityHarnessSuite(input: {
     longTerm,
     workingMemory,
     userTrials,
+    personaTraining,
     optimizationFindings,
     recommendedNextActions,
     traces,

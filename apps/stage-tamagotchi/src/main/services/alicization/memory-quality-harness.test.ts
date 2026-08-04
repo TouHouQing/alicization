@@ -231,4 +231,48 @@ describe('memory quality harness', () => {
     expect(report.summary.recallAtK).toBe(0.5)
     expect(report.summary.failingFixtureIds).toContain('trial-missing-recall')
   })
+
+  it('aggregates Persona/LoRA dataset hygiene findings into the same quality report', async () => {
+    const report = await runMemoryQualityHarnessSuite({
+      createdAt: 9200,
+      longTerm: [],
+      workingMemory: [],
+      personaTraining: [{
+        id: 'persona-dataset-gap',
+        cardId: 'card-1',
+        createdAt: 9200,
+        consent: { granted: false, policyVersion: 'v1', scope: 'persona-dataset', capturedAt: 9200 },
+        datasetSchemaVersion: 'persona-training-dataset-legacy',
+        sources: [{
+          cardId: 'card-1',
+          sourceId: 'reflection-clean',
+          sourceKind: 'cleaned-long-term-reflection',
+          status: 'confirmed',
+          cleaned: true,
+          summary: '失败时直接说明 provider 问题。',
+          lesson: '不要把 provider 失败伪装成人格回复。',
+          sensitivity: 'personal',
+          allowTraining: true,
+          provenance: {
+            kind: 'working-memory-cleaning',
+            cleaningTransactionId: 'cleaning-1',
+            cleanedAt: 9100,
+          },
+        }],
+        expectedExportedSourceIds: ['reflection-clean'],
+      }],
+    })
+
+    expect(report.passed).toBe(false)
+    expect(report.summary.personaTrainingFixtureCount).toBe(1)
+    expect(report.summary.optimizationFindingCount).toBe(2)
+    expect(report.summary.failingFixtureIds).toContain('persona-dataset-gap')
+    expect(report.personaTraining[0]?.findings.map(item => item.code)).toEqual(expect.arrayContaining([
+      'persona-dataset-expected-export-miss',
+      'persona-dataset-schema-mismatch',
+    ]))
+    expect(report.recommendedNextActions).toEqual(expect.arrayContaining([
+      '检查 cleaned long-term reflection、persona reinforcement、consent 和 allowTraining 的治理链路。',
+    ]))
+  })
 })
