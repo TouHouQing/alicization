@@ -56,6 +56,60 @@ export interface PersonaTrainingDatasetQualityFixture {
   expectedDedupeCount?: number
 }
 
+function exampleHasCleaningProvenance(example: PersonaTrainingDatasetExample) {
+  return example.provenance?.kind === 'working-memory-cleaning'
+    && Boolean(normalizePersonaTrainingDatasetText(example.provenance.cleaningTransactionId, 240))
+    && Number.isFinite(example.provenance.cleanedAt)
+    && Number(example.provenance.cleanedAt) >= 0
+}
+
+export function buildPersonaDatasetQualityFixtureFromRuntimeSnapshot(input: {
+  id: string
+  cardId: string
+  createdAt: number
+  consent: PersonaTrainingDatasetConsentSnapshot
+  examples: PersonaTrainingDatasetExample[]
+  datasetSchemaVersion?: string
+}): PersonaTrainingDatasetQualityFixture {
+  const cardId = normalizeCardId(input.cardId)
+  const consent = normalizeConsent(input.consent, input.createdAt)
+  const scopedExamples = input.examples.filter(example => normalizeCardId(example.cardId) === cardId)
+  const sources = scopedExamples.map(example => ({
+    cardId: example.cardId,
+    sourceId: example.sourceId,
+    sourceKind: example.sourceKind,
+    status: example.state === 'staged' ? 'confirmed' : example.state,
+    cleaned: exampleHasCleaningProvenance(example),
+    summary: example.positiveExample,
+    lesson: example.behaviorLesson,
+    positiveExample: example.positiveExample,
+    negativeExample: example.negativeExample,
+    sensitivity: example.sensitivity,
+    allowTraining: example.allowTraining,
+    consent: example.consentSnapshot,
+    provenance: example.provenance,
+  } satisfies PersonaTrainingDatasetSource))
+  const expectedExportedSourceIds = scopedExamples
+    .filter(example =>
+      example.datasetId
+      && example.state === 'staged'
+      && example.allowTraining
+      && example.piiStatus === 'clear'
+      && example.consentSnapshot.granted
+      && exampleHasCleaningProvenance(example),
+    )
+    .map(example => example.sourceId)
+  return {
+    id: input.id,
+    cardId,
+    createdAt: input.createdAt,
+    consent,
+    sources,
+    datasetSchemaVersion: input.datasetSchemaVersion,
+    expectedExportedSourceIds,
+  }
+}
+
 export interface PersonaTrainingDatasetQualityMetrics {
   acceptedSourceCount: number
   stagedExampleCount: number

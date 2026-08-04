@@ -131,8 +131,11 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
 }): LongTermMemoryVectorIndexNativeBackend {
   let initialized = false
   let lastError: string | null = null
+  const ensuredVectorDimensions = new Set<number>()
 
   async function ensureVectorTable(dimensions: number) {
+    if (ensuredVectorDimensions.has(dimensions))
+      return
     await input.run(input.database, `
       CREATE VIRTUAL TABLE IF NOT EXISTS ${tableName(dimensions)} USING vec0(
         embedding float[${dimensions}] distance_metric=cosine,
@@ -142,6 +145,7 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
         source text
       )
     `)
+    ensuredVectorDimensions.add(dimensions)
   }
 
   async function initialize() {
@@ -206,34 +210,14 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
       if (!dimensions)
         continue
       await ensureVectorTable(dimensions)
-      const previous = await input.get<SqliteVecMappingRow>(
-        input.database,
-        'SELECT * FROM long_term_memory_sqlite_vec_rows WHERE record_id = ?',
-        [record.id],
-      )
-      if (previous && previous.dimensions !== dimensions) {
-        await input.run(
-          input.database,
-          `DELETE FROM ${tableName(previous.dimensions)} WHERE rowid = ?`,
-          [previous.native_rowid],
-        )
-      }
       const now = input.now()
-      await input.run(input.database, `
+      let mapping = await input.get<SqliteVecMappingRow>(input.database, `
         INSERT INTO long_term_memory_sqlite_vec_rows (
           record_id, card_id, source_id, source, model_id, dimensions,
           vector_space_id, canonical_text_hash, canonical_updated_at, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(record_id) DO UPDATE SET
-          card_id = excluded.card_id,
-          source_id = excluded.source_id,
-          source = excluded.source,
-          model_id = excluded.model_id,
-          dimensions = excluded.dimensions,
-          vector_space_id = excluded.vector_space_id,
-          canonical_text_hash = excluded.canonical_text_hash,
-          canonical_updated_at = excluded.canonical_updated_at,
-          updated_at = excluded.updated_at
+        ON CONFLICT(record_id) DO NOTHING
+        RETURNING *
       `, [
         record.id,
         record.cardId,
@@ -247,11 +231,50 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
         now,
         now,
       ])
-      const mapping = await input.get<SqliteVecMappingRow>(
-        input.database,
-        'SELECT * FROM long_term_memory_sqlite_vec_rows WHERE record_id = ?',
-        [record.id],
-      )
+      if (!mapping) {
+        const previous = await input.get<SqliteVecMappingRow>(
+          input.database,
+          'SELECT * FROM long_term_memory_sqlite_vec_rows WHERE record_id = ?',
+          [record.id],
+        )
+        if (previous && previous.dimensions !== dimensions) {
+          await input.run(
+            input.database,
+            `DELETE FROM ${tableName(previous.dimensions)} WHERE rowid = ?`,
+            [previous.native_rowid],
+          )
+        }
+        await input.run(input.database, `
+          UPDATE long_term_memory_sqlite_vec_rows
+          SET
+            card_id = ?,
+            source_id = ?,
+            source = ?,
+            model_id = ?,
+            dimensions = ?,
+            vector_space_id = ?,
+            canonical_text_hash = ?,
+            canonical_updated_at = ?,
+            updated_at = ?
+          WHERE record_id = ?
+        `, [
+          record.cardId,
+          record.sourceId,
+          record.source,
+          record.modelId,
+          dimensions,
+          record.vectorSpaceId,
+          record.textHash,
+          record.updatedAt,
+          now,
+          record.id,
+        ])
+        mapping = await input.get<SqliteVecMappingRow>(
+          input.database,
+          'SELECT * FROM long_term_memory_sqlite_vec_rows WHERE record_id = ?',
+          [record.id],
+        )
+      }
       if (!mapping)
         throw new Error(`sqlite-vec mapping was not created for vector: ${record.id}`)
       await input.run(input.database, `

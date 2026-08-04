@@ -74,6 +74,7 @@ import type {
 } from '../../../shared/eventa'
 import type { WorkingMemorySnapshot } from './life-core/working-memory'
 import type { WorkingMemoryLongTermQueueItem } from './life-core/working-memory-long-term-queue'
+import type { WorkingMemoryQualityFixture } from './life-core/working-memory-quality-harness'
 import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
 import type {
   LongTermMemoryEvidenceBundle,
@@ -87,6 +88,7 @@ import type {
   MemoryEmbeddingReindexProgress,
 } from './memory-embedding-reindex-runtime'
 import type { AlicizationEventGraphNeighborhood } from './memory-event-graph-runtime'
+import type { MemoryExperienceQualityFixture } from './memory-experience-quality-harness'
 import type {
   SimpleRecallGoldBenchmarkDimension,
   SimpleRecallGoldEvaluationClass,
@@ -104,6 +106,7 @@ import type {
   PersonaTrainingDatasetVersion,
 } from './persona-training-dataset-runtime'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
+import type { WorkingMemoryCompressionBehaviorFixture } from './working-memory-compression-behavior-harness'
 
 import process from 'node:process'
 
@@ -7279,6 +7282,125 @@ export async function setupAlicizationDb(
     }]
   }
 
+  function buildWorkingMemoryQualityFixturesFromCheckpoints(input: {
+    checkpoints: WorkingMemorySnapshot[]
+    createdAt: number
+  }): WorkingMemoryQualityFixture[] {
+    return input.checkpoints.map(snapshot => ({
+      id: `working-memory-runtime-checkpoint:${snapshot.cardId}:${snapshot.sessionId}`,
+      snapshot,
+      now: input.createdAt,
+      maxRawTurns: 6,
+      expectedTaskIncludes: [
+        snapshot.activeTask?.summary,
+        snapshot.currentThread?.title,
+      ].filter((value): value is string => Boolean(value)),
+      expectedQuestionIncludes: snapshot.unresolvedQuestions.map(item => item.text),
+      expectedCommitmentIncludes: snapshot.commitments.map(item => item.text),
+      expectedCorrectionIncludes: snapshot.userCorrections.map(item => item.text),
+      expectedFailureTurnIds: snapshot.audit.failureTurnIds,
+    }))
+  }
+
+  async function buildWorkingMemoryCompressionBehaviorFixtures(input: {
+    cardId: string
+    checkpoints: WorkingMemorySnapshot[]
+  }): Promise<WorkingMemoryCompressionBehaviorFixture[]> {
+    const fixtures: WorkingMemoryCompressionBehaviorFixture[] = []
+    for (const snapshot of input.checkpoints) {
+      const nextUserText = snapshot.currentThread?.currentUserMove
+        ?? [...snapshot.recentRawTurns].reverse().find(turn => turn.role === 'user')?.text
+        ?? ''
+      const hasRecallContext = snapshot.memoryQueryHints.length > 0
+        || Boolean(snapshot.currentThread?.title)
+        || Boolean(snapshot.activeTask?.summary)
+        || snapshot.commitments.length > 0
+        || snapshot.userCorrections.length > 0
+      if (!nextUserText || !hasRecallContext)
+        continue
+
+      const recalled = await retrieveLongTermMemoryEvidence({
+        cardId: input.cardId,
+        currentUserText: nextUserText,
+        workingMemoryQueryHints: snapshot.memoryQueryHints,
+        currentThreadTitle: snapshot.currentThread?.title ?? null,
+        activeTask: snapshot.activeTask?.summary ?? null,
+        limit: 5,
+      })
+      const candidates = recalled.evidence.map(item => item.candidate)
+      const expectedTopIds = recalled.evidence.slice(0, 1).map(item => item.candidate.id)
+      if (candidates.length === 0 || expectedTopIds.length === 0)
+        continue
+
+      fixtures.push({
+        id: `working-memory-runtime-behavior:${snapshot.cardId}:${snapshot.sessionId}`,
+        snapshot,
+        nextUserText,
+        candidates,
+        expectedTopIds,
+        maxRawTurns: 6,
+        expectedCommitmentIncludes: snapshot.commitments.map(item => item.text),
+        expectedCorrectionIncludes: snapshot.userCorrections.map(item => item.text),
+        expectedFailureTurnIds: snapshot.audit.failureTurnIds,
+        limit: 5,
+      })
+    }
+    return fixtures
+  }
+
+  async function buildMemoryExperienceQualityFixturesFromCheckpoints(input: {
+    cardId: string
+    checkpoints: WorkingMemorySnapshot[]
+  }): Promise<MemoryExperienceQualityFixture[]> {
+    const fixtures: MemoryExperienceQualityFixture[] = []
+    for (const snapshot of input.checkpoints) {
+      const userText = snapshot.currentThread?.currentUserMove
+        ?? [...snapshot.recentRawTurns].reverse().find(turn => turn.role === 'user')?.text
+        ?? ''
+      const replyText = snapshot.currentThread?.currentAliceMove
+        ?? [...snapshot.recentRawTurns].reverse().find(turn => turn.role === 'alice')?.text
+        ?? ''
+      if (!userText || !replyText)
+        continue
+
+      const shouldRecall = snapshot.memoryQueryHints.length > 0
+        || Boolean(snapshot.currentThread?.title)
+        || Boolean(snapshot.activeTask?.summary)
+        || snapshot.commitments.length > 0
+        || snapshot.userCorrections.length > 0
+
+      const recalled = shouldRecall
+        ? await retrieveLongTermMemoryEvidence({
+            cardId: input.cardId,
+            currentUserText: userText,
+            workingMemoryQueryHints: snapshot.memoryQueryHints,
+            currentThreadTitle: snapshot.currentThread?.title ?? null,
+            activeTask: snapshot.activeTask?.summary ?? null,
+            limit: 5,
+          })
+        : null
+      const evidence = recalled?.evidence ?? []
+      fixtures.push({
+        id: `memory-experience-runtime:${snapshot.cardId}:${snapshot.sessionId}`,
+        cardId: snapshot.cardId,
+        userText,
+        replyText,
+        shouldRecall,
+        expectedUsedMemoryIds: shouldRecall ? evidence.slice(0, 1).map(item => item.candidate.id) : [],
+        recalledMemoryIds: evidence.map(item => item.candidate.id),
+        memories: evidence.map(item => ({
+          id: item.candidate.id,
+          summary: item.candidate.summary,
+        })),
+        rankReasonsById: Object.fromEntries(evidence.map(item => [
+          item.candidate.id,
+          item.rankReasons,
+        ])),
+      })
+    }
+    return fixtures
+  }
+
   async function runMemoryWorkbenchProductionTrial(input: {
     cardId: string
     month?: string | null
@@ -7290,6 +7412,15 @@ export async function setupAlicizationDb(
     const labels = await listAllMemoryQualityGoldLabels({ cardId, month })
     const semantic = await getMemoryWorkbenchRecallProbeSemantic({ cardId })
     const personaSnapshot = await getPersonaTrainingDataset({ cardId }).catch(() => null)
+    const workingMemoryCheckpoints = await listWorkingMemoryCheckpoints(cardId, { limit: 8 })
+    const compressedContextBehavior = await buildWorkingMemoryCompressionBehaviorFixtures({
+      cardId,
+      checkpoints: workingMemoryCheckpoints,
+    })
+    const experienceQuality = await buildMemoryExperienceQualityFixturesFromCheckpoints({
+      cardId,
+      checkpoints: workingMemoryCheckpoints,
+    })
     const longTerm = labels.map((label) => {
       const shouldAbstain = label.evaluationClass === 'should-abstain'
       const falseRecall = label.evaluationClass === 'false-recall'
@@ -7333,6 +7464,12 @@ export async function setupAlicizationDb(
       id: `memory-production-trial:${cardId}:${month}:${createdAt}`,
       cardId,
       createdAt,
+      workingMemory: buildWorkingMemoryQualityFixturesFromCheckpoints({
+        checkpoints: workingMemoryCheckpoints,
+        createdAt,
+      }),
+      compressedContextBehavior,
+      experienceQuality,
       longTerm,
       personaTraining: personaSnapshot
         ? buildPersonaDatasetQualityFixturesFromSnapshot({

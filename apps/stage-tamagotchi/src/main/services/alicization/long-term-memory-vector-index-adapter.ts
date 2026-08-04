@@ -95,6 +95,50 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
 }): LongTermMemoryVectorIndexAdapter {
   let nativeLastError: string | null = null
   let nativeInitialized = false
+  const nativeHealthCache = new Map<string, {
+    health: { ready: boolean, lastError: string | null }
+    expiresAt: number
+  }>()
+  const nativeHealthCacheTtlMs = 30_000
+
+  function nativeHealthCacheKey(healthInput: {
+    cardId: string
+    modelId: string
+    dimensions: number
+    vectorSpaceId: string
+  }) {
+    return [
+      healthInput.cardId,
+      healthInput.modelId,
+      healthInput.dimensions,
+      healthInput.vectorSpaceId,
+    ].join('\u0000')
+  }
+
+  function clearNativeHealthCache() {
+    nativeHealthCache.clear()
+  }
+
+  async function getNativeHealth(healthInput: {
+    cardId: string
+    modelId: string
+    dimensions: number
+    vectorSpaceId: string
+  }) {
+    if (!input.native)
+      throw new Error('native vector index is not configured')
+    const key = nativeHealthCacheKey(healthInput)
+    const cached = nativeHealthCache.get(key)
+    const timestamp = Date.now()
+    if (cached && cached.expiresAt > timestamp)
+      return cached.health
+    const health = await input.native.getHealth(healthInput)
+    nativeHealthCache.set(key, {
+      health,
+      expiresAt: timestamp + nativeHealthCacheTtlMs,
+    })
+    return health
+  }
 
   async function initialize() {
     await input.store.initialize()
@@ -104,6 +148,7 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
       await input.native.initialize()
       nativeInitialized = true
       nativeLastError = null
+      clearNativeHealthCache()
     }
     catch (error) {
       nativeInitialized = false
@@ -113,11 +158,13 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
 
   async function upsert(records: PersistentLongTermMemoryVectorRecord[]) {
     await input.store.upsertVectors(records)
+    clearNativeHealthCache()
     if (!input.native || !nativeInitialized)
       return
     try {
       await input.native.upsert(records)
       nativeLastError = null
+      clearNativeHealthCache()
     }
     catch (error) {
       nativeLastError = error instanceof Error ? error.message : String(error)
@@ -126,11 +173,13 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
 
   async function deleteVectors(inputDelete: { cardId: string, sourceIds: string[] }) {
     const deleted = await input.store.deleteVectorsBySource(inputDelete)
+    clearNativeHealthCache()
     if (!input.native || !nativeInitialized)
       return deleted
     try {
       await input.native.delete(inputDelete)
       nativeLastError = null
+      clearNativeHealthCache()
     }
     catch (error) {
       nativeLastError = error instanceof Error ? error.message : String(error)
@@ -151,7 +200,7 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
     }
     if (input.native && nativeInitialized) {
       try {
-        const health = await input.native.getHealth({
+        const health = await getNativeHealth({
           cardId: resolvedFilters.cardId,
           modelId: resolvedFilters.modelId,
           dimensions: resolvedFilters.dimensions,
@@ -176,6 +225,7 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
       try {
         await input.native.rebuild(rebuildInput)
         nativeLastError = null
+        clearNativeHealthCache()
         return
       }
       catch (error) {
@@ -206,7 +256,7 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
     let lastError = nativeLastError
     if (input.native && nativeInitialized && healthInput.modelId && healthInput.dimensions && vectorSpaceId) {
       try {
-        const nativeHealth = await input.native.getHealth({
+        const nativeHealth = await getNativeHealth({
           cardId: healthInput.cardId,
           modelId: healthInput.modelId,
           dimensions: healthInput.dimensions,

@@ -101,6 +101,17 @@ export interface PersonaTrainingDatasetManifest {
   manifestHash: string
 }
 
+export interface PersonaTrainingDatasetQualityGateResult {
+  passed: boolean
+  criticalFindingCount: number
+  warningFindingCount: number
+  findings: Array<{
+    severity: 'critical' | 'warning'
+    code: string
+    message: string
+  }>
+}
+
 export interface PersonaTrainingDatasetRepository {
   listVersions: (cardId: string) => Promise<PersonaTrainingDatasetVersion[]>
   createVersion: (input: Omit<PersonaTrainingDatasetVersion, 'exportedAt' | 'activeAt' | 'rolledBackAt'>) => Promise<PersonaTrainingDatasetVersion>
@@ -139,6 +150,7 @@ export interface PersonaTrainingDatasetRuntime {
   exportVersion: (input: { cardId: string, datasetId?: string | null }) => Promise<{
     dataset: PersonaTrainingDatasetVersion
     manifest: PersonaTrainingDatasetManifest
+    qualityGate: PersonaTrainingDatasetQualityGateResult
   }>
   activateVersion: (input: { cardId: string, datasetId: string }) => Promise<PersonaTrainingDatasetVersion | null>
   rollbackVersion: (input: { cardId: string, datasetId: string }) => Promise<PersonaTrainingDatasetVersion | null>
@@ -347,6 +359,59 @@ export function buildPersonaTrainingDatasetManifest(input: {
   }
 }
 
+export function evaluatePersonaTrainingDatasetManifestQualityGate(input: {
+  dataset: PersonaTrainingDatasetVersion
+  examples: PersonaTrainingDatasetExample[]
+  manifest: PersonaTrainingDatasetManifest
+}): PersonaTrainingDatasetQualityGateResult {
+  const findings: PersonaTrainingDatasetQualityGateResult['findings'] = []
+  const add = (severity: 'critical' | 'warning', code: string, message: string) => {
+    findings.push({ severity, code, message })
+  }
+  if (input.dataset.schemaVersion !== PERSONA_TRAINING_DATASET_SCHEMA_VERSION)
+    add('critical', 'schema-mismatch', 'Persona/LoRA dataset schema is not supported.')
+  if (input.manifest.datasetId !== input.dataset.id || input.manifest.cardId !== input.dataset.cardId)
+    add('critical', 'manifest-dataset-mismatch', 'Persona/LoRA manifest does not belong to the resolved dataset.')
+  if (input.manifest.exampleCount !== input.manifest.examples.length)
+    add('critical', 'manifest-count-mismatch', 'Persona/LoRA manifest example count does not match exported examples.')
+  if (input.manifest.examples.length > 0 && !input.dataset.consentSnapshot.granted)
+    add('critical', 'dataset-consent-missing', 'Persona/LoRA manifest contains examples without dataset consent.')
+
+  const examplesById = new Map(input.examples.map(example => [example.id, example]))
+  const contentHashes = new Set<string>()
+  for (const manifestExample of input.manifest.examples) {
+    const source = examplesById.get(manifestExample.id)
+    if (!source) {
+      add('critical', 'manifest-source-missing', `Persona/LoRA manifest example is missing its runtime source: ${manifestExample.id}`)
+      continue
+    }
+    if (contentHashes.has(manifestExample.contentHash))
+      add('critical', 'duplicate-content-hash', `Persona/LoRA manifest duplicated content hash: ${manifestExample.contentHash}`)
+    contentHashes.add(manifestExample.contentHash)
+    if (source.cardId !== input.dataset.cardId || source.datasetId !== input.dataset.id)
+      add('critical', 'cross-dataset-example', `Persona/LoRA manifest leaked an example from another card or dataset: ${source.id}`)
+    if (source.schemaVersion !== PERSONA_TRAINING_EXAMPLE_SCHEMA_VERSION || manifestExample.schemaVersion !== PERSONA_TRAINING_EXAMPLE_SCHEMA_VERSION)
+      add('critical', 'example-schema-mismatch', `Persona/LoRA example schema is not supported: ${source.id}`)
+    if (source.state !== 'staged' || !source.allowTraining)
+      add('critical', 'inactive-example-exported', `Persona/LoRA manifest exported a non-staged or no-training example: ${source.id}`)
+    if (source.piiStatus !== 'clear')
+      add('critical', 'pii-example-exported', `Persona/LoRA manifest exported a PII-tainted example: ${source.id}`)
+    if (!source.consentSnapshot.granted)
+      add('critical', 'example-consent-missing', `Persona/LoRA manifest exported an example without example consent: ${source.id}`)
+    if (!normalizeCleaningProvenance(source.provenance))
+      add('critical', 'cleaning-provenance-missing', `Persona/LoRA manifest exported an example without cleaning provenance: ${source.id}`)
+  }
+
+  const criticalFindingCount = findings.filter(finding => finding.severity === 'critical').length
+  const warningFindingCount = findings.filter(finding => finding.severity === 'warning').length
+  return {
+    passed: criticalFindingCount === 0,
+    criticalFindingCount,
+    warningFindingCount,
+    findings,
+  }
+}
+
 export function createPersonaTrainingDatasetRuntime(input: {
   repository: PersonaTrainingDatasetRepository
   now: () => number
@@ -384,18 +449,26 @@ export function createPersonaTrainingDatasetRuntime(input: {
 
   async function buildCurrentManifest(dataset: PersonaTrainingDatasetVersion, exportedAt: number) {
     const examples = await listScopedExamples(dataset.cardId, dataset.id)
-    return buildPersonaTrainingDatasetManifest({
+    const manifest = buildPersonaTrainingDatasetManifest({
       dataset,
       examples,
       exportedAt,
     })
+    const qualityGate = evaluatePersonaTrainingDatasetManifestQualityGate({
+      dataset,
+      examples,
+      manifest,
+    })
+    return { manifest, examples, qualityGate }
   }
 
   async function requireActivatableDataset(cardId: string, datasetId: string) {
     const dataset = await resolveDataset(cardId, datasetId)
     if (!dataset.consentSnapshot.granted)
       throw new Error('persona training dataset consent is not granted')
-    const manifest = await buildCurrentManifest(dataset, input.now())
+    const { manifest, qualityGate } = await buildCurrentManifest(dataset, input.now())
+    if (!qualityGate.passed)
+      throw new Error(`persona training dataset quality gate failed: ${qualityGate.findings.map(finding => finding.code).join(', ')}`)
     if (manifest.exampleCount === 0)
       throw new Error('persona training dataset has no eligible training examples')
     return dataset
@@ -489,7 +562,9 @@ export function createPersonaTrainingDatasetRuntime(input: {
 
   async function exportVersion(exportInput: { cardId: string, datasetId?: string | null }) {
     const dataset = await resolveDataset(exportInput.cardId, exportInput.datasetId)
-    const manifest = await buildCurrentManifest(dataset, input.now())
+    const { manifest, qualityGate } = await buildCurrentManifest(dataset, input.now())
+    if (!qualityGate.passed)
+      throw new Error(`persona training dataset quality gate failed: ${qualityGate.findings.map(finding => finding.code).join(', ')}`)
     await input.repository.appendExport({
       id: `persona-export:${dataset.id}:${manifest.manifestHash}`,
       datasetId: dataset.id,
@@ -499,7 +574,7 @@ export function createPersonaTrainingDatasetRuntime(input: {
       exportedAt: manifest.exportedAt,
     })
     await input.repository.markExported?.(dataset.cardId, dataset.id, manifest.exportedAt)
-    return { dataset, manifest }
+    return { dataset, manifest, qualityGate }
   }
 
   async function activateVersion(activationInput: { cardId: string, datasetId: string }) {

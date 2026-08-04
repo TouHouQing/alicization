@@ -5,6 +5,10 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { setupAlicizationDb } from './db'
+import {
+  createEmptyWorkingMemorySnapshot,
+  normalizeWorkingMemoryTurn,
+} from './life-core/working-memory'
 
 const sandboxDirs: string[] = []
 
@@ -119,6 +123,101 @@ describe('memory quality workbench DB loop', () => {
       expect(report.quality.longTerm[0]?.fixtureId).toContain('reflection-siliconflow-baseurl')
       expect(report.quality.longTerm[0]?.topIds).toContain('reflection-siliconflow-baseurl')
       expect(report.stages.map(stage => stage.stage)).toContain('long-term-recall')
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('builds compression and next-turn recall fixtures from persisted WorkingMemory checkpoints', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const createdAt = Date.parse('2026-08-04T08:20:00.000Z')
+      const snapshot = createEmptyWorkingMemorySnapshot({
+        cardId: 'default',
+        sessionId: 'session-compression-trial',
+        now: createdAt,
+      })
+      snapshot.recentRawTurns = [
+        normalizeWorkingMemoryTurn({
+          turnId: 'turn-compression-user',
+          role: 'user',
+          text: '记住，Provider 失败必须透明告诉我。',
+          createdAt: createdAt - 2_000,
+          source: 'conversation-turn',
+          visibility: 'user-visible',
+          importance: 0.96,
+        }),
+        normalizeWorkingMemoryTurn({
+          turnId: 'turn-compression-provider-error',
+          role: 'tool',
+          text: 'embedding provider failed with HTTP 400',
+          createdAt: createdAt - 1_000,
+          source: 'runtime-event',
+          visibility: 'internal',
+          failureKind: 'provider-error',
+          importance: 0.95,
+        }),
+      ]
+      snapshot.currentThread = {
+        title: 'Provider 失败透明链路',
+        currentUserMove: '继续这个。',
+        currentAliceMove: '继续检查 Provider 失败透明链路，并把真实错误保留在报告里。',
+        primaryAnchor: null,
+        mode: 'repair',
+        shouldHold: true,
+        confidence: 0.94,
+      }
+      snapshot.activeTask = {
+        summary: '检查 Provider 失败透明链路',
+        status: 'active',
+        evidenceTurnIds: ['turn-compression-user'],
+      }
+      snapshot.commitments = [{
+        text: 'Provider 失败必须透明告诉用户。',
+        sourceTurnId: 'turn-compression-user',
+      }]
+      snapshot.userCorrections = [{
+        text: '不要用固定人格回复遮盖 Provider 失败。',
+        sourceTurnId: 'turn-compression-user',
+        scope: 'reply',
+      }]
+      snapshot.memoryQueryHints = ['Provider 失败 透明']
+      snapshot.audit = {
+        failureTurnIds: ['turn-compression-provider-error'],
+        excludedLongTermCandidateTurnIds: ['turn-compression-provider-error'],
+        notes: ['provider-error-visible'],
+      }
+      await db.upsertWorkingMemoryCheckpoint(snapshot)
+      await db.upsertMemoryReflections([{
+        id: 'reflection-provider-failure-transparent',
+        cardId: 'default',
+        sourceKind: 'reply',
+        targetScope: 'boundary',
+        summary: '用户要求 Provider 失败必须透明说明。',
+        lesson: '不要用固定人格回复遮盖真实错误。',
+        status: 'confirmed',
+        confidence: 0.95,
+        createdAt,
+        updatedAt: createdAt,
+      }])
+
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        month: '2026-08',
+      })
+
+      expect(report.summary.workingMemoryFixtureCount).toBe(1)
+      expect(report.summary.compressedContextBehaviorFixtureCount).toBe(1)
+      expect(report.summary.experienceQualityFixtureCount).toBe(1)
+      expect(report.stages.map(stage => stage.stage)).toEqual(expect.arrayContaining([
+        'working-memory-compression',
+        'compressed-context-behavior',
+        'experience-quality',
+      ]))
+      expect(report.compressedContextBehavior?.summary.fixtureCount).toBe(1)
+      expect(report.compressedContextBehavior?.results[0]?.compressed.topIds).toContain('reflection-provider-failure-transparent')
+      expect(report.experienceQuality?.summary.fixtureCount).toBe(1)
     }
     finally {
       await db.close()

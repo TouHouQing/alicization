@@ -288,6 +288,10 @@ describe('persona training dataset runtime', () => {
     })
     const exported = await runtime.exportVersion({ cardId: 'card-a', datasetId: first.id })
     expect(exported.manifest.examples).toHaveLength(1)
+    expect(exported.qualityGate).toMatchObject({
+      passed: true,
+      criticalFindingCount: 0,
+    })
 
     await runtime.activateVersion({ cardId: 'card-a', datasetId: first.id })
     const second = await runtime.stageVersion({

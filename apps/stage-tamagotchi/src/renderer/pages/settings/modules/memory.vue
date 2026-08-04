@@ -168,12 +168,96 @@ const qualityGoldLabelButtons = computed<Array<{
   },
 ])
 
+interface QualityPanelDetail {
+  id: string
+  title: string
+  description: string
+  meta: string[]
+}
+
 const healthStatusClass = computed(() => {
   if (health.value?.status === 'ok')
     return 'text-emerald-600 dark:text-emerald-300'
   if (health.value?.status === 'degraded')
     return 'text-amber-600 dark:text-amber-300'
   return 'text-rose-600 dark:text-rose-300'
+})
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : null
+}
+
+function asRecordArray(value: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(value)
+    ? value.map(item => asRecord(item)).filter((item): item is Record<string, unknown> => item !== null)
+    : []
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
+function qualityTraceLabel(trace: Record<string, unknown>) {
+  return typeof trace.fixtureId === 'string'
+    ? trace.fixtureId
+    : typeof trace.id === 'string'
+      ? trace.id
+      : '-'
+}
+
+function qualityRankReasonSummary(trace: Record<string, unknown>) {
+  const rankReasonsById = asRecord(trace.rankReasonsById)
+  if (!rankReasonsById)
+    return []
+  return Object.entries(rankReasonsById).slice(0, 4).map(([id, reasons]) =>
+    `${id}: ${asStringArray(reasons).slice(0, 3).join(', ') || '-'}`,
+  )
+}
+
+const qualityFailureDetails = computed<QualityPanelDetail[]>(() => {
+  const report = qualityTrialReport.value
+  if (!report)
+    return []
+
+  const stageDetails = report.stages
+    .filter(stage => !stage.passed)
+    .map(stage => ({
+      id: `stage:${stage.id}`,
+      title: `${t('settings.pages.memory.workbench.fields.failing_stages')}: ${stage.id}`,
+      description: stage.error ?? '-',
+      meta: [
+        `${stage.stage}`,
+        `${t('settings.pages.memory.workbench.fields.count')}: ${stage.itemCount}`,
+      ],
+    }))
+
+  const traces = asRecordArray(report.quality.traces)
+  const traceDetails = report.quality.summary.failingFixtureIds.map((fixtureId) => {
+    const trace = traces.find(item => item.fixtureId === fixtureId || item.id === fixtureId)
+    const selectedIds = asStringArray(trace?.selectedIds)
+    const rankReasons = trace ? qualityRankReasonSummary(trace) : []
+    return {
+      id: `fixture:${fixtureId}`,
+      title: `${t('settings.pages.memory.workbench.fields.failing_fixtures')}: ${fixtureId}`,
+      description: typeof trace?.error === 'string' ? trace.error : listText(selectedIds),
+      meta: [
+        ...rankReasons,
+        ...(selectedIds.length > 0 ? [`${t('settings.pages.memory.workbench.fields.surfaced_ids')}: ${listText(selectedIds)}`] : []),
+      ],
+    }
+  })
+
+  const experienceFindings = asRecordArray(report.experienceQuality?.findings).map((item, index) => ({
+    id: `experience:${String(item.fixtureId ?? index)}:${String(item.code ?? 'finding')}`,
+    title: `${t('settings.pages.memory.workbench.fields.experience_quality')}: ${String(item.code ?? '-')}`,
+    description: String(item.message ?? '-'),
+    meta: [
+      String(item.fixtureId ?? '-'),
+      String(item.suggestedAction ?? '-'),
+    ].filter(item => item !== '-'),
+  }))
+
+  return [...stageDetails, ...traceDetails, ...experienceFindings]
 })
 
 function listText(values: string[]) {
@@ -869,12 +953,37 @@ onMounted(() => {
             <div :class="['mt-4', 'grid', 'grid-cols-2', 'gap-2', 'text-sm', 'lg:grid-cols-4']">
               <div>{{ t('settings.pages.memory.workbench.fields.long_term_fixtures') }}: {{ qualityTrialReport.summary.longTermFixtureCount }}</div>
               <div>{{ t('settings.pages.memory.workbench.fields.working_memory_fixtures') }}: {{ qualityTrialReport.summary.workingMemoryFixtureCount }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.compressed_context_fixtures') }}: {{ qualityTrialReport.summary.compressedContextBehaviorFixtureCount }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.temporal_conflict_fixtures') }}: {{ qualityTrialReport.summary.temporalConflictFixtureCount }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_soak') }}: {{ qualityTrialReport.summary.semanticScaleSoakRunCount }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.experience_quality') }}: {{ qualityTrialReport.summary.experienceQualityFixtureCount }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.scope_fuzz_cases') }}: {{ qualityTrialReport.summary.scopeFuzzCaseCount }}</div>
               <div>{{ t('settings.pages.memory.workbench.fields.persona_fixtures') }}: {{ qualityTrialReport.summary.personaTrainingFixtureCount }}</div>
               <div>{{ t('settings.pages.memory.workbench.fields.recall_at_k') }}: {{ formatQualityScore(qualityTrialReport.quality.summary.recallAtK) }}</div>
             </div>
             <div v-if="qualityTrialReport.summary.failingStageIds.length > 0" :class="['mt-3', 'text-sm', 'text-amber-600', 'dark:text-amber-300']">
               {{ t('settings.pages.memory.workbench.fields.failing_stages') }}:
               {{ listText(qualityTrialReport.summary.failingStageIds) }}
+            </div>
+            <div v-if="qualityFailureDetails.length > 0" :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+              <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.fields.quality_findings') }}
+              </div>
+              <div :class="['mt-2', 'grid', 'grid-cols-1', 'gap-2', 'xl:grid-cols-2']">
+                <article v-for="item in qualityFailureDetails" :key="item.id" :class="['border', 'border-neutral-200', 'p-3', 'dark:border-neutral-800']">
+                  <div :class="['text-sm', 'font-medium']">
+                    {{ item.title }}
+                  </div>
+                  <div :class="['mt-1', 'text-xs', 'text-neutral-500']">
+                    {{ item.description }}
+                  </div>
+                  <ul v-if="item.meta.length > 0" :class="['mt-2', 'list-disc', 'space-y-1', 'pl-4', 'text-xs', 'text-neutral-500']">
+                    <li v-for="meta in item.meta" :key="meta">
+                      {{ meta }}
+                    </li>
+                  </ul>
+                </article>
+              </div>
             </div>
             <div v-if="qualityTrialReport.recommendedNextActions.length > 0" :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
               <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">

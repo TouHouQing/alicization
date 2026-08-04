@@ -1,8 +1,9 @@
-import type { PersonaTrainingDatasetSource } from './persona-training-dataset-runtime'
+import type { PersonaTrainingDatasetExample, PersonaTrainingDatasetSource } from './persona-training-dataset-runtime'
 
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildPersonaDatasetQualityFixtureFromRuntimeSnapshot,
   runPersonaTrainingDatasetQualityHarnessFixture,
 } from './persona-training-dataset-quality-harness'
 
@@ -146,6 +147,52 @@ describe('persona training dataset quality harness', () => {
     })
     expect(result.findings).toEqual([])
     expect(result.trace.selectedIds).toEqual(['reflection-clean'])
+  })
+
+  it('builds quality fixtures from real runtime examples and respects revoked sources', () => {
+    const baseExample: PersonaTrainingDatasetExample = {
+      id: 'persona-example-1',
+      datasetId: 'dataset-1',
+      cardId: 'alice-main',
+      schemaVersion: 'persona-training-example-v1',
+      sourceId: 'reflection-clean',
+      sourceKind: 'cleaned-long-term-reflection',
+      contentHash: 'hash-1',
+      behaviorLesson: '透明说明失败。',
+      positiveExample: 'Provider 失败了，我直接说明原因。',
+      negativeExample: null,
+      sensitivity: 'personal',
+      piiStatus: 'clear',
+      piiReason: null,
+      consentSnapshot: { granted: true, policyVersion: 'v1', scope: 'persona-dataset', capturedAt: now },
+      provenance: { kind: 'working-memory-cleaning', cleaningTransactionId: 'cleaning-1', cleanedAt: now - 1 },
+      allowTraining: true,
+      state: 'staged',
+      createdAt: now,
+      revokedAt: null,
+    }
+
+    const fixture = buildPersonaDatasetQualityFixtureFromRuntimeSnapshot({
+      id: 'runtime-snapshot-quality',
+      cardId: 'alice-main',
+      createdAt: now,
+      consent: { granted: true, policyVersion: 'v1', scope: 'persona-dataset', capturedAt: now },
+      examples: [baseExample],
+    })
+    const passed = runPersonaTrainingDatasetQualityHarnessFixture({ fixture })
+    expect(passed.passed).toBe(true)
+    expect(passed.manifest.examples.map(item => item.sourceId)).toEqual(['reflection-clean'])
+
+    const revokedFixture = buildPersonaDatasetQualityFixtureFromRuntimeSnapshot({
+      id: 'runtime-snapshot-revoked-quality',
+      cardId: 'alice-main',
+      createdAt: now,
+      consent: { granted: true, policyVersion: 'v1', scope: 'persona-dataset', capturedAt: now },
+      examples: [{ ...baseExample, state: 'revoked', allowTraining: false, revokedAt: now + 1 }],
+    })
+    const revoked = runPersonaTrainingDatasetQualityHarnessFixture({ fixture: revokedFixture })
+    expect(revoked.passed).toBe(true)
+    expect(revoked.manifest.examples).toEqual([])
   })
 
   it('turns consent and schema gaps into optimization findings instead of pretending the dataset is usable', () => {

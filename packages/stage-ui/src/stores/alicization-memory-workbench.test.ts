@@ -544,6 +544,11 @@ describe('alicization memory workbench store', () => {
       summary: {
         dialogueReplayCount: 0,
         workingMemoryFixtureCount: 0,
+        compressedContextBehaviorFixtureCount: 0,
+        temporalConflictFixtureCount: 0,
+        semanticScaleSoakRunCount: 0,
+        experienceQualityFixtureCount: 0,
+        scopeFuzzCaseCount: 0,
         longTermFixtureCount: 1,
         userTrialCount: 0,
         personaTrainingFixtureCount: 0,
@@ -571,6 +576,11 @@ describe('alicization memory workbench store', () => {
         optimizationFindings: [],
         recommendedNextActions: ['补充当前 baseUrl 记忆。'],
       },
+      compressedContextBehavior: null,
+      temporalConflict: null,
+      semanticScaleSoak: null,
+      experienceQuality: null,
+      scopeFuzz: null,
       recommendedNextActions: ['补充当前 baseUrl 记忆。'],
     } as const
     const memoryWorkbenchListQualityGoldLabels = vi.fn(async () => ({ items: [label], nextCursor: null }))

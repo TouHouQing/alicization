@@ -700,9 +700,16 @@ pages:
         trace: Trace
         long_term_fixtures: 长期召回样本
         working_memory_fixtures: 短期压缩样本
+        compressed_context_fixtures: 压缩后行为样本
+        temporal_conflict_fixtures: 时间冲突样本
+        semantic_scale_soak: 语义规模压测
+        experience_quality: 体验质量
+        scope_fuzz_cases: Scope 隔离样本
         persona_fixtures: 人格数据样本
         recall_at_k: Recall@K
         failing_stages: 失败阶段
+        failing_fixtures: 失败样本
+        quality_findings: 质量问题
         recommended_actions: 建议动作
         expected_ids: 应该命中
         surfaced_ids: 已提到

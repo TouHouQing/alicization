@@ -128,14 +128,14 @@ function containsAny(text: string, patterns: RegExp[]) {
 function deriveTemporalFocus(text: string): LongTermMemoryTemporalFocus {
   if (/刚刚|刚才|这轮|当前|现在/u.test(text))
     return 'current'
+  if (/很久|去年|更早/u.test(text))
+    return 'distant'
   if (/昨天|刚|最近|上次|前几天/u.test(text))
     return 'recent'
   if (/上周|这周|上个月|前段时间/u.test(text))
     return 'recent-or-mid'
   if (/以前|之前|那次|还记得|记不记得|我们.*过/u.test(text))
     return 'cross-session'
-  if (/很久|去年|更早/u.test(text))
-    return 'distant'
   return 'unspecified'
 }
 

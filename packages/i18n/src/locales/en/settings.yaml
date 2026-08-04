@@ -709,9 +709,16 @@ pages:
         trace: Trace
         long_term_fixtures: Long-Term Fixtures
         working_memory_fixtures: Working Memory Fixtures
+        compressed_context_fixtures: Compressed-Context Fixtures
+        temporal_conflict_fixtures: Temporal Conflict Fixtures
+        semantic_scale_soak: Semantic Scale Soak
+        experience_quality: Experience Quality
+        scope_fuzz_cases: Scope Fuzz Cases
         persona_fixtures: Persona Fixtures
         recall_at_k: Recall@K
         failing_stages: Failing Stages
+        failing_fixtures: Failing Fixtures
+        quality_findings: Quality Findings
         recommended_actions: Recommended Actions
         expected_ids: Expected IDs
         surfaced_ids: Surfaced IDs

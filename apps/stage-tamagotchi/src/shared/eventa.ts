@@ -906,6 +906,11 @@ export interface AlicizationMemoryQualityTrialReport {
   summary: {
     dialogueReplayCount: number
     workingMemoryFixtureCount: number
+    compressedContextBehaviorFixtureCount: number
+    temporalConflictFixtureCount: number
+    semanticScaleSoakRunCount: number
+    experienceQualityFixtureCount: number
+    scopeFuzzCaseCount: number
     longTermFixtureCount: number
     userTrialCount: number
     personaTrainingFixtureCount: number
@@ -939,6 +944,11 @@ export interface AlicizationMemoryQualityTrialReport {
     optimizationFindings: Array<Record<string, unknown>>
     recommendedNextActions: string[]
   }
+  compressedContextBehavior: Record<string, unknown> | null
+  temporalConflict: Record<string, unknown> | null
+  semanticScaleSoak: Record<string, unknown> | null
+  experienceQuality: Record<string, unknown> | null
+  scopeFuzz: Record<string, unknown> | null
   recommendedNextActions: string[]
 }
 
