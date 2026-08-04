@@ -230,6 +230,38 @@ describe('visible-reply settlement', () => {
     expect(result.visibleText).toBe('我记得上次你让我先说明失败原因。')
   })
 
+  it('accepts Provider-authored plain text without inventing long-term evidence claims', async () => {
+    const fullText = '我可以先直接回答你，不需要模型支持原生 JSON schema。'
+
+    const validation = validateAlicizationProviderSettlementPayload({
+      fullText,
+      prepared: createPrepared(),
+      allowPlainTextProviderReply: true,
+    })
+    expect(validation.valid).toBe(true)
+    expect(validation.payload).toMatchObject({
+      reply: fullText,
+      memoryUsage: {
+        workingMemoryVersion: 'working-memory-owner-context-v1',
+        longTermEvidenceIds: [],
+      },
+    })
+
+    const result = await settleAlicizationVisibleReply({
+      draft: {
+        fullText,
+        visibleReplyExecution: createExecution(),
+      },
+      prepared: createPrepared(),
+      requireProviderMemoryUsage: true,
+      allowPlainTextProviderReply: true,
+    })
+
+    expect(result.fullText).toBe(fullText)
+    expect(result.visibleText).toBe(fullText)
+    expect(result.realization.visibleText).toBe(fullText)
+  })
+
   it.each([
     'parsePath',
     'contractFailed',

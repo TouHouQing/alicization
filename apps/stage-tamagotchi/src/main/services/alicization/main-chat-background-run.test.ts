@@ -408,24 +408,26 @@ describe('main chat background run', () => {
     expect(JSON.parse(String(finishPayload?.fullText))).not.toHaveProperty('visibleReplyRealization')
   })
 
-  it('does not rehydrate plain stream text into a successful Provider artifact', async () => {
+  it('finishes plain stream text as a Provider-authored visible reply', async () => {
     const input = createInput()
+    const fullText = 'Provider returned plain text because this model lacks native JSON schema.'
     vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
-      fullText: 'Provider returned plain text instead of the required JSON contract.',
+      fullText,
+      visibleReplyRealization: buildObservedRealization(fullText),
     }))
 
     await runAlicizationMainChatBackground(input)
 
-    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledOnce()
-    const failureInput = vi.mocked(handleAlicizationMainChatRunFailure).mock.calls[0]?.[0]
-    expect(failureInput?.error).toEqual(expect.objectContaining({
-      message: 'provider-settlement-invalid:provider-payload-json-invalid',
-    }))
-    expect(input.runStateController.finishRun).not.toHaveBeenCalledWith(
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(
       input.key,
       expect.objectContaining({
         status: 'completed',
         origin: 'provider',
+        fullText,
+        visibleReplyRealization: expect.objectContaining({
+          visibleText: fullText,
+        }),
       }),
     )
   })

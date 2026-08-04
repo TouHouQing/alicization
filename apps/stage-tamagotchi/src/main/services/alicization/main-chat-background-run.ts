@@ -303,7 +303,7 @@ function readProviderReplyFromRawFullText(fullText: string) {
   const parsed = parseJsonObjectFromText(fullText)
   return typeof parsed?.reply === 'string'
     ? parsed.reply
-    : ''
+    : fullText.trim()
 }
 
 export async function runAlicizationMainChatBackground(
@@ -392,6 +392,7 @@ export async function runAlicizationMainChatBackground(
         },
         prepared: prepared!,
         requireProviderMemoryUsage: true,
+        allowPlainTextProviderReply: true,
         appendRuntimeDebugLine: input.appendRuntimeDebugLine,
       })
       return {
@@ -465,6 +466,7 @@ export async function runAlicizationMainChatBackground(
     const finalValidation = validateAlicizationProviderSettlementPayload({
       fullText: streamResult.fullText,
       prepared,
+      allowPlainTextProviderReply: true,
     })
     if (!finalValidation.valid || !finalValidation.payload) {
       throw new AlicizationVisibleReplySettlementBlockedError(

@@ -1,4 +1,3 @@
-import { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { runAlicizationMainChatStream } from './main-chat-stream-runner'
@@ -226,7 +225,7 @@ describe('main chat stream runner', () => {
     expect(streamTextImpl).toHaveBeenCalledOnce()
   })
 
-  it('passes the native response schema without converting emotional state into provider prose', async () => {
+  it('does not force native response schema or convert emotional state into provider prose', async () => {
     const emotionalKernel = {
       version: 'emotional-kernel-v1',
       dominantEmotion: 'measured-companionship',
@@ -248,7 +247,7 @@ describe('main chat stream runner', () => {
         .map(message => typeof message.content === 'string' ? message.content : '')
         .join('\n')
 
-      expect(responseFormat).toBe(alicizationProviderResponseFormat)
+      expect(responseFormat).toBeUndefined()
       expect(systemText).not.toContain('[ALICIZATION_EMOTIONAL_KERNEL]')
       expect(systemText).not.toContain('emotional_kernel_')
       expect(JSON.stringify(messages)).not.toMatch(
@@ -308,28 +307,22 @@ describe('main chat stream runner', () => {
     expect(streamTextImpl).toHaveBeenCalledOnce()
   })
 
-  it('rejects a real xsAI schema HTTP failure before the first-event timeout', async () => {
-    const controller = new AbortController()
-    const fetchImpl = vi.fn(async () => new Response(
-      '{"error":{"message":"response_format json_schema is an invalid parameter"}}',
-      {
-        status: 400,
-        headers: {
-          'content-type': 'application/json',
-        },
-      },
-    ))
+  it('omits native response schema so providers without json_schema support can stream plain text', async () => {
+    const emitChunk = vi.fn()
+    const streamTextImpl = vi.fn(async ({ onEvent, responseFormat }) => {
+      expect(responseFormat).toBeUndefined()
+      const emit = onEvent as (event: any) => Promise<void>
+      await emit({ type: 'text-delta', text: '我可以直接这样回答。' })
+      await emit({ type: 'finish', finishReason: 'stop' })
+    })
 
-    await expect(runAlicizationMainChatStream({
+    const result = await runAlicizationMainChatStream({
       payload: {
         cardId: 'card-1',
-        turnId: 'turn-stream-schema-error',
+        turnId: 'turn-stream-plain-provider',
       } as any,
       prepared: createPrepared({
         chatConfig: {
-          apiKey: 'test-key',
-          baseURL: 'https://provider.invalid/v1/',
-          fetch: fetchImpl,
           model: 'test-model',
         },
         messages: [
@@ -340,19 +333,25 @@ describe('main chat stream runner', () => {
           { role: 'user', content: '你好' },
         ],
       }),
-      controller,
+      controller: new AbortController(),
       firstEventTimeoutMs: 500,
       isRunActive: () => true,
       incrementChunkStats: vi.fn(),
-      emitChunk: vi.fn(),
+      emitChunk,
       emitToolCall: vi.fn(),
       emitToolResult: vi.fn(),
       streamMeta: createStreamMetaController(),
       nonProgressEventTypes: new Set<string>(),
       generateNonStreaming: vi.fn(),
-    })).rejects.toThrow('response_format json_schema is an invalid parameter')
-    expect(fetchImpl).toHaveBeenCalledOnce()
-    expect(controller.signal.aborted).toBe(false)
+      streamTextImpl,
+    })
+
+    expect(result.fullText).toBe('我可以直接这样回答。')
+    expect(result.visibleReplyRealization.visibleText).toBe('我可以直接这样回答。')
+    expect(emitChunk).toHaveBeenCalledWith(expect.objectContaining({
+      text: '我可以直接这样回答。',
+      origin: 'provider',
+    }))
   })
 
   it('keeps provider text provisional until the complete response passes settlement', async () => {
@@ -540,7 +539,7 @@ describe('main chat stream runner', () => {
     }))
   })
 
-  it('rejects plain-text visual grounding output instead of wrapping it as a structured artifact', async () => {
+  it('accepts plain-text visual grounding output as provider-authored visible reply', async () => {
     const streamMeta = createStreamMetaController()
     const incrementChunkStats = vi.fn()
     const emitChunk = vi.fn()
@@ -549,7 +548,7 @@ describe('main chat stream runner', () => {
       fullText: '我先看着这个窗口。',
     }))
 
-    const result = runAlicizationMainChatStream({
+    const result = await runAlicizationMainChatStream({
       payload: {
         cardId: 'card-1',
         turnId: 'turn-visual-structured-host-visible',
@@ -589,13 +588,24 @@ describe('main chat stream runner', () => {
       streamTextImpl: vi.fn(),
     })
 
-    await expect(result).rejects.toThrow(
-      'provider-settlement-invalid:provider-payload-json-invalid',
-    )
+    expect(result.fullText).toBe('我先看着这个窗口。')
+    expect(result.visibleReplyExecution).toEqual(createVisibleReplyExecution({
+      mode: 'provider-one-shot',
+      reason: 'visual-grounding-one-shot',
+    }))
+    expect(result.visibleReplyRealization.visibleText).toBe('我先看着这个窗口。')
     expect(generateNonStreaming).toHaveBeenCalledOnce()
-    expect(emitChunk).not.toHaveBeenCalled()
-    expect(incrementChunkStats).not.toHaveBeenCalled()
-    expect(streamMeta.emit).not.toHaveBeenCalled()
+    expect(emitChunk).toHaveBeenCalledWith(expect.objectContaining({
+      text: '我先看着这个窗口。',
+      origin: 'provider',
+      learningPolicy: {
+        allowLongTermCondensation: true,
+        allowPersonaLearning: true,
+        allowTraining: false,
+      },
+    }))
+    expect(incrementChunkStats).toHaveBeenCalledWith('我先看着这个窗口。')
+    expect(streamMeta.emit).toHaveBeenCalledWith('我先看着这个窗口。')
   })
 
   it('keeps visual one-shot Provider JSON byte-for-byte and carries settlement only as a sidecar', async () => {
@@ -943,13 +953,13 @@ describe('main chat stream runner', () => {
     expect(streamMeta.emit).toHaveBeenCalledWith('你好。')
   })
 
-  it('does not let settlement turn plain provider text into a successful structured artifact', async () => {
+  it('settles delayed plain provider text without releasing it early', async () => {
     const streamMeta = createStreamMetaController()
     const incrementChunkStats = vi.fn()
     const emitChunk = vi.fn()
     const settleStructuredVisibleReply = vi.fn()
 
-    const result = runAlicizationMainChatStream({
+    const result = await runAlicizationMainChatStream({
       payload: {
         cardId: 'card-1',
         turnId: 'turn-delayed-visible-release',
@@ -985,13 +995,16 @@ describe('main chat stream runner', () => {
       },
     })
 
-    await expect(result).rejects.toThrow(
-      'provider-settlement-invalid:provider-payload-json-invalid',
-    )
-    expect(settleStructuredVisibleReply).not.toHaveBeenCalled()
-    expect(emitChunk).not.toHaveBeenCalled()
-    expect(incrementChunkStats).not.toHaveBeenCalled()
-    expect(streamMeta.emit).not.toHaveBeenCalled()
+    expect(result.fullText).toBe('我先直接回答你。这句应该先被闭环验收。')
+    expect(result.visibleReplyRealization.visibleText).toBe('我先直接回答你。这句应该先被闭环验收。')
+    expect(settleStructuredVisibleReply).toHaveBeenCalledOnce()
+    expect(emitChunk).toHaveBeenCalledOnce()
+    expect(emitChunk).toHaveBeenCalledWith(expect.objectContaining({
+      text: '我先直接回答你。这句应该先被闭环验收。',
+      origin: 'provider',
+    }))
+    expect(incrementChunkStats).toHaveBeenCalledWith('我先直接回答你。这句应该先被闭环验收。')
+    expect(streamMeta.emit).toHaveBeenCalledWith('我先直接回答你。这句应该先被闭环验收。')
   })
 
   it('aborts with a first-event-timeout when the stream never produces progress', async () => {

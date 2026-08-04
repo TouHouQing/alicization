@@ -15,6 +15,7 @@ import type {
 import {
   alicizationEmotionWhitelist,
   alicizationPerformanceDeliveryWhitelist,
+  looksLikeAlicizationStructuredPayloadText,
   resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
 
@@ -45,6 +46,9 @@ const providerMemoryUsageFields = [
   'workingMemoryVersion',
   'longTermEvidenceIds',
 ] as const
+
+const embeddedStructuredEnvelopePattern
+  = /"format"\s*:\s*"mind-turn-v1"|"(?:thought|emotion|reply|performance|memoryUsage|digitalLife|runtimeDigest)"\s*:/iu
 
 export interface AlicizationVisibleReplySettlementDraft {
   fullText: string
@@ -114,14 +118,87 @@ function isValidNullableString(value: unknown, maxLength: number) {
     || (typeof value === 'string' && value.length <= maxLength)
 }
 
+function looksLikeEmbeddedStructuredProviderPayload(text: string) {
+  return looksLikeAlicizationStructuredPayloadText(text)
+    || embeddedStructuredEnvelopePattern.test(text)
+}
+
+function buildPlainTextProviderPayload(input: {
+  fullText: string
+  prepared: AlicizationPreparedMainChatExecutionResult
+}): {
+  payload: AlicizationProviderResponsePayload | null
+  issues: string[]
+} {
+  const reply = input.fullText.trim()
+  const issues: string[] = []
+
+  if (!reply || reply.length > 12_000)
+    issues.push('provider-payload-reply-invalid')
+  if (looksLikeEmbeddedStructuredProviderPayload(reply))
+    issues.push('provider-payload-json-invalid')
+
+  if (issues.length > 0) {
+    return {
+      payload: null,
+      issues,
+    }
+  }
+
+  const memoryUsage: AlicizationProviderMemoryUsage = {
+    workingMemoryVersion: input.prepared.memoryContext?.workingMemory.version ?? null,
+    longTermEvidenceIds: [],
+  }
+
+  return {
+    payload: {
+      format: 'mind-turn-v1',
+      thought: '',
+      emotion: 'neutral',
+      reply,
+      performance: {
+        baseEmotion: 'neutral',
+        facialCue: null,
+        actionCue: null,
+        delivery: 'calm',
+        emphasis: 0,
+      },
+      memoryUsage,
+    },
+    issues,
+  }
+}
+
 export function validateAlicizationProviderSettlementPayload(input: {
   fullText: string
   prepared: AlicizationPreparedMainChatExecutionResult
+  allowPlainTextProviderReply?: boolean
 }) {
   const parsed = parseJsonObjectFromText(input.fullText)
   const issues: string[] = []
 
   if (!parsed) {
+    if (input.allowPlainTextProviderReply) {
+      const plainText = buildPlainTextProviderPayload({
+        fullText: input.fullText,
+        prepared: input.prepared,
+      })
+      if (plainText.payload) {
+        return {
+          valid: true,
+          payload: plainText.payload,
+          issues: [],
+          memoryUsage: plainText.payload.memoryUsage,
+        }
+      }
+      return {
+        valid: false,
+        payload: null,
+        issues: plainText.issues,
+        memoryUsage: null,
+      }
+    }
+
     return {
       valid: false,
       payload: null,
@@ -304,11 +381,13 @@ export async function settleAlicizationVisibleReply(input: {
   draft: AlicizationVisibleReplySettlementDraft
   prepared: AlicizationPreparedMainChatExecutionResult
   requireProviderMemoryUsage?: boolean
+  allowPlainTextProviderReply?: boolean
   appendRuntimeDebugLine?: (event: string, payload: Record<string, unknown>) => Promise<void> | void
 }): Promise<AlicizationVisibleReplySettlementResult> {
   const validation = validateAlicizationProviderSettlementPayload({
     fullText: input.draft.fullText,
     prepared: input.prepared,
+    allowPlainTextProviderReply: input.allowPlainTextProviderReply,
   })
   if (!validation.valid || !validation.payload) {
     throw new AlicizationVisibleReplySettlementBlockedError(

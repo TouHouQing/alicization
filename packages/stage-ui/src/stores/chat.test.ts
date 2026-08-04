@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs'
 
-import { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
@@ -374,7 +373,7 @@ describe('chat orchestrator reply authority', () => {
     expect(source).not.toContain('stageChatText(\'kill-switch.resumed\')')
   })
 
-  it('passes the native provider responseFormat through the renderer provider call', async () => {
+  it('omits native provider responseFormat from the renderer provider call', async () => {
     const reply = '这是 Provider 严格 JSON 合同里的回复。'
     const fullText = createProviderFullText(reply)
     streamMock.mockImplementation(async (_model, _provider, _messages, options) => {
@@ -403,9 +402,7 @@ describe('chat orchestrator reply authority', () => {
     })
 
     expect(streamMock).toHaveBeenCalledTimes(1)
-    expect(streamMock.mock.calls[0]?.[3]).toEqual(expect.objectContaining({
-      responseFormat: alicizationProviderResponseFormat,
-    }))
+    expect(streamMock.mock.calls[0]?.[3]).not.toHaveProperty('responseFormat')
   })
 
   it('does not turn renderer context snapshots into an extra Provider user prompt without a bridge', async () => {

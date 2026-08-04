@@ -26,7 +26,6 @@ import type {
 import type { StreamEvent, StreamOptions } from './llm'
 
 import {
-  alicizationProviderResponseFormat,
   deriveAlicizationRendererBridgeWatchdogTimeoutPolicy,
   detectAlicizationExecutionCapabilityInquiry,
   detectAlicizationExecutionRoutingIntent,
@@ -1072,11 +1071,16 @@ function isUsableMindTurnGovernanceCandidate(value: unknown): value is Alicizati
     && Array.isArray(candidate.mustNotDo)
 }
 
-function hasStructuredJsonContract(
+function hasProviderAuthoredVisibleReplyContract(
   structured: StructuredOutputResult | undefined,
   validationIssues: StructuredValidationIssue[],
 ) {
-  return structured?.parsePath === 'json' && validationIssues.length === 0
+  return Boolean(
+    structured
+    && validationIssues.length === 0
+    && structured.reply.trim()
+    && (structured.parsePath === 'json' || structured.parsePath === 'fallback'),
+  )
 }
 
 function normalizeStructuredTurnForPersistence(
@@ -2039,7 +2043,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         await withStreamWatchdog(async ({ touch }) => {
           await llmStore.stream(options.model, options.chatProvider, messages, {
             ...streamOptions,
-            responseFormat: alicizationProviderResponseFormat,
             onStreamEvent: async (event) => {
               if (event.type === 'meta')
                 touch('liveness')
@@ -2099,7 +2102,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         )
         const validationIssues = validateStructuredContract(candidate)
 
-        if (!hasStructuredJsonContract(candidate, validationIssues)) {
+        if (!hasProviderAuthoredVisibleReplyContract(candidate, validationIssues)) {
           await appendAlicizationAuditLog({
             level: 'warning',
             category: 'alicization.structured',

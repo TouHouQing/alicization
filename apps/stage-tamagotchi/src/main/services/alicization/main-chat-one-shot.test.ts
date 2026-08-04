@@ -1,4 +1,3 @@
-import { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -186,7 +185,7 @@ describe('main chat one-shot', () => {
     expect(generateTextImpl).toHaveBeenCalledOnce()
   })
 
-  it('passes the native response schema without converting emotional state into one-shot provider prose', async () => {
+  it('does not force native response schema or convert emotional state into one-shot provider prose', async () => {
     const emotionalKernel = {
       version: 'emotional-kernel-v1',
       dominantEmotion: 'guarded-care',
@@ -208,7 +207,7 @@ describe('main chat one-shot', () => {
         .map(message => typeof message.content === 'string' ? message.content : '')
         .join('\n')
 
-      expect(input.responseFormat).toBe(alicizationProviderResponseFormat)
+      expect(input.responseFormat).toBeUndefined()
       expect(systemText).not.toContain('[ALICIZATION_EMOTIONAL_KERNEL]')
       expect(systemText).not.toContain('emotional_kernel_')
       expect(JSON.stringify(input.messages)).not.toMatch(
