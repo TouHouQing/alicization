@@ -282,25 +282,27 @@ Run store/page/i18n tests and commit `feat(alicization): surface memory quality 
 ## Task 8: Scope fuzz 与体验评测
 
 **Files:**
-- Create: `apps/stage-tamagotchi/src/main/services/alicization/memory-card-scope-fuzz.test.ts`
+- Create: `apps/stage-tamagotchi/src/main/services/alicization/memory-scope-fuzz-harness.ts`
+- Create: `apps/stage-tamagotchi/src/main/services/alicization/memory-scope-fuzz-harness.test.ts`
+- Create: `apps/stage-tamagotchi/src/main/services/alicization/memory-scope-fuzz-integration.test.ts`
 - Create: `apps/stage-tamagotchi/src/main/services/alicization/memory-experience-quality-harness.ts`
 - Create: `apps/stage-tamagotchi/src/main/services/alicization/memory-experience-quality-harness.test.ts`
 
-- [ ] **Step 1: card/user scope fuzz**
+- [x] **Step 1: card/user scope fuzz**
 
 随机生成 card/user/sourceId，对 facts、consolidations、vectors、review、persona dataset 进行跨 card 查询，断言无泄漏。
 
-- [ ] **Step 2: 体验质量 harness**
+- [x] **Step 2: 体验质量 harness**
 
 评测 `不打扰`、`不炫耀记忆`、`不把记忆当模板`、`不确定时说不确定`。
 
-- [ ] **Step 3: Agent 经验记忆 fixture**
+- [x] **Step 3: Agent 经验记忆 fixture**
 
 新增 workflow/gotcha/affordance 类 fixture：例如“SiliconFlow baseUrl 只填 host，系统补 /v1/embeddings”。
 
-- [ ] **Step 4: 验证并提交**
+- [x] **Step 4: 验证并提交**
 
-Commit `test(alicization): add memory scope fuzz and experience gates`.
+Committed as part of `feat(alicization): add memory quality scale gates`.
 
 ## Final Verification
 
