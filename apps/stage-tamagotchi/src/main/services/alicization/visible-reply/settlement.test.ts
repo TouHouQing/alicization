@@ -135,7 +135,7 @@ describe('visible-reply settlement', () => {
       'provider-memory-usage-invalid',
     )
     expect((thrown as AlicizationVisibleReplySettlementBlockedError).failureSurface).toMatchObject({
-      kind: 'structured-contract',
+      kind: 'provider-output-invalid',
       origin: 'failure-surface',
       allowLongTermCondensation: false,
       allowPersonaLearning: false,
@@ -339,7 +339,7 @@ describe('visible-reply settlement', () => {
     expect(result.realization.closure?.status).toBe('approved')
   })
 
-  it('returns the structured-contract failure surface when validation cannot settle', async () => {
+  it('returns the provider output failure surface when validation cannot settle', async () => {
     let thrown: unknown
     try {
       await settleAlicizationVisibleReply({
@@ -356,7 +356,7 @@ describe('visible-reply settlement', () => {
 
     expect(thrown).toBeInstanceOf(AlicizationVisibleReplySettlementBlockedError)
     expect((thrown as AlicizationVisibleReplySettlementBlockedError).failureSurface).toMatchObject({
-      kind: 'structured-contract',
+      kind: 'provider-output-invalid',
       origin: 'failure-surface',
       allowLongTermCondensation: false,
       allowPersonaLearning: false,

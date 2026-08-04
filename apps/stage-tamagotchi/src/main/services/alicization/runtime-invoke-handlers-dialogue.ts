@@ -177,11 +177,17 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
   registerInvokeHandler(electronAlicizationSetActiveSession, async payload => await withCardScope(payload.cardId, async () => {
     const activeCardId = getActiveCardId()
     await persistActiveSessionId(activeCardId, normalizeSessionId(payload.sessionId))
+  }, {
+    label: `dialogue-active-session:${payload.cardId}`,
+    skipQueueWhenScopeAlreadyActive: true,
   }))
 
   registerInvokeHandler(electronAlicizationAppendConversationTurn, async (payload) => {
     await withCardScope(payload.cardId, async () => {
       await appendConversationTurnWithGuards(payload)
+    }, {
+      label: `dialogue-append-turn:${payload.cardId}`,
+      skipQueueWhenScopeAlreadyActive: true,
     })
   })
 
@@ -206,6 +212,9 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
       previousCursor,
       nextCursor,
     })
+  }, {
+    label: `dialogue-ack:${payload.cardId}`,
+    skipQueueWhenScopeAlreadyActive: true,
   }))
 
   registerInvokeHandler(electronAlicizationReportProactiveFeedback, async (payload: AlicizationProactiveFeedbackPayload) => await withCardScope(payload.cardId, async () => {
@@ -282,6 +291,9 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
       replayRows: replayRows.length,
     })
     return replayRows
+  }, {
+    label: `dialogue-replay:${payload.cardId}`,
+    skipQueueWhenScopeAlreadyActive: true,
   }))
 
   registerInvokeHandler(electronAlicizationClearAllConversations, async () => await withCardScope(getActiveCardId(), async () => {
@@ -307,6 +319,9 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
         createdAt: row.createdAt,
       }
     })
+  }, {
+    label: `dialogue-list-turns:${payload.cardId}`,
+    skipQueueWhenScopeAlreadyActive: true,
   }))
 
   registerInvokeHandler(electronAlicizationListMindTurnEvents, async (payload: AlicizationListMindTurnEventsPayload) => await withCardScope(payload.cardId, async () => {

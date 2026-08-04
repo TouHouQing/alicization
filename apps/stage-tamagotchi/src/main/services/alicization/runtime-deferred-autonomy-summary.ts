@@ -245,12 +245,18 @@ export function normalizeDeferredAutonomyCanonicalText(
   return normalizeDeferredAutonomyRawText(value).slice(0, maxChars)
 }
 
+const deferredAutonomyStructuredControlResiduePattern = /(?:^|[\s|;])[\p{L}_][\p{L}\p{N}_-]*=/iu
+
+function isDeferredAutonomyStructuredControlResidue(text: string) {
+  return deferredAutonomyStructuredControlResiduePattern.test(text)
+}
+
 export function normalizeDeferredAutonomyCanonicalFreeText(
   value: unknown,
   maxChars: number = deferredAutonomyContinuityBudgets.executionIntentSummary,
 ) {
   const normalized = normalizeDeferredAutonomyRawText(value)
-  if (!normalized)
+  if (!normalized || isDeferredAutonomyStructuredControlResidue(normalized))
     return ''
 
   const direct = sanitizeAlicizationProviderFacingText(normalized, maxChars, '')
@@ -259,6 +265,7 @@ export function normalizeDeferredAutonomyCanonicalFreeText(
 
   return normalized
     .split(/\s*(?:[。.!?！？]\s*|\|\s*|;\s*)/u)
+    .filter(fragment => !isDeferredAutonomyStructuredControlResidue(fragment))
     .map(fragment => sanitizeAlicizationProviderFacingText(
       fragment,
       Math.min(260, maxChars),

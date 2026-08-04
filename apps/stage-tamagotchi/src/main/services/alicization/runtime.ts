@@ -297,6 +297,7 @@ import {
   normalizeReminderMessage,
   sanitizeBriefText,
 } from './runtime-realtime'
+import { resolveReminderDueTimerDelay } from './runtime-reminder-due-scheduler'
 import {
   alicizationCardActiveSessionMetaKey,
   alicizationCardKillSwitchMetaKey,
@@ -3337,7 +3338,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     const nowMs = Date.now()
     const dueInMs = Math.max(0, nextPending.triggerAt - nowMs)
-    const timeoutMs = Math.min(2_147_000_000, dueInMs + 120)
+    const timeoutMs = resolveReminderDueTimerDelay({
+      nowMs,
+      triggerAt: nextPending.triggerAt,
+    })
     await appendRuntimeDebugLine('reminder.next-due-scheduled', {
       cardId: activeCardId,
       trigger: reason,
@@ -3356,11 +3360,20 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       })
 
       if (subconsciousTickInFlight) {
+        const retryInMs = resolveReminderDueTimerDelay({
+          nowMs: Date.now(),
+          triggerAt: nextPending.triggerAt,
+          deferredBecauseTickInFlight: true,
+        })
         void appendRuntimeDebugLine('reminder.next-due-deferred', {
           cardId: activeCardId,
           reason: 'tick-in-flight',
+          retryInMs,
         })
-        void scheduleNextReminderDueCheck('deferred-after-inflight').catch(() => {})
+        reminderDueTimer = setTimeout(() => {
+          reminderDueTimer = undefined
+          void scheduleNextReminderDueCheck('deferred-after-inflight').catch(() => {})
+        }, retryInMs)
         return
       }
 

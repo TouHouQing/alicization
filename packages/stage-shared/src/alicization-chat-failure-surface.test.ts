@@ -23,7 +23,11 @@ describe('alicization chat failure surface', () => {
     const cases = [
       {
         kind: 'provider-schema-unsupported',
-        reply: '当前 Provider/模型不支持所需的结构化输出。',
+        reply: '当前 Provider/模型不支持所需的输出模式。',
+      },
+      {
+        kind: 'provider-output-invalid',
+        reply: '模型输出格式异常，这轮回复已拦截。',
       },
       {
         kind: 'required-tool-missing',

@@ -9,7 +9,7 @@ chat:
     leak-filtered: Kết quả vừa rồi có lẫn các mảnh gọi công cụ nội bộ. Tôi đã lọc chúng ra rồi. Hỏi lại một lần nữa, tôi sẽ trả lời bằng bản đã được làm sạch.
     realtime-unavailable: Hiện tại tôi không thể lấy dữ liệu bên ngoài theo thời gian thực một cách đáng tin cậy. Hãy thử lại sau hoặc kiểm tra trong cài đặt xem các công cụ MCP thời gian thực có khả dụng không.
     epoch1-strict: Xin lỗi. Hiện tôi đang ở chế độ Epoch 1 bị giới hạn nên không thể truy cập các nguồn dữ liệu bên ngoài theo thời gian thực. Nhưng bạn vẫn có thể tiếp tục trò chuyện cục bộ, chỉnh cài đặt và sắp xếp ký ức cùng tôi.
-    structured-contract: 'Trả lời có cấu trúc thất bại: lượt này không hội tụ thành JSON dùng được. Hãy thử lại.'
+    structured-contract: 'Định dạng đầu ra của mô hình không hợp lệ, nên lượt trả lời này đã bị chặn.'
     stream-failure: Lượt trả lời này đã thất bại. Hãy thử lại một lần; nếu vẫn lặp lại, hãy kiểm tra cấu hình provider và model.
     local-runtime-unavailable: Trong lượt này tôi không kết nối được tới runtime model cục bộ, ví dụ Ollama ở `11434` hoặc LM Studio ở `1234`. Hãy khởi động dịch vụ tương ứng rồi thử lại.
     stream-timeout: 'Hết thời gian chờ: lượt này đã đợi phản hồi từ model quá lâu. Hãy thử lại.'

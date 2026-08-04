@@ -2114,7 +2114,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             },
           })
           return mergeStructuredRuntimeMeta(createFailureStructuredArtifact({
-            kind: 'structured-contract',
+            kind: 'provider-output-invalid',
             userText: sendingMessage,
           }), getTurnStructuredRuntimeMeta())
         }
@@ -2173,7 +2173,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               removedCount: inspectedOutput.removedCount,
             },
           })
-          return stageFailureSurface(inspectedOutput.leakDetected ? 'internal-leak' : 'structured-contract')
+          return stageFailureSurface(inspectedOutput.leakDetected ? 'internal-leak' : 'provider-output-invalid')
         }
 
         if (containsChatVisibleReplyFixedTemplateResidue(finalReply)) {

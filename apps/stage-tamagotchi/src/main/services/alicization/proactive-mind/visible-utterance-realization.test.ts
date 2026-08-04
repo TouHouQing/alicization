@@ -127,7 +127,7 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
 
   it('persists an explicit infrastructure failure without treating it as mind-authored', () => {
     const resolved = resolveAlicizationProactiveVisibleUtterance({
-      kind: 'subconscious-proactive',
+      kind: 'reminder',
       structured: {
         reply: '提供方认证失败。',
         visibleReplyAuthority: 'non-human-authored-blocked',
@@ -150,6 +150,31 @@ describe('resolveAlicizationProactiveVisibleUtterance', () => {
       mode: 'local-fallback',
       providerMindExecuted: false,
       actualVisibleReplyAuthority: 'non-human-authored-blocked',
+    }))
+  })
+
+  it('keeps background proactive provider failures out of user-visible dialogue', () => {
+    const resolved = resolveAlicizationProactiveVisibleUtterance({
+      kind: 'subconscious-proactive',
+      structured: {
+        reply: 'Timed out.',
+        visibleReplyAuthority: 'non-human-authored-blocked',
+        excludeFromPersonaLearning: true,
+        excludeFromMemoryCondensation: true,
+      },
+      hasMindAuthoredStructured: false,
+      actualVisibleReplyAuthority: 'non-human-authored-blocked',
+      allowTransparentFailureSurface: true,
+      reason: 'proactive-provider-timeout',
+    })
+
+    expect(resolved.shouldPersistVisibleUtterance).toBe(false)
+    expect(resolved.assistantText).toBe('')
+    expect(resolved.visibleReplyRealization.visibleText).toBeNull()
+    expect(resolved.visibleReplyExecution).toEqual(expect.objectContaining({
+      mode: 'local-fallback',
+      providerMindExecuted: false,
+      actualVisibleReplyAuthority: 'local-deterministic-fallback',
     }))
   })
 })

@@ -9,7 +9,7 @@ chat:
     leak-filtered: 방금 결과에 내부 도구 조각이 섞여 있어서 내가 걸러냈어. 한 번만 다시 물어보면 정리된 답만 돌려줄게.
     realtime-unavailable: 지금은 신뢰할 수 있는 실시간 외부 데이터를 가져올 수 없어. 잠시 후 다시 시도하거나, 설정에서 MCP 실시간 도구가 사용 가능한지 확인해 줘.
     epoch1-strict: 미안해. 지금은 제한된 Epoch 1 모드라서 실시간 외부 데이터 소스에 접근할 수 없어. 그래도 로컬 대화, 설정 조정, 기억 정리는 계속할 수 있어.
-    structured-contract: 구조화 응답에 실패했어. 이번 턴은 유효한 JSON으로 수렴하지 않았어. 다시 시도해 줘.
+    structured-contract: 모델 출력 형식이 유효하지 않아 이번 턴의 응답을 차단했어.
     stream-failure: 이번 응답은 실패했어. 먼저 한 번 다시 시도하고, 계속 실패하면 provider 와 model 설정을 확인해 줘.
     local-runtime-unavailable: 이번에는 로컬 모델 런타임에 연결하지 못했어. 예를 들면 `11434` 의 Ollama 나 `1234` 의 LM Studio 같은 거야. 해당 서비스를 켠 다음 다시 시도해 줘.
     stream-timeout: 시간 초과가 났어. 이번 턴은 모델 응답을 너무 오래 기다렸어. 다시 시도해 줘.

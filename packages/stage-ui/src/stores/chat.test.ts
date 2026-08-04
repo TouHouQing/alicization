@@ -557,7 +557,7 @@ describe('chat orchestrator reply authority', () => {
       structured: {
         origin: 'failure-surface',
         failureSurface: {
-          kind: 'structured-contract',
+          kind: 'provider-output-invalid',
         },
       },
     })
@@ -826,7 +826,7 @@ describe('chat orchestrator reply authority', () => {
     }))
   })
 
-  it('routes a prose-wrapped JSON candidate to the transparent structured-contract failure without retry', async () => {
+  it('routes a prose-wrapped JSON candidate to a transparent provider output failure without retry', async () => {
     const providerReply = '这段 Provider 纯文本不得被保留为成功回复。'
     const fullText = `Provider preface\n${createProviderFullText(providerReply)}\nProvider suffix`
     const streamChat = vi.fn(async (_payload: any, options: any) => {
@@ -864,7 +864,7 @@ describe('chat orchestrator reply authority', () => {
         contractFailed: true,
         origin: 'failure-surface',
         failureSurface: {
-          kind: 'structured-contract',
+          kind: 'provider-output-invalid',
         },
       },
     })
@@ -873,7 +873,7 @@ describe('chat orchestrator reply authority', () => {
     expect(persisted.structured.reply).toBe(persisted.assistantText)
   })
 
-  it.each(invalidProviderContractCases)('routes %s to a non-learning structured-contract failure surface', async (_label, payload) => {
+  it.each(invalidProviderContractCases)('routes %s to a non-learning provider output failure surface', async (_label, payload) => {
     const providerReply = typeof payload.reply === 'string'
       ? payload.reply
       : '缺失 reply 的候选也不能成为 Provider artifact。'
@@ -917,7 +917,7 @@ describe('chat orchestrator reply authority', () => {
           allowTraining: false,
         },
         failureSurface: {
-          kind: 'structured-contract',
+          kind: 'provider-output-invalid',
           allowLongTermCondensation: false,
           allowPersonaLearning: false,
         },

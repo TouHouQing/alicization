@@ -52,7 +52,9 @@ export function resolveAlicizationProactiveVisibleUtterance(input: {
   const reply = readVisibleReply(input.structured)
   const presenceOnlyHold = input.preferPresenceOnlyHold === true
   const hasMindAuthoredVisibleText = input.hasMindAuthoredStructured && Boolean(reply)
-  const shouldPersistTransparentFailure = input.allowTransparentFailureSurface === true
+  const canPersistTransparentFailure = input.kind === 'reminder' || input.kind === 'execution-callback'
+  const shouldPersistTransparentFailure = canPersistTransparentFailure
+    && input.allowTransparentFailureSurface === true
     && Boolean(reply)
   const shouldPersistMindReply = hasMindAuthoredVisibleText
     && !presenceOnlyHold

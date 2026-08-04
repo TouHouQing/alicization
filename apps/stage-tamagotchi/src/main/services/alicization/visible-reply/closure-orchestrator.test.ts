@@ -69,7 +69,7 @@ describe('visible reply closure orchestrator', () => {
       .toContain('structured-payload-visible-reply')
   })
 
-  it('exposes only the structured-contract failure surface when validation fails', async () => {
+  it('exposes only the provider output failure surface when validation fails', async () => {
     let thrown: unknown
     try {
       await closeAlicizationVisibleReply({
@@ -86,7 +86,7 @@ describe('visible reply closure orchestrator', () => {
 
     expect(thrown).toBeInstanceOf(AlicizationVisibleReplyClosureBlockedError)
     expect((thrown as AlicizationVisibleReplyClosureBlockedError).failureSurface).toMatchObject({
-      kind: 'structured-contract',
+      kind: 'provider-output-invalid',
       origin: 'failure-surface',
       allowLongTermCondensation: false,
       allowPersonaLearning: false,

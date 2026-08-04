@@ -61,7 +61,7 @@ export interface AlicizationVisibleReplySettlementResult extends AlicizationReso
 
 export class AlicizationVisibleReplySettlementBlockedError extends Error {
   readonly failureSurface = resolveAlicizationChatFailureSurface({
-    kind: 'structured-contract',
+    kind: 'provider-output-invalid',
   })
 
   constructor(message: string, readonly closure: AlicizationVisibleReplyClosureArtifact | null) {

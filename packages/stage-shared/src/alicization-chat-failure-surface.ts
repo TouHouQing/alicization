@@ -9,6 +9,7 @@ export type AlicizationChatFailureKind
   = | 'internal-leak'
     | 'realtime-unavailable'
     | 'structured-contract'
+    | 'provider-output-invalid'
     | 'stream-failure'
     | 'timeout'
     | 'local-runtime-unavailable'
@@ -55,7 +56,8 @@ export interface AlicizationChatMemoryFailureSurface extends AlicizationChatFail
 const failureKindRepairPath: Record<AlicizationChatFailureKind, string> = {
   'internal-leak': 'internal-leak',
   'realtime-unavailable': 'realtime-unavailable',
-  'structured-contract': 'structured-contract',
+  'structured-contract': 'provider-output-invalid',
+  'provider-output-invalid': 'provider-output-invalid',
   'stream-failure': 'stream-failure',
   'timeout': 'stream-timeout',
   'local-runtime-unavailable': 'local-runtime-unavailable',

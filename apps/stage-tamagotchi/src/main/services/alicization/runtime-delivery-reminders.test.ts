@@ -403,7 +403,7 @@ describe('runtime delivery reminders', () => {
     expect(harness.markDelivered).toHaveBeenCalledWith(harness.pendingDelivery)
     const persisted = firstPersistedPayload(harness.appendConversationTurnWithGuards)
     expect(persisted?.structured).toMatchObject({
-      kind: 'structured-contract',
+      kind: 'provider-output-invalid',
       origin: 'failure-surface',
       allowLongTermCondensation: false,
       allowPersonaLearning: false,
