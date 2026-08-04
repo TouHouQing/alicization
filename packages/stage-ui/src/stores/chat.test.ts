@@ -485,6 +485,85 @@ describe('chat orchestrator reply authority', () => {
     }))
   })
 
+  it('settles provider-authored text deltas when the bridge finish event loses fullText', async () => {
+    const reply = '我已经从短期记忆和长期记忆里接住这轮对话了。'
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('继续聊聊我们的记忆', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(streamChat).toHaveBeenCalledTimes(1)
+    expect(persisted.assistantText).toBe(reply)
+    expect(persisted.structured).toMatchObject({
+      parsePath: 'fallback',
+      origin: 'provider',
+      reply,
+      contractFailed: false,
+      learningPolicy: providerLearningPolicy(),
+    })
+    expect(persisted.structured.failureSurface).toBeUndefined()
+  })
+
+  it('keeps structured transport fragments blocked when finish fullText is missing', async () => {
+    const fragment = '{"format":"mind-turn-v1","thought":"internal'
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: fragment,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('继续聊聊我们的记忆', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted).toMatchObject({
+      structured: {
+        origin: 'failure-surface',
+        failureSurface: {
+          kind: 'structured-contract',
+        },
+      },
+    })
+    expect(persisted.assistantText).not.toContain(fragment)
+  })
+
   it('shows and persists memory side failures without replacing the Provider reply', async () => {
     const reply = '这是主进程 Provider 根据当前可用记忆生成的回复。'
     const fullText = createProviderFullText(reply)

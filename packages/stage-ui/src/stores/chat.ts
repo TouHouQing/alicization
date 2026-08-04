@@ -2598,7 +2598,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           await applyAssistantTextFromModelOutput(turnTransportProviderFullText)
         }
         else if (!turnTransportFailureSurface && turnTransportVisibleText.trim()) {
-          stageFailureSurface('structured-contract')
+          await applyAssistantTextFromModelOutput(turnTransportVisibleText)
         }
       }
       else {
