@@ -416,6 +416,126 @@ export interface AlicizationMemoryReviewActionPayload extends AlicizationCardSco
   reason?: string | null
 }
 
+export type AlicizationSimpleRecallGoldLabel = 'right' | 'missing' | 'wrong' | 'unwanted'
+export type AlicizationSimpleRecallGoldEvaluationClass
+  = | 'correct-recall'
+    | 'missed-recall'
+    | 'false-recall'
+    | 'should-abstain'
+export type AlicizationSimpleRecallGoldBenchmarkDimension
+  = | 'information-extraction'
+    | 'multi-session-reasoning'
+    | 'temporal-reasoning'
+    | 'knowledge-update'
+    | 'abstention'
+
+export interface AlicizationMemoryQualityGoldLabelPayload extends AlicizationCardScope {
+  month?: string | null
+  label: AlicizationSimpleRecallGoldLabel
+  query: string
+  expectedMemoryIds?: string[]
+  retrievedCandidateIds?: string[]
+  surfacedMemoryIds?: string[]
+  wrongThreadIds?: string[]
+  turnId?: string | null
+  decisionTraceId?: string | null
+  note?: string | null
+  createdAt?: number
+}
+
+export interface AlicizationMemoryQualityGoldLabelItem {
+  id: string
+  cardId: string
+  month: string
+  label: AlicizationSimpleRecallGoldLabel
+  labelText: string
+  description: string
+  evaluationClass: AlicizationSimpleRecallGoldEvaluationClass
+  benchmarkDimensions: AlicizationSimpleRecallGoldBenchmarkDimension[]
+  query: string
+  expectedMemoryIds: string[]
+  retrievedCandidateIds: string[]
+  surfacedMemoryIds: string[]
+  wrongThreadIds: string[]
+  turnId: string | null
+  decisionTraceId: string | null
+  note: string | null
+  createdAt: number
+}
+
+export interface AlicizationMemoryQualityGoldLabelListPayload extends AlicizationCardScope {
+  month?: string | null
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationMemoryQualityGoldLabelListResult {
+  items: AlicizationMemoryQualityGoldLabelItem[]
+  nextCursor: string | null
+}
+
+export interface AlicizationMemoryQualityMonthlyGoldRegressionPack {
+  version: 'memory-quality-monthly-gold-regression-pack-v1'
+  cardId: string
+  month: string
+  itemCount: number
+  items: AlicizationMemoryQualityGoldLabelItem[]
+}
+
+export interface AlicizationMemoryQualityMonthlyGoldRegressionPayload extends AlicizationCardScope {
+  month?: string | null
+}
+
+export interface AlicizationMemoryQualityTrialPayload extends AlicizationCardScope {
+  month?: string | null
+  replayPackId?: string | null
+}
+
+export interface AlicizationMemoryQualityTrialReport {
+  version: 'memory-production-trial-runner-v1'
+  id: string
+  cardId: string
+  createdAt: number
+  passed: boolean
+  summary: {
+    dialogueReplayCount: number
+    workingMemoryFixtureCount: number
+    longTermFixtureCount: number
+    userTrialCount: number
+    personaTrainingFixtureCount: number
+    failingStageIds: string[]
+    optimizationFindingCount: number
+    recommendedActionCount: number
+    lastError: string | null
+  }
+  stages: Array<{
+    stage: string
+    id: string
+    passed: boolean
+    itemCount: number
+    error: string | null
+  }>
+  quality: {
+    passed: boolean
+    summary: {
+      failingFixtureIds: string[]
+      recallAtK: number
+      compressionLossCount: number
+      blockedLeakCount: number
+      optimizationFindingCount: number
+      lastError: string | null
+    }
+    traces: Array<Record<string, unknown>>
+    longTerm: Array<Record<string, unknown>>
+    workingMemory: Array<Record<string, unknown>>
+    userTrials: Array<Record<string, unknown>>
+    personaTraining: Array<Record<string, unknown>>
+    optimizationFindings: Array<Record<string, unknown>>
+    recommendedNextActions: string[]
+  }
+  recommendedNextActions: string[]
+}
+
 export type AlicizationPersonaCandidateWorkbenchStatus = 'candidate' | 'approved' | 'rejected' | 'no-training'
 export type AlicizationPersonaCandidateWorkbenchDecision = 'approve' | 'reject' | 'no-training'
 
@@ -2451,6 +2571,10 @@ interface AlicizationBridge {
   memoryWorkbenchReindexEmbeddings?: (payload: Omit<AlicizationMemoryEmbeddingReindexPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingReindexResult>
   memoryWorkbenchListEmbeddingModels?: (payload: Omit<AlicizationMemoryEmbeddingModelListPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingModelListResult>
   memoryWorkbenchTestEmbeddingConnection?: (payload: Omit<AlicizationMemoryEmbeddingConnectionTestPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingConnectionTestResult>
+  memoryWorkbenchRunQualityTrial?: (payload: Omit<AlicizationMemoryQualityTrialPayload, 'cardId'>) => Promise<AlicizationMemoryQualityTrialReport>
+  memoryWorkbenchRecordQualityGoldLabel?: (payload: Omit<AlicizationMemoryQualityGoldLabelPayload, 'cardId'>) => Promise<AlicizationMemoryQualityGoldLabelItem>
+  memoryWorkbenchListQualityGoldLabels?: (payload: Omit<AlicizationMemoryQualityGoldLabelListPayload, 'cardId'>) => Promise<AlicizationMemoryQualityGoldLabelListResult>
+  memoryWorkbenchBuildMonthlyGoldRegression?: (payload: Omit<AlicizationMemoryQualityMonthlyGoldRegressionPayload, 'cardId'>) => Promise<AlicizationMemoryQualityMonthlyGoldRegressionPack>
   getOrganicMemorySnapshot?: () => Promise<AlicizationOrganicMemorySnapshot>
   getSelfEvolutionState?: () => Promise<AlicizationSelfEvolutionVersionRuntimeSnapshot>
   searchOrganicSubconsciousFragments?: (payload: { query: string, limit?: number }) => Promise<AlicizationSubconsciousFragment[]>

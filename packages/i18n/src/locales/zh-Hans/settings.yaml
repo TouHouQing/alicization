@@ -523,6 +523,7 @@ pages:
         review: 待审核
         probe: 召回测试
         persona: 人格候选
+        quality: 质量试用
         health: 健康与审计
       actions:
         refresh: 刷新
@@ -551,6 +552,9 @@ pages:
         discover_embedding_models: 检索模型
         test_embedding_connection: 测试连通
         save_embedding_config: 保存向量配置
+        load_gold_labels: 读取本月标注
+        run_quality_trial: 运行质量试用
+        build_gold_regression: 固定为月度回归
       states:
         empty_working: 还没有可显示的短期记忆快照。发送一轮对话后再刷新。
         empty_long_term: 还没有匹配的长期记忆。
@@ -595,6 +599,10 @@ pages:
         empty_embedding_models: 填写服务根地址和 API Key 后检索可用向量模型；如果服务不返回列表，也可以直接输入模型名。
         embedding_config_saved: 向量配置已保存，正在刷新记忆健康状态。
         loading: 正在读取记忆状态...
+        quality_passed: 通过
+        quality_failed: 需要优化
+        empty_quality_report: 还没有质量试用报告。先运行一次质量试用。
+        empty_gold_labels: 本月还没有标注。先在召回测试后点四个反馈按钮之一。
       fields:
         health: 记忆健康
         pending_review: 待审核
@@ -686,6 +694,36 @@ pages:
         orphaned_count: 孤儿向量
         coverage_ratio: 向量覆盖率
         debug_details: 调试详情
+        month: 月份
+        query: 查询
+        count: 数量
+        trace: Trace
+        long_term_fixtures: 长期召回样本
+        working_memory_fixtures: 短期压缩样本
+        persona_fixtures: 人格数据样本
+        recall_at_k: Recall@K
+        failing_stages: 失败阶段
+        recommended_actions: 建议动作
+        expected_ids: 应该命中
+        surfaced_ids: 已提到
+        wrong_thread_ids: 错线程
+      quality:
+        title: 质量试用
+        description: 从本地 DB 跑长期召回、短期压缩和 Persona/LoRA 清洗质量门禁，结果会暴露失败项与建议动作。
+        feedback_title: 四按钮反馈
+        feedback_description: 先在“召回测试”里查一句话，再回到这里标注这次记忆表现。
+        report_title: 试用报告
+        gold_labels_title: 本月标注
+        labels:
+          right: 记得对
+          missing: 没想起来
+          wrong: 记错了
+          unwanted: 不该提
+        descriptions:
+          right: 她想起了该想起的记忆，用得也合适。
+          missing: 这次应该想起某段记忆，但她没有想起。
+          wrong: 她提到了错误、过期或别的会话里的记忆。
+          unwanted: 这句话不需要回忆，或者应该明确说不确定。
       filters:
         kind:
           all: 全部类型

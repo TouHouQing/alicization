@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { AlicizationSimpleRecallGoldLabel } from '@proj-alicization/stage-ui/stores/alicization-bridge'
+
 import { useAlicizationMemoryWorkbenchStore } from '@proj-alicization/stage-ui/stores/alicization-memory-workbench'
 import { Button } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
@@ -22,6 +24,12 @@ const {
   reindexLoading,
   reindexResult,
   reindexDeadLetterItems,
+  qualityTrialLoading,
+  qualityTrialReport,
+  goldLabelLoading,
+  goldLabelMonth,
+  monthlyGoldLabels,
+  monthlyGoldRegressionPack,
   recallProbe,
   recallQuery,
   loading,
@@ -46,6 +54,7 @@ const tabs = computed(() => [
   { id: 'review' as const, icon: 'i-solar:checklist-bold-duotone', label: t('settings.pages.memory.workbench.tabs.review') },
   { id: 'probe' as const, icon: 'i-solar:magnifer-bold-duotone', label: t('settings.pages.memory.workbench.tabs.probe') },
   { id: 'persona' as const, icon: 'i-solar:user-heart-bold-duotone', label: t('settings.pages.memory.workbench.tabs.persona') },
+  { id: 'quality' as const, icon: 'i-solar:clipboard-check-bold-duotone', label: t('settings.pages.memory.workbench.tabs.quality') },
   { id: 'health' as const, icon: 'i-solar:pulse-2-bold-duotone', label: t('settings.pages.memory.workbench.tabs.health') },
 ])
 
@@ -128,6 +137,37 @@ const personaPrivacyLabelKeys = {
   'personal-redacted': 'settings.pages.memory.workbench.states.persona_privacy_personal_redacted',
 } as const
 
+const qualityGoldLabelButtons = computed<Array<{
+  value: AlicizationSimpleRecallGoldLabel
+  label: string
+  description: string
+  variant?: 'secondary' | 'danger'
+}>>(() => [
+  {
+    value: 'right',
+    label: t('settings.pages.memory.workbench.quality.labels.right'),
+    description: t('settings.pages.memory.workbench.quality.descriptions.right'),
+  },
+  {
+    value: 'missing',
+    label: t('settings.pages.memory.workbench.quality.labels.missing'),
+    description: t('settings.pages.memory.workbench.quality.descriptions.missing'),
+    variant: 'secondary',
+  },
+  {
+    value: 'wrong',
+    label: t('settings.pages.memory.workbench.quality.labels.wrong'),
+    description: t('settings.pages.memory.workbench.quality.descriptions.wrong'),
+    variant: 'danger',
+  },
+  {
+    value: 'unwanted',
+    label: t('settings.pages.memory.workbench.quality.labels.unwanted'),
+    description: t('settings.pages.memory.workbench.quality.descriptions.unwanted'),
+    variant: 'secondary',
+  },
+])
+
 const healthStatusClass = computed(() => {
   if (health.value?.status === 'ok')
     return 'text-emerald-600 dark:text-emerald-300'
@@ -188,6 +228,12 @@ function formatPersonaPrivacyClass(value: string) {
   return t(personaPrivacyLabelKeys[value as keyof typeof personaPrivacyLabelKeys] ?? value)
 }
 
+function formatQualityScore(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value))
+    return '-'
+  return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`
+}
+
 function resetLongTermFilters() {
   longTermFilters.value = {
     query: '',
@@ -236,10 +282,40 @@ function revokePersonaSource(sourceId: string) {
   void store.revokePersonaTrainingDatasetSource(sourceId)
 }
 
+function loadQualityGoldLabels() {
+  void store.loadMonthlyGoldLabels(goldLabelMonth.value)
+}
+
+function runQualityTrial() {
+  void store.runQualityTrial(goldLabelMonth.value)
+}
+
+function buildGoldRegression() {
+  void store.buildMonthlyGoldRegression(goldLabelMonth.value)
+}
+
+function applyProbeGoldLabel(label: AlicizationSimpleRecallGoldLabel) {
+  const query = (recallProbe.value?.query ?? recallQuery.value).trim()
+  if (!query)
+    return
+  const evidenceIds = recallProbe.value?.evidence.map(item => item.id) ?? []
+  void store.applyGoldLabel({
+    month: goldLabelMonth.value,
+    label,
+    query,
+    expectedMemoryIds: label === 'right' ? evidenceIds : [],
+    retrievedCandidateIds: evidenceIds,
+    surfacedMemoryIds: evidenceIds,
+    wrongThreadIds: label === 'wrong' ? evidenceIds : [],
+    note: qualityGoldLabelButtons.value.find(item => item.value === label)?.description ?? null,
+  })
+}
+
 onMounted(() => {
   void store.refreshSnapshot()
   void store.refreshPersonaCandidates()
   void store.refreshPersonaTrainingDataset()
+  void store.loadMonthlyGoldLabels(goldLabelMonth.value)
 })
 </script>
 
@@ -697,6 +773,159 @@ onMounted(() => {
             </div>
           </article>
         </div>
+      </div>
+    </section>
+
+    <section v-else-if="activeTab === 'quality'" :class="['grid', 'grid-cols-1', 'gap-3', 'xl:grid-cols-[360px_minmax(0,1fr)]']">
+      <div :class="['flex', 'flex-col', 'gap-3']">
+        <section :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+          <div :class="['text-sm', 'font-semibold']">
+            {{ t('settings.pages.memory.workbench.quality.title') }}
+          </div>
+          <p :class="['mt-1', 'text-xs', 'text-neutral-500']">
+            {{ t('settings.pages.memory.workbench.quality.description') }}
+          </p>
+          <label :class="['mt-4', 'grid', 'gap-1']">
+            <span :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.month') }}</span>
+            <input
+              v-model="goldLabelMonth"
+              :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+              placeholder="2026-08"
+              @keydown.enter.prevent="loadQualityGoldLabels()"
+            >
+          </label>
+          <div :class="['mt-3', 'flex', 'flex-wrap', 'gap-2']">
+            <Button
+              :label="t('settings.pages.memory.workbench.actions.load_gold_labels')"
+              icon="i-solar:calendar-search-bold-duotone"
+              size="sm"
+              variant="secondary"
+              :loading="goldLabelLoading"
+              @click="loadQualityGoldLabels()"
+            />
+            <Button
+              :label="t('settings.pages.memory.workbench.actions.run_quality_trial')"
+              icon="i-solar:play-circle-bold-duotone"
+              size="sm"
+              :loading="qualityTrialLoading"
+              @click="runQualityTrial()"
+            />
+            <Button
+              :label="t('settings.pages.memory.workbench.actions.build_gold_regression')"
+              icon="i-solar:archive-check-bold-duotone"
+              size="sm"
+              variant="secondary"
+              :loading="goldLabelLoading"
+              @click="buildGoldRegression()"
+            />
+          </div>
+        </section>
+
+        <section :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+          <div :class="['text-sm', 'font-semibold']">
+            {{ t('settings.pages.memory.workbench.quality.feedback_title') }}
+          </div>
+          <p :class="['mt-1', 'text-xs', 'text-neutral-500']">
+            {{ t('settings.pages.memory.workbench.quality.feedback_description') }}
+          </p>
+          <div :class="['mt-3', 'flex', 'flex-col', 'gap-2']">
+            <Button
+              v-for="option in qualityGoldLabelButtons"
+              :key="option.value"
+              :label="option.label"
+              size="sm"
+              :variant="option.variant"
+              :loading="goldLabelLoading"
+              :disabled="!(recallProbe?.query || recallQuery.trim())"
+              @click="applyProbeGoldLabel(option.value)"
+            />
+          </div>
+          <div :class="['mt-3', 'text-xs', 'text-neutral-500']">
+            {{ t('settings.pages.memory.workbench.fields.query') }}:
+            {{ recallProbe?.query ?? recallQuery }}
+          </div>
+        </section>
+      </div>
+
+      <div :class="['flex', 'flex-col', 'gap-3']">
+        <section :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+          <div :class="['flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
+            <div>
+              <div :class="['text-sm', 'font-semibold']">
+                {{ t('settings.pages.memory.workbench.quality.report_title') }}
+              </div>
+              <div :class="['mt-1', 'text-xs', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.fields.month') }}: {{ goldLabelMonth }}
+              </div>
+            </div>
+            <div :class="['text-sm', qualityTrialReport?.passed ? 'text-emerald-600 dark:text-emerald-300' : 'text-amber-600 dark:text-amber-300']">
+              {{ qualityTrialReport ? (qualityTrialReport.passed ? t('settings.pages.memory.workbench.states.quality_passed') : t('settings.pages.memory.workbench.states.quality_failed')) : '-' }}
+            </div>
+          </div>
+          <div v-if="!qualityTrialReport" :class="['mt-4', 'border', 'border-dashed', 'border-neutral-300', 'p-4', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
+            {{ t('settings.pages.memory.workbench.states.empty_quality_report') }}
+          </div>
+          <template v-else>
+            <div :class="['mt-4', 'grid', 'grid-cols-2', 'gap-2', 'text-sm', 'lg:grid-cols-4']">
+              <div>{{ t('settings.pages.memory.workbench.fields.long_term_fixtures') }}: {{ qualityTrialReport.summary.longTermFixtureCount }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.working_memory_fixtures') }}: {{ qualityTrialReport.summary.workingMemoryFixtureCount }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.persona_fixtures') }}: {{ qualityTrialReport.summary.personaTrainingFixtureCount }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.recall_at_k') }}: {{ formatQualityScore(qualityTrialReport.quality.summary.recallAtK) }}</div>
+            </div>
+            <div v-if="qualityTrialReport.summary.failingStageIds.length > 0" :class="['mt-3', 'text-sm', 'text-amber-600', 'dark:text-amber-300']">
+              {{ t('settings.pages.memory.workbench.fields.failing_stages') }}:
+              {{ listText(qualityTrialReport.summary.failingStageIds) }}
+            </div>
+            <div v-if="qualityTrialReport.recommendedNextActions.length > 0" :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+              <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.fields.recommended_actions') }}
+              </div>
+              <ul :class="['mt-2', 'list-disc', 'space-y-1', 'pl-5', 'text-sm']">
+                <li v-for="action in qualityTrialReport.recommendedNextActions" :key="action">
+                  {{ action }}
+                </li>
+              </ul>
+            </div>
+            <details :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+              <summary :class="['cursor-pointer', 'text-xs', 'font-semibold', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.fields.trace') }}
+              </summary>
+              <pre :class="['mt-2', 'max-h-80', 'overflow-auto', 'whitespace-pre-wrap', 'text-xs']">{{ JSON.stringify(qualityTrialReport.quality.traces, null, 2) }}</pre>
+            </details>
+          </template>
+        </section>
+
+        <section :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+          <div :class="['flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
+            <div :class="['text-sm', 'font-semibold']">
+              {{ t('settings.pages.memory.workbench.quality.gold_labels_title') }}
+            </div>
+            <div :class="['text-xs', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.fields.count') }}:
+              {{ monthlyGoldRegressionPack?.itemCount ?? monthlyGoldLabels.length }}
+            </div>
+          </div>
+          <div v-if="monthlyGoldLabels.length === 0" :class="['mt-4', 'border', 'border-dashed', 'border-neutral-300', 'p-4', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
+            {{ t('settings.pages.memory.workbench.states.empty_gold_labels') }}
+          </div>
+          <div v-else :class="['mt-3', 'flex', 'flex-col', 'gap-2']">
+            <article v-for="item in monthlyGoldLabels" :key="item.id" :class="['border', 'border-neutral-200', 'p-3', 'dark:border-neutral-800']">
+              <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
+                <span>{{ item.labelText }}</span>
+                <span>{{ item.evaluationClass }}</span>
+                <span>{{ formatTimestamp(item.createdAt) }}</span>
+              </div>
+              <div :class="['mt-2', 'text-sm', 'font-medium']">
+                {{ item.query }}
+              </div>
+              <div :class="['mt-2', 'grid', 'grid-cols-1', 'gap-1', 'text-xs', 'text-neutral-500', 'md:grid-cols-3']">
+                <div>{{ t('settings.pages.memory.workbench.fields.expected_ids') }}: {{ listText(item.expectedMemoryIds) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.surfaced_ids') }}: {{ listText(item.surfacedMemoryIds) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.wrong_thread_ids') }}: {{ listText(item.wrongThreadIds) }}</div>
+              </div>
+            </article>
+          </div>
+        </section>
       </div>
     </section>
 

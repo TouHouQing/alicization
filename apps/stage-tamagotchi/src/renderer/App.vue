@@ -92,12 +92,16 @@ import {
   electronAlicizationMemoryUpsertFacts,
   electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction,
   electronAlicizationMemoryWorkbenchApplyReviewAction,
+  electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression,
   electronAlicizationMemoryWorkbenchGetSnapshot,
   electronAlicizationMemoryWorkbenchListEmbeddingModels,
   electronAlicizationMemoryWorkbenchListLongTerm,
   electronAlicizationMemoryWorkbenchListPersonaCandidates,
+  electronAlicizationMemoryWorkbenchListQualityGoldLabels,
   electronAlicizationMemoryWorkbenchRecallProbe,
+  electronAlicizationMemoryWorkbenchRecordQualityGoldLabel,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
+  electronAlicizationMemoryWorkbenchRunQualityTrial,
   electronAlicizationMemoryWorkbenchTestEmbeddingConnection,
   electronAlicizationPlanTaskThread,
   electronAlicizationRealtimeExecute,
@@ -230,6 +234,10 @@ const memoryWorkbenchApplyPersonaCandidateAction = useElectronEventaInvoke(elect
 const memoryWorkbenchReindexEmbeddings = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchReindexEmbeddings)
 const memoryWorkbenchListEmbeddingModels = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListEmbeddingModels)
 const memoryWorkbenchTestEmbeddingConnection = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchTestEmbeddingConnection)
+const memoryWorkbenchRunQualityTrial = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRunQualityTrial)
+const memoryWorkbenchRecordQualityGoldLabel = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRecordQualityGoldLabel)
+const memoryWorkbenchListQualityGoldLabels = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListQualityGoldLabels)
+const memoryWorkbenchBuildMonthlyGoldRegression = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression)
 const alicizationSearchOrganicSubconsciousFragments = useElectronEventaInvoke(electronAlicizationSearchOrganicSubconsciousFragments)
 const alicizationSetPerformanceManifest = useElectronEventaInvoke(electronAlicizationSetPerformanceManifest)
 const alicizationAppendConversationTurn = useElectronEventaInvoke(electronAlicizationAppendConversationTurn)
@@ -1053,6 +1061,10 @@ setAlicizationBridge({
   memoryWorkbenchReindexEmbeddings: async payload => await memoryWorkbenchReindexEmbeddings({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListEmbeddingModels: async payload => await memoryWorkbenchListEmbeddingModels({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchTestEmbeddingConnection: async payload => await memoryWorkbenchTestEmbeddingConnection({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchRunQualityTrial: async payload => await memoryWorkbenchRunQualityTrial({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchRecordQualityGoldLabel: async payload => await memoryWorkbenchRecordQualityGoldLabel({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchListQualityGoldLabels: async payload => await memoryWorkbenchListQualityGoldLabels({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchBuildMonthlyGoldRegression: async payload => await memoryWorkbenchBuildMonthlyGoldRegression({ ...resolveAlicizationScope(), ...payload }),
   getOrganicMemorySnapshot: async () => await alicizationGetOrganicMemorySnapshot(resolveAlicizationScope()),
   getSelfEvolutionState: async () => await alicizationGetSelfEvolutionState(resolveAlicizationScope()),
   searchOrganicSubconsciousFragments: async payload => await alicizationSearchOrganicSubconsciousFragments({ ...resolveAlicizationScope(), ...payload }),

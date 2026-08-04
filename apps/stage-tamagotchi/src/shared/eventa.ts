@@ -813,6 +813,135 @@ export interface AlicizationMemoryReviewActionPayload extends AlicizationCardSco
   reason?: string | null
 }
 
+export type AlicizationSimpleRecallGoldLabel = 'right' | 'missing' | 'wrong' | 'unwanted'
+export type AlicizationSimpleRecallGoldEvaluationClass
+  = | 'correct-recall'
+    | 'missed-recall'
+    | 'false-recall'
+    | 'should-abstain'
+export type AlicizationSimpleRecallGoldBenchmarkDimension
+  = | 'information-extraction'
+    | 'multi-session-reasoning'
+    | 'temporal-reasoning'
+    | 'knowledge-update'
+    | 'abstention'
+
+export interface AlicizationSimpleRecallGoldLabelOption {
+  value: AlicizationSimpleRecallGoldLabel
+  label: string
+  description: string
+  evaluationClass: AlicizationSimpleRecallGoldEvaluationClass
+  benchmarkDimensions: AlicizationSimpleRecallGoldBenchmarkDimension[]
+  userFacingReview: string
+}
+
+export interface AlicizationMemoryQualityGoldLabelPayload extends AlicizationCardScope {
+  month?: string | null
+  label: AlicizationSimpleRecallGoldLabel
+  query: string
+  expectedMemoryIds?: string[]
+  retrievedCandidateIds?: string[]
+  surfacedMemoryIds?: string[]
+  wrongThreadIds?: string[]
+  turnId?: string | null
+  decisionTraceId?: string | null
+  note?: string | null
+  createdAt?: number
+}
+
+export interface AlicizationMemoryQualityGoldLabelItem {
+  id: string
+  cardId: string
+  month: string
+  label: AlicizationSimpleRecallGoldLabel
+  labelText: string
+  description: string
+  evaluationClass: AlicizationSimpleRecallGoldEvaluationClass
+  benchmarkDimensions: AlicizationSimpleRecallGoldBenchmarkDimension[]
+  query: string
+  expectedMemoryIds: string[]
+  retrievedCandidateIds: string[]
+  surfacedMemoryIds: string[]
+  wrongThreadIds: string[]
+  turnId: string | null
+  decisionTraceId: string | null
+  note: string | null
+  createdAt: number
+}
+
+export interface AlicizationMemoryQualityGoldLabelListPayload extends AlicizationCardScope {
+  month?: string | null
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationMemoryQualityGoldLabelListResult {
+  items: AlicizationMemoryQualityGoldLabelItem[]
+  nextCursor: string | null
+}
+
+export interface AlicizationMemoryQualityMonthlyGoldRegressionPack {
+  version: 'memory-quality-monthly-gold-regression-pack-v1'
+  cardId: string
+  month: string
+  itemCount: number
+  items: AlicizationMemoryQualityGoldLabelItem[]
+}
+
+export interface AlicizationMemoryQualityMonthlyGoldRegressionPayload extends AlicizationCardScope {
+  month?: string | null
+}
+
+export interface AlicizationMemoryQualityTrialPayload extends AlicizationCardScope {
+  month?: string | null
+  replayPackId?: string | null
+}
+
+export interface AlicizationMemoryQualityTrialReport {
+  version: 'memory-production-trial-runner-v1'
+  id: string
+  cardId: string
+  createdAt: number
+  passed: boolean
+  summary: {
+    dialogueReplayCount: number
+    workingMemoryFixtureCount: number
+    longTermFixtureCount: number
+    userTrialCount: number
+    personaTrainingFixtureCount: number
+    failingStageIds: string[]
+    optimizationFindingCount: number
+    recommendedActionCount: number
+    lastError: string | null
+  }
+  stages: Array<{
+    stage: string
+    id: string
+    passed: boolean
+    itemCount: number
+    error: string | null
+  }>
+  quality: {
+    passed: boolean
+    summary: {
+      failingFixtureIds: string[]
+      recallAtK: number
+      compressionLossCount: number
+      blockedLeakCount: number
+      optimizationFindingCount: number
+      lastError: string | null
+    }
+    traces: Array<Record<string, unknown>>
+    longTerm: Array<Record<string, unknown>>
+    workingMemory: Array<Record<string, unknown>>
+    userTrials: Array<Record<string, unknown>>
+    personaTraining: Array<Record<string, unknown>>
+    optimizationFindings: Array<Record<string, unknown>>
+    recommendedNextActions: string[]
+  }
+  recommendedNextActions: string[]
+}
+
 export type AlicizationPersonaCandidateWorkbenchStatus = 'candidate' | 'approved' | 'rejected' | 'no-training'
 export type AlicizationPersonaCandidateWorkbenchDecision = 'approve' | 'reject' | 'no-training'
 
@@ -3761,6 +3890,10 @@ export const electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSourc
 export const electronAlicizationMemoryWorkbenchReindexEmbeddings = defineInvokeEventa<AlicizationMemoryEmbeddingReindexResult, AlicizationMemoryEmbeddingReindexPayload>('eventa:invoke:electron:alicization:memory-workbench:reindex-embeddings')
 export const electronAlicizationMemoryWorkbenchListEmbeddingModels = defineInvokeEventa<AlicizationMemoryEmbeddingModelListResult, AlicizationMemoryEmbeddingModelListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-embedding-models')
 export const electronAlicizationMemoryWorkbenchTestEmbeddingConnection = defineInvokeEventa<AlicizationMemoryEmbeddingConnectionTestResult, AlicizationMemoryEmbeddingConnectionTestPayload>('eventa:invoke:electron:alicization:memory-workbench:test-embedding-connection')
+export const electronAlicizationMemoryWorkbenchRunQualityTrial = defineInvokeEventa<AlicizationMemoryQualityTrialReport, AlicizationMemoryQualityTrialPayload>('eventa:invoke:electron:alicization:memory-workbench:run-quality-trial')
+export const electronAlicizationMemoryWorkbenchRecordQualityGoldLabel = defineInvokeEventa<AlicizationMemoryQualityGoldLabelItem, AlicizationMemoryQualityGoldLabelPayload>('eventa:invoke:electron:alicization:memory-workbench:record-quality-gold-label')
+export const electronAlicizationMemoryWorkbenchListQualityGoldLabels = defineInvokeEventa<AlicizationMemoryQualityGoldLabelListResult, AlicizationMemoryQualityGoldLabelListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-quality-gold-labels')
+export const electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression = defineInvokeEventa<AlicizationMemoryQualityMonthlyGoldRegressionPack, AlicizationMemoryQualityMonthlyGoldRegressionPayload>('eventa:invoke:electron:alicization:memory-workbench:build-monthly-gold-regression')
 export const electronAlicizationSearchOrganicSubconsciousFragments = defineInvokeEventa<AlicizationSubconsciousFragment[], AlicizationCardScope & { query: string, limit?: number }>('eventa:invoke:electron:alicization:memory:search-subconscious-fragments')
 export const electronAlicizationGetPerformanceManifest = defineInvokeEventa<CharacterPerformanceCapabilitiesManifest | null, AlicizationCardScope>('eventa:invoke:electron:alicization:performance:get-manifest')
 export const electronAlicizationSetPerformanceManifest = defineInvokeEventa<void, AlicizationCardScope & { manifest: CharacterPerformanceCapabilitiesManifest | null }>('eventa:invoke:electron:alicization:performance:set-manifest')

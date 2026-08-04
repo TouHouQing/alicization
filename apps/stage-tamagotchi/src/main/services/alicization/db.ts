@@ -88,6 +88,13 @@ import type {
 } from './memory-embedding-reindex-runtime'
 import type { AlicizationEventGraphNeighborhood } from './memory-event-graph-runtime'
 import type {
+  SimpleRecallGoldBenchmarkDimension,
+  SimpleRecallGoldEvaluationClass,
+  SimpleRecallGoldLabel,
+} from './memory-os/simple-recall-gold-labels'
+import type { MemoryProductionTrialReport } from './memory-production-trial-runner'
+import type { PersonaTrainingDatasetQualityFixture } from './persona-training-dataset-quality-harness'
+import type {
   PersonaTrainingDatasetCleaningProvenance,
   PersonaTrainingDatasetConsentSnapshot,
   PersonaTrainingDatasetExample,
@@ -97,6 +104,8 @@ import type {
   PersonaTrainingDatasetVersion,
 } from './persona-training-dataset-runtime'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
+
+import process from 'node:process'
 
 import { randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
@@ -151,6 +160,8 @@ import { createAlicizationMemoryEventGraphRuntime } from './memory-event-graph-r
 import { rankAlicizationMemoryFacts } from './memory-fact-retrieval'
 import { createAlicizationMemoryIngestJournalRuntime } from './memory-ingest-journal'
 import { createAlicizationMemoryMindStateRuntime } from './memory-mind-state-runtime'
+import { resolveSimpleRecallGoldLabelOption } from './memory-os/simple-recall-gold-labels'
+import { runMemoryProductionTrialRunner } from './memory-production-trial-runner'
 import { createAlicizationMemoryRelationshipRuntime } from './memory-relationship-runtime'
 import { createAlicizationMemoryRetrievalTelemetryRuntime } from './memory-retrieval-telemetry'
 import { buildAlicizationMemoryStatsProjection } from './memory-stats-projection'
@@ -234,6 +245,72 @@ type AlicizationMemoryIngestOperationKind
   = 'upsert-memory-facts'
     | 'append-episodic-events'
     | 'upsert-memory-consolidations'
+
+export interface AlicizationMemoryQualityGoldLabelPayload {
+  cardId: string
+  month?: string | null
+  label: SimpleRecallGoldLabel
+  query: string
+  expectedMemoryIds?: unknown[] | null
+  retrievedCandidateIds?: unknown[] | null
+  surfacedMemoryIds?: unknown[] | null
+  wrongThreadIds?: unknown[] | null
+  turnId?: string | null
+  decisionTraceId?: string | null
+  note?: string | null
+  createdAt?: number
+}
+
+export interface AlicizationMemoryQualityGoldLabelItem {
+  id: string
+  cardId: string
+  month: string
+  label: SimpleRecallGoldLabel
+  labelText: string
+  description: string
+  evaluationClass: SimpleRecallGoldEvaluationClass
+  benchmarkDimensions: SimpleRecallGoldBenchmarkDimension[]
+  query: string
+  expectedMemoryIds: string[]
+  retrievedCandidateIds: string[]
+  surfacedMemoryIds: string[]
+  wrongThreadIds: string[]
+  turnId: string | null
+  decisionTraceId: string | null
+  note: string | null
+  createdAt: number
+}
+
+export interface AlicizationMemoryQualityGoldLabelListResult {
+  items: AlicizationMemoryQualityGoldLabelItem[]
+  nextCursor: string | null
+}
+
+export interface AlicizationMemoryQualityMonthlyGoldRegressionPack {
+  version: 'memory-quality-monthly-gold-regression-pack-v1'
+  cardId: string
+  month: string
+  itemCount: number
+  items: AlicizationMemoryQualityGoldLabelItem[]
+}
+
+interface DbMemoryQualityGoldLabelRow {
+  id: string
+  card_id: string
+  month: string
+  label: SimpleRecallGoldLabel
+  evaluation_class: SimpleRecallGoldEvaluationClass
+  benchmark_dimensions_json: string
+  query: string
+  expected_memory_ids_json: string
+  retrieved_candidate_ids_json: string
+  surfaced_memory_ids_json: string
+  wrong_thread_ids_json: string
+  turn_id: string | null
+  decision_trace_id: string | null
+  note: string | null
+  created_at: number
+}
 
 interface PreparedMemoryFactWrite {
   id: string
@@ -1436,6 +1513,22 @@ export interface AlicizationDbService {
   getMemoryWorkbenchQueueHealth: (input: { cardId: string }) => Promise<AlicizationMemoryWorkbenchHealth['queue']>
   getMemoryWorkbenchRecallHealth: (input: { cardId: string }) => Promise<AlicizationMemoryWorkbenchHealth['recall']>
   getMemoryWorkbenchEmbeddingHealth: (input: { cardId: string }) => Promise<AlicizationMemoryWorkbenchHealth['embedding']>
+  recordMemoryQualityGoldLabel: (input: AlicizationMemoryQualityGoldLabelPayload) => Promise<AlicizationMemoryQualityGoldLabelItem>
+  listMemoryQualityGoldLabels: (input: {
+    cardId: string
+    month?: string | null
+    limit?: number
+    cursor?: string | null
+  }) => Promise<AlicizationMemoryQualityGoldLabelListResult>
+  buildMonthlyGoldRegressionPack: (input: {
+    cardId: string
+    month?: string | null
+  }) => Promise<AlicizationMemoryQualityMonthlyGoldRegressionPack>
+  runMemoryWorkbenchProductionTrial: (input: {
+    cardId: string
+    month?: string | null
+    replayPackId?: string | null
+  }) => Promise<MemoryProductionTrialReport>
   reindexMemoryWorkbenchEmbeddings: (input: {
     cardId: string
     action?: 'start' | 'status' | 'cancel' | 'retry-dead-letter'
@@ -2004,6 +2097,27 @@ export async function setupAlicizationDb(
       )
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_workbench_recall_metrics_card_created ON memory_workbench_recall_metrics(card_id, created_at DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS memory_quality_gold_labels (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        month TEXT NOT NULL,
+        label TEXT NOT NULL,
+        evaluation_class TEXT NOT NULL,
+        benchmark_dimensions_json TEXT NOT NULL,
+        query TEXT NOT NULL,
+        expected_memory_ids_json TEXT NOT NULL,
+        retrieved_candidate_ids_json TEXT NOT NULL,
+        surfaced_memory_ids_json TEXT NOT NULL,
+        wrong_thread_ids_json TEXT NOT NULL,
+        turn_id TEXT,
+        decision_trace_id TEXT,
+        note TEXT,
+        created_at INTEGER NOT NULL
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_quality_gold_labels_card_month_created ON memory_quality_gold_labels(card_id, month, created_at DESC, id DESC)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS long_term_memory_vectors (
@@ -4298,6 +4412,7 @@ export async function setupAlicizationDb(
       await deleteCardScoped('long_term_memory_tombstones')
       await deleteCardScoped('long_term_memory_policy_overrides')
       await deleteCardScoped('long_term_memory_vectors')
+      await deleteCardScoped('memory_quality_gold_labels')
       await deleteCardScoped('persona_training_candidate_reviews')
       await deleteCardScoped('memory_reflections')
       await deleteCardScoped('relationship_outcomes')
@@ -6914,6 +7029,331 @@ export async function setupAlicizationDb(
     }
   }
 
+  function normalizeMemoryQualityMonth(raw: unknown, timestamp = now()) {
+    const explicit = normalizeOrganicMemoryText(raw, 24)
+    if (/^\d{4}-\d{2}$/u.test(explicit))
+      return explicit
+    const date = new Date(Number.isFinite(timestamp) ? timestamp : now())
+    return Number.isNaN(date.getTime())
+      ? new Date(now()).toISOString().slice(0, 7)
+      : date.toISOString().slice(0, 7)
+  }
+
+  function normalizeMemoryQualityIds(values: unknown[] | null | undefined, maxItems = 64) {
+    const result: string[] = []
+    for (const value of values ?? []) {
+      const normalized = normalizeOrganicMemoryText(value, 180)
+      if (!normalized || result.includes(normalized))
+        continue
+      result.push(normalized)
+      if (result.length >= maxItems)
+        break
+    }
+    return result
+  }
+
+  function mapMemoryQualityGoldLabelRow(row: DbMemoryQualityGoldLabelRow): AlicizationMemoryQualityGoldLabelItem {
+    const label = resolveSimpleRecallGoldLabelOption(row.label)
+    return {
+      id: row.id,
+      cardId: row.card_id,
+      month: row.month,
+      label: label.value,
+      labelText: label.label,
+      description: label.description,
+      evaluationClass: row.evaluation_class,
+      benchmarkDimensions: parseJsonStringArray(row.benchmark_dimensions_json)
+        .filter((value): value is SimpleRecallGoldBenchmarkDimension =>
+          value === 'information-extraction'
+          || value === 'multi-session-reasoning'
+          || value === 'temporal-reasoning'
+          || value === 'knowledge-update'
+          || value === 'abstention',
+        ),
+      query: row.query,
+      expectedMemoryIds: parseJsonStringArray(row.expected_memory_ids_json),
+      retrievedCandidateIds: parseJsonStringArray(row.retrieved_candidate_ids_json),
+      surfacedMemoryIds: parseJsonStringArray(row.surfaced_memory_ids_json),
+      wrongThreadIds: parseJsonStringArray(row.wrong_thread_ids_json),
+      turnId: row.turn_id,
+      decisionTraceId: row.decision_trace_id,
+      note: row.note,
+      createdAt: row.created_at,
+    }
+  }
+
+  function memoryQualityGoldCursor(createdAt: number, id: string) {
+    return `${Math.max(0, Math.floor(createdAt))}:${id}`
+  }
+
+  function parseMemoryQualityGoldCursor(raw: unknown) {
+    const cursor = normalizeOrganicMemoryText(raw, 360)
+    const match = /^(\d+):(.+)$/u.exec(cursor)
+    if (!match)
+      return null
+    return {
+      createdAt: Number(match[1]),
+      id: match[2],
+    }
+  }
+
+  async function recordMemoryQualityGoldLabel(input: AlicizationMemoryQualityGoldLabelPayload) {
+    const createdAt = Number.isFinite(input.createdAt) ? Math.max(0, Math.floor(Number(input.createdAt))) : now()
+    const cardId = resolveMemoryCardId(input.cardId, 'memory quality gold label')
+    const query = normalizeOrganicMemoryText(input.query, 720)
+    if (!query)
+      throw new Error('memory quality gold label query is required')
+
+    const label = resolveSimpleRecallGoldLabelOption(input.label)
+    const id = `memory-quality-gold:${cardId}:${createdAt}:${randomUUID()}`
+    const expectedMemoryIds = normalizeMemoryQualityIds(input.expectedMemoryIds)
+    const retrievedCandidateIds = normalizeMemoryQualityIds(input.retrievedCandidateIds)
+    const surfacedMemoryIds = normalizeMemoryQualityIds(input.surfacedMemoryIds)
+    const wrongThreadIds = normalizeMemoryQualityIds(input.wrongThreadIds)
+    await enqueueWrite(async () => {
+      await run(
+        database,
+        `
+        INSERT INTO memory_quality_gold_labels (
+          id,
+          card_id,
+          month,
+          label,
+          evaluation_class,
+          benchmark_dimensions_json,
+          query,
+          expected_memory_ids_json,
+          retrieved_candidate_ids_json,
+          surfaced_memory_ids_json,
+          wrong_thread_ids_json,
+          turn_id,
+          decision_trace_id,
+          note,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          id,
+          cardId,
+          normalizeMemoryQualityMonth(input.month, createdAt),
+          label.value,
+          label.evaluationClass,
+          JSON.stringify(label.benchmarkDimensions),
+          query,
+          JSON.stringify(expectedMemoryIds),
+          JSON.stringify(retrievedCandidateIds),
+          JSON.stringify(surfacedMemoryIds),
+          JSON.stringify(wrongThreadIds),
+          normalizeOrganicMemoryText(input.turnId, 180) || null,
+          normalizeOrganicMemoryText(input.decisionTraceId, 180) || null,
+          normalizeOrganicMemoryText(input.note, 360) || null,
+          createdAt,
+        ],
+      )
+    })
+
+    const row = await get<DbMemoryQualityGoldLabelRow>(
+      database,
+      'SELECT * FROM memory_quality_gold_labels WHERE id = ? LIMIT 1',
+      [id],
+    )
+    if (!row)
+      throw new Error('memory quality gold label write failed')
+    return mapMemoryQualityGoldLabelRow(row)
+  }
+
+  async function listMemoryQualityGoldLabels(input: {
+    cardId: string
+    month?: string | null
+    limit?: number
+    cursor?: string | null
+  }): Promise<AlicizationMemoryQualityGoldLabelListResult> {
+    const cardId = resolveMemoryCardId(input.cardId, 'memory quality gold label list')
+    const month = normalizeMemoryQualityMonth(input.month)
+    const limit = Math.max(1, Math.min(500, Math.floor(input.limit ?? 100)))
+    const cursor = parseMemoryQualityGoldCursor(input.cursor)
+    const cursorClause = cursor
+      ? 'AND (created_at < ? OR (created_at = ? AND id < ?))'
+      : ''
+    const rows = await all<DbMemoryQualityGoldLabelRow>(
+      database,
+      `
+      SELECT *
+      FROM memory_quality_gold_labels
+      WHERE card_id = ?
+        AND month = ?
+        ${cursorClause}
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+      `,
+      cursor
+        ? [cardId, month, cursor.createdAt, cursor.createdAt, cursor.id, limit + 1]
+        : [cardId, month, limit + 1],
+    )
+    const pageRows = rows.slice(0, limit)
+    const next = rows.length > limit ? rows[limit] : null
+    return {
+      items: pageRows.map(mapMemoryQualityGoldLabelRow),
+      nextCursor: next ? memoryQualityGoldCursor(next.created_at, next.id) : null,
+    }
+  }
+
+  async function listAllMemoryQualityGoldLabels(input: {
+    cardId: string
+    month?: string | null
+    maxItems?: number
+  }) {
+    const maxItems = Math.max(1, Math.min(10_000, Math.floor(input.maxItems ?? 2000)))
+    const items: AlicizationMemoryQualityGoldLabelItem[] = []
+    let cursor: string | null = null
+    do {
+      const page = await listMemoryQualityGoldLabels({
+        cardId: input.cardId,
+        month: input.month,
+        limit: Math.min(500, maxItems - items.length),
+        cursor,
+      })
+      items.push(...page.items)
+      cursor = page.nextCursor
+    } while (cursor && items.length < maxItems)
+    return items
+  }
+
+  async function buildMonthlyGoldRegressionPack(input: {
+    cardId: string
+    month?: string | null
+  }): Promise<AlicizationMemoryQualityMonthlyGoldRegressionPack> {
+    const cardId = resolveMemoryCardId(input.cardId, 'memory quality monthly regression pack')
+    const month = normalizeMemoryQualityMonth(input.month)
+    const items = await listAllMemoryQualityGoldLabels({ cardId, month })
+    return {
+      version: 'memory-quality-monthly-gold-regression-pack-v1',
+      cardId,
+      month,
+      itemCount: items.length,
+      items,
+    }
+  }
+
+  function buildPersonaDatasetQualityFixturesFromSnapshot(input: {
+    cardId: string
+    snapshot: Awaited<ReturnType<typeof getPersonaTrainingDataset>>
+    createdAt: number
+  }): PersonaTrainingDatasetQualityFixture[] {
+    const activeVersion = input.snapshot.versions.find(version => version.activeAt !== null)
+      ?? input.snapshot.versions[0]
+      ?? null
+    if (!activeVersion || input.snapshot.examples.length === 0)
+      return []
+
+    const sources = input.snapshot.examples.map((example) => {
+      return {
+        cardId: example.cardId,
+        sourceId: example.sourceId,
+        sourceKind: example.sourceKind,
+        status: example.state === 'revoked' ? 'revoked' : 'confirmed',
+        cleaned: example.provenance?.kind === 'working-memory-cleaning',
+        summary: example.positiveExample,
+        lesson: example.behaviorLesson,
+        positiveExample: example.positiveExample,
+        negativeExample: example.negativeExample,
+        sensitivity: example.sensitivity,
+        allowTraining: example.allowTraining,
+        consent: example.consentSnapshot,
+        provenance: example.provenance ?? null,
+      } satisfies PersonaTrainingDatasetSource
+    })
+    return [{
+      id: `persona-dataset-runtime-snapshot:${input.cardId}:${activeVersion.id}`,
+      cardId: input.cardId,
+      createdAt: input.createdAt,
+      consent: activeVersion.consentSnapshot,
+      sources,
+      datasetSchemaVersion: activeVersion.schemaVersion,
+      expectedExportedSourceIds: sources
+        .filter(source => source.allowTraining === true && source.status === 'confirmed')
+        .map(source => source.sourceId),
+      forbiddenExportedSourceIds: sources
+        .filter(source => source.allowTraining !== true || source.status !== 'confirmed')
+        .map(source => source.sourceId),
+    }]
+  }
+
+  async function runMemoryWorkbenchProductionTrial(input: {
+    cardId: string
+    month?: string | null
+    replayPackId?: string | null
+  }): Promise<MemoryProductionTrialReport> {
+    const cardId = resolveMemoryCardId(input.cardId, 'memory workbench production trial')
+    const createdAt = now()
+    const month = normalizeMemoryQualityMonth(input.month, createdAt)
+    const labels = await listAllMemoryQualityGoldLabels({ cardId, month })
+    const semantic = await getMemoryWorkbenchRecallProbeSemantic({ cardId })
+    const personaSnapshot = await getPersonaTrainingDataset({ cardId }).catch(() => null)
+    const longTerm = labels.map((label) => {
+      const shouldAbstain = label.evaluationClass === 'should-abstain'
+      const falseRecall = label.evaluationClass === 'false-recall'
+      const forbiddenTopIds = falseRecall || shouldAbstain
+        ? [...new Set([
+            ...label.retrievedCandidateIds,
+            ...label.surfacedMemoryIds,
+            ...label.wrongThreadIds,
+          ])]
+        : []
+      return {
+        fixture: {
+          id: `gold-label:${label.id}:${label.expectedMemoryIds[0] ?? label.surfacedMemoryIds[0] ?? 'abstain'}`,
+          cardId,
+          query: label.query,
+          expectedTopIds: shouldAbstain ? [] : label.expectedMemoryIds,
+          forbiddenTopIds,
+          wrongThreadIds: label.wrongThreadIds,
+          limit: 5,
+          semantic: {
+            available: semantic.available,
+            providerId: semantic.available ? 'memory-workbench-embedding-provider' : null,
+            modelId: semantic.modelId,
+            dimensions: semantic.dimensions,
+            reindexRequired: semantic.error === 'embedding index requires reindex',
+          },
+        },
+        recall: async (recallInput: {
+          cardId: string
+          currentUserText: string
+          limit: number
+        }) => await retrieveLongTermMemoryEvidence({
+          cardId: recallInput.cardId,
+          currentUserText: recallInput.currentUserText,
+          limit: recallInput.limit,
+        }),
+        now,
+      }
+    })
+    const report = await runMemoryProductionTrialRunner({
+      id: `memory-production-trial:${cardId}:${month}:${createdAt}`,
+      cardId,
+      createdAt,
+      longTerm,
+      personaTraining: personaSnapshot
+        ? buildPersonaDatasetQualityFixturesFromSnapshot({
+            cardId,
+            snapshot: personaSnapshot,
+            createdAt,
+          })
+        : [],
+    })
+    if (labels.length === 0) {
+      return {
+        ...report,
+        recommendedNextActions: [
+          ...report.recommendedNextActions,
+          '先在记忆面板用“记得对 / 没想起来 / 记错了 / 不该提”标注本月样本，再运行生产试用。',
+        ],
+      }
+    }
+    return report
+  }
+
   function memoryEmbeddingReindexResult(
     progress: MemoryEmbeddingReindexProgress | null,
     errors: string[] = [],
@@ -7359,6 +7799,10 @@ export async function setupAlicizationDb(
     getMemoryWorkbenchQueueHealth,
     getMemoryWorkbenchRecallHealth,
     getMemoryWorkbenchEmbeddingHealth,
+    recordMemoryQualityGoldLabel,
+    listMemoryQualityGoldLabels,
+    buildMonthlyGoldRegressionPack,
+    runMemoryWorkbenchProductionTrial,
     reindexMemoryWorkbenchEmbeddings,
     resumePendingMemoryEmbeddingReindexJobs,
     listMemoryWorkbenchPersonaCandidates,

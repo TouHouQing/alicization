@@ -8,6 +8,10 @@ import type {
   AlicizationMemoryEmbeddingReindexDeadLetterItem,
   AlicizationMemoryEmbeddingReindexPayload,
   AlicizationMemoryEmbeddingReindexResult,
+  AlicizationMemoryQualityGoldLabelItem,
+  AlicizationMemoryQualityGoldLabelPayload,
+  AlicizationMemoryQualityMonthlyGoldRegressionPack,
+  AlicizationMemoryQualityTrialReport,
   AlicizationMemoryRecallProbeResult,
   AlicizationMemoryReviewActionPayload,
   AlicizationMemoryWorkbenchItem,
@@ -29,7 +33,7 @@ import { computed, ref } from 'vue'
 
 import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
 
-export type AlicizationMemoryWorkbenchTab = 'working' | 'long-term' | 'review' | 'probe' | 'persona' | 'health'
+export type AlicizationMemoryWorkbenchTab = 'working' | 'long-term' | 'review' | 'probe' | 'persona' | 'quality' | 'health'
 
 type LongTermFilters = Omit<Required<Pick<
   AlicizationMemoryWorkbenchListPayload,
@@ -63,6 +67,12 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   const embeddingModelDiscoveryResult = ref<AlicizationMemoryEmbeddingModelListResult | null>(null)
   const embeddingConnectionTesting = ref(false)
   const embeddingConnectionTest = ref<AlicizationMemoryEmbeddingConnectionTestResult | null>(null)
+  const qualityTrialLoading = ref(false)
+  const qualityTrialReport = ref<AlicizationMemoryQualityTrialReport | null>(null)
+  const goldLabelLoading = ref(false)
+  const goldLabelMonth = ref(new Date().toISOString().slice(0, 7))
+  const monthlyGoldLabels = ref<AlicizationMemoryQualityGoldLabelItem[]>([])
+  const monthlyGoldRegressionPack = ref<AlicizationMemoryQualityMonthlyGoldRegressionPack | null>(null)
   const recallProbe = ref<AlicizationMemoryRecallProbeResult | null>(null)
   const recallQuery = ref('我们去打游戏吧')
   const loading = ref(false)
@@ -451,6 +461,112 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
   }
 
+  function normalizeGoldLabelMonth(month?: string | null) {
+    const normalized = typeof month === 'string' ? month.trim() : ''
+    return /^\d{4}-\d{2}$/u.test(normalized)
+      ? normalized
+      : goldLabelMonth.value
+  }
+
+  async function loadMonthlyGoldLabels(month?: string | null) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListQualityGoldLabels)
+      return []
+    const resolvedMonth = normalizeGoldLabelMonth(month)
+    goldLabelLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListQualityGoldLabels!({
+        month: resolvedMonth,
+        limit: 200,
+      })
+      goldLabelMonth.value = resolvedMonth
+      monthlyGoldLabels.value = result.items
+      lastError.value = null
+      return result.items
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return []
+    }
+    finally {
+      goldLabelLoading.value = false
+    }
+  }
+
+  async function applyGoldLabel(payload: Omit<AlicizationMemoryQualityGoldLabelPayload, 'cardId'>) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRecordQualityGoldLabel)
+      return null
+    goldLabelLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchRecordQualityGoldLabel!({
+        ...payload,
+        month: normalizeGoldLabelMonth(payload.month),
+      })
+      goldLabelMonth.value = result.month
+      const index = monthlyGoldLabels.value.findIndex(item => item.id === result.id)
+      if (index >= 0)
+        monthlyGoldLabels.value.splice(index, 1, result)
+      else
+        monthlyGoldLabels.value = [result, ...monthlyGoldLabels.value]
+      lastError.value = null
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      goldLabelLoading.value = false
+    }
+  }
+
+  async function buildMonthlyGoldRegression(month?: string | null) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchBuildMonthlyGoldRegression)
+      return null
+    const resolvedMonth = normalizeGoldLabelMonth(month)
+    goldLabelLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchBuildMonthlyGoldRegression!({
+        month: resolvedMonth,
+      })
+      goldLabelMonth.value = result.month
+      monthlyGoldRegressionPack.value = result
+      monthlyGoldLabels.value = result.items
+      lastError.value = null
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      goldLabelLoading.value = false
+    }
+  }
+
+  async function runQualityTrial(month?: string | null, replayPackId?: string | null) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRunQualityTrial)
+      return null
+    const resolvedMonth = normalizeGoldLabelMonth(month)
+    qualityTrialLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchRunQualityTrial!({
+        month: resolvedMonth,
+        ...(replayPackId ? { replayPackId } : {}),
+      })
+      goldLabelMonth.value = resolvedMonth
+      qualityTrialReport.value = result
+      lastError.value = result.summary.lastError
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      qualityTrialLoading.value = false
+    }
+  }
+
   async function reindexEmbeddings(payload: Omit<AlicizationMemoryEmbeddingReindexPayload, 'cardId'> = {}) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchReindexEmbeddings)
       return null
@@ -598,6 +714,12 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     embeddingModelDiscoveryResult,
     embeddingConnectionTesting,
     embeddingConnectionTest,
+    qualityTrialLoading,
+    qualityTrialReport,
+    goldLabelLoading,
+    goldLabelMonth,
+    monthlyGoldLabels,
+    monthlyGoldRegressionPack,
     recallProbe,
     recallQuery,
     loading,
@@ -623,6 +745,10 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     rollbackPersonaTrainingDataset,
     setPersonaTrainingDatasetExamplePolicy,
     revokePersonaTrainingDatasetSource,
+    loadMonthlyGoldLabels,
+    applyGoldLabel,
+    buildMonthlyGoldRegression,
+    runQualityTrial,
     reindexEmbeddings,
     refreshReindexJob,
     cancelReindexJob,

@@ -51,6 +51,10 @@ describe('alicization performance manifest clamp', () => {
     expect(source).toContain('electronAlicizationMemoryWorkbenchReindexEmbeddings')
     expect(source).toContain('electronAlicizationMemoryWorkbenchListEmbeddingModels')
     expect(source).toContain('electronAlicizationMemoryWorkbenchTestEmbeddingConnection')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchRunQualityTrial')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchRecordQualityGoldLabel')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchListQualityGoldLabels')
+    expect(source).toContain('electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression')
     expect(source).toContain('memoryWorkbenchGetSnapshot')
     expect(source).toContain('memoryWorkbenchRecallProbe')
     expect(source).toContain('memoryWorkbenchListPersonaCandidates')
@@ -58,6 +62,10 @@ describe('alicization performance manifest clamp', () => {
     expect(source).toContain('memoryWorkbenchReindexEmbeddings')
     expect(source).toContain('memoryWorkbenchListEmbeddingModels')
     expect(source).toContain('memoryWorkbenchTestEmbeddingConnection')
+    expect(source).toContain('memoryWorkbenchRunQualityTrial')
+    expect(source).toContain('memoryWorkbenchRecordQualityGoldLabel')
+    expect(source).toContain('memoryWorkbenchListQualityGoldLabels')
+    expect(source).toContain('memoryWorkbenchBuildMonthlyGoldRegression')
   })
 
   it('summarizes visible-reply critic and closure before the desktop renderer forwards finish events', () => {

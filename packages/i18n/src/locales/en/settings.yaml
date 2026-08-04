@@ -532,6 +532,7 @@ pages:
         review: Review Queue
         probe: Recall Probe
         persona: Persona Candidates
+        quality: Quality Trial
         health: Health & Audit
       actions:
         refresh: Refresh
@@ -560,6 +561,9 @@ pages:
         discover_embedding_models: Discover Models
         test_embedding_connection: Test Connection
         save_embedding_config: Save Embedding Config
+        load_gold_labels: Load Monthly Labels
+        run_quality_trial: Run Quality Trial
+        build_gold_regression: Freeze Monthly Regression
       states:
         empty_working: No working memory snapshot yet. Send one dialogue turn and refresh.
         empty_long_term: No matching long-term memory yet.
@@ -604,6 +608,10 @@ pages:
         empty_embedding_models: Fill the service base URL and API key, then discover embedding models. If the service does not list models, enter the model name manually.
         embedding_config_saved: Embedding config saved. Refreshing memory health.
         loading: Loading memory state...
+        quality_passed: Passed
+        quality_failed: Needs Work
+        empty_quality_report: No quality trial report yet. Run a quality trial first.
+        empty_gold_labels: No labels for this month yet. Run recall probe and click one of the four feedback buttons.
       fields:
         health: Memory Health
         pending_review: Pending Review
@@ -695,6 +703,36 @@ pages:
         orphaned_count: Orphaned Vectors
         coverage_ratio: Vector Coverage
         debug_details: Debug Details
+        month: Month
+        query: Query
+        count: Count
+        trace: Trace
+        long_term_fixtures: Long-Term Fixtures
+        working_memory_fixtures: Working Memory Fixtures
+        persona_fixtures: Persona Fixtures
+        recall_at_k: Recall@K
+        failing_stages: Failing Stages
+        recommended_actions: Recommended Actions
+        expected_ids: Expected IDs
+        surfaced_ids: Surfaced IDs
+        wrong_thread_ids: Wrong Thread IDs
+      quality:
+        title: Quality Trial
+        description: Run local DB gates for long-term recall, working-memory compression, and Persona/LoRA hygiene. Failures and recommended actions stay visible.
+        feedback_title: Four-Button Feedback
+        feedback_description: Run a recall probe first, then mark how memory behaved.
+        report_title: Trial Report
+        gold_labels_title: Monthly Labels
+        labels:
+          right: Correct Recall
+          missing: Missed It
+          wrong: Wrong Memory
+          unwanted: Should Not Mention
+        descriptions:
+          right: She recalled the right memory and used it appropriately.
+          missing: She should have recalled a memory but did not.
+          wrong: She mentioned an incorrect, stale, or wrong-thread memory.
+          unwanted: This turn did not need recall, or she should have said she was unsure.
       filters:
         kind:
           all: All Types

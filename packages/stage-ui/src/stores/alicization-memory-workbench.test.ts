@@ -514,4 +514,100 @@ describe('alicization memory workbench store', () => {
     })
     expect(store.personaTrainingDatasetExport?.manifest.manifestHash).toBe('hash')
   })
+
+  it('runs quality trials and records beginner recall gold labels through the bridge', async () => {
+    const label = {
+      id: 'gold-1',
+      cardId: 'default',
+      month: '2026-08',
+      label: 'missing',
+      labelText: '没想起来',
+      description: '这次应该想起某段记忆，但她没有想起。',
+      evaluationClass: 'missed-recall',
+      benchmarkDimensions: ['information-extraction', 'multi-session-reasoning'],
+      query: '你还记得 SiliconFlow baseUrl 吗？',
+      expectedMemoryIds: ['reflection-siliconflow-baseurl'],
+      retrievedCandidateIds: [],
+      surfacedMemoryIds: [],
+      wrongThreadIds: [],
+      turnId: null,
+      decisionTraceId: null,
+      note: null,
+      createdAt: 1,
+    } as const
+    const report = {
+      version: 'memory-production-trial-runner-v1',
+      id: 'trial-1',
+      cardId: 'default',
+      createdAt: 2,
+      passed: false,
+      summary: {
+        dialogueReplayCount: 0,
+        workingMemoryFixtureCount: 0,
+        longTermFixtureCount: 1,
+        userTrialCount: 0,
+        personaTrainingFixtureCount: 0,
+        failingStageIds: ['long-term-recall'],
+        optimizationFindingCount: 0,
+        recommendedActionCount: 1,
+        lastError: null,
+      },
+      stages: [{ stage: 'long-term-recall', id: 'long-term-recall', passed: false, itemCount: 1, error: null }],
+      quality: {
+        passed: false,
+        summary: {
+          failingFixtureIds: ['gold-1'],
+          recallAtK: 0,
+          compressionLossCount: 0,
+          blockedLeakCount: 0,
+          optimizationFindingCount: 0,
+          lastError: null,
+        },
+        traces: [{ fixtureId: 'gold-1', selectedIds: [], rankReasonsById: {} }],
+        longTerm: [],
+        workingMemory: [],
+        userTrials: [],
+        personaTraining: [],
+        optimizationFindings: [],
+        recommendedNextActions: ['补充当前 baseUrl 记忆。'],
+      },
+      recommendedNextActions: ['补充当前 baseUrl 记忆。'],
+    } as const
+    const memoryWorkbenchListQualityGoldLabels = vi.fn(async () => ({ items: [label], nextCursor: null }))
+    const memoryWorkbenchRecordQualityGoldLabel = vi.fn(async () => label)
+    const memoryWorkbenchRunQualityTrial = vi.fn(async () => report)
+    const memoryWorkbenchBuildMonthlyGoldRegression = vi.fn(async () => ({
+      version: 'memory-quality-monthly-gold-regression-pack-v1',
+      cardId: 'default',
+      month: '2026-08',
+      itemCount: 1,
+      items: [label],
+    }))
+    setAlicizationBridge({
+      memoryWorkbenchListQualityGoldLabels,
+      memoryWorkbenchRecordQualityGoldLabel,
+      memoryWorkbenchRunQualityTrial,
+      memoryWorkbenchBuildMonthlyGoldRegression,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.loadMonthlyGoldLabels('2026-08')
+    await store.applyGoldLabel({
+      month: '2026-08',
+      label: 'missing',
+      query: '你还记得 SiliconFlow baseUrl 吗？',
+      expectedMemoryIds: ['reflection-siliconflow-baseurl'],
+    })
+    await store.runQualityTrial('2026-08')
+    await store.buildMonthlyGoldRegression('2026-08')
+
+    expect(store.monthlyGoldLabels).toEqual([label])
+    expect(store.qualityTrialReport?.summary.longTermFixtureCount).toBe(1)
+    expect(store.monthlyGoldRegressionPack?.itemCount).toBe(1)
+    expect(memoryWorkbenchRecordQualityGoldLabel).toHaveBeenCalledWith(expect.objectContaining({
+      label: 'missing',
+      query: '你还记得 SiliconFlow baseUrl 吗？',
+    }))
+    expect(memoryWorkbenchRunQualityTrial).toHaveBeenCalledWith({ month: '2026-08' })
+  })
 })

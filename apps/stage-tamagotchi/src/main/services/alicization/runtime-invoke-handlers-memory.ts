@@ -18,16 +18,20 @@ import {
   electronAlicizationMemoryWorkbenchActivatePersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction,
   electronAlicizationMemoryWorkbenchApplyReviewAction,
+  electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression,
   electronAlicizationMemoryWorkbenchExportPersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchGetSnapshot,
   electronAlicizationMemoryWorkbenchListEmbeddingModels,
   electronAlicizationMemoryWorkbenchListLongTerm,
   electronAlicizationMemoryWorkbenchListPersonaCandidates,
+  electronAlicizationMemoryWorkbenchListQualityGoldLabels,
   electronAlicizationMemoryWorkbenchRecallProbe,
+  electronAlicizationMemoryWorkbenchRecordQualityGoldLabel,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
   electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSource,
   electronAlicizationMemoryWorkbenchRollbackPersonaTrainingDataset,
+  electronAlicizationMemoryWorkbenchRunQualityTrial,
   electronAlicizationMemoryWorkbenchSetPersonaTrainingDatasetExamplePolicy,
   electronAlicizationMemoryWorkbenchStagePersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchTestEmbeddingConnection,
@@ -128,6 +132,39 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
       getEmbeddingHealth: async () => await alicizationDb.getMemoryWorkbenchEmbeddingHealth({ cardId }),
     })
   }))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchRunQualityTrial, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().runMemoryWorkbenchProductionTrial({
+    cardId: cardIdFrom(payload),
+    month: sanitizeText(payload.month, '') || null,
+    replayPackId: sanitizeText(payload.replayPackId, '') || null,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchRecordQualityGoldLabel, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().recordMemoryQualityGoldLabel({
+    cardId: cardIdFrom(payload),
+    month: sanitizeText(payload.month, '') || null,
+    label: payload.label,
+    query: sanitizeText(payload.query),
+    expectedMemoryIds: payload.expectedMemoryIds,
+    retrievedCandidateIds: payload.retrievedCandidateIds,
+    surfacedMemoryIds: payload.surfacedMemoryIds,
+    wrongThreadIds: payload.wrongThreadIds,
+    turnId: sanitizeText(payload.turnId, '') || null,
+    decisionTraceId: sanitizeText(payload.decisionTraceId, '') || null,
+    note: sanitizeText(payload.note, '') || null,
+    createdAt: payload.createdAt,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchListQualityGoldLabels, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().listMemoryQualityGoldLabels({
+    cardId: cardIdFrom(payload),
+    month: sanitizeText(payload.month, '') || null,
+    limit: payload.limit,
+    cursor: sanitizeText(payload.cursor, '') || null,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().buildMonthlyGoldRegressionPack({
+    cardId: cardIdFrom(payload),
+    month: sanitizeText(payload.month, '') || null,
+  })))
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchListLongTerm, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().listMemoryWorkbenchLongTermItems({
     cardId: cardIdFrom(payload),
