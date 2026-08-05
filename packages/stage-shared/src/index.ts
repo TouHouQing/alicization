@@ -16,6 +16,15 @@ export * from './alicization-embodiment-closure'
 export * from './alicization-embodiment-expression-derivation'
 export * from './alicization-embodiment-loop-summary'
 export * from './alicization-embodiment-script'
+export {
+  type AlicizationExecutionCapabilityChannel,
+  alicizationExecutionCapabilityChannels,
+  type AlicizationExecutionDispatchChannel,
+  type AlicizationExecutionRoutingChannel,
+  type AlicizationExecutorToolName,
+  alicizationExecutorToolNames,
+  type AlicizationKnownWebsiteResolution,
+} from './alicization-execution-capabilities'
 export * from './alicization-execution-first-governance'
 export * from './alicization-execution-intent'
 export * from './alicization-execution-runtime-context'

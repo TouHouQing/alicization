@@ -1,7 +1,6 @@
 import type {
   AlicizationChannelCapability,
   AlicizationClawTaskIntent,
-  AlicizationExecutionCapabilityChannel,
   AlicizationExecutionCapabilityInquiry,
   AlicizationExecutionChannel,
   AlicizationExecutionRoutingIntent,
@@ -9,6 +8,7 @@ import type {
 } from '@proj-alicization/stage-shared'
 import type { Tool, ToolChoice } from '@xsai/shared-chat'
 
+import type { AlicizationExecutionCapabilityChannel } from '../../../../../../packages/stage-shared/src/alicization-execution-capabilities'
 import type {
   AlicizationDispatchTaskThreadPayload,
   AlicizationSensoryCacheSnapshot,
