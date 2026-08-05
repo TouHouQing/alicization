@@ -485,6 +485,45 @@ describe('chat orchestrator reply authority', () => {
     }))
   })
 
+  it('sends natural Codex capability questions through a tool-free dialogue stream', async () => {
+    const reply = '可以，我能在明确需要执行任务时使用 Codex。'
+    const fullText = createProviderFullText(reply)
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你可以使用codex吗', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamChat).toHaveBeenCalledTimes(1)
+    expect(streamChat.mock.calls[0]?.[0]).toMatchObject({
+      supportsTools: false,
+      waitForTools: false,
+    })
+    expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+      assistantText: reply,
+    }))
+  })
+
   it('settles provider-authored text deltas when the bridge finish event loses fullText', async () => {
     const reply = '我已经从短期记忆和长期记忆里接住这轮对话了。'
     const streamChat = vi.fn(async (_payload: any, options: any) => {
