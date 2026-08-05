@@ -1156,13 +1156,11 @@ describe('main chat stream runner', () => {
     }))
   })
 
-  it('allows provider text without enforcing a tool call before finish', async () => {
-    const appendRuntimeDebugLine = vi.fn(async () => {})
-
+  it('allows provider text when execution tools are offered', async () => {
     await expect(runAlicizationMainChatStream({
       payload: {
         cardId: 'card-1',
-        turnId: 'turn-required-tool',
+        turnId: 'turn-tools-offered-text-reply',
       } as any,
       prepared: createPrepared({
         tools: [
@@ -1172,12 +1170,6 @@ describe('main chat stream runner', () => {
             },
           },
         ],
-        toolChoice: {
-          type: 'function',
-          function: {
-            name: 'executor_run_cli',
-          },
-        },
       }),
       controller: new AbortController(),
       firstEventTimeoutMs: 500,
@@ -1189,7 +1181,7 @@ describe('main chat stream runner', () => {
       streamMeta: createStreamMetaController(),
       nonProgressEventTypes: new Set<string>(),
       generateNonStreaming: vi.fn(),
-      appendRuntimeDebugLine,
+      appendRuntimeDebugLine: vi.fn(async () => {}),
       streamTextImpl: async ({ onEvent }) => {
         const emit = onEvent as (event: any) => Promise<void>
         await emit({ type: 'text-delta', text: '我先看看。' })
@@ -1200,9 +1192,5 @@ describe('main chat stream runner', () => {
       fullText: '我先看看。',
       origin: 'provider',
     })
-    expect(appendRuntimeDebugLine).not.toHaveBeenCalledWith(
-      'chat-stream.required-tool-missing',
-      expect.anything(),
-    )
   })
 })

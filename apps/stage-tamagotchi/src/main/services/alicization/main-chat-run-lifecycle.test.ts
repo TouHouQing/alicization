@@ -1,7 +1,6 @@
 import { resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
-import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
 import {
   handleAlicizationMainChatRunFailure,
   isProviderSchemaUnsupportedError,
@@ -180,37 +179,6 @@ describe('main chat run lifecycle', () => {
       error: failureSurface.reply,
       ...metadata,
     })
-  })
-
-  it('surfaces a missing required tool as an unexecuted tool failure', async () => {
-    const error = new AlicizationRequiredToolMissingError({
-      stage: 'stream',
-      finishReason: 'stop',
-      requiredToolNames: ['executor_run_cli'],
-    })
-    const input = createBaseInput({ error })
-    const { failureSurface, metadata } = failureMetadata('required-tool-missing')
-
-    await handleAlicizationMainChatRunFailure(input)
-
-    expect(input.emitError).toHaveBeenCalledWith(
-      '模型未调用本轮要求的工具，操作没有执行。',
-      metadata,
-    )
-    expect(input.finish).toHaveBeenCalledWith({
-      status: 'failed',
-      finishReason: 'required-tool-missing',
-      error: failureSurface.reply,
-      ...metadata,
-    })
-    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith(
-      'chat-stream.required-tool-missing',
-      expect.objectContaining({
-        cardId: 'card-1',
-        turnId: 'turn-1',
-        requiredToolNames: ['executor_run_cli'],
-      }),
-    )
   })
 
   it('surfaces ordinary stream failures without exposing raw error text as dialogue', async () => {

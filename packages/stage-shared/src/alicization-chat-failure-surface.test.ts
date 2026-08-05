@@ -30,10 +30,6 @@ describe('alicization chat failure surface', () => {
         reply: '模型输出格式异常，这轮回复已拦截。',
       },
       {
-        kind: 'required-tool-missing',
-        reply: '模型未调用本轮要求的工具，操作没有执行。',
-      },
-      {
         kind: 'recall-failure',
         reply: '本轮长期记忆召回失败。',
       },

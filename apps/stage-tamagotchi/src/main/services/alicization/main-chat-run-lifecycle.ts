@@ -13,10 +13,6 @@ import {
   resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
 
-import {
-  extractAlicizationRequiredToolNames,
-  isAlicizationRequiredToolMissingError,
-} from './main-chat-required-tool'
 import { readTransportContentAsText } from './runtime-transport-content'
 import { AlicizationVisibleReplySettlementBlockedError } from './visible-reply/settlement'
 
@@ -265,26 +261,6 @@ export async function handleAlicizationMainChatRunFailure(
     await input.appendRuntimeDebugLine('chat-stream.provider-output-invalid', {
       cardId: input.payload.cardId,
       turnId: input.payload.turnId,
-      reason,
-    })
-    return
-  }
-
-  if (isAlicizationRequiredToolMissingError(input.error)) {
-    const failureSurface = resolveAlicizationChatFailureSurface({
-      kind: 'required-tool-missing',
-      userText: currentUserText,
-    })
-    await emitFailureSurface({
-      failureSurface,
-      finishReason: 'required-tool-missing',
-      status: 'failed',
-      options: input,
-    })
-    await input.appendRuntimeDebugLine('chat-stream.required-tool-missing', {
-      cardId: input.payload.cardId,
-      turnId: input.payload.turnId,
-      requiredToolNames: extractAlicizationRequiredToolNames(input.error),
       reason,
     })
     return

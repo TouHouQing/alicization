@@ -7,7 +7,6 @@ import {
   runAlicizationMainChatBackground,
 } from './main-chat-background-run'
 import { generateAlicizationMainChatNonStreaming } from './main-chat-one-shot'
-import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
 import { handleAlicizationMainChatRunFailure } from './main-chat-run-lifecycle'
 import { runAlicizationMainChatStream } from './main-chat-stream-runner'
 
@@ -453,51 +452,6 @@ describe('main chat background run', () => {
         errorSummary: 'recall offline',
       }),
     ])
-  })
-
-  it('surfaces a missing required tool without local execution or a second Provider call', async () => {
-    const prepared = createPrepared({
-      tools: [{
-        type: 'function',
-        function: {
-          name: 'executor_run_cli',
-          description: 'Run a CLI command.',
-          parameters: {
-            type: 'object',
-            properties: {},
-          },
-        },
-      }],
-      toolChoice: {
-        type: 'function',
-        function: {
-          name: 'executor_run_cli',
-        },
-      },
-    })
-    const input = createInput('执行测试命令', {
-      preparationPromise: Promise.resolve(prepared),
-    })
-    const error = new AlicizationRequiredToolMissingError({
-      stage: 'stream',
-      finishReason: 'stop',
-      requiredToolNames: ['executor_run_cli'],
-    })
-    vi.mocked(runAlicizationMainChatStream).mockRejectedValueOnce(error)
-
-    await runAlicizationMainChatBackground(input)
-
-    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledOnce()
-    expect(vi.mocked(handleAlicizationMainChatRunFailure).mock.calls[0]?.[0].error).toBe(error)
-    expect(generateAlicizationMainChatNonStreaming).not.toHaveBeenCalled()
-    expect(input.emitToolCall).not.toHaveBeenCalled()
-    expect(input.emitToolResult).not.toHaveBeenCalled()
-    expect(input.runStateController.finishRun).not.toHaveBeenCalledWith(
-      input.key,
-      expect.objectContaining({
-        status: 'completed',
-      }),
-    )
   })
 
   it('builds the runtime digest fallback only from available emotional facts', () => {
