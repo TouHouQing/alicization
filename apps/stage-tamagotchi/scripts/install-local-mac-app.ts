@@ -59,10 +59,12 @@ async function run(command: string, args: string[], options?: {
   cwd?: string
   env?: NodeJS.ProcessEnv
   stdio?: 'pipe' | 'inherit'
+  timeoutMs?: number
 }) {
   const result = await x(command, args, {
     cwd: options?.cwd,
     env: options?.env,
+    timeout: options?.timeoutMs,
     nodeOptions: {
       stdio: options?.stdio ?? 'pipe',
     },
@@ -83,6 +85,14 @@ function isSecurityUserCanceledError(error: unknown) {
     return false
 
   return /security:/i.test(error.message) && /User canceled the operation/i.test(error.message)
+}
+
+function isCommandTimeoutError(error: unknown) {
+  if (!(error instanceof Error))
+    return false
+
+  return error.name === 'AbortError'
+    || /TimeoutError|aborted|abort/i.test(error.message)
 }
 
 async function runAndReadStdout(command: string, args: string[], options?: {
@@ -321,15 +331,15 @@ async function unlockKeychain(keychainPath: string, password: string) {
   }
 
   try {
-    await run('security', ['set-keychain-settings', '-lut', '21600', keychainPath])
+    await run('security', ['set-keychain-settings', '-lut', '21600', keychainPath], { timeoutMs: 5_000 })
   }
   catch (error) {
     // NOTICE: set-keychain-settings configures idle lock timeout and is not required for signing.
-    // Continue when users cancel the system authorization prompt so local install can still proceed.
-    if (!isSecurityUserCanceledError(error))
+    // Continue when macOS authorization is cancelled or hangs so local install can still proceed.
+    if (!isSecurityUserCanceledError(error) && !isCommandTimeoutError(error))
       throw error
 
-    console.warn(`Skipped keychain settings update because macOS authorization was cancelled for: ${keychainPath}`)
+    console.warn(`Skipped keychain settings update because macOS authorization did not complete for: ${keychainPath}`)
   }
   await run('security', ['unlock-keychain', '-p', password, keychainPath])
   await ensureKeychainInUserSearchList(keychainPath)

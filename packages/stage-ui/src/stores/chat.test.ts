@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs'
 
-import { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
@@ -374,7 +373,7 @@ describe('chat orchestrator reply authority', () => {
     expect(source).not.toContain('stageChatText(\'kill-switch.resumed\')')
   })
 
-  it('passes the native provider responseFormat through the renderer provider call', async () => {
+  it('omits native provider responseFormat from the renderer provider call', async () => {
     const reply = '这是 Provider 严格 JSON 合同里的回复。'
     const fullText = createProviderFullText(reply)
     streamMock.mockImplementation(async (_model, _provider, _messages, options) => {
@@ -403,9 +402,7 @@ describe('chat orchestrator reply authority', () => {
     })
 
     expect(streamMock).toHaveBeenCalledTimes(1)
-    expect(streamMock.mock.calls[0]?.[3]).toEqual(expect.objectContaining({
-      responseFormat: alicizationProviderResponseFormat,
-    }))
+    expect(streamMock.mock.calls[0]?.[3]).not.toHaveProperty('responseFormat')
   })
 
   it('does not turn renderer context snapshots into an extra Provider user prompt without a bridge', async () => {
@@ -486,6 +483,127 @@ describe('chat orchestrator reply authority', () => {
         reply,
       }),
     }))
+  })
+
+  it('settles provider-authored text deltas when the bridge finish event loses fullText', async () => {
+    const reply = '我已经从短期记忆和长期记忆里接住这轮对话了。'
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('继续聊聊我们的记忆', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(streamChat).toHaveBeenCalledTimes(1)
+    expect(persisted.assistantText).toBe(reply)
+    expect(persisted.structured).toMatchObject({
+      parsePath: 'fallback',
+      origin: 'provider',
+      reply,
+      contractFailed: false,
+      learningPolicy: providerLearningPolicy(),
+    })
+    expect(persisted.structured.failureSurface).toBeUndefined()
+  })
+
+  it('trusts runtime-approved visible text when finish fullText only contains a partial provider object', async () => {
+    const reply = '你好，我在。'
+    const partialFullText = JSON.stringify({ reply })
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText: partialFullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(streamChat).toHaveBeenCalledTimes(1)
+    expect(persisted.assistantText).toBe(reply)
+    expect(persisted.structured).toMatchObject({
+      parsePath: 'fallback',
+      origin: 'provider',
+      reply,
+      contractFailed: false,
+      learningPolicy: providerLearningPolicy(),
+    })
+    expect(persisted.structured.failureSurface).toBeUndefined()
+  })
+
+  it('keeps structured transport fragments blocked when finish fullText is missing', async () => {
+    const fragment = '{"format":"mind-turn-v1","thought":"internal'
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: fragment,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('继续聊聊我们的记忆', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted).toMatchObject({
+      structured: {
+        origin: 'failure-surface',
+        failureSurface: {
+          kind: 'provider-output-invalid',
+        },
+      },
+    })
+    expect(persisted.assistantText).not.toContain(fragment)
   })
 
   it('shows and persists memory side failures without replacing the Provider reply', async () => {
@@ -750,17 +868,47 @@ describe('chat orchestrator reply authority', () => {
     }))
   })
 
-  it('routes a prose-wrapped JSON candidate to the transparent structured-contract failure without retry', async () => {
-    const providerReply = '这段 Provider 纯文本不得被保留为成功回复。'
-    const fullText = `Provider preface\n${createProviderFullText(providerReply)}\nProvider suffix`
+  it('does not reject provider replies when the display sanitizer only normalizes whitespace', async () => {
+    const reply = '你好，  我在这里。\n\n你想聊什么？'
     const streamChat = vi.fn(async (_payload: any, options: any) => {
       await options.onStreamEvent?.({
         type: 'text-delta',
-        text: providerReply,
+        text: reply,
         origin: 'provider',
         learningPolicy: providerLearningPolicy(),
         failureSurface: null,
       })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText: reply,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你能为我做什么', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted.assistantText).toBe('你好， 我在这里。\n你想聊什么？')
+    expect(persisted.structured).toMatchObject({
+      origin: 'provider',
+      contractFailed: false,
+    })
+    expect(persisted.structured.failureSurface).toBeUndefined()
+  })
+
+  it('routes a prose-wrapped JSON candidate without approved visible text to a transparent provider output failure', async () => {
+    const providerReply = '这段 Provider 纯文本不得被保留为成功回复。'
+    const fullText = `Provider preface\n${createProviderFullText(providerReply)}\nProvider suffix`
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
       await options.onStreamEvent?.({
         type: 'finish',
         origin: 'provider',
@@ -788,7 +936,7 @@ describe('chat orchestrator reply authority', () => {
         contractFailed: true,
         origin: 'failure-surface',
         failureSurface: {
-          kind: 'structured-contract',
+          kind: 'provider-output-invalid',
         },
       },
     })
@@ -797,19 +945,12 @@ describe('chat orchestrator reply authority', () => {
     expect(persisted.structured.reply).toBe(persisted.assistantText)
   })
 
-  it.each(invalidProviderContractCases)('routes %s to a non-learning structured-contract failure surface', async (_label, payload) => {
+  it.each(invalidProviderContractCases)('routes %s to a non-learning provider output failure surface', async (_label, payload) => {
     const providerReply = typeof payload.reply === 'string'
       ? payload.reply
       : '缺失 reply 的候选也不能成为 Provider artifact。'
     const fullText = JSON.stringify(payload)
     const streamChat = vi.fn(async (_payload: any, options: any) => {
-      await options.onStreamEvent?.({
-        type: 'text-delta',
-        text: providerReply,
-        origin: 'provider',
-        learningPolicy: providerLearningPolicy(),
-        failureSurface: null,
-      })
       await options.onStreamEvent?.({
         type: 'finish',
         origin: 'provider',
@@ -841,7 +982,7 @@ describe('chat orchestrator reply authority', () => {
           allowTraining: false,
         },
         failureSurface: {
-          kind: 'structured-contract',
+          kind: 'provider-output-invalid',
           allowLongTermCondensation: false,
           allowPersonaLearning: false,
         },

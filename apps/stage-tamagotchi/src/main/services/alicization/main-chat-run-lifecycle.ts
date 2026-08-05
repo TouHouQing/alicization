@@ -258,11 +258,11 @@ export async function handleAlicizationMainChatRunFailure(
     })
     await emitFailureSurface({
       failureSurface,
-      finishReason: 'structured-contract',
+      finishReason: 'provider-output-invalid',
       status: 'failed',
       options: input,
     })
-    await input.appendRuntimeDebugLine('chat-stream.structured-contract-failed', {
+    await input.appendRuntimeDebugLine('chat-stream.provider-output-invalid', {
       cardId: input.payload.cardId,
       turnId: input.payload.turnId,
       reason,

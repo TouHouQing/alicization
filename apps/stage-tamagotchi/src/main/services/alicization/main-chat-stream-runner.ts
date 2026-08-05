@@ -16,7 +16,6 @@ import type {
 
 import { errorMessageFrom } from '@moeru/std'
 import {
-  alicizationProviderResponseFormat,
   createAlicizationProviderVisibleArtifact,
 } from '@proj-alicization/stage-shared'
 import { streamText } from '@xsai/stream-text'
@@ -356,6 +355,7 @@ export async function runAlicizationMainChatStream(
     const validation = validateAlicizationProviderSettlementPayload({
       fullText: rawFullText,
       prepared: input.prepared,
+      allowPlainTextProviderReply: true,
     })
     const validatedPayload = validation.payload
     if (!validation.valid || !validatedPayload) {
@@ -478,7 +478,6 @@ export async function runAlicizationMainChatStream(
       ...input.prepared.chatConfig,
       maxSteps: 10,
       messages: providerMessages,
-      responseFormat: alicizationProviderResponseFormat,
       headers: input.headers,
       abortSignal: input.controller.signal,
       tools: input.prepared.tools,
@@ -632,6 +631,7 @@ export async function runAlicizationMainChatStream(
   const validation = validateAlicizationProviderSettlementPayload({
     fullText,
     prepared: input.prepared,
+    allowPlainTextProviderReply: true,
   })
   const validatedPayload = validation.payload
   if (!validation.valid || !validatedPayload) {

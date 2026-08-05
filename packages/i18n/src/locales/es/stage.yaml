@@ -9,7 +9,7 @@ chat:
     leak-filtered: El resultado anterior mezcló fragmentos internos de herramientas. Ya los filtré. Pregúntame otra vez y te daré la respuesta limpia.
     realtime-unavailable: Ahora no puedo obtener datos externos en tiempo real de forma fiable. Inténtalo más tarde o revisa en ajustes si las herramientas MCP en tiempo real están disponibles.
     epoch1-strict: Lo siento. Ahora estoy en el modo restringido de Epoch 1, así que no puedo acceder a fuentes externas en tiempo real. Aun así puedes seguir hablando conmigo en local, ajustar configuraciones y ordenar recuerdos.
-    structured-contract: 'La respuesta estructurada falló: este turno no se cerró en JSON utilizable. Vuelve a intentarlo.'
+    structured-contract: 'El formato de salida del modelo no fue válido, así que se bloqueó este turno.'
     stream-failure: Esta respuesta falló. Reinténtalo una vez; si sigue fallando, revisa la configuración del proveedor y del modelo.
     local-runtime-unavailable: En este turno no pude conectarme al runtime local del modelo, por ejemplo Ollama en `11434` o LM Studio en `1234`. Inicia el servicio correspondiente y vuelve a intentarlo.
     stream-timeout: 'Tiempo agotado: este turno esperó demasiado la respuesta del modelo. Vuelve a intentarlo.'

@@ -9,7 +9,7 @@ chat:
     leak-filtered: I filtered out internal tool fragments that slipped into the last result.
     realtime-unavailable: I can't get reliable live external data right now.
     epoch1-strict: Live external data is unavailable in the current restricted mode.
-    structured-contract: 'Structured reply failed: this turn did not settle into usable JSON.'
+    structured-contract: 'Model output format was invalid, so this turn was blocked.'
     stream-failure: Reply stream failed before completion.
     local-runtime-unavailable: The local model runtime is unavailable this turn (for example Ollama on `11434` or LM Studio on `1234`).
     stream-timeout: 'Timeout: this turn waited too long for the model response.'

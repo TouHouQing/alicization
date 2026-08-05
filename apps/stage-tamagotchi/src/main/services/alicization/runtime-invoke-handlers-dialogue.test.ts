@@ -3,7 +3,9 @@ import type { AlicizationMindTurnEventRecord } from '../../../shared/eventa'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  electronAlicizationAckDialogue,
   electronAlicizationListHumanlikeMemoryAudit,
+  electronAlicizationReplayDialogues,
   electronAlicizationReportProactiveFeedback,
 } from '../../../shared/eventa'
 import { buildHumanlikeMemoryCandidate } from './humanlike-memory'
@@ -372,5 +374,103 @@ describe('runtime invoke handlers dialogue', () => {
       action: 'proactive-feedback-explicit',
     }))
     expect(queueSubconsciousWake).toHaveBeenCalledWith('card-proactive-feedback', 'feedback:dismiss', 300)
+  })
+
+  it('lets user-visible dialogue delivery acks and replays bypass the card-scope queue when the card is already active', async () => {
+    const registerInvokeHandler = vi.fn()
+    const withCardScopeCalls: Array<{
+      cardId: unknown
+      options?: { label?: string, skipQueueWhenScopeAlreadyActive?: boolean }
+    }> = []
+    const withCardScope = async <T>(
+      nextCardIdRaw: unknown,
+      task: () => Promise<T>,
+      options?: { label?: string, skipQueueWhenScopeAlreadyActive?: boolean },
+    ): Promise<T> => {
+      withCardScopeCalls.push({
+        cardId: nextCardIdRaw,
+        options,
+      })
+      return await task()
+    }
+    const ackDialogueDelivery = vi.fn(async () => {})
+    const listConversationTurnsBySession = vi.fn(async () => [])
+
+    registerAlicizationDialogueInvokeHandlers({
+      registerInvokeHandler,
+      withCardScope,
+      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      appendRuntimeDebugLine: vi.fn(async () => {}),
+      getActiveCardId: () => 'card-fast-dialogue',
+      persistActiveSessionId: vi.fn(async () => {}),
+      appendConversationTurnWithGuards: vi.fn(async () => true),
+      getDialogueAckCursor: vi.fn(() => 0),
+      ackDialogueDelivery,
+      ensureProactiveLoopState: vi.fn(async () => ({ pendingOutcomes: [] }) as any),
+      reportExplicitProactiveFeedback: vi.fn(() => ({ appliedOutcomes: [], state: { outcomes: [] } }) as any),
+      persistProactiveLoopState: vi.fn(async () => {}),
+      persistProactiveFeedbackOutcomeClosure: vi.fn(async () => {}),
+      syncSessionMirrorFromCurrentCardState: vi.fn(async () => {}),
+      appendAuditLog: vi.fn(async () => {}),
+      queueSubconsciousWake: vi.fn(),
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => []),
+        listConversationTurnsBySession,
+        getMemoryStats: vi.fn(async () => ({})),
+        listMindTurnEvents: vi.fn(async () => []),
+        overrideMemoryStats: vi.fn(async () => ({})),
+        getMetaValue: vi.fn(async () => undefined),
+        setMetaValue: vi.fn(async () => {}),
+      }),
+      getPerformanceManifest: vi.fn(async () => null),
+      getSelfEvolutionState: vi.fn(async () => ({}) as any),
+      toReplayDialogueRespondedPayload: vi.fn(() => null),
+      clearAllConversationData: vi.fn(async () => {}),
+      parseStructuredHint: () => ({}),
+    })
+
+    const ackHandler = registerInvokeHandler.mock.calls.find(call => call[0] === electronAlicizationAckDialogue)?.[1] as (payload: {
+      cardId: string
+      sessionId: string
+      turnId: string
+      createdAt: number
+    }) => Promise<void>
+    const replayHandler = registerInvokeHandler.mock.calls.find(call => call[0] === electronAlicizationReplayDialogues)?.[1] as (payload: {
+      cardId: string
+      sessionId: string
+      limit?: number
+    }) => Promise<unknown>
+
+    await ackHandler({
+      cardId: 'card-fast-dialogue',
+      sessionId: 'session-fast',
+      turnId: 'turn-fast',
+      createdAt: 1_000,
+    })
+    await replayHandler({
+      cardId: 'card-fast-dialogue',
+      sessionId: 'session-fast',
+      limit: 20,
+    })
+
+    expect(withCardScopeCalls).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        cardId: 'card-fast-dialogue',
+        options: expect.objectContaining({
+          label: 'dialogue-ack:card-fast-dialogue',
+          skipQueueWhenScopeAlreadyActive: true,
+        }),
+      }),
+      expect.objectContaining({
+        cardId: 'card-fast-dialogue',
+        options: expect.objectContaining({
+          label: 'dialogue-replay:card-fast-dialogue',
+          skipQueueWhenScopeAlreadyActive: true,
+        }),
+      }),
+    ]))
+    expect(ackDialogueDelivery).toHaveBeenCalled()
+    expect(listConversationTurnsBySession).toHaveBeenCalled()
   })
 })

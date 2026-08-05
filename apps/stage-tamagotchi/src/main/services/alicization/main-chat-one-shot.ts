@@ -4,7 +4,6 @@ import type { tool } from '@xsai/tool'
 
 import type { MainGatewayResolvedConfig } from './runtime-soul'
 
-import { alicizationProviderResponseFormat } from '@proj-alicization/stage-shared'
 import { generateText } from '@xsai/generate-text'
 
 import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
@@ -91,7 +90,6 @@ async function executeAlicizationMainChatOneShot(input: AlicizationMainChatOneSh
       ...input.chatConfig,
       maxSteps: input.maxSteps,
       messages: input.messages,
-      responseFormat: alicizationProviderResponseFormat,
       headers: input.headers,
       abortSignal: controller.signal,
       tools: input.tools,

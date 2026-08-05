@@ -189,17 +189,19 @@ describe('alicization structured output', () => {
     })
   })
 
-  it('does not promote plain fullText into a provider artifact', () => {
+  it('accepts provider-authored plain fullText as a visible reply without JSON contract metadata', () => {
+    const fullText = 'Provider returned plain text because the model does not support native JSON schema.'
     const result = normalizeStructuredOutput({
-      fullText: 'Provider returned plain text instead of the JSON contract.',
+      fullText,
       thought: 'Renderer reasoning must not establish a Provider contract.',
     })
 
     expect(result).toMatchObject({
       parsePath: 'fallback',
       format: 'fallback-v1',
-      reply: '',
+      reply: fullText,
     })
+    expect(validateStructuredContract(result)).toEqual([])
   })
 
   it.each(invalidProviderContractCases)('reports %s as an invalid provider contract', (_label, payload, expectedCode) => {

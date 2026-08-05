@@ -9,7 +9,7 @@ chat:
     leak-filtered: 我刚才的结果里混入了内部工具片段，已经过滤掉了。
     realtime-unavailable: 当前无法获取可靠的实时外部数据。
     epoch1-strict: 当前处于受限实时数据模式，无法访问外部实时数据源。
-    structured-contract: '结构化回复失败：这一轮没有收敛成可用 JSON。'
+    structured-contract: '模型输出格式异常，这轮回复已拦截。'
     stream-failure: 回复流在完成前失败了。
     local-runtime-unavailable: 本地模型服务不可用，例如 `11434` 上的 Ollama 或 `1234` 上的 LM Studio。
     stream-timeout: '超时：这轮等待模型响应过久。'

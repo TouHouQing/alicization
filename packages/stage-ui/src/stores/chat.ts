@@ -26,7 +26,6 @@ import type {
 import type { StreamEvent, StreamOptions } from './llm'
 
 import {
-  alicizationProviderResponseFormat,
   deriveAlicizationRendererBridgeWatchdogTimeoutPolicy,
   detectAlicizationExecutionCapabilityInquiry,
   detectAlicizationExecutionRoutingIntent,
@@ -1072,11 +1071,16 @@ function isUsableMindTurnGovernanceCandidate(value: unknown): value is Alicizati
     && Array.isArray(candidate.mustNotDo)
 }
 
-function hasStructuredJsonContract(
+function hasProviderAuthoredVisibleReplyContract(
   structured: StructuredOutputResult | undefined,
   validationIssues: StructuredValidationIssue[],
 ) {
-  return structured?.parsePath === 'json' && validationIssues.length === 0
+  return Boolean(
+    structured
+    && validationIssues.length === 0
+    && structured.reply.trim()
+    && (structured.parsePath === 'json' || structured.parsePath === 'fallback'),
+  )
 }
 
 function normalizeStructuredTurnForPersistence(
@@ -1627,7 +1631,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         staged.structured,
         getTurnStructuredRuntimeMeta(),
       )
-      const finalReply = structuredWithRuntimeMeta.reply.trim()
+      const finalReply = staged.reply.trim()
       const categorization = staged.categorization
       const finalizedCategorization = {
         ...categorization,
@@ -2039,7 +2043,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         await withStreamWatchdog(async ({ touch }) => {
           await llmStore.stream(options.model, options.chatProvider, messages, {
             ...streamOptions,
-            responseFormat: alicizationProviderResponseFormat,
             onStreamEvent: async (event) => {
               if (event.type === 'meta')
                 touch('liveness')
@@ -2085,6 +2088,20 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           : undefined
       }
 
+      const isCompleteRuntimeProviderArtifact = (fullText: string) => {
+        const candidate = mergeStructuredRuntimeMeta(
+          normalizeStructuredOutput({
+            fullText,
+            thought: '',
+            previousEmotion: getPreviousAssistantEmotion(),
+          }),
+          getTurnStructuredRuntimeMeta(),
+        )
+        const validationIssues = validateStructuredContract(candidate)
+        return candidate.parsePath === 'json'
+          && hasProviderAuthoredVisibleReplyContract(candidate, validationIssues)
+      }
+
       const buildStructuredOutputWithGuard = async (payload: {
         fullText: string
         reasoning: string
@@ -2099,7 +2116,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         )
         const validationIssues = validateStructuredContract(candidate)
 
-        if (!hasStructuredJsonContract(candidate, validationIssues)) {
+        if (!hasProviderAuthoredVisibleReplyContract(candidate, validationIssues)) {
           await appendAlicizationAuditLog({
             level: 'warning',
             category: 'alicization.structured',
@@ -2111,7 +2128,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             },
           })
           return mergeStructuredRuntimeMeta(createFailureStructuredArtifact({
-            kind: 'structured-contract',
+            kind: 'provider-output-invalid',
             userText: sendingMessage,
           }), getTurnStructuredRuntimeMeta())
         }
@@ -2152,10 +2169,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           realtimeIntent: false,
           verifiedToolResult: turnToolEvidence.verifiedToolResult,
         })
-        const outputRejected = !finalReply
+        const displayReply = inspectedOutput.cleanText.trim()
+        const outputRejected = !displayReply
           || inspectedOutput.fabricationDetected
           || inspectedOutput.leakDetected
-          || inspectedOutput.cleanText.trim() !== finalReply
 
         if (outputRejected) {
           await appendAlicizationAuditLog({
@@ -2164,13 +2181,13 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             action: 'provider-output-rejected',
             message: 'Renderer rejected unsafe provider output without writing substitute dialogue.',
             details: {
-              empty: !finalReply,
+              empty: !displayReply,
               fabricationDetected: inspectedOutput.fabricationDetected,
               leakDetected: inspectedOutput.leakDetected,
               removedCount: inspectedOutput.removedCount,
             },
           })
-          return stageFailureSurface(inspectedOutput.leakDetected ? 'internal-leak' : 'structured-contract')
+          return stageFailureSurface(inspectedOutput.leakDetected ? 'internal-leak' : 'provider-output-invalid')
         }
 
         if (containsChatVisibleReplyFixedTemplateResidue(finalReply)) {
@@ -2190,11 +2207,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
         return setStagedAssistantResolution({
           categorization: {
-            speech: finalReply,
+            speech: displayReply,
             reasoning: payload.reasoning,
           },
           structured,
-          reply: finalReply,
+          reply: displayReply,
           origin: 'provider',
         })
       }
@@ -2591,11 +2608,23 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       })
 
       if (runtimeAuthoritativeBridge) {
-        if (!turnTransportFailureSurface && turnTransportProviderFullText) {
+        const approvedVisibleText = turnTransportVisibleText.trim()
+        const visibleTextLooksStructured = looksLikeAlicizationStructuredPayloadText(approvedVisibleText)
+        if (
+          !turnTransportFailureSurface
+          && turnTransportProviderFullText
+          && isCompleteRuntimeProviderArtifact(turnTransportProviderFullText)
+        ) {
           await applyAssistantTextFromModelOutput(turnTransportProviderFullText)
         }
-        else if (!turnTransportFailureSurface && turnTransportVisibleText.trim()) {
-          stageFailureSurface('structured-contract')
+        else if (!turnTransportFailureSurface && approvedVisibleText && !visibleTextLooksStructured) {
+          await applyAssistantTextFromModelOutput(turnTransportVisibleText)
+        }
+        else if (!turnTransportFailureSurface && turnTransportProviderFullText) {
+          await applyAssistantTextFromModelOutput(turnTransportProviderFullText)
+        }
+        else if (!turnTransportFailureSurface && approvedVisibleText) {
+          await applyAssistantTextFromModelOutput(turnTransportVisibleText)
         }
       }
       else {

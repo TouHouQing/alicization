@@ -9,6 +9,7 @@ import {
   alicizationEmotionWhitelist,
   alicizationPerformanceDeliveryWhitelist,
   containsAlicizationFixedTemplateResidue,
+  looksLikeAlicizationStructuredPayloadText,
 } from '@proj-alicization/stage-shared'
 
 import {
@@ -559,6 +560,8 @@ const providerMemoryUsageFields = new Set([
   'workingMemoryVersion',
   'longTermEvidenceIds',
 ])
+const embeddedStructuredEnvelopePattern
+  = /"format"\s*:\s*"mind-turn-v1"|"(?:thought|emotion|reply|performance|memoryUsage|digitalLife|runtimeDigest)"\s*:/iu
 
 const legacyThoughtControlMarkers = ['obligation=', 'truth=', 'focus=', 'move=', 'tone='] as const
 function thoughtContainsLegacyControlLine(thought: string) {
@@ -600,8 +603,18 @@ function isValidNullableString(value: unknown, maxLength: number) {
 function validateProviderPayloadContract(
   payload: Record<string, unknown> | null,
   parsePath: StructuredParsePath,
+  rawText = '',
 ): StructuredValidationIssue[] {
   if (parsePath !== 'json' || !payload) {
+    const candidate = rawText.trim()
+    if (
+      candidate
+      && !looksLikeAlicizationStructuredPayloadText(candidate)
+      && !embeddedStructuredEnvelopePattern.test(candidate)
+    ) {
+      return []
+    }
+
     return [{
       code: 'json-contract-missing',
       message: 'Provider response was not a strict JSON object.',
@@ -760,14 +773,16 @@ export function validateStructuredContract(
 export function normalizeStructuredOutput(input: StructuredOutputInput): StructuredOutputResult {
   const parsed = parseStructuredPayloadFromText(input.fullText)
   const payload = parsed.payload
-  const providerContractIssues = validateProviderPayloadContract(payload, parsed.parsePath)
+  const providerContractIssues = validateProviderPayloadContract(payload, parsed.parsePath, input.fullText)
 
   const thought = parsed.parsePath === 'json'
     ? (typeof payload?.thought === 'string' ? payload.thought : '')
     : naturalizeStructuredThoughtSurface(input.thought.trim())
   const reply = typeof payload?.reply === 'string'
     ? payload.reply
-    : ''
+    : providerContractIssues.length === 0
+      ? input.fullText.trim()
+      : ''
   const inferredEmotion = inferEmotionFromReply({
     reply,
     previousEmotion: input.previousEmotion,

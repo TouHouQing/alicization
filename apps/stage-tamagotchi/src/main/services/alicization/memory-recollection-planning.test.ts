@@ -187,4 +187,63 @@ describe('memory recollection planning stage', () => {
       recalledConversationHistory: [expect.objectContaining({ turnId: 'turn-unselected' })],
     }))
   })
+
+  it('does not block realtime dialogue on slow provider recollection planning', async () => {
+    const planMemoryRecollection = vi.fn(() => new Promise<never>(() => {}))
+    const planRecollectionSpeech = vi.fn(async () => null)
+    const planMemoryDeliberation = vi.fn(async () => null)
+    const startedAt = Date.now()
+
+    const result = await resolveOrganicMemoryRecollectionPlanningStage({
+      recallSeed: 'dialogue:你好',
+      activeRecollectionIntent: createRecollectionIntent(),
+      relationshipLineCandidates: [],
+      consolidatedMemories: [],
+      recollectedWindows: [{
+        id: 'window-greeting',
+        label: 'Greeting window',
+        summary: 'A deterministic search fallback can still carry the relevant memory window.',
+        confidence: 0.8,
+        dominantProvenance: 'remembered',
+        cues: ['greeting'],
+      }] as any,
+      proceduralMemories: [],
+      recalledEpisodes: [],
+      recalledConversationHistory: [{
+        turnId: 'turn-1',
+        userText: '你好',
+        assistantText: '我在。',
+        createdAt: 1,
+        provenance: 'conversation-history',
+      }] as any,
+      plannerBudgetMs: 1,
+      planMemoryRecollection,
+      planRecollectionSpeech,
+      planMemoryDeliberation,
+      resolveRecollectionPlanSearch: input => input.recollectionPlan ?? ({
+        selectedConsolidationIds: [],
+        selectedWindowIds: ['window-greeting'],
+        selectedProceduralIds: [],
+        selectedEpisodeIds: [],
+        selectedConversationTurnIds: ['turn-1'],
+        selectedRelationshipLines: [],
+        searchTrace: null,
+        opening: '',
+        certainty: 'approximate',
+        rationale: 'Fallback search selected the strongest available owners.',
+        confidence: 0.66,
+      } as any),
+    })
+
+    expect(Date.now() - startedAt).toBeLessThan(100)
+    expect(planMemoryRecollection).toHaveBeenCalledOnce()
+    expect(planRecollectionSpeech).not.toHaveBeenCalled()
+    expect(planMemoryDeliberation).not.toHaveBeenCalled()
+    expect(result.recollectionPlan).toMatchObject({
+      selectedWindowIds: ['window-greeting'],
+      selectedConversationTurnIds: ['turn-1'],
+    })
+    expect(result.plannedWindows).toEqual([expect.objectContaining({ id: 'window-greeting' })])
+    expect(result.plannedConversationHistory).toEqual([expect.objectContaining({ turnId: 'turn-1' })])
+  })
 })

@@ -22,7 +22,7 @@ export interface AlicizationVisibleReplyClosureResult extends AlicizationVisible
 
 export class AlicizationVisibleReplyClosureBlockedError extends Error {
   readonly failureSurface = resolveAlicizationChatFailureSurface({
-    kind: 'structured-contract',
+    kind: 'provider-output-invalid',
   })
 
   constructor(

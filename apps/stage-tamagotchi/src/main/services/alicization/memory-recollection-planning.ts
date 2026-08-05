@@ -6,6 +6,8 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 import { normalizeMemoryPlanningId } from './memory-os/planning-identifiers'
 import { buildMemoryRecollectionNarratives } from './memory-recollection-narratives'
 
+const DEFAULT_REALTIME_RECOLLECTION_PLANNING_BUDGET_MS = 900
+
 export interface OrganicMemoryRecollectionPlanningStageInput {
   recallSeed: string
   activeRecollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']> | null
@@ -63,9 +65,45 @@ export interface OrganicMemoryRecollectionPlanningStageInput {
   }) => RecollectionPlanSnapshot | null
   recordMemoryPlannerLatency?: ((latencyMs: number) => Promise<void>) | undefined
   recordMemorySpeechPlanLatency?: ((latencyMs: number) => Promise<void>) | undefined
+  plannerBudgetMs?: number
+}
+
+function resolvePlanningDeadline(input: OrganicMemoryRecollectionPlanningStageInput) {
+  const budgetMs = Number.isFinite(input.plannerBudgetMs)
+    ? Math.max(0, input.plannerBudgetMs ?? 0)
+    : DEFAULT_REALTIME_RECOLLECTION_PLANNING_BUDGET_MS
+  return Date.now() + budgetMs
+}
+
+function remainingPlanningBudgetMs(deadlineMs: number) {
+  return Math.max(0, deadlineMs - Date.now())
+}
+
+async function runWithinPlanningBudget<T>(input: {
+  deadlineMs: number
+  run: () => Promise<T | null>
+}): Promise<T | null> {
+  const remainingMs = remainingPlanningBudgetMs(input.deadlineMs)
+  if (remainingMs <= 0)
+    return null
+
+  let timeout: ReturnType<typeof setTimeout> | null = null
+  try {
+    return await Promise.race([
+      input.run().catch(() => null),
+      new Promise<null>((resolve) => {
+        timeout = setTimeout(() => resolve(null), remainingMs)
+      }),
+    ])
+  }
+  finally {
+    if (timeout)
+      clearTimeout(timeout)
+  }
 }
 
 export async function resolveOrganicMemoryRecollectionPlanningStage(input: OrganicMemoryRecollectionPlanningStageInput) {
+  const planningDeadlineMs = resolvePlanningDeadline(input)
   const plannerStartedAt = Date.now()
   const rawRecollectionPlan = input.activeRecollectionIntent && input.planMemoryRecollection && (
     input.consolidatedMemories.length > 0
@@ -74,16 +112,19 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
     || input.recalledEpisodes.length > 0
     || input.recalledConversationHistory.length > 0
   )
-    ? await input.planMemoryRecollection({
-        recallSeed: input.recallSeed,
-        recollectionIntent: input.activeRecollectionIntent,
-        consolidatedMemories: input.consolidatedMemories,
-        recollectedWindows: input.recollectedWindows,
-        proceduralMemories: input.proceduralMemories,
-        recalledEpisodes: input.recalledEpisodes,
-        recalledConversationHistory: input.recalledConversationHistory,
-        digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
-      }).catch(() => null)
+    ? await runWithinPlanningBudget({
+        deadlineMs: planningDeadlineMs,
+        run: async () => await input.planMemoryRecollection!({
+          recallSeed: input.recallSeed,
+          recollectionIntent: input.activeRecollectionIntent!,
+          consolidatedMemories: input.consolidatedMemories,
+          recollectedWindows: input.recollectedWindows,
+          proceduralMemories: input.proceduralMemories,
+          recalledEpisodes: input.recalledEpisodes,
+          recalledConversationHistory: input.recalledConversationHistory,
+          digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
+        }),
+      })
     : null
   const recollectionPlan = input.resolveRecollectionPlanSearch({
     recollectionIntent: input.activeRecollectionIntent,
@@ -131,17 +172,20 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
     || plannedConversationHistory.length > 0
     || Boolean(recollectionPlan)
   )
-    ? await input.planRecollectionSpeech({
-        recallSeed: input.recallSeed,
-        recollectionIntent: input.activeRecollectionIntent,
-        recollectionPlan,
-        consolidatedMemories: plannedConsolidatedMemories,
-        recollectedWindows: plannedWindows,
-        proceduralMemories: plannedProceduralMemories,
-        recalledEpisodes: plannedEpisodes,
-        recalledConversationHistory: plannedConversationHistory,
-        digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
-      }).catch(() => null)
+    ? await runWithinPlanningBudget({
+        deadlineMs: planningDeadlineMs,
+        run: async () => await input.planRecollectionSpeech!({
+          recallSeed: input.recallSeed,
+          recollectionIntent: input.activeRecollectionIntent!,
+          recollectionPlan,
+          consolidatedMemories: plannedConsolidatedMemories,
+          recollectedWindows: plannedWindows,
+          proceduralMemories: plannedProceduralMemories,
+          recalledEpisodes: plannedEpisodes,
+          recalledConversationHistory: plannedConversationHistory,
+          digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
+        }),
+      })
     : null
   void input.recordMemorySpeechPlanLatency?.(Date.now() - speechPlanStartedAt).catch(() => {})
 
@@ -153,18 +197,21 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
     || plannedConversationHistory.length > 0
     || Boolean(recollectionPlan)
   )
-    ? await input.planMemoryDeliberation({
-        recallSeed: input.recallSeed,
-        recollectionIntent: input.activeRecollectionIntent,
-        recollectionPlan,
-        recollectionSpeechPlan,
-        consolidatedMemories: plannedConsolidatedMemories,
-        recollectedWindows: plannedWindows,
-        proceduralMemories: plannedProceduralMemories,
-        recalledEpisodes: plannedEpisodes,
-        recalledConversationHistory: plannedConversationHistory,
-        digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
-      }).catch(() => null)
+    ? await runWithinPlanningBudget({
+        deadlineMs: planningDeadlineMs,
+        run: async () => await input.planMemoryDeliberation!({
+          recallSeed: input.recallSeed,
+          recollectionIntent: input.activeRecollectionIntent!,
+          recollectionPlan,
+          recollectionSpeechPlan,
+          consolidatedMemories: plannedConsolidatedMemories,
+          recollectedWindows: plannedWindows,
+          proceduralMemories: plannedProceduralMemories,
+          recalledEpisodes: plannedEpisodes,
+          recalledConversationHistory: plannedConversationHistory,
+          digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
+        }),
+      })
     : null
 
   const finalEraIds = new Set(

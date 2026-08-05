@@ -552,7 +552,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
       ) + 1
       if (providerSettlementAttempts >= executionProviderSettlementRetryBudget) {
         const failureSurface = resolveAlicizationChatFailureSurface({
-          kind: 'structured-contract',
+          kind: 'provider-output-invalid',
         })
         const persistedFailure = await options.appendConversationTurnWithGuards({
           turnId: firedTurnId,

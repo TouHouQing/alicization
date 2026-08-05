@@ -297,6 +297,7 @@ import {
   normalizeReminderMessage,
   sanitizeBriefText,
 } from './runtime-realtime'
+import { resolveReminderDueTimerDelay } from './runtime-reminder-due-scheduler'
 import {
   alicizationCardActiveSessionMetaKey,
   alicizationCardKillSwitchMetaKey,
@@ -3337,7 +3338,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     const nowMs = Date.now()
     const dueInMs = Math.max(0, nextPending.triggerAt - nowMs)
-    const timeoutMs = Math.min(2_147_000_000, dueInMs + 120)
+    const timeoutMs = resolveReminderDueTimerDelay({
+      nowMs,
+      triggerAt: nextPending.triggerAt,
+      startupGrace: reason === 'startup',
+    })
     await appendRuntimeDebugLine('reminder.next-due-scheduled', {
       cardId: activeCardId,
       trigger: reason,
@@ -3356,11 +3361,20 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       })
 
       if (subconsciousTickInFlight) {
+        const retryInMs = resolveReminderDueTimerDelay({
+          nowMs: Date.now(),
+          triggerAt: nextPending.triggerAt,
+          deferredBecauseTickInFlight: true,
+        })
         void appendRuntimeDebugLine('reminder.next-due-deferred', {
           cardId: activeCardId,
           reason: 'tick-in-flight',
+          retryInMs,
         })
-        void scheduleNextReminderDueCheck('deferred-after-inflight').catch(() => {})
+        reminderDueTimer = setTimeout(() => {
+          reminderDueTimer = undefined
+          void scheduleNextReminderDueCheck('deferred-after-inflight').catch(() => {})
+        }, retryInMs)
         return
       }
 
@@ -5515,29 +5529,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     errorMessageFrom,
   })
 
-  async function runReminderCompensationAcrossCards(trigger: 'startup') {
-    const previousCardId = activeCardId
-    const cardIds = await listKnownCardIds()
-    const processedCards: string[] = []
-    try {
-      for (const cardId of cardIds) {
-        await withCardScope(cardId, async () => {
-          const result = await processDueRemindersForCurrentCard(trigger)
-          if (result.claimed > 0)
-            processedCards.push(activeCardId)
-        }, {
-          label: `reminder-compensation:${trigger}:${cardId}`,
-        })
-      }
-    }
-    finally {
-      await withCardScope(previousCardId, async () => {}, {
-        label: `reminder-compensation:return:${trigger}:${previousCardId}`,
-      })
-    }
-    return processedCards
-  }
-
   function clearQueuedSubconsciousWake() {
     if (queuedSubconsciousWakeTimer) {
       clearTimeout(queuedSubconsciousWakeTimer)
@@ -6460,17 +6451,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       category: 'memory',
       action: 'salience-refresh-startup-failed',
       message: 'Startup memory salience refresh failed.',
-      payload: {
-        reason: error instanceof Error ? error.message : String(error),
-      },
-    })
-  })
-  await runReminderCompensationAcrossCards('startup').catch(async (error) => {
-    await appendAuditLog({
-      level: 'warning',
-      category: 'alicization.reminder',
-      action: 'startup-compensation-failed',
-      message: 'Startup reminder compensation scan failed.',
       payload: {
         reason: error instanceof Error ? error.message : String(error),
       },

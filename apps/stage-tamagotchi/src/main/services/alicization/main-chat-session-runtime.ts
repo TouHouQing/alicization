@@ -1588,23 +1588,34 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           budgetClass: organicMemoryBudgetClass,
         })
       : null
+    const effectiveOrganicMemoryBudgetClass = organicMemoryRetrievalPolicySnapshot?.plan.budgetClass ?? organicMemoryBudgetClass
     if (options.prewarmOrganicMemoryAccessibility) {
-      await agentTurn.trackPhase('organic-memory-prewarm', async () => {
+      const runOrganicMemoryPrewarm = async () => {
         await options.prewarmOrganicMemoryAccessibility?.({
           recallSeed: organicRecallSeed,
           recallGovernor: prelude.perceptionAugmentation.recallGovernor,
           turnId: payload.turnId,
-          budgetClass: organicMemoryRetrievalPolicySnapshot?.plan.budgetClass ?? organicMemoryBudgetClass,
+          budgetClass: effectiveOrganicMemoryBudgetClass,
           retrievalPolicySnapshot: organicMemoryRetrievalPolicySnapshot,
         })
-      }, {
-        personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
-      })
+      }
+      if (organicMemoryRetrievalPolicySnapshot?.plan.budgetClass === 'realtime-reply') {
+        void agentTurn.trackPhase('organic-memory-prewarm-background', runOrganicMemoryPrewarm, {
+          personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
+          budgetClass: effectiveOrganicMemoryBudgetClass,
+        }).catch(() => {})
+      }
+      else {
+        await agentTurn.trackPhase('organic-memory-prewarm', runOrganicMemoryPrewarm, {
+          personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
+          budgetClass: effectiveOrganicMemoryBudgetClass,
+        })
+      }
     }
 
     const memoryOsRuntime = await turnRuntime.runStage(turnContext, 'memory', {
       inputSummary: [
-        `budget=${organicMemoryRetrievalPolicySnapshot?.plan.budgetClass ?? organicMemoryBudgetClass}`,
+        `budget=${effectiveOrganicMemoryBudgetClass}`,
         `recallSeedChars=${organicRecallSeed.length}`,
       ],
       run: async () => await agentTurn.trackPhase('memory-os-runtime', async () => {
@@ -1612,7 +1623,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           recallSeed: organicRecallSeed,
           recallGovernor: prelude.perceptionAugmentation.recallGovernor,
           turnId: payload.turnId,
-          budgetClass: organicMemoryRetrievalPolicySnapshot?.plan.budgetClass ?? organicMemoryBudgetClass,
+          budgetClass: effectiveOrganicMemoryBudgetClass,
           retrievalPolicySnapshot: organicMemoryRetrievalPolicySnapshot,
           digitalLifeRuntimeSurface: digitalLifeSpine?.runtimeSurface
             ?? prelude.perceptionAugmentation.digitalLifeRuntimeSurface
@@ -1622,7 +1633,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             recallGovernor: prelude.perceptionAugmentation.recallGovernor,
             sessionMirrorRecollection: previousSessionMirror?.recollection ?? null,
             turnId: payload.turnId,
-            budgetClass: organicMemoryRetrievalPolicySnapshot?.plan.budgetClass ?? organicMemoryBudgetClass,
+            budgetClass: effectiveOrganicMemoryBudgetClass,
             retrievalPolicySnapshot: organicMemoryRetrievalPolicySnapshot,
             digitalLifeRuntimeSurface: digitalLifeSpine?.runtimeSurface
               ?? prelude.perceptionAugmentation.digitalLifeRuntimeSurface

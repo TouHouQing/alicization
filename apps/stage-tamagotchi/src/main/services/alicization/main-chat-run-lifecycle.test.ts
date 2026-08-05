@@ -163,20 +163,20 @@ describe('main chat run lifecycle', () => {
     })
   })
 
-  it('surfaces Provider settlement blocks as structured-contract failures', async () => {
+  it('surfaces Provider settlement blocks as provider output failures', async () => {
     const error = new AlicizationVisibleReplySettlementBlockedError(
       'provider-settlement-invalid:provider-memory-usage-invalid',
       null,
     )
     const input = createBaseInput({ error })
-    const { failureSurface, metadata } = failureMetadata('structured-contract')
+    const { failureSurface, metadata } = failureMetadata('provider-output-invalid')
 
     await handleAlicizationMainChatRunFailure(input)
 
     expect(input.emitError).toHaveBeenCalledWith(failureSurface.reply, metadata)
     expect(input.finish).toHaveBeenCalledWith({
       status: 'failed',
-      finishReason: 'structured-contract',
+      finishReason: 'provider-output-invalid',
       error: failureSurface.reply,
       ...metadata,
     })
