@@ -371,6 +371,12 @@ describe('chat orchestrator reply authority', () => {
     )
     expect(source).not.toContain('stageChatText(\'kill-switch.suspended\')')
     expect(source).not.toContain('stageChatText(\'kill-switch.resumed\')')
+    expect(source).not.toMatch(
+      /fileSystemOperationVerbPattern|fileSystemOperationTargetPattern|reminder(?:ChineseNatural|Duration|EnglishNatural|Verb)Pattern|detect(?:FileSystem|Reminder|ExecutionToolRouting)ToolIntent/iu,
+    )
+    expect(source).not.toMatch(
+      /detectAlicizationExecution(?:CapabilityInquiry|RoutingIntent)/u,
+    )
   })
 
   it('omits native provider responseFormat from the renderer provider call', async () => {
@@ -485,8 +491,11 @@ describe('chat orchestrator reply authority', () => {
     }))
   })
 
-  it('sends natural Codex capability questions through a tool-free dialogue stream', async () => {
-    const reply = '可以，我能在明确需要执行任务时使用 Codex。'
+  it.each([
+    ['你可以使用 Codex 吗', '可以，我能在明确需要执行任务时使用 Codex。'],
+    ['Codex 最近怎么样', 'Codex 最近运行稳定。'],
+    ['删除文件是什么意思', '删除文件通常意味着移除指定文件。'],
+  ])('lets ordinary message "%s" complete as provider text without fixed tool routing', async (message, reply) => {
     const fullText = createProviderFullText(reply)
     const streamChat = vi.fn(async (_payload: any, options: any) => {
       await options.onStreamEvent?.({
@@ -508,7 +517,7 @@ describe('chat orchestrator reply authority', () => {
     installAlicizationBridge({ streamChat })
 
     const store = useChatOrchestratorStore()
-    await store.ingest('你可以使用codex吗', {
+    await store.ingest(message, {
       model: 'mock-model',
       chatProvider: createChatProviderStub(),
       origin: 'ui-user',
@@ -516,6 +525,131 @@ describe('chat orchestrator reply authority', () => {
 
     expect(streamChat).toHaveBeenCalledTimes(1)
     expect(streamChat.mock.calls[0]?.[0]).toMatchObject({
+      supportsTools: true,
+      waitForTools: true,
+    })
+    expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+      assistantText: reply,
+      structured: expect.objectContaining({
+        origin: 'provider',
+      }),
+    }))
+    expect(appendConversationTurnMock.mock.calls.at(-1)?.[0]?.structured.failureSurface).toBeUndefined()
+  })
+
+  it('preserves actual tool-call and tool-result evidence without requiring a route', async () => {
+    const reply = '我查到结果了。'
+    const fullText = createProviderFullText(reply)
+    streamMock.mockImplementation(async (_model, _provider, _messages, options) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'tool-search-1',
+        toolName: 'fetch_tasks',
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await new Promise(resolve => setTimeout(resolve, 0))
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'tool-search-1',
+        result: {
+          ok: true,
+          output: '结果内容',
+        },
+      })
+      await new Promise(resolve => setTimeout(resolve, 0))
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('帮我查一下这个', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+    await new Promise(resolve => setTimeout(resolve, 0))
+
+    const persistedMessage = ensureSessionMessages(activeSessionId.value).at(-1) as any
+    expect(streamMock.mock.calls[0]?.[3]).toMatchObject({
+      supportsTools: true,
+      waitForTools: true,
+    })
+    expect(persistedMessage).toMatchObject({
+      role: 'assistant',
+      content: reply,
+    })
+    expect(persistedMessage.slices).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'tool-call',
+        toolCall: expect.objectContaining({
+          toolCallId: 'tool-search-1',
+          toolName: 'fetch_tasks',
+        }),
+      }),
+    ]))
+    expect(persistedMessage.tool_results).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'tool-search-1',
+        result: {
+          ok: true,
+          output: '结果内容',
+        },
+      }),
+    ]))
+  })
+
+  it('retries once without tools when the provider rejects tool support before progress', async () => {
+    const reply = '普通文本也可以继续完成。'
+    const fullText = createProviderFullText(reply)
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      if (streamChat.mock.calls.length === 1)
+        throw new Error('provider does not support tools')
+
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamChat).toHaveBeenCalledTimes(2)
+    expect(streamChat.mock.calls[0]?.[0]).toMatchObject({
+      supportsTools: true,
+      waitForTools: true,
+    })
+    expect(streamChat.mock.calls[1]?.[0]).toMatchObject({
       supportsTools: false,
       waitForTools: false,
     })

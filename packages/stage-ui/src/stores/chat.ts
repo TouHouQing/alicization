@@ -27,8 +27,6 @@ import type { StreamEvent, StreamOptions } from './llm'
 
 import {
   deriveAlicizationRendererBridgeWatchdogTimeoutPolicy,
-  detectAlicizationExecutionCapabilityInquiry,
-  detectAlicizationExecutionRoutingIntent,
   isAlicizationProviderSchemaUnsupportedError,
   looksLikeAlicizationStructuredPayloadText,
   resolveAlicizationChatFailureSurface,
@@ -313,12 +311,6 @@ const executionEvidenceToolNames = new Set([
   'desktop_open_application',
   'desktop_wait',
 ])
-const fileSystemOperationVerbPattern = /读取|读|查看|打开|访问|写入|写|修改|删除|列出|搜索|获取|read|open|access|write|update|delete|list|find|inspect/i
-const fileSystemOperationTargetPattern = /文件夹|目录|路径|桌面|系统状态|磁盘|file|folder|directory|path|desktop|system state|\/|\\|\.(?:txt|md|json|yaml|yml|csv|log)\b|文件(?!夹)/i
-const reminderVerbPattern = /提醒|闹钟|alarm|remind|notify|叫我|喊我|告诉我|通知我|记得|别忘/iu
-const reminderDurationPattern = /\b(?:in|after)\s*\d+\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|days?)\b|(?:\d+|[零一二两三四五六七八九十百半几]+)\s*(?:秒钟?|分钟?|小时|时|天)(?:\s*之?后)?/iu
-const reminderChineseNaturalPattern = /(?:\d+|[零一二两三四五六七八九十百半几]+)\s*(?:秒钟?|分钟?|小时|时|天)(?:\s*之?后)?[\s，,。！!]*(?:提醒我|叫我|喊我|告诉我|通知我|记得|别忘)/u
-const reminderEnglishNaturalPattern = /(?:^|\s)(?:in|after)\s*\d+\s*(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|days?)\s*(?:[,.:;!?-]\s*)?(?:remind|notify|tell)\s+me\b/iu
 function createEmptyStreamingMessage(): StreamingAssistantMessage {
   return {
     role: 'assistant',
@@ -329,13 +321,8 @@ function createEmptyStreamingMessage(): StreamingAssistantMessage {
 }
 
 interface TurnToolEvidence {
-  toolCallCount: number
-  toolResultCount: number
-  executorToolCallCount: number
   verifiedToolResult: boolean
   executorToolCallIds: Set<string>
-  latestExecutorResult: ExecutorToolReplyEvidence | null
-  sawTextAfterExecutorResult: boolean
   deniedBySafety: boolean
   deniedReason?: string
   denialSource?: 'host' | 'system' | 'generic'
@@ -357,17 +344,6 @@ interface ExecutorToolReplyEvidence {
 
 function isExecutionEvidenceToolName(toolName: string) {
   return executionEvidenceToolNames.has(toolName)
-}
-
-function isExecutionToolNameSatisfiedByRoutingIntent(input: {
-  requiredToolNames: Set<string>
-  toolName: string
-}) {
-  if (!input.toolName)
-    return false
-  if (input.requiredToolNames.size <= 0)
-    return isExecutionEvidenceToolName(input.toolName)
-  return input.requiredToolNames.has(input.toolName)
 }
 
 function normalizeExecutorChannelLabel(toolName: string) {
@@ -576,54 +552,11 @@ function resolveChatRuntimeDigitalLifeAuthority(input: {
     ?? normalizeChatRuntimeDigitalLifeEnvelope(input.embodimentScript?.digitalLife ?? null)
 }
 
-function detectFileSystemToolIntent(message: string) {
-  const normalized = message.trim()
-  if (!normalized)
-    return false
-  return fileSystemOperationVerbPattern.test(normalized) && fileSystemOperationTargetPattern.test(normalized)
-}
-
-function detectReminderToolIntent(message: string) {
-  const normalized = message.trim()
-  if (!normalized)
-    return false
-  if (!reminderDurationPattern.test(normalized))
-    return false
-  if (reminderVerbPattern.test(normalized))
-    return true
-  return reminderChineseNaturalPattern.test(normalized) || reminderEnglishNaturalPattern.test(normalized)
-}
-
-function detectExecutionToolRoutingIntent(message: string) {
-  const capabilityInquiry = detectAlicizationExecutionCapabilityInquiry(message)
-  return detectAlicizationExecutionRoutingIntent({
-    message,
-    capabilityInquiry,
-  })
-}
-
-function resolveMainGatewayToolingPolicy(input: {
-  origin: 'ui-user' | 'tool-output' | 'context-recall' | 'system'
-  requiresImmediateFileToolCall: boolean
-  requiresReminderToolCall: boolean
-  requiresExecutionToolCall: boolean
-}) {
-  const toolingRequired
-    = input.requiresImmediateFileToolCall
-      || input.requiresReminderToolCall
-      || input.requiresExecutionToolCall
-  if (input.origin !== 'ui-user') {
-    return {
-      toolingRequired,
-      supportsTools: true,
-      waitForTools: true,
-    }
-  }
-
+function resolveMainGatewayToolingPolicy() {
   return {
-    toolingRequired,
-    supportsTools: toolingRequired,
-    waitForTools: toolingRequired,
+    toolingRequired: false,
+    supportsTools: true,
+    waitForTools: true,
   }
 }
 
@@ -828,13 +761,10 @@ function resolveStreamFailureFallback(error: unknown, userText?: string): { repl
 function shouldRetryStreamWithoutTools(error: unknown, options: {
   supportsTools?: boolean
   sawProgress: boolean
-  toolingRequired?: boolean
 }) {
   if (options.supportsTools === false)
     return false
   if (options.sawProgress)
-    return false
-  if (options.toolingRequired)
     return false
 
   const message = String(error instanceof Error ? error.message : error ?? '').toLowerCase()
@@ -1722,27 +1652,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       const alicizationBridge = hasAlicizationBridge() ? getAlicizationBridge() : null
       const runtimeAuthoritativeBridge = Boolean(alicizationBridge?.streamChat)
-      const requiresImmediateFileToolCall = origin === 'ui-user' && detectFileSystemToolIntent(sendingMessage)
-      const requiresReminderToolCall = origin === 'ui-user' && detectReminderToolIntent(sendingMessage)
-      const executionToolRoutingIntent = origin === 'ui-user'
-        ? detectExecutionToolRoutingIntent(sendingMessage)
-        : null
-      const requiresExecutionToolCall = Boolean(executionToolRoutingIntent)
-      const requiredExecutionToolNames = new Set(executionToolRoutingIntent?.requiredToolNames ?? [])
-      const runtimeGatewayToolingPolicy = resolveMainGatewayToolingPolicy({
-        origin,
-        requiresImmediateFileToolCall,
-        requiresReminderToolCall,
-        requiresExecutionToolCall,
-      })
+      const runtimeGatewayToolingPolicy = resolveMainGatewayToolingPolicy()
       const turnToolEvidence: TurnToolEvidence = {
-        toolCallCount: 0,
-        toolResultCount: 0,
-        executorToolCallCount: 0,
         verifiedToolResult: false,
         executorToolCallIds: new Set<string>(),
-        latestExecutorResult: null,
-        sawTextAfterExecutorResult: false,
         deniedBySafety: false,
         reminderToolCallIds: new Set<string>(),
         reminderScheduled: false,
@@ -1763,9 +1676,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           supportsTools: runtimeGatewayToolingPolicy.supportsTools,
           waitForTools: runtimeGatewayToolingPolicy.waitForTools,
           toolingRequired: runtimeGatewayToolingPolicy.toolingRequired,
-          requiresImmediateFileToolCall,
-          requiresReminderToolCall,
-          requiresExecutionToolCall,
         },
       })
       const streamWithRuntimeGateway = async (
@@ -2012,7 +1922,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             if (shouldRetryStreamWithoutTools(error, {
               supportsTools: streamOptions.supportsTools,
               sawProgress: sawProgress || sawProgressFromError,
-              toolingRequired: runtimeGatewayToolingPolicy.toolingRequired,
             })) {
               await appendAlicizationAuditLog({
                 level: 'warning',
@@ -2514,17 +2423,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               }
               break
             case 'tool-call': {
-              turnToolEvidence.toolCallCount += 1
               await recordObservedToolCall(event)
               {
                 const observedToolName = normalizeObservedToolName(event)
                 if (event.toolCallId && observedToolName)
                   observedToolNamesById.set(event.toolCallId, observedToolName)
-                if (isExecutionToolNameSatisfiedByRoutingIntent({
-                  requiredToolNames: requiredExecutionToolNames,
-                  toolName: observedToolName,
-                })) {
-                  turnToolEvidence.executorToolCallCount += 1
+                if (isExecutionEvidenceToolName(observedToolName)) {
                   if (event.toolCallId)
                     turnToolEvidence.executorToolCallIds.add(event.toolCallId)
                 }
@@ -2544,15 +2448,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               break
             }
             case 'tool-result':
-              turnToolEvidence.toolResultCount += 1
               if (hasVerifiedToolResult(event.result))
                 turnToolEvidence.verifiedToolResult = true
               if (turnToolEvidence.executorToolCallIds.has(event.toolCallId)) {
                 const executorToolName = observedToolNamesById.get(event.toolCallId) ?? 'executor'
                 const executorResult = extractExecutorToolReplyEvidence(event.result, executorToolName)
                 if (executorResult) {
-                  turnToolEvidence.latestExecutorResult = executorResult
-                  turnToolEvidence.sawTextAfterExecutorResult = false
                   toolCallQueue.enqueue(buildExecutorExecutionStatus({
                     toolName: executorToolName,
                     result: executorResult,
@@ -2588,8 +2489,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   runtimeAuthoritativeModelTextObserved = true
                 break
               }
-              if (turnToolEvidence.latestExecutorResult && event.text.length > 0)
-                turnToolEvidence.sawTextAfterExecutorResult = true
               await parser.consume(event.text)
               break
             case 'finish':
@@ -2629,34 +2528,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       }
       else {
         await parser.end()
-      }
-
-      const missingRequiredTool = (
-        requiresImmediateFileToolCall && turnToolEvidence.toolCallCount === 0
-      ) || (
-        requiresReminderToolCall && turnToolEvidence.reminderToolCallIds.size === 0
-      ) || (
-        requiresExecutionToolCall && turnToolEvidence.executorToolCallCount === 0
-      )
-      const missingExecutionPayoff = requiresExecutionToolCall
-        && turnToolEvidence.latestExecutorResult !== null
-        && !turnToolEvidence.sawTextAfterExecutorResult
-
-      if (missingRequiredTool || missingExecutionPayoff) {
-        await appendAlicizationAuditLog({
-          level: 'warning',
-          category: 'alicization.intent-action',
-          action: missingRequiredTool ? 'required-tool-missing' : 'execution-payoff-missing',
-          message: 'Renderer detected an incomplete tool turn and exposed only a transparent failure surface.',
-          details: {
-            sessionId,
-            turnId,
-            toolCallCount: turnToolEvidence.toolCallCount,
-            executorToolCallCount: turnToolEvidence.executorToolCallCount,
-            reminderToolCallCount: turnToolEvidence.reminderToolCallIds.size,
-          },
-        })
-        stageFailureSurface(missingRequiredTool ? 'model-tools-unsupported' : 'stream-failure')
       }
 
       await finalizeAssistantTurn()
