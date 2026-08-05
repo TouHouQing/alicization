@@ -156,4 +156,101 @@ describe('main chat execution surface', () => {
     expect(capabilityTool).toBeDefined()
     expect(capabilityTool.function?.description).not.toMatch(/when the host|always call|must use/iu)
   })
+
+  it('requires the model to choose a structured local visual channel', async () => {
+    const executeTaskThread = vi.fn(async () => ({
+      ok: true,
+      stage: 'dispatch',
+      thread: {
+        id: 'thread-local-visual-1',
+        selectedChannel: 'browser',
+      },
+      plan: {
+        state: 'routed',
+      },
+      summary: 'done',
+      output: null,
+    }))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-local-visual-1',
+        decisionTraceId: 'trace-local-visual-1',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: executeTaskThread as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const localVisualTool = tools.find((entry: any) => entry.function?.name === 'executor_run_local_visual') as any
+    expect(localVisualTool.function.parameters.required).toContain('channel')
+
+    await localVisualTool.execute({
+      channel: 'browser',
+      instruction: 'Inspect the current browser page.',
+      kind: 'browser-automation',
+    }, {})
+
+    expect(executeTaskThread).toHaveBeenCalledWith(expect.objectContaining({
+      task: expect.objectContaining({
+        requestedChannel: 'browser',
+      }),
+    }))
+  })
+
+  it('keeps the openclaw tool pinned to the openclaw channel', async () => {
+    const executeTaskThread = vi.fn(async () => ({
+      ok: true,
+      stage: 'dispatch',
+      thread: {
+        id: 'thread-openclaw-1',
+        selectedChannel: 'openclaw',
+      },
+      plan: {
+        state: 'routed',
+      },
+      summary: 'done',
+      output: null,
+    }))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-openclaw-1',
+        decisionTraceId: 'trace-openclaw-1',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: executeTaskThread as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const openclawTool = tools.find((entry: any) => entry.function?.name === 'executor_run_openclaw') as any
+    expect(openclawTool.function.parameters.properties).not.toHaveProperty('transport')
+
+    await openclawTool.execute({
+      instruction: 'Inspect and operate the current page through OpenClaw.',
+      kind: 'browser-automation',
+    }, {})
+
+    expect(executeTaskThread).toHaveBeenCalledWith(expect.objectContaining({
+      dispatch: expect.objectContaining({
+        localVisual: undefined,
+        openclaw: expect.any(Object),
+      }),
+      task: expect.objectContaining({
+        requestedChannel: 'openclaw',
+      }),
+    }))
+  })
 })

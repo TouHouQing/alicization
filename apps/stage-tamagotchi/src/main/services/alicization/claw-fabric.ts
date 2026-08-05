@@ -272,10 +272,7 @@ function getPreferenceScore(kind: AlicizationExecutionTaskKind, channel: Aliciza
 function isChannelSupportedForTask(
   kind: AlicizationExecutionTaskKind,
   channel: AlicizationExecutionChannel,
-  requestedChannel: AlicizationExecutionChannel | null | undefined,
 ) {
-  if (requestedChannel === channel)
-    return true
   return taskChannelSupport[kind].includes(channel)
 }
 
@@ -301,7 +298,7 @@ function buildCandidateAssessment(input: {
   if (!capability.ready)
     blockedReasons.push('channel-not-ready')
 
-  const supported = isChannelSupportedForTask(task.kind, channel, task.requestedChannel)
+  const supported = isChannelSupportedForTask(task.kind, channel)
   if (!supported)
     blockedReasons.push('unsupported-for-task')
 
@@ -575,7 +572,11 @@ export function buildClawFabricPlan(input: {
         'Structured bodies were exhausted before considering unsafe fallback behavior.',
       ],
       affirmationReasonCodes: [],
-      blockedReasonCodes: unique(candidates.flatMap(candidate => candidate.blockedReasons)),
+      blockedReasonCodes: unique(
+        candidates
+          .filter(candidate => candidate.channel === input.task.requestedChannel)
+          .flatMap(candidate => candidate.blockedReasons),
+      ),
     }
   }
 

@@ -191,25 +191,7 @@ function buildClawFabricExperience(input: {
   const hotChannel = runningChannel
     ? resolveThreadChannel(runningChannel)
     : activeChannels[0] ?? null
-  const rankedHistoryChannels = Object.entries(channelOutcomes)
-    .map(([channel, outcome]) => {
-      const completed = Math.max(0, Number(outcome.completed ?? 0))
-      const running = Math.max(0, Number(outcome.running ?? 0))
-      const planned = Math.max(0, Number(outcome.planned ?? 0))
-      const failed = Math.max(0, Number(outcome.failed ?? 0))
-      const cancelled = Math.max(0, Number(outcome.cancelled ?? 0))
-      const score = completed * 3 + running * 2 + planned - failed * 2 - cancelled
-      return {
-        channel,
-        score,
-      }
-    })
-    .filter(item => item.score > 0 && executionChannelSet.has(item.channel as AlicizationExecutionChannel))
-    .sort((left, right) => right.score - left.score)
-  const historyResumeChannel = rankedHistoryChannels[0]?.channel
   const sessionResumeChannel = hotChannel
-    ?? (historyResumeChannel as AlicizationExecutionChannel | undefined)
-    ?? null
 
   if (activeChannels.length === 0 && Object.keys(channelOutcomes).length === 0 && !sessionResumeChannel)
     return null

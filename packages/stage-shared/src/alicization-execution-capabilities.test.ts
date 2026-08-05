@@ -9,6 +9,7 @@ import type {
 import { describe, expect, it } from 'vitest'
 
 import * as capabilities from './alicization-execution-capabilities'
+import * as legacyIntent from './alicization-execution-intent'
 
 describe('alicization execution capabilities', () => {
   it('exposes only structured capability values at runtime', () => {
@@ -54,6 +55,13 @@ describe('alicization execution capabilities', () => {
       'desktop_open_application',
       'desktop_wait',
     ])
+  })
+
+  it('keeps the temporary website resolver module on the shared execution contract', () => {
+    expect(legacyIntent.alicizationExecutionCapabilityChannels)
+      .toBe(capabilities.alicizationExecutionCapabilityChannels)
+    expect(legacyIntent.alicizationExecutorToolNames)
+      .toBe(capabilities.alicizationExecutorToolNames)
   })
 
   it('keeps dispatch and routing channels structurally constrained', () => {

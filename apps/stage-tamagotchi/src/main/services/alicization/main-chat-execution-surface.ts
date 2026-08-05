@@ -145,7 +145,6 @@ const localVisualExecutorKindValues = [
   'mixed',
   'unknown',
 ] as const
-const localVisualExecutorTaskKinds = new Set<AlicizationClawTaskIntent['kind']>(localVisualExecutorKindValues)
 const browserLikePagePhases = new Set([
   'login',
   'search-results',
@@ -618,14 +617,6 @@ function normalizeExecutorTimeoutMs(raw: number | undefined) {
   return raw
 }
 
-function normalizeVisualExecutorTransport(raw: 'auto' | 'openclaw' | undefined) {
-  return raw === 'openclaw' ? 'openclaw' : 'auto'
-}
-
-function isLocalVisualExecutorTaskKind(kind: AlicizationClawTaskIntent['kind']) {
-  return localVisualExecutorTaskKinds.has(kind)
-}
-
 function asRecord(raw: unknown): Record<string, unknown> | null {
   return raw && typeof raw === 'object' && !Array.isArray(raw)
     ? raw as Record<string, unknown>
@@ -909,6 +900,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       parameters: z.object({
         threadId: z.string().optional(),
         instruction: z.string().min(1).optional(),
+        channel: z.enum(['browser', 'software', 'desktop']),
         kind: z.enum(localVisualExecutorKindValues).optional(),
         senderId: z.string().optional(),
         roleName: z.string().optional(),
@@ -937,7 +929,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         riskBudget: z.enum(['low', 'medium', 'high']).optional(),
         requiresVisualGrounding: z.boolean().optional(),
       }).strict(),
-      execute: async ({ threadId, instruction, kind, senderId, roleName, channelId, conversationId, contentParts, images, audios, files, meta, sessionAffinityKey, goal, effect, permissionMode, justification, riskBudget, requiresVisualGrounding }, toolContext) => {
+      execute: async ({ threadId, instruction, channel, kind, senderId, roleName, channelId, conversationId, contentParts, images, audios, files, meta, sessionAffinityKey, goal, effect, permissionMode, justification, riskBudget, requiresVisualGrounding }, toolContext) => {
         const resumedThreadId = sanitizeText(threadId) || ''
         if (resumedThreadId && options.resumeTaskThread)
           return await options.resumeTaskThread({ context: toolContext, threadId: resumedThreadId })
@@ -977,7 +969,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
             permissionMode: permissionMode ?? 'implicit',
             justification: justification ?? 'grounded',
             riskBudget: riskBudget ?? 'medium',
-            requestedChannel: undefined,
+            requestedChannel: channel,
             prefersPersistentSession: true,
             requiresVisualGrounding: typeof requiresVisualGrounding === 'boolean'
               ? requiresVisualGrounding
@@ -1000,7 +992,6 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         threadId: z.string().optional(),
         instruction: z.string().min(1).optional(),
         kind: z.enum(['run-command', 'codebase-edit', 'codebase-investigation', 'browser-automation', 'software-automation', 'desktop-automation', 'agent-delegation', 'mixed', 'unknown']).optional(),
-        transport: z.enum(['auto', 'openclaw']).optional(),
         timeoutMs: z.coerce.number().optional(),
         senderId: z.string().optional(),
         roleName: z.string().optional(),
@@ -1029,7 +1020,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         riskBudget: z.enum(['low', 'medium', 'high']).optional(),
         requiresVisualGrounding: z.boolean().optional(),
       }).strict(),
-      execute: async ({ threadId, instruction, kind, transport, timeoutMs, senderId, roleName, channelId, conversationId, contentParts, images, audios, files, meta, sessionAffinityKey, goal, effect, permissionMode, justification, riskBudget, requiresVisualGrounding }, toolContext) => {
+      execute: async ({ threadId, instruction, kind, timeoutMs, senderId, roleName, channelId, conversationId, contentParts, images, audios, files, meta, sessionAffinityKey, goal, effect, permissionMode, justification, riskBudget, requiresVisualGrounding }, toolContext) => {
         const resumedThreadId = sanitizeText(threadId) || ''
         if (resumedThreadId && options.resumeTaskThread)
           return await options.resumeTaskThread({ context: toolContext, threadId: resumedThreadId })
@@ -1037,7 +1028,6 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         if (!resolvedInstruction)
           throw new Error('executor_run_openclaw requires either threadId or instruction.')
         const resolvedKind = kind ?? 'browser-automation'
-        const resolvedTransport = normalizeVisualExecutorTransport(transport)
         const visualKinds = new Set(['browser-automation', 'software-automation', 'desktop-automation', 'mixed', 'unknown'])
         const runtimeContext = await options.buildExecutionRuntimeContext(toolContext)
         const normalizedMeta = meta && typeof meta === 'object' && !Array.isArray(meta)
@@ -1061,31 +1051,24 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           normalizedMeta.audios = audios
         if (Array.isArray(files) && files.length > 0)
           normalizedMeta.files = files
-        const usesLocalVisualByDefault = resolvedTransport === 'auto' && isLocalVisualExecutorTaskKind(resolvedKind)
         return await options.executeTaskThread({
           context: toolContext,
           task: {
             kind: resolvedKind,
-            goal: sanitizeText(goal) || `${usesLocalVisualByDefault ? 'Run local visual task' : 'Run OpenClaw task'}: ${sanitizeBriefText(resolvedInstruction, 220)}`,
+            goal: sanitizeText(goal) || `Run OpenClaw task: ${sanitizeBriefText(resolvedInstruction, 220)}`,
             origin: 'user',
             effect: effect ?? 'mutate',
             permissionMode: permissionMode ?? 'implicit',
             justification: justification ?? 'grounded',
             riskBudget: riskBudget ?? 'medium',
-            requestedChannel: resolvedTransport === 'openclaw' ? 'openclaw' : undefined,
+            requestedChannel: 'openclaw',
             prefersPersistentSession: true,
             requiresVisualGrounding: typeof requiresVisualGrounding === 'boolean'
               ? requiresVisualGrounding
               : visualKinds.has(resolvedKind),
           },
           dispatch: {
-            localVisual: usesLocalVisualByDefault
-              ? {
-                  instruction: resolvedInstruction,
-                  meta: Object.keys(normalizedMeta).length > 0 ? normalizedMeta : undefined,
-                  runtimeContext,
-                }
-              : undefined,
+            localVisual: undefined,
             openclaw: {
               instruction: resolvedInstruction,
               timeoutMs: normalizeExecutorTimeoutMs(timeoutMs),

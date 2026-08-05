@@ -270,7 +270,28 @@ describe('buildClawFabricPlan', () => {
     expect(plan.selectedChannel).toBeNull()
     expect(plan.proposedChannel).toBeNull()
     expect(plan.blockedReasonCodes).toContain('channel-unavailable')
-    expect(plan.blockedReasonCodes).toContain('requested-channel-mismatch')
+    expect(plan.blockedReasonCodes).not.toContain('requested-channel-mismatch')
+  })
+
+  it('rejects a structured channel that is incompatible with the task kind', () => {
+    const plan = buildClawFabricPlan({
+      task: {
+        kind: 'run-command',
+        goal: 'Run the requested operation.',
+        origin: 'user',
+        effect: 'mutate',
+        requestedChannel: 'browser',
+      },
+      capabilities: createCapabilities(['browser']),
+    })
+
+    expect(plan.state).toBe('blocked')
+    expect(plan.selectedChannel).toBeNull()
+    expect(plan.proposedChannel).toBeNull()
+    expect(plan.blockedReasonCodes).toEqual(expect.arrayContaining([
+      'unsupported-for-task',
+    ]))
+    expect(plan.blockedReasonCodes).not.toContain('requested-channel-mismatch')
   })
 
   it('requires affirmation before proactive mutating software control', () => {

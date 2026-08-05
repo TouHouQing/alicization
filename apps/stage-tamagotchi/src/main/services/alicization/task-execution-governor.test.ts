@@ -221,7 +221,7 @@ describe('task execution governor', () => {
     ])
   })
 
-  it('injects historical channel outcomes into the planning experience hints', async () => {
+  it('keeps settled outcomes separate from active session resume hints', async () => {
     const governor = createTaskExecutionGovernor({
       getNow: () => 460,
     })
@@ -279,7 +279,7 @@ describe('task execution governor', () => {
     expect(port.readPersistedThread()?.metadata).toEqual(expect.objectContaining({
       fabric: expect.objectContaining({
         experience: expect.objectContaining({
-          sessionResumeChannel: 'claude-code',
+          sessionResumeChannel: null,
           goalAffinityChannel: null,
           advisorChannel: null,
           channelOutcomes: expect.objectContaining({
