@@ -121,10 +121,13 @@ const executionCapabilityAliasPatterns: Record<AlicizationExecutionCapabilityCha
   ],
 }
 
-const executionCapabilityQuestionPattern = /能不能|可不可以|可以(?:用|调用|执行|操作)?吗|会不会|是否(?:可以|支持)|支持不支持|can\s+you|are\s+you\s+able|do\s+you\s+support|can\s+u|could\s+you/iu
+const executionCapabilityQuestionPattern = /能不能|可不可以|你?(?:能|会|可以)(?:用|使用|调用|执行|操作)?吗|会不会|是否(?:可以|支持)|支持不支持|can\s+you|are\s+you\s+able|do\s+you\s+support|can\s+u|could\s+you/iu
+const executionChineseNaturalCapabilityIntroPattern = /(?:^|[，。！？!?\s])你?(?:能不能|可不可以|会不会|能|会|可以)(?:用|使用|调用|执行|操作)?/u
+const executionChineseCapabilityQuestionSuffixPattern = /吗(?:$|[，。！？!?；;\s])/u
+const executionConcreteTaskPattern = /帮我|帮忙|给我|为我|替我|修复|修改|重构|运行|执行|[查写改做]|打开|点击|搜索|读取|完成|启动|关闭|删除|安装|测试|构建|提交|推送|\b(?:fix|modify|refactor|run|execute|search|read|write|open|click|build|test|commit|push|delete|install)\b/iu
 const executionCommandLiteralPattern = /`[^`\n]+`|(?:^|\s)(?:pnpm|npm|yarn|bun|git|ls|cat|rg|grep|python|node|tsx|tsc|vitest|eslint|prettier)\b/iu
 const executionCommandTokenPattern = /\b(?:pnpm|npm|yarn|bun|git|ls|cat|rg|grep|find|python|node|tsx|tsc|vue-tsc|vitest|eslint|prettier|typecheck|lint|build|test)\b/iu
-const executionQuestionMarkerPattern = /[?？]|能不能|可不可以|会不会|是否|can\s+you|could\s+you|are\s+you|do\s+you/iu
+const executionQuestionMarkerPattern = /[?？]|吗(?:$|[，。！？!?；;\s])|能不能|可不可以|会不会|是否|can\s+you|could\s+you|are\s+you|do\s+you/iu
 const executionRequestFramePattern = /请你|请|麻烦|拜托|帮我|帮忙|希望你|我想让你|please|help\s+me|can\s+you|could\s+you|would\s+you|i\s+need\s+you|(?:^|\n)\s*use\s+/iu
 const executionShellPromptPattern = /(?:^|\n)\s*[$>#]\s*[^\s`]+/u
 const executionShellOperatorPattern = /&&|\|\||[|><]{1,2}|(?:^|\s)-[a-z0-9-]+(?:\s|$)/iu
@@ -418,7 +421,7 @@ function hasLocalAutomationBrowserNextStepIntent(normalized: string) {
     = /当前网页|当前页面|这个网页|这个页面|网页|页面|浏览器|current\s+(?:page|browser)|page|browser/iu.test(normalized)
   const hasNextStepCue
     = /下一步|该|点什么|点哪里|做什么|what should|next step/iu.test(normalized)
-  const hasJudgementCue = /帮我判断|判断一下|看看|看下|查看/iu.test(normalized)
+  const hasJudgementCue = /帮我判断|判断一下|看看|看下|查看/u.test(normalized)
 
   return (hasBrowserSurface && hasNextStepCue)
     || (hasJudgementCue && hasBrowserSurface && hasNextStepCue)
@@ -426,9 +429,9 @@ function hasLocalAutomationBrowserNextStepIntent(normalized: string) {
 }
 
 function hasLocalAutomationBrowserTypeIntent(normalized: string) {
-  const hasBrowserSurface = /当前网页|当前页面|这个网页|这个页面|网页|页面/iu.test(normalized)
+  const hasBrowserSurface = /当前网页|当前页面|这个网页|这个页面|网页|页面/u.test(normalized)
   const hasTypingCue = /输入|键入|填写|type|fill|paste/iu.test(normalized)
-  const hasFieldCue = /搜索框|输入框|文本框|邮箱输入框|表单/iu.test(normalized)
+  const hasFieldCue = /搜索框|输入框|文本框|邮箱输入框|表单/u.test(normalized)
 
   return (hasBrowserSurface && hasTypingCue)
     || (hasTypingCue && hasBrowserSurface)
@@ -437,7 +440,7 @@ function hasLocalAutomationBrowserTypeIntent(normalized: string) {
 
 function hasLocalAutomationBrowserWaitIntent(normalized: string) {
   const hasWaitCue = /等待|等一下|等会|wait/iu.test(normalized)
-  const hasBrowserSurface = /当前网页|当前页面|这个网页|这个页面|网页|页面|浏览器/iu.test(normalized)
+  const hasBrowserSurface = /当前网页|当前页面|这个网页|这个页面|网页|页面|浏览器/u.test(normalized)
   const hasReadyCue = /加载完成|加载好|加载完|ready|complete|就绪|出现|显示/iu.test(normalized)
 
   return hasWaitCue && hasBrowserSurface && hasReadyCue
@@ -847,6 +850,28 @@ function collectChannelMentionsFromNormalizedText(normalized: string) {
   return channels
 }
 
+function textAfterFirstExecutionCapabilityChannel(normalized: string) {
+  let firstMatchEnd = -1
+  let firstMatchIndex = Number.POSITIVE_INFINITY
+
+  for (const channel of alicizationExecutionCapabilityChannels) {
+    for (const pattern of executionCapabilityAliasPatterns[channel]) {
+      const match = pattern.exec(normalized)
+      if (!match || match.index >= firstMatchIndex)
+        continue
+      firstMatchIndex = match.index
+      firstMatchEnd = match.index + match[0].length
+    }
+  }
+
+  return firstMatchEnd >= 0 ? normalized.slice(firstMatchEnd) : ''
+}
+
+function hasNaturalChineseExecutionCapabilityQuestion(normalized: string) {
+  return executionChineseNaturalCapabilityIntroPattern.test(normalized)
+    && executionChineseCapabilityQuestionSuffixPattern.test(normalized)
+}
+
 export function collectAlicizationExecutionChannelMentions(message: string) {
   const normalized = normalizeExecutionIntentText(message)
   if (!normalized)
@@ -891,9 +916,16 @@ export function analyzeAlicizationExecutionSemanticSignals(message: string): Ali
   const hasCodeArtifact = executionCodeArtifactPattern.test(normalized) || hasCommandLiteral || hasFilesystemPathReference
   const hasBrowserArtifact = executionBrowserArtifactPattern.test(normalized)
   const hasSoftwareArtifact = executionSoftwareArtifactPattern.test(normalized)
+  const hasConcreteTaskAfterCapabilityChannel = executionConcreteTaskPattern.test(
+    textAfterFirstExecutionCapabilityChannel(normalized),
+  )
   const hasCapabilityQuestion = mentionedChannels.length > 0
     && hasQuestionMarker
-    && executionCapabilityQuestionPattern.test(normalized)
+    && !hasConcreteTaskAfterCapabilityChannel
+    && (
+      executionCapabilityQuestionPattern.test(normalized)
+      || hasNaturalChineseExecutionCapabilityQuestion(normalized)
+    )
 
   let executionSignalScore = 0
   if (mentionedDispatchChannels.length > 0)

@@ -128,6 +128,27 @@ describe('runtime main chat prelude', () => {
     expect((execution as any).prelude.messages).toEqual([userMessage])
   })
 
+  it('keeps natural Codex capability questions on the answer-only dialogue path', async () => {
+    const runtime = createRuntime()
+
+    const prelude = await runtime.prepareMainChatPrelude({
+      cardId: 'card-prelude-codex-capability',
+      turnId: 'turn-prelude-codex-capability',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [
+        { role: 'user', content: '你可以使用codex吗' },
+      ],
+    } as any, mainGateway)
+
+    expect(prelude.executionCapabilityInquiry.capabilityQuestion).toBe(true)
+    expect(prelude.executionCapabilityInquiry.mentionedChannels).toContain('codex')
+    expect(prelude.executionRoutingIntent).toBeNull()
+    expect(prelude.actionObligation.kind).toBe('answer')
+    expect(prelude.actionObligation.routingIntent).toBeNull()
+  })
+
   it('keeps ordinary mixed user content on the context memory and perception path', async () => {
     const callbacks = [{
       channel: 'desktop',

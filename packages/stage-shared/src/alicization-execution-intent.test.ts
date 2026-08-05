@@ -21,6 +21,36 @@ describe('alicization execution intent', () => {
     expect(routing).toBeNull()
   })
 
+  it.each([
+    '你可以使用codex吗',
+    '你可以用 codex 吗',
+    '你会使用 Codex 吗',
+    '你能不能使用 Codex',
+  ])('treats natural Codex capability question "%s" as dialogue instead of execution', (message) => {
+    const inquiry = detectAlicizationExecutionCapabilityInquiry(message)
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message,
+      capabilityInquiry: inquiry,
+    })
+
+    expect(inquiry.capabilityQuestion).toBe(true)
+    expect(inquiry.mentionedChannels).toContain('codex')
+    expect(routing).toBeNull()
+  })
+
+  it('keeps an explicit Codex task request on the execution route', () => {
+    const message = '你可以使用 Codex 帮我修复这个 bug 吗'
+    const inquiry = detectAlicizationExecutionCapabilityInquiry(message)
+    const routing = detectAlicizationExecutionRoutingIntent({
+      message,
+      capabilityInquiry: inquiry,
+    })
+
+    expect(inquiry.capabilityQuestion).toBe(false)
+    expect(routing?.requestedChannels).toEqual(['codex'])
+    expect(routing?.requiredToolNames).toEqual(['executor_run_codex'])
+  })
+
   it('routes explicit CLI execution requests with channel mentions', () => {
     const routing = detectAlicizationExecutionRoutingIntent({
       message: '请用 CLI 执行 pnpm -F @proj-alicization/stage-tamagotchi typecheck',
