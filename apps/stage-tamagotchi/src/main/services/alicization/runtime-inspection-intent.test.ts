@@ -110,4 +110,48 @@ describe('runtime inspection intent', () => {
     expect(result.inspectionState).not.toBe('dialogue-first')
     expect(result.reasonCodes).toContain('observation-verb')
   })
+
+  it('releases inspection carry for a Codex capability question instead of hijacking dialogue', () => {
+    const runtime = createInspectionIntentRuntime()
+    const visualPresenceState = createDefaultVisualPresenceState(2_000)
+    visualPresenceState.watchMode = 'invited-inspection'
+
+    const result = runtime.resolveInspectionIntentForChatTurn({
+      now: 2_000,
+      userText: '你可以使用 Codex 吗',
+      messages: [
+        { role: 'user', content: '帮我看看屏幕上的 Codex 窗口' },
+        { role: 'assistant', content: '我在看着当前画面。' },
+        { role: 'user', content: '你可以使用 Codex 吗' },
+      ],
+      perceptionState: {
+        ...createInspectionCarryState(),
+        invitedInspection: {
+          requestedAt: 1_000,
+          activeUntil: 5_000,
+          hintText: '帮我看看屏幕上的 Codex 窗口',
+        },
+        recentSceneResidue: {
+          ...createInspectionCarryState().recentSceneResidue!,
+          summary: 'Codex Chat Overlay',
+          focusTarget: {
+            appName: 'Codex',
+            processName: 'Codex',
+            title: 'Codex Chat Overlay',
+          },
+        },
+      },
+      visualPresenceState,
+      currentForeground: {
+        appName: 'Codex',
+        processName: 'Codex',
+        title: 'Codex Chat Overlay',
+      },
+    })
+
+    expect(result.active).toBe(false)
+    expect(result.releaseCarry).toBe(true)
+    expect(result.inspectionState).toBe('dialogue-first')
+    expect(result.reasonCodes).toContain('dialogue-pivot-away-from-inspection')
+  })
 })

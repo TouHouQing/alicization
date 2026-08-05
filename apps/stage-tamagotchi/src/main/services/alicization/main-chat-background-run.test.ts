@@ -8,6 +8,7 @@ import {
 } from './main-chat-background-run'
 import { generateAlicizationMainChatNonStreaming } from './main-chat-one-shot'
 import { handleAlicizationMainChatRunFailure } from './main-chat-run-lifecycle'
+import { createAlicizationChatStreamMetaEmitter } from './main-chat-stream-meta'
 import { runAlicizationMainChatStream } from './main-chat-stream-runner'
 
 vi.mock('./main-chat-one-shot', () => ({
@@ -299,6 +300,18 @@ describe('main chat background run', () => {
     expect(input.emitToolCall).not.toHaveBeenCalled()
     expect(input.emitToolResult).not.toHaveBeenCalled()
     expect(generateAlicizationMainChatNonStreaming).not.toHaveBeenCalled()
+  })
+
+  it('emits prepared liveness meta before waiting for the first Provider token', async () => {
+    const input = createInput()
+
+    await runAlicizationMainChatBackground(input)
+
+    const emitter = vi.mocked(createAlicizationChatStreamMetaEmitter).mock.results[0]?.value
+    expect(emitter?.emit).toHaveBeenCalledWith('', { force: true })
+    expect(vi.mocked(emitter?.emit).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(runAlicizationMainChatStream).mock.invocationCallOrder[0]!,
+    )
   })
 
   it('passes presented execution callbacks to the runtime settlement owner', async () => {

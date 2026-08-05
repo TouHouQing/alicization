@@ -354,6 +354,50 @@ describe('main chat stream runner', () => {
     }))
   })
 
+  it('collects provider text from compatible delta event shapes instead of ending with an empty settlement', async () => {
+    const emitChunk = vi.fn()
+    const streamTextImpl = vi.fn(async ({ onEvent }) => {
+      const emit = onEvent as (event: any) => Promise<void>
+      await emit({ type: 'text_delta', delta: '你好，' })
+      await emit({ type: 'content-delta', content: '我在这里。' })
+      await emit({ type: 'finish', finishReason: 'stop' })
+    })
+
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-stream-delta-compatible-provider',
+      } as any,
+      prepared: createPrepared({
+        messages: [
+          {
+            role: 'system',
+            content: typedMemoryContextBlock,
+          },
+          { role: 'user', content: '你好' },
+        ],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk,
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+    })
+
+    expect(result.fullText).toBe('你好，我在这里。')
+    expect(result.visibleReplyRealization.visibleText).toBe('你好，我在这里。')
+    expect(emitChunk).toHaveBeenCalledWith(expect.objectContaining({
+      text: '你好，我在这里。',
+      origin: 'provider',
+    }))
+  })
+
   it('keeps provider text provisional until the complete response passes settlement', async () => {
     const emitChunk = vi.fn()
     const fullText = createProviderResponsePayload()

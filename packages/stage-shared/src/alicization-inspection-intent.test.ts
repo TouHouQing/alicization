@@ -91,6 +91,26 @@ describe('inferAlicizationInspectionIntent', () => {
     expect(result.signalProfile.actionable).toBe(false)
   })
 
+  it('does not treat capability questions about Codex as visual inspection intent', () => {
+    const result = inferAlicizationInspectionIntent({
+      message: '你可以使用 Codex 吗',
+      recentMessages: [
+        { role: 'user', content: '帮我看看屏幕上的 Codex 窗口' },
+        { role: 'assistant', content: '我在看着当前画面。' },
+      ],
+      contextPhrases: [
+        'Codex Chat Overlay',
+        'Alicization',
+      ],
+      sharedAttentionActive: true,
+    })
+
+    expect(result.active).toBe(false)
+    expect(result.reasonCodes).not.toContain('contextual-continuation')
+    expect(result.signalProfile.actionable).toBe(false)
+    expect(result.signalProfile.decisive).toBe(false)
+  })
+
   it('does not let legacy memory-template wording suppress grounded shared-attention inspection', () => {
     const result = inferAlicizationInspectionIntent({
       message: '这个 continuity Phase 1 面板现在怎么样？',

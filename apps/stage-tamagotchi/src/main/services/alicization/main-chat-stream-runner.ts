@@ -24,6 +24,7 @@ import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-pol
 import {
   createAbortError,
   isMainGatewayProgressEventType,
+  normalizeMainGatewayStreamEventType,
   readRawTextDelta,
   sanitizeText,
 } from './main-chat-stream-primitives'
@@ -475,10 +476,11 @@ export async function runAlicizationMainChatStream(
       tools: input.prepared.tools,
       toolChoice: input.prepared.toolChoice,
       onEvent: async (event: any) => {
-        const eventType = sanitizeText(event?.type)
+        const rawEventType = sanitizeText(event?.type)
+        const eventType = normalizeMainGatewayStreamEventType(rawEventType)
         if (eventType)
           sawAnyEvent = true
-        lastEventType = eventType
+        lastEventType = rawEventType || eventType
 
         if (isMainGatewayProgressEventType(eventType)) {
           if (!sawProgressEvent) {
@@ -501,14 +503,14 @@ export async function runAlicizationMainChatStream(
           }
         }
 
-        if (event?.type === 'text-delta') {
+        if (eventType === 'text-delta') {
           if (!input.isRunActive())
             return
-          fullText += readRawTextDelta(event.text)
+          fullText += readRawTextDelta(event)
           return
         }
 
-        if (event?.type === 'tool-call') {
+        if (eventType === 'tool-call') {
           if (!input.isRunActive())
             return
           const observedToolName = sanitizeText(event.toolName ?? event.name)
@@ -534,7 +536,7 @@ export async function runAlicizationMainChatStream(
           return
         }
 
-        if (event?.type === 'tool-result') {
+        if (eventType === 'tool-result') {
           if (!input.isRunActive())
             return
           const toolCallId = sanitizeText(event.toolCallId)
@@ -553,10 +555,10 @@ export async function runAlicizationMainChatStream(
           return
         }
 
-        if (event?.type === 'finish') {
+        if (eventType === 'finish') {
           if (!input.isRunActive())
             return
-          finishReason = sanitizeText(event.finishReason, 'stop')
+          finishReason = sanitizeText(event.finishReason ?? event.finish_reason ?? event.reason, 'stop')
           appendStreamDebugLine('chat-stream.finish-event', {
             elapsedMs: Date.now() - startedAt,
             finishReason,
@@ -572,7 +574,7 @@ export async function runAlicizationMainChatStream(
           return
         }
 
-        if (event?.type === 'error') {
+        if (eventType === 'error') {
           if (!input.isRunActive())
             return
           appendStreamDebugLine('chat-stream.error-event', {

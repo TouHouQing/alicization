@@ -370,6 +370,7 @@ export async function runAlicizationMainChatBackground(
       getExplicitPerformance: () => null,
       emit: input.emitMeta,
     })
+    streamMetaEmitter.emit('', { force: true })
 
     try {
       await Promise.resolve(input.recordPreparedMindTrace?.({

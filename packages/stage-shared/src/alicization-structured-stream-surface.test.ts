@@ -33,4 +33,11 @@ describe('alicization-structured-stream-surface', () => {
     expect(looksLikeAlicizationStructuredPayloadText(reply)).toBe(false)
     expect(shouldBufferAlicizationStructuredSpeechPrelude(reply)).toBe(false)
   })
+
+  it('does not classify ordinary JSON examples that only happen to use reply-like fields', () => {
+    const reply = '```json\n{"reply":"hello","ok":true}\n```'
+
+    expect(looksLikeAlicizationStructuredPayloadText(reply)).toBe(false)
+    expect(shouldBufferAlicizationStructuredSpeechPrelude(reply)).toBe(false)
+  })
 })

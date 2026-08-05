@@ -48,7 +48,7 @@ const providerMemoryUsageFields = [
 ] as const
 
 const embeddedStructuredEnvelopePattern
-  = /"format"\s*:\s*"mind-turn-v1"|"(?:thought|emotion|reply|performance|memoryUsage|digitalLife|runtimeDigest)"\s*:/iu
+  = /"format"\s*:\s*"mind-turn-v1"|"(?:thought|performance|memoryUsage|embodimentScript|digitalLife|runtimeDigest)"\s*:/iu
 
 export interface AlicizationVisibleReplySettlementDraft {
   fullText: string
@@ -176,27 +176,30 @@ export function validateAlicizationProviderSettlementPayload(input: {
 }) {
   const parsed = parseJsonObjectFromText(input.fullText)
   const issues: string[] = []
+  const acceptPlainTextProviderReply = () => {
+    const plainText = buildPlainTextProviderPayload({
+      fullText: input.fullText,
+      prepared: input.prepared,
+    })
+    if (plainText.payload) {
+      return {
+        valid: true,
+        payload: plainText.payload,
+        issues: [],
+        memoryUsage: plainText.payload.memoryUsage,
+      } as const
+    }
+    return {
+      valid: false,
+      payload: null,
+      issues: plainText.issues,
+      memoryUsage: null,
+    } as const
+  }
 
   if (!parsed) {
     if (input.allowPlainTextProviderReply) {
-      const plainText = buildPlainTextProviderPayload({
-        fullText: input.fullText,
-        prepared: input.prepared,
-      })
-      if (plainText.payload) {
-        return {
-          valid: true,
-          payload: plainText.payload,
-          issues: [],
-          memoryUsage: plainText.payload.memoryUsage,
-        }
-      }
-      return {
-        valid: false,
-        payload: null,
-        issues: plainText.issues,
-        memoryUsage: null,
-      }
+      return acceptPlainTextProviderReply()
     }
 
     return {
@@ -205,6 +208,13 @@ export function validateAlicizationProviderSettlementPayload(input: {
       issues: ['provider-payload-json-invalid'],
       memoryUsage: null,
     }
+  }
+
+  if (
+    input.allowPlainTextProviderReply
+    && !looksLikeEmbeddedStructuredProviderPayload(input.fullText.trim())
+  ) {
+    return acceptPlainTextProviderReply()
   }
 
   if (!hasExactKeys(parsed, providerPayloadFields))

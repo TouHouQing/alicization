@@ -204,6 +204,22 @@ describe('alicization structured output', () => {
     expect(validateStructuredContract(result)).toEqual([])
   })
 
+  it.each([
+    '{"reply":"hello","ok":true}',
+    '```json\n{"reply":"hello","ok":true}\n```',
+  ])('accepts ordinary provider-authored JSON text without treating it as an Alicization contract: %s', (fullText) => {
+    const result = normalizeStructuredOutput({
+      fullText,
+      thought: 'Renderer reasoning must not establish a Provider contract.',
+    })
+
+    expect(result).toMatchObject({
+      format: 'fallback-v1',
+      reply: fullText,
+    })
+    expect(validateStructuredContract(result)).toEqual([])
+  })
+
   it.each(invalidProviderContractCases)('reports %s as an invalid provider contract', (_label, payload, expectedCode) => {
     const result = normalizeStructuredOutput({
       fullText: JSON.stringify(payload),

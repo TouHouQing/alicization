@@ -19,6 +19,9 @@ const appendConversationTurnMock = vi.fn()
 const appendAuditLogMock = vi.fn()
 const suspendKillSwitchMock = vi.fn()
 const resumeKillSwitchMock = vi.fn()
+const chatSessionStoreMocks = vi.hoisted(() => ({
+  ensureSessionReady: vi.fn(),
+}))
 
 const activeSessionId = ref('session-test')
 const activeConsciousnessProvider = ref('mock-provider')
@@ -159,9 +162,7 @@ vi.mock('./chat/session-store', () => ({
     ensureSession: (sessionId: string) => {
       ensureSessionMessages(sessionId)
     },
-    ensureSessionReady: vi.fn(async (sessionId: string) => {
-      ensureSessionMessages(sessionId)
-    }),
+    ensureSessionReady: chatSessionStoreMocks.ensureSessionReady,
     getSessionMessages: (sessionId: string) => ensureSessionMessages(sessionId),
     persistSessionMessages: vi.fn(),
     getSessionGeneration: vi.fn().mockReturnValue(0),
@@ -372,6 +373,10 @@ describe('chat orchestrator reply authority', () => {
     localStorageEntries.clear()
     sessionMessagesMap.clear()
     ensureSessionMessages(activeSessionId.value)
+    chatSessionStoreMocks.ensureSessionReady.mockReset()
+    chatSessionStoreMocks.ensureSessionReady.mockImplementation(async (sessionId: string) => {
+      ensureSessionMessages(sessionId)
+    })
     streamingMessage.value = {
       role: 'assistant',
       content: '',
@@ -552,6 +557,61 @@ describe('chat orchestrator reply authority', () => {
       }),
     }))
     expect(appendConversationTurnMock.mock.calls.at(-1)?.[0]?.structured.failureSurface).toBeUndefined()
+  })
+
+  it('shows an empty assistant placeholder before cold session readiness resolves', async () => {
+    let releaseSessionReady!: () => void
+    const sessionReady = new Promise<void>((resolve) => {
+      releaseSessionReady = resolve
+    })
+    chatSessionStoreMocks.ensureSessionReady.mockImplementation(async (sessionId: string) => {
+      ensureSessionMessages(sessionId)
+      await sessionReady
+    })
+    const reply = '你好，我在。'
+    const fullText = createProviderFullText(reply)
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    const pending = store.ingest('你好', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(chatSessionStoreMocks.ensureSessionReady).toHaveBeenCalledWith('session-test')
+    expect(streamChat).not.toHaveBeenCalled()
+    expect(ensureSessionMessages(activeSessionId.value)).toHaveLength(0)
+    expect(streamingMessage.value).toMatchObject({
+      role: 'assistant',
+      content: '',
+      slices: [],
+      tool_results: [],
+    })
+    expect((streamingMessage.value as { id?: string }).id).toEqual(expect.any(String))
+    expect((streamingMessage.value as { createdAt?: number }).createdAt).toEqual(expect.any(Number))
+
+    releaseSessionReady()
+    await pending
   })
 
   it('preserves actual tool-call and tool-result evidence without requiring a route', async () => {

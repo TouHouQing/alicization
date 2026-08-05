@@ -561,7 +561,15 @@ const providerMemoryUsageFields = new Set([
   'longTermEvidenceIds',
 ])
 const embeddedStructuredEnvelopePattern
-  = /"format"\s*:\s*"mind-turn-v1"|"(?:thought|emotion|reply|performance|memoryUsage|digitalLife|runtimeDigest)"\s*:/iu
+  = /"format"\s*:\s*"mind-turn-v1"|"(?:thought|performance|memoryUsage|embodimentScript|digitalLife|runtimeDigest)"\s*:/iu
+
+function looksLikeProviderStructuredContractText(rawText: string) {
+  const candidate = rawText.trim()
+  return Boolean(candidate) && (
+    looksLikeAlicizationStructuredPayloadText(candidate)
+    || embeddedStructuredEnvelopePattern.test(candidate)
+  )
+}
 
 const legacyThoughtControlMarkers = ['obligation=', 'truth=', 'focus=', 'move=', 'tone='] as const
 function thoughtContainsLegacyControlLine(thought: string) {
@@ -605,16 +613,10 @@ function validateProviderPayloadContract(
   parsePath: StructuredParsePath,
   rawText = '',
 ): StructuredValidationIssue[] {
-  if (parsePath !== 'json' || !payload) {
-    const candidate = rawText.trim()
-    if (
-      candidate
-      && !looksLikeAlicizationStructuredPayloadText(candidate)
-      && !embeddedStructuredEnvelopePattern.test(candidate)
-    ) {
-      return []
-    }
+  if (!looksLikeProviderStructuredContractText(rawText))
+    return []
 
+  if (parsePath !== 'json' || !payload) {
     return [{
       code: 'json-contract-missing',
       message: 'Provider response was not a strict JSON object.',
@@ -773,12 +775,14 @@ export function validateStructuredContract(
 export function normalizeStructuredOutput(input: StructuredOutputInput): StructuredOutputResult {
   const parsed = parseStructuredPayloadFromText(input.fullText)
   const payload = parsed.payload
+  const structuredContractLike = looksLikeProviderStructuredContractText(input.fullText)
+  const structuredPayload = structuredContractLike ? payload : null
   const providerContractIssues = validateProviderPayloadContract(payload, parsed.parsePath, input.fullText)
 
-  const thought = parsed.parsePath === 'json'
+  const thought = structuredContractLike && parsed.parsePath === 'json'
     ? (typeof payload?.thought === 'string' ? payload.thought : '')
     : naturalizeStructuredThoughtSurface(input.thought.trim())
-  const reply = typeof payload?.reply === 'string'
+  const reply = structuredContractLike && typeof payload?.reply === 'string'
     ? payload.reply
     : providerContractIssues.length === 0
       ? input.fullText.trim()
@@ -787,22 +791,22 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
     reply,
     previousEmotion: input.previousEmotion,
   })
-  const rawEmotion = parsePayloadEmotion(payload)
+  const rawEmotion = parsePayloadEmotion(structuredPayload)
     || inferredEmotion
     || 'neutral'
   const emotion = normalizeAlicizationEmotion(rawEmotion).emotion
-  const performance = parsePayloadPerformance(payload, emotion, reply)
-  const memoryUsage = parsePayloadMemoryUsage(payload)
-  const digitalLife = parsePayloadDigitalLife(payload, emotion)
-  const visibleReplyBlocked = payload?.visibleReplyBlocked === true
+  const performance = parsePayloadPerformance(structuredPayload, emotion, reply)
+  const memoryUsage = parsePayloadMemoryUsage(structuredPayload)
+  const digitalLife = parsePayloadDigitalLife(structuredPayload, emotion)
+  const visibleReplyBlocked = structuredPayload?.visibleReplyBlocked === true
     ? true
     : undefined
-  const nonHumanAuthoredStatus = getString(payload, ['nonHumanAuthoredStatus', 'non_human_authored_status']) ?? null
-  const visibleReplyAuthority = getString(payload, ['visibleReplyAuthority', 'visible_reply_authority']) ?? null
+  const nonHumanAuthoredStatus = getString(structuredPayload, ['nonHumanAuthoredStatus', 'non_human_authored_status']) ?? null
+  const visibleReplyAuthority = getString(structuredPayload, ['visibleReplyAuthority', 'visible_reply_authority']) ?? null
 
   const emotionScore = emotionToScore(emotion)
   const lexicalScore = estimateLexicalSentiment(reply)
-  const modelSentiment = getNumeric(payload, ['userSentimentScore', 'user_sentiment_score'])
+  const modelSentiment = getNumeric(structuredPayload, ['userSentimentScore', 'user_sentiment_score'])
   const scoreInput = input.userSentimentScore ?? modelSentiment
   const userSentimentScore = clamp(
     typeof scoreInput === 'number' && Number.isFinite(scoreInput)
@@ -813,7 +817,7 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
   )
 
   const rawInput = input.sentimentConfidenceRaw
-    ?? getNumeric(payload, [
+    ?? getNumeric(structuredPayload, [
       'sentimentConfidenceRaw',
       'sentiment_confidence_raw',
       'sentimentConfidence',
@@ -843,7 +847,7 @@ export function normalizeStructuredOutput(input: StructuredOutputInput): Structu
       ? clamp(rawInput, 0, 1)
       : undefined,
     sentimentConfidence: calibrated,
-    format: payload?.format === 'mind-turn-v1' ? 'mind-turn-v1' : 'fallback-v1',
+    format: structuredPayload?.format === 'mind-turn-v1' ? 'mind-turn-v1' : 'fallback-v1',
     parsePath: parsed.parsePath,
     memoryUsage,
     ...(providerContractIssues.length > 0

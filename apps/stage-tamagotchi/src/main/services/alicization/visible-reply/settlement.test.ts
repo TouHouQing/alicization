@@ -261,6 +261,39 @@ describe('visible-reply settlement', () => {
   })
 
   it.each([
+    '{"reply":"hello","ok":true}',
+    '```json\n{"reply":"hello","ok":true}\n```',
+  ])('accepts ordinary Provider-authored JSON examples as visible text in plain-text mode: %s', async (fullText) => {
+    const validation = validateAlicizationProviderSettlementPayload({
+      fullText,
+      prepared: createPrepared(),
+      allowPlainTextProviderReply: true,
+    })
+
+    expect(validation.valid).toBe(true)
+    expect(validation.payload).toMatchObject({
+      reply: fullText,
+      memoryUsage: {
+        workingMemoryVersion: 'working-memory-owner-context-v1',
+        longTermEvidenceIds: [],
+      },
+    })
+
+    const result = await settleAlicizationVisibleReply({
+      draft: {
+        fullText,
+        visibleReplyExecution: createExecution(),
+      },
+      prepared: createPrepared(),
+      requireProviderMemoryUsage: true,
+      allowPlainTextProviderReply: true,
+    })
+
+    expect(result.visibleText).toBe(fullText)
+    expect(result.realization.visibleText).toBe(fullText)
+  })
+
+  it.each([
     'parsePath',
     'contractFailed',
     'visibleReplyAuthority',

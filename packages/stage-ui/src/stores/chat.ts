@@ -1289,7 +1289,35 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     if (!sendingMessage && !options.attachments?.length)
       return
 
-    await chatSession.ensureSessionReady(sessionId)
+    const isForegroundSession = () => sessionId === activeSessionId.value
+    const isStaleGeneration = () => chatSession.getSessionGeneration(sessionId) !== generation
+    const earlyPlaceholderCreatedAt = Date.now()
+    let earlyPlaceholderVisible = false
+    const clearEarlyPlaceholder = () => {
+      if (earlyPlaceholderVisible && isForegroundSession()) {
+        streamingMessage.value = createEmptyStreamingMessage()
+      }
+      earlyPlaceholderVisible = false
+      sending.value = false
+    }
+
+    sending.value = true
+    if (isForegroundSession()) {
+      streamingMessage.value = {
+        ...createEmptyStreamingMessage(),
+        createdAt: earlyPlaceholderCreatedAt,
+        id: `chat:${sessionId}:pending:${earlyPlaceholderCreatedAt}`,
+      }
+      earlyPlaceholderVisible = true
+    }
+
+    try {
+      await chatSession.ensureSessionReady(sessionId)
+    }
+    catch (error) {
+      clearEarlyPlaceholder()
+      throw error
+    }
 
     // Inject current datetime context before composing the message
     chatContext.ingestContextMessage(createDatetimeContext())
@@ -1372,9 +1400,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       input: options.input,
     }
 
-    const isStaleGeneration = () => chatSession.getSessionGeneration(sessionId) !== generation
-    if (isStaleGeneration())
+    if (isStaleGeneration()) {
+      clearEarlyPlaceholder()
       return
+    }
 
     const activeTurn = registerAlicizationTurnAbort({
       scope: 'chat',
@@ -1385,8 +1414,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     const shouldAbort = () => isStaleGeneration() || abortSignal.aborted
 
     sending.value = true
-
-    const isForegroundSession = () => sessionId === activeSessionId.value
 
     // NOTICE: Keep the assistant message id stable per turn so renderer-side
     // reconcile can upsert the main-process replay instead of inserting a duplicate.
@@ -2132,6 +2159,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         )
         const validationIssues = validateStructuredContract(candidate)
         return candidate.parsePath === 'json'
+          && candidate.format === 'mind-turn-v1'
           && hasProviderAuthoredVisibleReplyContract(candidate, validationIssues)
       }
 
