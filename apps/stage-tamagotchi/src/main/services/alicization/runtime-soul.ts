@@ -1,4 +1,4 @@
-import type { AlicizationClaimEvidenceGraph, AlicizationExecutionToolInputOverrides, AlicizationMemoryResolutionLedger, AlicizationMemorySituationCandidateSet, AlicizationOrganicMemoryStageReplay, AlicizationRecallLatencyPolicySnapshot } from '@proj-alicization/stage-shared'
+import type { AlicizationClaimEvidenceGraph, AlicizationMemoryResolutionLedger, AlicizationMemorySituationCandidateSet, AlicizationOrganicMemoryStageReplay, AlicizationRecallLatencyPolicySnapshot } from '@proj-alicization/stage-shared'
 import type { createOpenAI } from '@xsai-ext/providers/create'
 import type { Message, ToolChoice } from '@xsai/shared-chat'
 import type { tool } from '@xsai/tool'
@@ -186,7 +186,6 @@ export interface PreparedMainChatExecution {
   waitForTools: boolean
   tools: Array<Awaited<ReturnType<typeof tool>>> | undefined
   toolChoice?: ToolChoice
-  executionToolInputOverrides?: AlicizationExecutionToolInputOverrides
   customDirectivesResolution: ResolvedCardCustomDirectives
   hasVisualGrounding: boolean
   governance: AlicizationChatStartResult['governance']

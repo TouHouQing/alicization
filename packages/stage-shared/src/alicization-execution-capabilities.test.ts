@@ -3,13 +3,11 @@ import type {
   AlicizationExecutionDispatchChannel,
   AlicizationExecutionRoutingChannel,
   AlicizationExecutorToolName,
-  AlicizationKnownWebsiteResolution,
 } from './alicization-execution-capabilities'
 
 import { describe, expect, it } from 'vitest'
 
 import * as capabilities from './alicization-execution-capabilities'
-import * as legacyIntent from './alicization-execution-intent'
 
 describe('alicization execution capabilities', () => {
   it('exposes only structured capability values at runtime', () => {
@@ -57,13 +55,6 @@ describe('alicization execution capabilities', () => {
     ])
   })
 
-  it('keeps the temporary website resolver module on the shared execution contract', () => {
-    expect(legacyIntent.alicizationExecutionCapabilityChannels)
-      .toBe(capabilities.alicizationExecutionCapabilityChannels)
-    expect(legacyIntent.alicizationExecutorToolNames)
-      .toBe(capabilities.alicizationExecutorToolNames)
-  })
-
   it('keeps dispatch and routing channels structurally constrained', () => {
     const capabilityChannel: AlicizationExecutionCapabilityChannel = 'openfang'
     const dispatchChannel: AlicizationExecutionDispatchChannel = 'cli'
@@ -74,16 +65,9 @@ describe('alicization execution capabilities', () => {
       'desktop',
     ]
     const toolName: AlicizationExecutorToolName = 'executor_run_cli'
-    const knownWebsite: AlicizationKnownWebsiteResolution = {
-      label: 'GitHub',
-      matchedAlias: 'github',
-      site: 'github',
-      url: 'https://github.com',
-    }
 
     expect(capabilityChannel).toBe('openfang')
     expect(routingChannels).toEqual(['cli', 'browser', 'software', 'desktop'])
     expect(toolName).toBe('executor_run_cli')
-    expect(knownWebsite.site).toBe('github')
   })
 })

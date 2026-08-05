@@ -1743,8 +1743,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         interactables,
         maxSuggestedActions: input.maxSuggestedActions,
         question: question || null,
+        site: input.site ?? null,
         summary: screenSemanticSummary,
         unavailableReason,
+        url: input.url ?? null,
       })
       const workflowState = provisionalInspectionSnapshot.browserPageContext
         ? (await queuePerceptionStateMutation(cardId, current => rememberPerceptionBrowserWorkflowState({
@@ -1774,8 +1776,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           nextActionIntent: provisionalInspectionSnapshot.nextActionIntent,
           pagePhase: provisionalInspectionSnapshot.pagePhase,
           question: question || null,
+          site: input.site ?? null,
           summary: screenSemanticSummary,
           unavailableReason,
+          url: input.url ?? null,
           workflowPlan: provisionalInspectionSnapshot.workflowPlan,
           workflowState,
         }),

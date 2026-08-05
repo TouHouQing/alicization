@@ -1784,6 +1784,7 @@ describe('local desktop inspection', () => {
   it('suggests browser search-box entry after page open even when the original question keeps the open-url prefix', () => {
     const snapshot = buildAlicizationDesktopInspectionSceneSnapshot({
       question: '帮我打开 https://example.com/docs 然后在站内搜索框里搜索 Alicization 闭环',
+      url: 'https://example.com/docs',
       foregroundWindow: {
         appName: 'Google Chrome',
         title: 'Alicization Docs',
@@ -3904,6 +3905,7 @@ describe('local desktop inspection', () => {
   it('prefers opening the requested site before searching when the question asks to open a website and then search inside it', () => {
     const snapshot = buildAlicizationDesktopInspectionSceneSnapshot({
       question: '帮我打开微博然后搜索 Alicization',
+      site: 'weibo',
       foregroundWindow: {
         appName: 'Finder',
         title: 'Desktop',
@@ -3952,6 +3954,7 @@ describe('local desktop inspection', () => {
   it('suggests browser_open_url for known website opening requests before generic reread actions', () => {
     const snapshot = buildAlicizationDesktopInspectionSceneSnapshot({
       question: '帮我打开微博',
+      site: 'weibo',
       foregroundWindow: {
         appName: 'Finder',
         title: 'Desktop',
@@ -3993,6 +3996,51 @@ describe('local desktop inspection', () => {
         autoContinueSuggestedActions: true,
         reinspectAfterAction: true,
         inspectionQuestion: '帮我打开微博',
+      }),
+    }))
+  })
+
+  it('does not infer a website target from the free-form inspection question', () => {
+    const snapshot = buildAlicizationDesktopInspectionSceneSnapshot({
+      question: '帮我打开微博',
+      foregroundWindow: {
+        appName: 'Finder',
+        title: 'Desktop',
+      },
+      focusTarget: {
+        appName: 'Finder',
+        title: 'Desktop',
+        source: 'foreground-window',
+        confidence: 0.74,
+      },
+      capture: null,
+      summary: {
+        analyzedAt: 5,
+        workload: {
+          kind: 'unknown',
+          confidence: 0.71,
+          matchedLabels: ['desktop'],
+        },
+        content: {
+          kind: 'doc',
+          confidence: 0.4,
+          matchedLabels: ['desktop'],
+          summary: 'desktop idle scene',
+        },
+        source: {
+          id: 'window:finder-desktop',
+          name: 'Finder | Desktop',
+          strategy: 'app-name',
+        },
+      },
+      unavailableReason: null,
+      interactables: [],
+    })
+
+    expect(snapshot.suggestedActions).not.toContainEqual(expect.objectContaining({
+      toolName: 'browser_open_url',
+      arguments: expect.objectContaining({
+        site: 'weibo',
       }),
     }))
   })

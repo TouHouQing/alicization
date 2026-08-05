@@ -4,8 +4,9 @@ import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { platform } from 'node:process'
 
-import { resolveAlicizationKnownWebsiteBySite } from '@proj-alicization/stage-shared'
 import { shell } from 'electron'
+
+import { resolveAlicizationKnownWebsiteBySite } from './local-known-websites'
 
 export type AlicizationLocalBrowser = 'default' | 'chrome' | 'safari'
 export type AlicizationLocalSearchEngine = 'baidu' | 'bing' | 'duckduckgo' | 'google'

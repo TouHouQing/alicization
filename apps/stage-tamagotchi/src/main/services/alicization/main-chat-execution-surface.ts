@@ -2735,14 +2735,18 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       description: 'Inspect the current local desktop scene directly and return foreground window, capture state, browser page context, page phase, next-action intent, blocking signals, workflow plan, workflow state, semantic summary, execution strategy, and suggested next actions without escalating to a broader OpenClaw task thread.',
       parameters: z.object({
         question: z.string().min(1).optional(),
+        site: z.string().min(1).optional(),
+        url: z.string().url().optional(),
         forceRefresh: z.boolean().optional(),
         maxSuggestedActions: z.coerce.number().int().min(1).max(5).optional(),
         autoContinueSuggestedActions: z.boolean().optional(),
         maxAutoContinueSteps: z.coerce.number().int().min(1).max(3).optional(),
       }).strict(),
-      execute: async ({ question, forceRefresh, maxSuggestedActions, autoContinueSuggestedActions, maxAutoContinueSteps }) => {
+      execute: async ({ question, site, url, forceRefresh, maxSuggestedActions, autoContinueSuggestedActions, maxAutoContinueSteps }) => {
         const payload: AlicizationLocalDesktopInspectSceneInput = {
           question,
+          site,
+          url,
           forceRefresh,
           autoContinueSuggestedActions,
           maxAutoContinueSteps: typeof maxAutoContinueSteps === 'number' && Number.isFinite(maxAutoContinueSteps)

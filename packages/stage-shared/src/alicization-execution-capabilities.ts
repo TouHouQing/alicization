@@ -36,15 +36,6 @@ export const alicizationExecutorToolNames = [
 
 export type AlicizationExecutorToolName = typeof alicizationExecutorToolNames[number]
 
-export type AlicizationExecutionToolInputOverrides = Partial<Record<AlicizationExecutorToolName, Record<string, unknown>>>
-
 export type AlicizationExecutionDispatchChannel = 'cli' | 'codex' | 'claude-code' | 'openclaw'
 
 export type AlicizationExecutionRoutingChannel = AlicizationExecutionDispatchChannel | 'browser' | 'software' | 'desktop'
-
-export interface AlicizationKnownWebsiteResolution {
-  label: string
-  matchedAlias: string
-  site: string
-  url: string
-}

@@ -10,7 +10,7 @@ import type {
   AlicizationScreenSemanticSummary,
 } from './proactive-screen-semantic'
 
-import { resolveAlicizationKnownWebsiteInText } from '@proj-alicization/stage-shared'
+import { resolveAlicizationKnownWebsiteBySite } from './local-known-websites'
 
 export interface AlicizationLocalDesktopInspectSceneInput {
   autoContinueSuggestedActions?: boolean
@@ -19,6 +19,8 @@ export interface AlicizationLocalDesktopInspectSceneInput {
   maxAutoContinueSteps?: number
   maxSuggestedActions?: number
   question?: string
+  site?: string
+  url?: string
 }
 
 export interface AlicizationLocalDesktopInspectionSuggestedAction {
@@ -303,11 +305,6 @@ function normalizeRequestedUrl(raw: string) {
     : normalized
 }
 
-function extractRequestedBrowserUrl(question: string) {
-  const matched = question.match(/(?:https?:\/\/|www\.)[^\s"'`]+/iu)?.[0] ?? ''
-  return normalizeRequestedUrl(matched)
-}
-
 function detectRequestedBrowser(question: string) {
   if (/chrome|google chrome|谷歌浏览器/iu.test(question))
     return 'chrome' as const
@@ -381,7 +378,7 @@ function extractRequestedDesktopApplicationName(question: string) {
     return null
   if (/^(?:浏览器|browser|chrome|google chrome|safari|网页|页面|网站|网址)$/iu.test(normalized))
     return null
-  if (resolveAlicizationKnownWebsiteInText(normalized))
+  if (resolveAlicizationKnownWebsiteBySite(normalized))
     return null
   return normalized
 }
@@ -392,7 +389,7 @@ function looksLikeDesktopApplicationLaunchTarget(candidate: string) {
     return false
   if (/^(?:浏览器|browser|chrome|google chrome|safari|网页|页面|网站|网址)$/iu.test(normalized))
     return false
-  if (resolveAlicizationKnownWebsiteInText(normalized))
+  if (resolveAlicizationKnownWebsiteBySite(normalized))
     return false
   if (/开关|权限|选项|模式|功能|侧边栏|标签页|标签|页签|列表|目录|面板|栏目|分类|分区|项目|条目|按钮|输入框|搜索框|文本框|单选|复选|toggle|switch|checkbox|permission|feature|sidebar|tab|panel|list|item|button|input|textbox|searchbox/iu.test(normalized))
     return false
@@ -3568,8 +3565,10 @@ export function buildAlicizationDesktopInspectionSuggestedActions(input: {
   nextActionIntent?: AlicizationLocalDesktopInspectionNextActionIntent | null
   pagePhase?: AlicizationLocalDesktopInspectionPagePhase | null
   question?: string | null
+  site?: string | null
   summary?: AlicizationScreenSemanticSummary | null
   unavailableReason?: string | null
+  url?: string | null
   workflowPlan?: AlicizationLocalDesktopInspectionWorkflowPlan | null
   workflowState?: AlicizationPerceptionBrowserWorkflowState | null
 }) {
@@ -3617,11 +3616,11 @@ export function buildAlicizationDesktopInspectionSuggestedActions(input: {
   const contentDetailContinuationCandidate = input.pagePhase === 'content-detail' && question
     ? pickContentDetailContinuationCandidate(browserPageContext)
     : null
-  const requestedKnownWebsite = question
-    ? resolveAlicizationKnownWebsiteInText(question)
+  const requestedKnownWebsite = input.site
+    ? resolveAlicizationKnownWebsiteBySite(input.site)
     : null
-  const requestedUrl = question
-    ? extractRequestedBrowserUrl(question)
+  const requestedUrl = input.url
+    ? normalizeRequestedUrl(input.url)
     : null
   const requestedBrowser = question
     ? detectRequestedBrowser(question)
@@ -4251,8 +4250,10 @@ export function buildAlicizationDesktopInspectionSceneSnapshot(input: {
   interactables?: AlicizationLocalDesktopInspectionInteractable[]
   maxSuggestedActions?: number
   question?: string | null
+  site?: string | null
   summary: AlicizationScreenSemanticSummary | null
   unavailableReason: string | null
+  url?: string | null
   workflowState?: AlicizationPerceptionBrowserWorkflowState | null
 }): AlicizationLocalDesktopInspectionSceneSnapshot {
   const interactables = Array.isArray(input.interactables)
@@ -4354,8 +4355,10 @@ export function buildAlicizationDesktopInspectionSceneSnapshot(input: {
       nextActionIntent: resolvedNextActionIntent,
       pagePhase,
       question: input.question ?? null,
+      site: input.site ?? null,
       summary: input.summary,
       unavailableReason: input.unavailableReason,
+      url: input.url ?? null,
       workflowPlan,
       workflowState: input.workflowState ?? null,
     }),

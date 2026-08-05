@@ -894,7 +894,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     })
 
     expect(result.toolChoice).toBeUndefined()
-    expect(result.executionToolInputOverrides).toBeUndefined()
     expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean))
       .toEqual(expect.arrayContaining(['browser_open_url', 'executor_run_codex']))
   })
@@ -976,7 +975,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     })
 
     expect(result.toolChoice).toBeUndefined()
-    expect(result.executionToolInputOverrides).toBeUndefined()
     expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean))
       .toEqual(expect.arrayContaining(['desktop_inspect_scene', 'executor_run_codex']))
   })

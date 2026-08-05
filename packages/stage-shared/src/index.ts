@@ -21,15 +21,9 @@ export {
   alicizationExecutionCapabilityChannels,
   type AlicizationExecutionDispatchChannel,
   type AlicizationExecutionRoutingChannel,
-  type AlicizationExecutionToolInputOverrides,
   type AlicizationExecutorToolName,
   alicizationExecutorToolNames,
-  type AlicizationKnownWebsiteResolution,
 } from './alicization-execution-capabilities'
-export {
-  resolveAlicizationKnownWebsiteBySite,
-  resolveAlicizationKnownWebsiteInText,
-} from './alicization-execution-intent'
 export * from './alicization-execution-runtime-context'
 export * from './alicization-face-summary'
 export * from './alicization-fixed-template-sanitizer'
