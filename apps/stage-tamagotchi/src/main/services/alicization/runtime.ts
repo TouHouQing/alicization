@@ -3341,6 +3341,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const timeoutMs = resolveReminderDueTimerDelay({
       nowMs,
       triggerAt: nextPending.triggerAt,
+      startupGrace: reason === 'startup',
     })
     await appendRuntimeDebugLine('reminder.next-due-scheduled', {
       cardId: activeCardId,
@@ -5528,29 +5529,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     errorMessageFrom,
   })
 
-  async function runReminderCompensationAcrossCards(trigger: 'startup') {
-    const previousCardId = activeCardId
-    const cardIds = await listKnownCardIds()
-    const processedCards: string[] = []
-    try {
-      for (const cardId of cardIds) {
-        await withCardScope(cardId, async () => {
-          const result = await processDueRemindersForCurrentCard(trigger)
-          if (result.claimed > 0)
-            processedCards.push(activeCardId)
-        }, {
-          label: `reminder-compensation:${trigger}:${cardId}`,
-        })
-      }
-    }
-    finally {
-      await withCardScope(previousCardId, async () => {}, {
-        label: `reminder-compensation:return:${trigger}:${previousCardId}`,
-      })
-    }
-    return processedCards
-  }
-
   function clearQueuedSubconsciousWake() {
     if (queuedSubconsciousWakeTimer) {
       clearTimeout(queuedSubconsciousWakeTimer)
@@ -6473,17 +6451,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       category: 'memory',
       action: 'salience-refresh-startup-failed',
       message: 'Startup memory salience refresh failed.',
-      payload: {
-        reason: error instanceof Error ? error.message : String(error),
-      },
-    })
-  })
-  await runReminderCompensationAcrossCards('startup').catch(async (error) => {
-    await appendAuditLog({
-      level: 'warning',
-      category: 'alicization.reminder',
-      action: 'startup-compensation-failed',
-      message: 'Startup reminder compensation scan failed.',
       payload: {
         reason: error instanceof Error ? error.message : String(error),
       },

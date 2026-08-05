@@ -731,6 +731,120 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(result.getSessionTrace().phaseOrder).not.toContain('tool:sensory-capture-state')
   })
 
+  it('does not block realtime replies on organic memory prewarm completion', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 87.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    let resolvePrewarm: (() => void) | null = null
+    let prewarmResolved = false
+    let contextStartedBeforePrewarmResolved = false
+    const prewarmOrganicMemoryAccessibility = vi.fn(async () => {
+      await new Promise<void>((resolve) => {
+        resolvePrewarm = () => {
+          prewarmResolved = true
+          resolve()
+        }
+      })
+    })
+    const resolveOrganicMemoryPromptContext = vi.fn(async () => {
+      if (!prewarmResolved)
+        contextStartedBeforePrewarmResolved = true
+      return {
+        hostAttitude: '礼貌而克制，保持观察',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      }
+    })
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
+      executeMainGatewayTaskThread: vi.fn(),
+      getPerformanceManifest: vi.fn(async () => ({ rigVersion: 1 } as any)),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({ text: '', source: 'card-soul' as const })),
+      resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      prewarmOrganicMemoryAccessibility,
+      resolveOrganicMemoryPromptContext,
+      resolveSessionContinuitySignals: vi.fn(async () => []),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: (input: ExecutiveTurnOrganicMemoryTuneInput) => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+      resolveTurnRetrievalPolicySnapshot: vi.fn(async () => ({
+        policy: {
+          reasonCodes: ['simple-greeting'],
+        },
+        plan: {
+          budgetClass: 'realtime-reply',
+          prewarmKey: 'simple-greeting',
+        },
+      }) as any),
+    })
+    const messages = [{
+      role: 'user',
+      content: '你好',
+    } as Message]
+
+    const resultPromise = runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-realtime-prewarm',
+        messages,
+        supportsTools: true,
+      } as any,
+      prelude: createPrelude({
+        actionObligation: {
+          confidence: 0.8,
+          kind: 'answer',
+          routingIntent: null,
+          source: 'dialogue-governance',
+          reasonCodes: ['simple-greeting'],
+          summary: 'Answer a simple greeting directly.',
+        },
+        executionRoutingIntent: null,
+        messages,
+      }),
+    })
+
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(prewarmOrganicMemoryAccessibility).toHaveBeenCalledTimes(1)
+    const releasePrewarm = resolvePrewarm as (() => void) | null
+    expect(releasePrewarm).toBeTruthy()
+    releasePrewarm?.()
+    await resultPromise
+
+    expect(resolveOrganicMemoryPromptContext).toHaveBeenCalledTimes(1)
+    expect(contextStartedBeforePrewarmResolved).toBe(true)
+  })
+
   it('carries browser workflow continuation overrides into prepared execution when routing narrows to a local browser tool', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,

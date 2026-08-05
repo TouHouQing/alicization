@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   reminderDueDeferredAfterInFlightMs,
+  reminderDueStartupGraceMs,
   resolveReminderDueTimerDelay,
 } from './runtime-reminder-due-scheduler'
 
@@ -19,5 +20,13 @@ describe('runtime reminder due scheduler', () => {
       nowMs: 1_000,
       triggerAt: 3_000,
     })).toBe(2_120)
+  })
+
+  it('gives overdue startup reminders a cold-start grace window', () => {
+    expect(resolveReminderDueTimerDelay({
+      nowMs: 10_000,
+      triggerAt: 1_000,
+      startupGrace: true,
+    })).toBe(reminderDueStartupGraceMs)
   })
 })

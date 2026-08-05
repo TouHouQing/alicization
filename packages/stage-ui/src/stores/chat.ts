@@ -1631,7 +1631,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         staged.structured,
         getTurnStructuredRuntimeMeta(),
       )
-      const finalReply = structuredWithRuntimeMeta.reply.trim()
+      const finalReply = staged.reply.trim()
       const categorization = staged.categorization
       const finalizedCategorization = {
         ...categorization,
@@ -2088,6 +2088,20 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           : undefined
       }
 
+      const isCompleteRuntimeProviderArtifact = (fullText: string) => {
+        const candidate = mergeStructuredRuntimeMeta(
+          normalizeStructuredOutput({
+            fullText,
+            thought: '',
+            previousEmotion: getPreviousAssistantEmotion(),
+          }),
+          getTurnStructuredRuntimeMeta(),
+        )
+        const validationIssues = validateStructuredContract(candidate)
+        return candidate.parsePath === 'json'
+          && hasProviderAuthoredVisibleReplyContract(candidate, validationIssues)
+      }
+
       const buildStructuredOutputWithGuard = async (payload: {
         fullText: string
         reasoning: string
@@ -2155,10 +2169,10 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           realtimeIntent: false,
           verifiedToolResult: turnToolEvidence.verifiedToolResult,
         })
-        const outputRejected = !finalReply
+        const displayReply = inspectedOutput.cleanText.trim()
+        const outputRejected = !displayReply
           || inspectedOutput.fabricationDetected
           || inspectedOutput.leakDetected
-          || inspectedOutput.cleanText.trim() !== finalReply
 
         if (outputRejected) {
           await appendAlicizationAuditLog({
@@ -2167,7 +2181,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             action: 'provider-output-rejected',
             message: 'Renderer rejected unsafe provider output without writing substitute dialogue.',
             details: {
-              empty: !finalReply,
+              empty: !displayReply,
               fabricationDetected: inspectedOutput.fabricationDetected,
               leakDetected: inspectedOutput.leakDetected,
               removedCount: inspectedOutput.removedCount,
@@ -2193,11 +2207,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
         return setStagedAssistantResolution({
           categorization: {
-            speech: finalReply,
+            speech: displayReply,
             reasoning: payload.reasoning,
           },
           structured,
-          reply: finalReply,
+          reply: displayReply,
           origin: 'provider',
         })
       }
@@ -2594,10 +2608,22 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       })
 
       if (runtimeAuthoritativeBridge) {
-        if (!turnTransportFailureSurface && turnTransportProviderFullText) {
+        const approvedVisibleText = turnTransportVisibleText.trim()
+        const visibleTextLooksStructured = looksLikeAlicizationStructuredPayloadText(approvedVisibleText)
+        if (
+          !turnTransportFailureSurface
+          && turnTransportProviderFullText
+          && isCompleteRuntimeProviderArtifact(turnTransportProviderFullText)
+        ) {
           await applyAssistantTextFromModelOutput(turnTransportProviderFullText)
         }
-        else if (!turnTransportFailureSurface && turnTransportVisibleText.trim()) {
+        else if (!turnTransportFailureSurface && approvedVisibleText && !visibleTextLooksStructured) {
+          await applyAssistantTextFromModelOutput(turnTransportVisibleText)
+        }
+        else if (!turnTransportFailureSurface && turnTransportProviderFullText) {
+          await applyAssistantTextFromModelOutput(turnTransportProviderFullText)
+        }
+        else if (!turnTransportFailureSurface && approvedVisibleText) {
           await applyAssistantTextFromModelOutput(turnTransportVisibleText)
         }
       }
