@@ -71,7 +71,6 @@ describe('runtime main chat runtime', () => {
           entries: [],
           recallText: '',
         } as any),
-        listTaskThreadsBySession: async () => [],
         resolveRecentContextualTurns: async () => [
           {
             userText: 'old user',

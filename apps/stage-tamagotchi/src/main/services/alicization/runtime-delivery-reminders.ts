@@ -765,7 +765,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
               kind: 'answer',
             },
             tooling: {
-              routingRequired: false,
+              toolsOffered: false,
             },
           },
           sessionTrace: {
@@ -783,7 +783,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
         },
         memory: null,
         surface: callbackVisibleReplySurface,
-        routingRequired: false,
+        toolsOffered: false,
         stageSettlements: callbackTurnRuntimeContext.stageSettlements,
         activeSelfRevision: null,
       })

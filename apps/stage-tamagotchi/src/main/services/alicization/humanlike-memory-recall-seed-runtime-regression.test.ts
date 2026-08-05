@@ -48,7 +48,6 @@ function createPrelude(memoryRecallSeed: string): AlicizationPreparedMainChatPre
     actionObligation: {
       confidence: 0.74,
       kind: 'answer',
-      routingIntent: null,
       source: 'dialogue-governance',
       reasonCodes: ['stay-on-thread', 'memory-continuity'],
       summary: 'Stay on the same dialogue line and answer with corrected memory continuity.',
@@ -70,14 +69,6 @@ function createPrelude(memoryRecallSeed: string): AlicizationPreparedMainChatPre
       recallText: '',
       systemBlock: '',
     } as any),
-    executionCapabilityInquiry: {
-      active: false,
-      capabilityQuestion: false,
-      mentionedChannels: [],
-      hasActionVerb: false,
-      hasCommandLiteral: false,
-    } as any,
-    executionRoutingIntent: null,
     perceptionAugmentation: {
       messages,
       systemBlocks: [],

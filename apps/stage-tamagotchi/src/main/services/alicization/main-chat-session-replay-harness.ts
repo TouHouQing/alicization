@@ -134,7 +134,6 @@ function createBasePrelude(input: {
     actionObligation: {
       confidence: 0.62,
       kind: 'answer',
-      routingIntent: null,
       source: 'dialogue-governance',
       reasonCodes: ['stay-on-thread'],
       summary: '',
@@ -156,14 +155,6 @@ function createBasePrelude(input: {
       recallText: '',
       systemBlock: '',
     }),
-    executionCapabilityInquiry: {
-      active: false,
-      capabilityQuestion: false,
-      mentionedChannels: [] as const,
-      hasActionVerb: false,
-      hasCommandLiteral: false,
-    },
-    executionRoutingIntent: null,
     perceptionAugmentation: {
       messages: input.messages,
       systemBlocks: [],
@@ -3460,7 +3451,7 @@ function rebuildReplayPreparedTurnGraph(
     actionObligation: prepared.runtimeSurface?.action ?? null,
     memory: prepared.memoryTurnArtifact ?? null,
     surface,
-    routingRequired: prepared.runtimeSurface?.tooling?.routingRequired ?? false,
+    toolsOffered: prepared.runtimeSurface?.tooling?.toolsOffered ?? false,
     stageSettlements: prepared.turnRuntimeContext?.stageSettlements ?? prepared.turnGraph?.stageSettlements ?? [],
     activeSelfRevision: {
       patchId: prepared.turnRuntimeContext?.selfRevisionConsumption.activePatchId ?? null,
@@ -3975,11 +3966,6 @@ function parseReplayTurnFromDatasetBacklogEntry(raw: unknown): AlicizationReplay
           basePrelude.chatConfig = preludeRaw.chatConfig as AlicizationPreparedMainChatPrelude['chatConfig']
         if (Array.isArray(preludeRaw?.messages))
           basePrelude.messages = preludeRaw.messages as Message[]
-        if (asObject(preludeRaw?.executionCapabilityInquiry))
-          basePrelude.executionCapabilityInquiry = preludeRaw.executionCapabilityInquiry as AlicizationPreparedMainChatPrelude['executionCapabilityInquiry']
-        if (preludeRaw?.executionRoutingIntent === null || asObject(preludeRaw?.executionRoutingIntent))
-          basePrelude.executionRoutingIntent = (preludeRaw.executionRoutingIntent ?? null) as AlicizationPreparedMainChatPrelude['executionRoutingIntent']
-
         const perceptionAugmentationRaw = asObject(preludeRaw?.perceptionAugmentation)
         if (perceptionAugmentationRaw) {
           if (Array.isArray(perceptionAugmentationRaw.messages))

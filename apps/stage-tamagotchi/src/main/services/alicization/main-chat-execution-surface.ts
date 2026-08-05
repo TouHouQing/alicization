@@ -1,14 +1,12 @@
 import type {
   AlicizationChannelCapability,
   AlicizationClawTaskIntent,
-  AlicizationExecutionCapabilityInquiry,
+  AlicizationExecutionCapabilityChannel,
   AlicizationExecutionChannel,
-  AlicizationExecutionRoutingIntent,
   AlicizationExecutionRuntimeContext,
 } from '@proj-alicization/stage-shared'
-import type { Tool, ToolChoice } from '@xsai/shared-chat'
+import type { Tool } from '@xsai/shared-chat'
 
-import type { AlicizationExecutionCapabilityChannel } from '../../../../../../packages/stage-shared/src/alicization-execution-capabilities'
 import type {
   AlicizationDispatchTaskThreadPayload,
   AlicizationSensoryCacheSnapshot,
@@ -38,7 +36,6 @@ import * as nodePath from 'node:path'
 
 import {
   buildAlicizationProviderFactBlock,
-  detectAlicizationExecutionRoutingIntent,
 } from '@proj-alicization/stage-shared'
 import { tool } from '@xsai/tool'
 import { z } from 'zod'
@@ -76,13 +73,6 @@ export interface MainGatewayExecutionTaskThreadResult {
     selectedChannel: AlicizationExecutionChannel | null
     status?: string | null
     metadata?: Record<string, unknown> | null
-  }
-}
-
-export interface BuildExecutionCapabilitySystemBlocksOptions {
-  inquiry?: {
-    capabilityQuestion: boolean
-    mentionedChannels: AlicizationExecutionCapabilityChannel[]
   }
 }
 
@@ -622,35 +612,6 @@ function extractSearchMatchesFromStructured(raw: unknown): MainGatewayFilesystem
     .filter((entry): entry is MainGatewayFilesystemSearchMatch => entry !== null)
 }
 
-export function detectMainGatewayExecutionRoutingIntent(input: {
-  userText: string
-  capabilityInquiry: AlicizationExecutionCapabilityInquiry
-}): AlicizationExecutionRoutingIntent | null {
-  const userText = input.userText.trim()
-  if (!userText)
-    return null
-
-  return detectAlicizationExecutionRoutingIntent({
-    message: userText,
-    capabilityInquiry: input.capabilityInquiry,
-  })
-}
-
-export function buildMainGatewayExecutionRoutingToolChoice(intent: AlicizationExecutionRoutingIntent): ToolChoice {
-  const requiredToolNames = [...new Set(intent.requiredToolNames
-    .map(name => sanitizeText(name))
-    .filter(Boolean))]
-
-  if (requiredToolNames.length === 1) {
-    return {
-      type: 'function',
-      function: { name: requiredToolNames[0] },
-    }
-  }
-
-  return 'required'
-}
-
 function normalizeExecutorTimeoutMs(raw: number | undefined) {
   if (typeof raw !== 'number' || !Number.isFinite(raw))
     return undefined
@@ -740,32 +701,12 @@ function defineMainGatewayExecutorToolSpec<TSchema extends z.ZodTypeAny>(spec: {
   return spec
 }
 
-export function buildExecutionRoutingEnforcementSystemBlock(intent: AlicizationExecutionRoutingIntent) {
-  return buildAlicizationProviderFactBlock('alicization-execution-routing', {
-    reasonCodes: intent.reasonCodes,
-    requestedChannels: intent.requestedChannels,
-    requiredToolNames: intent.requiredToolNames,
-    toolInputOverrides: intent.toolInputOverrides ?? null,
-  })
-}
-
 export function buildExecutionCapabilitySystemBlocks(
   capabilities: AlicizationChannelCapability[],
   executionCapabilityChannels: readonly AlicizationExecutionCapabilityChannel[],
-  options?: BuildExecutionCapabilitySystemBlocksOptions,
 ) {
   const capabilityMap = new Map(capabilities.map(item => [item.channel, item]))
-  const inquiryChannels = Array.isArray(options?.inquiry?.mentionedChannels)
-    ? options.inquiry.mentionedChannels
-    : []
-  const focusedChannels = inquiryChannels.filter(channel => executionCapabilityChannels.includes(channel))
-  const displayChannels = focusedChannels.length > 0
-    ? [
-        ...focusedChannels,
-        ...executionCapabilityChannels.filter(channel => !focusedChannels.includes(channel)),
-      ]
-    : [...executionCapabilityChannels]
-  const channels = displayChannels.map((channel) => {
+  const channels = executionCapabilityChannels.map((channel) => {
     const capability = capabilityMap.get(channel)
     const ready = capability?.ready !== false && capability?.available !== false && capability?.enabled !== false
     return {
@@ -778,9 +719,7 @@ export function buildExecutionCapabilitySystemBlocks(
   })
 
   return [buildAlicizationProviderFactBlock('alicization-execution-capabilities', {
-    capabilityQuestion: options?.inquiry?.capabilityQuestion === true,
     channels,
-    focusedChannels,
   })]
 }
 

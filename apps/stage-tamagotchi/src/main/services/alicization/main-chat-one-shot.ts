@@ -6,8 +6,6 @@ import type { MainGatewayResolvedConfig } from './runtime-soul'
 
 import { generateText } from '@xsai/generate-text'
 
-import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
-import { extractAllowedToolNamesFromToolChoice } from './main-chat-runtime-surface'
 import { createAbortError, sanitizeText } from './main-chat-stream-primitives'
 
 type GenerateTextInvoker = (input: Record<string, unknown>) => Promise<Record<string, unknown> & {
@@ -28,55 +26,6 @@ interface AlicizationMainChatOneShotInput {
   generateTextImpl?: GenerateTextInvoker
 }
 
-function normalizeOneShotToolName(candidate: unknown) {
-  if (!candidate || typeof candidate !== 'object')
-    return ''
-
-  const payload = candidate as {
-    name?: unknown
-    toolName?: unknown
-    function?: { name?: unknown }
-    tool?: { name?: unknown }
-  }
-  const directName = sanitizeText(payload.toolName ?? payload.name)
-  if (directName)
-    return directName
-
-  const functionName = sanitizeText(payload.function?.name)
-  if (functionName)
-    return functionName
-
-  return sanitizeText(payload.tool?.name)
-}
-
-function extractOneShotObservedToolNames(result: Record<string, unknown>) {
-  const observed = new Set<string>()
-  const collectFromToolCalls = (toolCalls: unknown) => {
-    if (!Array.isArray(toolCalls))
-      return
-    for (const entry of toolCalls) {
-      const toolName = normalizeOneShotToolName(entry)
-      if (toolName)
-        observed.add(toolName)
-    }
-  }
-
-  collectFromToolCalls(result.toolCalls)
-  const responsePayload = result.response
-  if (responsePayload && typeof responsePayload === 'object')
-    collectFromToolCalls((responsePayload as { toolCalls?: unknown }).toolCalls)
-
-  if (Array.isArray(result.steps)) {
-    for (const step of result.steps) {
-      if (!step || typeof step !== 'object')
-        continue
-      collectFromToolCalls((step as { toolCalls?: unknown }).toolCalls)
-    }
-  }
-
-  return observed
-}
-
 async function executeAlicizationMainChatOneShot(input: AlicizationMainChatOneShotInput) {
   const controller = new AbortController()
   const timeout = setTimeout(() => {
@@ -95,23 +44,6 @@ async function executeAlicizationMainChatOneShot(input: AlicizationMainChatOneSh
       tools: input.tools,
       toolChoice: input.toolChoice,
     })
-    const requiredToolNames = new Set(
-      extractAllowedToolNamesFromToolChoice(input.toolChoice, input.tools),
-    )
-    if (requiredToolNames.size > 0) {
-      const observedToolNames = extractOneShotObservedToolNames(result)
-      const calledRequiredTool = [...observedToolNames].some(toolName => requiredToolNames.has(toolName))
-      // NOTICE: Keep one-shot tool-routing contract aligned with stream runner:
-      // a forced execution tool must be called before settling.
-      if (!calledRequiredTool) {
-        throw new AlicizationRequiredToolMissingError({
-          stage: 'one-shot',
-          finishReason: sanitizeText(result.finishReason, 'stop'),
-          requiredToolNames: [...requiredToolNames],
-          observedToolNames: [...observedToolNames],
-        })
-      }
-    }
     return {
       finishReason: sanitizeText(result.finishReason, 'stop'),
       fullText: (result.text ?? '').trim(),

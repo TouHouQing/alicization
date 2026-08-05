@@ -10,12 +10,7 @@ import type {
 } from './main-chat-session-runtime'
 import type { MainGatewayResolvedConfig } from './runtime-soul'
 
-import { detectAlicizationExecutionCapabilityInquiry } from '@proj-alicization/stage-shared'
-
 import { deriveMainChatActionObligation } from './main-chat-action-obligation'
-import {
-  detectMainGatewayExecutionRoutingIntent,
-} from './main-chat-execution-surface'
 import { preserveLatestUserMultimodalContent } from './runtime-transport-content'
 
 interface CreateAlicizationMainChatPreludeRuntimeOptions {
@@ -32,7 +27,6 @@ interface CreateAlicizationMainChatPreludeRuntimeOptions {
   buildMainChatContextualString: (payload: AlicizationChatStartPayload) => Promise<string>
   buildMainChatExecutionCallbackContext: (payload: AlicizationChatStartPayload) => Promise<any>
   buildMainChatExecutionLedgerContext: (payload: AlicizationChatStartPayload) => Promise<any>
-  buildMainChatPendingAffirmationThread: (payload: AlicizationChatStartPayload) => Promise<any>
   augmentMainChatMessagesWithPerception: (input: {
     cardId: string
     userText: string
@@ -54,7 +48,6 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     buildMainChatContextualString,
     buildMainChatExecutionCallbackContext,
     buildMainChatExecutionLedgerContext,
-    buildMainChatPendingAffirmationThread,
     augmentMainChatMessagesWithPerception,
     prepareMainChatSessionExecution,
   } = options
@@ -68,11 +61,6 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     const chatConfig = mainGateway.provider.chat(mainGateway.model)
     const latestUserText = readLatestUserMessageText(normalizedPayload.messages)
     const senderWebContentsId = senderWebContentsIdFromInvokeOptions(invokeOptions)
-    const executionCapabilityInquiry = detectAlicizationExecutionCapabilityInquiry(latestUserText || '')
-    const explicitExecutionRoutingIntent = detectMainGatewayExecutionRoutingIntent({
-      userText: latestUserText || '',
-      capabilityInquiry: executionCapabilityInquiry,
-    })
     let messages = resolveChatMessages(normalizedPayload, {
       redactStaleInspectionHistoryForUserText: latestUserText,
     })
@@ -90,7 +78,7 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
           userText: latestUserText,
           messages,
           senderWebContentsId,
-          skipInspectionGrounding: Boolean(explicitExecutionRoutingIntent),
+          skipInspectionGrounding: false,
         })
       : {
           messages,
@@ -114,12 +102,6 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     messages = perceptionAugmentation.messages
     const actionObligation = deriveMainChatActionObligation({
       userText: latestUserText || '',
-      capabilityInquiry: executionCapabilityInquiry,
-      explicitRoutingIntent: explicitExecutionRoutingIntent,
-      pendingAffirmationThread: latestUserText
-        ? await buildMainChatPendingAffirmationThread(normalizedPayload)
-        : null,
-      recentExecutionCallbacks: (await executionCallbackContextPromise).callbacks,
       runtimeSurface: perceptionAugmentation.digitalLifeRuntimeSurface,
     })
 
@@ -130,8 +112,6 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
       contextualStringPromise,
       executionCallbackContextPromise,
       executionLedgerContextPromise,
-      executionCapabilityInquiry,
-      executionRoutingIntent: actionObligation.routingIntent ?? explicitExecutionRoutingIntent,
       perceptionAugmentation,
     }
   }

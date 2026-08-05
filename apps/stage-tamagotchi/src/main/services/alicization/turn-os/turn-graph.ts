@@ -52,7 +52,7 @@ export interface AlicizationTurnGraph {
   }
   encounter: {
     actionKind: string
-    routingRequired: boolean
+    toolsOffered: boolean
     hasVisualGrounding: boolean
   }
   consciousFrame: {
@@ -184,7 +184,7 @@ export function buildAlicizationTurnGraphFromSettlements(input: {
   } | null
   memory: AlicizationMemoryTurnArtifact | null
   surface?: AlicizationVisibleReplyRealizationArtifact | null
-  routingRequired: boolean
+  toolsOffered: boolean
   stageSettlements: AlicizationTurnGraphStageSettlement[]
   activeSelfRevision?: {
     patchId?: string | null
@@ -215,7 +215,7 @@ export function buildAlicizationTurnGraphFromSettlements(input: {
     },
     encounter: {
       actionKind: input.actionObligation?.kind ?? 'unknown',
-      routingRequired: input.routingRequired,
+      toolsOffered: input.toolsOffered,
       hasVisualGrounding: input.prepared.hasVisualGrounding,
     },
     consciousFrame: {

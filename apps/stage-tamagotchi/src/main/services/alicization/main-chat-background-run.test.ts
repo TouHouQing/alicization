@@ -20,16 +20,6 @@ vi.mock('./main-chat-run-lifecycle', () => ({
 }))
 
 vi.mock('./main-chat-runtime-surface', () => ({
-  extractAllowedToolNamesFromToolChoice: vi.fn((toolChoice: any, tools: any[] | undefined) => {
-    const toolName = toolChoice?.function?.name
-    if (typeof toolName === 'string' && toolName)
-      return [toolName]
-    return Array.isArray(tools)
-      ? tools
-          .map(tool => tool?.function?.name)
-          .filter((name): name is string => typeof name === 'string' && name.length > 0)
-      : []
-  }),
   extractCustomDirectivesFromMessages: vi.fn(() => ''),
   extractHostNameFromMessages: vi.fn(() => ''),
 }))
@@ -277,15 +267,15 @@ describe('main chat background run', () => {
     )
   })
 
-  it('does not dispatch execution-first before the Provider stream', async () => {
+  it('enters the Provider stream directly with structured tools available', async () => {
     const prepared = createPrepared({
       runtimeSurface: {
         ...createPrepared().runtimeSurface,
         action: {
-          kind: 'execute',
+          kind: 'answer',
         },
         tooling: {
-          enforcedToolNames: ['executor_run_cli'],
+          toolsOffered: true,
         },
       },
       tools: [{
@@ -299,12 +289,6 @@ describe('main chat background run', () => {
           },
         },
       }],
-      toolChoice: {
-        type: 'function',
-        function: {
-          name: 'executor_run_cli',
-        },
-      },
     })
     const input = createInput('执行测试命令', {
       preparationPromise: Promise.resolve(prepared),

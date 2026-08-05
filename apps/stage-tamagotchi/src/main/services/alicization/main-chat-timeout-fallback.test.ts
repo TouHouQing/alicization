@@ -72,10 +72,10 @@ describe('main chat timeout fallback', () => {
     expect(reply).not.toContain('runtime-sidecar')
   })
 
-  it('keeps execution timeout fallback on infra status instead of contentful execution recovery', () => {
+  it('keeps timeout fallback on infra status instead of contentful recovery', () => {
     const payload = buildTimeoutPayload({
       turnId: 'turn-exec',
-      actionKind: 'execute',
+      actionKind: 'answer',
       messages: [
         { role: 'user', content: '用cli帮我查一下桌面有什么文件' },
       ] as Message[],
@@ -83,7 +83,7 @@ describe('main chat timeout fallback', () => {
 
     expect(payload.reply).toBe('超时了。')
     expect(payload.visibleReplyBlocked).toBe(true)
-    expect(payload.reasonCodes).toContain('action:execute')
+    expect(payload.reasonCodes).toContain('action:answer')
     expect(payload.reply).not.toContain('重新执行')
     expect(payload.reply).not.toContain('用cli帮我查一下桌面有什么文件')
   })

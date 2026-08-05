@@ -14,7 +14,6 @@ function createRuntime() {
     ensureActiveOrLatestSessionId: async () => 'session-1',
     buildPendingExecutionCallbackContext: async () => ({} as never),
     buildExecutionLedgerContext: async () => ({} as never),
-    listTaskThreadsBySession: async () => [],
     resolveRecentContextualTurns: async () => [],
     shouldExtendContextualRecall: () => false,
     resolveInspectionIntentFromMessageHistory: () => true,

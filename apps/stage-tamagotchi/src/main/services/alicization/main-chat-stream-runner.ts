@@ -20,8 +20,6 @@ import {
 } from '@proj-alicization/stage-shared'
 import { streamText } from '@xsai/stream-text'
 
-import { AlicizationRequiredToolMissingError } from './main-chat-required-tool'
-import { extractAllowedToolNamesFromToolChoice } from './main-chat-runtime-surface'
 import { shouldEmitAlicizationChatMetaUpdate } from './main-chat-stream-meta-policy'
 import {
   createAbortError,
@@ -245,12 +243,6 @@ export async function runAlicizationMainChatStream(
   const normalizedPayload = input.payload
   const turnRuntime = createAlicizationTurnRuntime()
   const reminderToolCallIds = new Set<string>()
-  const requiredToolNames = new Set(
-    input.prepared.waitForTools
-      ? extractAllowedToolNamesFromToolChoice(input.prepared.toolChoice, input.prepared.tools)
-      : [],
-  )
-  const observedRequiredToolCalls = new Set<string>()
   const startedAt = Date.now()
   let lastEventType = ''
 
@@ -520,8 +512,6 @@ export async function runAlicizationMainChatStream(
           if (!input.isRunActive())
             return
           const observedToolName = sanitizeText(event.toolName ?? event.name)
-          if (requiredToolNames.has(observedToolName))
-            observedRequiredToolCalls.add(observedToolName)
           if (observedToolName === 'set_reminder') {
             const toolCallId = sanitizeText(event.toolCallId)
             if (toolCallId)
@@ -576,20 +566,6 @@ export async function runAlicizationMainChatStream(
             input.prepared.waitForTools
             && (finishReason === 'tool_calls' || finishReason === 'tool-calls')
           ) {
-            return
-          }
-          if (requiredToolNames.size > 0 && observedRequiredToolCalls.size === 0) {
-            appendStreamDebugLine('chat-stream.required-tool-missing', {
-              elapsedMs: Date.now() - startedAt,
-              finishReason,
-              requiredToolNames: [...requiredToolNames],
-            })
-            rejectOnce(new AlicizationRequiredToolMissingError({
-              stage: 'stream',
-              finishReason,
-              requiredToolNames: [...requiredToolNames],
-              observedToolNames: [...observedRequiredToolCalls],
-            }))
             return
           }
           resolveOnce()

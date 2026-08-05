@@ -38,7 +38,6 @@ export function createAlicizationRuntimeMainChatRuntime(
       | 'buildMainChatContextualString'
       | 'buildMainChatExecutionCallbackContext'
       | 'buildMainChatExecutionLedgerContext'
-      | 'buildMainChatPendingAffirmationThread'
     >,
   ) => {
     return createAlicizationMainChatPreludeRuntime({
@@ -47,7 +46,6 @@ export function createAlicizationRuntimeMainChatRuntime(
       buildMainChatContextualString: mainChatContextRuntime.buildMainChatContextualString,
       buildMainChatExecutionCallbackContext: mainChatContextRuntime.buildMainChatExecutionCallbackContext,
       buildMainChatExecutionLedgerContext: mainChatContextRuntime.buildMainChatExecutionLedgerContext,
-      buildMainChatPendingAffirmationThread: mainChatContextRuntime.buildMainChatPendingAffirmationThread,
     })
   }
 

@@ -1,4 +1,4 @@
-import type { Message, ToolChoice } from '@xsai/shared-chat'
+import type { Message } from '@xsai/shared-chat'
 
 import type {
   AlicizationMindTurnGovernance,
@@ -36,8 +36,7 @@ export interface AlicizationMainChatCaptureSurface {
 
 export interface AlicizationMainChatToolingSurface {
   allowTools: boolean
-  enforcedToolNames: string[]
-  routingRequired: boolean
+  toolsOffered: boolean
   waitForTools: boolean
 }
 
@@ -45,9 +44,6 @@ export interface AlicizationMainChatActionSurface {
   confidence: number
   kind: AlicizationMainChatActionObligationKind
   reasonCodes: string[]
-  resumePendingThreadChannel?: string | null
-  resumePendingThreadId?: string | null
-  routingRequired: boolean
   summary: string
 }
 
@@ -132,7 +128,6 @@ export interface BuildAlicizationMainChatRuntimeSurfaceInput {
   executionLedgerSystemBlocks?: string[]
   executionReplyObligationSystemBlock?: string
   executionCapabilitySystemBlocks: string[]
-  executionRoutingEnforcementSystemBlock?: string
   governance: AlicizationMindTurnGovernance | null
   perceptionPromptSystemBlocks: string[]
   perceptionSystemBlocks?: string[]
@@ -142,7 +137,6 @@ export interface BuildAlicizationMainChatRuntimeSurfaceInput {
   runtimeCorePromptBlocks: string[]
   sessionPhases?: string[]
   tools?: MainChatRuntimeSurfaceToolDescriptor[]
-  toolChoice?: ToolChoice
   turnMode: AlicizationMindTurnGovernance['turnMode'] | null
   waitForTools: boolean
 }
@@ -242,34 +236,6 @@ export function extractHostNameFromMessages(messages: Message[]) {
   return ''
 }
 
-export function extractAllowedToolNamesFromToolChoice(
-  toolChoice: ToolChoice | undefined,
-  tools?: MainChatRuntimeSurfaceToolDescriptor[],
-) {
-  if (typeof toolChoice === 'object' && toolChoice !== null && 'type' in toolChoice) {
-    if (toolChoice.type === 'allowed_tools' && Array.isArray(toolChoice.tools)) {
-      return [...new Set(toolChoice.tools
-        .map(entry => sanitizePromptText((entry as { function?: { name?: unknown } }).function?.name, 120))
-        .filter(Boolean))]
-    }
-
-    if (toolChoice.type === 'function') {
-      const toolName = sanitizePromptText((toolChoice as { function?: { name?: unknown } }).function?.name, 120)
-      return toolName
-        ? [toolName]
-        : []
-    }
-  }
-
-  if (toolChoice === 'required' && Array.isArray(tools)) {
-    return [...new Set(tools
-      .map(tool => sanitizePromptText(tool?.function?.name, 120))
-      .filter(Boolean))]
-  }
-
-  return []
-}
-
 export function buildAlicizationMainChatRuntimeSurface(
   input: BuildAlicizationMainChatRuntimeSurfaceInput,
 ): AlicizationMainChatRuntimeSurface {
@@ -299,7 +265,6 @@ export function buildAlicizationMainChatRuntimeSurface(
     ...(input.perceptionSystemBlocks ?? []),
     input.executionReplyObligationSystemBlock ?? '',
     ...input.executionCapabilitySystemBlocks,
-    input.executionRoutingEnforcementSystemBlock ?? '',
     ...(input.executionCallbackSystemBlocks ?? []),
     ...(input.executionLedgerSystemBlocks ?? []),
   ])
@@ -308,7 +273,6 @@ export function buildAlicizationMainChatRuntimeSurface(
     prependSystemBlocksToMessages(input.baseMessages, promptBlocks),
   )
 
-  const enforcedToolNames = extractAllowedToolNamesFromToolChoice(input.toolChoice, input.tools)
   const hasVisualGrounding = input.hasVisualGrounding
   const expectedVisibleReplyAuthority = resolveAlicizationMainChatNormalVisibleReplyAuthority(input.governance)
   const replyRealizationMode = 'provider-mind-required' as const
@@ -328,9 +292,6 @@ export function buildAlicizationMainChatRuntimeSurface(
           summary: input.actionObligation.summary,
           confidence: input.actionObligation.confidence,
           reasonCodes: input.actionObligation.reasonCodes,
-          resumePendingThreadId: input.actionObligation.resumePendingThreadId ?? null,
-          resumePendingThreadChannel: input.actionObligation.resumePendingThreadChannel ?? null,
-          routingRequired: Boolean(input.actionObligation.routingIntent),
         }
       : null,
     messages,
@@ -355,8 +316,7 @@ export function buildAlicizationMainChatRuntimeSurface(
     tooling: {
       allowTools: input.allowTools,
       waitForTools: input.waitForTools,
-      enforcedToolNames,
-      routingRequired: enforcedToolNames.length > 0,
+      toolsOffered: input.allowTools && Boolean(input.tools?.length),
     },
     capture: {
       ...input.capture,

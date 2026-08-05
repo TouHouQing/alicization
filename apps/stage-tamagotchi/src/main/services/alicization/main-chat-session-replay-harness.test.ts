@@ -59,7 +59,6 @@ function createReplayPreludeWithEmbodimentSurface(input?: {
     actionObligation: {
       confidence: 0.62,
       kind: 'answer',
-      routingIntent: null,
       source: 'dialogue-governance',
       reasonCodes: ['stay-on-thread'],
       summary: '',
@@ -81,14 +80,6 @@ function createReplayPreludeWithEmbodimentSurface(input?: {
       recallText: '',
       systemBlock: '',
     }),
-    executionCapabilityInquiry: {
-      active: false,
-      capabilityQuestion: false,
-      mentionedChannels: [] as const,
-      hasActionVerb: false,
-      hasCommandLiteral: false,
-    },
-    executionRoutingIntent: null,
     perceptionAugmentation: {
       messages,
       systemBlocks: [],

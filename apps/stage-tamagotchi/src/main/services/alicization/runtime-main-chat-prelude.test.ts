@@ -77,7 +77,6 @@ function createRuntime(overrides?: {
       entries: [],
       recallText: '',
     })) as any,
-    buildMainChatPendingAffirmationThread: vi.fn(async () => null),
     augmentMainChatMessagesWithPerception: vi.fn(async input => ({
       messages: input.messages,
       systemBlocks: [],
@@ -142,11 +141,10 @@ describe('runtime main chat prelude', () => {
       ],
     } as any, mainGateway)
 
-    expect(prelude.executionCapabilityInquiry.capabilityQuestion).toBe(true)
-    expect(prelude.executionCapabilityInquiry.mentionedChannels).toContain('codex')
-    expect(prelude.executionRoutingIntent).toBeNull()
+    expect(prelude).not.toHaveProperty('executionCapabilityInquiry')
+    expect(prelude).not.toHaveProperty('executionRoutingIntent')
     expect(prelude.actionObligation.kind).toBe('answer')
-    expect(prelude.actionObligation.routingIntent).toBeNull()
+    expect(prelude.actionObligation).not.toHaveProperty('routingIntent')
   })
 
   it('keeps ordinary mixed user content on the context memory and perception path', async () => {
@@ -186,7 +184,7 @@ describe('runtime main chat prelude', () => {
     expect((await prelude.executionCallbackContextPromise).callbacks).toEqual(callbacks)
   })
 
-  it('feeds fresh browser execution callbacks into action-obligation routing', async () => {
+  it('keeps fresh browser execution callbacks as structured context for the model', async () => {
     const runtime = createRuntime({
       callbacks: [{
         channel: 'browser',
@@ -214,12 +212,12 @@ describe('runtime main chat prelude', () => {
       ],
     } as any, mainGateway)
 
-    expect(prelude.actionObligation.kind).toBe('continue-task')
-    expect(prelude.actionObligation.routingIntent?.requestedChannels).toEqual(['browser'])
-    expect(prelude.actionObligation.routingIntent?.requiredToolNames).toEqual(['executor_run_local_visual'])
+    expect(prelude.actionObligation.kind).toBe('answer')
+    expect(prelude.actionObligation).not.toHaveProperty('routingIntent')
+    expect((await prelude.executionCallbackContextPromise).callbacks).toHaveLength(1)
   })
 
-  it('routes an unresolved browser continuation through governed local visual execution', async () => {
+  it('keeps an unresolved browser continuation on the model-owned mainline', async () => {
     const runtime = createRuntime({
       runtimeSurface: createVisibleBrowserContinuationRuntimeSurface(),
     })
@@ -235,8 +233,7 @@ describe('runtime main chat prelude', () => {
       ],
     } as any, mainGateway)
 
-    expect(prelude.actionObligation.kind).toBe('continue-task')
-    expect(prelude.actionObligation.routingIntent?.requestedChannels).toEqual(['browser'])
-    expect(prelude.actionObligation.routingIntent?.requiredToolNames).toEqual(['executor_run_local_visual'])
+    expect(prelude.actionObligation.kind).toBe('answer')
+    expect(prelude.actionObligation).not.toHaveProperty('routingIntent')
   })
 })

@@ -1,4 +1,4 @@
-import type { AlicizationChannelCapability, AlicizationExecutionRoutingIntent } from '@proj-alicization/stage-shared'
+import type { AlicizationChannelCapability } from '@proj-alicization/stage-shared'
 import type { Message } from '@xsai/shared-chat'
 
 import type {
@@ -137,27 +137,20 @@ const executionChannels = [
 function createPrelude(overrides?: {
   actionObligation?: {
     confidence: number
-    kind: 'answer' | 'clarify' | 'inspect' | 'execute' | 'continue-task'
+    kind: 'answer' | 'clarify' | 'inspect'
     reasonCodes: string[]
-    routingIntent: AlicizationExecutionRoutingIntent | null
-    source: 'capability-inquiry' | 'explicit-routing' | 'dialogue-governance'
+    source: 'dialogue-governance'
     summary: string
   }
-  executionRoutingIntent?: AlicizationExecutionRoutingIntent | null
   messages?: Message[]
 }): PreparedPreludeWithRuntimeSurface {
   return {
     actionObligation: overrides?.actionObligation ?? {
       confidence: 0.94,
-      kind: 'execute',
-      routingIntent: {
-        requestedChannels: ['cli'],
-        requiredToolNames: ['executor_run_cli'],
-        reasonCodes: ['action-verb'],
-      },
-      source: 'explicit-routing',
-      reasonCodes: ['action-verb'],
-      summary: 'The host explicitly requested real task execution in this turn.',
+      kind: 'answer',
+      source: 'dialogue-governance',
+      reasonCodes: ['owed-action:answer-general'],
+      summary: 'Answer from the current dialogue and memory context.',
     },
     chatConfig: {
       id: 'chat-config',
@@ -230,20 +223,6 @@ function createPrelude(overrides?: {
       recallText: 'execution_channel:cli execution_status:completed',
       systemBlock: '[ALICIZATION_EXECUTION_LEDGER]',
     }),
-    executionCapabilityInquiry: {
-      active: false,
-      capabilityQuestion: false,
-      mentionedChannels: ['cli'] as const,
-      hasActionVerb: true,
-      hasCommandLiteral: true,
-    },
-    executionRoutingIntent: overrides && 'executionRoutingIntent' in overrides
-      ? (overrides.executionRoutingIntent ?? null)
-      : {
-          requestedChannels: ['cli'],
-          requiredToolNames: ['executor_run_cli'],
-          reasonCodes: ['action-verb'],
-        },
     perceptionAugmentation: {
       messages: overrides?.messages ?? [{
         role: 'user',
@@ -377,12 +356,10 @@ function createReflectivePrelude(overrides?: {
     actionObligation: {
       confidence: 0.62,
       kind: 'answer',
-      routingIntent: null,
       source: 'dialogue-governance',
       reasonCodes: ['stay-on-thread'],
       summary: 'Stay on the same dialogue continuity line and answer directly.',
     },
-    executionRoutingIntent: null,
     messages: overrides?.messages,
   })
   const memory = prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.memory as any
@@ -625,16 +602,13 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     })
 
     expect(result.runtimeSurface.action).toEqual(expect.objectContaining({
-      kind: 'execute',
-      routingRequired: true,
+      kind: 'answer',
     }))
-    expect(result.toolChoice).toEqual({
-      type: 'function',
-      function: { name: 'executor_run_cli' },
-    })
-    expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean)).toEqual(['executor_run_cli'])
-    expect(result.runtimeSurface.tooling.enforcedToolNames).toEqual(['executor_run_cli'])
-    expect(result.runtimeSurface.tooling.routingRequired).toBe(true)
+    expect(result.toolChoice).toBeUndefined()
+    expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean)).toEqual(
+      expect.arrayContaining(['executor_run_cli', 'executor_run_codex', 'browser_open_url']),
+    )
+    expect(result.runtimeSurface.tooling.toolsOffered).toBe(true)
     expect(result.runtimeSurface.trace.sessionPhases).toEqual([
       'contextual-memory',
       'execution-callbacks',
@@ -727,7 +701,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       version: 'digital-life-runtime-surface-v1',
     }))
 
-    expect(result.tools?.some((entry: any) => String(entry?.function?.name) === 'sensory_capture_state')).toBe(false)
+    expect(result.tools?.some((entry: any) => String(entry?.function?.name) === 'sensory_capture_state')).toBe(true)
     expect(result.getSessionTrace().phaseOrder).not.toContain('tool:sensory-capture-state')
   })
 
@@ -824,12 +798,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         actionObligation: {
           confidence: 0.8,
           kind: 'answer',
-          routingIntent: null,
           source: 'dialogue-governance',
           reasonCodes: ['simple-greeting'],
           summary: 'Answer a simple greeting directly.',
         },
-        executionRoutingIntent: null,
         messages,
       }),
     })
@@ -901,34 +873,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
-    const browserWorkflowRoutingIntent: AlicizationExecutionRoutingIntent = {
-      requestedChannels: ['browser'],
-      requiredToolNames: ['browser_open_url'],
-      reasonCodes: ['action-verb', 'local-browser-open-known-site'],
-      toolInputOverrides: {
-        browser_open_url: {
-          browser: 'default',
-          site: 'weibo',
-          url: 'https://weibo.com',
-          expectedPhase: 'social-feed',
-          reinspectAfterAction: true,
-          autoContinueSuggestedActions: true,
-          maxAutoContinueSteps: 2,
-          inspectionQuestion: '打开微博然后继续发微博',
-        },
-      },
-    }
-
     const prelude = createPrelude({
-      actionObligation: {
-        confidence: 0.95,
-        kind: 'execute',
-        routingIntent: browserWorkflowRoutingIntent,
-        source: 'explicit-routing',
-        reasonCodes: ['action-verb', 'local-browser-open-known-site'],
-        summary: 'The host explicitly requested a browser workflow continuation.',
-      },
-      executionRoutingIntent: browserWorkflowRoutingIntent,
       messages: [{
         role: 'user',
         content: '打开微博然后继续发微博',
@@ -948,22 +893,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       prelude,
     })
 
-    expect(result.toolChoice).toEqual({
-      type: 'function',
-      function: { name: 'browser_open_url' },
-    })
-    expect(result.executionToolInputOverrides).toEqual({
-      browser_open_url: {
-        browser: 'default',
-        site: 'weibo',
-        url: 'https://weibo.com',
-        expectedPhase: 'social-feed',
-        reinspectAfterAction: true,
-        autoContinueSuggestedActions: true,
-        maxAutoContinueSteps: 2,
-        inspectionQuestion: '打开微博然后继续发微博',
-      },
-    })
+    expect(result.toolChoice).toBeUndefined()
+    expect(result.executionToolInputOverrides).toBeUndefined()
+    expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean))
+      .toEqual(expect.arrayContaining(['browser_open_url', 'executor_run_codex']))
   })
 
   it('carries desktop workflow continuation overrides into prepared execution when routing narrows to a local desktop tool', async () => {
@@ -1022,31 +955,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
-    const desktopWorkflowRoutingIntent: AlicizationExecutionRoutingIntent = {
-      requestedChannels: ['desktop'],
-      requiredToolNames: ['desktop_inspect_scene'],
-      reasonCodes: ['action-verb', 'local-desktop-inspect-scene'],
-      toolInputOverrides: {
-        desktop_inspect_scene: {
-          question: '帮我继续上传',
-          forceRefresh: false,
-          maxSuggestedActions: 5,
-          autoContinueSuggestedActions: true,
-          maxAutoContinueSteps: 2,
-        },
-      },
-    }
-
     const prelude = createPrelude({
-      actionObligation: {
-        confidence: 0.95,
-        kind: 'continue-task',
-        routingIntent: desktopWorkflowRoutingIntent,
-        source: 'explicit-routing',
-        reasonCodes: ['action-verb', 'local-desktop-inspect-scene'],
-        summary: 'The host explicitly requested a desktop workflow continuation.',
-      },
-      executionRoutingIntent: desktopWorkflowRoutingIntent,
       messages: [{
         role: 'user',
         content: '帮我继续上传',
@@ -1066,19 +975,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       prelude,
     })
 
-    expect(result.toolChoice).toEqual({
-      type: 'function',
-      function: { name: 'desktop_inspect_scene' },
-    })
-    expect(result.executionToolInputOverrides).toEqual({
-      desktop_inspect_scene: {
-        question: '帮我继续上传',
-        forceRefresh: false,
-        maxSuggestedActions: 5,
-        autoContinueSuggestedActions: true,
-        maxAutoContinueSteps: 2,
-      },
-    })
+    expect(result.toolChoice).toBeUndefined()
+    expect(result.executionToolInputOverrides).toBeUndefined()
+    expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean))
+      .toEqual(expect.arrayContaining(['desktop_inspect_scene', 'executor_run_codex']))
   })
 
   it('passes focused capability state as facts without capability-answer templates', async () => {
@@ -1145,20 +1045,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       actionObligation: {
         confidence: 0.71,
         kind: 'answer',
-        routingIntent: null,
-        source: 'capability-inquiry',
-        reasonCodes: ['capability-question'],
-        summary: 'The host is asking which execution channels are currently available.',
+        source: 'dialogue-governance',
+        reasonCodes: ['owed-action:answer-general'],
+        summary: 'Answer from the current dialogue and capability facts.',
       },
-      executionRoutingIntent: null,
     })
-    prelude.executionCapabilityInquiry = {
-      active: true,
-      capabilityQuestion: true,
-      mentionedChannels: ['cli', 'codex'] as const,
-      hasActionVerb: false,
-      hasCommandLiteral: false,
-    }
     const result = await runtime.prepareExecution({
       payload: {
         cardId: 'default',
@@ -1181,14 +1072,12 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
     expect(actionFact).toBeNull()
     expect(capabilityFact?.data).toEqual({
-      capabilityQuestion: true,
       channels: [
         { channel: 'cli', available: true, enabled: true, ready: true, reason: null },
         { channel: 'codex', available: true, enabled: true, ready: true, reason: null },
         { channel: 'claude-code', available: true, enabled: true, ready: true, reason: null },
         { channel: 'openclaw', available: false, enabled: false, ready: false, reason: 'offline' },
       ],
-      focusedChannels: ['cli', 'codex'],
     })
     expect(findAlicizationProviderFact(result.messages, 'alicization-execution-routing')).toBeNull()
     expect(systemText).not.toMatch(
@@ -1196,7 +1085,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     )
   })
 
-  it('keeps direct execution routing structural while tool choice enforces the required tool', async () => {
+  it('keeps an explicit execution request on the same model-owned turn', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -1272,26 +1161,16 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     })
 
     const actionFact = findAlicizationProviderFact(result.messages, 'alicization-action-obligation')
-    const routingFact = findAlicizationProviderFact(result.messages, 'alicization-execution-routing')
     const systemText = result.messages
       .filter(message => message.role === 'system')
       .map(message => String(message.content ?? ''))
       .join('\n')
 
     expect(actionFact).toBeNull()
-    expect(routingFact?.data).toEqual({
-      reasonCodes: expect.arrayContaining(['action-verb']),
-      requestedChannels: ['cli'],
-      requiredToolNames: ['executor_run_cli'],
-      toolInputOverrides: null,
-    })
-    expect(result.toolChoice).toEqual({
-      type: 'function',
-      function: { name: 'executor_run_cli' },
-    })
-    expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean)).toEqual([
-      'executor_run_cli',
-    ])
+    expect(findAlicizationProviderFact(result.messages, 'alicization-execution-routing')).toBeNull()
+    expect(result.toolChoice).toBeUndefined()
+    expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean))
+      .toEqual(expect.arrayContaining(['executor_run_cli', 'executor_run_codex', 'browser_open_url']))
     expect(systemText).not.toMatch(
       /\[ALICIZATION_EXECUTION_BRIEFING\]|\[ALICIZATION_EXECUTION_ROUTING_GUARD\]|Detected explicit execution request|Before writing any natural-language answer|MUST call/iu,
     )
@@ -1373,15 +1252,12 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       }),
     })
 
-    expect(result.runtimeSurface.tooling.allowTools).toBe(true)
-    expect(result.runtimeSurface.tooling.waitForTools).toBe(true)
-    expect(result.runtimeSurface.tooling.routingRequired).toBe(true)
-    expect(result.waitForTools).toBe(true)
-    expect(result.toolChoice).toEqual({
-      type: 'function',
-      function: { name: 'executor_run_cli' },
-    })
-    expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean)).toEqual(['executor_run_cli'])
+    expect(result.runtimeSurface.tooling.allowTools).toBe(false)
+    expect(result.runtimeSurface.tooling.waitForTools).toBe(false)
+    expect(result.runtimeSurface.tooling.toolsOffered).toBe(false)
+    expect(result.waitForTools).toBe(false)
+    expect(result.toolChoice).toBeUndefined()
+    expect(result.tools).toBeUndefined()
   })
 
   it('passes rich organic memory context into learning scheduling', async () => {
@@ -1700,12 +1576,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         actionObligation: {
           confidence: 0.52,
           kind: 'answer',
-          routingIntent: null,
           source: 'dialogue-governance',
           reasonCodes: ['owed-action:answer-general'],
           summary: 'The turn should stay on direct truthful reply rather than action dispatch.',
         },
-        executionRoutingIntent: null,
         messages: [{
           role: 'user',
           content: [{
@@ -1723,10 +1597,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
     expect(result.tools).toBeUndefined()
     expect(result.toolChoice).toBeUndefined()
-    expect(result.runtimeSurface.action).toEqual(expect.objectContaining({
-      kind: 'answer',
-      routingRequired: false,
-    }))
+    expect(result.runtimeSurface.action).toEqual(expect.objectContaining({ kind: 'answer' }))
     expect(result.runtimeSurface.tooling.allowTools).toBe(false)
     expect(result.runtimeSurface.hasVisualGrounding).toBe(true)
     expect(result.runtimeSurface.trace.sessionPhases).not.toContain('tool-registry')
@@ -1832,12 +1703,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         actionObligation: {
           confidence: 0.58,
           kind: 'answer',
-          routingIntent: null,
           source: 'dialogue-governance',
           reasonCodes: ['stay-on-thread'],
           summary: 'Stay on the same dialogue line and answer directly.',
         },
-        executionRoutingIntent: null,
         messages: [{
           role: 'user',
           content: '那你就顺着上一轮继续说。',
@@ -2031,12 +1900,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         actionObligation: {
           confidence: 0.52,
           kind: 'answer',
-          routingIntent: null,
           source: 'dialogue-governance',
           reasonCodes: ['reset-line'],
           summary: 'Answer directly without carrying stale session state as current.',
         },
-        executionRoutingIntent: null,
         messages: [{
           role: 'user',
           content: '现在重新开始。',
@@ -2752,7 +2619,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(result.runtimeSurface.trace.sessionPhases).toContain('tool-registry')
     expect(result.runtimeSurface.trace.sessionPhases).toContain('execution-capabilities')
     expect(result.runtimeSurface.tooling.allowTools).toBe(true)
-    expect(result.runtimeSurface.tooling.waitForTools).toBe(false)
+    expect(result.runtimeSurface.tooling.waitForTools).toBe(true)
     expect(result.tools).toBeDefined()
     expect(getPerformanceManifest).toHaveBeenCalledTimes(1)
     expect(result.performanceManifest).toEqual(expect.objectContaining({
@@ -3533,12 +3400,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         actionObligation: {
           confidence: 0.52,
           kind: 'answer',
-          routingIntent: null,
           source: 'dialogue-governance',
           reasonCodes: ['owed-action:answer-general'],
           summary: 'The turn should stay on direct truthful reply rather than action dispatch.',
         },
-        executionRoutingIntent: null,
         messages: [{
           role: 'user',
           content: '刚才那个命令结果呢',
@@ -3731,12 +3596,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           actionObligation: {
             confidence: 0.52,
             kind: 'answer',
-            routingIntent: null,
             source: 'dialogue-governance',
             reasonCodes: ['owed-action:answer-general'],
             summary: 'The turn should stay on direct truthful reply rather than action dispatch.',
           },
-          executionRoutingIntent: null,
           messages: [{
             role: 'user',
             content: '那个任务状态怎么样了',
@@ -3969,12 +3832,10 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           actionObligation: {
             confidence: 0.52,
             kind: 'answer',
-            routingIntent: null,
             source: 'dialogue-governance',
             reasonCodes: ['owed-action:answer-general'],
             summary: 'The turn should stay on direct truthful reply rather than action dispatch.',
           },
-          executionRoutingIntent: null,
           messages: [{
             role: 'user',
             content: '那个任务状态怎么样了',

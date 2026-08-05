@@ -1431,7 +1431,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       ensureActiveOrLatestSessionId,
       buildPendingExecutionCallbackContext: input => executionCallbackRuntime.buildPendingExecutionCallbackContext(input),
       buildExecutionLedgerContext: input => memoryLedgerRuntime.buildExecutionLedgerContext(input),
-      listTaskThreadsBySession: input => alicizationDb.listTaskThreads(input),
       resolveRecentContextualTurns,
       shouldExtendContextualRecall,
       detectInvitedInspectionIntent,

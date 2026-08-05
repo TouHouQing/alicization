@@ -3,8 +3,6 @@ import type {
   AlicizationChatFailureKind,
   AlicizationChatMemoryFailureSurface,
   AlicizationExecutionCapabilityChannel,
-  AlicizationExecutionCapabilityInquiry,
-  AlicizationExecutionRoutingIntent,
   AlicizationPersonaKernelSnapshot,
 } from '@proj-alicization/stage-shared'
 import type { PromptBudgetReport } from '@proj-alicization/stage-ui/composables/alicization-guardrails'
@@ -92,8 +90,6 @@ import {
 } from './main-chat-execution-reply-obligation'
 import {
   buildExecutionCapabilitySystemBlocks,
-  buildExecutionRoutingEnforcementSystemBlock,
-  buildMainGatewayExecutionRoutingToolChoice,
   buildMainGatewayTools,
 } from './main-chat-execution-surface'
 import { buildAlicizationMainChatMemoryContext } from './main-chat-memory-context'
@@ -126,7 +122,6 @@ import {
 import { readTransportContentAsText } from './runtime-transport-content'
 import {
   deriveOrganicMemoryBudgetClass,
-  filterMainGatewayToolsForRoutingIntent,
   sanitizeToolPhaseSegment,
 } from './runtime-turn-composition'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
@@ -165,8 +160,6 @@ export interface AlicizationPreparedMainChatPrelude {
   contextualStringPromise: Promise<string>
   executionCallbackContextPromise: Promise<AlicizationExecutionCallbackContext>
   executionLedgerContextPromise: Promise<AlicizationExecutionLedgerContext>
-  executionCapabilityInquiry: AlicizationExecutionCapabilityInquiry
-  executionRoutingIntent: AlicizationExecutionRoutingIntent | null
   perceptionAugmentation: AlicizationMainChatPerceptionAugmentation
 }
 
@@ -1466,7 +1459,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       ],
       outputSummary: [
         prelude.actionObligation.kind,
-        prelude.actionObligation.routingIntent ? 'routing=required' : 'routing=not-required',
+        payload.supportsTools !== false ? 'tools=offered' : 'tools=unavailable',
       ],
       reasonCodes: prelude.actionObligation.reasonCodes,
     })
@@ -1492,8 +1485,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       ],
       reasonCodes: prelude.actionObligation.reasonCodes,
     })
-    const effectiveExecutionRoutingIntent = prelude.actionObligation.routingIntent ?? prelude.executionRoutingIntent
-    const routingRequired = Boolean(effectiveExecutionRoutingIntent)
     const incomingPreludeDigitalLifeSpine
       = (prelude.perceptionAugmentation as {
         digitalLifeSpine?: AlicizationMainChatRuntimeSurface['digitalLifeSpine'] | null
@@ -1536,7 +1527,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       mirrorStaleAfterMs: options.dialogueSessionMirrorTtlMs,
       spine: digitalLifeSpine,
     })
-    const provisionalHasVisualGrounding = !effectiveExecutionRoutingIntent && options.latestUserMessageContainsVisualInput(messages)
+    const provisionalHasVisualGrounding = options.latestUserMessageContainsVisualInput(messages)
     const [contextualString, executionCallbackContext, executionLedgerContext, sessionContinuitySignals] = await Promise.all([
       agentTurn.trackPhase('contextual-memory', async () => await prelude.contextualStringPromise, {
         turnId: payload.turnId,
@@ -1549,7 +1540,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         sessionId: agentTurn.conversationSessionId,
       }),
       agentTurn.trackPhase('execution-ledger', async () => await prelude.executionLedgerContextPromise, {
-        routingRequired,
+        toolsOffered: payload.supportsTools !== false,
       }),
       agentTurn.trackPhase('session-continuity', async () => {
         const signals = await options.resolveSessionContinuitySignals?.({
@@ -1680,12 +1671,8 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const freshExecutionReplyCallback = executionReplyObligation?.source === 'fresh-callback'
       ? [...executionCallbackContext.callbacks].sort((left, right) => right.createdAt - left.createdAt)[0] ?? null
       : null
-    const shouldIncludeExecutionCapabilityContext = Boolean(
-      prelude.executionCapabilityInquiry.active
-      || prelude.executionCapabilityInquiry.capabilityQuestion
-      || effectiveExecutionRoutingIntent
-      || executionReplyObligation,
-    )
+    const shouldIncludeExecutionCapabilityContext = payload.supportsTools !== false
+      || Boolean(executionReplyObligation)
     const {
       effectiveMindTurnGovernanceWithRecollection,
       llmMindAuthorityGovernance,
@@ -1701,13 +1688,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       applyHostPersonModelToGovernance,
     })
 
-    // NOTICE: Execution-routing intents are execution-governed turns. Do not allow
-    // renderer payload flags to silently downgrade them into tool-disabled responses.
-    const allowTools = payload.supportsTools !== false || routingRequired
-    const waitForTools = payload.waitForTools === true || routingRequired
-    const toolChoice = allowTools && effectiveExecutionRoutingIntent
-      ? buildMainGatewayExecutionRoutingToolChoice(effectiveExecutionRoutingIntent)
-      : undefined
+    // The provider chooses whether a turn needs a tool. The runtime only exposes
+    // the capabilities it actually has and keeps safety inside each tool owner.
+    const allowTools = payload.supportsTools !== false
+    const waitForTools = allowTools
+    const toolChoice = undefined
 
     let executionRuntimeAffectiveResidue: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['affectiveResidue'] = null
     let executionRuntimeDerivedMindStateBundle: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['derivedMindStateBundle'] = null
@@ -2213,14 +2198,14 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             invokeMcpListTools: sessionBoundToolOptions.invokeMcpListTools,
             invokeMcpCallTool: sessionBoundToolOptions.invokeMcpCallTool,
           }), {
-            routingRequired,
+            toolsOffered: allowTools,
           })
         : Promise.resolve(undefined),
       agentTurn.trackPhase('execution-capabilities', async () => await options.resolveExecutionCapabilitiesForPrompt(), {
-        inquiryActive: prelude.executionCapabilityInquiry.active,
+        toolsOffered: allowTools,
       }),
     ])
-    const tools = filterMainGatewayToolsForRoutingIntent(builtTools, effectiveExecutionRoutingIntent)
+    const tools = builtTools
 
     const runtimeCorePromptBlocks = options.buildMainRuntimeCorePromptBlocks({
       hostName,
@@ -2296,14 +2281,8 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           ? buildExecutionCapabilitySystemBlocks(
               executionCapabilities,
               options.executionCapabilityChannels,
-              {
-                inquiry: prelude.executionCapabilityInquiry,
-              },
             )
           : [],
-        executionRoutingEnforcementSystemBlock: effectiveExecutionRoutingIntent
-          ? buildExecutionRoutingEnforcementSystemBlock(effectiveExecutionRoutingIntent)
-          : undefined,
         executionCallbackSystemBlocks: executionCallbackContext.systemBlock
           ? [executionCallbackContext.systemBlock]
           : [],
@@ -2323,7 +2302,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         turnMode: prelude.perceptionAugmentation.chatGovernance.turnMode,
         governance: llmMindAuthorityGovernance,
         tools,
-        toolChoice,
         sessionPhases,
         capture: {
           inspectionRequested: prelude.perceptionAugmentation.capture.inspectionRequested,
@@ -2336,7 +2314,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       })
     }, {
       hasVisualGrounding,
-      routingRequired,
+      toolsOffered: allowTools,
       sessionPhases: sessionPhases.join(' -> '),
     })
     turnRuntime.settleStage(turnContext, 'deliberation', {
@@ -2620,7 +2598,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       waitForTools,
       tools,
       toolChoice,
-      executionToolInputOverrides: effectiveExecutionRoutingIntent?.toolInputOverrides,
       customDirectivesResolution,
       hasVisualGrounding: runtimeSurface.hasVisualGrounding,
       governance: runtimeSurface.governance,
@@ -2663,7 +2640,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       actionObligation: prelude.actionObligation,
       memory: memoryTurnArtifact,
       surface: null,
-      routingRequired,
+      toolsOffered: allowTools,
     })
 
     return {

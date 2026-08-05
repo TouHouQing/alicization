@@ -118,7 +118,7 @@ describe('main chat one-shot', () => {
     expect(result).toBe('ok')
   })
 
-  it('fails when required tool choice is enforced but one-shot generation does not call the tool', async () => {
+  it('allows one-shot provider text without enforcing a tool call', async () => {
     const toolChoice = {
       type: 'function',
       function: { name: 'executor_run_cli' },
@@ -140,7 +140,10 @@ describe('main chat one-shot', () => {
       tools,
       toolChoice,
       generateTextImpl,
-    }))).rejects.toThrow('Model finished without calling required tool: executor_run_cli')
+    }))).resolves.toEqual({
+      finishReason: 'stop',
+      fullText: '我先守住真实边界。',
+    })
   })
 
   it('aborts one-shot generation after the enforced minimum timeout window', async () => {

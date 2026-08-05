@@ -288,7 +288,7 @@ export function createAlicizationTurnRuntime(options: {
     } | null
     memory: AlicizationMemoryTurnArtifact | null
     surface?: AlicizationVisibleReplyRealizationArtifact | null
-    routingRequired: boolean
+    toolsOffered: boolean
   }): AlicizationTurnGraph {
     return buildAlicizationTurnGraphFromSettlements({
       prepared: input.prepared,
@@ -297,7 +297,7 @@ export function createAlicizationTurnRuntime(options: {
       actionObligation: input.actionObligation,
       memory: input.memory,
       surface: input.surface ?? null,
-      routingRequired: input.routingRequired,
+      toolsOffered: input.toolsOffered,
       stageSettlements: input.context.stageSettlements,
       activeSelfRevision: {
         patchId: input.context.selfRevisionConsumption.activePatchId,

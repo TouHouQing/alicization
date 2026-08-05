@@ -55,8 +55,7 @@ function createRuntimeSurface(): AlicizationMainChatRuntimeSurface {
     messages: [],
     tooling: {
       allowTools: true,
-      enforcedToolNames: [],
-      routingRequired: false,
+      toolsOffered: true,
       waitForTools: false,
     },
     trace: {

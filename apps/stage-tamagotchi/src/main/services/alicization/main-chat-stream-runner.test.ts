@@ -1156,7 +1156,7 @@ describe('main chat stream runner', () => {
     }))
   })
 
-  it('fails when a required executor tool was never called before finish', async () => {
+  it('allows provider text without enforcing a tool call before finish', async () => {
     const appendRuntimeDebugLine = vi.fn(async () => {})
 
     await expect(runAlicizationMainChatStream({
@@ -1195,13 +1195,14 @@ describe('main chat stream runner', () => {
         await emit({ type: 'text-delta', text: '我先看看。' })
         await emit({ type: 'finish', finishReason: 'stop' })
       },
-    })).rejects.toThrow('Model finished without calling required tool: executor_run_cli')
-
-    expect(appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.required-tool-missing', expect.objectContaining({
-      cardId: 'card-1',
-      turnId: 'turn-required-tool',
+    })).resolves.toMatchObject({
       finishReason: 'stop',
-      requiredToolNames: ['executor_run_cli'],
-    }))
+      fullText: '我先看看。',
+      origin: 'provider',
+    })
+    expect(appendRuntimeDebugLine).not.toHaveBeenCalledWith(
+      'chat-stream.required-tool-missing',
+      expect.anything(),
+    )
   })
 })

@@ -252,7 +252,6 @@ describe('main chat runtime surface', () => {
         data: { channels: ['codex'] },
       })],
       tools: [{ function: { name: 'executor_run_codex' } }],
-      toolChoice: 'required',
       digitalLifeRuntimeSurface: runtimeSurface,
       digitalLifeSpine: {
         version: 'digital-life-spine-v1',
@@ -272,9 +271,8 @@ describe('main chat runtime surface', () => {
     expect(findFactMessage(result.messages, 'alicization-host')).toBeDefined()
     expect(result.tooling).toEqual({
       allowTools: true,
+      toolsOffered: true,
       waitForTools: true,
-      enforcedToolNames: ['executor_run_codex'],
-      routingRequired: true,
     })
   })
 
@@ -331,7 +329,7 @@ describe('main chat runtime surface', () => {
     expect(filtered.some(message => String(message.content).includes('unknown-sidecar'))).toBe(false)
   })
 
-  it('derives enforced tool names from a required filtered tool registry', () => {
+  it('does not derive hidden tool policy from the offered registry', () => {
     const result = buildAlicizationMainChatRuntimeSurface(createBaseInput({
       allowTools: true,
       waitForTools: true,
@@ -341,13 +339,10 @@ describe('main chat runtime surface', () => {
         { function: { name: 'executor_run_local_visual' } },
         { function: { name: 'executor_run_codex' } },
       ],
-      toolChoice: 'required',
     }))
 
-    expect(result.tooling.enforcedToolNames).toEqual([
-      'executor_run_codex',
-      'executor_run_local_visual',
-    ])
-    expect(result.tooling.routingRequired).toBe(true)
+    expect(result.tooling.toolsOffered).toBe(true)
+    expect(result.tooling).not.toHaveProperty('enforcedToolNames')
+    expect(result.tooling).not.toHaveProperty('routingRequired')
   })
 })
