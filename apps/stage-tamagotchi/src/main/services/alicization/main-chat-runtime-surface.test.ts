@@ -341,8 +341,10 @@ describe('main chat runtime surface', () => {
       ],
     }))
 
-    expect(result.tooling.toolsOffered).toBe(true)
-    expect(result.tooling).not.toHaveProperty('enforcedToolNames')
-    expect(result.tooling).not.toHaveProperty('routingRequired')
+    expect(result.tooling).toEqual({
+      allowTools: true,
+      waitForTools: true,
+      toolsOffered: true,
+    })
   })
 })

@@ -1077,10 +1077,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         { channel: 'openclaw', available: false, enabled: false, ready: false, reason: 'offline' },
       ],
     })
-    expect(findAlicizationProviderFact(result.messages, 'alicization-execution-routing')).toBeNull()
-    expect(systemText).not.toMatch(
-      /\[ALICIZATION_EXECUTION_BRIEFING\]|\[ALICIZATION_EXECUTION_CAPABILITIES\]|Capability query focus:|Answer each focused channel separately|Never collapse multi-channel|call executor_capability_snapshot first/iu,
-    )
+    expect(systemText).toContain('"type":"alicization-execution-capabilities"')
   })
 
   it('keeps an explicit execution request on the same model-owned turn', async () => {
@@ -1165,16 +1162,13 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       .join('\n')
 
     expect(actionFact).toBeNull()
-    expect(findAlicizationProviderFact(result.messages, 'alicization-execution-routing')).toBeNull()
     expect(result.toolChoice).toBeUndefined()
     expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean))
       .toEqual(expect.arrayContaining(['executor_run_cli', 'executor_run_codex', 'browser_open_url']))
-    expect(systemText).not.toMatch(
-      /\[ALICIZATION_EXECUTION_BRIEFING\]|\[ALICIZATION_EXECUTION_ROUTING_GUARD\]|Detected explicit execution request|Before writing any natural-language answer|MUST call/iu,
-    )
+    expect(systemText).toContain('"type":"alicization-execution-capabilities"')
   })
 
-  it('enforces tools and waitForTools for execution-routing turns even when payload flags disable tools', async () => {
+  it('respects disabled tool flags for execution-like user text', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,

@@ -126,21 +126,40 @@ function findAlicizationProviderFactInSystemText(systemText: string, type: strin
   )
 }
 
-function expectExecutionRoutingFact(systemTexts: string[], requiredToolName: string) {
-  const fact = findAlicizationProviderFact(systemTexts, 'alicization-execution-routing')
-  expect(fact?.data.requiredToolNames).toContain(requiredToolName)
-  expect(systemTexts.join('\n')).not.toMatch(
-    /\[ALICIZATION_EXECUTION_ROUTING_GUARD\]|Detected explicit execution request|Before writing any natural-language answer|MUST call/iu,
-  )
+function expectModelOwnedExecutionFacts(systemTexts: string[]) {
+  const allowedExecutionFactTypes = new Set([
+    'alicization-execution-callbacks',
+    'alicization-execution-capabilities',
+    'alicization-execution-ledger',
+    'alicization-execution-reply-context',
+  ])
+  const executionFactTypes = systemTexts
+    .map((text) => {
+      try {
+        const parsed = JSON.parse(text) as { type?: unknown }
+        return typeof parsed.type === 'string' && parsed.type.startsWith('alicization-execution-')
+          ? parsed.type
+          : null
+      }
+      catch {
+        return null
+      }
+    })
+    .filter((type): type is string => Boolean(type))
+
+  expect(executionFactTypes).toContain('alicization-execution-capabilities')
+  expect(executionFactTypes.every(type => allowedExecutionFactTypes.has(type))).toBe(true)
 }
 
-function expectExecutionCapabilityFact(systemTexts: string[], focusedChannels: string[]) {
+function expectExecutionCapabilityFact(systemTexts: string[]) {
   const fact = findAlicizationProviderFact(systemTexts, 'alicization-execution-capabilities')
-  expect(fact?.data.capabilityQuestion).toBe(true)
-  expect(fact?.data.focusedChannels).toEqual(focusedChannels)
-  expect(systemTexts.join('\n')).not.toMatch(
-    /\[ALICIZATION_EXECUTION_CAPABILITIES\]|Capability query focus:|Never collapse multi-channel|Answer each focused channel separately|call executor_capability_snapshot first/iu,
-  )
+  expect(fact?.data.channels).toEqual(expect.arrayContaining([
+    expect.objectContaining({ channel: 'cli' }),
+    expect.objectContaining({ channel: 'codex' }),
+    expect.objectContaining({ channel: 'claude-code' }),
+    expect.objectContaining({ channel: 'openclaw' }),
+  ]))
+  expect(Object.keys(fact?.data ?? {})).toEqual(['channels'])
 }
 
 const dbStub = {
@@ -306,6 +325,7 @@ const dbStub = {
     lastCheckedAt: input.lastCheckedAt ?? Date.now(),
   })),
   listChannelCapabilityManifests: vi.fn().mockResolvedValue([]),
+  resumePendingMemoryEmbeddingReindexJobs: vi.fn().mockResolvedValue(undefined),
   upsertExecutorSession: vi.fn().mockImplementation(async (input: any) => ({
     id: input.id ?? 'executor-session-test-1',
     channel: input.channel,
@@ -8842,27 +8862,27 @@ describe('alicization runtime audit helpers', () => {
     })
   })
 
-  it('forces executor_run_cli routing and skips inspection grounding for explicit CLI action requests', async () => {
+  it('offers the complete tool registry without forcing CLI routing from user text', async () => {
     const sandboxPath = await createSandboxPath()
-    streamTextMock.mockImplementation(async ({ messages, toolChoice, onEvent }) => {
-      expect(toolChoice).toEqual({
-        type: 'function',
-        function: { name: 'executor_run_cli' },
-      })
+    streamTextMock.mockImplementation(async ({ messages, tools, toolChoice, onEvent }) => {
+      expect(toolChoice).toBeUndefined()
+      const toolNames = Array.isArray(tools)
+        ? tools.map((entry: any) => String(entry?.function?.name ?? '').trim())
+        : []
+      expect(toolNames).toEqual(expect.arrayContaining([
+        'executor_run_cli',
+        'executor_run_codex',
+        'executor_run_claude_code',
+        'executor_run_openclaw',
+      ]))
 
       const systemTexts = Array.isArray(messages)
         ? messages
             .filter((message: any) => message?.role === 'system')
             .map((message: any) => String(message?.content ?? ''))
         : []
-      expectExecutionRoutingFact(systemTexts, 'executor_run_cli')
-
-      const latestUserMessage = Array.isArray(messages)
-        ? [...messages].reverse().find((message: any) => message?.role === 'user')
-        : undefined
-      const latestUserSerializedContent = JSON.stringify(latestUserMessage?.content ?? '')
-      expect(latestUserSerializedContent).not.toContain('data:image/')
-      expect(latestUserSerializedContent).not.toContain('inspection-grounding')
+      expectModelOwnedExecutionFacts(systemTexts)
+      expectExecutionCapabilityFact(systemTexts)
 
       await onEvent?.({
         type: 'text-delta',
@@ -8901,24 +8921,20 @@ describe('alicization runtime audit helpers', () => {
         .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === 'turn-main-executor-cli-routing-guard')
       expect(finishEvents).toHaveLength(1)
     })
-
-    expect(desktopCapturerGetSourcesMock).not.toHaveBeenCalled()
   })
 
-  it('forces executor_run_cli routing for explicit desktop CLI listing request even when payload tool flags are false', async () => {
+  it('does not override a Provider surface that has tools disabled', async () => {
     const sandboxPath = await createSandboxPath()
-    streamTextMock.mockImplementation(async ({ messages, toolChoice, onEvent }) => {
-      expect(toolChoice).toEqual({
-        type: 'function',
-        function: { name: 'executor_run_cli' },
-      })
+    streamTextMock.mockImplementation(async ({ messages, tools, toolChoice, onEvent }) => {
+      expect(toolChoice).toBeUndefined()
+      expect(tools).toBeUndefined()
 
       const systemTexts = Array.isArray(messages)
         ? messages
             .filter((message: any) => message?.role === 'system')
             .map((message: any) => String(message?.content ?? ''))
         : []
-      expectExecutionRoutingFact(systemTexts, 'executor_run_cli')
+      expectModelOwnedExecutionFacts(systemTexts)
 
       await onEvent?.({
         type: 'text-delta',
@@ -8959,27 +8975,21 @@ describe('alicization runtime audit helpers', () => {
     })
   })
 
-  it('forces executor_run_cli routing and skips inspection grounding for action + command literal without explicit channel mention', async () => {
+  it('does not infer CLI routing from command-like user text', async () => {
     const sandboxPath = await createSandboxPath()
-    streamTextMock.mockImplementation(async ({ messages, toolChoice, onEvent }) => {
-      expect(toolChoice).toEqual({
-        type: 'function',
-        function: { name: 'executor_run_cli' },
-      })
+    streamTextMock.mockImplementation(async ({ messages, tools, toolChoice, onEvent }) => {
+      expect(toolChoice).toBeUndefined()
+      const toolNames = Array.isArray(tools)
+        ? tools.map((entry: any) => String(entry?.function?.name ?? '').trim())
+        : []
+      expect(toolNames).toContain('executor_run_cli')
 
       const systemTexts = Array.isArray(messages)
         ? messages
             .filter((message: any) => message?.role === 'system')
             .map((message: any) => String(message?.content ?? ''))
         : []
-      expectExecutionRoutingFact(systemTexts, 'executor_run_cli')
-
-      const latestUserMessage = Array.isArray(messages)
-        ? [...messages].reverse().find((message: any) => message?.role === 'user')
-        : undefined
-      const latestUserSerializedContent = JSON.stringify(latestUserMessage?.content ?? '')
-      expect(latestUserSerializedContent).not.toContain('data:image/')
-      expect(latestUserSerializedContent).not.toContain('inspection-grounding')
+      expectModelOwnedExecutionFacts(systemTexts)
 
       await onEvent?.({
         type: 'text-delta',
@@ -9018,38 +9028,23 @@ describe('alicization runtime audit helpers', () => {
         .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === 'turn-main-executor-cli-command-literal-routing-guard')
       expect(finishEvents).toHaveLength(1)
     })
-
-    expect(desktopCapturerGetSourcesMock).not.toHaveBeenCalled()
-
-    const perceptionAudit = dbStub.appendAuditLog.mock.calls
-      .map(([entry]) => entry)
-      .find((entry: any) => entry.category === 'alicization.perception'
-        && entry.action === 'inspection-grounding-skipped'
-        && entry.payload?.reason === 'executor-routing-intent')
-    expect(perceptionAudit).toBeTruthy()
   })
 
-  it('forces executor_run_openclaw routing and skips inspection grounding for explicit openclaw action requests', async () => {
+  it('does not force OpenClaw routing from user text', async () => {
     const sandboxPath = await createSandboxPath()
-    streamTextMock.mockImplementation(async ({ messages, toolChoice, onEvent }) => {
-      expect(toolChoice).toEqual({
-        type: 'function',
-        function: { name: 'executor_run_openclaw' },
-      })
+    streamTextMock.mockImplementation(async ({ messages, tools, toolChoice, onEvent }) => {
+      expect(toolChoice).toBeUndefined()
+      const toolNames = Array.isArray(tools)
+        ? tools.map((entry: any) => String(entry?.function?.name ?? '').trim())
+        : []
+      expect(toolNames).toContain('executor_run_openclaw')
 
       const systemTexts = Array.isArray(messages)
         ? messages
             .filter((message: any) => message?.role === 'system')
             .map((message: any) => String(message?.content ?? ''))
         : []
-      expectExecutionRoutingFact(systemTexts, 'executor_run_openclaw')
-
-      const latestUserMessage = Array.isArray(messages)
-        ? [...messages].reverse().find((message: any) => message?.role === 'user')
-        : undefined
-      const latestUserSerializedContent = JSON.stringify(latestUserMessage?.content ?? '')
-      expect(latestUserSerializedContent).not.toContain('data:image/')
-      expect(latestUserSerializedContent).not.toContain('inspection-grounding')
+      expectModelOwnedExecutionFacts(systemTexts)
 
       await onEvent?.({
         type: 'text-delta',
@@ -9088,31 +9083,23 @@ describe('alicization runtime audit helpers', () => {
         .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === 'turn-main-executor-openclaw-routing-guard')
       expect(finishEvents).toHaveLength(1)
     })
-
-    expect(desktopCapturerGetSourcesMock).not.toHaveBeenCalled()
   })
 
-  it('forces executor_run_local_visual routing for explicit local gui execution requests without escalating to openclaw', async () => {
+  it('does not force local visual routing from user text', async () => {
     const sandboxPath = await createSandboxPath()
-    streamTextMock.mockImplementation(async ({ messages, toolChoice, onEvent }) => {
-      expect(toolChoice).toEqual({
-        type: 'function',
-        function: { name: 'executor_run_local_visual' },
-      })
+    streamTextMock.mockImplementation(async ({ messages, tools, toolChoice, onEvent }) => {
+      expect(toolChoice).toBeUndefined()
+      const toolNames = Array.isArray(tools)
+        ? tools.map((entry: any) => String(entry?.function?.name ?? '').trim())
+        : []
+      expect(toolNames).toContain('executor_run_local_visual')
 
       const systemTexts = Array.isArray(messages)
         ? messages
             .filter((message: any) => message?.role === 'system')
             .map((message: any) => String(message?.content ?? ''))
         : []
-      expectExecutionRoutingFact(systemTexts, 'executor_run_local_visual')
-
-      const latestUserMessage = Array.isArray(messages)
-        ? [...messages].reverse().find((message: any) => message?.role === 'user')
-        : undefined
-      const latestUserSerializedContent = JSON.stringify(latestUserMessage?.content ?? '')
-      expect(latestUserSerializedContent).not.toContain('data:image/')
-      expect(latestUserSerializedContent).not.toContain('inspection-grounding')
+      expectModelOwnedExecutionFacts(systemTexts)
 
       await onEvent?.({
         type: 'text-delta',
@@ -9151,8 +9138,6 @@ describe('alicization runtime audit helpers', () => {
         .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === 'turn-main-executor-local-visual-routing-guard')
       expect(finishEvents).toHaveLength(1)
     })
-
-    expect(desktopCapturerGetSourcesMock).not.toHaveBeenCalled()
   })
 
   it('suppresses persisted execution delivery after main chat pays off a fresh execution-result follow-up', async () => {
@@ -9344,7 +9329,7 @@ describe('alicization runtime audit helpers', () => {
     expect(repeatedCallbackEvents).toHaveLength(0)
   })
 
-  it('injects focused execution capability contract for cli/codex capability questions', async () => {
+  it('injects the complete execution capability contract for capability questions', async () => {
     const sandboxPath = await createSandboxPath()
     streamTextMock.mockImplementation(async ({ messages, toolChoice, onEvent }) => {
       const systemTexts = Array.isArray(messages)
@@ -9352,7 +9337,8 @@ describe('alicization runtime audit helpers', () => {
             .filter((message: any) => message?.role === 'system')
             .map((message: any) => String(message?.content ?? ''))
         : []
-      expectExecutionCapabilityFact(systemTexts, ['cli', 'codex'])
+      expectExecutionCapabilityFact(systemTexts)
+      expectModelOwnedExecutionFacts(systemTexts)
       expect(toolChoice).toBeUndefined()
 
       await onEvent?.({
@@ -9394,7 +9380,7 @@ describe('alicization runtime audit helpers', () => {
     })
   })
 
-  it('injects focused execution capability contract for claude code capability questions', async () => {
+  it('does not narrow execution capability facts from a mentioned tool name', async () => {
     const sandboxPath = await createSandboxPath()
     streamTextMock.mockImplementation(async ({ messages, toolChoice, onEvent }) => {
       const systemTexts = Array.isArray(messages)
@@ -9402,7 +9388,8 @@ describe('alicization runtime audit helpers', () => {
             .filter((message: any) => message?.role === 'system')
             .map((message: any) => String(message?.content ?? ''))
         : []
-      expectExecutionCapabilityFact(systemTexts, ['claude-code'])
+      expectExecutionCapabilityFact(systemTexts)
+      expectModelOwnedExecutionFacts(systemTexts)
       expect(toolChoice).toBeUndefined()
 
       await onEvent?.({

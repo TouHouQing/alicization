@@ -113,7 +113,6 @@ export interface AlicizationPreparedInteractivePerceptionPrelude {
   } | null
   inspectionIntent: AlicizationResolvedInspectionIntent
   inspectionRequested: boolean
-  inspectionRoutingSuppressed: boolean
   genericScreenInspection: boolean
   auditAction: string
   auditPayload: Record<string, unknown>
@@ -608,7 +607,6 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
     userText: string
     messages: Message[]
     senderWebContentsId?: number | null
-    skipInspectionGrounding?: boolean
   }): Promise<AlicizationPreparedInteractivePerceptionPrelude> {
     const now = Date.now()
     let perceptionState = await options.ensurePerceptionState(input.cardId)
@@ -633,9 +631,8 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
       visualPresenceState,
       currentForeground: sensorySnapshot?.sample?.foregroundWindow,
     })
-    const inspectionRoutingSuppressed = input.skipInspectionGrounding === true
-    const inspectionRequested = inspectionIntent.active && !inspectionRoutingSuppressed
-    if (!inspectionRequested && (inspectionIntent.releaseCarry || inspectionRoutingSuppressed)) {
+    const inspectionRequested = inspectionIntent.active
+    if (!inspectionRequested && inspectionIntent.releaseCarry) {
       perceptionState = await options.queuePerceptionStateMutation(input.cardId, current => releaseInvitedInspection({
         state: current,
         now,
@@ -674,12 +671,9 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
     let auditAction = inspectionRequested ? 'inspection-grounding-skipped' : 'perception-context-prepared'
     let auditPayload: Record<string, unknown> = {
       inspectionRequested,
-      inspectionSuppressedByExecutorRouting: inspectionRoutingSuppressed,
       inspectionState: inspectionIntent.inspectionState,
       inspectionIntentConfidence: inspectionIntent.confidence,
-      inspectionIntentReasonCodes: inspectionRoutingSuppressed
-        ? [...inspectionIntent.reasonCodes, 'executor-routing-intent']
-        : inspectionIntent.reasonCodes,
+      inspectionIntentReasonCodes: inspectionIntent.reasonCodes,
       inspectionCarryReleased: inspectionIntent.releaseCarry,
       owner_before: inspectionIntent.ownershipTransition?.ownerBefore ?? null,
       owner_after: inspectionIntent.ownershipTransition?.ownerAfter ?? null,
@@ -718,14 +712,6 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
       attentionAnchor: options.describePerceptionTarget(options.getActiveAttentionAnchor(perceptionState, now)),
       captureSenderWebContentsId: input.senderWebContentsId ?? null,
     }
-    if (inspectionRoutingSuppressed) {
-      auditAction = 'inspection-grounding-skipped'
-      auditPayload = {
-        ...auditPayload,
-        reason: 'executor-routing-intent',
-      }
-    }
-
     const latestUserMessage = [...messages].reverse().find(message => message.role === 'user')
     const latestUserHasImage = options.hasImageTransportContent(latestUserMessage?.content)
     if (inspectionRequested && !latestUserHasImage) {
@@ -815,7 +801,6 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
       currentForeground,
       inspectionIntent,
       inspectionRequested,
-      inspectionRoutingSuppressed,
       genericScreenInspection,
       auditAction,
       auditPayload,

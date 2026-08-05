@@ -75,7 +75,6 @@ const alicizationProviderFactTypes = new Set([
   'alicization-execution-capabilities',
   'alicization-execution-ledger',
   'alicization-execution-reply-context',
-  'alicization-execution-routing',
   'alicization-host',
   'alicization-inspection',
   'alicization-persona-profile',

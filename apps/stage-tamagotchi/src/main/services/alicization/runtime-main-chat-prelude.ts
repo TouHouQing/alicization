@@ -32,7 +32,6 @@ interface CreateAlicizationMainChatPreludeRuntimeOptions {
     userText: string
     messages: Message[]
     senderWebContentsId?: number | null
-    skipInspectionGrounding?: boolean
   }) => Promise<any>
   prepareMainChatSessionExecution: (input: {
     payload: AlicizationChatStartPayload
@@ -78,7 +77,6 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
           userText: latestUserText,
           messages,
           senderWebContentsId,
-          skipInspectionGrounding: false,
         })
       : {
           messages,

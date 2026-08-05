@@ -78,7 +78,7 @@ describe('main chat execution surface', () => {
         }),
       },
     })
-    expect(capabilityBlock).not.toMatch(/capabilityQuestion|focusedChannels|routing|Never|Answer each/iu)
+    expect(Object.keys(parsed.data)).toEqual(['channels'])
   })
 
   it('offers the complete provider tool registry for model-owned selection', async () => {

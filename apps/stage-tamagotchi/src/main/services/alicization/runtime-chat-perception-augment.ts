@@ -40,7 +40,6 @@ interface CreateAlicizationChatPerceptionAugmentRuntimeOptions {
       userText: string
       messages: Message[]
       senderWebContentsId?: number | null
-      skipInspectionGrounding?: boolean
     }) => Promise<any>
   }
   ensureProactiveLoopState: (cardIdRaw: unknown) => Promise<AlicizationProactiveLoopState>
@@ -87,14 +86,12 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
     userText: string
     messages: Message[]
     senderWebContentsId?: number | null
-    skipInspectionGrounding?: boolean
   }) {
     const preparedPerception = await sensoryRuntime.prepareInteractivePerceptionPrelude({
       cardId: input.cardId,
       userText: input.userText,
       messages: input.messages,
       senderWebContentsId: input.senderWebContentsId,
-      skipInspectionGrounding: input.skipInspectionGrounding,
     })
     const now = preparedPerception.now
     const perceptionState = preparedPerception.perceptionState
@@ -103,7 +100,6 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
     const sensorySnapshot = preparedPerception.sensorySnapshot
     const inspectionIntent = preparedPerception.inspectionIntent
     const inspectionRequested = preparedPerception.inspectionRequested
-    const inspectionRoutingSuppressed = preparedPerception.inspectionRoutingSuppressed
     const genericScreenInspection = preparedPerception.genericScreenInspection
     const currentForeground = preparedPerception.currentForeground ?? undefined
     const chatScreenSemanticSummary = preparedPerception.chatScreenSemanticSummary
@@ -257,16 +253,14 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
         : '',
     ].filter(Boolean)
 
-    if (inspectionRequested || inspectionRoutingSuppressed || systemBlocks.length > 0) {
+    if (inspectionRequested || systemBlocks.length > 0) {
       await appendAuditLog({
         level: 'notice',
         category: 'alicization.perception',
         action: auditAction,
         message: inspectionRequested
           ? 'Prepared invited inspection context for the current chat turn.'
-          : inspectionRoutingSuppressed
-            ? 'Skipped invited inspection grounding because executor routing intent is active for this turn.'
-            : 'Prepared Alicization short-lived perception context for the current chat turn.',
+          : 'Prepared Alicization short-lived perception context for the current chat turn.',
         payload: {
           ...auditPayload,
           groundingContinuity: {

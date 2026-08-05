@@ -141,10 +141,10 @@ describe('runtime main chat prelude', () => {
       ],
     } as any, mainGateway)
 
-    expect(prelude).not.toHaveProperty('executionCapabilityInquiry')
-    expect(prelude).not.toHaveProperty('executionRoutingIntent')
     expect(prelude.actionObligation.kind).toBe('answer')
-    expect(prelude.actionObligation).not.toHaveProperty('routingIntent')
+    expect(prelude.messages).toEqual([
+      { role: 'user', content: '你可以使用codex吗' },
+    ])
   })
 
   it('keeps ordinary mixed user content on the context memory and perception path', async () => {
