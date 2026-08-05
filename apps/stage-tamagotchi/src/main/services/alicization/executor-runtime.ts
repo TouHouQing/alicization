@@ -12,7 +12,6 @@ import type {
 import type { AlicizationDbService } from './db'
 import type { MainGatewayExecutionTaskThreadResult, MainGatewayExecutionToolContext } from './main-chat-execution-surface'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
-import type { AlicizationTaskRoutingAssessment } from './task-execution-governor'
 import type { AlicizationTaskThreadPlanningInput } from './task-thread-governor'
 import type { AlicizationTaskThreadDispatchInvocation } from './task-thread-orchestrator'
 
@@ -60,12 +59,6 @@ interface AlicizationExecutorRuntimeOptions {
   getGlobalKillSwitchState: () => 'ACTIVE' | 'SUSPENDED'
   normalizeSessionId: (raw: unknown) => string
   resolveLocalCapabilityChannels?: () => Promise<AlicizationChannelCapability[]>
-  assessTaskRouting?: (input: {
-    task: AlicizationTaskThreadPlanningInput['task']
-    capabilities: AlicizationTaskThreadPlanningInput['capabilities']
-    activeThreads: AlicizationTaskThreadRecord[]
-    settledThreads: AlicizationTaskThreadRecord[]
-  }) => AlicizationTaskRoutingAssessment | null | Promise<AlicizationTaskRoutingAssessment | null>
   sanitizeText: (raw: unknown, fallback?: string) => string
 }
 
@@ -532,9 +525,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     checkedAt: number
     ready: boolean
   }>()
-  const taskExecutionGovernor = createTaskExecutionGovernor({
-    assessTaskRouting: options.assessTaskRouting,
-  })
+  const taskExecutionGovernor = createTaskExecutionGovernor()
 
   async function probeBinaryReady(binary: string) {
     const cached = executionCapabilityProbeCache.get(binary)

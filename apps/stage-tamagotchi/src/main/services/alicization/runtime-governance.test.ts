@@ -665,7 +665,7 @@ describe('runtime-governance', () => {
     )
   })
 
-  it('suppresses need-reground fallback takeover for explicit execution-bound turns', () => {
+  it('does not rewrite governance from execution-like user text', () => {
     const input: AlicizationConversationTurnInput = {
       turnId: 'turn-execution-bound-1',
       sessionId: 'session-1',
@@ -714,6 +714,20 @@ describe('runtime-governance', () => {
     expect(governed.payload.assistantText).toBe('好的。')
     expect(String(structured.reply ?? '')).toBe('好的。')
     expect(String(structured.reply ?? '')).not.toContain('我先守住真实边界')
+    expect(governed.governance).toEqual(expect.objectContaining({
+      turnMode: 'answer',
+      answerAct: 'ask-reground',
+      screenReferenceMode: 'required',
+      repairState: 'need-reground',
+      shouldAskForGrounding: true,
+      shouldAcknowledgeRepair: true,
+    }))
+    expect(governed.reasons).not.toContain('execution-first-governance-normalized')
+    expect(governed.audit).not.toHaveProperty('execution_bound_turn')
+    expect(governed.audit).not.toHaveProperty('execution_first_override_applied')
+    expect(governed.audit).not.toHaveProperty('execution_signal_score')
+    expect(governed.audit).not.toHaveProperty('execution_dispatch_channels')
+    expect(governed.audit).not.toHaveProperty('execution_reason_codes')
   })
 
   it('records recall attribution and reply-memory coherence on the same decision trace', () => {

@@ -18,13 +18,14 @@ function createCapabilities(
 }
 
 describe('buildClawFabricPlan', () => {
-  it('prefers browser automation over generic desktop claw', () => {
+  it('routes the structured browser channel over other available bodies', () => {
     const plan = buildClawFabricPlan({
       task: {
         kind: 'browser-automation',
         goal: 'Open the current browser tab and submit the visible form.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'browser',
         requiresVisualGrounding: true,
       },
       capabilities: createCapabilities(['browser', 'software', 'desktop']),
@@ -32,16 +33,18 @@ describe('buildClawFabricPlan', () => {
 
     expect(plan.state).toBe('routed')
     expect(plan.selectedChannel).toBe('browser')
-    expect(plan.preferredChannels.slice(0, 3)).toEqual(['browser', 'software', 'desktop'])
+    expect(plan.preferredChannels).toEqual(['browser'])
+    expect(plan.fallbackChannels).toEqual([])
   })
 
-  it('prefers local browser control for visually grounded unknown webpage tasks before cli or openclaw', () => {
+  it('routes a structured browser request for an otherwise unknown visual task', () => {
     const plan = buildClawFabricPlan({
       task: {
         kind: 'unknown',
         goal: 'Figure out the next step on the current webpage and keep the flow moving.',
         origin: 'user',
         effect: 'observe',
+        requestedChannel: 'browser',
         requiresVisualGrounding: true,
       },
       capabilities: createCapabilities(['cli', 'codex', 'browser', 'openclaw']),
@@ -52,13 +55,14 @@ describe('buildClawFabricPlan', () => {
     expect(plan.preferredChannels[0]).toBe('browser')
   })
 
-  it('prefers local desktop grounding for visually grounded unknown screen tasks before cli or openclaw', () => {
+  it('routes a structured desktop request for an otherwise unknown visual task', () => {
     const plan = buildClawFabricPlan({
       task: {
         kind: 'unknown',
         goal: 'Figure out what is on the current screen and decide the next GUI step.',
         origin: 'user',
         effect: 'observe',
+        requestedChannel: 'desktop',
         requiresVisualGrounding: true,
       },
       capabilities: createCapabilities(['cli', 'desktop', 'openclaw']),
@@ -69,13 +73,14 @@ describe('buildClawFabricPlan', () => {
     expect(plan.preferredChannels[0]).toBe('desktop')
   })
 
-  it('routes codebase work into code agents before shell or desktop fallback', () => {
+  it('routes a structured codex request without proposing fallback bodies', () => {
     const plan = buildClawFabricPlan({
       task: {
         kind: 'codebase-edit',
         goal: 'Patch the current TypeScript module and explain the diff.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'codex',
         prefersPersistentSession: true,
       },
       capabilities: createCapabilities(['codex', 'claude-code', 'cli', 'desktop']),
@@ -83,32 +88,35 @@ describe('buildClawFabricPlan', () => {
 
     expect(plan.state).toBe('routed')
     expect(plan.selectedChannel).toBe('codex')
-    expect(plan.preferredChannels.slice(0, 4)).toEqual(['codex', 'claude-code', 'cli', 'desktop'])
+    expect(plan.preferredChannels).toEqual(['codex'])
+    expect(plan.fallbackChannels).toEqual([])
   })
 
-  it('falls back from codex to claude-code and cli when codex is unavailable', () => {
+  it('routes the structured claude-code channel without inferring a fallback chain', () => {
     const plan = buildClawFabricPlan({
       task: {
         kind: 'codebase-investigation',
         goal: 'Trace where the runtime loses the current turn context.',
         origin: 'user',
         effect: 'observe',
+        requestedChannel: 'claude-code',
       },
       capabilities: createCapabilities(['claude-code', 'cli', 'desktop']),
     })
 
     expect(plan.state).toBe('routed')
     expect(plan.selectedChannel).toBe('claude-code')
-    expect(plan.fallbackChannels.slice(0, 2)).toEqual(['cli', 'desktop'])
+    expect(plan.fallbackChannels).toEqual([])
   })
 
-  it('adapts routing using channel outcomes and session continuity hints', () => {
+  it('carries channel outcomes and session continuity for the structured channel', () => {
     const plan = buildClawFabricPlan({
       task: {
         kind: 'codebase-edit',
         goal: 'Patch the current task-thread runtime regression.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'claude-code',
         prefersPersistentSession: true,
       },
       capabilities: createCapabilities(['codex', 'claude-code', 'cli']),
@@ -138,31 +146,36 @@ describe('buildClawFabricPlan', () => {
     expect(plan.narrative.join(' ')).toContain('Routing stayed on the currently attached executor body')
   })
 
-  it('follows explicit channel cues from the task goal when no channel pin exists', () => {
+  it('does not infer a channel from free-form goal text', () => {
     const plan = buildClawFabricPlan({
       task: {
         kind: 'browser-automation',
         goal: 'Use OpenClaw to click the login button in the current web page.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: null,
         requiresVisualGrounding: true,
       },
       capabilities: createCapabilities(['browser', 'openclaw', 'software']),
     })
 
-    expect(plan.state).toBe('routed')
-    expect(plan.selectedChannel).toBe('openclaw')
-    expect(plan.reasonTags).toContain('goal-mentioned-channel')
-    expect(plan.narrative.join(' ')).toContain('Routing followed explicit channel cues')
+    expect(plan.state).toBe('blocked')
+    expect(plan.selectedChannel).toBeNull()
+    expect(plan.proposedChannel).toBeNull()
+    expect(plan.preferredChannels).toEqual([])
+    expect(plan.fallbackChannels).toEqual([])
+    expect(plan.blockedReasonCodes).toContain('task-channel-required')
+    expect(plan.reasonTags).not.toContain('goal-mentioned-channel')
   })
 
-  it('uses goal-affinity continuity hints from similar historical tasks', () => {
+  it('does not let goal-affinity experience override the structured channel', () => {
     const plan = buildClawFabricPlan({
       task: {
         kind: 'codebase-edit',
         goal: 'Fix the mind-turn continuity regression around thread routing.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'codex',
       },
       capabilities: createCapabilities(['codex', 'claude-code', 'cli']),
       experience: {
@@ -181,20 +194,18 @@ describe('buildClawFabricPlan', () => {
     })
 
     expect(plan.state).toBe('routed')
-    expect(plan.selectedChannel).toBe('claude-code')
-    expect(plan.reasonTags).toEqual(expect.arrayContaining([
-      'goal-affinity:claude-code',
-      'goal-affinity-channel',
-    ]))
+    expect(plan.selectedChannel).toBe('codex')
+    expect(plan.proposedChannel).toBe('codex')
   })
 
-  it('lets remembered procedure continuity bias routing before a fresh plan is authored', () => {
+  it('carries remembered procedure continuity for the structured channel', () => {
     const plan = buildClawFabricPlan({
       task: {
         kind: 'codebase-edit',
         goal: 'Patch the runtime continuity seam and verify it.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'claude-code',
       },
       capabilities: createCapabilities(['codex', 'claude-code', 'cli']),
       experience: {
@@ -217,17 +228,18 @@ describe('buildClawFabricPlan', () => {
     expect(plan.state).toBe('routed')
     expect(plan.selectedChannel).toBe('claude-code')
     expect(plan.reasonTags).toContain('remembered-procedure-channel')
-    expect(plan.narrative.join(' ')).toContain('Routing reused remembered procedure')
+    expect(plan.narrative.join(' ')).toContain('The structured route carries remembered procedure')
     expect(plan.narrative.join(' ')).toContain('steps:')
   })
 
-  it('respects external advisor channel hints when confidence is high', () => {
+  it('does not let advisor experience override the structured channel', () => {
     const plan = buildClawFabricPlan({
       task: {
         kind: 'codebase-edit',
         goal: 'Refactor the runtime event orchestrator.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'codex',
       },
       capabilities: createCapabilities(['codex', 'claude-code']),
       experience: {
@@ -238,11 +250,8 @@ describe('buildClawFabricPlan', () => {
     })
 
     expect(plan.state).toBe('routed')
-    expect(plan.selectedChannel).toBe('claude-code')
-    expect(plan.reasonTags).toEqual(expect.arrayContaining([
-      'advisor:claude-code',
-      'advisor-channel',
-    ]))
+    expect(plan.selectedChannel).toBe('codex')
+    expect(plan.proposedChannel).toBe('codex')
   })
 
   it('does not silently fall back when the caller explicitly pinned a requested channel', () => {
@@ -271,6 +280,7 @@ describe('buildClawFabricPlan', () => {
         goal: 'Publish the current draft in the foreground app.',
         origin: 'proactive',
         effect: 'mutate',
+        requestedChannel: 'software',
       },
       capabilities: createCapabilities(['software', 'desktop']),
     })
@@ -290,6 +300,7 @@ describe('buildClawFabricPlan', () => {
         effect: 'mutate',
         justification: 'grounded',
         riskBudget: 'low',
+        requestedChannel: 'codex',
       },
       capabilities: createCapabilities(['codex', 'claude-code']),
     })
@@ -308,6 +319,7 @@ describe('buildClawFabricPlan', () => {
         effect: 'mutate',
         justification: 'grounded',
         riskBudget: 'medium',
+        requestedChannel: 'codex',
       },
       capabilities: createCapabilities(['codex', 'claude-code']),
     })
@@ -317,7 +329,7 @@ describe('buildClawFabricPlan', () => {
     expect(plan.affirmationReasonCodes).toContain('medium-risk-proactive-action-requires-affirmation')
   })
 
-  it('keeps generic desktop fallback behind stronger justification', () => {
+  it('does not propose desktop when no structured channel is present', () => {
     const plan = buildClawFabricPlan({
       task: {
         kind: 'browser-automation',
@@ -325,14 +337,15 @@ describe('buildClawFabricPlan', () => {
         origin: 'user',
         effect: 'mutate',
         justification: 'weak',
+        requestedChannel: null,
       },
       capabilities: createCapabilities(['desktop']),
     })
 
-    expect(plan.state).toBe('needs-affirmation')
+    expect(plan.state).toBe('blocked')
     expect(plan.selectedChannel).toBeNull()
-    expect(plan.proposedChannel).toBe('desktop')
-    expect(plan.affirmationReasonCodes).toContain('desktop-fallback-requires-explicit-or-grounded-justification')
+    expect(plan.proposedChannel).toBeNull()
+    expect(plan.blockedReasonCodes).toContain('task-channel-required')
   })
 
   it('allows explicit desktop requests when the operator already chose that body', () => {

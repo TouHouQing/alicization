@@ -388,7 +388,6 @@ import {
   setAlicizationCardKillSwitchState,
   setAlicizationKillSwitchState,
 } from './state'
-import { assessAlicizationTaskRouting } from './task-routing-assessor'
 import { createTaskThreadOrchestrator } from './task-thread-orchestrator'
 import { registerDialogueWorldThreadAssistantTurn } from './turn-outcome-reducer'
 import {
@@ -1300,7 +1299,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const dialogueSessionManager = createAlicizationDialogueSessionManager()
   const executorRuntime = createAlicizationExecutorRuntime({
     appendAuditLog,
-    assessTaskRouting: input => assessAlicizationTaskRouting(input),
     dispatchTaskThread: invocation => dispatchTaskThreadWithExecutionDelivery(invocation),
     ensureSessionId: ensureActiveOrLatestSessionId,
     getAlicizationDb: () => alicizationDb,

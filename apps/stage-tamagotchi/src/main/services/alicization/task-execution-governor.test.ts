@@ -7,8 +7,6 @@ import type {
   AlicizationTaskThreadUpsertInput,
 } from '@proj-alicization/stage-shared'
 
-import type { AlicizationTaskRoutingAssessment } from './task-execution-governor'
-
 import { describe, expect, it, vi } from 'vitest'
 
 import { alicizationExecutionChannels } from './claw-fabric'
@@ -153,6 +151,7 @@ describe('task execution governor', () => {
         goal: 'Patch the runtime regression.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'codex',
         prefersPersistentSession: true,
       },
       capabilities: createCapabilities(['codex', 'claude-code', 'cli']),
@@ -199,6 +198,7 @@ describe('task execution governor', () => {
         goal: 'Run the local test suite.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'cli',
       },
       capabilities: createCapabilities(['cli']),
     })
@@ -268,6 +268,7 @@ describe('task execution governor', () => {
         goal: 'Fix runtime drift.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'claude-code',
         prefersPersistentSession: true,
       },
       capabilities: createCapabilities(['codex', 'claude-code', 'cli']),
@@ -279,9 +280,8 @@ describe('task execution governor', () => {
       fabric: expect.objectContaining({
         experience: expect.objectContaining({
           sessionResumeChannel: 'claude-code',
-          goalAffinityChannel: 'claude-code',
-          goalAffinityScore: expect.any(Number),
-          goalAffinityReason: expect.stringContaining('similar-goal-history:claude-code'),
+          goalAffinityChannel: null,
+          advisorChannel: null,
           channelOutcomes: expect.objectContaining({
             'codex': expect.objectContaining({
               failed: 1,
@@ -295,15 +295,9 @@ describe('task execution governor', () => {
     }))
   })
 
-  it('accepts optional assessor channel hints and feeds them into routing experience', async () => {
-    const assessTaskRouting = vi.fn(async (): Promise<AlicizationTaskRoutingAssessment> => ({
-      channel: 'claude-code',
-      confidence: 0.93,
-      reason: 'llm-assessor:claude-code-best-fit',
-    }))
+  it('does not select an executor for a free-form goal without requestedChannel', async () => {
     const governor = createTaskExecutionGovernor({
       getNow: () => 700,
-      assessTaskRouting,
     })
     const port = createPort()
 
@@ -318,25 +312,21 @@ describe('task execution governor', () => {
       },
       task: {
         kind: 'codebase-edit',
-        goal: 'Refactor the runtime session mirror pipeline.',
+        goal: 'Use Claude Code to refactor the runtime session mirror pipeline.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: null,
       },
       capabilities: createCapabilities(['codex', 'claude-code']),
     })
 
-    expect(assessTaskRouting).toBeCalledTimes(1)
-    expect(result.plan.state).toBe('routed')
-    expect(result.thread.selectedChannel).toBe('claude-code')
-    expect(port.readPersistedThread()?.metadata).toEqual(expect.objectContaining({
-      fabric: expect.objectContaining({
-        experience: expect.objectContaining({
-          advisorChannel: 'claude-code',
-          advisorConfidence: 0.93,
-          advisorReason: 'llm-assessor:claude-code-best-fit',
-        }),
-      }),
-    }))
+    expect(result.plan.state).toBe('blocked')
+    expect(result.plan.selectedChannel).toBeNull()
+    expect(result.plan.proposedChannel).toBeNull()
+    expect(result.plan.blockedReasonCodes).toContain('task-channel-required')
+    expect(result.thread.status).toBe('blocked')
+    expect(result.thread.selectedChannel).toBeNull()
+    expect(result.thread.proposedChannel).toBeNull()
   })
 
   it('does not attach openclaw session-resume hints for browser bodies that now redispatch locally', async () => {
@@ -361,6 +351,7 @@ describe('task execution governor', () => {
         goal: 'Dismiss the foreground browser modal.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'browser',
         requiresVisualGrounding: true,
       },
       capabilities: createCapabilities(['browser']),
@@ -401,6 +392,7 @@ describe('task execution governor', () => {
         goal: 'Use OpenClaw to dismiss the foreground browser modal.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'openclaw',
         requiresVisualGrounding: true,
       },
       capabilities: createCapabilities(['openclaw']),

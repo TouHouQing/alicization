@@ -49,7 +49,6 @@ import {
   normalizeAlicizationNormalVisibleReplyAuthority,
   normalizeAlicizationOrganicMemoryStageReplay,
   normalizeAlicizationRuntimeDigest,
-  normalizeExecutionFirstGovernance,
   resolveAlicizationDialogueEmbodiment,
   sanitizeCharacterPerformanceManifest,
   translateGovernedMindFallback as translateGovernedMindFallbackShared,
@@ -1655,11 +1654,7 @@ export function coerceConversationTurnToMindGovernedPayload(
     ...governedAnchorRepair.governance,
     decisionTraceId: ensureMindGovernanceDecisionTraceId(governedAnchorRepair.governance.decisionTraceId),
   } satisfies AlicizationMindTurnGovernance
-  const executionFirstGovernance = normalizeExecutionFirstGovernance({
-    governance: anchorCoherentGovernance,
-    userText: input.userText,
-  })
-  const coherentGovernance = (executionFirstGovernance.governance ?? anchorCoherentGovernance) as AlicizationMindTurnGovernance
+  const coherentGovernance = anchorCoherentGovernance
   const invalidFormat = rawFormat !== 'mind-turn-v1'
   const invalidParsePath = parsePath !== 'json'
   const contractFailed = structuredPayload.contractFailed === true
@@ -1717,7 +1712,6 @@ export function coerceConversationTurnToMindGovernedPayload(
   const candidateReply = reply
   const reasons = [
     governedAnchorRepair.changed ? 'governance-anchor-coherence-repaired' : '',
-    executionFirstGovernance.applied ? 'execution-first-governance-normalized' : '',
     structuredPayload.governance == null ? 'governance-snapshot-injected' : '',
   ].filter(Boolean)
   const overrideClass = 'none'
@@ -1840,18 +1834,6 @@ export function coerceConversationTurnToMindGovernedPayload(
       answer_intent_after: coherentGovernance.answerIntent ?? null,
       carried_thread_before: governance.carriedThread ?? null,
       carried_thread_after: coherentGovernance.carriedThread ?? null,
-      execution_bound_turn: executionFirstGovernance.executionBound,
-      execution_first_override_applied: executionFirstGovernance.applied,
-      execution_explicit_demand: executionFirstGovernance.explicitExecutionDemand,
-      execution_signal_score: executionFirstGovernance.signalScore,
-      execution_dispatch_channels: executionFirstGovernance.mentionedDispatchChannels,
-      execution_reason_codes: executionFirstGovernance.reasonCodes,
-      execution_turn_mode_before: anchorCoherentGovernance.turnMode,
-      execution_turn_mode_after: coherentGovernance.turnMode,
-      execution_answer_act_before: anchorCoherentGovernance.answerAct ?? null,
-      execution_answer_act_after: coherentGovernance.answerAct ?? null,
-      execution_screen_mode_before: anchorCoherentGovernance.screenReferenceMode ?? null,
-      execution_screen_mode_after: coherentGovernance.screenReferenceMode ?? null,
       anchor_candidates_before: summarizeGovernanceAnchorAuditCandidates(governedAnchorRepair.anchorCandidatesBefore),
       anchor_candidates_after: summarizeGovernanceAnchorAuditCandidates(governedAnchorRepair.anchorCandidatesAfter),
       claim_specificity_budget: coherentGovernance.claimEvidence?.specificityBudget ?? null,

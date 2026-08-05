@@ -2672,7 +2672,7 @@ describe('alicization runtime audit helpers', () => {
     ]))
   })
 
-  it('plans task threads through the runtime governor before persistence', async () => {
+  it('does not select an executor from a free-form task goal without requestedChannel', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -2692,9 +2692,10 @@ describe('alicization runtime audit helpers', () => {
       },
       task: {
         kind: 'codebase-edit',
-        goal: 'Patch the current runtime regression.',
+        goal: 'Use Codex to patch the current runtime regression.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: null,
         prefersPersistentSession: true,
       },
       capabilities: [
@@ -2724,28 +2725,32 @@ describe('alicization runtime audit helpers', () => {
     expect(dbStub.upsertTaskThread).toBeCalledWith(expect.objectContaining({
       id: 'thread-plan-1',
       decisionTraceId: 'mind:l9f3lq:feedfacecafe',
-      status: 'planned',
-      selectedChannel: 'codex',
-      proposedChannel: 'codex',
+      status: 'blocked',
+      selectedChannel: null,
+      proposedChannel: null,
     }))
     expect(dbStub.appendExecutionEvents).toBeCalledWith([
       expect.objectContaining({
         threadId: 'thread-plan-1',
         kind: 'plan',
-        threadStatus: 'planned',
-        channel: 'codex',
+        threadStatus: 'blocked',
+        channel: null,
+        payload: expect.objectContaining({
+          blockedReasonCodes: expect.arrayContaining(['task-channel-required']),
+        }),
       }),
     ])
     expect(result).toEqual(expect.objectContaining({
       createdEventKinds: ['plan'],
       plan: expect.objectContaining({
-        state: 'routed',
-        selectedChannel: 'codex',
-        proposedChannel: 'codex',
+        state: 'blocked',
+        selectedChannel: null,
+        proposedChannel: null,
+        blockedReasonCodes: expect.arrayContaining(['task-channel-required']),
       }),
       thread: expect.objectContaining({
         id: 'thread-plan-1',
-        status: 'planned',
+        status: 'blocked',
       }),
     }))
   })
@@ -2794,6 +2799,7 @@ describe('alicization runtime audit helpers', () => {
         goal: 'Patch the runtime continuity seam and verify it.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'claude-code',
         prefersPersistentSession: true,
       },
       capabilities: [
@@ -2949,6 +2955,7 @@ describe('alicization runtime audit helpers', () => {
         goal: 'Patch the runtime seam, verify it, and keep the callback light while I am focused.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'claude-code',
         prefersPersistentSession: true,
       },
       capabilities: [
@@ -3066,6 +3073,7 @@ describe('alicization runtime audit helpers', () => {
         goal: 'Patch the runtime continuity seam and verify it.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'claude-code',
         prefersPersistentSession: true,
       },
       capabilities: [
@@ -3158,6 +3166,7 @@ describe('alicization runtime audit helpers', () => {
         goal: 'Patch the current runtime regression.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'codex',
         prefersPersistentSession: true,
       },
     })
@@ -3345,6 +3354,7 @@ describe('alicization runtime audit helpers', () => {
         goal: 'Patch the current runtime regression.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'codex',
         prefersPersistentSession: true,
       },
       capabilities: [{

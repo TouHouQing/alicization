@@ -1,3 +1,8 @@
+import type {
+  AlicizationExecutionToolInputOverrides,
+  AlicizationKnownWebsiteResolution,
+} from './alicization-execution-capabilities'
+
 export const alicizationExecutionCapabilityChannels = [
   'cli',
   'codex',
@@ -33,8 +38,6 @@ export type AlicizationExecutorToolName
     | 'desktop_press_keys'
     | 'desktop_open_application'
     | 'desktop_wait'
-
-export type AlicizationExecutionToolInputOverrides = Partial<Record<AlicizationExecutorToolName, Record<string, unknown>>>
 
 export interface AlicizationExecutionCapabilityInquiry {
   active: boolean
@@ -76,13 +79,6 @@ export interface AlicizationExecutionTurnAuthority {
   fallbackImperative: boolean
   executionBound: boolean
   reasonCodes: string[]
-}
-
-export interface AlicizationKnownWebsiteResolution {
-  label: string
-  matchedAlias: string
-  site: string
-  url: string
 }
 
 const executionCapabilityAliasPatterns: Record<AlicizationExecutionCapabilityChannel, RegExp[]> = {

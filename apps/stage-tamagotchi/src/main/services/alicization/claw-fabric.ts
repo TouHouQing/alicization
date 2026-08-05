@@ -14,8 +14,6 @@ import type {
   AlicizationExecutionTaskKind as SharedAlicizationExecutionTaskKind,
 } from '@proj-alicization/stage-shared'
 
-import { analyzeAlicizationExecutionSemanticSignals } from '@proj-alicization/stage-shared'
-
 export const alicizationExecutionChannels = [
   'cli',
   'codex',
@@ -99,17 +97,6 @@ interface AlicizationResolvedChannelCapability extends AlicizationChannelCapabil
   ready: boolean
   sessionAffinity: boolean
 }
-
-interface AlicizationGoalSemanticSignals {
-  mentionedChannels: AlicizationExecutionChannel[]
-  hasCommandLiteral: boolean
-  hasCodeIntent: boolean
-  hasBrowserIntent: boolean
-  hasSoftwareIntent: boolean
-}
-
-const browserLikeGoalPattern = /\bweb\s?page\b|\bpage\b|\bsite\b|\bbrowser\b|\btab\b|\burl\b|网页|页面|浏览器|标签页/u
-const screenLikeGoalPattern = /\bscreen\b|\bscene\b|\bgui\b|\bdialog\b|\bpopup\b|\bmodal\b|屏幕|界面|画面|窗口|弹窗|对话框/u
 
 const channelTraits = {
   'cli': {
@@ -214,20 +201,6 @@ function clamp01(raw: unknown) {
   return Math.max(0, Math.min(1, Number(raw)))
 }
 
-function deriveGoalSemanticSignals(task: AlicizationClawTaskIntent): AlicizationGoalSemanticSignals {
-  const goalText = normalizeText(task.goal, 600)
-  const semanticSignals = analyzeAlicizationExecutionSemanticSignals(goalText)
-  const mentionedChannels = semanticSignals.mentionedChannels
-    .filter((channel): channel is AlicizationExecutionChannel => alicizationExecutionChannels.includes(channel))
-  return {
-    mentionedChannels,
-    hasCommandLiteral: semanticSignals.hasCommandLiteral || semanticSignals.hasShellLikeStructure,
-    hasCodeIntent: semanticSignals.hasCodeArtifact,
-    hasBrowserIntent: semanticSignals.hasBrowserArtifact || browserLikeGoalPattern.test(goalText),
-    hasSoftwareIntent: semanticSignals.hasSoftwareArtifact || screenLikeGoalPattern.test(goalText),
-  }
-}
-
 function normalizeCount(raw: unknown) {
   if (!Number.isFinite(raw))
     return 0
@@ -309,7 +282,6 @@ function isChannelSupportedForTask(
 function buildCandidateAssessment(input: {
   capability: AlicizationResolvedChannelCapability
   task: AlicizationClawTaskIntent
-  goalSignals: AlicizationGoalSemanticSignals
   experience?: AlicizationClawFabricExperience | null
 }) {
   const { capability, task } = input
@@ -355,50 +327,6 @@ function buildCandidateAssessment(input: {
     }
   }
 
-  const visualExplorationTask
-    = task.requiresVisualGrounding
-      && (task.kind === 'unknown' || task.kind === 'mixed')
-  if (visualExplorationTask) {
-    if (channel === 'cli' || channel === 'codex' || channel === 'claude-code') {
-      score -= 104
-      reasons.push('visual-grounding-deprioritizes-nonvisual-channel')
-    }
-
-    if (input.goalSignals.hasBrowserIntent) {
-      if (channel === 'browser') {
-        score += 108
-        reasons.push('visual-browser-grounding-preferred')
-      }
-      else if (channel === 'software') {
-        score += 72
-        reasons.push('visual-browser-grounding-fallback')
-      }
-      else if (channel === 'desktop') {
-        score += 36
-        reasons.push('visual-browser-grounding-desktop-fallback')
-      }
-      else if (channel === 'openclaw' || channel === 'openfang') {
-        score += 12
-        reasons.push('visual-browser-grounding-last-resort')
-      }
-    }
-
-    if (input.goalSignals.hasSoftwareIntent && !input.goalSignals.hasBrowserIntent) {
-      if (channel === 'desktop') {
-        score += 190
-        reasons.push('visual-desktop-grounding-preferred')
-      }
-      else if (channel === 'software') {
-        score += 84
-        reasons.push('visual-desktop-grounding-app-fallback')
-      }
-      else if (channel === 'openclaw' || channel === 'openfang') {
-        score += 18
-        reasons.push('visual-desktop-grounding-last-resort')
-      }
-    }
-  }
-
   const prefersPersistentSession = task.prefersPersistentSession === true
   if (prefersPersistentSession && capability.sessionAffinity) {
     score += 10
@@ -421,38 +349,6 @@ function buildCandidateAssessment(input: {
     reasons.push('cli-direct-fit')
   if (channel === 'software' && task.kind === 'software-automation')
     reasons.push('app-specific-body')
-
-  if (!task.requestedChannel && input.goalSignals.mentionedChannels.length > 0) {
-    const mentionedIndex = input.goalSignals.mentionedChannels.indexOf(channel)
-    if (mentionedIndex >= 0) {
-      score += Math.max(72, 118 - mentionedIndex * 8)
-      reasons.push('goal-mentioned-channel')
-    }
-    else {
-      score -= 14
-      reasons.push('goal-mentioned-other-channel')
-    }
-  }
-
-  if (input.goalSignals.hasCommandLiteral && channel === 'cli') {
-    score += 34
-    reasons.push('goal-command-literal')
-  }
-
-  if (input.goalSignals.hasCodeIntent && (channel === 'codex' || channel === 'claude-code')) {
-    score += 16
-    reasons.push('goal-code-intent')
-  }
-
-  if (input.goalSignals.hasBrowserIntent && (channel === 'browser' || channel === 'openclaw' || channel === 'software')) {
-    score += 14
-    reasons.push('goal-browser-intent')
-  }
-
-  if (input.goalSignals.hasSoftwareIntent && (channel === 'software' || channel === 'openclaw' || channel === 'desktop')) {
-    score += 12
-    reasons.push('goal-software-intent')
-  }
 
   const channelOutcome = normalizeOutcomeSummary(input.experience?.channelOutcomes?.[channel])
   if (channelOutcome.completed > 0) {
@@ -614,8 +510,27 @@ export function buildClawFabricPlan(input: {
     }
   }
 
+  if (!input.task.requestedChannel) {
+    return {
+      state: 'blocked',
+      selectedChannel: null,
+      proposedChannel: null,
+      preferredChannels: [],
+      fallbackChannels: [],
+      candidates: [],
+      reasonTags: [
+        `task:${input.task.kind}`,
+        'task-channel-required',
+      ],
+      narrative: [
+        'Execution routing requires a structured requestedChannel selected by the model.',
+      ],
+      affirmationReasonCodes: [],
+      blockedReasonCodes: ['task-channel-required'],
+    }
+  }
+
   const capabilityMap = resolveCapabilityMap(input.capabilities)
-  const goalSignals = deriveGoalSemanticSignals(input.task)
   const candidates = alicizationExecutionChannels.map((channel) => {
     const capability = capabilityMap.get(channel) ?? {
       channel,
@@ -628,7 +543,6 @@ export function buildClawFabricPlan(input: {
     return buildCandidateAssessment({
       capability,
       task: input.task,
-      goalSignals,
       experience: input.experience,
     })
   }).sort((left, right) => {
@@ -696,16 +610,16 @@ export function buildClawFabricPlan(input: {
         ? 'Generic desktop claw stayed fallback-only and only surfaced because stronger structured channels were unavailable or explicitly bypassed.'
         : '',
       input.task.kind === 'browser-automation' && proposedChannel === 'browser'
-        ? 'Browser automation won because DOM-first or browser-native control is safer than generic desktop claw.'
+        ? 'The structured browser route keeps DOM-first or browser-native control ahead of generic desktop actions.'
         : '',
       (input.task.kind === 'codebase-edit' || input.task.kind === 'codebase-investigation') && (proposedChannel === 'codex' || proposedChannel === 'claude-code')
-        ? 'Code work routed into a code agent before falling back to shell or desktop control.'
+        ? 'The requested code-agent route keeps code work inside a structured coding body.'
         : '',
       input.task.kind === 'run-command' && proposedChannel === 'cli'
-        ? 'CLI won because direct command execution is the most structured body for shell work.'
+        ? 'The requested CLI route keeps shell work inside direct structured command execution.'
         : '',
       input.task.kind === 'software-automation' && proposedChannel === 'software'
-        ? 'App-specific software control won before generic desktop claw.'
+        ? 'The requested app-specific software route avoids unnecessary generic desktop control.'
         : '',
       eligibleCandidates[0].reasons.includes('session-resume-channel')
         ? 'Routing stayed on the currently attached executor body to preserve embodied continuity and avoid a cold start.'
@@ -716,14 +630,11 @@ export function buildClawFabricPlan(input: {
       eligibleCandidates[0].reasons.includes('history-failure-pressure')
         ? 'Failure pressure reduced this channel priority unless no safer candidate existed.'
         : '',
-      eligibleCandidates[0].reasons.includes('goal-mentioned-channel')
-        ? 'Routing followed explicit channel cues present in the task goal.'
-        : '',
       eligibleCandidates[0].reasons.includes('goal-affinity-channel')
-        ? 'Routing aligned with similar historical task outcomes to preserve continuity.'
+        ? 'The structured route is consistent with similar historical task outcomes.'
         : '',
       eligibleCandidates[0].reasons.includes('advisor-channel')
-        ? 'Routing adopted the external channel assessor recommendation with confidence weighting.'
+        ? 'The structured route is consistent with the provided advisor experience.'
         : '',
       eligibleCandidates[0].reasons.includes('remembered-procedure-channel')
         ? (() => {
@@ -733,7 +644,7 @@ export function buildClawFabricPlan(input: {
             })
             if (!procedure)
               return ''
-            return `Routing reused remembered procedure: ${normalizeText(procedure.traceSummary, 220) || normalizeText(procedure.approach, 180) || normalizeText(procedure.label, 140)}.`
+            return `The structured route carries remembered procedure: ${normalizeText(procedure.traceSummary, 220) || normalizeText(procedure.approach, 180) || normalizeText(procedure.label, 140)}.`
           })()
         : '',
       affirmationReasonCodes.includes('proactive-side-effects-require-explicit-consent')
