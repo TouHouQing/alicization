@@ -9,11 +9,30 @@ import { describe, expect, it } from 'vitest'
 
 import {
   normalizeAlicizationDerivedMindStateBundle,
+  normalizeAlicizationDialogueReplyFeedbackFact,
   normalizeAlicizationDigitalLifeSpineDigest,
   normalizeAlicizationRuntimeDigest,
 } from './alicization-transport-contracts'
 
 describe('alicization transport contracts', () => {
+  it('accepts only structured dialogue reply feedback facts', () => {
+    expect(normalizeAlicizationDialogueReplyFeedbackFact({
+      kind: 'missed',
+      source: 'typed-provider',
+      replyTurnId: 'turn-1',
+    })).toEqual({
+      kind: 'missed',
+      source: 'typed-provider',
+      replyTurnId: 'turn-1',
+    })
+    expect(normalizeAlicizationDialogueReplyFeedbackFact({
+      kind: 'missed',
+      source: 'typed-provider',
+      replyTurnId: '',
+    })).toBeNull()
+    expect(normalizeAlicizationDialogueReplyFeedbackFact('你没答到')).toBeNull()
+  })
+
   it('carries visible-reply realization as a finish sidecar without merging it into Provider JSON', () => {
     const source = readFileSync(new URL('./alicization-transport-contracts.ts', import.meta.url), 'utf8')
     const finishEventSection = source.split('type: \'finish\'')[1]?.split('| {')[0] ?? ''

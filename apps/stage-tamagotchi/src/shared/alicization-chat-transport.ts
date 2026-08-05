@@ -1,5 +1,10 @@
 import type { AlicizationChatStartPayload } from './eventa'
 
+import {
+  normalizeAlicizationDialogueReplyFeedbackFact,
+  normalizeAlicizationProviderToolCapabilityLastError,
+} from '@proj-alicization/stage-shared'
+
 type JsonSafeValue
   = | null
     | string
@@ -213,6 +218,8 @@ export function summarizeAlicizationChatStartPayloadForTransport(payload: Aliciz
 export function sanitizeAlicizationChatStartPayloadForTransport(
   payload: AlicizationChatStartPayload,
 ) {
+  const providerToolCapabilityObservation = payload.providerToolCapabilityObservation
+  const dialogueReplyFeedback = normalizeAlicizationDialogueReplyFeedbackFact(payload.dialogueReplyFeedback)
   return sanitizeToCloneSafeJson({
     cardId: payload.cardId,
     turnId: payload.turnId,
@@ -227,5 +234,20 @@ export function sanitizeAlicizationChatStartPayloadForTransport(
     })),
     ...(payload.supportsTools !== undefined ? { supportsTools: payload.supportsTools } : {}),
     ...(payload.waitForTools !== undefined ? { waitForTools: payload.waitForTools } : {}),
+    ...(providerToolCapabilityObservation
+      ? {
+          providerToolCapabilityObservation: {
+            supported: providerToolCapabilityObservation.supported,
+            source: providerToolCapabilityObservation.source,
+            checkedAt: providerToolCapabilityObservation.checkedAt,
+            lastError: normalizeAlicizationProviderToolCapabilityLastError(
+              providerToolCapabilityObservation.source,
+            ),
+          },
+        }
+      : {}),
+    ...(dialogueReplyFeedback
+      ? { dialogueReplyFeedback }
+      : {}),
   }, 'payload')
 }

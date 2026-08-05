@@ -47,7 +47,7 @@ function createTimelineSegment(rendererHints: Record<string, unknown>) {
 }
 
 describe('alicization embodiment expression derivation', () => {
-  it('keeps remembered-seam more-room measured-return quieter than ordinary measured-return across lipsync, face, and motion derivation', () => {
+  it('does not infer embodiment intensity from renderer alias ordering', () => {
     const genericRendererHints = {
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
@@ -77,11 +77,7 @@ describe('alicization embodiment expression derivation', () => {
       timelineSegment: rememberedSeamTimelineSegment as any,
     })
 
-    expect(rememberedSeamLipSyncHints).toHaveLength(genericLipSyncHints.length)
-    for (const genericHint of genericLipSyncHints) {
-      const rememberedSeamHint = rememberedSeamLipSyncHints.find(hint => hint.viseme === genericHint.viseme)
-      expect(rememberedSeamHint?.weight).toBeLessThan(genericHint.weight)
-    }
+    expect(rememberedSeamLipSyncHints).toEqual(genericLipSyncHints)
 
     const genericFaceCue = buildAlicizationEmbodimentFaceCue({
       segment: genericSegment as any,
@@ -98,8 +94,7 @@ describe('alicization embodiment expression derivation', () => {
       fallbackIntensity: 0.58,
     })
 
-    expect(rememberedSeamFaceCue.intensity).toBeLessThan(genericFaceCue.intensity)
-    expect(rememberedSeamFaceCue.facialCue).toBe(genericFaceCue.facialCue)
+    expect(rememberedSeamFaceCue).toEqual(genericFaceCue)
 
     const genericMotionBurst = buildAlicizationEmbodimentMotionBurst({
       segment: genericSegment as any,
@@ -114,8 +109,7 @@ describe('alicization embodiment expression derivation', () => {
       fallbackIntensity: 0.52,
     })
 
-    expect(rememberedSeamMotionBurst.intensity).toBeLessThan(genericMotionBurst.intensity)
-    expect(rememberedSeamMotionBurst.actionCue).toBe(genericMotionBurst.actionCue)
+    expect(rememberedSeamMotionBurst).toEqual(genericMotionBurst)
   })
 
   it('keeps audited continuity tokens from changing lipsync, face, or motion derivation', () => {
@@ -198,7 +192,7 @@ describe('alicization embodiment expression derivation', () => {
     }
   })
 
-  it('keeps explicit quiet measured-return callback hints softer than an ordinary measured-return even without the older remembered-seam alias swap', () => {
+  it('does not turn descriptive renderer preferences into hidden intensity multipliers', () => {
     const ordinaryRendererHints = {
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
@@ -223,11 +217,7 @@ describe('alicization embodiment expression derivation', () => {
       timelineSegment: createTimelineSegment(quieterRendererHints) as any,
     })
 
-    expect(quieterLipSyncHints).toHaveLength(ordinaryLipSyncHints.length)
-    for (const ordinaryHint of ordinaryLipSyncHints) {
-      const quieterHint = quieterLipSyncHints.find(hint => hint.viseme === ordinaryHint.viseme)
-      expect(quieterHint?.weight).toBeLessThan(ordinaryHint.weight)
-    }
+    expect(quieterLipSyncHints).toEqual(ordinaryLipSyncHints)
 
     const ordinaryFaceCue = buildAlicizationEmbodimentFaceCue({
       segment: createSpeechSegment(ordinaryRendererHints) as any,
@@ -257,11 +247,11 @@ describe('alicization embodiment expression derivation', () => {
       fallbackIntensity: 0.52,
     })
 
-    expect(quieterFaceCue.intensity).toBeLessThan(ordinaryFaceCue.intensity)
-    expect(quieterMotionBurst.intensity).toBeLessThan(ordinaryMotionBurst.intensity)
+    expect(quieterFaceCue).toEqual(ordinaryFaceCue)
+    expect(quieterMotionBurst).toEqual(ordinaryMotionBurst)
   })
 
-  it('keeps structured quiet-gaze and lipsync preferences authoritative without audit prose', () => {
+  it('keeps renderer preference labels separate from prosody-derived lipsync weights', () => {
     const baselineRendererHints = {
       residentMode: 'measured-return',
       preferredBlinkCadence: 'linger',
@@ -292,12 +282,8 @@ describe('alicization embodiment expression derivation', () => {
       timelineSegment: createTimelineSegment(restrainedLipsyncRendererHints) as any,
     })
 
-    expect(quietGazeLipSyncHints).not.toEqual(baselineLipSyncHints)
-    expect(restrainedLipSyncHints).toHaveLength(baselineLipSyncHints.length)
-    for (const baselineHint of baselineLipSyncHints) {
-      const restrainedHint = restrainedLipSyncHints.find(hint => hint.viseme === baselineHint.viseme)
-      expect(restrainedHint?.weight).toBeLessThan(baselineHint.weight)
-    }
+    expect(quietGazeLipSyncHints).toEqual(baselineLipSyncHints)
+    expect(restrainedLipSyncHints).toEqual(baselineLipSyncHints)
   })
 
   it('keeps pending continuity repair pressure tags from changing lipsync, face, or motion derivation', () => {

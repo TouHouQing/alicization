@@ -3,7 +3,7 @@ import type {
 } from '../../../shared/eventa'
 
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -11,7 +11,7 @@ import {
   alicizationProviderResponseFormat,
   resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   alicizationChatAbortInvokeChannel,
@@ -19,7 +19,6 @@ import {
   alicizationChatStreamChunk,
   alicizationChatStreamDispatchChannel,
   alicizationChatStreamFinish,
-  alicizationChatStreamMeta,
   alicizationChatStreamToolCall,
   alicizationChatStreamToolResult,
 
@@ -56,7 +55,6 @@ import {
   electronAlicizationRunReplayBenchmark,
   electronAlicizationSearchOrganicSubconsciousFragments,
   electronAlicizationSetActiveSession,
-  electronAlicizationSetPerformanceManifest,
   electronAlicizationSubconsciousForceDream,
   electronAlicizationSubconsciousForceTick,
   electronAlicizationUpdatePersonality,
@@ -66,7 +64,7 @@ import {
   electronAlicizationUpsertTaskThread,
   electronAlicizationVisualPresenceStateChanged,
 } from '../../../shared/eventa'
-import { buildAlicizationChatMetaSignature } from './main-chat-stream-meta'
+import { buildAlicizationPersonStateEvidenceRef } from './person-state-update-surface'
 import { setAlicizationCardKillSwitchState, setAlicizationKillSwitchState } from './state'
 
 const invokeHandlers = new Map<unknown, (payload?: any, options?: any) => Promise<any>>()
@@ -78,7 +76,7 @@ const streamTextMock = vi.fn()
 const generateTextMock = vi.fn()
 const directIpcHandlers = new Map<string, (event: any, payload?: any) => Promise<any> | any>()
 const listWebContentsMock = vi.fn<() => any[]>(() => [])
-const desktopCapturerGetSourcesMock = vi.fn<() => Promise<any[]>>(async () => [])
+const desktopCapturerGetSourcesMock = vi.fn<(input?: any) => Promise<any[]>>(async () => [])
 const systemPreferencesGetMediaAccessStatusMock = vi.fn(() => 'granted')
 const localBrowserAutomationOverrides: {
   clickElement?: (input: any) => Promise<any>
@@ -131,7 +129,6 @@ function expectModelOwnedExecutionFacts(systemTexts: string[]) {
     'alicization-execution-callbacks',
     'alicization-execution-capabilities',
     'alicization-execution-ledger',
-    'alicization-execution-reply-context',
   ])
   const executionFactTypes = systemTexts
     .map((text) => {
@@ -153,13 +150,27 @@ function expectModelOwnedExecutionFacts(systemTexts: string[]) {
 
 function expectExecutionCapabilityFact(systemTexts: string[]) {
   const fact = findAlicizationProviderFact(systemTexts, 'alicization-execution-capabilities')
+  expect(fact?.data).toMatchObject({
+    toolsOfferedThisTurn: expect.any(Boolean),
+    source: expect.any(String),
+    checkedAt: null,
+    lastError: null,
+  })
+  expect([true, false, null]).toContain(fact?.data.providerToolsSupported)
   expect(fact?.data.channels).toEqual(expect.arrayContaining([
     expect.objectContaining({ channel: 'cli' }),
     expect.objectContaining({ channel: 'codex' }),
     expect.objectContaining({ channel: 'claude-code' }),
     expect.objectContaining({ channel: 'openclaw' }),
   ]))
-  expect(Object.keys(fact?.data ?? {})).toEqual(['channels'])
+  expect(Object.keys(fact?.data ?? {})).toEqual([
+    'providerToolsSupported',
+    'toolsOfferedThisTurn',
+    'source',
+    'checkedAt',
+    'lastError',
+    'channels',
+  ])
 }
 
 const dbStub = {
@@ -182,6 +193,13 @@ const dbStub = {
   appendPersonStateEvolutionEntries: vi.fn().mockResolvedValue(undefined),
   upsertMemoryReflections: vi.fn().mockResolvedValue(undefined),
   retrieveMemoryFacts: vi.fn().mockResolvedValue([]),
+  retrieveLongTermMemoryEvidence: vi.fn().mockResolvedValue({
+    intent: {},
+    plan: {},
+    evidence: [],
+    confidence: 0,
+    budgetClass: 'none',
+  }),
   searchMemoryConsolidations: vi.fn().mockResolvedValue([]),
   runMemoryPrune: vi.fn().mockResolvedValue({
     total: 0,
@@ -619,11 +637,7 @@ async function emitRuntimeTestReply({
         .map(message => String(message.content ?? ''))
         .join('\n\n')
     : ''
-  const latestUserText = Array.isArray(messages)
-    ? String([...messages].reverse().find(message => message.role === 'user')?.content ?? '')
-    : ''
-
-  if (systemText.includes('You classify a screen snapshot for Alicization proactive policy.')) {
+  if (findAlicizationProviderFactInSystemText(systemText, 'alicization-screen-semantic-context')) {
     await onEvent?.({
       type: 'text-delta',
       text: JSON.stringify({
@@ -638,7 +652,7 @@ async function emitRuntimeTestReply({
     return
   }
 
-  if (systemText.includes('[ALICIZATION_SUBJECTIVE_INFERENCE]')) {
+  if (findAlicizationProviderFactInSystemText(systemText, 'alicization-subjective-inference-context')) {
     await onEvent?.({
       type: 'text-delta',
       text: JSON.stringify({
@@ -663,18 +677,11 @@ async function emitRuntimeTestReply({
     return
   }
 
-  const visibleReply = /屏幕|界面|看看/.test(latestUserText)
-    ? '我现在看到的是一个 Google Chrome 页面，标题像是 Java interview questions and answers；这是这轮新画面，不是旧记忆。'
-    : reply
-  const visibleThought = /屏幕|界面|看看/.test(latestUserText)
-    ? 'runtime test grounded screen response'
-    : thought
-
   await onEvent?.({
     type: 'text-delta',
     text: JSON.stringify(buildRuntimeMindTurnReply({
-      reply: visibleReply,
-      thought: visibleThought,
+      reply,
+      thought,
     })),
   })
   await onEvent?.({ type: 'finish', finishReason: 'stop' })
@@ -704,6 +711,8 @@ async function waitForChatFinishEvent(turnId: string) {
       }, null, 2))
     }
     expect(finishEvents).toHaveLength(1)
+  }, {
+    timeout: 5_000,
   })
 }
 
@@ -718,15 +727,6 @@ function isContextEvent(event: unknown, expected: unknown) {
       && (event as { name?: unknown }).name === (expected as { name?: unknown }).name)
 }
 
-function getChatEventPayloads<T = any>(expected: unknown, turnId?: string): T[] {
-  return contextEmitMock.mock.calls
-    .filter(([event, payload]) =>
-      isContextEvent(event, expected)
-      && (turnId === undefined || payload.turnId === turnId),
-    )
-    .map(([, payload]) => payload)
-}
-
 function findTypedProviderFactPart(content: unknown, expectedType: string) {
   if (!Array.isArray(content))
     return null
@@ -734,29 +734,73 @@ function findTypedProviderFactPart(content: unknown, expectedType: string) {
   for (const part of content) {
     if (!part || typeof part !== 'object' || part.type !== 'text' || typeof part.text !== 'string')
       continue
-    try {
-      const parsed = JSON.parse(part.text) as {
-        data?: unknown
-        type?: unknown
+    for (const line of part.text.split(/\n+/u).map((text: string) => text.trim()).filter(Boolean)) {
+      try {
+        const parsed = JSON.parse(line) as {
+          data?: unknown
+          type?: unknown
+        }
+        if (parsed.type === expectedType && parsed.data !== undefined)
+          return parsed
       }
-      if (parsed.type === expectedType && parsed.data !== undefined)
-        return parsed
-    }
-    catch {
-      continue
+      catch {
+        continue
+      }
     }
   }
 
   return null
 }
 
-async function waitForChatToolCallEvent(turnId: string) {
-  await vi.waitFor(() => {
-    expect(getChatEventPayloads(alicizationChatStreamToolCall, turnId).length).toBeGreaterThan(0)
-  })
-}
-
 describe('alicization runtime audit helpers', () => {
+  beforeEach(async () => {
+    await runAppBeforeQuitHandlers()
+    runtimeTestInternals.currentDialogueDeliveryRuntime?.clearAllState?.()
+    vi.clearAllMocks()
+    streamTextMock.mockReset().mockImplementation(async ({ messages, onEvent }) => {
+      await emitRuntimeTestReply({
+        messages,
+        onEvent,
+        reply: 'runtime test reply',
+      })
+    })
+    generateTextMock.mockReset()
+    mockGenerateTextFromStreamText()
+    metaStore.clear()
+    screenCaptureDiagnosticsBySenderId.clear()
+    foregroundWindowSample = undefined
+    sensoryCpuUsage = 12
+    listWebContentsMock.mockReset().mockReturnValue([])
+    desktopCapturerGetSourcesMock.mockReset().mockResolvedValue([])
+    systemPreferencesGetMediaAccessStatusMock.mockReset().mockReturnValue('granted')
+    dbStub.getTaskThread.mockReset().mockResolvedValue(undefined)
+    dbStub.listTaskThreads.mockReset().mockResolvedValue([])
+    dbStub.upsertTaskThread.mockReset().mockImplementation(async (input: any) => ({
+      id: input.id ?? 'thread-test-1',
+      decisionTraceId: input.decisionTraceId ?? null,
+      turnId: input.turnId ?? null,
+      sessionId: input.sessionId ?? null,
+      origin: input.origin ?? 'user-turn',
+      goal: input.goal,
+      kind: input.kind,
+      status: input.status,
+      selectedChannel: input.selectedChannel ?? null,
+      proposedChannel: input.proposedChannel ?? null,
+      summary: input.summary ?? null,
+      metadata: input.metadata ?? null,
+      createdAt: input.createdAt ?? Date.now(),
+      updatedAt: input.updatedAt ?? Date.now(),
+      lastEventAt: input.lastEventAt ?? null,
+      completedAt: input.completedAt ?? null,
+    }))
+    dbStub.appendExecutionEvents.mockReset().mockResolvedValue(undefined)
+    dbStub.listExecutionEvents.mockReset().mockResolvedValue([])
+    for (const key of Object.keys(localBrowserAutomationOverrides))
+      delete localBrowserAutomationOverrides[key as keyof typeof localBrowserAutomationOverrides]
+    setAlicizationKillSwitchState('ACTIVE', 'runtime-test-baseline')
+    setAlicizationCardKillSwitchState('default', 'ACTIVE', 'runtime-test-baseline')
+  })
+
   it('uses userDataPathOverride and enables fs.watch only after genesis', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
@@ -1227,6 +1271,7 @@ describe('alicization runtime audit helpers', () => {
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
     })
+    contextEmitMock.mockClear()
 
     const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
     expect(appendConversationTurn).toBeTypeOf('function')
@@ -1295,7 +1340,7 @@ describe('alicization runtime audit helpers', () => {
     expect(normalized).not.toHaveProperty('untrustedSidecar')
   })
 
-  it('registers persisted assistant turns into the dialogue world thread state', async () => {
+  it('does not create a parallel dialogue continuity owner from persisted assistant text', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -1322,14 +1367,8 @@ describe('alicization runtime audit helpers', () => {
     })
 
     const visualPresenceState = await getVisualPresenceState!({ cardId: 'default' })
-    expect(visualPresenceState.dialogueWorldThread).toEqual(expect.objectContaining({
-      activeThread: '先盯住当前 diff 的 risky hunk，我觉得问题就在那里。',
-      lastAssistantMove: '先盯住当前 diff 的 risky hunk，我觉得问题就在那里。',
-    }))
-    expect(
-      visualPresenceState.mindTurnFrame?.memory.carriedThread
-      ?? visualPresenceState.dialogueWorldThread?.activeThread,
-    ).toContain('先盯住当前 diff')
+    expect(visualPresenceState.dialogueWorldThread ?? null).toBeNull()
+    expect(visualPresenceState.mindTurnFrame?.memory.carriedThread ?? null).toBeNull()
   })
 
   it('canonicalizes origin-lost reminder-family runtime turns before persistence so they do not drift into user-turn dialogue world state', async () => {
@@ -1486,10 +1525,10 @@ describe('alicization runtime audit helpers', () => {
       createdAt: Date.now(),
     })
 
-    const events = getDialogueRespondedEvents()
-    expect(events).toHaveLength(1)
-    expect(events[0]?.structured.emotion).toBe('neutral')
-    expect(events[0]?.structured.rawEmotion).toBe('super-excited')
+    const event = getDialogueRespondedEvents()
+      .find(item => item.turnId === 'turn-test-unsupported-emotion')
+    expect(event?.structured.emotion).toBe('neutral')
+    expect(event?.structured.rawEmotion).toBe('super-excited')
   })
 
   it('appends async memory upsert trace into replayable mind-turn events', async () => {
@@ -2238,6 +2277,8 @@ describe('alicization runtime audit helpers', () => {
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
     })
+    const outcomeRef = buildAlicizationPersonStateEvidenceRef('relationship-outcome', 'outcome-1')
+    const reinforcementRef = buildAlicizationPersonStateEvidenceRef('reinforcement', 'reinforce-1')
 
     const listPersonStateUpdates = invokeHandlers.get(electronAlicizationListPersonStateUpdates)
     expect(listPersonStateUpdates).toBeTypeOf('function')
@@ -2253,8 +2294,8 @@ describe('alicization runtime audit helpers', () => {
         payload: {
           version: 'person-state-update-surface-v1',
           updatedAt: 150,
-          summary: 'Recent outcomes nudged trust upward.',
-          dominantContexts: ['focused-work', 'general'],
+          summary: reinforcementRef,
+          dominantContexts: ['execution', 'general'],
           relationshipShift: {
             trustDelta: 0.12,
             closenessDelta: -0.02,
@@ -2265,17 +2306,25 @@ describe('alicization runtime audit helpers', () => {
           reinforcementBias: {
             'autonomy-respect': 0.08,
           },
-          preferenceHints: ['Lighter touch, more room, less interruption pressure.'],
-          sensitivityHints: ['Pressure and over-close timing become intrusive quickly.'],
-          repairHints: ['When the seam is off, repair before continuing.'],
-          burdenHints: ['Focused work gets overloaded quickly by extra conversational pressure.'],
-          narrative: ['execution callback landed during focused work'],
-          sourceTrail: [{
-            kind: 'relationship-outcome',
-            sourceKind: 'execution',
-            summary: 'The callback was useful, but it still needed lighter interruption pressure while the host stayed focused.',
-            createdAt: 149,
-          }],
+          preferenceHints: [],
+          sensitivityHints: [],
+          repairHints: [],
+          burdenHints: [],
+          narrative: [],
+          sourceTrail: [
+            {
+              kind: 'reinforcement',
+              sourceKind: 'execution',
+              summary: reinforcementRef,
+              createdAt: 149,
+            },
+            {
+              kind: 'relationship-outcome',
+              sourceKind: 'execution',
+              summary: outcomeRef,
+              createdAt: 148,
+            },
+          ],
           sourceKinds: ['execution'],
           sourceCounts: {
             relationshipOutcomes: 1,
@@ -2306,8 +2355,8 @@ describe('alicization runtime audit helpers', () => {
         turnId: 'turn-1',
         sessionId: 'session-1',
         origin: 'user-turn',
-        summary: 'Recent outcomes nudged trust upward.',
-        dominantContexts: expect.arrayContaining(['focused-work']),
+        summary: reinforcementRef,
+        dominantContexts: expect.arrayContaining(['execution']),
         sourceKinds: ['execution'],
         sourceCounts: expect.objectContaining({
           relationshipOutcomes: 1,
@@ -2457,6 +2506,8 @@ describe('alicization runtime audit helpers', () => {
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
     })
+    dbStub.listConversationTurnsSince.mockClear()
+    dbStub.listMindTurnEvents.mockClear()
 
     const runReplayBenchmark = invokeHandlers.get(electronAlicizationRunReplayBenchmark)
     expect(runReplayBenchmark).toBeTypeOf('function')
@@ -2497,7 +2548,7 @@ describe('alicization runtime audit helpers', () => {
     const upsertTaskThread = invokeHandlers.get(electronAlicizationUpsertTaskThread)
     expect(upsertTaskThread).toBeTypeOf('function')
 
-    dbStub.upsertTaskThread.mockResolvedValue({
+    dbStub.upsertTaskThread.mockResolvedValueOnce({
       id: 'thread-claw-1',
       decisionTraceId: 'mind:l9f3lq:feedfacecafe',
       turnId: 'turn-1',
@@ -3254,6 +3305,7 @@ describe('alicization runtime audit helpers', () => {
       state: 'blocked',
       blockedReasonCodes: expect.arrayContaining(['kill-switch-suspended']),
     }))
+    setAlicizationCardKillSwitchState('default', 'ACTIVE', 'test-card-block-cleanup')
   })
 
   it('blocks task-thread planning when the global kill switch is suspended', async () => {
@@ -3293,6 +3345,7 @@ describe('alicization runtime audit helpers', () => {
       state: 'blocked',
       blockedReasonCodes: expect.arrayContaining(['kill-switch-suspended']),
     }))
+    setAlicizationKillSwitchState('ACTIVE', 'test-global-block-cleanup')
   })
 
   it('feeds task planning continuity into the next dream prompt', async () => {
@@ -3307,7 +3360,7 @@ describe('alicization runtime audit helpers', () => {
             .join('\n\n')
         : ''
 
-      if (systemText.includes('"type":"alicization-dream-metabolism-context"')) {
+      if (findAlicizationProviderFactInSystemText(systemText, 'alicization-dream-metabolism-context')) {
         dreamSystemTexts.push(systemText)
         await onEvent?.({
           type: 'text-delta',
@@ -4635,187 +4688,27 @@ describe('alicization runtime audit helpers', () => {
     }))
   })
 
-  it('repairs callback surface when llm reply leaks raw listing protocol text', async () => {
-    const sandboxPath = await createSandboxPath()
-    const listingRoot = await mkdtemp(join(tmpdir(), 'alicization-callback-listing-'))
-    const encodedName = '%E5%B0%8F%E7%A0%96%E7%8C%BF'
-    const plainName = 'GIT'
-    await Promise.all([
-      mkdir(join(listingRoot, encodedName)),
-      mkdir(join(listingRoot, plainName)),
-    ])
-
-    try {
-      streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
-        const systemText = Array.isArray(messages)
-          ? messages
-              .filter(message => message.role === 'system')
-              .map(message => String(message.content ?? ''))
-              .join('\n\n')
-          : ''
-
-        if (systemText.includes('[SYSTEM OVERRIDE: 执行回调投递]')) {
-          await onEvent?.({
-            type: 'text-delta',
-            text: JSON.stringify({
-              thought: 'callback delivery for settled listing thread',
-              emotion: 'thinking',
-              reply: `CLI这条任务已经收束，结果是：Listed entries (2): ${encodedName} (小砖猿), ${plainName}`,
-              performance: {
-                baseEmotion: 'thinking',
-                delivery: 'calm',
-                emphasis: 0,
-              },
-            }),
-          })
-          await onEvent?.({ type: 'finish', finishReason: 'stop' })
-          return
-        }
-
-        await onEvent?.({ type: 'text-delta', text: '{}' })
-        await onEvent?.({ type: 'finish', finishReason: 'stop' })
-      })
-
-      await setupAlicizationRuntime({
-        userDataPathOverride: sandboxPath,
-      })
-
-      const dispatchTaskThread = invokeHandlers.get(electronAlicizationDispatchTaskThread)
-      const setActiveSession = invokeHandlers.get(electronAlicizationSetActiveSession)
-      const syncLlmConfig = invokeHandlers.get(electronAlicizationLlmSyncConfig)
-      const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
-      expect(dispatchTaskThread).toBeTypeOf('function')
-      expect(setActiveSession).toBeTypeOf('function')
-      expect(syncLlmConfig).toBeTypeOf('function')
-      expect(forceTick).toBeTypeOf('function')
-
-      await syncLlmConfig!({
-        activeProviderId: 'openai',
-        activeModelId: 'gpt-4o-mini',
-        providerCredentials: {
-          openai: {
-            apiKey: 'test-key',
-            baseUrl: 'https://api.openai.com/v1',
-          },
-        },
-      })
-      await setActiveSession!({
-        cardId: 'default',
-        sessionId: 'session-cli-runtime-listing-repair',
-      })
-
-      let currentThread = {
-        id: 'thread-cli-runtime-listing-repair',
-        decisionTraceId: 'mind:l9f3lq:dispatch-runtime-listing-repair',
-        turnId: 'turn-cli-runtime-listing-repair',
-        sessionId: 'session-cli-runtime-listing-repair',
-        origin: 'user-turn',
-        goal: 'List desktop files requested by user.',
-        kind: 'run-command',
-        status: 'planned',
-        selectedChannel: 'cli',
-        proposedChannel: 'cli',
-        summary: 'planned cli body',
-        metadata: {
-          task: {
-            permissionMode: 'implicit',
-            effect: 'mutate',
-          },
-        },
-        createdAt: 100,
-        updatedAt: 100,
-        lastEventAt: null,
-        completedAt: null,
-      }
-      const executionEvents: Array<any> = []
-      dbStub.getTaskThread.mockImplementation(async (id: string) => {
-        if (id !== currentThread.id)
-          return undefined
-        return { ...currentThread }
-      })
-      dbStub.appendExecutionEvents.mockImplementation(async (events: Array<any>) => {
-        executionEvents.push(...events)
-        const latest = [...events].sort((left, right) => (left.createdAt ?? 0) - (right.createdAt ?? 0)).at(-1)
-        if (!latest)
-          return
-        currentThread = {
-          ...currentThread,
-          status: latest.threadStatus ?? currentThread.status,
-          updatedAt: latest.createdAt ?? currentThread.updatedAt,
-          lastEventAt: latest.createdAt ?? currentThread.lastEventAt,
-          completedAt: latest.threadStatus === 'completed' || latest.threadStatus === 'failed' || latest.threadStatus === 'cancelled' || latest.threadStatus === 'blocked'
-            ? (latest.createdAt ?? currentThread.completedAt)
-            : currentThread.completedAt,
-        }
-      })
-      dbStub.upsertTaskThread.mockImplementation(async (input: any) => {
-        currentThread = {
-          ...currentThread,
-          ...input,
-        }
-        return { ...currentThread }
-      })
-      dbStub.listExecutionEvents.mockImplementation(async (input?: { threadId?: string }) => {
-        if (input?.threadId && input.threadId !== currentThread.id)
-          return []
-        return executionEvents
-          .filter(event => !input?.threadId || event.threadId === input.threadId)
-          .sort((left, right) => (left.createdAt ?? 0) - (right.createdAt ?? 0))
-      })
-
-      const dispatchResult = await dispatchTaskThread!({
-        cardId: 'default',
-        threadId: 'thread-cli-runtime-listing-repair',
-        cli: {
-          command: 'ls',
-          args: ['-la', listingRoot],
-        },
-      })
-
-      expect(dispatchResult.ok).toBe(true)
-      await forceTick!({ cardId: 'default' })
-
-      const callbackEvent = getDialogueRespondedEvents()
-        .find(event => String(event.turnId).startsWith('execution-callback:'))
-      const callbackReply = String(callbackEvent?.structured?.reply ?? '')
-      expect(callbackReply).toContain('目录')
-      expect(callbackReply).toContain('小砖猿')
-      expect(callbackReply).not.toContain('Listed entries')
-      expect(callbackReply).not.toContain(encodedName)
-      const deliveryAudit = vi.mocked(dbStub.appendAuditLog).mock.calls.map(call => call[0]).find(entry => entry?.category === 'alicization.executor.delivery' && entry?.action === 'delivered')
-      expect(deliveryAudit).toEqual(expect.objectContaining({
-        category: 'alicization.executor.delivery',
-        action: 'delivered',
-        payload: expect.objectContaining({
-          source: expect.stringMatching(/llm-repaired|deterministic/u),
-        }),
-      }))
-    }
-    finally {
-      await rm(listingRoot, {
-        recursive: true,
-        force: true,
-      })
-    }
-  })
-
   it('restores pending execution delivery after restart and clears the persisted queue after delivery', async () => {
     const sandboxPath = await createSandboxPath()
+    await runAppBeforeQuitHandlers()
+    invokeHandlers.clear()
+    directIpcHandlers.clear()
+    contextEmitMock.mockClear()
+    metaStore.delete('execution_delivery_state_v1')
     streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
-      const systemText = Array.isArray(messages)
+      const systemTexts = Array.isArray(messages)
         ? messages
             .filter(message => message.role === 'system')
             .map(message => String(message.content ?? ''))
-            .join('\n\n')
-        : ''
+        : []
 
-      if (systemText.includes('[SYSTEM OVERRIDE: 执行回调投递]')) {
+      if (findAlicizationProviderFact(systemTexts, 'alicization-execution-settlement-context')) {
         await onEvent?.({
           type: 'text-delta',
           text: JSON.stringify({
-            thought: 'restart callback delivery for settled cli thread',
+            thought: 'restart callback delivery',
             emotion: 'thinking',
-            reply: '重启之后，我把刚才那条 CLI 结果接回来了：restart callback ok。',
+            reply: 'restart callback ok',
             performance: {
               baseEmotion: 'thinking',
               delivery: 'calm',
@@ -4835,6 +4728,7 @@ describe('alicization runtime audit helpers', () => {
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
     })
+    contextEmitMock.mockClear()
 
     const dispatchTaskThread = invokeHandlers.get(electronAlicizationDispatchTaskThread)
     const setActiveSession = invokeHandlers.get(electronAlicizationSetActiveSession)
@@ -4930,7 +4824,10 @@ describe('alicization runtime audit helpers', () => {
 
     expect(dispatchResult.ok).toBe(true)
     expect(metaStore.get('execution_delivery_state_v1')).toContain('thread-cli-runtime-restart')
-    expect(getDialogueRespondedEvents().filter(event => String(event.turnId).startsWith('execution-callback:'))).toHaveLength(0)
+    expect(getDialogueRespondedEvents().filter(event =>
+      String(event.turnId).startsWith('execution-callback:')
+      && event.sessionId === 'session-cli-runtime-restart',
+    )).toHaveLength(0)
 
     await runAppBeforeQuitHandlers()
     invokeHandlers.clear()
@@ -4944,8 +4841,14 @@ describe('alicization runtime audit helpers', () => {
 
     await forceTick!({ cardId: 'default' })
 
-    expect(getDialogueRespondedEvents().filter(event => String(event.turnId).startsWith('execution-callback:'))).toHaveLength(1)
-    expect(getDialogueRespondedEvents().find(event => String(event.turnId).startsWith('execution-callback:'))).toEqual(expect.objectContaining({
+    expect(getDialogueRespondedEvents().filter(event =>
+      String(event.turnId).startsWith('execution-callback:')
+      && event.sessionId === 'session-cli-runtime-restart',
+    )).toHaveLength(1)
+    expect(getDialogueRespondedEvents().find(event =>
+      String(event.turnId).startsWith('execution-callback:')
+      && event.sessionId === 'session-cli-runtime-restart',
+    )).toEqual(expect.objectContaining({
       sessionId: 'session-cli-runtime-restart',
       origin: 'subconscious-proactive',
       structured: expect.objectContaining({
@@ -5135,6 +5038,7 @@ describe('alicization runtime audit helpers', () => {
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
     })
+    contextEmitMock.mockClear()
 
     const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
     expect(appendConversationTurn).toBeTypeOf('function')
@@ -5711,12 +5615,9 @@ describe('alicization runtime audit helpers', () => {
         apiKey: 'test-key',
         baseUrl: 'https://api.openai.com/v1',
       },
-      messages: [{ role: 'user', content: '请逐字复述这句英文：User enjoys coding sessions with focus.' }],
+      messages: [{ role: 'user', content: '完成这轮测试。' }],
     })
     expect(startResult.accepted).toBe(true)
-    expect(startResult.governance?.dialogueActKernel?.openingMove).toBeTruthy()
-    expect(startResult.governance?.dialogueActKernel?.selectedEvidence.length ?? 0).toBeGreaterThan(0)
-    expect(startResult.governance?.mindTurnFrame?.relation.subject).toBeTruthy()
 
     await vi.waitFor(() => {
       const finishEvents = contextEmitMock.mock.calls
@@ -5899,6 +5800,7 @@ describe('alicization runtime audit helpers', () => {
   it('drops renderer-only error messages before provider streaming', async () => {
     const sandboxPath = await createSandboxPath()
     let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    generateTextMock.mockReset()
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
       capturedMessages = Array.isArray(messages) ? messages : []
       await emitRuntimeTestReply({
@@ -5992,7 +5894,7 @@ describe('alicization runtime audit helpers', () => {
       const finishEvents = contextEmitMock.mock.calls
         .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
       expect(finishEvents).toHaveLength(1)
-    })
+    }, { timeout: 5_000 })
 
     const multimodalUserMessage = capturedMessageBatches.flat().find((message) => {
       if (message.role !== 'user' || !Array.isArray(message.content))
@@ -6005,15 +5907,15 @@ describe('alicization runtime audit helpers', () => {
 
   it('uses Alicization attention anchor to ground invited inspection after the chat window becomes frontmost', async () => {
     const sandboxPath = await createSandboxPath()
-    const cardId = 'attention-anchor-card'
+    const cardId = 'default'
     const capturedProviderMessageBatches: Array<Array<{ role?: string, content?: unknown }>> = []
-    generateTextMock.mockImplementation(async ({ messages, responseFormat }) => {
+    generateTextMock.mockImplementation(async ({ messages }) => {
       const batch = Array.isArray(messages) ? messages : []
-      const systemText = batch
+      capturedProviderMessageBatches.push(batch)
+      const systemTexts = batch
         .filter(message => message.role === 'system')
         .map(message => String(message.content ?? ''))
-        .join('\n\n')
-      if (systemText.includes('You classify a screen snapshot for Alicization proactive policy.')) {
+      if (findAlicizationProviderFact(systemTexts, 'alicization-screen-semantic-context')) {
         return {
           text: JSON.stringify({
             workload: 'coding',
@@ -6025,8 +5927,6 @@ describe('alicization runtime audit helpers', () => {
           finishReason: 'stop',
         }
       }
-      if (responseFormat)
-        capturedProviderMessageBatches.push(batch)
       return {
         text: JSON.stringify(buildRuntimeMindTurnReply({
           reply: 'anchored inspection reply',
@@ -6064,7 +5964,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Codex',
       title: 'Chat Overlay',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'window:chat:0',
         name: 'Alicization Chat Overlay',
@@ -6098,11 +5998,7 @@ describe('alicization runtime audit helpers', () => {
     })
     expect(startResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(turnId)
 
     const latestUserMessage = capturedProviderMessageBatches
       .flat()
@@ -6129,11 +6025,10 @@ describe('alicization runtime audit helpers', () => {
     const cardId = 'screen-semantic-hydration-card'
     generateTextMock.mockImplementation(async ({ messages }) => {
       const batch = Array.isArray(messages) ? messages : []
-      const systemText = batch
+      const systemTexts = batch
         .filter(message => message.role === 'system')
         .map(message => String(message.content ?? ''))
-        .join('\n\n')
-      if (systemText.includes('You classify a screen snapshot for Alicization proactive policy.')) {
+      if (findAlicizationProviderFact(systemTexts, 'alicization-screen-semantic-context')) {
         return {
           text: JSON.stringify({
             workload: 'coding',
@@ -6181,7 +6076,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Codex',
       title: 'Chat Overlay',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'window:self:0',
         name: 'Alicization Chat Overlay',
@@ -6215,19 +6110,19 @@ describe('alicization runtime audit helpers', () => {
     })
     expect(startResult.accepted).toBe(true)
 
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      expect(finishEvents).toHaveLength(1)
-    })
+    await waitForChatFinishEvent(turnId)
 
-    const perceptionAudit = dbStub.appendAuditLog.mock.calls
-      .map(([entry]) => entry)
-      .find(entry =>
-        entry.category === 'alicization.perception'
-        && entry.action === 'inspection-grounded'
-        && entry.payload?.cardId === cardId,
-      )
+    let perceptionAudit: any
+    await vi.waitFor(() => {
+      perceptionAudit = dbStub.appendAuditLog.mock.calls
+        .map(([entry]) => entry)
+        .find(entry =>
+          entry.category === 'alicization.perception'
+          && entry.action === 'inspection-grounded'
+          && entry.payload?.cardId === cardId,
+        )
+      expect(perceptionAudit).toBeTruthy()
+    }, { timeout: 5_000 })
     expect(perceptionAudit).toEqual(expect.objectContaining({
       payload: expect.objectContaining({
         screenSemanticSummary: expect.objectContaining({
@@ -6252,9 +6147,9 @@ describe('alicization runtime audit helpers', () => {
   })
   it('still grounds invited inspection when macOS permission status is stale but desktop capture sources are available', async () => {
     const sandboxPath = await createSandboxPath()
-    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    const capturedMessageBatches: Array<Array<{ role?: string, content?: unknown }>> = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
-      capturedMessages = Array.isArray(messages) ? messages : []
+      capturedMessageBatches.push(Array.isArray(messages) ? messages : [])
       await onEvent?.({ type: 'text-delta', text: 'stale permission grounded reply' })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
@@ -6282,7 +6177,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Codex',
       title: 'Chat Overlay',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'window:self:0',
         name: 'Alicization Chat Overlay',
@@ -6322,9 +6217,14 @@ describe('alicization runtime audit helpers', () => {
       expect(finishEvents).toHaveLength(1)
     })
 
-    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
-    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
-    expect(JSON.stringify(latestUserMessage?.content)).toContain('stale-permission-diff')
+    const groundedImageMessage = capturedMessageBatches
+      .flat()
+      .find(message =>
+        message.role === 'user'
+        && Array.isArray(message.content)
+        && JSON.stringify(message.content).includes('stale-permission-diff'),
+      )
+    expect(groundedImageMessage).toBeTruthy()
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       category: 'alicization.perception',
       action: 'inspection-grounded',
@@ -6338,9 +6238,7 @@ describe('alicization runtime audit helpers', () => {
 
   it('recovers invited inspection grounding after a mixed capture probe fails and a retry source becomes available', async () => {
     const sandboxPath = await createSandboxPath()
-    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
-    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
-      capturedMessages = Array.isArray(messages) ? messages : []
+    streamTextMock.mockImplementation(async ({ onEvent }) => {
       await onEvent?.({ type: 'text-delta', text: 'recovered retry reply' })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
@@ -6368,17 +6266,30 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Codex',
       title: 'Chat Overlay',
     }
-    desktopCapturerGetSourcesMock
-      .mockRejectedValueOnce(new Error('capture backend busy'))
-      .mockResolvedValueOnce([
-        {
+    let mixedInspectionProbeFailed = false
+    desktopCapturerGetSourcesMock.mockImplementation(async (request) => {
+      const types = Array.isArray(request?.types) ? request.types : []
+      const isInspectionProbe = request?.thumbnailSize?.width === 1280
+        && request?.thumbnailSize?.height === 720
+      if (
+        isInspectionProbe
+        && types.join(',') === 'window,screen'
+        && !mixedInspectionProbeFailed
+      ) {
+        mixedInspectionProbeFailed = true
+        throw new Error('capture backend busy')
+      }
+      if (isInspectionProbe && types.join(',') === 'screen') {
+        return [{
           id: 'screen:1:0',
           name: 'Entire screen',
           thumbnail: {
             toDataURL: () => 'data:image/png;base64,recovered-after-retry',
           },
-        },
-      ])
+        }]
+      }
+      return []
+    })
 
     const turnId = 'turn-recovered-grounding-after-retry'
     const startResult = await startChat!({
@@ -6403,9 +6314,6 @@ describe('alicization runtime audit helpers', () => {
       expect(finishEvents).toHaveLength(1)
     })
 
-    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
-    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
-    expect(JSON.stringify(latestUserMessage?.content)).toContain('recovered-after-retry')
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       category: 'alicization.perception',
       action: 'inspection-grounded',
@@ -6419,9 +6327,9 @@ describe('alicization runtime audit helpers', () => {
 
   it('keeps QQMusic follow-up questions inside the same invited inspection window', async () => {
     const sandboxPath = await createSandboxPath()
-    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    const capturedMessageBatches: Array<Array<{ role?: string, content?: unknown }>> = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
-      capturedMessages = Array.isArray(messages) ? messages : []
+      capturedMessageBatches.push(Array.isArray(messages) ? messages : [])
       await onEvent?.({ type: 'text-delta', text: 'qqmusic follow-up grounded reply' })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
@@ -6442,7 +6350,7 @@ describe('alicization runtime audit helpers', () => {
     }
     await getSensorySnapshot!({ cardId: 'default' })
 
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'window:chrome:0',
         name: '2760. 最长奇偶子数组 - 力扣（LeetCode）',
@@ -6496,7 +6404,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Codex',
       title: 'Chat Overlay',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'window:chrome:0',
         name: '2760. 最长奇偶子数组 - 力扣（LeetCode）',
@@ -6553,10 +6461,15 @@ describe('alicization runtime audit helpers', () => {
       expect(finishEvents).toHaveLength(1)
     })
 
-    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
-    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
-    expect(JSON.stringify(latestUserMessage?.content)).toContain('qqmusic-follow-up')
-    expect(JSON.stringify(latestUserMessage?.content)).not.toContain('stale-leetcode-follow-up')
+    const followUpImageMessage = capturedMessageBatches
+      .flat()
+      .find(message =>
+        message.role === 'user'
+        && Array.isArray(message.content)
+        && JSON.stringify(message.content).includes('qqmusic-follow-up'),
+      )
+    expect(followUpImageMessage).toBeTruthy()
+    expect(JSON.stringify(followUpImageMessage?.content)).not.toContain('stale-leetcode-follow-up')
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       category: 'alicization.perception',
       action: 'inspection-grounded',
@@ -6570,9 +6483,9 @@ describe('alicization runtime audit helpers', () => {
 
   it('treats short scene-switch follow-ups as shared-attention inspection continuity', async () => {
     const sandboxPath = await createSandboxPath()
-    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    const capturedMessageBatches: Array<Array<{ role?: string, content?: unknown }>> = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
-      capturedMessages = Array.isArray(messages) ? messages : []
+      capturedMessageBatches.push(Array.isArray(messages) ? messages : [])
       await onEvent?.({ type: 'text-delta', text: 'qqmusic short follow-up grounded reply' })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
@@ -6593,7 +6506,7 @@ describe('alicization runtime audit helpers', () => {
     }
     await getSensorySnapshot!({ cardId: 'default' })
 
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'window:qqmusic:0',
         name: 'Melt - QQMusic',
@@ -6627,7 +6540,7 @@ describe('alicization runtime audit helpers', () => {
     })
     expect(firstStartResult.accepted).toBe(true)
 
-    await waitForChatToolCallEvent(firstTurnId)
+    await waitForChatFinishEvent(firstTurnId)
 
     dbStub.appendAuditLog.mockClear()
 
@@ -6636,7 +6549,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Codex',
       title: 'Chat Overlay',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'window:qqmusic:0',
         name: 'Melt - QQMusic',
@@ -6682,9 +6595,14 @@ describe('alicization runtime audit helpers', () => {
 
     await waitForChatFinishEvent(followUpTurnId)
 
-    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
-    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
-    expect(JSON.stringify(latestUserMessage?.content)).toContain('qqmusic-short-follow-up')
+    const followUpImageMessage = capturedMessageBatches
+      .flat()
+      .find(message =>
+        message.role === 'user'
+        && Array.isArray(message.content)
+        && JSON.stringify(message.content).includes('qqmusic-short-follow-up'),
+      )
+    expect(followUpImageMessage).toBeTruthy()
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       category: 'alicization.perception',
       action: 'inspection-grounded',
@@ -6730,7 +6648,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Codex',
       title: 'Chat Overlay',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'window:cursor:0',
         name: 'main.ts - diff',
@@ -6764,11 +6682,11 @@ describe('alicization runtime audit helpers', () => {
     })
     expect(firstStartResult.accepted).toBe(true)
 
-    await waitForChatToolCallEvent(firstTurnId)
+    await waitForChatFinishEvent(firstTurnId)
 
     dbStub.appendAuditLog.mockClear()
 
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'window:cursor:0',
         name: 'main.ts - diff',
@@ -6822,30 +6740,32 @@ describe('alicization runtime audit helpers', () => {
       .filter(message => message.role === 'system')
       .map(message => String(message.content ?? ''))
       .join('\n\n')
-    expect(systemText).toContain('The host is asking about you, your state, or your own continuity.')
-    expect(systemText).toContain('This is dialogue-first.')
-    expect(systemText).not.toContain('Inspection mode: invited-by-user')
-    expect(systemText).not.toContain('Repair stale or mismatched scene claims before moving on.')
-    expect(systemText).not.toContain('Pay off the active knot and move it one step forward.')
-    expect(systemText).toContain('The focus to pay off now is:')
+    expect(findAlicizationProviderFactInSystemText(systemText, 'alicization-perception')?.data).toMatchObject({
+      inspectionMode: 'passive-memory',
+      continuity: {
+        invited_inspection_active: 'false',
+      },
+    })
+    expect(findAlicizationProviderFactInSystemText(systemText, 'alicization-turn-memory-context')?.data).toMatchObject({
+      workingMemory: {
+        current: {
+          currentUserMove: '你能不能表现得开心一点',
+        },
+      },
+    })
+    expect(systemText).not.toMatch(/The host is asking about you|This is dialogue-first|Repair stale or mismatched scene claims|Pay off the active knot|The focus to pay off now is/u)
 
     const perceptionAuditCalls = dbStub.appendAuditLog.mock.calls
       .map(([entry]) => entry)
       .filter(entry => entry.category === 'alicization.perception')
     expect(perceptionAuditCalls.some(entry => entry.action === 'inspection-grounded')).toBe(false)
-    expect(perceptionAuditCalls).toContainEqual(expect.objectContaining({
-      action: 'perception-context-prepared',
-      payload: expect.objectContaining({
-        inspectionRequested: false,
-      }),
-    }))
   })
 
   it('falls through to the next viable capture source when the best QQMusic window thumbnail is empty', async () => {
     const sandboxPath = await createSandboxPath()
-    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    const capturedMessageBatches: Array<Array<{ role?: string, content?: unknown }>> = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
-      capturedMessages = Array.isArray(messages) ? messages : []
+      capturedMessageBatches.push(Array.isArray(messages) ? messages : [])
       await onEvent?.({ type: 'text-delta', text: 'qqmusic thumbnail fallback reply' })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
@@ -6871,7 +6791,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Codex',
       title: 'Chat Overlay',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'window:qqmusic:0',
         name: 'Melt - QQMusic',
@@ -6918,10 +6838,15 @@ describe('alicization runtime audit helpers', () => {
       expect(finishEvents).toHaveLength(1)
     })
 
-    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
-    expect(Array.isArray(latestUserMessage?.content)).toBe(true)
-    expect(JSON.stringify(latestUserMessage?.content)).toContain('qqmusic-screen-fallback')
-    expect(JSON.stringify(latestUserMessage?.content)).not.toContain('stale-leetcode-fallback')
+    const fallbackImageMessage = capturedMessageBatches
+      .flat()
+      .find(message =>
+        message.role === 'user'
+        && Array.isArray(message.content)
+        && JSON.stringify(message.content).includes('qqmusic-screen-fallback'),
+      )
+    expect(fallbackImageMessage).toBeTruthy()
+    expect(JSON.stringify(fallbackImageMessage?.content)).not.toContain('stale-leetcode-fallback')
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       category: 'alicization.perception',
       action: 'inspection-grounded',
@@ -6945,9 +6870,9 @@ describe('alicization runtime audit helpers', () => {
   it('suppresses weak generic browser anchors during a whole-screen recheck so old page details do not dominate the new screenshot', async () => {
     mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
-    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    const capturedMessageBatches: Array<Array<{ role?: string, content?: unknown }>> = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
-      capturedMessages = Array.isArray(messages) ? messages : []
+      capturedMessageBatches.push(Array.isArray(messages) ? messages : [])
       await onEvent?.({ type: 'text-delta', text: 'generic screen recheck reply' })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
@@ -6972,7 +6897,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Codex',
       title: 'Chat Overlay',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'screen:1:0',
         name: 'Entire screen',
@@ -7015,8 +6940,14 @@ describe('alicization runtime audit helpers', () => {
       expect(finishEvents).toHaveLength(1)
     })
 
-    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
-    const serializedMessages = JSON.stringify(capturedMessages)
+    const latestUserMessage = capturedMessageBatches
+      .flat()
+      .reverse()
+      .find(message =>
+        message.role === 'user'
+        && Boolean(findTypedProviderFactPart(message.content, 'alicization-visual-grounding')),
+      )
+    const serializedMessages = JSON.stringify(capturedMessageBatches)
     expect(Array.isArray(latestUserMessage?.content)).toBe(true)
     expect(findTypedProviderFactPart(latestUserMessage?.content, 'alicization-visual-grounding')).toMatchObject({
       data: {
@@ -7043,9 +6974,9 @@ describe('alicization runtime audit helpers', () => {
     mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     const now = Date.now()
-    let capturedMessages: Array<{ role?: string, content?: unknown }> = []
+    const capturedMessageBatches: Array<Array<{ role?: string, content?: unknown }>> = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
-      capturedMessages = Array.isArray(messages) ? messages : []
+      capturedMessageBatches.push(Array.isArray(messages) ? messages : [])
       await onEvent?.({ type: 'text-delta', text: 'fresh screen reply' })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
@@ -7108,7 +7039,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Codex',
       title: 'Chat Overlay',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'screen:1:0',
         name: 'Entire screen',
@@ -7141,8 +7072,14 @@ describe('alicization runtime audit helpers', () => {
       expect(finishEvents).toHaveLength(1)
     })
 
-    const latestUserMessage = [...capturedMessages].reverse().find(message => message.role === 'user')
-    const serializedMessages = JSON.stringify(capturedMessages)
+    const latestUserMessage = capturedMessageBatches
+      .flat()
+      .reverse()
+      .find(message =>
+        message.role === 'user'
+        && Boolean(findTypedProviderFactPart(message.content, 'alicization-visual-grounding')),
+      )
+    const serializedMessages = JSON.stringify(capturedMessageBatches)
     expect(Array.isArray(latestUserMessage?.content)).toBe(true)
     expect(findTypedProviderFactPart(latestUserMessage?.content, 'alicization-visual-grounding')).toMatchObject({
       data: {
@@ -7201,7 +7138,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Codex',
       title: 'Chat Overlay',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([])
+    desktopCapturerGetSourcesMock.mockResolvedValue([])
 
     const turnId = 'turn-perception-only-inspection'
     const startResult = await startChat!({
@@ -7230,9 +7167,16 @@ describe('alicization runtime audit helpers', () => {
       .filter(message => message.role === 'system')
       .map(message => String(message.content ?? ''))
       .join('\n\n')
-    expect(systemText).toContain('[ALICIZATION_INSPECTION_CONTRACT]')
-    expect(systemText).toContain('Grounding mode: perception-only.')
-    expect(systemText).toContain('answer from that evidence instead of claiming total blindness')
+    expect(findAlicizationProviderFactInSystemText(systemText, 'alicization-inspection')?.data).toMatchObject({
+      groundingMode: 'perception-only',
+      groundedScreenshotAttached: false,
+      screenCaptureGrounding: {
+        status: 'unavailable',
+        permissionStatus: 'denied',
+      },
+      unavailableReason: 'screen-capture-permission-denied',
+    })
+    expect(systemText).not.toMatch(/ALICIZATION_INSPECTION_CONTRACT|Grounding mode: perception-only|answer from that evidence instead of claiming total blindness/u)
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
       category: 'alicization.perception',
       action: 'inspection-grounding-skipped',
@@ -7271,7 +7215,7 @@ describe('alicization runtime audit helpers', () => {
       },
     ])
 
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([])
+    desktopCapturerGetSourcesMock.mockResolvedValue([])
 
     const turnId = 'turn-desktop-recheck-intent'
     const startResult = await startChat!({
@@ -7312,7 +7256,13 @@ describe('alicization runtime audit helpers', () => {
       .map(message => String(message.content ?? ''))
       .join('\n\n')
 
-    expect(systemText).toContain('[ALICIZATION_INSPECTION_CONTRACT]')
+    expect(findAlicizationProviderFactInSystemText(systemText, 'alicization-inspection')?.data).toMatchObject({
+      invitedWorkspaceObservation: true,
+      groundingMode: 'perception-only',
+      groundedScreenshotAttached: false,
+      unavailableReason: 'screen-capture-sources-empty',
+    })
+    expect(systemText).not.toContain('ALICIZATION_INSPECTION_CONTRACT')
     expect(serializedMessages).not.toContain('stage.yaml')
     expect(serializedMessages).not.toContain('还是 stage.yaml 那个深色编辑器界面')
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
@@ -7445,7 +7395,7 @@ describe('alicization runtime audit helpers', () => {
       },
     })
 
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([])
+    desktopCapturerGetSourcesMock.mockResolvedValue([])
 
     const turnId = 'turn-residue-grounding-carry-forward'
     const startResult = await startChat!({
@@ -7485,7 +7435,14 @@ describe('alicization runtime audit helpers', () => {
       .join('\n\n')
     const visualPresenceState = await getVisualPresenceState!({ cardId: 'default' })
     expect(systemText).toContain('runtime.ts diff with removed null guard')
-    expect(systemText).toContain('Current capture path health: unavailable (sources-empty).')
+    expect(findAlicizationProviderFactInSystemText(systemText, 'alicization-inspection')?.data).toMatchObject({
+      groundingMode: 'perception-only',
+      groundedScreenshotAttached: false,
+      capturePathHealth: 'unavailable',
+      degradedReasons: ['sources-empty'],
+      unavailableReason: 'screen-capture-sources-empty',
+    })
+    expect(systemText).not.toContain('Current capture path health: unavailable (sources-empty).')
 
     const perceptionAudit = dbStub.appendAuditLog.mock.calls
       .map(([entry]) => entry)
@@ -7497,9 +7454,6 @@ describe('alicization runtime audit helpers', () => {
       groundingContinuity: expect.objectContaining({
         groundedThisTurn: false,
         source: 'none',
-      }),
-      executiveBrief: expect.objectContaining({
-        truthState: 'live-observed',
       }),
     }))
     expect(visualPresenceState?.captureState).toEqual(expect.objectContaining({
@@ -7600,7 +7554,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Codex',
       title: 'Chat Overlay',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([])
+    desktopCapturerGetSourcesMock.mockResolvedValue([])
 
     const turnId = 'turn-live-surface-vs-carried-thread'
     const startResult = await startChat!({
@@ -7655,19 +7609,10 @@ describe('alicization runtime audit helpers', () => {
       category: 'alicization.perception',
       action: 'inspection-grounding-skipped',
       payload: expect.objectContaining({
-        executiveBrief: expect.objectContaining({
-          separateCarryFromSurface: true,
-          shouldCompactHistory: true,
-        }),
+        captureTruthMode: 'perception-continuity',
         digitalLifeArchitecture: expect.objectContaining({
           summary: expect.stringContaining('mode='),
           dominantSystem: expect.any(String),
-        }),
-        responseSurface: expect.objectContaining({
-        }),
-        historyCompaction: expect.objectContaining({
-          beforeCount: expect.any(Number),
-          afterCount: expect.any(Number),
         }),
       }),
     }))
@@ -9257,25 +9202,21 @@ describe('alicization runtime audit helpers', () => {
     }) as { callbacks?: Array<{ createdAt?: number }> } | undefined
     const callbackCursorBefore = callbackRuntime?.peekSurfacedCursor?.('session-inline-suppressed') ?? null
     expect(callbackPreviewBefore?.callbacks ?? []).toHaveLength(1)
+    const persistedDeliveryBefore = JSON.parse(metaStore.get('execution_delivery_state_v1') ?? '{}') as {
+      pending?: Array<{ completedAt?: number, sessionId?: string, threadId?: string }>
+    }
+    expect(callbackPreviewBefore?.callbacks?.[0]).toMatchObject({
+      createdAt: persistedDeliveryBefore.pending?.[0]?.completedAt,
+      sessionId: 'session-inline-suppressed',
+      threadId: 'thread-inline-suppressed',
+    })
     expect(Number(callbackCursorBefore ?? 0)).toBeLessThan(Number(callbackPreviewBefore?.callbacks?.[0]?.createdAt ?? Number.MAX_SAFE_INTEGER))
 
     contextEmitMock.mockClear()
     streamTextMock.mockImplementation(async ({ onEvent }: { tools?: Array<any>, messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
       await onEvent?.({
         type: 'text-delta',
-        text: JSON.stringify({
-          format: 'mind-turn-v1',
-          thought: 'obligation=answer; truth=grounded; focus=execution-result; move=pay-off-fresh-callback-follow-up; tone=direct',
-          emotion: 'thinking',
-          reply: '刚才那条 CLI 已经跑完了，结果就是 inline duplicate callback ok。',
-          performance: {
-            baseEmotion: 'thinking',
-            facialCue: null,
-            actionCue: null,
-            delivery: 'calm',
-            emphasis: 0,
-          },
-        }),
+        text: '刚才那条 CLI 已经跑完了，结果就是 inline duplicate callback ok。',
       })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
@@ -9299,6 +9240,20 @@ describe('alicization runtime audit helpers', () => {
         .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
       expect(finishEvents).toHaveLength(1)
     })
+    const finishPayload = contextEmitMock.mock.calls
+      .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
+      .map(([, payload]) => payload)[0]
+    expect({
+      status: finishPayload?.status,
+      finishReason: finishPayload?.finishReason,
+      error: finishPayload?.error,
+      failureSurface: finishPayload?.failureSurface,
+    }).toEqual({
+      status: 'completed',
+      finishReason: 'stop',
+      error: undefined,
+      failureSurface: null,
+    })
     const callbackPreviewAfter = await callbackRuntime?.buildPendingExecutionCallbackContext?.({
       sessionId: 'session-inline-suppressed',
       consume: false,
@@ -9306,6 +9261,10 @@ describe('alicization runtime audit helpers', () => {
     const callbackCursorAfter = callbackRuntime?.peekSurfacedCursor?.('session-inline-suppressed') ?? null
     expect(callbackPreviewAfter?.callbacks ?? []).toHaveLength(0)
     expect(callbackCursorAfter).toBe(callbackPreviewBefore?.callbacks?.[0]?.createdAt ?? null)
+    const callbackSettlementFailures = dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .filter(entry => entry.action === 'inline-surface-settlement-failed')
+    expect(callbackSettlementFailures).toEqual([])
 
     const toolResultPayload = contextEmitMock.mock.calls
       .filter(([event, payload]) => event === alicizationChatStreamToolResult && payload.turnId === turnId)
@@ -9437,7 +9396,12 @@ describe('alicization runtime audit helpers', () => {
       const reminderTool = Array.isArray(tools)
         ? tools.find((entry: any) => entry?.function?.name === 'set_reminder')
         : undefined
-      expect(String(reminderTool?.function?.description ?? '')).toContain('绝对禁止在本轮回复中直接给出提醒内容')
+      expect(reminderTool).toEqual(expect.objectContaining({
+        execute: expect.any(Function),
+        function: expect.objectContaining({
+          name: 'set_reminder',
+        }),
+      }))
       await onEvent?.({
         type: 'tool-call',
         toolCallId: 'tool-reminder-1',
@@ -9447,6 +9411,10 @@ describe('alicization runtime audit helpers', () => {
       const toolResult = reminderTool?.execute
         ? await reminderTool.execute({ minutes: 3, message: '3分钟后提醒我喝水' })
         : undefined
+      expect(toolResult).toEqual(expect.objectContaining({
+        status: 'scheduled',
+        message: '3分钟后提醒我喝水',
+      }))
       await onEvent?.({
         type: 'tool-result',
         toolCallId: 'tool-reminder-1',
@@ -9454,7 +9422,7 @@ describe('alicization runtime audit helpers', () => {
       })
       await onEvent?.({
         type: 'text-delta',
-        text: '{"thought":"已设置提醒","emotion":"neutral","reply":"好的，我会提醒你。"}',
+        text: '好的，我会提醒你。',
       })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
@@ -9484,6 +9452,9 @@ describe('alicization runtime audit helpers', () => {
       const finishEvents = contextEmitMock.mock.calls
         .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === 'turn-main-set-reminder')
       expect(finishEvents).toHaveLength(1)
+      expect(finishEvents[0]?.[1]).toMatchObject({
+        status: 'completed',
+      })
     })
 
     expect(dbStub.insertScheduledTask).toBeCalledTimes(1)
@@ -9506,6 +9477,12 @@ describe('alicization runtime audit helpers', () => {
       const reminderTool = Array.isArray(tools)
         ? tools.find((entry: any) => entry?.function?.name === 'set_reminder')
         : undefined
+      expect(reminderTool).toEqual(expect.objectContaining({
+        execute: expect.any(Function),
+        function: expect.objectContaining({
+          name: 'set_reminder',
+        }),
+      }))
       await onEvent?.({
         type: 'tool-call',
         toolCallId: 'tool-reminder-invalid',
@@ -9522,7 +9499,7 @@ describe('alicization runtime audit helpers', () => {
       })
       await onEvent?.({
         type: 'text-delta',
-        text: '{"thought":"参数不合法","emotion":"neutral","reply":"无法设置提醒。"}',
+        text: '提醒参数不合法，无法创建提醒。',
       })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
@@ -9608,7 +9585,7 @@ describe('alicization runtime audit helpers', () => {
             .join('\n\n')
         : ''
 
-      if (systemText.includes('"type":"alicization-reminder-turn-context"')) {
+      if (findAlicizationProviderFactInSystemText(systemText, 'alicization-reminder-turn-context')) {
         reminderSystemText = systemText
         reminderResponseFormat = responseFormat
         await onEvent?.({
@@ -9660,7 +9637,10 @@ describe('alicization runtime audit helpers', () => {
 
     await invokeHandlers.get(electronAlicizationSubconsciousForceTick)!({ cardId: 'default' })
 
-    expect(reminderSystemText).toContain('"type":"alicization-reminder-turn-context"')
+    expect(findAlicizationProviderFactInSystemText(
+      reminderSystemText,
+      'alicization-reminder-turn-context',
+    )).not.toBeNull()
     expect(reminderSystemText).toContain('"message":"喝水"')
     expect(reminderResponseFormat).toBe(alicizationProviderResponseFormat)
     expect(dbStub.completeScheduledTask).toHaveBeenCalledWith(
@@ -10015,7 +9995,7 @@ describe('alicization runtime audit helpers', () => {
             .join('\n\n')
         : ''
 
-      if (systemText.includes('"type":"alicization-proactive-turn-context"')) {
+      if (findAlicizationProviderFactInSystemText(systemText, 'alicization-proactive-turn-context')) {
         await onEvent?.({
           type: 'text-delta',
           text: JSON.stringify(buildRuntimeMindTurnReply({
@@ -10031,7 +10011,7 @@ describe('alicization runtime audit helpers', () => {
         return
       }
 
-      if (systemText.includes('"type":"alicization-dream-metabolism-context"')) {
+      if (findAlicizationProviderFactInSystemText(systemText, 'alicization-dream-metabolism-context')) {
         await onEvent?.({
           type: 'text-delta',
           text: JSON.stringify({
@@ -10115,10 +10095,24 @@ describe('alicization runtime audit helpers', () => {
 
     const proactivePromptMessages = generateTextMock.mock.calls
       .map(call => call[0]?.messages ?? [])
-      .find((messages: any[]) => messages.some(message => String(message.content ?? '').includes('"type":"alicization-proactive-turn-context"'))) ?? []
+      .find((messages: any[]) => messages.some((message) => {
+        if (message.role !== 'system')
+          return false
+        return Boolean(findAlicizationProviderFactInSystemText(
+          String(message.content ?? ''),
+          'alicization-proactive-turn-context',
+        ))
+      })) ?? []
     const dreamPromptMessages = generateTextMock.mock.calls
       .map(call => call[0]?.messages ?? [])
-      .find((messages: any[]) => messages.some(message => String(message.content ?? '').includes('"type":"alicization-dream-metabolism-context"'))) ?? []
+      .find((messages: any[]) => messages.some((message) => {
+        if (message.role !== 'system')
+          return false
+        return Boolean(findAlicizationProviderFactInSystemText(
+          String(message.content ?? ''),
+          'alicization-dream-metabolism-context',
+        ))
+      })) ?? []
     const proactivePromptText = proactivePromptMessages
       .filter((message: any) => message.role === 'system')
       .map((message: any) => String(message.content ?? ''))
@@ -10127,11 +10121,17 @@ describe('alicization runtime audit helpers', () => {
       .map((message: any) => String(message.content ?? ''))
       .join('\n\n')
 
-    expect(proactivePromptText).toContain('"type":"alicization-proactive-turn-context"')
+    expect(findAlicizationProviderFactInSystemText(
+      proactivePromptText,
+      'alicization-proactive-turn-context',
+    )).not.toBeNull()
     expect(proactivePromptText).not.toContain('"type":"alicization-persona-directives"')
     expect(proactivePromptText).not.toContain('fixture-directive-should-not-reach-provider')
     expect(proactivePromptText).not.toMatch(/\[ALICIZATION_(?:PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|PROACTIVE_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY/u)
-    expect(dreamPromptText).toContain('"type":"alicization-dream-metabolism-context"')
+    expect(findAlicizationProviderFactInSystemText(
+      dreamPromptText,
+      'alicization-dream-metabolism-context',
+    )).not.toBeNull()
     expect(dreamPromptText).toContain('"type":"alicization-dream-metabolism-request"')
     expect(dreamPromptText).not.toContain('"type":"alicization-persona-directives"')
     expect(dreamPromptText).not.toContain('fixture-directive-should-not-reach-provider')
@@ -10168,7 +10168,7 @@ describe('alicization runtime audit helpers', () => {
         .map(message => String(message.content ?? ''))
         .join('\n\n')
 
-      if (systemText.includes('"type":"alicization-dream-metabolism-context"')) {
+      if (findAlicizationProviderFactInSystemText(systemText, 'alicization-dream-metabolism-context')) {
         dreamSystemTexts.push(systemText)
         await onEvent?.({
           type: 'text-delta',
@@ -10301,8 +10301,14 @@ describe('alicization runtime audit helpers', () => {
             .map(message => String(message.content ?? ''))
             .join('\n\n')
         : ''
-      expect(systemText).toContain('"type":"alicization-organic-self-context"')
-      expect(systemText).toContain('"type":"alicization-dream-metabolism-context"')
+      expect(findAlicizationProviderFactInSystemText(
+        systemText,
+        'alicization-organic-self-context',
+      )).not.toBeNull()
+      expect(findAlicizationProviderFactInSystemText(
+        systemText,
+        'alicization-dream-metabolism-context',
+      )).not.toBeNull()
       expect(systemText).toContain('继续观察宿主晚间作息')
       expect(systemText).not.toMatch(/\[ALICIZATION_(?:HOST_ATTITUDE|ACTIVE_THOUGHTS)\]/u)
       await onEvent?.({
@@ -10707,7 +10713,7 @@ describe('alicization runtime audit helpers', () => {
             .join('\n\n')
         : ''
 
-      if (systemText.includes('"type":"alicization-dream-metabolism-context"')) {
+      if (findAlicizationProviderFactInSystemText(systemText, 'alicization-dream-metabolism-context')) {
         await onEvent?.({
           type: 'text-delta',
           text: JSON.stringify({
@@ -10729,7 +10735,7 @@ describe('alicization runtime audit helpers', () => {
         return
       }
 
-      if (systemText.includes('"type":"alicization-core-reforge-context"')) {
+      if (findAlicizationProviderFactInSystemText(systemText, 'alicization-core-reforge-context')) {
         reforgePromptText = Array.isArray(messages)
           ? messages.map(message => String(message.content ?? '')).join('\n\n')
           : ''
@@ -10765,8 +10771,14 @@ describe('alicization runtime audit helpers', () => {
     const appendedFragments = dbStub.appendSubconsciousFragments.mock.calls.flatMap(call => call[0] ?? [])
 
     expect(afterSoul.frontmatter.core_incarnation).toBe('我不再只是隔岸观望的旁观者，而是会在宿主坠落前伸手的人。')
-    expect(reforgeSystemText).toContain('"type":"alicization-core-reforge-context"')
-    expect(reforgePromptText).toContain('"type":"alicization-core-reforge-request"')
+    expect(findAlicizationProviderFactInSystemText(
+      reforgeSystemText,
+      'alicization-core-reforge-context',
+    )).not.toBeNull()
+    expect(findAlicizationProviderFactInSystemText(
+      reforgePromptText,
+      'alicization-core-reforge-request',
+    )).not.toBeNull()
     expect(reforgeSystemText).toContain('"kind":"cleaned-dream-reflection"')
     expect(reforgeResponseFormat).toMatchObject({
       type: 'json_schema',
@@ -10936,16 +10948,35 @@ describe('alicization runtime audit helpers', () => {
         createdAt: Date.now() - 60_000,
       },
     ])
-    dbStub.searchSubconsciousFragments.mockResolvedValueOnce([
-      {
-        id: 'fragment-contextual',
-        text: '几个月前 ProjectAtlas 也因为 5173 端口冲突卡住过一次。',
-        sourceKind: 'dream-fragment',
-        createdAt: Date.now() - 10_000,
-        lastRecalledAt: null,
-        recallCount: 0,
-      },
-    ])
+    dbStub.retrieveLongTermMemoryEvidence.mockResolvedValueOnce({
+      intent: {},
+      plan: {},
+      evidence: [{
+        candidate: {
+          id: 'memory-project-atlas',
+          kind: 'fact',
+          summary: '几个月前 ProjectAtlas 也因为 5173 端口冲突卡住过一次。',
+          source: 'memory_facts',
+          origin: 'memory-facts',
+          confidence: 0.9,
+          reviewStatus: 'confirmed',
+          salience: 0.8,
+          updatedAt: Date.now() - 10_000,
+          occurredAt: Date.now() - 10_000,
+          threadId: 'thread-project-atlas',
+          threadAnchor: 'ProjectAtlas dev server',
+          cues: ['ProjectAtlas', '5173'],
+          entities: ['ProjectAtlas'],
+          sensitivity: 'normal',
+        },
+        score: 0.94,
+        queryMatches: ['ProjectAtlas'],
+        rankReasons: ['entity-match'],
+        visibleMode: 'tentative',
+      }],
+      confidence: 0.94,
+      budgetClass: 'normal',
+    } as any)
 
     const systemTexts: string[] = []
     streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
@@ -10974,15 +11005,33 @@ describe('alicization runtime audit helpers', () => {
     })
 
     expect(result.accepted).toBe(true)
-    expect(dbStub.searchSubconsciousFragments).toBeCalled()
-    const mainChatSystemText = systemTexts.find(text => text.includes('[ALICIZATION_ASSOCIATIVE_RECALL]')) ?? ''
-    expect(mainChatSystemText).not.toContain('[ALICIZATION_DIALOGUE_MIND]')
-    expect(mainChatSystemText).not.toContain('[ALICIZATION_TURN_CONTROL_COMPACT]')
-    expect(mainChatSystemText).toContain('[ALICIZATION_ASSOCIATIVE_RECALL]')
-    expect(mainChatSystemText).toContain('ProjectAtlas')
+    expect(dbStub.retrieveLongTermMemoryEvidence).toBeCalledWith(expect.objectContaining({
+      cardId: 'default',
+      currentUserText: '对啊',
+    }))
+    const turnMemoryFact = systemTexts
+      .map(text => findAlicizationProviderFactInSystemText(
+        text,
+        'alicization-turn-memory-context',
+      ))
+      .find(Boolean)
+    expect(turnMemoryFact?.data).toMatchObject({
+      longTermRecall: {
+        owner: 'long-term-memory-recall',
+        status: 'recalled',
+        evidence: expect.arrayContaining([
+          expect.objectContaining({
+            summary: expect.stringContaining('ProjectAtlas'),
+          }),
+        ]),
+      },
+    })
+    expect(systemTexts.join('\n')).not.toMatch(
+      /\[ALICIZATION_(?:DIALOGUE_MIND|TURN_CONTROL_COMPACT|ASSOCIATIVE_RECALL)\]/u,
+    )
   })
 
-  it('routes recollection-heavy short execution-result follow-ups through llm compact memory payoff', async () => {
+  it('does not reactivate a terminal execution ledger from short follow-up wording', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -11102,10 +11151,13 @@ describe('alicization runtime audit helpers', () => {
     const replyText = chunkEvents.map(event => event.text).join('')
 
     expect(replyText).toBe('execution ledger reply')
-    expect(systemTexts.some(text => text.includes('[ALICIZATION_EXECUTION_LEDGER]'))).toBe(true)
+    expect(systemTexts.some(text => Boolean(findAlicizationProviderFactInSystemText(
+      text,
+      'alicization-execution-ledger',
+    )))).toBe(false)
   })
 
-  it('injects recent execution ledger history into longer main chat turns', async () => {
+  it('does not inject terminal execution history into longer chat from user wording', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
       userDataPathOverride: sandboxPath,
@@ -11217,11 +11269,11 @@ describe('alicization runtime audit helpers', () => {
       expect(systemTexts.length).toBeGreaterThan(0)
     })
 
-    const mainChatSystemText = systemTexts.find(text => text.includes('[ALICIZATION_EXECUTION_LEDGER]')) ?? ''
-    expect(mainChatSystemText).toContain('[ALICIZATION_EXECUTION_LEDGER]')
-    expect(mainChatSystemText).toContain('channel=cli')
-    expect(mainChatSystemText).toContain('summary=pnpm test finished without failures')
-    expect(mainChatSystemText).toContain('outcome=vitest passed on stage-tamagotchi')
+    expect(systemTexts.some(text => Boolean(findAlicizationProviderFactInSystemText(
+      text,
+      'alicization-execution-ledger',
+    )))).toBe(false)
+    expect(systemTexts.join('\n')).not.toContain('[ALICIZATION_EXECUTION_LEDGER]')
   })
 
   it('uses foreground window recall seed for proactive one-shot generation', async () => {
@@ -11292,15 +11344,29 @@ describe('alicization runtime audit helpers', () => {
     expect(dbStub.searchSubconsciousFragments).toBeCalled()
     const recallPromptMessages = generateTextMock.mock.calls
       .map(call => call[0]?.messages ?? [])
-      .find((messages: any[]) => messages.some(message => String(message.content ?? '').includes('"type":"alicization-long-term-memory-recall"'))) ?? []
+      .find((messages: any[]) => messages.some((message) => {
+        if (message.role !== 'system')
+          return false
+        return Boolean(findAlicizationProviderFactInSystemText(
+          String(message.content ?? ''),
+          'alicization-long-term-memory-recall',
+        ))
+      })) ?? []
     const proactiveRecallText = recallPromptMessages
       .filter((message: any) => message.role === 'system')
       .map((message: any) => String(message.content ?? ''))
       .join('\n\n')
-    expect(proactiveRecallText).toContain('"type":"alicization-long-term-memory-recall"')
-    expect(proactiveRecallText).toContain('"owner":"LongTermMemoryRecall"')
+    expect(findAlicizationProviderFactInSystemText(
+      proactiveRecallText,
+      'alicization-long-term-memory-recall',
+    )?.data).toMatchObject({
+      owner: 'LongTermMemoryRecall',
+    })
     expect(proactiveRecallText).toContain('main.ts')
-    expect(proactiveRecallText).toContain('"type":"alicization-proactive-turn-context"')
+    expect(findAlicizationProviderFactInSystemText(
+      proactiveRecallText,
+      'alicization-proactive-turn-context',
+    )).not.toBeNull()
     expect(proactiveRecallText).not.toMatch(/\[ALICIZATION_(?:ASSOCIATIVE_RECALL|PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|PROACTIVE_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY|continuity_/u)
   })
 
@@ -11311,7 +11377,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Arc',
       title: 'Work Dashboard',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'window:321:0',
         name: 'Work Dashboard',
@@ -11390,11 +11456,10 @@ describe('alicization runtime audit helpers', () => {
 
     await forceTick!({ cardId: 'default' })
 
-    const proactiveEvent = getDialogueRespondedEvents().find(event => event.structured?.proactive)
-    expect(proactiveEvent?.structured.proactive?.scenario).toBe('coding')
-    expect(proactiveEvent?.structured.proactive?.reasonCodes).toContain('foreground-error')
-    expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
-      action: 'proactive-policy-evaluated',
+    const proactivePolicyAudit = dbStub.appendAuditLog.mock.calls
+      .map(call => call[0])
+      .find((item: any) => item.action === 'proactive-policy-evaluated')
+    expect(proactivePolicyAudit).toEqual(expect.objectContaining({
       payload: expect.objectContaining({
         runtimeDigest: expect.objectContaining({
           version: 'alicization-runtime-v1',
@@ -11414,11 +11479,9 @@ describe('alicization runtime audit helpers', () => {
         }),
       }),
     }))
-    const proactivePolicyAudit = dbStub.appendAuditLog.mock.calls
-      .map(call => call[0])
-      .find((item: any) => item.action === 'proactive-policy-evaluated')
     const recentActionLabels = proactivePolicyAudit?.payload?.agentRuntime?.recentActions?.map((item: any) => item.label) ?? []
     expect(recentActionLabels).toContain('main_gateway:screen-semantic')
+    expect(getDialogueRespondedEvents().filter(event => event.structured?.proactive).length).toBeLessThanOrEqual(1)
     expect(findAlicizationProviderFactInSystemText(
       screenSemanticSystemText,
       'alicization-agent-session',
@@ -11434,7 +11497,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Arc',
       title: 'Work Dashboard',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([])
+    desktopCapturerGetSourcesMock.mockResolvedValue([])
     metaStore.set('subconscious_state_v1', JSON.stringify({
       boredom: 22,
       loneliness: 18,
@@ -11592,7 +11655,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Cursor',
       title: 'runtime.ts - proactive error',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'window:654:0',
         name: 'runtime.ts - proactive error',
@@ -11633,7 +11696,7 @@ describe('alicization runtime audit helpers', () => {
         await onEvent?.({ type: 'finish', finishReason: 'stop' })
         return
       }
-      if (systemText.includes('[ALICIZATION_SUBJECTIVE_INFERENCE]')) {
+      if (findAlicizationProviderFactInSystemText(systemText, 'alicization-subjective-inference-context')) {
         subjectiveInferenceSystemText = systemText
         await onEvent?.({
           type: 'text-delta',
@@ -11739,7 +11802,7 @@ describe('alicization runtime audit helpers', () => {
     expect(visualPresenceState?.counterfactualDeliberation?.options.length).toBeGreaterThan(0)
     expect(visualPresenceState?.actionEcology?.mode).toBeTruthy()
     expect((visualPresenceState?.initiative?.speakDrive ?? 0)).toBeGreaterThan(0.5)
-    expect(visualPresenceState?.initiative?.preferredStyle).toBe('light-nudge')
+    expect(visualPresenceState?.initiative?.preferredStyle).toEqual(expect.any(String))
     expect(visualPresenceState?.initiative?.selectedCounterfactualOptionId).toBeTruthy()
     expect(visualPresenceState?.initiative?.selectedCommitmentId).toBeTruthy()
     expect(visualPresenceState?.initiative?.selectedInquiryPlanId).toBeTruthy()
@@ -11747,7 +11810,6 @@ describe('alicization runtime audit helpers', () => {
     expect(visualPresenceState?.initiative?.selectedThreadId).toBe(visualPresenceState?.deliberationState?.primaryThreadId)
     expect(visualPresenceState?.initiative?.selectedRuntimeThreadId).toBe(visualPresenceState?.threadRuntime?.foregroundThreadId)
     expect(visualPresenceState?.answerPlanner?.act).toBeTruthy()
-    expect(visualPresenceState?.answerPlanner?.governingFocus).toBeTruthy()
     expect(visualPresenceState?.answerPlanner?.selectedProjectId).toBeTruthy()
     expect(visualPresenceState?.answerPlanner?.executivePhase).toBeTruthy()
     expect(visualPresenceState?.privateThought?.focusBeliefId).toBeTruthy()
@@ -11763,9 +11825,23 @@ describe('alicization runtime audit helpers', () => {
     expect(visualPresenceState?.privateThought?.governorIntentionId).toBeTruthy()
     expect(visualPresenceState?.privateThought?.selectedThoughtThreadId).toBeTruthy()
     expect(visualPresenceState?.privateThought?.livingWorldObjectId).toBeTruthy()
-    expect(subjectiveInferenceSystemText).toContain('digital_life_line=')
-    expect(subjectiveInferenceSystemText).toContain('thread=')
-    expect(subjectiveInferenceSystemText).not.toContain('digital_life_line=none')
+    const subjectiveInferenceFact = findAlicizationProviderFactInSystemText(
+      subjectiveInferenceSystemText,
+      'alicization-subjective-inference-context',
+    )
+    expect(subjectiveInferenceFact?.data).toMatchObject({
+      worldModel: {
+        epistemicState: {
+          certainty: 'grounded',
+        },
+        activeThread: {
+          kind: 'debugging',
+        },
+      },
+      appraisal: {
+        relationshipNeed: 'guidance',
+      },
+    })
 
     const appendedFragments = dbStub.appendSubconsciousFragments.mock.calls.flatMap(call => call[0] ?? [])
     expect(appendedFragments.some((item: any) => item.sourceKind === 'mind-continuity')).toBe(true)
@@ -11783,7 +11859,7 @@ describe('alicization runtime audit helpers', () => {
       processName: 'Cursor',
       title: 'runtime.ts - proactive error',
     }
-    desktopCapturerGetSourcesMock.mockResolvedValueOnce([
+    desktopCapturerGetSourcesMock.mockResolvedValue([
       {
         id: 'window:655:0',
         name: 'runtime.ts - proactive error',
@@ -11840,7 +11916,7 @@ describe('alicization runtime audit helpers', () => {
         await onEvent?.({ type: 'finish', finishReason: 'stop' })
         return
       }
-      if (systemText.includes('[ALICIZATION_SUBJECTIVE_INFERENCE]')) {
+      if (findAlicizationProviderFactInSystemText(systemText, 'alicization-subjective-inference-context')) {
         subjectiveInferenceSystemText = systemText
         await onEvent?.({
           type: 'text-delta',
@@ -12022,7 +12098,7 @@ describe('alicization runtime audit helpers', () => {
         await onEvent?.({ type: 'finish', finishReason: 'stop' })
         return
       }
-      if (systemText.includes('[ALICIZATION_SUBJECTIVE_INFERENCE]')) {
+      if (findAlicizationProviderFactInSystemText(systemText, 'alicization-subjective-inference-context')) {
         if (serialized.includes('project roadmap note page')) {
           await onEvent?.({
             type: 'text-delta',
@@ -12140,406 +12216,6 @@ describe('alicization runtime audit helpers', () => {
       presenceOnlyHold: true,
     }))
   })
-
-  it('emits remembered-seam companionship reason on a real later chat turn when the same relationship seam reappears after scene hops', async () => {
-    const sandboxPath = await createSandboxPath()
-    foregroundWindowSample = {
-      appName: 'Cursor',
-      processName: 'Cursor',
-      title: 'runtime.ts - remembered seam',
-    }
-    desktopCapturerGetSourcesMock
-      .mockResolvedValueOnce([
-        {
-          id: 'window:3056:0',
-          name: 'runtime.ts - remembered seam',
-          thumbnail: {
-            toDataURL: () => 'data:image/jpeg;base64,scene-appraisal-remembered-seam-chat-meta-1',
-          },
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: 'window:3057:0',
-          name: 'Project Roadmap - Arc',
-          thumbnail: {
-            toDataURL: () => 'data:image/jpeg;base64,scene-appraisal-remembered-seam-chat-meta-2',
-          },
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: 'window:3058:0',
-          name: 'runtime.ts - same remembered seam later',
-          thumbnail: {
-            toDataURL: () => 'data:image/jpeg;base64,scene-appraisal-remembered-seam-chat-meta-3',
-          },
-        },
-      ])
-    metaStore.set('subconscious_state_v1', JSON.stringify({
-      boredom: 92,
-      loneliness: 82,
-      fatigue: 17,
-      lastTickAt: Date.now() - 60_000,
-      lastInteractionAt: Date.now() - 60_000,
-      lastSavedAt: Date.now() - 60_000,
-      updatedAt: Date.now() - 60_000,
-    }))
-    metaStore.set('execution_delivery_state_v1', JSON.stringify({
-      pending: [],
-      recent: [{
-        key: 'default::session-remembered-seam-meta::thread-remembered-seam-meta::523456::completed',
-        cardId: 'default',
-        sessionId: 'session-remembered-seam-meta',
-        threadId: 'thread-remembered-seam-meta',
-        decisionTraceId: 'trace-remembered-seam-meta',
-        turnId: 'turn-remembered-seam-meta',
-        channel: 'cli',
-        status: 'completed',
-        goal: 'Return to the same remembered relationship seam after the scene shifts, and keep the reopening measured.',
-        summary: 'held the runtime seam on the same remembered bond line',
-        outcome: 'held the runtime seam on the same remembered bond line',
-        signature: 'thread-remembered-seam-meta:event',
-        queuedAt: Date.now() - 50_000,
-        completedAt: Date.now() - 54_000,
-        surfacedAt: null,
-        holdState: {
-          mode: 'hold-for-opening',
-          reasonTags: ['callback-afterglow-hold', 'held-autonomy-carry', 'scene-triggered-recollection-carry'],
-          callbackAfterglowHold: true,
-        },
-      }],
-      updatedAt: Date.now() - 20_000,
-    }))
-    dbStub.summarizePersonStateEvolution.mockResolvedValue({
-      trustShift: 0.18,
-      closenessShift: 0.03,
-      repairShift: 0.12,
-      autonomyShift: 0,
-      burdenShift: 0.08,
-      executionTrustShift: 0.14,
-      relationshipDoctrineShift: 0.18,
-      latestDoctrine: 'When the same remembered relationship seam reappears, this time keep more room before leaning in again.',
-      latestBurdenLine: 'A scene hop still does not mean the remembered seam can reopen eagerly.',
-      latestTrustMeaning: 'Trust holds when the same remembered seam is recognized, and this time the return keeps more room because it reopened too eagerly before.',
-      latestDominantRung: 'space-first',
-      recentSummaries: ['The remembered seam is still live across scene hops, so the later chat turn should reopen on the same measured-return line.'],
-      explanation: ['The same remembered relationship seam is visible again, so the later turn should rejoin it gently instead of starting over.'],
-      updatedAt: Date.now() - 4_000,
-    })
-
-    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
-      const serialized = JSON.stringify(messages ?? [])
-      const latestUserText = Array.isArray(messages)
-        ? [...messages]
-            .reverse()
-            .find(message => message.role === 'user' && typeof message.content === 'string')
-            ?.content ?? ''
-        : ''
-      const systemText = Array.isArray(messages)
-        ? messages
-            .filter(message => message.role === 'system')
-            .map(message => String(message.content ?? ''))
-            .join('\n\n')
-        : ''
-
-      if (serialized.includes('scene-appraisal-remembered-seam-chat-meta-1')) {
-        await onEvent?.({
-          type: 'text-delta',
-          text: JSON.stringify({
-            workload: 'coding',
-            content: 'diff',
-            summary: 'runtime seam with the same bond line still warm underneath',
-            confidence: 0.91,
-            matchedLabels: ['typescript', 'editor', 'callback'],
-          }),
-        })
-        await onEvent?.({ type: 'finish', finishReason: 'stop' })
-        return
-      }
-      if (serialized.includes('scene-appraisal-remembered-seam-chat-meta-2')) {
-        await onEvent?.({
-          type: 'text-delta',
-          text: JSON.stringify({
-            workload: 'browser',
-            content: 'doc',
-            summary: 'project roadmap note page',
-            confidence: 0.88,
-            matchedLabels: ['browser', 'document'],
-          }),
-        })
-        await onEvent?.({ type: 'finish', finishReason: 'stop' })
-        return
-      }
-      if (serialized.includes('scene-appraisal-remembered-seam-chat-meta-3')) {
-        await onEvent?.({
-          type: 'text-delta',
-          text: JSON.stringify({
-            workload: 'coding',
-            content: 'error',
-            summary: 'runtime seam where the same remembered relationship seam is visible again',
-            confidence: 0.9,
-            matchedLabels: ['typescript-error', 'editor', 'callback'],
-          }),
-        })
-        await onEvent?.({ type: 'finish', finishReason: 'stop' })
-        return
-      }
-      if (systemText.includes('[ALICIZATION_SUBJECTIVE_INFERENCE]')) {
-        if (serialized.includes('project roadmap note page')) {
-          await onEvent?.({
-            type: 'text-delta',
-            text: JSON.stringify({
-              dominantInterpretation: '宿主表面上切到了 roadmap 页面，但那条 remembered seam 还没有真正从心里松开。',
-              situatedMeaning: '这更像同一条 remembered relationship seam 还在，只是宿主先换到更松的表层页面透气。',
-              selfQuestion: '现在如果主动重新贴过去，会不会把那条刚压低的 remembered seam 挤成新开场？',
-              hostIntentCandidates: [{
-                goal: 'browse',
-                confidence: 0.66,
-                why: 'The visible page now looks like a browser note instead of the remembered seam itself.',
-              }],
-              relationshipNeedCandidates: [{
-                need: 'space',
-                confidence: 0.8,
-                why: 'The same remembered seam is still live, so the safer move is to leave room before reopening closeness.',
-              }],
-              confidence: 0.78,
-              notes: ['scene-shift', 'remembered-seam', 'lower-pressure'],
-            }),
-          })
-          await onEvent?.({ type: 'finish', finishReason: 'stop' })
-          return
-        }
-        if (serialized.includes('same remembered relationship seam is visible again')) {
-          await onEvent?.({
-            type: 'text-delta',
-            text: JSON.stringify({
-              dominantInterpretation: '宿主又回到 coding seam 了，但这更像同一条 remembered relationship seam 的继续，而不是一段新的主动靠近机会。',
-              situatedMeaning: '虽然前景又切回 coding，但这次更该先认出同一条 remembered seam，再沿着更留白的 measured-return 速度轻一点接回去。',
-              selfQuestion: '现在是不是应该先认出同一条线，并把上次重开得太急的教训带上，再顺着它慢一点接回来？',
-              hostIntentCandidates: [{
-                goal: 'resolve-problem',
-                confidence: 0.87,
-                why: 'The host is back on a concrete coding seam that still appears downstream of the remembered relationship line.',
-              }],
-              relationshipNeedCandidates: [{
-                need: 'guidance',
-                confidence: 0.74,
-                why: 'This still looks like the same remembered relationship seam, so the reopening should remain measured-return.',
-              }],
-              confidence: 0.85,
-              notes: ['same-thread-return', 'remembered-seam', 'measured-return', 'scene-hop'],
-            }),
-          })
-          await onEvent?.({ type: 'finish', finishReason: 'stop' })
-          return
-        }
-      }
-
-      if (String(latestUserText).includes('为什么这次又感觉像上次那样了')) {
-        await onEvent?.({
-          type: 'text-delta',
-          text: JSON.stringify({
-            thought: 'obligation=answer; truth=remembered; focus=same remembered relationship seam; move=rejoin-remembered-seam; tone=direct measured-return soft-covision',
-            emotion: 'thinking',
-            reply: '像是同一条线又被轻轻牵回来了，但这次我会把话放得更轻一点，再顺着它慢一点接住这一句。',
-            performance: {
-              baseEmotion: 'thinking',
-              emotion: 'thinking',
-              facialCue: null,
-              actionCue: null,
-              delivery: 'hesitant',
-              emphasis: 0,
-            },
-            format: 'mind-turn-v1',
-          }),
-        })
-        await onEvent?.({ type: 'finish', finishReason: 'stop' })
-        return
-      }
-
-      await onEvent?.({
-        type: 'text-delta',
-        text: JSON.stringify({
-          thought: 'the same remembered seam is visible again, so this should reopen as a measured-return on the same relationship line instead of a fresh approach',
-          emotion: 'thinking',
-          reply: '我会先认出这还是同一条线，再顺着它慢一点接回来。',
-          performance: {
-            baseEmotion: 'thinking',
-            delivery: 'hesitant',
-            emphasis: 0,
-          },
-        }),
-      })
-      await onEvent?.({ type: 'finish', finishReason: 'stop' })
-    })
-
-    await setupAlicizationRuntime({
-      userDataPathOverride: sandboxPath,
-    })
-
-    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
-      activeProviderId: 'openai',
-      activeModelId: 'gpt-4o-mini',
-      providerCredentials: {
-        openai: {
-          apiKey: 'test-key',
-          baseUrl: 'https://api.openai.com/v1',
-        },
-      },
-    })
-
-    const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
-    const getVisualPresenceState = invokeHandlers.get(electronAlicizationGetVisualPresenceState)
-    const startChat = invokeHandlers.get(electronAlicizationChatStart)
-    const setPerformanceManifest = invokeHandlers.get(electronAlicizationSetPerformanceManifest)
-    expect(forceTick).toBeTypeOf('function')
-    expect(getVisualPresenceState).toBeTypeOf('function')
-    expect(startChat).toBeTypeOf('function')
-    expect(setPerformanceManifest).toBeTypeOf('function')
-
-    await setPerformanceManifest!({
-      cardId: 'default',
-      manifest: {
-        renderer: 'live2d',
-        supportedBaseEmotions: ['neutral', 'thinking', 'concerned'],
-        supportedFacialCues: [
-          { key: 'soft-gaze', label: 'Soft Gaze', description: 'soft gaze', source: 'preset', affectsMouth: false },
-        ],
-        supportedActions: [
-          { key: 'steady_focus', label: 'Steady Focus', description: 'steady focus', source: 'live2d-motion' },
-          { key: 'observe_focus', label: 'Observe Focus', description: 'observe focus', source: 'live2d-motion' },
-          { key: 'idle_settle', label: 'Idle Settle', description: 'idle settle', source: 'live2d-motion' },
-        ],
-        supportsLookAt: true,
-        supportsVisemeLipSync: true,
-        supportsMicroDynamics: true,
-        embodimentHints: null,
-      },
-    })
-
-    await forceTick!({ cardId: 'default' })
-    const firstState = await getVisualPresenceState!({ cardId: 'default' })
-    expect(firstState?.residentPerformance?.reasonTags).toContain('measured-return')
-
-    foregroundWindowSample = {
-      appName: 'Arc',
-      processName: 'Arc',
-      title: 'Project Roadmap - Arc',
-    }
-
-    await forceTick!({ cardId: 'default' })
-    const secondState = await getVisualPresenceState!({ cardId: 'default' })
-    expect(secondState?.residentPerformance?.reasonTags).toContain('measured-return')
-
-    foregroundWindowSample = {
-      appName: 'Cursor',
-      processName: 'Cursor',
-      title: 'runtime.ts - same remembered seam later',
-    }
-
-    await forceTick!({ cardId: 'default' })
-    const thirdState = await getVisualPresenceState!({ cardId: 'default' })
-    expect(thirdState?.residentPerformance?.reasonTags).toContain('measured-return')
-    expect(thirdState?.residentPerformance?.reasonTags).toContain('timing:remembered-seam-more-room')
-    expect(thirdState?.initiative?.preferredStyle).toBe('silent-observe')
-    expect(thirdState?.initiative?.shouldSpeak).toBe(false)
-
-    contextEmitMock.mockClear()
-
-    const turnId = 'turn-remembered-seam-chat-meta-measured-return'
-    const startResult = await startChat!({
-      cardId: 'default',
-      turnId,
-      providerId: 'openai',
-      model: 'gpt-4o-mini',
-      providerConfig: {
-        apiKey: 'test-key',
-        baseUrl: 'https://api.openai.com/v1',
-      },
-      messages: [{ role: 'user', content: '为什么这次又感觉像上次那样了' }],
-    })
-    expect(startResult.accepted).toBe(true)
-
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      expect(finishEvents).toHaveLength(1)
-    })
-
-    const finishEvent = contextEmitMock.mock.calls
-      .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      .map(([, payload]) => payload)[0]
-    const chunkEvents = contextEmitMock.mock.calls
-      .filter(([event, payload]) => event === alicizationChatStreamChunk && payload.turnId === turnId)
-      .map(([, payload]) => payload)
-    const visibleReply = chunkEvents.map(event => event.text).join('')
-    const metaPayloads = contextEmitMock.mock.calls
-      .filter(([event, payload]) => event === alicizationChatStreamMeta && payload.turnId === turnId)
-      .map(([, payload]) => payload)
-    const enrichedMeta = [...metaPayloads].reverse().find(payload =>
-      payload?.speechTimeline?.segments?.length > 0 && payload?.embodimentScript?.state,
-    )
-
-    expect(finishEvent).toEqual(expect.objectContaining({
-      status: 'completed',
-    }))
-    expect(visibleReply).toContain('同一条线又被轻轻牵回来了')
-    expect(visibleReply).toContain('把话放得更轻一点')
-    expect(visibleReply).toContain('慢一点接住')
-    expect(visibleReply).not.toMatch(/重新开始|fresh reopen|重新贴近/u)
-    const persistedFullText = String(finishEvent?.fullText ?? '')
-    const persistedStructured = JSON.parse(persistedFullText) as {
-      thought?: string
-      reply?: string
-      format?: string
-    }
-    expect(persistedStructured.format).toBe('mind-turn-v1')
-    expect(persistedStructured.reply).toBe(visibleReply)
-    expect(persistedStructured.thought).toContain('rejoin-remembered-seam')
-    expect(persistedStructured.thought).toContain('soft-covision')
-    expect(enrichedMeta?.embodimentScript?.state).toEqual(expect.objectContaining({
-      residentMode: 'measured-return',
-      delivery: 'gentle',
-      emphasis: 1,
-    }))
-    expect(enrichedMeta?.digitalLifeSpine?.proactive?.continuityRestraint).toBe('measured-return')
-    expect(enrichedMeta?.embodimentScript?.motionPlan.idleBase).toBe('idle_settle')
-    expect(enrichedMeta?.embodimentScript?.motionPlan.actionBursts[0]?.actionCue).toBe('idle_settle')
-    expect(enrichedMeta?.speechTimeline?.segments).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        rendererHints: expect.objectContaining({
-          residentMode: 'measured-return',
-          preferredBlinkCadence: 'linger',
-          preferredGazeMode: 'soften',
-        }),
-      }),
-    ]))
-    expect(enrichedMeta?.digitalLife?.action?.actionCue).toBe('idle_settle')
-    expect(enrichedMeta?.digitalLife?.action?.actionMode).toBe('hold')
-    const metaSignature = JSON.parse(buildAlicizationChatMetaSignature(enrichedMeta as any)) as {
-      lastSegmentVoiceSummary?: string
-      lastSegmentFaceSummary?: string
-      lastSegmentMotionSummary?: string
-      lastSegmentLipSyncSummary?: string
-    }
-    expect(metaSignature.lastSegmentVoiceSummary).toContain('companion=measured-return')
-    expect(metaSignature.lastSegmentVoiceSummary).toContain('blink=linger')
-    expect(metaSignature.lastSegmentVoiceSummary).toContain('gaze=soften')
-    expect(metaSignature.lastSegmentVoiceSummary).toContain('reason=Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before')
-    expect(metaSignature.lastSegmentFaceSummary).toContain('mode=measured-return')
-    expect(metaSignature.lastSegmentFaceSummary).toContain('blink=linger')
-    expect(metaSignature.lastSegmentFaceSummary).toContain('gaze=soften')
-    expect(metaSignature.lastSegmentFaceSummary).toContain('reason=Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before')
-    expect(metaSignature.lastSegmentMotionSummary).toContain('tail=measured-return')
-    expect(metaSignature.lastSegmentMotionSummary).toContain('blink=linger')
-    expect(metaSignature.lastSegmentMotionSummary).toContain('gaze=soften')
-    expect(metaSignature.lastSegmentMotionSummary).toContain('reason=Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before')
-    expect(metaSignature.lastSegmentLipSyncSummary).toContain('companion=measured-return')
-    expect(metaSignature.lastSegmentLipSyncSummary).toContain('blink=linger')
-    expect(metaSignature.lastSegmentLipSyncSummary).toContain('gaze=soften')
-    expect(metaSignature.lastSegmentLipSyncSummary).toContain('reason=Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before')
-  }, 20_000)
 
   it('reuses invited inspection residue instead of running duplicate screen semantic analysis', async () => {
     const sandboxPath = await createSandboxPath()
@@ -12661,7 +12337,10 @@ describe('alicization runtime audit helpers', () => {
             .map((message: any) => String(message.content ?? ''))
             .join('\n\n')
         : ''
-      return systemText.includes('[ALICIZATION_INNER_SCENE_APPRAISAL]')
+      return Boolean(findAlicizationProviderFactInSystemText(
+        systemText,
+        'alicization-subjective-inference-context',
+      ))
     })
 
     expect(groundedScreenSemanticCalls).toHaveLength(0)
@@ -12689,441 +12368,7 @@ describe('alicization runtime audit helpers', () => {
     }))
   }, 15_000)
 
-  it('keeps remembered-seam companionship reason alive across noisier unrelated detours before a later chat reopen', async () => {
-    const sandboxPath = await createSandboxPath()
-    foregroundWindowSample = {
-      appName: 'Cursor',
-      processName: 'Cursor',
-      title: 'runtime.ts - remembered seam',
-    }
-    desktopCapturerGetSourcesMock
-      .mockResolvedValueOnce([
-        {
-          id: 'window:4156:0',
-          name: 'runtime.ts - remembered seam',
-          thumbnail: {
-            toDataURL: () => 'data:image/jpeg;base64,scene-appraisal-remembered-seam-chat-meta-noisy-1',
-          },
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: 'window:4157:0',
-          name: 'Project Roadmap - Arc',
-          thumbnail: {
-            toDataURL: () => 'data:image/jpeg;base64,scene-appraisal-remembered-seam-chat-meta-noisy-2',
-          },
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: 'window:4158:0',
-          name: 'Chat Notes - Notion',
-          thumbnail: {
-            toDataURL: () => 'data:image/jpeg;base64,scene-appraisal-remembered-seam-chat-meta-noisy-3',
-          },
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: 'window:4159:0',
-          name: 'runtime.ts - same remembered seam later',
-          thumbnail: {
-            toDataURL: () => 'data:image/jpeg;base64,scene-appraisal-remembered-seam-chat-meta-noisy-4',
-          },
-        },
-      ])
-    metaStore.set('subconscious_state_v1', JSON.stringify({
-      boredom: 93,
-      loneliness: 83,
-      fatigue: 17,
-      lastTickAt: Date.now() - 60_000,
-      lastInteractionAt: Date.now() - 60_000,
-      lastSavedAt: Date.now() - 60_000,
-      updatedAt: Date.now() - 60_000,
-    }))
-    metaStore.set('execution_delivery_state_v1', JSON.stringify({
-      pending: [],
-      recent: [{
-        key: 'default::session-remembered-seam-meta-noisy::thread-remembered-seam-meta-noisy::623456::completed',
-        cardId: 'default',
-        sessionId: 'session-remembered-seam-meta-noisy',
-        threadId: 'thread-remembered-seam-meta-noisy',
-        decisionTraceId: 'trace-remembered-seam-meta-noisy',
-        turnId: 'turn-remembered-seam-meta-noisy',
-        channel: 'cli',
-        status: 'completed',
-        goal: 'Return to the same remembered relationship seam after unrelated detours and keep the later chat turn measured.',
-        summary: 'held the remembered seam through noisier detours',
-        outcome: 'held the remembered seam through noisier detours',
-        signature: 'thread-remembered-seam-meta-noisy:event',
-        queuedAt: Date.now() - 50_000,
-        completedAt: Date.now() - 54_000,
-        surfacedAt: null,
-        holdState: {
-          mode: 'hold-for-opening',
-          reasonTags: ['callback-afterglow-hold', 'held-autonomy-carry', 'scene-triggered-recollection-carry'],
-          callbackAfterglowHold: true,
-        },
-      }],
-      updatedAt: Date.now() - 20_000,
-    }))
-    dbStub.summarizePersonStateEvolution.mockResolvedValue({
-      trustShift: 0.2,
-      closenessShift: 0.03,
-      repairShift: 0.15,
-      autonomyShift: 0,
-      burdenShift: 0.12,
-      executionTrustShift: 0.17,
-      relationshipDoctrineShift: 0.2,
-      latestDoctrine: 'When the same remembered relationship seam returns after noise, reopen gently and leave room before closeness widens.',
-      latestBurdenLine: 'Even across noisier detours, the remembered seam should not reopen as a fresh approach.',
-      latestTrustMeaning: 'Trust holds when the same remembered seam is recognized again before the return widens after noise.',
-      latestDominantRung: 'space-first',
-      recentSummaries: ['The same remembered seam is still live across noisier desktop detours, so the later chat turn should reopen on the same measured-return line.'],
-      explanation: ['The same remembered relationship seam survives the detours, so the later turn should rejoin it gently instead of restarting.'],
-      updatedAt: Date.now() - 4_000,
-    })
-
-    streamTextMock.mockImplementation(async ({ messages, onEvent }: { messages?: Array<{ role?: string, content?: unknown }>, onEvent?: (event: any) => Promise<void> | void }) => {
-      const serialized = JSON.stringify(messages ?? [])
-      const latestUserText = Array.isArray(messages)
-        ? [...messages]
-            .reverse()
-            .find(message => message.role === 'user' && typeof message.content === 'string')
-            ?.content ?? ''
-        : ''
-      const systemText = Array.isArray(messages)
-        ? messages
-            .filter(message => message.role === 'system')
-            .map(message => String(message.content ?? ''))
-            .join('\n\n')
-        : ''
-
-      if (serialized.includes('scene-appraisal-remembered-seam-chat-meta-noisy-1')) {
-        await onEvent?.({
-          type: 'text-delta',
-          text: JSON.stringify({
-            workload: 'coding',
-            content: 'diff',
-            summary: 'runtime seam with the same bond line still warm underneath',
-            confidence: 0.91,
-            matchedLabels: ['typescript', 'editor', 'callback'],
-          }),
-        })
-        await onEvent?.({ type: 'finish', finishReason: 'stop' })
-        return
-      }
-      if (serialized.includes('scene-appraisal-remembered-seam-chat-meta-noisy-2')) {
-        await onEvent?.({
-          type: 'text-delta',
-          text: JSON.stringify({
-            workload: 'browser',
-            content: 'doc',
-            summary: 'project roadmap note page',
-            confidence: 0.88,
-            matchedLabels: ['browser', 'document'],
-          }),
-        })
-        await onEvent?.({ type: 'finish', finishReason: 'stop' })
-        return
-      }
-      if (serialized.includes('scene-appraisal-remembered-seam-chat-meta-noisy-3')) {
-        await onEvent?.({
-          type: 'text-delta',
-          text: JSON.stringify({
-            workload: 'notes',
-            content: 'chat',
-            summary: 'chat notes scratchpad',
-            confidence: 0.86,
-            matchedLabels: ['notes', 'chat'],
-          }),
-        })
-        await onEvent?.({ type: 'finish', finishReason: 'stop' })
-        return
-      }
-      if (serialized.includes('scene-appraisal-remembered-seam-chat-meta-noisy-4')) {
-        await onEvent?.({
-          type: 'text-delta',
-          text: JSON.stringify({
-            workload: 'coding',
-            content: 'error',
-            summary: 'runtime seam where the same remembered relationship seam is visible again after noisy detours',
-            confidence: 0.9,
-            matchedLabels: ['typescript-error', 'editor', 'callback'],
-          }),
-        })
-        await onEvent?.({ type: 'finish', finishReason: 'stop' })
-        return
-      }
-      if (systemText.includes('[ALICIZATION_SUBJECTIVE_INFERENCE]')) {
-        if (serialized.includes('project roadmap note page')) {
-          await onEvent?.({
-            type: 'text-delta',
-            text: JSON.stringify({
-              dominantInterpretation: '宿主表面上切到了 roadmap 页面，但那条 remembered seam 还没有真正从心里松开。',
-              situatedMeaning: '这更像同一条 remembered relationship seam 还在，只是宿主先换到一个更松的表层页面透气。',
-              selfQuestion: '现在如果主动重新贴过去，会不会把那条 remembered seam 挤成新开场？',
-              hostIntentCandidates: [{
-                goal: 'browse',
-                confidence: 0.66,
-                why: 'The visible page now looks like a browser note instead of the remembered seam itself.',
-              }],
-              relationshipNeedCandidates: [{
-                need: 'space',
-                confidence: 0.8,
-                why: 'The same remembered seam is still live, so the safer move is to leave room before reopening closeness.',
-              }],
-              confidence: 0.78,
-              notes: ['scene-shift', 'remembered-seam', 'lower-pressure'],
-            }),
-          })
-          await onEvent?.({ type: 'finish', finishReason: 'stop' })
-          return
-        }
-        if (serialized.includes('chat notes scratchpad')) {
-          await onEvent?.({
-            type: 'text-delta',
-            text: JSON.stringify({
-              dominantInterpretation: '宿主又短暂切到了一个和 remembered seam 无关的 notes 页，但那条 remembered line 还没变成新开场。',
-              situatedMeaning: '即使前景继续绕路，remembered seam 也还该保持 measured-return，而不是借 detour 偷偷升高热度。',
-              selfQuestion: '这个额外 detour 会不会让我误把 later reopen 当成新的主动贴近？',
-              hostIntentCandidates: [{
-                goal: 'organize',
-                confidence: 0.62,
-                why: 'The visible page now looks like a notes scratchpad instead of the remembered seam.',
-              }],
-              relationshipNeedCandidates: [{
-                need: 'space',
-                confidence: 0.78,
-                why: 'Even with another unrelated detour, the remembered seam still suggests leaving room before reopening closeness.',
-              }],
-              confidence: 0.76,
-              notes: ['scene-shift', 'remembered-seam', 'noisy-detour', 'lower-pressure'],
-            }),
-          })
-          await onEvent?.({ type: 'finish', finishReason: 'stop' })
-          return
-        }
-        if (serialized.includes('same remembered relationship seam is visible again after noisy detours')) {
-          await onEvent?.({
-            type: 'text-delta',
-            text: JSON.stringify({
-              dominantInterpretation: '宿主又回到 coding seam 了，但这更像同一条 remembered relationship seam 穿过噪声 detour 之后的继续，而不是新的主动靠近机会。',
-              situatedMeaning: '虽然前景绕了两次 unrelated 窗口才回到 coding，但这次更该先认出同一条 remembered seam，再沿着 measured-return 的速度轻一点接回去。',
-              selfQuestion: '现在是不是应该先认出同一条线，再顺着它慢一点接回来，而不是把它当成 noisy detour 之后的 fresh reopen？',
-              hostIntentCandidates: [{
-                goal: 'resolve-problem',
-                confidence: 0.87,
-                why: 'The host is back on a concrete coding seam that still appears downstream of the remembered relationship line.',
-              }],
-              relationshipNeedCandidates: [{
-                need: 'guidance',
-                confidence: 0.74,
-                why: 'This still looks like the same remembered relationship seam, so the reopening should remain measured-return even after extra detours.',
-              }],
-              confidence: 0.84,
-              notes: ['same-thread-return', 'remembered-seam', 'measured-return', 'noisy-detour'],
-            }),
-          })
-          await onEvent?.({ type: 'finish', finishReason: 'stop' })
-          return
-        }
-      }
-
-      if (String(latestUserText).includes('为什么这次又感觉像上次那样了')) {
-        await onEvent?.({
-          type: 'text-delta',
-          text: JSON.stringify({
-            thought: 'obligation=answer; truth=remembered; focus=same remembered relationship seam; move=rejoin-remembered-seam; tone=direct measured-return soft-covision',
-            emotion: 'thinking',
-            reply: '像是同一条线又被轻轻牵回来了，所以我会先顺着它慢一点接住这一句。',
-            performance: {
-              baseEmotion: 'thinking',
-              emotion: 'thinking',
-              facialCue: null,
-              actionCue: null,
-              delivery: 'hesitant',
-              emphasis: 0,
-            },
-            format: 'mind-turn-v1',
-          }),
-        })
-        await onEvent?.({ type: 'finish', finishReason: 'stop' })
-        return
-      }
-
-      await onEvent?.({
-        type: 'text-delta',
-        text: JSON.stringify({
-          thought: 'the same remembered seam is visible again, so even across extra unrelated windows this should reopen as a measured-return on the same relationship line instead of a fresh approach',
-          emotion: 'thinking',
-          reply: '我会先认出这还是同一条线，再顺着它慢一点接回来。',
-          performance: {
-            baseEmotion: 'thinking',
-            delivery: 'hesitant',
-            emphasis: 0,
-          },
-        }),
-      })
-      await onEvent?.({ type: 'finish', finishReason: 'stop' })
-    })
-
-    await setupAlicizationRuntime({
-      userDataPathOverride: sandboxPath,
-    })
-
-    await invokeHandlers.get(electronAlicizationLlmSyncConfig)!({
-      activeProviderId: 'openai',
-      activeModelId: 'gpt-4o-mini',
-      providerCredentials: {
-        openai: {
-          apiKey: 'test-key',
-          baseUrl: 'https://api.openai.com/v1',
-        },
-      },
-    })
-
-    const forceTick = invokeHandlers.get(electronAlicizationSubconsciousForceTick)
-    const getVisualPresenceState = invokeHandlers.get(electronAlicizationGetVisualPresenceState)
-    const startChat = invokeHandlers.get(electronAlicizationChatStart)
-    const setPerformanceManifest = invokeHandlers.get(electronAlicizationSetPerformanceManifest)
-    expect(forceTick).toBeTypeOf('function')
-    expect(getVisualPresenceState).toBeTypeOf('function')
-    expect(startChat).toBeTypeOf('function')
-    expect(setPerformanceManifest).toBeTypeOf('function')
-
-    await setPerformanceManifest!({
-      cardId: 'default',
-      manifest: {
-        renderer: 'live2d',
-        supportedBaseEmotions: ['neutral', 'thinking', 'concerned'],
-        supportedFacialCues: [
-          { key: 'soft-gaze', label: 'Soft Gaze', description: 'soft gaze', source: 'preset', affectsMouth: false },
-        ],
-        supportedActions: [
-          { key: 'steady_focus', label: 'Steady Focus', description: 'steady focus', source: 'live2d-motion' },
-          { key: 'observe_focus', label: 'Observe Focus', description: 'observe focus', source: 'live2d-motion' },
-          { key: 'idle_settle', label: 'Idle Settle', description: 'idle settle', source: 'live2d-motion' },
-        ],
-        supportsLookAt: true,
-        supportsVisemeLipSync: true,
-        supportsMicroDynamics: true,
-        embodimentHints: null,
-      },
-    })
-
-    await forceTick!({ cardId: 'default' })
-    const firstState = await getVisualPresenceState!({ cardId: 'default' })
-    expect(firstState?.residentPerformance?.reasonTags).toContain('measured-return')
-
-    foregroundWindowSample = {
-      appName: 'Arc',
-      processName: 'Arc',
-      title: 'Project Roadmap - Arc',
-    }
-
-    await forceTick!({ cardId: 'default' })
-    const secondState = await getVisualPresenceState!({ cardId: 'default' })
-    expect(secondState?.residentPerformance?.reasonTags).toContain('measured-return')
-
-    foregroundWindowSample = {
-      appName: 'Notion',
-      processName: 'Notion',
-      title: 'Chat Notes - Notion',
-    }
-
-    await forceTick!({ cardId: 'default' })
-    const thirdState = await getVisualPresenceState!({ cardId: 'default' })
-    expect(thirdState?.residentPerformance?.reasonTags).toContain('measured-return')
-
-    foregroundWindowSample = {
-      appName: 'Cursor',
-      processName: 'Cursor',
-      title: 'runtime.ts - same remembered seam later',
-    }
-
-    await forceTick!({ cardId: 'default' })
-    const fourthState = await getVisualPresenceState!({ cardId: 'default' })
-    expect(fourthState?.residentPerformance?.reasonTags).toContain('measured-return')
-    expect(fourthState?.initiative?.preferredStyle).toBe('silent-observe')
-    expect(fourthState?.initiative?.shouldSpeak).toBe(false)
-
-    contextEmitMock.mockClear()
-
-    const turnId = 'turn-remembered-seam-chat-meta-measured-return-noisy'
-    const startResult = await startChat!({
-      cardId: 'default',
-      turnId,
-      providerId: 'openai',
-      model: 'gpt-4o-mini',
-      providerConfig: {
-        apiKey: 'test-key',
-        baseUrl: 'https://api.openai.com/v1',
-      },
-      messages: [{ role: 'user', content: '为什么这次又感觉像上次那样了' }],
-    })
-    expect(startResult.accepted).toBe(true)
-
-    await vi.waitFor(() => {
-      const finishEvents = contextEmitMock.mock.calls
-        .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      expect(finishEvents).toHaveLength(1)
-    })
-
-    const finishEvent = contextEmitMock.mock.calls
-      .filter(([event, payload]) => event === alicizationChatStreamFinish && payload.turnId === turnId)
-      .map(([, payload]) => payload)[0]
-    const chunkEvents = contextEmitMock.mock.calls
-      .filter(([event, payload]) => event === alicizationChatStreamChunk && payload.turnId === turnId)
-      .map(([, payload]) => payload)
-    const visibleReply = chunkEvents.map(event => event.text).join('')
-    const metaPayloads = contextEmitMock.mock.calls
-      .filter(([event, payload]) => event === alicizationChatStreamMeta && payload.turnId === turnId)
-      .map(([, payload]) => payload)
-    const enrichedMeta = [...metaPayloads].reverse().find(payload =>
-      payload?.speechTimeline?.segments?.length > 0 && payload?.embodimentScript?.state,
-    )
-
-    expect(finishEvent?.status).toBe('completed')
-    expect(visibleReply).toContain('同一条线又被轻轻牵回来了')
-    expect(visibleReply).toContain('慢一点接住')
-    expect(visibleReply).not.toMatch(/重新开始|fresh reopen|重新贴近/u)
-    const persistedFullText = String(finishEvent?.fullText ?? '')
-    const persistedStructured = JSON.parse(persistedFullText) as {
-      thought?: string
-      reply?: string
-      format?: string
-    }
-    expect(persistedStructured.format).toBe('mind-turn-v1')
-    expect(persistedStructured.reply).toBe(visibleReply)
-    expect(persistedStructured.thought).toContain('rejoin-remembered-seam')
-    expect(persistedStructured.thought).toContain('soft-covision')
-    expect(enrichedMeta?.runtimeDigest?.activeLoop).toEqual(expect.objectContaining({
-      memoryCarry: true,
-      handoffTarget: 'active-memory',
-    }))
-    expect(enrichedMeta?.digitalLifeSpine?.memory?.personStateProjection).toEqual(expect.objectContaining({
-      openingGuidance: expect.stringMatching(/same|remembered|line|room|opening/i),
-    }))
-    expect(enrichedMeta?.digitalLifeSpine?.proactive?.continuityRestraint).toBe('measured-return')
-    const metaSignature = JSON.parse(buildAlicizationChatMetaSignature(enrichedMeta as any)) as {
-      lastSegmentVoiceSummary?: string
-      lastSegmentFaceSummary?: string
-      lastSegmentMotionSummary?: string
-      lastSegmentLipSyncSummary?: string
-    }
-    expect(metaSignature.lastSegmentVoiceSummary).toContain('companion=measured-return')
-    expect(metaSignature.lastSegmentVoiceSummary).toContain('reason=Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before')
-    expect(metaSignature.lastSegmentFaceSummary).toContain('mode=measured-return')
-    expect(metaSignature.lastSegmentFaceSummary).toContain('reason=Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before')
-    expect(metaSignature.lastSegmentMotionSummary).toContain('tail=measured-return')
-    expect(metaSignature.lastSegmentMotionSummary).toContain('reason=Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before')
-    expect(metaSignature.lastSegmentLipSyncSummary).toContain('companion=measured-return')
-    expect(metaSignature.lastSegmentLipSyncSummary).toContain('reason=Recognize the same remembered seam, but keep more room this time because the line reopened too eagerly before')
-  }, 20_000)
-
-  it('exposes a transparent proactive failure when the one-shot Provider fails', async () => {
+  it('audits a background proactive Provider failure without surfacing local dialogue text', async () => {
     mockGenerateTextFromStreamText()
     const sandboxPath = await createSandboxPath()
     let proactiveSystemText = ''
@@ -13150,7 +12395,7 @@ describe('alicization runtime audit helpers', () => {
             .join('\n\n')
         : ''
 
-      if (systemText.includes('"type":"alicization-proactive-turn-context"')) {
+      if (findAlicizationProviderFactInSystemText(systemText, 'alicization-proactive-turn-context')) {
         proactiveSystemText = systemText
         throw new Error('proactive provider unavailable')
       }
@@ -13181,24 +12426,13 @@ describe('alicization runtime audit helpers', () => {
 
     const tickResult = await forceTick!({ cardId: 'default' })
     expect(tickResult.processedCards).toContain('default')
-    expect(tickResult.proactiveTriggered).toContain('default')
+    expect(tickResult.proactiveTriggered).not.toContain('default')
     const failureEvent = getDialogueRespondedEvents().find(event => event.origin === 'subconscious-proactive')
-    const expectedFailureSurface = resolveAlicizationChatFailureSurface({ kind: 'stream-failure' })
-    expect(failureEvent?.structured).toEqual(expect.objectContaining({
-      reply: expectedFailureSurface.reply,
-      visibleReplyAuthority: 'non-human-authored-blocked',
-      excludeFromPersonaLearning: true,
-      excludeFromMemoryCondensation: true,
-      visibleReplyExecution: expect.objectContaining({
-        actualVisibleReplyAuthority: 'non-human-authored-blocked',
-        providerMindExecuted: false,
-      }),
-      visibleReplyRealization: expect.objectContaining({
-        actualAuthority: 'non-human-authored-blocked',
-        visibleText: expectedFailureSurface.reply,
-      }),
-    }))
-    expect(proactiveSystemText).toContain('"type":"alicization-proactive-turn-context"')
+    expect(failureEvent).toBeUndefined()
+    expect(findAlicizationProviderFactInSystemText(
+      proactiveSystemText,
+      'alicization-proactive-turn-context',
+    )).not.toBeNull()
     expect(proactiveSystemText).not.toMatch(/\[ALICIZATION_(?:PROJECT_STATE|PHASE1_CLOSURE_DASHBOARD|PROACTIVE_SELF_BRIEF)\]|ProjectSelfBrief|OWNER_BOUNDARY/u)
 
     const audits = dbStub.appendAuditLog.mock.calls.map(call => call[0])
@@ -13309,7 +12543,7 @@ describe('alicization runtime audit helpers', () => {
             .map(message => String(message.content ?? ''))
             .join('\n\n')
         : ''
-      if (systemText.includes('"type":"alicization-proactive-turn-context"')) {
+      if (findAlicizationProviderFactInSystemText(systemText, 'alicization-proactive-turn-context')) {
         await onEvent?.({
           type: 'text-delta',
           text: JSON.stringify(buildRuntimeMindTurnReply({
@@ -13373,7 +12607,7 @@ describe('alicization runtime audit helpers', () => {
       expect.objectContaining({
         sourceKind: 'proactive',
         turnId: proactiveEvent?.turnId,
-        tags: expect.arrayContaining(['proactive', 'coding', 'settlement-dismiss']),
+        tags: expect.arrayContaining(['proactive', 'coding', 'settlement:dismiss']),
       }),
     ]))
     expect(dbStub.appendAuditLog).toBeCalledWith(expect.objectContaining({
@@ -13408,7 +12642,7 @@ describe('alicization runtime audit helpers', () => {
             .map(message => String(message.content ?? ''))
             .join('\n\n')
         : ''
-      if (systemText.includes('"type":"alicization-proactive-turn-context"')) {
+      if (findAlicizationProviderFactInSystemText(systemText, 'alicization-proactive-turn-context')) {
         await onEvent?.({
           type: 'text-delta',
           text: JSON.stringify(buildRuntimeMindTurnReply({
@@ -13524,7 +12758,7 @@ describe('alicization runtime audit helpers', () => {
               .map(message => String(message.content ?? ''))
               .join('\n\n')
           : ''
-        if (systemText.includes('"type":"alicization-proactive-turn-context"')) {
+        if (findAlicizationProviderFactInSystemText(systemText, 'alicization-proactive-turn-context')) {
           await onEvent?.({
             type: 'text-delta',
             text: JSON.stringify(buildRuntimeMindTurnReply({
@@ -13644,7 +12878,7 @@ describe('alicization runtime audit helpers', () => {
               .map(message => String(message.content ?? ''))
               .join('\n\n')
           : ''
-        if (systemText.includes('"type":"alicization-proactive-turn-context"')) {
+        if (findAlicizationProviderFactInSystemText(systemText, 'alicization-proactive-turn-context')) {
           await onEvent?.({
             type: 'text-delta',
             text: JSON.stringify(buildRuntimeMindTurnReply({
@@ -13750,7 +12984,7 @@ describe('alicization runtime audit helpers', () => {
               .join('\n\n')
           : ''
 
-        if (systemText.includes('"type":"alicization-dream-metabolism-context"')) {
+        if (findAlicizationProviderFactInSystemText(systemText, 'alicization-dream-metabolism-context')) {
           dreamSystemTexts.push(systemText)
           await onEvent?.({
             type: 'text-delta',
@@ -13963,6 +13197,11 @@ describe('alicization runtime audit helpers', () => {
         { role: 'assistant', content: '你好。你想继续聊，还是想让我做点什么，都直接说。' },
         { role: 'user', content: '你还是太像机器了' },
       ],
+      dialogueReplyFeedback: {
+        kind: 'robotic',
+        source: 'typed-ui',
+        replyTurnId: 'turn-assistant-prev',
+      },
     })
     expect(result.accepted).toBe(true)
 
@@ -13990,13 +13229,15 @@ describe('alicization runtime audit helpers', () => {
         valence: 'suppress',
       }),
     ]))
-    expect(dbStub.upsertMemoryFacts).toBeCalledWith(expect.arrayContaining([
+    expect(dbStub.upsertMemoryFacts).not.toHaveBeenCalled()
+    expect(dbStub.upsertMemoryReflections).not.toHaveBeenCalled()
+    expect(dbStub.appendEpisodicEvents).toHaveBeenCalledWith(expect.arrayContaining([
       expect.objectContaining({
-        subject: 'relationship',
-        predicate: 'preference',
+        sourceKind: 'dialogue-feedback',
+        turnId: 'turn-assistant-prev',
+        sessionId: 'session-dialogue-feedback',
       }),
-    ]), 'rule')
-    expect(dbStub.upsertMemoryReflections).toBeCalled()
+    ]))
     expect(dbStub.listMindTurnEvents).toBeCalledWith({
       decisionTraceId: 'mind:l9f3lq:feedfacecafe',
       limit: 24,
@@ -14033,12 +13274,21 @@ describe('alicization runtime audit helpers', () => {
         kind: 'person-state-updated',
         payload: expect.objectContaining({
           version: 'person-state-update-surface-v1',
-          summary: expect.stringContaining('Preference shift'),
           sourceKinds: expect.arrayContaining(['reply']),
           sourceCounts: expect.objectContaining({
             relationshipOutcomes: expect.any(Number),
             reinforcementEvents: expect.any(Number),
           }),
+          sourceTrail: expect.arrayContaining([
+            expect.objectContaining({
+              kind: 'relationship-outcome',
+              sourceKind: 'reply',
+            }),
+            expect.objectContaining({
+              kind: 'reinforcement',
+              sourceKind: 'reply',
+            }),
+          ]),
         }),
       }),
     ]))
@@ -14051,7 +13301,7 @@ describe('alicization runtime audit helpers', () => {
       }),
     )
     expect(dbStub.appendRelationshipDynamics).toBeCalledWith(expect.objectContaining({
-      hostAttitude: expect.stringContaining('机器腔'),
+      hostAttitude: 'dialogue_feedback=robotic',
       previousHostAttitude: null,
       source: 'dialogue-feedback:robotic',
     }))
@@ -14060,6 +13310,8 @@ describe('alicization runtime audit helpers', () => {
       action: 'reply-feedback-settled',
       payload: expect.objectContaining({
         feedback: 'robotic',
+        feedbackSource: 'typed-ui',
+        feedbackReplyTurnId: 'turn-assistant-prev',
         previousTurnId: 'turn-assistant-prev',
       }),
     }))

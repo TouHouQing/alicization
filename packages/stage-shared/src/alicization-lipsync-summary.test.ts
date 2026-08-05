@@ -88,7 +88,7 @@ describe('alicization lipsync summary', () => {
       preferredGazeMode: 'soften',
       reasonSummary: 'Keep the continuity state inward for now, and leave room before widening outward again',
     } as any)).toBe(
-      'mode=energy-phoneme-hybrid | phase=playing | hint=I | companion=measured-return | blink=linger | gaze=soften | reason=continuity_hold=measured_return; direction=inward; widening=deferred; pressure=lower',
+      'mode=energy-phoneme-hybrid | phase=playing | hint=I | companion=measured-return | blink=linger | gaze=soften | reason=Keep the continuity state inward for now, and leave room before widening outward again',
     )
   })
 
@@ -111,7 +111,7 @@ describe('alicization lipsync summary', () => {
       confidence: 0.91,
       segmentId: 'segment-audible-body-lipsync-1',
     })).toBe(
-      'mode=energy-phoneme-hybrid | phase=idle | continuity=sustained-articulation | hold=380ms | hint=A | companion=measured-return | timing=audible-body-carry | blink=linger | gaze=soften | pause=longer | lipsyncMode=restrained | voiceMode=lower-pressure | pacing=slower | reason=continuity_hold=audible_body_carry; rejoin=face+motion | src=prosody-authority | conf=0.91 | seg=segment-audible-body-lipsync-1',
+      'mode=energy-phoneme-hybrid | phase=idle | continuity=sustained-articulation | hold=380ms | hint=A | companion=measured-return | timing=audible-body-carry | blink=linger | gaze=soften | pause=longer | lipsyncMode=restrained | voiceMode=lower-pressure | pacing=slower | reason=Keep the continuity state audible while face and motion rejoin | src=prosody-authority | conf=0.91 | seg=segment-audible-body-lipsync-1',
     )
   })
 
@@ -130,7 +130,7 @@ describe('alicization lipsync summary', () => {
       confidence: 0.91,
       segmentId: 'segment-body-lipsync-carry-1',
     })).toBe(
-      'mode=energy-phoneme-hybrid | phase=idle | continuity=sustained-articulation | hold=380ms | hint=A | companion=measured-return | timing=body-lipsync-carry | blink=linger | gaze=soften | reason=continuity_hold=body_lipsync_carry; direction=inward; rejoin=face+motion+voice | src=prosody-authority | conf=0.91 | seg=segment-body-lipsync-carry-1',
+      'mode=energy-phoneme-hybrid | phase=idle | continuity=sustained-articulation | hold=380ms | hint=A | companion=measured-return | timing=body-lipsync-carry | blink=linger | gaze=soften | reason=Keep the continuity state inward while face, motion, and voice rejoin | src=prosody-authority | conf=0.91 | seg=segment-body-lipsync-carry-1',
     )
   })
 

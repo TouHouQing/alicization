@@ -149,4 +149,58 @@ describe('alicization-chat-transport', () => {
       ],
     })
   })
+
+  it('preserves provider-model tool capability observation across transport', () => {
+    const payload = {
+      cardId: 'default',
+      turnId: 'turn-provider-tool-observation',
+      providerId: 'openai-compatible',
+      model: 'model-without-tools',
+      providerConfig: {},
+      messages: [{
+        role: 'user',
+        content: '继续普通对话。',
+      }],
+      supportsTools: false,
+      waitForTools: false,
+      providerToolCapabilityObservation: {
+        supported: false,
+        source: 'observed-provider-error',
+        checkedAt: 1_786_000_000_000,
+        lastError: 'Authorization: Bearer secret-token user_input=private-message',
+      },
+    } as AlicizationChatStartPayload
+
+    const result = sanitizeAlicizationChatStartPayloadForTransport(payload).value
+    expect(result).toEqual({
+      ...payload,
+      providerToolCapabilityObservation: {
+        ...payload.providerToolCapabilityObservation,
+        lastError: 'provider-tools-unsupported',
+      },
+    })
+    expect(JSON.stringify(result)).not.toContain('secret-token')
+    expect(JSON.stringify(result)).not.toContain('private-message')
+  })
+
+  it('preserves typed dialogue reply feedback across transport', () => {
+    const payload = {
+      cardId: 'default',
+      turnId: 'turn-next',
+      providerId: 'openai-compatible',
+      model: 'model',
+      providerConfig: {},
+      messages: [{
+        role: 'user',
+        content: '普通聊天内容。',
+      }],
+      dialogueReplyFeedback: {
+        kind: 'received',
+        source: 'typed-ui',
+        replyTurnId: 'turn-previous',
+      },
+    } as AlicizationChatStartPayload
+
+    expect(sanitizeAlicizationChatStartPayloadForTransport(payload).value).toEqual(payload)
+  })
 })

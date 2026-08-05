@@ -94,6 +94,8 @@ export interface WorkingMemoryEmotionalPosture {
 export interface WorkingMemoryExecutionState {
   summary: string
   source: 'execution-callback' | 'execution-ledger' | 'tool-result'
+  status?: 'active' | 'terminal'
+  observedAt?: number
 }
 
 export interface WorkingMemoryLongTermCandidate {

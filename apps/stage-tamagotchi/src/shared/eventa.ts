@@ -22,6 +22,7 @@ import type {
   AlicizationDerivedMindStateBundle as SharedAlicizationDerivedMindStateBundle,
   AlicizationDialogueEmbodimentEnvelope as SharedAlicizationDialogueEmbodimentEnvelope,
   AlicizationDialoguePerformancePayload as SharedAlicizationDialoguePerformancePayload,
+  AlicizationDialogueReplyFeedbackFact as SharedAlicizationDialogueReplyFeedbackFact,
   AlicizationDialogueRespondedPayload as SharedAlicizationDialogueRespondedPayload,
   AlicizationDialogueSpeechTimeline as SharedAlicizationDialogueSpeechTimeline,
   AlicizationDialogueStructuredFormat as SharedAlicizationDialogueStructuredFormat,
@@ -161,6 +162,7 @@ import type {
   AlicizationPlanTaskThreadInput as SharedAlicizationPlanTaskThreadInput,
   AlicizationPlanTaskThreadResult as SharedAlicizationPlanTaskThreadResult,
   AlicizationProactiveMetadata as SharedAlicizationProactiveMetadata,
+  AlicizationProviderToolCapabilityObservation as SharedAlicizationProviderToolCapabilityObservation,
   AlicizationRealtimeCategory as SharedAlicizationRealtimeCategory,
   AlicizationRealtimeExecutePayload as SharedAlicizationRealtimeExecutePayload,
   AlicizationRealtimeExecuteResult as SharedAlicizationRealtimeExecuteResult,
@@ -3783,6 +3785,8 @@ export interface AlicizationChatStartPayload extends AlicizationCardScope {
   }>
   supportsTools?: boolean
   waitForTools?: boolean
+  providerToolCapabilityObservation?: SharedAlicizationProviderToolCapabilityObservation
+  dialogueReplyFeedback?: SharedAlicizationDialogueReplyFeedbackFact
 }
 
 export type AlicizationMindTurnGovernance = SharedAlicizationMindTurnGovernance

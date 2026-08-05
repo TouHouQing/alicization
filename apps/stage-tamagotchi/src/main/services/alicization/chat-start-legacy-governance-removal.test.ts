@@ -20,6 +20,8 @@ describe('chat-start legacy governance removal', () => {
     expect(helper).not.toContain('...payload')
     expect(helper).toContain('cardId,')
     expect(helper).toContain('messages: payload.messages')
+    expect(helper).toContain('providerToolCapabilityObservation: payload.providerToolCapabilityObservation')
+    expect(helper).toContain('dialogueReplyFeedback: payload.dialogueReplyFeedback')
   })
 
   it('routes the direct renderer chat-start bridge through the same whitelist', () => {

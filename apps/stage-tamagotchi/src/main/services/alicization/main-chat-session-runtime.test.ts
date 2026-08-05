@@ -817,7 +817,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(contextStartedBeforePrewarmResolved).toBe(true)
   })
 
-  it('carries browser workflow continuation overrides into prepared execution when routing narrows to a local browser tool', async () => {
+  it('offers browser tools without narrowing the provider tool registry', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -898,7 +898,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       .toEqual(expect.arrayContaining(['browser_open_url', 'executor_run_codex']))
   })
 
-  it('carries desktop workflow continuation overrides into prepared execution when routing narrows to a local desktop tool', async () => {
+  it('offers desktop tools without narrowing the provider tool registry', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -1070,6 +1070,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
     expect(actionFact).toBeNull()
     expect(capabilityFact?.data).toEqual({
+      providerToolsSupported: null,
+      toolsOfferedThisTurn: true,
+      source: 'unobserved',
+      checkedAt: null,
+      lastError: null,
       channels: [
         { channel: 'cli', available: true, enabled: true, ready: true, reason: null },
         { channel: 'codex', available: true, enabled: true, ready: true, reason: null },
@@ -1168,7 +1173,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(systemText).toContain('"type":"alicization-execution-capabilities"')
   })
 
-  it('respects disabled tool flags for execution-like user text', async () => {
+  it('respects provider tool capability independently of user wording', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -1228,13 +1233,19 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const result = await runtime.prepareExecution({
       payload: {
         cardId: 'default',
-        turnId: 'turn-routing-enforced-tool-flags',
+        turnId: 'turn-provider-tools-disabled',
         messages: [{
           role: 'user',
           content: '用cli命令帮我查一下桌面有什么文件',
         }],
         supportsTools: false,
         waitForTools: false,
+        providerToolCapabilityObservation: {
+          supported: false,
+          source: 'observed-provider-error',
+          checkedAt: 1_786_000_000_000,
+          lastError: 'provider-tools-unsupported',
+        },
       } as any,
       prelude: createPrelude({
         messages: [{
@@ -1250,6 +1261,16 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(result.waitForTools).toBe(false)
     expect(result.toolChoice).toBeUndefined()
     expect(result.tools).toBeUndefined()
+    expect(findAlicizationProviderFact(
+      result.messages,
+      'alicization-execution-capabilities',
+    )?.data).toMatchObject({
+      providerToolsSupported: false,
+      toolsOfferedThisTurn: false,
+      source: 'observed-provider-error',
+      checkedAt: 1_786_000_000_000,
+      lastError: 'provider-tools-unsupported',
+    })
   })
 
   it('passes rich organic memory context into learning scheduling', async () => {
@@ -3233,7 +3254,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     }))
   })
 
-  it('injects an execution-result reply obligation when the host follows up on recent executor output', async () => {
+  it('keeps recent executor output as structured facts without deriving a reply obligation from user wording', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -3403,18 +3424,18 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       }),
     })
 
-    const obligationFact = findAlicizationProviderFact(
+    const callbackFact = findAlicizationProviderFact(
       result.messages,
-      'alicization-execution-reply-context',
+      'alicization-execution-callbacks',
     )
 
-    expect(obligationFact?.data).toMatchObject({
-      channel: 'cli',
-      followUpQuestion: true,
-      goal: 'Run the CLI check command',
-      outcome: 'all tests passed',
-      source: 'fresh-callback',
-      status: 'completed',
+    expect(callbackFact?.data).toMatchObject({
+      callbacks: [expect.objectContaining({
+        channel: 'cli',
+        goal: 'Run the CLI check command',
+        outcome: 'all tests passed',
+        status: 'completed',
+      })],
     })
     const providerText = result.messages.map(message => String(message.content ?? '')).join('\n')
     expect(providerText).not.toContain('[ALICIZATION_EXECUTION_REPLY_OBLIGATION]')
@@ -3428,7 +3449,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     )
   })
 
-  it('carries ledger-backed execution follow-up as typed facts without replaying ledger prompt prose', async () => {
+  it('carries active ledger context as typed facts without replaying ledger prompt prose', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -3608,11 +3629,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           entries: [{
             activityAt: 20,
             channel: 'claude-code',
-            eventKinds: ['dispatch', 'result'],
+            eventKinds: ['dispatch'],
             goal: 'Investigate the runtime regression',
-            outcome: 'found the failing branch guard',
-            status: 'completed',
-            summary: 'Regression investigation completed',
+            outcome: '',
+            status: 'running',
+            summary: 'Regression investigation is running',
           }],
           recallText: [
             'execution_project_identity:typed runtime execution context.',
@@ -3621,40 +3642,33 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
             'execution_memory_hold:typed-runtime-carry.',
             'execution_project_continuity:structured execution context remains active for this turn.',
             'execution_project_boundary:Use only verified execution ledger entries.',
-            'execution_channel:claude-code execution_status:completed execution_goal:Investigate the runtime regression execution_outcome:found the failing branch guard',
+            'execution_channel:claude-code execution_status:running execution_goal:Investigate the runtime regression',
           ].join('\n'),
-          systemBlock: [
-            '[ALICIZATION_EXECUTION_LEDGER]',
-            'Recent structured executor history for the current session.',
-            'Use this recalled execution history only as verified ledger context.',
-            'project_identity=typed runtime execution context.',
-            'project_phase=desktop-runtime-route.',
-            'latest_landed_progress=structured execution ledger is available',
-            'primary_open_loop=verify the current runtime issue from typed context.',
-            'next_closure_target=continue verified runtime follow-through',
-            'execution_line=structured memory digest.',
-            'execution_hold=typed-runtime-carry.',
-            'execution_drift_risk=generic guidance must not replace typed runtime evidence.',
-            'project_execution_context=structured execution context remains active for this turn.',
-            'project_boundary=Use only verified execution ledger entries.',
-            'Treat only these entries as actually executed. Do not invent missing actions or results.',
-            '- channel=claude-code | status=completed | goal=Investigate the runtime regression | summary=Regression investigation completed | events=dispatch,result | outcome=found the failing branch guard',
-          ].join('\n'),
+          systemBlock: buildAlicizationProviderFactBlock('alicization-execution-ledger', {
+            entries: [{
+              activityAt: 20,
+              channel: 'claude-code',
+              eventKinds: ['dispatch'],
+              goal: 'Investigate the runtime regression',
+              outcome: '',
+              status: 'running',
+              summary: 'Regression investigation is running',
+            }],
+          }),
         }),
       },
     })
 
-    const obligationFact = findAlicizationProviderFact(
+    const ledgerFact = findAlicizationProviderFact(
       result.messages,
-      'alicization-execution-reply-context',
+      'alicization-execution-ledger',
     )
-    expect(obligationFact?.data).toMatchObject({
-      channel: 'claude-code',
-      followUpQuestion: true,
-      goal: 'Investigate the runtime regression',
-      outcome: 'found the failing branch guard',
-      source: 'ledger-follow-up',
-      status: 'completed',
+    expect(ledgerFact?.data).toMatchObject({
+      entries: [expect.objectContaining({
+        channel: 'claude-code',
+        goal: 'Investigate the runtime regression',
+        status: 'running',
+      })],
     })
     const providerText = result.messages.map(message => String(message.content ?? '')).join('\n')
     expect(providerText).not.toContain('[ALICIZATION_EXECUTION_REPLY_OBLIGATION]')
@@ -3664,7 +3678,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(providerText).not.toContain('continuity_')
   })
 
-  it('prefers fresher needs-affirmation ledger carry over an older completed callback when preparing an execution-result follow-up turn', async () => {
+  it('provides callback and ledger facts without runtime arbitration when both are present', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -3884,40 +3898,43 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
             'execution_project_boundary:Use only verified execution ledger entries.',
             'execution_channel:codex execution_status:needs-affirmation execution_goal:Patch the unresolved Alicization runtime seam',
           ].join('\n'),
-          systemBlock: [
-            '[ALICIZATION_EXECUTION_LEDGER]',
-            'Recent structured executor history for the current session.',
-            'Use this recalled execution history only as verified ledger context.',
-            'project_identity=typed runtime execution context.',
-            'project_phase=desktop-runtime-route.',
-            'latest_landed_progress=structured execution ledger is available',
-            'primary_open_loop=verify the current runtime issue from typed context.',
-            'next_closure_target=continue verified runtime follow-through',
-            'execution_line=structured memory digest.',
-            'execution_hold=typed-runtime-carry.',
-            'execution_drift_risk=generic guidance must not replace typed runtime evidence.',
-            'project_execution_context=structured execution context remains active for this turn.',
-            'project_boundary=Use only verified execution ledger entries.',
-            'Treat only these entries as actually executed. Do not invent missing actions or results.',
-            '- channel=codex | status=needs-affirmation | goal=Patch the unresolved Alicization runtime seam | summary=Execution is waiting for affirmation before codex can act on Patch the unresolved Alicization runtime seam. | events=plan',
-          ].join('\n'),
+          systemBlock: buildAlicizationProviderFactBlock('alicization-execution-ledger', {
+            entries: [{
+              activityAt: 40,
+              channel: 'codex',
+              eventKinds: ['plan'],
+              goal: 'Patch the unresolved Alicization runtime seam',
+              outcome: '',
+              status: 'needs-affirmation',
+              summary: 'Execution is waiting for affirmation before codex can act on Patch the unresolved Alicization runtime seam.',
+            }],
+          }),
         }),
       },
     })
 
-    const obligationFact = findAlicizationProviderFact(
+    const ledgerFact = findAlicizationProviderFact(
       result.messages,
-      'alicization-execution-reply-context',
+      'alicization-execution-ledger',
     )
 
-    expect(obligationFact?.data).toMatchObject({
-      channel: 'codex',
-      followUpQuestion: true,
-      goal: 'Patch the unresolved Alicization runtime seam',
-      source: 'ledger-follow-up',
-      status: 'needs-affirmation',
+    expect(ledgerFact?.data).toMatchObject({
+      entries: [expect.objectContaining({
+        channel: 'codex',
+        goal: 'Patch the unresolved Alicization runtime seam',
+        status: 'needs-affirmation',
+      })],
     })
-    expect(result.executionReplyObligation).toMatchObject(obligationFact?.data ?? {})
+    expect(findAlicizationProviderFact(
+      result.messages,
+      'alicization-execution-callbacks',
+    )?.data).toMatchObject({
+      callbacks: [expect.objectContaining({
+        channel: 'cli',
+        goal: 'Run pnpm typecheck',
+        status: 'completed',
+      })],
+    })
     expect(result.messages.map(message => String(message.content ?? '')).join('\n'))
       .not
       .toContain('[ALICIZATION_EXECUTION_REPLY_OBLIGATION]')

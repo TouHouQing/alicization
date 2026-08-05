@@ -2,7 +2,6 @@ import type {
   AlicizationExecutionEventRecord,
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
-import type { ContextualConversationTurn } from './runtime-soul'
 
 import { describe, expect, it, vi } from 'vitest'
 
@@ -17,15 +16,15 @@ function createThread(overrides: Partial<AlicizationTaskThreadRecord> = {}): Ali
     origin: 'user-turn',
     goal: 'Run the CLI check command',
     kind: 'run-command',
-    status: 'completed',
+    status: 'running',
     selectedChannel: 'cli',
     proposedChannel: 'cli',
-    summary: 'pnpm test completed successfully',
+    summary: 'pnpm test is running',
     metadata: null,
     createdAt: 1_000,
     updatedAt: 2_000,
     lastEventAt: 2_000,
-    completedAt: 2_000,
+    completedAt: null,
     ...overrides,
   }
 }
@@ -39,10 +38,10 @@ function createEvent(overrides: Partial<AlicizationExecutionEventRecord> = {}): 
     sessionId: 'session-1',
     origin: 'user-turn',
     channel: 'cli',
-    kind: 'result',
-    threadStatus: 'completed',
+    kind: 'dispatch',
+    threadStatus: 'running',
     payload: {
-      stdout: 'all tests passed',
+      command: 'pnpm test',
     },
     createdAt: 2_000,
     ...overrides,
@@ -50,7 +49,7 @@ function createEvent(overrides: Partial<AlicizationExecutionEventRecord> = {}): 
 }
 
 describe('memory ledger runtime', () => {
-  it('builds recent execution recall and system block for follow-up questions', async () => {
+  it('builds active execution recall and system block for the current session', async () => {
     const listTaskThreads = vi.fn(async () => [createThread()])
     const listExecutionEvents = vi.fn(async () => [createEvent()])
     const runtime = createAlicizationMemoryLedgerRuntime({
@@ -61,16 +60,10 @@ describe('memory ledger runtime', () => {
 
     const context = await runtime.buildExecutionLedgerContext({
       sessionId: 'session-1',
-      userText: '刚才那个命令结果呢',
-      recentTurns: [{
-        userText: '帮我跑一下测试',
-        assistantText: '我去执行这个命令。',
-      } satisfies ContextualConversationTurn],
     })
 
     expect(context.recallText).toContain('execution_channel:cli')
-    expect(context.recallText).toContain('execution_status:completed')
-    expect(context.recallText).toContain('execution_outcome:all tests passed')
+    expect(context.recallText).toContain('execution_status:running')
     expect(context.recallText).not.toContain('execution_history_scope:')
     expect(context.recallText).not.toContain('execution_boundary:')
     expect(context.recallText).not.toContain('execution_project_identity:')
@@ -81,11 +74,11 @@ describe('memory ledger runtime', () => {
     expect(context.entries).toEqual([{
       activityAt: 2_000,
       channel: 'cli',
-      eventKinds: ['result'],
+      eventKinds: ['dispatch'],
       goal: 'Run the CLI check command',
-      outcome: 'all tests passed',
-      status: 'completed',
-      summary: 'pnpm test completed successfully',
+      outcome: '',
+      status: 'running',
+      summary: 'pnpm test is running',
     }])
     expect(JSON.parse(context.systemBlock)).toEqual({
       type: 'alicization-execution-ledger',
@@ -98,6 +91,63 @@ describe('memory ledger runtime', () => {
       threadId: 'thread-1',
       limit: 8,
     })
+  })
+
+  it('provides active same-session execution facts without classifying the user wording', async () => {
+    const listTaskThreads = vi.fn(async () => [createThread()])
+    const listExecutionEvents = vi.fn(async () => [createEvent()])
+    const runtime = createAlicizationMemoryLedgerRuntime({
+      getNow: () => 10_000,
+      listTaskThreads,
+      listExecutionEvents,
+    })
+
+    const context = await runtime.buildExecutionLedgerContext({
+      sessionId: 'session-1',
+    })
+
+    expect(context.entries).toHaveLength(1)
+    expect(context.entries[0]).toMatchObject({
+      channel: 'cli',
+      status: 'running',
+    })
+    expect(listExecutionEvents).toHaveBeenCalledOnce()
+  })
+
+  it('does not carry settled execution history into an unrelated turn', async () => {
+    const listExecutionEvents = vi.fn(async () => [createEvent()])
+    const runtime = createAlicizationMemoryLedgerRuntime({
+      getNow: () => 10_000,
+      listTaskThreads: vi.fn(async () => [createThread({
+        status: 'completed',
+      })]),
+      listExecutionEvents,
+    })
+
+    await expect(runtime.buildExecutionLedgerContext({
+      sessionId: 'session-1',
+    })).resolves.toEqual(emptyAlicizationExecutionLedgerContext)
+    expect(listExecutionEvents).not.toHaveBeenCalled()
+  })
+
+  it('does not carry blocked terminal execution history into later turns', async () => {
+    const listExecutionEvents = vi.fn(async () => [createEvent({
+      kind: 'result',
+      threadStatus: 'blocked',
+    })])
+    const runtime = createAlicizationMemoryLedgerRuntime({
+      getNow: () => 10_000,
+      listTaskThreads: vi.fn(async () => [createThread({
+        status: 'blocked',
+        summary: 'Execution was blocked by policy.',
+      })]),
+      listExecutionEvents,
+    })
+
+    await expect(runtime.buildExecutionLedgerContext({
+      sessionId: 'session-1',
+    })).resolves.toEqual(emptyAlicizationExecutionLedgerContext)
+    expect(listExecutionEvents).not.toHaveBeenCalled()
   })
 
   it('suppresses stale executor history when the turn is unrelated', async () => {
@@ -115,8 +165,6 @@ describe('memory ledger runtime', () => {
 
     await expect(runtime.buildExecutionLedgerContext({
       sessionId: 'session-1',
-      userText: '你好',
-      recentTurns: [],
     })).resolves.toEqual(emptyAlicizationExecutionLedgerContext)
   })
 })

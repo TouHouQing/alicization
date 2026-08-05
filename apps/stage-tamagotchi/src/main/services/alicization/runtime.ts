@@ -571,7 +571,10 @@ export const runtimeTestInternals = {
   getPendingProactiveDeliverySnapshot: (runtime: { peekLatestPendingProactiveDelivery?: (cardId: string) => unknown } | null | undefined, cardId: string) => {
     return runtime?.peekLatestPendingProactiveDelivery?.(cardId) ?? null
   },
-  currentDialogueDeliveryRuntime: null as { peekLatestPendingProactiveDelivery?: (cardId: string) => unknown } | null,
+  currentDialogueDeliveryRuntime: null as {
+    clearAllState?: () => void
+    peekLatestPendingProactiveDelivery?: (cardId: string) => unknown
+  } | null,
   currentExecutionCallbackRuntime: null as {
     buildPendingExecutionCallbackContext?: (input: { sessionId: string, consume?: boolean }) => Promise<unknown>
     peekSurfacedCursor?: (sessionId: string) => number
@@ -605,6 +608,7 @@ function normalizePersistedConversationTurnStructure(input: {
 
 export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupOptions) {
   const userDataPath = options?.userDataPathOverride ?? app.getPath('userData')
+  const backgroundMaintenanceEnabled = options?.backgroundMaintenanceEnabled ?? !options?.userDataPathOverride
   const runtimeDebugLogEnabled = options?.runtimeDebugLogEnabled ?? !options?.userDataPathOverride
   const resolveCardPaths = (cardId: string) => {
     const soulRoot = join(userDataPath, 'alicizations', 'cards', cardId)
@@ -6087,6 +6091,28 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       recordPreparedMindTrace: async ({ payload, prepared }) => {
         rememberPreparedMindTrace({ payload, prepared })
       },
+      settlePresentedExecutionCallbacks: async ({ cardId, callbacks }) => {
+        const suppressedCount = callbacks.reduce((count, callback) => {
+          if (!callback.sessionId)
+            return count
+          return count + executionDeliveryRuntime.suppressMatching({
+            cardId,
+            sessionId: callback.sessionId,
+            threadId: callback.threadId,
+            completedAt: callback.createdAt,
+          })
+        }, 0)
+        if (suppressedCount === 0)
+          return
+
+        await persistExecutionDeliveryState(cardId)
+        await appendRuntimeDebugLine('chat-stream.execution-callbacks-settled', {
+          cardId,
+          turnId: normalizedPayload.turnId,
+          callbackCount: callbacks.length,
+          suppressedCount,
+        })
+      },
     })
 
     const startResult = await resolveAlicizationMainChatStartResult({
@@ -6458,9 +6484,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
   })
   await scheduleNextReminderDueCheck('startup')
-  startMemorySalienceRefreshTimer()
-  startSubconsciousTimer()
-  startDreamTimer()
+  if (backgroundMaintenanceEnabled) {
+    startMemorySalienceRefreshTimer()
+    startSubconsciousTimer()
+    startDreamTimer()
+  }
   emitKillSwitchChanged()
 
   // `fs.watch` is only enabled after Genesis is completed.

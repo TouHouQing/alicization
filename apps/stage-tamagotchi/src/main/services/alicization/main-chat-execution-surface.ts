@@ -4,6 +4,7 @@ import type {
   AlicizationExecutionCapabilityChannel,
   AlicizationExecutionChannel,
   AlicizationExecutionRuntimeContext,
+  AlicizationProviderToolCapabilityObservation,
 } from '@proj-alicization/stage-shared'
 import type { Tool } from '@xsai/shared-chat'
 
@@ -36,6 +37,7 @@ import * as nodePath from 'node:path'
 
 import {
   buildAlicizationProviderFactBlock,
+  normalizeAlicizationProviderToolCapabilityLastError,
 } from '@proj-alicization/stage-shared'
 import { tool } from '@xsai/tool'
 import { z } from 'zod'
@@ -695,21 +697,47 @@ function defineMainGatewayExecutorToolSpec<TSchema extends z.ZodTypeAny>(spec: {
 export function buildExecutionCapabilitySystemBlocks(
   capabilities: AlicizationChannelCapability[],
   executionCapabilityChannels: readonly AlicizationExecutionCapabilityChannel[],
+  options: {
+    toolsOfferedThisTurn: boolean
+    providerToolCapabilityObservation?: AlicizationProviderToolCapabilityObservation | null
+  } = {
+    toolsOfferedThisTurn: true,
+  },
 ) {
+  const providerToolCapabilityObservation = options.providerToolCapabilityObservation ?? null
   const capabilityMap = new Map(capabilities.map(item => [item.channel, item]))
   const channels = executionCapabilityChannels.map((channel) => {
     const capability = capabilityMap.get(channel)
-    const ready = capability?.ready !== false && capability?.available !== false && capability?.enabled !== false
+    if (!capability) {
+      return {
+        channel,
+        available: false,
+        enabled: false,
+        ready: false,
+        reason: 'capability-not-reported',
+      }
+    }
+
+    const ready = capability.ready === true && capability.available === true && capability.enabled === true
     return {
       channel,
-      available: capability?.available !== false,
-      enabled: capability?.enabled !== false,
+      available: capability.available === true,
+      enabled: capability.enabled === true,
       ready,
-      reason: capability?.reason ?? null,
+      reason: capability.reason ?? null,
     }
   })
 
   return [buildAlicizationProviderFactBlock('alicization-execution-capabilities', {
+    providerToolsSupported: providerToolCapabilityObservation?.supported ?? null,
+    toolsOfferedThisTurn: options.toolsOfferedThisTurn,
+    source: providerToolCapabilityObservation?.source ?? 'unobserved',
+    checkedAt: providerToolCapabilityObservation?.checkedAt ?? null,
+    lastError: providerToolCapabilityObservation
+      ? normalizeAlicizationProviderToolCapabilityLastError(
+          providerToolCapabilityObservation.source,
+        )
+      : null,
     channels,
   })]
 }

@@ -47,6 +47,8 @@ describe('working memory checkpoint', () => {
     snapshot.executionState = {
       summary: 'typecheck pending',
       source: 'execution-callback',
+      status: 'active',
+      observedAt: 950,
     }
     snapshot.compressedTimeline = [{
       id: 'episodelet-1',
@@ -97,6 +99,8 @@ describe('working memory checkpoint', () => {
       },
       executionState: {
         summary: 'typecheck pending',
+        status: 'active',
+        observedAt: 950,
       },
     })
     expect(parsed?.compressedTimeline[0]?.summary).toContain('开始收束')

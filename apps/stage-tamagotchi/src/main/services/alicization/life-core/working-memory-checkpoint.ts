@@ -285,6 +285,8 @@ export function normalizeWorkingMemoryCheckpointSnapshot(
         source: raw.executionState.source === 'execution-ledger' || raw.executionState.source === 'tool-result'
           ? raw.executionState.source
           : 'execution-callback',
+        status: raw.executionState.status === 'active' ? 'active' : 'terminal',
+        observedAt: finiteNumber(raw.executionState.observedAt),
       }
     : null
   snapshot.memoryQueryHints = uniqueWorkingMemoryTexts(asArray(raw.memoryQueryHints).map(String), 8, 120)

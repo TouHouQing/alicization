@@ -74,7 +74,6 @@ const alicizationProviderFactTypes = new Set([
   'alicization-execution-callbacks',
   'alicization-execution-capabilities',
   'alicization-execution-ledger',
-  'alicization-execution-reply-context',
   'alicization-host',
   'alicization-inspection',
   'alicization-persona-profile',
@@ -125,7 +124,6 @@ export interface BuildAlicizationMainChatRuntimeSurfaceInput {
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   executionCallbackSystemBlocks?: string[]
   executionLedgerSystemBlocks?: string[]
-  executionReplyObligationSystemBlock?: string
   executionCapabilitySystemBlocks: string[]
   governance: AlicizationMindTurnGovernance | null
   perceptionPromptSystemBlocks: string[]
@@ -262,7 +260,6 @@ export function buildAlicizationMainChatRuntimeSurface(
     ...input.runtimeCorePromptBlocks,
     ...input.perceptionPromptSystemBlocks,
     ...(input.perceptionSystemBlocks ?? []),
-    input.executionReplyObligationSystemBlock ?? '',
     ...input.executionCapabilitySystemBlocks,
     ...(input.executionCallbackSystemBlocks ?? []),
     ...(input.executionLedgerSystemBlocks ?? []),

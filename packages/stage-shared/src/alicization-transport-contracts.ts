@@ -3150,7 +3150,7 @@ export interface AlicizationEmotionalTransitionLedgerSnapshot {
 }
 
 export type AlicizationEmbodimentContinuityLane = 'body' | 'voice' | 'face' | 'motion' | 'lipsync'
-export type AlicizationEmbodimentContinuityLaneStatus = 'carrying-continuity' | 'dropped' | 'pending-rejoin' | 'rejoined' | 'silent'
+export type AlicizationEmbodimentContinuityLaneStatus = 'available' | 'dropped' | 'pending-rejoin' | 'rejoined' | 'silent'
 export type AlicizationEmbodimentContinuityPhase = 'fragmented' | 'partial-carry' | 'rejoining' | 'fully-rejoined' | 'quiet'
 
 export interface AlicizationEmbodimentContinuityLedgerSnapshot {
@@ -3560,7 +3560,7 @@ function normalizeAlicizationEmbodimentContinuityLane(raw: unknown): Alicization
 }
 
 function normalizeAlicizationEmbodimentContinuityLaneStatus(raw: unknown): AlicizationEmbodimentContinuityLaneStatus {
-  return raw === 'carrying-continuity'
+  return raw === 'available'
     || raw === 'dropped'
     || raw === 'pending-rejoin'
     || raw === 'rejoined'
@@ -3611,7 +3611,7 @@ function normalizeAlicizationEmbodimentContinuityLedgerSnapshot(raw: unknown): A
     ? candidate.memoryWriteback as Record<string, unknown>
     : null
   const carryingLanes = lanes
-    ? laneNames.filter(lane => lanes[lane].status === 'carrying-continuity')
+    ? laneNames.filter(lane => lanes[lane].status === 'available')
     : normalizeAlicizationEmbodimentContinuityLaneList(candidate.carryingLanes).slice(0, 5)
   const droppedLanes = lanes
     ? laneNames.filter(lane => lanes[lane].status === 'dropped')
@@ -5843,4 +5843,60 @@ export interface AlicizationDialogueRespondedPayload {
   structured: AlicizationDialogueStructuredPayload
   isFallback: boolean
   createdAt: number
+}
+
+export type AlicizationDialogueReplyFeedbackKind
+  = | 'received'
+    | 'robotic'
+    | 'missed'
+    | 'intrusive'
+    | 'interrupted'
+
+export type AlicizationDialogueReplyFeedbackSource
+  = | 'typed-ui'
+    | 'typed-transport'
+    | 'typed-provider'
+
+export interface AlicizationDialogueReplyFeedbackFact {
+  kind: AlicizationDialogueReplyFeedbackKind
+  source: AlicizationDialogueReplyFeedbackSource
+  replyTurnId: string
+}
+
+export function normalizeAlicizationDialogueReplyFeedbackFact(
+  raw: unknown,
+): AlicizationDialogueReplyFeedbackFact | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+
+  const candidate = raw as Record<string, unknown>
+  const kind = candidate.kind
+  const source = candidate.source
+  const replyTurnId = typeof candidate.replyTurnId === 'string'
+    ? candidate.replyTurnId.trim()
+    : ''
+
+  if (
+    (
+      kind !== 'received'
+      && kind !== 'robotic'
+      && kind !== 'missed'
+      && kind !== 'intrusive'
+      && kind !== 'interrupted'
+    )
+    || (
+      source !== 'typed-ui'
+      && source !== 'typed-transport'
+      && source !== 'typed-provider'
+    )
+    || !replyTurnId
+  ) {
+    return null
+  }
+
+  return {
+    kind,
+    source,
+    replyTurnId,
+  }
 }

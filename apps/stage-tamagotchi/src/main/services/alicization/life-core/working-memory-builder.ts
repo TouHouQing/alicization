@@ -56,9 +56,12 @@ export interface BuildWorkingMemorySnapshotInput {
   conversationState?: AlicizationConversationStateSnapshot | null
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
   currentConsciousFrame?: AlicizationCurrentConsciousFrameSnapshot | null
+  executionActive?: boolean
   executionCarry?: string | null
   previousSnapshot?: WorkingMemorySnapshot | null
 }
+
+const activeExecutionStateRetentionMs = 15 * 60_000
 
 const explicitCorrectionPattern = /我?不是(?:这个|这样|要)|不对|不想要|你(?:搞错|错了)|别这样|请?不要|请(?:改成|纠正)|别再|禁止|移除|清除/u
 
@@ -431,9 +434,15 @@ export function buildWorkingMemorySnapshot(input: BuildWorkingMemorySnapshotInpu
   const currentExecutionState = input.executionCarry
     ? {
         summary: normalizeWorkingMemoryText(input.executionCarry, 260),
-        source: 'execution-callback' as const,
+        source: input.executionActive ? 'execution-ledger' as const : 'execution-callback' as const,
+        status: input.executionActive ? 'active' as const : 'terminal' as const,
+        observedAt: input.now,
       }
-    : previousSnapshot?.executionState ?? null
+    : previousSnapshot?.executionState?.status === 'active'
+      && Number.isFinite(previousSnapshot.executionState.observedAt)
+      && input.now - Number(previousSnapshot.executionState.observedAt) < activeExecutionStateRetentionMs
+      ? previousSnapshot.executionState
+      : null
   const mergedMemoryQueryHints = mergeWorkingMemoryStrings([
     ...(input.conversationState?.memoryQueryHints ?? []),
     ...(input.dialogueWorldThread?.recallKeys ?? []),

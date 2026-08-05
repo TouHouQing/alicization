@@ -36,8 +36,6 @@ function createPrepared() {
     governance: {
       visibleReplyAuthority: 'llm-mind',
     },
-    freshExecutionReplyCallback: null,
-    executionReplyObligation: null,
     executionPayoffStructuredReply: null,
   } as any
 }

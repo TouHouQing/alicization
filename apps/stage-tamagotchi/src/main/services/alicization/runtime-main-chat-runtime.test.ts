@@ -135,6 +135,7 @@ describe('runtime main chat runtime', () => {
         hasVisualGrounding: false,
         governance: null,
         conversationSessionId: 'session-1',
+        presentedExecutionCallbacks: [],
         getSessionTrace: () => ({ phaseOrder: [] }) as any,
         memoryContext: createTestMemoryContext(),
         memoryFailures: [],

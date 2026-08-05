@@ -3,6 +3,7 @@ import type {
   AlicizationChatFailureKind,
   AlicizationChatFailureSurface,
   AlicizationChatMemoryFailureSurface,
+  AlicizationProviderToolCapabilityObservation,
   AlicizationVisibleArtifactLearningPolicy,
   AlicizationVisibleArtifactOrigin,
 } from '@proj-alicization/stage-shared'
@@ -29,6 +30,7 @@ import {
   deriveAlicizationRendererBridgeWatchdogTimeoutPolicy,
   isAlicizationProviderSchemaUnsupportedError,
   looksLikeAlicizationStructuredPayloadText,
+  normalizeAlicizationProviderToolCapabilityLastError,
   resolveAlicizationChatFailureSurface,
   sanitizeAlicizationProviderFacingText,
   shouldBufferAlicizationStructuredSpeechPrelude,
@@ -552,11 +554,101 @@ function resolveChatRuntimeDigitalLifeAuthority(input: {
     ?? normalizeChatRuntimeDigitalLifeEnvelope(input.embodimentScript?.digitalLife ?? null)
 }
 
-function resolveMainGatewayToolingPolicy() {
+const providerToolCapabilityStoragePrefix = 'alicization/provider-tool-capability/v1'
+const providerToolCapabilityNegativeTtlMs = 24 * 60 * 60 * 1000
+
+function buildProviderToolCapabilityStorageKey(providerId: string, model: string) {
+  return `${providerToolCapabilityStoragePrefix}/${encodeURIComponent(providerId)}/${encodeURIComponent(model)}`
+}
+
+function normalizeProviderToolCapabilityObservation(
+  value: unknown,
+): AlicizationProviderToolCapabilityObservation | null {
+  if (!isRecordPayload(value))
+    return null
+  if (typeof value.supported !== 'boolean')
+    return null
+  if (
+    value.source !== 'observed-provider-error'
+    && value.source !== 'observed-provider-success'
+  ) {
+    return null
+  }
+  if (!Number.isFinite(value.checkedAt) || Number(value.checkedAt) <= 0)
+    return null
+  if (value.lastError !== null && typeof value.lastError !== 'string')
+    return null
+
+  return {
+    supported: value.supported,
+    source: value.source,
+    checkedAt: Math.floor(Number(value.checkedAt)),
+    lastError: normalizeAlicizationProviderToolCapabilityLastError(value.source),
+  }
+}
+
+function readProviderToolCapabilityObservation(
+  providerId: string,
+  model: string,
+): AlicizationProviderToolCapabilityObservation | null {
+  if (!providerId || !model || typeof localStorage === 'undefined')
+    return null
+
+  try {
+    const storageKey = buildProviderToolCapabilityStorageKey(providerId, model)
+    const stored = localStorage.getItem(storageKey)
+    const observation = stored
+      ? normalizeProviderToolCapabilityObservation(JSON.parse(stored))
+      : null
+    if (
+      observation?.supported === false
+      && Date.now() - observation.checkedAt >= providerToolCapabilityNegativeTtlMs
+    ) {
+      localStorage.removeItem(storageKey)
+      return null
+    }
+    return observation
+  }
+  catch {
+    return null
+  }
+}
+
+function persistProviderToolCapabilityObservation(input: {
+  providerId: string
+  model: string
+  supported: boolean
+  source: AlicizationProviderToolCapabilityObservation['source']
+}) {
+  if (!input.providerId || !input.model)
+    return null
+
+  const observation: AlicizationProviderToolCapabilityObservation = {
+    supported: input.supported,
+    source: input.source,
+    checkedAt: Date.now(),
+    lastError: normalizeAlicizationProviderToolCapabilityLastError(input.source),
+  }
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem(
+        buildProviderToolCapabilityStorageKey(input.providerId, input.model),
+        JSON.stringify(observation),
+      )
+    }
+    catch {}
+  }
+  return observation
+}
+
+function resolveMainGatewayToolingPolicy(providerId: string, model: string) {
+  const providerToolCapabilityObservation = readProviderToolCapabilityObservation(providerId, model)
+  const supportsTools = providerToolCapabilityObservation?.supported ?? true
   return {
     toolingRequired: false,
-    supportsTools: true,
-    waitForTools: true,
+    supportsTools,
+    waitForTools: supportsTools,
+    providerToolCapabilityObservation,
   }
 }
 
@@ -1652,7 +1744,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
       const alicizationBridge = hasAlicizationBridge() ? getAlicizationBridge() : null
       const runtimeAuthoritativeBridge = Boolean(alicizationBridge?.streamChat)
-      const runtimeGatewayToolingPolicy = resolveMainGatewayToolingPolicy()
+      const resolvedRoute = resolveSendRoute(options)
+      const runtimeGatewayToolingPolicy = resolveMainGatewayToolingPolicy(
+        resolvedRoute.providerId,
+        resolvedRoute.model,
+      )
       const turnToolEvidence: TurnToolEvidence = {
         verifiedToolResult: false,
         executorToolCallIds: new Set<string>(),
@@ -1662,7 +1758,6 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       }
       const observedToolNamesById = new Map<string, string>()
       let bridgeStreamAttemptSeq = 0
-      const resolvedRoute = resolveSendRoute(options)
       const headers = (resolvedRoute.providerConfig.headers || {}) as Record<string, string>
       await appendAlicizationAuditLog({
         level: 'notice',
@@ -1800,7 +1895,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           })
 
           const runBridgeStream = async (
-            override: { supportsTools?: boolean, waitForTools?: boolean } = {},
+            override: {
+              supportsTools?: boolean
+              waitForTools?: boolean
+              providerToolCapabilityObservation?: AlicizationProviderToolCapabilityObservation
+            } = {},
             timeoutOptions: {
               firstEventTimeoutMs: number
               livenessTimeoutMs: number
@@ -1813,6 +1912,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           ) => {
             bridgeStreamAttemptSeq += 1
             const bridgeAttemptTurnId = `${turnId}:gw${bridgeStreamAttemptSeq}`
+            const supportsTools = override.supportsTools ?? streamOptions.supportsTools
+            const waitForTools = override.waitForTools ?? streamOptions.waitForTools
+            const providerToolCapabilityObservation
+              = override.providerToolCapabilityObservation
+                ?? runtimeGatewayToolingPolicy.providerToolCapabilityObservation
             let sawProgress = false
             let sawMeta = false
             let lastEventType = ''
@@ -1825,8 +1929,11 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   model: resolvedRoute.model,
                   providerConfig: resolvedRoute.providerConfig,
                   messages: messagePayload,
-                  supportsTools: override.supportsTools ?? streamOptions.supportsTools,
-                  waitForTools: override.waitForTools ?? streamOptions.waitForTools,
+                  supportsTools,
+                  waitForTools,
+                  ...(providerToolCapabilityObservation
+                    ? { providerToolCapabilityObservation }
+                    : {}),
                 }, {
                   abortSignal: streamOptions.abortSignal,
                   onStreamEvent: async (event) => {
@@ -1867,8 +1974,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                       sessionId,
                       turnId,
                       bridgeAttemptTurnId,
-                      supportsTools: override.supportsTools ?? streamOptions.supportsTools,
-                      waitForTools: override.waitForTools ?? streamOptions.waitForTools,
+                      supportsTools,
+                      waitForTools,
                       firstEventTimeoutMs: timeoutOptions.firstEventTimeoutMs,
                       livenessTimeoutMs: timeoutOptions.livenessTimeoutMs,
                       idleTimeoutMs: timeoutOptions.idleTimeoutMs,
@@ -1895,6 +2002,14 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                 streamError.__alicizationSawProgress = sawProgress || streamError.__alicizationSawProgress === true
               }
               throw error
+            }
+            if (supportsTools === true) {
+              persistProviderToolCapabilityObservation({
+                providerId: resolvedRoute.providerId,
+                model: resolvedRoute.model,
+                supported: true,
+                source: 'observed-provider-success',
+              })
             }
             return sawProgress
           }
@@ -1923,6 +2038,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               supportsTools: streamOptions.supportsTools,
               sawProgress: sawProgress || sawProgressFromError,
             })) {
+              const providerToolCapabilityObservation = persistProviderToolCapabilityObservation({
+                providerId: resolvedRoute.providerId,
+                model: resolvedRoute.model,
+                supported: false,
+                source: 'observed-provider-error',
+              })
               await appendAlicizationAuditLog({
                 level: 'warning',
                 category: 'alicization.main-gateway',
@@ -1937,6 +2058,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               await runBridgeStream({
                 supportsTools: false,
                 waitForTools: false,
+                ...(providerToolCapabilityObservation
+                  ? { providerToolCapabilityObservation }
+                  : {}),
               }, {
                 firstEventTimeoutMs: runtimeGatewayWatchdogPolicy.retryFirstEventTimeoutMs,
                 livenessTimeoutMs: runtimeGatewayWatchdogPolicy.retryLivenessTimeoutMs,

@@ -197,11 +197,22 @@ describe('outcome reinforcement closure', () => {
     expect(closure.episodicEvents).toHaveLength(1)
   })
 
-  it('keeps feedback classification grounded in the user signal', () => {
+  it('does not classify dialogue reply feedback from free-text user signals', () => {
     expect(deriveDialogueReplyFeedbackKind({
       userText: '这段回复太模板',
       previousAssistantText: 'The previous reply.',
-    })).toBe('robotic')
+    } as any)).toBeNull()
+    expect(deriveDialogueReplyFeedbackKind({
+      userText: 'That reply was robotic.',
+      previousAssistantText: 'The previous reply.',
+    } as any)).toBeNull()
+    expect(deriveDialogueReplyFeedbackKind({
+      feedback: {
+        kind: 'robotic',
+        source: 'typed-ui',
+        replyTurnId: 'turn-1',
+      },
+    } as any)).toBe('robotic')
     expect(deriveExecutionProposalFeedbackKind({
       userText: '可以',
       thread: {

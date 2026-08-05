@@ -261,27 +261,27 @@ function buildMindStateEmbodimentLaneEvidence(input: {
   return {
     body: {
       available: bodyAvailable,
-      continuityCarry: false,
+      aligned: false,
       summary: null,
     },
     voice: {
       available: voiceAvailable,
-      continuityCarry: false,
+      aligned: false,
       summary: null,
     },
     face: {
       available: null,
-      continuityCarry: false,
+      aligned: false,
       summary: null,
     },
     motion: {
       available: motionAvailable,
-      continuityCarry: false,
+      aligned: false,
       summary: null,
     },
     lipsync: {
       available: null,
-      continuityCarry: false,
+      aligned: false,
       summary: null,
     },
   }

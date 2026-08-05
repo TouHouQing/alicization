@@ -11,18 +11,18 @@ describe('embodiment-continuity-ledger', () => {
       turnId: 'turn-embodiment-1',
       sourceTags: ['dialogue-delivery', 'renderer-diagnostics'],
       previous: {
-        body: { status: 'carrying-continuity', summary: 'resident body carried the active continuity state' },
-        voice: { status: 'carrying-continuity', summary: 'voice carried the active continuity state' },
-        face: { status: 'carrying-continuity', summary: 'face reflected the active emotional state' },
-        motion: { status: 'carrying-continuity', summary: 'motion followed the active cadence' },
-        lipsync: { status: 'carrying-continuity', summary: 'mouth timing matched the voiced line' },
+        body: { status: 'available', summary: 'resident body remained available' },
+        voice: { status: 'available', summary: 'voice remained available' },
+        face: { status: 'available', summary: 'face renderer remained available' },
+        motion: { status: 'available', summary: 'motion renderer remained available' },
+        lipsync: { status: 'available', summary: 'lipsync renderer remained available' },
       },
       current: {
-        body: { available: true, continuityCarry: true, summary: 'resident body still holds the continuity state' },
-        voice: { available: true, continuityCarry: true, summary: 'voice remains personal and continuous' },
-        face: { available: false, continuityCarry: false, summary: 'face renderer did not report a settled expression' },
-        motion: { available: false, continuityCarry: false, summary: 'motion lane dropped before follow-through' },
-        lipsync: { available: true, continuityCarry: false, summary: 'lipsync returned mechanically but is not aligned yet' },
+        body: { available: true, aligned: true, summary: 'resident body remains aligned' },
+        voice: { available: true, aligned: true, summary: 'voice remains aligned' },
+        face: { available: false, aligned: false, summary: 'face renderer did not report a settled expression' },
+        motion: { available: false, aligned: false, summary: 'motion lane dropped before follow-through' },
+        lipsync: { available: true, aligned: false, summary: 'lipsync returned mechanically but is not aligned yet' },
       },
     })
 
@@ -40,8 +40,8 @@ describe('embodiment-continuity-ledger', () => {
     }))
     expect(ledger).not.toHaveProperty('selfRevisionCandidate')
     expect(ledger.traceSummary).toContain('dropped=face,motion')
-    expect(ledger.lanes.body.status).toBe('carrying-continuity')
-    expect(ledger.lanes.voice.status).toBe('carrying-continuity')
+    expect(ledger.lanes.body.status).toBe('available')
+    expect(ledger.lanes.voice.status).toBe('available')
     expect(ledger.replayLine).toBe(ledger.traceSummary)
   })
 
@@ -50,18 +50,18 @@ describe('embodiment-continuity-ledger', () => {
       createdAt: 1_730_000,
       turnId: 'turn-embodiment-2',
       previous: {
-        body: { status: 'carrying-continuity', summary: 'body carried' },
-        voice: { status: 'carrying-continuity', summary: 'voice carried' },
+        body: { status: 'available', summary: 'body was available' },
+        voice: { status: 'available', summary: 'voice was available' },
         face: { status: 'dropped', summary: 'face was missing' },
         motion: { status: 'pending-rejoin', summary: 'motion was not aligned' },
         lipsync: { status: 'pending-rejoin', summary: 'lipsync was mechanical' },
       },
       current: {
-        body: { available: true, continuityCarry: true, summary: 'body stays present' },
-        voice: { available: true, continuityCarry: true, summary: 'voice stays personal' },
-        face: { available: true, continuityCarry: true, summary: 'face expression rejoins the emotional state' },
-        motion: { available: true, continuityCarry: true, summary: 'motion follows the same cadence' },
-        lipsync: { available: true, continuityCarry: true, summary: 'lipsync matches the same voiced line' },
+        body: { available: true, aligned: true, summary: 'body stays aligned' },
+        voice: { available: true, aligned: true, summary: 'voice stays aligned' },
+        face: { available: true, aligned: true, summary: 'face expression rejoins the emotional state' },
+        motion: { available: true, aligned: true, summary: 'motion follows the same cadence' },
+        lipsync: { available: true, aligned: true, summary: 'lipsync matches the same voiced line' },
       },
     })
 
@@ -89,20 +89,20 @@ describe('embodiment-continuity-ledger', () => {
         lipsync: { status: 'silent', summary: 'legacy status was normalized to silent' },
       },
       current: {
-        body: { available: true, continuityCarry: true, summary: 'body carries continuity' },
-        voice: { available: true, continuityCarry: true, summary: 'voice carries continuity' },
-        face: { available: true, continuityCarry: true, summary: 'face carries continuity' },
-        motion: { available: true, continuityCarry: true, summary: 'motion carries continuity' },
-        lipsync: { available: true, continuityCarry: true, summary: 'lipsync carries continuity' },
+        body: { available: true, aligned: true, summary: 'body is aligned' },
+        voice: { available: true, aligned: true, summary: 'voice is aligned' },
+        face: { available: true, aligned: true, summary: 'face is aligned' },
+        motion: { available: true, aligned: true, summary: 'motion is aligned' },
+        lipsync: { available: true, aligned: true, summary: 'lipsync is aligned' },
       },
     })
 
     expect(ledger.lanes).toEqual(expect.objectContaining({
-      body: expect.objectContaining({ status: 'carrying-continuity' }),
-      voice: expect.objectContaining({ status: 'carrying-continuity' }),
-      face: expect.objectContaining({ status: 'carrying-continuity' }),
-      motion: expect.objectContaining({ status: 'carrying-continuity' }),
-      lipsync: expect.objectContaining({ status: 'carrying-continuity' }),
+      body: expect.objectContaining({ status: 'available' }),
+      voice: expect.objectContaining({ status: 'available' }),
+      face: expect.objectContaining({ status: 'available' }),
+      motion: expect.objectContaining({ status: 'available' }),
+      lipsync: expect.objectContaining({ status: 'available' }),
     }))
     expect(ledger.continuityPhase).toBe('quiet')
     expect(ledger.rejoinedLanes).toEqual([])

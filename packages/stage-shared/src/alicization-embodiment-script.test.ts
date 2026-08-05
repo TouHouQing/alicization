@@ -960,7 +960,6 @@ describe('alicization embodiment script', () => {
           proactive: {
             preferredStyle: 'silent-observe',
             shouldSpeak: false,
-            continuityRestraint: 'measured-return',
             personaBias: 'room-first',
           },
         },
@@ -976,7 +975,10 @@ describe('alicization embodiment script', () => {
     expect(state?.structured?.speechTimeline?.segments[0]?.rendererHints?.residentMode).toBe('measured-return')
     expect(state?.structured?.digitalLife?.mode).toBe('thinking')
     expect(state?.structured?.digitalLife?.action?.rendererHints?.residentMode).toBe('measured-return')
-    expect(state?.structured?.digitalLifeSpine?.proactive?.continuityRestraint).toBe('measured-return')
+    expect(state?.structured?.digitalLifeSpine?.proactive).toEqual(expect.objectContaining({
+      preferredStyle: 'silent-observe',
+      shouldSpeak: false,
+    }))
   })
 
   it('preserves measured-return renderer cadence preferences on script state and speech segments', () => {

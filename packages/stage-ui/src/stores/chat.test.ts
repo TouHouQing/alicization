@@ -30,6 +30,22 @@ const streamingMessage = ref({
   tool_results: [],
 })
 const sessionMessagesMap = new Map<string, any[]>()
+const localStorageEntries = new Map<string, string>()
+
+vi.stubGlobal('localStorage', {
+  clear() {
+    localStorageEntries.clear()
+  },
+  getItem(key: string) {
+    return localStorageEntries.get(key) ?? null
+  },
+  removeItem(key: string) {
+    localStorageEntries.delete(key)
+  },
+  setItem(key: string, value: string) {
+    localStorageEntries.set(key, value)
+  },
+})
 
 function ensureSessionMessages(sessionId: string) {
   if (!sessionMessagesMap.has(sessionId))
@@ -353,6 +369,7 @@ describe('chat orchestrator reply authority', () => {
       state: 'ACTIVE',
       updatedAt: Date.now(),
     })
+    localStorageEntries.clear()
     sessionMessagesMap.clear()
     ensureSessionMessages(activeSessionId.value)
     streamingMessage.value = {
@@ -656,6 +673,223 @@ describe('chat orchestrator reply authority', () => {
     expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
       assistantText: reply,
     }))
+  })
+
+  it('persists provider tool rejection per provider and model without contaminating another model', async () => {
+    const reply = '普通文本继续完成。'
+    const fullText = createProviderFullText(reply)
+    const streamChat = vi.fn(async (payload: any, options: any) => {
+      if (payload.model === 'model-without-tools' && payload.supportsTools === true)
+        throw new Error('provider does not support tools')
+
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('第一轮', {
+      model: 'model-without-tools',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+    await store.ingest('第二轮', {
+      model: 'model-without-tools',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+    await store.ingest('另一个模型', {
+      model: 'model-with-tools',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamChat).toHaveBeenCalledTimes(4)
+    expect(streamChat.mock.calls[0]?.[0]).toMatchObject({
+      model: 'model-without-tools',
+      supportsTools: true,
+    })
+    expect(streamChat.mock.calls[1]?.[0]).toMatchObject({
+      model: 'model-without-tools',
+      supportsTools: false,
+      providerToolCapabilityObservation: {
+        supported: false,
+        source: 'observed-provider-error',
+        lastError: 'provider-tools-unsupported',
+      },
+    })
+    expect(streamChat.mock.calls[2]?.[0]).toMatchObject({
+      model: 'model-without-tools',
+      supportsTools: false,
+      providerToolCapabilityObservation: {
+        supported: false,
+        source: 'observed-provider-error',
+      },
+    })
+    expect(streamChat.mock.calls[3]?.[0]).toMatchObject({
+      model: 'model-with-tools',
+      supportsTools: true,
+    })
+    expect(streamChat.mock.calls[3]?.[0]).not.toHaveProperty('providerToolCapabilityObservation')
+  })
+
+  it('does not replay sensitive provider error text from persisted tool capability observations', async () => {
+    const storageKey = [
+      'alicization/provider-tool-capability/v1',
+      encodeURIComponent('mock-provider'),
+      encodeURIComponent('model-without-tools'),
+    ].join('/')
+    localStorageEntries.set(storageKey, JSON.stringify({
+      supported: false,
+      source: 'observed-provider-error',
+      checkedAt: Date.now(),
+      lastError: 'Authorization: Bearer secret-token user_input=private-message',
+    }))
+    const reply = '普通对话继续。'
+    const fullText = createProviderFullText(reply)
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'model-without-tools',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const payload = streamChat.mock.calls[0]?.[0]
+    expect(payload).toMatchObject({
+      supportsTools: false,
+      providerToolCapabilityObservation: {
+        supported: false,
+        source: 'observed-provider-error',
+        lastError: 'provider-tools-unsupported',
+      },
+    })
+    expect(JSON.stringify(payload)).not.toContain('secret-token')
+    expect(JSON.stringify(payload)).not.toContain('private-message')
+  })
+
+  it('reprobes tools after a negative provider capability observation expires', async () => {
+    const storageKey = [
+      'alicization/provider-tool-capability/v1',
+      encodeURIComponent('mock-provider'),
+      encodeURIComponent('model-recovered-tools'),
+    ].join('/')
+    localStorageEntries.set(storageKey, JSON.stringify({
+      supported: false,
+      source: 'observed-provider-error',
+      checkedAt: Date.now() - 24 * 60 * 60 * 1000 - 1,
+      lastError: 'provider-tools-unsupported',
+    }))
+    const reply = '工具能力已重新探测。'
+    const fullText = createProviderFullText(reply)
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('继续', {
+      model: 'model-recovered-tools',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamChat.mock.calls[0]?.[0]).toMatchObject({
+      supportsTools: true,
+      waitForTools: true,
+    })
+    expect(streamChat.mock.calls[0]?.[0]).not.toHaveProperty('providerToolCapabilityObservation')
+  })
+
+  it('records a successful tools-enabled turn as provider-model capability evidence', async () => {
+    const reply = '这轮成功完成。'
+    const fullText = createProviderFullText(reply)
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('第一轮', {
+      model: 'model-with-tools',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+    await store.ingest('第二轮', {
+      model: 'model-with-tools',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamChat).toHaveBeenCalledTimes(2)
+    expect(streamChat.mock.calls[0]?.[0]).not.toHaveProperty('providerToolCapabilityObservation')
+    expect(streamChat.mock.calls[1]?.[0]).toMatchObject({
+      supportsTools: true,
+      providerToolCapabilityObservation: {
+        supported: true,
+        source: 'observed-provider-success',
+        lastError: null,
+      },
+    })
   })
 
   it('settles provider-authored text deltas when the bridge finish event loses fullText', async () => {

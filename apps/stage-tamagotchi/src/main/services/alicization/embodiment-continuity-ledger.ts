@@ -16,8 +16,6 @@ const EMBODIMENT_CONTINUITY_LANES: AlicizationEmbodimentContinuityLane[] = [
 
 export type AlicizationEmbodimentContinuityLaneStatus = SharedAlicizationEmbodimentContinuityLaneStatus
 
-const CARRYING_CONTINUITY_STATUS = 'carrying-continuity' as AlicizationEmbodimentContinuityLaneStatus
-
 export interface AlicizationEmbodimentContinuityLaneSnapshot {
   status: AlicizationEmbodimentContinuityLaneStatus
   summary: string | null
@@ -25,7 +23,7 @@ export interface AlicizationEmbodimentContinuityLaneSnapshot {
 
 export interface AlicizationEmbodimentContinuityLaneEvidence {
   available?: boolean | null
-  continuityCarry?: boolean | null
+  aligned?: boolean | null
   summary?: string | null
 }
 
@@ -81,10 +79,10 @@ function resolveLaneStatus(input: {
     return 'silent'
   if (input.current.available === false)
     return 'dropped'
-  if (input.current.continuityCarry === true && hasLaneBeenMissing(input.previous?.status))
+  if (input.current.aligned === true && hasLaneBeenMissing(input.previous?.status))
     return 'rejoined'
-  if (input.current.continuityCarry === true)
-    return CARRYING_CONTINUITY_STATUS
+  if (input.current.aligned === true)
+    return 'available'
   if (input.current.available === true)
     return 'pending-rejoin'
   return 'silent'
@@ -138,7 +136,7 @@ export function buildAlicizationEmbodimentContinuityLedger(input: {
     }
     return result
   }, {} as Record<AlicizationEmbodimentContinuityLane, AlicizationEmbodimentContinuityLaneSnapshot>)
-  const carryingLanes = EMBODIMENT_CONTINUITY_LANES.filter(lane => lanes[lane].status === CARRYING_CONTINUITY_STATUS)
+  const carryingLanes = EMBODIMENT_CONTINUITY_LANES.filter(lane => lanes[lane].status === 'available')
   const droppedLanes = EMBODIMENT_CONTINUITY_LANES.filter(lane => lanes[lane].status === 'dropped')
   const rejoinedLanes = EMBODIMENT_CONTINUITY_LANES.filter(lane => lanes[lane].status === 'rejoined')
   const pendingRejoinLanes = EMBODIMENT_CONTINUITY_LANES.filter(lane => lanes[lane].status === 'pending-rejoin' || lanes[lane].status === 'dropped')

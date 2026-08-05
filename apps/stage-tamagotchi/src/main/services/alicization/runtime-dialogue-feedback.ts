@@ -7,6 +7,7 @@ import type { attachSynthesizedReflections, buildDialogueReplyFeedbackOutcomeClo
 
 import {
   normalizeAlicizationDerivedMindStateBundle,
+  normalizeAlicizationDialogueReplyFeedbackFact,
   normalizeAlicizationRuntimeDigest,
   readAffectiveResidueFromDerivedMindStateBundle,
 } from '@proj-alicization/stage-shared'
@@ -157,9 +158,14 @@ export function createAlicizationRuntimeDialogueFeedback(
   ) => {
     const normalizedPayload = payload
     const cardId = options.normalizeCardId(normalizedPayload.cardId)
-    const userText = options.readLatestUserMessageText(normalizedPayload.messages)
-    if (!userText)
+    const feedbackFact = normalizeAlicizationDialogueReplyFeedbackFact(normalizedPayload.dialogueReplyFeedback)
+    const feedback = options.deriveDialogueReplyFeedbackKind({
+      feedback: feedbackFact,
+    })
+    if (!feedbackFact || !feedback)
       return null
+
+    const userText = options.readLatestUserMessageText(normalizedPayload.messages)
 
     const sessionId = await options.ensureActiveOrLatestSessionId(cardId).catch(() => '')
     if (!sessionId)
@@ -176,6 +182,7 @@ export function createAlicizationRuntimeDialogueFeedback(
       .reverse()
       .find((row) => {
         return options.sanitizeText(row.assistantText, '').length > 0
+          && options.sanitizeText(row.turnId, '') === feedbackFact.replyTurnId
           && isOrdinaryDialogueConversationRow({
             row,
             sanitizeText: options.sanitizeText,
@@ -195,13 +202,6 @@ export function createAlicizationRuntimeDialogueFeedback(
     if (settledAck === ackKey)
       return null
 
-    const feedback = options.deriveDialogueReplyFeedbackKind({
-      previousAssistantText: latest.assistantText ?? '',
-      userText,
-    })
-    if (!feedback)
-      return null
-
     const structured = options.parseStoredConversationStructured(latest.structuredJson)
     const governance = structured?.governance && typeof structured.governance === 'object' && !Array.isArray(structured.governance)
       ? structured.governance as Record<string, unknown>
@@ -215,6 +215,8 @@ export function createAlicizationRuntimeDialogueFeedback(
       decisionTraceId,
       turnId: options.sanitizeText(latest.turnId, '') || null,
       feedback,
+      feedbackSource: feedbackFact.source,
+      userText,
       previousAssistantText: latest.assistantText ?? '',
       affectiveResidue,
     }))
@@ -259,6 +261,8 @@ export function createAlicizationRuntimeDialogueFeedback(
         sessionId,
         previousTurnId: latest.turnId ?? null,
         feedback,
+        feedbackSource: feedbackFact.source,
+        feedbackReplyTurnId: feedbackFact.replyTurnId,
         userText,
       },
     }, cardId)

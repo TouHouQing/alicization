@@ -2624,7 +2624,7 @@ export function updateVisualPresenceState(input: {
     entityWorld: input.entityWorld ?? previousState.entityWorld ?? null,
     livingWorldState: input.livingWorldState ?? previousState.livingWorldState ?? null,
     subjectiveInference: input.subjectiveInference ?? previousState.subjectiveInference ?? null,
-    appraisal: input.appraisal ?? null,
+    appraisal: input.appraisal ?? previousState.appraisal ?? null,
     goalStack: input.goalStack ?? previousState.goalStack ?? null,
     concerns: Array.isArray(input.concerns) ? input.concerns : [],
     concernContinuity: input.concernContinuity ?? previousState.concernContinuity ?? null,

@@ -722,12 +722,6 @@ describe('runtime-governance', () => {
       shouldAskForGrounding: true,
       shouldAcknowledgeRepair: true,
     }))
-    expect(governed.reasons).not.toContain('execution-first-governance-normalized')
-    expect(governed.audit).not.toHaveProperty('execution_bound_turn')
-    expect(governed.audit).not.toHaveProperty('execution_first_override_applied')
-    expect(governed.audit).not.toHaveProperty('execution_signal_score')
-    expect(governed.audit).not.toHaveProperty('execution_dispatch_channels')
-    expect(governed.audit).not.toHaveProperty('execution_reason_codes')
   })
 
   it('records recall attribution and reply-memory coherence on the same decision trace', () => {

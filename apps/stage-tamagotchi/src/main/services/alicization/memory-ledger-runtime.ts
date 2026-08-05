@@ -4,7 +4,6 @@ import type {
   AlicizationListTaskThreadsInput,
   AlicizationTaskThreadRecord,
 } from '../../../shared/eventa'
-import type { ContextualConversationTurn } from './runtime-soul'
 
 import { buildAlicizationProviderFactBlock } from '@proj-alicization/stage-shared'
 
@@ -43,42 +42,12 @@ interface AlicizationExecutionLedgerRuntimeOptions {
   listTaskThreads: (input?: AlicizationListTaskThreadsInput) => Promise<AlicizationTaskThreadRecord[]>
 }
 
-const executionCuePattern = /刚才|刚刚|结果|进展|状态|成功了吗|失败了吗|跑完|完成了没|继续|接着|那个命令|那个任务|执行|工具|cli|codex|claude|openclaw|command|task|tool|result|status|通过原因|排查建议|风险|did it|what happened|how did it go|why did it pass|next steps|risk/i
-const executionMentionPattern = /执行|命令|任务|工具|cli|codex|claude|openclaw|command|task|tool|run|patch|fix/i
 const ledgerMaxThreadAgeMs = 15 * 60_000
-
-function shouldRecallExecutionLedger(input: {
-  recentThreads: AlicizationTaskThreadRecord[]
-  recentTurns: ContextualConversationTurn[]
-  userText: string
-}) {
-  const normalizedUserText = sanitizeExecutionLedgerText(input.userText, 160)
-  if (!normalizedUserText)
-    return false
-
-  const shortFollowUp = normalizedUserText.length <= 24
-  const hasExplicitCue = executionCuePattern.test(normalizedUserText)
-  const hasRecentActiveThread = input.recentThreads.some(thread =>
-    thread.status === 'running'
-    || thread.status === 'planned'
-    || thread.status === 'needs-affirmation'
-    || thread.status === 'blocked',
-  )
-  const hasRecentSettledThread = input.recentThreads.some(thread =>
-    thread.status === 'completed'
-    || thread.status === 'failed'
-    || thread.status === 'cancelled',
-  )
-  const recentTurnsMentionExecution = input.recentTurns.some(turn =>
-    executionMentionPattern.test(turn.userText)
-    || executionMentionPattern.test(turn.assistantText),
-  )
-
-  return hasExplicitCue
-    || hasRecentActiveThread
-    || (hasRecentSettledThread && (hasExplicitCue || shortFollowUp))
-    || (shortFollowUp && recentTurnsMentionExecution)
-}
+const activeExecutionThreadStatuses = new Set([
+  'needs-affirmation',
+  'planned',
+  'running',
+])
 
 function buildExecutionLedgerItem(input: {
   events: AlicizationExecutionEventRecord[]
@@ -128,13 +97,10 @@ export function createAlicizationMemoryLedgerRuntime(options: AlicizationExecuti
   const getNow = options.getNow ?? Date.now
 
   async function buildExecutionLedgerContext(input: {
-    recentTurns?: ContextualConversationTurn[]
     sessionId: string
-    userText: string
   }): Promise<AlicizationExecutionLedgerContext> {
     const sessionId = sanitizeExecutionLedgerText(input.sessionId, 160)
-    const userText = sanitizeExecutionLedgerText(input.userText, 160)
-    if (!sessionId || !userText)
+    if (!sessionId)
       return emptyAlicizationExecutionLedgerContext
 
     const rawThreads = await options.listTaskThreads({
@@ -143,19 +109,12 @@ export function createAlicizationMemoryLedgerRuntime(options: AlicizationExecuti
     }).catch(() => [])
     const recentThreads = rawThreads
       .filter(thread => getNow() - readTaskThreadActivityAt(thread) <= ledgerMaxThreadAgeMs)
+      .filter(thread => activeExecutionThreadStatuses.has(thread.status))
       .sort((left, right) => readTaskThreadActivityAt(right) - readTaskThreadActivityAt(left))
       .slice(0, 2)
 
     if (recentThreads.length === 0)
       return emptyAlicizationExecutionLedgerContext
-
-    if (!shouldRecallExecutionLedger({
-      userText,
-      recentTurns: input.recentTurns ?? [],
-      recentThreads,
-    })) {
-      return emptyAlicizationExecutionLedgerContext
-    }
 
     const items = await Promise.all(recentThreads.map(async (thread) => {
       const events = await options.listExecutionEvents({

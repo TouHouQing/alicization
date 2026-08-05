@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   attachSynthesizedReflections as actualAttachSynthesizedReflections,
   buildDialogueReplyFeedbackOutcomeClosure as actualBuildDialogueReplyFeedbackOutcomeClosure,
+  deriveDialogueReplyFeedbackKind as actualDeriveDialogueReplyFeedbackKind,
 } from './outcome-reinforcement'
 import { buildDialogueReplyFeedbackAckKey, createAlicizationRuntimeDialogueFeedback, isOrdinaryDialogueConversationRow } from './runtime-dialogue-feedback'
 
@@ -29,7 +30,7 @@ describe('runtime dialogue feedback', () => {
     })).toBe('session-1::turn-1')
   })
 
-  it('settles ordinary dialogue feedback and triggers memory reconsolidation runtime', async () => {
+  it('settles typed ordinary dialogue feedback and triggers memory reconsolidation runtime', async () => {
     const persistOutcomeClosure = vi.fn(async () => {})
     const reconsolidateDialogueFeedbackMemoryTrace = vi.fn(async () => {})
     const appendRelationshipDynamics = vi.fn(async () => {})
@@ -49,7 +50,7 @@ describe('runtime dialogue feedback', () => {
           decisionTraceId: 'trace-1',
         },
       }),
-      deriveDialogueReplyFeedbackKind: () => 'robotic',
+      deriveDialogueReplyFeedbackKind: actualDeriveDialogueReplyFeedbackKind,
       attachSynthesizedReflections: actualAttachSynthesizedReflections,
       buildDialogueReplyFeedbackOutcomeClosure: actualBuildDialogueReplyFeedbackOutcomeClosure,
       persistOutcomeClosure,
@@ -77,6 +78,11 @@ describe('runtime dialogue feedback', () => {
       model: 'gpt-test',
       providerConfig: {},
       messages: [],
+      dialogueReplyFeedback: {
+        kind: 'robotic',
+        source: 'typed-ui',
+        replyTurnId: 'turn-1',
+      },
     } as any, 10, 'test')
 
     expect(result).toBe('robotic')
@@ -102,7 +108,7 @@ describe('runtime dialogue feedback', () => {
         felt: null,
         relationshipMeaning: null,
         lesson: null,
-        tags: ['dialogue-feedback', 'feedback:robotic'],
+        tags: ['dialogue-feedback', 'feedback:robotic', 'feedback-source:typed-ui'],
       },
     }))
     expect(appendRelationshipDynamics).toHaveBeenCalledWith(expect.objectContaining({
@@ -112,7 +118,65 @@ describe('runtime dialogue feedback', () => {
     expect(persistDialogueReplyFeedbackAck).toHaveBeenCalled()
     expect(appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
       action: 'reply-feedback-settled',
+      payload: expect.objectContaining({
+        feedbackSource: 'typed-ui',
+      }),
     }), 'card-1')
+  })
+
+  it('does not settle keyword-like ordinary chat without a typed feedback fact', async () => {
+    const persistOutcomeClosure = vi.fn(async () => {})
+    const reconsolidateDialogueFeedbackMemoryTrace = vi.fn(async () => {})
+    const appendRelationshipDynamics = vi.fn(async () => {})
+    const persistDialogueReplyFeedbackAck = vi.fn(async () => {})
+    const appendAuditLog = vi.fn(async () => {})
+    const runtime = createAlicizationRuntimeDialogueFeedback({
+      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      readLatestUserMessageText: () => '这段回复太模板，像客服。',
+      ensureActiveOrLatestSessionId: async () => 'session-ordinary-chat',
+      withCardScope: async (_cardId, task) => await task(),
+      ensureDialogueReplyFeedbackAck: async () => '',
+      persistDialogueReplyFeedbackAck,
+      parseStoredConversationStructured: () => ({
+        format: 'mind-turn-v1',
+      }),
+      deriveDialogueReplyFeedbackKind: actualDeriveDialogueReplyFeedbackKind,
+      attachSynthesizedReflections: actualAttachSynthesizedReflections,
+      buildDialogueReplyFeedbackOutcomeClosure: actualBuildDialogueReplyFeedbackOutcomeClosure,
+      persistOutcomeClosure,
+      appendAuditLog,
+      memoryReconsolidationRuntime: {
+        reconsolidateDialogueFeedbackMemoryTrace,
+      },
+      alicizationDb: {
+        listConversationTurnsBySession: async () => [{
+          turnId: 'turn-ordinary-chat',
+          sessionId: 'session-ordinary-chat',
+          assistantText: '我先把当前问题接住。',
+          structuredJson: '{}',
+          createdAt: 1,
+        }],
+        getLatestRelationshipDynamics: async () => null,
+        appendRelationshipDynamics,
+      },
+    })
+
+    const result = await runtime.settleRecentDialogueReplyFeedbackFromUserTurn({
+      cardId: 'card-1',
+      turnId: 'turn-user-ordinary-chat',
+      providerId: 'openai',
+      model: 'gpt-test',
+      providerConfig: {},
+      messages: [],
+    } as any, 11, 'test')
+
+    expect(result).toBeNull()
+    expect(persistOutcomeClosure).not.toHaveBeenCalled()
+    expect(reconsolidateDialogueFeedbackMemoryTrace).not.toHaveBeenCalled()
+    expect(appendRelationshipDynamics).not.toHaveBeenCalled()
+    expect(persistDialogueReplyFeedbackAck).not.toHaveBeenCalled()
+    expect(appendAuditLog).not.toHaveBeenCalled()
   })
 
   it('carries structured affective residue from the previous reply runtime digest into the dialogue-feedback closure instead of dropping it as prose-only feedback', async () => {
@@ -235,6 +299,11 @@ describe('runtime dialogue feedback', () => {
       model: 'gpt-test',
       providerConfig: {},
       messages: [],
+      dialogueReplyFeedback: {
+        kind: 'intrusive',
+        source: 'typed-provider',
+        replyTurnId: 'turn-structured-residue',
+      },
     } as any, 88_300, 'test')
 
     expect(result).toBe('intrusive')

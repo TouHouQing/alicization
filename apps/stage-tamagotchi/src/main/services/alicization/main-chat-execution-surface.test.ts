@@ -53,6 +53,23 @@ function createBuildExecutionRuntimeContext() {
 }
 
 describe('main chat execution surface', () => {
+  it('separates unobserved provider support from tools offered for the current turn', () => {
+    const [capabilityBlock] = buildExecutionCapabilitySystemBlocks(
+      [],
+      executionChannels,
+      { toolsOfferedThisTurn: true },
+    )
+    const parsed = JSON.parse(capabilityBlock!)
+
+    expect(parsed.data).toMatchObject({
+      providerToolsSupported: null,
+      toolsOfferedThisTurn: true,
+      source: 'unobserved',
+      checkedAt: null,
+      lastError: null,
+    })
+  })
+
   it('exposes only structured capability state without question or routing fields', () => {
     const capabilities: AlicizationChannelCapability[] = [
       { channel: 'cli', available: true, enabled: true, ready: true, sessionAffinity: false, reason: null },
@@ -60,25 +77,51 @@ describe('main chat execution surface', () => {
       { channel: 'openclaw', available: false, enabled: false, ready: false, sessionAffinity: true, reason: 'offline' },
     ]
 
-    const [capabilityBlock] = buildExecutionCapabilitySystemBlocks(capabilities, executionChannels)
+    const [capabilityBlock] = buildExecutionCapabilitySystemBlocks(
+      capabilities,
+      executionChannels,
+      {
+        toolsOfferedThisTurn: false,
+        providerToolCapabilityObservation: {
+          supported: false,
+          source: 'observed-provider-error',
+          checkedAt: 1_786_000_000_000,
+          lastError: 'Authorization: Bearer secret-token user_input=private-message',
+        },
+      },
+    )
     const parsed = JSON.parse(capabilityBlock!)
 
     expect(parsed).toEqual({
       type: 'alicization-execution-capabilities',
       data: {
+        providerToolsSupported: false,
+        toolsOfferedThisTurn: false,
+        source: 'observed-provider-error',
+        checkedAt: 1_786_000_000_000,
+        lastError: 'provider-tools-unsupported',
         channels: executionChannels.map((channel) => {
           const capability = capabilities.find(item => item.channel === channel)
           return {
             channel,
-            available: capability?.available !== false,
-            enabled: capability?.enabled !== false,
-            ready: capability?.ready !== false,
-            reason: capability?.reason ?? null,
+            available: capability?.available === true,
+            enabled: capability?.enabled === true,
+            ready: capability?.ready === true,
+            reason: capability
+              ? capability.reason ?? null
+              : 'capability-not-reported',
           }
         }),
       },
     })
-    expect(Object.keys(parsed.data)).toEqual(['channels'])
+    expect(Object.keys(parsed.data)).toEqual([
+      'providerToolsSupported',
+      'toolsOfferedThisTurn',
+      'source',
+      'checkedAt',
+      'lastError',
+      'channels',
+    ])
   })
 
   it('offers the complete provider tool registry for model-owned selection', async () => {

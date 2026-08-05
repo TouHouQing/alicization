@@ -8,7 +8,6 @@ import type {
 } from '../../../shared/eventa'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
 
-import { measureDialogueFocusAlignment } from './dialogue-focus-alignment'
 import { sanitizeDialogueAnchorText } from './dialogue-surface-text'
 
 function clamp01(value: number) {
@@ -94,90 +93,10 @@ function topHostGoal(
   return inference?.hostIntentCandidates[0]?.goal ?? 'unknown'
 }
 
-function normalizeDialogueText(value: string) {
-  return value.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').trim()
-}
-
-const interrogativeCuePattern
-  = /[?？谁吗么嘛呢]|\b(?:what|why|how|where|when|who|which)\b|\b(?:can|could|would|will|do|does|did|is|are|am|should)\s+you\b|什么|怎么|为何|为什么|哪[里个些儿]?|能不能|可不可以|行不行|是不是|好不好|要不要|(?:[何誰]|どう|なに|なんで|なぜ|どこ|どれ|かな|か)\b/iu
-const requestCuePattern
-  = /\b(?:help|assist|check|review|explain|show|tell|look(?:\s+at)?|guess)\b|帮帮?我|帮忙|看(?:看|下|一下)|告诉我|教我|解释(?:一下)?|分析(?:一下)?|说说|讲讲|猜猜|見て|教えて|手伝って|説明して|見せて/iu
-const currentActivityQuestionPattern
-  = /\b(?:what am i doing|what i'?m doing|what am i up to|what i'?m up to|what am i busy with|guess what i'?m doing|guess what i'?m up to)\b|(?:猜猜|你猜猜)[^\n\r\u2028\u2029\u6211]*\u6211.*(?:忙什么|在忙什么|在干什么|在做什么|干嘛|做啥)|我.*(?:在忙什么|在干什么|在做什么|干嘛|做啥)/iu
-const companionshipBidPattern
-  = /\b(?:chat|talk(?:\s+to|\s+with)? me|stay with me|keep me company|hang out with me|be with me|play with me)\b|陪我(?:聊天|说说话|[聊说玩])?|陪陪我|聊天|聊聊|一起玩|一緒に|話して|そばにいて|遊んで/iu
-const greetingBidPattern
-  = /^(?:hi+|hello+|hey+|yo+|sup+|hola+|salut+|coucou+|bonjour+|привет+|你好(?:呀|啊|呀呀)?|嗨|哈喽|哈囉|早安|晚安|おはよう|こんにちは|こんばんは|やあ|안녕(?:하세요)?)[!！。.\s]*$/iu
-const careRequestPattern
-  = /\b(?:i(?:'m| am)?\s*(?:tired|sleepy|exhausted|drained|worn out|sad|upset|heartbroken|overwhelmed)|help me sleep|can you soothe me|can you comfort me|can you lull me to sleep|comfort me|reassure me|cheer me up)\b|我(?:有点|有些|好|现在|今天|真的)?(?:困|累|疲惫|难受|撑不住|想睡|伤心|难过|委屈|低落|沮丧|心里不好受)|安慰(?:一下)?我|哄我(?:睡觉)?|抱抱我|陪我睡|眠い|疲れた|しんどい|悲しい|つらい|慰めて|寝かしつけ|위로해줘|달래줘|슬퍼/iu
-const hostStateCuePattern
-  = /\b(?:i(?:'m| am)?\s*(?:tired|sleepy|sad|upset|drained|stressed|overwhelmed|heartbroken|low)|i feel)\b|我(?:有点|有些|好|现在|今天|刚刚|真的)?(?:[困累烦]|难受|头疼|焦虑|压力大|委屈|伤心|难过|低落|沮丧|心情不好)|眠い|疲れた|つらい|しんどい|悲しい|落ち込んで|슬퍼|우울해/iu
-const answerRepairCuePattern
-  = /\b(?:what do you mean|what are you saying|say it directly|say it plainly|speak plainly|plain english|i don'?t get it|that didn'?t answer|you make no sense|what exactly are you saying)\b|你(?:到底)?在说啥|你(?:到底)?在说什么|直接说啥|直接说什么|什么意思|说人话|没听懂|听不懂|答非所问|你是不是不知道你在说啥|講人話|聽不懂|何を言ってる|何を言っている|意味がわから|もう少し直接|무슨 말이야|뭐라는 거야|직접 말해/iu
-const selfInquiryCuePattern
-  = /\b(?:do you (?:like|love) me|you (?:like|love) me|do you think you are|are you|what are you like)\b|你(?:觉得|認為|认为)(?:你|自己)?(?:可爱|开心|高兴|难过|生气|温柔|聪明|笨|可怕|有趣|无聊)(?:吗|嘛)?|你(?:喜不喜欢|喜歡不喜歡|喜欢|愛不愛|爱不爱|爱|愛)我(?:吗|嘛)?|你(?:喜不喜欢|喜欢|愛不愛|爱不爱|爱|愛)(?:自己|你自己)(?:吗|嘛)?|你(?:可爱|开心|高兴|难过|生气|温柔|聪明|有趣|无聊)(?:吗|嘛)|你觉得(?:自己)?怎么样|你是(?:什么样|怎樣|谁)|あなた(?:は|って)(?:可愛い|好き|どんな)|너(?:는|가)(?:귀엽|좋아|어때)|ты(?:\s+\w+){0,3}\?/iu
-const selfToneAdjustmentCuePattern
-  = /\b(?:be happier|be more cheerful|sound normal|speak normally|talk like a human|be more natural|be gentler)\b|你能不能(?:表现得|说话)?(?:开心|高兴|正常|自然|温柔|轻松)(?:一点)?|你能不能说人话|你说话(?:正常|自然|温柔|轻松)一点|你别那么(?:僵硬|机械|冷)|说话像个人/iu
-const selfIdentityAffirmationCuePattern
-  = /(?:这个人|那个人|这人|那人|说的就?是|没错|对啊?).{0,8}(?:就是你|是你)|(?:就是|正是)(?:你|妳)[啊呀呢嘛]?|\b(?:that(?:'s| is) you|it(?:'s| is) you|you(?:'re| are) the one|this person is you|that person is you)\b/iu
-
-function questionWeight(text: string) {
-  const normalized = normalizeDialogueText(text)
-  if (!normalized)
-    return 0
-
-  let weight = /[?？]/u.test(normalized) ? 1 : 0
-  if (interrogativeCuePattern.test(normalized))
-    weight = Math.max(weight, 0.72)
-  if (requestCuePattern.test(normalized))
-    weight = Math.max(weight, 0.58)
-  if (currentActivityQuestionPattern.test(normalized))
-    weight = Math.max(weight, 0.82)
-  return clamp01(weight)
-}
-
-function looksLikeCurrentActivityQuestion(text: string) {
-  return currentActivityQuestionPattern.test(normalizeDialogueText(text))
-}
-
-function looksLikeHelpSeekingTurn(text: string) {
-  return requestCuePattern.test(normalizeDialogueText(text))
-}
-
-function looksLikeCompanionshipBid(text: string) {
-  return companionshipBidPattern.test(normalizeDialogueText(text))
-}
-
-function looksLikeGreetingBid(text: string) {
-  return greetingBidPattern.test(normalizeDialogueText(text))
-}
-
-function looksLikeCareRequest(text: string) {
-  return careRequestPattern.test(normalizeDialogueText(text))
-}
-
-function looksLikeHostStateDisclosure(text: string) {
-  return hostStateCuePattern.test(normalizeDialogueText(text))
-}
-
-function looksLikeAnswerRepairCue(text: string) {
-  return answerRepairCuePattern.test(normalizeDialogueText(text))
-}
-
-function looksLikeSelfInquiry(text: string) {
-  return selfInquiryCuePattern.test(normalizeDialogueText(text))
-}
-
-function looksLikeSelfToneAdjustment(text: string) {
-  return selfToneAdjustmentCuePattern.test(normalizeDialogueText(text))
-}
-
-function looksLikeSelfIdentityAffirmation(text: string) {
-  return selfIdentityAffirmationCuePattern.test(normalizeDialogueText(text))
-}
-
-function terseTurn(text: string) {
-  return text.length > 0 && text.length <= 18
+function topRelationshipNeed(
+  inference?: AlicizationSubjectiveInferenceSnapshot | null,
+) {
+  return inference?.relationshipNeedCandidates[0]?.need ?? 'unclear'
 }
 
 function isDialogueFirstPreference(subjectPreference?: AlicizationDialogueAnswerSubject | null) {
@@ -187,34 +106,12 @@ function isDialogueFirstPreference(subjectPreference?: AlicizationDialogueAnswer
     || subjectPreference === 'general'
 }
 
-function isSceneSubject(subjectPreference?: AlicizationDialogueAnswerSubject | null) {
-  return subjectPreference === 'task-knot' || subjectPreference === 'visible-scene'
-}
-
 export function shouldAttemptDialogueTurnSemanticsRefinement(input: {
   heuristic: AlicizationDialogueTurnSemantics
   inspectionRequested?: boolean
   groundedThisTurn?: boolean
 }) {
-  if (input.groundedThisTurn === true)
-    return false
-
-  if (input.inspectionRequested === true)
-    return true
-
-  const { heuristic } = input
-  if (isSceneSubject(heuristic.subjectPreference))
-    return true
-  if (heuristic.responseNeed === 'repair' || heuristic.responseNeed === 'guide' || heuristic.responseNeed === 'teach')
-    return true
-  if (heuristic.act === 'verify-grounding' || heuristic.act === 'correct')
-    return true
-  if (heuristic.truthExpectation === 'strict')
-    return true
-  if (heuristic.confidence < 0.46)
-    return true
-
-  return false
+  return input.groundedThisTurn !== true
 }
 
 function codingAnchor(
@@ -230,27 +127,25 @@ function codingAnchor(
   ) || null
 }
 
-function buildTurnFocusContextPhrases(input: {
-  currentScene: AlicizationVisualSceneSnapshot | null
-  worldModel?: AlicizationWorldModelSnapshot | null
-  subjectiveInference?: AlicizationSubjectiveInferenceSnapshot | null
-}) {
-  return [
-    input.worldModel?.activeThread?.title ?? '',
-    input.worldModel?.activeThread?.summary ?? '',
-    input.currentScene?.summary ?? '',
-    input.currentScene?.target?.appName ?? '',
-    input.currentScene?.target?.processName ?? '',
-    input.currentScene?.target?.title ?? '',
-    input.subjectiveInference?.dominantInterpretation ?? '',
-    input.subjectiveInference?.situatedMeaning ?? '',
-    input.subjectiveInference?.hostIntentCandidates[0]?.why ?? '',
-  ].filter(Boolean)
+function fallbackDialogueTurnSemantics(): AlicizationDialogueTurnSemantics {
+  return {
+    act: 'unknown',
+    responseNeed: 'answer',
+    truthExpectation: 'normal',
+    affectiveTone: 'neutral',
+    subjectPreference: null,
+    taskAnchor: null,
+    sharedAttentionDemand: 0.12,
+    personaSuppression: 0.08,
+    confidence: 0.24,
+    summary: '',
+    source: 'heuristic',
+    reasonTags: ['structured-fallback'],
+  }
 }
 
-// NOTICE: This heuristic layer is intentionally coarse. The primary turn
-// semantics should come from structured private cognition, while this fallback
-// keeps runtime behavior stable when the extra cognition call times out.
+// NOTICE: User wording is deliberately opaque here. Reply posture may only
+// come from structured cognition or explicit runtime ownership.
 export function buildDialogueTurnSemantics(input: {
   userText: string
   context: AlicizationProactiveLayeredContext
@@ -263,23 +158,6 @@ export function buildDialogueTurnSemantics(input: {
   inspectionRequested?: boolean
   groundedThisTurn?: boolean
 }): AlicizationDialogueTurnSemantics {
-  const userText = sanitizeText(input.userText, 320)
-  const previousAssistantText = sanitizeText(input.previousAssistantText, 220)
-  const question = questionWeight(userText)
-  const questionLike = question >= 0.55
-  const explicitQuestion = question >= 0.85
-  const terse = terseTurn(userText)
-  const helpSeeking = looksLikeHelpSeekingTurn(userText)
-  const companionshipBid = looksLikeCompanionshipBid(userText)
-  const greetingBid = looksLikeGreetingBid(userText)
-  const careRequest = looksLikeCareRequest(userText)
-  const hostStateDisclosure = looksLikeHostStateDisclosure(userText)
-  const answerRepairCue = looksLikeAnswerRepairCue(userText)
-  const selfInquiry = looksLikeSelfInquiry(userText)
-  const selfToneAdjustment = looksLikeSelfToneAdjustment(userText)
-  const selfIdentityAffirmation = looksLikeSelfIdentityAffirmation(userText)
-  const currentActivityQuestion = looksLikeCurrentActivityQuestion(userText)
-    && Boolean(input.currentScene || input.worldModel?.activeThread)
   const codingLike = input.context.workload.kind === 'coding'
     || input.context.workload.kind === 'terminal'
     || input.context.content.kind === 'error'
@@ -288,40 +166,11 @@ export function buildDialogueTurnSemantics(input: {
     || input.worldModel?.activeThread?.kind === 'change-review'
   const careLike = input.context.relationship.fatigue >= 58
     || input.worldModel?.activeThread?.kind === 'late-night-endurance'
-  const unstableTruth = input.worldModel?.epistemicState.certainty === 'uncertain'
-    || input.worldModel?.epistemicState.certainty === 'lingering'
-    || input.privateThought?.stance === 'uncertain'
   const topGoal = topHostGoal(input.subjectiveInference)
-  const taskAlignment = measureDialogueFocusAlignment({
-    message: userText,
-    contextPhrases: buildTurnFocusContextPhrases({
-      currentScene: input.currentScene,
-      worldModel: input.worldModel,
-      subjectiveInference: input.subjectiveInference,
-    }),
-  })
-  const sceneBoundQuestion = taskAlignment.overlapRatio >= 0.18 || currentActivityQuestion
-  const uncertainScene = input.worldModel?.epistemicState.certainty === 'uncertain'
-    || input.worldModel?.epistemicState.certainty === 'lingering'
-    || (input.worldModel?.epistemicState.staleRisks.length ?? 0) > 0
+  const topNeed = topRelationshipNeed(input.subjectiveInference)
   const inspectionOwnedTurn = input.inspectionRequested === true
   const groundedThisTurn = input.groundedThisTurn === true
-  const detachedQuestion = !inspectionOwnedTurn
-    && questionLike
-    && !sceneBoundQuestion
-    && !helpSeeking
-    && !careRequest
-    && !hostStateDisclosure
-    && !companionshipBid
-    && !answerRepairCue
-  const answerRepairFollowUp = Boolean(
-    !inspectionOwnedTurn
-    && previousAssistantText
-    && (answerRepairCue || explicitQuestion)
-    && userText.length <= 16
-    && !sceneBoundQuestion
-    && uncertainScene,
-  )
+  const sceneTaskAnchor = codingAnchor(input.currentScene, input.worldModel)
   const inspectionTaskCarry = Boolean(input.worldModel?.activeThread)
     || Boolean(groundedThisTurn && (
       codingLike
@@ -336,250 +185,148 @@ export function buildDialogueTurnSemantics(input: {
     || input.worldModel?.activeThread,
   )
 
-  let act: AlicizationDialogueAct = 'unknown'
-  let responseNeed: AlicizationDialogueResponseNeed = 'answer'
-  let truthExpectation: AlicizationDialogueTruthExpectation = 'normal'
-  let affectiveTone: AlicizationDialogueAffectiveTone = careLike ? 'tired' : 'neutral'
-  let subjectPreference: AlicizationDialogueAnswerSubject | null = null
-  let sharedAttentionDemand = clamp01(question * 0.42 + (codingLike ? 0.18 : 0.04))
-  let personaSuppression = clamp01((codingLike ? 0.28 : 0.08) + (questionLike ? 0.14 : 0))
-  const reasonTags: string[] = []
-
-  if (!userText) {
+  if (inspectionOwnedTurn) {
     return {
-      act: 'unknown',
-      responseNeed: 'answer',
-      truthExpectation: 'normal',
+      act: 'verify-grounding',
+      responseNeed: groundedThisTurn
+        ? topNeed === 'guidance' && inspectionTaskCarry
+          ? 'guide'
+          : 'answer'
+        : 'repair',
+      truthExpectation: 'strict',
       affectiveTone: 'neutral',
-      subjectPreference: null,
-      taskAnchor: codingAnchor(input.currentScene, input.worldModel),
-      sharedAttentionDemand: 0.18,
-      personaSuppression: 0.16,
-      confidence: 0.22,
+      subjectPreference: inspectionTaskCarry ? 'task-knot' : 'visible-scene',
+      taskAnchor: inspectionTaskCarry ? sceneTaskAnchor : null,
+      sharedAttentionDemand: 0.4,
+      personaSuppression: 0.4,
+      confidence: inspectionSceneAvailable ? 0.72 : 0.46,
       summary: '',
       source: 'heuristic',
-      reasonTags: ['empty-user-turn'],
+      reasonTags: uniqueLabels([
+        'inspection-requested-turn',
+        'inspection-owned-turn',
+        groundedThisTurn ? 'inspection-grounded-this-turn' : '',
+        inspectionTaskCarry ? 'inspection-task-carry' : 'inspection-scene-carry',
+        inspectionSceneAvailable ? '' : 'inspection-needs-reground',
+      ]),
     }
   }
 
-  if (inspectionOwnedTurn) {
-    act = inspectionSceneAvailable && (helpSeeking || questionLike)
-      ? 'ask-help'
-      : 'verify-grounding'
-    responseNeed = groundedThisTurn
-      ? inspectionTaskCarry
-        ? codingLike
-          ? 'guide'
-          : 'answer'
-        : 'answer'
-      : inspectionTaskCarry
-        ? codingLike
-          ? 'guide'
-          : act === 'verify-grounding'
-            ? 'repair'
-            : 'answer'
-        : 'repair'
+  const hasStructuredIntent = topGoal !== 'unknown'
+  const hasStructuredNeed = topNeed !== 'unclear'
+  const hasPrivatePosture = input.privateThought?.stance === 'warn'
+    || input.privateThought?.stance === 'care'
+
+  if (!hasStructuredIntent && !hasStructuredNeed && !hasPrivatePosture)
+    return fallbackDialogueTurnSemantics()
+
+  let act: AlicizationDialogueAct = 'unknown'
+  let responseNeed: AlicizationDialogueResponseNeed = 'answer'
+  let truthExpectation: AlicizationDialogueTruthExpectation = 'normal'
+  let affectiveTone: AlicizationDialogueAffectiveTone = 'neutral'
+  let subjectPreference: AlicizationDialogueAnswerSubject | null = null
+  let taskAnchor: string | null = null
+  let sharedAttentionDemand = 0.18
+  let personaSuppression = 0.12
+  const reasonTags: string[] = []
+
+  if (topGoal === 'inspect-change') {
+    act = 'verify-grounding'
+    responseNeed = 'guide'
     truthExpectation = 'strict'
-    affectiveTone = questionLike || helpSeeking ? 'urgent' : affectiveTone
-    subjectPreference = inspectionTaskCarry ? 'task-knot' : 'visible-scene'
-    personaSuppression = clamp01(personaSuppression + 0.24)
-    sharedAttentionDemand = clamp01(sharedAttentionDemand + 0.28)
-    reasonTags.push(
-      'inspection-requested-turn',
-      'inspection-owned-turn',
-      groundedThisTurn ? 'inspection-grounded-this-turn' : '',
-      inspectionTaskCarry ? 'inspection-task-carry' : 'inspection-scene-carry',
-      inspectionSceneAvailable ? '' : 'inspection-needs-reground',
-    )
+    subjectPreference = sceneTaskAnchor ? 'task-knot' : 'visible-scene'
+    taskAnchor = sceneTaskAnchor
+    sharedAttentionDemand = 0.48
+    personaSuppression = 0.4
   }
-  else if (answerRepairFollowUp) {
-    act = 'challenge'
-    responseNeed = 'clarify'
-    truthExpectation = 'normal'
-    affectiveTone = 'frustrated'
-    subjectPreference = 'alicization-self'
-    personaSuppression = clamp01(personaSuppression + 0.16)
-    sharedAttentionDemand = clamp01(sharedAttentionDemand + 0.08)
-    reasonTags.push('answer-realignment-followup')
+  else if (topGoal === 'resolve-problem') {
+    act = 'ask-help'
+    responseNeed = 'guide'
+    truthExpectation = codingLike || sceneTaskAnchor ? 'strict' : 'normal'
+    subjectPreference = sceneTaskAnchor ? 'task-knot' : 'general'
+    taskAnchor = sceneTaskAnchor
+    sharedAttentionDemand = 0.44
+    personaSuppression = 0.34
   }
-  else if (careRequest) {
+  else if (
+    topGoal === 'continue-thread'
+    || topGoal === 'keep-going'
+    || topGoal === 'finish-one-more-step'
+    || topGoal === 'resume-work'
+  ) {
+    act = 'continue-thread'
+    responseNeed = 'guide'
+    truthExpectation = codingLike || sceneTaskAnchor ? 'strict' : 'normal'
+    subjectPreference = sceneTaskAnchor ? 'task-knot' : 'general'
+    taskAnchor = sceneTaskAnchor
+    sharedAttentionDemand = 0.38
+    personaSuppression = 0.28
+  }
+  else if (topGoal === 'chat' || topGoal === 'stay-connected') {
+    act = 'social-bid'
+    responseNeed = 'accompany'
+    truthExpectation = 'light'
+    affectiveTone = 'warm'
+    subjectPreference = 'relationship'
+    sharedAttentionDemand = 0.14
+    personaSuppression = 0.04
+  }
+  else if (topGoal === 'rest') {
+    act = 'seek-care'
+    responseNeed = 'care'
+    affectiveTone = careLike ? 'tired' : 'warm'
+    subjectPreference = 'host-state'
+    sharedAttentionDemand = 0.16
+    personaSuppression = 0.08
+  }
+
+  if (hasStructuredIntent)
+    reasonTags.push(`structured-host-goal-${topGoal}`)
+
+  if (topNeed === 'guidance') {
+    act = topGoal === 'inspect-change' ? 'verify-grounding' : act === 'unknown' ? 'ask-help' : act
+    responseNeed = 'guide'
+    truthExpectation = codingLike || sceneTaskAnchor ? 'strict' : truthExpectation
+    subjectPreference = sceneTaskAnchor ? 'task-knot' : subjectPreference ?? 'general'
+    taskAnchor = sceneTaskAnchor
+    sharedAttentionDemand = Math.max(sharedAttentionDemand, 0.42)
+    personaSuppression = Math.max(personaSuppression, 0.3)
+  }
+  else if (topNeed === 'care') {
     act = 'seek-care'
     responseNeed = 'care'
     truthExpectation = 'normal'
     affectiveTone = careLike ? 'tired' : 'warm'
     subjectPreference = 'host-state'
-    personaSuppression = clamp01(personaSuppression - 0.04)
-    reasonTags.push('care-request')
+    taskAnchor = null
+    sharedAttentionDemand = 0.16
+    personaSuppression = 0.08
   }
-  else if (companionshipBid) {
+  else if (topNeed === 'companionship') {
     act = 'social-bid'
     responseNeed = 'accompany'
     truthExpectation = 'light'
     affectiveTone = 'warm'
     subjectPreference = 'relationship'
-    personaSuppression = clamp01(personaSuppression - 0.08)
-    reasonTags.push('companionship-bid')
-  }
-  else if (
-    !inspectionOwnedTurn
-    && !sceneBoundQuestion
-    && !helpSeeking
-    && !currentActivityQuestion
-    && (greetingBid || selfInquiry || selfToneAdjustment || selfIdentityAffirmation)
-  ) {
-    if (greetingBid && !selfInquiry && !selfToneAdjustment) {
-      act = 'social-bid'
-      responseNeed = 'accompany'
-      truthExpectation = 'light'
-      affectiveTone = 'warm'
-      subjectPreference = 'relationship'
-      personaSuppression = clamp01(personaSuppression - 0.08)
-      reasonTags.push('greeting-bid')
-    }
-    else if (selfIdentityAffirmation && !selfInquiry && !selfToneAdjustment) {
-      act = 'social-bid'
-      responseNeed = 'answer'
-      truthExpectation = 'normal'
-      affectiveTone = 'warm'
-      subjectPreference = 'alicization-self'
-      personaSuppression = clamp01(personaSuppression + 0.02)
-      reasonTags.push('self-identity-affirmation')
-    }
-    else {
-      act = selfToneAdjustment ? 'challenge' : 'ask-help'
-      responseNeed = selfToneAdjustment ? 'clarify' : 'answer'
-      truthExpectation = 'normal'
-      affectiveTone = selfToneAdjustment ? 'frustrated' : 'neutral'
-      subjectPreference = 'alicization-self'
-      personaSuppression = clamp01(personaSuppression + 0.08)
-      reasonTags.push(selfToneAdjustment ? 'self-tone-adjustment' : 'self-directed-question')
-    }
-  }
-  else if (currentActivityQuestion) {
-    act = 'ask-help'
-    responseNeed = codingLike || topGoal === 'resolve-problem' || topGoal === 'inspect-change'
-      ? 'guide'
-      : 'answer'
-    truthExpectation = codingLike ? 'strict' : 'normal'
-    subjectPreference = input.worldModel?.activeThread
-      ? 'task-knot'
-      : input.currentScene
-        ? 'visible-scene'
-        : 'general'
-    personaSuppression = clamp01(personaSuppression + 0.18)
-    sharedAttentionDemand = clamp01(sharedAttentionDemand + 0.18)
-    reasonTags.push('current-activity-question')
-  }
-  else if (detachedQuestion) {
-    act = 'ask-help'
-    responseNeed = 'answer'
-    truthExpectation = 'normal'
-    subjectPreference = 'alicization-self'
-    personaSuppression = clamp01(personaSuppression + 0.08)
-    reasonTags.push('detached-question')
-  }
-  else if (unstableTruth && questionLike && sceneBoundQuestion) {
-    act = 'verify-grounding'
-    responseNeed = 'repair'
-    truthExpectation = 'strict'
-    subjectPreference = input.worldModel?.activeThread ? 'task-knot' : 'visible-scene'
-    personaSuppression = clamp01(personaSuppression + 0.32)
-    sharedAttentionDemand = clamp01(sharedAttentionDemand + 0.26)
-    reasonTags.push('unstable-truth', 'question-turn')
-  }
-  else if (codingLike && (helpSeeking || questionLike) && sceneBoundQuestion) {
-    act = topGoal === 'inspect-change' ? 'verify-grounding' : 'ask-help'
-    responseNeed = helpSeeking || topGoal === 'resolve-problem' || topGoal === 'inspect-change'
-      ? 'guide'
-      : 'answer'
-    truthExpectation = 'strict'
-    subjectPreference = input.worldModel?.activeThread ? 'task-knot' : 'visible-scene'
-    personaSuppression = clamp01(personaSuppression + 0.22)
-    sharedAttentionDemand = clamp01(sharedAttentionDemand + 0.2)
-    reasonTags.push(helpSeeking ? 'coding-help-turn' : 'coding-question')
-  }
-  else if (helpSeeking) {
-    act = 'ask-help'
-    responseNeed = codingLike ? 'guide' : 'answer'
-    truthExpectation = codingLike ? 'strict' : 'normal'
-    subjectPreference = codingLike && input.worldModel?.activeThread
-      ? 'task-knot'
-      : 'general'
-    personaSuppression = clamp01(personaSuppression + 0.08)
-    reasonTags.push('help-seeking-turn')
-  }
-  else if (hostStateDisclosure && careLike) {
-    act = 'share-state'
-    responseNeed = 'care'
-    truthExpectation = 'normal'
-    affectiveTone = careLike ? 'tired' : 'warm'
-    subjectPreference = 'host-state'
-    personaSuppression = clamp01(personaSuppression + 0.06)
-    reasonTags.push('host-state-disclosure')
-  }
-  else if (hostStateDisclosure) {
-    act = 'share-state'
-    responseNeed = 'care'
-    truthExpectation = 'normal'
-    affectiveTone = 'warm'
-    subjectPreference = 'host-state'
-    personaSuppression = clamp01(personaSuppression + 0.02)
-    reasonTags.push('host-state-disclosure')
-  }
-  else if (questionLike) {
-    act = 'ask-help'
-    responseNeed = 'answer'
-    truthExpectation = codingLike ? 'strict' : 'normal'
-    subjectPreference = sceneBoundQuestion
-      ? input.worldModel?.activeThread
-        ? 'task-knot'
-        : 'visible-scene'
-      : 'general'
-    personaSuppression = clamp01(personaSuppression + 0.14)
-    reasonTags.push('question-turn')
-  }
-  else if (terse && codingLike) {
-    act = 'continue-thread'
-    responseNeed = unstableTruth ? 'repair' : 'guide'
-    truthExpectation = 'strict'
-    subjectPreference = input.worldModel?.activeThread ? 'task-knot' : 'visible-scene'
-    personaSuppression = clamp01(personaSuppression + 0.18)
-    sharedAttentionDemand = clamp01(sharedAttentionDemand + 0.16)
-    reasonTags.push('terse-coding-followup')
-  }
-  else if (terse) {
-    act = 'social-bid'
-    responseNeed = 'accompany'
-    truthExpectation = 'light'
-    affectiveTone = input.relationshipModel?.approachVector === 'stay-near' ? 'warm' : 'neutral'
-    subjectPreference = 'relationship'
-    personaSuppression = clamp01(personaSuppression - 0.04)
-    reasonTags.push('terse-social-turn')
-  }
-  else if (topGoal === 'chat') {
-    act = 'social-bid'
-    responseNeed = 'accompany'
-    truthExpectation = 'light'
-    affectiveTone = 'warm'
-    subjectPreference = 'relationship'
-    personaSuppression = clamp01(personaSuppression - 0.06)
-    reasonTags.push('chat-goal')
+    taskAnchor = null
+    sharedAttentionDemand = 0.14
+    personaSuppression = 0.04
   }
 
+  if (hasStructuredNeed)
+    reasonTags.push(`structured-relationship-need-${topNeed}`)
+
   if (input.privateThought?.stance === 'warn' || input.privateThought?.stance === 'care') {
-    affectiveTone = careLike ? 'tired' : 'urgent'
+    affectiveTone = input.privateThought.stance === 'care'
+      ? careLike ? 'tired' : 'warm'
+      : 'urgent'
     subjectPreference = subjectPreference ?? 'host-state'
     reasonTags.push('private-thought-carry')
   }
 
-  const sceneTaskAnchor = codingAnchor(input.currentScene, input.worldModel)
-  const dialogueFirstTurn = isDialogueFirstPreference(subjectPreference)
-    || answerRepairFollowUp
-    || careRequest
-    || companionshipBid
-    || hostStateDisclosure
-    || detachedQuestion
-  const taskAnchor = dialogueFirstTurn ? null : sceneTaskAnchor
+  if (isDialogueFirstPreference(subjectPreference))
+    taskAnchor = null
+
   return {
     act,
     responseNeed,
@@ -587,30 +334,14 @@ export function buildDialogueTurnSemantics(input: {
     affectiveTone,
     subjectPreference,
     taskAnchor,
-    sharedAttentionDemand,
-    personaSuppression,
-    confidence: clamp01(
-      (questionLike ? 0.26 : 0.12)
-      + (codingLike ? 0.18 : 0.04)
-      + (unstableTruth ? 0.14 : 0)
-      + (topGoal !== 'unknown' ? 0.14 : 0)
-      + (taskAnchor ? 0.1 : dialogueFirstTurn ? 0.08 : 0.04),
-    ),
+    sharedAttentionDemand: clamp01(sharedAttentionDemand),
+    personaSuppression: clamp01(personaSuppression),
+    confidence: clamp01(Math.max(0.36, input.subjectiveInference?.confidence ?? 0)),
     summary: '',
-    source: 'heuristic',
+    source: 'structured-cognition',
     reasonTags: uniqueLabels([
       ...reasonTags,
-      topGoal !== 'unknown' ? `host-goal:${topGoal}` : '',
       taskAnchor ? 'task-anchor' : '',
-      dialogueFirstTurn ? 'dialogue-first-turn' : '',
-      answerRepairFollowUp ? 'answer-realignment' : '',
-      answerRepairCue ? 'answer-repair-cue' : '',
-      sceneBoundQuestion ? 'scene-bound-turn' : '',
-      detachedQuestion ? 'scene-detached-turn' : '',
-      helpSeeking ? 'explicit-help-cue' : '',
-      companionshipBid ? 'companionship-cue' : '',
-      careRequest ? 'care-cue' : '',
-      selfIdentityAffirmation ? 'self-identity-cue' : '',
     ]),
   }
 }
@@ -741,41 +472,24 @@ export function mergeDialogueTurnSemantics(
     || candidate.act === 'social-bid'
     || candidate.responseNeed === 'accompany'
     || candidate.responseNeed === 'care'
-  const candidatePullsSceneCarry = isSceneSubject(candidate.subjectPreference)
-    || candidate.act === 'verify-grounding'
-    || candidate.act === 'correct'
-    || candidate.responseNeed === 'guide'
-    || candidate.responseNeed === 'repair'
-  const preserveDialogueFirstBase = isDialogueFirstPreference(base.subjectPreference)
-    && candidatePullsSceneCarry
-    && (
-      base.reasonTags.includes('scene-detached-turn')
-      || base.reasonTags.includes('answer-realignment')
-      || base.reasonTags.includes('companionship-bid')
-      || base.reasonTags.includes('care-request')
-      || base.reasonTags.includes('terse-social-turn')
-      || base.reasonTags.includes('chat-goal')
-      || base.reasonTags.includes('greeting-bid')
-      || base.reasonTags.includes('self-directed-question')
-      || base.reasonTags.includes('self-tone-adjustment')
-    )
   const preserveInspectionBase = base.reasonTags.includes('inspection-owned-turn')
     && candidatePullsDialogueFirst
+  const candidateSubjectPreference = candidate.subjectPreference !== undefined
+    ? candidate.subjectPreference
+    : base.subjectPreference ?? null
 
   return {
-    act: (preserveInspectionBase || preserveDialogueFirstBase) ? base.act : candidate.act ?? base.act,
-    responseNeed: (preserveInspectionBase || preserveDialogueFirstBase) ? base.responseNeed : candidate.responseNeed ?? base.responseNeed,
-    truthExpectation: (preserveInspectionBase || preserveDialogueFirstBase) ? base.truthExpectation : candidate.truthExpectation ?? base.truthExpectation,
-    affectiveTone: candidate.affectiveTone ?? base.affectiveTone,
+    act: preserveInspectionBase ? base.act : candidate.act ?? base.act,
+    responseNeed: preserveInspectionBase ? base.responseNeed : candidate.responseNeed ?? base.responseNeed,
+    truthExpectation: preserveInspectionBase ? base.truthExpectation : candidate.truthExpectation ?? base.truthExpectation,
+    affectiveTone: preserveInspectionBase ? base.affectiveTone : candidate.affectiveTone ?? base.affectiveTone,
     subjectPreference: preserveInspectionBase
       ? base.subjectPreference ?? null
-      : preserveDialogueFirstBase
-        ? base.subjectPreference ?? null
-        : candidate.subjectPreference ?? base.subjectPreference ?? null,
+      : candidateSubjectPreference,
     taskAnchor: preserveInspectionBase
       ? base.taskAnchor
-      : preserveDialogueFirstBase
-        ? base.taskAnchor
+      : candidatePullsDialogueFirst
+        ? null
         : candidate.taskAnchor ?? base.taskAnchor,
     sharedAttentionDemand: interpolate01(
       base.sharedAttentionDemand,
@@ -794,7 +508,6 @@ export function mergeDialogueTurnSemantics(
       ...(candidate.reasonTags ?? []),
       ...base.reasonTags,
       preserveInspectionBase ? 'preserve-inspection-base' : '',
-      preserveDialogueFirstBase ? 'preserve-dialogue-first-base' : '',
       'structured-dialogue-cognition',
     ]),
   }

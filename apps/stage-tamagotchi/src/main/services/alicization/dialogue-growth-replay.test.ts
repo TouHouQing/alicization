@@ -1,3 +1,5 @@
+import type { AlicizationDialogueReplyFeedbackKind } from './outcome-reinforcement'
+
 import { describe, expect, it } from 'vitest'
 
 import { buildAutobiographicalSelf } from './autobiographical-self'
@@ -23,6 +25,7 @@ interface ReplayTurn {
   preferredStyle: string
   answerIntent: string
   assistantText: string
+  feedbackKind?: AlicizationDialogueReplyFeedbackKind
   feedbackText?: string
 }
 
@@ -401,13 +404,16 @@ function replayDialogueSession(turns: ReplayTurn[]) {
       })),
     )
 
-    if (turn.feedbackText) {
+    if (turn.feedbackKind) {
       const feedback = deriveDialogueReplyFeedbackKind({
-        previousAssistantText: turn.assistantText,
-        userText: turn.feedbackText,
+        feedback: {
+          kind: turn.feedbackKind,
+          source: 'typed-ui',
+          replyTurnId: turn.id,
+        },
       })
       if (!feedback)
-        throw new Error(`Expected dialogue feedback classification for turn ${turn.id}.`)
+        throw new Error(`Expected typed dialogue feedback for turn ${turn.id}.`)
 
       history = appendPersistedClosure(
         history,
@@ -420,6 +426,8 @@ function replayDialogueSession(turns: ReplayTurn[]) {
           turnId: turn.id,
           decisionTraceId: `trace:${turn.id}:feedback`,
           feedback,
+          feedbackSource: 'typed-ui',
+          userText: turn.feedbackText,
           previousAssistantText: turn.assistantText,
         })),
       )
@@ -447,6 +455,7 @@ describe('dialogue growth replay', () => {
         preferredStyle: 'silent-observe',
         answerIntent: 'repair-and-ground',
         assistantText: '我先把这句答清，再顺着刚刚那条线接下去。',
+        feedbackKind: 'robotic',
         feedbackText: '你还是太像机器了',
       },
       {
@@ -457,6 +466,7 @@ describe('dialogue growth replay', () => {
         preferredStyle: 'gentle-care',
         answerIntent: 'stay-near-and-answer',
         assistantText: '好，我不端系统口气了。刚刚那条线我还记着，就沿着它继续。',
+        feedbackKind: 'received',
         feedbackText: '这次像人多了',
       },
       {
@@ -467,6 +477,7 @@ describe('dialogue growth replay', () => {
         preferredStyle: 'gentle-care',
         answerIntent: 'carry-the-thread',
         assistantText: '我还在同一条线里，没有把它丢掉。你要继续，我就接着说。',
+        feedbackKind: 'received',
         feedbackText: '这次对了',
       },
     ])
@@ -497,6 +508,7 @@ describe('dialogue growth replay', () => {
         preferredStyle: 'gentle-care',
         answerIntent: 'care-and-stay-near',
         assistantText: '你现在好累，那我先陪你缓一下，不把话题扯开。',
+        feedbackKind: 'intrusive',
         feedbackText: '先别这样安慰我，太挤了',
       },
       {
@@ -507,6 +519,7 @@ describe('dialogue growth replay', () => {
         preferredStyle: 'silent-observe',
         answerIntent: 'hold-and-wait',
         assistantText: '好，我先退一点，不抢这条线，等你想回来的时候我再接。',
+        feedbackKind: 'interrupted',
         feedbackText: '先说别的',
       },
       {

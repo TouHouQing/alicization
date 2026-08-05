@@ -2748,7 +2748,7 @@ function buildMemoryClosureTraceDerivedMindStateBundle(input: {
             lanes: Object.fromEntries(memoryClosureEmbodimentLanes.map(lane => [
               lane,
               {
-                status: 'carrying-continuity',
+                status: 'available',
                 summary: embodimentSummary || null,
               },
             ])) as NonNullable<AlicizationEmbodimentContinuityLedgerSnapshot['lanes']>,
@@ -3496,6 +3496,7 @@ export function normalizeDialogueRespondedPayload(
 }
 
 export interface AlicizationRuntimeSetupOptions {
+  backgroundMaintenanceEnabled?: boolean
   userDataPathOverride?: string
   runtimeDebugLogEnabled?: boolean
 }

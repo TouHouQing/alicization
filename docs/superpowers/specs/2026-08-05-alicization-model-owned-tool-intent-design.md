@@ -1,6 +1,6 @@
 # Alicization 主模型工具意图设计
 
-> 状态：等待用户审阅
+> 状态：已批准、实施并通过最终验证
 > 日期：2026-08-05
 > 范围：退役基于自然语言正则的执行意图路由，让主对话模型结合人格、短期记忆、长期记忆和真实工具能力，自主决定直接回答、澄清或调用工具。
 
@@ -200,9 +200,10 @@ flowchart TD
 
 1. 普通对话继续走完整人格和记忆主链路。
 2. runtime 不发送 tools 字段。
-3. capability manifest 明确标识当前 Provider 不支持工具。
-4. 如果用户只是询问能力，模型根据事实回答。
-5. 如果用户要求实际执行，模型不得伪装成功；应透明说明当前执行能力不可用，并在可用时提供可操作的恢复路径。
+3. renderer 按 `providerId + model` 持久化 Provider tools 能力观测，避免每轮重复发送已知会失败的 tools 请求。
+4. capability manifest 明确标识当前 Provider 是否支持工具，并携带观测来源、时间和最后错误。
+5. 如果用户只是询问能力，模型根据事实回答。
+6. 如果用户要求实际执行，模型不得伪装成功；应透明说明当前执行能力不可用，并在可用时提供可操作的恢复路径。
 
 ### 工具需要确认
 
@@ -476,6 +477,19 @@ interface MainGatewayToolCapability {
 8. 工具结果回到同一个对话权威，不形成第二人格。
 9. 超时、Provider、工具和安全失败透明可见。
 10. 失败和原始工具输出不会污染长期人格或 LoRA 数据。
+
+## 实施结果
+
+截至 2026-08-05：
+
+- renderer 的自然语言工具意图、预期工具集合和缺失工具拦截已退役。
+- main prelude/session 不再根据用户措辞强制工具、channel 或 tool choice。
+- capability、callback 和 active ledger 以结构化 Provider facts 进入同一主模型。
+- Provider tools 不兼容会在无进度时透明重试一次，并按 `providerId + model` 记录能力观测。
+- 未上报的执行 channel 默认不可用，不再被解释为隐式可用。
+- completed/failed/cancelled execution ledger 不再无条件污染普通对话。
+- 当前轮没有新的 execution carry 时，WorkingMemory 不再永久继承上一轮终态 execution state。
+- timeout、Provider、工具和安全失败面继续保留，并禁止进入长期记忆、persona learning 和训练数据。
 
 ## 设计结论
 

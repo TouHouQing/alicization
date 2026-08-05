@@ -795,6 +795,12 @@ function sanitizeRendererAlicizationChatStartPayload(
     messages: payload.messages,
     ...(payload.supportsTools !== undefined ? { supportsTools: payload.supportsTools } : {}),
     ...(payload.waitForTools !== undefined ? { waitForTools: payload.waitForTools } : {}),
+    ...(payload.providerToolCapabilityObservation
+      ? { providerToolCapabilityObservation: payload.providerToolCapabilityObservation }
+      : {}),
+    ...(payload.dialogueReplyFeedback
+      ? { dialogueReplyFeedback: payload.dialogueReplyFeedback }
+      : {}),
   })
 }
 

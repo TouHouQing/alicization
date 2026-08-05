@@ -16,11 +16,6 @@ function createPrepared() {
       availableLongTermEvidenceIds: [],
       providerSystemBlock: '{}',
     },
-    freshExecutionReplyCallback: {
-      status: 'completed',
-      toolName: 'read_file',
-    },
-    executionReplyObligation: null,
     executionPayoffStructuredReply: null,
     runtimeSurface: {
       digitalLifeRuntimeSurface: null,

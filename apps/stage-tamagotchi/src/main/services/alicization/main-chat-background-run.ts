@@ -114,6 +114,10 @@ interface RunAlicizationMainChatBackgroundOptions {
     payload: AlicizationChatStartPayload
     prepared: AlicizationPreparedMainChatExecutionResult
   }) => Promise<void> | void
+  settlePresentedExecutionCallbacks?: (input: {
+    cardId: string
+    callbacks: NonNullable<AlicizationPreparedMainChatExecutionResult['presentedExecutionCallbacks']>
+  }) => Promise<void> | void
 }
 
 function resolvePreferredPreparedRuntimeSurface(
@@ -473,6 +477,35 @@ export async function runAlicizationMainChatBackground(
         `provider-settlement-invalid:${finalValidation.issues.join(',')}`,
         null,
       )
+    }
+
+    const presentedExecutionCallbacks = prepared.presentedExecutionCallbacks ?? []
+    if (presentedExecutionCallbacks.length > 0) {
+      try {
+        await input.settlePresentedExecutionCallbacks?.({
+          cardId: normalizedPayload.cardId,
+          callbacks: presentedExecutionCallbacks,
+        })
+      }
+      catch (error) {
+        await input.appendRuntimeDebugLine('chat-stream.execution-callback-settlement-failed', {
+          cardId: normalizedPayload.cardId,
+          turnId: normalizedPayload.turnId,
+          callbackCount: presentedExecutionCallbacks.length,
+          reason: error instanceof Error ? error.message : String(error),
+        })
+        await input.queueScopedAuditLog(normalizedPayload.cardId, {
+          level: 'warning',
+          category: 'alicization.executor.delivery',
+          action: 'inline-surface-settlement-failed',
+          message: 'Failed to persist execution callback delivery settlement after a Provider reply.',
+          payload: {
+            turnId: normalizedPayload.turnId,
+            callbackCount: presentedExecutionCallbacks.length,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+        })
+      }
     }
 
     input.runStateController.finishRun(input.key, {

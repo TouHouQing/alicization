@@ -41,7 +41,6 @@ import type { WorkingMemoryRecentTurnInput } from './life-core/working-memory-bu
 import type { WorkingMemoryStore } from './life-core/working-memory-store'
 import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
 import type { AlicizationMainChatActionObligation } from './main-chat-action-obligation'
-import type { AlicizationMainChatExecutionReplyObligation } from './main-chat-execution-reply-obligation'
 import type {
   BuildMainGatewayToolsOptions,
   MainGatewayExecutionToolContext,
@@ -83,11 +82,6 @@ import {
   projectWorkingMemoryOwnerEpisodes,
 } from './life-core/working-memory-owner-context'
 import { createWorkingMemoryStore } from './life-core/working-memory-store'
-import {
-  applyMainChatExecutionReplyObligationToGovernance,
-  buildMainChatExecutionReplyObligationSystemBlock,
-  deriveMainChatExecutionReplyObligation,
-} from './main-chat-execution-reply-obligation'
 import {
   buildExecutionCapabilitySystemBlocks,
   buildMainGatewayTools,
@@ -167,8 +161,7 @@ export type AlicizationMainChatMemoryFailureSurface = AlicizationChatMemoryFailu
 
 export interface AlicizationPreparedMainChatExecutionResult extends PreparedMainChatExecution {
   conversationSessionId: string | null
-  executionReplyObligation?: AlicizationMainChatExecutionReplyObligation | null
-  freshExecutionReplyCallback?: AlicizationExecutionCallbackDigest | null
+  presentedExecutionCallbacks: AlicizationExecutionCallbackDigest[]
   getSessionTrace: () => AlicizationRuntimeCallChainSnapshot
   memoryContext: AlicizationMainChatMemoryContext
   memoryFailures: AlicizationMainChatMemoryFailureSurface[]
@@ -681,6 +674,7 @@ function buildWorkingMemoryOwnerContextFromRuntime(input: {
   dialogueWorldThread: AlicizationDialogueWorldThreadSnapshot | null
   executionCallbackRecallText: string
   executionLedgerRecallText: string
+  hasActiveExecution: boolean
   messages: Message[]
   now: number
   persistedRecentTurns?: WorkingMemoryRecentTurnInput[]
@@ -713,6 +707,7 @@ function buildWorkingMemoryOwnerContextFromRuntime(input: {
     dialogueWorldThread: input.dialogueWorldThread as any,
     currentConsciousFrame: input.currentConsciousFrame as any,
     executionCarry: executionCarryText,
+    executionActive: input.hasActiveExecution,
     previousSnapshot: input.previousSnapshot,
   })
   const ownerContext = buildWorkingMemoryOwnerContext(snapshot)
@@ -1663,25 +1658,12 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       listMemoryReflections: options.listMemoryReflections,
       listRelationshipOutcomes: options.listRelationshipOutcomes,
     })
-    const executionReplyObligation: AlicizationMainChatExecutionReplyObligation | null = deriveMainChatExecutionReplyObligation({
-      messages: payload.messages as Message[],
-      callbackContext: executionCallbackContext,
-      ledgerContext: executionLedgerContext,
-    })
-    const freshExecutionReplyCallback = executionReplyObligation?.source === 'fresh-callback'
-      ? [...executionCallbackContext.callbacks].sort((left, right) => right.createdAt - left.createdAt)[0] ?? null
-      : null
-    const shouldIncludeExecutionCapabilityContext = payload.supportsTools !== false
-      || Boolean(executionReplyObligation)
     const {
       effectiveMindTurnGovernanceWithRecollection,
       llmMindAuthorityGovernance,
     } = deriveRuntimeReplyAuthorityGovernance({
       now,
-      governance: applyMainChatExecutionReplyObligationToGovernance(
-        prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance,
-        executionReplyObligation,
-      ),
+      governance: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance,
       context: organicPromptContext,
       memoryTurnArtifact,
       applyMemoryDeliberationToGovernance,
@@ -2277,21 +2259,20 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         perceptionPromptSystemBlocks: prelude.perceptionAugmentation.promptSystemBlocks,
         perceptionSystemBlocks: prelude.perceptionAugmentation.systemBlocks,
         digitalLifeRuntimeSurface: runtimeSurfaceForBuilder,
-        executionCapabilitySystemBlocks: shouldIncludeExecutionCapabilityContext
-          ? buildExecutionCapabilitySystemBlocks(
-              executionCapabilities,
-              options.executionCapabilityChannels,
-            )
-          : [],
+        executionCapabilitySystemBlocks: buildExecutionCapabilitySystemBlocks(
+          executionCapabilities,
+          options.executionCapabilityChannels,
+          {
+            toolsOfferedThisTurn: allowTools,
+            providerToolCapabilityObservation: payload.providerToolCapabilityObservation ?? null,
+          },
+        ),
         executionCallbackSystemBlocks: executionCallbackContext.systemBlock
           ? [executionCallbackContext.systemBlock]
           : [],
         executionLedgerSystemBlocks: executionLedgerContext.systemBlock
           ? [executionLedgerContext.systemBlock]
           : [],
-        executionReplyObligationSystemBlock: executionReplyObligation
-          ? buildMainChatExecutionReplyObligationSystemBlock(executionReplyObligation)
-          : undefined,
         customDirectivesResolution,
         personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
         personaKernelReason: prelude.perceptionAugmentation.chatGovernance.personaKernelMode === 'muted'
@@ -2376,6 +2357,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       dialogueWorldThread: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.dialogueWorldThread ?? null,
       executionCallbackRecallText: executionCallbackContext.recallText,
       executionLedgerRecallText: executionLedgerContext.recallText,
+      hasActiveExecution: executionLedgerContext.entries.length > 0,
       messages: providerPlanningMessages,
       now,
       persistedRecentTurns,
@@ -2591,8 +2573,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const preparedResultBase = {
       chatConfig: prelude.chatConfig,
       conversationSessionId: agentTurn.conversationSessionId,
-      executionReplyObligation,
-      freshExecutionReplyCallback,
+      presentedExecutionCallbacks: [...executionCallbackContext.callbacks],
       getSessionTrace: () => agentTurn.snapshot(),
       messages,
       waitForTools,

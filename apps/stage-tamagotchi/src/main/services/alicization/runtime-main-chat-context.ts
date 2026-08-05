@@ -29,8 +29,6 @@ interface CreateAlicizationMainChatContextRuntimeOptions {
   }) => Promise<AlicizationExecutionCallbackContext>
   buildExecutionLedgerContext: (input: {
     sessionId: string
-    userText: string
-    recentTurns: ContextualConversationTurn[]
   }) => Promise<AlicizationExecutionLedgerContext>
   resolveRecentContextualTurns: (sessionId: string, limit: number) => Promise<ContextualConversationTurn[]>
   shouldExtendContextualRecall: (userText: string) => boolean
@@ -89,11 +87,8 @@ export function createAlicizationMainChatContextRuntime(options: CreateAlicizati
     if (!sessionId)
       return emptyAlicizationExecutionLedgerContext
 
-    const recentTurns = await resolveRecentContextualTurns(sessionId, 3)
     return await buildExecutionLedgerContext({
       sessionId,
-      userText: currentUserText,
-      recentTurns,
     })
   }
 

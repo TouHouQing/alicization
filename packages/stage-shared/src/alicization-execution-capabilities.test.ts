@@ -5,6 +5,9 @@ import type {
   AlicizationExecutorToolName,
 } from './alicization-execution-capabilities'
 
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+
 import { describe, expect, it } from 'vitest'
 
 import * as capabilities from './alicization-execution-capabilities'
@@ -15,6 +18,15 @@ describe('alicization execution capabilities', () => {
       'alicizationExecutionCapabilityChannels',
       'alicizationExecutorToolNames',
     ])
+  })
+
+  it('does not own provider-specific capability observations', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('./alicization-execution-capabilities.ts', import.meta.url)),
+      'utf8',
+    )
+
+    expect(source).not.toContain('AlicizationProviderToolCapabilityObservation')
   })
 
   it('defines the capability channels independently from natural-language intent', () => {

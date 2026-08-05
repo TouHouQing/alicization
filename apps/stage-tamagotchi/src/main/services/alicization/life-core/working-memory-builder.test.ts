@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import { buildAlicizationMainChatMemoryContext } from '../main-chat-memory-context'
 import { buildWorkingMemorySnapshot } from './working-memory-builder'
+import { buildWorkingMemoryOwnerContext } from './working-memory-owner-context'
 
 describe('working memory snapshot builder', () => {
   it('builds current thread, questions, commitments, corrections, and query hints from runtime signals', () => {
@@ -234,6 +236,76 @@ describe('working memory snapshot builder', () => {
       status: 'blocked',
     })
     expect(snapshot.executionState?.summary).toContain('execution_callback_status:failed')
+  })
+
+  it('drops terminal execution state when the current turn has no execution carry', () => {
+    const terminalExecutionSummary = '旧执行已经完成：测试结果已归档'
+    const previousSnapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-terminal-execution',
+      now: 12_000,
+      currentUserText: '运行测试',
+    })
+    previousSnapshot.executionState = {
+      summary: terminalExecutionSummary,
+      source: 'execution-callback',
+    }
+
+    const nextSnapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-terminal-execution',
+      now: 13_000,
+      currentUserText: '你好',
+      previousSnapshot,
+    })
+    const ownerContext = buildWorkingMemoryOwnerContext(nextSnapshot)
+    const memoryContext = buildAlicizationMainChatMemoryContext({
+      workingMemory: ownerContext,
+      workingMemorySnapshot: nextSnapshot,
+      longTermRecall: null,
+    })
+
+    expect({
+      executionState: nextSnapshot.executionState,
+      ownerCarriesTerminalExecution: ownerContext.obligations.includes(terminalExecutionSummary),
+      rememberedItemsCarryTerminalExecution:
+        memoryContext.workingMemory.rememberedItems.includes(terminalExecutionSummary),
+    }).toEqual({
+      executionState: null,
+      ownerCarriesTerminalExecution: false,
+      rememberedItemsCarryTerminalExecution: false,
+    })
+  })
+
+  it('keeps active execution state when the current turn temporarily has no execution carry', () => {
+    const activeExecutionSummary = 'execution_status:running execution_goal:run the current verification'
+    const previousSnapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-active-execution',
+      now: 12_000,
+      currentUserText: '运行测试',
+    })
+    previousSnapshot.executionState = {
+      summary: activeExecutionSummary,
+      source: 'execution-ledger',
+      status: 'active',
+      observedAt: 12_000,
+    }
+
+    const nextSnapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-active-execution',
+      now: 13_000,
+      currentUserText: '继续',
+      previousSnapshot,
+    })
+
+    expect(nextSnapshot.executionState).toEqual({
+      summary: activeExecutionSummary,
+      source: 'execution-ledger',
+      status: 'active',
+      observedAt: 12_000,
+    })
   })
 
   it('marks common timeout and provider failure replies as audit-only turns', () => {

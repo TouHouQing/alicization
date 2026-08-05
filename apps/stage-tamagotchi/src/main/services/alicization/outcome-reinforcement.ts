@@ -1,4 +1,7 @@
-import type { AlicizationExecutionRuntimeMemoryClosureExecution } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationDialogueReplyFeedbackFact,
+  AlicizationExecutionRuntimeMemoryClosureExecution,
+} from '@proj-alicization/stage-shared'
 
 import type {
   AlicizationEmotionalTransitionLedgerSnapshot,
@@ -13,6 +16,7 @@ import type { AlicizationEmbodimentContinuityLedger } from './embodiment-continu
 import type { AlicizationRecentProactiveOutcome } from './proactive-feedback'
 
 import {
+  normalizeAlicizationDialogueReplyFeedbackFact,
   sanitizeAlicizationMemoryEvidenceText,
 } from '@proj-alicization/stage-shared'
 
@@ -93,7 +97,7 @@ export interface AlicizationOutcomeClosureResult {
   embodimentContinuityLedger?: AlicizationEmbodimentContinuityLedger | null
 }
 
-export type AlicizationDialogueReplyFeedbackKind = 'received' | 'robotic' | 'missed' | 'intrusive' | 'interrupted'
+export type AlicizationDialogueReplyFeedbackKind = AlicizationDialogueReplyFeedbackFact['kind']
 export type AlicizationExecutionProposalFeedbackKind = 'affirmed' | 'denied' | 'interrupted'
 export type AlicizationExecutionResultFeedbackKind = 'valued' | 'doubted' | 'intrusive' | 'interrupted'
 
@@ -371,17 +375,6 @@ const enExecutionResultValuedTokens = ['useful', 'helpful', 'thatworks', 'thatsr
 const enExecutionResultDoubtedTokens = ['wrong', 'incorrect', 'unreliable', 'doesntlookright', 'doesn\'tlookright', 'notright', 'badresult']
 const enExecutionResultIntrusiveTokens = ['intrusive', 'annoying', 'dontinterrupt', 'don\'tinterrupt', 'toonoisy', 'dontsuddenlyreport', 'don\'tsuddenlyreport']
 const executionResultAssistantCueTokens = ['结果', '执行', '命令', '任务', 'callback', 'cli', 'codex', 'claudecode', 'openclaw', '有结果', '跑完', '做完']
-const zhDialogueReplyReceivedTokens = ['像人多了', '自然多了', '这次自然', '这样就对', '这样舒服', '有被接住', '这次好多了', '这样说就好', '这样就好', '这句可以', '谢谢你这样说', '对，就是这个', '这次对了']
-const zhDialogueReplyRoboticTokens = ['像机器', '像机器人', '太模板', '很模板', '不自然', '不像人', '说人话', '像系统', '像客服', '流程播报', '系统口气', '人机味', '太机械']
-const zhDialogueReplyMissedTokens = ['不对', '不是这个', '答非所问', '没回答到', '没答到', '没懂', '你没懂', '不是这个意思', '跑题', '跑偏', '你在说啥', '你在讲什么']
-const zhDialogueReplyIntrusiveTokens = ['太挤', '太黏', '太过了', '别这么贴', '别这样哄', '先别安慰', '太肉麻', '别这么叫我', '太烦了', '压力太大']
-const zhDialogueReplyInterruptedTokens = ['先说别的', '换个话题', '不聊这个', '先不说这个', '算了说别的', '我还有别的事', '先说另一件事']
-const enDialogueReplyReceivedTokens = ['morehuman', 'naturalthistime', 'thatlanded', 'thatfeelsright', 'thatsbetter', 'that\'sbetter', 'thatfeltgood', 'thathelped', 'yougotit', 'yougotme']
-const enDialogueReplyRoboticTokens = ['robotic', 'tootemplated', 'toocorporate', 'toosystem', 'youstillsoundlikeabot', 'soundmorehuman', 'talklikeaperson']
-const enDialogueReplyMissedTokens = ['notthis', 'missedthepoint', 'didntanswer', 'didn\'tanswer', 'thatsnotwhatimeant', 'that\'snotwhatimeant', 'youstilldontgetit', 'youstilldon\'tgetit']
-const enDialogueReplyIntrusiveTokens = ['tooclose', 'toomuch', 'dontcomfortmelikethat', 'don\'tcomfortmelikethat', 'stopcrowdingme', 'thatsintrusive', 'that\'sintrusive']
-const enDialogueReplyInterruptedTokens = ['letsdropthat', 'let\'sdropthat', 'talkaboutsomethingelse', 'differenttopic', 'leaveit', 'letsmoveon', 'let\'smoveon']
-
 function normalizeCompactText(raw: string) {
   return sanitizeText(raw, 240)
     .replace(/[，,。.!！？?\s]+/g, '')
@@ -444,49 +437,9 @@ export function deriveExecutionResultFeedbackKind(input: {
 }
 
 export function deriveDialogueReplyFeedbackKind(input: {
-  previousAssistantText?: string | null
-  userText: string
+  feedback?: AlicizationDialogueReplyFeedbackFact | null
 }): AlicizationDialogueReplyFeedbackKind | null {
-  const compact = normalizeCompactText(input.userText)
-  if (!compact)
-    return null
-
-  if (
-    zhDialogueReplyIntrusiveTokens.some(token => compact.includes(token))
-    || enDialogueReplyIntrusiveTokens.some(token => compact.includes(token))
-  ) {
-    return 'intrusive'
-  }
-  if (
-    zhDialogueReplyRoboticTokens.some(token => compact.includes(token))
-    || enDialogueReplyRoboticTokens.some(token => compact.includes(token))
-  ) {
-    return 'robotic'
-  }
-  if (
-    zhDialogueReplyMissedTokens.some(token => compact.includes(token))
-    || enDialogueReplyMissedTokens.some(token => compact.includes(token))
-  ) {
-    return 'missed'
-  }
-  if (
-    zhDialogueReplyReceivedTokens.some(token => compact.includes(token))
-    || enDialogueReplyReceivedTokens.some(token => compact.includes(token))
-  ) {
-    return 'received'
-  }
-  if (
-    zhDialogueReplyInterruptedTokens.some(token => compact.includes(token))
-    || enDialogueReplyInterruptedTokens.some(token => compact.includes(token))
-  ) {
-    return 'interrupted'
-  }
-
-  const previousAssistantCompact = normalizeCompactText(input.previousAssistantText ?? '')
-  if (!previousAssistantCompact)
-    return null
-
-  return null
+  return normalizeAlicizationDialogueReplyFeedbackFact(input.feedback)?.kind ?? null
 }
 
 export function buildDialogueReplyFeedbackOutcomeClosure(input: {
@@ -496,6 +449,7 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
   decisionTraceId?: string | null
   turnId?: string | null
   feedback: AlicizationDialogueReplyFeedbackKind
+  feedbackSource?: AlicizationDialogueReplyFeedbackFact['source'] | null
   userText?: string | null
   previousAssistantText?: string | null
   affectiveResidue?: AlicizationDigitalLifeRuntimeSurface['memory']['affectiveResidue'] | null
@@ -570,7 +524,7 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
             : 0,
     ),
     openLoopDelta: clampDelta(input.feedback === 'interrupted' ? 0.03 : 0),
-    summary: `dialogue_feedback=${input.feedback}; evidence=user_and_assistant_turn`,
+    summary: `dialogue_feedback=${input.feedback}; evidence=structured_feedback_fact${input.feedbackSource ? `; source=${input.feedbackSource}` : ''}`,
     createdAt: input.now,
   }
   result.relationshipOutcomes.push(relationshipOutcome)
@@ -646,6 +600,7 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
     threadAnchor: sanitizeText(input.previousAssistantText, 160) || null,
     whatHappened: [
       `feedback=${input.feedback}`,
+      input.feedbackSource ? `source=${input.feedbackSource}` : '',
       input.userText ? `user=${sanitizeText(input.userText, 240)}` : '',
       input.previousAssistantText ? `assistant=${sanitizeText(input.previousAssistantText, 280)}` : '',
     ].filter(Boolean).join(' | '),
@@ -665,7 +620,11 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
       input.turnId ? { kind: 'turn', id: input.turnId, label: 'feedback turn' } : null,
       input.decisionTraceId ? { kind: 'mind-turn-event', id: input.decisionTraceId, label: 'feedback trace' } : null,
     ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
-    tags: ['dialogue-feedback', `feedback:${input.feedback}`],
+    tags: [
+      'dialogue-feedback',
+      `feedback:${input.feedback}`,
+      input.feedbackSource ? `feedback-source:${input.feedbackSource}` : '',
+    ].filter(Boolean),
   })
 
   return result

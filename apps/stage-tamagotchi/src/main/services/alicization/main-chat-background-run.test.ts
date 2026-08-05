@@ -301,6 +301,31 @@ describe('main chat background run', () => {
     expect(generateAlicizationMainChatNonStreaming).not.toHaveBeenCalled()
   })
 
+  it('passes presented execution callbacks to the runtime settlement owner', async () => {
+    const callback = {
+      createdAt: 1_726_000_000_000,
+      sessionId: 'session-inline-callback',
+      threadId: 'thread-inline-callback',
+      status: 'completed',
+      summary: 'command completed',
+    }
+    const prepared = createPrepared({
+      presentedExecutionCallbacks: [callback],
+    })
+    const input = createInput('刚才的命令结果呢', {
+      preparationPromise: Promise.resolve(prepared),
+      settlePresentedExecutionCallbacks: vi.fn(),
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(input.settlePresentedExecutionCallbacks).toHaveBeenCalledOnce()
+    expect(input.settlePresentedExecutionCallbacks).toHaveBeenCalledWith({
+      cardId: 'card-1',
+      callbacks: [callback],
+    })
+  })
+
   it('preserves Provider artifact metadata on completed finishes', async () => {
     const input = createInput()
     const streamResult = createStreamResult({
