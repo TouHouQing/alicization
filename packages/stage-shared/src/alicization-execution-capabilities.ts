@@ -38,4 +38,4 @@ export type AlicizationExecutorToolName = typeof alicizationExecutorToolNames[nu
 
 export type AlicizationExecutionDispatchChannel = 'cli' | 'codex' | 'claude-code' | 'openclaw'
 
-export type AlicizationExecutionRoutingChannel = AlicizationExecutionDispatchChannel | 'browser' | 'software' | 'desktop'
+export type AlicizationExecutionActionChannel = AlicizationExecutionDispatchChannel | 'browser' | 'software' | 'desktop'

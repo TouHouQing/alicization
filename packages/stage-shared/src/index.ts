@@ -17,10 +17,10 @@ export * from './alicization-embodiment-expression-derivation'
 export * from './alicization-embodiment-loop-summary'
 export * from './alicization-embodiment-script'
 export {
+  type AlicizationExecutionActionChannel,
   type AlicizationExecutionCapabilityChannel,
   alicizationExecutionCapabilityChannels,
   type AlicizationExecutionDispatchChannel,
-  type AlicizationExecutionRoutingChannel,
   type AlicizationExecutorToolName,
   alicizationExecutorToolNames,
 } from './alicization-execution-capabilities'

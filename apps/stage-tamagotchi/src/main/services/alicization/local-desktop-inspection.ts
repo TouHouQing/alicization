@@ -1,5 +1,5 @@
 import type {
-  AlicizationExecutionRoutingChannel,
+  AlicizationExecutionActionChannel,
   AlicizationExecutorToolName,
 } from '@proj-alicization/stage-shared'
 
@@ -156,7 +156,7 @@ export interface AlicizationLocalDesktopInspectionExecutionStrategy {
   confidence: number
   mode: AlicizationLocalDesktopInspectionExecutionMode
   rationale: string
-  recommendedChannel: AlicizationExecutionRoutingChannel
+  recommendedChannel: AlicizationExecutionActionChannel
   recommendedToolNames: AlicizationExecutorToolName[]
 }
 

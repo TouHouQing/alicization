@@ -1,7 +1,7 @@
 import type {
+  AlicizationExecutionActionChannel,
   AlicizationExecutionCapabilityChannel,
   AlicizationExecutionDispatchChannel,
-  AlicizationExecutionRoutingChannel,
   AlicizationExecutorToolName,
 } from './alicization-execution-capabilities'
 
@@ -67,10 +67,10 @@ describe('alicization execution capabilities', () => {
     ])
   })
 
-  it('keeps dispatch and routing channels structurally constrained', () => {
+  it('keeps dispatch and action channels structurally constrained', () => {
     const capabilityChannel: AlicizationExecutionCapabilityChannel = 'openfang'
     const dispatchChannel: AlicizationExecutionDispatchChannel = 'cli'
-    const routingChannels: AlicizationExecutionRoutingChannel[] = [
+    const actionChannels: AlicizationExecutionActionChannel[] = [
       dispatchChannel,
       'browser',
       'software',
@@ -79,7 +79,7 @@ describe('alicization execution capabilities', () => {
     const toolName: AlicizationExecutorToolName = 'executor_run_cli'
 
     expect(capabilityChannel).toBe('openfang')
-    expect(routingChannels).toEqual(['cli', 'browser', 'software', 'desktop'])
+    expect(actionChannels).toEqual(['cli', 'browser', 'software', 'desktop'])
     expect(toolName).toBe('executor_run_cli')
   })
 })
