@@ -9,6 +9,7 @@ import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-ses
 import type { MainGatewayResolvedConfig } from './runtime-soul'
 
 import {
+  extractAlicizationProviderRequestFailure,
   isAlicizationProviderSchemaUnsupportedError,
   resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
@@ -156,25 +157,6 @@ export async function handleAlicizationMainChatRunFailure(
     .find(message => message.role === 'user')
   const currentUserText = readTransportContentAsText(userText?.content).trim()
 
-  if (!input.prepared) {
-    const failureSurface = resolveAlicizationChatFailureSurface({
-      kind: 'stream-failure',
-      userText: currentUserText,
-    })
-    await emitFailureSurface({
-      failureSurface,
-      finishReason: 'prepare-failed',
-      status: 'failed',
-      options: input,
-    })
-    await input.appendRuntimeDebugLine('chat-start.prepare-failed', {
-      cardId: input.payload.cardId,
-      turnId: input.payload.turnId,
-      reason,
-    })
-    return
-  }
-
   const aborted = isAbortLikeError(input.error) || input.controller.signal.aborted
   if (aborted) {
     const abortReasonText = String(input.controller.signal.reason ?? reason ?? 'abort')
@@ -240,6 +222,61 @@ export async function handleAlicizationMainChatRunFailure(
       options: input,
     })
     await input.appendRuntimeDebugLine('chat-stream.provider-schema-unsupported', {
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
+      reason,
+    })
+    return
+  }
+
+  const providerRequest = extractAlicizationProviderRequestFailure(input.error)
+  if (providerRequest) {
+    const failureKind = providerRequest.status === 401 || providerRequest.status === 403
+      ? 'provider-auth'
+      : 'provider-request'
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: failureKind,
+      userText: currentUserText,
+      ...(failureKind === 'provider-request'
+        ? {
+            providerRequest: {
+              ...providerRequest,
+              providerId: input.mainGateway.providerId,
+              model: input.mainGateway.model,
+            },
+          }
+        : {}),
+    })
+    await emitFailureSurface({
+      failureSurface,
+      finishReason: failureKind,
+      status: 'failed',
+      options: input,
+    })
+    await input.appendRuntimeDebugLine('chat-stream.provider-request-failed', {
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
+      providerId: input.mainGateway.providerId,
+      model: input.mainGateway.model,
+      status: providerRequest.status,
+      code: providerRequest.code,
+      message: providerRequest.message,
+    })
+    return
+  }
+
+  if (!input.prepared) {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'stream-failure',
+      userText: currentUserText,
+    })
+    await emitFailureSurface({
+      failureSurface,
+      finishReason: 'prepare-failed',
+      status: 'failed',
+      options: input,
+    })
+    await input.appendRuntimeDebugLine('chat-start.prepare-failed', {
       cardId: input.payload.cardId,
       turnId: input.payload.turnId,
       reason,

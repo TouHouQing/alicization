@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveAlicizationChatFailureSurface } from './alicization-chat-failure-surface'
+import {
+  extractAlicizationProviderRequestFailure,
+  resolveAlicizationChatFailureSurface,
+} from './alicization-chat-failure-surface'
 
 describe('alicization chat failure surface', () => {
   it('renders timeout as direct infrastructure failure instead of persona prose', () => {
@@ -56,5 +59,59 @@ describe('alicization chat failure surface', () => {
       expect(surface.excludeFromPersonaLearning).toBe(true)
       expect(surface.excludeFromMemoryCondensation).toBe(true)
     }
+  })
+
+  it('preserves safe Provider request diagnostics instead of collapsing HTTP 400 into stream failure', () => {
+    const error = new Error(
+      'Remote sent 400 response: {"error":{"message":"Upstream request failed.","type":"invalid_request_error"}}',
+    )
+    const providerRequest = extractAlicizationProviderRequestFailure(error)
+    expect(providerRequest).toEqual({
+      status: 400,
+      code: 'invalid_request_error',
+      message: 'Upstream request failed.',
+    })
+    if (!providerRequest)
+      throw new Error('Expected Provider request diagnostics.')
+
+    const surface = resolveAlicizationChatFailureSurface({
+      kind: 'provider-request',
+      userText: '你好',
+      providerRequest: {
+        ...providerRequest,
+        providerId: 'openai-compatible',
+        model: 'gpt-5.4-mini',
+      },
+    })
+
+    expect(surface.reply).toContain('openai-compatible')
+    expect(surface.reply).toContain('gpt-5.4-mini')
+    expect(surface.reply).toContain('HTTP 400')
+    expect(surface.reply).toContain('invalid_request_error')
+    expect(surface.reply).toContain('Upstream request failed。')
+    expect(surface.reply).not.toContain('failed.。')
+    expect(surface.reply).not.toBe('回复流失败。')
+    expect(surface.kind).toBe('provider-request')
+    expect(surface.allowLongTermCondensation).toBe(false)
+    expect(surface.allowPersonaLearning).toBe(false)
+    expect(surface.allowTraining).toBe(false)
+    expect(surface.providerRequest).toEqual({
+      providerId: 'openai-compatible',
+      model: 'gpt-5.4-mini',
+      status: 400,
+      code: 'invalid_request_error',
+      message: 'Upstream request failed.',
+    })
+  })
+
+  it('redacts credentials and user input from Provider request diagnostics', () => {
+    const failure = extractAlicizationProviderRequestFailure(new Error(
+      'Remote sent 400 response: {"error":{"message":"Authorization: Bearer secret-token api_key=private-key user_input=private-message","type":"invalid_request_error"}}',
+    ))
+
+    expect(failure?.message).not.toContain('secret-token')
+    expect(failure?.message).not.toContain('private-key')
+    expect(failure?.message).not.toContain('private-message')
+    expect(failure?.message).toContain('[redacted]')
   })
 })

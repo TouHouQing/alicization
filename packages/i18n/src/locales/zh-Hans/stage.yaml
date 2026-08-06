@@ -16,6 +16,7 @@ chat:
     provider-auth: 当前提供方认证失败，API Key 或模型权限无效。
     provider-network: 当前到模型服务的网络连接不稳定。
     provider-config: '提供方或模型配置不完整：例如 `provider`、`model` 或 `baseUrl` 缺失。'
+    provider-request: 'Provider 请求失败（{provider} / {model}，HTTP {status}）。上游返回 {code}：{message}。请检查当前模型是否支持该 Provider，或切换模型。'
     unsupported-tools: 当前模型不支持这轮所需的工具调用。
     low-obedience-host-denied: 未授予权限，因此操作未执行。
     low-obedience-system-denied: 系统权限已阻止该操作。

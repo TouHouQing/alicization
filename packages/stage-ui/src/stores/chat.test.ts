@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 
+import { resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
@@ -732,6 +733,117 @@ describe('chat orchestrator reply authority', () => {
     })
     expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
       assistantText: reply,
+    }))
+  })
+
+  it('retries a tool-bearing HTTP 400 once without tools and clears the failed attempt surface', async () => {
+    const reply = '没有工具也可以继续聊天。'
+    const fullText = createProviderFullText(reply)
+    const providerFailure = resolveAlicizationChatFailureSurface({
+      kind: 'provider-request',
+      userText: '你好',
+      providerRequest: {
+        providerId: 'openai-compatible',
+        model: 'gpt-5.4-mini',
+        status: 400,
+        code: 'invalid_request_error',
+        message: 'Upstream request failed.',
+      },
+    })
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      if (streamChat.mock.calls.length === 1) {
+        await options.onStreamEvent?.({
+          type: 'error',
+          error: providerFailure.reply,
+          origin: 'failure-surface',
+          learningPolicy: {
+            allowLongTermCondensation: false,
+            allowPersonaLearning: false,
+            allowTraining: false,
+          },
+          failureSurface: providerFailure,
+        })
+        throw new Error(
+          'Remote sent 400 response: {"error":{"message":"Upstream request failed.","type":"invalid_request_error"}}',
+        )
+      }
+
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'gpt-5.4-mini',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamChat).toHaveBeenCalledTimes(2)
+    expect(streamChat.mock.calls[0]?.[0]).toMatchObject({
+      supportsTools: true,
+      waitForTools: true,
+    })
+    expect(streamChat.mock.calls[1]?.[0]).toMatchObject({
+      supportsTools: false,
+      waitForTools: false,
+    })
+    expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+      assistantText: reply,
+      structured: expect.objectContaining({
+        origin: 'provider',
+      }),
+    }))
+    expect(appendConversationTurnMock.mock.calls.at(-1)?.[0]?.structured.failureSurface).toBeUndefined()
+  })
+
+  it('does not persist a false tool capability observation when the no-tools retry also fails', async () => {
+    const streamChat = vi.fn(async () => {
+      throw new Error(
+        'Remote sent 400 response: {"error":{"message":"Upstream request failed.","type":"invalid_request_error"}}',
+      )
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'model-unavailable',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamChat).toHaveBeenCalledTimes(2)
+    const storageKey = [
+      'alicization/provider-tool-capability/v1',
+      encodeURIComponent('mock-provider'),
+      encodeURIComponent('model-unavailable'),
+    ].join('/')
+    expect(localStorageEntries.has(storageKey)).toBe(false)
+    expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+      structured: expect.objectContaining({
+        origin: 'failure-surface',
+        failureSurface: expect.objectContaining({
+          kind: 'provider-request',
+          providerRequest: expect.objectContaining({
+            status: 400,
+            code: 'invalid_request_error',
+          }),
+        }),
+      }),
     }))
   })
 

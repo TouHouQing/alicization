@@ -28,6 +28,7 @@ import {
   readRawTextDelta,
   sanitizeText,
 } from './main-chat-stream-primitives'
+import { adaptAlicizationProviderTools } from './provider-tool-compatibility'
 import { parseReminderToolResultForDebug, sanitizeBriefText } from './runtime-realtime'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 import { resolveAlicizationPreparedVisibleReplyExecution } from './visible-reply/facade'
@@ -242,6 +243,10 @@ export async function runAlicizationMainChatStream(
 ): Promise<AlicizationMainChatStreamRunnerResult> {
   const providerMessages = input.prepared.messages
   const normalizedPayload = input.payload
+  const providerTools = adaptAlicizationProviderTools({
+    providerId: normalizedPayload.providerId,
+    tools: input.prepared.tools,
+  })
   const turnRuntime = createAlicizationTurnRuntime()
   const reminderToolCallIds = new Set<string>()
   const startedAt = Date.now()
@@ -332,7 +337,7 @@ export async function runAlicizationMainChatStream(
       chatConfig: input.prepared.chatConfig,
       messages: providerMessages,
       headers: input.headers,
-      tools: input.prepared.tools,
+      tools: providerTools,
       toolChoice: input.prepared.toolChoice,
       timeoutMs: input.firstEventTimeoutMs,
       cardId: normalizedPayload.cardId,
@@ -394,7 +399,7 @@ export async function runAlicizationMainChatStream(
     firstEventGraceTimeoutMs,
     hasVisualGrounding: input.prepared.hasVisualGrounding,
     messageCount: providerMessages.length,
-    toolCount: Array.isArray(input.prepared.tools) ? input.prepared.tools.length : 0,
+    toolCount: Array.isArray(providerTools) ? providerTools.length : 0,
     waitForTools: input.prepared.waitForTools,
   })
 
@@ -473,7 +478,7 @@ export async function runAlicizationMainChatStream(
       messages: providerMessages,
       headers: input.headers,
       abortSignal: input.controller.signal,
-      tools: input.prepared.tools,
+      tools: providerTools,
       toolChoice: input.prepared.toolChoice,
       onEvent: async (event: any) => {
         const rawEventType = sanitizeText(event?.type)

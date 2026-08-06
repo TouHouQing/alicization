@@ -354,6 +354,78 @@ describe('main chat stream runner', () => {
     }))
   })
 
+  it('sends portable non-strict tools to OpenAI-compatible gateways', async () => {
+    const streamTextImpl = vi.fn(async ({ tools, onEvent }) => {
+      expect(tools).toEqual([
+        expect.objectContaining({
+          execute: expect.any(Function),
+          function: expect.objectContaining({
+            name: 'sample_tool',
+            strict: false,
+            parameters: {
+              type: 'object',
+              properties: {
+                url: {
+                  type: 'string',
+                },
+              },
+              additionalProperties: false,
+            },
+          }),
+        }),
+      ])
+      const emit = onEvent as (event: any) => Promise<void>
+      await emit({ type: 'text-delta', text: '工具协议已兼容。' })
+      await emit({ type: 'finish', finishReason: 'stop' })
+    })
+
+    await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-portable-tools',
+        providerId: 'openai-compatible',
+      } as any,
+      prepared: createPrepared({
+        messages: [
+          { role: 'user', content: '你好' },
+        ],
+        tools: [{
+          type: 'function',
+          execute: vi.fn(),
+          function: {
+            name: 'sample_tool',
+            description: 'Sample tool',
+            strict: true,
+            parameters: {
+              $schema: 'http://json-schema.org/draft-07/schema#',
+              type: 'object',
+              properties: {
+                url: {
+                  type: 'string',
+                  format: 'uri',
+                },
+              },
+              additionalProperties: false,
+            },
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+    })
+
+    expect(streamTextImpl).toHaveBeenCalledOnce()
+  })
+
   it('collects provider text from compatible delta event shapes instead of ending with an empty settlement', async () => {
     const emitChunk = vi.fn()
     const streamTextImpl = vi.fn(async ({ onEvent }) => {

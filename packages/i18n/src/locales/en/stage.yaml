@@ -16,6 +16,7 @@ chat:
     provider-auth: Provider authentication failed (the API key or model permission is invalid).
     provider-network: The connection to the model service is unstable right now.
     provider-config: 'Provider or model configuration is incomplete: for example `provider`, `model`, or `baseUrl` is missing.'
+    provider-request: 'Provider request failed ({provider} / {model}, HTTP {status}). Upstream returned {code}: {message}. Check whether the selected model supports this provider, or switch models.'
     unsupported-tools: The current model doesn't support the tool calls needed for this turn.
     low-obedience-host-denied: Permission was not granted, so the action was not executed.
     low-obedience-system-denied: The system blocked it.

@@ -1,4 +1,6 @@
-import { resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
+import {
+  resolveAlicizationChatFailureSurface,
+} from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -126,6 +128,24 @@ describe('main chat run lifecycle', () => {
     })
   })
 
+  it('keeps preparation-stage manual aborts silent', async () => {
+    const controller = new AbortController()
+    controller.abort('manual')
+    const input = createBaseInput({
+      prepared: null,
+      controller,
+      error: new DOMException('manual', 'AbortError'),
+    })
+
+    await handleAlicizationMainChatRunFailure(input)
+
+    expect(input.emitError).not.toHaveBeenCalled()
+    expect(input.finish).toHaveBeenCalledWith({
+      status: 'aborted',
+      finishReason: 'abort',
+    })
+  })
+
   it('marks preparation failures as non-learning stream failures', async () => {
     const input = createBaseInput({
       prepared: null,
@@ -141,6 +161,32 @@ describe('main chat run lifecycle', () => {
       error: failureSurface.reply,
       ...metadata,
     })
+  })
+
+  it('surfaces Provider request failures even when preparation has not completed', async () => {
+    const error = new Error(
+      'Remote sent 400 response: {"error":{"message":"Upstream request failed.","type":"invalid_request_error"}}',
+    )
+    const input = createBaseInput({
+      error,
+      prepared: null,
+    })
+
+    await handleAlicizationMainChatRunFailure(input)
+
+    expect(input.finish).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'failed',
+      finishReason: 'provider-request',
+      failureSurface: expect.objectContaining({
+        kind: 'provider-request',
+        providerRequest: expect.objectContaining({
+          providerId: 'openai',
+          model: 'gpt-test',
+          status: 400,
+          code: 'invalid_request_error',
+        }),
+      }),
+    }))
   })
 
   it('classifies unsupported native response schemas as transparent Provider failures', async () => {
@@ -160,6 +206,46 @@ describe('main chat run lifecycle', () => {
       error: failureSurface.reply,
       ...metadata,
     })
+  })
+
+  it('surfaces HTTP 400 Provider request failures with safe upstream diagnostics', async () => {
+    const error = new Error(
+      'Remote sent 400 response: {"error":{"message":"Upstream request failed.","type":"invalid_request_error"}}',
+    )
+    const input = createBaseInput({ error })
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'provider-request',
+      userText: '你好',
+      providerRequest: {
+        providerId: 'openai',
+        model: 'gpt-test',
+        status: 400,
+        code: 'invalid_request_error',
+        message: 'Upstream request failed.',
+      },
+    })
+
+    await handleAlicizationMainChatRunFailure(input)
+
+    expect(input.emitError).toHaveBeenCalledWith(
+      failureSurface.reply,
+      expect.objectContaining({
+        origin: failureSurface.origin,
+        failureSurface,
+      }),
+    )
+    expect(input.finish).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'failed',
+      finishReason: 'provider-request',
+      error: failureSurface.reply,
+      failureSurface,
+    }))
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith('chat-stream.provider-request-failed', expect.objectContaining({
+      providerId: 'openai',
+      model: 'gpt-test',
+      status: 400,
+      code: 'invalid_request_error',
+    }))
   })
 
   it('surfaces Provider settlement blocks as provider output failures', async () => {

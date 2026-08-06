@@ -28,6 +28,7 @@ import type { StreamEvent, StreamOptions } from './llm'
 
 import {
   deriveAlicizationRendererBridgeWatchdogTimeoutPolicy,
+  extractAlicizationProviderRequestFailure,
   isAlicizationProviderSchemaUnsupportedError,
   looksLikeAlicizationStructuredPayloadText,
   normalizeAlicizationProviderToolCapabilityLastError,
@@ -705,7 +706,14 @@ function buildTimeoutDiagnosticReply(error: unknown, userText?: string) {
   return chatFailureReply('timeout', userText)
 }
 
-function resolveStreamFailureFallback(error: unknown, userText?: string): { reply: string, kind: StreamFailureKind } {
+function resolveStreamFailureFallback(error: unknown, userText?: string, providerContext?: {
+  providerId?: string
+  model?: string
+}): {
+  reply: string
+  kind: StreamFailureKind
+  failureSurface?: AlicizationChatFailureSurface
+} {
   const errorCode = typeof error === 'object' && error && 'code' in error
     ? String((error as { code?: unknown }).code ?? '').toLowerCase()
     : ''
@@ -824,6 +832,23 @@ function resolveStreamFailureFallback(error: unknown, userText?: string): { repl
       kind: 'provider-auth',
     }
   }
+  const providerRequest = extractAlicizationProviderRequestFailure(error)
+  if (providerRequest) {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'provider-request',
+      userText,
+      providerRequest: {
+        ...providerRequest,
+        providerId: providerContext?.providerId?.trim() || 'unknown-provider',
+        model: providerContext?.model?.trim() || 'unknown-model',
+      },
+    })
+    return {
+      reply: failureSurface.reply,
+      kind: 'provider-request',
+      failureSurface,
+    }
+  }
   if (
     errorCode.includes('alicization-stream-start-rejected')
     || message.includes('state=start-failed')
@@ -860,6 +885,17 @@ function shouldRetryStreamWithoutTools(error: unknown, options: {
     return false
 
   const message = String(error instanceof Error ? error.message : error ?? '').toLowerCase()
+  const providerRequest = extractAlicizationProviderRequestFailure(error)
+  if (
+    providerRequest?.status === 400
+    && (
+      providerRequest.code === 'invalid_request_error'
+      || message.includes('upstream request failed')
+      || message.includes('invalid_request_error')
+    )
+  ) {
+    return true
+  }
   return message.includes('does not support tools')
     || message.includes('no endpoints found that support tool use')
     || message.includes('function calling is not supported')
@@ -1424,6 +1460,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
     let assistantTextCommitted = false
     let blockedStructuredTurnForPersistence: StructuredWithContract | null = null
     let blockedStructuredTurnPersisted = false
+    let resolvedRouteForFailure: ReturnType<typeof resolveSendRoute> | null = null
 
     const updateUI = () => {
       if (isForegroundSession()) {
@@ -1538,6 +1575,17 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         reply: structured.reply,
         origin: 'failure-surface',
       })
+    }
+
+    const clearTransportFailureSurfaceForRetry = () => {
+      turnTransportArtifactOrigin = null
+      turnTransportLearningPolicy = null
+      turnTransportFailureSurface = null
+      stagedAssistantResolution = null
+      stagedSpeechDraft = ''
+      finalAssistantDisplayText = ''
+      turnTransportProviderFullText = ''
+      turnTransportVisibleText = ''
     }
 
     const ingestTransportVisibleArtifactMetadata = (
@@ -1772,6 +1820,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       const alicizationBridge = hasAlicizationBridge() ? getAlicizationBridge() : null
       const runtimeAuthoritativeBridge = Boolean(alicizationBridge?.streamChat)
       const resolvedRoute = resolveSendRoute(options)
+      resolvedRouteForFailure = resolvedRoute
       const runtimeGatewayToolingPolicy = resolveMainGatewayToolingPolicy(
         resolvedRoute.providerId,
         resolvedRoute.model,
@@ -2065,12 +2114,13 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               supportsTools: streamOptions.supportsTools,
               sawProgress: sawProgress || sawProgressFromError,
             })) {
-              const providerToolCapabilityObservation = persistProviderToolCapabilityObservation({
-                providerId: resolvedRoute.providerId,
-                model: resolvedRoute.model,
+              clearTransportFailureSurfaceForRetry()
+              const providerToolCapabilityObservation: AlicizationProviderToolCapabilityObservation = {
                 supported: false,
                 source: 'observed-provider-error',
-              })
+                checkedAt: Date.now(),
+                lastError: normalizeAlicizationProviderToolCapabilityLastError('observed-provider-error'),
+              }
               await appendAlicizationAuditLog({
                 level: 'warning',
                 category: 'alicization.main-gateway',
@@ -2092,6 +2142,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                 firstEventTimeoutMs: runtimeGatewayWatchdogPolicy.retryFirstEventTimeoutMs,
                 livenessTimeoutMs: runtimeGatewayWatchdogPolicy.retryLivenessTimeoutMs,
                 idleTimeoutMs: runtimeGatewayWatchdogPolicy.retryIdleTimeoutMs,
+              })
+              persistProviderToolCapabilityObservation({
+                providerId: resolvedRoute.providerId,
+                model: resolvedRoute.model,
+                supported: false,
+                source: 'observed-provider-error',
               })
               return
             }
@@ -2733,8 +2789,14 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         const transportedFailure = turnTransportFailureSurface as AlicizationChatFailureSurface | null
         const stagedResolution = stagedAssistantResolution as StagedAssistantResolution | null
         if (!transportedFailure && stagedResolution?.origin !== 'failure-surface') {
-          const failure = resolveStreamFailureFallback(error, sendingMessage)
-          stageFailureSurface(failure.kind, failure.reply)
+          const failure = resolveStreamFailureFallback(error, sendingMessage, {
+            providerId: resolvedRouteForFailure?.providerId,
+            model: resolvedRouteForFailure?.model,
+          })
+          if (failure.failureSurface)
+            stageTransportFailureSurface(failure.failureSurface)
+          else
+            stageFailureSurface(failure.kind, failure.reply)
         }
         if (!finalizeAssistantTurn)
           throw error
