@@ -196,6 +196,7 @@ import type {
   AlicizationRunReplayBenchmarkInput as SharedAlicizationRunReplayBenchmarkInput,
   AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
   AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
+  AlicizationRuntimeEventEnvelope as SharedAlicizationRuntimeEventEnvelope,
   AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfEvolutionVersionRuntimeSnapshot as SharedAlicizationSelfEvolutionVersionRuntimeSnapshot,
   AlicizationSensoryCacheSnapshot as SharedAlicizationSensoryCacheSnapshot,
@@ -3954,6 +3955,7 @@ export const electronAlicizationReminderSchedule = defineInvokeEventa<Alicizatio
 export const alicizationChatStartInvokeChannel = 'alicization:chat-start'
 export const alicizationChatAbortInvokeChannel = 'alicization:chat-abort'
 
+export const alicizationRuntimeEvent = defineEventa<SharedAlicizationRuntimeEventEnvelope>('eventa:event:electron:alicization:runtime:event')
 export const alicizationKillSwitchStateChanged = defineEventa<AlicizationCardScope & AlicizationKillSwitchSnapshot>('eventa:event:electron:alicization:kill-switch:state-changed')
 export const alicizationSoulChanged = defineEventa<AlicizationCardScope & AlicizationSoulSnapshot>('eventa:event:electron:alicization:soul:changed')
 export const alicizationDialogueResponded = defineEventa<AlicizationDialogueRespondedPayload>('eventa:event:electron:alicization:dialogue:responded')
