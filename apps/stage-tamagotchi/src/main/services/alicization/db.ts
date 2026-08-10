@@ -2626,6 +2626,20 @@ export async function setupAlicizationDb(
       ON alicization_runtime_events(user_id, card_id, conversation_id, occurred_at)
     `)
 
+    const runtimeCheckpointTable = await get<{ name: string }>(
+      database,
+      'SELECT name FROM sqlite_master WHERE type = ? AND name = ?',
+      ['table', 'alicization_runtime_checkpoints'],
+    )
+    if (runtimeCheckpointTable) {
+      const columns = await all<{ name: string }>(
+        database,
+        'PRAGMA table_info(alicization_runtime_checkpoints)',
+      )
+      if (!columns.some(column => column.name === 'projection_json'))
+        await run(database, 'DROP TABLE alicization_runtime_checkpoints')
+    }
+
     await run(database, `
       CREATE TABLE IF NOT EXISTS alicization_runtime_checkpoints (
         turn_id TEXT PRIMARY KEY,
@@ -2646,7 +2660,8 @@ export async function setupAlicizationDb(
         )),
         active_action_ids_json TEXT NOT NULL,
         delivery_owner TEXT NOT NULL CHECK(delivery_owner IN ('inline', 'callback')),
-        schema_version INTEGER NOT NULL CHECK(schema_version = 1),
+        projection_json TEXT NOT NULL,
+        schema_version INTEGER NOT NULL CHECK(schema_version = 2),
         updated_at INTEGER NOT NULL CHECK(updated_at >= 0)
       )
     `)

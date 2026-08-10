@@ -106,6 +106,53 @@ function runtimeEvent(
   })
 }
 
+function checkpointProjection(activeActionIds: string[] = []) {
+  return {
+    actions: Object.fromEntries(activeActionIds.map(actionId => [
+      actionId,
+      {
+        actionId,
+        toolCallId: `${actionId}:tool-call`,
+        status: 'active' as const,
+        terminalObservationId: null,
+        lastObservation: null,
+        outcome: null,
+        pendingTerminalStatus: null,
+        completionPendingObservation: false,
+        lateEventCount: 0,
+        lastSequence: 0,
+      },
+    ])),
+    replyCommitted: false,
+    pendingDelivery: null,
+    committedDelivery: null,
+    terminalEventType: null,
+    issues: [],
+  }
+}
+
+function completedActionProjection(overrides: Record<string, unknown> = {}) {
+  return {
+    actionId: 'action-1',
+    toolCallId: 'tool-call-1',
+    status: 'completed',
+    terminalObservationId: 'observation-1',
+    lastObservation: {
+      actionId: 'action-1',
+      observationId: 'observation-1',
+      toolCallId: 'tool-call-1',
+      terminal: true,
+      outcome: 'success',
+    },
+    outcome: 'success',
+    pendingTerminalStatus: null,
+    completionPendingObservation: false,
+    lateEventCount: 0,
+    lastSequence: 1,
+    ...overrides,
+  }
+}
+
 describe('alicization runtime checkpoint store', () => {
   it('saves, loads, and upserts a recoverable checkpoint', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
@@ -120,7 +167,8 @@ describe('alicization runtime checkpoint store', () => {
       status: 'running',
       activeActionIds: ['action-1'],
       deliveryOwner: 'inline',
-      schemaVersion: 1,
+      projection: checkpointProjection(['action-1']),
+      schemaVersion: 2,
       updatedAt: 1_000,
       abortSignal: AbortSignal.abort(),
       activeActions: new Map([['action-1', { status: 'running' }]]),
@@ -133,7 +181,8 @@ describe('alicization runtime checkpoint store', () => {
       status: 'waiting',
       activeActionIds: ['action-1', 'action-2'],
       deliveryOwner: 'callback',
-      schemaVersion: 1,
+      projection: checkpointProjection(['action-1', 'action-2']),
+      schemaVersion: 2,
       updatedAt: 2_000,
     })
 
@@ -145,7 +194,8 @@ describe('alicization runtime checkpoint store', () => {
       status: 'waiting',
       activeActionIds: ['action-1', 'action-2'],
       deliveryOwner: 'callback',
-      schemaVersion: 1,
+      projection: checkpointProjection(['action-1', 'action-2']),
+      schemaVersion: 2,
       updatedAt: 2_000,
     })
     expect(loaded).not.toHaveProperty('abortSignal')
@@ -166,7 +216,8 @@ describe('alicization runtime checkpoint store', () => {
       status: 'running',
       activeActionIds: [],
       deliveryOwner: 'inline',
-      schemaVersion: 1,
+      projection: checkpointProjection(),
+      schemaVersion: 2,
       updatedAt: 1_000,
     })
 
@@ -181,7 +232,8 @@ describe('alicization runtime checkpoint store', () => {
       status: 'running',
       activeActionIds: [],
       deliveryOwner: 'inline',
-      schemaVersion: 1,
+      projection: checkpointProjection(),
+      schemaVersion: 2,
       updatedAt: 2_000,
     })).rejects.toThrow(/scope/i)
 
@@ -201,7 +253,8 @@ describe('alicization runtime checkpoint store', () => {
       status: 'running',
       activeActionIds: ['action-1'],
       deliveryOwner: 'inline',
-      schemaVersion: 1,
+      projection: checkpointProjection(['action-1']),
+      schemaVersion: 2,
       updatedAt: 2_000,
     })
 
@@ -211,7 +264,8 @@ describe('alicization runtime checkpoint store', () => {
       status: 'waiting',
       activeActionIds: [],
       deliveryOwner: 'callback',
-      schemaVersion: 1,
+      projection: checkpointProjection(),
+      schemaVersion: 2,
       updatedAt: 3_000,
     }))
       .rejects
@@ -222,7 +276,8 @@ describe('alicization runtime checkpoint store', () => {
       status: 'waiting',
       activeActionIds: [],
       deliveryOwner: 'callback',
-      schemaVersion: 1,
+      projection: checkpointProjection(),
+      schemaVersion: 2,
       updatedAt: 1_999,
     }))
       .rejects
@@ -250,7 +305,8 @@ describe('alicization runtime checkpoint store', () => {
       status: 'running',
       activeActionIds: [],
       deliveryOwner: 'inline',
-      schemaVersion: 1,
+      projection: checkpointProjection(),
+      schemaVersion: 2,
       updatedAt: 1_000,
     }))
       .rejects
@@ -262,7 +318,8 @@ describe('alicization runtime checkpoint store', () => {
       status: 'running',
       activeActionIds: [],
       deliveryOwner: 'inline',
-      schemaVersion: 1,
+      projection: checkpointProjection(),
+      schemaVersion: 2,
       updatedAt: 1_000,
     })
     await db.saveRuntimeCheckpoint({
@@ -271,25 +328,92 @@ describe('alicization runtime checkpoint store', () => {
       status: 'running',
       activeActionIds: ['action-1'],
       deliveryOwner: 'inline',
-      schemaVersion: 1,
+      projection: checkpointProjection(['action-1']),
+      schemaVersion: 2,
       updatedAt: 1_500,
     })
-    await db.saveRuntimeCheckpoint({
+    await expect(db.saveRuntimeCheckpoint({
       ...scope,
       sequence: 2,
       status: 'waiting',
       activeActionIds: ['action-1'],
       deliveryOwner: 'callback',
-      schemaVersion: 1,
+      projection: checkpointProjection(['action-1']),
+      schemaVersion: 2,
+      updatedAt: 2_000,
+    }))
+      .rejects
+      .toThrow(/same sequence|semantic/i)
+
+    await db.saveRuntimeCheckpoint({
+      ...scope,
+      sequence: 2,
+      status: 'running',
+      activeActionIds: ['action-1'],
+      deliveryOwner: 'inline',
+      projection: checkpointProjection(['action-1']),
+      schemaVersion: 2,
       updatedAt: 2_000,
     })
 
     expect(await db.loadRuntimeCheckpoint(scope)).toMatchObject({
       sequence: 2,
-      status: 'waiting',
-      deliveryOwner: 'callback',
+      status: 'running',
+      deliveryOwner: 'inline',
       updatedAt: 2_000,
     })
+    await db.close()
+  })
+
+  it.each([
+    ['status', {
+      status: 'waiting',
+    }],
+    ['delivery owner', {
+      deliveryOwner: 'callback',
+    }],
+    ['projection', {
+      projection: {
+        ...checkpointProjection(),
+        replyCommitted: true,
+        committedDelivery: {
+          replyId: 'turn-same-sequence-projection:reply',
+          deliveryId: 'turn-same-sequence-projection:delivery:inline',
+          contentHash: 'sha256:f9c19358298ab7c80ff1ccf83c042aa107c1112595a61a9960f6151a6bfde474',
+        },
+      },
+    }],
+    ['active action ids', {
+      activeActionIds: ['action-2'],
+      projection: checkpointProjection(['action-2']),
+    }],
+  ])('rejects a different %s projection at the same sequence', async (_label, overrides) => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      allowUnboundScope: true,
+    })
+    const scope = runtimeScope({ turnId: `turn-same-sequence-${_label.replaceAll(' ', '-')}` })
+    await db.appendRuntimeEvent(scope, runtimeEvent('event-1', 'turn.accepted', scope))
+    const checkpoint = {
+      ...scope,
+      sequence: 1,
+      status: 'running' as const,
+      activeActionIds: [],
+      deliveryOwner: 'inline' as const,
+      projection: checkpointProjection(),
+      schemaVersion: 2 as const,
+      updatedAt: 1_000,
+    }
+    await db.saveRuntimeCheckpoint(checkpoint)
+
+    await expect(db.saveRuntimeCheckpoint({
+      ...checkpoint,
+      ...overrides,
+      updatedAt: 2_000,
+    } as any))
+      .rejects
+      .toThrow(/same sequence|semantic/i)
+
+    expect(await db.loadRuntimeCheckpoint(scope)).toEqual(checkpoint)
     await db.close()
   })
 
@@ -311,7 +435,8 @@ describe('alicization runtime checkpoint store', () => {
       status: 'running',
       activeActionIds: [],
       deliveryOwner: 'inline',
-      schemaVersion: 1,
+      projection: checkpointProjection(),
+      schemaVersion: 2,
       updatedAt: 1_000,
     }))
       .rejects
@@ -326,11 +451,11 @@ describe('alicization runtime checkpoint store', () => {
   it.each([
     ['unknown status', {
       status: 'unknown-status',
-      schemaVersion: 1,
+      schemaVersion: 2,
     }],
     ['unsupported schema version', {
       status: 'running',
-      schemaVersion: 2,
+      schemaVersion: 3,
     }],
   ])('rejects an %s checkpoint contract', async (_label, overrides) => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
@@ -343,6 +468,7 @@ describe('alicization runtime checkpoint store', () => {
       sequence: 0,
       activeActionIds: [],
       deliveryOwner: 'inline',
+      projection: checkpointProjection(),
       updatedAt: 1_000,
       ...overrides,
     } as any))
@@ -350,6 +476,251 @@ describe('alicization runtime checkpoint store', () => {
       .toThrow(/checkpoint (status|schemaVersion)/i)
 
     await db.close()
+  })
+
+  it.each([
+    ['a non-terminal event type as terminalEventType', () => ({
+      projection: {
+        ...checkpointProjection(),
+        terminalEventType: 'model.step.completed',
+      },
+    })],
+    ['a completed status without turn.completed', () => ({
+      status: 'completed',
+    })],
+    ['turn.completed on a running status', () => ({
+      projection: {
+        ...checkpointProjection(),
+        terminalEventType: 'turn.completed',
+      },
+    })],
+    ['turn.completed without a committed reply', () => ({
+      status: 'completed',
+      projection: {
+        ...checkpointProjection(),
+        terminalEventType: 'turn.completed',
+      },
+    })],
+    ['a committed reply without committed delivery identity', () => ({
+      projection: {
+        ...checkpointProjection(),
+        replyCommitted: true,
+      },
+    })],
+    ['active as a pending terminal status', () => {
+      const projection = checkpointProjection(['action-1'])
+      projection.actions['action-1']!.pendingTerminalStatus = 'active' as any
+      return {
+        activeActionIds: ['action-1'],
+        projection,
+      }
+    }],
+    ['an observation from another action', () => ({
+      projection: {
+        ...checkpointProjection(),
+        actions: {
+          'action-1': completedActionProjection({
+            lastObservation: {
+              ...completedActionProjection().lastObservation,
+              actionId: 'action-other',
+            },
+          }),
+        },
+      },
+    })],
+    ['an observation from another tool call', () => ({
+      projection: {
+        ...checkpointProjection(),
+        actions: {
+          'action-1': completedActionProjection({
+            lastObservation: {
+              ...completedActionProjection().lastObservation,
+              toolCallId: 'tool-call-other',
+            },
+          }),
+        },
+      },
+    })],
+    ['a non-terminal observation on a terminal action', () => ({
+      projection: {
+        ...checkpointProjection(),
+        actions: {
+          'action-1': completedActionProjection({
+            lastObservation: {
+              ...completedActionProjection().lastObservation,
+              terminal: false,
+            },
+          }),
+        },
+      },
+    })],
+    ['an outcome that disagrees with the action status', () => ({
+      projection: {
+        ...checkpointProjection(),
+        actions: {
+          'action-1': completedActionProjection({
+            outcome: 'failure',
+            lastObservation: {
+              ...completedActionProjection().lastObservation,
+              outcome: 'failure',
+            },
+          }),
+        },
+      },
+    })],
+    ['an action cursor beyond the checkpoint cursor', () => ({
+      projection: {
+        ...checkpointProjection(),
+        actions: {
+          'action-1': completedActionProjection({
+            lastSequence: 2,
+          }),
+        },
+      },
+    })],
+    ['an undefined runtime issue code', () => ({
+      projection: {
+        ...checkpointProjection(),
+        issues: [{
+          code: 'not-a-runtime-issue',
+          sequence: 1,
+        }],
+      },
+    })],
+    ['an issue cursor beyond the checkpoint cursor', () => ({
+      projection: {
+        ...checkpointProjection(),
+        issues: [{
+          code: 'late-action-event',
+          sequence: 2,
+        }],
+      },
+    })],
+    ['a committed reply with a pending delivery', () => ({
+      projection: {
+        ...checkpointProjection(),
+        replyCommitted: true,
+        pendingDelivery: {
+          replyId: 'turn-invalid-projection:reply',
+          deliveryId: 'turn-invalid-projection:delivery:inline',
+          text: 'pending reply',
+          contentHash: 'sha256:523d68ba82d629ea759cc536f04f5df13b56eaf679db08e8d4af17167f2cfdda',
+        },
+        committedDelivery: {
+          replyId: 'turn-invalid-projection:reply',
+          deliveryId: 'turn-invalid-projection:delivery:inline',
+          contentHash: 'sha256:523d68ba82d629ea759cc536f04f5df13b56eaf679db08e8d4af17167f2cfdda',
+        },
+      },
+    })],
+  ])('rejects checkpoint projection with %s on save', async (_label, buildOverrides) => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      allowUnboundScope: true,
+    })
+    const scope = runtimeScope({ turnId: 'turn-invalid-projection' })
+    await db.appendRuntimeEvent(scope, runtimeEvent('event-1', 'turn.accepted', scope))
+
+    await expect(db.saveRuntimeCheckpoint({
+      ...scope,
+      sequence: 1,
+      status: 'running',
+      activeActionIds: [],
+      deliveryOwner: 'inline',
+      projection: checkpointProjection(),
+      schemaVersion: 2,
+      updatedAt: 1_000,
+      ...buildOverrides(),
+    } as any))
+      .rejects
+      .toThrow(/checkpoint|projection|terminal|sequence|issue|observation/i)
+
+    await db.close()
+  })
+
+  it('persists committed delivery identity in a completed checkpoint', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      allowUnboundScope: true,
+    })
+    const scope = runtimeScope({ turnId: 'turn-completed-delivery-identity' })
+    const committedDelivery = {
+      replyId: 'turn-completed-delivery-identity:reply',
+      deliveryId: 'turn-completed-delivery-identity:delivery:inline',
+      contentHash: 'sha256:f9c19358298ab7c80ff1ccf83c042aa107c1112595a61a9960f6151a6bfde474',
+    }
+    await db.appendRuntimeEvent(
+      scope,
+      runtimeEvent('event-turn-completed', 'turn.completed', scope),
+    )
+    const checkpoint = {
+      ...scope,
+      sequence: 1,
+      status: 'completed' as const,
+      activeActionIds: [],
+      deliveryOwner: 'inline' as const,
+      projection: {
+        ...checkpointProjection(),
+        replyCommitted: true,
+        committedDelivery,
+        terminalEventType: 'turn.completed' as const,
+      },
+      schemaVersion: 2 as const,
+      updatedAt: 1_000,
+    }
+
+    await db.saveRuntimeCheckpoint(checkpoint)
+
+    expect(await db.loadRuntimeCheckpoint(scope)).toEqual(checkpoint)
+    await db.close()
+  })
+
+  it('rejects a corrupted checkpoint projection on load', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const scope = runtimeScope({ turnId: 'turn-corrupted-checkpoint' })
+    const db = await setupAlicizationDb(userDataPath, {
+      allowUnboundScope: true,
+    })
+    await db.appendRuntimeEvent(scope, runtimeEvent('event-1', 'turn.accepted', scope))
+    await db.saveRuntimeCheckpoint({
+      ...scope,
+      sequence: 1,
+      status: 'running',
+      activeActionIds: [],
+      deliveryOwner: 'inline',
+      projection: checkpointProjection(),
+      schemaVersion: 2,
+      updatedAt: 1_000,
+    })
+    const databasePath = db.dbPath
+    await db.close()
+
+    const database = await openSqlite(databasePath)
+    await runSqlite(
+      database,
+      `
+      UPDATE alicization_runtime_checkpoints
+      SET projection_json = ?
+      WHERE turn_id = ?
+      `,
+      [
+        JSON.stringify({
+          ...checkpointProjection(),
+          issues: [{
+            code: 'injected-issue-code',
+            sequence: 1,
+          }],
+        }),
+        scope.turnId,
+      ],
+    )
+    await closeSqlite(database)
+
+    const reopened = await setupAlicizationDb(userDataPath, {
+      allowUnboundScope: true,
+    })
+    await expect(reopened.loadRuntimeCheckpoint(scope))
+      .rejects
+      .toThrow(/issue code|checkpoint projection/i)
+    await reopened.close()
   })
 
   it('recovers by loading checkpoint before listing tail events', async () => {
@@ -366,7 +737,8 @@ describe('alicization runtime checkpoint store', () => {
       status: 'running',
       activeActionIds: [],
       deliveryOwner: 'inline',
-      schemaVersion: 1,
+      projection: checkpointProjection(),
+      schemaVersion: 2,
       updatedAt: 2_000,
     })
     await db.appendRuntimeEvent(scope, runtimeEvent('event-3', 'context.assembly.completed'))
@@ -442,6 +814,7 @@ describe('alicization runtime checkpoint store', () => {
           runtime_status TEXT NOT NULL,
           active_action_ids_json TEXT NOT NULL,
           delivery_owner TEXT NOT NULL,
+          projection_json TEXT NOT NULL,
           schema_version INTEGER NOT NULL,
           updated_at INTEGER NOT NULL
         )
@@ -488,9 +861,10 @@ describe('alicization runtime checkpoint store', () => {
           runtime_status,
           active_action_ids_json,
           delivery_owner,
+          projection_json,
           schema_version,
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           scope.turnId,
@@ -501,7 +875,8 @@ describe('alicization runtime checkpoint store', () => {
           'running',
           '["action-1"]',
           'inline',
-          1,
+          JSON.stringify(checkpointProjection(['action-1'])),
+          2,
           1_000,
         ],
       )
@@ -514,7 +889,8 @@ describe('alicization runtime checkpoint store', () => {
         status: 'running',
         activeActionIds: ['action-1'],
         deliveryOwner: 'inline',
-        schemaVersion: 1,
+        projection: checkpointProjection(['action-1']),
+        schemaVersion: 2,
         updatedAt: 1_000,
       })
     }

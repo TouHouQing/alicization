@@ -1,6 +1,22 @@
+import type {
+  AlicizationActionObservationLink,
+  AlicizationRuntimeEventType,
+} from '@proj-alicization/stage-shared'
 import type sqlite3 from 'sqlite3'
 
 import type { AlicizationRuntimeEventScope } from './event-store'
+
+import { isDeepStrictEqual } from 'node:util'
+
+import {
+  alicizationRuntimeEventTypes,
+  parseAlicizationActionObservation,
+} from '@proj-alicization/stage-shared'
+
+import {
+  alicizationTurnRuntimeIssueCodes,
+  createAlicizationReplyDeliveryIntent,
+} from './runtime-state'
 
 export type AlicizationRuntimeCheckpointScope = AlicizationRuntimeEventScope
 export type AlicizationRuntimeDeliveryOwner = 'inline' | 'callback'
@@ -17,12 +33,60 @@ export const alicizationRuntimeCheckpointStatuses = [
 ] as const
 export type AlicizationRuntimeCheckpointStatus = typeof alicizationRuntimeCheckpointStatuses[number]
 
+export const alicizationRuntimeCheckpointActionStatuses = [
+  'active',
+  'completed',
+  'failed',
+  'cancelled',
+  'rejected',
+  'dead-lettered',
+] as const
+export type AlicizationRuntimeCheckpointActionStatus = typeof alicizationRuntimeCheckpointActionStatuses[number]
+
+export interface AlicizationRuntimeCheckpointActionProjection {
+  actionId: string
+  toolCallId: string | null
+  status: AlicizationRuntimeCheckpointActionStatus
+  terminalObservationId: string | null
+  lastObservation: (AlicizationActionObservationLink & { output?: unknown }) | null
+  outcome: AlicizationActionObservationLink['outcome'] | null
+  pendingTerminalStatus: AlicizationRuntimeCheckpointActionStatus | null
+  completionPendingObservation: boolean
+  lateEventCount: number
+  lastSequence: number
+}
+
+export interface AlicizationRuntimeReplyDeliveryIdentity {
+  replyId: string
+  deliveryId: string
+  contentHash: string
+}
+
+export interface AlicizationRuntimeReplyDeliveryIntent
+  extends AlicizationRuntimeReplyDeliveryIdentity {
+  text: string
+}
+
+export interface AlicizationRuntimeCheckpointProjection {
+  actions: Record<string, AlicizationRuntimeCheckpointActionProjection>
+  replyCommitted: boolean
+  pendingDelivery?: AlicizationRuntimeReplyDeliveryIntent | null
+  committedDelivery?: AlicizationRuntimeReplyDeliveryIdentity | null
+  terminalEventType: AlicizationRuntimeEventType | null
+  issues: Array<{
+    code: string
+    sequence: number
+    actionId?: string
+  }>
+}
+
 export interface AlicizationRuntimeCheckpoint extends AlicizationRuntimeCheckpointScope {
   sequence: number
   status: AlicizationRuntimeCheckpointStatus
   activeActionIds: string[]
   deliveryOwner: AlicizationRuntimeDeliveryOwner
-  schemaVersion: 1
+  projection: AlicizationRuntimeCheckpointProjection
+  schemaVersion: 2
   updatedAt: number
 }
 
@@ -35,6 +99,7 @@ interface AlicizationRuntimeCheckpointRow {
   runtime_status: string
   active_action_ids_json: string
   delivery_owner: string
+  projection_json: string
   schema_version: number
   updated_at: number
 }
@@ -56,6 +121,7 @@ interface AlicizationRuntimeCheckpointSnapshotRow {
   checkpoint_runtime_status: string | null
   checkpoint_active_action_ids_json: string | null
   checkpoint_delivery_owner: string | null
+  checkpoint_projection_json: string | null
   checkpoint_schema_version: number | null
   checkpoint_updated_at: number | null
   event_turn_id: string | null
@@ -75,6 +141,35 @@ interface AlicizationRuntimeCheckpointStoreOptions {
 }
 
 const runtimeCheckpointStatusSet = new Set<string>(alicizationRuntimeCheckpointStatuses)
+const runtimeCheckpointActionStatusSet = new Set<string>(alicizationRuntimeCheckpointActionStatuses)
+const runtimeEventTypeSet = new Set<string>(alicizationRuntimeEventTypes)
+const actionObservationOutcomeSet = new Set<string>([
+  'success',
+  'failure',
+  'cancelled',
+  'rejected',
+])
+const runtimeTurnTerminalEventByStatus: Record<
+  AlicizationRuntimeCheckpointStatus,
+  AlicizationRuntimeEventType | null
+> = {
+  'accepted': null,
+  'running': null,
+  'waiting': null,
+  'recovery-required': null,
+  'completed': 'turn.completed',
+  'failed': 'turn.failed',
+  'cancelled': 'runtime.cancelled',
+  'timed-out': 'runtime.timed_out',
+  'dead-lettered': 'runtime.dead_lettered',
+}
+const runtimeIssueCodeSet = new Set<string>(alicizationTurnRuntimeIssueCodes)
+
+function asRecord(value: unknown, label: string): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new TypeError(`${label} must be an object`)
+  return value as Record<string, unknown>
+}
 
 function parseRequiredText(value: unknown, label: string) {
   if (typeof value !== 'string' || !value.trim())
@@ -86,6 +181,25 @@ function parseNonNegativeInteger(value: unknown, label: string) {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 0)
     throw new TypeError(`${label} must be a non-negative integer`)
   return value
+}
+
+function parseBoolean(value: unknown, label: string) {
+  if (typeof value !== 'boolean')
+    throw new TypeError(`${label} must be a boolean`)
+  return value
+}
+
+function parseNullableText(value: unknown, label: string) {
+  if (value === null)
+    return null
+  return parseRequiredText(value, label)
+}
+
+function parseContentHash(value: unknown, label: string) {
+  const contentHash = parseRequiredText(value, label)
+  if (!/^sha256:[0-9a-f]{64}$/.test(contentHash))
+    throw new TypeError(`${label} must be a SHA-256 content hash`)
+  return contentHash
 }
 
 function parseScope(input: AlicizationRuntimeCheckpointScope): AlicizationRuntimeCheckpointScope {
@@ -116,27 +230,361 @@ function parseDeliveryOwner(value: unknown): AlicizationRuntimeDeliveryOwner {
   return value
 }
 
+function parseActionStatus(
+  value: unknown,
+  label: string,
+): AlicizationRuntimeCheckpointActionStatus {
+  if (typeof value !== 'string' || !runtimeCheckpointActionStatusSet.has(value))
+    throw new TypeError(`${label} must be a known action status`)
+  return value as AlicizationRuntimeCheckpointActionStatus
+}
+
+function parseNullableActionStatus(
+  value: unknown,
+  label: string,
+) {
+  if (value === null)
+    return null
+  if (value === 'active')
+    throw new TypeError(`${label} must be a terminal action status`)
+  return parseActionStatus(value, label)
+}
+
+function parseNullableOutcome(
+  value: unknown,
+  label: string,
+): AlicizationActionObservationLink['outcome'] | null {
+  if (value === null)
+    return null
+  if (typeof value !== 'string' || !actionObservationOutcomeSet.has(value))
+    throw new TypeError(`${label} must be a known action observation outcome`)
+  return value as AlicizationActionObservationLink['outcome']
+}
+
+function canonicalizeJsonValue(value: unknown, label: string) {
+  let json: string | undefined
+  try {
+    json = JSON.stringify(value)
+  }
+  catch (error) {
+    throw new TypeError(`${label} must be JSON-safe: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  if (typeof json !== 'string')
+    throw new TypeError(`${label} must be JSON-safe`)
+  return JSON.parse(json) as unknown
+}
+
+function parseCheckpointObservation(
+  value: unknown,
+  label: string,
+): AlicizationRuntimeCheckpointActionProjection['lastObservation'] {
+  if (value === null)
+    return null
+  const observation = parseAlicizationActionObservation(value)
+  const record = asRecord(value, label)
+  return {
+    ...observation,
+    ...(Object.prototype.hasOwnProperty.call(record, 'output')
+      ? { output: canonicalizeJsonValue(record.output, `${label}.output`) }
+      : {}),
+  }
+}
+
+function parseCheckpointAction(
+  actionIdKey: string,
+  value: unknown,
+): AlicizationRuntimeCheckpointActionProjection {
+  const record = asRecord(value, `checkpoint projection action ${actionIdKey}`)
+  const actionId = parseRequiredText(record.actionId, 'checkpoint projection actionId')
+  if (actionId !== actionIdKey)
+    throw new TypeError('checkpoint projection action key must match actionId')
+
+  const pendingTerminalStatus = parseNullableActionStatus(
+    record.pendingTerminalStatus,
+    'checkpoint projection pendingTerminalStatus',
+  )
+  const completionPendingObservation = parseBoolean(
+    record.completionPendingObservation,
+    'checkpoint projection completionPendingObservation',
+  )
+  if (completionPendingObservation !== (pendingTerminalStatus === 'completed')) {
+    throw new TypeError(
+      'checkpoint projection completionPendingObservation must match pendingTerminalStatus',
+    )
+  }
+
+  return {
+    actionId,
+    toolCallId: parseNullableText(record.toolCallId, 'checkpoint projection toolCallId'),
+    status: parseActionStatus(record.status, 'checkpoint projection action status'),
+    terminalObservationId: parseNullableText(
+      record.terminalObservationId,
+      'checkpoint projection terminalObservationId',
+    ),
+    lastObservation: parseCheckpointObservation(
+      record.lastObservation,
+      'checkpoint projection lastObservation',
+    ),
+    outcome: parseNullableOutcome(record.outcome, 'checkpoint projection outcome'),
+    pendingTerminalStatus,
+    completionPendingObservation,
+    lateEventCount: parseNonNegativeInteger(
+      record.lateEventCount,
+      'checkpoint projection lateEventCount',
+    ),
+    lastSequence: parseNonNegativeInteger(
+      record.lastSequence,
+      'checkpoint projection lastSequence',
+    ),
+  }
+}
+
+function expectedOutcomeForActionStatus(
+  status: AlicizationRuntimeCheckpointActionStatus,
+) {
+  if (status === 'completed')
+    return 'success'
+  if (status === 'failed' || status === 'dead-lettered')
+    return 'failure'
+  return status
+}
+
+function assertCheckpointActionInvariant(
+  action: AlicizationRuntimeCheckpointActionProjection,
+  checkpointSequence: number,
+) {
+  if (action.lastSequence > checkpointSequence)
+    throw new TypeError(`checkpoint action ${action.actionId} lastSequence exceeds checkpoint sequence`)
+
+  const observation = action.lastObservation
+  if (observation) {
+    if (observation.actionId !== action.actionId)
+      throw new TypeError(`checkpoint action ${action.actionId} observation actionId does not match`)
+    if (observation.toolCallId !== action.toolCallId)
+      throw new TypeError(`checkpoint action ${action.actionId} observation toolCallId does not match`)
+  }
+
+  if (action.status === 'active') {
+    if (action.terminalObservationId !== null)
+      throw new TypeError(`checkpoint active action ${action.actionId} cannot have a terminal observation`)
+    if (action.outcome !== null)
+      throw new TypeError(`checkpoint active action ${action.actionId} cannot have a terminal outcome`)
+    if (observation?.terminal === true)
+      throw new TypeError(`checkpoint active action ${action.actionId} cannot retain a terminal observation`)
+    return
+  }
+
+  if (action.pendingTerminalStatus !== null)
+    throw new TypeError(`checkpoint terminal action ${action.actionId} cannot have a pending terminal status`)
+  if (action.completionPendingObservation)
+    throw new TypeError(`checkpoint terminal action ${action.actionId} cannot await an observation`)
+  if (!action.terminalObservationId || !observation)
+    throw new TypeError(`checkpoint terminal action ${action.actionId} requires a terminal observation`)
+  if (!observation.terminal)
+    throw new TypeError(`checkpoint terminal action ${action.actionId} requires terminal observation=true`)
+  if (observation.observationId !== action.terminalObservationId)
+    throw new TypeError(`checkpoint action ${action.actionId} terminal observationId does not match`)
+  if (action.outcome !== observation.outcome)
+    throw new TypeError(`checkpoint action ${action.actionId} outcome does not match its observation`)
+  if (observation.outcome !== expectedOutcomeForActionStatus(action.status))
+    throw new TypeError(`checkpoint action ${action.actionId} status does not match its observation outcome`)
+}
+
+function parseCheckpointProjection(value: unknown): AlicizationRuntimeCheckpointProjection {
+  const record = asRecord(value, 'checkpoint projection')
+  const actionsRecord = asRecord(record.actions, 'checkpoint projection actions')
+  const actions = Object.fromEntries(
+    Object.entries(actionsRecord).map(([actionId, action]) => [
+      actionId,
+      parseCheckpointAction(actionId, action),
+    ]),
+  )
+  const terminalEventType = record.terminalEventType === null
+    ? null
+    : typeof record.terminalEventType === 'string' && runtimeEventTypeSet.has(record.terminalEventType)
+      ? record.terminalEventType as AlicizationRuntimeEventType
+      : (() => {
+          throw new TypeError('checkpoint projection terminalEventType must be a known runtime event type')
+        })()
+  if (!Array.isArray(record.issues))
+    throw new TypeError('checkpoint projection issues must be an array')
+  const issues = record.issues.map((issue, index) => {
+    const issueRecord = asRecord(issue, `checkpoint projection issue ${index}`)
+    const code = parseRequiredText(issueRecord.code, 'checkpoint projection issue code')
+    if (!runtimeIssueCodeSet.has(code))
+      throw new TypeError(`checkpoint projection issue code ${code} is not defined by runtime-state`)
+    return {
+      code,
+      sequence: parseNonNegativeInteger(
+        issueRecord.sequence,
+        'checkpoint projection issue sequence',
+      ),
+      ...(issueRecord.actionId === undefined
+        ? {}
+        : {
+            actionId: parseRequiredText(
+              issueRecord.actionId,
+              'checkpoint projection issue actionId',
+            ),
+          }),
+    }
+  })
+  const pendingDelivery = record.pendingDelivery === undefined || record.pendingDelivery === null
+    ? null
+    : (() => {
+        const pendingRecord = asRecord(
+          record.pendingDelivery,
+          'checkpoint projection pendingDelivery',
+        )
+        return {
+          replyId: parseRequiredText(
+            pendingRecord.replyId,
+            'checkpoint projection pendingDelivery replyId',
+          ),
+          deliveryId: parseRequiredText(
+            pendingRecord.deliveryId,
+            'checkpoint projection pendingDelivery deliveryId',
+          ),
+          text: parseRequiredText(
+            pendingRecord.text,
+            'checkpoint projection pendingDelivery text',
+          ),
+          contentHash: parseContentHash(
+            pendingRecord.contentHash,
+            'checkpoint projection pendingDelivery contentHash',
+          ),
+        }
+      })()
+  const committedDelivery = record.committedDelivery === undefined || record.committedDelivery === null
+    ? null
+    : (() => {
+        const committedRecord = asRecord(
+          record.committedDelivery,
+          'checkpoint projection committedDelivery',
+        )
+        return {
+          replyId: parseRequiredText(
+            committedRecord.replyId,
+            'checkpoint projection committedDelivery replyId',
+          ),
+          deliveryId: parseRequiredText(
+            committedRecord.deliveryId,
+            'checkpoint projection committedDelivery deliveryId',
+          ),
+          contentHash: parseContentHash(
+            committedRecord.contentHash,
+            'checkpoint projection committedDelivery contentHash',
+          ),
+        }
+      })()
+
+  return {
+    actions,
+    replyCommitted: parseBoolean(
+      record.replyCommitted,
+      'checkpoint projection replyCommitted',
+    ),
+    pendingDelivery,
+    committedDelivery,
+    terminalEventType,
+    issues,
+  }
+}
+
 function parseStatus(value: unknown): AlicizationRuntimeCheckpointStatus {
   if (typeof value !== 'string' || !runtimeCheckpointStatusSet.has(value))
     throw new TypeError(`checkpoint status must be one of ${alicizationRuntimeCheckpointStatuses.join(', ')}`)
   return value as AlicizationRuntimeCheckpointStatus
 }
 
-function parseSchemaVersion(value: unknown): 1 {
-  if (value !== 1)
-    throw new TypeError('checkpoint schemaVersion must be 1')
-  return 1
+function parseSchemaVersion(value: unknown): 2 {
+  if (value !== 2)
+    throw new TypeError('checkpoint schemaVersion must be 2')
+  return 2
 }
 
-function parseCheckpoint(input: AlicizationRuntimeCheckpoint): AlicizationRuntimeCheckpoint {
+export function parseAlicizationRuntimeCheckpoint(
+  input: AlicizationRuntimeCheckpoint,
+): AlicizationRuntimeCheckpoint {
+  const scope = parseScope(input)
+  const sequence = parseNonNegativeInteger(input.sequence, 'checkpoint sequence')
+  const status = parseStatus(input.status)
+  const activeActionIds = parseActiveActionIds(input.activeActionIds)
+  const deliveryOwner = parseDeliveryOwner(input.deliveryOwner)
+  const projection = parseCheckpointProjection(input.projection)
+  const schemaVersion = parseSchemaVersion(input.schemaVersion)
+  const updatedAt = parseNonNegativeInteger(input.updatedAt, 'checkpoint updatedAt')
+  const projectedActiveActionIds = Object.values(projection.actions)
+    .filter(action => action.status === 'active')
+    .map(action => action.actionId)
+    .sort()
+  if (!isDeepStrictEqual([...activeActionIds].sort(), projectedActiveActionIds))
+    throw new TypeError('checkpoint activeActionIds must match the projection active actions')
+
+  for (const action of Object.values(projection.actions))
+    assertCheckpointActionInvariant(action, sequence)
+  for (const issue of projection.issues) {
+    if (issue.sequence > sequence)
+      throw new TypeError('checkpoint projection issue sequence exceeds checkpoint sequence')
+  }
+
+  const expectedTerminalEventType = runtimeTurnTerminalEventByStatus[status]
+  if (projection.terminalEventType !== expectedTerminalEventType) {
+    throw new TypeError(
+      `checkpoint status ${status} does not match terminalEventType ${projection.terminalEventType ?? 'null'}`,
+    )
+  }
+  if (projection.replyCommitted && projection.pendingDelivery)
+    throw new TypeError('checkpoint cannot have replyCommitted and pendingDelivery together')
+  if (projection.replyCommitted !== Boolean(projection.committedDelivery)) {
+    throw new TypeError(
+      'checkpoint replyCommitted must match committed delivery identity presence',
+    )
+  }
+  if (projection.pendingDelivery) {
+    const expectedDelivery = createAlicizationReplyDeliveryIntent(
+      scope,
+      deliveryOwner,
+      projection.pendingDelivery.text,
+    )
+    if (
+      projection.pendingDelivery.replyId !== expectedDelivery.replyId
+      || projection.pendingDelivery.deliveryId !== expectedDelivery.deliveryId
+      || projection.pendingDelivery.contentHash !== expectedDelivery.contentHash
+    ) {
+      throw new TypeError('checkpoint pendingDelivery identity does not match the turn delivery owner')
+    }
+  }
+  if (projection.committedDelivery) {
+    if (
+      projection.committedDelivery.replyId !== `${scope.turnId}:reply`
+      || projection.committedDelivery.deliveryId !== `${scope.turnId}:delivery:${deliveryOwner}`
+    ) {
+      throw new TypeError('checkpoint committed delivery identity does not match the turn delivery owner')
+    }
+  }
+  if (
+    projection.terminalEventType === 'turn.completed'
+    && (
+      !projection.replyCommitted
+      || projection.pendingDelivery !== null
+      || projection.committedDelivery === null
+    )
+  ) {
+    throw new TypeError(
+      'checkpoint turn.completed requires a committed reply and no pending delivery',
+    )
+  }
+
   return {
-    ...parseScope(input),
-    sequence: parseNonNegativeInteger(input.sequence, 'checkpoint sequence'),
-    status: parseStatus(input.status),
-    activeActionIds: parseActiveActionIds(input.activeActionIds),
-    deliveryOwner: parseDeliveryOwner(input.deliveryOwner),
-    schemaVersion: parseSchemaVersion(input.schemaVersion),
-    updatedAt: parseNonNegativeInteger(input.updatedAt, 'checkpoint updatedAt'),
+    ...scope,
+    sequence,
+    status,
+    activeActionIds,
+    deliveryOwner,
+    projection,
+    schemaVersion,
+    updatedAt,
   }
 }
 
@@ -154,7 +602,7 @@ function assertSameScope(
   }
 }
 
-function sameCheckpointContent(
+function sameCheckpointSemantics(
   existing: AlicizationRuntimeCheckpoint,
   incoming: AlicizationRuntimeCheckpoint,
 ) {
@@ -166,21 +614,23 @@ function sameCheckpointContent(
     && existing.status === incoming.status
     && existing.deliveryOwner === incoming.deliveryOwner
     && existing.schemaVersion === incoming.schemaVersion
-    && existing.updatedAt === incoming.updatedAt
     && existing.activeActionIds.length === incoming.activeActionIds.length
     && existing.activeActionIds.every((actionId, index) => actionId === incoming.activeActionIds[index])
+    && isDeepStrictEqual(existing.projection, incoming.projection)
 }
 
 function mapCheckpointRow(row: AlicizationRuntimeCheckpointRow) {
   let activeActionIds: unknown
+  let projection: unknown
   try {
     activeActionIds = JSON.parse(row.active_action_ids_json)
+    projection = JSON.parse(row.projection_json)
   }
   catch {
-    throw new Error(`runtime checkpoint ${row.turn_id} has invalid active_action_ids_json`)
+    throw new Error(`runtime checkpoint ${row.turn_id} has invalid checkpoint JSON`)
   }
 
-  return parseCheckpoint({
+  return parseAlicizationRuntimeCheckpoint({
     turnId: row.turn_id,
     cardId: row.card_id,
     userId: row.user_id,
@@ -189,7 +639,8 @@ function mapCheckpointRow(row: AlicizationRuntimeCheckpointRow) {
     status: row.runtime_status as AlicizationRuntimeCheckpointStatus,
     activeActionIds: activeActionIds as string[],
     deliveryOwner: row.delivery_owner as AlicizationRuntimeDeliveryOwner,
-    schemaVersion: row.schema_version as 1,
+    projection: projection as AlicizationRuntimeCheckpointProjection,
+    schemaVersion: row.schema_version as 2,
     updatedAt: row.updated_at,
   })
 }
@@ -256,6 +707,7 @@ export function createAlicizationRuntimeCheckpointStore(
           runtime_status,
           active_action_ids_json,
           delivery_owner,
+          projection_json,
           schema_version,
           updated_at
         FROM alicization_runtime_checkpoints
@@ -281,6 +733,7 @@ export function createAlicizationRuntimeCheckpointStore(
         checkpoint.runtime_status AS checkpoint_runtime_status,
         checkpoint.active_action_ids_json AS checkpoint_active_action_ids_json,
         checkpoint.delivery_owner AS checkpoint_delivery_owner,
+        checkpoint.projection_json AS checkpoint_projection_json,
         checkpoint.schema_version AS checkpoint_schema_version,
         checkpoint.updated_at AS checkpoint_updated_at,
         event_scopes.turn_id AS event_turn_id,
@@ -323,6 +776,7 @@ export function createAlicizationRuntimeCheckpointStore(
           runtime_status: checkpointRow.checkpoint_runtime_status!,
           active_action_ids_json: checkpointRow.checkpoint_active_action_ids_json!,
           delivery_owner: checkpointRow.checkpoint_delivery_owner!,
+          projection_json: checkpointRow.checkpoint_projection_json!,
           schema_version: checkpointRow.checkpoint_schema_version!,
           updated_at: checkpointRow.checkpoint_updated_at!,
         })
@@ -343,7 +797,7 @@ export function createAlicizationRuntimeCheckpointStore(
   }
 
   async function save(input: AlicizationRuntimeCheckpoint) {
-    const checkpoint = parseCheckpoint(input)
+    const checkpoint = parseAlicizationRuntimeCheckpoint(input)
 
     return await options.enqueueWrite(async () => {
       return await options.runInTransaction(options.database, async () => {
@@ -361,11 +815,10 @@ export function createAlicizationRuntimeCheckpointStore(
           if (checkpoint.sequence === existing.sequence) {
             if (checkpoint.updatedAt < existing.updatedAt)
               throw new Error('runtime checkpoint updatedAt cannot move backward at the same sequence')
-            if (checkpoint.updatedAt === existing.updatedAt) {
-              if (sameCheckpointContent(existing, checkpoint))
-                return existing
-              throw new Error('runtime checkpoint updatedAt must advance when state changes at the same sequence')
-            }
+            if (!sameCheckpointSemantics(existing, checkpoint))
+              throw new Error('runtime checkpoint semantic projection must not change at the same sequence')
+            if (checkpoint.updatedAt === existing.updatedAt)
+              return existing
           }
         }
 
@@ -381,9 +834,10 @@ export function createAlicizationRuntimeCheckpointStore(
             runtime_status,
             active_action_ids_json,
             delivery_owner,
+            projection_json,
             schema_version,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(turn_id)
           DO UPDATE SET
             card_id = excluded.card_id,
@@ -393,6 +847,7 @@ export function createAlicizationRuntimeCheckpointStore(
             runtime_status = excluded.runtime_status,
             active_action_ids_json = excluded.active_action_ids_json,
             delivery_owner = excluded.delivery_owner,
+            projection_json = excluded.projection_json,
             schema_version = excluded.schema_version,
             updated_at = excluded.updated_at
           `,
@@ -405,6 +860,7 @@ export function createAlicizationRuntimeCheckpointStore(
             checkpoint.status,
             JSON.stringify(checkpoint.activeActionIds),
             checkpoint.deliveryOwner,
+            JSON.stringify(checkpoint.projection),
             checkpoint.schemaVersion,
             checkpoint.updatedAt,
           ],

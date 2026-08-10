@@ -63,6 +63,15 @@ function runtimeEvent(
   })
 }
 
+function checkpointProjection() {
+  return {
+    actions: {},
+    replyCommitted: false,
+    terminalEventType: null,
+    issues: [],
+  }
+}
+
 const invalidJsonPayloadCases: Array<[string, () => unknown]> = [
   ['undefined', () => undefined],
   ['non-finite number', () => ({ value: Number.NaN })],
@@ -250,7 +259,8 @@ describe('alicization runtime event store', () => {
       status: 'accepted',
       activeActionIds: [],
       deliveryOwner: 'inline',
-      schemaVersion: 1,
+      projection: checkpointProjection(),
+      schemaVersion: 2,
       updatedAt: 1_000,
     })
     const foreignScope = runtimeScope({
@@ -283,7 +293,8 @@ describe('alicization runtime event store', () => {
       status: 'accepted',
       activeActionIds: [],
       deliveryOwner: 'inline',
-      schemaVersion: 1,
+      projection: checkpointProjection(),
+      schemaVersion: 2,
       updatedAt: 1_000,
     })
     const foreignScope = runtimeScope({

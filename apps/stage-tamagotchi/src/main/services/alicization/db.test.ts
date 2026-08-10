@@ -8,6 +8,31 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createEmptyWorkingMemorySnapshot } from './life-core/working-memory'
 
+function runtimeCheckpointProjection(activeActionIds: string[] = []) {
+  return {
+    actions: Object.fromEntries(activeActionIds.map(actionId => [
+      actionId,
+      {
+        actionId,
+        toolCallId: `${actionId}:tool-call`,
+        status: 'active' as const,
+        terminalObservationId: null,
+        lastObservation: null,
+        outcome: null,
+        pendingTerminalStatus: null,
+        completionPendingObservation: false,
+        lateEventCount: 0,
+        lastSequence: 0,
+      },
+    ])),
+    replyCommitted: false,
+    pendingDelivery: null,
+    committedDelivery: null,
+    terminalEventType: null,
+    issues: [],
+  }
+}
+
 const runCalls: string[] = []
 const queryCalls: string[] = []
 const metaState = new Map<string, string>()
@@ -2034,7 +2059,8 @@ describe('alicization sqlite dao', () => {
       status: 'running',
       activeActionIds: ['action-1'],
       deliveryOwner: 'inline',
-      schemaVersion: 1,
+      projection: runtimeCheckpointProjection(['action-1']),
+      schemaVersion: 2,
       updatedAt: 1_000,
     })
     await db.appendRuntimeEvent(scope, {
@@ -2056,7 +2082,8 @@ describe('alicization sqlite dao', () => {
       status: 'waiting',
       activeActionIds: ['action-1', 'action-2'],
       deliveryOwner: 'callback',
-      schemaVersion: 1,
+      projection: runtimeCheckpointProjection(['action-1', 'action-2']),
+      schemaVersion: 2,
       updatedAt: 2_000,
     })
     await db.close()
@@ -2083,6 +2110,7 @@ describe('alicization sqlite dao', () => {
       runtime_status: string
       active_action_ids_json: string
       delivery_owner: string
+      projection_json: string
       schema_version: number
       updated_at: number
     }>(
@@ -2093,6 +2121,7 @@ describe('alicization sqlite dao', () => {
         runtime_status,
         active_action_ids_json,
         delivery_owner,
+        projection_json,
         schema_version,
         updated_at
       FROM alicization_runtime_checkpoints
@@ -2112,9 +2141,10 @@ describe('alicization sqlite dao', () => {
         runtime_status,
         active_action_ids_json,
         delivery_owner,
+        projection_json,
         schema_version,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         'turn-invalid-checkpoint',
@@ -2125,6 +2155,7 @@ describe('alicization sqlite dao', () => {
         'unknown',
         '[]',
         'elsewhere',
+        '{}',
         2,
         -1,
       ],
@@ -2141,6 +2172,7 @@ describe('alicization sqlite dao', () => {
       'runtime_status',
       'active_action_ids_json',
       'delivery_owner',
+      'projection_json',
       'schema_version',
       'updated_at',
     ]))
@@ -2148,19 +2180,20 @@ describe('alicization sqlite dao', () => {
     expect(normalizedTableSql).toContain('CHECK(sequence >= 0)')
     expect(normalizedTableSql).toContain('CHECK(runtime_status IN')
     expect(normalizedTableSql).toContain('CHECK(delivery_owner IN')
-    expect(normalizedTableSql).toContain('CHECK(schema_version = 1)')
+    expect(normalizedTableSql).toContain('CHECK(schema_version = 2)')
     expect(normalizedTableSql).toContain('CHECK(updated_at >= 0)')
     expect(rows).toEqual([{
       sequence: 2,
       runtime_status: 'waiting',
       active_action_ids_json: JSON.stringify(['action-1', 'action-2']),
       delivery_owner: 'callback',
-      schema_version: 1,
+      projection_json: JSON.stringify(runtimeCheckpointProjection(['action-1', 'action-2'])),
+      schema_version: 2,
       updated_at: 2_000,
     }])
   })
 
-  it('rejects unknown checkpoint values loaded from an existing database', async () => {
+  it('resets an obsolete checkpoint schema that cannot restore the full projection', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const rootDir = join(userDataPath, 'alicizations', 'legacy-runtime-checkpoint')
     await mkdir(rootDir, { recursive: true })
@@ -2221,8 +2254,8 @@ describe('alicization sqlite dao', () => {
       userId: 'user-legacy-unknown',
       conversationId: 'conversation-legacy-unknown',
     }))
-      .rejects
-      .toThrow(/checkpoint status/i)
+      .resolves
+      .toBeNull()
     await db.close()
   })
 
@@ -2286,9 +2319,10 @@ describe('alicization sqlite dao', () => {
         runtime_status,
         active_action_ids_json,
         delivery_owner,
+        projection_json,
         schema_version,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         'turn-split-brain',
@@ -2299,7 +2333,8 @@ describe('alicization sqlite dao', () => {
         'accepted',
         '[]',
         'inline',
-        1,
+        JSON.stringify(runtimeCheckpointProjection()),
+        2,
         1_000,
       ],
     )
