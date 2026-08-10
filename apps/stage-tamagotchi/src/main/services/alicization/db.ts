@@ -1,3 +1,5 @@
+import type { AlicizationRuntimeEventEnvelope } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationActiveThought,
   AlicizationAuditLogInput,
@@ -106,6 +108,14 @@ import type {
   PersonaTrainingDatasetVersion,
 } from './persona-training-dataset-runtime'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
+import type {
+  AlicizationRuntimeCheckpoint,
+  AlicizationRuntimeCheckpointScope,
+} from './turn-os/checkpoint-store'
+import type {
+  AlicizationRuntimeEventListOptions,
+  AlicizationRuntimeEventScope,
+} from './turn-os/event-store'
 import type { WorkingMemoryCompressionBehaviorFixture } from './working-memory-compression-behavior-harness'
 
 import process from 'node:process'
@@ -185,6 +195,8 @@ import {
   resolveAlicizationAutonomousDialogueFamilyClassification,
   resolveAlicizationAutonomousDialogueOrigin,
 } from './runtime-structured-format'
+import { createAlicizationRuntimeCheckpointStore } from './turn-os/checkpoint-store'
+import { createAlicizationRuntimeEventStore } from './turn-os/event-store'
 
 export type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 const legacyMigrationMarker = 'legacy_memory_migrated_v1'
@@ -1417,6 +1429,20 @@ async function loadLatestEpisodicReconsolidationOverlayByEventId(
 export interface AlicizationDbService {
   dbPath: string
   close: () => Promise<void>
+  appendRuntimeEvent: (
+    scope: AlicizationRuntimeEventScope,
+    event: AlicizationRuntimeEventEnvelope,
+  ) => Promise<AlicizationRuntimeEventEnvelope>
+  listRuntimeEvents: (
+    scope: AlicizationRuntimeEventScope,
+    options?: AlicizationRuntimeEventListOptions,
+  ) => Promise<AlicizationRuntimeEventEnvelope[]>
+  saveRuntimeCheckpoint: (
+    checkpoint: AlicizationRuntimeCheckpoint,
+  ) => Promise<AlicizationRuntimeCheckpoint>
+  loadRuntimeCheckpoint: (
+    scope: AlicizationRuntimeCheckpointScope,
+  ) => Promise<AlicizationRuntimeCheckpoint | null>
   getMetaValue: (key: string) => Promise<string | undefined>
   setMetaValue: (key: string, value: string) => Promise<void>
   getLatestConversationSessionId: () => Promise<string | undefined>
@@ -1823,6 +1849,48 @@ export async function setupAlicizationDb(
     all,
     runInTransaction,
   })
+  const runtimeEventStore = createAlicizationRuntimeEventStore({
+    database,
+    run,
+    get,
+    all,
+    runInTransaction,
+    enqueueWrite,
+  })
+  const runtimeCheckpointStore = createAlicizationRuntimeCheckpointStore({
+    database,
+    run,
+    get,
+    all,
+    runInTransaction,
+    enqueueWrite,
+  })
+
+  async function appendRuntimeEvent(
+    scope: AlicizationRuntimeEventScope,
+    event: AlicizationRuntimeEventEnvelope,
+  ) {
+    resolveMemoryCardId(scope.cardId, 'runtime event append')
+    return await runtimeEventStore.append(scope, event)
+  }
+
+  async function listRuntimeEvents(
+    scope: AlicizationRuntimeEventScope,
+    options?: AlicizationRuntimeEventListOptions,
+  ) {
+    resolveMemoryCardId(scope.cardId, 'runtime event list')
+    return await runtimeEventStore.list(scope, options)
+  }
+
+  async function saveRuntimeCheckpoint(checkpoint: AlicizationRuntimeCheckpoint) {
+    resolveMemoryCardId(checkpoint.cardId, 'runtime checkpoint save')
+    return await runtimeCheckpointStore.save(checkpoint)
+  }
+
+  async function loadRuntimeCheckpoint(scope: AlicizationRuntimeCheckpointScope) {
+    resolveMemoryCardId(scope.cardId, 'runtime checkpoint load')
+    return await runtimeCheckpointStore.load(scope)
+  }
 
   async function initializeSchema() {
     await run(database, 'PRAGMA journal_mode = WAL;')
@@ -2529,6 +2597,63 @@ export async function setupAlicizationDb(
     await run(database, 'ALTER TABLE conversation_turns ADD COLUMN turn_id TEXT').catch(() => {})
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_conversation_turns_turn_id ON conversation_turns(turn_id)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_conversation_turns_session_created_at ON conversation_turns(session_id, created_at DESC)')
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS alicization_runtime_events (
+        event_id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        schema_version INTEGER NOT NULL,
+        sequence INTEGER NOT NULL,
+        turn_id TEXT NOT NULL,
+        card_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        conversation_id TEXT NOT NULL,
+        source TEXT NOT NULL,
+        causation_id TEXT,
+        correlation_id TEXT NOT NULL,
+        idempotency_key TEXT,
+        occurred_at INTEGER NOT NULL,
+        payload_json TEXT NOT NULL,
+        UNIQUE(turn_id, sequence),
+        UNIQUE(turn_id, idempotency_key)
+      )
+    `)
+    await run(database, `
+      CREATE INDEX IF NOT EXISTS idx_runtime_events_turn_cursor
+      ON alicization_runtime_events(turn_id, sequence)
+    `)
+    await run(database, `
+      CREATE INDEX IF NOT EXISTS idx_runtime_events_scope
+      ON alicization_runtime_events(user_id, card_id, conversation_id, occurred_at)
+    `)
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS alicization_runtime_checkpoints (
+        turn_id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        conversation_id TEXT NOT NULL,
+        sequence INTEGER NOT NULL CHECK(sequence >= 0),
+        runtime_status TEXT NOT NULL CHECK(runtime_status IN (
+          'accepted',
+          'running',
+          'waiting',
+          'recovery-required',
+          'completed',
+          'failed',
+          'cancelled',
+          'timed-out',
+          'dead-lettered'
+        )),
+        active_action_ids_json TEXT NOT NULL,
+        delivery_owner TEXT NOT NULL CHECK(delivery_owner IN ('inline', 'callback')),
+        schema_version INTEGER NOT NULL CHECK(schema_version = 1),
+        updated_at INTEGER NOT NULL CHECK(updated_at >= 0)
+      )
+    `)
+    await run(database, `
+      CREATE INDEX IF NOT EXISTS idx_runtime_checkpoints_scope
+      ON alicization_runtime_checkpoints(user_id, card_id, conversation_id, updated_at)
+    `)
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS mind_turn_events (
@@ -7894,6 +8019,10 @@ export async function setupAlicizationDb(
       await memoryEmbeddingReindexRuntime.stop()
       await close(database)
     },
+    appendRuntimeEvent,
+    listRuntimeEvents,
+    saveRuntimeCheckpoint,
+    loadRuntimeCheckpoint,
     getMetaValue,
     setMetaValue: async (key: string, value: string) => {
       await enqueueWrite(async () => {

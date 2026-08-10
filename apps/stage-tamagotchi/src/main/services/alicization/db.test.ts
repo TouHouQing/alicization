@@ -1932,6 +1932,403 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('creates the runtime event schema and persists validated payload json', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'runtime-events')
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      allowUnboundScope: true,
+      sqliteDriver: actualSqliteDriver,
+    })
+    await db.appendRuntimeEvent({
+      turnId: 'turn-schema-1',
+      cardId: 'card-schema-1',
+      userId: 'user-schema-1',
+      conversationId: 'conversation-schema-1',
+    }, {
+      eventId: 'event-schema-1',
+      eventType: 'turn.accepted',
+      schemaVersion: 1,
+      sequence: 0,
+      turnId: 'turn-schema-1',
+      cardId: 'card-schema-1',
+      userId: 'user-schema-1',
+      conversationId: 'conversation-schema-1',
+      source: 'runtime',
+      causationId: null,
+      correlationId: 'turn-schema-1',
+      idempotencyKey: null,
+      occurredAt: 1_000,
+      payload: {
+        persisted: true,
+      },
+    })
+    await db.close()
+
+    const database = await openActualSqlite(join(rootDir, 'alicization.db'))
+    const tableSql = await allActualSqlite<{ sql: string }>(
+      database,
+      `
+      SELECT sql
+      FROM sqlite_master
+      WHERE type = 'table' AND name = 'alicization_runtime_events'
+      `,
+    )
+    const indexes = await allActualSqlite<{ name: string }>(
+      database,
+      'PRAGMA index_list(alicization_runtime_events)',
+    )
+    const rows = await allActualSqlite<{ payload_json: string }>(
+      database,
+      `
+      SELECT payload_json
+      FROM alicization_runtime_events
+      WHERE event_id = ?
+      `,
+      ['event-schema-1'],
+    )
+    await closeActualSqlite(database)
+
+    const normalizedTableSql = tableSql[0]?.sql.replace(/\s+/g, ' ') ?? ''
+    expect(normalizedTableSql).toContain('UNIQUE(turn_id, sequence)')
+    expect(normalizedTableSql).toContain('UNIQUE(turn_id, idempotency_key)')
+    expect(indexes.map(index => index.name)).toEqual(expect.arrayContaining([
+      'idx_runtime_events_turn_cursor',
+      'idx_runtime_events_scope',
+    ]))
+    expect(rows).toEqual([{
+      payload_json: JSON.stringify({ persisted: true }),
+    }])
+  })
+
+  it('creates and upserts the runtime checkpoint schema', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'runtime-checkpoints')
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      allowUnboundScope: true,
+      sqliteDriver: actualSqliteDriver,
+    })
+    const scope = {
+      turnId: 'turn-checkpoint-schema-1',
+      cardId: 'card-checkpoint-schema-1',
+      userId: 'user-checkpoint-schema-1',
+      conversationId: 'conversation-checkpoint-schema-1',
+    }
+    await db.appendRuntimeEvent(scope, {
+      eventId: 'event-checkpoint-schema-1',
+      eventType: 'turn.accepted',
+      schemaVersion: 1,
+      sequence: 0,
+      ...scope,
+      source: 'runtime',
+      causationId: null,
+      correlationId: scope.turnId,
+      idempotencyKey: null,
+      occurredAt: 1_000,
+      payload: { step: 1 },
+    })
+    await db.saveRuntimeCheckpoint({
+      ...scope,
+      sequence: 1,
+      status: 'running',
+      activeActionIds: ['action-1'],
+      deliveryOwner: 'inline',
+      schemaVersion: 1,
+      updatedAt: 1_000,
+    })
+    await db.appendRuntimeEvent(scope, {
+      eventId: 'event-checkpoint-schema-2',
+      eventType: 'context.assembly.started',
+      schemaVersion: 1,
+      sequence: 0,
+      ...scope,
+      source: 'runtime',
+      causationId: 'event-checkpoint-schema-1',
+      correlationId: scope.turnId,
+      idempotencyKey: null,
+      occurredAt: 1_500,
+      payload: { step: 2 },
+    })
+    await db.saveRuntimeCheckpoint({
+      ...scope,
+      sequence: 2,
+      status: 'waiting',
+      activeActionIds: ['action-1', 'action-2'],
+      deliveryOwner: 'callback',
+      schemaVersion: 1,
+      updatedAt: 2_000,
+    })
+    await db.close()
+
+    const database = await openActualSqlite(join(rootDir, 'alicization.db'))
+    const columns = await allActualSqlite<{ name: string }>(
+      database,
+      'PRAGMA table_info(alicization_runtime_checkpoints)',
+    )
+    const indexes = await allActualSqlite<{ name: string }>(
+      database,
+      'PRAGMA index_list(alicization_runtime_checkpoints)',
+    )
+    const tableSql = await allActualSqlite<{ sql: string }>(
+      database,
+      `
+      SELECT sql
+      FROM sqlite_master
+      WHERE type = 'table' AND name = 'alicization_runtime_checkpoints'
+      `,
+    )
+    const rows = await allActualSqlite<{
+      sequence: number
+      runtime_status: string
+      active_action_ids_json: string
+      delivery_owner: string
+      schema_version: number
+      updated_at: number
+    }>(
+      database,
+      `
+      SELECT
+        sequence,
+        runtime_status,
+        active_action_ids_json,
+        delivery_owner,
+        schema_version,
+        updated_at
+      FROM alicization_runtime_checkpoints
+      WHERE turn_id = ?
+      `,
+      [scope.turnId],
+    )
+    await expect(runActualSqlite(
+      database,
+      `
+      INSERT INTO alicization_runtime_checkpoints (
+        turn_id,
+        card_id,
+        user_id,
+        conversation_id,
+        sequence,
+        runtime_status,
+        active_action_ids_json,
+        delivery_owner,
+        schema_version,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        'turn-invalid-checkpoint',
+        'card-invalid-checkpoint',
+        'user-invalid-checkpoint',
+        'conversation-invalid-checkpoint',
+        -1,
+        'unknown',
+        '[]',
+        'elsewhere',
+        2,
+        -1,
+      ],
+    )).rejects.toThrow(/CHECK constraint failed/i)
+    await closeActualSqlite(database)
+
+    const normalizedTableSql = tableSql[0]?.sql.replace(/\s+/g, ' ') ?? ''
+    expect(columns.map(column => column.name)).toEqual(expect.arrayContaining([
+      'turn_id',
+      'card_id',
+      'user_id',
+      'conversation_id',
+      'sequence',
+      'runtime_status',
+      'active_action_ids_json',
+      'delivery_owner',
+      'schema_version',
+      'updated_at',
+    ]))
+    expect(indexes.map(index => index.name)).toContain('idx_runtime_checkpoints_scope')
+    expect(normalizedTableSql).toContain('CHECK(sequence >= 0)')
+    expect(normalizedTableSql).toContain('CHECK(runtime_status IN')
+    expect(normalizedTableSql).toContain('CHECK(delivery_owner IN')
+    expect(normalizedTableSql).toContain('CHECK(schema_version = 1)')
+    expect(normalizedTableSql).toContain('CHECK(updated_at >= 0)')
+    expect(rows).toEqual([{
+      sequence: 2,
+      runtime_status: 'waiting',
+      active_action_ids_json: JSON.stringify(['action-1', 'action-2']),
+      delivery_owner: 'callback',
+      schema_version: 1,
+      updated_at: 2_000,
+    }])
+  })
+
+  it('rejects unknown checkpoint values loaded from an existing database', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'legacy-runtime-checkpoint')
+    await mkdir(rootDir, { recursive: true })
+    const database = await openActualSqlite(join(rootDir, 'alicization.db'))
+    await runActualSqlite(database, `
+      CREATE TABLE alicization_runtime_checkpoints (
+        turn_id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        conversation_id TEXT NOT NULL,
+        sequence INTEGER NOT NULL,
+        runtime_status TEXT NOT NULL,
+        active_action_ids_json TEXT NOT NULL,
+        delivery_owner TEXT NOT NULL,
+        schema_version INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `)
+    await runActualSqlite(
+      database,
+      `
+      INSERT INTO alicization_runtime_checkpoints (
+        turn_id,
+        card_id,
+        user_id,
+        conversation_id,
+        sequence,
+        runtime_status,
+        active_action_ids_json,
+        delivery_owner,
+        schema_version,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        'turn-legacy-unknown',
+        'card-legacy-unknown',
+        'user-legacy-unknown',
+        'conversation-legacy-unknown',
+        0,
+        'mystery',
+        '[]',
+        'inline',
+        1,
+        1_000,
+      ],
+    )
+    await closeActualSqlite(database)
+
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      allowUnboundScope: true,
+      sqliteDriver: actualSqliteDriver,
+    })
+    await expect(db.loadRuntimeCheckpoint({
+      turnId: 'turn-legacy-unknown',
+      cardId: 'card-legacy-unknown',
+      userId: 'user-legacy-unknown',
+      conversationId: 'conversation-legacy-unknown',
+    }))
+      .rejects
+      .toThrow(/checkpoint status/i)
+    await db.close()
+  })
+
+  it('rejects existing event and checkpoint split-brain scopes on read', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'runtime-split-brain')
+    const initialDb = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      allowUnboundScope: true,
+      sqliteDriver: actualSqliteDriver,
+    })
+    await initialDb.close()
+
+    const database = await openActualSqlite(join(rootDir, 'alicization.db'))
+    await runActualSqlite(
+      database,
+      `
+      INSERT INTO alicization_runtime_events (
+        event_id,
+        event_type,
+        schema_version,
+        sequence,
+        turn_id,
+        card_id,
+        user_id,
+        conversation_id,
+        source,
+        causation_id,
+        correlation_id,
+        idempotency_key,
+        occurred_at,
+        payload_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        'event-split-brain',
+        'turn.accepted',
+        1,
+        1,
+        'turn-split-brain',
+        'card-event-owner',
+        'user-event-owner',
+        'conversation-event-owner',
+        'runtime',
+        null,
+        'turn-split-brain',
+        null,
+        1_000,
+        '{}',
+      ],
+    )
+    await runActualSqlite(
+      database,
+      `
+      INSERT INTO alicization_runtime_checkpoints (
+        turn_id,
+        card_id,
+        user_id,
+        conversation_id,
+        sequence,
+        runtime_status,
+        active_action_ids_json,
+        delivery_owner,
+        schema_version,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        'turn-split-brain',
+        'card-checkpoint-owner',
+        'user-checkpoint-owner',
+        'conversation-checkpoint-owner',
+        0,
+        'accepted',
+        '[]',
+        'inline',
+        1,
+        1_000,
+      ],
+    )
+    await closeActualSqlite(database)
+
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      allowUnboundScope: true,
+      sqliteDriver: actualSqliteDriver,
+    })
+    await expect(db.listRuntimeEvents({
+      turnId: 'turn-split-brain',
+      cardId: 'card-event-owner',
+      userId: 'user-event-owner',
+      conversationId: 'conversation-event-owner',
+    }))
+      .rejects
+      .toThrow(/scope/i)
+    await expect(db.loadRuntimeCheckpoint({
+      turnId: 'turn-split-brain',
+      cardId: 'card-checkpoint-owner',
+      userId: 'user-checkpoint-owner',
+      conversationId: 'conversation-checkpoint-owner',
+    }))
+      .rejects
+      .toThrow(/scope/i)
+    await db.close()
+  })
+
   it('rejects an unbound database outside explicit migration/test scope', async () => {
     await expect(setupAlicizationDb(await createSandboxUserDataPath(), {
       allowUnboundScope: false,
