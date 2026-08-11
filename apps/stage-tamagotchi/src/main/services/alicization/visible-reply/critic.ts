@@ -32,9 +32,14 @@ function deriveVisibleReplyText(rawText: string) {
   if (!normalizedText)
     return ''
   const parsed = parseJsonObjectFromText(normalizedText)
+  const hasReplyField = Boolean(
+    parsed && Object.prototype.hasOwnProperty.call(parsed, 'reply'),
+  )
   const structuredReply = normalizeText(parsed?.reply)
   if (structuredReply)
     return structuredReply
+  if (hasReplyField)
+    return ''
   return looksLikeAlicizationStructuredPayloadText(normalizedText)
     ? ''
     : normalizedText
@@ -42,10 +47,14 @@ function deriveVisibleReplyText(rawText: string) {
 
 function carriesStructuredPayloadWithoutReply(rawText: string) {
   const normalizedText = normalizeText(rawText)
-  if (!normalizedText || !looksLikeAlicizationStructuredPayloadText(normalizedText))
+  if (!normalizedText)
     return false
   const parsed = parseJsonObjectFromText(normalizedText)
-  return !normalizeText(parsed?.reply)
+  if (parsed && Object.prototype.hasOwnProperty.call(parsed, 'reply'))
+    return !normalizeText(parsed.reply)
+  if (!looksLikeAlicizationStructuredPayloadText(normalizedText))
+    return false
+  return true
 }
 
 export function buildAlicizationVisibleReplyCriticArtifact(input: {

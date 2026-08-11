@@ -22,6 +22,8 @@ interface AcceptAlicizationMainChatStartOptions {
   rawInvokeOptions?: { ipcMainEvent?: IpcMainEvent, event?: unknown }
   getExistingRun: (key: string) => ChatRunState | undefined
   registerRun: (key: string, runState: ChatRunState) => void
+  unregisterRun?: (key: string) => void
+  controller?: AbortController
   mainChatRunState: AlicizationMainChatRunStateReadFacade
   settleRecentDialogueReplyFeedbackFromUserTurn?: (payload: AlicizationChatStartPayload, now: number, trigger: string) => Promise<unknown>
   settleRecentExecutionResultFeedbackFromUserTurn?: (payload: AlicizationChatStartPayload, now: number, trigger: string) => Promise<unknown>
@@ -112,19 +114,6 @@ export async function acceptAlicizationMainChatStart(
     }
   }
 
-  const feedbackNow = Date.now()
-  const latestUserMessage = payload.messages
-    .slice()
-    .reverse()
-    .find(message => message?.role === 'user')
-  const proactiveUserText = readTransportContentAsText(latestUserMessage?.content).trim()
-  await input.settleRecentDialogueReplyFeedbackFromUserTurn?.(payload, feedbackNow, 'chat-start')
-  await input.settleRecentExecutionResultFeedbackFromUserTurn?.(payload, feedbackNow, 'chat-start')
-  await input.settlePendingExecutionProposalFeedbackFromUserTurn?.(payload, feedbackNow, 'chat-start')
-  await input.settlePendingProactiveOutcomesFromUserTurn(payload.cardId, feedbackNow, 'chat-start', {
-    userText: proactiveUserText || null,
-  })
-
   const mainGateway = input.resolveMainGatewayConfig({
     cardId: payload.cardId,
     providerId: payload.providerId,
@@ -148,25 +137,8 @@ export async function acceptAlicizationMainChatStart(
       },
     }
   }
-  const llmConfigState = await input.syncMainGatewayConfigFromChatStart({
-    mainGateway,
-    providerConfig: payload.providerConfig,
-  })
-  await input.appendRuntimeDebugLine('llm-config.updated-from-chat-start', {
-    cardId: payload.cardId,
-    turnId: payload.turnId,
-    providerId: llmConfigState.activeProviderId,
-    model: llmConfigState.activeModelId,
-    persistedConfigKeys: llmConfigState.persistedConfigKeys,
-  })
 
-  input.rememberMainGatewayRoute({
-    cardId: payload.cardId,
-    mainGateway,
-    providerConfig: payload.providerConfig,
-  })
-
-  const controller = new AbortController()
+  const controller = input.controller ?? new AbortController()
   const runState: ChatRunState = {
     cardId: input.normalizeCardId(payload.cardId),
     turnId: payload.turnId,
@@ -176,9 +148,62 @@ export async function acceptAlicizationMainChatStart(
     chunkCount: 0,
     rawChunkChars: 0,
     state: 'running',
+    toolProgressListeners: new Set(),
   }
   input.registerRun(key, runState)
-  await input.appendRuntimeDebugLine('chat-start.accepted', {
+
+  const feedbackNow = Date.now()
+  const latestUserMessage = payload.messages
+    .slice()
+    .reverse()
+    .find(message => message?.role === 'user')
+  const proactiveUserText = readTransportContentAsText(latestUserMessage?.content).trim()
+  void Promise.allSettled([
+    input.settleRecentDialogueReplyFeedbackFromUserTurn?.(payload, feedbackNow, 'chat-start'),
+    input.settleRecentExecutionResultFeedbackFromUserTurn?.(payload, feedbackNow, 'chat-start'),
+    input.settlePendingExecutionProposalFeedbackFromUserTurn?.(payload, feedbackNow, 'chat-start'),
+    input.settlePendingProactiveOutcomesFromUserTurn(payload.cardId, feedbackNow, 'chat-start', {
+      userText: proactiveUserText || null,
+    }),
+  ]).then((results) => {
+    const rejected = results.filter(result => result.status === 'rejected')
+    if (rejected.length > 0) {
+      void input.appendRuntimeDebugLine('chat-start.feedback-settlement-failed', {
+        cardId: payload.cardId,
+        turnId: payload.turnId,
+        failedCount: rejected.length,
+      })
+    }
+  })
+
+  void Promise.resolve()
+    .then(async () => await input.syncMainGatewayConfigFromChatStart({
+      mainGateway,
+      providerConfig: payload.providerConfig,
+    }))
+    .then((llmConfigState) => {
+      void input.appendRuntimeDebugLine('llm-config.updated-from-chat-start', {
+        cardId: payload.cardId,
+        turnId: payload.turnId,
+        providerId: llmConfigState.activeProviderId,
+        model: llmConfigState.activeModelId,
+        persistedConfigKeys: llmConfigState.persistedConfigKeys,
+      })
+    })
+    .catch((error) => {
+      void input.appendRuntimeDebugLine('llm-config.update-from-chat-start-failed', {
+        cardId: payload.cardId,
+        turnId: payload.turnId,
+        reason: error instanceof Error ? error.message : String(error),
+      })
+    })
+
+  input.rememberMainGatewayRoute({
+    cardId: payload.cardId,
+    mainGateway,
+    providerConfig: payload.providerConfig,
+  })
+  void input.appendRuntimeDebugLine('chat-start.accepted', {
     cardId: runState.cardId,
     turnId: runState.turnId,
     providerId: payload.providerId,

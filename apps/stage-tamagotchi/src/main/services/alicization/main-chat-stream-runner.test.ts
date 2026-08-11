@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { runAlicizationMainChatStream } from './main-chat-stream-runner'
+import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 
 const typedMemoryContextBlock = JSON.stringify({
@@ -155,6 +156,732 @@ afterEach(() => {
 })
 
 describe('main chat stream runner', () => {
+  it('consumes the xsAI fullStream in order when the provider does not use onEvent', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: '来自 fullStream 的回复。',
+    })
+    const streamTextImpl = vi.fn(() => ({
+      fullStream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: 'text-delta', text: providerText })
+          controller.enqueue({ type: 'finish', finishReason: 'stop' })
+          controller.close()
+        },
+      }),
+    }))
+
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-full-stream-only',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+    })
+
+    expect(result.finishReason).toBe('stop')
+    expect(result.fullText).toBe(providerText)
+    expect(streamTextImpl).toHaveBeenCalledOnce()
+  })
+
+  it('retries five transient Provider failures and succeeds on the sixth attempt', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: 'Provider 恢复后完成了回复。',
+    })
+    const streamTextImpl = vi.fn()
+      .mockImplementationOnce(() => {
+        throw new Error('Remote sent 503 response: service temporarily unavailable')
+      })
+      .mockImplementationOnce(() => {
+        throw Object.assign(new Error('rate limited'), { status: 429 })
+      })
+      .mockImplementationOnce(() => {
+        throw Object.assign(new Error('socket reset'), { code: 'ECONNRESET' })
+      })
+      .mockImplementationOnce(() => {
+        throw Object.assign(new Error('upstream timeout'), { status: 504 })
+      })
+      .mockImplementationOnce(() => {
+        throw Object.assign(new Error('service unavailable'), { status: 503 })
+      })
+      .mockImplementationOnce(() => ({
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'text-delta', text: providerText })
+            controller.enqueue({ type: 'finish', finishReason: 'stop' })
+            controller.close()
+          },
+        }),
+      }))
+    const appendRuntimeDebugLine = vi.fn(async () => {})
+
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-transient-retry',
+        providerId: 'openai-compatible',
+        model: 'model-test',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      appendRuntimeDebugLine,
+      streamTextImpl,
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        sleep: vi.fn(async () => {}),
+      },
+    })
+
+    expect(result.fullText).toBe(providerText)
+    expect(streamTextImpl).toHaveBeenCalledTimes(6)
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+      'chat-stream.provider-retry-started',
+      expect.objectContaining({
+        providerId: 'openai-compatible',
+        model: 'model-test',
+        attempt: 5,
+        maxRetries: 5,
+      }),
+    )
+  })
+
+  it('returns the original Provider failure after the sixth failed attempt', async () => {
+    const terminalError = Object.assign(new Error('service unavailable after retries'), {
+      status: 503,
+    })
+    const streamTextImpl = vi.fn().mockRejectedValue(terminalError)
+    const appendRuntimeDebugLine = vi.fn(async () => {})
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-retry-exhausted',
+        providerId: 'openai-compatible',
+        model: 'model-test',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      appendRuntimeDebugLine,
+      streamTextImpl,
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        sleep: vi.fn(async () => {}),
+      },
+    })).rejects.toBe(terminalError)
+
+    expect(streamTextImpl).toHaveBeenCalledTimes(6)
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+      'chat-stream.provider-retry-exhausted',
+      expect.objectContaining({
+        providerId: 'openai-compatible',
+        model: 'model-test',
+        attempt: 5,
+        maxRetries: 5,
+        status: 503,
+        reason: 'retry-budget-exhausted',
+      }),
+    )
+  })
+
+  it('does not retry a transient Provider failure after visible progress has started', async () => {
+    const streamTextImpl = vi.fn(() => ({
+      fullStream: {
+        getReader() {
+          let readCount = 0
+          return {
+            async read() {
+              readCount += 1
+              if (readCount === 1) {
+                return {
+                  done: false,
+                  value: {
+                    type: 'text-delta',
+                    text: createProviderResponsePayload({
+                      reply: '已经开始输出。',
+                    }),
+                  },
+                }
+              }
+              throw new Error('Remote sent 503 response after progress')
+            },
+            releaseLock: vi.fn(),
+            cancel: vi.fn(async () => {}),
+          }
+        },
+      },
+    }))
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-failure-after-progress',
+        providerId: 'openai-compatible',
+        model: 'model-test',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        sleep: vi.fn(async () => {}),
+      },
+    })).rejects.toThrow('Remote sent 503 response after progress')
+
+    expect(streamTextImpl).toHaveBeenCalledOnce()
+  })
+
+  it('does not replay the Provider request after a tool call has started', async () => {
+    const streamTextImpl = vi.fn(() => ({
+      fullStream: {
+        getReader() {
+          let readCount = 0
+          return {
+            async read() {
+              readCount += 1
+              if (readCount === 1) {
+                return {
+                  done: false,
+                  value: {
+                    type: 'tool-call',
+                    toolCallId: 'codex-side-effect-1',
+                    toolName: 'executor_run_codex',
+                    arguments: {
+                      prompt: '检查当前仓库',
+                    },
+                  },
+                }
+              }
+              throw Object.assign(new Error('Provider failed after tool call'), {
+                status: 503,
+              })
+            },
+            releaseLock: vi.fn(),
+            cancel: vi.fn(async () => {}),
+          }
+        },
+      },
+    }))
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-failure-after-tool-call',
+        providerId: 'openai-compatible',
+        model: 'model-test',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        sleep: vi.fn(async () => {}),
+      },
+      streamTextImpl,
+    })).rejects.toThrow('Provider failed after tool call')
+
+    expect(streamTextImpl).toHaveBeenCalledOnce()
+  })
+
+  it('uses fullStream as the single event source when a compatibility onEvent also fires', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: '只应消费一次。',
+    })
+    const streamTextImpl = vi.fn(({ onEvent }) => {
+      void (onEvent as (event: unknown) => void)({
+        type: 'text-delta',
+        text: createProviderResponsePayload({
+          reply: '不应重复消费。',
+        }),
+      })
+      return {
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'text-delta', text: providerText })
+            controller.enqueue({ type: 'finish', finishReason: 'stop' })
+            controller.close()
+          },
+        }),
+      }
+    })
+
+    const emitChunk = vi.fn()
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-full-stream-wins',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk,
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+    })
+
+    expect(result.fullText).toBe(providerText)
+    expect(emitChunk).toHaveBeenCalledOnce()
+    expect(emitChunk).toHaveBeenCalledWith(expect.objectContaining({
+      text: '只应消费一次。',
+    }))
+  })
+
+  it('preserves an early compatibility tool-start event while waiting for fullStream', async () => {
+    vi.useFakeTimers()
+    const providerText = createProviderResponsePayload({
+      reply: 'Codex 已经完成检查。',
+    })
+    const emitToolCall = vi.fn()
+    const streamTextImpl = vi.fn(async ({ onEvent }) => {
+      await (onEvent as (event: unknown) => Promise<void>)({
+        type: 'tool-call-streaming-start',
+        toolCallId: 'codex-early-start-1',
+        toolName: 'executor_run_codex',
+      })
+      return {
+        fullStream: new ReadableStream({
+          start(controller) {
+            setTimeout(() => {
+              try {
+                controller.enqueue({
+                  type: 'tool-call-streaming-start',
+                  toolCallId: 'codex-early-start-1',
+                  toolName: 'executor_run_codex',
+                })
+                controller.enqueue({
+                  type: 'tool-call',
+                  toolCallId: 'codex-early-start-1',
+                  toolName: 'executor_run_codex',
+                  arguments: {
+                    prompt: '检查当前仓库',
+                  },
+                })
+                controller.enqueue({
+                  type: 'tool-result',
+                  toolCallId: 'codex-early-start-1',
+                  toolName: 'executor_run_codex',
+                  result: {
+                    status: 'completed',
+                  },
+                })
+                controller.enqueue({ type: 'text-delta', text: providerText })
+                controller.enqueue({ type: 'finish', finishReason: 'stop' })
+                controller.close()
+              }
+              catch {
+                // The broken path aborts and cancels the stream first.
+              }
+            }, 1_200)
+          },
+        }),
+      }
+    })
+
+    const pending = runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-early-compat-tool-start',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall,
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+    })
+    const settled = pending.then(
+      result => result,
+      error => error,
+    )
+
+    await vi.advanceTimersByTimeAsync(1_300)
+    const result = await settled
+
+    expect(result).toEqual(expect.objectContaining({
+      fullText: providerText,
+    }))
+    expect(emitToolCall).toHaveBeenCalledOnce()
+    expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: 'codex-early-start-1',
+      toolName: 'executor_run_codex',
+    }))
+  })
+
+  it('keeps an async legacy onEvent source alive when the invoker resolves without a stream result', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: '来自延迟 onEvent 的回复。',
+    })
+    const streamTextImpl = vi.fn(async ({ onEvent, abortSignal }) => {
+      setTimeout(() => {
+        if (!abortSignal?.aborted)
+          void onEvent?.({ type: 'text-delta', text: providerText })
+      }, 5)
+      setTimeout(() => {
+        if (!abortSignal?.aborted)
+          void onEvent?.({ type: 'finish', finishReason: 'stop' })
+      }, 10)
+    })
+    const emitChunk = vi.fn()
+
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-legacy-async-events',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 50,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk,
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+    })
+
+    expect(result.fullText).toBe(providerText)
+    expect(emitChunk).toHaveBeenCalledWith(expect.objectContaining({
+      text: '来自延迟 onEvent 的回复。',
+    }))
+  })
+
+  it('records provider and executor phases from the ordered fullStream', async () => {
+    const appendRuntimeDebugLine = vi.fn(async (
+      _event: string,
+      _payload: Record<string, unknown>,
+    ) => {})
+    const providerText = createProviderResponsePayload({
+      reply: 'Codex 的结果已经回到对话里。',
+    })
+    const streamTextImpl = vi.fn(() => ({
+      fullStream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({
+            type: 'tool-call-streaming-start',
+            toolCallId: 'codex-call-1',
+            toolName: 'executor_run_codex',
+          })
+          controller.enqueue({
+            type: 'tool-call',
+            toolCallId: 'codex-call-1',
+            toolName: 'executor_run_codex',
+            arguments: {
+              prompt: '检查当前仓库',
+            },
+          })
+          controller.enqueue({
+            type: 'tool-result',
+            toolCallId: 'codex-call-1',
+            toolName: 'executor_run_codex',
+            result: {
+              status: 'completed',
+              summary: '检查完成',
+            },
+          })
+          controller.enqueue({ type: 'text-delta', text: providerText })
+          controller.enqueue({ type: 'finish', finishReason: 'stop' })
+          controller.close()
+        },
+      }),
+    }))
+
+    await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-full-stream-phases',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      appendRuntimeDebugLine,
+      streamTextImpl,
+    })
+
+    const debugEvents = appendRuntimeDebugLine.mock.calls
+      .map(([event]) => event)
+    expect(debugEvents).toEqual(expect.arrayContaining([
+      'chat-stream.request-started',
+      'chat-stream.first-event',
+      'chat-stream.tool-argument-started',
+      'chat-stream.tool-execution-started',
+      'chat-stream.tool-execution-completed',
+      'chat-stream.provider-finished',
+    ]))
+    expect(debugEvents.indexOf('chat-stream.request-started'))
+      .toBeLessThan(debugEvents.indexOf('chat-stream.first-event'))
+    expect(debugEvents.indexOf('chat-stream.first-event'))
+      .toBeLessThan(debugEvents.indexOf('chat-stream.tool-argument-started'))
+    expect(debugEvents.indexOf('chat-stream.tool-argument-started'))
+      .toBeLessThan(debugEvents.indexOf('chat-stream.tool-execution-completed'))
+    expect(debugEvents.indexOf('chat-stream.provider-finished'))
+      .toBeGreaterThan(debugEvents.indexOf('chat-stream.tool-execution-completed'))
+  })
+
+  it('does not shrink the available tool registry after a zero-event timeout', async () => {
+    vi.useFakeTimers()
+    const controller = new AbortController()
+    const appendRuntimeDebugLine = vi.fn(async () => {})
+    const providerAttemptAborted = vi.fn()
+    const streamTextImpl = vi.fn(({ abortSignal }) => new Promise((_resolve, reject) => {
+      ;(abortSignal as AbortSignal).addEventListener('abort', () => {
+        providerAttemptAborted()
+        reject((abortSignal as AbortSignal).reason)
+      }, { once: true })
+    }))
+    const pending = runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-full-tool-registry-timeout',
+        providerId: 'openai-compatible',
+      } as any,
+      prepared: createPrepared({
+        tools: [
+          {
+            function: {
+              name: 'executor_run_codex',
+            },
+          },
+          {
+            function: {
+              name: 'browser_click_element',
+            },
+          },
+          {
+            function: {
+              name: 'filesystem_patch_file',
+            },
+          },
+          {
+            function: {
+              name: 'mcp_call_tool',
+            },
+          },
+        ],
+      }),
+      controller,
+      firstEventTimeoutMs: 25,
+      providerContinuationTimeoutMs: 60,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      appendRuntimeDebugLine,
+      streamTextImpl,
+    })
+    const settled = pending.catch(error => error)
+
+    await vi.advanceTimersByTimeAsync(50)
+
+    await expect(settled).resolves.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(providerAttemptAborted).toHaveBeenCalledOnce()
+    expect(controller.signal.aborted).toBe(false)
+    expect(streamTextImpl).toHaveBeenCalledOnce()
+    expect((streamTextImpl.mock.calls[0]?.[0] as any).tools.map((tool: any) => tool.function.name)).toEqual([
+      'executor_run_codex',
+      'browser_click_element',
+      'filesystem_patch_file',
+      'mcp_call_tool',
+    ])
+    expect(appendRuntimeDebugLine).not.toHaveBeenCalledWith(
+      'chat-stream.compact-tool-retry-started',
+      expect.anything(),
+    )
+  })
+
+  it('does not compact-retry after a provider emits only non-progress metadata', async () => {
+    vi.useFakeTimers()
+    const appendRuntimeDebugLine = vi.fn(async (
+      _event: string,
+      _payload: Record<string, unknown>,
+    ) => {})
+    const streamTextImpl = vi.fn(async ({ onEvent }) => {
+      await (onEvent as (event: unknown) => Promise<void>)({
+        type: 'response-metadata',
+      })
+    })
+    const pending = runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-no-compact-after-progress',
+        providerId: 'openai-compatible',
+      } as any,
+      prepared: createPrepared({
+        tools: [
+          { function: { name: 'executor_run_codex' } },
+          { function: { name: 'browser_click_element' } },
+          { function: { name: 'mcp_call_tool' } },
+        ],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 25,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      appendRuntimeDebugLine,
+      streamTextImpl,
+    })
+    const settled = pending.catch(error => error)
+
+    await vi.advanceTimersByTimeAsync(1_025)
+
+    await expect(settled).resolves.toMatchObject({
+      name: 'AbortError',
+    })
+    expect(streamTextImpl).toHaveBeenCalledOnce()
+    expect(appendRuntimeDebugLine).not.toHaveBeenCalledWith(
+      'chat-stream.compact-tool-retry-started',
+      expect.anything(),
+    )
+  })
+
+  it('does not retry when the user aborts the outer turn', async () => {
+    vi.useFakeTimers()
+    const controller = new AbortController()
+    const streamTextImpl = vi.fn(({ abortSignal }) => new Promise((_resolve, reject) => {
+      const signal = abortSignal as AbortSignal
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+    }))
+    const pending = runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-user-aborted',
+        providerId: 'openai-compatible',
+      } as any,
+      prepared: createPrepared({
+        tools: [
+          { function: { name: 'executor_run_codex' } },
+          { function: { name: 'browser_click_element' } },
+          { function: { name: 'mcp_call_tool' } },
+        ],
+      }),
+      controller,
+      firstEventTimeoutMs: 25,
+      providerContinuationTimeoutMs: 60,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      appendRuntimeDebugLine: vi.fn(async (
+        _event: string,
+        _payload: Record<string, unknown>,
+      ) => {}),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+    })
+    const settled = pending.catch(error => error)
+
+    controller.abort(new DOMException('user cancelled', 'AbortError'))
+
+    await expect(settled).resolves.toMatchObject({
+      name: 'AbortError',
+      message: 'user cancelled',
+    })
+    expect(streamTextImpl).toHaveBeenCalledOnce()
+  })
+
   it('streams with the typed memory context unchanged', async () => {
     const providerText = createProviderResponsePayload({
       reply: '我记得我们刚才谈到这里。',
@@ -879,14 +1606,14 @@ describe('main chat stream runner', () => {
     })
   })
 
-  it('rejects extra Provider fields before releasing a provider-stream reply', async () => {
+  it('ignores optional Provider metadata fields and releases the provider-stream reply', async () => {
     const emitChunk = vi.fn()
     const fullText = createProviderResponsePayload({
       reply: '不应释放。',
       parsePath: 'json',
     })
 
-    await expect(runAlicizationMainChatStream({
+    const result = await runAlicizationMainChatStream({
       payload: {
         cardId: 'card-1',
         turnId: 'turn-stream-extra-field',
@@ -909,9 +1636,13 @@ describe('main chat stream runner', () => {
         await emit({ type: 'text-delta', text: fullText })
         await emit({ type: 'finish', finishReason: 'stop' })
       },
-    })).rejects.toThrow('provider-payload-fields-invalid')
+    })
 
-    expect(emitChunk).not.toHaveBeenCalled()
+    expect(result.fullText).toBe(fullText)
+    expect(emitChunk).toHaveBeenCalledOnce()
+    expect(emitChunk).toHaveBeenCalledWith(expect.objectContaining({
+      text: '不应释放。',
+    }))
   })
 
   it('streams deltas, waits through tool-calls finishes, and records reminder debug signals', async () => {
@@ -1010,6 +1741,1107 @@ describe('main chat stream runner', () => {
         status: 'scheduled',
         triggerAt: 123456,
       }),
+    }))
+  })
+
+  it('parses xsAI tool-call args into renderer arguments and reminder diagnostics', async () => {
+    const emitToolCall = vi.fn()
+    const logReminderToolCall = vi.fn()
+    const providerText = createProviderResponsePayload({ reply: '提醒已经设置。' })
+
+    await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-xsai-tool-args',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall,
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      logReminderToolCall,
+      streamTextImpl: async ({ onEvent }) => {
+        const emit = onEvent as (event: any) => Promise<void>
+        await emit({
+          type: 'tool-call',
+          toolCallId: 'call-xsai-args',
+          toolName: 'set_reminder',
+          args: JSON.stringify({
+            message: '喝水',
+            minutes: 5,
+          }),
+        })
+        await emit({
+          type: 'tool-result',
+          toolCallId: 'call-xsai-args',
+          toolName: 'set_reminder',
+          result: JSON.stringify({
+            status: 'scheduled',
+          }),
+        })
+        await emit({ type: 'text-delta', text: providerText })
+        await emit({ type: 'finish', finishReason: 'stop' })
+      },
+    })
+
+    expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: 'call-xsai-args',
+      toolName: 'set_reminder',
+      arguments: {
+        message: '喝水',
+        minutes: 5,
+      },
+    }))
+    expect(logReminderToolCall).toHaveBeenCalledWith(expect.objectContaining({
+      argumentsPreview: expect.stringContaining('"minutes":5'),
+    }))
+  })
+
+  it('surfaces a streaming tool call before a long-running executor returns', async () => {
+    const emitToolCall = vi.fn()
+    const emitToolResult = vi.fn()
+    const providerText = createProviderResponsePayload({ reply: 'Codex 已完成检查。' })
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-long-running-tool',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall,
+      emitToolResult,
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl: async ({ onEvent }) => {
+        const emit = onEvent as (event: any) => Promise<void>
+        await emit({
+          type: 'tool-call-streaming-start',
+          toolCallId: 'codex-call-1',
+          toolName: 'executor_run_codex',
+        })
+        await new Promise(resolve => setTimeout(resolve, 5))
+        await emit({
+          type: 'tool-call',
+          toolCallId: 'codex-call-1',
+          toolName: 'executor_run_codex',
+          arguments: {
+            prompt: '检查当前仓库',
+          },
+        })
+        await emit({
+          type: 'tool-result',
+          toolCallId: 'codex-call-1',
+          result: {
+            status: 'completed',
+          },
+        })
+        await emit({ type: 'text-delta', text: providerText })
+        await emit({ type: 'finish', finishReason: 'stop' })
+      },
+    })
+
+    expect(result.finishReason).toBe('stop')
+    expect(emitToolCall).toHaveBeenCalledOnce()
+    expect(emitToolCall).toHaveBeenCalledWith({
+      cardId: 'card-1',
+      turnId: 'turn-long-running-tool',
+      toolCallId: 'codex-call-1',
+      toolName: 'executor_run_codex',
+    })
+    expect(emitToolResult).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: 'codex-call-1',
+    }))
+  })
+
+  it('keeps tool-call and tool-result correlated when the provider omits toolCallId', async () => {
+    const emitToolCall = vi.fn()
+    const emitToolResult = vi.fn()
+    const providerText = createProviderResponsePayload({ reply: '检查完成。' })
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-synthetic-tool-id',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall,
+      emitToolResult,
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl: async ({ onEvent }) => {
+        const emit = onEvent as (event: any) => Promise<void>
+        await emit({
+          type: 'tool-call',
+          toolName: 'executor_run_codex',
+          arguments: {
+            prompt: '检查当前仓库',
+          },
+        })
+        await emit({
+          type: 'tool-result',
+          toolName: 'executor_run_codex',
+          result: {
+            status: 'completed',
+            output: '完成',
+          },
+        })
+        await emit({ type: 'text-delta', text: providerText })
+        await emit({ type: 'finish', finishReason: 'stop' })
+      },
+    })
+
+    expect(result.finishReason).toBe('stop')
+    expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: 'alicization-tool-call-1',
+      toolName: 'executor_run_codex',
+    }))
+    expect(emitToolResult).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: 'alicization-tool-call-1',
+      result: expect.objectContaining({
+        status: 'completed',
+      }),
+    }))
+  })
+
+  it('reuses the prepared executor identity when provider stream events omit toolCallId', async () => {
+    const toolCallIdentity = createAlicizationMainChatToolCallIdentityRegistry()
+    const executorToolCallId = toolCallIdentity.resolveExecutorToolCall({
+      toolCallId: 'executor-canonical-1',
+      toolName: 'executor_run_codex',
+    })
+    const executorResult = {
+      status: 'completed',
+      output: '完成',
+    }
+    toolCallIdentity.registerExecutorResult(executorResult, executorToolCallId)
+    const emitToolCall = vi.fn()
+    const emitToolResult = vi.fn()
+    const providerText = createProviderResponsePayload({ reply: '检查完成。' })
+
+    await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-shared-tool-identity',
+      } as any,
+      prepared: createPrepared({
+        toolCallIdentity,
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall,
+      emitToolResult,
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl: async ({ onEvent }) => {
+        const emit = onEvent as (event: any) => Promise<void>
+        await emit({
+          type: 'tool-call-streaming-start',
+          toolName: 'executor_run_codex',
+        })
+        await emit({
+          type: 'tool-call',
+          toolName: 'executor_run_codex',
+          arguments: {
+            prompt: '检查当前仓库',
+          },
+        })
+        await emit({
+          type: 'tool-result',
+          toolName: 'executor_run_codex',
+          result: JSON.stringify(executorResult),
+        })
+        await emit({ type: 'text-delta', text: providerText })
+        await emit({ type: 'finish', finishReason: 'stop' })
+      },
+    })
+
+    expect(emitToolCall).toHaveBeenCalledOnce()
+    expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: 'executor-canonical-1',
+      toolName: 'executor_run_codex',
+    }))
+    expect(emitToolResult).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: 'executor-canonical-1',
+      result: JSON.stringify(executorResult),
+    }))
+  })
+
+  it('collapses drifting provider, executor, and result ids into one visible Codex execution', async () => {
+    const toolCallIdentity = createAlicizationMainChatToolCallIdentityRegistry({
+      singleFlightExecutorToolNames: ['executor_run_codex'],
+    })
+    const toolArguments = {
+      prompt: '检查当前仓库',
+    }
+    const executorResult = {
+      status: 'completed',
+      output: '检查完成',
+    }
+    const canonicalId = toolCallIdentity.resolveExecutorToolCall({
+      arguments: toolArguments,
+      toolCallId: 'executor-id-c',
+      toolName: 'executor_run_codex',
+    })
+    toolCallIdentity.registerExecutorResult(executorResult, 'executor-id-c')
+    const emitToolCall = vi.fn()
+    const emitToolResult = vi.fn()
+    const providerText = createProviderResponsePayload({
+      reply: 'Codex 已经完成检查。',
+    })
+
+    await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-drifting-tool-call-ids',
+      } as any,
+      prepared: createPrepared({
+        toolCallIdentity,
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+        toolChoice: {
+          type: 'function',
+          function: {
+            name: 'executor_run_codex',
+          },
+        },
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall,
+      emitToolResult,
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl: () => ({
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({
+              type: 'tool-call-streaming-start',
+              toolCallId: 'provider-id-a',
+              toolName: 'executor_run_codex',
+            })
+            controller.enqueue({
+              type: 'tool-call',
+              toolCallId: 'provider-id-b',
+              toolName: 'executor_run_codex',
+              arguments: toolArguments,
+            })
+            controller.enqueue({
+              type: 'tool-result',
+              toolCallId: 'provider-result-id-d',
+              toolName: 'executor_run_codex',
+              arguments: toolArguments,
+              result: executorResult,
+            })
+            controller.enqueue({
+              type: 'text-delta',
+              text: providerText,
+            })
+            controller.enqueue({
+              type: 'finish',
+              finishReason: 'stop',
+            })
+            controller.close()
+          },
+        }),
+      }),
+    })
+
+    expect(canonicalId).toBe('executor-id-c')
+    expect(emitToolCall).toHaveBeenCalledOnce()
+    expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: canonicalId,
+      toolName: 'executor_run_codex',
+    }))
+    expect(emitToolResult).toHaveBeenCalledOnce()
+    expect(emitToolResult).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: canonicalId,
+      result: executorResult,
+    }))
+  })
+
+  it('rejects the provider turn after a failed tool result instead of releasing a normal reply', async () => {
+    const emitToolResult = vi.fn()
+    const emitChunk = vi.fn()
+    const controller = new AbortController()
+    let providerAbortSignal: AbortSignal | undefined
+    const providerText = createProviderResponsePayload({ reply: '这条不应该成为成功回复。' })
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-failed-tool',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller,
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk,
+      emitToolCall: vi.fn(),
+      emitToolResult,
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl: async ({ onEvent, abortSignal }) => {
+        providerAbortSignal = abortSignal as AbortSignal
+        const emit = onEvent as (event: any) => Promise<void>
+        await emit({
+          type: 'tool-call',
+          toolCallId: 'codex-failed-call',
+          toolName: 'executor_run_codex',
+        })
+        await emit({
+          type: 'tool-result',
+          toolCallId: 'codex-failed-call',
+          result: JSON.stringify({
+            status: 'failed',
+            failureKind: 'tool-execution',
+            toolName: 'executor_run_codex',
+            errorCode: 'CODEX_TIMEOUT',
+            errorMessage: 'Codex timed out after 120000ms.',
+          }),
+        })
+        await emit({
+          type: 'tool-result',
+          toolCallId: 'codex-failed-call',
+          result: JSON.stringify({
+            status: 'failed',
+            failureKind: 'tool-execution',
+            toolName: 'executor_run_codex',
+            errorCode: 'CODEX_TIMEOUT',
+            errorMessage: 'Codex timed out after 120000ms.',
+          }),
+        })
+        await emit({ type: 'text-delta', text: providerText })
+        await emit({ type: 'finish', finishReason: 'stop' })
+      },
+    })).rejects.toMatchObject({
+      name: 'AlicizationToolExecutionError',
+      failureKind: 'tool-execution',
+      toolName: 'executor_run_codex',
+      errorCode: 'CODEX_TIMEOUT',
+    })
+
+    expect(providerAbortSignal?.aborted).toBe(true)
+    expect(controller.signal.aborted).toBe(false)
+    expect(emitToolResult).toHaveBeenCalledOnce()
+    expect(emitChunk).not.toHaveBeenCalled()
+  })
+
+  it('stops before Provider continuation when the real Codex adapter returns empty output', async () => {
+    const controller = new AbortController()
+    let providerAbortSignal: AbortSignal | undefined
+    const emitChunk = vi.fn()
+    const emitToolResult = vi.fn()
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-codex-empty-output',
+      } as any,
+      prepared: createPrepared({
+        waitForTools: true,
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller,
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk,
+      emitToolCall: vi.fn(),
+      emitToolResult,
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl: async ({ onEvent, abortSignal }) => {
+        providerAbortSignal = abortSignal as AbortSignal
+        const emit = onEvent as (event: any) => Promise<void>
+        await emit({
+          type: 'tool-call',
+          toolCallId: 'codex-empty-output-call',
+          toolName: 'executor_run_codex',
+        })
+        await emit({
+          type: 'tool-result',
+          toolCallId: 'codex-empty-output-call',
+          result: JSON.stringify({
+            status: 'failed',
+            ok: false,
+            toolName: 'executor_run_codex',
+            errorCode: 'CODEX_EMPTY_OUTPUT',
+            errorMessage: 'Codex exited successfully without producing an assistant response.',
+          }),
+        })
+        await emit({ type: 'text-delta', text: 'This must never become a visible reply.' })
+        await emit({ type: 'finish', finishReason: 'stop' })
+      },
+    })).rejects.toMatchObject({
+      name: 'AlicizationToolExecutionError',
+      failureKind: 'tool-execution',
+      toolName: 'executor_run_codex',
+      errorCode: 'CODEX_EMPTY_OUTPUT',
+    })
+
+    expect(providerAbortSignal?.aborted).toBe(true)
+    expect(controller.signal.aborted).toBe(false)
+    expect(emitToolResult).toHaveBeenCalledOnce()
+    expect(emitChunk).not.toHaveBeenCalled()
+  })
+
+  it('hard-stops the xsAI tool loop after a Codex failure even when the Provider fetch ignores abort', async () => {
+    const encodeSse = (chunks: unknown[]) => [
+      ...chunks.map(chunk => `data: ${JSON.stringify(chunk)}\n`),
+      'data: [DONE]\n',
+    ].join('\n')
+    const failedToolResponse = new Response(encodeSse([
+      {
+        choices: [{
+          index: 0,
+          delta: {
+            role: 'assistant',
+            tool_calls: [{
+              index: 0,
+              id: 'codex-failure-loop-1',
+              type: 'function',
+              function: {
+                name: 'executor_run_codex',
+                arguments: JSON.stringify({
+                  prompt: '检查当前仓库',
+                }),
+              },
+            }],
+          },
+          finish_reason: null,
+        }],
+      },
+      {
+        choices: [{
+          index: 0,
+          delta: {},
+          finish_reason: 'tool_calls',
+        }],
+      },
+    ]), {
+      headers: {
+        'content-type': 'text/event-stream',
+      },
+      status: 200,
+    })
+    const unexpectedContinuationResponse = new Response(encodeSse([
+      {
+        choices: [{
+          index: 0,
+          delta: {
+            content: '这条续轮不应该发生。',
+          },
+          finish_reason: null,
+        }],
+      },
+      {
+        choices: [{
+          index: 0,
+          delta: {},
+          finish_reason: 'stop',
+        }],
+      },
+    ]), {
+      headers: {
+        'content-type': 'text/event-stream',
+      },
+      status: 200,
+    })
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(failedToolResponse)
+      .mockResolvedValueOnce(unexpectedContinuationResponse)
+    let emitToolExecutionProgress: ((event: any) => void) | undefined
+    const execute = vi.fn(async (_input: unknown, options: { toolCallId: string }) => {
+      emitToolExecutionProgress?.({
+        toolCallId: options.toolCallId,
+        toolName: 'executor_run_codex',
+        phase: 'failed',
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'Codex execution timed out.',
+      })
+      return {
+        status: 'failed',
+        failureKind: 'tool-execution',
+        toolName: 'executor_run_codex',
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'Codex execution timed out.',
+        continuationPolicy: 'stop',
+      }
+    })
+    const emitToolResult = vi.fn()
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-xsai-failure-loop',
+        providerId: 'openai-compatible',
+        model: 'model-test',
+      } as any,
+      prepared: createPrepared({
+        chatConfig: {
+          apiKey: 'test-key',
+          baseURL: 'https://example.test/v1/',
+          fetch: fetchImpl,
+          model: 'model-test',
+        },
+        tools: [{
+          type: 'function',
+          execute,
+          function: {
+            name: 'executor_run_codex',
+            description: 'Run Codex.',
+            parameters: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                prompt: {
+                  type: 'string',
+                },
+              },
+              required: ['prompt'],
+            },
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult,
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      subscribeToolExecutionProgress: (listener) => {
+        emitToolExecutionProgress = listener
+        return () => {
+          emitToolExecutionProgress = undefined
+        }
+      },
+    })).rejects.toMatchObject({
+      name: 'AlicizationToolExecutionError',
+      failureKind: 'tool-execution',
+      errorCode: 'CODEX_TIMEOUT',
+    })
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledOnce()
+    expect(emitToolResult).toHaveBeenCalledOnce()
+  })
+
+  it('surfaces a non-allowlisted executor failure instead of converting it into Provider continuation timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      let providerAbortSignal: AbortSignal | undefined
+
+      const promise = runAlicizationMainChatStream({
+        payload: {
+          cardId: 'card-1',
+          turnId: 'turn-codex-permission-required',
+        } as any,
+        prepared: createPrepared({
+          waitForTools: true,
+          tools: [{
+            function: {
+              name: 'executor_run_codex',
+            },
+          }],
+        }),
+        controller,
+        firstEventTimeoutMs: 25,
+        providerContinuationTimeoutMs: 20,
+        isRunActive: () => true,
+        incrementChunkStats: vi.fn(),
+        emitChunk: vi.fn(),
+        emitToolCall: vi.fn(),
+        emitToolResult: vi.fn(),
+        streamMeta: createStreamMetaController(),
+        nonProgressEventTypes: new Set<string>(),
+        generateNonStreaming: vi.fn(),
+        streamTextImpl: ({ abortSignal, onEvent }) => {
+          providerAbortSignal = abortSignal as AbortSignal
+          const emit = onEvent as (event: any) => Promise<void>
+          return (async () => {
+            await emit({
+              type: 'tool-call',
+              toolCallId: 'codex-permission-required-call',
+              toolName: 'executor_run_codex',
+            })
+            await emit({
+              type: 'tool-result',
+              toolCallId: 'codex-permission-required-call',
+              result: {
+                status: 'failed',
+                finalStatus: 'failed',
+                continuationPolicy: 'stop',
+                ok: false,
+                toolName: 'executor_run_codex',
+                errorCode: 'CODEX_PERMISSION_REQUIRED',
+                errorMessage: 'Codex requires permission before it can continue.',
+              },
+            })
+          })()
+        },
+      })
+
+      const settled = promise.catch(error => error)
+      await vi.advanceTimersByTimeAsync(0)
+
+      await expect(settled).resolves.toMatchObject({
+        name: 'AlicizationToolExecutionError',
+        failureKind: 'tool-execution',
+        toolName: 'executor_run_codex',
+        errorCode: 'CODEX_PERMISSION_REQUIRED',
+      })
+      expect(providerAbortSignal?.aborted).toBe(true)
+      expect(controller.signal.aborted).toBe(false)
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('settles a terminal tool failure from progress even when the Provider never sends tool-result', async () => {
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      let providerAbortSignal: AbortSignal | undefined
+      let emitToolExecutionProgress: ((event: any) => void) | undefined
+
+      const promise = runAlicizationMainChatStream({
+        payload: {
+          cardId: 'card-1',
+          turnId: 'turn-terminal-progress-without-result',
+        } as any,
+        prepared: createPrepared({
+          waitForTools: true,
+          tools: [{
+            function: {
+              name: 'executor_run_codex',
+            },
+          }],
+        }),
+        controller,
+        firstEventTimeoutMs: 10_000,
+        providerContinuationTimeoutMs: 10_000,
+        isRunActive: () => true,
+        incrementChunkStats: vi.fn(),
+        emitChunk: vi.fn(),
+        emitToolCall: vi.fn(),
+        emitToolResult: vi.fn(),
+        subscribeToolExecutionProgress: (listener) => {
+          emitToolExecutionProgress = listener
+          return () => {
+            emitToolExecutionProgress = undefined
+          }
+        },
+        streamMeta: createStreamMetaController(),
+        nonProgressEventTypes: new Set<string>(),
+        generateNonStreaming: vi.fn(),
+        streamTextImpl: ({ abortSignal }) => {
+          providerAbortSignal = abortSignal as AbortSignal
+          return new Promise(() => {})
+        },
+      })
+
+      await vi.advanceTimersByTimeAsync(0)
+      emitToolExecutionProgress?.({
+        toolCallId: 'codex-terminal-progress-1',
+        toolName: 'executor_run_codex',
+        phase: 'timeout',
+        signal: 'terminal',
+        elapsedMs: 180_000,
+        timeoutMs: 180_000,
+        errorCode: 'CODEX_EXECUTION_TIMEOUT',
+        errorMessage: 'Codex execution exceeded the total limit of 180000ms.',
+        summary: 'Codex execution exceeded the total limit of 180000ms.',
+      })
+
+      await expect(promise).rejects.toMatchObject({
+        name: 'AlicizationToolExecutionError',
+        failureKind: 'tool-execution',
+        toolName: 'executor_run_codex',
+        errorCode: 'CODEX_EXECUTION_TIMEOUT',
+      })
+      expect(providerAbortSignal?.aborted).toBe(true)
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not settle a provider finish before a completed tool hands off its result', async () => {
+    const controller = new AbortController()
+    let emitToolExecutionProgress: ((event: any) => void) | undefined
+
+    const promise = runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-tool-result-handoff-barrier',
+      } as any,
+      prepared: createPrepared({
+        waitForTools: true,
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller,
+      firstEventTimeoutMs: 1_000,
+      providerContinuationTimeoutMs: 1_000,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      subscribeToolExecutionProgress: (listener) => {
+        emitToolExecutionProgress = listener
+        return () => {
+          emitToolExecutionProgress = undefined
+        }
+      },
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl: () => ({
+        fullStream: new ReadableStream({
+          start(streamController) {
+            streamController.enqueue({
+              type: 'tool-call',
+              toolCallId: 'codex-handoff-barrier-call',
+              toolName: 'executor_run_codex',
+            })
+            emitToolExecutionProgress?.({
+              toolCallId: 'codex-handoff-barrier-call',
+              toolName: 'executor_run_codex',
+              phase: 'completed',
+              signal: 'terminal',
+              elapsedMs: 1_000,
+            })
+            streamController.enqueue({
+              type: 'finish',
+              finishReason: 'stop',
+            })
+            streamController.close()
+          },
+        }),
+      }),
+    })
+
+    await expect(promise).rejects.toThrow('chat-tool-result-handoff-incomplete')
+  })
+
+  it('does not settle a provider finish while the tool call is still active', async () => {
+    let emitToolExecutionProgress: ((event: any) => void) | undefined
+    const appendRuntimeDebugLine = vi.fn(async () => {})
+    const promise = runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-active-tool-finish-barrier',
+      } as any,
+      prepared: createPrepared({
+        waitForTools: true,
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 1_000,
+      providerContinuationTimeoutMs: 1_000,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      subscribeToolExecutionProgress: (listener) => {
+        emitToolExecutionProgress = listener
+        return () => {
+          emitToolExecutionProgress = undefined
+        }
+      },
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      appendRuntimeDebugLine,
+      streamTextImpl: () => ({
+        fullStream: new ReadableStream({
+          start(streamController) {
+            streamController.enqueue({
+              type: 'tool-call',
+              toolCallId: 'codex-active-finish-call',
+              toolName: 'executor_run_codex',
+            })
+            streamController.enqueue({
+              type: 'finish',
+              finishReason: 'stop',
+            })
+            setTimeout(() => {
+              emitToolExecutionProgress?.({
+                toolCallId: 'codex-active-finish-call',
+                toolName: 'executor_run_codex',
+                phase: 'timeout',
+                signal: 'terminal',
+                elapsedMs: 180_000,
+                timeoutMs: 180_000,
+                errorCode: 'CODEX_TIMEOUT',
+                errorMessage: 'Codex produced no semantic progress for 180000ms.',
+              })
+            }, 0)
+          },
+        }),
+      }),
+    })
+
+    await expect(promise).rejects.toMatchObject({
+      name: 'AlicizationToolExecutionError',
+      failureKind: 'tool-execution',
+      toolName: 'executor_run_codex',
+      errorCode: 'CODEX_TIMEOUT',
+    })
+    expect(appendRuntimeDebugLine).not.toHaveBeenCalledWith(
+      'chat-stream.provider-finished',
+      expect.objectContaining({
+        streamPhase: 'completed',
+      }),
+    )
+  })
+
+  it('waits for every concurrent tool result before accepting the Provider finish', async () => {
+    let emitToolExecutionProgress: ((event: any) => void) | undefined
+    const streamTextImpl = vi.fn(() => ({
+      fullStream: new ReadableStream({
+        start(streamController) {
+          streamController.enqueue({
+            type: 'tool-call',
+            toolCallId: 'codex-concurrent-a',
+            toolName: 'executor_run_codex',
+          })
+          streamController.enqueue({
+            type: 'tool-call',
+            toolCallId: 'codex-concurrent-b',
+            toolName: 'executor_run_codex',
+          })
+          emitToolExecutionProgress?.({
+            toolCallId: 'codex-concurrent-a',
+            toolName: 'executor_run_codex',
+            phase: 'completed',
+            signal: 'terminal',
+            elapsedMs: 1_000,
+          })
+          emitToolExecutionProgress?.({
+            toolCallId: 'codex-concurrent-b',
+            toolName: 'executor_run_codex',
+            phase: 'completed',
+            signal: 'terminal',
+            elapsedMs: 1_100,
+          })
+          streamController.enqueue({
+            type: 'tool-result',
+            toolCallId: 'codex-concurrent-a',
+            toolName: 'executor_run_codex',
+            result: {
+              status: 'completed',
+              output: '第一个结果',
+            },
+          })
+          streamController.enqueue({
+            type: 'finish',
+            finishReason: 'stop',
+          })
+          streamController.close()
+        },
+      }),
+    }))
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-concurrent-tool-result-barrier',
+      } as any,
+      prepared: createPrepared({
+        waitForTools: true,
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 1_000,
+      providerContinuationTimeoutMs: 1_000,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      subscribeToolExecutionProgress: (listener) => {
+        emitToolExecutionProgress = listener
+        return () => {
+          emitToolExecutionProgress = undefined
+        }
+      },
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+    })).rejects.toThrow('chat-tool-result-handoff-incomplete')
+  })
+
+  it('does not enforce a legacy executor channel when the model selects an available tool', async () => {
+    const emitToolCall = vi.fn()
+    const providerText = createProviderResponsePayload({
+      reply: 'CLI 已经完成检查。',
+    })
+    const streamTextImpl = vi.fn(() => ({
+      fullStream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({
+            type: 'tool-call',
+            toolCallId: 'provider-cli-call-1',
+            toolName: 'executor_run_cli',
+            arguments: {
+              command: 'find . -type f',
+            },
+          })
+          controller.enqueue({
+            type: 'tool-result',
+            toolCallId: 'provider-cli-call-1',
+            toolName: 'executor_run_cli',
+            result: {
+              status: 'completed',
+              output: '检查完成',
+            },
+          })
+          controller.enqueue({
+            type: 'text-delta',
+            text: providerText,
+          })
+          controller.enqueue({
+            type: 'finish',
+            finishReason: 'stop',
+          })
+          controller.close()
+        },
+      }),
+    }))
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-forced-codex-channel-mismatch',
+      } as any,
+      prepared: createPrepared({
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'executor_run_codex',
+              parameters: {
+                type: 'object',
+                properties: {},
+                additionalProperties: false,
+              },
+            },
+          },
+          {
+            type: 'function',
+            function: {
+              name: 'executor_run_cli',
+              parameters: {
+                type: 'object',
+                properties: {},
+                additionalProperties: false,
+              },
+            },
+          },
+        ],
+        toolChoice: {
+          type: 'function',
+          function: {
+            name: 'executor_run_codex',
+          },
+        },
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall,
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+    })).resolves.toMatchObject({
+      fullText: providerText,
+    })
+
+    expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: 'provider-cli-call-1',
+      toolName: 'executor_run_cli',
     }))
   })
 
@@ -1126,6 +2958,7 @@ describe('main chat stream runner', () => {
   it('aborts with a first-event-timeout when the stream never produces progress', async () => {
     vi.useFakeTimers()
     const controller = new AbortController()
+    let providerAbortSignal: AbortSignal | undefined
 
     const promise = runAlicizationMainChatStream({
       payload: {
@@ -1143,7 +2976,10 @@ describe('main chat stream runner', () => {
       streamMeta: createStreamMetaController(),
       nonProgressEventTypes: new Set<string>(),
       generateNonStreaming: vi.fn(),
-      streamTextImpl: () => new Promise(() => {}),
+      streamTextImpl: ({ abortSignal }) => {
+        providerAbortSignal = abortSignal as AbortSignal
+        return new Promise(() => {})
+      },
     })
     const settled = promise.catch(error => error)
 
@@ -1152,7 +2988,709 @@ describe('main chat stream runner', () => {
     await expect(settled).resolves.toMatchObject({
       name: 'AbortError',
     })
-    expect(controller.signal.aborted).toBe(true)
+    expect(controller.signal.aborted).toBe(false)
+    expect(providerAbortSignal?.aborted).toBe(true)
+  })
+
+  it('does not let a liveness-only tool heartbeat mask a missing Provider first event', async () => {
+    vi.useFakeTimers()
+    const controller = new AbortController()
+    let providerAbortSignal: AbortSignal | undefined
+    let emitToolExecutionProgress: ((event: any) => void) | undefined
+    const fullStream = new ReadableStream()
+
+    const promise = runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-tool-progress-keeps-alive',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller,
+      firstEventTimeoutMs: 25,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      subscribeToolExecutionProgress: (listener) => {
+        emitToolExecutionProgress = listener
+        return () => {
+          emitToolExecutionProgress = undefined
+        }
+      },
+      streamTextImpl: ({ abortSignal }) => {
+        providerAbortSignal = abortSignal as AbortSignal
+        return { fullStream }
+      },
+    })
+
+    await vi.advanceTimersByTimeAsync(0)
+    emitToolExecutionProgress?.({
+      toolCallId: 'codex-progress-1',
+      toolName: 'executor_run_codex',
+      phase: 'started',
+      signal: 'liveness',
+      elapsedMs: 0,
+      occurredAt: Date.now(),
+    })
+    const settled = promise.catch(error => error)
+    await vi.advanceTimersByTimeAsync(25)
+
+    expect(providerAbortSignal?.aborted).toBe(true)
+    await expect(settled).resolves.toMatchObject({
+      name: 'AbortError',
+    })
+  })
+
+  it('completes a real xsAI tool loop after 70 seconds of heartbeats and Provider continuation', async () => {
+    vi.useFakeTimers()
+    const providerText = createProviderResponsePayload({
+      reply: 'Codex 的长任务结果已经回到同一轮对话。',
+    })
+    const encodeSse = (chunks: unknown[]) => [
+      ...chunks.map(chunk => `data: ${JSON.stringify(chunk)}\n`),
+      'data: [DONE]\n',
+    ].join('\n')
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response(encodeSse([
+        {
+          choices: [{
+            index: 0,
+            delta: {
+              role: 'assistant',
+              tool_calls: [{
+                index: 0,
+                id: 'codex-real-xsai-1',
+                type: 'function',
+                function: {
+                  name: 'executor_run_codex',
+                  arguments: JSON.stringify({
+                    prompt: '检查当前仓库',
+                  }),
+                },
+              }],
+            },
+            finish_reason: null,
+          }],
+        },
+        {
+          choices: [{
+            index: 0,
+            delta: {},
+            finish_reason: 'tool_calls',
+          }],
+        },
+      ]), {
+        headers: {
+          'content-type': 'text/event-stream',
+        },
+        status: 200,
+      }))
+      .mockResolvedValueOnce(new Response(encodeSse([
+        {
+          choices: [{
+            index: 0,
+            delta: {
+              content: providerText,
+            },
+            finish_reason: null,
+          }],
+        },
+        {
+          choices: [{
+            index: 0,
+            delta: {},
+            finish_reason: 'stop',
+          }],
+        },
+      ]), {
+        headers: {
+          'content-type': 'text/event-stream',
+        },
+        status: 200,
+      }))
+    let emitToolExecutionProgress: ((event: any) => void) | undefined
+    const execute = vi.fn(async (_input: unknown, options: { abortSignal?: AbortSignal, toolCallId: string }) => {
+      emitToolExecutionProgress?.({
+        toolCallId: options.toolCallId,
+        toolName: 'executor_run_codex',
+        phase: 'started',
+        elapsedMs: 0,
+      })
+      for (let elapsedMs = 10_000; elapsedMs <= 70_000; elapsedMs += 10_000) {
+        await new Promise(resolve => setTimeout(resolve, 10_000))
+        if (options.abortSignal?.aborted)
+          throw options.abortSignal.reason ?? new Error('tool execution was aborted')
+        emitToolExecutionProgress?.({
+          toolCallId: options.toolCallId,
+          toolName: 'executor_run_codex',
+          phase: 'running',
+          elapsedMs,
+        })
+      }
+      emitToolExecutionProgress?.({
+        toolCallId: options.toolCallId,
+        toolName: 'executor_run_codex',
+        phase: 'completed',
+        elapsedMs: 70_000,
+      })
+      return {
+        status: 'completed',
+        output: '检查完成',
+      }
+    })
+    const appendRuntimeDebugLine = vi.fn(async () => {})
+    const providerAbortController = new AbortController()
+
+    const pending = runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-real-xsai-long-tool',
+        providerId: 'openai-compatible',
+        model: 'model-test',
+      } as any,
+      prepared: createPrepared({
+        chatConfig: {
+          apiKey: 'test-key',
+          baseURL: 'https://example.test/v1/',
+          fetch: fetchImpl,
+          model: 'model-test',
+        },
+        tools: [{
+          type: 'function',
+          execute,
+          function: {
+            name: 'executor_run_codex',
+            description: 'Run Codex.',
+            parameters: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                prompt: {
+                  type: 'string',
+                },
+              },
+              required: ['prompt'],
+            },
+          },
+        }],
+      }),
+      controller: providerAbortController,
+      firstEventTimeoutMs: 25_000,
+      providerContinuationTimeoutMs: 30_000,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      appendRuntimeDebugLine,
+      subscribeToolExecutionProgress: (listener) => {
+        emitToolExecutionProgress = listener
+        return () => {
+          emitToolExecutionProgress = undefined
+        }
+      },
+    })
+
+    await vi.advanceTimersByTimeAsync(70_000)
+    const result = await pending
+
+    expect(providerAbortController.signal.aborted).toBe(false)
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(execute).toHaveBeenCalledOnce()
+    expect(result).toMatchObject({
+      finishReason: 'stop',
+      fullText: providerText,
+    })
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+      'chat-stream.provider-continuation-started',
+      expect.objectContaining({
+        toolCallId: 'codex-real-xsai-1',
+        toolName: 'executor_run_codex',
+      }),
+    )
+  })
+
+  it('continues the Provider reply immediately after a background Codex task is accepted', async () => {
+    const controller = new AbortController()
+    const providerText = createProviderResponsePayload({
+      reply: 'Codex 任务已经开始，我会在完成后把结果带回这里。',
+    })
+    const emitToolResult = vi.fn()
+    const appendRuntimeDebugLine = vi.fn(async () => {})
+    const fullStream = new ReadableStream({
+      start(streamController) {
+        streamController.enqueue({
+          type: 'tool-call-streaming-start',
+          toolCallId: 'codex-background-accepted-1',
+          toolName: 'executor_run_codex',
+        })
+        streamController.enqueue({
+          type: 'tool-call',
+          toolCallId: 'codex-background-accepted-1',
+          toolName: 'executor_run_codex',
+          arguments: {
+            prompt: '只读检查仓库。',
+          },
+        })
+        streamController.enqueue({
+          type: 'tool-result',
+          toolCallId: 'codex-background-accepted-1',
+          toolName: 'executor_run_codex',
+          result: {
+            status: 'accepted',
+            accepted: true,
+            threadId: 'thread-codex-background-1',
+            continuationPolicy: 'continue',
+          },
+        })
+        streamController.enqueue({
+          type: 'text-delta',
+          text: providerText,
+        })
+        streamController.enqueue({
+          type: 'finish',
+          finishReason: 'stop',
+        })
+        streamController.close()
+      },
+    })
+
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-background-codex-accepted',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller,
+      firstEventTimeoutMs: 25,
+      providerContinuationTimeoutMs: 60,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult,
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      appendRuntimeDebugLine,
+      streamTextImpl: () => ({ fullStream }),
+    })
+
+    expect(controller.signal.aborted).toBe(false)
+    expect(result).toMatchObject({
+      finishReason: 'stop',
+      fullText: providerText,
+    })
+    expect(emitToolResult).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: 'codex-background-accepted-1',
+      result: expect.objectContaining({
+        status: 'accepted',
+        continuationPolicy: 'continue',
+      }),
+    }))
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+      'chat-stream.provider-continuation-progress',
+      expect.objectContaining({
+        eventType: 'text-delta',
+      }),
+    )
+  })
+
+  it('cancels a stalled fullStream reader when the provider deadline aborts', async () => {
+    vi.useFakeTimers()
+    let resolveRead: ((result: { done: boolean, value?: unknown }) => void) | undefined
+    const cancel = vi.fn(async () => {
+      resolveRead?.({ done: true })
+    })
+    const releaseLock = vi.fn()
+    const reader = {
+      cancel,
+      read: vi.fn(() => new Promise<{ done: boolean, value?: unknown }>((resolve) => {
+        resolveRead = resolve
+      })),
+      releaseLock,
+    }
+
+    const settled = runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-cancel-stalled-reader',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 25,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl: () => ({
+        fullStream: {
+          getReader: () => reader,
+        },
+      }),
+    }).catch(error => error)
+
+    await vi.advanceTimersByTimeAsync(25)
+    await settled
+
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(releaseLock).toHaveBeenCalledOnce()
+  })
+
+  it('re-arms the provider deadline after a tool result without aborting the outer turn', async () => {
+    vi.useFakeTimers()
+    const controller = new AbortController()
+    let providerAbortSignal: AbortSignal | undefined
+    let streamController: ReadableStreamDefaultController<unknown> | undefined
+    const emitToolResult = vi.fn()
+    const fullStream = new ReadableStream({
+      start(nextController) {
+        streamController = nextController
+        nextController.enqueue({
+          type: 'tool-call-streaming-start',
+          toolCallId: 'codex-continuation-1',
+          toolName: 'executor_run_codex',
+        })
+        nextController.enqueue({
+          type: 'tool-call',
+          toolCallId: 'codex-continuation-1',
+          toolName: 'executor_run_codex',
+          arguments: {
+            prompt: '检查当前仓库',
+          },
+        })
+        nextController.enqueue({
+          type: 'tool-result',
+          toolCallId: 'codex-continuation-1',
+          toolName: 'executor_run_codex',
+          result: {
+            status: 'completed',
+          },
+        })
+        setTimeout(() => {
+          try {
+            nextController.close()
+          }
+          catch {
+            // The fixed path cancels the stalled provider stream first.
+          }
+        }, 100)
+      },
+    })
+
+    const promise = runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-tool-continuation-timeout',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller,
+      firstEventTimeoutMs: 25,
+      providerContinuationTimeoutMs: 60,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult,
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl: ({ abortSignal }) => {
+        providerAbortSignal = abortSignal as AbortSignal
+        providerAbortSignal.addEventListener('abort', () => {
+          try {
+            streamController?.error(providerAbortSignal?.reason)
+          }
+          catch {
+            // The stream may already have settled.
+          }
+        }, { once: true })
+        return { fullStream }
+      },
+    })
+    const settled = promise.catch(error => error)
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(emitToolResult).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(30)
+    const providerAbortedAtFirstEventDeadline = providerAbortSignal?.aborted === true
+    await vi.advanceTimersByTimeAsync(35)
+    const providerAbortedAtContinuationDeadline = providerAbortSignal?.aborted === true
+    await vi.advanceTimersByTimeAsync(100)
+    await settled
+
+    expect(providerAbortedAtFirstEventDeadline).toBe(false)
+    expect(providerAbortedAtContinuationDeadline).toBe(true)
+    expect(providerAbortSignal?.reason).toMatchObject({
+      name: 'AbortError',
+      message: expect.stringContaining('chat-provider-continuation-timeout'),
+    })
+    expect(controller.signal.aborted).toBe(false)
+  })
+
+  it('keeps the Provider continuation watchdog active after the first text delta', async () => {
+    vi.useFakeTimers()
+    let providerAbortSignal: AbortSignal | undefined
+    let streamController: ReadableStreamDefaultController<unknown> | undefined
+    const fullStream = new ReadableStream({
+      start(nextController) {
+        streamController = nextController
+        nextController.enqueue({
+          type: 'tool-call',
+          toolCallId: 'codex-continuation-stall-1',
+          toolName: 'executor_run_codex',
+          arguments: {
+            prompt: '检查当前仓库',
+          },
+        })
+        nextController.enqueue({
+          type: 'tool-result',
+          toolCallId: 'codex-continuation-stall-1',
+          toolName: 'executor_run_codex',
+          result: {
+            status: 'completed',
+          },
+        })
+        nextController.enqueue({
+          type: 'text-delta',
+          text: 'Codex 已经完成检查，',
+        })
+      },
+    })
+
+    const settled = runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-tool-continuation-stalls-after-first-delta',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 25,
+      providerContinuationTimeoutMs: 60,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl: ({ abortSignal }) => {
+        providerAbortSignal = abortSignal as AbortSignal
+        providerAbortSignal.addEventListener('abort', () => {
+          try {
+            streamController?.error(providerAbortSignal?.reason)
+          }
+          catch {
+            // The stream may already have settled.
+          }
+        }, { once: true })
+        return { fullStream }
+      },
+    }).catch(error => error)
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(providerAbortSignal?.aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(61)
+    const error = await settled
+
+    expect(providerAbortSignal?.aborted).toBe(true)
+    expect(providerAbortSignal?.reason).toMatchObject({
+      name: 'AbortError',
+      message: expect.stringContaining('chat-provider-continuation-timeout'),
+    })
+    expect(error).toMatchObject({
+      name: 'AbortError',
+      message: expect.stringContaining('chat-provider-continuation-timeout'),
+    })
+  })
+
+  it('rejects when fullStream closes after a tool result without Provider continuation', async () => {
+    const fullStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue({
+          type: 'tool-call-streaming-start',
+          toolCallId: 'codex-continuation-incomplete-1',
+          toolName: 'executor_run_codex',
+        })
+        controller.enqueue({
+          type: 'tool-call',
+          toolCallId: 'codex-continuation-incomplete-1',
+          toolName: 'executor_run_codex',
+          arguments: {
+            prompt: '检查当前仓库',
+          },
+        })
+        controller.enqueue({
+          type: 'tool-result',
+          toolCallId: 'codex-continuation-incomplete-1',
+          toolName: 'executor_run_codex',
+          result: {
+            status: 'completed',
+          },
+        })
+        controller.close()
+      },
+    })
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-tool-continuation-incomplete',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 25,
+      providerContinuationTimeoutMs: 60,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl: () => ({ fullStream }),
+    })).rejects.toThrow('chat-provider-continuation-incomplete')
+  })
+
+  it('treats finish=stop after a tool result as terminal provider output instead of continuation timeout', async () => {
+    const fullStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue({
+          type: 'tool-result',
+          toolCallId: 'codex-stop-after-result-1',
+          toolName: 'executor_run_codex',
+          result: {
+            status: 'completed',
+          },
+        })
+        controller.enqueue({
+          type: 'finish',
+          finishReason: 'stop',
+        })
+        controller.close()
+      },
+    })
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-tool-result-stop',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          function: {
+            name: 'executor_run_codex',
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 25,
+      providerContinuationTimeoutMs: 60,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl: () => ({ fullStream }),
+    })).rejects.toThrow('provider-settlement-invalid')
+  })
+
+  it('cancels the provider reader when the provider emits an error event', async () => {
+    let resolveRead: ((result: { done: boolean, value?: unknown }) => void) | undefined
+    const cancel = vi.fn(async () => {
+      resolveRead?.({ done: true })
+    })
+    const reader = {
+      read: vi.fn(() => new Promise<{ done: boolean, value?: unknown }>((resolve) => {
+        resolveRead = resolve
+      })),
+      cancel,
+      releaseLock: vi.fn(),
+    }
+    const fullStream = {
+      getReader: () => reader,
+    }
+
+    const promise = runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-error-cancels-reader',
+      } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl: () => ({
+        fullStream,
+      }),
+    }).catch(error => error)
+
+    await Promise.resolve()
+    resolveRead?.({
+      done: false,
+      value: {
+        type: 'error',
+        error: new Error('provider stream failed'),
+      },
+    })
+
+    await expect(promise).resolves.toMatchObject({
+      message: 'provider stream failed',
+    })
+    expect(cancel).toHaveBeenCalledOnce()
   })
 
   it('records debug diagnostics when the stream settles without a progress event', async () => {

@@ -342,6 +342,34 @@ describe('dialogue-turn-semantics', () => {
     })
   })
 
+  it('parses a structured Coding Agent delegation verdict without reading user wording', () => {
+    const candidate = parseDialogueTurnSemanticsCandidate(JSON.stringify({
+      act: 'ask-help',
+      responseNeed: 'guide',
+      truthExpectation: 'strict',
+      affectiveTone: 'neutral',
+      subjectPreference: 'task-knot',
+      confidence: 0.9,
+      codingAgentDelegation: {
+        intentKind: 'execute',
+        requestedAgent: 'codex',
+        verdict: 'delegate-coding-agent',
+        scope: 'investigation',
+        confidence: 0.88,
+        sourceTurnId: 'turn-codex-investigation',
+      },
+    }))
+
+    expect(candidate?.codingAgentDelegation).toEqual({
+      intentKind: 'execute',
+      requestedAgent: 'codex',
+      verdict: 'delegate-coding-agent',
+      scope: 'investigation',
+      confidence: 0.88,
+      sourceTurnId: 'turn-codex-investigation',
+    })
+  })
+
   it('lets structured cognition own ordinary reply semantics', () => {
     const base = buildDialogueTurnSemantics({
       userText: '你好呀',
@@ -372,6 +400,90 @@ describe('dialogue-turn-semantics', () => {
         'model-owned-semantics',
         'structured-dialogue-cognition',
       ]),
+    })
+  })
+
+  it('carries structured Coding Agent delegation into merged turn semantics', () => {
+    const base = buildDialogueTurnSemantics({
+      userText: '任意文字',
+      context: codingContext,
+      currentScene: null,
+      worldModel: buildWorldModel(),
+    })
+    const candidate = parseDialogueTurnSemanticsCandidate(JSON.stringify({
+      act: 'ask-help',
+      responseNeed: 'guide',
+      codingAgentDelegation: {
+        intentKind: 'execute',
+        requestedAgent: 'codex',
+        verdict: 'delegate-coding-agent',
+        scope: 'edit',
+        confidence: 0.92,
+        sourceTurnId: 'turn-codex-edit',
+      },
+    }))
+
+    expect(mergeDialogueTurnSemantics(base, candidate, {
+      sourceTurnId: 'turn-codex-edit',
+    }).codingAgentDelegation).toEqual({
+      intentKind: 'execute',
+      requestedAgent: 'codex',
+      verdict: 'delegate-coding-agent',
+      scope: 'edit',
+      confidence: 0.92,
+      sourceTurnId: 'turn-codex-edit',
+      source: 'structured-cognition',
+    })
+  })
+
+  it('drops Coding Agent delegation that belongs to another turn', () => {
+    const base = buildDialogueTurnSemantics({
+      userText: '任意文字',
+      context: codingContext,
+      currentScene: null,
+      worldModel: buildWorldModel(),
+    })
+    const candidate = parseDialogueTurnSemanticsCandidate(JSON.stringify({
+      act: 'ask-help',
+      responseNeed: 'guide',
+      codingAgentDelegation: {
+        intentKind: 'execute',
+        requestedAgent: 'codex',
+        verdict: 'delegate-coding-agent',
+        scope: 'investigation',
+        confidence: 0.96,
+        sourceTurnId: 'turn-previous',
+      },
+    }))
+
+    expect(mergeDialogueTurnSemantics(base, candidate, {
+      sourceTurnId: 'turn-current',
+    }).codingAgentDelegation).toBeNull()
+  })
+
+  it('injects runtime-owned sourceTurnId when Provider omits it', () => {
+    const base = buildDialogueTurnSemantics({
+      userText: '任意文字',
+      context: codingContext,
+      currentScene: null,
+      worldModel: buildWorldModel(),
+    })
+    const candidate = parseDialogueTurnSemanticsCandidate(JSON.stringify({
+      act: 'ask-help',
+      codingAgentDelegation: {
+        intentKind: 'execute',
+        requestedAgent: 'codex',
+        verdict: 'delegate-coding-agent',
+        scope: 'investigation',
+        confidence: 0.91,
+      },
+    }))
+
+    expect(mergeDialogueTurnSemantics(base, candidate, {
+      sourceTurnId: 'turn-runtime-owned',
+    }).codingAgentDelegation).toMatchObject({
+      sourceTurnId: 'turn-runtime-owned',
+      source: 'structured-cognition',
     })
   })
 

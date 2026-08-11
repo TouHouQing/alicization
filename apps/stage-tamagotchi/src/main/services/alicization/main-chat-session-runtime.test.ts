@@ -142,6 +142,15 @@ function createPrelude(overrides?: {
     source: 'dialogue-governance'
     summary: string
   }
+  codingAgentDelegation?: {
+    confidence: number
+    intentKind: 'capability-query' | 'execute'
+    requestedAgent: 'auto' | 'codex' | 'claude-code' | 'cli' | null
+    scope: 'none' | 'investigation' | 'edit' | 'command'
+    sourceTurnId: string
+    source: 'heuristic' | 'structured-cognition' | 'fallback'
+    verdict: 'respond-directly' | 'clarify' | 'delegate-coding-agent'
+  }
   messages?: Message[]
 }): PreparedPreludeWithRuntimeSurface {
   return {
@@ -297,7 +306,11 @@ function createPrelude(overrides?: {
         },
         dialogue: {
           discourseState: null,
-          dialogueEncounter: null,
+          dialogueEncounter: overrides?.codingAgentDelegation
+            ? {
+                codingAgentDelegation: overrides.codingAgentDelegation,
+              } as any
+            : null,
           mindSynthesis: null,
           conversationState: null,
           dialogueWorldThread: null,
@@ -477,6 +490,130 @@ function createOpenAgentTurn(getSensorySnapshot: () => Promise<AlicizationSensor
 }
 
 describe('resolvePreparedRuntimeSurfaceSelection', () => {
+  it('forwards the per-tool abort signal through the session resume adapter', async () => {
+    const getSensorySnapshot = vi.fn(async () => ({
+      running: true,
+      stale: false,
+      ageMs: 10,
+      nextTickAt: 20,
+      sample: {
+        collectedAt: 10,
+        time: {
+          iso: '2026-04-04T00:00:00.000Z',
+          local: '2026-04-04 08:00',
+          timezone: 'Asia/Shanghai',
+        },
+        cpu: {
+          usagePercent: 10,
+          windowMs: 1000,
+        },
+        memory: {
+          freeMB: 1024,
+          totalMB: 8192,
+          usagePercent: 12.5,
+        },
+      },
+      capture: null,
+    } satisfies AlicizationSensoryCacheSnapshot))
+    const resumeMainGatewayTaskThread = vi.fn(async () => ({
+      ok: true,
+      stage: 'dispatch' as const,
+      thread: {
+        id: 'thread-resume-signal',
+        selectedChannel: 'codex' as const,
+        status: 'completed' as const,
+      },
+      plan: {
+        state: 'routed' as const,
+      },
+      summary: 'resumed',
+      output: null,
+    }))
+    const runtime = createAlicizationMainChatSessionRuntime({
+      executionCapabilityChannels: executionChannels,
+      buildMainRuntimeCorePromptBlocks: ({ hostName }: MainRuntimeCorePromptBlocksInput) => [`[CORE:${hostName}]`],
+      executeMainGatewayTaskThread: vi.fn(),
+      resumeMainGatewayTaskThread,
+      getPerformanceManifest: vi.fn(async () => ({ rigVersion: 1 } as any)),
+      getSensorySnapshot,
+      latestUserMessageContainsVisualInput: () => false,
+      openAgentTurn: createOpenAgentTurn(getSensorySnapshot),
+      resolveCardCustomDirectives: vi.fn(async () => ({
+        text: '',
+        source: 'card-soul' as const,
+      })),
+      resolveCardHostName: vi.fn(async () => 'Kirito'),
+      resolveCardPersonaKernel: vi.fn(async () => null),
+      resolveExecutionCapabilitiesForPrompt: vi.fn(async () => createCapabilities()),
+      resolveOrganicMemoryPromptContext: vi.fn(async () => ({
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+      })),
+      resolveTaskPlanningCapabilities: vi.fn(async () => createCapabilities()),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      tuneOrganicMemoryPromptContextForExecutiveTurn: input => input.context,
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const outerController = new AbortController()
+    const toolController = new AbortController()
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-resume-signal',
+        messages: [{
+          role: 'user',
+          content: '继续这个 Codex 线程',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createPrelude({
+        messages: [{
+          role: 'user',
+          content: '继续这个 Codex 线程',
+        } as Message],
+        codingAgentDelegation: {
+          confidence: 0.92,
+          intentKind: 'execute',
+          requestedAgent: 'codex',
+          scope: 'investigation',
+          source: 'structured-cognition',
+          sourceTurnId: 'turn-resume-signal',
+          verdict: 'delegate-coding-agent',
+        },
+      }),
+      abortSignal: outerController.signal,
+    })
+    const codexTool = result.tools?.find((entry: any) => entry.function?.name === 'executor_run_coding_agent') as any
+    const executorToolNames = result.tools
+      ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
+      .filter((toolName: string) => toolName.startsWith('executor_run_'))
+
+    expect(executorToolNames).toEqual(expect.arrayContaining([
+      'executor_run_coding_agent',
+      'executor_run_local_visual',
+    ]))
+    expect(executorToolNames).toHaveLength(2)
+    await codexTool.execute({
+      agent: 'codex',
+      threadId: 'thread-resume-signal',
+    }, {
+      toolCallId: 'codex-resume-signal-1',
+      abortSignal: toolController.signal,
+    })
+
+    expect(resumeMainGatewayTaskThread).toHaveBeenCalledWith(expect.objectContaining({
+      threadId: 'thread-resume-signal',
+      abortSignal: toolController.signal,
+    }))
+    expect(resumeMainGatewayTaskThread).not.toHaveBeenCalledWith(expect.objectContaining({
+      abortSignal: outerController.signal,
+    }))
+  })
+
   it('allows only the unified typed memory envelope at the Provider boundary', () => {
     const recallFact = buildAlicizationProviderFactBlock('alicization-long-term-memory-recall', {
       owner: 'LongTermMemoryRecall',
@@ -605,9 +742,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       kind: 'answer',
     }))
     expect(result.toolChoice).toBeUndefined()
-    expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean)).toEqual(
-      expect.arrayContaining(['executor_run_cli', 'executor_run_codex', 'browser_open_url']),
-    )
+    const toolNames = result.tools
+      ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
+      .filter(Boolean) ?? []
+    expect(toolNames).toContain('browser_open_url')
+    expect(toolNames).not.toContain('executor_run_coding_agent')
     expect(result.runtimeSurface.tooling.toolsOffered).toBe(true)
     expect(result.runtimeSurface.trace.sessionPhases).toEqual([
       'contextual-memory',
@@ -894,8 +1033,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     })
 
     expect(result.toolChoice).toBeUndefined()
-    expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean))
-      .toEqual(expect.arrayContaining(['browser_open_url', 'executor_run_codex']))
+    const toolNames = result.tools
+      ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
+      .filter(Boolean) ?? []
+    expect(toolNames).toContain('browser_open_url')
+    expect(toolNames).not.toContain('executor_run_coding_agent')
   })
 
   it('offers desktop tools without narrowing the provider tool registry', async () => {
@@ -975,8 +1117,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     })
 
     expect(result.toolChoice).toBeUndefined()
-    expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean))
-      .toEqual(expect.arrayContaining(['desktop_inspect_scene', 'executor_run_codex']))
+    const toolNames = result.tools
+      ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
+      .filter(Boolean) ?? []
+    expect(toolNames).toContain('desktop_inspect_scene')
+    expect(toolNames).not.toContain('executor_run_coding_agent')
   })
 
   it('passes focused capability state as facts without capability-answer templates', async () => {
@@ -1085,7 +1230,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(systemText).toContain('"type":"alicization-execution-capabilities"')
   })
 
-  it('keeps an explicit execution request on the same model-owned turn', async () => {
+  it('keeps executor selection model-owned and preserves the complete registry', async () => {
     const getSensorySnapshot = vi.fn(async () => ({
       running: true,
       stale: false,
@@ -1144,8 +1289,17 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const prelude = createPrelude({
       messages: [{
         role: 'user',
-        content: '继续沿着这个记忆项目闭环往下，直接帮我用 CLI 查一下现在这个目录的情况，但别把当前任务线弄丢。',
+        content: '继续沿着这个记忆项目闭环往下，直接帮我用 Codex 查一下现在这个目录的情况，不要用 CLI，也别把当前任务线弄丢。',
       } as Message],
+      codingAgentDelegation: {
+        confidence: 0.94,
+        intentKind: 'execute',
+        requestedAgent: 'auto',
+        scope: 'investigation',
+        source: 'structured-cognition',
+        sourceTurnId: 'turn-main-session-direct-execution-project-briefing',
+        verdict: 'delegate-coding-agent',
+      },
     })
     const result = await runtime.prepareExecution({
       payload: {
@@ -1153,7 +1307,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         turnId: 'turn-main-session-direct-execution-project-briefing',
         messages: [{
           role: 'user',
-          content: '继续沿着这个记忆项目闭环往下，直接帮我用 CLI 查一下现在这个目录的情况，但别把当前任务线弄丢。',
+          content: '继续沿着这个记忆项目闭环往下，直接帮我用 Codex 查一下现在这个目录的情况，不要用 CLI，也别把当前任务线弄丢。',
         }],
         supportsTools: true,
       } as any,
@@ -1168,9 +1322,96 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
     expect(actionFact).toBeNull()
     expect(result.toolChoice).toBeUndefined()
-    expect(result.tools?.map((entry: any) => String(entry?.function?.name ?? '').trim()).filter(Boolean))
-      .toEqual(expect.arrayContaining(['executor_run_cli', 'executor_run_codex', 'browser_open_url']))
+    const toolNames = result.tools
+      ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
+      .filter(Boolean) ?? []
+    expect(toolNames.filter(toolName => toolName.startsWith('executor_run_'))).toEqual(expect.arrayContaining([
+      'executor_run_coding_agent',
+      'executor_run_local_visual',
+    ]))
+    expect(toolNames.filter(toolName => toolName.startsWith('executor_run_'))).toHaveLength(2)
+    expect(toolNames).toContain('browser_open_url')
     expect(systemText).toContain('"type":"alicization-execution-capabilities"')
+    const codingAgentTool = result.tools
+      ?.find((entry: any) => entry.function?.name === 'executor_run_coding_agent') as any
+    expect(codingAgentTool.function.parameters.properties.agent).toEqual({
+      type: 'string',
+      const: 'codex',
+    })
+    const providerStreamingId = result.toolCallIdentity.resolveProviderToolCall({
+      phase: 'streaming-start',
+      toolCallId: 'provider-codex-streaming-1',
+      toolName: 'executor_run_codex',
+      arguments: {
+        prompt: '检查当前目录',
+      },
+    })
+    const driftingStreamingId = result.toolCallIdentity.resolveProviderToolCall({
+      phase: 'streaming-start',
+      toolCallId: 'provider-codex-streaming-2',
+      toolName: 'executor_run_codex',
+      arguments: {
+        prompt: '检查当前目录',
+      },
+    })
+
+    expect(driftingStreamingId).toBe(providerStreamingId)
+
+    const capabilityQuestion = '你认为你可以用 codex 做什么，你可以帮我写项目或者帮我修改现有的项目吗？'
+    const capabilityResult = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-main-session-codex-capability-question',
+        messages: [{
+          role: 'user',
+          content: capabilityQuestion,
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createPrelude({
+        messages: [{
+          role: 'user',
+          content: capabilityQuestion,
+        } as Message],
+      }),
+    })
+
+    expect(capabilityResult.toolChoice).toBeUndefined()
+    const capabilityToolNames = capabilityResult.tools
+      ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
+      .filter(Boolean) ?? []
+    expect(capabilityToolNames.filter(toolName => toolName.startsWith('executor_run_'))).toEqual([
+      'executor_run_cli',
+      'executor_run_local_visual',
+    ])
+
+    const localDirectoryQuery = '你看看桌面的git文件夹有哪些项目，列举给我'
+    const localDirectoryResult = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-main-session-local-directory-query',
+        messages: [{
+          role: 'user',
+          content: localDirectoryQuery,
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createPrelude({
+        messages: [{
+          role: 'user',
+          content: localDirectoryQuery,
+        } as Message],
+      }),
+    })
+
+    const localDirectoryToolNames = localDirectoryResult.tools
+      ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
+      .filter(Boolean) ?? []
+    expect(localDirectoryToolNames.filter(toolName => toolName.startsWith('executor_run_'))).toEqual([
+      'executor_run_cli',
+      'executor_run_local_visual',
+    ])
+    expect(localDirectoryToolNames).not.toContain('executor_run_openclaw')
   })
 
   it('respects provider tool capability independently of user wording', async () => {

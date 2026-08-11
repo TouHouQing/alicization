@@ -10,6 +10,7 @@ import type { MainGatewayResolvedConfig } from './runtime-soul'
 
 import {
   extractAlicizationProviderRequestFailure,
+  extractAlicizationToolExecutionFailure,
   isAlicizationProviderSchemaUnsupportedError,
   resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
@@ -26,21 +27,18 @@ function isAbortLikeError(error: unknown) {
 
 export function normalizeAlicizationMainChatAbortReason(reason: unknown) {
   const normalized = String(reason ?? 'abort')
-  return normalized.includes('chat-first-event-timeout')
-    ? 'chat-first-event-timeout'
-    : 'abort'
+  if (normalized.includes('chat-preparation-timeout'))
+    return 'chat-preparation-timeout'
+  if (normalized.includes('chat-provider-continuation-timeout'))
+    return 'chat-provider-continuation-timeout'
+  if (normalized.includes('chat-tool-result-handoff-timeout'))
+    return 'chat-tool-result-handoff-timeout'
+  if (normalized.includes('chat-first-event-timeout'))
+    return 'chat-first-event-timeout'
+  return 'abort'
 }
 
 export function shouldRecordAlicizationMainGatewayGenerationTimeout(reason: unknown) {
-  if (
-    typeof reason === 'object'
-    && reason !== null
-    && 'name' in reason
-    && String((reason as { name?: unknown }).name).toLowerCase() === 'aborterror'
-  ) {
-    return true
-  }
-
   const normalized = String(reason instanceof Error ? reason.message : reason ?? '')
     .trim()
     .toLowerCase()
@@ -52,6 +50,35 @@ export function shouldRecordAlicizationMainGatewayGenerationTimeout(reason: unkn
 
 export function isProviderSchemaUnsupportedError(error: unknown) {
   return isAlicizationProviderSchemaUnsupportedError(error)
+}
+
+function resolveProviderProtocolFailure(error: unknown) {
+  const reason = error instanceof Error ? error.message : String(error ?? '')
+  if (reason.includes('Provider tool call is missing toolCallId')) {
+    return {
+      code: 'missing-tool-call-id',
+      reply: 'Provider 工具调用缺少 toolCallId，本轮工具未执行。',
+    }
+  }
+  if (reason.includes('Provider tool call has invalid arguments')) {
+    return {
+      code: 'invalid-tool-arguments',
+      reply: 'Provider 工具参数无效，本轮工具未执行。',
+    }
+  }
+  if (reason.includes('Provider tool call is missing toolName')) {
+    return {
+      code: 'missing-tool-name',
+      reply: 'Provider 工具调用缺少工具名称，本轮工具未执行。',
+    }
+  }
+  if (reason.includes('tool action input must be a serializable object')) {
+    return {
+      code: 'invalid-tool-action-input',
+      reply: 'Provider 工具输入不是可序列化对象，本轮工具未执行。',
+    }
+  }
+  return null
 }
 
 function sanitizeTimeoutDiagnosticSegment(raw: unknown) {
@@ -156,12 +183,17 @@ export async function handleAlicizationMainChatRunFailure(
     .reverse()
     .find(message => message.role === 'user')
   const currentUserText = readTransportContentAsText(userText?.content).trim()
+  const toolExecution = extractAlicizationToolExecutionFailure(input.error)
+    ?? extractAlicizationToolExecutionFailure(input.controller.signal.reason)
 
   const aborted = isAbortLikeError(input.error) || input.controller.signal.aborted
-  if (aborted) {
+  if (aborted && !toolExecution) {
     const abortReasonText = String(input.controller.signal.reason ?? reason ?? 'abort')
     const normalizedAbortReason = normalizeAlicizationMainChatAbortReason(abortReasonText)
-    if (normalizedAbortReason !== 'chat-first-event-timeout') {
+    const preparationTimeout = normalizedAbortReason === 'chat-preparation-timeout'
+    const continuationTimeout = normalizedAbortReason === 'chat-provider-continuation-timeout'
+    const toolResultHandoffTimeout = normalizedAbortReason === 'chat-tool-result-handoff-timeout'
+    if (!preparationTimeout && !continuationTimeout && !toolResultHandoffTimeout && normalizedAbortReason !== 'chat-first-event-timeout') {
       await input.finish({
         status: 'aborted',
         finishReason: normalizedAbortReason,
@@ -170,8 +202,19 @@ export async function handleAlicizationMainChatRunFailure(
     }
 
     const failureSurface = resolveAlicizationChatFailureSurface({
-      kind: 'timeout',
+      kind: continuationTimeout ? 'provider-continuation-timeout' : 'timeout',
       userText: currentUserText,
+      timeout: {
+        providerId: input.payload.providerId || input.mainGateway.providerId,
+        model: input.payload.model || input.mainGateway.model,
+        phase: toolResultHandoffTimeout
+          ? 'tool-result-handoff'
+          : continuationTimeout
+            ? 'provider-continuation'
+            : preparationTimeout
+              ? 'preparation'
+              : 'provider-first-event',
+      },
     })
     if (shouldRecordAlicizationMainGatewayGenerationTimeout(input.error)) {
       await Promise.resolve(
@@ -181,8 +224,20 @@ export async function handleAlicizationMainChatRunFailure(
     await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
       level: 'warning',
       category: 'alicization.main-gateway',
-      action: 'stream-timeout-failed',
-      message: 'The Provider stream timed out; no local or one-shot dialogue recovery was attempted.',
+      action: toolResultHandoffTimeout
+        ? 'tool-result-handoff-timeout-failed'
+        : preparationTimeout
+          ? 'preparation-timeout-failed'
+          : continuationTimeout
+            ? 'provider-continuation-timeout-failed'
+            : 'stream-timeout-failed',
+      message: toolResultHandoffTimeout
+        ? 'The tool result could not be handed back to the Provider before the handoff deadline.'
+        : preparationTimeout
+          ? 'Dialogue preparation timed out before the Provider stream started.'
+          : continuationTimeout
+            ? 'The tool completed, but the Provider timed out before producing the final reply.'
+            : 'The Provider stream timed out; no local or one-shot dialogue recovery was attempted.',
       payload: {
         cardId: input.payload.cardId,
         turnId: input.payload.turnId,
@@ -192,20 +247,53 @@ export async function handleAlicizationMainChatRunFailure(
         nonProgressEventTypes: [...input.nonProgressEventTypes],
       },
     }))
-    await input.appendRuntimeDebugLine('chat-stream.timeout-failed', {
-      cardId: input.payload.cardId,
-      turnId: input.payload.turnId,
-      dispatchBound: input.dispatchBound,
-      nonProgressEventTypes: [...input.nonProgressEventTypes],
+    await input.appendRuntimeDebugLine(
+      toolResultHandoffTimeout
+        ? 'chat-stream.tool-result-handoff-timeout-failed'
+        : preparationTimeout
+          ? 'chat-stream.preparation-timeout-failed'
+          : continuationTimeout
+            ? 'chat-stream.provider-continuation-timeout-failed'
+            : 'chat-stream.timeout-failed',
+      {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        dispatchBound: input.dispatchBound,
+        nonProgressEventTypes: [...input.nonProgressEventTypes],
+      },
+    )
+    await emitFailureSurface({
+      failureSurface,
+      finishReason: toolResultHandoffTimeout
+        ? 'chat-tool-result-handoff-timeout'
+        : preparationTimeout
+          ? 'chat-preparation-timeout'
+          : continuationTimeout
+            ? 'chat-provider-continuation-timeout'
+            : buildTimeoutAbortFinishReason({
+                dispatchBound: input.dispatchBound,
+                nonProgressEventTypes: input.nonProgressEventTypes,
+              }),
+      status: 'aborted',
+      options: input,
+    })
+    return
+  }
+
+  if (reason.includes('chat-provider-continuation-incomplete')) {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'provider-continuation-incomplete',
+      userText: currentUserText,
     })
     await emitFailureSurface({
       failureSurface,
-      finishReason: buildTimeoutAbortFinishReason({
-        dispatchBound: input.dispatchBound,
-        nonProgressEventTypes: input.nonProgressEventTypes,
-      }),
-      status: 'aborted',
+      finishReason: 'provider-continuation-incomplete',
+      status: 'failed',
       options: input,
+    })
+    await input.appendRuntimeDebugLine('chat-stream.provider-continuation-incomplete', {
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
     })
     return
   }
@@ -225,6 +313,41 @@ export async function handleAlicizationMainChatRunFailure(
       cardId: input.payload.cardId,
       turnId: input.payload.turnId,
       reason,
+    })
+    return
+  }
+
+  if (toolExecution) {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'tool-execution',
+      userText: currentUserText,
+      toolExecution,
+    })
+    await emitFailureSurface({
+      failureSurface,
+      finishReason: 'tool-execution',
+      status: 'failed',
+      options: input,
+    })
+    await input.queueScopedAuditLog(input.payload.cardId, {
+      level: 'warning',
+      category: 'alicization.tool',
+      action: 'tool-execution-failed',
+      message: 'A tool execution failure was surfaced without generating a persona fallback.',
+      payload: {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        toolName: toolExecution.toolName,
+        code: toolExecution.code,
+        message: toolExecution.message,
+      },
+    })
+    await input.appendRuntimeDebugLine('chat-stream.tool-execution-failed', {
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
+      toolName: toolExecution.toolName,
+      code: toolExecution.code,
+      message: toolExecution.message,
     })
     return
   }
@@ -266,13 +389,16 @@ export async function handleAlicizationMainChatRunFailure(
   }
 
   if (!input.prepared) {
-    const failureSurface = resolveAlicizationChatFailureSurface({
-      kind: 'stream-failure',
-      userText: currentUserText,
-    })
+    const failureSurface = {
+      ...resolveAlicizationChatFailureSurface({
+        kind: 'stream-failure',
+        userText: currentUserText,
+      }),
+      reply: '对话准备失败，短期记忆和长期记忆上下文未完成，本轮未请求模型。',
+    }
     await emitFailureSurface({
       failureSurface,
-      finishReason: 'prepare-failed',
+      finishReason: 'preparation-failed',
       status: 'failed',
       options: input,
     })
@@ -280,6 +406,29 @@ export async function handleAlicizationMainChatRunFailure(
       cardId: input.payload.cardId,
       turnId: input.payload.turnId,
       reason,
+    })
+    return
+  }
+
+  const providerProtocolFailure = resolveProviderProtocolFailure(input.error)
+  if (providerProtocolFailure) {
+    const failureSurface = {
+      ...resolveAlicizationChatFailureSurface({
+        kind: 'provider-output-invalid',
+        userText: currentUserText,
+      }),
+      reply: providerProtocolFailure.reply,
+    }
+    await emitFailureSurface({
+      failureSurface,
+      finishReason: 'provider-protocol-invalid',
+      status: 'failed',
+      options: input,
+    })
+    await input.appendRuntimeDebugLine('chat-stream.provider-protocol-invalid', {
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
+      code: providerProtocolFailure.code,
     })
     return
   }

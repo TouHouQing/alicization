@@ -52,6 +52,7 @@ describe('runtime mind-state Provider contracts', () => {
         'personaSuppression',
         'confidence',
         'reasonTags',
+        'codingAgentDelegation',
       ],
       properties: {
         act: { enum: expect.arrayContaining(['ask-help', 'challenge', 'unknown']) },
@@ -60,8 +61,35 @@ describe('runtime mind-state Provider contracts', () => {
         },
         sharedAttentionDemand: { minimum: 0, maximum: 1 },
         reasonTags: { type: 'array', maxItems: 10 },
+        codingAgentDelegation: {
+          additionalProperties: false,
+          type: ['object', 'null'],
+          required: ['intentKind', 'requestedAgent', 'verdict', 'scope', 'confidence'],
+          properties: {
+            intentKind: {
+              enum: ['capability-query', 'execute'],
+            },
+            requestedAgent: {
+              enum: ['auto', 'codex', 'claude-code', 'cli', null],
+            },
+            verdict: {
+              enum: ['respond-directly', 'clarify', 'delegate-coding-agent'],
+            },
+            scope: {
+              enum: ['none', 'investigation', 'edit', 'command'],
+            },
+          },
+        },
       },
     })
+    expect(
+      alicizationDialogueTurnSemanticsResponseFormat
+        .json_schema
+        .schema
+        .properties
+        .codingAgentDelegation
+        .properties,
+    ).not.toHaveProperty('sourceTurnId')
     expect(alicizationDialogueTurnSemanticsResponseFormat.json_schema.schema.properties).not.toHaveProperty('summary')
   })
 

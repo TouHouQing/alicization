@@ -1,5 +1,6 @@
 import type {
   AlicizationChatFailureKind,
+  AlicizationExecutionChannel,
   AlicizationExecutionRuntimeContext,
 } from '@proj-alicization/stage-shared'
 import type { IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
@@ -13,6 +14,7 @@ import type {
   AlicizationChatAbortResult,
   AlicizationChatStartPayload,
   AlicizationChatStartResult,
+  AlicizationChatToolProgressEvent,
   AlicizationClawTaskIntent,
   AlicizationConversationStateSnapshot,
   AlicizationConversationTurnInput,
@@ -22,6 +24,7 @@ import type {
   AlicizationDreamMetabolismPayload,
   AlicizationDreamRunResult,
   AlicizationDurabilityPulseSnapshot,
+  AlicizationExecutionEventInput,
   AlicizationGenesisInput,
   AlicizationMindHeadKey,
   AlicizationPersonalityState,
@@ -103,6 +106,7 @@ import {
   alicizationChatStreamFinish,
   alicizationChatStreamMeta,
   alicizationChatStreamToolCall,
+  alicizationChatStreamToolProgress,
   alicizationChatStreamToolResult,
   alicizationDialogueResponded,
   alicizationKillSwitchStateChanged,
@@ -178,6 +182,10 @@ import { abortAlicizationDirectChatRun, abortAlicizationRunningChatRuns } from '
 import { runAlicizationMainChatBackground } from './main-chat-background-run'
 import { handleAlicizationDirectChatStart } from './main-chat-direct-start'
 import { syncAlicizationMainChatLlmRoute } from './main-chat-llm-route-sync'
+import {
+  armAlicizationMainChatPreparationDeadline,
+  raceAlicizationMainChatPreparation,
+} from './main-chat-preparation-deadline'
 import { createAlicizationMainChatRunStateController } from './main-chat-run-state'
 import {
   createAlicizationMainChatSessionRuntime,
@@ -185,6 +193,7 @@ import {
 import { acceptAlicizationMainChatStart } from './main-chat-start-acceptance'
 import { resolveAlicizationMainChatStartResult } from './main-chat-start-result'
 import { createAbortError } from './main-chat-stream-primitives'
+import { createAlicizationMainGatewayWorkCoordinator } from './main-gateway-work-coordinator'
 import { buildAlicizationMemoryDeliberationKernel } from './memory-deliberation-kernel'
 import {
   emptyAlicizationExecutionLedgerContext,
@@ -330,6 +339,7 @@ import {
   inspectionGroundingImageJpegQuality,
   inspectionGroundingImageMaxHeight,
   inspectionGroundingImageMaxWidth,
+  mainChatPreparationTimeoutMs,
   normalizeCardId,
   normalizeCoreIncarnation,
   normalizeCustomDirectives,
@@ -389,6 +399,7 @@ import {
   setAlicizationKillSwitchState,
 } from './state'
 import { createTaskThreadOrchestrator } from './task-thread-orchestrator'
+import { resolveAlicizationLocalRuntimeUserId } from './turn-os/main-chat-participant'
 import { registerDialogueWorldThreadAssistantTurn } from './turn-outcome-reducer'
 import {
   buildVisualRecallSeed,
@@ -632,6 +643,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     cardId: activeCardId,
     resolveEmbeddingProvider: resolveLongTermMemoryEmbeddingProvider,
   })
+  const localRuntimeUserId = await resolveAlicizationLocalRuntimeUserId({
+    getMetaValue: key => alicizationDb.getMetaValue(key),
+    setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
+  })
   const taskThreadOrchestrator = createTaskThreadOrchestrator()
 
   const { context } = createContext(ipcMain)
@@ -653,6 +668,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   let subconsciousTimer: ReturnType<typeof setInterval> | undefined
   let reminderDueTimer: ReturnType<typeof setTimeout> | undefined
   let dreamTimer: ReturnType<typeof setInterval> | undefined
+  let backgroundMaintenanceStartupTimer: ReturnType<typeof setTimeout> | undefined
+  let backgroundMaintenanceStarted = false
   const turnWriteAbortControllers = new Map<string, AbortController>()
   const activeSessionIdByCard = new Map<string, string>()
   const subconsciousStateByCard = new Map<string, SubconsciousCardState>()
@@ -721,6 +738,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   })
   let sensoryBus!: ReturnType<typeof createAlicizationSensoryBus>
   const chatRuns = new Map<string, ChatRunState>()
+  const mainGatewayWorkCoordinator = createAlicizationMainGatewayWorkCoordinator()
   const chatRunSessionTraceGetters = new Map<string, () => AlicizationRuntimeCallChainSnapshot>()
   const recentlyFinishedChatRuns = new Map<string, number>()
   let redactStaleInspectionHistoryMessagesForChat = (
@@ -743,6 +761,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     metaEvent: alicizationChatStreamMeta,
     chunkEvent: alicizationChatStreamChunk,
     toolCallEvent: alicizationChatStreamToolCall,
+    toolProgressEvent: alicizationChatStreamToolProgress,
     toolResultEvent: alicizationChatStreamToolResult,
     finishEvent: alicizationChatStreamFinish,
     errorEvent: alicizationChatStreamError,
@@ -1391,6 +1410,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       desktopCaptureAccessRuntime.getSnapshot(input),
     ),
     rememberSceneResidue,
+    providerWorkCoordinator: mainGatewayWorkCoordinator,
   })
   const {
     buildScreenSemanticSceneResidue,
@@ -2190,6 +2210,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   const runtimeExecutionDelivery = createAlicizationRuntimeExecutionDelivery({
     getActiveCardId: () => activeCardId,
+    getActiveSessionId: cardId => activeSessionIdByCard.get(cardId) ?? '',
+    getNow: () => Date.now(),
     normalizeCardId,
     normalizeSessionId,
     withCardScope,
@@ -2200,6 +2222,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       getMetaValue: key => alicizationDb.getMetaValue(key),
       setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
       listExecutionEvents: input => alicizationDb.listExecutionEvents(input),
+      listTaskThreads: input => alicizationDb.listTaskThreads(input),
     },
     executionDeliveryRuntime,
     executionDeliveryStateMetaKey: alicizationExecutionDeliveryStateMetaKey,
@@ -2401,6 +2424,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
               context: toolContext,
               task: localInput.task,
               dispatch: nextDispatch,
+              abortSignal: localInput.abortSignal,
+              onExecutionEvent: localInput.onExecutionEvent,
             })
           },
           resumeTaskThread: async (localInput) => {
@@ -2416,6 +2441,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             return await resumeMainGatewayTaskThread({
               context: toolContext,
               threadId: localInput.threadId,
+              abortSignal: localInput.abortSignal,
+              onExecutionEvent: localInput.onExecutionEvent,
             })
           },
         },
@@ -2429,8 +2456,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       turnId: result.thread.turnId,
       taskThread: result.thread,
     })
-    if (alicizationTerminalTaskThreadStatuses.has(result.thread.status))
-      await queueExecutionDeliveryCandidate({ cardId: scopedCardId, thread: result.thread })
+    if (alicizationTerminalTaskThreadStatuses.has(result.thread.status)) {
+      await queueExecutionDeliveryCandidate({
+        cardId: scopedCardId,
+        resultDeliveryMode: invocation.resultDeliveryMode,
+        thread: result.thread,
+      })
+    }
     return result
   }
 
@@ -3463,6 +3495,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       clearInterval(dreamTimer)
       dreamTimer = undefined
     }
+    if (backgroundMaintenanceStartupTimer) {
+      clearTimeout(backgroundMaintenanceStartupTimer)
+      backgroundMaintenanceStartupTimer = undefined
+    }
     let running = false
     let lastScheduleKey = ''
     const makeDayKey = (date: Date) => `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`
@@ -3508,6 +3544,42 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         return
       void runScheduledDream('schedule-03:00', key)
     }, 60_000)
+  }
+
+  function startBackgroundMaintenance() {
+    if (!backgroundMaintenanceEnabled || backgroundMaintenanceStarted)
+      return
+    backgroundMaintenanceStarted = true
+    void alicizationDb.resumePendingMemoryEmbeddingReindexJobs().catch(async (error) => {
+      await appendAuditLog({
+        level: 'warning',
+        category: 'memory',
+        action: 'embedding-reindex-startup-failed',
+        message: 'Pending embedding reindex recovery failed during background startup.',
+        payload: {
+          reason: error instanceof Error ? error.message : String(error),
+        },
+      })
+    })
+    startMemorySalienceRefreshTimer()
+    startSubconsciousTimer()
+    startDreamTimer()
+  }
+
+  function scheduleBackgroundMaintenanceStartup(reason: string) {
+    if (!backgroundMaintenanceEnabled || backgroundMaintenanceStarted || backgroundMaintenanceStartupTimer)
+      return
+    void appendRuntimeDebugLine('background-maintenance.startup-scheduled', {
+      reason,
+      delayMs: 30_000,
+    })
+    backgroundMaintenanceStartupTimer = setTimeout(() => {
+      backgroundMaintenanceStartupTimer = undefined
+      void appendRuntimeDebugLine('background-maintenance.started', {
+        reason: 'after-first-foreground-turn',
+      })
+      startBackgroundMaintenance()
+    }, 30_000)
   }
 
   function createTurnWriteAbortSignal(turnId?: string) {
@@ -5987,15 +6059,22 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
   async function executeMainGatewayTaskThread(input: {
     context: MainGatewayExecutionToolContext
+    dispatchMode?: 'inline' | 'background'
     task: AlicizationClawTaskIntent
     dispatch: Pick<AlicizationDispatchTaskThreadPayload, 'cli' | 'codex' | 'claudeCode' | 'localVisual' | 'openclaw'>
+    abortSignal?: AbortSignal
+    onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
   }) {
     return await executorRuntime.executeMainGatewayTaskThread(input)
   }
 
   async function resumeMainGatewayTaskThread(input: {
     context: MainGatewayExecutionToolContext
+    dispatchMode?: 'inline' | 'background'
+    expectedChannel?: AlicizationExecutionChannel
     threadId: string
+    abortSignal?: AbortSignal
+    onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
   }) {
     return await executorRuntime.resumeMainGatewayTaskThread(input)
   }
@@ -6020,49 +6099,118 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       activeCardId,
       hasInvokeSender: Boolean(invokeOptions?.raw?.ipcMainEvent?.sender),
     })
+    const foregroundWork = mainGatewayWorkCoordinator.openForeground({
+      turnId: normalizedPayload.turnId,
+    })
+    let foregroundReleased = false
+    const releaseForeground = () => {
+      if (foregroundReleased)
+        return
+      foregroundReleased = true
+      foregroundWork.release()
+    }
     const rawInvokeOptions = invokeOptions?.raw && typeof invokeOptions.raw === 'object'
       ? invokeOptions.raw as { ipcMainEvent?: IpcMainEvent, event?: unknown }
       : undefined
-    const accepted = await acceptAlicizationMainChatStart({
-      payload: normalizedPayload,
-      rawInvokeOptions,
-      getExistingRun: key => chatRuns.get(key),
-      registerRun: (key, runState) => chatRuns.set(key, runState),
-      mainChatRunState,
-      settleRecentDialogueReplyFeedbackFromUserTurn,
-      settleRecentExecutionResultFeedbackFromUserTurn,
-      settlePendingExecutionProposalFeedbackFromUserTurn,
-      settlePendingProactiveOutcomesFromUserTurn,
-      resolveMainGatewayConfig,
-      rememberMainGatewayRoute,
-      syncMainGatewayConfigFromChatStart: async ({ mainGateway, providerConfig }) =>
-        // NOTICE: Keep reminder/proactive one-shot generation aligned with the latest confirmed
-        // chat model route, even if renderer-side llm sync races or misses.
-        await syncAlicizationMainChatLlmRoute({
-          mainGateway,
-          providerConfig,
-          normalizeProviderConfig,
-          getProviderCredentials: () => providerCredentials,
-          setProviderCredentials: value => providerCredentials = value,
-          setActiveProviderId: value => activeProviderId = value,
-          setActiveModelId: value => activeModelId = value,
-          persistLlmConfigToDisk,
-          resumePendingEmbeddingReindexJobs: async () => await alicizationDb.resumePendingMemoryEmbeddingReindexJobs(),
-        }),
-      ensureMainGatewayReachable,
-      appendRuntimeDebugLine,
-      normalizeCardId,
-      sanitizeText,
+    // Arm the turn deadline before any feedback, persistence, or maintenance
+    // work can run. The same controller is handed to the accepted run so a
+    // cold-start stall cannot silently consume the whole user-visible turn.
+    const startController = new AbortController()
+    const clearPreparationDeadline = armAlicizationMainChatPreparationDeadline({
+      controller: startController,
+      timeoutMs: mainChatPreparationTimeoutMs,
+      onTimeout: () => {
+        void appendRuntimeDebugLine('chat-start.preparation-timeout-fired', {
+          cardId: normalizedPayload.cardId,
+          turnId: normalizedPayload.turnId,
+          providerId: normalizedPayload.providerId,
+          model: normalizedPayload.model,
+          timeoutMs: mainChatPreparationTimeoutMs,
+          phase: 'acceptance-or-preparation',
+        })
+      },
     })
-    if (!accepted.accepted)
+    let accepted: Awaited<ReturnType<typeof acceptAlicizationMainChatStart>>
+    try {
+      accepted = await raceAlicizationMainChatPreparation({
+        preparationPromise: foregroundWork.run(async () => await acceptAlicizationMainChatStart({
+          payload: normalizedPayload,
+          rawInvokeOptions,
+          controller: startController,
+          getExistingRun: key => chatRuns.get(key),
+          registerRun: (key, runState) => chatRuns.set(key, runState),
+          unregisterRun: key => chatRuns.delete(key),
+          mainChatRunState,
+          settleRecentDialogueReplyFeedbackFromUserTurn,
+          settleRecentExecutionResultFeedbackFromUserTurn,
+          settlePendingExecutionProposalFeedbackFromUserTurn,
+          settlePendingProactiveOutcomesFromUserTurn,
+          resolveMainGatewayConfig,
+          rememberMainGatewayRoute,
+          syncMainGatewayConfigFromChatStart: async ({ mainGateway, providerConfig }) =>
+            // NOTICE: Keep reminder/proactive one-shot generation aligned with the latest confirmed
+            // chat model route, even if renderer-side llm sync races or misses.
+            await syncAlicizationMainChatLlmRoute({
+              mainGateway,
+              providerConfig,
+              normalizeProviderConfig,
+              getProviderCredentials: () => providerCredentials,
+              setProviderCredentials: value => providerCredentials = value,
+              setActiveProviderId: value => activeProviderId = value,
+              setActiveModelId: value => activeModelId = value,
+              persistLlmConfigToDisk,
+            }),
+          ensureMainGatewayReachable,
+          appendRuntimeDebugLine,
+          normalizeCardId,
+          sanitizeText,
+        })),
+        signal: startController.signal,
+      })
+    }
+    catch (error) {
+      clearPreparationDeadline()
+      releaseForeground()
+      throw error
+    }
+    if (!accepted.accepted) {
+      clearPreparationDeadline()
+      releaseForeground()
       return accepted.result
+    }
 
     const { key, mainGateway, runState } = accepted
     const isRunActive = () => chatRuns.get(key)?.state === 'running'
-    const preludePromise = prepareMainChatPrelude(normalizedPayload, mainGateway, invokeOptions)
-    const preparationPromise = prepareMainChatExecution(normalizedPayload, mainGateway, preludePromise)
+    const preludePromise = foregroundWork.run(
+      async () => await prepareMainChatPrelude(normalizedPayload, mainGateway, invokeOptions, {
+        abortSignal: runState.controller.signal,
+      }),
+    )
+    const preparationPromise = raceAlicizationMainChatPreparation({
+      preparationPromise: foregroundWork.run(async () => await prepareMainChatExecution(normalizedPayload, mainGateway, preludePromise, {
+        emitToolProgress: (event: Omit<AlicizationChatToolProgressEvent, 'cardId' | 'turnId'>) => {
+          const state = chatRuns.get(key)
+          for (const listener of state?.toolProgressListeners ?? []) {
+            try {
+              listener(event)
+            }
+            catch {
+              // Tool progress observers are lifecycle sidecars and must not break execution.
+            }
+          }
+          emitChatStreamEventForState(state, 'tool-progress', {
+            cardId: normalizedPayload.cardId,
+            turnId: normalizedPayload.turnId,
+            ...event,
+          })
+        },
+        abortSignal: runState.controller.signal,
+      })),
+      signal: runState.controller.signal,
+    })
+    void preparationPromise.then(clearPreparationDeadline, clearPreparationDeadline)
 
-    void runAlicizationMainChatBackground({
+    void foregroundWork.run(async () => await runAlicizationMainChatBackground({
       key,
       payload: normalizedPayload,
       activeCardId,
@@ -6113,6 +6261,18 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           suppressedCount,
         })
       },
+      turnLoop: {
+        userId: localRuntimeUserId,
+        persistence: {
+          appendRuntimeEvent: async (scope, event) =>
+            await alicizationDb.appendRuntimeEvent(scope, event),
+          saveRuntimeCheckpoint: async checkpoint =>
+            await alicizationDb.saveRuntimeCheckpoint(checkpoint),
+        },
+      },
+    })).finally(() => {
+      releaseForeground()
+      scheduleBackgroundMaintenanceStartup('foreground-turn-finished')
     })
 
     const startResult = await resolveAlicizationMainChatStartResult({
@@ -6386,7 +6546,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   await restoreProactiveLoopState(activeCardId)
   await restoreExecutionDeliveryState(activeCardId)
   await restoreLlmConfigFromDisk()
-  await alicizationDb.resumePendingMemoryEmbeddingReindexJobs()
   const journalMode = await alicizationDb.getJournalMode().catch(() => '')
   if (journalMode !== 'wal') {
     await appendAuditLog({
@@ -6430,7 +6589,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   powerMonitor.on('suspend', handleSystemSuspend)
 
   onAppBeforeQuit(async () => {
-    taskThreadOrchestrator.dispose()
+    await taskThreadOrchestrator.dispose()
     desktopCaptureAccessRuntime.clear()
     executionDeliveryRuntime.clear()
     dialogueSessionManager.clear()
@@ -6457,6 +6616,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       clearInterval(dreamTimer)
       dreamTimer = undefined
     }
+    if (backgroundMaintenanceStartupTimer) {
+      clearTimeout(backgroundMaintenanceStartupTimer)
+      backgroundMaintenanceStartupTimer = undefined
+    }
     clearReminderDueTimer()
     clearQueuedSubconsciousWake()
     await alicizationDb.close().catch((error) => {
@@ -6472,7 +6635,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   await bootstrap()
   if (!isAlicizationKillSwitchSuspended() && getAlicizationCardKillSwitchSnapshot(activeCardId).state !== 'SUSPENDED')
     sensoryBus.start()
-  await alicizationDb.runMemoryPrune().catch(async (error) => {
+  void alicizationDb.runMemoryPrune().catch(async (error) => {
     await appendAuditLog({
       level: 'warning',
       category: 'memory',
@@ -6483,11 +6646,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       },
     })
   })
-  await scheduleNextReminderDueCheck('startup')
+  void scheduleNextReminderDueCheck('startup').catch(() => {})
   if (backgroundMaintenanceEnabled) {
-    startMemorySalienceRefreshTimer()
-    startSubconsciousTimer()
-    startDreamTimer()
+    // Background maintenance is scheduled only after the first foreground
+    // dialogue turn finishes. It is not a prerequisite for opening chat.
   }
   emitKillSwitchChanged()
 

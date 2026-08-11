@@ -40,6 +40,7 @@ interface CreateAlicizationChatPerceptionAugmentRuntimeOptions {
       userText: string
       messages: Message[]
       senderWebContentsId?: number | null
+      abortSignal?: AbortSignal
     }) => Promise<any>
   }
   ensureProactiveLoopState: (cardIdRaw: unknown) => Promise<AlicizationProactiveLoopState>
@@ -83,15 +84,18 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
 
   async function augmentMainChatMessagesWithPerception(input: {
     cardId: string
+    turnId: string
     userText: string
     messages: Message[]
     senderWebContentsId?: number | null
+    abortSignal?: AbortSignal
   }) {
     const preparedPerception = await sensoryRuntime.prepareInteractivePerceptionPrelude({
       cardId: input.cardId,
       userText: input.userText,
       messages: input.messages,
       senderWebContentsId: input.senderWebContentsId,
+      abortSignal: input.abortSignal,
     })
     const now = preparedPerception.now
     const perceptionState = preparedPerception.perceptionState
@@ -179,6 +183,7 @@ export function createAlicizationChatPerceptionAugmentRuntime(options: CreateAli
     })
     const chatMindState = await buildDigitalLifeMindState({
       cardId: input.cardId,
+      turnId: input.turnId,
       now,
       context: chatLayeredContext,
       userText: input.userText,

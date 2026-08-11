@@ -54,6 +54,7 @@ function createVisibleBrowserContinuationRuntimeSurface() {
 function createRuntime(overrides?: {
   callbacks?: Array<Record<string, unknown>>
   runtimeSurface?: Record<string, unknown> | null
+  onPrepare?: (input: Record<string, unknown>) => void
 }) {
   return createAlicizationMainChatPreludeRuntime({
     readLatestUserMessageText: messages => String(messages.at(-1)?.content ?? ''),
@@ -96,10 +97,13 @@ function createRuntime(overrides?: {
         mindTurnGovernance: null,
       },
     })),
-    prepareMainChatSessionExecution: vi.fn(async input => ({
-      payload: input.payload,
-      prelude: input.prelude,
-    })) as any,
+    prepareMainChatSessionExecution: vi.fn(async (input) => {
+      overrides?.onPrepare?.(input as Record<string, unknown>)
+      return {
+        payload: input.payload,
+        prelude: input.prelude,
+      }
+    }) as any,
   })
 }
 
@@ -111,6 +115,110 @@ const mainGateway = {
 } as any
 
 describe('runtime main chat prelude', () => {
+  it('passes the current turn id into perception augmentation', async () => {
+    const augmentMainChatMessagesWithPerception = vi.fn(async input => ({
+      messages: input.messages,
+      systemBlocks: [],
+      promptSystemBlocks: [],
+      digitalLifeRuntimeSurface: null,
+      memoryRecallSeed: '',
+      recallGovernor: null,
+      capture: {
+        inspectionRequested: false,
+        groundedThisTurn: false,
+        snapshot: null,
+        fallbackReason: null,
+      },
+      chatGovernance: {
+        turnMode: 'answer' as const,
+        personaKernelMode: 'full' as const,
+        mindTurnGovernance: null,
+      },
+    }))
+    const runtime = createAlicizationMainChatPreludeRuntime({
+      readLatestUserMessageText: messages => String(messages.at(-1)?.content ?? ''),
+      senderWebContentsIdFromInvokeOptions: () => null,
+      resolveChatMessages: payload => payload.messages as any,
+      buildMainChatContextualString: vi.fn(async () => ''),
+      buildMainChatExecutionCallbackContext: vi.fn(async () => ({
+        actions: [],
+        callbacks: [],
+        continuitySignals: [],
+        recallText: '',
+        systemBlock: '',
+      })),
+      buildMainChatExecutionLedgerContext: vi.fn(async () => ({
+        systemBlock: '',
+        entries: [],
+        recallText: '',
+      })) as any,
+      augmentMainChatMessagesWithPerception,
+      prepareMainChatSessionExecution: vi.fn(),
+    })
+
+    await runtime.prepareMainChatPrelude({
+      cardId: 'card-turn-bound-perception',
+      turnId: 'turn-bound-perception',
+      providerId: 'openai',
+      model: 'gpt-test',
+      providerConfig: {},
+      messages: [{ role: 'user', content: '用 Codex 总结一下当前项目' }],
+    } as any, mainGateway)
+
+    expect(augmentMainChatMessagesWithPerception).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'card-turn-bound-perception',
+      turnId: 'turn-bound-perception',
+    }))
+  })
+
+  it('stops waiting for perception preparation when the chat turn is aborted', async () => {
+    const controller = new AbortController()
+    const augmentMainChatMessagesWithPerception = vi.fn(async () => await new Promise(() => {}))
+    const runtime = createAlicizationMainChatPreludeRuntime({
+      readLatestUserMessageText: messages => String(messages.at(-1)?.content ?? ''),
+      senderWebContentsIdFromInvokeOptions: () => null,
+      resolveChatMessages: payload => payload.messages as any,
+      buildMainChatContextualString: vi.fn(async () => ''),
+      buildMainChatExecutionCallbackContext: vi.fn(async () => ({
+        actions: [],
+        callbacks: [],
+        continuitySignals: [],
+        recallText: '',
+        systemBlock: '',
+      })),
+      buildMainChatExecutionLedgerContext: vi.fn(async () => ({
+        systemBlock: '',
+        entries: [],
+        recallText: '',
+      })) as any,
+      augmentMainChatMessagesWithPerception,
+      prepareMainChatSessionExecution: vi.fn(),
+    })
+
+    const preludePromise = runtime.prepareMainChatPrelude({
+      cardId: 'card-prelude-abort',
+      turnId: 'turn-prelude-abort',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [{ role: 'user', content: '看看当前屏幕' }],
+    } as any, mainGateway, undefined, {
+      abortSignal: controller.signal,
+    })
+    await vi.waitFor(() => {
+      expect(augmentMainChatMessagesWithPerception).toHaveBeenCalledOnce()
+    })
+
+    controller.abort(new DOMException('user cancelled', 'AbortError'))
+
+    await expect(Promise.race([
+      preludePromise,
+      new Promise(resolve => setTimeout(() => resolve('still-pending'), 50)),
+    ])).rejects.toMatchObject({
+      name: 'AbortError',
+    })
+  })
+
   it('passes ordinary dialogue to session preparation unchanged', async () => {
     const runtime = createRuntime()
     const userMessage = { role: 'user', content: '你好，接着聊刚才的事。' }
@@ -125,6 +233,28 @@ describe('runtime main chat prelude', () => {
     } as any, mainGateway)
 
     expect((execution as any).prelude.messages).toEqual([userMessage])
+  })
+
+  it('passes the ingress-owned conversation identity into session preparation', async () => {
+    let receivedConversationSessionId: string | null | undefined
+    const runtime = createRuntime({
+      onPrepare: (input) => {
+        receivedConversationSessionId = input.conversationSessionId as string | null | undefined
+      },
+    })
+
+    await runtime.prepareMainChatExecution({
+      cardId: 'card-prelude-runtime-session',
+      turnId: 'turn-prelude-runtime-session',
+      providerId: 'openai',
+      model: 'gpt-5',
+      providerConfig: {},
+      messages: [{ role: 'user', content: '继续刚才的话题。' }],
+    } as any, mainGateway, undefined, {
+      conversationSessionId: 'conversation-runtime-owned',
+    })
+
+    expect(receivedConversationSessionId).toBe('conversation-runtime-owned')
   })
 
   it('keeps natural Codex capability questions on the answer-only dialogue path', async () => {

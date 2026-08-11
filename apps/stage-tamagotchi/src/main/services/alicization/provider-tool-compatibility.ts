@@ -6,6 +6,8 @@ const officialStrictToolSchemaProviderIds = new Set([
 
 const portableSchemaOmittedKeys = new Set([
   '$schema',
+  'default',
+  'examples',
   'format',
   'propertyNames',
 ])

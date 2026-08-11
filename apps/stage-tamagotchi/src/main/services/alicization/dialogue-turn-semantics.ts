@@ -1,4 +1,9 @@
 import type {
+  AlicizationCodingAgentDelegationIntentKind,
+  AlicizationCodingAgentDelegationRequestedAgent,
+  AlicizationCodingAgentDelegationScope,
+  AlicizationCodingAgentDelegationSnapshot,
+  AlicizationCodingAgentDelegationVerdict,
   AlicizationDialogueAnswerSubject,
   AlicizationPrivateThoughtSnapshot,
   AlicizationRelationshipModelSnapshot,
@@ -84,6 +89,7 @@ export interface AlicizationDialogueTurnSemantics {
   confidence: number
   summary: string
   source: 'heuristic' | 'structured-cognition' | 'hybrid'
+  codingAgentDelegation?: AlicizationCodingAgentDelegationSnapshot | null
   reasonTags: string[]
 }
 
@@ -357,6 +363,14 @@ export interface AlicizationDialogueTurnSemanticsCandidate {
   personaSuppression?: number
   confidence?: number
   reasonTags?: string[]
+  codingAgentDelegation?: {
+    intentKind?: AlicizationCodingAgentDelegationIntentKind
+    requestedAgent?: AlicizationCodingAgentDelegationRequestedAgent
+    verdict?: AlicizationCodingAgentDelegationVerdict
+    scope?: AlicizationCodingAgentDelegationScope
+    confidence?: number
+    sourceTurnId?: string
+  }
 }
 
 function normalizeAct(raw: unknown): AlicizationDialogueAct | undefined {
@@ -414,6 +428,37 @@ function normalizeSubjectPreference(raw: unknown): AlicizationDialogueAnswerSubj
       : undefined
 }
 
+function normalizeCodingAgentDelegationVerdict(raw: unknown): AlicizationCodingAgentDelegationVerdict | undefined {
+  return raw === 'respond-directly'
+    || raw === 'clarify'
+    || raw === 'delegate-coding-agent'
+    ? raw
+    : undefined
+}
+
+function normalizeCodingAgentDelegationIntentKind(raw: unknown): AlicizationCodingAgentDelegationIntentKind | undefined {
+  return raw === 'capability-query' || raw === 'execute' ? raw : undefined
+}
+
+function normalizeCodingAgentDelegationRequestedAgent(raw: unknown): AlicizationCodingAgentDelegationRequestedAgent | undefined {
+  return raw === 'auto'
+    || raw === 'codex'
+    || raw === 'claude-code'
+    || raw === 'cli'
+    || raw === null
+    ? raw
+    : undefined
+}
+
+function normalizeCodingAgentDelegationScope(raw: unknown): AlicizationCodingAgentDelegationScope | undefined {
+  return raw === 'none'
+    || raw === 'investigation'
+    || raw === 'edit'
+    || raw === 'command'
+    ? raw
+    : undefined
+}
+
 export function parseDialogueTurnSemanticsCandidate(raw: string): AlicizationDialogueTurnSemanticsCandidate | null {
   const text = raw.trim()
   if (!text.startsWith('{') || !text.endsWith('}'))
@@ -444,6 +489,19 @@ export function parseDialogueTurnSemanticsCandidate(raw: string): AlicizationDia
       ? clamp01(Number(parsed.confidence))
       : undefined,
     reasonTags: Array.isArray(parsed.reasonTags) ? uniqueLabels(parsed.reasonTags) : undefined,
+    codingAgentDelegation: parsed.codingAgentDelegation && typeof parsed.codingAgentDelegation === 'object'
+      && !Array.isArray(parsed.codingAgentDelegation)
+      ? {
+          intentKind: normalizeCodingAgentDelegationIntentKind((parsed.codingAgentDelegation as Record<string, unknown>).intentKind),
+          requestedAgent: normalizeCodingAgentDelegationRequestedAgent((parsed.codingAgentDelegation as Record<string, unknown>).requestedAgent),
+          verdict: normalizeCodingAgentDelegationVerdict((parsed.codingAgentDelegation as Record<string, unknown>).verdict),
+          scope: normalizeCodingAgentDelegationScope((parsed.codingAgentDelegation as Record<string, unknown>).scope),
+          confidence: Number.isFinite(Number((parsed.codingAgentDelegation as Record<string, unknown>).confidence))
+            ? clamp01(Number((parsed.codingAgentDelegation as Record<string, unknown>).confidence))
+            : undefined,
+          sourceTurnId: sanitizeText((parsed.codingAgentDelegation as Record<string, unknown>).sourceTurnId, 160) || undefined,
+        }
+      : undefined,
   }
 
   const hasSignal = Boolean(
@@ -453,6 +511,8 @@ export function parseDialogueTurnSemanticsCandidate(raw: string): AlicizationDia
     || candidate.affectiveTone
     || candidate.subjectPreference
     || candidate.taskAnchor
+    || candidate.codingAgentDelegation?.verdict
+    || candidate.codingAgentDelegation?.scope
     || (candidate.reasonTags && candidate.reasonTags.length > 0),
   )
 
@@ -462,9 +522,16 @@ export function parseDialogueTurnSemanticsCandidate(raw: string): AlicizationDia
 export function mergeDialogueTurnSemantics(
   base: AlicizationDialogueTurnSemantics,
   candidate: AlicizationDialogueTurnSemanticsCandidate | null | undefined,
+  options?: {
+    sourceTurnId?: string
+  },
 ): AlicizationDialogueTurnSemantics {
-  if (!candidate)
-    return base
+  if (!candidate) {
+    return {
+      ...base,
+      codingAgentDelegation: null,
+    }
+  }
 
   const overrideConfidence = candidate.confidence ?? base.confidence
   const weight = clamp01(0.34 + overrideConfidence * 0.4)
@@ -477,6 +544,15 @@ export function mergeDialogueTurnSemantics(
   const candidateSubjectPreference = candidate.subjectPreference !== undefined
     ? candidate.subjectPreference
     : base.subjectPreference ?? null
+  const expectedSourceTurnId = sanitizeText(options?.sourceTurnId, 160)
+  const codingAgentDelegation = candidate.codingAgentDelegation
+    && expectedSourceTurnId
+    && (
+      !candidate.codingAgentDelegation.sourceTurnId
+      || candidate.codingAgentDelegation.sourceTurnId === expectedSourceTurnId
+    )
+    ? candidate.codingAgentDelegation
+    : null
 
   return {
     act: preserveInspectionBase ? base.act : candidate.act ?? base.act,
@@ -510,5 +586,16 @@ export function mergeDialogueTurnSemantics(
       preserveInspectionBase ? 'preserve-inspection-base' : '',
       'structured-dialogue-cognition',
     ]),
+    codingAgentDelegation: codingAgentDelegation
+      ? {
+          intentKind: codingAgentDelegation.intentKind ?? 'capability-query',
+          requestedAgent: codingAgentDelegation.requestedAgent ?? null,
+          verdict: codingAgentDelegation.verdict ?? 'respond-directly',
+          scope: codingAgentDelegation.scope ?? 'none',
+          confidence: codingAgentDelegation.confidence ?? overrideConfidence,
+          sourceTurnId: expectedSourceTurnId,
+          source: 'structured-cognition',
+        }
+      : null,
   }
 }

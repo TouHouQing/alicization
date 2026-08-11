@@ -3,8 +3,10 @@ import type {
   AlicizationClawTaskIntent,
   AlicizationExecutionCapabilityChannel,
   AlicizationExecutionChannel,
+  AlicizationExecutionEventInput,
   AlicizationExecutionRuntimeContext,
   AlicizationProviderToolCapabilityObservation,
+  AlicizationTaskThreadStatus,
 } from '@proj-alicization/stage-shared'
 import type { Tool } from '@xsai/shared-chat'
 
@@ -12,6 +14,7 @@ import type {
   AlicizationDispatchTaskThreadPayload,
   AlicizationSensoryCacheSnapshot,
 } from '../../../shared/eventa'
+import type { AlicizationCodingAgentDelegationAuthority } from './coding-agent-task-contract'
 import type {
   AlicizationLocalBrowserClickElementInput,
   AlicizationLocalBrowserNavigateInput,
@@ -29,6 +32,7 @@ import type {
   AlicizationLocalDesktopWaitInput,
 } from './local-browser-automation'
 import type { AlicizationLocalDesktopInspectSceneInput } from './local-desktop-inspection'
+import type { AlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 
 import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
@@ -37,25 +41,41 @@ import * as nodePath from 'node:path'
 
 import {
   buildAlicizationProviderFactBlock,
+  extractAlicizationToolExecutionFailure,
+  isAlicizationToolExecutionFailureResult,
   normalizeAlicizationProviderToolCapabilityLastError,
 } from '@proj-alicization/stage-shared'
 import { tool } from '@xsai/tool'
 import { z } from 'zod'
 
+import {
+  normalizeAlicizationCodingAgentTask,
+  validateAlicizationCodingAgentInvocation,
+} from './coding-agent-task-contract'
+import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 import { sanitizeBriefText } from './runtime-realtime'
 import { sanitizeText } from './runtime-soul'
 
 export interface MainGatewayExecutionToolContext {
+  abortSignal?: AbortSignal
   cardId: string
   decisionTraceId?: string | null
+  /**
+   * The original Provider/tool-call cancellation boundary. `abortSignal`
+   * may be replaced by an executor-owned deadline signal.
+   */
+  upstreamAbortSignal?: AbortSignal
   sessionId?: string | null
+  toolCallId?: string | null
   turnId: string
 }
 
 export interface MainGatewayExecutionTaskThreadResult {
+  accepted?: boolean
   createdEventKinds?: string[]
   errorCode?: string
   errorMessage?: string
+  finalStatus?: AlicizationTaskThreadStatus | null
   ok: boolean
   output?: unknown | null
   plan: {
@@ -78,7 +98,30 @@ export interface MainGatewayExecutionTaskThreadResult {
   }
 }
 
+export interface MainGatewayToolExecutionProgress {
+  toolCallId: string
+  toolName: string
+  signal: 'liveness' | 'semantic-progress' | 'terminal'
+  phase: 'started' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout'
+  elapsedMs: number
+  timeoutMs?: number
+  errorCode?: string
+  errorMessage?: string
+  occurredAt: number
+  eventId?: string
+  threadId?: string
+  adapterEventType?: string
+  itemType?: string
+  summary?: string
+  command?: string
+  commandStatus?: string
+  commandExitCode?: number
+  outputPreview?: string
+}
+
 export interface BuildMainGatewayToolsOptions {
+  toolSurface?: 'complete' | 'main-chat'
+  codingAgentDelegation?: AlicizationCodingAgentDelegationAuthority | null
   browserClickElement?: (input: AlicizationLocalBrowserClickElementInput) => Promise<unknown>
   browserNavigate?: (input: AlicizationLocalBrowserNavigateInput) => Promise<unknown>
   browserOpenUrl?: (input: AlicizationLocalBrowserOpenUrlInput) => Promise<unknown>
@@ -96,14 +139,24 @@ export interface BuildMainGatewayToolsOptions {
   desktopPressKeys?: (input: AlicizationLocalDesktopPressKeysInput) => Promise<unknown>
   desktopTypeText?: (input: AlicizationLocalDesktopTypeTextInput) => Promise<unknown>
   desktopWait?: (input: AlicizationLocalDesktopWaitInput) => Promise<unknown>
+  abortSignal?: AbortSignal
   executeTaskThread: (input: {
     context: MainGatewayExecutionToolContext
+    dispatchMode?: 'inline' | 'background'
     dispatch: Pick<AlicizationDispatchTaskThreadPayload, 'claudeCode' | 'cli' | 'codex' | 'localVisual' | 'openclaw'>
     task: AlicizationClawTaskIntent
+    abortSignal?: AbortSignal
+    onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
   }) => Promise<MainGatewayExecutionTaskThreadResult>
+  emitToolExecutionProgress?: (input: MainGatewayToolExecutionProgress) => void
+  toolCallIdentity?: AlicizationMainChatToolCallIdentityRegistry
   resumeTaskThread?: (input: {
     context: MainGatewayExecutionToolContext
+    dispatchMode?: 'inline' | 'background'
+    expectedChannel?: AlicizationExecutionChannel
     threadId: string
+    abortSignal?: AbortSignal
+    onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
   }) => Promise<MainGatewayExecutionTaskThreadResult>
   executionCapabilityChannels: readonly AlicizationExecutionCapabilityChannel[]
   invokeMcpCallTool: (payload: {
@@ -125,6 +178,7 @@ export interface BuildMainGatewayToolsOptions {
 }
 
 export const mainGatewayExecutorToolNames = [
+  'executor_run_coding_agent',
   'executor_run_cli',
   'executor_run_codex',
   'executor_run_claude_code',
@@ -335,7 +389,7 @@ function isRecoverableMcpCandidateError(result: NormalizedMcpToolCallResult) {
   }
 
   const message = normalizeMcpErrorMessage(result)
-  return /\b(?:tool|method)\b[\s\S]{0,80}\bnot\s+found\b/i.test(message)
+  return /\b(?:tool|method)\b[\s\S]{1,80}\bnot\s+found\b/i.test(message)
     || /\binvalid\s+(?:params?|arguments?)\b/i.test(message)
     || /\bmissing\s+required\b/i.test(message)
     || /\binput\s+validation\s+error\b/i.test(message)
@@ -619,6 +673,155 @@ function normalizeExecutorTimeoutMs(raw: number | undefined) {
   return raw
 }
 
+const executorPlanningGraceMs = 30_000
+const executorOuterBudgetDefaultsMs: Record<MainGatewayExecutorToolName, number> = {
+  executor_run_coding_agent: 65 * 60_000,
+  executor_run_cli: 150_000,
+  executor_run_codex: 65 * 60_000,
+  executor_run_claude_code: 65 * 60_000,
+  executor_run_local_visual: 120_000,
+  executor_run_openclaw: 120_000,
+}
+
+function readToolInputTimeoutMs(input: unknown) {
+  if (!input || typeof input !== 'object' || Array.isArray(input))
+    return null
+  const raw = (input as Record<string, unknown>).timeoutMs
+  if (typeof raw !== 'number' || !Number.isFinite(raw))
+    return null
+  return Math.max(1_000, Math.floor(raw))
+}
+
+function buildExecutorOuterBudgetMs(input: {
+  toolName: MainGatewayExecutorToolName
+  toolInput: unknown
+}) {
+  const requestedTimeoutMs = readToolInputTimeoutMs(input.toolInput)
+  if (requestedTimeoutMs === null)
+    return executorOuterBudgetDefaultsMs[input.toolName]
+  return Math.min(
+    4 * 60 * 60_000,
+    requestedTimeoutMs + executorPlanningGraceMs,
+  )
+}
+
+function createExecutorToolTimeoutError(input: {
+  toolName: MainGatewayExecutorToolName
+  timeoutMs: number
+}) {
+  return Object.assign(
+    new Error(`${input.toolName} exceeded its ${input.timeoutMs}ms execution budget.`),
+    {
+      name: 'AlicizationToolExecutionTimeoutError',
+      failureKind: 'tool-execution',
+      toolName: input.toolName,
+      errorCode: 'TOOL_EXECUTION_TIMEOUT',
+      errorMessage: `${input.toolName} exceeded its ${input.timeoutMs}ms execution budget.`,
+    },
+  )
+}
+
+function normalizeExecutorToolAbortReason(
+  toolName: MainGatewayExecutorToolName,
+  reason: unknown,
+) {
+  if (reason instanceof Error && reason.name !== 'AbortError')
+    return reason
+
+  const message = reason instanceof Error
+    ? reason.message
+    : typeof reason === 'string'
+      ? reason
+      : 'Executor tool call was aborted.'
+  return Object.assign(
+    new Error(message || 'Executor tool call was aborted.'),
+    {
+      name: 'AbortError',
+      failureKind: 'tool-execution',
+      toolName,
+      errorCode: 'TOOL_EXECUTION_CANCELLED',
+      errorMessage: message || 'Executor tool call was aborted.',
+    },
+  )
+}
+
+function createExecutorToolBudget(input: {
+  parentSignal?: AbortSignal
+  timeoutMs: number
+  toolName: MainGatewayExecutorToolName
+}) {
+  const controller = new AbortController()
+  let timedOut = false
+  let settled = false
+  let timeoutTimer: ReturnType<typeof setTimeout> | undefined
+  let abortHandler = () => {}
+  let abortReason: Error | null = null
+  let rejectAbort: ((reason?: unknown) => void) | null = null
+  let running = false
+
+  const cleanup = () => {
+    if (timeoutTimer)
+      clearTimeout(timeoutTimer)
+    input.parentSignal?.removeEventListener('abort', abortHandler)
+  }
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutTimer = setTimeout(() => {
+      if (settled)
+        return
+      timedOut = true
+      const error = createExecutorToolTimeoutError(input)
+      if (!controller.signal.aborted)
+        controller.abort(error)
+      reject(error)
+    }, input.timeoutMs)
+    timeoutTimer.unref?.()
+  })
+  const abortPromise = new Promise<never>((_, reject) => {
+    rejectAbort = reject
+  })
+
+  abortHandler = () => {
+    if (settled)
+      return
+    const reason = normalizeExecutorToolAbortReason(
+      input.toolName,
+      input.parentSignal?.reason,
+    )
+    abortReason = reason
+    if (!controller.signal.aborted)
+      controller.abort(reason)
+    if (running)
+      rejectAbort?.(reason)
+  }
+  if (input.parentSignal?.aborted)
+    abortHandler()
+  else
+    input.parentSignal?.addEventListener('abort', abortHandler, { once: true })
+
+  return {
+    signal: controller.signal,
+    hasTimedOut: () => timedOut,
+    run: async <T>(operation: () => Promise<T>) => {
+      running = true
+      if (abortReason)
+        rejectAbort?.(abortReason)
+      try {
+        return await Promise.race([
+          operation(),
+          timeoutPromise,
+          abortPromise,
+        ])
+      }
+      finally {
+        settled = true
+        running = false
+        cleanup()
+      }
+    },
+  }
+}
+
 function asRecord(raw: unknown): Record<string, unknown> | null {
   return raw && typeof raw === 'object' && !Array.isArray(raw)
     ? raw as Record<string, unknown>
@@ -662,8 +865,22 @@ function toSensoryCaptureStateResult(snapshot: AlicizationSensoryCacheSnapshot, 
 }
 
 function toMainGatewayExecutorToolResult(result: MainGatewayExecutionTaskThreadResult): MainGatewayToolResultObject {
-  return {
-    status: result.ok ? 'completed' : result.stage === 'plan' ? 'not-routed' : 'failed',
+  const nonTerminalRoutingFeedback = result.stage === 'plan'
+    && (
+      result.errorCode === 'CODING_AGENT_CHANNEL_MISMATCH'
+      || result.errorCode === 'CODING_AGENT_DELEGATION_REQUIRED'
+      || result.errorCode === 'CODING_AGENT_INVALID_INPUT'
+    )
+  const toolResult: MainGatewayToolResultObject = {
+    status: result.accepted === true
+      ? 'accepted'
+      : result.finalStatus === 'cancelled'
+        ? 'cancelled'
+        : result.ok
+          ? 'completed'
+          : result.stage === 'plan'
+            ? 'not-routed'
+            : 'failed',
     stage: result.stage,
     threadId: result.thread.id,
     threadStatus: sanitizeText(result.thread.status) || 'unknown',
@@ -677,17 +894,109 @@ function toMainGatewayExecutorToolResult(result: MainGatewayExecutionTaskThreadR
     routeReasonTags: asStringArray(result.plan.reasonTags),
     routeAffirmationReasonCodes: asStringArray(result.plan.affirmationReasonCodes),
     routeBlockedReasonCodes: asStringArray(result.plan.blockedReasonCodes),
+    ...(result.finalStatus ? { finalStatus: result.finalStatus } : {}),
     summary: result.summary,
     output: result.output ?? null,
     errorCode: result.errorCode,
     errorMessage: result.errorMessage,
     createdEventKinds: result.createdEventKinds ?? [],
+    continuationPolicy: nonTerminalRoutingFeedback || (result.ok && result.finalStatus !== 'cancelled')
+      ? 'continue'
+      : 'stop',
   }
+
+  if (
+    toolResult.status === 'failed'
+    && isAlicizationToolExecutionFailureResult(toolResult)
+  ) {
+    toolResult.failureKind = 'tool-execution'
+  }
+
+  return toolResult
+}
+
+function buildCodingAgentRoutingFeedback(input: {
+  errorCode: 'CODING_AGENT_CHANNEL_MISMATCH' | 'CODING_AGENT_DELEGATION_REQUIRED' | 'CODING_AGENT_INVALID_INPUT'
+  errorMessage: string
+  allowedAgents?: string[]
+  toolInput?: unknown
+}): MainGatewayExecutionTaskThreadResult {
+  const allowedAgents = input.allowedAgents?.filter(Boolean) ?? []
+  return {
+    ok: false,
+    accepted: false,
+    stage: 'plan',
+    thread: {
+      id: `coding-agent-routing:${Date.now()}`,
+      selectedChannel: null,
+      status: 'not-routed',
+    },
+    plan: {
+      state: 'not-routed',
+      reasonTags: ['coding-agent-routing-feedback'],
+      blockedReasonCodes: [input.errorCode],
+    },
+    summary: 'Coding Agent channel selection was rejected before dispatch.',
+    output: {
+      kind: 'coding-agent-routing-feedback',
+      requestedInput: input.toolInput ?? null,
+      allowedAgents,
+      retryWithAuthorizedAgent: allowedAgents.length === 1,
+    },
+    errorCode: input.errorCode,
+    errorMessage: input.errorMessage,
+    createdEventKinds: [],
+  }
+}
+
+function toMainGatewayToolExecutionFailure(input: {
+  error: unknown
+  toolName: string
+}): MainGatewayToolResultObject {
+  const cancelled = input.error instanceof Error && input.error.name === 'AbortError'
+  const failure = extractAlicizationToolExecutionFailure(input.error, input.toolName) ?? {
+    code: 'TOOL_EXECUTION_FAILED',
+    message: 'Tool execution failed.',
+    toolName: input.toolName,
+  }
+
+  return {
+    status: 'failed',
+    stage: 'tool',
+    failureKind: 'tool-execution',
+    toolName: failure.toolName,
+    errorCode: failure.code,
+    errorMessage: failure.message,
+    summary: `${failure.toolName} failed: ${failure.message}`,
+    output: null,
+    continuationPolicy: 'stop',
+    ...(cancelled ? { cancelled: true } : {}),
+  }
+}
+
+function resolveMainGatewayToolProgressPhase(
+  result: MainGatewayToolResultObject,
+): MainGatewayToolExecutionProgress['phase'] {
+  const status = sanitizeText(result.status).toLowerCase()
+  const finalStatus = sanitizeText(result.finalStatus).toLowerCase()
+  const errorCode = sanitizeText(result.errorCode).toLowerCase()
+
+  if (status === 'cancelled' || finalStatus === 'cancelled' || result.cancelled === true)
+    return 'cancelled'
+  if (status === 'timeout' || finalStatus === 'timeout' || /(?:^|_)timeout$/u.test(errorCode))
+    return 'timeout'
+  if (status === 'completed' || status === 'accepted')
+    return 'completed'
+  return 'failed'
 }
 
 function defineMainGatewayExecutorToolSpec<TSchema extends z.ZodTypeAny>(spec: {
   description: string
-  execute: (input: z.infer<TSchema>, context: MainGatewayExecutionToolContext) => Promise<MainGatewayExecutionTaskThreadResult>
+  execute: (
+    input: z.infer<TSchema>,
+    context: MainGatewayExecutionToolContext,
+    onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void,
+  ) => Promise<MainGatewayExecutionTaskThreadResult>
   name: MainGatewayExecutorToolName
   parameters: TSchema
 }) {
@@ -744,6 +1053,24 @@ export function buildExecutionCapabilitySystemBlocks(
 
 export async function buildMainGatewayTools(options: BuildMainGatewayToolsOptions) {
   const { context } = options
+  const toolCallIdentity = options.toolCallIdentity
+    ?? createAlicizationMainChatToolCallIdentityRegistry()
+  const executeTaskThread = async (input: Parameters<BuildMainGatewayToolsOptions['executeTaskThread']>[0]) => {
+    const abortSignal = input.abortSignal ?? input.context.abortSignal ?? options.abortSignal
+    return await options.executeTaskThread({
+      ...input,
+      ...(abortSignal ? { abortSignal } : {}),
+    })
+  }
+  const resumeTaskThread = async (input: Parameters<NonNullable<BuildMainGatewayToolsOptions['resumeTaskThread']>>[0]) => {
+    if (!options.resumeTaskThread)
+      throw new Error('resumeTaskThread is not configured.')
+    const abortSignal = input.abortSignal ?? input.context.abortSignal ?? options.abortSignal
+    return await options.resumeTaskThread({
+      ...input,
+      ...(abortSignal ? { abortSignal } : {}),
+    })
+  }
   let maybeFollowUpExecutorWorkflow: (input: {
     payload: MainGatewayExecutorFollowUpInput
     result: MainGatewayToolResultObject
@@ -768,16 +1095,22 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         maxAutoContinueSteps: z.coerce.number().int().min(1).max(3).optional(),
         reinspectAfterAction: z.boolean().optional(),
       }).strict(),
-      execute: async ({ threadId, command, args, cwd, timeoutMs, goal, effect, permissionMode }, toolContext) => {
+      execute: async ({ threadId, command, args, cwd, timeoutMs, goal, effect, permissionMode }, toolContext, onExecutionEvent) => {
         const resumedThreadId = sanitizeText(threadId) || ''
-        if (resumedThreadId && options.resumeTaskThread)
-          return await options.resumeTaskThread({ context: toolContext, threadId: resumedThreadId })
+        if (resumedThreadId && options.resumeTaskThread) {
+          return await resumeTaskThread({
+            context: toolContext,
+            expectedChannel: 'cli',
+            threadId: resumedThreadId,
+            onExecutionEvent,
+          })
+        }
         const resolvedCommand = sanitizeText(command)
         if (!resolvedCommand)
           throw new Error('executor_run_cli requires either threadId or command.')
         const commandLabel = [resolvedCommand, ...(Array.isArray(args) ? args : [])].join(' ').trim()
         const runtimeContext = await options.buildExecutionRuntimeContext(toolContext)
-        return await options.executeTaskThread({
+        return await executeTaskThread({
           context: toolContext,
           task: {
             kind: 'run-command',
@@ -800,20 +1133,19 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
               runtimeContext,
             },
           },
+          onExecutionEvent,
         })
       },
     }),
     defineMainGatewayExecutorToolSpec({
       name: 'executor_run_codex',
-      description: 'Plan and execute a Codex task thread through Alicization executor governance for codebase edits or investigation.',
+      description: 'Execute a concrete codebase edit or investigation that the user has delegated for this turn. Do not call this tool merely to answer questions about Codex capabilities.',
       parameters: z.object({
         autoContinueSuggestedActions: z.boolean().optional(),
         threadId: z.string().optional(),
         prompt: z.string().min(1).optional(),
         kind: z.enum(['codebase-edit', 'codebase-investigation']).optional(),
         cwd: z.string().optional(),
-        timeoutMs: z.coerce.number().optional(),
-        model: z.string().optional(),
         profile: z.string().optional(),
         sandbox: z.enum(['read-only', 'workspace-write']).optional(),
         goal: z.string().optional(),
@@ -824,21 +1156,32 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         maxAutoContinueSteps: z.coerce.number().int().min(1).max(3).optional(),
         reinspectAfterAction: z.boolean().optional(),
       }).strict(),
-      execute: async ({ threadId, prompt, kind, cwd, timeoutMs, model, profile, sandbox, goal, effect, permissionMode }, toolContext) => {
+      execute: async ({ threadId, prompt, kind, cwd, profile, sandbox, goal, effect, permissionMode }, toolContext, onExecutionEvent) => {
         const resumedThreadId = sanitizeText(threadId) || ''
-        if (resumedThreadId && options.resumeTaskThread)
-          return await options.resumeTaskThread({ context: toolContext, threadId: resumedThreadId })
+        if (resumedThreadId && options.resumeTaskThread) {
+          return await resumeTaskThread({
+            context: toolContext,
+            dispatchMode: 'background',
+            expectedChannel: 'codex',
+            threadId: resumedThreadId,
+          })
+        }
         const resolvedPrompt = sanitizeText(prompt)
         if (!resolvedPrompt)
           throw new Error('executor_run_codex requires either threadId or prompt.')
+        const normalizedTask = normalizeAlicizationCodingAgentTask({
+          kind,
+          effect,
+          sandbox,
+        })
         const runtimeContext = await options.buildExecutionRuntimeContext(toolContext)
-        return await options.executeTaskThread({
+        return await executeTaskThread({
           context: toolContext,
           task: {
-            kind: kind ?? 'codebase-edit',
+            kind: normalizedTask.kind,
             goal: sanitizeText(goal) || `Run Codex task: ${sanitizeBriefText(resolvedPrompt, 220)}`,
             origin: 'user',
-            effect: effect ?? 'mutate',
+            effect: normalizedTask.effect,
             permissionMode: permissionMode ?? 'implicit',
             justification: 'grounded',
             riskBudget: 'medium',
@@ -850,13 +1193,12 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
             codex: {
               prompt: resolvedPrompt,
               cwd: sanitizeText(cwd) || undefined,
-              timeoutMs: normalizeExecutorTimeoutMs(timeoutMs),
-              model: sanitizeText(model) || undefined,
               profile: sanitizeText(profile) || undefined,
-              sandbox,
+              sandbox: normalizedTask.sandbox,
               runtimeContext,
             },
           },
+          onExecutionEvent,
         })
       },
     }),
@@ -881,26 +1223,33 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         maxAutoContinueSteps: z.coerce.number().int().min(1).max(3).optional(),
         reinspectAfterAction: z.boolean().optional(),
       }).strict(),
-      execute: async ({ threadId, prompt, kind, cwd, timeoutMs, model, allowTools, claudePermissionMode, goal, effect, permissionMode }, toolContext) => {
+      execute: async ({ threadId, prompt, kind, cwd, timeoutMs, model, allowTools, claudePermissionMode, goal, effect, permissionMode }, toolContext, onExecutionEvent) => {
         const resumedThreadId = sanitizeText(threadId) || ''
-        if (resumedThreadId && options.resumeTaskThread)
-          return await options.resumeTaskThread({ context: toolContext, threadId: resumedThreadId })
+        if (resumedThreadId && options.resumeTaskThread) {
+          return await resumeTaskThread({
+            context: toolContext,
+            expectedChannel: 'claude-code',
+            threadId: resumedThreadId,
+            onExecutionEvent,
+          })
+        }
         const resolvedPrompt = sanitizeText(prompt)
         if (!resolvedPrompt)
           throw new Error('executor_run_claude_code requires either threadId or prompt.')
-        const resolvedKind = kind ?? 'codebase-edit'
-        const resolvedEffect = effect ?? (resolvedKind === 'codebase-investigation' ? 'observe' : 'mutate')
-        const resolvedAllowTools = typeof allowTools === 'boolean'
-          ? allowTools
-          : resolvedEffect !== 'observe'
+        const normalizedTask = normalizeAlicizationCodingAgentTask({
+          allowTools,
+          effect,
+          kind,
+          sandbox: 'workspace-write',
+        })
         const runtimeContext = await options.buildExecutionRuntimeContext(toolContext)
-        return await options.executeTaskThread({
+        return await executeTaskThread({
           context: toolContext,
           task: {
-            kind: resolvedKind,
+            kind: normalizedTask.kind,
             goal: sanitizeText(goal) || `Run Claude Code task: ${sanitizeBriefText(resolvedPrompt, 220)}`,
             origin: 'user',
-            effect: resolvedEffect,
+            effect: normalizedTask.effect,
             permissionMode: permissionMode ?? 'implicit',
             justification: 'grounded',
             riskBudget: 'medium',
@@ -914,11 +1263,12 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
               cwd: sanitizeText(cwd) || undefined,
               timeoutMs: normalizeExecutorTimeoutMs(timeoutMs),
               model: sanitizeText(model) || undefined,
-              allowTools: resolvedAllowTools,
+              allowTools: normalizedTask.allowTools,
               permissionMode: claudePermissionMode,
               runtimeContext,
             },
           },
+          onExecutionEvent,
         })
       },
     }),
@@ -957,10 +1307,16 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         riskBudget: z.enum(['low', 'medium', 'high']).optional(),
         requiresVisualGrounding: z.boolean().optional(),
       }).strict(),
-      execute: async ({ threadId, instruction, channel, kind, senderId, roleName, channelId, conversationId, contentParts, images, audios, files, meta, sessionAffinityKey, goal, effect, permissionMode, justification, riskBudget, requiresVisualGrounding }, toolContext) => {
+      execute: async ({ threadId, instruction, channel, kind, senderId, roleName, channelId, conversationId, contentParts, images, audios, files, meta, sessionAffinityKey, goal, effect, permissionMode, justification, riskBudget, requiresVisualGrounding }, toolContext, onExecutionEvent) => {
         const resumedThreadId = sanitizeText(threadId) || ''
-        if (resumedThreadId && options.resumeTaskThread)
-          return await options.resumeTaskThread({ context: toolContext, threadId: resumedThreadId })
+        if (resumedThreadId && options.resumeTaskThread) {
+          return await resumeTaskThread({
+            context: toolContext,
+            expectedChannel: channel,
+            threadId: resumedThreadId,
+            onExecutionEvent,
+          })
+        }
         const resolvedInstruction = sanitizeText(instruction)
         if (!resolvedInstruction)
           throw new Error('executor_run_local_visual requires either threadId or instruction.')
@@ -987,7 +1343,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           normalizedMeta.audios = audios
         if (Array.isArray(files) && files.length > 0)
           normalizedMeta.files = files
-        return await options.executeTaskThread({
+        return await executeTaskThread({
           context: toolContext,
           task: {
             kind: resolvedKind,
@@ -1010,6 +1366,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
               runtimeContext,
             },
           },
+          onExecutionEvent,
         })
       },
     }),
@@ -1019,7 +1376,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       parameters: z.object({
         threadId: z.string().optional(),
         instruction: z.string().min(1).optional(),
-        kind: z.enum(['run-command', 'codebase-edit', 'codebase-investigation', 'browser-automation', 'software-automation', 'desktop-automation', 'agent-delegation', 'mixed', 'unknown']).optional(),
+        kind: z.enum(['browser-automation', 'software-automation', 'desktop-automation', 'agent-delegation', 'mixed', 'unknown']).optional(),
         timeoutMs: z.coerce.number().optional(),
         senderId: z.string().optional(),
         roleName: z.string().optional(),
@@ -1048,10 +1405,16 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         riskBudget: z.enum(['low', 'medium', 'high']).optional(),
         requiresVisualGrounding: z.boolean().optional(),
       }).strict(),
-      execute: async ({ threadId, instruction, kind, timeoutMs, senderId, roleName, channelId, conversationId, contentParts, images, audios, files, meta, sessionAffinityKey, goal, effect, permissionMode, justification, riskBudget, requiresVisualGrounding }, toolContext) => {
+      execute: async ({ threadId, instruction, kind, timeoutMs, senderId, roleName, channelId, conversationId, contentParts, images, audios, files, meta, sessionAffinityKey, goal, effect, permissionMode, justification, riskBudget, requiresVisualGrounding }, toolContext, onExecutionEvent) => {
         const resumedThreadId = sanitizeText(threadId) || ''
-        if (resumedThreadId && options.resumeTaskThread)
-          return await options.resumeTaskThread({ context: toolContext, threadId: resumedThreadId })
+        if (resumedThreadId && options.resumeTaskThread) {
+          return await resumeTaskThread({
+            context: toolContext,
+            expectedChannel: 'openclaw',
+            threadId: resumedThreadId,
+            onExecutionEvent,
+          })
+        }
         const resolvedInstruction = sanitizeText(instruction)
         if (!resolvedInstruction)
           throw new Error('executor_run_openclaw requires either threadId or instruction.')
@@ -1079,7 +1442,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           normalizedMeta.audios = audios
         if (Array.isArray(files) && files.length > 0)
           normalizedMeta.files = files
-        return await options.executeTaskThread({
+        return await executeTaskThread({
           context: toolContext,
           task: {
             kind: resolvedKind,
@@ -1113,23 +1476,321 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
               runtimeContext,
             },
           },
+          onExecutionEvent,
         })
       },
     }),
   ] as const
 
-  const executorRunTools = executorRunToolSpecs.map(spec => tool({
+  let codingAgentClaimed = false
+  const allowedCodingAgents = (
+    options.codingAgentDelegation?.allowedAgents?.length
+      ? options.codingAgentDelegation.allowedAgents
+      : ['cli', 'codex', 'claude-code']
+  ) as ['cli' | 'codex' | 'claude-code', ...('cli' | 'codex' | 'claude-code')[]]
+  const codingAgentNameSchema = allowedCodingAgents.length === 1
+    ? z.literal(allowedCodingAgents[0])
+    : z.enum(allowedCodingAgents)
+  const codingAgentFacadeSpec = defineMainGatewayExecutorToolSpec({
+    name: 'executor_run_coding_agent',
+    description: 'Run one concrete coding-agent task that the user has delegated for this turn. Choose exactly one agent and provide a structured task. Use kind=codebase-investigation for read-only project inspection or kind=codebase-edit only when the user explicitly asks to change code. Do not use this tool for capability questions or general conversation.',
+    parameters: z.object({
+      agent: codingAgentNameSchema,
+      autoContinueSuggestedActions: z.boolean().optional(),
+      threadId: z.string().optional(),
+      command: z.string().min(1).optional(),
+      args: z.array(z.string()).default([]),
+      kind: z.enum(['codebase-edit', 'codebase-investigation']).optional(),
+      prompt: z.string().min(1).optional(),
+      cwd: z.string().optional(),
+      timeoutMs: z.coerce.number().optional(),
+      profile: z.string().optional(),
+      model: z.string().optional(),
+      sandbox: z.enum(['read-only', 'workspace-write']).optional(),
+      allowTools: z.boolean().optional(),
+      claudePermissionMode: z.enum(['default', 'acceptEdits', 'bypassPermissions', 'delegate', 'dontAsk', 'plan']).optional(),
+      goal: z.string().optional(),
+      effect: z.enum(['observe', 'mutate', 'high-impact']).optional(),
+      permissionMode: z.enum(['none', 'implicit', 'explicit']).optional(),
+      inspectionMaxSuggestedActions: z.coerce.number().int().min(1).max(5).optional(),
+      inspectionQuestion: z.string().min(1).optional(),
+      maxAutoContinueSteps: z.coerce.number().int().min(1).max(3).optional(),
+      reinspectAfterAction: z.boolean().optional(),
+    }).strict(),
+    execute: async (input, toolContext, onExecutionEvent) => {
+      const invocationValidation = validateAlicizationCodingAgentInvocation(input, {
+        contextTurnId: toolContext.turnId,
+        delegation: options.codingAgentDelegation ?? null,
+      })
+      if (!invocationValidation.ok) {
+        if (
+          invocationValidation.errorCode === 'CODING_AGENT_CHANNEL_MISMATCH'
+          || invocationValidation.errorCode === 'CODING_AGENT_DELEGATION_REQUIRED'
+          || invocationValidation.errorCode === 'CODING_AGENT_INVALID_INPUT'
+        ) {
+          return buildCodingAgentRoutingFeedback({
+            errorCode: invocationValidation.errorCode,
+            errorMessage: invocationValidation.errorMessage,
+            allowedAgents: options.codingAgentDelegation?.allowedAgents,
+            toolInput: input,
+          })
+        }
+        throw Object.assign(
+          new Error(invocationValidation.errorMessage),
+          {
+            name: 'AlicizationCodingAgentInvocationError',
+            failureKind: 'tool-execution',
+            toolName: 'executor_run_coding_agent',
+            errorCode: invocationValidation.errorCode,
+            errorMessage: invocationValidation.errorMessage,
+          },
+        )
+      }
+      if (codingAgentClaimed) {
+        throw Object.assign(
+          new Error('Only one coding-agent task may run in a chat turn.'),
+          {
+            name: 'AlicizationCodingAgentSingleFlightError',
+            failureKind: 'tool-execution',
+            toolName: 'executor_run_coding_agent',
+            errorCode: 'CODING_AGENT_SINGLE_FLIGHT',
+            errorMessage: 'Only one coding-agent task may run in a chat turn.',
+          },
+        )
+      }
+      codingAgentClaimed = true
+
+      const { agent } = input
+      const commonInput = {
+        autoContinueSuggestedActions: input.autoContinueSuggestedActions,
+        cwd: input.cwd,
+        effect: input.effect,
+        goal: input.goal,
+        inspectionMaxSuggestedActions: input.inspectionMaxSuggestedActions,
+        inspectionQuestion: input.inspectionQuestion,
+        maxAutoContinueSteps: input.maxAutoContinueSteps,
+        permissionMode: input.permissionMode,
+        reinspectAfterAction: input.reinspectAfterAction,
+        threadId: input.threadId,
+      }
+      const target = executorRunToolSpecs.find(spec => spec.name === (
+        agent === 'codex'
+          ? 'executor_run_codex'
+          : agent === 'claude-code'
+            ? 'executor_run_claude_code'
+            : 'executor_run_cli'
+      ))
+      if (!target)
+        throw new Error(`Unsupported coding agent: ${agent}`)
+
+      if (agent === 'cli') {
+        return await target.execute({
+          ...commonInput,
+          args: input.args,
+          command: input.command,
+          timeoutMs: input.timeoutMs,
+        } as never, toolContext, onExecutionEvent)
+      }
+      if (agent === 'codex') {
+        return await target.execute({
+          ...commonInput,
+          kind: input.kind,
+          profile: input.profile,
+          prompt: input.prompt,
+          sandbox: input.sandbox,
+        } as never, toolContext, onExecutionEvent)
+      }
+      return await target.execute({
+        ...commonInput,
+        allowTools: input.allowTools,
+        claudePermissionMode: input.claudePermissionMode,
+        kind: input.kind,
+        model: input.model,
+        prompt: input.prompt,
+        timeoutMs: input.timeoutMs,
+      } as never, toolContext, onExecutionEvent)
+    },
+  })
+
+  const wrapExecutorToolSpec = (spec: {
+    description: string
+    execute: (
+      input: any,
+      context: MainGatewayExecutionToolContext,
+      onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void,
+    ) => Promise<MainGatewayExecutionTaskThreadResult>
+    name: MainGatewayExecutorToolName
+    parameters: z.ZodTypeAny
+  }) => tool({
     name: spec.name,
     description: spec.description,
     parameters: spec.parameters,
-    execute: async (input) => {
-      const result = toMainGatewayExecutorToolResult(await spec.execute(input as never, context))
-      return await maybeFollowUpExecutorWorkflow({
-        payload: input as MainGatewayExecutorFollowUpInput,
-        result,
+    execute: async (input, executeOptions) => {
+      const startedAt = Date.now()
+      const parentAbortSignal = executeOptions?.abortSignal
+        ?? options.abortSignal
+        ?? context.abortSignal
+      const outerBudget = createExecutorToolBudget({
+        parentSignal: parentAbortSignal,
+        timeoutMs: buildExecutorOuterBudgetMs({
+          toolName: spec.name,
+          toolInput: input,
+        }),
+        toolName: spec.name,
       })
+      const toolCallId = toolCallIdentity.resolveExecutorToolCall({
+        arguments: input,
+        toolCallId: executeOptions.toolCallId,
+        toolName: spec.name,
+      })
+      const toolContext = {
+        ...context,
+        abortSignal: outerBudget.signal,
+        upstreamAbortSignal: parentAbortSignal,
+        toolCallId,
+      }
+      let terminalProgressEmitted = false
+      let toolLifecycleOpen = true
+      const timeoutMs = input && typeof input === 'object' && input !== null
+        && typeof (input as Record<string, unknown>).timeoutMs === 'number'
+        && Number.isFinite((input as Record<string, unknown>).timeoutMs)
+        ? Math.max(0, Math.floor(Number((input as Record<string, unknown>).timeoutMs)))
+        : undefined
+      const emitProgress = (
+        phase: 'started' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout',
+        progress?: Partial<Omit<MainGatewayToolExecutionProgress, 'toolCallId' | 'toolName' | 'phase' | 'elapsedMs' | 'occurredAt'>>,
+      ) => {
+        if (!toolCallId || !options.emitToolExecutionProgress)
+          return
+        const terminal = phase === 'completed'
+          || phase === 'failed'
+          || phase === 'cancelled'
+          || phase === 'timeout'
+        if (terminalProgressEmitted)
+          return
+        if (terminal)
+          terminalProgressEmitted = true
+        const occurredAt = Date.now()
+        options.emitToolExecutionProgress({
+          toolCallId,
+          toolName: spec.name,
+          phase,
+          signal: progress?.signal
+            ?? (terminal
+              ? 'terminal'
+              : 'liveness'),
+          elapsedMs: Math.max(0, occurredAt - startedAt),
+          occurredAt,
+          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+          ...progress,
+        })
+      }
+      emitProgress('started')
+      const heartbeat = setInterval(() => emitProgress('running', {
+        signal: 'liveness',
+      }), 10_000)
+      try {
+        const finalResult = await outerBudget.run(async () => {
+          const result = toMainGatewayExecutorToolResult(await spec.execute(
+            input as never,
+            toolContext,
+            async (event) => {
+              if (!toolLifecycleOpen)
+                return
+              const payload = asRecord(event.payload)
+              const summary = sanitizeBriefText(sanitizeText(payload?.summary), 220)
+              const adapterEventType = sanitizeText(payload?.codexEventType)
+              const itemType = sanitizeText(payload?.itemType)
+              const command = sanitizeBriefText(sanitizeText(payload?.command), 320)
+              const commandStatus = sanitizeBriefText(sanitizeText(payload?.status), 80)
+              const commandExitCode = typeof payload?.exitCode === 'number' && Number.isFinite(payload.exitCode)
+                ? Math.floor(payload.exitCode)
+                : undefined
+              const outputPreview = sanitizeBriefText(sanitizeText(payload?.outputPreview), 1_200)
+              const terminal = payload?.terminal === true
+              const semanticProgress = payload?.semanticProgress === true
+              const diagnostic = adapterEventType === 'error'
+                || adapterEventType === 'provider.diagnostic'
+                || itemType === 'error'
+              const liveness = adapterEventType === 'heartbeat'
+              if (!terminal && !semanticProgress && !diagnostic && !liveness)
+                return
+              emitProgress('running', {
+                signal: terminal || semanticProgress ? 'semantic-progress' : 'liveness',
+                eventId: sanitizeText(event.id) || undefined,
+                threadId: sanitizeText(event.threadId) || undefined,
+                adapterEventType: adapterEventType || undefined,
+                itemType: itemType || undefined,
+                summary: summary || undefined,
+                command: command || undefined,
+                commandStatus: commandStatus || undefined,
+                commandExitCode,
+                outputPreview: outputPreview || undefined,
+              })
+            },
+          ))
+          if (sanitizeText(result.status).toLowerCase() === 'completed') {
+            emitProgress('running', {
+              signal: 'semantic-progress',
+              adapterEventType: 'executor.result-ready',
+              summary: `${spec.name} finished execution; preparing follow-up context.`,
+            })
+          }
+          return await maybeFollowUpExecutorWorkflow({
+            payload: input as MainGatewayExecutorFollowUpInput,
+            result,
+          })
+        })
+        toolCallIdentity.registerExecutorResult(finalResult, toolCallId)
+        emitProgress(resolveMainGatewayToolProgressPhase(finalResult), {
+          errorCode: sanitizeText(finalResult.errorCode) || undefined,
+          errorMessage: sanitizeBriefText(sanitizeText(finalResult.errorMessage), 320) || undefined,
+          summary: sanitizeBriefText(sanitizeText(finalResult.summary), 220) || undefined,
+        })
+        return finalResult
+      }
+      catch (error) {
+        const failureResult = toMainGatewayToolExecutionFailure({
+          error,
+          toolName: spec.name,
+        })
+        toolCallIdentity.registerExecutorResult(failureResult, toolCallId)
+        emitProgress(resolveMainGatewayToolProgressPhase(failureResult), {
+          errorCode: sanitizeText(failureResult.errorCode) || undefined,
+          errorMessage: sanitizeBriefText(sanitizeText(failureResult.errorMessage), 320) || undefined,
+          summary: sanitizeBriefText(sanitizeText(failureResult.summary), 220) || undefined,
+        })
+        return failureResult
+      }
+      finally {
+        toolLifecycleOpen = false
+        clearInterval(heartbeat)
+      }
     },
-  }))
+  })
+  const executorRunTools = executorRunToolSpecs.map(spec => wrapExecutorToolSpec(spec))
+  const codingAgentRunTool = wrapExecutorToolSpec(codingAgentFacadeSpec)
+  const codingAgentDelegationAllowed = options.toolSurface !== 'main-chat'
+    || Boolean(options.codingAgentDelegation?.allowed)
+  const mainChatCodingAgentNames = options.codingAgentDelegation?.allowedAgents ?? []
+  const mainChatCodingAgentFacadeAllowed = options.toolSurface !== 'main-chat'
+    || (
+      codingAgentDelegationAllowed
+      && mainChatCodingAgentNames.some(agent => agent !== 'cli')
+    )
+  const mainChatCliExecutorAllowed = options.toolSurface !== 'main-chat'
+    || !codingAgentDelegationAllowed
+    || (
+      options.codingAgentDelegation?.allowCommand === true
+      && mainChatCodingAgentNames.includes('cli')
+    )
+  const mainChatCliExecutorTools = executorRunToolSpecs
+    .filter(spec => spec.name === 'executor_run_cli')
+    .filter(() => mainChatCliExecutorAllowed)
+    .map(spec => wrapExecutorToolSpec(spec))
+  const mainChatLocalVisualExecutorTools = executorRunToolSpecs
+    .filter(spec => spec.name === 'executor_run_local_visual')
+    .map(spec => wrapExecutorToolSpec(spec))
   const autoContinuationExecutorToolNames = new Set<MainGatewayExecutorToolName>([
     'executor_run_cli',
     'executor_run_codex',
@@ -1174,15 +1835,19 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     if (toolName === 'desktop_list_interactables' && options.desktopListInteractables)
       return normalizeLocalToolResult(await options.desktopListInteractables(argumentsRecord as AlicizationLocalDesktopListInteractablesInput), 'desktop_list_interactables')
     if (autoContinuationExecutorToolNames.has(toolName as MainGatewayExecutorToolName)) {
-      const executorToolName = toolName as MainGatewayExecutorToolName
-      const executorToolSpec = executorRunToolSpecs.find(spec => spec.name === executorToolName) ?? null
-      if (!executorToolSpec)
-        return null
-      const result = toMainGatewayExecutorToolResult(await executorToolSpec.execute(recursiveArguments as never, context))
-      return await maybeFollowUpExecutorWorkflow({
-        payload: recursiveArguments as MainGatewayExecutorFollowUpInput,
-        result,
-      })
+      return {
+        status: 'deferred',
+        stage: 'auto-continuation',
+        toolName,
+        reasonCode: 'executor-continuation-deferred-to-model',
+        summary: `${toolName} was suggested after an executor action and deferred back to the model.`,
+        output: JSON.stringify({
+          suggestedAction: compactRecord({
+            toolName,
+            arguments: argumentsRecord,
+          }),
+        }),
+      }
     }
 
     if (toolName === 'browser_click_element' && options.browserClickElement) {
@@ -1291,9 +1956,6 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       'desktop_press_keys',
       'desktop_open_application',
       'desktop_wait',
-      'executor_run_cli',
-      'executor_run_codex',
-      'executor_run_claude_code',
     ])
     const safeAwaitHostInputToolNames = new Set([
       'browser_read_page',
@@ -1307,8 +1969,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       'desktop_open_application',
       'desktop_wait',
     ])
-    const highImpactActionPattern = /publish|send|share|delete|remove|trash|erase|clear all|pay|payment|purchase|buy now|checkout|order now|transfer|withdraw|post now|create post|create thread|create topic|create discussion|start discussion|upload|发布|发送|分享|删除|移除|清空|付款|支付|购买|下单|转账|提现|创建帖子|发布帖子|创建主题|发布主题|创建讨论|发布讨论|上传/iu
-    const nonUploadHighImpactActionPattern = /publish|send|share|delete|remove|trash|erase|clear all|pay|payment|purchase|buy now|checkout|order now|transfer|withdraw|post now|create post|create thread|create topic|create discussion|start discussion|发布|发送|分享|删除|移除|清空|付款|支付|购买|下单|转账|提现|创建帖子|发布帖子|创建主题|发布主题|创建讨论|发布讨论/iu
+    const highImpactActionPattern = /publish|send|share|delete|remove|trash|erase|clear all|pay|purchase|buy now|checkout|order now|transfer|withdraw|post now|create post|create thread|create topic|create discussion|start discussion|upload|发布|发送|分享|删除|移除|清空|付款|支付|购买|下单|转账|提现|创建帖子|创建主题|创建讨论|上传/iu
+    const nonUploadHighImpactActionPattern = /publish|send|share|delete|remove|trash|erase|clear all|pay|purchase|buy now|checkout|order now|transfer|withdraw|post now|create post|create thread|create topic|create discussion|start discussion|发布|发送|分享|删除|移除|清空|付款|支付|购买|下单|转账|提现|创建帖子|创建主题|创建讨论/iu
     const uploadBridgeActionPattern = /upload(?: image| photo| file)?|attach|choose file|select file|browse|media|上传图片|上传照片|上传文件|添加图片|添加照片|添加附件|选择图片|选择文件|选图|相册|图片|照片/u
     const matchesHighImpactActionPattern = (...fields: unknown[]) => {
       const combined = fields
@@ -1387,6 +2049,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     let currentSuggestedActions = [...input.suggestedActions]
     let remainingSteps = input.maxSteps
     let skippedHighImpactAction = false
+    let deferredSuggestedActions: Array<Record<string, unknown>> = []
 
     while (remainingSteps > 0) {
       const candidateIndex = currentSuggestedActions.findIndex((action) => {
@@ -1394,9 +2057,19 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         return Boolean(toolName) && supportedToolNames.has(toolName)
       })
       if (candidateIndex < 0) {
+        deferredSuggestedActions = currentSuggestedActions
+          .filter(action => autoContinuationExecutorToolNames.has(sanitizeText(action.toolName) as MainGatewayExecutorToolName))
+          .map(action => compactRecord({
+            toolName: sanitizeText(action.toolName),
+            title: sanitizeText(action.title),
+            rationale: sanitizeBriefText(sanitizeText(action.rationale), 320),
+            arguments: asRecord(action.arguments) ?? undefined,
+          }))
         stoppedReason = executedSteps.length > 0
           ? 'no-follow-up-action'
-          : 'no-suggested-actions'
+          : deferredSuggestedActions.length > 0
+            ? 'executor-continuation-deferred-to-model'
+            : 'no-suggested-actions'
         break
       }
       const [candidate] = currentSuggestedActions.splice(candidateIndex, 1)
@@ -1495,6 +2168,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       maxSteps: input.maxSteps,
       stoppedReason,
       executedSteps,
+      deferredSuggestedActions,
     })
   }
   const hasHighImpactPauseInAutoContinuation = (autoContinuation: Record<string, unknown>): boolean => {
@@ -3486,7 +4160,13 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         }
       },
     }),
-    ...executorRunTools,
+    ...(options.toolSurface === 'main-chat'
+      ? [
+          ...(mainChatCodingAgentFacadeAllowed ? [codingAgentRunTool] : []),
+          ...(mainChatCliExecutorAllowed ? mainChatCliExecutorTools : []),
+          ...mainChatLocalVisualExecutorTools,
+        ]
+      : executorRunTools),
     tool({
       name: 'mcp_list_tools',
       description: 'List all tools available on the connected MCP servers.',

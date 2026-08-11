@@ -2502,6 +2502,38 @@ export type AlicizationDialogueAnswerSubject
     | 'visible-scene'
     | 'general'
 
+export type AlicizationCodingAgentDelegationVerdict
+  = | 'respond-directly'
+    | 'clarify'
+    | 'delegate-coding-agent'
+
+export type AlicizationCodingAgentDelegationScope
+  = | 'none'
+    | 'investigation'
+    | 'edit'
+    | 'command'
+
+export type AlicizationCodingAgentDelegationIntentKind
+  = | 'capability-query'
+    | 'execute'
+
+export type AlicizationCodingAgentDelegationRequestedAgent
+  = | 'auto'
+    | 'codex'
+    | 'claude-code'
+    | 'cli'
+    | null
+
+export interface AlicizationCodingAgentDelegationSnapshot {
+  intentKind: AlicizationCodingAgentDelegationIntentKind
+  requestedAgent: AlicizationCodingAgentDelegationRequestedAgent
+  verdict: AlicizationCodingAgentDelegationVerdict
+  scope: AlicizationCodingAgentDelegationScope
+  confidence: number
+  sourceTurnId: string
+  source: 'heuristic' | 'structured-cognition' | 'fallback'
+}
+
 export type AlicizationDialogueScreenReferenceMode
   = | 'required'
     | 'helpful'
@@ -2604,6 +2636,7 @@ export interface AlicizationDialogueTurnEncounterSnapshot {
   mustAnswerDirectly: boolean
   mustStayTaskBound: boolean
   shouldAskClarifyingQuestion: boolean
+  codingAgentDelegation?: AlicizationCodingAgentDelegationSnapshot | null
   personaKernelMode: AlicizationPersonaKernelMode
   confidence: number
   reasonTags: string[]
@@ -3681,7 +3714,31 @@ export interface AlicizationChatToolResultEvent {
   cardId: string
   turnId: string
   toolCallId: string
+  toolName?: string
   result?: unknown
+}
+
+export interface AlicizationChatToolProgressEvent {
+  cardId: string
+  turnId: string
+  toolCallId: string
+  toolName: string
+  signal?: 'liveness' | 'semantic-progress' | 'terminal'
+  phase: 'started' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout'
+  elapsedMs: number
+  timeoutMs?: number
+  errorCode?: string
+  errorMessage?: string
+  occurredAt?: number
+  eventId?: string
+  threadId?: string
+  adapterEventType?: string
+  itemType?: string
+  summary?: string
+  command?: string
+  commandStatus?: string
+  commandExitCode?: number
+  outputPreview?: string
 }
 
 export interface AlicizationChatStreamChunkEvent {
@@ -3769,6 +3826,7 @@ export type AlicizationChatStreamDispatchPayload
     | { eventType: 'chunk', body: AlicizationChatStreamChunkEvent }
     | { eventType: 'tool-call', body: AlicizationChatToolCallEvent }
     | { eventType: 'tool-result', body: AlicizationChatToolResultEvent }
+    | { eventType: 'tool-progress', body: AlicizationChatToolProgressEvent }
     | { eventType: 'finish', body: AlicizationChatFinishEvent }
     | { eventType: 'error', body: AlicizationChatErrorEvent }
     | { eventType: 'dialogue-responded', body: AlicizationDialogueRespondedPayload }
@@ -3966,6 +4024,7 @@ export const alicizationChatStreamChunk = defineEventa<AlicizationChatStreamChun
 export const alicizationChatStreamMeta = defineEventa<AlicizationChatMetaEvent>('eventa:event:electron:alicization:chat:stream-meta')
 export const alicizationChatStreamToolCall = defineEventa<AlicizationChatToolCallEvent>('eventa:event:electron:alicization:chat:stream-tool-call')
 export const alicizationChatStreamToolResult = defineEventa<AlicizationChatToolResultEvent>('eventa:event:electron:alicization:chat:stream-tool-result')
+export const alicizationChatStreamToolProgress = defineEventa<AlicizationChatToolProgressEvent>('eventa:event:electron:alicization:chat:stream-tool-progress')
 export const alicizationChatStreamFinish = defineEventa<AlicizationChatFinishEvent>('eventa:event:electron:alicization:chat:stream-finish')
 export const alicizationChatStreamError = defineEventa<AlicizationChatErrorEvent>('eventa:event:electron:alicization:chat:stream-error')
 

@@ -3,6 +3,7 @@ import type {
   AlicizationChatFailureKind,
   AlicizationChatMemoryFailureSurface,
   AlicizationExecutionCapabilityChannel,
+  AlicizationExecutionChannel,
   AlicizationPersonaKernelSnapshot,
 } from '@proj-alicization/stage-shared'
 import type { PromptBudgetReport } from '@proj-alicization/stage-ui/composables/alicization-guardrails'
@@ -44,9 +45,11 @@ import type { AlicizationMainChatActionObligation } from './main-chat-action-obl
 import type {
   BuildMainGatewayToolsOptions,
   MainGatewayExecutionToolContext,
+  MainGatewayToolExecutionProgress,
 } from './main-chat-execution-surface'
 import type { AlicizationMainChatMemoryContext } from './main-chat-memory-context'
 import type { AlicizationMainChatRuntimeSurface } from './main-chat-runtime-surface'
+import type { AlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 import type { AlicizationTurnRetrievalPolicySnapshot } from './memory-accessibility-runtime'
 import type { AlicizationExecutionLedgerContext } from './memory-ledger-runtime'
 import type { buildAlicizationMemoryTurnArtifact } from './memory-os/memory-turn-artifact'
@@ -73,6 +76,7 @@ import {
 } from '@proj-alicization/stage-shared'
 import { applyPromptBudget } from '@proj-alicization/stage-ui/composables/alicization-guardrails'
 
+import { buildAlicizationCodingAgentDelegationAuthority } from './coding-agent-task-contract'
 import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
@@ -85,12 +89,14 @@ import { createWorkingMemoryStore } from './life-core/working-memory-store'
 import {
   buildExecutionCapabilitySystemBlocks,
   buildMainGatewayTools,
+  mainGatewayExecutorToolNames,
 } from './main-chat-execution-surface'
 import { buildAlicizationMainChatMemoryContext } from './main-chat-memory-context'
 import {
   buildAlicizationMainChatRuntimeSurface,
   filterAlicizationProviderSystemMessages,
 } from './main-chat-runtime-surface'
+import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 import { runAlicizationMemoryOsTurnRuntime } from './memory-os/runtime'
 import { buildAlicizationPersonMemoryCapsule } from './person-memory-capsule'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
@@ -148,6 +154,7 @@ export interface AlicizationMainChatPerceptionAugmentation {
 }
 
 export interface AlicizationPreparedMainChatPrelude {
+  turnId?: string
   actionObligation: AlicizationMainChatActionObligation
   chatConfig: ReturnType<MainGatewayResolvedConfig['provider']['chat']>
   messages: Message[]
@@ -161,6 +168,7 @@ export type AlicizationMainChatMemoryFailureSurface = AlicizationChatMemoryFailu
 
 export interface AlicizationPreparedMainChatExecutionResult extends PreparedMainChatExecution {
   conversationSessionId: string | null
+  preludeTurnId?: string | null
   presentedExecutionCallbacks: AlicizationExecutionCallbackDigest[]
   getSessionTrace: () => AlicizationRuntimeCallChainSnapshot
   memoryContext: AlicizationMainChatMemoryContext
@@ -178,6 +186,7 @@ export interface AlicizationPreparedMainChatExecutionResult extends PreparedMain
   runtimeSurface: AlicizationMainChatRuntimeSurface
   sessionMirror: AlicizationDialogueSessionMirror | null
   sessionTrace: AlicizationRuntimeCallChainSnapshot
+  toolCallIdentity: AlicizationMainChatToolCallIdentityRegistry
   turnGraph: AlicizationTurnGraph
 }
 
@@ -261,6 +270,7 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
     retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
     digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
+    providerPlanning?: 'enabled' | 'disabled'
   }) => Promise<OrganicMemoryPromptContext>
   scheduleOrganicLearningAction?: (input: {
     context: OrganicMemoryPromptContext
@@ -378,7 +388,10 @@ function normalizePreparedExecutionText(raw: unknown, maxChars = 320) {
   return normalized || null
 }
 
-function readLatestUserMessageText(messages: Message[]) {
+function readLatestUserMessageText(messages: ReadonlyArray<{
+  role?: string
+  content?: unknown
+}>) {
   const latestUserMessage = [...messages].reverse().find(message => message?.role === 'user')
   return normalizePreparedExecutionText(readTransportContentAsText(latestUserMessage?.content), 1200) || ''
 }
@@ -1434,10 +1447,19 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
   async function prepareExecution(input: {
     payload: AlicizationChatStartPayload
     prelude: AlicizationPreparedMainChatPrelude
+    emitToolProgress?: (input: MainGatewayToolExecutionProgress) => void
+    abortSignal?: AbortSignal
   }): Promise<AlicizationPreparedMainChatExecutionResult> {
     const payload = input.payload
     const rawPayload = payload
     const { prelude } = input
+    if (!payload.turnId.trim())
+      throw new TypeError('main chat payload requires a real turnId')
+    if (prelude.turnId && prelude.turnId !== payload.turnId)
+      throw new Error('stale main chat prelude turn identity')
+    const toolCallIdentity = createAlicizationMainChatToolCallIdentityRegistry({
+      singleFlightExecutorToolNames: mainGatewayExecutorToolNames,
+    })
 
     const now = getNow()
     const activeSelfEvolutionSnapshot = await options.getActiveSelfEvolutionSnapshot?.().catch(() => null) ?? null
@@ -1624,6 +1646,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             digitalLifeRuntimeSurface: digitalLifeSpine?.runtimeSurface
               ?? prelude.perceptionAugmentation.digitalLifeRuntimeSurface
               ?? null,
+            providerPlanning: 'disabled',
           }),
           tuneContext: input => options.tuneOrganicMemoryPromptContextForExecutiveTurn({
             context: input.context,
@@ -1675,6 +1698,15 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const allowTools = payload.supportsTools !== false
     const waitForTools = allowTools
     const toolChoice = undefined
+    const codingAgentDelegation = buildAlicizationCodingAgentDelegationAuthority({
+      contextTurnId: payload.turnId,
+      decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,
+      userText: readLatestUserMessageText(messages),
+      delegation: prelude.perceptionAugmentation.digitalLifeRuntimeSurface
+        ?.dialogue
+        .dialogueEncounter
+        ?.codingAgentDelegation ?? null,
+    })
 
     let executionRuntimeAffectiveResidue: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['affectiveResidue'] = null
     let executionRuntimeDerivedMindStateBundle: Parameters<typeof buildAlicizationExecutionRuntimeContext>[0]['derivedMindStateBundle'] = null
@@ -1701,7 +1733,11 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       | 'invokeMcpCallTool'
       | 'invokeMcpListTools'
       | 'resolveTaskPlanningCapabilities'
-      | 'scheduleReminderTask'> = {
+      | 'scheduleReminderTask'
+      | 'emitToolExecutionProgress'
+      | 'toolCallIdentity'> = {
+      emitToolExecutionProgress: input.emitToolProgress,
+      toolCallIdentity,
       buildExecutionRuntimeContext: async (toolContext) => {
         return await agentTurn.buildExecutionRuntimeContext({
           affectiveResidue: executionRuntimeAffectiveResidue ?? null,
@@ -1732,7 +1768,13 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           summarizeSuccess: result => result.summary,
         })
       },
-      resumeTaskThread: async (nextInput: { context: MainGatewayExecutionToolContext, threadId: string }) => {
+      resumeTaskThread: async (nextInput: {
+        context: MainGatewayExecutionToolContext
+        dispatchMode?: 'inline' | 'background'
+        expectedChannel?: AlicizationExecutionChannel
+        threadId: string
+        abortSignal?: AbortSignal
+      }) => {
         const phaseSuffix = sanitizeToolPhaseSegment(nextInput.threadId)
         if (!options.resumeMainGatewayTaskThread)
           throw new Error('resumeMainGatewayTaskThread is not configured.')
@@ -1745,9 +1787,18 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
           },
           traceMetadata: {
             turnId: nextInput.context.turnId,
+            expectedChannel: nextInput.expectedChannel,
             threadId: nextInput.threadId,
           },
-          run: async () => await options.resumeMainGatewayTaskThread!(nextInput),
+          run: async () => await options.resumeMainGatewayTaskThread!({
+            ...nextInput,
+            // Preserve the Provider's per-tool cancellation at the session
+            // adapter boundary. The executor deadline remains available on
+            // `nextInput.context.abortSignal` for the lower dispatcher.
+            abortSignal: nextInput.context.upstreamAbortSignal
+              ?? nextInput.abortSignal
+              ?? input.abortSignal,
+          }),
           summarizeSuccess: result => result.summary,
         })
       },
@@ -2149,6 +2200,8 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       }),
       allowTools
         ? agentTurn.trackPhase('tool-registry', async () => await buildMainGatewayTools({
+            toolSurface: 'main-chat',
+            codingAgentDelegation,
             context: {
               cardId: payload.cardId,
               turnId: payload.turnId,
@@ -2179,6 +2232,9 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
             scheduleReminderTask: sessionBoundToolOptions.scheduleReminderTask,
             invokeMcpListTools: sessionBoundToolOptions.invokeMcpListTools,
             invokeMcpCallTool: sessionBoundToolOptions.invokeMcpCallTool,
+            emitToolExecutionProgress: sessionBoundToolOptions.emitToolExecutionProgress,
+            toolCallIdentity: sessionBoundToolOptions.toolCallIdentity,
+            abortSignal: input.abortSignal,
           }), {
             toolsOffered: allowTools,
           })
@@ -2573,6 +2629,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const preparedResultBase = {
       chatConfig: prelude.chatConfig,
       conversationSessionId: agentTurn.conversationSessionId,
+      preludeTurnId: prelude.turnId ?? null,
       presentedExecutionCallbacks: [...executionCallbackContext.callbacks],
       getSessionTrace: () => agentTurn.snapshot(),
       messages,
@@ -2597,6 +2654,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       runtimeSurface,
       sessionMirror,
       sessionTrace: agentTurn.snapshot(),
+      toolCallIdentity,
     }
     turnRuntime.settleStage(turnContext, 'learning', {
       outputSummary: [

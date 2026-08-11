@@ -657,6 +657,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
 
   async function resolveDialogueTurnSemantics(input: {
     cardId: string
+    turnId: string
     userText: string
     recentMessages: Message[]
     context: AlicizationProactiveLayeredContext
@@ -665,6 +666,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     previousVisualPresenceState: AlicizationVisualPresenceStateSnapshot
     inspectionRequested?: boolean
     groundedThisTurn?: boolean
+    allowProviderRefinement?: boolean
     timeoutMs?: number
     agentTurn?: AlicizationAgentTurnRuntime | null
     digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
@@ -681,7 +683,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       inspectionRequested: input.inspectionRequested === true,
       groundedThisTurn: input.groundedThisTurn === true,
     })
-    if (!shouldAttemptDialogueTurnSemanticsRefinement({
+    if (input.allowProviderRefinement === false || !shouldAttemptDialogueTurnSemanticsRefinement({
       heuristic,
       inspectionRequested: input.inspectionRequested,
       groundedThisTurn: input.groundedThisTurn === true,
@@ -726,6 +728,9 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     return mergeDialogueTurnSemantics(
       heuristic,
       raw ? parseDialogueTurnSemanticsCandidate(raw) : null,
+      {
+        sourceTurnId: input.turnId,
+      },
     )
   }
 
@@ -1114,6 +1119,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     heuristicAppraisal: ReturnType<typeof buildSubjectiveSceneAppraisal>
     durabilityPulse?: AlicizationDurabilityPulseSnapshot | null
     dialogueSemantics?: ReturnType<typeof buildDialogueTurnSemantics>
+    allowProviderRefinement?: boolean
     timeoutMs?: number
     agentTurn?: AlicizationAgentTurnRuntime | null
     digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
@@ -1144,6 +1150,9 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
         && !isSeriousDurabilityPulseForMind(input.durabilityPulse)
     if (canReuseStructuredInference)
       return previousInference ?? heuristic
+
+    if (input.allowProviderRefinement === false)
+      return heuristic
 
     if (!shouldAttemptStructuredSceneAppraisal({
       visualHeartbeat: input.visualHeartbeat,
@@ -1185,6 +1194,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
 
   async function buildDigitalLifeMindState(input: {
     cardId: string
+    turnId?: string
     now: number
     context: AlicizationProactiveLayeredContext
     userText?: string
@@ -1205,12 +1215,19 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     selfEvolution?: AlicizationSelfEvolutionKernelSnapshot | null
     organicMemoryContext?: OrganicMemoryPromptContext | null
   }) {
+    if (input.cognitionMode === 'interactive' && !sanitizeText(input.turnId))
+      throw new TypeError('interactive cognition requires a real turnId')
+
     const effectiveDialogueTurnSemanticsTimeoutMs = input.cognitionMode === 'interactive'
       ? interactiveDialogueTurnSemanticsTimeoutMs
       : dialogueTurnSemanticsTimeoutMs
     const effectiveSubjectiveInferenceTimeoutMs = input.cognitionMode === 'interactive'
       ? interactiveSubjectiveInferenceTimeoutMs
       : subjectiveInferenceTimeoutMs
+    const allowDialogueSemanticsProviderRefinement = Boolean(input.userText?.trim())
+    const allowSubjectiveInferenceProviderRefinement = input.cognitionMode !== 'interactive'
+    const dialogueSemanticsSourceTurnId = sanitizeText(input.turnId)
+      || buildMainGatewayAgentTurnId('dialogue-turn-semantics-source', input.cardId, input.now)
     const previousVisualPresenceState = projectVisualPresenceStateForMindRuntime(
       input.previousVisualPresenceState,
     )
@@ -1256,6 +1273,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
     const dialogueSemantics = input.userText
       ? await resolveDialogueTurnSemantics({
           cardId: input.cardId,
+          turnId: dialogueSemanticsSourceTurnId,
           userText: input.userText,
           recentMessages: input.recentMessages ?? [],
           context: dialogueTurnGrounding?.context ?? input.context,
@@ -1264,6 +1282,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
           previousVisualPresenceState,
           inspectionRequested: input.inspectionRequested === true,
           groundedThisTurn: input.groundedThisTurn === true,
+          allowProviderRefinement: allowDialogueSemanticsProviderRefinement,
           timeoutMs: effectiveDialogueTurnSemanticsTimeoutMs,
           agentTurn: input.agentTurn,
           digitalLifeRuntimeSurface: dialogueSemanticsRuntimeSurface,
@@ -1315,6 +1334,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       heuristicAppraisal,
       durabilityPulse: input.durabilityPulse,
       dialogueSemantics: dialogueSemantics ?? undefined,
+      allowProviderRefinement: allowSubjectiveInferenceProviderRefinement,
       timeoutMs: effectiveSubjectiveInferenceTimeoutMs,
       agentTurn: input.agentTurn,
       digitalLifeRuntimeSurface: subjectiveInferenceRuntimeSurface,

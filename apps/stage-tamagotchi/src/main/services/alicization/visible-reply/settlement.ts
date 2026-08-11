@@ -25,15 +25,6 @@ import {
   closeAlicizationVisibleReply,
 } from './closure-orchestrator'
 
-const providerPayloadFields = [
-  'format',
-  'thought',
-  'emotion',
-  'reply',
-  'performance',
-  'memoryUsage',
-] as const
-
 const providerPerformanceFields = [
   'baseEmotion',
   'facialCue',
@@ -46,9 +37,6 @@ const providerMemoryUsageFields = [
   'workingMemoryVersion',
   'longTermEvidenceIds',
 ] as const
-
-const embeddedStructuredEnvelopePattern
-  = /"format"\s*:\s*"mind-turn-v1"|"(?:thought|performance|memoryUsage|embodimentScript|digitalLife|runtimeDigest)"\s*:/iu
 
 export interface AlicizationVisibleReplySettlementDraft {
   fullText: string
@@ -120,7 +108,34 @@ function isValidNullableString(value: unknown, maxLength: number) {
 
 function looksLikeEmbeddedStructuredProviderPayload(text: string) {
   return looksLikeAlicizationStructuredPayloadText(text)
-    || embeddedStructuredEnvelopePattern.test(text)
+}
+
+function normalizeProviderEmotion(value: unknown): AlicizationProviderResponsePayload['emotion'] {
+  return typeof value === 'string'
+    && alicizationEmotionWhitelist.includes(value as never)
+    ? value as AlicizationProviderResponsePayload['emotion']
+    : 'neutral'
+}
+
+function buildDefaultProviderPerformance(
+  emotion: AlicizationProviderResponsePayload['emotion'],
+): AlicizationProviderResponsePayload['performance'] {
+  return {
+    baseEmotion: emotion,
+    facialCue: null,
+    actionCue: null,
+    delivery: 'calm',
+    emphasis: 0,
+  }
+}
+
+function buildPreparedMemoryUsage(
+  prepared: AlicizationPreparedMainChatExecutionResult,
+): AlicizationProviderMemoryUsage {
+  return {
+    workingMemoryVersion: prepared.memoryContext?.workingMemory.version ?? null,
+    longTermEvidenceIds: [],
+  }
 }
 
 function buildPlainTextProviderPayload(input: {
@@ -217,64 +232,40 @@ export function validateAlicizationProviderSettlementPayload(input: {
     return acceptPlainTextProviderReply()
   }
 
-  if (!hasExactKeys(parsed, providerPayloadFields))
-    issues.push('provider-payload-fields-invalid')
-
-  if (parsed.format !== 'mind-turn-v1')
-    issues.push('provider-payload-format-invalid')
-  if (typeof parsed.thought !== 'string' || parsed.thought.length > 2_000)
-    issues.push('provider-payload-thought-invalid')
-  if (
-    typeof parsed.emotion !== 'string'
-    || !alicizationEmotionWhitelist.includes(parsed.emotion as never)
-  ) {
-    issues.push('provider-payload-emotion-invalid')
-  }
-  if (
-    typeof parsed.reply !== 'string'
-    || !parsed.reply.trim()
-    || parsed.reply.length > 12_000
-  ) {
+  const providerReply = typeof parsed.reply === 'string'
+    ? parsed.reply
+    : ''
+  if (!providerReply.trim() || providerReply.length > 12_000) {
     issues.push('provider-payload-reply-invalid')
   }
+
+  if (issues.length > 0) {
+    return {
+      valid: false,
+      payload: null,
+      issues,
+      memoryUsage: null,
+    }
+  }
+
+  const emotion = normalizeProviderEmotion(parsed.emotion)
   const performance = isRecord(parsed.performance)
     ? parsed.performance
     : null
-  let normalizedPerformance: AlicizationProviderResponsePayload['performance'] | null = null
+  let normalizedPerformance = buildDefaultProviderPerformance(emotion)
   if (!performance || !hasExactKeys(performance, providerPerformanceFields)) {
-    issues.push('provider-payload-performance-invalid')
+    normalizedPerformance = buildDefaultProviderPerformance(emotion)
   }
   else {
     if (
       typeof performance.baseEmotion !== 'string'
       || !alicizationEmotionWhitelist.includes(performance.baseEmotion as never)
-      || performance.baseEmotion !== parsed.emotion
+      || performance.baseEmotion !== emotion
     ) {
-      issues.push('provider-payload-performance-emotion-invalid')
+      normalizedPerformance = buildDefaultProviderPerformance(emotion)
     }
-    if (!isValidNullableString(performance.facialCue, 80))
-      issues.push('provider-payload-facial-cue-invalid')
-    if (!isValidNullableString(performance.actionCue, 80))
-      issues.push('provider-payload-action-cue-invalid')
-    if (
-      typeof performance.delivery !== 'string'
-      || !alicizationPerformanceDeliveryWhitelist.includes(performance.delivery as never)
-    ) {
-      issues.push('provider-payload-delivery-invalid')
-    }
-    if (
-      typeof performance.emphasis !== 'number'
-      || !Number.isInteger(performance.emphasis)
-      || ![0, 1, 2].includes(performance.emphasis)
-    ) {
-      issues.push('provider-payload-emphasis-invalid')
-    }
-
-    if (
-      typeof performance.baseEmotion === 'string'
-      && alicizationEmotionWhitelist.includes(performance.baseEmotion as never)
-      && performance.baseEmotion === parsed.emotion
-      && isValidNullableString(performance.facialCue, 80)
+    else if (
+      isValidNullableString(performance.facialCue, 80)
       && isValidNullableString(performance.actionCue, 80)
       && typeof performance.delivery === 'string'
       && alicizationPerformanceDeliveryWhitelist.includes(performance.delivery as never)
@@ -283,7 +274,7 @@ export function validateAlicizationProviderSettlementPayload(input: {
       && [0, 1, 2].includes(performance.emphasis)
     ) {
       normalizedPerformance = {
-        baseEmotion: performance.baseEmotion as AlicizationProviderResponsePayload['performance']['baseEmotion'],
+        baseEmotion: emotion,
         facialCue: performance.facialCue as string | null,
         actionCue: performance.actionCue as string | null,
         delivery: performance.delivery as AlicizationProviderResponsePayload['performance']['delivery'],
@@ -295,35 +286,37 @@ export function validateAlicizationProviderSettlementPayload(input: {
   const memoryUsage = isRecord(parsed.memoryUsage)
     ? parsed.memoryUsage
     : null
-  let normalizedMemoryUsage: AlicizationProviderMemoryUsage | null = null
-  if (
-    !memoryUsage
-    || !hasExactKeys(memoryUsage, providerMemoryUsageFields)
-    || !isValidNullableString(memoryUsage.workingMemoryVersion, 120)
-    || !Array.isArray(memoryUsage.longTermEvidenceIds)
-    || memoryUsage.longTermEvidenceIds.length > 16
-    || memoryUsage.longTermEvidenceIds.some(id =>
-      typeof id !== 'string'
-      || !id.trim()
-      || id.length > 160,
-    )
-  ) {
-    issues.push('provider-memory-usage-invalid')
-  }
-  else {
-    normalizedMemoryUsage = {
-      workingMemoryVersion: memoryUsage.workingMemoryVersion as string | null,
-      longTermEvidenceIds: [...memoryUsage.longTermEvidenceIds] as string[],
-    }
-    const validation = validateAlicizationProviderMemoryUsage({
-      memoryUsage: normalizedMemoryUsage,
-      prepared: input.prepared,
-    })
-    if (!validation.valid)
+  let normalizedMemoryUsage = buildPreparedMemoryUsage(input.prepared)
+  if (memoryUsage) {
+    const longTermEvidenceIds = Array.isArray(memoryUsage.longTermEvidenceIds)
+      ? memoryUsage.longTermEvidenceIds
+      : null
+    const memoryUsageShapeValid = hasExactKeys(memoryUsage, providerMemoryUsageFields)
+      && isValidNullableString(memoryUsage.workingMemoryVersion, 120)
+      && longTermEvidenceIds !== null
+      && longTermEvidenceIds.length <= 16
+      && longTermEvidenceIds.every(id =>
+        typeof id === 'string'
+        && id.trim().length > 0
+        && id.length <= 160)
+    if (!memoryUsageShapeValid) {
       issues.push('provider-memory-usage-invalid')
+    }
+    else {
+      normalizedMemoryUsage = {
+        workingMemoryVersion: memoryUsage.workingMemoryVersion as string | null,
+        longTermEvidenceIds: [...longTermEvidenceIds] as string[],
+      }
+      const validation = validateAlicizationProviderMemoryUsage({
+        memoryUsage: normalizedMemoryUsage,
+        prepared: input.prepared,
+      })
+      if (!validation.valid)
+        issues.push('provider-memory-usage-invalid')
+    }
   }
 
-  if (issues.length > 0 || normalizedPerformance === null || normalizedMemoryUsage === null) {
+  if (issues.length > 0) {
     return {
       valid: false,
       payload: null,
@@ -336,13 +329,13 @@ export function validateAlicizationProviderSettlementPayload(input: {
     valid: true,
     payload: {
       format: 'mind-turn-v1',
-      thought: parsed.thought as string,
-      emotion: parsed.emotion as AlicizationProviderResponsePayload['emotion'],
-      reply: parsed.reply as string,
+      thought: typeof parsed.thought === 'string' ? parsed.thought : '',
+      emotion,
+      reply: providerReply,
       performance: normalizedPerformance,
       memoryUsage: normalizedMemoryUsage,
     } satisfies AlicizationProviderResponsePayload,
-    issues,
+    issues: [],
     memoryUsage: normalizedMemoryUsage,
   }
 }

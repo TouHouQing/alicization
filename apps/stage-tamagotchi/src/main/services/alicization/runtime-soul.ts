@@ -10,6 +10,7 @@ import type {
   AlicizationAutobiographicalSelfSnapshot,
   AlicizationChatStartResult,
   AlicizationChatStreamDispatchPayload,
+  AlicizationChatToolProgressEvent,
   AlicizationDerivedMindStateBundle,
   AlicizationDialogueRespondedPayload,
   AlicizationEpisodicEventRecord,
@@ -133,8 +134,10 @@ export const dialogueTurnSemanticsTimeoutMs = 7_000
 export const interactiveSubjectiveInferenceTimeoutMs = 1_800
 export const interactiveDialogueTurnSemanticsTimeoutMs = 1_800
 export const chatRunFinishedRetentionMs = 2 * 60_000
+export const mainChatPreparationTimeoutMs = 45_000
 export const mainChatFirstEventTimeoutMs = 65_000
 export const mainChatFirstEventTimeoutWithVisualGroundingMs = 90_000
+export const mainChatProviderContinuationTimeoutMs = 180_000
 export const mainChatTimeoutRecoveryMs = 12_000
 export const mainChatTimeoutRecoveryWithVisualGroundingMs = 30_000
 export const inspectionGroundingImageMaxWidth = 960
@@ -159,9 +162,17 @@ export interface ChatRunState {
   sender?: WebContents
   rawInvokeOptions?: { ipcMainEvent?: IpcMainEvent, event?: unknown }
   hasLoggedDispatchBinding?: boolean
+  errorEmitted?: boolean
+  emittedToolCallIds?: Set<string>
+  emittedToolResultIds?: Set<string>
+  emittedToolProgressKeys?: Set<string>
+  terminalToolCallIds?: Set<string>
   chunkCount: number
   rawChunkChars: number
   state: 'running' | 'aborted' | 'finished'
+  toolProgressListeners?: Set<
+    (event: Omit<AlicizationChatToolProgressEvent, 'cardId' | 'turnId'>) => void
+  >
 }
 
 export type StreamDispatchEventType = Exclude<AlicizationChatStreamDispatchPayload['eventType'], 'dialogue-responded'>
@@ -328,8 +339,11 @@ export interface DesktopCaptureAccessResult {
   }>
 }
 
+export type CardScopeLane = 'foreground' | 'background'
+
 export interface CardScopeOptions {
   label?: string
+  lane?: CardScopeLane
   skipQueueWhenScopeAlreadyActive?: boolean
 }
 

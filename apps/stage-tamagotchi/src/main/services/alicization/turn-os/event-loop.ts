@@ -89,6 +89,7 @@ export interface AlicizationEventLoopResult {
   status: 'completed' | 'failed' | 'cancelled' | 'timed-out'
   state: AlicizationTurnRuntimeState
   error: string | null
+  cause: unknown | null
 }
 
 interface LiveTurn {
@@ -433,6 +434,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
         status: 'cancelled',
         state,
         error: errorMessage(reason),
+        cause: reason ?? null,
       }
     }
 
@@ -676,6 +678,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           status: 'completed',
           state,
           error: null,
+          cause: null,
         }
       }
 
@@ -688,6 +691,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
         status: 'timed-out',
         state,
         error: `model step budget exhausted after ${maxSteps} steps`,
+        cause: null,
       }
     }
     catch (error) {
@@ -717,6 +721,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
             status: 'completed',
             state,
             error: null,
+            cause: null,
           }
         }
         throw error
@@ -766,6 +771,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
         status: 'failed',
         state,
         error: errorMessage(error),
+        cause: error,
       }
     }
     finally {

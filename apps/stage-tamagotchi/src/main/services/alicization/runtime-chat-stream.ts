@@ -8,6 +8,7 @@ import type {
   AlicizationChatStreamChunkEvent,
   AlicizationChatStreamDispatchPayload,
   AlicizationChatToolCallEvent,
+  AlicizationChatToolProgressEvent,
   AlicizationChatToolResultEvent,
   AlicizationDialogueRespondedPayload,
 } from '../../../shared/eventa'
@@ -28,6 +29,7 @@ interface CreateAlicizationChatStreamRuntimeOptions {
   metaEvent: unknown
   chunkEvent: unknown
   toolCallEvent: unknown
+  toolProgressEvent: unknown
   toolResultEvent: unknown
   finishEvent: unknown
   errorEvent: unknown
@@ -85,7 +87,7 @@ export function createAlicizationChatStreamRuntime(options: CreateAlicizationCha
 
   function toAlicizationChatStreamDispatchPayload(
     eventType: AlicizationChatStreamDispatchPayload['eventType'],
-    body: AlicizationChatMetaEvent | AlicizationChatStreamChunkEvent | AlicizationChatToolCallEvent | AlicizationChatToolResultEvent | AlicizationChatFinishEvent | AlicizationChatErrorEvent | AlicizationDialogueRespondedPayload,
+    body: AlicizationChatMetaEvent | AlicizationChatStreamChunkEvent | AlicizationChatToolCallEvent | AlicizationChatToolProgressEvent | AlicizationChatToolResultEvent | AlicizationChatFinishEvent | AlicizationChatErrorEvent | AlicizationDialogueRespondedPayload,
   ): AlicizationChatStreamDispatchPayload {
     switch (eventType) {
       case 'meta':
@@ -96,6 +98,8 @@ export function createAlicizationChatStreamRuntime(options: CreateAlicizationCha
         return { eventType, body: body as AlicizationChatToolCallEvent }
       case 'tool-result':
         return { eventType, body: body as AlicizationChatToolResultEvent }
+      case 'tool-progress':
+        return { eventType, body: body as AlicizationChatToolProgressEvent }
       case 'finish':
         return { eventType, body: body as AlicizationChatFinishEvent }
       case 'error':
@@ -108,10 +112,87 @@ export function createAlicizationChatStreamRuntime(options: CreateAlicizationCha
   function emitChatStreamEventForState(
     state: ChatRunState | undefined,
     eventType: StreamDispatchEventType,
-    body: AlicizationChatMetaEvent | AlicizationChatStreamChunkEvent | AlicizationChatToolCallEvent | AlicizationChatToolResultEvent | AlicizationChatFinishEvent | AlicizationChatErrorEvent,
+    body: AlicizationChatMetaEvent | AlicizationChatStreamChunkEvent | AlicizationChatToolCallEvent | AlicizationChatToolProgressEvent | AlicizationChatToolResultEvent | AlicizationChatFinishEvent | AlicizationChatErrorEvent,
   ) {
     if (!state)
       return
+
+    if (state.state === 'finished' && eventType !== 'finish')
+      return
+
+    if (state.errorEmitted) {
+      if (eventType !== 'finish')
+        return
+    }
+
+    if (eventType === 'error') {
+      if (state.errorEmitted)
+        return
+      state.errorEmitted = true
+    }
+
+    const readToolCallId = () => {
+      if (!body || typeof body !== 'object' || !('toolCallId' in body))
+        return ''
+      return typeof body.toolCallId === 'string'
+        ? body.toolCallId.trim()
+        : ''
+    }
+
+    if (eventType === 'tool-call') {
+      const toolCallId = readToolCallId()
+      if (toolCallId) {
+        const emittedToolCallIds = state.emittedToolCallIds ??= new Set<string>()
+        if (emittedToolCallIds.has(toolCallId))
+          return
+        emittedToolCallIds.add(toolCallId)
+      }
+    }
+
+    if (eventType === 'tool-result') {
+      const toolCallId = readToolCallId()
+      if (toolCallId) {
+        const emittedToolResultIds = state.emittedToolResultIds ??= new Set<string>()
+        if (emittedToolResultIds.has(toolCallId))
+          return
+        emittedToolResultIds.add(toolCallId)
+      }
+    }
+
+    if (eventType === 'tool-progress') {
+      const progress = body as AlicizationChatToolProgressEvent
+      const toolCallId = readToolCallId()
+      const terminal = progress.phase === 'completed'
+        || progress.phase === 'failed'
+        || progress.phase === 'cancelled'
+        || progress.phase === 'timeout'
+      const terminalToolCallIds = state.terminalToolCallIds ??= new Set<string>()
+      if (toolCallId && terminalToolCallIds.has(toolCallId) && !terminal)
+        return
+
+      const progressKey = progress.eventId?.trim()
+        ? `event:${toolCallId}:${progress.eventId.trim()}`
+        : [
+            'snapshot',
+            toolCallId,
+            progress.toolName.trim(),
+            progress.signal ?? '',
+            progress.phase,
+            progress.elapsedMs,
+            progress.occurredAt ?? '',
+            progress.adapterEventType ?? '',
+            progress.itemType ?? '',
+            progress.summary ?? '',
+            progress.errorCode ?? '',
+            progress.errorMessage ?? '',
+          ].join('|')
+      const emittedToolProgressKeys = state.emittedToolProgressKeys ??= new Set<string>()
+      if (emittedToolProgressKeys.has(progressKey))
+        return
+      emittedToolProgressKeys.add(progressKey)
+      if (toolCallId && terminal)
+        terminalToolCallIds.add(toolCallId)
+    }
 
     const sender = state.sender
     if (sender && !sender.isDestroyed()) {
@@ -179,11 +260,13 @@ export function createAlicizationChatStreamRuntime(options: CreateAlicizationCha
         ? options.chunkEvent
         : eventType === 'tool-call'
           ? options.toolCallEvent
-          : eventType === 'tool-result'
-            ? options.toolResultEvent
-            : eventType === 'finish'
-              ? options.finishEvent
-              : options.errorEvent
+          : eventType === 'tool-progress'
+            ? options.toolProgressEvent
+            : eventType === 'tool-result'
+              ? options.toolResultEvent
+              : eventType === 'finish'
+                ? options.finishEvent
+                : options.errorEvent
 
     if (eventaOptions) {
       options.emitContextEvent(eventaEvent, body, eventaOptions)

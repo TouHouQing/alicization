@@ -1,4 +1,8 @@
 import type {
+  AlicizationRuntimeEventEnvelope,
+} from '@proj-alicization/stage-shared'
+
+import type {
   AlicizationChatErrorEvent,
   AlicizationChatFinishEvent,
   AlicizationChatMetaEvent,
@@ -18,13 +22,25 @@ import type {
   MainGatewayResolvedConfig,
 } from './runtime-soul'
 import type { RuntimeSurfaceContinuityEvidenceShape } from './runtime-surface-continuity-selection'
-import type { AlicizationResolvedVisibleReply } from './visible-reply/facade'
+import type { AlicizationRuntimeCheckpoint } from './turn-os/checkpoint-store'
+import type { AlicizationRuntimeEventScope } from './turn-os/event-store'
+import type {
+  AlicizationVisibleReplySettlementResult,
+} from './visible-reply/facade'
+
+import {
+  extractAlicizationToolExecutionFailure,
+  isAlicizationToolExecutionFailureResult,
+} from '@proj-alicization/stage-shared'
 
 import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
-import { generateAlicizationMainChatNonStreaming } from './main-chat-one-shot'
+import {
+  armAlicizationMainChatPreparationDeadline,
+  raceAlicizationMainChatPreparation,
+} from './main-chat-preparation-deadline'
 import { handleAlicizationMainChatRunFailure } from './main-chat-run-lifecycle'
 import { createAlicizationChatStreamMetaEmitter } from './main-chat-stream-meta'
-import { runAlicizationMainChatStream } from './main-chat-stream-runner'
+import { runAlicizationMainChatProviderStep } from './main-chat-stream-runner'
 import {
   mergePreferredSelfContinuityAuthority,
   resolvePreferredPersonStateProjection,
@@ -33,18 +49,17 @@ import {
 import {
   mainChatFirstEventTimeoutMs,
   mainChatFirstEventTimeoutWithVisualGroundingMs,
-  normalizeCardId,
+  mainChatPreparationTimeoutMs,
   sanitizeText,
 } from './runtime-soul'
 import { resolvePreferredRuntimeSurface } from './runtime-surface-continuity-selection'
-import { parseJsonObjectFromText } from './runtime-transport-content'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
+import { createAlicizationEventLoop } from './turn-os/event-loop'
+import { createAlicizationMainChatParticipant } from './turn-os/main-chat-participant'
 import {
-  AlicizationVisibleReplySettlementBlockedError,
   resolveAlicizationPreparedVisibleReplyExecution,
   settleAlicizationVisibleReply,
 } from './visible-reply/facade'
-import { validateAlicizationProviderSettlementPayload } from './visible-reply/settlement'
 
 type AlicizationRuntimeEmotionalKernelShape = NonNullable<AlicizationRuntimeDigest['emotionalKernel']>
 
@@ -88,7 +103,9 @@ interface RunAlicizationMainChatBackgroundOptions {
   activeCardId: string
   mainGateway: MainGatewayResolvedConfig
   runState: ChatRunState
-  preparationPromise: Promise<AlicizationPreparedMainChatExecutionResult>
+  prepareTurn: (input: {
+    abortSignal: AbortSignal
+  }) => Promise<AlicizationPreparedMainChatExecutionResult>
   headers?: Record<string, string>
   isRunActive: () => boolean
   runStateController: AlicizationMainChatRunStateFacade
@@ -118,6 +135,19 @@ interface RunAlicizationMainChatBackgroundOptions {
     cardId: string
     callbacks: NonNullable<AlicizationPreparedMainChatExecutionResult['presentedExecutionCallbacks']>
   }) => Promise<void> | void
+  turnLoop: {
+    conversationId: string
+    userId: string
+    persistence: {
+      appendRuntimeEvent: (
+        scope: AlicizationRuntimeEventScope,
+        event: AlicizationRuntimeEventEnvelope,
+      ) => Promise<AlicizationRuntimeEventEnvelope>
+      saveRuntimeCheckpoint: (
+        checkpoint: AlicizationRuntimeCheckpoint,
+      ) => Promise<AlicizationRuntimeCheckpoint>
+    }
+  }
 }
 
 function resolvePreferredPreparedRuntimeSurface(
@@ -138,14 +168,6 @@ function resolvePreparedRuntimeEmotionalKernel(
     ?? readEmotionalKernelSnapshot(runtimeSurface?.dialogue?.runtimeDigest?.emotionalKernel)
     ?? readEmotionalKernelSnapshot(runtimeSurface?.memory?.derivedMindStateBundle?.emotionalKernel)
     ?? readEmotionalKernelSnapshot(runtimeSurface?.memory?.derivedMindStateBundle?.visualPresenceState?.emotionalKernel)
-}
-
-function resolvePreparedMainChatOneShotEmotionalKernel(
-  prepared: AlicizationPreparedMainChatExecutionResult | null | undefined,
-): AlicizationRuntimeEmotionalKernelShape | null {
-  const preferredRuntimeSurface = resolvePreferredPreparedRuntimeSurface(prepared?.runtimeSurface)
-  const runtimeSurface = preferredRuntimeSurface ?? prepared?.runtimeSurface?.digitalLifeRuntimeSurface ?? null
-  return resolvePreparedRuntimeEmotionalKernel(runtimeSurface)
 }
 
 function buildPreparedRuntimeDigestFallback(prepared: AlicizationPreparedMainChatExecutionResult | null): AlicizationRuntimeDigest | null {
@@ -217,104 +239,14 @@ export function resolveAlicizationExecutionPayoffContinuityInputs(input: {
   }
 }
 
-function assertProviderBackgroundExecution(
-  execution: AlicizationVisibleReplyExecution,
-) {
-  if (
-    execution.providerMindExecuted === true
-    && execution.actualVisibleReplyAuthority === 'llm-mind'
-  ) {
-    return
-  }
-
-  throw new AlicizationVisibleReplySettlementBlockedError(
-    'provider-visible-reply-authority-invalid',
-    null,
-  )
-}
-
-function readBackgroundVisibleReplyCritic(raw: unknown) {
-  const candidate = readRecord(raw)
-  const status = candidate?.status === 'pass'
-    ? 'pass' as const
-    : candidate?.status === 'blocked'
-      ? 'blocked' as const
-      : null
-  if (!candidate || !status)
-    return null
-
-  return {
-    version: 'visible-reply-critic-public-summary-v1' as const,
-    status,
-    providerMindRequired: candidate.providerMindRequired === true,
-    reasonCodes: Array.isArray(candidate.reasonCodes)
-      ? candidate.reasonCodes.filter((reason): reason is string => typeof reason === 'string')
-      : [],
-  }
-}
-
-function readBackgroundVisibleReplyClosure(raw: unknown) {
-  const candidate = readRecord(raw)
-  const status = candidate?.status === 'approved'
-    ? 'approved' as const
-    : candidate?.status === 'blocked'
-      ? 'blocked' as const
-      : null
-  if (!candidate || !status)
-    return null
-  const normalizeCriticStatus = (value: unknown) =>
-    value === 'pass'
-      ? 'pass' as const
-      : value === 'blocked'
-        ? 'blocked' as const
-        : null
-
-  return {
-    version: 'visible-reply-closure-public-summary-v1' as const,
-    status,
-    reasonCodes: Array.isArray(candidate.reasonCodes)
-      ? candidate.reasonCodes.filter((reason): reason is string => typeof reason === 'string')
-      : [],
-    initialCriticStatus: normalizeCriticStatus(candidate.initialCriticStatus),
-    finalCriticStatus: normalizeCriticStatus(candidate.finalCriticStatus),
-  }
-}
-
-function resolveBackgroundVisibleReplyRealization(input: {
-  candidate: unknown
-  visibleText: string
-  visibleReplyExecution: AlicizationVisibleReplyExecution
-}): AlicizationResolvedVisibleReply['realization'] {
-  const candidate = readRecord(input.candidate)
-
-  return {
-    version: 'visible-reply-realization-v1',
-    expectedAuthority: 'llm-mind',
-    actualAuthority: input.visibleReplyExecution.actualVisibleReplyAuthority,
-    providerMindExecuted: input.visibleReplyExecution.providerMindExecuted,
-    mode: input.visibleReplyExecution.mode,
-    visibleText: input.visibleText,
-    visibleReplyValidationStatus: 'approved',
-    nonHumanAuthoredStatus: null,
-    blockedReasons: [],
-    reason: input.visibleReplyExecution.reason,
-    critic: readBackgroundVisibleReplyCritic(candidate?.critic),
-    closure: readBackgroundVisibleReplyClosure(candidate?.closure),
-  }
-}
-
-function readProviderReplyFromRawFullText(fullText: string) {
-  const parsed = parseJsonObjectFromText(fullText)
-  return typeof parsed?.reply === 'string'
-    ? parsed.reply
-    : fullText.trim()
-}
-
 export async function runAlicizationMainChatBackground(
   input: RunAlicizationMainChatBackgroundOptions,
 ) {
   let prepared: AlicizationPreparedMainChatExecutionResult | null = null
   let streamMetaEmitter: ReturnType<typeof createAlicizationChatStreamMetaEmitter> | null = null
+  let currentVisibleReplyExecution: AlicizationVisibleReplyExecution | null = null
+  let settledVisibleReply: AlicizationVisibleReplySettlementResult | null = null
+  let providerFinishReason = 'stop'
   const nonProgressEventTypes = new Set<string>()
 
   const emitFailure = async (error: unknown) => {
@@ -348,140 +280,16 @@ export async function runAlicizationMainChatBackground(
   }
 
   try {
-    prepared = await input.preparationPromise
-    if (!input.isRunActive())
-      return
-
-    input.runStateController.setSessionTraceGetter(input.key, prepared.getSessionTrace)
     const normalizedPayload = input.payload
-    let currentVisibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
-      prepared,
-    })
-    streamMetaEmitter = createAlicizationChatStreamMetaEmitter({
-      cardId: normalizedPayload.cardId,
-      turnId: normalizedPayload.turnId,
-      getGovernance: () => prepared?.governance ?? null,
-      getThought: () => null,
-      getVisibleReplyExecution: () => currentVisibleReplyExecution,
-      getDigitalLifeSpine: () => projectAlicizationDigitalLifeSpineDigest(prepared?.runtimeSurface?.digitalLifeSpine ?? null),
-      getRuntimeDigest: () => buildPreparedRuntimeDigestFallback(prepared),
-      getResidentPerformance: () => null,
-      getPerformanceManifest: () => prepared?.performanceManifest ?? null,
-      getExplicitPerformance: () => null,
-      emit: input.emitMeta,
-    })
-    streamMetaEmitter.emit('', { force: true })
+    const conversationId = sanitizeText(input.turnLoop?.conversationId)
+    if (!input.turnLoop || !conversationId)
+      throw new TypeError('main chat requires an EventLoop owner with a real conversationId')
 
-    try {
-      await Promise.resolve(input.recordPreparedMindTrace?.({
-        payload: normalizedPayload,
-        prepared,
-      }))
-    }
-    catch (error) {
-      await input.appendRuntimeDebugLine('chat-start.prepared-mind-trace-failed', {
-        cardId: input.runState.cardId,
-        turnId: input.runState.turnId,
-        reason: error instanceof Error ? error.message : String(error),
-      })
-    }
+    const settlePresentedExecutionCallbacks = async () => {
+      const presentedExecutionCallbacks = prepared?.presentedExecutionCallbacks ?? []
+      if (presentedExecutionCallbacks.length === 0)
+        return
 
-    const settleStructuredVisibleReply = async (settlementInput: {
-      fullText: string
-      visibleReplyExecution: AlicizationVisibleReplyExecution
-    }) => {
-      const settled = await settleAlicizationVisibleReply({
-        draft: {
-          fullText: settlementInput.fullText,
-          visibleReplyExecution: settlementInput.visibleReplyExecution,
-        },
-        prepared: prepared!,
-        requireProviderMemoryUsage: true,
-        allowPlainTextProviderReply: true,
-        appendRuntimeDebugLine: input.appendRuntimeDebugLine,
-      })
-      return {
-        fullText: settlementInput.fullText,
-        visibleReplyExecution: settlementInput.visibleReplyExecution,
-        critic: settled.closureResult.critic,
-        closure: settled.closureResult.closure,
-        visibleReplyRealization: settled.realization,
-      }
-    }
-
-    const firstEventTimeoutMs = prepared.hasVisualGrounding
-      ? mainChatFirstEventTimeoutWithVisualGroundingMs
-      : mainChatFirstEventTimeoutMs
-    const streamResult = await runAlicizationMainChatStream({
-      payload: input.payload,
-      prepared,
-      headers: input.headers,
-      controller: input.runState.controller,
-      firstEventTimeoutMs,
-      isRunActive: input.isRunActive,
-      nonProgressEventTypes,
-      streamMeta: streamMetaEmitter,
-      incrementChunkStats: input.incrementChunkStats,
-      emitChunk: input.emitChunk,
-      emitToolCall: input.emitToolCall,
-      emitToolResult: input.emitToolResult,
-      generateNonStreaming: async (oneShotInput) => {
-        await input.appendRuntimeDebugLine('chat-stream.visual-one-shot-started', {
-          cardId: normalizeCardId(oneShotInput.cardId ?? input.activeCardId),
-          turnId: sanitizeText(oneShotInput.turnId),
-          timeoutMs: oneShotInput.timeoutMs,
-        })
-        return await generateAlicizationMainChatNonStreaming({
-          ...oneShotInput,
-          emotionalKernel: resolvePreparedMainChatOneShotEmotionalKernel(prepared),
-        })
-      },
-      logReminderToolCall: async ({ toolCallId, toolName, argumentsPreview }) => {
-        await input.appendRuntimeDebugLine('reminder.stream-tool-call', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          toolCallId,
-          toolName,
-          argumentsPreview,
-        })
-      },
-      logReminderToolResult: async ({ toolCallId, summary }) => {
-        await input.appendRuntimeDebugLine('reminder.stream-tool-result', {
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          toolCallId,
-          ...summary,
-        })
-      },
-      appendRuntimeDebugLine: input.appendRuntimeDebugLine,
-      settleStructuredVisibleReply,
-      delayVisibleRelease: true,
-      turnRuntimeContext: prepared.turnRuntimeContext ?? null,
-    })
-
-    currentVisibleReplyExecution = streamResult.visibleReplyExecution
-    assertProviderBackgroundExecution(currentVisibleReplyExecution)
-    const visibleReplyRealization = resolveBackgroundVisibleReplyRealization({
-      candidate: streamResult.visibleReplyRealization,
-      visibleText: readProviderReplyFromRawFullText(streamResult.fullText),
-      visibleReplyExecution: currentVisibleReplyExecution,
-    })
-
-    // Final success boundary: nothing may rewrite fullText after this validation.
-    const finalValidation = validateAlicizationProviderSettlementPayload({
-      fullText: streamResult.fullText,
-      prepared,
-      allowPlainTextProviderReply: true,
-    })
-    if (!finalValidation.valid || !finalValidation.payload) {
-      throw new AlicizationVisibleReplySettlementBlockedError(
-        `provider-settlement-invalid:${finalValidation.issues.join(',')}`,
-        null,
-      )
-    }
-
-    const presentedExecutionCallbacks = prepared.presentedExecutionCallbacks ?? []
-    if (presentedExecutionCallbacks.length > 0) {
       try {
         await input.settlePresentedExecutionCallbacks?.({
           cardId: normalizedPayload.cardId,
@@ -509,18 +317,232 @@ export async function runAlicizationMainChatBackground(
       }
     }
 
+    const emitPreparedMeta = async (
+      preparedForMeta: AlicizationPreparedMainChatExecutionResult,
+    ) => {
+      if (streamMetaEmitter)
+        return
+
+      currentVisibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
+        prepared: preparedForMeta,
+      })
+      streamMetaEmitter = createAlicizationChatStreamMetaEmitter({
+        cardId: normalizedPayload.cardId,
+        turnId: normalizedPayload.turnId,
+        getGovernance: () => prepared?.governance ?? null,
+        getThought: () => null,
+        getVisibleReplyExecution: () => currentVisibleReplyExecution,
+        getDigitalLifeSpine: () => projectAlicizationDigitalLifeSpineDigest(prepared?.runtimeSurface?.digitalLifeSpine ?? null),
+        getRuntimeDigest: () => buildPreparedRuntimeDigestFallback(prepared),
+        getResidentPerformance: () => null,
+        getPerformanceManifest: () => prepared?.performanceManifest ?? null,
+        getExplicitPerformance: () => null,
+        emit: input.emitMeta,
+      })
+      streamMetaEmitter.emit('', { force: true })
+      try {
+        await Promise.resolve(input.recordPreparedMindTrace?.({
+          payload: normalizedPayload,
+          prepared: preparedForMeta,
+        }))
+      }
+      catch (error) {
+        await input.appendRuntimeDebugLine('chat-start.prepared-mind-trace-failed', {
+          cardId: input.runState.cardId,
+          turnId: input.runState.turnId,
+          reason: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+
+    const participant = createAlicizationMainChatParticipant<AlicizationPreparedMainChatExecutionResult>({
+      runProviderStep: async (context, runtime) => {
+        await emitPreparedMeta(context.prepared)
+        const providerStep = await runAlicizationMainChatProviderStep({
+          payload: input.payload,
+          prepared: context.prepared,
+          messages: context.providerMessages,
+          headers: input.headers,
+          controller: input.runState.controller,
+          signal: runtime.abortSignal,
+          firstEventTimeoutMs: context.prepared.hasVisualGrounding
+            ? mainChatFirstEventTimeoutWithVisualGroundingMs
+            : mainChatFirstEventTimeoutMs,
+          isRunActive: input.isRunActive,
+          nonProgressEventTypes,
+          emitToolCall: input.emitToolCall,
+          appendRuntimeDebugLine: input.appendRuntimeDebugLine,
+        })
+        if (providerStep.kind === 'reply') {
+          providerFinishReason = providerStep.finishReason
+        }
+        return providerStep
+      },
+      resolveProviderReply: async (step, context) => {
+        const fullText = step.fullText ?? step.text
+        const visibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
+          prepared: context.prepared,
+          mode: 'provider-stream',
+          providerMindExecuted: true,
+          reason: 'turn-event-loop',
+        })
+        const settled = await settleAlicizationVisibleReply({
+          draft: {
+            fullText,
+            visibleReplyExecution,
+          },
+          prepared: context.prepared,
+          requireProviderMemoryUsage: true,
+          allowPlainTextProviderReply: true,
+          appendRuntimeDebugLine: input.appendRuntimeDebugLine,
+        })
+        settledVisibleReply = settled
+        currentVisibleReplyExecution = settled.visibleReplyExecution
+        return settled.visibleText
+      },
+      executeTool: async (action, context, runtime) => {
+        const tool = context.prepared.tools?.find(
+          candidate => sanitizeText(candidate.function?.name) === action.qualifiedToolName,
+        )
+        if (!tool)
+          throw new Error(`Provider requested unavailable tool "${action.qualifiedToolName}"`)
+        if (!action.toolCallId)
+          throw new Error('Provider tool action requires a real toolCallId')
+
+        const result = await tool.execute(action.input, {
+          abortSignal: runtime.abortSignal,
+          messages: context.providerMessages,
+          toolCallId: action.toolCallId,
+        })
+        const toolFailure = isAlicizationToolExecutionFailureResult(result)
+          ? extractAlicizationToolExecutionFailure(result, action.qualifiedToolName)
+          : null
+        if (toolFailure) {
+          throw Object.assign(new Error(toolFailure.message), {
+            name: 'AlicizationToolExecutionError',
+            failureKind: 'tool-execution',
+            toolName: toolFailure.toolName,
+            errorCode: toolFailure.code,
+          })
+        }
+
+        input.emitToolResult({
+          cardId: input.payload.cardId,
+          turnId: input.payload.turnId,
+          toolCallId: action.toolCallId,
+          toolName: action.qualifiedToolName,
+          result,
+        })
+        return {
+          actionId: action.actionId,
+          observationId: `${action.actionId}:observation`,
+          toolCallId: action.toolCallId,
+          terminal: true,
+          outcome: 'success',
+          output: result,
+        }
+      },
+      publishReply: async ({ cardId, text, turnId }) => {
+        if (!input.isRunActive())
+          return
+        input.incrementChunkStats(text)
+        input.emitChunk({
+          cardId,
+          turnId,
+          text,
+          origin: 'provider',
+          learningPolicy: {
+            allowLongTermCondensation: true,
+            allowPersonaLearning: true,
+            allowTraining: false,
+          },
+          failureSurface: null,
+        })
+        streamMetaEmitter?.emit(text)
+      },
+    })
+    const eventLoop = createAlicizationEventLoop({
+      persistence: input.turnLoop.persistence,
+      participant,
+    })
+    const result = await eventLoop.runTurn({
+      scope: {
+        cardId: normalizedPayload.cardId,
+        conversationId,
+        turnId: normalizedPayload.turnId,
+        userId: input.turnLoop.userId,
+      },
+      deliveryOwner: 'inline',
+      signal: input.runState.controller.signal,
+      turnInput: {
+        payload: {
+          cardId: normalizedPayload.cardId,
+          turnId: normalizedPayload.turnId,
+        },
+        conversationId,
+        prepare: async (runtime) => {
+          const clearPreparationDeadline = armAlicizationMainChatPreparationDeadline({
+            controller: input.runState.controller,
+            timeoutMs: mainChatPreparationTimeoutMs,
+            onTimeout: () => {
+              void input.appendRuntimeDebugLine('chat-stream.preparation-timeout-fired', {
+                cardId: input.payload.cardId,
+                turnId: input.payload.turnId,
+                timeoutMs: mainChatPreparationTimeoutMs,
+              })
+            },
+          })
+          let nextPrepared: AlicizationPreparedMainChatExecutionResult
+          try {
+            nextPrepared = await raceAlicizationMainChatPreparation({
+              preparationPromise: input.prepareTurn({
+                abortSignal: runtime.abortSignal,
+              }),
+              signal: runtime.abortSignal,
+            })
+          }
+          finally {
+            clearPreparationDeadline()
+          }
+          if (!input.isRunActive())
+            throw new DOMException('Alicization chat run is no longer active', 'AbortError')
+
+          prepared = nextPrepared
+          input.runStateController.setSessionTraceGetter(input.key, nextPrepared.getSessionTrace)
+          return nextPrepared
+        },
+      },
+    })
+
+    if (result.status !== 'completed')
+      throw result.cause ?? new Error(result.error ?? `main chat turn ${result.status}`)
+    const completedPrepared = prepared as AlicizationPreparedMainChatExecutionResult | null
+    if (!completedPrepared)
+      throw new Error('main chat EventLoop completed without prepared context')
+
+    await settlePresentedExecutionCallbacks()
+
+    const completedVisibleReply = settledVisibleReply as AlicizationVisibleReplySettlementResult | null
+    if (!completedVisibleReply)
+      throw new Error('main chat EventLoop completed without visible reply settlement')
+    const fullText = completedVisibleReply.fullText
+    const visibleReplyExecution = completedVisibleReply.visibleReplyExecution
     input.runStateController.finishRun(input.key, {
       status: 'completed',
-      finishReason: streamResult.finishReason,
-      origin: streamResult.origin,
-      learningPolicy: streamResult.learningPolicy,
-      failureSurface: streamResult.failureSurface,
-      memoryFailures: prepared.memoryFailures,
-      fullText: streamResult.fullText,
-      visibleReplyExecution: currentVisibleReplyExecution,
-      visibleReplyRealization,
-      visibleReplyCritic: visibleReplyRealization.critic as AlicizationChatFinishEvent['visibleReplyCritic'],
-      visibleReplyClosure: visibleReplyRealization.closure as AlicizationChatFinishEvent['visibleReplyClosure'],
+      finishReason: providerFinishReason,
+      origin: 'provider',
+      learningPolicy: {
+        allowLongTermCondensation: true,
+        allowPersonaLearning: true,
+        allowTraining: false,
+      },
+      failureSurface: null,
+      memoryFailures: completedPrepared.memoryFailures,
+      fullText,
+      visibleReplyExecution,
+      visibleReplyRealization: completedVisibleReply.realization,
+      visibleReplyCritic: completedVisibleReply.realization.critic as AlicizationChatFinishEvent['visibleReplyCritic'],
+      visibleReplyClosure: completedVisibleReply.realization.closure as AlicizationChatFinishEvent['visibleReplyClosure'],
     })
   }
   catch (error) {

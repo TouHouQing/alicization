@@ -212,6 +212,7 @@ interface AlicizationSensoryRuntimeOptions {
       name: string
       strategy: 'app-name' | 'process-name' | 'screen-fallback' | 'window-title'
     }
+    abortSignal?: AbortSignal
   }) => Promise<AlicizationGeneratedScreenSemanticSummaryResult>
   getSensorySnapshot: () => AlicizationSensoryCacheSnapshot
   getActiveAttentionAnchor: (state: AlicizationPerceptionState, now: number) => {
@@ -394,6 +395,7 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
     now: number
     perceptionState: AlicizationPerceptionState
     userText: string
+    abortSignal?: AbortSignal
   }): Promise<AlicizationChatVisualGroundingResult> {
     // NOTICE: Desktop capture access caching is only safe within the same grounding burst.
     // Follow-up inspection turns must re-probe current sources instead of reusing the
@@ -532,6 +534,7 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
         strategy: resolvedCandidate.strategy ?? 'screen-fallback',
       },
       focusTarget: effectiveFocusTarget,
+      abortSignal: input.abortSignal,
     })
     const screenSemanticSummary = semanticResult.summary
     const shouldSkipWeakFallbackResidue = Boolean(
@@ -607,6 +610,7 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
     userText: string
     messages: Message[]
     senderWebContentsId?: number | null
+    abortSignal?: AbortSignal
   }): Promise<AlicizationPreparedInteractivePerceptionPrelude> {
     const now = Date.now()
     let perceptionState = await options.ensurePerceptionState(input.cardId)
@@ -721,6 +725,7 @@ export function createAlicizationSensoryRuntime(options: AlicizationSensoryRunti
         cardId: input.cardId,
         perceptionState,
         currentForeground,
+        abortSignal: input.abortSignal,
       })
       if (grounding.additionalUserParts.length > 0)
         messages = options.appendContentPartsToLatestUserMessage(messages, grounding.additionalUserParts)

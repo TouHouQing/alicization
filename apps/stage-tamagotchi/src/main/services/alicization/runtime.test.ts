@@ -1,6 +1,9 @@
+import type { AlicizationRuntimeEventEnvelope } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationConversationTurnInput,
 } from '../../../shared/eventa'
+import type { AlicizationRuntimeEventScope } from './turn-os/event-store'
 
 import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
@@ -72,12 +75,16 @@ const sandboxDirs: string[] = []
 const runtimeModulePath = join(process.cwd(), 'apps/stage-tamagotchi/src/main/services/alicization/runtime.ts')
 const contextEmitMock = vi.fn()
 const metaStore = new Map<string, string>()
+const runtimeEventsByTurn = new Map<string, any[]>()
 const streamTextMock = vi.fn()
 const generateTextMock = vi.fn()
 const directIpcHandlers = new Map<string, (event: any, payload?: any) => Promise<any> | any>()
 const listWebContentsMock = vi.fn<() => any[]>(() => [])
 const desktopCapturerGetSourcesMock = vi.fn<(input?: any) => Promise<any[]>>(async () => [])
 const systemPreferencesGetMediaAccessStatusMock = vi.fn(() => 'granted')
+const taskThreadOrchestratorDisposeMock = vi.fn(async (drain: () => Promise<void>) => {
+  await drain()
+})
 const localBrowserAutomationOverrides: {
   clickElement?: (input: any) => Promise<any>
   clickDesktopElement?: (input: any) => Promise<any>
@@ -176,6 +183,17 @@ function expectExecutionCapabilityFact(systemTexts: string[]) {
 const dbStub = {
   dbPath: '',
   close: vi.fn().mockResolvedValue(undefined),
+  appendRuntimeEvent: vi.fn(async (scope: AlicizationRuntimeEventScope, event: AlicizationRuntimeEventEnvelope) => {
+    const events = runtimeEventsByTurn.get(scope.turnId) ?? []
+    const persisted = {
+      ...event,
+      sequence: events.length + 1,
+    }
+    events.push(persisted)
+    runtimeEventsByTurn.set(scope.turnId, events)
+    return persisted
+  }),
+  saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
   appendAuditLog: vi.fn().mockResolvedValue(undefined),
   appendConversationTurn: vi.fn().mockResolvedValue(undefined),
   getMemoryStats: vi.fn().mockResolvedValue({
@@ -434,6 +452,24 @@ vi.mock('./db', () => ({
   setupAlicizationDb: vi.fn(async () => dbStub),
 }))
 
+vi.mock('./task-thread-orchestrator', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./task-thread-orchestrator')>()
+  return {
+    ...actual,
+    createTaskThreadOrchestrator: (...args: Parameters<typeof actual.createTaskThreadOrchestrator>) => {
+      const orchestrator = actual.createTaskThreadOrchestrator(...args)
+      return {
+        ...orchestrator,
+        dispose: async () => {
+          await taskThreadOrchestratorDisposeMock(async () => {
+            await orchestrator.dispose()
+          })
+        },
+      }
+    },
+  }
+})
+
 vi.mock('@proj-alicization/electron-screen-capture/main', () => ({
   getScreenCaptureDiagnosticsForWebContentsId: getScreenCaptureDiagnosticsForWebContentsIdMock,
 }))
@@ -545,6 +581,17 @@ async function createSandboxPath() {
   const dir = await mkdtemp(join(tmpdir(), 'alicization-runtime-test-'))
   sandboxDirs.push(dir)
   return dir
+}
+
+function createDeferredGate() {
+  let release = () => {}
+  const wait = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  return {
+    release,
+    wait,
+  }
 }
 
 async function runAppBeforeQuitHandlers() {
@@ -767,6 +814,7 @@ describe('alicization runtime audit helpers', () => {
     generateTextMock.mockReset()
     mockGenerateTextFromStreamText()
     metaStore.clear()
+    runtimeEventsByTurn.clear()
     screenCaptureDiagnosticsBySenderId.clear()
     foregroundWindowSample = undefined
     sensoryCpuUsage = 12
@@ -795,6 +843,20 @@ describe('alicization runtime audit helpers', () => {
     }))
     dbStub.appendExecutionEvents.mockReset().mockResolvedValue(undefined)
     dbStub.listExecutionEvents.mockReset().mockResolvedValue([])
+    dbStub.appendRuntimeEvent.mockReset().mockImplementation(async (
+      scope: AlicizationRuntimeEventScope,
+      event: AlicizationRuntimeEventEnvelope,
+    ) => {
+      const events = runtimeEventsByTurn.get(scope.turnId) ?? []
+      const persisted = {
+        ...event,
+        sequence: events.length + 1,
+      }
+      events.push(persisted)
+      runtimeEventsByTurn.set(scope.turnId, events)
+      return persisted
+    })
+    dbStub.saveRuntimeCheckpoint.mockReset().mockImplementation(async checkpoint => checkpoint)
     for (const key of Object.keys(localBrowserAutomationOverrides))
       delete localBrowserAutomationOverrides[key as keyof typeof localBrowserAutomationOverrides]
     setAlicizationKillSwitchState('ACTIVE', 'runtime-test-baseline')
@@ -841,6 +903,43 @@ describe('alicization runtime audit helpers', () => {
     expect(afterGenesis.soulPath.startsWith(sandboxPath)).toBe(true)
     expect(afterGenesis.needsGenesis).toBe(false)
     expect(afterGenesis.watching).toBe(true)
+  })
+
+  it('waits for the task-thread shutdown drain before closing sqlite', async () => {
+    const sandboxPath = await createSandboxPath()
+    const order: string[] = []
+    const drainGate = createDeferredGate()
+    taskThreadOrchestratorDisposeMock.mockImplementationOnce(async () => {
+      order.push('drain-started')
+      await drainGate.wait
+      order.push('drain-finished')
+    })
+    dbStub.close.mockImplementationOnce(async () => {
+      order.push('db-closed')
+    })
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    let shutdownSettled = false
+    const shutdown = runAppBeforeQuitHandlers().finally(() => {
+      shutdownSettled = true
+    })
+    await vi.waitFor(() => {
+      expect(order).toContain('drain-started')
+    })
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(shutdownSettled).toBe(false)
+    expect(order).not.toContain('db-closed')
+
+    drainGate.release()
+    await shutdown
+
+    expect(order).toEqual([
+      'drain-started',
+      'drain-finished',
+      'db-closed',
+    ])
   })
 
   it('stops and resumes sensory polling with kill switch state', async () => {
@@ -5678,17 +5777,82 @@ describe('alicization runtime audit helpers', () => {
     })
   })
 
-  it('keeps visible chunk surface separated from structured finish payload in main chat runtime', async () => {
+  it('routes the direct ipc production path through the persisted turn loop', async () => {
+    const sandboxPath = await createSandboxPath()
+    streamTextMock.mockImplementation(async ({ messages, onEvent }) => {
+      await emitRuntimeTestReply({
+        messages,
+        onEvent,
+        reply: 'persisted turn loop reply',
+      })
+    })
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const directStart = directIpcHandlers.get(alicizationChatStartInvokeChannel)
+    expect(directStart).toBeTypeOf('function')
+
+    const turnId = 'turn-direct-ipc-persisted-loop'
+    const result = await directStart?.({}, {
+      cardId: 'default',
+      turnId,
+      providerId: 'openai',
+      model: 'gpt-4o-mini',
+      providerConfig: {
+        apiKey: 'test-key',
+        baseUrl: 'https://api.openai.com/v1',
+      },
+      messages: [{ role: 'user', content: 'exercise the production turn loop' }],
+    })
+
+    expect(result).toEqual(expect.objectContaining({
+      accepted: true,
+      state: 'accepted',
+    }))
+    await waitForChatFinishEvent(turnId)
+
+    const appendCalls = dbStub.appendRuntimeEvent.mock.calls
+      .filter(([scope]) => scope.turnId === turnId)
+    expect(appendCalls.map(([, event]) => event.eventType)).toEqual([
+      'turn.accepted',
+      'context.assembly.started',
+      'context.assembly.completed',
+      'model.step.started',
+      'model.text.delta',
+      'model.step.completed',
+      'assistant.reply.committed',
+      'turn.completed',
+    ])
+
+    const localUserId = metaStore.get('alicization.runtime.local-user-id.v1')
+    expect(localUserId).toEqual(expect.any(String))
+    const firstScope = appendCalls[0]?.[0]
+    expect(firstScope).toMatchObject({
+      cardId: 'default',
+      turnId,
+      userId: localUserId,
+    })
+    expect(firstScope.conversationId).toEqual(expect.any(String))
+    expect(appendCalls.every(([scope]) =>
+      scope.cardId === firstScope.cardId
+      && scope.conversationId === firstScope.conversationId
+      && scope.turnId === firstScope.turnId
+      && scope.userId === firstScope.userId,
+    )).toBe(true)
+    expect(dbStub.saveRuntimeCheckpoint).toHaveBeenCalled()
+  })
+
+  it('keeps native Provider text identical across visible chunks and the finish payload', async () => {
     const sandboxPath = await createSandboxPath()
     streamTextMock.mockImplementation(async ({ onEvent }) => {
-      const structuredReply = JSON.stringify(buildRuntimeMindTurnReply({
-        reply: 'User enjoys coding sessions with focus.',
-      }))
-      const firstBoundary = Math.floor(structuredReply.length / 3)
-      const secondBoundary = Math.floor(structuredReply.length * 2 / 3)
-      await onEvent?.({ type: 'text-delta', text: structuredReply.slice(0, firstBoundary) })
-      await onEvent?.({ type: 'text-delta', text: structuredReply.slice(firstBoundary, secondBoundary) })
-      await onEvent?.({ type: 'text-delta', text: structuredReply.slice(secondBoundary) })
+      const providerReply = 'User enjoys coding sessions with focus.'
+      const firstBoundary = Math.floor(providerReply.length / 3)
+      const secondBoundary = Math.floor(providerReply.length * 2 / 3)
+      await onEvent?.({ type: 'text-delta', text: providerReply.slice(0, firstBoundary) })
+      await onEvent?.({ type: 'text-delta', text: providerReply.slice(firstBoundary, secondBoundary) })
+      await onEvent?.({ type: 'text-delta', text: providerReply.slice(secondBoundary) })
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
 
@@ -5725,14 +5889,7 @@ describe('alicization runtime audit helpers', () => {
     const visibleReply = chunkEvents.map(event => event.text).join('')
     const persistedFullText = String(finishEvents[0]?.fullText ?? '')
     expect(visibleReply.length).toBeGreaterThan(0)
-    if (persistedFullText.trim().startsWith('{')) {
-      const parsed = JSON.parse(persistedFullText) as { reply?: string, format?: string }
-      expect(parsed.format).toBe('mind-turn-v1')
-      expect(parsed.reply).toBe(visibleReply)
-    }
-    else {
-      expect(persistedFullText).toBe(visibleReply)
-    }
+    expect(persistedFullText).toBe(visibleReply)
   })
 
   it('keeps card custom directives out of main chat Provider messages', async () => {
@@ -9392,7 +9549,7 @@ describe('alicization runtime audit helpers', () => {
 
   it('registers top-level set_reminder tool and persists scheduled task on success', async () => {
     const sandboxPath = await createSandboxPath()
-    streamTextMock.mockImplementation(async ({ tools, onEvent }) => {
+    streamTextMock.mockImplementation(async ({ tools, messages, onEvent }) => {
       const reminderTool = Array.isArray(tools)
         ? tools.find((entry: any) => entry?.function?.name === 'set_reminder')
         : undefined
@@ -9402,29 +9559,26 @@ describe('alicization runtime audit helpers', () => {
           name: 'set_reminder',
         }),
       }))
+      const hasToolObservation = Array.isArray(messages)
+        && messages.some((message: any) =>
+          message?.role === 'tool'
+          && String(message?.content ?? '').includes('"status":"scheduled"'),
+        )
+      if (hasToolObservation) {
+        await onEvent?.({
+          type: 'text-delta',
+          text: '好的，我会提醒你。',
+        })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
       await onEvent?.({
         type: 'tool-call',
         toolCallId: 'tool-reminder-1',
         toolName: 'set_reminder',
         arguments: { minutes: 3, message: '3分钟后提醒我喝水' },
       })
-      const toolResult = reminderTool?.execute
-        ? await reminderTool.execute({ minutes: 3, message: '3分钟后提醒我喝水' })
-        : undefined
-      expect(toolResult).toEqual(expect.objectContaining({
-        status: 'scheduled',
-        message: '3分钟后提醒我喝水',
-      }))
-      await onEvent?.({
-        type: 'tool-result',
-        toolCallId: 'tool-reminder-1',
-        result: toolResult,
-      })
-      await onEvent?.({
-        type: 'text-delta',
-        text: '好的，我会提醒你。',
-      })
-      await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
 
     await setupAlicizationRuntime({
@@ -9720,42 +9874,36 @@ describe('alicization runtime audit helpers', () => {
 
   it('keeps a single aborted finish when stream is aborted after tool events', async () => {
     const sandboxPath = await createSandboxPath()
-    streamTextMock.mockImplementation(async ({ onEvent, abortSignal }) => {
-      setTimeout(() => {
-        if (!abortSignal?.aborted) {
-          void onEvent?.({
-            type: 'tool-call',
-            toolCallId: 'tool-main-abort-1',
-            toolName: 'mcp_call_tool',
-            arguments: { name: 'filesystem::read_file' },
-          })
+    streamTextMock.mockImplementation(async ({ tools, messages, onEvent, abortSignal }) => {
+      const reminderToolAvailable = Array.isArray(tools)
+        && tools.some((entry: any) => entry?.function?.name === 'set_reminder')
+      if (!reminderToolAvailable) {
+        await onEvent?.({ type: 'text-delta', text: 'background cognition' })
+        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        return
+      }
+
+      const hasToolObservation = Array.isArray(messages)
+        && messages.some((message: any) => message?.role === 'tool')
+      if (!hasToolObservation) {
+        await onEvent?.({
+          type: 'tool-call',
+          toolCallId: 'tool-main-abort-1',
+          toolName: 'set_reminder',
+          arguments: { minutes: 3, message: '取消测试提醒' },
+        })
+        return
+      }
+
+      await new Promise<void>((_resolve, reject) => {
+        if (abortSignal?.aborted) {
+          reject(abortSignal.reason)
+          return
         }
-      }, 10)
-      setTimeout(() => {
-        if (!abortSignal?.aborted) {
-          void onEvent?.({
-            type: 'tool-result',
-            toolCallId: 'tool-main-abort-1',
-            result: { ok: true },
-          })
-        }
-      }, 20)
-      setTimeout(() => {
-        if (!abortSignal?.aborted) {
-          void onEvent?.({
-            type: 'text-delta',
-            text: 'late-chunk',
-          })
-        }
-      }, 60)
-      setTimeout(() => {
-        if (!abortSignal?.aborted) {
-          void onEvent?.({
-            type: 'finish',
-            finishReason: 'stop',
-          })
-        }
-      }, 100)
+        abortSignal?.addEventListener('abort', () => {
+          reject(abortSignal.reason)
+        }, { once: true })
+      })
     })
 
     await setupAlicizationRuntime({
@@ -9783,9 +9931,14 @@ describe('alicization runtime audit helpers', () => {
     })
 
     await vi.waitFor(() => {
-      const toolEvents = contextEmitMock.mock.calls
+      const toolCallEvents = contextEmitMock.mock.calls
         .filter(([event, payload]) => event === alicizationChatStreamToolCall && payload.turnId === turnId)
-      expect(toolEvents.length).toBeGreaterThan(0)
+      const toolResultEvents = contextEmitMock.mock.calls
+        .filter(([event, payload]) => event === alicizationChatStreamToolResult && payload.turnId === turnId)
+      expect(toolCallEvents.length).toBeGreaterThan(0)
+      expect(toolResultEvents.length).toBeGreaterThan(0)
+    }, {
+      timeout: 5_000,
     })
 
     const abortResult = await abortChat!({
@@ -9812,33 +9965,35 @@ describe('alicization runtime audit helpers', () => {
     expect(chunkEvents).toHaveLength(0)
   })
 
-  it('treats non-progress stream events as timeout and recovers with one-shot text', async () => {
+  it('treats non-progress stream events as a transparent timeout failure', async () => {
     vi.useFakeTimers()
     try {
       const sandboxPath = await createSandboxPath()
-      let callCount = 0
       streamTextMock.mockImplementation(async ({ onEvent }: { onEvent?: (event: any) => Promise<void> | void }) => {
-        callCount += 1
-        if (callCount <= 2) {
-          await onEvent?.({
-            type: 'response-metadata',
-            meta: { provider: 'mock' },
-          })
-          return
-        }
-
-        await onEvent?.({ type: 'text-delta', text: 'timeout recovered reply' })
-        await onEvent?.({ type: 'finish', finishReason: 'stop' })
+        await onEvent?.({
+          type: 'response-metadata',
+          meta: { provider: 'mock' },
+        })
       })
 
       await setupAlicizationRuntime({
         userDataPathOverride: sandboxPath,
       })
 
+      dbStub.appendConversationTurn.mockClear()
+      dbStub.upsertMemoryFacts.mockClear()
+      dbStub.appendSubconsciousFragments.mockClear()
+      dbStub.appendRelationshipOutcomes.mockClear()
+      dbStub.appendEpisodicEvents.mockClear()
+      dbStub.appendPersonaReinforcementEvents.mockClear()
+      dbStub.appendPersonStateEvolutionEntries.mockClear()
+      dbStub.upsertMemoryReflections.mockClear()
+      dbStub.insertLearningTask.mockClear()
+
       const startChat = invokeHandlers.get(electronAlicizationChatStart)
       expect(startChat).toBeTypeOf('function')
 
-      const turnId = 'turn-non-progress-timeout-recovered'
+      const turnId = 'turn-non-progress-timeout-failed'
       const startResult = await startChat!({
         cardId: 'default',
         turnId,
@@ -9867,10 +10022,37 @@ describe('alicization runtime audit helpers', () => {
         .filter(([event, payload]) => event === alicizationChatStreamChunk && payload.turnId === turnId)
         .map(([, payload]) => payload)
 
-      expect(streamTextMock.mock.calls.length).toBeGreaterThanOrEqual(3)
-      expect(chunkEvents.map(event => event.text).join('')).toContain('timeout recovered reply')
-      expect(finishEvents[0]?.status).toBe('completed')
-      expect(['timeout-recovered', 'stop']).toContain(String(finishEvents[0]?.finishReason ?? ''))
+      expect(streamTextMock.mock.calls.length).toBeGreaterThan(1)
+      expect(chunkEvents).toHaveLength(0)
+      expect(finishEvents[0]).toMatchObject({
+        status: 'aborted',
+        origin: 'failure-surface',
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+        failureSurface: {
+          kind: 'timeout',
+          origin: 'failure-surface',
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+      })
+      expect(String(finishEvents[0]?.finishReason ?? '')).toContain('chat-first-event-timeout')
+      expect(dbStub.appendAuditLog).not.toBeCalledWith(expect.objectContaining({
+        action: 'stream-timeout-local-fallback',
+      }))
+      expect(dbStub.appendConversationTurn).not.toBeCalled()
+      expect(dbStub.upsertMemoryFacts).not.toBeCalled()
+      expect(dbStub.appendSubconsciousFragments).not.toBeCalled()
+      expect(dbStub.appendRelationshipOutcomes).not.toBeCalled()
+      expect(dbStub.appendEpisodicEvents).not.toBeCalled()
+      expect(dbStub.appendPersonaReinforcementEvents).not.toBeCalled()
+      expect(dbStub.appendPersonStateEvolutionEntries).not.toBeCalled()
+      expect(dbStub.upsertMemoryReflections).not.toBeCalled()
+      expect(dbStub.insertLearningTask).not.toBeCalled()
     }
     finally {
       vi.useRealTimers()
@@ -10992,9 +11174,10 @@ describe('alicization runtime audit helpers', () => {
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
 
+    const turnId = 'turn-contextual-short'
     const result = await startChat!({
       cardId: 'default',
-      turnId: 'turn-contextual-short',
+      turnId,
       providerId: 'openai',
       model: 'gpt-4o-mini',
       providerConfig: {
@@ -11005,6 +11188,7 @@ describe('alicization runtime audit helpers', () => {
     })
 
     expect(result.accepted).toBe(true)
+    await waitForChatFinishEvent(turnId)
     expect(dbStub.retrieveLongTermMemoryEvidence).toBeCalledWith(expect.objectContaining({
       cardId: 'default',
       currentUserText: '对啊',

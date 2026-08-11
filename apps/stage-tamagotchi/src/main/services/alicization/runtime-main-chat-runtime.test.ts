@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildAlicizationMainChatMemoryContext } from './main-chat-memory-context'
+import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 import { createAlicizationRuntimeMainChatRuntime } from './runtime-main-chat-runtime'
 
 function createTestMemoryContext() {
@@ -148,6 +149,7 @@ describe('runtime main chat runtime', () => {
         runtimeSurface: {} as any,
         sessionMirror: null,
         sessionTrace: {} as any,
+        toolCallIdentity: createAlicizationMainChatToolCallIdentityRegistry(),
         turnGraph: {} as any,
         ...input.prelude,
       }),

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { createAlicizationMindStateRuntime } from './runtime-mind-state'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
@@ -978,6 +978,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
   })
 
   it('does not let an older persisted projection outrank current-turn person-state evidence', async () => {
+    const generateMainGatewayText = vi.fn(async () => null)
     const runtime = createAlicizationMindStateRuntime({
       previousVisualPresenceState: createDefaultVisualPresenceState(50_000),
       buildDialogueIngressContext: () => ({
@@ -1060,7 +1061,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
           },
         } as any,
       }),
-      generateMainGatewayText: async () => null,
+      generateMainGatewayText,
       buildMainGatewayAgentTurnId: (...segments) => segments.join(':'),
       readLatestAssistantMessageText: messages => messages.filter(message => message.role === 'assistant').map(message => String(message.content ?? '')).at(-1) ?? '',
       readTransportContentAsText: content => typeof content === 'string' ? content : JSON.stringify(content),
@@ -1212,6 +1213,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
     expect(result.answerCompiler?.openingDirective).not.toContain('Thin runtime shell line')
     expect(result.answerCompiler?.mustDo).not.toContain('Thin runtime shell line')
     expect(result.answerCompiler?.mustNotDo).not.toContain('Thin runtime shell line')
+    expect(generateMainGatewayText).not.toHaveBeenCalled()
   })
 
   it('lets cautious embodiment recollection authority retune runtime emotional carry into measured-return instead of leaving body memory inert', async () => {

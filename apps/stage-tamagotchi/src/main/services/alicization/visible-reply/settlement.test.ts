@@ -186,7 +186,7 @@ describe('visible-reply settlement', () => {
     })
   })
 
-  it('does not synthesize performance or memory claims when the prepared owner context is missing', () => {
+  it('keeps the visible reply when optional metadata has no prepared owner context', () => {
     const prepared = {
       ...createPrepared(),
       memoryContext: null,
@@ -201,12 +201,18 @@ describe('visible-reply settlement', () => {
       prepared,
     })
 
-    expect(validation.valid).toBe(false)
-    expect(validation.payload).toBeNull()
-    expect(validation.issues).toEqual(expect.arrayContaining([
-      'provider-payload-performance-invalid',
-      'provider-memory-usage-invalid',
-    ]))
+    expect(validation.valid).toBe(true)
+    expect(validation.payload).toMatchObject({
+      reply: 'Provider 原样回答。',
+      emotion: 'neutral',
+      performance: {
+        baseEmotion: 'neutral',
+      },
+      memoryUsage: {
+        workingMemoryVersion: null,
+        longTermEvidenceIds: [],
+      },
+    })
   })
 
   it('accepts Provider-authored wording without applying a legacy template blacklist', async () => {
@@ -260,6 +266,47 @@ describe('visible-reply settlement', () => {
     expect(result.realization.visibleText).toBe(fullText)
   })
 
+  it('does not reject plain prose that quotes an internal-looking field name', () => {
+    const fullText = '我解释一下，“thought”: 只是这里讨论的字段名，不是内部回复。'
+
+    const validation = validateAlicizationProviderSettlementPayload({
+      fullText,
+      prepared: createPrepared(),
+      allowPlainTextProviderReply: true,
+    })
+
+    expect(validation.valid).toBe(true)
+    expect(validation.payload?.reply).toBe(fullText)
+  })
+
+  it('accepts a structured reply when optional metadata fields are absent', () => {
+    const fullText = JSON.stringify({
+      format: 'mind-turn-v1',
+      reply: '这条回复本身已经足够交给用户。',
+    })
+
+    const validation = validateAlicizationProviderSettlementPayload({
+      fullText,
+      prepared: createPrepared(),
+    })
+
+    expect(validation.valid).toBe(true)
+    expect(validation.payload).toMatchObject({
+      format: 'mind-turn-v1',
+      reply: '这条回复本身已经足够交给用户。',
+      emotion: 'neutral',
+      performance: {
+        baseEmotion: 'neutral',
+        delivery: 'calm',
+        emphasis: 0,
+      },
+      memoryUsage: {
+        workingMemoryVersion: 'working-memory-owner-context-v1',
+        longTermEvidenceIds: [],
+      },
+    })
+  })
+
   it.each([
     '{"reply":"hello","ok":true}',
     '```json\n{"reply":"hello","ok":true}\n```',
@@ -301,7 +348,7 @@ describe('visible-reply settlement', () => {
     'runtimeDigest',
     'visibleReplyRealization',
     'visibleReplyRewriteRequest',
-  ])('rejects the extra top-level Provider field %s', (field) => {
+  ])('ignores extra structured metadata field %s without blocking the visible reply', (field) => {
     const validation = validateAlicizationProviderSettlementPayload({
       fullText: createProviderPayload({
         longTermEvidenceIds: ['memory-1'],
@@ -312,9 +359,8 @@ describe('visible-reply settlement', () => {
       prepared: createPrepared(),
     })
 
-    expect(validation.valid).toBe(false)
-    expect(validation.payload).toBeNull()
-    expect(validation.issues).toContain('provider-payload-fields-invalid')
+    expect(validation.valid).toBe(true)
+    expect(validation.payload?.reply).toBe('答案在这里。')
   })
 
   it('keeps the Provider JSON byte-for-byte and exposes only an observational realization sidecar', async () => {

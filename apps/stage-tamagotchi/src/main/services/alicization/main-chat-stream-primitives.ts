@@ -81,6 +81,37 @@ export function createAbortError(reason?: string) {
   return new DOMException(`Alicization runtime aborted: ${reason ?? 'unknown'}`, 'AbortError')
 }
 
+export function awaitAlicizationPromiseWithAbort<T>(
+  promise: Promise<T>,
+  signal: AbortSignal,
+) {
+  if (signal.aborted)
+    return Promise.reject(signal.reason ?? createAbortError('aborted'))
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    let onAbort = () => {}
+    const cleanup = () => {
+      signal.removeEventListener('abort', onAbort)
+    }
+    const settle = (callback: () => void) => {
+      if (settled)
+        return
+      settled = true
+      cleanup()
+      callback()
+    }
+    onAbort = () => {
+      settle(() => reject(signal.reason ?? createAbortError('aborted')))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      value => settle(() => resolve(value)),
+      error => settle(() => reject(error)),
+    )
+  })
+}
+
 export function isMainGatewayProgressEventType(rawType: unknown) {
   const eventType = normalizeMainGatewayStreamEventType(rawType)
   return eventType === 'text-delta'

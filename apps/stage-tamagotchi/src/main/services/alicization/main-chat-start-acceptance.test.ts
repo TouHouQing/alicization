@@ -112,4 +112,20 @@ describe('main chat start acceptance', () => {
       },
     })
   })
+
+  it('does not block chat acceptance on a slow route persistence task', async () => {
+    const input = createInput({
+      syncMainGatewayConfigFromChatStart: vi.fn(() => new Promise(() => {}) as any),
+    })
+
+    const result = await Promise.race([
+      acceptAlicizationMainChatStart(input),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('chat acceptance blocked on route sync')), 50)
+      }),
+    ])
+
+    expect(result.accepted).toBe(true)
+    expect(input.registerRun).toHaveBeenCalledOnce()
+  })
 })

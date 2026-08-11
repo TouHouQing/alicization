@@ -4,6 +4,7 @@ import type { IpcMainEvent } from 'electron'
 import type {
   AlicizationChatStartPayload,
 } from '../../../shared/eventa'
+import type { MainGatewayToolExecutionProgress } from './main-chat-execution-surface'
 import type {
   AlicizationPreparedMainChatExecutionResult,
   AlicizationPreparedMainChatPrelude,
@@ -29,13 +30,17 @@ interface CreateAlicizationMainChatPreludeRuntimeOptions {
   buildMainChatExecutionLedgerContext: (payload: AlicizationChatStartPayload) => Promise<any>
   augmentMainChatMessagesWithPerception: (input: {
     cardId: string
+    turnId: string
     userText: string
     messages: Message[]
     senderWebContentsId?: number | null
+    abortSignal?: AbortSignal
   }) => Promise<any>
   prepareMainChatSessionExecution: (input: {
     payload: AlicizationChatStartPayload
     prelude: AlicizationPreparedMainChatPrelude
+    emitToolProgress?: (input: MainGatewayToolExecutionProgress) => void
+    abortSignal?: AbortSignal
   }) => Promise<AlicizationPreparedMainChatExecutionResult>
 }
 
@@ -55,6 +60,9 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     payload: AlicizationChatStartPayload,
     mainGateway: MainGatewayResolvedConfig,
     invokeOptions?: { raw?: { ipcMainEvent?: IpcMainEvent, event?: unknown } },
+    options?: {
+      abortSignal?: AbortSignal
+    },
   ): Promise<AlicizationPreparedMainChatPrelude> {
     const normalizedPayload = payload
     const chatConfig = mainGateway.provider.chat(mainGateway.model)
@@ -72,12 +80,14 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     const executionCallbackContextPromise = buildMainChatExecutionCallbackContext(normalizedPayload)
     const executionLedgerContextPromise = buildMainChatExecutionLedgerContext(normalizedPayload)
     const perceptionAugmentation = latestUserText
-      ? await augmentMainChatMessagesWithPerception({
+      ? await awaitAlicizationPromiseWithAbort(augmentMainChatMessagesWithPerception({
           cardId: normalizedPayload.cardId,
+          turnId: normalizedPayload.turnId,
           userText: latestUserText,
           messages,
           senderWebContentsId,
-        })
+          abortSignal: options?.abortSignal,
+        }), options?.abortSignal)
       : {
           messages,
           systemBlocks: [] as string[],
@@ -104,6 +114,7 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     })
 
     return {
+      turnId: normalizedPayload.turnId,
       actionObligation,
       chatConfig,
       messages,
@@ -118,12 +129,19 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     payload: AlicizationChatStartPayload,
     mainGateway: MainGatewayResolvedConfig,
     preludePromise?: Promise<AlicizationPreparedMainChatPrelude>,
+    options?: {
+      emitToolProgress?: (input: MainGatewayToolExecutionProgress) => void
+      abortSignal?: AbortSignal
+    },
   ): Promise<AlicizationPreparedMainChatExecutionResult> {
     const normalizedPayload = payload
-    const prelude = await (preludePromise ?? prepareMainChatPrelude(normalizedPayload, mainGateway))
+    const prelude = await (preludePromise ?? prepareMainChatPrelude(normalizedPayload, mainGateway, undefined, {
+      abortSignal: options?.abortSignal,
+    }))
     return await prepareMainChatSessionExecution({
       payload: normalizedPayload,
       prelude,
+      ...options,
     })
   }
 
@@ -131,4 +149,38 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     prepareMainChatPrelude,
     prepareMainChatExecution,
   }
+}
+
+function awaitAlicizationPromiseWithAbort<T>(
+  promise: Promise<T>,
+  signal?: AbortSignal,
+) {
+  if (!signal)
+    return promise
+  if (signal.aborted)
+    return Promise.reject(signal.reason ?? new DOMException('Alicization runtime aborted', 'AbortError'))
+
+  return new Promise<T>((resolve, reject) => {
+    let settled = false
+    let onAbort = () => {}
+    const cleanup = () => {
+      signal.removeEventListener('abort', onAbort)
+    }
+    const settle = (callback: () => void) => {
+      if (settled)
+        return
+      settled = true
+      cleanup()
+      callback()
+    }
+    onAbort = () => {
+      settle(() => reject(signal.reason ?? new DOMException('Alicization runtime aborted', 'AbortError')))
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      value => settle(() => resolve(value)),
+      error => settle(() => reject(error)),
+    )
+  })
 }

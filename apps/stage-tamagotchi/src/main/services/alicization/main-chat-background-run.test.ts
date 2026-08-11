@@ -6,14 +6,9 @@ import {
   mainChatBackgroundRunTestInternals,
   runAlicizationMainChatBackground,
 } from './main-chat-background-run'
-import { generateAlicizationMainChatNonStreaming } from './main-chat-one-shot'
 import { handleAlicizationMainChatRunFailure } from './main-chat-run-lifecycle'
 import { createAlicizationChatStreamMetaEmitter } from './main-chat-stream-meta'
-import { runAlicizationMainChatStream } from './main-chat-stream-runner'
-
-vi.mock('./main-chat-one-shot', () => ({
-  generateAlicizationMainChatNonStreaming: vi.fn(),
-}))
+import { runAlicizationMainChatProviderStep } from './main-chat-stream-runner'
 
 vi.mock('./main-chat-run-lifecycle', () => ({
   handleAlicizationMainChatRunFailure: vi.fn(),
@@ -25,7 +20,7 @@ vi.mock('./main-chat-runtime-surface', () => ({
 }))
 
 vi.mock('./main-chat-stream-runner', () => ({
-  runAlicizationMainChatStream: vi.fn(),
+  runAlicizationMainChatProviderStep: vi.fn(),
 }))
 
 vi.mock('./main-chat-stream-meta', async () => {
@@ -35,6 +30,10 @@ vi.mock('./main-chat-stream-meta', async () => {
     createAlicizationChatStreamMetaEmitter: vi.fn(() => ({
       emit: vi.fn(),
       getLastReply: () => '',
+      snapshot: () => ({
+        lastReply: '',
+        lastSignature: null,
+      }),
     })),
     repairContinuitySourceTagsFromRuntimeDigest: vi.fn((input: any) => input.digitalLifeSpine ?? null),
   }
@@ -42,7 +41,9 @@ vi.mock('./main-chat-stream-meta', async () => {
 
 vi.mock('./runtime-soul', () => ({
   mainChatFirstEventTimeoutMs: 65_000,
+  mainChatPreparationTimeoutMs: 45_000,
   mainChatFirstEventTimeoutWithVisualGroundingMs: 90_000,
+  mainChatProviderContinuationTimeoutMs: 180_000,
   clamp01: (value: number) => Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0)),
   normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() || 'default' : 'default',
   sanitizeMultilineText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.replace(/\r\n/g, '\n').trim() : fallback,
@@ -70,23 +71,6 @@ function buildProviderReply(reply = 'Provider reply') {
   })
 }
 
-function buildObservedRealization(
-  reply = 'Provider reply',
-  mode: 'provider-stream' | 'provider-one-shot' = 'provider-stream',
-) {
-  return {
-    version: 'visible-reply-realization-v1',
-    expectedAuthority: 'llm-mind',
-    actualAuthority: 'llm-mind',
-    providerMindExecuted: true,
-    mode,
-    visibleText: reply,
-    visibleReplyValidationStatus: 'approved',
-    nonHumanAuthoredStatus: null,
-    blockedReasons: [],
-  }
-}
-
 function createPrepared(overrides?: Partial<any>): any {
   return {
     chatConfig: {
@@ -96,6 +80,8 @@ function createPrepared(overrides?: Partial<any>): any {
     messages: [
       { role: 'user' as const, content: '你好' },
     ] as Message[],
+    conversationSessionId: 'conversation-1',
+    preludeTurnId: 'turn-1',
     waitForTools: false,
     tools: undefined,
     toolChoice: undefined,
@@ -140,6 +126,21 @@ function createPrepared(overrides?: Partial<any>): any {
   }
 }
 
+function createInMemoryPersistence() {
+  const events: any[] = []
+  return {
+    appendRuntimeEvent: vi.fn(async (_scope, event) => {
+      const persisted = {
+        ...event,
+        sequence: events.length + 1,
+      }
+      events.push(persisted)
+      return persisted
+    }),
+    saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+  }
+}
+
 function createInput(
   userText = '你好',
   overrides?: Partial<Parameters<typeof runAlicizationMainChatBackground>[0]>,
@@ -178,11 +179,16 @@ function createInput(
       rawChunkChars: 0,
       state: 'running' as const,
     },
-    preparationPromise: Promise.resolve(createPrepared({
+    prepareTurn: vi.fn(async () => createPrepared({
       messages: [
         { role: 'user' as const, content: userText },
       ],
     })),
+    turnLoop: {
+      conversationId: 'conversation-1',
+      userId: 'local-user-stable',
+      persistence: createInMemoryPersistence(),
+    },
     headers: {
       authorization: 'Bearer test',
     },
@@ -205,33 +211,15 @@ function createInput(
   } as Parameters<typeof runAlicizationMainChatBackground>[0]
 }
 
-function createStreamResult(overrides?: Partial<any>): any {
-  return {
-    finishReason: 'stop',
-    fullText: buildProviderReply(),
-    origin: 'provider',
-    learningPolicy: {
-      allowLongTermCondensation: true,
-      allowPersonaLearning: true,
-      allowTraining: false,
-    },
-    failureSurface: null,
-    visibleReplyExecution: {
-      mode: 'provider-stream',
-      expectedVisibleReplyAuthority: 'llm-mind',
-      actualVisibleReplyAuthority: 'llm-mind',
-      providerMindExecuted: true,
-      reason: 'provider-stream',
-    },
-    visibleReplyRealization: buildObservedRealization(),
-    ...overrides,
-  }
-}
-
 describe('main chat background run', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValue(createStreamResult())
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValue({
+      kind: 'reply',
+      finishReason: 'stop',
+      fullText: 'Provider reply',
+      text: 'Provider reply',
+    } as any)
     vi.mocked(handleAlicizationMainChatRunFailure).mockResolvedValue(undefined)
   })
 
@@ -242,21 +230,23 @@ describe('main chat background run', () => {
     ['date', '今天几号'],
     ['dialogue', '今天有点累'],
     ['follow-up', '继续'],
-  ])('routes %s turns through the single Provider stream', async (_lane, userText) => {
+  ])('routes %s turns through the EventLoop Provider step', async (_lane, userText) => {
     const input = createInput(userText)
 
     await runAlicizationMainChatBackground(input)
 
-    expect(runAlicizationMainChatStream).toHaveBeenCalledOnce()
-    expect(runAlicizationMainChatStream).toHaveBeenCalledWith(expect.objectContaining({
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledOnce()
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledWith(expect.objectContaining({
       payload: input.payload,
       prepared: expect.objectContaining({
         messages: expect.arrayContaining([
           expect.objectContaining({ role: 'user', content: userText }),
         ]),
       }),
+      messages: expect.arrayContaining([
+        expect.objectContaining({ role: 'user', content: userText }),
+      ]),
     }))
-    expect(generateAlicizationMainChatNonStreaming).not.toHaveBeenCalled()
     expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
     expect(input.runStateController.finishRun).toHaveBeenCalledWith(
       input.key,
@@ -267,7 +257,171 @@ describe('main chat background run', () => {
     )
   })
 
-  it('enters the Provider stream directly with structured tools available', async () => {
+  it('routes the production turn through one EventLoop persistence owner', async () => {
+    const events: any[] = []
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+    }
+    const input = createInput('直接回答我', {
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    } as any)
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalled()
+    expect(events.map(event => event.eventType)).toEqual(expect.arrayContaining([
+      'turn.accepted',
+      'context.assembly.completed',
+      'model.text.delta',
+      'assistant.reply.committed',
+      'turn.completed',
+    ]))
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        turnId: 'turn-1',
+        cardId: 'card-1',
+        userId: 'local-user-stable',
+        conversationId: 'conversation-1',
+      }),
+    ]))
+    expect(input.emitChunk).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'card-1',
+      turnId: 'turn-1',
+      text: 'Provider reply',
+    }))
+  })
+
+  it('refuses to run when the EventLoop owner is missing', async () => {
+    const input = createInput('直接回答我', {
+      turnLoop: undefined as any,
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(runAlicizationMainChatProviderStep).not.toHaveBeenCalled()
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledWith(expect.objectContaining({
+      error: expect.objectContaining({
+        message: expect.stringContaining('EventLoop'),
+      }),
+    }))
+  })
+
+  it('starts preparation only after the EventLoop owns context assembly', async () => {
+    const eventTypes: string[] = []
+    const prepareTurn = vi.fn(async () => {
+      expect(eventTypes).toContain('context.assembly.started')
+      return createPrepared()
+    })
+    const input = createInput('直接回答我', {
+      prepareTurn,
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence: {
+          appendRuntimeEvent: vi.fn(async (_scope, event) => {
+            eventTypes.push(event.eventType)
+            return {
+              ...event,
+              sequence: eventTypes.length,
+            }
+          }),
+          saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+        },
+        userId: 'local-user-stable',
+      },
+    } as any)
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(prepareTurn).toHaveBeenCalledOnce()
+    expect(eventTypes.indexOf('context.assembly.started')).toBeLessThan(
+      eventTypes.indexOf('context.assembly.completed'),
+    )
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledOnce()
+  })
+
+  it('preserves the original Provider failure across the EventLoop boundary', async () => {
+    const providerFailure = new DOMException(
+      'Alicization runtime aborted: chat-first-event-timeout',
+      'AbortError',
+    )
+    vi.mocked(runAlicizationMainChatProviderStep).mockRejectedValueOnce(providerFailure)
+    const events: any[] = []
+    const input = createInput('你好', {
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence: {
+          appendRuntimeEvent: vi.fn(async (_scope, event) => {
+            const persisted = {
+              ...event,
+              sequence: events.length + 1,
+            }
+            events.push(persisted)
+            return persisted
+          }),
+          saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+        },
+        userId: 'local-user-stable',
+      },
+    } as any)
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledOnce()
+    expect(vi.mocked(handleAlicizationMainChatRunFailure).mock.calls[0]?.[0].error)
+      .toBe(providerFailure)
+  })
+
+  it('settles presented execution callbacks after an EventLoop Provider reply', async () => {
+    const settlePresentedExecutionCallbacks = vi.fn(async () => {})
+    const callback = {
+      threadId: 'thread-callback-1',
+      summary: 'callback result',
+    }
+    const events: any[] = []
+    const input = createInput('刚才的结果呢', {
+      prepareTurn: vi.fn(async () => createPrepared({
+        messages: [{ role: 'user', content: '刚才的结果呢' }],
+        presentedExecutionCallbacks: [callback],
+      })),
+      settlePresentedExecutionCallbacks,
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence: {
+          appendRuntimeEvent: vi.fn(async (_scope, event) => {
+            const persisted = {
+              ...event,
+              sequence: events.length + 1,
+            }
+            events.push(persisted)
+            return persisted
+          }),
+          saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+        },
+        userId: 'local-user-stable',
+      },
+    } as any)
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(settlePresentedExecutionCallbacks).toHaveBeenCalledWith({
+      cardId: input.payload.cardId,
+      callbacks: [callback],
+    })
+  })
+
+  it('passes the prepared tool surface to the EventLoop Provider step', async () => {
     const prepared = createPrepared({
       runtimeSurface: {
         ...createPrepared().runtimeSurface,
@@ -291,27 +445,98 @@ describe('main chat background run', () => {
       }],
     })
     const input = createInput('执行测试命令', {
-      preparationPromise: Promise.resolve(prepared),
+      prepareTurn: vi.fn(async () => prepared),
     })
 
     await runAlicizationMainChatBackground(input)
 
-    expect(runAlicizationMainChatStream).toHaveBeenCalledOnce()
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledWith(expect.objectContaining({
+      prepared: expect.objectContaining({
+        tools: prepared.tools,
+      }),
+      messages: prepared.messages,
+    }))
     expect(input.emitToolCall).not.toHaveBeenCalled()
     expect(input.emitToolResult).not.toHaveBeenCalled()
-    expect(generateAlicizationMainChatNonStreaming).not.toHaveBeenCalled()
   })
 
-  it('emits prepared liveness meta before waiting for the first Provider token', async () => {
+  it('settles through the failure lifecycle when preparation ignores the abort signal', async () => {
+    let resolvePreparation!: (value: any) => void
+    const preparationPromise = new Promise<any>((resolve) => {
+      resolvePreparation = resolve
+    })
+    const input = createInput('请继续。', {
+      prepareTurn: vi.fn(() => preparationPromise),
+    })
+
+    const pendingRun = runAlicizationMainChatBackground(input)
+    input.runState.controller.abort(
+      new DOMException('chat-preparation-timeout', 'AbortError'),
+    )
+
+    const outcome = await Promise.race([
+      pendingRun.then(() => 'settled'),
+      new Promise(resolve => setTimeout(() => resolve('pending'), 100)),
+    ])
+    expect(outcome).toBe('settled')
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledOnce()
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledWith(expect.objectContaining({
+      error: expect.objectContaining({
+        name: 'AbortError',
+        message: 'chat-preparation-timeout',
+      }),
+    }))
+    expect(runAlicizationMainChatProviderStep).not.toHaveBeenCalled()
+
+    resolvePreparation(createPrepared())
+    await Promise.resolve()
+    expect(runAlicizationMainChatProviderStep).not.toHaveBeenCalled()
+  })
+
+  it('emits prepared liveness meta before the Provider step', async () => {
+    let preparedMetaEmitted = false
+    let providerSawPreparedMeta = false
+    const emit = vi.fn((_reply: string, options?: { force?: boolean }) => {
+      if (options?.force)
+        preparedMetaEmitted = true
+    })
+    const metaEmitterFactory = vi.mocked(createAlicizationChatStreamMetaEmitter)
+    metaEmitterFactory.mockReset()
+    metaEmitterFactory.mockImplementation(() => ({
+      emit,
+      getLastReply: () => '',
+      snapshot: () => ({
+        lastReply: '',
+        lastSignature: null,
+      }),
+    }))
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(async () => {
+      providerSawPreparedMeta = preparedMetaEmitted
+      return {
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: 'Provider reply',
+        text: 'Provider reply',
+      }
+    })
     const input = createInput()
 
-    await runAlicizationMainChatBackground(input)
-
-    const emitter = vi.mocked(createAlicizationChatStreamMetaEmitter).mock.results[0]?.value
-    expect(emitter?.emit).toHaveBeenCalledWith('', { force: true })
-    expect(vi.mocked(emitter?.emit).mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(runAlicizationMainChatStream).mock.invocationCallOrder[0]!,
-    )
+    try {
+      await runAlicizationMainChatBackground(input)
+      expect(preparedMetaEmitted).toBe(true)
+      expect(providerSawPreparedMeta).toBe(true)
+      expect(emit).toHaveBeenCalledWith('', { force: true })
+    }
+    finally {
+      metaEmitterFactory.mockImplementation(() => ({
+        emit: vi.fn(),
+        getLastReply: () => '',
+        snapshot: () => ({
+          lastReply: '',
+          lastSignature: null,
+        }),
+      }))
+    }
   })
 
   it('passes presented execution callbacks to the runtime settlement owner', async () => {
@@ -326,7 +551,7 @@ describe('main chat background run', () => {
       presentedExecutionCallbacks: [callback],
     })
     const input = createInput('刚才的命令结果呢', {
-      preparationPromise: Promise.resolve(prepared),
+      prepareTurn: vi.fn(async () => prepared),
       settlePresentedExecutionCallbacks: vi.fn(),
     })
 
@@ -339,29 +564,14 @@ describe('main chat background run', () => {
     })
   })
 
-  it('preserves Provider artifact metadata on completed finishes', async () => {
+  it('finishes EventLoop Provider reply data after a completed turn', async () => {
     const input = createInput()
-    const streamResult = createStreamResult({
-      visibleReplyRealization: {
-        ...buildObservedRealization(),
-        critic: {
-          version: 'visible-reply-critic-public-summary-v1',
-          status: 'pass',
-          providerMindRequired: true,
-          reasonCodes: ['settled'],
-          ignored: 'legacy-governance-payload-ignored',
-        },
-        closure: {
-          version: 'visible-reply-closure-public-summary-v1',
-          status: 'approved',
-          reasonCodes: ['complete'],
-          initialCriticStatus: 'pass',
-          finalCriticStatus: 'pass',
-          ignored: 'legacy-governance-payload-ignored',
-        },
-      } as any,
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
+      kind: 'reply',
+      finishReason: 'stop',
+      fullText: 'Provider full text',
+      text: 'Provider visible reply',
     })
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(streamResult)
 
     await runAlicizationMainChatBackground(input)
 
@@ -369,25 +579,24 @@ describe('main chat background run', () => {
     expect(finishPayload).toEqual(expect.objectContaining({
       status: 'completed',
       origin: 'provider',
-      learningPolicy: streamResult.learningPolicy,
+      finishReason: 'stop',
+      fullText: 'Provider full text',
+      learningPolicy: {
+        allowLongTermCondensation: true,
+        allowPersonaLearning: true,
+        allowTraining: false,
+      },
       failureSurface: null,
     }))
-    expect(finishPayload?.visibleReplyRealization?.critic).toEqual({
-      version: 'visible-reply-critic-public-summary-v1',
-      status: 'pass',
-      providerMindRequired: true,
-      reasonCodes: ['settled'],
-    })
-    expect(finishPayload?.visibleReplyRealization?.closure).toEqual({
-      version: 'visible-reply-closure-public-summary-v1',
-      status: 'approved',
-      reasonCodes: ['complete'],
-      initialCriticStatus: 'pass',
-      finalCriticStatus: 'pass',
-    })
+    expect(finishPayload?.visibleReplyRealization).toEqual(expect.objectContaining({
+      visibleText: 'Provider full text',
+      actualAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      mode: 'provider-stream',
+    }))
   })
 
-  it('finishes with the raw six-field Provider JSON and a separate realization sidecar', async () => {
+  it('publishes the Provider step reply and preserves the validated Provider artifact', async () => {
     const rawFullText = `{
   "memoryUsage": {
     "workingMemoryVersion": null,
@@ -405,37 +614,39 @@ describe('main chat background run', () => {
   "thought": "preserve background bytes",
   "format": "mind-turn-v1"
 }`
-    const visibleReplyRealization = buildObservedRealization('Provider raw reply')
     const input = createInput()
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
+      kind: 'reply',
+      finishReason: 'stop',
       fullText: rawFullText,
-      visibleReplyRealization,
-    }))
+      text: 'Provider raw reply',
+    })
 
     await runAlicizationMainChatBackground(input)
 
     expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
     const finishPayload = vi.mocked(input.runStateController.finishRun).mock.calls.at(-1)?.[1]
+    expect(input.emitChunk).toHaveBeenCalledWith(expect.objectContaining({
+      text: 'Provider raw reply',
+      origin: 'provider',
+    }))
+    expect(finishPayload).toEqual(expect.objectContaining({
+      status: 'completed',
+      fullText: rawFullText,
+      origin: 'provider',
+    }))
     expect(finishPayload?.fullText).toBe(rawFullText)
-    expect(finishPayload?.visibleReplyRealization).toMatchObject(visibleReplyRealization)
-    expect(Object.keys(JSON.parse(String(finishPayload?.fullText)))).toEqual([
-      'memoryUsage',
-      'performance',
-      'reply',
-      'emotion',
-      'thought',
-      'format',
-    ])
-    expect(JSON.parse(String(finishPayload?.fullText))).not.toHaveProperty('visibleReplyRealization')
   })
 
-  it('finishes plain stream text as a Provider-authored visible reply', async () => {
+  it('finishes plain Provider reply text as a Provider-authored visible reply', async () => {
     const input = createInput()
     const fullText = 'Provider returned plain text because this model lacks native JSON schema.'
-    vi.mocked(runAlicizationMainChatStream).mockResolvedValueOnce(createStreamResult({
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
+      kind: 'reply',
+      finishReason: 'stop',
       fullText,
-      visibleReplyRealization: buildObservedRealization(fullText),
-    }))
+      text: fullText,
+    })
 
     await runAlicizationMainChatBackground(input)
 
@@ -453,9 +664,77 @@ describe('main chat background run', () => {
     )
   })
 
-  it('keeps memory side failures outside the native Provider JSON', async () => {
+  it('surfaces a structured Provider payload without reply as a protocol failure', async () => {
+    const input = createInput()
+    const malformedStructuredPayload = JSON.stringify({
+      format: 'mind-turn-v1',
+      thought: 'missing visible reply',
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
+      kind: 'reply',
+      finishReason: 'stop',
+      fullText: malformedStructuredPayload,
+      text: malformedStructuredPayload,
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledWith(expect.objectContaining({
+      error: expect.objectContaining({
+        message: expect.stringContaining('reply'),
+      }),
+    }))
+    expect(input.emitChunk).not.toHaveBeenCalled()
+  })
+
+  it('blocks a structured Provider reply that claims unavailable long-term evidence', async () => {
+    const input = createInput('继续刚才的记忆线', {
+      prepareTurn: vi.fn(async () => createPrepared({
+        memoryContext: {
+          workingMemory: {
+            version: 'working-memory-v1',
+          },
+          availableLongTermEvidenceIds: ['memory-known'],
+        },
+      })),
+    })
+    const invalidMemoryPayload = JSON.stringify({
+      format: 'mind-turn-v1',
+      thought: '',
+      emotion: 'thinking',
+      reply: '不应该发布。',
+      performance: {
+        baseEmotion: 'thinking',
+        facialCue: null,
+        actionCue: null,
+        delivery: 'calm',
+        emphasis: 0,
+      },
+      memoryUsage: {
+        workingMemoryVersion: 'working-memory-v1',
+        longTermEvidenceIds: ['memory-unknown'],
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
+      kind: 'reply',
+      finishReason: 'stop',
+      fullText: invalidMemoryPayload,
+      text: invalidMemoryPayload,
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledWith(expect.objectContaining({
+      error: expect.objectContaining({
+        message: expect.stringContaining('provider-memory-usage-invalid'),
+      }),
+    }))
+    expect(input.emitChunk).not.toHaveBeenCalled()
+  })
+
+  it('keeps memory side failures outside the visible Provider reply', async () => {
     const input = createInput('继续记忆任务', {
-      preparationPromise: Promise.resolve(createPrepared({
+      prepareTurn: vi.fn(async () => createPrepared({
         memoryFailures: [{
           kind: 'recall-failure',
           reply: 'Long-term memory recall failed for this turn.',
@@ -476,13 +755,18 @@ describe('main chat background run', () => {
         }],
       })),
     })
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
+      kind: 'reply',
+      finishReason: 'stop',
+      fullText: buildProviderReply(),
+      text: buildProviderReply(),
+    })
 
     await runAlicizationMainChatBackground(input)
 
     const finishPayload = vi.mocked(input.runStateController.finishRun).mock.calls.at(-1)?.[1]
-    const structured = JSON.parse(String(finishPayload?.fullText ?? '{}'))
-    expect(structured.reply).toBe('Provider reply')
-    expect(structured).not.toHaveProperty('memoryFailures')
+    expect(finishPayload?.fullText).toBe(buildProviderReply())
+    expect(String(finishPayload?.fullText)).not.toContain('memoryFailures')
     expect(finishPayload?.memoryFailures).toEqual([
       expect.objectContaining({
         kind: 'recall-failure',
@@ -528,7 +812,7 @@ describe('main chat background run', () => {
   it('delegates failures without installing timeout reply recovery callbacks', async () => {
     const error = new DOMException('chat-first-event-timeout', 'AbortError')
     const input = createInput()
-    vi.mocked(runAlicizationMainChatStream).mockRejectedValueOnce(error)
+    vi.mocked(runAlicizationMainChatProviderStep).mockRejectedValueOnce(error)
 
     await runAlicizationMainChatBackground(input)
 

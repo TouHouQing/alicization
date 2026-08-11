@@ -116,6 +116,7 @@ export function buildDialogueTurnEncounter(input: {
     mustAnswerDirectly: obligation.mustAnswerDirectly,
     mustStayTaskBound: obligation.mustStayTaskBound,
     shouldAskClarifyingQuestion: obligation.shouldAskClarifyingQuestion,
+    codingAgentDelegation: input.semantics.codingAgentDelegation ?? null,
     personaKernelMode: obligation.personaKernelMode,
     confidence: clamp01(
       input.semantics.confidence * 0.34

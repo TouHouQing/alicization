@@ -37,6 +37,7 @@ export const alicizationDialogueTurnSemanticsJsonSchema = {
     'personaSuppression',
     'confidence',
     'reasonTags',
+    'codingAgentDelegation',
   ],
   properties: {
     act: {
@@ -76,6 +77,30 @@ export const alicizationDialogueTurnSemanticsJsonSchema = {
     personaSuppression: confidenceSchema,
     confidence: confidenceSchema,
     reasonTags: shortLabelArraySchema(10),
+    codingAgentDelegation: {
+      type: ['object', 'null'],
+      additionalProperties: false,
+      required: ['intentKind', 'requestedAgent', 'verdict', 'scope', 'confidence'],
+      properties: {
+        intentKind: {
+          type: 'string',
+          enum: ['capability-query', 'execute'],
+        },
+        requestedAgent: {
+          type: ['string', 'null'],
+          enum: ['auto', 'codex', 'claude-code', 'cli', null],
+        },
+        verdict: {
+          type: 'string',
+          enum: ['respond-directly', 'clarify', 'delegate-coding-agent'],
+        },
+        scope: {
+          type: 'string',
+          enum: ['none', 'investigation', 'edit', 'command'],
+        },
+        confidence: confidenceSchema,
+      },
+    },
   },
 } as const
 
