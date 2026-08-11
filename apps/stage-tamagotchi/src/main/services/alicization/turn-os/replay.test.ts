@@ -74,6 +74,7 @@ function runtimeCheckpoint(
           lastSequence: overrides.sequence ?? 3,
         },
       ])),
+      pendingActionSettlements: {},
       replyCommitted: false,
       pendingDelivery: null,
       committedDelivery: null,
@@ -149,6 +150,7 @@ describe('alicization turn replay', () => {
       activeActionIds: [],
       projection: {
         actions: {},
+        pendingActionSettlements: {},
         replyCommitted: false,
         terminalEventType: null,
         issues: [],
@@ -245,6 +247,7 @@ describe('alicization turn replay', () => {
       activeActionIds: [],
       projection: {
         actions: {},
+        pendingActionSettlements: {},
         replyCommitted: false,
         pendingDelivery: expectedIntent,
         terminalEventType: null,
@@ -368,6 +371,77 @@ describe('alicization turn replay', () => {
     })
     expect(replay.recoveryRequired).toBe(true)
     expect(replay.reasonCodes).toContain('runtime-replay:terminal-event-awaiting-observation')
+  })
+
+  it('keeps first-class action settlements pending until their completion event', async () => {
+    const scope = runtimeScope({ turnId: 'turn-pending-action-settlement' })
+    const settlementIdentity = {
+      settlementId: 'settlement-1',
+      actionId: 'action-settlement',
+      toolCallId: 'tool-call-settlement',
+      observationId: 'observation-settlement',
+    }
+    const settlementStarted = {
+      ...runtimeEvent(scope, 3, 'action.progress', settlementIdentity),
+      eventType: 'action.settlement.started',
+    } as AlicizationRuntimeEventEnvelope
+    const settlementCompleted = {
+      ...runtimeEvent(scope, 5, 'action.progress', settlementIdentity),
+      eventType: 'action.settlement.completed',
+    } as AlicizationRuntimeEventEnvelope
+    const events = [
+      runtimeEvent(scope, 1, 'turn.accepted', {
+        deliveryOwner: 'inline',
+      }),
+      runtimeEvent(scope, 2, 'action.started', {
+        actionId: settlementIdentity.actionId,
+        toolCallId: settlementIdentity.toolCallId,
+      }),
+      settlementStarted,
+      runtimeEvent(scope, 4, 'action.observation', {
+        actionId: settlementIdentity.actionId,
+        observationId: settlementIdentity.observationId,
+        toolCallId: settlementIdentity.toolCallId,
+        terminal: true,
+        outcome: 'success',
+      }),
+    ]
+
+    const pendingReplay = await replayTurn({
+      scope,
+      reader: {
+        loadRuntimeCheckpoint: vi.fn(async () => null),
+        listRuntimeEvents: vi.fn(async () => events),
+      },
+      deliveryOwner: 'inline',
+    })
+
+    expect(Object.keys(pendingReplay.state.actions)).toEqual([
+      settlementIdentity.actionId,
+    ])
+    expect(pendingReplay.state.pendingActionSettlements).toEqual({
+      [settlementIdentity.settlementId]: settlementIdentity,
+    })
+    expect(pendingReplay.reasonCodes).toContain(
+      'runtime-replay:action-settlement-pending',
+    )
+
+    const completedReplay = await replayTurn({
+      scope,
+      reader: {
+        loadRuntimeCheckpoint: vi.fn(async () => null),
+        listRuntimeEvents: vi.fn(async () => [
+          ...events,
+          settlementCompleted,
+        ]),
+      },
+      deliveryOwner: 'inline',
+    })
+
+    expect(completedReplay.state.pendingActionSettlements).toEqual({})
+    expect(completedReplay.reasonCodes).not.toContain(
+      'runtime-replay:action-settlement-pending',
+    )
   })
 
   it('marks an unresolved checkpoint action as recoveryRequired without executing side effects', async () => {
@@ -678,6 +752,7 @@ describe('alicization turn replay', () => {
       activeActionIds: [],
       projection: {
         actions: {},
+        pendingActionSettlements: {},
         replyCommitted: false,
         pendingDelivery: null,
         committedDelivery: null,

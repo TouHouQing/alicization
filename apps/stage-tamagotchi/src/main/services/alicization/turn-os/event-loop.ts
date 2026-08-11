@@ -96,6 +96,15 @@ interface LiveTurn {
   controller: AbortController
   terminalEventType: AlicizationRuntimeEventType | null
   terminalAuthority: 'open' | AlicizationEventLoopResult['status']
+  terminalObservationDurability: {
+    promise: Promise<{ error: unknown | null }>
+    resolve: (result: { error: unknown | null }) => void
+  } | null
+  modelStepStartDurability: {
+    promise: Promise<{ error: unknown | null }>
+    resolve: (result: { error: unknown | null }) => void
+  } | null
+  deferredCancellation: { reason: unknown } | null
   cancellationDurability: Promise<{ error: unknown | null }>
   resolveCancellationDurability: (result: { error: unknown | null }) => void
   cancellationDurabilitySettled: boolean
@@ -202,6 +211,13 @@ function runtimeView(
         },
       ]),
     ),
+    pendingActionSettlements: Object.fromEntries(
+      Object.entries(state.pendingActionSettlements)
+        .map(([settlementId, settlement]) => [
+          settlementId,
+          { ...settlement },
+        ]),
+    ),
     pendingDelivery: state.pendingDelivery
       ? { ...state.pendingDelivery }
       : null,
@@ -233,6 +249,22 @@ function claimTerminalAuthority(
     return false
   liveTurn.terminalAuthority = authority
   return true
+}
+
+function claimDeferredCancellation(
+  liveTurn: LiveTurn,
+  reason: unknown,
+) {
+  if (liveTurn.deferredCancellation)
+    return false
+  liveTurn.deferredCancellation = { reason }
+  return true
+}
+
+function takeDeferredCancellation(liveTurn: LiveTurn) {
+  const deferredCancellation = liveTurn.deferredCancellation
+  liveTurn.deferredCancellation = null
+  return deferredCancellation
 }
 
 function settleCancellationDurability(
@@ -279,6 +311,9 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       controller,
       terminalEventType: null,
       terminalAuthority: 'open',
+      terminalObservationDurability: null,
+      modelStepStartDurability: null,
+      deferredCancellation: null,
       cancellationDurability,
       resolveCancellationDurability,
       cancellationDurabilitySettled: false,
@@ -286,6 +321,13 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
     liveTurns.set(input.scope.turnId, liveTurn)
 
     const onExternalAbort = () => {
+      if (
+        liveTurn.terminalObservationDurability
+        || liveTurn.modelStepStartDurability
+      ) {
+        claimDeferredCancellation(liveTurn, input.signal?.reason)
+        return
+      }
       if (claimTerminalAuthority(liveTurn, 'cancelled'))
         controller.abort(input.signal?.reason)
     }
@@ -300,11 +342,14 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
     let state = createAlicizationTurnRuntimeState(input.scope, input.deliveryOwner)
     let failureSurface: 'context' | 'provider' | 'tool' | 'delivery' = 'context'
     let currentActionId: string | null = null
+    const providerFailure = {
+      origin: 'none' as 'none' | 'invocation-or-validation',
+    }
     const toolFailure = {
       origin: 'none' as 'none' | 'adapter-or-validation',
     }
 
-    const append = async (
+    const appendPersistedEvent = async (
       eventType: AlicizationRuntimeEventType,
       payload: unknown,
       source: AlicizationRuntimeEventSource = 'runtime',
@@ -323,6 +368,21 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       const persistedEvent = await options.persistence.appendRuntimeEvent(input.scope, pendingEvent)
       state = reduceAlicizationRuntimeEvent(state, persistedEvent)
       liveTurn.terminalEventType = state.terminalEventType
+      return persistedEvent
+    }
+
+    const append = async (
+      eventType: AlicizationRuntimeEventType,
+      payload: unknown,
+      source: AlicizationRuntimeEventSource = 'runtime',
+      idempotencyKey: string | null = null,
+    ) => {
+      const persistedEvent = await appendPersistedEvent(
+        eventType,
+        payload,
+        source,
+        idempotencyKey,
+      )
       await options.persistence.saveRuntimeCheckpoint(
         toAlicizationRuntimeCheckpoint(state, now()),
       )
@@ -396,22 +456,78 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       for (let stepIndex = 1; stepIndex <= maxSteps; stepIndex++) {
         throwIfAborted(controller.signal)
         failureSurface = 'provider'
-        await append('model.step.started', {
-          stepIndex,
-        }, 'model')
-        const step = await raceWithAbort(
-          () => options.participant.runModelStep(
-            context,
-            runtimeView(state, controller.signal),
-          ),
-          controller.signal,
-        )
+        providerFailure.origin = 'none'
+        let resolveModelStepStartDurability!: (
+          result: { error: unknown | null },
+        ) => void
+        const modelStepStartDurability = {
+          promise: new Promise<{ error: unknown | null }>((resolve) => {
+            resolveModelStepStartDurability = resolve
+          }),
+          resolve: (result: { error: unknown | null }) => {
+            resolveModelStepStartDurability(result)
+          },
+        }
+        liveTurn.modelStepStartDurability = modelStepStartDurability
+        try {
+          await append('model.step.started', {
+            stepIndex,
+          }, 'model')
+          modelStepStartDurability.resolve({ error: null })
+          const deferredCancellation = takeDeferredCancellation(liveTurn)
+          if (
+            deferredCancellation
+            && claimTerminalAuthority(liveTurn, 'cancelled')
+          ) {
+            controller.abort(deferredCancellation.reason)
+          }
+        }
+        catch (error) {
+          liveTurn.deferredCancellation = null
+          modelStepStartDurability.resolve({ error })
+          throw error
+        }
+        finally {
+          if (liveTurn.modelStepStartDurability === modelStepStartDurability)
+            liveTurn.modelStepStartDurability = null
+        }
         throwIfAborted(controller.signal)
+        let step: AlicizationModelStep
+        try {
+          const participantStep = await raceWithAbort(
+            () => options.participant.runModelStep(
+              context,
+              runtimeView(state, controller.signal),
+            ),
+            controller.signal,
+          )
+          throwIfAborted(controller.signal)
+          if (participantStep.kind === 'action') {
+            const action = parseModelAction(participantStep.action)
+            if (state.actions[action.actionId])
+              throw new Error(`model action ${action.actionId} already exists in this turn`)
+            step = {
+              kind: 'action',
+              action,
+            }
+          }
+          else if (participantStep.kind === 'reply') {
+            step = {
+              kind: 'reply',
+              reply: parseTextReply(participantStep.reply),
+            }
+          }
+          else {
+            throw new TypeError('model step kind must be action or reply')
+          }
+        }
+        catch (error) {
+          providerFailure.origin = 'invocation-or-validation'
+          throw error
+        }
 
         if (step.kind === 'action') {
-          const action = parseModelAction(step.action)
-          if (state.actions[action.actionId])
-            throw new Error(`model action ${action.actionId} already exists in this turn`)
+          const action = step.action
 
           currentActionId = action.actionId
           await append('model.tool_call.proposed', {
@@ -456,20 +572,73 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
             throw error
           }
 
-          await append('action.observation', {
-            ...observationLink,
-            ...('output' in observation ? { output: observation.output } : {}),
-          }, 'tool')
-          throwIfAborted(controller.signal)
-          await append(actionTerminalEventType(observationLink.outcome), {
+          let resolveTerminalObservationDurability!: (
+            result: { error: unknown | null },
+          ) => void
+          const terminalObservationDurability = {
+            promise: new Promise<{ error: unknown | null }>((resolve) => {
+              resolveTerminalObservationDurability = resolve
+            }),
+            resolve: (result: { error: unknown | null }) => {
+              resolveTerminalObservationDurability(result)
+            },
+          }
+          let settlementId: string
+          do {
+            settlementId = `settlement:${createEventId()}`
+          } while (state.pendingActionSettlements[settlementId])
+          const settlement = {
+            settlementId,
             actionId: action.actionId,
             toolCallId: observationLink.toolCallId,
-          }, 'tool')
-          currentActionId = null
+            observationId: observationLink.observationId,
+          }
+          liveTurn.terminalObservationDurability = terminalObservationDurability
+          try {
+            await append(
+              'action.settlement.started',
+              settlement,
+              'runtime',
+              `${settlementId}:started`,
+            )
+            await append('action.observation', {
+              ...observationLink,
+              ...('output' in observation ? { output: observation.output } : {}),
+            }, 'tool')
+            await append(
+              'action.settlement.completed',
+              settlement,
+              'runtime',
+              `${settlementId}:completed`,
+            )
+            await append(actionTerminalEventType(observationLink.outcome), {
+              actionId: action.actionId,
+              toolCallId: observationLink.toolCallId,
+            }, 'tool')
+            currentActionId = null
+            terminalObservationDurability.resolve({ error: null })
+            const deferredCancellation = takeDeferredCancellation(liveTurn)
+            if (
+              deferredCancellation
+              && claimTerminalAuthority(liveTurn, 'cancelled')
+            ) {
+              controller.abort(deferredCancellation.reason)
+            }
+          }
+          catch (error) {
+            liveTurn.deferredCancellation = null
+            terminalObservationDurability.resolve({ error })
+            throw error
+          }
+          finally {
+            if (liveTurn.terminalObservationDurability === terminalObservationDurability)
+              liveTurn.terminalObservationDurability = null
+          }
+          throwIfAborted(controller.signal)
           continue
         }
 
-        const reply = parseTextReply(step.reply)
+        const reply = step.reply
         const deliveryIntent = createAlicizationReplyDeliveryIntent(
           input.scope,
           input.deliveryOwner,
@@ -525,7 +694,6 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       if (
         liveTurn.terminalAuthority === 'cancelled'
         || controller.signal.aborted
-        || (error instanceof Error && error.name === 'AbortError')
       ) {
         try {
           const result = await cancelActiveTurn(controller.signal.reason ?? error)
@@ -539,6 +707,8 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       }
 
       if (failureSurface === 'tool' && toolFailure.origin === 'none')
+        throw error
+      if (failureSurface === 'provider' && providerFailure.origin === 'none')
         throw error
 
       if (!claimTerminalAuthority(liveTurn, 'failed')) {
@@ -570,7 +740,10 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           error: errorMessage(error),
         }, 'tool')
       }
-      if (failureSurface === 'provider') {
+      if (
+        failureSurface === 'provider'
+        && providerFailure.origin === 'invocation-or-validation'
+      ) {
         await append('provider.failed', {
           error: errorMessage(error),
           surface: failureSurface,
@@ -619,6 +792,30 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
     if (!liveTurn)
       return false
     assertSameScope(liveTurn.scope, scope)
+    const modelStepStartDurability = liveTurn.modelStepStartDurability
+    if (modelStepStartDurability) {
+      if (!claimDeferredCancellation(liveTurn, reason))
+        return false
+      const durability = await modelStepStartDurability.promise
+      if (durability.error)
+        throw durability.error
+      const cancellation = await liveTurn.cancellationDurability
+      if (cancellation.error)
+        throw cancellation.error
+      return true
+    }
+    const terminalObservationDurability = liveTurn.terminalObservationDurability
+    if (terminalObservationDurability) {
+      if (!claimDeferredCancellation(liveTurn, reason))
+        return false
+      const durability = await terminalObservationDurability.promise
+      if (durability.error)
+        throw durability.error
+      const cancellation = await liveTurn.cancellationDurability
+      if (cancellation.error)
+        throw cancellation.error
+      return true
+    }
     if (!claimTerminalAuthority(liveTurn, 'cancelled'))
       return false
     liveTurn.controller.abort(reason)

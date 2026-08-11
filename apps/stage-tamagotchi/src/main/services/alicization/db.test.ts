@@ -25,6 +25,7 @@ function runtimeCheckpointProjection(activeActionIds: string[] = []) {
         lastSequence: 0,
       },
     ])),
+    pendingActionSettlements: {},
     replyCommitted: false,
     pendingDelivery: null,
     committedDelivery: null,

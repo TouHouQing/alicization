@@ -66,6 +66,7 @@ function runtimeEvent(
 function checkpointProjection() {
   return {
     actions: {},
+    pendingActionSettlements: {},
     replyCommitted: false,
     terminalEventType: null,
     issues: [],

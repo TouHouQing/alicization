@@ -1,5 +1,6 @@
 import type {
   AlicizationActionObservationLink,
+  AlicizationActionSettlement,
   AlicizationRuntimeEventType,
 } from '@proj-alicization/stage-shared'
 import type sqlite3 from 'sqlite3'
@@ -11,6 +12,7 @@ import { isDeepStrictEqual } from 'node:util'
 import {
   alicizationRuntimeEventTypes,
   parseAlicizationActionObservation,
+  parseAlicizationActionSettlement,
 } from '@proj-alicization/stage-shared'
 
 import {
@@ -69,6 +71,7 @@ export interface AlicizationRuntimeReplyDeliveryIntent
 
 export interface AlicizationRuntimeCheckpointProjection {
   actions: Record<string, AlicizationRuntimeCheckpointActionProjection>
+  pendingActionSettlements: Record<string, AlicizationActionSettlement>
   replyCommitted: boolean
   pendingDelivery?: AlicizationRuntimeReplyDeliveryIntent | null
   committedDelivery?: AlicizationRuntimeReplyDeliveryIdentity | null
@@ -339,6 +342,54 @@ function parseCheckpointAction(
   }
 }
 
+function parseCheckpointActionSettlements(
+  value: unknown,
+  actions: Record<string, AlicizationRuntimeCheckpointActionProjection>,
+) {
+  const settlementsRecord = asRecord(
+    value,
+    'checkpoint projection pendingActionSettlements',
+  )
+  const settlements: Record<string, AlicizationActionSettlement> = {}
+  for (const [settlementIdKey, value] of Object.entries(settlementsRecord)) {
+    const settlement = parseAlicizationActionSettlement(value)
+    if (settlement.settlementId !== settlementIdKey) {
+      throw new TypeError(
+        'checkpoint projection settlement key must match settlementId',
+      )
+    }
+    const action = actions[settlement.actionId]
+    if (!action) {
+      throw new TypeError(
+        `checkpoint action settlement ${settlement.settlementId} references an unknown action`,
+      )
+    }
+    if (action.toolCallId !== settlement.toolCallId) {
+      throw new TypeError(
+        `checkpoint action settlement ${settlement.settlementId} toolCallId does not match its action`,
+      )
+    }
+    if (
+      action.status !== 'active'
+      && action.terminalObservationId !== settlement.observationId
+    ) {
+      throw new TypeError(
+        `checkpoint action settlement ${settlement.settlementId} does not match its terminal observation`,
+      )
+    }
+    if (Object.values(settlements).some(pending =>
+      pending.actionId === settlement.actionId
+      || pending.observationId === settlement.observationId,
+    )) {
+      throw new TypeError(
+        `checkpoint action settlement ${settlement.settlementId} duplicates a pending action or observation`,
+      )
+    }
+    settlements[settlement.settlementId] = settlement
+  }
+  return settlements
+}
+
 function expectedOutcomeForActionStatus(
   status: AlicizationRuntimeCheckpointActionStatus,
 ) {
@@ -398,6 +449,10 @@ function parseCheckpointProjection(value: unknown): AlicizationRuntimeCheckpoint
       actionId,
       parseCheckpointAction(actionId, action),
     ]),
+  )
+  const pendingActionSettlements = parseCheckpointActionSettlements(
+    record.pendingActionSettlements,
+    actions,
   )
   const terminalEventType = record.terminalEventType === null
     ? null
@@ -480,6 +535,7 @@ function parseCheckpointProjection(value: unknown): AlicizationRuntimeCheckpoint
 
   return {
     actions,
+    pendingActionSettlements,
     replyCommitted: parseBoolean(
       record.replyCommitted,
       'checkpoint projection replyCommitted',

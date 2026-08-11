@@ -1,5 +1,6 @@
 import type {
   AlicizationActionObservationLink,
+  AlicizationActionSettlement,
   AlicizationRuntimeEventEnvelope,
   AlicizationRuntimeEventType,
 } from '@proj-alicization/stage-shared'
@@ -17,6 +18,7 @@ import { createHash } from 'node:crypto'
 
 import {
   parseAlicizationActionObservation,
+  parseAlicizationActionSettlement,
 } from '@proj-alicization/stage-shared'
 
 export type AlicizationActionRuntimeStatus
@@ -70,6 +72,7 @@ export interface AlicizationTurnRuntimeState extends AlicizationRuntimeEventScop
   status: AlicizationRuntimeCheckpointStatus
   deliveryOwner: AlicizationRuntimeDeliveryOwner
   actions: Record<string, AlicizationActionRuntimeState>
+  pendingActionSettlements: Record<string, AlicizationActionSettlement>
   replyCommitted: boolean
   pendingDelivery: AlicizationRuntimeReplyDeliveryIntent | null
   committedDelivery: AlicizationRuntimeReplyDeliveryIdentity | null
@@ -120,6 +123,12 @@ function cloneState(state: AlicizationTurnRuntimeState, sequence: number): Alici
     ...state,
     sequence,
     actions: { ...state.actions },
+    pendingActionSettlements: Object.fromEntries(
+      Object.entries(state.pendingActionSettlements).map(([settlementId, settlement]) => [
+        settlementId,
+        { ...settlement },
+      ]),
+    ),
     pendingDelivery: state.pendingDelivery
       ? { ...state.pendingDelivery }
       : null,
@@ -355,6 +364,77 @@ function reduceActionStarted(
   }
 }
 
+function sameActionSettlement(
+  left: AlicizationActionSettlement,
+  right: AlicizationActionSettlement,
+) {
+  return left.settlementId === right.settlementId
+    && left.actionId === right.actionId
+    && left.toolCallId === right.toolCallId
+    && left.observationId === right.observationId
+}
+
+function reduceActionSettlementStarted(
+  state: AlicizationTurnRuntimeState,
+  payload: unknown,
+) {
+  const settlement = parseAlicizationActionSettlement(payload)
+  const existing = state.pendingActionSettlements[settlement.settlementId]
+  if (existing) {
+    if (!sameActionSettlement(existing, settlement))
+      throw new Error(`action settlement ${settlement.settlementId} identity changed`)
+    return
+  }
+
+  const action = state.actions[settlement.actionId]
+  if (!action)
+    throw new Error(`action settlement ${settlement.settlementId} references an unknown action`)
+  if (action.status !== 'active')
+    throw new Error(`action settlement ${settlement.settlementId} requires an active action`)
+  if (action.toolCallId !== settlement.toolCallId) {
+    throw new Error(
+      `action settlement ${settlement.settlementId} toolCallId does not match its action`,
+    )
+  }
+  if (Object.values(state.pendingActionSettlements).some(pending =>
+    pending.actionId === settlement.actionId
+    || pending.observationId === settlement.observationId,
+  )) {
+    throw new Error(
+      `action settlement ${settlement.settlementId} duplicates a pending action or observation`,
+    )
+  }
+
+  state.pendingActionSettlements[settlement.settlementId] = {
+    ...settlement,
+  }
+}
+
+function reduceActionSettlementCompleted(
+  state: AlicizationTurnRuntimeState,
+  payload: unknown,
+) {
+  const settlement = parseAlicizationActionSettlement(payload)
+  const pending = state.pendingActionSettlements[settlement.settlementId]
+  if (!pending)
+    throw new Error(`action settlement ${settlement.settlementId} is not pending`)
+  if (!sameActionSettlement(pending, settlement))
+    throw new Error(`action settlement ${settlement.settlementId} identity changed`)
+
+  const action = state.actions[settlement.actionId]
+  if (
+    !action
+    || action.terminalObservationId !== settlement.observationId
+    || action.toolCallId !== settlement.toolCallId
+  ) {
+    throw new Error(
+      `action settlement ${settlement.settlementId} completed without its terminal observation`,
+    )
+  }
+
+  delete state.pendingActionSettlements[settlement.settlementId]
+}
+
 function reduceActionCompleted(
   state: AlicizationTurnRuntimeState,
   payload: unknown,
@@ -581,6 +661,7 @@ export function createAlicizationTurnRuntimeState(
     status: 'accepted',
     deliveryOwner,
     actions: {},
+    pendingActionSettlements: {},
     replyCommitted: false,
     pendingDelivery: null,
     committedDelivery: null,
@@ -615,6 +696,13 @@ export function restoreAlicizationTurnRuntimeState(
     status: checkpoint.status,
     deliveryOwner: checkpoint.deliveryOwner,
     actions,
+    pendingActionSettlements: Object.fromEntries(
+      Object.entries(checkpoint.projection.pendingActionSettlements)
+        .map(([settlementId, settlement]) => [
+          settlementId,
+          { ...settlement },
+        ]),
+    ),
     replyCommitted: checkpoint.projection.replyCommitted,
     pendingDelivery: checkpoint.projection.pendingDelivery
       ? { ...checkpoint.projection.pendingDelivery }
@@ -670,6 +758,19 @@ export function reduceAlicizationRuntimeEvent(
 
   if (event.eventType === 'action.observation') {
     settleActionFromObservation(next, parseActionObservation(event.payload))
+    return next
+  }
+
+  if (event.eventType === 'action.settlement.started') {
+    if (next.terminalEventType)
+      throw new Error('action settlement cannot start after the turn became terminal')
+    reduceActionSettlementStarted(next, event.payload)
+    next.status = 'running'
+    return next
+  }
+
+  if (event.eventType === 'action.settlement.completed') {
+    reduceActionSettlementCompleted(next, event.payload)
     return next
   }
 
@@ -836,6 +937,13 @@ export function toAlicizationRuntimeCheckpoint(
             lastSequence: action.lastSequence,
           },
         ]),
+      ),
+      pendingActionSettlements: Object.fromEntries(
+        Object.entries(state.pendingActionSettlements)
+          .map(([settlementId, settlement]) => [
+            settlementId,
+            { ...settlement },
+          ]),
       ),
       replyCommitted: state.replyCommitted,
       pendingDelivery: state.pendingDelivery

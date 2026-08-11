@@ -489,7 +489,9 @@ describe('alicization event loop', () => {
       'model.tool_call.proposed',
       'model.step.completed',
       'action.started',
+      'action.settlement.started',
       'action.observation',
+      'action.settlement.completed',
       'action.completed',
       'model.step.started',
       'model.text.delta',
@@ -497,10 +499,27 @@ describe('alicization event loop', () => {
       'assistant.reply.committed',
       'turn.completed',
     ])
-    const observationIndex = persistence.events.findIndex(event => event.eventType === 'action.observation')
-    const completedIndex = persistence.events.findIndex(event => event.eventType === 'action.completed')
-    expect(observationIndex).toBeGreaterThan(-1)
-    expect(completedIndex).toBeGreaterThan(observationIndex)
+    const realObservationIndex = persistence.events.findIndex(event =>
+      event.eventType === 'action.observation'
+      && (event.payload as { actionId?: string }).actionId === 'action-1',
+    )
+    const realCompletedIndex = persistence.events.findIndex(event =>
+      event.eventType === 'action.completed'
+      && (event.payload as { actionId?: string }).actionId === 'action-1',
+    )
+    const settlementStarted = persistence.events.find(event =>
+      event.eventType === 'action.settlement.started',
+    )
+    expect(settlementStarted).toMatchObject({
+      payload: {
+        settlementId: expect.any(String),
+        actionId: 'action-1',
+        toolCallId: 'tool-call-1',
+        observationId: 'observation-1',
+      },
+    })
+    expect(realObservationIndex).toBeGreaterThan(-1)
+    expect(realCompletedIndex).toBeGreaterThan(realObservationIndex)
     expect(modelRuntimeActions[1]).toMatchObject({
       'action-1': {
         status: 'completed',
@@ -932,6 +951,866 @@ describe('alicization event loop', () => {
     expect(attemptedEvents.map(event => event.eventType)).not.toContain('turn.failed')
   })
 
+  it('uses first-class settlement events without creating executable barrier actions', async () => {
+    const persistence = createPersistence()
+    const runModelStep = vi.fn()
+      .mockResolvedValueOnce({
+        kind: 'action' as const,
+        action: {
+          actionId: 'action-first-class-settlement',
+          toolCallId: 'tool-call-first-class-settlement',
+          qualifiedToolName: 'coding_agent.codex',
+          input: {},
+        },
+      })
+      .mockResolvedValueOnce({
+        kind: 'reply' as const,
+        reply: { text: 'settled without a barrier action' },
+      })
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep,
+        executeAction: vi.fn(async () => ({
+          actionId: 'action-first-class-settlement',
+          observationId: 'observation-first-class-settlement',
+          toolCallId: 'tool-call-first-class-settlement',
+          terminal: true,
+          outcome: 'success' as const,
+        })),
+        settleReply: vi.fn(async () => {}),
+      },
+    })
+
+    const result = await eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-first-class-settlement' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+
+    const settlementEvents = persistence.events.filter(event =>
+      event.eventType === 'action.settlement.started'
+      || event.eventType === 'action.settlement.completed',
+    )
+    expect(settlementEvents.map(event => event.eventType)).toEqual([
+      'action.settlement.started',
+      'action.settlement.completed',
+    ])
+    expect(settlementEvents[0]?.payload).toMatchObject({
+      settlementId: expect.any(String),
+      actionId: 'action-first-class-settlement',
+      toolCallId: 'tool-call-first-class-settlement',
+      observationId: 'observation-first-class-settlement',
+    })
+    expect(settlementEvents[1]?.payload).toEqual(settlementEvents[0]?.payload)
+    expect(Object.keys(result.state.actions)).toEqual([
+      'action-first-class-settlement',
+    ])
+    expect(result.state.pendingActionSettlements).toEqual({})
+    expect(persistence.events.some(event =>
+      event.eventType === 'action.started'
+      && (event.payload as { qualifiedToolName?: string }).qualifiedToolName
+      === 'runtime.settlement-barrier',
+    )).toBe(false)
+  })
+
+  it('does not append the terminal observation when settlement start persistence fails', async () => {
+    const persistence = createPersistence()
+    const settlementError = new Error('failed to persist action settlement')
+    persistence.appendRuntimeEvent.mockImplementation(async (
+      scope: AlicizationRuntimeEventScope,
+      input: AlicizationRuntimeEventEnvelope,
+    ) => {
+      if (input.eventType === 'action.settlement.started')
+        throw settlementError
+      const sequence = persistence.events.filter(event => event.turnId === scope.turnId).length + 1
+      const event = {
+        ...input,
+        sequence,
+      }
+      persistence.events.push(event)
+      return event
+    })
+    const runModelStep = vi.fn()
+      .mockResolvedValueOnce({
+        kind: 'action' as const,
+        action: {
+          actionId: 'action-barrier-append-failure',
+          toolCallId: 'tool-call-barrier-append-failure',
+          qualifiedToolName: 'coding_agent.codex',
+          input: {},
+        },
+      })
+      .mockResolvedValueOnce({
+        kind: 'reply' as const,
+        reply: { text: 'must not continue' },
+      })
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep,
+        executeAction: vi.fn(async () => ({
+          actionId: 'action-barrier-append-failure',
+          observationId: 'observation-barrier-append-failure',
+          toolCallId: 'tool-call-barrier-append-failure',
+          terminal: true,
+          outcome: 'success' as const,
+        })),
+        settleReply: vi.fn(async () => {}),
+      },
+    })
+    const scope = runtimeScope({ turnId: 'turn-barrier-append-failure' })
+
+    await expect(eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })).rejects.toBe(settlementError)
+
+    expect(runModelStep).toHaveBeenCalledTimes(1)
+    expect(persistence.events.map(event => event.eventType))
+      .not
+      .toContain('action.settlement.started')
+    expect(persistence.events.some(event =>
+      event.eventType === 'action.observation'
+      && (event.payload as { actionId?: string }).actionId === 'action-barrier-append-failure',
+    )).toBe(false)
+
+    const checkpoint = persistence.checkpoints.at(-1) ?? null
+    const replay = await replayTurn({
+      scope,
+      deliveryOwner: 'inline',
+      reader: {
+        loadRuntimeCheckpoint: vi.fn(async () => checkpoint),
+        listRuntimeEvents: vi.fn(async () => persistence.events.filter(event =>
+          event.sequence > (checkpoint?.sequence ?? 0),
+        )),
+      },
+    })
+    expect(replay.recoveryRequired).toBe(true)
+    expect(replay.state.actions['action-barrier-append-failure']).toMatchObject({
+      status: 'active',
+      terminalObservationId: null,
+    })
+    expect(replay.state.pendingActionSettlements).toEqual({})
+  })
+
+  it('keeps a pre-persisted action settlement pending when terminal observation checkpointing fails', async () => {
+    const persistence = createPersistence()
+    const checkpointStarted = createDeferred<void>()
+    const failCheckpoint = createDeferred<never>()
+    const persistenceError = new Error('failed to checkpoint durable terminal observation')
+    persistence.saveRuntimeCheckpoint.mockImplementation(async (checkpoint) => {
+      const action = checkpoint.projection.actions['action-observation-checkpoint-race']
+      if (action?.lastObservation?.observationId === 'observation-checkpoint-race') {
+        checkpointStarted.resolve()
+        await failCheckpoint.promise
+      }
+      persistence.checkpoints.push(structuredClone(checkpoint))
+      return checkpoint
+    })
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => ({
+          kind: 'action' as const,
+          action: {
+            actionId: 'action-observation-checkpoint-race',
+            toolCallId: 'tool-call-observation-checkpoint-race',
+            qualifiedToolName: 'coding_agent.codex',
+            input: {},
+          },
+        })),
+        executeAction: vi.fn(async () => ({
+          actionId: 'action-observation-checkpoint-race',
+          observationId: 'observation-checkpoint-race',
+          toolCallId: 'tool-call-observation-checkpoint-race',
+          terminal: true,
+          outcome: 'success' as const,
+        })),
+        settleReply: vi.fn(),
+      },
+    })
+    const scope = runtimeScope({ turnId: 'turn-observation-checkpoint-race' })
+    const running = eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+    await checkpointStarted.promise
+
+    const cancellation = eventLoop.cancelTurn(scope, 'cancel during observation checkpoint failure')
+    failCheckpoint.reject(persistenceError)
+
+    await expect(cancellation).rejects.toBe(persistenceError)
+    await expect(running).rejects.toBe(persistenceError)
+    expect(persistence.events.map(event => event.eventType)).not.toContain('action.cancelled')
+    expect(persistence.events.map(event => event.eventType)).not.toContain('runtime.cancelled')
+    expect(persistence.events.map(event => event.eventType)).not.toContain('tool.failed')
+    expect(persistence.events.map(event => event.eventType)).not.toContain('turn.failed')
+
+    const checkpoint = persistence.checkpoints.at(-1) ?? null
+    const replay = await replayTurn({
+      scope,
+      deliveryOwner: 'inline',
+      reader: {
+        loadRuntimeCheckpoint: vi.fn(async () => checkpoint),
+        listRuntimeEvents: vi.fn(async () => persistence.events.filter(event =>
+          event.sequence > (checkpoint?.sequence ?? 0),
+        )),
+      },
+    })
+    const settlementEvent = persistence.events.find(event =>
+      event.eventType === 'action.settlement.started'
+      && (event.payload as { actionId?: string }).actionId
+      === 'action-observation-checkpoint-race',
+    )
+    const settlementId
+      = (settlementEvent?.payload as { settlementId?: string } | undefined)?.settlementId
+    const settlementEventIndex = persistence.events.indexOf(settlementEvent!)
+    const observationEventIndex = persistence.events.findIndex(event =>
+      event.eventType === 'action.observation'
+      && (event.payload as { observationId?: string }).observationId
+      === 'observation-checkpoint-race',
+    )
+    expect(replay.recoveryRequired).toBe(true)
+    expect(replay.reasonCodes).toContain('runtime-replay:action-settlement-pending')
+    expect(settlementId).toEqual(expect.any(String))
+    expect(settlementEventIndex).toBeGreaterThanOrEqual(0)
+    expect(settlementEventIndex).toBeLessThan(observationEventIndex)
+    expect(replay.state.actions['action-observation-checkpoint-race']).toMatchObject({
+      actionId: 'action-observation-checkpoint-race',
+      toolCallId: 'tool-call-observation-checkpoint-race',
+      status: 'completed',
+    })
+    expect(Object.keys(replay.state.actions)).toEqual([
+      'action-observation-checkpoint-race',
+    ])
+    expect(replay.state.pendingActionSettlements[settlementId!]).toEqual({
+      settlementId,
+      actionId: 'action-observation-checkpoint-race',
+      toolCallId: 'tool-call-observation-checkpoint-race',
+      observationId: 'observation-checkpoint-race',
+    })
+    expect(settlementEvent).toMatchObject({
+      payload: {
+        actionId: 'action-observation-checkpoint-race',
+        observationId: 'observation-checkpoint-race',
+      },
+    })
+  })
+
+  it('uses a unique settlementId when a legacy concatenated action id is occupied', async () => {
+    const persistence = createPersistence()
+    const targetActionId = 'action-barrier-collision-target'
+    const targetObservationId = 'observation-barrier-collision-target'
+    const occupiedLegacyId
+      = `${targetActionId}:settlement-uncertain:${targetObservationId}`
+    const persistenceError = new Error('failed to checkpoint collision target observation')
+    let injectedFailure = false
+    persistence.saveRuntimeCheckpoint.mockImplementation(async (checkpoint) => {
+      const action = checkpoint.projection.actions[targetActionId]
+      if (
+        !injectedFailure
+        && action?.lastObservation?.observationId === targetObservationId
+      ) {
+        injectedFailure = true
+        throw persistenceError
+      }
+      persistence.checkpoints.push(structuredClone(checkpoint))
+      return checkpoint
+    })
+    const steps = [
+      {
+        kind: 'action' as const,
+        action: {
+          actionId: occupiedLegacyId,
+          toolCallId: 'tool-call-occupied-legacy-id',
+          qualifiedToolName: 'coding_agent.codex',
+          input: {},
+        },
+      },
+      {
+        kind: 'action' as const,
+        action: {
+          actionId: targetActionId,
+          toolCallId: 'tool-call-barrier-collision-target',
+          qualifiedToolName: 'coding_agent.codex',
+          input: {},
+        },
+      },
+    ]
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => steps.shift()!),
+        executeAction: vi.fn(async action => ({
+          actionId: action.actionId,
+          observationId: action.actionId === targetActionId
+            ? targetObservationId
+            : 'observation-occupied-legacy-id',
+          toolCallId: action.toolCallId,
+          terminal: true,
+          outcome: 'success' as const,
+        })),
+        settleReply: vi.fn(),
+      },
+    })
+    const scope = runtimeScope({ turnId: 'turn-barrier-collision' })
+
+    await expect(eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })).rejects.toBe(persistenceError)
+
+    const checkpoint = persistence.checkpoints.at(-1) ?? null
+    const replay = await replayTurn({
+      scope,
+      deliveryOwner: 'inline',
+      reader: {
+        loadRuntimeCheckpoint: vi.fn(async () => checkpoint),
+        listRuntimeEvents: vi.fn(async () => persistence.events.filter(event =>
+          event.sequence > (checkpoint?.sequence ?? 0),
+        )),
+      },
+    })
+    const targetSettlementEvent = persistence.events.find(event =>
+      event.eventType === 'action.settlement.started'
+      && (event.payload as { actionId?: string }).actionId === targetActionId,
+    )
+    const targetSettlementId
+      = (targetSettlementEvent?.payload as { settlementId?: string } | undefined)?.settlementId
+    expect(targetSettlementId).toEqual(expect.any(String))
+    expect(targetSettlementId).not.toBe(occupiedLegacyId)
+    expect(replay.state.actions[occupiedLegacyId]).toMatchObject({
+      status: 'completed',
+    })
+    expect(replay.state.actions[targetActionId]).toMatchObject({
+      status: 'completed',
+    })
+    expect(replay.state.actions[targetSettlementId!]).toBeUndefined()
+    expect(replay.state.pendingActionSettlements[targetSettlementId!]).toMatchObject({
+      actionId: targetActionId,
+      observationId: targetObservationId,
+    })
+  })
+
+  it('fully settles the first-class settlement after a successful terminal observation checkpoint', async () => {
+    const persistence = createPersistence()
+    const runModelStep = vi.fn()
+      .mockResolvedValueOnce({
+        kind: 'action' as const,
+        action: {
+          actionId: 'action-barrier-success',
+          toolCallId: 'tool-call-barrier-success',
+          qualifiedToolName: 'coding_agent.codex',
+          input: {},
+        },
+      })
+      .mockResolvedValueOnce({
+        kind: 'reply' as const,
+        reply: { text: 'barrier settled' },
+      })
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep,
+        executeAction: vi.fn(async () => ({
+          actionId: 'action-barrier-success',
+          observationId: 'observation-barrier-success',
+          toolCallId: 'tool-call-barrier-success',
+          terminal: true,
+          outcome: 'success' as const,
+        })),
+        settleReply: vi.fn(async () => {}),
+      },
+    })
+    const scope = runtimeScope({ turnId: 'turn-barrier-success' })
+
+    const result = await eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+
+    const settlementStarted = persistence.events.find(event =>
+      event.eventType === 'action.settlement.started'
+      && (event.payload as { actionId?: string }).actionId === 'action-barrier-success',
+    )
+    const settlementCompleted = persistence.events.find(event =>
+      event.eventType === 'action.settlement.completed',
+    )
+    const settlementId
+      = (settlementStarted?.payload as { settlementId?: string } | undefined)?.settlementId
+    expect(result.status).toBe('completed')
+    expect(settlementId).toEqual(expect.any(String))
+    expect(settlementCompleted?.payload).toEqual(settlementStarted?.payload)
+    expect(result.state.pendingActionSettlements).toEqual({})
+    expect(Object.keys(result.state.actions)).toEqual(['action-barrier-success'])
+    expect(listAlicizationActiveActionIds(result.state)).toEqual([])
+    expect(persistence.events.filter(event =>
+      event.eventType === 'action.completed',
+    )).toHaveLength(1)
+  })
+
+  it.each(['append', 'checkpoint'] as const)(
+    'does not fabricate provider failure when model step start %s fails',
+    async (failurePoint) => {
+      const persistence = createPersistence()
+      const persistenceError = new Error(`failed to ${failurePoint} model step start`)
+      if (failurePoint === 'append') {
+        persistence.appendRuntimeEvent.mockImplementation(async (
+          scope: AlicizationRuntimeEventScope,
+          input: AlicizationRuntimeEventEnvelope,
+        ) => {
+          if (input.eventType === 'model.step.started')
+            throw persistenceError
+          const sequence = persistence.events.filter(event => event.turnId === scope.turnId).length + 1
+          const event = {
+            ...input,
+            sequence,
+          }
+          persistence.events.push(event)
+          return event
+        })
+      }
+      else {
+        persistence.saveRuntimeCheckpoint.mockImplementation(async (checkpoint) => {
+          if (
+            checkpoint.projection.terminalEventType === null
+            && checkpoint.status === 'running'
+            && persistence.events.at(-1)?.eventType === 'model.step.started'
+          ) {
+            throw persistenceError
+          }
+          persistence.checkpoints.push(structuredClone(checkpoint))
+          return checkpoint
+        })
+      }
+      const runModelStep = vi.fn()
+      const eventLoop = createAlicizationEventLoop({
+        persistence,
+        participant: {
+          assembleContext: vi.fn(async () => ({})),
+          runModelStep,
+          executeAction: vi.fn(),
+          settleReply: vi.fn(),
+        },
+      })
+
+      await expect(eventLoop.runTurn({
+        scope: runtimeScope({ turnId: `turn-model-step-start-${failurePoint}-failure` }),
+        deliveryOwner: 'inline',
+        turnInput: {},
+      })).rejects.toBe(persistenceError)
+
+      expect(runModelStep).not.toHaveBeenCalled()
+      if (failurePoint === 'checkpoint')
+        expect(persistence.events.map(event => event.eventType)).toContain('model.step.started')
+      else
+        expect(persistence.events.map(event => event.eventType)).not.toContain('model.step.started')
+      expect(persistence.events.map(event => event.eventType)).not.toContain('provider.failed')
+      expect(persistence.events.map(event => event.eventType)).not.toContain('turn.failed')
+    },
+  )
+
+  it.each(['append', 'checkpoint'] as const)(
+    'does not classify a persistence AbortError during model step start %s as cancellation',
+    async (failurePoint) => {
+      const persistence = createPersistence()
+      const persistenceError = new Error(
+        `abort-shaped ${failurePoint} persistence failure`,
+      )
+      persistenceError.name = 'AbortError'
+      if (failurePoint === 'append') {
+        persistence.appendRuntimeEvent.mockImplementation(async (
+          scope: AlicizationRuntimeEventScope,
+          input: AlicizationRuntimeEventEnvelope,
+        ) => {
+          if (input.eventType === 'model.step.started')
+            throw persistenceError
+          const sequence = persistence.events.filter(event => event.turnId === scope.turnId).length + 1
+          const event = {
+            ...input,
+            sequence,
+          }
+          persistence.events.push(event)
+          return event
+        })
+      }
+      else {
+        persistence.saveRuntimeCheckpoint.mockImplementation(async (checkpoint) => {
+          if (persistence.events.at(-1)?.eventType === 'model.step.started')
+            throw persistenceError
+          persistence.checkpoints.push(structuredClone(checkpoint))
+          return checkpoint
+        })
+      }
+      const runModelStep = vi.fn()
+      const eventLoop = createAlicizationEventLoop({
+        persistence,
+        participant: {
+          assembleContext: vi.fn(async () => ({})),
+          runModelStep,
+          executeAction: vi.fn(),
+          settleReply: vi.fn(),
+        },
+      })
+
+      await expect(eventLoop.runTurn({
+        scope: runtimeScope({
+          turnId: `turn-model-step-start-${failurePoint}-abort-error`,
+        }),
+        deliveryOwner: 'inline',
+        turnInput: {},
+      })).rejects.toBe(persistenceError)
+
+      expect(runModelStep).not.toHaveBeenCalled()
+      expect(persistence.events.map(event => event.eventType))
+        .not
+        .toContain('runtime.cancelled')
+      expect(persistence.events.map(event => event.eventType))
+        .not
+        .toContain('provider.failed')
+      expect(persistence.events.map(event => event.eventType))
+        .not
+        .toContain('tool.failed')
+      expect(persistence.events.map(event => event.eventType))
+        .not
+        .toContain('turn.failed')
+    },
+  )
+
+  it.each(['append', 'checkpoint'] as const)(
+    'propagates model step start %s failure when cancellation races persistence',
+    async (failurePoint) => {
+      const persistence = createPersistence()
+      const persistenceStarted = createDeferred<void>()
+      const failPersistence = createDeferred<never>()
+      const persistenceError = new Error(
+        `failed to ${failurePoint} model step start during cancellation`,
+      )
+      if (failurePoint === 'append') {
+        persistence.appendRuntimeEvent.mockImplementation(async (
+          scope: AlicizationRuntimeEventScope,
+          input: AlicizationRuntimeEventEnvelope,
+        ) => {
+          if (input.eventType === 'model.step.started') {
+            persistenceStarted.resolve()
+            await failPersistence.promise
+          }
+          const sequence = persistence.events.filter(event => event.turnId === scope.turnId).length + 1
+          const event = {
+            ...input,
+            sequence,
+          }
+          persistence.events.push(event)
+          return event
+        })
+      }
+      else {
+        persistence.saveRuntimeCheckpoint.mockImplementation(async (checkpoint) => {
+          if (persistence.events.at(-1)?.eventType === 'model.step.started') {
+            persistenceStarted.resolve()
+            await failPersistence.promise
+          }
+          persistence.checkpoints.push(structuredClone(checkpoint))
+          return checkpoint
+        })
+      }
+      const runModelStep = vi.fn()
+      const eventLoop = createAlicizationEventLoop({
+        persistence,
+        participant: {
+          assembleContext: vi.fn(async () => ({})),
+          runModelStep,
+          executeAction: vi.fn(),
+          settleReply: vi.fn(),
+        },
+      })
+      const scope = runtimeScope({
+        turnId: `turn-model-step-start-${failurePoint}-cancel-race`,
+      })
+      const running = eventLoop.runTurn({
+        scope,
+        deliveryOwner: 'inline',
+        turnInput: {},
+      })
+      await persistenceStarted.promise
+
+      const cancellation = eventLoop.cancelTurn(
+        scope,
+        `cancel during model step start ${failurePoint}`,
+      )
+      failPersistence.reject(persistenceError)
+
+      await expect(cancellation).rejects.toBe(persistenceError)
+      await expect(running).rejects.toBe(persistenceError)
+      expect(runModelStep).not.toHaveBeenCalled()
+      expect(persistence.events.map(event => event.eventType)).not.toContain('provider.failed')
+      expect(persistence.events.map(event => event.eventType)).not.toContain('turn.failed')
+      expect(persistence.events.map(event => event.eventType)).not.toContain('runtime.cancelled')
+    },
+  )
+
+  it.each(['append', 'checkpoint'] as const)(
+    'keeps the first cancellation during model step start %s persistence',
+    async (persistencePoint) => {
+      const persistence = createPersistence()
+      const persistenceStarted = createDeferred<void>()
+      const releasePersistence = createDeferred<void>()
+      if (persistencePoint === 'append') {
+        persistence.appendRuntimeEvent.mockImplementation(async (
+          scope: AlicizationRuntimeEventScope,
+          input: AlicizationRuntimeEventEnvelope,
+        ) => {
+          if (input.eventType === 'model.step.started') {
+            persistenceStarted.resolve()
+            await releasePersistence.promise
+          }
+          const sequence = persistence.events.filter(event => event.turnId === scope.turnId).length + 1
+          const event = {
+            ...input,
+            sequence,
+          }
+          persistence.events.push(event)
+          return event
+        })
+      }
+      else {
+        persistence.saveRuntimeCheckpoint.mockImplementation(async (checkpoint) => {
+          if (persistence.events.at(-1)?.eventType === 'model.step.started') {
+            persistenceStarted.resolve()
+            await releasePersistence.promise
+          }
+          persistence.checkpoints.push(structuredClone(checkpoint))
+          return checkpoint
+        })
+      }
+      const runModelStep = vi.fn()
+      const eventLoop = createAlicizationEventLoop({
+        persistence,
+        participant: {
+          assembleContext: vi.fn(async () => ({})),
+          runModelStep,
+          executeAction: vi.fn(),
+          settleReply: vi.fn(),
+        },
+      })
+      const scope = runtimeScope({
+        turnId: `turn-model-step-start-${persistencePoint}-first-cancel-wins`,
+      })
+      const running = eventLoop.runTurn({
+        scope,
+        deliveryOwner: 'inline',
+        turnInput: {},
+      })
+      await persistenceStarted.promise
+
+      const firstCancellation = eventLoop.cancelTurn(scope, 'first cancellation')
+      const secondCancellation = eventLoop.cancelTurn(scope, 'second cancellation')
+      releasePersistence.resolve()
+
+      await expect(firstCancellation).resolves.toBe(true)
+      await expect(secondCancellation).resolves.toBe(false)
+      await expect(running).resolves.toMatchObject({
+        status: 'cancelled',
+        error: 'first cancellation',
+      })
+      expect(runModelStep).not.toHaveBeenCalled()
+      expect(persistence.events.find(event =>
+        event.eventType === 'runtime.cancelled',
+      )).toMatchObject({
+        payload: {
+          reason: 'first cancellation',
+        },
+      })
+    },
+  )
+
+  it.each(['append', 'checkpoint'] as const)(
+    'propagates model step start %s failure when an external abort races persistence',
+    async (failurePoint) => {
+      const persistence = createPersistence()
+      const persistenceStarted = createDeferred<void>()
+      const failPersistence = createDeferred<never>()
+      const persistenceError = new Error(
+        `failed to ${failurePoint} model step start during external abort`,
+      )
+      if (failurePoint === 'append') {
+        persistence.appendRuntimeEvent.mockImplementation(async (
+          scope: AlicizationRuntimeEventScope,
+          input: AlicizationRuntimeEventEnvelope,
+        ) => {
+          if (input.eventType === 'model.step.started') {
+            persistenceStarted.resolve()
+            await failPersistence.promise
+          }
+          const sequence = persistence.events.filter(event => event.turnId === scope.turnId).length + 1
+          const event = {
+            ...input,
+            sequence,
+          }
+          persistence.events.push(event)
+          return event
+        })
+      }
+      else {
+        persistence.saveRuntimeCheckpoint.mockImplementation(async (checkpoint) => {
+          if (persistence.events.at(-1)?.eventType === 'model.step.started') {
+            persistenceStarted.resolve()
+            await failPersistence.promise
+          }
+          persistence.checkpoints.push(structuredClone(checkpoint))
+          return checkpoint
+        })
+      }
+      const runModelStep = vi.fn()
+      const eventLoop = createAlicizationEventLoop({
+        persistence,
+        participant: {
+          assembleContext: vi.fn(async () => ({})),
+          runModelStep,
+          executeAction: vi.fn(),
+          settleReply: vi.fn(),
+        },
+      })
+      const scope = runtimeScope({
+        turnId: `turn-model-step-start-${failurePoint}-external-abort-failure`,
+      })
+      const externalController = new AbortController()
+      const running = eventLoop.runTurn({
+        scope,
+        deliveryOwner: 'inline',
+        turnInput: {},
+        signal: externalController.signal,
+      })
+      await persistenceStarted.promise
+
+      externalController.abort(`external abort during model step start ${failurePoint}`)
+      failPersistence.reject(persistenceError)
+
+      await expect(running).rejects.toBe(persistenceError)
+      expect(runModelStep).not.toHaveBeenCalled()
+      expect(persistence.events.map(event => event.eventType)).not.toContain('provider.failed')
+      expect(persistence.events.map(event => event.eventType)).not.toContain('turn.failed')
+      expect(persistence.events.map(event => event.eventType)).not.toContain('runtime.cancelled')
+    },
+  )
+
+  it.each(['append', 'checkpoint'] as const)(
+    'applies an external abort only after model step start %s persistence succeeds',
+    async (persistencePoint) => {
+      const persistence = createPersistence()
+      const persistenceStarted = createDeferred<void>()
+      const releasePersistence = createDeferred<void>()
+      if (persistencePoint === 'append') {
+        persistence.appendRuntimeEvent.mockImplementation(async (
+          scope: AlicizationRuntimeEventScope,
+          input: AlicizationRuntimeEventEnvelope,
+        ) => {
+          if (input.eventType === 'model.step.started') {
+            persistenceStarted.resolve()
+            await releasePersistence.promise
+          }
+          const sequence = persistence.events.filter(event => event.turnId === scope.turnId).length + 1
+          const event = {
+            ...input,
+            sequence,
+          }
+          persistence.events.push(event)
+          return event
+        })
+      }
+      else {
+        persistence.saveRuntimeCheckpoint.mockImplementation(async (checkpoint) => {
+          if (persistence.events.at(-1)?.eventType === 'model.step.started') {
+            persistenceStarted.resolve()
+            await releasePersistence.promise
+          }
+          persistence.checkpoints.push(structuredClone(checkpoint))
+          return checkpoint
+        })
+      }
+      const runModelStep = vi.fn()
+      const eventLoop = createAlicizationEventLoop({
+        persistence,
+        participant: {
+          assembleContext: vi.fn(async () => ({})),
+          runModelStep,
+          executeAction: vi.fn(),
+          settleReply: vi.fn(),
+        },
+      })
+      const scope = runtimeScope({
+        turnId: `turn-model-step-start-${persistencePoint}-external-abort-success`,
+      })
+      const externalController = new AbortController()
+      const running = eventLoop.runTurn({
+        scope,
+        deliveryOwner: 'inline',
+        turnInput: {},
+        signal: externalController.signal,
+      })
+      await persistenceStarted.promise
+
+      externalController.abort('first external cancellation')
+      expect(persistence.events.map(event => event.eventType)).not.toContain('runtime.cancelled')
+      releasePersistence.resolve()
+
+      await expect(running).resolves.toMatchObject({
+        status: 'cancelled',
+        error: 'first external cancellation',
+      })
+      expect(runModelStep).not.toHaveBeenCalled()
+      expect(persistence.events.find(event =>
+        event.eventType === 'runtime.cancelled',
+      )).toMatchObject({
+        payload: {
+          reason: 'first external cancellation',
+        },
+      })
+    },
+  )
+
+  it('records provider failure after an invoked model step returns an invalid kind', async () => {
+    const persistence = createPersistence()
+    const runModelStep = vi.fn(async () => ({
+      kind: 'invalid',
+      reply: { text: 'must not be accepted' },
+    } as any))
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep,
+        executeAction: vi.fn(),
+        settleReply: vi.fn(),
+      },
+    })
+
+    const result = await eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-invalid-model-step-kind' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+
+    expect(runModelStep).toHaveBeenCalledTimes(1)
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/model step kind/i),
+    })
+    expect(persistence.events.map(event => event.eventType)).toContain('provider.failed')
+    expect(persistence.events.map(event => event.eventType)).toContain('turn.failed')
+    expect(persistence.events.map(event => event.eventType)).not.toContain('model.text.delta')
+  })
+
   it('rejects a live tool observation from another tool call before it reaches the model', async () => {
     const persistence = createPersistence()
     const runModelStep = vi.fn()
@@ -1269,7 +2148,87 @@ describe('alicization event loop', () => {
     expect(executeAction).not.toHaveBeenCalled()
   })
 
-  it('does not append action completion when cancellation wins during observation persistence', async () => {
+  it('keeps the first internal cancellation during terminal observation durability', async () => {
+    const persistence = createPersistence()
+    const observationAppendStarted = createDeferred<void>()
+    const releaseObservationAppend = createDeferred<void>()
+    persistence.appendRuntimeEvent.mockImplementation(async (
+      scope: AlicizationRuntimeEventScope,
+      input: AlicizationRuntimeEventEnvelope,
+    ) => {
+      const sequence = persistence.events.filter(event => event.turnId === scope.turnId).length + 1
+      const event = {
+        ...input,
+        sequence,
+      }
+      persistence.events.push(event)
+      if (event.eventType === 'action.observation') {
+        observationAppendStarted.resolve()
+        await releaseObservationAppend.promise
+      }
+      return event
+    })
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn()
+          .mockResolvedValueOnce({
+            kind: 'action' as const,
+            action: {
+              actionId: 'action-observation-race',
+              toolCallId: 'tool-call-observation-race',
+              qualifiedToolName: 'coding_agent.codex',
+              input: {},
+            },
+          })
+          .mockResolvedValueOnce({
+            kind: 'reply' as const,
+            reply: { text: 'observation was preserved' },
+          }),
+        executeAction: vi.fn(async () => ({
+          actionId: 'action-observation-race',
+          observationId: 'observation-race',
+          toolCallId: 'tool-call-observation-race',
+          terminal: true,
+          outcome: 'success' as const,
+        })),
+        settleReply: vi.fn(async () => {}),
+      },
+    })
+    const scope = runtimeScope({ turnId: 'turn-observation-race' })
+
+    const running = eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+    await observationAppendStarted.promise
+    const firstCancellation = eventLoop.cancelTurn(scope, 'first internal cancellation')
+    const secondCancellation = eventLoop.cancelTurn(scope, 'second internal cancellation')
+    releaseObservationAppend.resolve()
+
+    await expect(firstCancellation).resolves.toBe(true)
+    await expect(secondCancellation).resolves.toBe(false)
+    await expect(running).resolves.toMatchObject({
+      status: 'cancelled',
+      error: 'first internal cancellation',
+    })
+    expect(persistence.events.map(event => event.eventType))
+      .toContain('action.settlement.completed')
+    expect(persistence.events.map(event => event.eventType))
+      .toContain('action.completed')
+    expect(persistence.events.map(event => event.eventType)).not.toContain('action.cancelled')
+    expect(persistence.events.find(event =>
+      event.eventType === 'runtime.cancelled',
+    )).toMatchObject({
+      payload: {
+        reason: 'first internal cancellation',
+      },
+    })
+  })
+
+  it('does not let a later external abort overwrite an internal terminal observation cancellation', async () => {
     const persistence = createPersistence()
     const observationAppendStarted = createDeferred<void>()
     const releaseObservationAppend = createDeferred<void>()
@@ -1296,38 +2255,419 @@ describe('alicization event loop', () => {
         runModelStep: vi.fn(async () => ({
           kind: 'action' as const,
           action: {
-            actionId: 'action-observation-race',
-            toolCallId: 'tool-call-observation-race',
+            actionId: 'action-internal-external-race',
+            toolCallId: 'tool-call-internal-external-race',
             qualifiedToolName: 'coding_agent.codex',
             input: {},
           },
         })),
         executeAction: vi.fn(async () => ({
-          actionId: 'action-observation-race',
-          observationId: 'observation-race',
-          toolCallId: 'tool-call-observation-race',
+          actionId: 'action-internal-external-race',
+          observationId: 'observation-internal-external-race',
+          toolCallId: 'tool-call-internal-external-race',
           terminal: true,
           outcome: 'success' as const,
         })),
         settleReply: vi.fn(),
       },
     })
-    const scope = runtimeScope({ turnId: 'turn-observation-race' })
+    const scope = runtimeScope({ turnId: 'turn-internal-external-race' })
+    const externalController = new AbortController()
+    const running = eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+      signal: externalController.signal,
+    })
+    await observationAppendStarted.promise
 
+    const cancellation = eventLoop.cancelTurn(scope, 'internal cancellation wins')
+    externalController.abort('later external abort')
+    releaseObservationAppend.resolve()
+
+    await expect(cancellation).resolves.toBe(true)
+    await expect(running).resolves.toMatchObject({
+      status: 'cancelled',
+      error: 'internal cancellation wins',
+    })
+    expect(persistence.events.find(event =>
+      event.eventType === 'runtime.cancelled',
+    )).toMatchObject({
+      payload: {
+        reason: 'internal cancellation wins',
+      },
+    })
+    expect(persistence.events.map(event => event.eventType))
+      .toContain('action.completed')
+  })
+
+  it('does not let a later internal cancellation overwrite an external terminal observation abort', async () => {
+    const persistence = createPersistence()
+    const observationAppendStarted = createDeferred<void>()
+    const releaseObservationAppend = createDeferred<void>()
+    persistence.appendRuntimeEvent.mockImplementation(async (
+      scope: AlicizationRuntimeEventScope,
+      input: AlicizationRuntimeEventEnvelope,
+    ) => {
+      const sequence = persistence.events.filter(event => event.turnId === scope.turnId).length + 1
+      const event = {
+        ...input,
+        sequence,
+      }
+      persistence.events.push(event)
+      if (event.eventType === 'action.observation') {
+        observationAppendStarted.resolve()
+        await releaseObservationAppend.promise
+      }
+      return event
+    })
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => ({
+          kind: 'action' as const,
+          action: {
+            actionId: 'action-external-internal-race',
+            toolCallId: 'tool-call-external-internal-race',
+            qualifiedToolName: 'coding_agent.codex',
+            input: {},
+          },
+        })),
+        executeAction: vi.fn(async () => ({
+          actionId: 'action-external-internal-race',
+          observationId: 'observation-external-internal-race',
+          toolCallId: 'tool-call-external-internal-race',
+          terminal: true,
+          outcome: 'success' as const,
+        })),
+        settleReply: vi.fn(),
+      },
+    })
+    const scope = runtimeScope({ turnId: 'turn-external-internal-race' })
+    const externalController = new AbortController()
+    const running = eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+      signal: externalController.signal,
+    })
+    await observationAppendStarted.promise
+
+    externalController.abort('external abort wins')
+    const cancellation = eventLoop.cancelTurn(scope, 'later internal cancellation')
+    releaseObservationAppend.resolve()
+
+    await expect(cancellation).resolves.toBe(false)
+    await expect(running).resolves.toMatchObject({
+      status: 'cancelled',
+      error: 'external abort wins',
+    })
+    expect(persistence.events.find(event =>
+      event.eventType === 'runtime.cancelled',
+    )).toMatchObject({
+      payload: {
+        reason: 'external abort wins',
+      },
+    })
+    expect(persistence.events.map(event => event.eventType))
+      .toContain('action.completed')
+  })
+
+  it.each([
+    'internal/internal',
+    'internal/external',
+    'external/internal',
+  ] as const)(
+    'preserves the first %s terminal observation cancellation when persistence fails',
+    async (order) => {
+      const persistence = createPersistence()
+      const observationAppendStarted = createDeferred<void>()
+      const failObservationAppend = createDeferred<never>()
+      const persistenceError = new Error(
+        `terminal observation persistence failed for ${order}`,
+      )
+      persistence.appendRuntimeEvent.mockImplementation(async (
+        scope: AlicizationRuntimeEventScope,
+        input: AlicizationRuntimeEventEnvelope,
+      ) => {
+        if (input.eventType === 'action.observation') {
+          observationAppendStarted.resolve()
+          await failObservationAppend.promise
+        }
+        const sequence = persistence.events.filter(event => event.turnId === scope.turnId).length + 1
+        const event = {
+          ...input,
+          sequence,
+        }
+        persistence.events.push(event)
+        return event
+      })
+      const eventLoop = createAlicizationEventLoop({
+        persistence,
+        participant: {
+          assembleContext: vi.fn(async () => ({})),
+          runModelStep: vi.fn(async () => ({
+            kind: 'action' as const,
+            action: {
+              actionId: `action-${order}`,
+              toolCallId: `tool-call-${order}`,
+              qualifiedToolName: 'coding_agent.codex',
+              input: {},
+            },
+          })),
+          executeAction: vi.fn(async () => ({
+            actionId: `action-${order}`,
+            observationId: `observation-${order}`,
+            toolCallId: `tool-call-${order}`,
+            terminal: true,
+            outcome: 'success' as const,
+          })),
+          settleReply: vi.fn(),
+        },
+      })
+      const scope = runtimeScope({
+        turnId: `turn-terminal-observation-failure-${order}`,
+      })
+      const externalController = new AbortController()
+      const running = eventLoop.runTurn({
+        scope,
+        deliveryOwner: 'inline',
+        turnInput: {},
+        signal: externalController.signal,
+      })
+      const runningResult = running.then(
+        value => ({ error: null, value }),
+        error => ({ error, value: null }),
+      )
+      await observationAppendStarted.promise
+
+      let firstInternalCancellation: Promise<boolean> | null = null
+      let laterInternalCancellation: Promise<boolean> | null = null
+      if (order === 'internal/internal') {
+        firstInternalCancellation = eventLoop.cancelTurn(scope, 'first internal reason')
+        laterInternalCancellation = eventLoop.cancelTurn(scope, 'later internal reason')
+      }
+      else if (order === 'internal/external') {
+        firstInternalCancellation = eventLoop.cancelTurn(scope, 'first internal reason')
+        externalController.abort('later external reason')
+      }
+      else {
+        externalController.abort('first external reason')
+        laterInternalCancellation = eventLoop.cancelTurn(scope, 'later internal reason')
+      }
+      const firstInternalResult = firstInternalCancellation?.then(
+        value => ({ error: null, value }),
+        error => ({ error, value: null }),
+      )
+      const laterInternalResult = laterInternalCancellation?.then(
+        value => ({ error: null, value }),
+        error => ({ error, value: null }),
+      )
+      failObservationAppend.reject(persistenceError)
+
+      if (firstInternalResult) {
+        await expect(firstInternalResult).resolves.toEqual({
+          error: persistenceError,
+          value: null,
+        })
+      }
+      if (laterInternalResult) {
+        await expect(laterInternalResult).resolves.toEqual({
+          error: null,
+          value: false,
+        })
+      }
+      await expect(runningResult).resolves.toEqual({
+        error: persistenceError,
+        value: null,
+      })
+      expect(persistence.events.map(event => event.eventType))
+        .not
+        .toContain('runtime.cancelled')
+      expect(persistence.events.map(event => event.eventType))
+        .not
+        .toContain('action.cancelled')
+      expect(persistence.events.map(event => event.eventType))
+        .not
+        .toContain('provider.failed')
+      expect(persistence.events.map(event => event.eventType))
+        .not
+        .toContain('tool.failed')
+      expect(persistence.events.map(event => event.eventType))
+        .not
+        .toContain('turn.failed')
+    },
+  )
+
+  it('defers an external abort until the terminal observation is durable', async () => {
+    const persistence = createPersistence()
+    const observationAppendStarted = createDeferred<void>()
+    const releaseObservationAppend = createDeferred<void>()
+    persistence.appendRuntimeEvent.mockImplementation(async (
+      scope: AlicizationRuntimeEventScope,
+      input: AlicizationRuntimeEventEnvelope,
+    ) => {
+      const sequence = persistence.events.filter(event => event.turnId === scope.turnId).length + 1
+      const event = {
+        ...input,
+        sequence,
+      }
+      persistence.events.push(event)
+      if (event.eventType === 'action.observation') {
+        observationAppendStarted.resolve()
+        await releaseObservationAppend.promise
+      }
+      return event
+    })
+    const runModelStep = vi.fn()
+      .mockResolvedValueOnce({
+        kind: 'action' as const,
+        action: {
+          actionId: 'action-external-abort-race',
+          toolCallId: 'tool-call-external-abort-race',
+          qualifiedToolName: 'coding_agent.codex',
+          input: {},
+        },
+      })
+      .mockResolvedValueOnce({
+        kind: 'reply' as const,
+        reply: { text: 'must not continue after deferred abort' },
+      })
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep,
+        executeAction: vi.fn(async () => ({
+          actionId: 'action-external-abort-race',
+          observationId: 'observation-external-abort-race',
+          toolCallId: 'tool-call-external-abort-race',
+          terminal: true,
+          outcome: 'success' as const,
+        })),
+        settleReply: vi.fn(async () => {}),
+      },
+    })
+    const scope = runtimeScope({ turnId: 'turn-external-abort-race' })
+    const externalController = new AbortController()
+    const running = eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+      signal: externalController.signal,
+    })
+    await observationAppendStarted.promise
+
+    externalController.abort('external abort during observation persistence')
+    releaseObservationAppend.resolve()
+    const result = await running
+
+    expect(result).toMatchObject({
+      status: 'cancelled',
+      error: 'external abort during observation persistence',
+    })
+    expect(runModelStep).toHaveBeenCalledTimes(1)
+    expect(persistence.events.find(event =>
+      event.eventType === 'action.observation'
+      && (event.payload as { observationId?: string }).observationId === 'observation-external-abort-race',
+    )).toMatchObject({
+      payload: {
+        terminal: true,
+        outcome: 'success',
+      },
+    })
+    expect(persistence.events.some(event =>
+      event.eventType === 'action.observation'
+      && (event.payload as { outcome?: string }).outcome === 'cancelled',
+    )).toBe(false)
+    expect(persistence.events.map(event => event.eventType)).not.toContain('action.cancelled')
+    expect(persistence.events.map(event => event.eventType)).toContain('runtime.cancelled')
+  })
+
+  it('propagates observation persistence failure instead of cancelling a completed tool side effect', async () => {
+    const persistence = createPersistence()
+    const observationAppendStarted = createDeferred<void>()
+    const failObservationAppend = createDeferred<never>()
+    const persistenceError = new Error('failed to persist terminal observation')
+    persistence.appendRuntimeEvent.mockImplementation(async (
+      scope: AlicizationRuntimeEventScope,
+      input: AlicizationRuntimeEventEnvelope,
+    ) => {
+      const sequence = persistence.events.filter(event => event.turnId === scope.turnId).length + 1
+      const event = {
+        ...input,
+        sequence,
+      }
+      persistence.events.push(event)
+      if (
+        event.eventType === 'action.observation'
+        && (event.payload as { outcome?: string }).outcome === 'success'
+      ) {
+        persistence.events.pop()
+        observationAppendStarted.resolve()
+        await failObservationAppend.promise
+      }
+      return event
+    })
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => ({
+          kind: 'action' as const,
+          action: {
+            actionId: 'action-observation-persistence-failure',
+            toolCallId: 'tool-call-observation-persistence-failure',
+            qualifiedToolName: 'coding_agent.codex',
+            input: {},
+          },
+        })),
+        executeAction: vi.fn(async () => ({
+          actionId: 'action-observation-persistence-failure',
+          observationId: 'observation-persistence-failure',
+          toolCallId: 'tool-call-observation-persistence-failure',
+          terminal: true,
+          outcome: 'success' as const,
+        })),
+        settleReply: vi.fn(),
+      },
+    })
+    const scope = runtimeScope({ turnId: 'turn-observation-persistence-failure' })
     const running = eventLoop.runTurn({
       scope,
       deliveryOwner: 'inline',
       turnInput: {},
     })
     await observationAppendStarted.promise
-    const cancellation = eventLoop.cancelTurn(scope, 'cancel during observation')
-    releaseObservationAppend.resolve()
-    const cancellationAccepted = await cancellation
-    const result = await running
 
-    expect(cancellationAccepted).toBe(true)
-    expect(result.status).toBe('cancelled')
-    expect(persistence.events.map(event => event.eventType)).not.toContain('action.completed')
+    const cancellation = eventLoop.cancelTurn(scope, 'cancel during failed observation persistence')
+    failObservationAppend.reject(persistenceError)
+
+    await expect(cancellation).rejects.toBe(persistenceError)
+    await expect(running).rejects.toBe(persistenceError)
+    expect(persistence.events.map(event => event.eventType)).not.toContain('action.cancelled')
+    expect(persistence.events.map(event => event.eventType)).not.toContain('runtime.cancelled')
+    expect(persistence.events.map(event => event.eventType)).not.toContain('action.failed')
+    expect(persistence.events.map(event => event.eventType)).not.toContain('tool.failed')
+    expect(persistence.events.map(event => event.eventType)).not.toContain('turn.failed')
+
+    const checkpoint = persistence.checkpoints.at(-1) ?? null
+    const replay = await replayTurn({
+      scope,
+      deliveryOwner: 'inline',
+      reader: {
+        loadRuntimeCheckpoint: vi.fn(async () => checkpoint),
+        listRuntimeEvents: vi.fn(async () => persistence.events.filter(event =>
+          event.sequence > (checkpoint?.sequence ?? 0),
+        )),
+      },
+    })
+    expect(replay.recoveryRequired).toBe(true)
+    expect(replay.reasonCodes).toEqual(expect.arrayContaining([
+      'runtime-replay:active-actions-unsettled',
+      'runtime-replay:turn-started-without-terminal',
+    ]))
   })
 
   it('keeps completion authoritative when cancellation arrives during reply commit persistence', async () => {

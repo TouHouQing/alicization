@@ -65,6 +65,8 @@ function buildRecoveryReasons(state: AlicizationTurnRuntimeState) {
     reasonCodes.push('runtime-replay:terminal-event-awaiting-observation')
   if (activeActionIds.some(actionId => state.actions[actionId]?.completionPendingObservation))
     reasonCodes.push('runtime-replay:completion-awaiting-observation')
+  if (Object.keys(state.pendingActionSettlements).length > 0)
+    reasonCodes.push('runtime-replay:action-settlement-pending')
   if (state.terminalEventType && activeActionIds.length > 0)
     reasonCodes.push('runtime-replay:terminal-turn-has-active-actions')
   if (state.pendingDelivery)

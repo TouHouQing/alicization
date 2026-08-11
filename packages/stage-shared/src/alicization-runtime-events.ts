@@ -14,9 +14,11 @@ export const alicizationRuntimeEventTypes = [
   'action.permission.checked',
   'action.rejected',
   'action.started',
+  'action.settlement.started',
   'action.progress',
   'action.output.delta',
   'action.observation',
+  'action.settlement.completed',
   'action.completed',
   'action.failed',
   'action.cancelled',
@@ -103,6 +105,13 @@ export interface AlicizationActionObservationLink {
   outcome: 'success' | 'failure' | 'cancelled' | 'rejected'
 }
 
+export interface AlicizationActionSettlement {
+  settlementId: string
+  actionId: string
+  toolCallId: string | null
+  observationId: string
+}
+
 const runtimeEventTypeSet = new Set<string>(alicizationRuntimeEventTypes)
 const runtimeEventSourceSet = new Set<string>(alicizationRuntimeEventSources)
 const actionObservationOutcomes = new Set<string>([
@@ -115,6 +124,7 @@ const terminalRuntimeEventTypes = new Set<string>([
   'turn.completed',
   'turn.failed',
   'action.rejected',
+  'action.settlement.completed',
   'action.completed',
   'action.failed',
   'action.cancelled',
@@ -238,6 +248,20 @@ export function parseAlicizationActionObservation(
       : parseNullableId(record.toolCallId, 'toolCallId'),
     terminal: record.terminal,
     outcome: record.outcome as AlicizationActionObservationLink['outcome'],
+  }
+}
+
+export function parseAlicizationActionSettlement(
+  value: unknown,
+): AlicizationActionSettlement {
+  const record = asRecord(value, 'action settlement')
+  return {
+    settlementId: parseRequiredId(record.settlementId, 'settlementId'),
+    actionId: parseRequiredId(record.actionId, 'actionId'),
+    toolCallId: record.toolCallId === undefined
+      ? null
+      : parseNullableId(record.toolCallId, 'toolCallId'),
+    observationId: parseRequiredId(record.observationId, 'observationId'),
   }
 }
 

@@ -123,6 +123,7 @@ function checkpointProjection(activeActionIds: string[] = []) {
         lastSequence: 0,
       },
     ])),
+    pendingActionSettlements: {},
     replyCommitted: false,
     pendingDelivery: null,
     committedDelivery: null,
@@ -202,6 +203,48 @@ describe('alicization runtime checkpoint store', () => {
     expect(loaded).not.toHaveProperty('activeActions')
     expect(loaded).not.toHaveProperty('resume')
 
+    await db.close()
+  })
+
+  it('persists pending action settlements outside the executable action projection', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      allowUnboundScope: true,
+    })
+    const scope = runtimeScope({ turnId: 'turn-pending-settlement-checkpoint' })
+    await db.appendRuntimeEvent(scope, runtimeEvent(
+      'event-pending-settlement',
+      'turn.accepted',
+      scope,
+    ))
+    const pendingActionSettlements = {
+      'settlement-1': {
+        settlementId: 'settlement-1',
+        actionId: 'action-1',
+        toolCallId: 'action-1:tool-call',
+        observationId: 'observation-1',
+      },
+    }
+    await db.saveRuntimeCheckpoint({
+      ...scope,
+      sequence: 1,
+      status: 'running',
+      activeActionIds: ['action-1'],
+      deliveryOwner: 'inline',
+      projection: {
+        ...checkpointProjection(['action-1']),
+        pendingActionSettlements,
+      },
+      schemaVersion: 2,
+      updatedAt: 1_000,
+    } as any)
+
+    const loaded = await db.loadRuntimeCheckpoint(scope)
+
+    expect(loaded?.projection.pendingActionSettlements).toEqual(
+      pendingActionSettlements,
+    )
+    expect(loaded?.activeActionIds).toEqual(['action-1'])
+    expect(Object.keys(loaded?.projection.actions ?? {})).toEqual(['action-1'])
     await db.close()
   })
 

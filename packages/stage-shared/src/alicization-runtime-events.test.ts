@@ -7,6 +7,8 @@ import {
   parseAlicizationRuntimeEvent,
 } from './alicization-runtime-events'
 
+import * as runtimeEvents from './alicization-runtime-events'
+
 describe('alicization runtime events', () => {
   it('creates a scoped event with injectable identity and timestamp', () => {
     const payload = { text: '你好', nested: { preserved: true } }
@@ -174,6 +176,56 @@ describe('alicization runtime events', () => {
     })).toThrow()
   })
 
+  it.each([
+    'action.settlement.started',
+    'action.settlement.completed',
+  ])('accepts the first-class %s event type', (eventType) => {
+    expect(parseAlicizationRuntimeEvent({
+      eventId: `event-${eventType}`,
+      eventType,
+      schemaVersion: 1,
+      sequence: 1,
+      turnId: 'turn-settlement',
+      cardId: 'card-settlement',
+      userId: 'user-settlement',
+      conversationId: 'conversation-settlement',
+      source: 'runtime',
+      causationId: null,
+      correlationId: 'turn-settlement',
+      idempotencyKey: null,
+      occurredAt: 30,
+      payload: {
+        settlementId: 'settlement-1',
+        actionId: 'action-1',
+        toolCallId: 'tool-call-1',
+        observationId: 'observation-1',
+      },
+    } as any).eventType).toBe(eventType)
+  })
+
+  it('parses a stable action settlement identity', () => {
+    const parseSettlement = (runtimeEvents as Record<string, unknown>)
+      .parseAlicizationActionSettlement
+    expect(parseSettlement).toEqual(expect.any(Function))
+    expect((parseSettlement as (value: unknown) => unknown)({
+      settlementId: ' settlement-1 ',
+      actionId: ' action-1 ',
+      toolCallId: ' tool-call-1 ',
+      observationId: ' observation-1 ',
+    })).toEqual({
+      settlementId: 'settlement-1',
+      actionId: 'action-1',
+      toolCallId: 'tool-call-1',
+      observationId: 'observation-1',
+    })
+    expect(() => (parseSettlement as (value: unknown) => unknown)({
+      settlementId: '',
+      actionId: 'action-1',
+      toolCallId: 'tool-call-1',
+      observationId: 'observation-1',
+    })).toThrow()
+  })
+
   it('parses action observations only with stable links and valid outcomes', () => {
     expect(parseAlicizationActionObservation({
       actionId: ' action-1 ',
@@ -232,7 +284,9 @@ describe('alicization runtime events', () => {
     expect(isAlicizationTerminalRuntimeEvent('runtime.cancelled')).toBe(true)
     expect(isAlicizationTerminalRuntimeEvent('runtime.dead_lettered')).toBe(true)
     expect(isAlicizationTerminalRuntimeEvent('assistant.reply.committed')).toBe(true)
+    expect(isAlicizationTerminalRuntimeEvent('action.settlement.completed')).toBe(true)
 
+    expect(isAlicizationTerminalRuntimeEvent('action.settlement.started')).toBe(false)
     expect(isAlicizationTerminalRuntimeEvent('action.observation')).toBe(false)
     expect(isAlicizationTerminalRuntimeEvent('action.progress')).toBe(false)
     expect(isAlicizationTerminalRuntimeEvent('provider.retry.scheduled')).toBe(false)
