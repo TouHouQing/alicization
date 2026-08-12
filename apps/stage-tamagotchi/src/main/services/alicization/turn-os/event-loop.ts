@@ -11,6 +11,9 @@ import type {
 } from './checkpoint-store'
 import type { AlicizationRuntimeEventScope } from './event-store'
 import type {
+  AlicizationRuntimeReplyArtifact,
+} from './reply-artifact'
+import type {
   AlicizationTurnRuntimeState,
 } from './runtime-state'
 
@@ -20,7 +23,10 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import {
-  createAlicizationReplyDeliveryIntent,
+  createAlicizationRuntimeReplyDeliveryIntent,
+  parseAlicizationRuntimeReplyArtifact,
+} from './reply-artifact'
+import {
   createAlicizationTurnRuntimeState,
   listAlicizationActiveActionIds,
   reduceAlicizationRuntimeEvent,
@@ -39,7 +45,7 @@ export interface AlicizationModelObservation extends AlicizationActionObservatio
 }
 
 export interface AlicizationModelTextReply {
-  text: string
+  artifact: AlicizationRuntimeReplyArtifact
 }
 
 export type AlicizationModelStep
@@ -90,6 +96,7 @@ export interface AlicizationEventLoopResult {
   state: AlicizationTurnRuntimeState
   error: string | null
   cause: unknown | null
+  replyArtifact: AlicizationRuntimeReplyArtifact | null
 }
 
 interface LiveTurn {
@@ -104,6 +111,10 @@ interface LiveTurn {
   modelStepStartDurability: {
     promise: Promise<{ error: unknown | null }>
     resolve: (result: { error: unknown | null }) => void
+  } | null
+  replyDeliverySettlement: {
+    promise: Promise<{ delivered: boolean }>
+    resolve: (result: { delivered: boolean }) => void
   } | null
   deferredCancellation: { reason: unknown } | null
   cancellationDurability: Promise<{ error: unknown | null }>
@@ -191,7 +202,7 @@ function parseModelAction(input: AlicizationModelAction): AlicizationModelAction
 
 function parseTextReply(input: AlicizationModelTextReply): AlicizationModelTextReply {
   return {
-    text: parseRequiredText(input.text, 'model reply text'),
+    artifact: parseAlicizationRuntimeReplyArtifact(input.artifact),
   }
 }
 
@@ -220,10 +231,10 @@ function runtimeView(
         ]),
     ),
     pendingDelivery: state.pendingDelivery
-      ? { ...state.pendingDelivery }
+      ? structuredClone(state.pendingDelivery)
       : null,
     committedDelivery: state.committedDelivery
-      ? { ...state.committedDelivery }
+      ? structuredClone(state.committedDelivery)
       : null,
     issues: [...state.issues],
     abortSignal,
@@ -314,6 +325,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       terminalAuthority: 'open',
       terminalObservationDurability: null,
       modelStepStartDurability: null,
+      replyDeliverySettlement: null,
       deferredCancellation: null,
       cancellationDurability,
       resolveCancellationDurability,
@@ -325,6 +337,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       if (
         liveTurn.terminalObservationDurability
         || liveTurn.modelStepStartDurability
+        || liveTurn.replyDeliverySettlement
       ) {
         claimDeferredCancellation(liveTurn, input.signal?.reason)
         return
@@ -435,6 +448,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
         state,
         error: errorMessage(reason),
         cause: reason ?? null,
+        replyArtifact: null,
       }
     }
 
@@ -641,13 +655,13 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
         }
 
         const reply = step.reply
-        const deliveryIntent = createAlicizationReplyDeliveryIntent(
+        const deliveryIntent = createAlicizationRuntimeReplyDeliveryIntent(
           input.scope,
           input.deliveryOwner,
-          reply.text,
+          reply.artifact,
         )
         await append('model.text.delta', {
-          text: reply.text,
+          text: reply.artifact.visibleText,
         }, 'model')
         await append('model.step.completed', {
           stepIndex,
@@ -655,18 +669,52 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           ...deliveryIntent,
         }, 'model', `${deliveryIntent.deliveryId}:intent`)
         failureSurface = 'delivery'
-        await raceWithAbort(
-          () => options.participant.settleReply(
-            reply,
-            runtimeView(state, controller.signal),
-          ),
-          controller.signal,
-        )
-        throwIfAborted(controller.signal)
-        if (!claimTerminalAuthority(liveTurn, 'completed'))
-          throw abortError(controller.signal.reason)
+        let resolveReplyDeliverySettlement!: (
+          result: { delivered: boolean },
+        ) => void
+        const replyDeliverySettlement = {
+          promise: new Promise<{ delivered: boolean }>((resolve) => {
+            resolveReplyDeliverySettlement = resolve
+          }),
+          resolve: (result: { delivered: boolean }) => {
+            resolveReplyDeliverySettlement(result)
+          },
+        }
+        liveTurn.replyDeliverySettlement = replyDeliverySettlement
+        try {
+          await raceWithAbort(
+            () => options.participant.settleReply(
+              reply,
+              runtimeView(state, controller.signal),
+            ),
+            controller.signal,
+          )
+          throwIfAborted(controller.signal)
+          if (!claimTerminalAuthority(liveTurn, 'completed'))
+            throw abortError(controller.signal.reason)
+          liveTurn.deferredCancellation = null
+          replyDeliverySettlement.resolve({ delivered: true })
+        }
+        catch (error) {
+          const deferredCancellation = takeDeferredCancellation(liveTurn)
+          if (
+            deferredCancellation
+            && claimTerminalAuthority(liveTurn, 'cancelled')
+          ) {
+            controller.abort(deferredCancellation.reason)
+          }
+          replyDeliverySettlement.resolve({ delivered: false })
+          throw error
+        }
+        finally {
+          if (liveTurn.replyDeliverySettlement === replyDeliverySettlement)
+            liveTurn.replyDeliverySettlement = null
+        }
         await append('assistant.reply.committed', {
-          ...deliveryIntent,
+          replyId: deliveryIntent.replyId,
+          deliveryId: deliveryIntent.deliveryId,
+          contentHash: deliveryIntent.contentHash,
+          artifactHash: deliveryIntent.artifactHash,
         }, 'model', `${deliveryIntent.replyId}:committed`)
         await append(
           'turn.completed',
@@ -679,6 +727,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           state,
           error: null,
           cause: null,
+          replyArtifact: state.committedDelivery?.artifact ?? null,
         }
       }
 
@@ -692,6 +741,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
         state,
         error: `model step budget exhausted after ${maxSteps} steps`,
         cause: null,
+        replyArtifact: null,
       }
     }
     catch (error) {
@@ -722,6 +772,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
             state,
             error: null,
             cause: null,
+            replyArtifact: state.committedDelivery?.artifact ?? null,
           }
         }
         throw error
@@ -772,6 +823,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
         state,
         error: errorMessage(error),
         cause: error,
+        replyArtifact: null,
       }
     }
     finally {
@@ -817,6 +869,18 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       const durability = await terminalObservationDurability.promise
       if (durability.error)
         throw durability.error
+      const cancellation = await liveTurn.cancellationDurability
+      if (cancellation.error)
+        throw cancellation.error
+      return true
+    }
+    const replyDeliverySettlement = liveTurn.replyDeliverySettlement
+    if (replyDeliverySettlement) {
+      if (!claimDeferredCancellation(liveTurn, reason))
+        return false
+      const delivery = await replyDeliverySettlement.promise
+      if (delivery.delivered)
+        return false
       const cancellation = await liveTurn.cancellationDurability
       if (cancellation.error)
         throw cancellation.error

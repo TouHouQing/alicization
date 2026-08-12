@@ -15,6 +15,10 @@ import {
 } from './event-loop'
 import { replayTurn } from './replay'
 import {
+  createAlicizationRuntimeReplyArtifact,
+  createAlicizationRuntimeReplyDeliveryIntent,
+} from './reply-artifact'
+import {
   createAlicizationTurnRuntimeState,
   listAlicizationActiveActionIds,
   reduceAlicizationRuntimeEvent,
@@ -83,7 +87,135 @@ function createPersistence() {
   }
 }
 
+function providerReplyArtifact(visibleText: string, fullText = visibleText) {
+  return createAlicizationRuntimeReplyArtifact({
+    artifactVersion: 1,
+    visibleText,
+    fullText,
+    finishReason: 'stop',
+    visibleReplyExecution: {
+      mode: 'provider-stream',
+      expectedVisibleReplyAuthority: 'llm-mind',
+      actualVisibleReplyAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      reason: 'turn-event-loop-test',
+    },
+    realization: {
+      version: 'visible-reply-realization-v1',
+      expectedAuthority: 'llm-mind',
+      actualAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      mode: 'provider-stream',
+      visibleText,
+      visibleReplyValidationStatus: 'approved',
+      nonHumanAuthoredStatus: null,
+      blockedReasons: [],
+      reason: 'turn-event-loop-test',
+      critic: {
+        version: 'visible-reply-critic-public-summary-v1',
+        status: 'pass',
+        providerMindRequired: true,
+        reasonCodes: [],
+      },
+      closure: {
+        version: 'visible-reply-closure-public-summary-v1',
+        status: 'approved',
+        reasonCodes: [],
+        initialCriticStatus: 'pass',
+        finalCriticStatus: 'pass',
+      },
+    },
+  })
+}
+
+function modelReply(visibleText: string, fullText = visibleText) {
+  return {
+    artifact: providerReplyArtifact(visibleText, fullText),
+  }
+}
+
 describe('alicization event loop', () => {
+  it('commits and returns the complete Provider reply artifact', async () => {
+    const persistence = createPersistence()
+    const artifact = createAlicizationRuntimeReplyArtifact({
+      artifactVersion: 1,
+      visibleText: '可见回复',
+      fullText: '  {"reply":"可见回复","thought":"原始输出"}  ',
+      finishReason: 'stop',
+      visibleReplyExecution: {
+        mode: 'provider-stream',
+        expectedVisibleReplyAuthority: 'llm-mind',
+        actualVisibleReplyAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        reason: 'turn-event-loop',
+      },
+      realization: {
+        version: 'visible-reply-realization-v1',
+        expectedAuthority: 'llm-mind',
+        actualAuthority: 'llm-mind',
+        providerMindExecuted: true,
+        mode: 'provider-stream',
+        visibleText: '可见回复',
+        visibleReplyValidationStatus: 'approved',
+        nonHumanAuthoredStatus: null,
+        blockedReasons: [],
+        reason: 'turn-event-loop',
+        critic: {
+          version: 'visible-reply-critic-public-summary-v1',
+          status: 'pass',
+          providerMindRequired: true,
+          reasonCodes: [],
+        },
+        closure: {
+          version: 'visible-reply-closure-public-summary-v1',
+          status: 'approved',
+          reasonCodes: [],
+          initialCriticStatus: 'pass',
+          finalCriticStatus: 'pass',
+        },
+      },
+    })
+    const settleReply = vi.fn(async () => {})
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => ({
+          kind: 'reply' as const,
+          reply: { artifact },
+        })),
+        executeAction: vi.fn(),
+        settleReply,
+      },
+    })
+
+    const result = await eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-complete-reply-artifact' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+
+    expect(result.replyArtifact).toEqual(artifact)
+    expect(result.replyArtifact?.fullText).toBe(
+      '  {"reply":"可见回复","thought":"原始输出"}  ',
+    )
+    expect(settleReply).toHaveBeenCalledWith(
+      { artifact },
+      expect.objectContaining({
+        pendingDelivery: expect.objectContaining({ artifact }),
+      }),
+    )
+    expect(result.state.committedDelivery).toEqual(
+      expect.objectContaining({ artifact }),
+    )
+    expect(persistence.checkpoints.at(-1)?.projection.committedDelivery).toEqual(
+      expect.objectContaining({ artifact }),
+    )
+    expect(persistence.events.find(event =>
+      event.eventType === 'assistant.reply.committed',
+    )?.payload).not.toHaveProperty('artifact')
+  })
+
   it('does not finish an action before a terminal observation', () => {
     const scope = runtimeScope()
     let state = createAlicizationTurnRuntimeState(scope, 'inline')
@@ -250,10 +382,16 @@ describe('alicization event loop', () => {
   it('rejects content drift for the same pending reply delivery identity', () => {
     const scope = runtimeScope({ turnId: 'turn-reply-content-drift' })
     let state = createAlicizationTurnRuntimeState(scope, 'inline')
-    const deliveryIdentity = {
-      replyId: 'turn-reply-content-drift:reply',
-      deliveryId: 'turn-reply-content-drift:delivery:inline',
-    }
+    const firstIntent = createAlicizationRuntimeReplyDeliveryIntent(
+      scope,
+      'inline',
+      providerReplyArtifact('first reply'),
+    )
+    const differentIntent = createAlicizationRuntimeReplyDeliveryIntent(
+      scope,
+      'inline',
+      providerReplyArtifact('different reply'),
+    )
 
     state = reduceAlicizationRuntimeEvent(state, runtimeEvent(
       scope,
@@ -262,9 +400,7 @@ describe('alicization event loop', () => {
       {
         stepIndex: 1,
         outcome: 'reply',
-        ...deliveryIdentity,
-        text: 'first reply',
-        contentHash: 'sha256:9b3ae2aded0bac2ca5da884965ca69f5951e25b12d550d9e59a61aeca9ffc8c6',
+        ...firstIntent,
       },
     ))
 
@@ -275,9 +411,7 @@ describe('alicization event loop', () => {
       {
         stepIndex: 1,
         outcome: 'reply',
-        ...deliveryIdentity,
-        text: 'different reply',
-        contentHash: 'sha256:fc4c8e1bc7be509b359cb4f983edaf79b00eba7a137090ad33de4850c150e4f2',
+        ...differentIntent,
       },
     ))).toThrow(/content|delivery intent|hash/i)
   })
@@ -289,8 +423,8 @@ describe('alicization event loop', () => {
       runtimeEvent(scope, 1, 'assistant.reply.committed', {
         replyId: 'turn-orphan-reply-commit:reply',
         deliveryId: 'turn-orphan-reply-commit:delivery:inline',
-        text: 'orphan reply',
         contentHash: 'sha256:9c100aa5e0c055fe53ee92e3d6be2862529a37c4a25429848244e852e8bf33a1',
+        artifactHash: 'sha256:9c100aa5e0c055fe53ee92e3d6be2862529a37c4a25429848244e852e8bf33a1',
       }),
     )
 
@@ -306,12 +440,16 @@ describe('alicization event loop', () => {
 
   it('commits only the matching pending delivery identity', () => {
     const scope = runtimeScope({ turnId: 'turn-matching-reply-commit' })
-    const intent = {
-      replyId: 'turn-matching-reply-commit:reply',
-      deliveryId: 'turn-matching-reply-commit:delivery:inline',
-      text: 'matching reply',
-      contentHash: 'sha256:e38268db8e41f1d2286c6ad7b8363f30ac709338b9c3545ad42562965141b2a3',
-    }
+    const intent = createAlicizationRuntimeReplyDeliveryIntent(
+      scope,
+      'inline',
+      providerReplyArtifact('matching reply'),
+    )
+    const differentIdentity = createAlicizationRuntimeReplyDeliveryIntent(
+      scope,
+      'inline',
+      providerReplyArtifact('different reply'),
+    )
     let state = createAlicizationTurnRuntimeState(scope, 'inline')
     state = reduceAlicizationRuntimeEvent(state, runtimeEvent(
       scope,
@@ -329,9 +467,10 @@ describe('alicization event loop', () => {
       2,
       'assistant.reply.committed',
       {
-        ...intent,
-        text: 'different reply',
-        contentHash: 'sha256:fc4c8e1bc7be509b359cb4f983edaf79b00eba7a137090ad33de4850c150e4f2',
+        replyId: differentIdentity.replyId,
+        deliveryId: differentIdentity.deliveryId,
+        contentHash: differentIdentity.contentHash,
+        artifactHash: differentIdentity.artifactHash,
       },
     ))).toThrow(/commit|pending delivery|content|hash/i)
 
@@ -339,15 +478,16 @@ describe('alicization event loop', () => {
       scope,
       2,
       'assistant.reply.committed',
-      intent,
+      {
+        replyId: intent.replyId,
+        deliveryId: intent.deliveryId,
+        contentHash: intent.contentHash,
+        artifactHash: intent.artifactHash,
+      },
     ))
     expect(state.replyCommitted).toBe(true)
     expect(state.pendingDelivery).toBeNull()
-    expect((state as any).committedDelivery).toEqual({
-      replyId: intent.replyId,
-      deliveryId: intent.deliveryId,
-      contentHash: intent.contentHash,
-    })
+    expect((state as any).committedDelivery).toEqual(intent)
   })
 
   it.each([
@@ -435,9 +575,7 @@ describe('alicization event loop', () => {
       },
       {
         kind: 'reply' as const,
-        reply: {
-          text: '已经完成检查。',
-        },
+        reply: modelReply('已经完成检查。'),
       },
     ]
     const eventLoop = createAlicizationEventLoop({
@@ -476,7 +614,7 @@ describe('alicization event loop', () => {
 
     expect(result.status).toBe('completed')
     expect(settleReply).toHaveBeenCalledWith(
-      { text: '已经完成检查。' },
+      modelReply('已经完成检查。'),
       expect.objectContaining({
         deliveryOwner: 'inline',
       }),
@@ -548,9 +686,7 @@ describe('alicization event loop', () => {
       },
       {
         kind: 'reply' as const,
-        reply: {
-          text: 'done',
-        },
+        reply: modelReply('done'),
       },
     ]
     const eventLoop = createAlicizationEventLoop({
@@ -595,7 +731,7 @@ describe('alicization event loop', () => {
         assembleContext: vi.fn(async () => ({})),
         runModelStep: vi.fn(async () => ({
           kind: 'reply' as const,
-          reply: { text: 'reply' },
+          reply: modelReply('reply'),
         })),
         executeAction: vi.fn(),
         settleReply: vi.fn(async () => {
@@ -661,12 +797,15 @@ describe('alicization event loop', () => {
     const persistence = createPersistence()
     const lifecycle: string[] = []
     const scope = runtimeScope({ turnId: 'turn-durable-reply' })
-    const expectedIntent = {
-      replyId: 'turn-durable-reply:reply',
-      deliveryId: 'turn-durable-reply:delivery:inline',
-      text: 'durable reply',
-      contentHash: 'sha256:a21ed69d9aa01a4dbe6caa22b81ed2c02d7ce70de98517462ef3f2a358834a80',
-    }
+    const durableArtifact = providerReplyArtifact(
+      'durable reply',
+      '  durable reply \n',
+    )
+    const expectedIntent = createAlicizationRuntimeReplyDeliveryIntent(
+      scope,
+      'inline',
+      durableArtifact,
+    )
     let settledIntent: unknown = null
 
     persistence.appendRuntimeEvent.mockImplementation(async (
@@ -708,7 +847,7 @@ describe('alicization event loop', () => {
         assembleContext: vi.fn(async () => ({})),
         runModelStep: vi.fn(async () => ({
           kind: 'reply' as const,
-          reply: { text: '  durable reply \n' },
+          reply: { artifact: durableArtifact },
         })),
         executeAction: vi.fn(),
         settleReply,
@@ -965,7 +1104,7 @@ describe('alicization event loop', () => {
       })
       .mockResolvedValueOnce({
         kind: 'reply' as const,
-        reply: { text: 'settled without a barrier action' },
+        reply: modelReply('settled without a barrier action'),
       })
     const eventLoop = createAlicizationEventLoop({
       persistence,
@@ -1044,7 +1183,7 @@ describe('alicization event loop', () => {
       })
       .mockResolvedValueOnce({
         kind: 'reply' as const,
-        reply: { text: 'must not continue' },
+        reply: modelReply('must not continue'),
       })
     const eventLoop = createAlicizationEventLoop({
       persistence,
@@ -1314,7 +1453,7 @@ describe('alicization event loop', () => {
       })
       .mockResolvedValueOnce({
         kind: 'reply' as const,
-        reply: { text: 'barrier settled' },
+        reply: modelReply('barrier settled'),
       })
     const eventLoop = createAlicizationEventLoop({
       persistence,
@@ -1825,7 +1964,7 @@ describe('alicization event loop', () => {
       })
       .mockResolvedValueOnce({
         kind: 'reply' as const,
-        reply: { text: 'should not run' },
+        reply: modelReply('should not run'),
       })
     const eventLoop = createAlicizationEventLoop({
       persistence,
@@ -1874,7 +2013,7 @@ describe('alicization event loop', () => {
         assembleContext: vi.fn(async () => ({})),
         runModelStep: vi.fn(async () => ({
           kind: 'reply' as const,
-          reply: { text: 'ok' },
+          reply: modelReply('ok'),
         })),
         executeAction: vi.fn(),
         settleReply: vi.fn(async (_reply, runtime) => {
@@ -2184,7 +2323,7 @@ describe('alicization event loop', () => {
           })
           .mockResolvedValueOnce({
             kind: 'reply' as const,
-            reply: { text: 'observation was preserved' },
+            reply: modelReply('observation was preserved'),
           }),
         executeAction: vi.fn(async () => ({
           actionId: 'action-observation-race',
@@ -2532,7 +2671,7 @@ describe('alicization event loop', () => {
       })
       .mockResolvedValueOnce({
         kind: 'reply' as const,
-        reply: { text: 'must not continue after deferred abort' },
+        reply: modelReply('must not continue after deferred abort'),
       })
     const eventLoop = createAlicizationEventLoop({
       persistence,
@@ -2696,7 +2835,7 @@ describe('alicization event loop', () => {
         assembleContext: vi.fn(async () => ({})),
         runModelStep: vi.fn(async () => ({
           kind: 'reply' as const,
-          reply: { text: 'done' },
+          reply: modelReply('done'),
         })),
         executeAction: vi.fn(),
         settleReply: vi.fn(async () => {}),
@@ -2719,6 +2858,129 @@ describe('alicization event loop', () => {
     expect(persistence.events.map(event => event.eventType)).not.toContain('runtime.cancelled')
   })
 
+  it('keeps a published reply completed when settleReply triggers cancellation', async () => {
+    const persistence = createPersistence()
+    const scope = runtimeScope({ turnId: 'turn-reply-publish-cancel-race' })
+    let cancellation: Promise<boolean> | null = null
+    const settleReply = vi.fn(async () => {
+      cancellation = eventLoop.cancelTurn(scope, 'cancel after visible publish')
+    })
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => ({
+          kind: 'reply' as const,
+          reply: modelReply('published once'),
+        })),
+        executeAction: vi.fn(),
+        settleReply,
+      },
+    })
+
+    const result = await eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+
+    expect(cancellation).not.toBeNull()
+    await expect(cancellation!).resolves.toBe(false)
+    expect(settleReply).toHaveBeenCalledOnce()
+    expect(result.status).toBe('completed')
+    expect(result.state.pendingDelivery).toBeNull()
+    expect(result.state.replyCommitted).toBe(true)
+    expect(persistence.events.map(event => event.eventType)).toEqual(
+      expect.arrayContaining([
+        'assistant.reply.committed',
+        'turn.completed',
+      ]),
+    )
+    expect(persistence.events.map(event => event.eventType))
+      .not
+      .toContain('runtime.cancelled')
+  })
+
+  it('clears pending delivery when reply settlement fails during cancellation', async () => {
+    const persistence = createPersistence()
+    const scope = runtimeScope({ turnId: 'turn-reply-settlement-failure-cancel' })
+    let cancellation: Promise<boolean> | null = null
+    const settleReply = vi.fn(async () => {
+      cancellation = eventLoop.cancelTurn(scope, 'cancel after publish failure')
+      throw new Error('renderer disconnected after visible publish')
+    })
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => ({
+          kind: 'reply' as const,
+          reply: modelReply('published before settlement failure'),
+        })),
+        executeAction: vi.fn(),
+        settleReply,
+      },
+    })
+
+    const result = await eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+
+    expect(cancellation).not.toBeNull()
+    await expect(cancellation!).resolves.toBe(true)
+    expect(result.status).toBe('cancelled')
+    expect(result.state.pendingDelivery).toBeNull()
+    expect(persistence.checkpoints.at(-1)?.projection.pendingDelivery).toBeNull()
+    expect(persistence.events.map(event => event.eventType))
+      .toContain('runtime.cancelled')
+  })
+
+  it('still cancels when cancellation wins before reply delivery starts', async () => {
+    const persistence = createPersistence()
+    const scope = runtimeScope({ turnId: 'turn-cancel-before-reply-delivery' })
+    const releaseModelStep = createDeferred<void>()
+    const modelStepStarted = createDeferred<void>()
+    const settleReply = vi.fn(async () => {})
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => {
+          modelStepStarted.resolve()
+          await releaseModelStep.promise
+          return {
+            kind: 'reply' as const,
+            reply: modelReply('must not publish'),
+          }
+        }),
+        executeAction: vi.fn(),
+        settleReply,
+      },
+    })
+
+    const running = eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+    await modelStepStarted.promise
+    const cancellation = eventLoop.cancelTurn(scope, 'cancel before delivery')
+    releaseModelStep.resolve()
+
+    await expect(cancellation).resolves.toBe(true)
+    await expect(running).resolves.toMatchObject({
+      status: 'cancelled',
+      state: {
+        pendingDelivery: null,
+      },
+    })
+    expect(settleReply).not.toHaveBeenCalled()
+    expect(persistence.events.map(event => event.eventType))
+      .toContain('runtime.cancelled')
+  })
+
   it('does not accept cancellation after a terminal event has become authoritative', async () => {
     const persistence = createPersistence()
     const terminalCheckpointStarted = createDeferred<void>()
@@ -2737,7 +2999,7 @@ describe('alicization event loop', () => {
         assembleContext: vi.fn(async () => ({})),
         runModelStep: vi.fn(async () => ({
           kind: 'reply' as const,
-          reply: { text: 'done' },
+          reply: modelReply('done'),
         })),
         executeAction: vi.fn(),
         settleReply: vi.fn(async () => {}),

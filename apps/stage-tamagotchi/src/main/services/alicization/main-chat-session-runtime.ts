@@ -1447,6 +1447,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
   async function prepareExecution(input: {
     payload: AlicizationChatStartPayload
     prelude: AlicizationPreparedMainChatPrelude
+    agentTurn?: AlicizationAgentTurnRuntime
     emitToolProgress?: (input: MainGatewayToolExecutionProgress) => void
     abortSignal?: AbortSignal
   }): Promise<AlicizationPreparedMainChatExecutionResult> {
@@ -1517,7 +1518,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       = (digitalLifeSpine?.runtimeSurface?.dialogue.sessionMirror
         ?? prelude.perceptionAugmentation.digitalLifeRuntimeSurface?.dialogue.sessionMirror) as AlicizationDialogueSessionMirror | null | undefined
         ?? null
-    const agentTurn = await options.openAgentTurn({
+    const agentTurn = input.agentTurn ?? await options.openAgentTurn({
       cardId: payload.cardId,
       turnId: payload.turnId,
       decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,
@@ -2690,6 +2691,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
 
   return {
     clear: () => dialogueSessionManager.clear(),
+    openExecutionTurn: options.openAgentTurn,
     prepareExecution,
   }
 }

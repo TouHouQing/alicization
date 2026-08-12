@@ -2061,7 +2061,7 @@ describe('alicization sqlite dao', () => {
       activeActionIds: ['action-1'],
       deliveryOwner: 'inline',
       projection: runtimeCheckpointProjection(['action-1']),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 1_000,
     })
     await db.appendRuntimeEvent(scope, {
@@ -2084,7 +2084,7 @@ describe('alicization sqlite dao', () => {
       activeActionIds: ['action-1', 'action-2'],
       deliveryOwner: 'callback',
       projection: runtimeCheckpointProjection(['action-1', 'action-2']),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 2_000,
     })
     await db.close()
@@ -2181,7 +2181,7 @@ describe('alicization sqlite dao', () => {
     expect(normalizedTableSql).toContain('CHECK(sequence >= 0)')
     expect(normalizedTableSql).toContain('CHECK(runtime_status IN')
     expect(normalizedTableSql).toContain('CHECK(delivery_owner IN')
-    expect(normalizedTableSql).toContain('CHECK(schema_version = 2)')
+    expect(normalizedTableSql).toContain('CHECK(schema_version = 3)')
     expect(normalizedTableSql).toContain('CHECK(updated_at >= 0)')
     expect(rows).toEqual([{
       sequence: 2,
@@ -2189,7 +2189,7 @@ describe('alicization sqlite dao', () => {
       active_action_ids_json: JSON.stringify(['action-1', 'action-2']),
       delivery_owner: 'callback',
       projection_json: JSON.stringify(runtimeCheckpointProjection(['action-1', 'action-2'])),
-      schema_version: 2,
+      schema_version: 3,
       updated_at: 2_000,
     }])
   })
@@ -2258,6 +2258,108 @@ describe('alicization sqlite dao', () => {
       .resolves
       .toBeNull()
     await db.close()
+  })
+
+  it('preserves a v3 checkpoint table when SQLite enforces an equivalent reversed CHECK constraint', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'formatted-runtime-checkpoint')
+    await mkdir(rootDir, { recursive: true })
+    const database = await openActualSqlite(join(rootDir, 'alicization.db'))
+    await runActualSqlite(database, `
+      CREATE TABLE alicization_runtime_checkpoints (
+        turn_id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        conversation_id TEXT NOT NULL,
+        sequence INTEGER NOT NULL CHECK(sequence >= 0),
+        runtime_status TEXT NOT NULL CHECK(runtime_status IN (
+          'accepted',
+          'running',
+          'waiting',
+          'recovery-required',
+          'completed',
+          'failed',
+          'cancelled',
+          'timed-out',
+          'dead-lettered'
+        )),
+        active_action_ids_json TEXT NOT NULL,
+        delivery_owner TEXT NOT NULL CHECK(delivery_owner IN ('inline', 'callback')),
+        projection_json TEXT NOT NULL,
+        schema_version INTEGER NOT NULL CHECK (3 = "schema_version"),
+        updated_at INTEGER NOT NULL CHECK(updated_at >= 0)
+      )
+    `)
+    const scope = {
+      turnId: 'turn-formatted-v3',
+      cardId: 'card-formatted-v3',
+      userId: 'user-formatted-v3',
+      conversationId: 'conversation-formatted-v3',
+    }
+    await runActualSqlite(
+      database,
+      `
+      INSERT INTO alicization_runtime_checkpoints (
+        turn_id,
+        card_id,
+        user_id,
+        conversation_id,
+        sequence,
+        runtime_status,
+        active_action_ids_json,
+        delivery_owner,
+        projection_json,
+        schema_version,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        scope.turnId,
+        scope.cardId,
+        scope.userId,
+        scope.conversationId,
+        0,
+        'accepted',
+        '[]',
+        'inline',
+        JSON.stringify(runtimeCheckpointProjection()),
+        3,
+        1_000,
+      ],
+    )
+    await closeActualSqlite(database)
+
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      allowUnboundScope: true,
+      sqliteDriver: actualSqliteDriver,
+    })
+
+    await expect(db.loadRuntimeCheckpoint(scope)).resolves.toEqual({
+      ...scope,
+      sequence: 0,
+      status: 'accepted',
+      activeActionIds: [],
+      deliveryOwner: 'inline',
+      projection: runtimeCheckpointProjection(),
+      schemaVersion: 3,
+      updatedAt: 1_000,
+    })
+    await db.close()
+
+    const migratedDatabase = await openActualSqlite(join(rootDir, 'alicization.db'))
+    const persistedTurnIds = await allActualSqlite<{ turn_id: string }>(
+      migratedDatabase,
+      `
+      SELECT turn_id
+      FROM alicization_runtime_checkpoints
+      ORDER BY turn_id ASC
+      `,
+    )
+    await closeActualSqlite(migratedDatabase)
+    expect(persistedTurnIds).toEqual([{
+      turn_id: scope.turnId,
+    }])
   })
 
   it('rejects existing event and checkpoint split-brain scopes on read', async () => {
@@ -2335,7 +2437,7 @@ describe('alicization sqlite dao', () => {
         '[]',
         'inline',
         JSON.stringify(runtimeCheckpointProjection()),
-        2,
+        3,
         1_000,
       ],
     )

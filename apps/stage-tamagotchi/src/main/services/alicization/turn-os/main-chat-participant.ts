@@ -7,6 +7,7 @@ import type {
   AlicizationModelObservation,
   AlicizationModelStep,
 } from './event-loop'
+import type { AlicizationRuntimeReplyArtifact } from './reply-artifact'
 
 import { randomUUID } from 'node:crypto'
 
@@ -42,8 +43,10 @@ export interface AlicizationMainChatParticipantTurnInput<TPrepared = {
     cardId: string
     turnId: string
   }
-  preludeTurnId: string | null | undefined
-  prepared: TPrepared
+  conversationId: string
+  prepare: (
+    runtime: AlicizationEventLoopRuntimeView,
+  ) => Promise<TPrepared>
 }
 
 export type AlicizationMainChatProviderStep
@@ -53,7 +56,7 @@ export type AlicizationMainChatProviderStep
   }
   | {
     kind: 'reply'
-    text: string
+    artifact: AlicizationRuntimeReplyArtifact
   }
 
 export interface AlicizationMainChatParticipantContext<TPrepared> {
@@ -67,6 +70,7 @@ export interface AlicizationMainChatParticipantContext<TPrepared> {
 
 export function createAlicizationMainChatParticipant<TPrepared extends {
   conversationSessionId: string | null
+  preludeTurnId?: string | null
   messages?: ReadonlyArray<{
     role: string
     content?: unknown
@@ -98,29 +102,34 @@ export function createAlicizationMainChatParticipant<TPrepared extends {
     assembleContext: async (input, runtime) => {
       const payloadTurnId = requiredText(input.payload.turnId, 'main chat payload turnId')
       const payloadCardId = requiredText(input.payload.cardId, 'main chat payload cardId')
-      const preludeTurnId = requiredText(input.preludeTurnId, 'main chat prelude turnId')
-      const conversationId = input.prepared.conversationSessionId?.trim()
+      const conversationId = requiredText(input.conversationId, 'main chat conversationId')
 
       if (payloadTurnId !== runtime.turnId)
         throw new Error('main chat payload turn identity does not match runtime scope')
       if (payloadCardId !== runtime.cardId)
         throw new Error('main chat payload card identity does not match runtime scope')
-      if (preludeTurnId !== payloadTurnId)
-        throw new Error('stale main chat prelude turn identity')
-      if (!conversationId)
-        throw new TypeError('main chat requires a real conversationSessionId')
       if (conversationId !== runtime.conversationId)
         throw new Error('main chat conversation identity does not match runtime scope')
       requiredText(runtime.userId, 'main chat runtime userId')
+
+      const prepared = await input.prepare(runtime)
+      const preludeTurnId = requiredText(prepared.preludeTurnId, 'main chat prelude turnId')
+      const preparedConversationId = prepared.conversationSessionId?.trim()
+      if (preludeTurnId !== payloadTurnId)
+        throw new Error('stale main chat prelude turn identity')
+      if (!preparedConversationId)
+        throw new TypeError('main chat requires a real conversationSessionId')
+      if (preparedConversationId !== conversationId)
+        throw new Error('prepared main chat conversation identity does not match runtime scope')
 
       const context = {
         payload: {
           cardId: payloadCardId,
           turnId: payloadTurnId,
         },
-        prepared: input.prepared,
-        providerMessages: Array.isArray(input.prepared.messages)
-          ? [...input.prepared.messages] as Message[]
+        prepared,
+        providerMessages: Array.isArray(prepared.messages)
+          ? [...prepared.messages] as Message[]
           : [],
       }
       contextByTurnId.set(runtime.turnId, context)
@@ -133,7 +142,7 @@ export function createAlicizationMainChatParticipant<TPrepared extends {
         ? {
             kind: 'reply',
             reply: {
-              text: requiredText(step.text, 'Provider reply text'),
+              artifact: step.artifact,
             },
           }
         : step
@@ -158,7 +167,7 @@ export function createAlicizationMainChatParticipant<TPrepared extends {
       await options.publishReply({
         cardId: runtime.cardId,
         conversationId: runtime.conversationId,
-        text: reply.text,
+        text: reply.artifact.visibleText,
         turnId: runtime.turnId,
         userId: runtime.userId,
       })

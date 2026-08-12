@@ -27,34 +27,44 @@ interface AbortAlicizationRunningChatRunsOptions {
   createAbortError: (reason: string) => Error
 }
 
-function abortAlicizationChatRun(input: {
+async function abortAlicizationChatRun(input: {
   key: string
   run: ChatRunState
   reason: string
   mainChatRunState: AlicizationMainChatAbortRunStateFacade
   createAbortError: (reason: string) => Error
 }) {
+  const cancelTurn = input.run.cancelTurn
+  if (cancelTurn) {
+    const accepted = await cancelTurn(input.reason)
+    if (!accepted)
+      return false
+  }
+
   input.run.state = 'aborted'
-  input.run.controller.abort(input.createAbortError(input.reason))
+  if (!cancelTurn)
+    input.run.controller.abort(input.createAbortError(input.reason))
   input.mainChatRunState.finishRun(input.key, {
     status: 'aborted',
     finishReason: input.reason,
   })
+  return true
 }
 
-export function abortAlicizationRunningChatRuns(input: AbortAlicizationRunningChatRunsOptions) {
+export async function abortAlicizationRunningChatRuns(input: AbortAlicizationRunningChatRunsOptions) {
   let aborted = 0
   for (const [key, run] of input.runs) {
     if (run.state !== 'running')
       continue
-    abortAlicizationChatRun({
+    const accepted = await abortAlicizationChatRun({
       key,
       run,
       reason: input.reason,
       mainChatRunState: input.mainChatRunState,
       createAbortError: input.createAbortError,
     })
-    aborted += 1
+    if (accepted)
+      aborted += 1
   }
   return aborted
 }
@@ -84,13 +94,19 @@ export async function abortAlicizationDirectChatRun(
     }
   }
 
-  abortAlicizationChatRun({
+  const accepted = await abortAlicizationChatRun({
     key,
     run,
     reason: input.payload.reason ?? 'manual',
     mainChatRunState: input.mainChatRunState,
     createAbortError: input.createAbortError,
   })
+  if (!accepted) {
+    return {
+      accepted: false,
+      state: 'finished',
+    }
+  }
   await input.appendRuntimeDebugLine('chat-abort.accepted', {
     cardId: input.payload.cardId,
     turnId: input.payload.turnId,

@@ -1385,6 +1385,63 @@ async function runInTransaction<T>(database: sqlite3.Database, task: () => Promi
   }
 }
 
+async function supportsRuntimeCheckpointSchemaV3(database: sqlite3.Database) {
+  const savepoint = 'alicization_runtime_checkpoint_schema_probe'
+  const probeId = randomUUID()
+  const insertProbe = async (schemaVersion: number, suffix: string) => {
+    await run(
+      database,
+      `
+      INSERT INTO alicization_runtime_checkpoints (
+        turn_id,
+        card_id,
+        user_id,
+        conversation_id,
+        sequence,
+        runtime_status,
+        active_action_ids_json,
+        delivery_owner,
+        projection_json,
+        schema_version,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        `schema-probe-turn-${probeId}-${suffix}`,
+        `schema-probe-card-${probeId}`,
+        `schema-probe-user-${probeId}`,
+        `schema-probe-conversation-${probeId}`,
+        0,
+        'accepted',
+        '[]',
+        'inline',
+        '{}',
+        schemaVersion,
+        0,
+      ],
+    )
+  }
+
+  await run(database, `SAVEPOINT ${savepoint}`)
+  try {
+    await insertProbe(3, 'accepted')
+    try {
+      await insertProbe(2, 'rejected')
+      return false
+    }
+    catch {
+      return true
+    }
+  }
+  catch {
+    return false
+  }
+  finally {
+    await run(database, `ROLLBACK TO SAVEPOINT ${savepoint}`)
+    await run(database, `RELEASE SAVEPOINT ${savepoint}`)
+  }
+}
+
 async function loadLatestEpisodicReconsolidationOverlayByEventId(
   database: sqlite3.Database,
   queryAll: typeof all,
@@ -2636,8 +2693,12 @@ export async function setupAlicizationDb(
         database,
         'PRAGMA table_info(alicization_runtime_checkpoints)',
       )
-      if (!columns.some(column => column.name === 'projection_json'))
+      if (
+        !columns.some(column => column.name === 'projection_json')
+        || !await supportsRuntimeCheckpointSchemaV3(database)
+      ) {
         await run(database, 'DROP TABLE alicization_runtime_checkpoints')
+      }
     }
 
     await run(database, `
@@ -2661,7 +2722,7 @@ export async function setupAlicizationDb(
         active_action_ids_json TEXT NOT NULL,
         delivery_owner TEXT NOT NULL CHECK(delivery_owner IN ('inline', 'callback')),
         projection_json TEXT NOT NULL,
-        schema_version INTEGER NOT NULL CHECK(schema_version = 2),
+        schema_version INTEGER NOT NULL CHECK(schema_version = 3),
         updated_at INTEGER NOT NULL CHECK(updated_at >= 0)
       )
     `)

@@ -159,6 +159,7 @@ export interface ChatRunState {
   cardId: string
   turnId: string
   controller: AbortController
+  cancelTurn?: (reason: unknown) => Promise<boolean>
   sender?: WebContents
   rawInvokeOptions?: { ipcMainEvent?: IpcMainEvent, event?: unknown }
   hasLoggedDispatchBinding?: boolean

@@ -14,6 +14,10 @@ import {
   replayTurn,
 } from './replay'
 import {
+  createAlicizationRuntimeReplyArtifact,
+  createAlicizationRuntimeReplyDeliveryIntent,
+} from './reply-artifact'
+import {
   createAlicizationTurnRuntimeState,
   reduceAlicizationRuntimeEvent,
   toAlicizationRuntimeCheckpoint,
@@ -87,21 +91,73 @@ function runtimeCheckpoint(
             : null,
       issues: [],
     },
-    schemaVersion: 2,
+    schemaVersion: 3,
     updatedAt: 3_000,
     ...overrides,
   }
 }
 
+function replyArtifact(visibleText: string, fullText = visibleText) {
+  return createAlicizationRuntimeReplyArtifact({
+    artifactVersion: 1,
+    visibleText,
+    fullText,
+    finishReason: 'stop',
+    visibleReplyExecution: {
+      mode: 'provider-stream',
+      expectedVisibleReplyAuthority: 'llm-mind',
+      actualVisibleReplyAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      reason: 'turn-replay-test',
+    },
+    realization: {
+      version: 'visible-reply-realization-v1',
+      expectedAuthority: 'llm-mind',
+      actualAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      mode: 'provider-stream',
+      visibleText,
+      visibleReplyValidationStatus: 'approved',
+      nonHumanAuthoredStatus: null,
+      blockedReasons: [],
+      reason: 'turn-replay-test',
+      critic: {
+        version: 'visible-reply-critic-public-summary-v1',
+        status: 'pass',
+        providerMindRequired: true,
+        reasonCodes: [],
+      },
+      closure: {
+        version: 'visible-reply-closure-public-summary-v1',
+        status: 'approved',
+        reasonCodes: [],
+        initialCriticStatus: 'pass',
+        finalCriticStatus: 'pass',
+      },
+    },
+  })
+}
+
+function replyIntent(
+  scope: AlicizationRuntimeEventScope,
+  visibleText: string,
+  fullText = visibleText,
+) {
+  return createAlicizationRuntimeReplyDeliveryIntent(
+    scope,
+    'inline',
+    replyArtifact(visibleText, fullText),
+  )
+}
+
 describe('alicization turn replay', () => {
   it('preserves a committed reply when replay resumes from a checkpoint with no tail', async () => {
     const scope = runtimeScope({ turnId: 'turn-reply-checkpoint' })
-    const intent = {
-      replyId: 'turn-reply-checkpoint:reply',
-      deliveryId: 'turn-reply-checkpoint:delivery:inline',
-      text: 'already delivered',
-      contentHash: 'sha256:f9c19358298ab7c80ff1ccf83c042aa107c1112595a61a9960f6151a6bfde474',
-    }
+    const intent = replyIntent(
+      scope,
+      'already delivered',
+      '  already delivered  ',
+    )
     let state = createAlicizationTurnRuntimeState(scope, 'inline')
     state = reduceAlicizationRuntimeEvent(state, runtimeEvent(scope, 1, 'turn.accepted', {
       deliveryOwner: 'inline',
@@ -115,7 +171,12 @@ describe('alicization turn replay', () => {
       scope,
       3,
       'assistant.reply.committed',
-      intent,
+      {
+        replyId: intent.replyId,
+        deliveryId: intent.deliveryId,
+        contentHash: intent.contentHash,
+        artifactHash: intent.artifactHash,
+      },
     ))
     const checkpoint = toAlicizationRuntimeCheckpoint(state, 3_000)
 
@@ -129,11 +190,9 @@ describe('alicization turn replay', () => {
     })
 
     expect(replay.state.replyCommitted).toBe(true)
-    expect((replay.state as any).committedDelivery).toEqual({
-      replyId: intent.replyId,
-      deliveryId: intent.deliveryId,
-      contentHash: intent.contentHash,
-    })
+    expect((replay.state as any).committedDelivery).toEqual(intent)
+    expect(replay.replyArtifact).toEqual(intent.artifact)
+    expect(replay.replyArtifact?.fullText).toBe('  already delivered  ')
     expect(replay.state.sequence).toBe(3)
     expect(replay.recoveryRequired).toBe(true)
     expect(replay.reasonCodes).toEqual([
@@ -144,6 +203,7 @@ describe('alicization turn replay', () => {
 
   it('marks a durable pending delivery as recoveryRequired without settling it again', async () => {
     const scope = runtimeScope({ turnId: 'turn-delivery-pending' })
+    const pendingDelivery = replyIntent(scope, 'pending reply')
     const checkpoint = runtimeCheckpoint(scope, {
       sequence: 3,
       status: 'running',
@@ -154,12 +214,7 @@ describe('alicization turn replay', () => {
         replyCommitted: false,
         terminalEventType: null,
         issues: [],
-        pendingDelivery: {
-          replyId: 'turn-delivery-pending:reply',
-          deliveryId: 'turn-delivery-pending:delivery:inline',
-          text: 'pending reply',
-          contentHash: 'sha256:523d68ba82d629ea759cc536f04f5df13b56eaf679db08e8d4af17167f2cfdda',
-        },
+        pendingDelivery,
       } as any,
     })
     const settleReply = vi.fn()
@@ -196,8 +251,8 @@ describe('alicization turn replay', () => {
           runtimeEvent(scope, 2, 'assistant.reply.committed', {
             replyId: 'turn-replay-orphan-commit:reply',
             deliveryId: 'turn-replay-orphan-commit:delivery:inline',
-            text: 'orphan reply',
             contentHash: 'sha256:9c100aa5e0c055fe53ee92e3d6be2862529a37c4a25429848244e852e8bf33a1',
+            artifactHash: 'sha256:9c100aa5e0c055fe53ee92e3d6be2862529a37c4a25429848244e852e8bf33a1',
           }),
         ]),
       },
@@ -235,12 +290,11 @@ describe('alicization turn replay', () => {
 
   it('restores the exact normalized reply body from an intent checkpoint with no tail', async () => {
     const scope = runtimeScope({ turnId: 'turn-delivery-body-recovery' })
-    const expectedIntent = {
-      replyId: 'turn-delivery-body-recovery:reply',
-      deliveryId: 'turn-delivery-body-recovery:delivery:inline',
-      text: 'recovered body',
-      contentHash: 'sha256:9355851025ea0dbc3072ed2d1d7d0fc74e4fa7e7137e02bdeffbc57d983b622b',
-    }
+    const expectedIntent = replyIntent(
+      scope,
+      'recovered body',
+      '  recovered body  ',
+    )
     const checkpoint = runtimeCheckpoint(scope, {
       sequence: 3,
       status: 'running',
@@ -265,6 +319,7 @@ describe('alicization turn replay', () => {
     })
 
     expect(replay.state.pendingDelivery).toEqual(expectedIntent)
+    expect(replay.replyArtifact).toBeNull()
     expect(replay.tailEvents).toEqual([])
     expect(replay.reasonCodes).toContain('runtime-replay:delivery-pending')
   })
@@ -484,6 +539,7 @@ describe('alicization turn replay', () => {
   it('rebuilds checkpoint plus tail and clears recoveryRequired after terminal observation', async () => {
     const scope = runtimeScope()
     const checkpoint = runtimeCheckpoint(scope)
+    const completedReply = replyIntent(scope, '恢复完成。')
     const tail = [
       runtimeEvent(scope, 4, 'action.observation', {
         actionId: 'action-1',
@@ -498,16 +554,13 @@ describe('alicization turn replay', () => {
       runtimeEvent(scope, 6, 'model.step.completed', {
         stepIndex: 1,
         outcome: 'reply',
-        replyId: `${scope.turnId}:reply`,
-        deliveryId: `${scope.turnId}:delivery:inline`,
-        text: '恢复完成。',
-        contentHash: 'sha256:811eaf1c75836e1323843f9b09012cf4ca697e65429df37c615fd9831d21a854',
+        ...completedReply,
       }),
       runtimeEvent(scope, 7, 'assistant.reply.committed', {
-        replyId: `${scope.turnId}:reply`,
-        deliveryId: `${scope.turnId}:delivery:inline`,
-        text: '恢复完成。',
-        contentHash: 'sha256:811eaf1c75836e1323843f9b09012cf4ca697e65429df37c615fd9831d21a854',
+        replyId: completedReply.replyId,
+        deliveryId: completedReply.deliveryId,
+        contentHash: completedReply.contentHash,
+        artifactHash: completedReply.artifactHash,
       }),
       runtimeEvent(scope, 8, 'turn.completed', {}),
     ]
@@ -530,6 +583,7 @@ describe('alicization turn replay', () => {
     })
     expect(replay.recoveryRequired).toBe(false)
     expect(replay.reasonCodes).toEqual([])
+    expect(replay.replyArtifact).toEqual(completedReply.artifact)
   })
 
   it('does not reopen a terminal action after duplicate late progress', async () => {

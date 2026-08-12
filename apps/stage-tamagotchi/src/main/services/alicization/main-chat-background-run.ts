@@ -24,9 +24,6 @@ import type {
 import type { RuntimeSurfaceContinuityEvidenceShape } from './runtime-surface-continuity-selection'
 import type { AlicizationRuntimeCheckpoint } from './turn-os/checkpoint-store'
 import type { AlicizationRuntimeEventScope } from './turn-os/event-store'
-import type {
-  AlicizationVisibleReplySettlementResult,
-} from './visible-reply/facade'
 
 import {
   extractAlicizationToolExecutionFailure,
@@ -50,16 +47,15 @@ import {
   mainChatFirstEventTimeoutMs,
   mainChatFirstEventTimeoutWithVisualGroundingMs,
   mainChatPreparationTimeoutMs,
+  mainChatProviderContinuationTimeoutMs,
   sanitizeText,
 } from './runtime-soul'
 import { resolvePreferredRuntimeSurface } from './runtime-surface-continuity-selection'
 import { buildSelfContinuityAuthorityFromRuntimeSurface } from './self-continuity-authority'
 import { createAlicizationEventLoop } from './turn-os/event-loop'
 import { createAlicizationMainChatParticipant } from './turn-os/main-chat-participant'
-import {
-  resolveAlicizationPreparedVisibleReplyExecution,
-  settleAlicizationVisibleReply,
-} from './visible-reply/facade'
+import { createAlicizationRuntimeReplyArtifact } from './turn-os/reply-artifact'
+import { resolveAlicizationPreparedVisibleReplyExecution, settleAlicizationVisibleReply } from './visible-reply/facade'
 
 type AlicizationRuntimeEmotionalKernelShape = NonNullable<AlicizationRuntimeDigest['emotionalKernel']>
 
@@ -244,9 +240,8 @@ export async function runAlicizationMainChatBackground(
 ) {
   let prepared: AlicizationPreparedMainChatExecutionResult | null = null
   let streamMetaEmitter: ReturnType<typeof createAlicizationChatStreamMetaEmitter> | null = null
-  let currentVisibleReplyExecution: AlicizationVisibleReplyExecution | null = null
-  let settledVisibleReply: AlicizationVisibleReplySettlementResult | null = null
-  let providerFinishReason = 'stop'
+  let registeredCancelTurn: ChatRunState['cancelTurn']
+  const registeredCancellations: Array<Promise<boolean>> = []
   const nonProgressEventTypes = new Set<string>()
 
   const emitFailure = async (error: unknown) => {
@@ -280,10 +275,14 @@ export async function runAlicizationMainChatBackground(
   }
 
   try {
+    if (!input.turnLoop)
+      throw new TypeError('main chat requires an EventLoop owner')
+
     const normalizedPayload = input.payload
-    const conversationId = sanitizeText(input.turnLoop?.conversationId)
-    if (!input.turnLoop || !conversationId)
+    const conversationId = sanitizeText(input.turnLoop.conversationId)
+    if (!conversationId)
       throw new TypeError('main chat requires an EventLoop owner with a real conversationId')
+    let currentVisibleReplyExecution: AlicizationVisibleReplyExecution | null = null
 
     const settlePresentedExecutionCallbacks = async () => {
       const presentedExecutionCallbacks = prepared?.presentedExecutionCallbacks ?? []
@@ -317,47 +316,8 @@ export async function runAlicizationMainChatBackground(
       }
     }
 
-    const emitPreparedMeta = async (
-      preparedForMeta: AlicizationPreparedMainChatExecutionResult,
-    ) => {
-      if (streamMetaEmitter)
-        return
-
-      currentVisibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
-        prepared: preparedForMeta,
-      })
-      streamMetaEmitter = createAlicizationChatStreamMetaEmitter({
-        cardId: normalizedPayload.cardId,
-        turnId: normalizedPayload.turnId,
-        getGovernance: () => prepared?.governance ?? null,
-        getThought: () => null,
-        getVisibleReplyExecution: () => currentVisibleReplyExecution,
-        getDigitalLifeSpine: () => projectAlicizationDigitalLifeSpineDigest(prepared?.runtimeSurface?.digitalLifeSpine ?? null),
-        getRuntimeDigest: () => buildPreparedRuntimeDigestFallback(prepared),
-        getResidentPerformance: () => null,
-        getPerformanceManifest: () => prepared?.performanceManifest ?? null,
-        getExplicitPerformance: () => null,
-        emit: input.emitMeta,
-      })
-      streamMetaEmitter.emit('', { force: true })
-      try {
-        await Promise.resolve(input.recordPreparedMindTrace?.({
-          payload: normalizedPayload,
-          prepared: preparedForMeta,
-        }))
-      }
-      catch (error) {
-        await input.appendRuntimeDebugLine('chat-start.prepared-mind-trace-failed', {
-          cardId: input.runState.cardId,
-          turnId: input.runState.turnId,
-          reason: error instanceof Error ? error.message : String(error),
-        })
-      }
-    }
-
     const participant = createAlicizationMainChatParticipant<AlicizationPreparedMainChatExecutionResult>({
       runProviderStep: async (context, runtime) => {
-        await emitPreparedMeta(context.prepared)
         const providerStep = await runAlicizationMainChatProviderStep({
           payload: input.payload,
           prepared: context.prepared,
@@ -368,18 +328,15 @@ export async function runAlicizationMainChatBackground(
           firstEventTimeoutMs: context.prepared.hasVisualGrounding
             ? mainChatFirstEventTimeoutWithVisualGroundingMs
             : mainChatFirstEventTimeoutMs,
+          providerContinuationTimeoutMs: mainChatProviderContinuationTimeoutMs,
           isRunActive: input.isRunActive,
           nonProgressEventTypes,
           emitToolCall: input.emitToolCall,
           appendRuntimeDebugLine: input.appendRuntimeDebugLine,
         })
-        if (providerStep.kind === 'reply') {
-          providerFinishReason = providerStep.finishReason
-        }
-        return providerStep
-      },
-      resolveProviderReply: async (step, context) => {
-        const fullText = step.fullText ?? step.text
+        if (providerStep.kind === 'action')
+          return providerStep
+
         const visibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
           prepared: context.prepared,
           mode: 'provider-stream',
@@ -388,7 +345,7 @@ export async function runAlicizationMainChatBackground(
         })
         const settled = await settleAlicizationVisibleReply({
           draft: {
-            fullText,
+            fullText: providerStep.fullText,
             visibleReplyExecution,
           },
           prepared: context.prepared,
@@ -396,9 +353,19 @@ export async function runAlicizationMainChatBackground(
           allowPlainTextProviderReply: true,
           appendRuntimeDebugLine: input.appendRuntimeDebugLine,
         })
-        settledVisibleReply = settled
+        const artifact = createAlicizationRuntimeReplyArtifact({
+          artifactVersion: 1,
+          visibleText: settled.visibleText,
+          finishReason: providerStep.finishReason,
+          fullText: providerStep.fullText,
+          visibleReplyExecution: settled.visibleReplyExecution,
+          realization: settled.realization,
+        })
         currentVisibleReplyExecution = settled.visibleReplyExecution
-        return settled.visibleText
+        return {
+          kind: 'reply',
+          artifact,
+        }
       },
       executeTool: async (action, context, runtime) => {
         const tool = context.prepared.tools?.find(
@@ -465,13 +432,20 @@ export async function runAlicizationMainChatBackground(
       persistence: input.turnLoop.persistence,
       participant,
     })
+    const scope: AlicizationRuntimeEventScope = {
+      cardId: normalizedPayload.cardId,
+      conversationId,
+      turnId: normalizedPayload.turnId,
+      userId: input.turnLoop.userId,
+    }
+    registeredCancelTurn = (reason) => {
+      const cancellation = eventLoop.cancelTurn(scope, reason)
+      registeredCancellations.push(cancellation)
+      return cancellation
+    }
+    input.runState.cancelTurn = registeredCancelTurn
     const result = await eventLoop.runTurn({
-      scope: {
-        cardId: normalizedPayload.cardId,
-        conversationId,
-        turnId: normalizedPayload.turnId,
-        userId: input.turnLoop.userId,
-      },
+      scope,
       deliveryOwner: 'inline',
       signal: input.runState.controller.signal,
       turnInput: {
@@ -509,27 +483,62 @@ export async function runAlicizationMainChatBackground(
 
           prepared = nextPrepared
           input.runStateController.setSessionTraceGetter(input.key, nextPrepared.getSessionTrace)
+          currentVisibleReplyExecution = resolveAlicizationPreparedVisibleReplyExecution({
+            prepared: nextPrepared,
+          })
+          streamMetaEmitter = createAlicizationChatStreamMetaEmitter({
+            cardId: normalizedPayload.cardId,
+            turnId: normalizedPayload.turnId,
+            getGovernance: () => prepared?.governance ?? null,
+            getThought: () => null,
+            getVisibleReplyExecution: () => currentVisibleReplyExecution,
+            getDigitalLifeSpine: () => projectAlicizationDigitalLifeSpineDigest(prepared?.runtimeSurface?.digitalLifeSpine ?? null),
+            getRuntimeDigest: () => buildPreparedRuntimeDigestFallback(prepared),
+            getResidentPerformance: () => null,
+            getPerformanceManifest: () => prepared?.performanceManifest ?? null,
+            getExplicitPerformance: () => null,
+            emit: input.emitMeta,
+          })
+          streamMetaEmitter.emit('', { force: true })
+          try {
+            await Promise.resolve(input.recordPreparedMindTrace?.({
+              payload: normalizedPayload,
+              prepared: nextPrepared,
+            }))
+          }
+          catch (error) {
+            await input.appendRuntimeDebugLine('chat-start.prepared-mind-trace-failed', {
+              cardId: input.runState.cardId,
+              turnId: input.runState.turnId,
+              reason: error instanceof Error ? error.message : String(error),
+            })
+          }
           return nextPrepared
         },
       },
     })
 
+    if (
+      result.status === 'cancelled'
+      && registeredCancellations.length > 0
+      && (await Promise.all(registeredCancellations)).some(Boolean)
+    ) {
+      return
+    }
     if (result.status !== 'completed')
       throw result.cause ?? new Error(result.error ?? `main chat turn ${result.status}`)
     const completedPrepared = prepared as AlicizationPreparedMainChatExecutionResult | null
     if (!completedPrepared)
       throw new Error('main chat EventLoop completed without prepared context')
+    const finalReply = result.replyArtifact
+    if (!finalReply)
+      throw new Error('main chat EventLoop completed without a settled Provider reply')
 
     await settlePresentedExecutionCallbacks()
 
-    const completedVisibleReply = settledVisibleReply as AlicizationVisibleReplySettlementResult | null
-    if (!completedVisibleReply)
-      throw new Error('main chat EventLoop completed without visible reply settlement')
-    const fullText = completedVisibleReply.fullText
-    const visibleReplyExecution = completedVisibleReply.visibleReplyExecution
     input.runStateController.finishRun(input.key, {
       status: 'completed',
-      finishReason: providerFinishReason,
+      finishReason: finalReply.finishReason,
       origin: 'provider',
       learningPolicy: {
         allowLongTermCondensation: true,
@@ -538,14 +547,18 @@ export async function runAlicizationMainChatBackground(
       },
       failureSurface: null,
       memoryFailures: completedPrepared.memoryFailures,
-      fullText,
-      visibleReplyExecution,
-      visibleReplyRealization: completedVisibleReply.realization,
-      visibleReplyCritic: completedVisibleReply.realization.critic as AlicizationChatFinishEvent['visibleReplyCritic'],
-      visibleReplyClosure: completedVisibleReply.realization.closure as AlicizationChatFinishEvent['visibleReplyClosure'],
+      fullText: finalReply.fullText,
+      visibleReplyExecution: finalReply.visibleReplyExecution,
+      visibleReplyRealization: finalReply.realization,
+      visibleReplyCritic: finalReply.realization.critic as AlicizationChatFinishEvent['visibleReplyCritic'],
+      visibleReplyClosure: finalReply.realization.closure as AlicizationChatFinishEvent['visibleReplyClosure'],
     })
   }
   catch (error) {
     await emitFailure(error)
+  }
+  finally {
+    if (input.runState.cancelTurn === registeredCancelTurn)
+      delete input.runState.cancelTurn
   }
 }

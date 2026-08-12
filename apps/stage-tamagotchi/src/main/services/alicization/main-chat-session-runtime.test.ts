@@ -4609,6 +4609,64 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     }
   }
 
+  it('reuses one prebound agent turn as the session owner during preparation', async () => {
+    const agentRuntime = createAlicizationAgentRuntime({
+      getSensorySnapshot: async () => ({
+        running: true,
+        stale: false,
+        ageMs: 10,
+        nextTickAt: 20,
+        sample: {
+          collectedAt: 10,
+          time: {
+            iso: '2026-04-04T00:00:00.000Z',
+            local: '2026-04-04 08:00',
+            timezone: 'Asia/Shanghai',
+          },
+          cpu: {
+            usagePercent: 10,
+            windowMs: 1000,
+          },
+          memory: {
+            freeMB: 1024,
+            totalMB: 8192,
+            usagePercent: 87.5,
+          },
+        },
+        capture: null,
+      }),
+      resolveConversationSessionId: async () => 'session-prebound',
+    })
+    const openAgentTurn = vi.fn(
+      async input => await agentRuntime.openTurn(input),
+    )
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      openAgentTurn,
+    })
+    const payload = {
+      cardId: 'default',
+      turnId: 'turn-prebound',
+      messages: [{ role: 'user', content: '继续当前任务' }],
+      supportsTools: true,
+    } as any
+    const agentTurn = await runtime.openExecutionTurn({
+      cardId: payload.cardId,
+      turnId: payload.turnId,
+    })
+
+    const prepared = await runtime.prepareExecution({
+      payload,
+      prelude: createReflectivePrelude({
+        messages: [{ role: 'user', content: '继续当前任务' } as Message],
+      }),
+      agentTurn,
+    })
+
+    expect(openAgentTurn).toHaveBeenCalledOnce()
+    expect(prepared.conversationSessionId).toBe('session-prebound')
+    expect(prepared.getSessionTrace()).toEqual(agentTurn.snapshot())
+  })
+
   it('uses the injected WorkingMemory store so UI and dialogue share the same short-term owner', async () => {
     const workingMemoryStore = createWorkingMemoryStore()
     const { runtime } = createWorkingMemoryRuntimeFixture({

@@ -23,6 +23,7 @@ import {
   createAlicizationMainChatParticipant,
   resolveAlicizationLocalRuntimeUserId,
 } from './main-chat-participant'
+import { createAlicizationRuntimeReplyArtifact } from './reply-artifact'
 
 const scope = {
   turnId: 'turn-current',
@@ -55,19 +56,21 @@ function createTurnInput(overrides?: {
   payloadTurnId?: string
   preludeTurnId?: string
 }) {
+  const prepared = {
+    conversationSessionId: overrides?.conversationSessionId === undefined
+      ? scope.conversationId
+      : overrides.conversationSessionId,
+    preludeTurnId: overrides?.preludeTurnId ?? scope.turnId,
+    messages: [{ role: 'user', content: '你好' }],
+    tools: [],
+  }
   return {
     payload: {
       cardId: 'card-1',
       turnId: overrides?.payloadTurnId ?? scope.turnId,
     },
-    preludeTurnId: overrides?.preludeTurnId ?? scope.turnId,
-    prepared: {
-      conversationSessionId: overrides?.conversationSessionId === undefined
-        ? scope.conversationId
-        : overrides.conversationSessionId,
-      messages: [{ role: 'user', content: '你好' }],
-      tools: [],
-    },
+    conversationId: scope.conversationId,
+    prepare: vi.fn(async () => prepared),
   }
 }
 
@@ -88,14 +91,59 @@ function createBaseSemantics(): AlicizationDialogueTurnSemantics {
   }
 }
 
+function providerReplyArtifact(visibleText: string, fullText = visibleText) {
+  return createAlicizationRuntimeReplyArtifact({
+    artifactVersion: 1,
+    visibleText,
+    fullText,
+    finishReason: 'stop',
+    visibleReplyExecution: {
+      mode: 'provider-stream',
+      expectedVisibleReplyAuthority: 'llm-mind',
+      actualVisibleReplyAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      reason: 'main-chat-participant-test',
+    },
+    realization: {
+      version: 'visible-reply-realization-v1',
+      expectedAuthority: 'llm-mind',
+      actualAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      mode: 'provider-stream',
+      visibleText,
+      visibleReplyValidationStatus: 'approved',
+      nonHumanAuthoredStatus: null,
+      blockedReasons: [],
+      reason: 'main-chat-participant-test',
+      critic: {
+        version: 'visible-reply-critic-public-summary-v1',
+        status: 'pass',
+        providerMindRequired: true,
+        reasonCodes: [],
+      },
+      closure: {
+        version: 'visible-reply-closure-public-summary-v1',
+        status: 'approved',
+        reasonCodes: [],
+        initialCriticStatus: 'pass',
+        finalCriticStatus: 'pass',
+      },
+    },
+  })
+}
+
 describe('main chat EventLoop participant', () => {
   it('publishes provider text without a fixed reply envelope', async () => {
     const persistence = createPersistence()
     const publishReply = vi.fn(async () => {})
+    const artifact = providerReplyArtifact(
+      '你好，我在。',
+      '  {"reply":"你好，我在。","thought":"raw"}  ',
+    )
     const participant = createAlicizationMainChatParticipant({
       runProviderStep: vi.fn(async () => ({
         kind: 'reply' as const,
-        text: '你好，我在。',
+        artifact,
       })),
       executeTool: vi.fn(),
       publishReply,
@@ -112,6 +160,7 @@ describe('main chat EventLoop participant', () => {
     })
 
     expect(result.status).toBe('completed')
+    expect(result.replyArtifact).toEqual(artifact)
     expect(publishReply).toHaveBeenCalledWith(
       expect.objectContaining({
         text: '你好，我在。',
@@ -125,6 +174,9 @@ describe('main chat EventLoop participant', () => {
       }),
       expect.objectContaining({
         eventType: 'assistant.reply.committed',
+        payload: expect.not.objectContaining({
+          artifact: expect.anything(),
+        }),
       }),
       expect.objectContaining({
         eventType: 'turn.completed',
@@ -348,6 +400,10 @@ describe('main chat EventLoop participant', () => {
               toolCallId: 'provider-tool-call-1',
               toolName: 'executor_run_codex',
               args: JSON.stringify({ prompt: 'inspect repository' }),
+            })
+            controller.enqueue({
+              type: 'finish',
+              finishReason: 'tool_calls',
             })
             controller.close()
           },

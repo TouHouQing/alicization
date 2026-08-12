@@ -6,6 +6,7 @@ import type {
 import type sqlite3 from 'sqlite3'
 
 import type { AlicizationRuntimeEventScope } from './event-store'
+import type { AlicizationRuntimeReplyDeliveryIntent } from './reply-artifact'
 
 import { isDeepStrictEqual } from 'node:util'
 
@@ -16,8 +17,11 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import {
+  assertAlicizationRuntimeReplyDeliveryScope,
+  parseAlicizationRuntimeReplyDeliveryIntent,
+} from './reply-artifact'
+import {
   alicizationTurnRuntimeIssueCodes,
-  createAlicizationReplyDeliveryIntent,
 } from './runtime-state'
 
 export type AlicizationRuntimeCheckpointScope = AlicizationRuntimeEventScope
@@ -58,23 +62,12 @@ export interface AlicizationRuntimeCheckpointActionProjection {
   lastSequence: number
 }
 
-export interface AlicizationRuntimeReplyDeliveryIdentity {
-  replyId: string
-  deliveryId: string
-  contentHash: string
-}
-
-export interface AlicizationRuntimeReplyDeliveryIntent
-  extends AlicizationRuntimeReplyDeliveryIdentity {
-  text: string
-}
-
 export interface AlicizationRuntimeCheckpointProjection {
   actions: Record<string, AlicizationRuntimeCheckpointActionProjection>
   pendingActionSettlements: Record<string, AlicizationActionSettlement>
   replyCommitted: boolean
   pendingDelivery?: AlicizationRuntimeReplyDeliveryIntent | null
-  committedDelivery?: AlicizationRuntimeReplyDeliveryIdentity | null
+  committedDelivery?: AlicizationRuntimeReplyDeliveryIntent | null
   terminalEventType: AlicizationRuntimeEventType | null
   issues: Array<{
     code: string
@@ -89,7 +82,7 @@ export interface AlicizationRuntimeCheckpoint extends AlicizationRuntimeCheckpoi
   activeActionIds: string[]
   deliveryOwner: AlicizationRuntimeDeliveryOwner
   projection: AlicizationRuntimeCheckpointProjection
-  schemaVersion: 2
+  schemaVersion: 3
   updatedAt: number
 }
 
@@ -196,13 +189,6 @@ function parseNullableText(value: unknown, label: string) {
   if (value === null)
     return null
   return parseRequiredText(value, label)
-}
-
-function parseContentHash(value: unknown, label: string) {
-  const contentHash = parseRequiredText(value, label)
-  if (!/^sha256:[0-9a-f]{64}$/.test(contentHash))
-    throw new TypeError(`${label} must be a SHA-256 content hash`)
-  return contentHash
 }
 
 function parseScope(input: AlicizationRuntimeCheckpointScope): AlicizationRuntimeCheckpointScope {
@@ -486,52 +472,10 @@ function parseCheckpointProjection(value: unknown): AlicizationRuntimeCheckpoint
   })
   const pendingDelivery = record.pendingDelivery === undefined || record.pendingDelivery === null
     ? null
-    : (() => {
-        const pendingRecord = asRecord(
-          record.pendingDelivery,
-          'checkpoint projection pendingDelivery',
-        )
-        return {
-          replyId: parseRequiredText(
-            pendingRecord.replyId,
-            'checkpoint projection pendingDelivery replyId',
-          ),
-          deliveryId: parseRequiredText(
-            pendingRecord.deliveryId,
-            'checkpoint projection pendingDelivery deliveryId',
-          ),
-          text: parseRequiredText(
-            pendingRecord.text,
-            'checkpoint projection pendingDelivery text',
-          ),
-          contentHash: parseContentHash(
-            pendingRecord.contentHash,
-            'checkpoint projection pendingDelivery contentHash',
-          ),
-        }
-      })()
+    : parseAlicizationRuntimeReplyDeliveryIntent(record.pendingDelivery)
   const committedDelivery = record.committedDelivery === undefined || record.committedDelivery === null
     ? null
-    : (() => {
-        const committedRecord = asRecord(
-          record.committedDelivery,
-          'checkpoint projection committedDelivery',
-        )
-        return {
-          replyId: parseRequiredText(
-            committedRecord.replyId,
-            'checkpoint projection committedDelivery replyId',
-          ),
-          deliveryId: parseRequiredText(
-            committedRecord.deliveryId,
-            'checkpoint projection committedDelivery deliveryId',
-          ),
-          contentHash: parseContentHash(
-            committedRecord.contentHash,
-            'checkpoint projection committedDelivery contentHash',
-          ),
-        }
-      })()
+    : parseAlicizationRuntimeReplyDeliveryIntent(record.committedDelivery)
 
   return {
     actions,
@@ -553,10 +497,10 @@ function parseStatus(value: unknown): AlicizationRuntimeCheckpointStatus {
   return value as AlicizationRuntimeCheckpointStatus
 }
 
-function parseSchemaVersion(value: unknown): 2 {
-  if (value !== 2)
-    throw new TypeError('checkpoint schemaVersion must be 2')
-  return 2
+function parseSchemaVersion(value: unknown): 3 {
+  if (value !== 3)
+    throw new TypeError('checkpoint schemaVersion must be 3')
+  return 3
 }
 
 export function parseAlicizationRuntimeCheckpoint(
@@ -598,26 +542,18 @@ export function parseAlicizationRuntimeCheckpoint(
     )
   }
   if (projection.pendingDelivery) {
-    const expectedDelivery = createAlicizationReplyDeliveryIntent(
+    assertAlicizationRuntimeReplyDeliveryScope(
       scope,
       deliveryOwner,
-      projection.pendingDelivery.text,
+      projection.pendingDelivery,
     )
-    if (
-      projection.pendingDelivery.replyId !== expectedDelivery.replyId
-      || projection.pendingDelivery.deliveryId !== expectedDelivery.deliveryId
-      || projection.pendingDelivery.contentHash !== expectedDelivery.contentHash
-    ) {
-      throw new TypeError('checkpoint pendingDelivery identity does not match the turn delivery owner')
-    }
   }
   if (projection.committedDelivery) {
-    if (
-      projection.committedDelivery.replyId !== `${scope.turnId}:reply`
-      || projection.committedDelivery.deliveryId !== `${scope.turnId}:delivery:${deliveryOwner}`
-    ) {
-      throw new TypeError('checkpoint committed delivery identity does not match the turn delivery owner')
-    }
+    assertAlicizationRuntimeReplyDeliveryScope(
+      scope,
+      deliveryOwner,
+      projection.committedDelivery,
+    )
   }
   if (
     projection.terminalEventType === 'turn.completed'
@@ -696,7 +632,7 @@ function mapCheckpointRow(row: AlicizationRuntimeCheckpointRow) {
     activeActionIds: activeActionIds as string[],
     deliveryOwner: row.delivery_owner as AlicizationRuntimeDeliveryOwner,
     projection: projection as AlicizationRuntimeCheckpointProjection,
-    schemaVersion: row.schema_version as 2,
+    schemaVersion: row.schema_version as 3,
     updatedAt: row.updated_at,
   })
 }

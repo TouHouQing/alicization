@@ -261,7 +261,7 @@ describe('alicization runtime event store', () => {
       activeActionIds: [],
       deliveryOwner: 'inline',
       projection: checkpointProjection(),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 1_000,
     })
     const foreignScope = runtimeScope({
@@ -295,7 +295,7 @@ describe('alicization runtime event store', () => {
       activeActionIds: [],
       deliveryOwner: 'inline',
       projection: checkpointProjection(),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 1_000,
     })
     const foreignScope = runtimeScope({
@@ -347,7 +347,7 @@ describe('alicization runtime event store', () => {
     const scope = runtimeScope()
     const invalid = {
       ...runtimeEvent(),
-      schemaVersion: 2,
+      schemaVersion: 3,
     }
 
     await expect(db.appendRuntimeEvent(scope, invalid as AlicizationRuntimeEventEnvelope))

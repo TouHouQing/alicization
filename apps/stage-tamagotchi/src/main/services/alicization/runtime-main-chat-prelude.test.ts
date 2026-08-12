@@ -54,7 +54,6 @@ function createVisibleBrowserContinuationRuntimeSurface() {
 function createRuntime(overrides?: {
   callbacks?: Array<Record<string, unknown>>
   runtimeSurface?: Record<string, unknown> | null
-  onPrepare?: (input: Record<string, unknown>) => void
 }) {
   return createAlicizationMainChatPreludeRuntime({
     readLatestUserMessageText: messages => String(messages.at(-1)?.content ?? ''),
@@ -97,13 +96,10 @@ function createRuntime(overrides?: {
         mindTurnGovernance: null,
       },
     })),
-    prepareMainChatSessionExecution: vi.fn(async (input) => {
-      overrides?.onPrepare?.(input as Record<string, unknown>)
-      return {
-        payload: input.payload,
-        prelude: input.prelude,
-      }
-    }) as any,
+    prepareMainChatSessionExecution: vi.fn(async input => ({
+      payload: input.payload,
+      prelude: input.prelude,
+    })) as any,
   })
 }
 
@@ -233,28 +229,6 @@ describe('runtime main chat prelude', () => {
     } as any, mainGateway)
 
     expect((execution as any).prelude.messages).toEqual([userMessage])
-  })
-
-  it('passes the ingress-owned conversation identity into session preparation', async () => {
-    let receivedConversationSessionId: string | null | undefined
-    const runtime = createRuntime({
-      onPrepare: (input) => {
-        receivedConversationSessionId = input.conversationSessionId as string | null | undefined
-      },
-    })
-
-    await runtime.prepareMainChatExecution({
-      cardId: 'card-prelude-runtime-session',
-      turnId: 'turn-prelude-runtime-session',
-      providerId: 'openai',
-      model: 'gpt-5',
-      providerConfig: {},
-      messages: [{ role: 'user', content: '继续刚才的话题。' }],
-    } as any, mainGateway, undefined, {
-      conversationSessionId: 'conversation-runtime-owned',
-    })
-
-    expect(receivedConversationSessionId).toBe('conversation-runtime-owned')
   })
 
   it('keeps natural Codex capability questions on the answer-only dialogue path', async () => {

@@ -10,6 +10,7 @@ import type {
   AlicizationRuntimeEventListOptions,
   AlicizationRuntimeEventScope,
 } from './event-store'
+import type { AlicizationRuntimeReplyArtifact } from './reply-artifact'
 import type {
   AlicizationTurnRuntimeState,
 } from './runtime-state'
@@ -38,6 +39,7 @@ export interface AlicizationRuntimeReplayResult {
   checkpoint: AlicizationRuntimeCheckpoint | null
   tailEvents: AlicizationRuntimeEventEnvelope[]
   state: AlicizationTurnRuntimeState
+  replyArtifact: AlicizationRuntimeReplyArtifact | null
   recoveryRequired: boolean
   reasonCodes: string[]
 }
@@ -117,6 +119,7 @@ export async function replayTurn(input: {
     checkpoint,
     tailEvents,
     state,
+    replyArtifact: state.committedDelivery?.artifact ?? null,
     recoveryRequired: reasonCodes.length > 0,
     reasonCodes,
   }

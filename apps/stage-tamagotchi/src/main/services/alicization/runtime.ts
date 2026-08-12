@@ -191,6 +191,7 @@ import {
   createAlicizationMainChatSessionRuntime,
 } from './main-chat-session-runtime'
 import { acceptAlicizationMainChatStart } from './main-chat-start-acceptance'
+import { cleanupAlicizationAcceptedMainChatStartFailure } from './main-chat-start-cleanup'
 import { resolveAlicizationMainChatStartResult } from './main-chat-start-result'
 import { createAbortError } from './main-chat-stream-primitives'
 import { createAlicizationMainGatewayWorkCoordinator } from './main-gateway-work-coordinator'
@@ -3613,7 +3614,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
     turnWriteAbortControllers.clear()
 
-    const abortedChatRuns = abortAlicizationRunningChatRuns({
+    const abortedChatRuns = await abortAlicizationRunningChatRuns({
       runs: chatRuns.entries(),
       reason,
       mainChatRunState,
@@ -6181,33 +6182,72 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     const { key, mainGateway, runState } = accepted
     const isRunActive = () => chatRuns.get(key)?.state === 'running'
-    const preludePromise = foregroundWork.run(
-      async () => await prepareMainChatPrelude(normalizedPayload, mainGateway, invokeOptions, {
-        abortSignal: runState.controller.signal,
-      }),
-    )
-    const preparationPromise = raceAlicizationMainChatPreparation({
-      preparationPromise: foregroundWork.run(async () => await prepareMainChatExecution(normalizedPayload, mainGateway, preludePromise, {
-        emitToolProgress: (event: Omit<AlicizationChatToolProgressEvent, 'cardId' | 'turnId'>) => {
-          const state = chatRuns.get(key)
-          for (const listener of state?.toolProgressListeners ?? []) {
-            try {
-              listener(event)
-            }
-            catch {
-              // Tool progress observers are lifecycle sidecars and must not break execution.
-            }
-          }
-          emitChatStreamEventForState(state, 'tool-progress', {
-            cardId: normalizedPayload.cardId,
-            turnId: normalizedPayload.turnId,
-            ...event,
-          })
-        },
-        abortSignal: runState.controller.signal,
-      })),
-      signal: runState.controller.signal,
+    let agentTurn: Awaited<ReturnType<typeof mainChatSessionRuntime.openExecutionTurn>>
+    try {
+      agentTurn = await foregroundWork.run(async () => await mainChatSessionRuntime.openExecutionTurn({
+        cardId: normalizedPayload.cardId,
+        turnId: normalizedPayload.turnId,
+      }))
+    }
+    catch (error) {
+      cleanupAlicizationAcceptedMainChatStartFailure({
+        clearPreparationDeadline,
+        abortController: () => startController.abort(createAbortError('agent-turn-open-failed')),
+        controllerAlreadyAborted: startController.signal.aborted,
+        finishRun: () => mainChatRunState.finishRun(key, {
+          status: 'failed',
+          finishReason: 'agent-turn-open-failed',
+          error: error instanceof Error ? error.message : String(error),
+        }),
+        releaseForeground,
+      })
+      throw error
+    }
+    const conversationId = sanitizeText(agentTurn.conversationSessionId)
+    if (!conversationId) {
+      const error = new TypeError('main chat agent turn opened without a conversation identity')
+      cleanupAlicizationAcceptedMainChatStartFailure({
+        clearPreparationDeadline,
+        abortController: () => startController.abort(createAbortError('agent-turn-missing-conversation')),
+        controllerAlreadyAborted: startController.signal.aborted,
+        finishRun: () => mainChatRunState.finishRun(key, {
+          status: 'failed',
+          finishReason: 'agent-turn-missing-conversation',
+          error: error.message,
+        }),
+        releaseForeground,
+      })
+      throw error
+    }
+
+    let resolvePrelude!: (value: Awaited<ReturnType<typeof prepareMainChatPrelude>>) => void
+    let rejectPrelude!: (reason?: unknown) => void
+    const preludePromise = new Promise<Awaited<ReturnType<typeof prepareMainChatPrelude>>>((resolve, reject) => {
+      resolvePrelude = resolve
+      rejectPrelude = reject
     })
+    let resolvePreparation!: (value: Awaited<ReturnType<typeof prepareMainChatExecution>>) => void
+    let rejectPreparation!: (reason?: unknown) => void
+    const preparationPromise = new Promise<Awaited<ReturnType<typeof prepareMainChatExecution>>>((resolve, reject) => {
+      resolvePreparation = resolve
+      rejectPreparation = reject
+    })
+    const emitToolProgress = (event: Omit<AlicizationChatToolProgressEvent, 'cardId' | 'turnId'>) => {
+      const state = chatRuns.get(key)
+      for (const listener of state?.toolProgressListeners ?? []) {
+        try {
+          listener(event)
+        }
+        catch {
+          // Tool progress observers are lifecycle sidecars and must not break execution.
+        }
+      }
+      emitChatStreamEventForState(state, 'tool-progress', {
+        cardId: normalizedPayload.cardId,
+        turnId: normalizedPayload.turnId,
+        ...event,
+      })
+    }
     void preparationPromise.then(clearPreparationDeadline, clearPreparationDeadline)
 
     void foregroundWork.run(async () => await runAlicizationMainChatBackground({
@@ -6216,7 +6256,35 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       activeCardId,
       mainGateway,
       runState,
-      preparationPromise,
+      prepareTurn: async ({ abortSignal }) => {
+        try {
+          const prelude = await foregroundWork.run(
+            async () => await prepareMainChatPrelude(normalizedPayload, mainGateway, invokeOptions, {
+              abortSignal,
+            }),
+          )
+          resolvePrelude(prelude)
+          const prepared = await foregroundWork.run(
+            async () => await prepareMainChatExecution(
+              normalizedPayload,
+              mainGateway,
+              Promise.resolve(prelude),
+              {
+                agentTurn,
+                emitToolProgress,
+                abortSignal,
+              },
+            ),
+          )
+          resolvePreparation(prepared)
+          return prepared
+        }
+        catch (error) {
+          rejectPrelude(error)
+          rejectPreparation(error)
+          throw error
+        }
+      },
       headers: mainGateway.headers,
       isRunActive,
       runStateController: mainChatRunState,
@@ -6262,6 +6330,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         })
       },
       turnLoop: {
+        conversationId,
         userId: localRuntimeUserId,
         persistence: {
           appendRuntimeEvent: async (scope, event) =>

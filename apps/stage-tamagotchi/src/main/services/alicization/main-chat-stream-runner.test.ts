@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { runAlicizationMainChatStream } from './main-chat-stream-runner'
+import {
+  runAlicizationMainChatProviderStep,
+  runAlicizationMainChatStream,
+} from './main-chat-stream-runner'
 import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
 
@@ -156,6 +159,659 @@ afterEach(() => {
 })
 
 describe('main chat stream runner', () => {
+  it('completes immediately when fullStream emits finish without closing', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: 'finish 已经足以结束 Provider step。',
+    })
+    const controller = new AbortController()
+    let readCount = 0
+
+    const pending = runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-finish-without-eof',
+      } as any,
+      prepared: createPrepared(),
+      messages: [],
+      controller,
+      firstEventTimeoutMs: 500,
+      providerReaderCancelTimeoutMs: 5,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall: vi.fn(),
+      streamTextImpl: () => ({
+        fullStream: {
+          getReader: () => ({
+            read: vi.fn(async () => {
+              readCount += 1
+              if (readCount === 1) {
+                return {
+                  done: false,
+                  value: {
+                    type: 'text-delta',
+                    text: providerText,
+                  },
+                }
+              }
+              if (readCount === 2) {
+                return {
+                  done: false,
+                  value: {
+                    type: 'finish',
+                    finishReason: 'stop',
+                  },
+                }
+              }
+              return await new Promise<{ done: boolean }>(() => {})
+            }),
+            cancel: vi.fn(async () => {}),
+            releaseLock: vi.fn(),
+          }),
+        },
+      }),
+    })
+
+    const outcome = await Promise.race([
+      pending,
+      new Promise<'still-pending'>(resolve =>
+        setTimeout(() => resolve('still-pending'), 20),
+      ),
+    ])
+    if (outcome === 'still-pending') {
+      controller.abort('test cleanup')
+      await pending.catch(() => {})
+    }
+
+    expect(outcome).toMatchObject({
+      kind: 'reply',
+      finishReason: 'stop',
+      fullText: providerText,
+    })
+    expect(readCount).toBe(2)
+  })
+
+  it('clears the first-event watchdog after the first Provider progress event', async () => {
+    vi.useFakeTimers()
+    const providerText = createProviderResponsePayload({
+      reply: '长回复没有被首事件超时误杀。',
+    })
+    let readCount = 0
+
+    const pending = runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-first-progress-clears-watchdog',
+      } as any,
+      prepared: createPrepared(),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 20,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall: vi.fn(),
+      streamTextImpl: () => ({
+        fullStream: {
+          getReader: () => ({
+            read: vi.fn(async () => {
+              readCount += 1
+              if (readCount === 1) {
+                await new Promise(resolve => setTimeout(resolve, 5))
+                return {
+                  done: false,
+                  value: {
+                    type: 'text-delta',
+                    text: providerText,
+                  },
+                }
+              }
+              if (readCount === 2) {
+                await new Promise(resolve => setTimeout(resolve, 45))
+                return {
+                  done: false,
+                  value: {
+                    type: 'finish',
+                    finishReason: 'stop',
+                  },
+                }
+              }
+              return { done: true }
+            }),
+            cancel: vi.fn(async () => {}),
+            releaseLock: vi.fn(),
+          }),
+        },
+      }),
+    })
+
+    await vi.advanceTimersByTimeAsync(50)
+
+    await expect(pending).resolves.toMatchObject({
+      kind: 'reply',
+      finishReason: 'stop',
+      fullText: providerText,
+    })
+  })
+
+  it('fails transparently when fullStream reaches EOF without a finish event', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: '这段文本不应被当成完整回复。',
+    })
+
+    await expect(runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-finish-missing',
+      } as any,
+      prepared: createPrepared(),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall: vi.fn(),
+      streamTextImpl: () => ({
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({
+              type: 'text-delta',
+              text: providerText,
+            })
+            controller.close()
+          },
+        }),
+      }),
+    })).rejects.toMatchObject({
+      code: 'chat-provider-finish-missing',
+      message: expect.stringContaining('chat-provider-finish-missing'),
+    })
+  })
+
+  it('disposes the failed reader before starting a Provider retry', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: '清理旧流后重试成功。',
+    })
+    const lifecycle: string[] = []
+    const streamTextImpl = vi.fn()
+      .mockImplementationOnce(() => ({
+        fullStream: {
+          getReader: () => ({
+            read: vi.fn(async () => {
+              throw Object.assign(new Error('temporary provider failure'), {
+                status: 503,
+              })
+            }),
+            cancel: vi.fn(async () => {
+              lifecycle.push('cancel-attempt-1')
+            }),
+            releaseLock: vi.fn(() => {
+              lifecycle.push('release-attempt-1')
+            }),
+          }),
+        },
+      }))
+      .mockImplementationOnce(() => {
+        lifecycle.push('start-attempt-2')
+        return {
+          fullStream: new ReadableStream({
+            start(controller) {
+              controller.enqueue({ type: 'text-delta', text: providerText })
+              controller.enqueue({ type: 'finish', finishReason: 'stop' })
+              controller.close()
+            },
+          }),
+        }
+      })
+
+    await expect(runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-retry-disposes-reader',
+      } as any,
+      prepared: createPrepared(),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall: vi.fn(),
+      streamTextImpl,
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        sleep: vi.fn(async () => {}),
+      },
+    })).resolves.toMatchObject({
+      kind: 'reply',
+      fullText: providerText,
+    })
+
+    expect(lifecycle).toEqual([
+      'cancel-attempt-1',
+      'release-attempt-1',
+      'start-attempt-2',
+    ])
+  })
+
+  it('bounds reader cancellation before retrying a failed Provider attempt', async () => {
+    vi.useFakeTimers()
+    const providerText = createProviderResponsePayload({
+      reply: '有界清理后重试成功。',
+    })
+    const streamTextImpl = vi.fn()
+      .mockImplementationOnce(() => ({
+        fullStream: {
+          getReader: () => ({
+            read: vi.fn(async () => {
+              throw Object.assign(new Error('temporary provider failure'), {
+                status: 503,
+              })
+            }),
+            cancel: vi.fn(() => new Promise<void>(() => {})),
+            releaseLock: vi.fn(),
+          }),
+        },
+      }))
+      .mockImplementationOnce(() => ({
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'text-delta', text: providerText })
+            controller.enqueue({ type: 'finish', finishReason: 'stop' })
+            controller.close()
+          },
+        }),
+      }))
+
+    const pending = runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-bounded-reader-cancel',
+      } as any,
+      prepared: createPrepared(),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      providerReaderCancelTimeoutMs: 10,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall: vi.fn(),
+      streamTextImpl,
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        sleep: vi.fn(async () => {}),
+      },
+    })
+
+    await vi.advanceTimersByTimeAsync(9)
+    expect(streamTextImpl).toHaveBeenCalledOnce()
+    await vi.advanceTimersByTimeAsync(1)
+
+    await expect(pending).resolves.toMatchObject({
+      kind: 'reply',
+      fullText: providerText,
+    })
+    expect(streamTextImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('disposes the reader when a derived Provider promise rejects early', async () => {
+    let resolveRead: ((result: { done: boolean, value?: unknown }) => void) | undefined
+    const cancel = vi.fn(async () => {
+      resolveRead?.({ done: true })
+    })
+    const releaseLock = vi.fn()
+    const derivedFailure = Object.assign(new Error('provider usage failed'), {
+      status: 400,
+    })
+
+    await expect(runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-derived-promise-failure',
+      } as any,
+      prepared: createPrepared(),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall: vi.fn(),
+      streamTextImpl: () => ({
+        fullStream: {
+          getReader: () => ({
+            read: vi.fn(() => new Promise<{ done: boolean, value?: unknown }>((resolve) => {
+              resolveRead = resolve
+            })),
+            cancel,
+            releaseLock,
+          }),
+        },
+        usage: Promise.reject(derivedFailure),
+      }),
+    })).rejects.toBe(derivedFailure)
+
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(releaseLock).toHaveBeenCalledOnce()
+  })
+
+  it('disables parallel tool calls in the Provider request', async () => {
+    const streamTextImpl = vi.fn(() => ({
+      fullStream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({
+            type: 'tool-call',
+            toolCallId: 'single-tool-call',
+            toolName: 'inspect_state',
+            arguments: {},
+          })
+          controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+          controller.close()
+        },
+      }),
+    }))
+
+    await runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-parallel-tools-disabled',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'inspect_state',
+            parameters: {
+              type: 'object',
+              properties: {},
+              additionalProperties: false,
+            },
+          },
+        }],
+      }),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall: vi.fn(),
+      streamTextImpl,
+    })
+
+    expect(streamTextImpl).toHaveBeenCalledWith(expect.objectContaining({
+      parallelToolCalls: false,
+    }))
+  })
+
+  it.each([
+    {
+      label: 'malformed JSON',
+      arguments: '{"path":',
+    },
+    {
+      label: 'missing required arguments',
+      arguments: undefined,
+    },
+  ])('rejects $label instead of executing a tool with empty arguments', async ({
+    arguments: toolArguments,
+  }) => {
+    const emitToolCall = vi.fn()
+
+    await expect(runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-invalid-tool-arguments',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'read_file',
+            parameters: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                },
+              },
+              required: ['path'],
+              additionalProperties: false,
+            },
+          },
+        }],
+      }),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall,
+      streamTextImpl: () => ({
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({
+              type: 'tool-call',
+              toolCallId: 'invalid-tool-call',
+              toolName: 'read_file',
+              ...(toolArguments === undefined
+                ? {}
+                : { arguments: toolArguments }),
+            })
+            controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+            controller.close()
+          },
+        }),
+      }),
+    })).rejects.toMatchObject({
+      code: 'chat-provider-tool-arguments-invalid',
+    })
+    expect(emitToolCall).not.toHaveBeenCalled()
+  })
+
+  it('rejects JSON-object tool arguments that violate the declared schema', async () => {
+    const emitToolCall = vi.fn()
+
+    await expect(runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-schema-invalid-tool-arguments',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'read_file',
+            parameters: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                },
+              },
+              required: ['path'],
+              additionalProperties: false,
+            },
+          },
+        }],
+      }),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall,
+      streamTextImpl: () => ({
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({
+              type: 'tool-call',
+              toolCallId: 'schema-invalid-tool-call',
+              toolName: 'read_file',
+              arguments: {
+                path: 42,
+              },
+            })
+            controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+            controller.close()
+          },
+        }),
+      }),
+    })).rejects.toMatchObject({
+      code: 'chat-provider-tool-arguments-invalid',
+      message: expect.stringContaining('read_file'),
+    })
+    expect(emitToolCall).not.toHaveBeenCalled()
+  })
+
+  it('accepts omitted arguments only for an explicitly parameterless tool', async () => {
+    const emitToolCall = vi.fn()
+
+    await expect(runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-parameterless-tool',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'inspect_state',
+            parameters: {
+              type: 'object',
+              properties: {},
+              additionalProperties: false,
+            },
+          },
+        }],
+      }),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall,
+      streamTextImpl: () => ({
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({
+              type: 'tool-call',
+              toolCallId: 'parameterless-tool-call',
+              toolName: 'inspect_state',
+            })
+            controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+            controller.close()
+          },
+        }),
+      }),
+    })).resolves.toMatchObject({
+      kind: 'action',
+      action: {
+        toolCallId: 'parameterless-tool-call',
+        qualifiedToolName: 'inspect_state',
+        input: {},
+      },
+    })
+    expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
+      arguments: {},
+    }))
+  })
+
+  it.each([null, '', '   '])(
+    'rejects an explicit invalid argument value %j for a parameterless tool',
+    async (toolArguments) => {
+      await expect(runAlicizationMainChatProviderStep({
+        payload: {
+          cardId: 'card-1',
+          turnId: 'turn-provider-parameterless-tool-invalid-arguments',
+        } as any,
+        prepared: createPrepared({
+          tools: [{
+            type: 'function',
+            function: {
+              name: 'inspect_state',
+              parameters: {
+                type: 'object',
+                properties: {},
+                additionalProperties: false,
+              },
+            },
+          }],
+        }),
+        messages: [],
+        controller: new AbortController(),
+        firstEventTimeoutMs: 500,
+        isRunActive: () => true,
+        nonProgressEventTypes: new Set<string>(),
+        emitToolCall: vi.fn(),
+        streamTextImpl: () => ({
+          fullStream: new ReadableStream({
+            start(controller) {
+              controller.enqueue({
+                type: 'tool-call',
+                toolCallId: 'parameterless-tool-call-invalid',
+                toolName: 'inspect_state',
+                arguments: toolArguments,
+              })
+              controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+              controller.close()
+            },
+          }),
+        }),
+      })).rejects.toMatchObject({
+        code: 'chat-provider-tool-arguments-invalid',
+      })
+    },
+  )
+
+  it('fails transparently when a Provider emits a second tool call in one step', async () => {
+    const emitToolCall = vi.fn()
+
+    await expect(runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-parallel-tool-violation',
+      } as any,
+      prepared: createPrepared({
+        tools: ['first_tool', 'second_tool'].map(name => ({
+          type: 'function',
+          function: {
+            name,
+            parameters: {
+              type: 'object',
+              properties: {},
+              additionalProperties: false,
+            },
+          },
+        })),
+      }),
+      messages: [],
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall,
+      streamTextImpl: () => ({
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({
+              type: 'tool-call',
+              toolCallId: 'parallel-tool-call-1',
+              toolName: 'first_tool',
+            })
+            controller.enqueue({
+              type: 'tool-call',
+              toolCallId: 'parallel-tool-call-2',
+              toolName: 'second_tool',
+            })
+            controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+            controller.close()
+          },
+        }),
+      }),
+    })).rejects.toMatchObject({
+      code: 'chat-provider-parallel-tool-calls',
+    })
+    expect(emitToolCall).not.toHaveBeenCalled()
+  })
+
   it('consumes the xsAI fullStream in order when the provider does not use onEvent', async () => {
     const providerText = createProviderResponsePayload({
       reply: '来自 fullStream 的回复。',

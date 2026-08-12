@@ -9,17 +9,22 @@ import type {
   AlicizationRuntimeCheckpoint,
   AlicizationRuntimeCheckpointStatus,
   AlicizationRuntimeDeliveryOwner,
-  AlicizationRuntimeReplyDeliveryIdentity,
-  AlicizationRuntimeReplyDeliveryIntent,
 } from './checkpoint-store'
 import type { AlicizationRuntimeEventScope } from './event-store'
-
-import { createHash } from 'node:crypto'
+import type {
+  AlicizationRuntimeReplyDeliveryIntent,
+} from './reply-artifact'
 
 import {
   parseAlicizationActionObservation,
   parseAlicizationActionSettlement,
 } from '@proj-alicization/stage-shared'
+
+import {
+  assertAlicizationRuntimeReplyDeliveryScope,
+  parseAlicizationRuntimeReplyDeliveryIdentity,
+  parseAlicizationRuntimeReplyDeliveryIntent,
+} from './reply-artifact'
 
 export type AlicizationActionRuntimeStatus
   = | 'active'
@@ -75,7 +80,7 @@ export interface AlicizationTurnRuntimeState extends AlicizationRuntimeEventScop
   pendingActionSettlements: Record<string, AlicizationActionSettlement>
   replyCommitted: boolean
   pendingDelivery: AlicizationRuntimeReplyDeliveryIntent | null
-  committedDelivery: AlicizationRuntimeReplyDeliveryIdentity | null
+  committedDelivery: AlicizationRuntimeReplyDeliveryIntent | null
   terminalEventType: AlicizationRuntimeEventType | null
   issues: AlicizationTurnRuntimeIssue[]
 }
@@ -130,10 +135,10 @@ function cloneState(state: AlicizationTurnRuntimeState, sequence: number): Alici
       ]),
     ),
     pendingDelivery: state.pendingDelivery
-      ? { ...state.pendingDelivery }
+      ? structuredClone(state.pendingDelivery)
       : null,
     committedDelivery: state.committedDelivery
-      ? { ...state.committedDelivery }
+      ? structuredClone(state.committedDelivery)
       : null,
     issues: [...state.issues],
   }
@@ -197,44 +202,37 @@ function terminalTurnStatus(
   return null
 }
 
-export function createAlicizationReplyDeliveryIntent(
-  scope: AlicizationRuntimeEventScope,
-  deliveryOwner: AlicizationRuntimeDeliveryOwner,
-  text: string,
-): AlicizationRuntimeReplyDeliveryIntent {
-  const normalizedText = parseRequiredId(text, 'reply text')
-  return {
-    replyId: `${scope.turnId}:reply`,
-    deliveryId: `${scope.turnId}:delivery:${deliveryOwner}`,
-    text: normalizedText,
-    contentHash: `sha256:${createHash('sha256').update(normalizedText, 'utf8').digest('hex')}`,
-  }
-}
-
 function parseReplyDeliveryIntent(
   state: AlicizationTurnRuntimeState,
   payload: unknown,
 ) {
-  const record = asRecord(payload, 'reply delivery intent')
-  const intent = {
-    replyId: parseRequiredId(record.replyId, 'replyId'),
-    deliveryId: parseRequiredId(record.deliveryId, 'deliveryId'),
-    text: parseRequiredId(record.text, 'reply text'),
-    contentHash: parseRequiredId(record.contentHash, 'reply contentHash'),
-  }
-  const expected = createAlicizationReplyDeliveryIntent(
+  const record = asRecord(payload, 'reply delivery event')
+  const intent = parseAlicizationRuntimeReplyDeliveryIntent({
+    replyId: record.replyId,
+    deliveryId: record.deliveryId,
+    contentHash: record.contentHash,
+    artifactHash: record.artifactHash,
+    artifact: record.artifact,
+  })
+  assertAlicizationRuntimeReplyDeliveryScope(
     state,
     state.deliveryOwner,
-    intent.text,
+    intent,
   )
-  if (
-    intent.replyId !== expected.replyId
-    || intent.deliveryId !== expected.deliveryId
-    || intent.contentHash !== expected.contentHash
-  ) {
-    throw new Error('runtime reply delivery intent identity is not stable for the turn')
-  }
   return intent
+}
+
+function parseReplyDeliveryIdentity(
+  state: AlicizationTurnRuntimeState,
+  payload: unknown,
+) {
+  const identity = parseAlicizationRuntimeReplyDeliveryIdentity(payload)
+  assertAlicizationRuntimeReplyDeliveryScope(
+    state,
+    state.deliveryOwner,
+    identity,
+  )
+  return identity
 }
 
 function parseActionIdentity(payload: unknown) {
@@ -637,6 +635,8 @@ function settleTurn(
 
   state.status = status
   state.terminalEventType = eventType
+  if (eventType === 'runtime.cancelled')
+    state.pendingDelivery = null
   if (eventType === 'turn.completed' && !state.replyCommitted) {
     appendIssue(state, {
       code: 'completed-without-reply-commit',
@@ -705,10 +705,10 @@ export function restoreAlicizationTurnRuntimeState(
     ),
     replyCommitted: checkpoint.projection.replyCommitted,
     pendingDelivery: checkpoint.projection.pendingDelivery
-      ? { ...checkpoint.projection.pendingDelivery }
+      ? structuredClone(checkpoint.projection.pendingDelivery)
       : null,
     committedDelivery: checkpoint.projection.committedDelivery
-      ? { ...checkpoint.projection.committedDelivery }
+      ? structuredClone(checkpoint.projection.committedDelivery)
       : null,
     terminalEventType: checkpoint.projection.terminalEventType,
     issues: checkpoint.projection.issues.map(issue => ({
@@ -808,8 +808,8 @@ export function reduceAlicizationRuntimeEvent(
         && (
           next.pendingDelivery.replyId !== intent.replyId
           || next.pendingDelivery.deliveryId !== intent.deliveryId
-          || next.pendingDelivery.text !== intent.text
           || next.pendingDelivery.contentHash !== intent.contentHash
+          || next.pendingDelivery.artifactHash !== intent.artifactHash
         )
       ) {
         throw new Error('runtime reply delivery intent content changed after it became pending')
@@ -830,12 +830,13 @@ export function reduceAlicizationRuntimeEvent(
       return next
     }
     if (next.replyCommitted) {
-      const duplicateIntent = parseReplyDeliveryIntent(next, event.payload)
+      const duplicateIntent = parseReplyDeliveryIdentity(next, event.payload)
       if (
         !next.committedDelivery
         || duplicateIntent.replyId !== next.committedDelivery.replyId
         || duplicateIntent.deliveryId !== next.committedDelivery.deliveryId
         || duplicateIntent.contentHash !== next.committedDelivery.contentHash
+        || duplicateIntent.artifactHash !== next.committedDelivery.artifactHash
       ) {
         throw new Error('runtime duplicate reply commit does not match the committed delivery identity')
       }
@@ -852,20 +853,18 @@ export function reduceAlicizationRuntimeEvent(
         })
         return next
       }
-      const committedIntent = parseReplyDeliveryIntent(next, event.payload)
+      const committedIdentity = parseReplyDeliveryIdentity(next, event.payload)
       if (
-        committedIntent.replyId !== next.pendingDelivery.replyId
-        || committedIntent.deliveryId !== next.pendingDelivery.deliveryId
-        || committedIntent.text !== next.pendingDelivery.text
-        || committedIntent.contentHash !== next.pendingDelivery.contentHash
+        committedIdentity.replyId !== next.pendingDelivery.replyId
+        || committedIdentity.deliveryId !== next.pendingDelivery.deliveryId
+        || committedIdentity.contentHash !== next.pendingDelivery.contentHash
+        || committedIdentity.artifactHash !== next.pendingDelivery.artifactHash
       ) {
         throw new Error('runtime reply commit does not match the pending delivery intent')
       }
       next.replyCommitted = true
       next.committedDelivery = {
-        replyId: committedIntent.replyId,
-        deliveryId: committedIntent.deliveryId,
-        contentHash: committedIntent.contentHash,
+        ...next.pendingDelivery,
       }
       next.pendingDelivery = null
     }
@@ -947,15 +946,15 @@ export function toAlicizationRuntimeCheckpoint(
       ),
       replyCommitted: state.replyCommitted,
       pendingDelivery: state.pendingDelivery
-        ? { ...state.pendingDelivery }
+        ? structuredClone(state.pendingDelivery)
         : null,
       committedDelivery: state.committedDelivery
-        ? { ...state.committedDelivery }
+        ? structuredClone(state.committedDelivery)
         : null,
       terminalEventType: state.terminalEventType,
       issues: state.issues.map(issue => ({ ...issue })),
     },
-    schemaVersion: 2,
+    schemaVersion: 3,
     updatedAt,
   }
 }

@@ -15,6 +15,10 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import { setupAlicizationDb } from '../db'
 import { createAlicizationRuntimeCheckpointStore } from './checkpoint-store'
+import {
+  createAlicizationRuntimeReplyArtifact,
+  createAlicizationRuntimeReplyDeliveryIntent,
+} from './reply-artifact'
 
 const sandboxDirs: string[] = []
 
@@ -132,6 +136,56 @@ function checkpointProjection(activeActionIds: string[] = []) {
   }
 }
 
+function replyDeliveryIntent(
+  turnId: string,
+  visibleText = 'Visible reply',
+  fullText = '  {"reply":"Visible reply","trace":"preserved"}  ',
+) {
+  const artifact = createAlicizationRuntimeReplyArtifact({
+    artifactVersion: 1,
+    visibleText,
+    fullText,
+    finishReason: 'stop',
+    visibleReplyExecution: {
+      mode: 'provider-stream',
+      expectedVisibleReplyAuthority: 'llm-mind',
+      actualVisibleReplyAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      reason: 'turn-event-loop',
+    },
+    realization: {
+      version: 'visible-reply-realization-v1',
+      expectedAuthority: 'llm-mind',
+      actualAuthority: 'llm-mind',
+      providerMindExecuted: true,
+      mode: 'provider-stream',
+      visibleText,
+      visibleReplyValidationStatus: 'approved',
+      nonHumanAuthoredStatus: null,
+      blockedReasons: [],
+      reason: 'turn-event-loop',
+      critic: {
+        version: 'visible-reply-critic-public-summary-v1',
+        status: 'pass',
+        providerMindRequired: true,
+        reasonCodes: [],
+      },
+      closure: {
+        version: 'visible-reply-closure-public-summary-v1',
+        status: 'approved',
+        reasonCodes: [],
+        initialCriticStatus: 'pass',
+        finalCriticStatus: 'pass',
+      },
+    },
+  })
+  return createAlicizationRuntimeReplyDeliveryIntent(
+    { turnId },
+    'inline',
+    artifact,
+  )
+}
+
 function completedActionProjection(overrides: Record<string, unknown> = {}) {
   return {
     actionId: 'action-1',
@@ -169,7 +223,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: ['action-1'],
       deliveryOwner: 'inline',
       projection: checkpointProjection(['action-1']),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 1_000,
       abortSignal: AbortSignal.abort(),
       activeActions: new Map([['action-1', { status: 'running' }]]),
@@ -183,7 +237,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: ['action-1', 'action-2'],
       deliveryOwner: 'callback',
       projection: checkpointProjection(['action-1', 'action-2']),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 2_000,
     })
 
@@ -196,7 +250,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: ['action-1', 'action-2'],
       deliveryOwner: 'callback',
       projection: checkpointProjection(['action-1', 'action-2']),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 2_000,
     })
     expect(loaded).not.toHaveProperty('abortSignal')
@@ -234,7 +288,7 @@ describe('alicization runtime checkpoint store', () => {
         ...checkpointProjection(['action-1']),
         pendingActionSettlements,
       },
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 1_000,
     } as any)
 
@@ -260,7 +314,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: [],
       deliveryOwner: 'inline',
       projection: checkpointProjection(),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 1_000,
     })
 
@@ -276,7 +330,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: [],
       deliveryOwner: 'inline',
       projection: checkpointProjection(),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 2_000,
     })).rejects.toThrow(/scope/i)
 
@@ -297,7 +351,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: ['action-1'],
       deliveryOwner: 'inline',
       projection: checkpointProjection(['action-1']),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 2_000,
     })
 
@@ -308,7 +362,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: [],
       deliveryOwner: 'callback',
       projection: checkpointProjection(),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 3_000,
     }))
       .rejects
@@ -320,7 +374,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: [],
       deliveryOwner: 'callback',
       projection: checkpointProjection(),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 1_999,
     }))
       .rejects
@@ -349,7 +403,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: [],
       deliveryOwner: 'inline',
       projection: checkpointProjection(),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 1_000,
     }))
       .rejects
@@ -362,7 +416,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: [],
       deliveryOwner: 'inline',
       projection: checkpointProjection(),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 1_000,
     })
     await db.saveRuntimeCheckpoint({
@@ -372,7 +426,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: ['action-1'],
       deliveryOwner: 'inline',
       projection: checkpointProjection(['action-1']),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 1_500,
     })
     await expect(db.saveRuntimeCheckpoint({
@@ -382,7 +436,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: ['action-1'],
       deliveryOwner: 'callback',
       projection: checkpointProjection(['action-1']),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 2_000,
     }))
       .rejects
@@ -395,7 +449,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: ['action-1'],
       deliveryOwner: 'inline',
       projection: checkpointProjection(['action-1']),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 2_000,
     })
 
@@ -419,11 +473,7 @@ describe('alicization runtime checkpoint store', () => {
       projection: {
         ...checkpointProjection(),
         replyCommitted: true,
-        committedDelivery: {
-          replyId: 'turn-same-sequence-projection:reply',
-          deliveryId: 'turn-same-sequence-projection:delivery:inline',
-          contentHash: 'sha256:f9c19358298ab7c80ff1ccf83c042aa107c1112595a61a9960f6151a6bfde474',
-        },
+        committedDelivery: replyDeliveryIntent('turn-same-sequence-projection'),
       },
     }],
     ['active action ids', {
@@ -443,7 +493,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: [],
       deliveryOwner: 'inline' as const,
       projection: checkpointProjection(),
-      schemaVersion: 2 as const,
+      schemaVersion: 3 as const,
       updatedAt: 1_000,
     }
     await db.saveRuntimeCheckpoint(checkpoint)
@@ -479,7 +529,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: [],
       deliveryOwner: 'inline',
       projection: checkpointProjection(),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 1_000,
     }))
       .rejects
@@ -494,11 +544,11 @@ describe('alicization runtime checkpoint store', () => {
   it.each([
     ['unknown status', {
       status: 'unknown-status',
-      schemaVersion: 2,
+      schemaVersion: 3,
     }],
     ['unsupported schema version', {
       status: 'running',
-      schemaVersion: 3,
+      schemaVersion: 2,
     }],
   ])('rejects an %s checkpoint contract', async (_label, overrides) => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
@@ -643,17 +693,16 @@ describe('alicization runtime checkpoint store', () => {
       projection: {
         ...checkpointProjection(),
         replyCommitted: true,
-        pendingDelivery: {
-          replyId: 'turn-invalid-projection:reply',
-          deliveryId: 'turn-invalid-projection:delivery:inline',
-          text: 'pending reply',
-          contentHash: 'sha256:523d68ba82d629ea759cc536f04f5df13b56eaf679db08e8d4af17167f2cfdda',
-        },
-        committedDelivery: {
-          replyId: 'turn-invalid-projection:reply',
-          deliveryId: 'turn-invalid-projection:delivery:inline',
-          contentHash: 'sha256:523d68ba82d629ea759cc536f04f5df13b56eaf679db08e8d4af17167f2cfdda',
-        },
+        pendingDelivery: replyDeliveryIntent(
+          'turn-invalid-projection',
+          'Pending reply',
+          '  {"reply":"Pending reply","trace":"preserved"}  ',
+        ),
+        committedDelivery: replyDeliveryIntent(
+          'turn-invalid-projection',
+          'Committed reply',
+          '  {"reply":"Committed reply","trace":"preserved"}  ',
+        ),
       },
     })],
   ])('rejects checkpoint projection with %s on save', async (_label, buildOverrides) => {
@@ -670,7 +719,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: [],
       deliveryOwner: 'inline',
       projection: checkpointProjection(),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 1_000,
       ...buildOverrides(),
     } as any))
@@ -680,16 +729,17 @@ describe('alicization runtime checkpoint store', () => {
     await db.close()
   })
 
-  it('persists committed delivery identity in a completed checkpoint', async () => {
+  it('restores the complete committed reply artifact from a completed checkpoint', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
       allowUnboundScope: true,
     })
-    const scope = runtimeScope({ turnId: 'turn-completed-delivery-identity' })
-    const committedDelivery = {
-      replyId: 'turn-completed-delivery-identity:reply',
-      deliveryId: 'turn-completed-delivery-identity:delivery:inline',
-      contentHash: 'sha256:f9c19358298ab7c80ff1ccf83c042aa107c1112595a61a9960f6151a6bfde474',
-    }
+    const scope = runtimeScope({ turnId: 'turn-completed-delivery-artifact' })
+    const fullText = '  {"reply":"Recovered reply","trace":"raw provider bytes"}  '
+    const committedDelivery = replyDeliveryIntent(
+      scope.turnId,
+      'Recovered reply',
+      fullText,
+    )
     await db.appendRuntimeEvent(
       scope,
       runtimeEvent('event-turn-completed', 'turn.completed', scope),
@@ -706,13 +756,24 @@ describe('alicization runtime checkpoint store', () => {
         committedDelivery,
         terminalEventType: 'turn.completed' as const,
       },
-      schemaVersion: 2 as const,
+      schemaVersion: 3 as const,
       updatedAt: 1_000,
     }
 
     await db.saveRuntimeCheckpoint(checkpoint)
 
-    expect(await db.loadRuntimeCheckpoint(scope)).toEqual(checkpoint)
+    const restored = await db.loadRuntimeCheckpoint(scope)
+    expect(restored).toEqual(checkpoint)
+    expect(restored?.projection.committedDelivery).toMatchObject({
+      replyId: `${scope.turnId}:reply`,
+      deliveryId: `${scope.turnId}:delivery:inline`,
+      contentHash: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+      artifactHash: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+      artifact: {
+        visibleText: 'Recovered reply',
+        fullText,
+      },
+    })
     await db.close()
   })
 
@@ -730,7 +791,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: [],
       deliveryOwner: 'inline',
       projection: checkpointProjection(),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 1_000,
     })
     const databasePath = db.dbPath
@@ -781,7 +842,7 @@ describe('alicization runtime checkpoint store', () => {
       activeActionIds: [],
       deliveryOwner: 'inline',
       projection: checkpointProjection(),
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: 2_000,
     })
     await db.appendRuntimeEvent(scope, runtimeEvent('event-3', 'context.assembly.completed'))
@@ -919,7 +980,7 @@ describe('alicization runtime checkpoint store', () => {
           '["action-1"]',
           'inline',
           JSON.stringify(checkpointProjection(['action-1'])),
-          2,
+          3,
           1_000,
         ],
       )
@@ -933,7 +994,7 @@ describe('alicization runtime checkpoint store', () => {
         activeActionIds: ['action-1'],
         deliveryOwner: 'inline',
         projection: checkpointProjection(['action-1']),
-        schemaVersion: 2,
+        schemaVersion: 3,
         updatedAt: 1_000,
       })
     }

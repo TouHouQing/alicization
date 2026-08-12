@@ -4,6 +4,7 @@ import type { IpcMainEvent } from 'electron'
 import type {
   AlicizationChatStartPayload,
 } from '../../../shared/eventa'
+import type { AlicizationAgentTurnRuntime } from './agent-runtime'
 import type { MainGatewayToolExecutionProgress } from './main-chat-execution-surface'
 import type {
   AlicizationPreparedMainChatExecutionResult,
@@ -39,6 +40,7 @@ interface CreateAlicizationMainChatPreludeRuntimeOptions {
   prepareMainChatSessionExecution: (input: {
     payload: AlicizationChatStartPayload
     prelude: AlicizationPreparedMainChatPrelude
+    agentTurn?: AlicizationAgentTurnRuntime
     emitToolProgress?: (input: MainGatewayToolExecutionProgress) => void
     abortSignal?: AbortSignal
   }) => Promise<AlicizationPreparedMainChatExecutionResult>
@@ -130,6 +132,7 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     mainGateway: MainGatewayResolvedConfig,
     preludePromise?: Promise<AlicizationPreparedMainChatPrelude>,
     options?: {
+      agentTurn?: AlicizationAgentTurnRuntime
       emitToolProgress?: (input: MainGatewayToolExecutionProgress) => void
       abortSignal?: AbortSignal
     },

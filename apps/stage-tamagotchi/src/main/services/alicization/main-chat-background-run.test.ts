@@ -2,6 +2,7 @@ import type { Message } from '@xsai/shared-chat'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { abortAlicizationDirectChatRun } from './main-chat-abort'
 import {
   mainChatBackgroundRunTestInternals,
   runAlicizationMainChatBackground,
@@ -349,6 +350,287 @@ describe('main chat background run', () => {
       eventTypes.indexOf('context.assembly.completed'),
     )
     expect(runAlicizationMainChatProviderStep).toHaveBeenCalledOnce()
+  })
+
+  it('registers EventLoop cancellation while the turn is active and removes its own entry after completion', async () => {
+    let releaseProvider!: () => void
+    const providerPending = new Promise<void>((resolve) => {
+      releaseProvider = resolve
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(async () => {
+      await providerPending
+      return {
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: 'Provider reply',
+        text: 'Provider reply',
+      }
+    })
+    const input = createInput()
+
+    const running = runAlicizationMainChatBackground(input)
+    await vi.waitFor(() => {
+      expect(input.runState.cancelTurn).toBeTypeOf('function')
+      expect(runAlicizationMainChatProviderStep).toHaveBeenCalledOnce()
+    })
+
+    releaseProvider()
+    await running
+
+    expect(input.runState.cancelTurn).toBeUndefined()
+  })
+
+  it('does not clear a newer cancellation owner when the EventLoop turn finishes', async () => {
+    let releaseProvider!: () => void
+    const providerPending = new Promise<void>((resolve) => {
+      releaseProvider = resolve
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(async () => {
+      await providerPending
+      return {
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: 'Provider reply',
+        text: 'Provider reply',
+      }
+    })
+    const input = createInput()
+    const newerCancelTurn = vi.fn(async () => true)
+
+    const running = runAlicizationMainChatBackground(input)
+    await vi.waitFor(() => {
+      expect(input.runState.cancelTurn).toBeTypeOf('function')
+      expect(runAlicizationMainChatProviderStep).toHaveBeenCalledOnce()
+    })
+    input.runState.cancelTurn = newerCancelTurn
+
+    releaseProvider()
+    await running
+
+    expect(input.runState.cancelTurn).toBe(newerCancelTurn)
+  })
+
+  it('keeps UI and durable state completed when abort races reply commit persistence', async () => {
+    let releaseReplyCommit!: () => void
+    let notifyReplyCommitStarted!: () => void
+    const replyCommitStarted = new Promise<void>((resolve) => {
+      notifyReplyCommitStarted = resolve
+    })
+    const replyCommitPending = new Promise<void>((resolve) => {
+      releaseReplyCommit = resolve
+    })
+    const events: any[] = []
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        if (event.eventType === 'assistant.reply.committed') {
+          notifyReplyCommitStarted()
+          await replyCommitPending
+        }
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+    }
+    const input = createInput('记住这轮', {
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    } as any)
+
+    const running = runAlicizationMainChatBackground(input)
+    await replyCommitStarted
+    expect(input.emitChunk).toHaveBeenCalledOnce()
+
+    const abortResult = await abortAlicizationDirectChatRun({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-1',
+        reason: 'manual',
+      },
+      getRun: () => input.runState,
+      mainChatRunState: {
+        createKey: () => input.key,
+        hasRecentlyFinished: () => false,
+        finishRun: input.runStateController.finishRun,
+      },
+      createAbortError: reason => new DOMException(reason, 'AbortError'),
+      appendRuntimeDebugLine: input.appendRuntimeDebugLine,
+    })
+
+    expect(abortResult).toEqual({
+      accepted: false,
+      state: 'finished',
+    })
+    expect(input.runState.state).toBe('running')
+    expect(input.runState.controller.signal.aborted).toBe(false)
+    expect(input.runStateController.finishRun).not.toHaveBeenCalled()
+
+    releaseReplyCommit()
+    await running
+
+    expect(input.runStateController.finishRun).toHaveBeenCalledOnce()
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(
+      input.key,
+      expect.objectContaining({
+        status: 'completed',
+        origin: 'provider',
+      }),
+    )
+    expect(events.map(event => event.eventType)).toContain('turn.completed')
+    expect(events.map(event => event.eventType)).not.toContain('runtime.cancelled')
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+  })
+
+  it('does not route an EventLoop-owned cancellation through the failure lifecycle', async () => {
+    const events: any[] = []
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(
+      async () => await new Promise<never>(() => {}),
+    )
+    const input = createInput('停止这轮', {
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence: {
+          appendRuntimeEvent: vi.fn(async (_scope, event) => {
+            const persisted = {
+              ...event,
+              sequence: events.length + 1,
+            }
+            events.push(persisted)
+            return persisted
+          }),
+          saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+        },
+        userId: 'local-user-stable',
+      },
+    } as any)
+
+    const running = runAlicizationMainChatBackground(input)
+    await vi.waitFor(() => {
+      expect(input.runState.cancelTurn).toBeTypeOf('function')
+      expect(runAlicizationMainChatProviderStep).toHaveBeenCalledOnce()
+    })
+    const abortResult = await abortAlicizationDirectChatRun({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-1',
+        reason: 'manual',
+      },
+      getRun: () => input.runState,
+      mainChatRunState: {
+        createKey: () => input.key,
+        hasRecentlyFinished: () => false,
+        finishRun: input.runStateController.finishRun,
+      },
+      createAbortError: reason => new DOMException(reason, 'AbortError'),
+      appendRuntimeDebugLine: input.appendRuntimeDebugLine,
+    })
+    await running
+
+    expect(abortResult).toEqual({
+      accepted: true,
+      state: 'aborted',
+    })
+    expect(input.runState.controller.signal.aborted).toBe(false)
+    expect(input.runStateController.finishRun).toHaveBeenCalledOnce()
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(input.key, {
+      status: 'aborted',
+      finishReason: 'manual',
+    })
+    expect(events.map(event => event.eventType)).toContain('runtime.cancelled')
+    expect(events.map(event => event.eventType)).not.toContain('turn.failed')
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+  })
+
+  it('keeps the accepted EventLoop cancellation authoritative across concurrent abort requests', async () => {
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(
+      async () => await new Promise<never>(() => {}),
+    )
+    const input = createInput('停止这轮')
+    const abortInput = {
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-1',
+        reason: 'manual',
+      },
+      getRun: () => input.runState,
+      mainChatRunState: {
+        createKey: () => input.key,
+        hasRecentlyFinished: () => false,
+        finishRun: input.runStateController.finishRun,
+      },
+      createAbortError: (reason: string) => new DOMException(reason, 'AbortError'),
+      appendRuntimeDebugLine: input.appendRuntimeDebugLine,
+    }
+
+    const running = runAlicizationMainChatBackground(input)
+    await vi.waitFor(() => {
+      expect(input.runState.cancelTurn).toBeTypeOf('function')
+      expect(runAlicizationMainChatProviderStep).toHaveBeenCalledOnce()
+    })
+    const firstAbort = abortAlicizationDirectChatRun(abortInput)
+    const secondAbort = abortAlicizationDirectChatRun(abortInput)
+    const [firstResult, secondResult] = await Promise.all([firstAbort, secondAbort])
+    await running
+
+    expect([firstResult, secondResult]).toEqual(expect.arrayContaining([
+      {
+        accepted: true,
+        state: 'aborted',
+      },
+      {
+        accepted: false,
+        state: 'finished',
+      },
+    ]))
+    expect(input.runStateController.finishRun).toHaveBeenCalledOnce()
+    expect(handleAlicizationMainChatRunFailure).not.toHaveBeenCalled()
+  })
+
+  it('persists preparation failures as context failures before the Provider starts', async () => {
+    const events: any[] = []
+    const preparationFailure = new Error('working memory checkpoint failed')
+    const input = createInput('继续刚才的任务', {
+      prepareTurn: vi.fn(async () => {
+        throw preparationFailure
+      }),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence: {
+          appendRuntimeEvent: vi.fn(async (_scope, event) => {
+            const persisted = {
+              ...event,
+              sequence: events.length + 1,
+            }
+            events.push(persisted)
+            return persisted
+          }),
+          saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+        },
+        userId: 'local-user-stable',
+      },
+    } as any)
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(runAlicizationMainChatProviderStep).not.toHaveBeenCalled()
+    expect(events.map(event => event.eventType)).toEqual([
+      'turn.accepted',
+      'context.assembly.started',
+      'turn.failed',
+    ])
+    expect(events.at(-1)?.payload).toEqual(expect.objectContaining({
+      error: 'working memory checkpoint failed',
+      surface: 'context',
+    }))
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledWith(expect.objectContaining({
+      error: preparationFailure,
+    }))
   })
 
   it('preserves the original Provider failure across the EventLoop boundary', async () => {

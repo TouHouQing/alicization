@@ -21,6 +21,9 @@ import type {
 
 import { Buffer } from 'node:buffer'
 
+import Ajv from 'ajv'
+import addFormats from 'ajv-formats'
+
 import { errorMessageFrom } from '@moeru/std'
 import {
   createAlicizationProviderVisibleArtifact,
@@ -61,6 +64,13 @@ interface AlicizationProviderStreamReader {
 }
 
 const providerReaderCancelTimeoutMs = 1_000
+const providerToolArgumentsValidator = addFormats(new Ajv({
+  allErrors: true,
+  coerceTypes: false,
+  removeAdditional: false,
+  strict: false,
+  useDefaults: false,
+}))
 
 interface AlicizationProviderFullStream {
   getReader?: () => AlicizationProviderStreamReader
@@ -121,22 +131,122 @@ function isTerminalToolResult(result: unknown) {
   return (result as Record<string, unknown>).continuationPolicy === 'stop'
 }
 
-function readStreamToolArguments(event: Record<string, unknown>) {
-  for (const raw of [event.arguments, event.args]) {
-    if (raw && typeof raw === 'object' && !Array.isArray(raw))
-      return raw as Record<string, unknown>
-    if (typeof raw !== 'string' || !raw.trim())
+type StreamToolArguments
+  = | { status: 'present', value: Record<string, unknown> }
+    | { status: 'missing' }
+    | { status: 'invalid' }
+
+function readStreamToolArgumentsResult(event: Record<string, unknown>): StreamToolArguments {
+  for (const key of ['arguments', 'args'] as const) {
+    if (!(key in event))
       continue
+    const raw = event[key]
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      return {
+        status: 'present',
+        value: raw as Record<string, unknown>,
+      }
+    }
+    if (typeof raw !== 'string' || !raw.trim())
+      return { status: 'invalid' }
     try {
       const parsed: unknown = JSON.parse(raw)
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
-        return parsed as Record<string, unknown>
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return {
+          status: 'present',
+          value: parsed as Record<string, unknown>,
+        }
+      }
+      return { status: 'invalid' }
     }
     catch {
-      // Invalid tool arguments remain absent instead of being guessed.
+      return { status: 'invalid' }
     }
   }
-  return undefined
+  return { status: 'missing' }
+}
+
+function readStreamToolArguments(event: Record<string, unknown>) {
+  const result = readStreamToolArgumentsResult(event)
+  return result.status === 'present'
+    ? result.value
+    : undefined
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function isExplicitlyParameterlessTool(tool: Tool | undefined) {
+  const parameters = tool?.function.parameters
+  if (!isRecord(parameters) || parameters.type !== 'object')
+    return false
+  if (
+    !isRecord(parameters.properties)
+    || Object.keys(parameters.properties).length > 0
+    || parameters.additionalProperties !== false
+  ) {
+    return false
+  }
+  return parameters.required === undefined
+    || (Array.isArray(parameters.required) && parameters.required.length === 0)
+}
+
+function createProviderToolProtocolError(
+  code: 'chat-provider-tool-arguments-invalid'
+    | 'chat-provider-parallel-tool-calls',
+  message: string,
+) {
+  return Object.assign(
+    new Error(`${code}: ${message}`),
+    {
+      code,
+      name: 'AlicizationProviderProtocolError',
+    },
+  )
+}
+
+function assertProviderToolArguments(
+  tool: Tool | undefined,
+  input: Record<string, unknown>,
+) {
+  if (!tool) {
+    throw createProviderToolProtocolError(
+      'chat-provider-tool-arguments-invalid',
+      'Provider requested a tool that was not offered for this model step',
+    )
+  }
+
+  try {
+    const validate = providerToolArgumentsValidator.compile(
+      tool.function.parameters,
+    )
+    if (validate(input))
+      return
+
+    throw createProviderToolProtocolError(
+      'chat-provider-tool-arguments-invalid',
+      `Provider arguments for tool "${tool.function.name}" failed schema validation: ${
+        providerToolArgumentsValidator.errorsText(validate.errors, {
+          dataVar: 'arguments',
+          separator: '; ',
+        })
+      }`,
+    )
+  }
+  catch (error) {
+    if (
+      error
+      && typeof error === 'object'
+      && (error as { code?: unknown }).code === 'chat-provider-tool-arguments-invalid'
+    ) {
+      throw error
+    }
+    throw createProviderToolProtocolError(
+      'chat-provider-tool-arguments-invalid',
+      `Tool "${tool.function.name}" has an invalid parameter schema: ${errorMessageFrom(error)}`,
+    )
+  }
 }
 
 export interface AlicizationMainChatStreamRunnerResult {
@@ -240,6 +350,7 @@ export interface RunAlicizationMainChatProviderStepOptions {
   controller: AbortController
   signal?: AbortSignal
   firstEventTimeoutMs: number
+  providerContinuationTimeoutMs?: number
   providerReaderCancelTimeoutMs?: number
   isRunActive: () => boolean
   nonProgressEventTypes: Set<string>
@@ -260,10 +371,41 @@ function createProviderProposalTools(tools: Tool[] | undefined) {
   }))
 }
 
+function appendProviderToolCallMessage(
+  messages: Message[],
+  input: {
+    input: Record<string, unknown>
+    toolCallId: string
+    toolName: string
+  },
+) {
+  messages.push({
+    role: 'assistant',
+    content: '',
+    tool_calls: [{
+      id: input.toolCallId,
+      type: 'function',
+      function: {
+        name: input.toolName,
+        arguments: JSON.stringify(input.input),
+      },
+    }],
+  })
+}
+
+function createProviderFinishMissingError() {
+  return Object.assign(
+    new Error('chat-provider-finish-missing: Provider stream reached EOF without a finish event'),
+    {
+      code: 'chat-provider-finish-missing',
+      name: 'AlicizationProviderProtocolError',
+    },
+  )
+}
+
 export async function runAlicizationMainChatProviderStep(
   input: RunAlicizationMainChatProviderStepOptions,
 ): Promise<AlicizationMainChatProviderStepResult> {
-  const parentSignal = input.signal ?? input.controller.signal
   const providerRetryAttempt = input.providerRetryAttempt ?? 0
   const providerRetryDeadlineAt = input.providerRetryDeadlineAt
     ?? input.providerRetryPolicy?.deadlineAt
@@ -273,25 +415,59 @@ export async function runAlicizationMainChatProviderStep(
     providerId: input.payload.providerId,
     tools: input.prepared.tools,
   }))
+  const toolCallIdentity = input.prepared.toolCallIdentity
+    ?? createAlicizationMainChatToolCallIdentityRegistry()
   const providerController = new AbortController()
   const forwardAbort = () => {
     if (!providerController.signal.aborted) {
       providerController.abort(
-        parentSignal.reason ?? createAbortError('chat-abort'),
+        input.signal?.reason
+        ?? input.controller.signal.reason
+        ?? createAbortError('chat-abort'),
       )
     }
   }
-  if (parentSignal.aborted)
+  if (input.controller.signal.aborted || input.signal?.aborted) {
     forwardAbort()
-  else
-    parentSignal.addEventListener('abort', forwardAbort, { once: true })
+  }
+  else {
+    input.controller.signal.addEventListener('abort', forwardAbort, { once: true })
+    input.signal?.addEventListener('abort', forwardAbort, { once: true })
+  }
 
   let outputObserved = false
   let reader: AlicizationProviderStreamReader | null = null
   let readerCompleted = false
   let wakeLegacyEventWaiter: (() => void) | null = null
   let attemptCleanupDone = false
-  const timeout = setTimeout(() => {
+  let firstEventTimeout: ReturnType<typeof setTimeout> | undefined
+  let continuationTimeout: ReturnType<typeof setTimeout> | undefined
+
+  const clearFirstEventWatchdog = () => {
+    if (firstEventTimeout) {
+      clearTimeout(firstEventTimeout)
+      firstEventTimeout = undefined
+    }
+  }
+  const clearContinuationWatchdog = () => {
+    if (continuationTimeout) {
+      clearTimeout(continuationTimeout)
+      continuationTimeout = undefined
+    }
+  }
+  const armContinuationWatchdog = () => {
+    clearContinuationWatchdog()
+    if (!input.providerContinuationTimeoutMs)
+      return
+    continuationTimeout = setTimeout(() => {
+      if (!providerController.signal.aborted) {
+        providerController.abort(
+          createAbortError('chat-provider-continuation-timeout'),
+        )
+      }
+    }, Math.max(1, input.providerContinuationTimeoutMs))
+  }
+  firstEventTimeout = setTimeout(() => {
     if (!providerController.signal.aborted)
       providerController.abort(createAbortError('chat-first-event-timeout'))
   }, Math.max(1, input.firstEventTimeoutMs))
@@ -310,20 +486,23 @@ export async function runAlicizationMainChatProviderStep(
     if (attemptCleanupDone)
       return
     attemptCleanupDone = true
-    clearTimeout(timeout)
+    clearFirstEventWatchdog()
+    clearContinuationWatchdog()
     wakeLegacyEventWaiter = null
-    parentSignal.removeEventListener('abort', forwardAbort)
+    input.controller.signal.removeEventListener('abort', forwardAbort)
+    input.signal?.removeEventListener('abort', forwardAbort)
+
     if (reader && !readerCompleted) {
       if (!providerController.signal.aborted)
         providerController.abort(createAbortError(reason))
       try {
-        const cancelPromise = reader.cancel?.(reason)
+        const cancelPromise = reader.cancel?.(providerController.signal.reason)
         if (cancelPromise) {
-          let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+          let cancelTimeout: ReturnType<typeof setTimeout> | undefined
           await Promise.race([
-            cancelPromise.catch(() => {}),
+            Promise.resolve(cancelPromise).catch(() => {}),
             new Promise<void>((resolve) => {
-              timeoutHandle = setTimeout(
+              cancelTimeout = setTimeout(
                 resolve,
                 Math.max(
                   1,
@@ -333,19 +512,20 @@ export async function runAlicizationMainChatProviderStep(
               )
             }),
           ])
-          if (timeoutHandle)
-            clearTimeout(timeoutHandle)
+          if (cancelTimeout)
+            clearTimeout(cancelTimeout)
         }
       }
       catch {
-        // Preserve the Provider/action error that caused this attempt to settle.
+        // Cleanup must preserve the Provider error that settled this attempt.
       }
     }
+
     try {
       reader?.releaseLock?.()
     }
     catch {
-      // Cleanup must not replace the Provider/action error that caused settlement.
+      // Cleanup must preserve the Provider error that settled this attempt.
     }
   }
 
@@ -369,6 +549,7 @@ export async function runAlicizationMainChatProviderStep(
         abortSignal: providerController.signal,
         tools: providerTools,
         toolChoice: input.prepared.toolChoice,
+        parallelToolCalls: false,
         onEvent: enqueueLegacyEvent,
       })),
       providerController.signal,
@@ -377,7 +558,9 @@ export async function runAlicizationMainChatProviderStep(
     const fullStream = readProviderFullStream(result)
     reader = fullStream?.getReader?.() ?? null
     const fullTextParts: string[] = []
-    let finishReason = 'stop'
+    let finishReason: string | null = null
+    let finishObserved = false
+    let pendingAction: AlicizationModelAction | null = null
 
     const handleEvent = (rawEvent: unknown): AlicizationMainChatProviderStepResult | null => {
       const event = rawEvent && typeof rawEvent === 'object'
@@ -385,10 +568,18 @@ export async function runAlicizationMainChatProviderStep(
         : {}
       const eventType = normalizeMainGatewayStreamEventType(event.type)
 
-      if (isMainGatewayProgressEventType(eventType) && eventType !== 'error')
+      if (isMainGatewayProgressEventType(eventType) && eventType !== 'error') {
+        if (!outputObserved)
+          clearFirstEventWatchdog()
         outputObserved = true
-      else if (eventType && input.nonProgressEventTypes.size < 12)
+        if (eventType === 'finish')
+          clearContinuationWatchdog()
+        else
+          armContinuationWatchdog()
+      }
+      else if (eventType && input.nonProgressEventTypes.size < 12) {
         input.nonProgressEventTypes.add(eventType)
+      }
 
       if (eventType === 'text-delta') {
         fullTextParts.push(readRawTextDelta(event))
@@ -396,34 +587,51 @@ export async function runAlicizationMainChatProviderStep(
       }
 
       if (eventType === 'tool-call') {
+        if (pendingAction) {
+          throw createProviderToolProtocolError(
+            'chat-provider-parallel-tool-calls',
+            'Provider emitted more than one tool call in a single model step',
+          )
+        }
         const toolName = sanitizeText(event.toolName ?? event.name)
         if (!toolName)
           throw new TypeError('Provider tool call is missing toolName')
-        const toolInput = readStreamToolArguments(event)
-        if (!toolInput)
-          throw new TypeError('Provider tool call has invalid arguments')
-        const toolCallId = sanitizeText(event.toolCallId)
-        if (!toolCallId)
-          throw new TypeError('Provider tool call is missing toolCallId')
-        input.emitToolCall({
-          cardId: input.payload.cardId,
-          turnId: input.payload.turnId,
-          toolCallId,
-          toolName,
-          arguments: toolInput,
-        })
-        return {
-          kind: 'action',
-          action: {
-            actionId: `${input.payload.turnId}:action:${toolCallId}`,
-            toolCallId,
-            qualifiedToolName: toolName,
-            input: toolInput,
-          },
+        const toolArguments = readStreamToolArgumentsResult(event)
+        const providerTool = providerTools?.find(
+          tool => sanitizeText(tool.function.name) === toolName,
+        )
+        const toolInput = toolArguments.status === 'present'
+          ? toolArguments.value
+          : toolArguments.status === 'missing'
+            && isExplicitlyParameterlessTool(providerTool)
+            ? {}
+            : null
+        if (!toolInput) {
+          throw createProviderToolProtocolError(
+            'chat-provider-tool-arguments-invalid',
+            toolArguments.status === 'invalid'
+              ? `Provider emitted invalid JSON arguments for tool "${toolName}"`
+              : `Provider omitted required arguments for tool "${toolName}"`,
+          )
         }
+        assertProviderToolArguments(providerTool, toolInput)
+        const toolCallId = toolCallIdentity.resolveProviderToolCall({
+          arguments: toolInput,
+          phase: 'call',
+          toolCallId: event.toolCallId,
+          toolName,
+        })
+        pendingAction = {
+          actionId: `${input.payload.turnId}:action:${toolCallId}`,
+          toolCallId,
+          qualifiedToolName: toolName,
+          input: toolInput,
+        }
+        return null
       }
 
       if (eventType === 'finish') {
+        finishObserved = true
         finishReason = sanitizeText(
           event.finishReason ?? event.finish_reason ?? event.reason,
           'stop',
@@ -450,6 +658,8 @@ export async function runAlicizationMainChatProviderStep(
         const step = handleEvent(next.value)
         if (step)
           return step
+        if (finishObserved)
+          break
       }
     }
     else {
@@ -484,6 +694,32 @@ export async function runAlicizationMainChatProviderStep(
 
     const fullText = fullTextParts.join('')
     const text = fullText.trim()
+    if (!finishObserved)
+      throw createProviderFinishMissingError()
+    const completedAction = pendingAction as (
+      AlicizationModelAction & {
+        input: Record<string, unknown>
+        toolCallId: string
+      }
+    ) | null
+    if (completedAction) {
+      appendProviderToolCallMessage(input.messages, {
+        input: completedAction.input,
+        toolCallId: completedAction.toolCallId,
+        toolName: completedAction.qualifiedToolName,
+      })
+      input.emitToolCall({
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        toolCallId: completedAction.toolCallId,
+        toolName: completedAction.qualifiedToolName,
+        arguments: completedAction.input,
+      })
+      return {
+        kind: 'action',
+        action: completedAction,
+      }
+    }
     if (!text && !outputObserved)
       throw createAbortError('chat-first-event-timeout')
     if (!text)
@@ -491,7 +727,7 @@ export async function runAlicizationMainChatProviderStep(
 
     return {
       kind: 'reply',
-      finishReason,
+      finishReason: finishReason ?? 'stop',
       fullText,
       text,
     }
@@ -501,7 +737,7 @@ export async function runAlicizationMainChatProviderStep(
       attempt: providerRetryAttempt,
       options: {
         operation: 'main-chat-stream',
-        signal: parentSignal,
+        signal: input.signal ?? input.controller.signal,
         deadlineAt: providerRetryDeadlineAt,
         replayState: {
           hasVisibleProgress: outputObserved,
@@ -523,7 +759,7 @@ export async function runAlicizationMainChatProviderStep(
     await cleanupProviderAttempt('provider-retry')
     await waitForAlicizationProviderRetry({
       delayMs: retryDecision.delayMs,
-      signal: parentSignal,
+      signal: input.signal ?? input.controller.signal,
       sleep: input.providerRetryPolicy?.sleep,
     })
     return await runAlicizationMainChatProviderStep({
