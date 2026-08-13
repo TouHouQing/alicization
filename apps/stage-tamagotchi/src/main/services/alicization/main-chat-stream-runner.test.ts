@@ -6,6 +6,7 @@ import {
 } from './main-chat-stream-runner'
 import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
+import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 
 const typedMemoryContextBlock = JSON.stringify({
   type: 'alicization-turn-memory-context',
@@ -20,6 +21,61 @@ const typedMemoryContextBlock = JSON.stringify({
 })
 
 function createPrepared(overrides?: Partial<any>) {
+  const toolRegistry = overrides?.toolRegistry ?? createCanonicalToolRegistry()
+  for (const tool of overrides?.tools ?? []) {
+    const adapterToolName = String(tool?.function?.name ?? '').trim()
+    if (
+      !adapterToolName
+      || adapterToolName === 'mcp_call_tool'
+      || adapterToolName === 'mcp_list_tools'
+      || toolRegistry.isKnownProviderToolName(adapterToolName)
+      || toolRegistry.resolveAdapterToolName(adapterToolName)
+      || adapterToolName.startsWith('executor_run_')
+    ) {
+      continue
+    }
+    toolRegistry.register({
+      capabilityId: `test.${adapterToolName}`,
+      kind: 'tool',
+      version: '1.0.0',
+      description: adapterToolName,
+      inputSchema: tool.function?.parameters ?? {
+        type: 'object',
+        additionalProperties: true,
+      },
+      outputSchema: { type: 'object' },
+      scope: 'turn',
+      permissions: [],
+      risk: 'low',
+      executionChannel: 'test',
+      timeoutMs: 1_000,
+      supportsProgress: false,
+      supportsCancellation: true,
+      idempotency: 'none',
+      evaluationStatus: 'passed',
+      activationStatus: 'active',
+      providerToolName: adapterToolName,
+      adapterToolName,
+    })
+  }
+  const tools = overrides?.tools?.map((tool: any) => {
+    const toolName = String(tool?.function?.name ?? '').trim()
+    const manifest = toolRegistry.resolveAdapterToolName(toolName)
+      ?? toolRegistry.list().find((candidate: { providerToolName: string }) =>
+        candidate.providerToolName === toolName,
+      )
+    return {
+      type: 'function',
+      ...tool,
+      function: {
+        ...tool.function,
+        parameters: tool.function?.parameters ?? manifest?.inputSchema ?? {
+          type: 'object',
+          additionalProperties: true,
+        },
+      },
+    }
+  })
   return {
     chatConfig: {
       model: 'gpt-test',
@@ -32,7 +88,6 @@ function createPrepared(overrides?: Partial<any>) {
       { role: 'user', content: '你好' },
     ],
     waitForTools: true,
-    tools: undefined,
     toolChoice: undefined,
     customDirectivesResolution: {
       text: '',
@@ -52,6 +107,8 @@ function createPrepared(overrides?: Partial<any>) {
     sessionTrace: {} as any,
     getSessionTrace: () => ({ phaseOrder: [], history: [] }) as any,
     ...overrides,
+    tools,
+    toolRegistry,
   } as any
 }
 
@@ -705,12 +762,89 @@ describe('main chat stream runner', () => {
       kind: 'action',
       action: {
         toolCallId: 'parameterless-tool-call',
-        qualifiedToolName: 'inspect_state',
+        capabilityId: 'test.inspect_state',
+        providerToolName: 'inspect_state',
         input: {},
       },
     })
     expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
       arguments: {},
+    }))
+  })
+
+  it('keeps the Provider alias in continuation while returning a canonical action identity', async () => {
+    const messages: any[] = []
+    const emitToolCall = vi.fn()
+
+    await expect(runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-provider-canonical-tool',
+      } as any,
+      prepared: createPrepared({
+        toolRegistry: createCanonicalToolRegistry(),
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'coding_agent',
+            parameters: {
+              type: 'object',
+              properties: {
+                agent: {
+                  type: 'string',
+                  const: 'codex',
+                },
+                prompt: {
+                  type: 'string',
+                },
+              },
+              required: ['agent', 'prompt'],
+              additionalProperties: false,
+            },
+          },
+        }],
+      }),
+      messages,
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall,
+      streamTextImpl: () => ({
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({
+              type: 'tool-call',
+              toolCallId: 'canonical-tool-call',
+              toolName: 'coding_agent',
+              arguments: {
+                agent: 'codex',
+                prompt: 'inspect the repository',
+              },
+            })
+            controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+            controller.close()
+          },
+        }),
+      }),
+    })).resolves.toMatchObject({
+      kind: 'action',
+      action: {
+        providerToolName: 'coding_agent',
+        capabilityId: 'coding_agent.codex',
+        toolCallId: 'canonical-tool-call',
+      },
+    })
+    expect(messages).toContainEqual(expect.objectContaining({
+      role: 'assistant',
+      tool_calls: [expect.objectContaining({
+        function: expect.objectContaining({
+          name: 'coding_agent',
+        }),
+      })],
+    }))
+    expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'coding_agent',
     }))
   })
 
@@ -848,6 +982,121 @@ describe('main chat stream runner', () => {
     expect(result.finishReason).toBe('stop')
     expect(result.fullText).toBe(providerText)
     expect(streamTextImpl).toHaveBeenCalledOnce()
+  })
+
+  it('keeps canonical Provider tools when the prepared surface already uses Provider names', async () => {
+    const providerText = createProviderResponsePayload({
+      reply: 'canonical tool surface is available',
+    })
+    const streamTextImpl = vi.fn((input: Record<string, unknown>) => {
+      expect(input.tools).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          function: expect.objectContaining({
+            name: 'codex',
+          }),
+        }),
+      ]))
+      return {
+        fullStream: new ReadableStream({
+          start(controller) {
+            controller.enqueue({ type: 'text-delta', text: providerText })
+            controller.enqueue({ type: 'finish', finishReason: 'stop' })
+            controller.close()
+          },
+        }),
+      }
+    })
+
+    const result = await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-full-stream-canonical-provider-tool',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'codex',
+            parameters: {
+              type: 'object',
+              properties: {
+                prompt: { type: 'string' },
+              },
+              required: ['prompt'],
+              additionalProperties: false,
+            },
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+    })
+
+    expect(result.fullText).toBe(providerText)
+  })
+
+  it('rejects an unknown full-stream tool call before emitting a UI tool event', async () => {
+    const emitToolCall = vi.fn()
+    const streamTextImpl = vi.fn(() => ({
+      fullStream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({
+            type: 'tool-call',
+            toolCallId: 'unknown-full-stream-tool-call',
+            toolName: 'unknown_tool',
+            arguments: {},
+          })
+          controller.enqueue({ type: 'finish', finishReason: 'tool_calls' })
+          controller.close()
+        },
+      }),
+    }))
+
+    await expect(runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-full-stream-unknown-tool',
+      } as any,
+      prepared: createPrepared({
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'codex',
+            parameters: {
+              type: 'object',
+              properties: {
+                prompt: { type: 'string' },
+              },
+              required: ['prompt'],
+              additionalProperties: false,
+            },
+          },
+        }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 40,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall,
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+    })).rejects.toMatchObject({
+      code: 'chat-provider-tool-arguments-invalid',
+    })
+    expect(emitToolCall).not.toHaveBeenCalled()
   })
 
   it('retries five transient Provider failures and succeeds on the sixth attempt', async () => {
@@ -1040,7 +1289,7 @@ describe('main chat stream runner', () => {
                   value: {
                     type: 'tool-call',
                     toolCallId: 'codex-side-effect-1',
-                    toolName: 'executor_run_codex',
+                    toolName: 'codex',
                     arguments: {
                       prompt: '检查当前仓库',
                     },
@@ -1068,7 +1317,7 @@ describe('main chat stream runner', () => {
       prepared: createPrepared({
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -1152,7 +1401,7 @@ describe('main chat stream runner', () => {
       await (onEvent as (event: unknown) => Promise<void>)({
         type: 'tool-call-streaming-start',
         toolCallId: 'codex-early-start-1',
-        toolName: 'executor_run_codex',
+        toolName: 'codex',
       })
       return {
         fullStream: new ReadableStream({
@@ -1162,12 +1411,12 @@ describe('main chat stream runner', () => {
                 controller.enqueue({
                   type: 'tool-call-streaming-start',
                   toolCallId: 'codex-early-start-1',
-                  toolName: 'executor_run_codex',
+                  toolName: 'codex',
                 })
                 controller.enqueue({
                   type: 'tool-call',
                   toolCallId: 'codex-early-start-1',
-                  toolName: 'executor_run_codex',
+                  toolName: 'codex',
                   arguments: {
                     prompt: '检查当前仓库',
                   },
@@ -1175,7 +1424,7 @@ describe('main chat stream runner', () => {
                 controller.enqueue({
                   type: 'tool-result',
                   toolCallId: 'codex-early-start-1',
-                  toolName: 'executor_run_codex',
+                  toolName: 'codex',
                   result: {
                     status: 'completed',
                   },
@@ -1201,7 +1450,7 @@ describe('main chat stream runner', () => {
       prepared: createPrepared({
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -1231,7 +1480,7 @@ describe('main chat stream runner', () => {
     expect(emitToolCall).toHaveBeenCalledOnce()
     expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
       toolCallId: 'codex-early-start-1',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
     }))
   })
 
@@ -1290,12 +1539,12 @@ describe('main chat stream runner', () => {
           controller.enqueue({
             type: 'tool-call-streaming-start',
             toolCallId: 'codex-call-1',
-            toolName: 'executor_run_codex',
+            toolName: 'codex',
           })
           controller.enqueue({
             type: 'tool-call',
             toolCallId: 'codex-call-1',
-            toolName: 'executor_run_codex',
+            toolName: 'codex',
             arguments: {
               prompt: '检查当前仓库',
             },
@@ -1303,7 +1552,7 @@ describe('main chat stream runner', () => {
           controller.enqueue({
             type: 'tool-result',
             toolCallId: 'codex-call-1',
-            toolName: 'executor_run_codex',
+            toolName: 'codex',
             result: {
               status: 'completed',
               summary: '检查完成',
@@ -1324,7 +1573,7 @@ describe('main chat stream runner', () => {
       prepared: createPrepared({
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -1383,7 +1632,7 @@ describe('main chat stream runner', () => {
         tools: [
           {
             function: {
-              name: 'executor_run_codex',
+              name: 'codex',
             },
           },
           {
@@ -1428,10 +1677,9 @@ describe('main chat stream runner', () => {
     expect(controller.signal.aborted).toBe(false)
     expect(streamTextImpl).toHaveBeenCalledOnce()
     expect((streamTextImpl.mock.calls[0]?.[0] as any).tools.map((tool: any) => tool.function.name)).toEqual([
-      'executor_run_codex',
+      'codex',
       'browser_click_element',
       'filesystem_patch_file',
-      'mcp_call_tool',
     ])
     expect(appendRuntimeDebugLine).not.toHaveBeenCalledWith(
       'chat-stream.compact-tool-retry-started',
@@ -1458,7 +1706,7 @@ describe('main chat stream runner', () => {
       } as any,
       prepared: createPrepared({
         tools: [
-          { function: { name: 'executor_run_codex' } },
+          { function: { name: 'codex' } },
           { function: { name: 'browser_click_element' } },
           { function: { name: 'mcp_call_tool' } },
         ],
@@ -1505,7 +1753,7 @@ describe('main chat stream runner', () => {
       } as any,
       prepared: createPrepared({
         tools: [
-          { function: { name: 'executor_run_codex' } },
+          { function: { name: 'codex' } },
           { function: { name: 'browser_click_element' } },
           { function: { name: 'mcp_call_tool' } },
         ],
@@ -2038,6 +2286,96 @@ describe('main chat stream runner', () => {
     }))
   })
 
+  it('projects internal coding-agent adapter names before visual one-shot Provider invocation', async () => {
+    const prepared = createPrepared({
+      hasVisualGrounding: true,
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'executor_run_coding_agent',
+            parameters: {
+              type: 'object',
+              properties: {
+                agent: {
+                  type: 'string',
+                  enum: ['codex', 'claude-code', 'cli'],
+                },
+                prompt: {
+                  type: 'string',
+                },
+              },
+              required: ['agent', 'prompt'],
+              additionalProperties: false,
+            },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'executor_run_codex',
+            parameters: {
+              type: 'object',
+              properties: {
+                prompt: {
+                  type: 'string',
+                },
+              },
+              required: ['prompt'],
+              additionalProperties: false,
+            },
+          },
+        },
+      ],
+    })
+    let providerTools: any[] | undefined
+    const generateNonStreaming = vi.fn(async (input: any) => {
+      providerTools = input.tools
+      return {
+        finishReason: 'stop',
+        fullText: createProviderResponsePayload({
+          reply: '视觉链路使用 canonical 工具名。',
+        }),
+      }
+    })
+
+    await runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-visual-canonical-provider-tools',
+      } as any,
+      prepared,
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming,
+      streamTextImpl: vi.fn(),
+    })
+
+    expect(generateNonStreaming).toHaveBeenCalledOnce()
+    expect(providerTools?.map(tool => tool.function.name)).toEqual([
+      'coding_agent',
+      'codex',
+    ])
+    expect(providerTools).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        function: expect.objectContaining({
+          name: expect.stringMatching(/^executor_run_/),
+        }),
+      }),
+    ]))
+    expect(prepared.tools.map((tool: any) => tool.function.name)).toEqual([
+      'executor_run_coding_agent',
+      'executor_run_codex',
+    ])
+  })
+
   it('accepts plain-text visual grounding output as provider-authored visible reply', async () => {
     const streamMeta = createStreamMetaController()
     const incrementChunkStats = vi.fn()
@@ -2318,7 +2656,13 @@ describe('main chat stream runner', () => {
         cardId: 'card-1',
         turnId: 'turn-2',
       } as any,
-      prepared: createPrepared(),
+      prepared: createPrepared({
+        tools: [{
+          function: {
+            name: 'set_reminder',
+          },
+        }],
+      }),
       controller: new AbortController(),
       firstEventTimeoutMs: 500,
       isRunActive: () => true,
@@ -2335,7 +2679,15 @@ describe('main chat stream runner', () => {
         const emit = onEvent as (event: any) => Promise<void>
         await emit({ type: 'provider-keepalive' })
         await emit({ type: 'text-delta', text: providerText.slice(0, splitAt) })
-        await emit({ type: 'tool-call', name: 'set_reminder', toolCallId: 'call-1', arguments: { minutes: 5 } })
+        await emit({
+          type: 'tool-call',
+          name: 'set_reminder',
+          toolCallId: 'call-1',
+          arguments: {
+            message: '喝水',
+            minutes: 5,
+          },
+        })
         await emit({
           type: 'tool-result',
           toolCallId: 'call-1',
@@ -2410,7 +2762,13 @@ describe('main chat stream runner', () => {
         cardId: 'card-1',
         turnId: 'turn-xsai-tool-args',
       } as any,
-      prepared: createPrepared(),
+      prepared: createPrepared({
+        tools: [{
+          function: {
+            name: 'set_reminder',
+          },
+        }],
+      }),
       controller: new AbortController(),
       firstEventTimeoutMs: 500,
       isRunActive: () => true,
@@ -2471,7 +2829,7 @@ describe('main chat stream runner', () => {
       prepared: createPrepared({
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -2490,13 +2848,13 @@ describe('main chat stream runner', () => {
         await emit({
           type: 'tool-call-streaming-start',
           toolCallId: 'codex-call-1',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
         })
         await new Promise(resolve => setTimeout(resolve, 5))
         await emit({
           type: 'tool-call',
           toolCallId: 'codex-call-1',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           arguments: {
             prompt: '检查当前仓库',
           },
@@ -2519,7 +2877,7 @@ describe('main chat stream runner', () => {
       cardId: 'card-1',
       turnId: 'turn-long-running-tool',
       toolCallId: 'codex-call-1',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
     })
     expect(emitToolResult).toHaveBeenCalledWith(expect.objectContaining({
       toolCallId: 'codex-call-1',
@@ -2538,7 +2896,7 @@ describe('main chat stream runner', () => {
       prepared: createPrepared({
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -2556,14 +2914,14 @@ describe('main chat stream runner', () => {
         const emit = onEvent as (event: any) => Promise<void>
         await emit({
           type: 'tool-call',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           arguments: {
             prompt: '检查当前仓库',
           },
         })
         await emit({
           type: 'tool-result',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           result: {
             status: 'completed',
             output: '完成',
@@ -2577,7 +2935,7 @@ describe('main chat stream runner', () => {
     expect(result.finishReason).toBe('stop')
     expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
       toolCallId: 'alicization-tool-call-1',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
     }))
     expect(emitToolResult).toHaveBeenCalledWith(expect.objectContaining({
       toolCallId: 'alicization-tool-call-1',
@@ -2591,7 +2949,7 @@ describe('main chat stream runner', () => {
     const toolCallIdentity = createAlicizationMainChatToolCallIdentityRegistry()
     const executorToolCallId = toolCallIdentity.resolveExecutorToolCall({
       toolCallId: 'executor-canonical-1',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
     })
     const executorResult = {
       status: 'completed',
@@ -2611,7 +2969,7 @@ describe('main chat stream runner', () => {
         toolCallIdentity,
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -2629,18 +2987,18 @@ describe('main chat stream runner', () => {
         const emit = onEvent as (event: any) => Promise<void>
         await emit({
           type: 'tool-call-streaming-start',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
         })
         await emit({
           type: 'tool-call',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           arguments: {
             prompt: '检查当前仓库',
           },
         })
         await emit({
           type: 'tool-result',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           result: JSON.stringify(executorResult),
         })
         await emit({ type: 'text-delta', text: providerText })
@@ -2651,7 +3009,7 @@ describe('main chat stream runner', () => {
     expect(emitToolCall).toHaveBeenCalledOnce()
     expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
       toolCallId: 'executor-canonical-1',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
     }))
     expect(emitToolResult).toHaveBeenCalledWith(expect.objectContaining({
       toolCallId: 'executor-canonical-1',
@@ -2661,7 +3019,7 @@ describe('main chat stream runner', () => {
 
   it('collapses drifting provider, executor, and result ids into one visible Codex execution', async () => {
     const toolCallIdentity = createAlicizationMainChatToolCallIdentityRegistry({
-      singleFlightExecutorToolNames: ['executor_run_codex'],
+      singleFlightExecutorToolNames: ['codex'],
     })
     const toolArguments = {
       prompt: '检查当前仓库',
@@ -2673,7 +3031,7 @@ describe('main chat stream runner', () => {
     const canonicalId = toolCallIdentity.resolveExecutorToolCall({
       arguments: toolArguments,
       toolCallId: 'executor-id-c',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
     })
     toolCallIdentity.registerExecutorResult(executorResult, 'executor-id-c')
     const emitToolCall = vi.fn()
@@ -2691,13 +3049,13 @@ describe('main chat stream runner', () => {
         toolCallIdentity,
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
         toolChoice: {
           type: 'function',
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         },
       }),
@@ -2717,18 +3075,18 @@ describe('main chat stream runner', () => {
             controller.enqueue({
               type: 'tool-call-streaming-start',
               toolCallId: 'provider-id-a',
-              toolName: 'executor_run_codex',
+              toolName: 'codex',
             })
             controller.enqueue({
               type: 'tool-call',
               toolCallId: 'provider-id-b',
-              toolName: 'executor_run_codex',
+              toolName: 'codex',
               arguments: toolArguments,
             })
             controller.enqueue({
               type: 'tool-result',
               toolCallId: 'provider-result-id-d',
-              toolName: 'executor_run_codex',
+              toolName: 'codex',
               arguments: toolArguments,
               result: executorResult,
             })
@@ -2750,7 +3108,7 @@ describe('main chat stream runner', () => {
     expect(emitToolCall).toHaveBeenCalledOnce()
     expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
       toolCallId: canonicalId,
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
     }))
     expect(emitToolResult).toHaveBeenCalledOnce()
     expect(emitToolResult).toHaveBeenCalledWith(expect.objectContaining({
@@ -2774,7 +3132,7 @@ describe('main chat stream runner', () => {
       prepared: createPrepared({
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -2794,7 +3152,10 @@ describe('main chat stream runner', () => {
         await emit({
           type: 'tool-call',
           toolCallId: 'codex-failed-call',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
+          arguments: {
+            prompt: '检查当前仓库',
+          },
         })
         await emit({
           type: 'tool-result',
@@ -2802,7 +3163,7 @@ describe('main chat stream runner', () => {
           result: JSON.stringify({
             status: 'failed',
             failureKind: 'tool-execution',
-            toolName: 'executor_run_codex',
+            toolName: 'codex',
             errorCode: 'CODEX_TIMEOUT',
             errorMessage: 'Codex timed out after 120000ms.',
           }),
@@ -2813,7 +3174,7 @@ describe('main chat stream runner', () => {
           result: JSON.stringify({
             status: 'failed',
             failureKind: 'tool-execution',
-            toolName: 'executor_run_codex',
+            toolName: 'codex',
             errorCode: 'CODEX_TIMEOUT',
             errorMessage: 'Codex timed out after 120000ms.',
           }),
@@ -2824,7 +3185,7 @@ describe('main chat stream runner', () => {
     })).rejects.toMatchObject({
       name: 'AlicizationToolExecutionError',
       failureKind: 'tool-execution',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
       errorCode: 'CODEX_TIMEOUT',
     })
 
@@ -2849,7 +3210,7 @@ describe('main chat stream runner', () => {
         waitForTools: true,
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -2869,7 +3230,10 @@ describe('main chat stream runner', () => {
         await emit({
           type: 'tool-call',
           toolCallId: 'codex-empty-output-call',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
+          arguments: {
+            prompt: '检查当前仓库',
+          },
         })
         await emit({
           type: 'tool-result',
@@ -2877,7 +3241,7 @@ describe('main chat stream runner', () => {
           result: JSON.stringify({
             status: 'failed',
             ok: false,
-            toolName: 'executor_run_codex',
+            toolName: 'codex',
             errorCode: 'CODEX_EMPTY_OUTPUT',
             errorMessage: 'Codex exited successfully without producing an assistant response.',
           }),
@@ -2888,7 +3252,7 @@ describe('main chat stream runner', () => {
     })).rejects.toMatchObject({
       name: 'AlicizationToolExecutionError',
       failureKind: 'tool-execution',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
       errorCode: 'CODEX_EMPTY_OUTPUT',
     })
 
@@ -2914,7 +3278,7 @@ describe('main chat stream runner', () => {
               id: 'codex-failure-loop-1',
               type: 'function',
               function: {
-                name: 'executor_run_codex',
+                name: 'codex',
                 arguments: JSON.stringify({
                   prompt: '检查当前仓库',
                 }),
@@ -2967,7 +3331,7 @@ describe('main chat stream runner', () => {
     const execute = vi.fn(async (_input: unknown, options: { toolCallId: string }) => {
       emitToolExecutionProgress?.({
         toolCallId: options.toolCallId,
-        toolName: 'executor_run_codex',
+        toolName: 'codex',
         phase: 'failed',
         errorCode: 'CODEX_TIMEOUT',
         errorMessage: 'Codex execution timed out.',
@@ -2975,7 +3339,7 @@ describe('main chat stream runner', () => {
       return {
         status: 'failed',
         failureKind: 'tool-execution',
-        toolName: 'executor_run_codex',
+        toolName: 'codex',
         errorCode: 'CODEX_TIMEOUT',
         errorMessage: 'Codex execution timed out.',
         continuationPolicy: 'stop',
@@ -3001,7 +3365,7 @@ describe('main chat stream runner', () => {
           type: 'function',
           execute,
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
             description: 'Run Codex.',
             parameters: {
               type: 'object',
@@ -3058,7 +3422,7 @@ describe('main chat stream runner', () => {
           waitForTools: true,
           tools: [{
             function: {
-              name: 'executor_run_codex',
+              name: 'codex',
             },
           }],
         }),
@@ -3080,7 +3444,10 @@ describe('main chat stream runner', () => {
             await emit({
               type: 'tool-call',
               toolCallId: 'codex-permission-required-call',
-              toolName: 'executor_run_codex',
+              toolName: 'codex',
+              arguments: {
+                prompt: '检查当前仓库',
+              },
             })
             await emit({
               type: 'tool-result',
@@ -3090,7 +3457,7 @@ describe('main chat stream runner', () => {
                 finalStatus: 'failed',
                 continuationPolicy: 'stop',
                 ok: false,
-                toolName: 'executor_run_codex',
+                toolName: 'codex',
                 errorCode: 'CODEX_PERMISSION_REQUIRED',
                 errorMessage: 'Codex requires permission before it can continue.',
               },
@@ -3105,7 +3472,7 @@ describe('main chat stream runner', () => {
       await expect(settled).resolves.toMatchObject({
         name: 'AlicizationToolExecutionError',
         failureKind: 'tool-execution',
-        toolName: 'executor_run_codex',
+        toolName: 'codex',
         errorCode: 'CODEX_PERMISSION_REQUIRED',
       })
       expect(providerAbortSignal?.aborted).toBe(true)
@@ -3132,7 +3499,7 @@ describe('main chat stream runner', () => {
           waitForTools: true,
           tools: [{
             function: {
-              name: 'executor_run_codex',
+              name: 'codex',
             },
           }],
         }),
@@ -3162,7 +3529,7 @@ describe('main chat stream runner', () => {
       await vi.advanceTimersByTimeAsync(0)
       emitToolExecutionProgress?.({
         toolCallId: 'codex-terminal-progress-1',
-        toolName: 'executor_run_codex',
+        toolName: 'codex',
         phase: 'timeout',
         signal: 'terminal',
         elapsedMs: 180_000,
@@ -3175,7 +3542,7 @@ describe('main chat stream runner', () => {
       await expect(promise).rejects.toMatchObject({
         name: 'AlicizationToolExecutionError',
         failureKind: 'tool-execution',
-        toolName: 'executor_run_codex',
+        toolName: 'codex',
         errorCode: 'CODEX_EXECUTION_TIMEOUT',
       })
       expect(providerAbortSignal?.aborted).toBe(true)
@@ -3198,7 +3565,7 @@ describe('main chat stream runner', () => {
         waitForTools: true,
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -3225,11 +3592,14 @@ describe('main chat stream runner', () => {
             streamController.enqueue({
               type: 'tool-call',
               toolCallId: 'codex-handoff-barrier-call',
-              toolName: 'executor_run_codex',
+              toolName: 'codex',
+              arguments: {
+                prompt: '检查当前仓库',
+              },
             })
             emitToolExecutionProgress?.({
               toolCallId: 'codex-handoff-barrier-call',
-              toolName: 'executor_run_codex',
+              toolName: 'codex',
               phase: 'completed',
               signal: 'terminal',
               elapsedMs: 1_000,
@@ -3259,7 +3629,7 @@ describe('main chat stream runner', () => {
         waitForTools: true,
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -3287,7 +3657,10 @@ describe('main chat stream runner', () => {
             streamController.enqueue({
               type: 'tool-call',
               toolCallId: 'codex-active-finish-call',
-              toolName: 'executor_run_codex',
+              toolName: 'codex',
+              arguments: {
+                prompt: '检查当前仓库',
+              },
             })
             streamController.enqueue({
               type: 'finish',
@@ -3296,7 +3669,7 @@ describe('main chat stream runner', () => {
             setTimeout(() => {
               emitToolExecutionProgress?.({
                 toolCallId: 'codex-active-finish-call',
-                toolName: 'executor_run_codex',
+                toolName: 'codex',
                 phase: 'timeout',
                 signal: 'terminal',
                 elapsedMs: 180_000,
@@ -3313,7 +3686,7 @@ describe('main chat stream runner', () => {
     await expect(promise).rejects.toMatchObject({
       name: 'AlicizationToolExecutionError',
       failureKind: 'tool-execution',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
       errorCode: 'CODEX_TIMEOUT',
     })
     expect(appendRuntimeDebugLine).not.toHaveBeenCalledWith(
@@ -3332,23 +3705,29 @@ describe('main chat stream runner', () => {
           streamController.enqueue({
             type: 'tool-call',
             toolCallId: 'codex-concurrent-a',
-            toolName: 'executor_run_codex',
+            toolName: 'codex',
+            arguments: {
+              prompt: '检查当前仓库的第一个区域',
+            },
           })
           streamController.enqueue({
             type: 'tool-call',
             toolCallId: 'codex-concurrent-b',
-            toolName: 'executor_run_codex',
+            toolName: 'codex',
+            arguments: {
+              prompt: '检查当前仓库的第二个区域',
+            },
           })
           emitToolExecutionProgress?.({
             toolCallId: 'codex-concurrent-a',
-            toolName: 'executor_run_codex',
+            toolName: 'codex',
             phase: 'completed',
             signal: 'terminal',
             elapsedMs: 1_000,
           })
           emitToolExecutionProgress?.({
             toolCallId: 'codex-concurrent-b',
-            toolName: 'executor_run_codex',
+            toolName: 'codex',
             phase: 'completed',
             signal: 'terminal',
             elapsedMs: 1_100,
@@ -3356,7 +3735,7 @@ describe('main chat stream runner', () => {
           streamController.enqueue({
             type: 'tool-result',
             toolCallId: 'codex-concurrent-a',
-            toolName: 'executor_run_codex',
+            toolName: 'codex',
             result: {
               status: 'completed',
               output: '第一个结果',
@@ -3380,7 +3759,7 @@ describe('main chat stream runner', () => {
         waitForTools: true,
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -3416,7 +3795,7 @@ describe('main chat stream runner', () => {
           controller.enqueue({
             type: 'tool-call',
             toolCallId: 'provider-cli-call-1',
-            toolName: 'executor_run_cli',
+            toolName: 'cli',
             arguments: {
               command: 'find . -type f',
             },
@@ -3424,7 +3803,7 @@ describe('main chat stream runner', () => {
           controller.enqueue({
             type: 'tool-result',
             toolCallId: 'provider-cli-call-1',
-            toolName: 'executor_run_cli',
+            toolName: 'cli',
             result: {
               status: 'completed',
               output: '检查完成',
@@ -3453,30 +3832,20 @@ describe('main chat stream runner', () => {
           {
             type: 'function',
             function: {
-              name: 'executor_run_codex',
-              parameters: {
-                type: 'object',
-                properties: {},
-                additionalProperties: false,
-              },
+              name: 'codex',
             },
           },
           {
             type: 'function',
             function: {
-              name: 'executor_run_cli',
-              parameters: {
-                type: 'object',
-                properties: {},
-                additionalProperties: false,
-              },
+              name: 'cli',
             },
           },
         ],
         toolChoice: {
           type: 'function',
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         },
       }),
@@ -3497,7 +3866,7 @@ describe('main chat stream runner', () => {
 
     expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
       toolCallId: 'provider-cli-call-1',
-      toolName: 'executor_run_cli',
+      toolName: 'cli',
     }))
   })
 
@@ -3663,7 +4032,7 @@ describe('main chat stream runner', () => {
       prepared: createPrepared({
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -3692,7 +4061,7 @@ describe('main chat stream runner', () => {
     await vi.advanceTimersByTimeAsync(0)
     emitToolExecutionProgress?.({
       toolCallId: 'codex-progress-1',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
       phase: 'started',
       signal: 'liveness',
       elapsedMs: 0,
@@ -3728,7 +4097,7 @@ describe('main chat stream runner', () => {
                 id: 'codex-real-xsai-1',
                 type: 'function',
                 function: {
-                  name: 'executor_run_codex',
+                  name: 'codex',
                   arguments: JSON.stringify({
                     prompt: '检查当前仓库',
                   }),
@@ -3778,7 +4147,7 @@ describe('main chat stream runner', () => {
     const execute = vi.fn(async (_input: unknown, options: { abortSignal?: AbortSignal, toolCallId: string }) => {
       emitToolExecutionProgress?.({
         toolCallId: options.toolCallId,
-        toolName: 'executor_run_codex',
+        toolName: 'codex',
         phase: 'started',
         elapsedMs: 0,
       })
@@ -3788,14 +4157,14 @@ describe('main chat stream runner', () => {
           throw options.abortSignal.reason ?? new Error('tool execution was aborted')
         emitToolExecutionProgress?.({
           toolCallId: options.toolCallId,
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           phase: 'running',
           elapsedMs,
         })
       }
       emitToolExecutionProgress?.({
         toolCallId: options.toolCallId,
-        toolName: 'executor_run_codex',
+        toolName: 'codex',
         phase: 'completed',
         elapsedMs: 70_000,
       })
@@ -3825,7 +4194,7 @@ describe('main chat stream runner', () => {
           type: 'function',
           execute,
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
             description: 'Run Codex.',
             parameters: {
               type: 'object',
@@ -3874,7 +4243,7 @@ describe('main chat stream runner', () => {
       'chat-stream.provider-continuation-started',
       expect.objectContaining({
         toolCallId: 'codex-real-xsai-1',
-        toolName: 'executor_run_codex',
+        toolName: 'codex',
       }),
     )
   })
@@ -3891,12 +4260,12 @@ describe('main chat stream runner', () => {
         streamController.enqueue({
           type: 'tool-call-streaming-start',
           toolCallId: 'codex-background-accepted-1',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
         })
         streamController.enqueue({
           type: 'tool-call',
           toolCallId: 'codex-background-accepted-1',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           arguments: {
             prompt: '只读检查仓库。',
           },
@@ -3904,7 +4273,7 @@ describe('main chat stream runner', () => {
         streamController.enqueue({
           type: 'tool-result',
           toolCallId: 'codex-background-accepted-1',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           result: {
             status: 'accepted',
             accepted: true,
@@ -3932,7 +4301,7 @@ describe('main chat stream runner', () => {
       prepared: createPrepared({
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -4028,12 +4397,12 @@ describe('main chat stream runner', () => {
         nextController.enqueue({
           type: 'tool-call-streaming-start',
           toolCallId: 'codex-continuation-1',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
         })
         nextController.enqueue({
           type: 'tool-call',
           toolCallId: 'codex-continuation-1',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           arguments: {
             prompt: '检查当前仓库',
           },
@@ -4041,7 +4410,7 @@ describe('main chat stream runner', () => {
         nextController.enqueue({
           type: 'tool-result',
           toolCallId: 'codex-continuation-1',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           result: {
             status: 'completed',
           },
@@ -4065,7 +4434,7 @@ describe('main chat stream runner', () => {
       prepared: createPrepared({
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -4123,7 +4492,7 @@ describe('main chat stream runner', () => {
         nextController.enqueue({
           type: 'tool-call',
           toolCallId: 'codex-continuation-stall-1',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           arguments: {
             prompt: '检查当前仓库',
           },
@@ -4131,7 +4500,7 @@ describe('main chat stream runner', () => {
         nextController.enqueue({
           type: 'tool-result',
           toolCallId: 'codex-continuation-stall-1',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           result: {
             status: 'completed',
           },
@@ -4151,7 +4520,7 @@ describe('main chat stream runner', () => {
       prepared: createPrepared({
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -4202,12 +4571,12 @@ describe('main chat stream runner', () => {
         controller.enqueue({
           type: 'tool-call-streaming-start',
           toolCallId: 'codex-continuation-incomplete-1',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
         })
         controller.enqueue({
           type: 'tool-call',
           toolCallId: 'codex-continuation-incomplete-1',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           arguments: {
             prompt: '检查当前仓库',
           },
@@ -4215,7 +4584,7 @@ describe('main chat stream runner', () => {
         controller.enqueue({
           type: 'tool-result',
           toolCallId: 'codex-continuation-incomplete-1',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           result: {
             status: 'completed',
           },
@@ -4232,7 +4601,7 @@ describe('main chat stream runner', () => {
       prepared: createPrepared({
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -4257,7 +4626,7 @@ describe('main chat stream runner', () => {
         controller.enqueue({
           type: 'tool-result',
           toolCallId: 'codex-stop-after-result-1',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           result: {
             status: 'completed',
           },
@@ -4278,7 +4647,7 @@ describe('main chat stream runner', () => {
       prepared: createPrepared({
         tools: [{
           function: {
-            name: 'executor_run_codex',
+            name: 'codex',
           },
         }],
       }),
@@ -4476,7 +4845,7 @@ describe('main chat stream runner', () => {
         tools: [
           {
             function: {
-              name: 'executor_run_cli',
+              name: 'cli',
             },
           },
         ],

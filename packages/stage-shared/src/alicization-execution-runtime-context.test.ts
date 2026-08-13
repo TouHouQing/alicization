@@ -76,6 +76,7 @@ function createAffectiveResidue() {
 describe('alicization execution runtime context', () => {
   it('normalizes grounded execution facts without restoring the retired project briefing field', () => {
     const context = normalizeAlicizationExecutionRuntimeContext(createRawContext({
+      resultDeliveryMode: 'inline',
       recentActions: [{
         kind: 'executor',
         status: 'pending',
@@ -92,6 +93,7 @@ describe('alicization execution runtime context', () => {
       decisionTraceId: 'trace-ctx-1',
       sessionId: 'session-ctx-1',
       agentSessionId: 'agent-session-ctx-1',
+      resultDeliveryMode: 'inline',
       recentActions: [{
         kind: 'executor',
         status: 'pending',

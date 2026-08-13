@@ -1,28 +1,126 @@
 import type { AlicizationEmotionalKernelSnapshot } from '@proj-alicization/stage-shared'
-import type { Message, ToolChoice } from '@xsai/shared-chat'
-import type { tool } from '@xsai/tool'
+import type { Message, Tool, ToolChoice } from '@xsai/shared-chat'
 
+import type { AlicizationProviderRetryOverrides } from './provider-retry-policy'
 import type { MainGatewayResolvedConfig } from './runtime-soul'
+import type { ToolRegistry } from './turn-os/tool-registry'
 
 import { generateText } from '@xsai/generate-text'
 
-import { createAbortError, sanitizeText } from './main-chat-stream-primitives'
+import {
+  awaitAlicizationPromiseWithAbort,
+  createAbortError,
+  sanitizeText,
+} from './main-chat-stream-primitives'
+import { runWithAlicizationProviderRetry } from './provider-retry-policy'
+import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 
 type GenerateTextInvoker = (input: Record<string, unknown>) => Promise<Record<string, unknown> & {
   text?: string | null
   finishReason?: string | null
 }>
 
+const legacyProviderToolNames = new Set([
+  'executor_run_codex',
+  'executor_run_claude_code',
+  'executor_run_cli',
+  'executor_run_coding_agent',
+  'executor_run_local_visual',
+  'executor_run_openclaw',
+])
+
+function readProviderToolName(raw: unknown) {
+  if (typeof raw === 'string')
+    return raw.trim()
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return ''
+
+  const record = raw as Record<string, unknown>
+  const directName = typeof record.name === 'string'
+    ? record.name
+    : undefined
+  if (directName)
+    return directName.trim()
+
+  const functionRecord = record.function
+  if (!functionRecord || typeof functionRecord !== 'object' || Array.isArray(functionRecord))
+    return ''
+  return typeof (functionRecord as Record<string, unknown>).name === 'string'
+    ? String((functionRecord as Record<string, unknown>).name).trim()
+    : ''
+}
+
+function resolveActiveProviderManifest(
+  toolRegistry: ToolRegistry,
+  providerToolName: string,
+) {
+  const manifest = toolRegistry.list().find(candidate =>
+    candidate.providerToolName === providerToolName,
+  )
+  return manifest
+    ? toolRegistry.resolveActive(manifest.capabilityId)
+    : undefined
+}
+
+function assertProviderToolBoundary(input: {
+  tools?: Tool[]
+  toolChoice?: ToolChoice
+  toolRegistry: ToolRegistry
+}) {
+  const activeProviderToolNames = new Set<string>()
+
+  for (const tool of input.tools ?? []) {
+    const providerToolName = readProviderToolName(tool)
+    if (legacyProviderToolNames.has(providerToolName)) {
+      throw new Error(
+        `Legacy executor tool name "${providerToolName}" cannot enter the Provider protocol.`,
+      )
+    }
+
+    const activeManifest = resolveActiveProviderManifest(
+      input.toolRegistry,
+      providerToolName,
+    )
+    if (!activeManifest) {
+      throw new Error(
+        `Provider tool "${providerToolName}" is not registered as an active canonical provider tool.`,
+      )
+    }
+    activeProviderToolNames.add(activeManifest.providerToolName)
+  }
+
+  const legacyToolChoice = readProviderToolName(input.toolChoice)
+  if (legacyProviderToolNames.has(legacyToolChoice)) {
+    throw new Error(
+      `Legacy executor tool choice "${legacyToolChoice}" cannot enter the Provider protocol.`,
+    )
+  }
+
+  if (
+    input.toolChoice
+    && typeof input.toolChoice === 'object'
+    && !Array.isArray(input.toolChoice)
+    && input.toolChoice.type === 'function'
+    && !activeProviderToolNames.has(legacyToolChoice)
+  ) {
+    throw new Error(
+      `Provider tool choice "${legacyToolChoice}" must reference an active canonical provider tool in this one-shot.`,
+    )
+  }
+}
+
 interface AlicizationMainChatOneShotInput {
   chatConfig: ReturnType<MainGatewayResolvedConfig['provider']['chat']>
   messages: Message[]
   headers?: Record<string, string>
-  tools?: Array<Awaited<ReturnType<typeof tool>>>
+  tools?: Tool[]
   toolChoice?: ToolChoice
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   timeoutMs: number
   maxSteps: number
   timeoutReason: string
+  toolRegistry?: ToolRegistry
+  providerRetryPolicy?: AlicizationProviderRetryOverrides
   generateTextImpl?: GenerateTextInvoker
 }
 
@@ -35,14 +133,69 @@ async function executeAlicizationMainChatOneShot(input: AlicizationMainChatOneSh
 
   try {
     const invokeGenerateText = input.generateTextImpl ?? (generateText as unknown as GenerateTextInvoker)
-    const result = await invokeGenerateText({
-      ...input.chatConfig,
-      maxSteps: input.maxSteps,
-      messages: input.messages,
-      headers: input.headers,
-      abortSignal: controller.signal,
+    const hasToolSurface = (input.tools?.length ?? 0) > 0 || input.toolChoice != null
+    if (hasToolSurface && !input.toolRegistry) {
+      throw new TypeError(
+        'main chat one-shot requires an explicit toolRegistry when exposing tools',
+      )
+    }
+    const toolRegistry = input.toolRegistry ?? createCanonicalToolRegistry()
+    assertProviderToolBoundary({
       tools: input.tools,
       toolChoice: input.toolChoice,
+      toolRegistry,
+    })
+    let hasToolSideEffect = false
+    const hasExecutableTools = input.tools?.some(tool => typeof tool.execute === 'function') === true
+    const providerTools = hasExecutableTools
+      ? input.tools?.map(tool => typeof tool.execute === 'function'
+          ? {
+              ...tool,
+              execute: async (...args: Parameters<Tool['execute']>) => {
+                const providerToolName = readProviderToolName(tool)
+                const providerInvocation = toolRegistry.resolveProviderInvocation(
+                  providerToolName,
+                  args[0],
+                )
+                if (!providerInvocation) {
+                  return {
+                    status: 'failed',
+                    errorCode: 'CAPABILITY_INPUT_INVALID',
+                    errorMessage: `Capability "${providerToolName}" rejected the tool input.`,
+                  }
+                }
+                hasToolSideEffect = true
+                return await tool.execute(...args)
+              },
+            }
+          : tool)
+      : input.tools
+    const result = await runWithAlicizationProviderRetry<Record<string, unknown> & {
+      text?: string | null
+      finishReason?: string | null
+    }>({
+      operation: 'main-gateway-one-shot',
+      signal: controller.signal,
+      deadlineAt: Date.now() + Math.max(1_000, input.timeoutMs),
+      ...input.providerRetryPolicy,
+      replayState: () => ({
+        hasToolSideEffect,
+      }),
+      invoke: async ({ signal }) => {
+        const providerSignal = signal ?? controller.signal
+        return await awaitAlicizationPromiseWithAbort(
+          invokeGenerateText({
+            ...input.chatConfig,
+            maxSteps: input.maxSteps,
+            messages: input.messages,
+            headers: input.headers,
+            abortSignal: providerSignal,
+            tools: providerTools,
+            toolChoice: input.toolChoice,
+          }),
+          providerSignal,
+        )
+      },
     })
     return {
       finishReason: sanitizeText(result.finishReason, 'stop'),
@@ -58,11 +211,13 @@ export async function recoverAlicizationMainChatFromTimeout(input: {
   chatConfig: ReturnType<MainGatewayResolvedConfig['provider']['chat']>
   messages: Message[]
   headers?: Record<string, string>
-  tools?: Array<Awaited<ReturnType<typeof tool>>>
+  tools?: Tool[]
   toolChoice?: ToolChoice
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   timeoutMs: number
   maxSteps?: number
+  toolRegistry?: ToolRegistry
+  providerRetryPolicy?: AlicizationProviderRetryOverrides
   generateTextImpl?: GenerateTextInvoker
 }) {
   const normalizedMaxSteps = Number.isFinite(input.maxSteps)
@@ -80,10 +235,12 @@ export async function generateAlicizationMainChatNonStreaming(input: {
   chatConfig: ReturnType<MainGatewayResolvedConfig['provider']['chat']>
   messages: Message[]
   headers?: Record<string, string>
-  tools?: Array<Awaited<ReturnType<typeof tool>>>
+  tools?: Tool[]
   toolChoice?: ToolChoice
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   timeoutMs: number
+  toolRegistry?: ToolRegistry
+  providerRetryPolicy?: AlicizationProviderRetryOverrides
   generateTextImpl?: GenerateTextInvoker
 }) {
   return await executeAlicizationMainChatOneShot({

@@ -150,9 +150,9 @@ const channelTraits = {
 } satisfies Record<AlicizationExecutionChannel, AlicizationChannelTraits>
 
 const taskChannelSupport: Record<AlicizationExecutionTaskKind, AlicizationExecutionChannel[]> = {
-  'run-command': ['cli', 'codex', 'claude-code', 'openclaw', 'openfang', 'desktop'],
-  'codebase-edit': ['codex', 'claude-code', 'cli', 'openclaw', 'openfang', 'desktop'],
-  'codebase-investigation': ['codex', 'claude-code', 'cli', 'openclaw', 'openfang', 'desktop'],
+  'run-command': ['cli', 'codex', 'claude-code'],
+  'codebase-edit': ['codex', 'claude-code', 'cli'],
+  'codebase-investigation': ['codex', 'claude-code', 'cli'],
   'browser-automation': ['browser', 'software', 'desktop', 'openclaw', 'openfang'],
   'software-automation': ['software', 'desktop', 'openclaw', 'openfang'],
   'desktop-automation': ['desktop'],
@@ -162,9 +162,9 @@ const taskChannelSupport: Record<AlicizationExecutionTaskKind, AlicizationExecut
 }
 
 const taskChannelPreference: Record<AlicizationExecutionTaskKind, AlicizationExecutionChannel[]> = {
-  'run-command': ['cli', 'codex', 'claude-code', 'openclaw', 'openfang'],
-  'codebase-edit': ['codex', 'claude-code', 'cli', 'openclaw', 'openfang', 'desktop'],
-  'codebase-investigation': ['codex', 'claude-code', 'cli', 'openclaw', 'openfang', 'desktop'],
+  'run-command': ['cli', 'codex', 'claude-code'],
+  'codebase-edit': ['codex', 'claude-code', 'cli'],
+  'codebase-investigation': ['codex', 'claude-code', 'cli'],
   'browser-automation': ['browser', 'software', 'openclaw', 'openfang', 'desktop'],
   'software-automation': ['software', 'openclaw', 'openfang', 'desktop'],
   'desktop-automation': ['desktop'],

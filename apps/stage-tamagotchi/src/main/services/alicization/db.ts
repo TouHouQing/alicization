@@ -685,6 +685,13 @@ const taskThreadStatuses = new Set<AlicizationTaskThreadStatus>([
   'cancelled',
 ])
 
+const terminalTaskThreadStatuses = new Set<AlicizationTaskThreadStatus>([
+  'blocked',
+  'completed',
+  'failed',
+  'cancelled',
+])
+
 const executionEventKinds = new Set<AlicizationExecutionEventKind>([
   'plan',
   'dispatch',
@@ -2654,6 +2661,37 @@ export async function setupAlicizationDb(
     await run(database, 'ALTER TABLE conversation_turns ADD COLUMN turn_id TEXT').catch(() => {})
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_conversation_turns_turn_id ON conversation_turns(turn_id)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_conversation_turns_session_created_at ON conversation_turns(session_id, created_at DESC)')
+    await runInTransaction(database, async () => {
+      await run(database, `
+        DELETE FROM conversation_turns
+        WHERE session_id IS NOT NULL
+          AND TRIM(session_id) != ''
+          AND turn_id IS NOT NULL
+          AND TRIM(turn_id) != ''
+          AND EXISTS (
+            SELECT 1
+            FROM conversation_turns AS newer
+            WHERE newer.session_id = conversation_turns.session_id
+              AND newer.turn_id = conversation_turns.turn_id
+              AND (
+                newer.created_at > conversation_turns.created_at
+                OR (
+                  newer.created_at = conversation_turns.created_at
+                  AND newer.rowid > conversation_turns.rowid
+                )
+              )
+          )
+      `)
+      await run(database, `
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_turns_session_turn_id
+        ON conversation_turns(session_id, turn_id)
+        WHERE session_id IS NOT NULL
+          AND TRIM(session_id) != ''
+          AND turn_id IS NOT NULL
+          AND TRIM(turn_id) != ''
+      `)
+    })
+
     await run(database, `
       CREATE TABLE IF NOT EXISTS alicization_runtime_events (
         event_id TEXT PRIMARY KEY,
@@ -3209,6 +3247,16 @@ export async function setupAlicizationDb(
           structured_json,
           created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(session_id, turn_id)
+        WHERE session_id IS NOT NULL
+          AND TRIM(session_id) != ''
+          AND turn_id IS NOT NULL
+          AND TRIM(turn_id) != ''
+        DO UPDATE SET
+          user_text = excluded.user_text,
+          assistant_text = excluded.assistant_text,
+          structured_json = excluded.structured_json,
+          created_at = excluded.created_at
         `,
         [
           randomUUID(),
@@ -4438,7 +4486,9 @@ export async function setupAlicizationDb(
           return null
 
         return {
-          id: randomUUID(),
+          id: typeof event.id === 'string' && event.id.trim()
+            ? event.id.trim().slice(0, 240)
+            : randomUUID(),
           threadId,
           decisionTraceId: typeof event.decisionTraceId === 'string' && event.decisionTraceId.trim()
             ? event.decisionTraceId.trim()
@@ -4473,23 +4523,16 @@ export async function setupAlicizationDb(
     if (normalized.length === 0)
       return
 
-    const latestByThread = new Map<string, (typeof normalized)[number]>()
-    for (const event of normalized) {
-      const current = latestByThread.get(event.threadId)
-      if (!current || current.createdAt <= event.createdAt) {
-        latestByThread.set(event.threadId, event)
-      }
-    }
-
     assertWriteNotAborted(options)
     await enqueueWrite(async () => {
       assertWriteNotAborted(options)
       await runInTransaction(database, async () => {
+        const insertedEvents: typeof normalized = []
         for (const event of normalized) {
-          await run(
+          const insert = await run(
             database,
             `
-            INSERT INTO executor_events (
+            INSERT OR IGNORE INTO executor_events (
               id,
               thread_id,
               decision_trace_id,
@@ -4517,28 +4560,72 @@ export async function setupAlicizationDb(
               event.createdAt,
             ],
           )
+          if (insert.changes > 0)
+            insertedEvents.push(event)
         }
 
-        for (const latest of latestByThread.values()) {
-          const completedAt = latest.threadStatus === 'completed' || latest.threadStatus === 'failed' || latest.threadStatus === 'cancelled'
-            ? latest.createdAt
+        const projectionByThread = new Map<string, {
+          activityAt: number
+          statusEvent: (typeof normalized)[number]
+        }>()
+        for (const event of insertedEvents) {
+          const current = projectionByThread.get(event.threadId)
+          if (!current) {
+            projectionByThread.set(event.threadId, {
+              activityAt: event.createdAt,
+              statusEvent: event,
+            })
+            continue
+          }
+
+          current.activityAt = Math.max(current.activityAt, event.createdAt)
+          const currentTerminal = current.statusEvent.threadStatus !== null
+            && terminalTaskThreadStatuses.has(current.statusEvent.threadStatus)
+          const candidateTerminal = event.threadStatus !== null
+            && terminalTaskThreadStatuses.has(event.threadStatus)
+          if (
+            (candidateTerminal && !currentTerminal)
+            || (candidateTerminal === currentTerminal && current.statusEvent.createdAt <= event.createdAt)
+          ) {
+            current.statusEvent = event
+          }
+        }
+
+        for (const projection of projectionByThread.values()) {
+          const { activityAt, statusEvent } = projection
+          const completedAt = statusEvent.threadStatus === 'completed'
+            || statusEvent.threadStatus === 'failed'
+            || statusEvent.threadStatus === 'cancelled'
+            ? statusEvent.createdAt
             : null
           await run(
             database,
             `
             UPDATE task_threads
-            SET updated_at = ?,
-                last_event_at = ?,
+            SET updated_at = MAX(updated_at, ?),
+                last_event_at = CASE
+                  WHEN last_event_at IS NULL OR last_event_at < ? THEN ?
+                  ELSE last_event_at
+                END,
                 status = COALESCE(?, status),
                 completed_at = COALESCE(?, completed_at)
             WHERE id = ?
+              AND status NOT IN ('blocked', 'completed', 'failed', 'cancelled')
+              AND (
+                ? IN ('blocked', 'completed', 'failed', 'cancelled')
+                OR last_event_at IS NULL
+                OR last_event_at <= ?
+              )
             `,
             [
-              latest.createdAt,
-              latest.createdAt,
-              latest.threadStatus,
+              activityAt,
+              activityAt,
+              activityAt,
+              statusEvent.threadStatus,
               completedAt,
-              latest.threadId,
+              statusEvent.threadId,
+              statusEvent.threadStatus,
+              activityAt,
             ],
           )
         }

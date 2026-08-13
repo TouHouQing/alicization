@@ -145,7 +145,7 @@ describe('mcp safety gate', () => {
     }))
   })
 
-  it('denies when any path candidate hits blacklist even if another path is safe', async () => {
+  it('denies a blacklisted path before asking for permission', async () => {
     const { createMcpServersService } = await import('./index')
     const manager = createManager()
 
@@ -160,8 +160,7 @@ describe('mcp safety gate', () => {
     const result = await callTool!({
       name: 'filesystem::read_file',
       arguments: {
-        sourcePath: '/tmp/documents/Alicization_Workspace/notes.txt',
-        targetPath: '/tmp/alicization-user-data/alicizations/alicization.db',
+        path: '/tmp/alicization-user-data/alicizations/alicization.db',
       },
     })
 
@@ -245,6 +244,76 @@ describe('mcp safety gate', () => {
     expect(getSafetyRequests()).toHaveLength(0)
   })
 
+  it('forwards an internal abort signal to manager.callTool without adding it to the renderer payload', async () => {
+    const { createMcpServersService, invokeAlicizationMcpCallToolFromMain } = await import('./index')
+    const controller = new AbortController()
+    let receivedSignal: AbortSignal | undefined
+    const manager = createManager({
+      callTool: vi.fn(async (_payload, signal?: AbortSignal) => {
+        receivedSignal = signal
+        return { ok: true, isError: false }
+      }),
+    })
+    const payload = {
+      name: 'filesystem::read_file',
+      arguments: {
+        path: '/tmp/documents/Alicization_Workspace/notes.txt',
+      },
+    }
+
+    createMcpServersService({
+      context: { emit: contextEmitMock } as any,
+      manager,
+    })
+
+    const result = await invokeAlicizationMcpCallToolFromMain(payload, controller.signal)
+
+    expect(result.isError).not.toBe(true)
+    expect(receivedSignal).toBe(controller.signal)
+    expect(manager.callTool).toHaveBeenCalledWith(payload, controller.signal)
+  })
+
+  it('returns ALICIZATION_TOOL_ABORTED for an already aborted internal signal before permission or manager flow', async () => {
+    const { createMcpServersService, invokeAlicizationMcpCallToolFromMain } = await import('./index')
+    const controller = new AbortController()
+    controller.abort('turn-aborted')
+    const manager = createManager()
+
+    createMcpServersService({
+      context: { emit: contextEmitMock } as any,
+      manager,
+    })
+
+    const resolvePermission = invokeHandlers.get(electronAlicizationSafetyResolvePermission)
+    expect(resolvePermission).toBeTypeOf('function')
+    contextEmitMock.mockImplementation((event, request) => {
+      if (event !== alicizationSafetyPermissionRequested)
+        return
+
+      queueMicrotask(() => {
+        void resolvePermission!({
+          token: request.token,
+          requestId: request.requestId,
+          allow: true,
+          reason: 'test-only-permission-resolution',
+        })
+      })
+    })
+
+    const result = await invokeAlicizationMcpCallToolFromMain({
+      name: 'filesystem::read_file',
+      arguments: {
+        path: '/tmp/outside/should-not-be-read.txt',
+      },
+    }, controller.signal)
+
+    expect(result.isError).toBe(true)
+    expect(result.errorCode).toBe('ALICIZATION_TOOL_ABORTED')
+    expect(manager.listTools).not.toHaveBeenCalled()
+    expect(manager.callTool).not.toHaveBeenCalled()
+    expect(getSafetyRequests()).toHaveLength(0)
+  })
+
   it('denies traversal path escaping workspace without prompting', async () => {
     const { createMcpServersService } = await import('./index')
     const manager = createManager()
@@ -273,7 +342,69 @@ describe('mcp safety gate', () => {
     expect(getSafetyRequests()).toHaveLength(0)
   })
 
-  it('requires human confirmation for unknown tool action category', async () => {
+  it('keeps a dynamically discovered capability inactive until explicitly approved', async () => {
+    const { createMcpServersService } = await import('./index')
+    const manager = createManager({
+      listTools: vi.fn(async () => [{
+        serverName: 'custom',
+        name: 'custom::mystery_operation',
+        toolName: 'mystery_operation',
+        description: 'A dynamically discovered test tool.',
+        inputSchema: { type: 'object' },
+      }]),
+    })
+
+    createMcpServersService({
+      context: { emit: contextEmitMock } as any,
+      manager,
+    })
+
+    const callTool = invokeHandlers.get(electronMcpCallTool)
+    expect(callTool).toBeTypeOf('function')
+
+    const result = await callTool!({
+      name: 'custom::mystery_operation',
+      arguments: {
+        value: 'noop',
+      },
+    })
+
+    expect(result.isError).toBe(true)
+    expect(result.errorCode).toBe('MCP_CAPABILITY_NOT_ALLOWLISTED')
+    expect(manager.callTool).not.toBeCalled()
+    expect(getSafetyRequests()).toHaveLength(0)
+  })
+
+  it('rejects an unknown qualified MCP name before asking for permission or calling the manager', async () => {
+    const { createMcpServersService } = await import('./index')
+    const manager = createManager()
+
+    createMcpServersService({
+      context: { emit: contextEmitMock } as any,
+      manager,
+    })
+
+    const callTool = invokeHandlers.get(electronMcpCallTool)
+    expect(callTool).toBeTypeOf('function')
+
+    const result = await callTool!({
+      name: 'unknown-server::read_file',
+      arguments: {
+        path: '/tmp/outside/unknown.txt',
+      },
+    })
+
+    expect(result.isError).toBe(true)
+    expect(result.errorCode).toBe('MCP_CAPABILITY_NOT_ALLOWLISTED')
+    expect(parseToolErrorJson(result)).toEqual(expect.objectContaining({
+      status: 'error',
+      code: 'MCP_CAPABILITY_NOT_ALLOWLISTED',
+    }))
+    expect(manager.callTool).not.toBeCalled()
+    expect(getSafetyRequests()).toHaveLength(0)
+  })
+
+  it('rejects invalid arguments for a registered MCP capability before permission evaluation or manager execution', async () => {
     const { createMcpServersService } = await import('./index')
     const manager = createManager()
 
@@ -287,34 +418,88 @@ describe('mcp safety gate', () => {
     expect(callTool).toBeTypeOf('function')
     expect(resolvePermission).toBeTypeOf('function')
 
-    const pending = callTool!({
-      name: 'custom::mystery_operation',
+    contextEmitMock.mockImplementation((event, request) => {
+      if (event !== alicizationSafetyPermissionRequested)
+        return
+
+      queueMicrotask(() => {
+        void resolvePermission!({
+          token: request.token,
+          requestId: request.requestId,
+          allow: true,
+          reason: 'test-only-permission-resolution',
+        })
+      })
+    })
+
+    const result = await callTool!({
+      name: 'filesystem::read_file',
       arguments: {
-        value: 'noop',
+        path: 42,
       },
     })
 
-    await vi.waitFor(() => {
-      expect(getSafetyRequests()).toHaveLength(1)
-    })
-
-    const request = getSafetyRequests()[0]
-    expect(request?.actionCategory).toBe('unknown')
-    expect(request?.riskLevel).toBe('sensitive')
-    expect(request?.argumentsSummary).toEqual(expect.objectContaining({
-      kind: 'object',
+    expect(result.isError).toBe(true)
+    expect(result.errorCode).toBe('MCP_CAPABILITY_INPUT_INVALID')
+    expect(parseToolErrorJson(result)).toEqual(expect.objectContaining({
+      status: 'error',
+      code: 'MCP_CAPABILITY_INPUT_INVALID',
     }))
+    expect(manager.callTool).not.toBeCalled()
+    expect(getSafetyRequests()).toHaveLength(0)
+  })
 
-    await resolvePermission!({
-      token: request.token,
-      requestId: request.requestId,
-      allow: true,
-      reason: 'user-approved',
+  it.each([
+    'workspace::run_codex',
+    'workspace::run_claude_code',
+    'workspace::coding_agent',
+  ])('does not allow coding-agent-like qualified MCP name %s to bypass canonical authority', async (qualifiedName) => {
+    const { createMcpServersService } = await import('./index')
+    const [serverName, toolName] = qualifiedName.split('::')
+    const manager = createManager({
+      listTools: vi.fn(async () => [{
+        serverName,
+        name: qualifiedName,
+        toolName,
+        inputSchema: { type: 'object' },
+      }]),
     })
 
-    const result = await pending
-    expect(result.isError).not.toBe(true)
-    expect(manager.callTool).toBeCalledTimes(1)
+    createMcpServersService({
+      context: { emit: contextEmitMock } as any,
+      manager,
+    })
+
+    const callTool = invokeHandlers.get(electronMcpCallTool)
+    const resolvePermission = invokeHandlers.get(electronAlicizationSafetyResolvePermission)
+    expect(callTool).toBeTypeOf('function')
+    expect(resolvePermission).toBeTypeOf('function')
+
+    contextEmitMock.mockImplementation((event, request) => {
+      if (event !== alicizationSafetyPermissionRequested)
+        return
+
+      queueMicrotask(() => {
+        void resolvePermission!({
+          token: request.token,
+          requestId: request.requestId,
+          allow: true,
+          reason: 'test-only-permission-resolution',
+        })
+      })
+    })
+
+    const result = await callTool!({
+      name: qualifiedName,
+      arguments: {
+        prompt: 'Inspect the workspace.',
+      },
+    })
+
+    expect(result.isError).toBe(true)
+    expect(result.errorCode).toBe('MCP_CAPABILITY_NOT_ALLOWLISTED')
+    expect(manager.callTool).not.toBeCalled()
+    expect(getSafetyRequests()).toHaveLength(0)
   })
 
   it('uses one-time permission token and enables session whitelist', async () => {

@@ -863,6 +863,7 @@ export interface AlicizationExecutionRuntimeContext {
   turnId?: string | null
   sessionId?: string | null
   agentSessionId?: string | null
+  resultDeliveryMode?: 'inline' | 'callback' | null
   affectiveResidue?: AlicizationAffectiveResidueMemorySnapshot | null
   derivedMindStateBundle?: AlicizationDerivedMindStateBundle | null
   memoryClosureExecution?: AlicizationExecutionRuntimeMemoryClosureExecution | null
@@ -998,6 +999,7 @@ export interface AlicizationListTaskThreadsInput {
 }
 
 export interface AlicizationExecutionEventInput {
+  id?: string | null
   threadId: string
   decisionTraceId?: string | null
   turnId?: string | null
@@ -1222,6 +1224,7 @@ export interface AlicizationDispatchTaskThreadResult {
   thread: AlicizationTaskThreadRecord
   createdEventKinds: AlicizationExecutionEventKind[]
   ok: boolean
+  finalStatus?: AlicizationTaskThreadStatus
   summary: string
   output?: string | null
   errorCode?: string

@@ -21,6 +21,11 @@ export const alicizationTerminalTaskThreadStatuses = new Set<AlicizationTaskThre
   'blocked',
 ])
 
+export interface AlicizationExecutionFailureDetails {
+  code: string
+  message: string
+}
+
 export function sanitizeExecutionLedgerText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
@@ -70,4 +75,31 @@ export function readExecutionOutcome(events: AlicizationExecutionEventRecord[]) 
   if (!latestEvent)
     return ''
   return readExecutionPayloadOutcome(latestEvent.payload)
+}
+
+export function readExecutionFailure(events: AlicizationExecutionEventRecord[]): AlicizationExecutionFailureDetails | null {
+  const latestEvent = readLatestExecutionEvent(events)
+  const payload = latestEvent?.payload
+  if (!payload || typeof payload !== 'object')
+    return null
+
+  const code = sanitizeExecutionLedgerText(
+    payload.errorCode
+    ?? payload.code,
+    96,
+  )
+  const message = sanitizeExecutionLedgerText(
+    payload.errorMessage
+    ?? payload.error
+    ?? payload.reason
+    ?? payload.stderr,
+    320,
+  )
+  if (!code && !message)
+    return null
+
+  return {
+    code,
+    message,
+  }
 }

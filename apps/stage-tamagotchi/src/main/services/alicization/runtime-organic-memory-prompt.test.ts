@@ -77,6 +77,44 @@ describe('runtime-organic-memory-prompt', () => {
     ])
   })
 
+  it('can disable provider-side memory planning for a realtime dialogue turn', async () => {
+    const planRecollectionIntent = vi.fn(async () => null)
+    const planMemoryRecollection = vi.fn(async () => null)
+    const planRecollectionSpeech = vi.fn(async () => null)
+    const planMemoryDeliberation = vi.fn(async () => null)
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText,
+      selectPromptActiveThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'focused',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [],
+      buildHostPersonModel: async () => null,
+      recallConversationHistory: async () => [],
+      recallMemoryConsolidations: async () => [],
+      planRecollectionIntent,
+      planMemoryRecollection,
+      planRecollectionSpeech,
+      planMemoryDeliberation,
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: '实时对话只使用数据库召回',
+      providerPlanning: 'disabled',
+    })
+
+    expect(planRecollectionIntent).not.toHaveBeenCalled()
+    expect(planMemoryRecollection).not.toHaveBeenCalled()
+    expect(planRecollectionSpeech).not.toHaveBeenCalled()
+    expect(planMemoryDeliberation).not.toHaveBeenCalled()
+  })
+
   it('does not invent execution callback carry when recalled evidence has no summary', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,

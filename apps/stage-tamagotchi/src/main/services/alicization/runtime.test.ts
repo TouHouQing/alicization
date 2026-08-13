@@ -8058,21 +8058,20 @@ describe('alicization runtime audit helpers', () => {
   it('emits tool-call/tool-result stream events from main gateway tool path', async () => {
     const sandboxPath = await createSandboxPath()
     streamTextMock.mockImplementation(async ({ tools, onEvent }) => {
-      const mcpTool = Array.isArray(tools)
-        ? tools.find((entry: any) => entry?.function?.name === 'mcp_call_tool')
+      const readFileTool = Array.isArray(tools)
+        ? tools.find((entry: any) => entry?.function?.name === 'filesystem_read_file')
         : undefined
       const argumentsPayload = {
-        name: 'filesystem::read_file',
-        parameters: [{ name: 'path', value: '../secret.txt' }],
+        path: '../secret.txt',
       }
       await onEvent?.({
         type: 'tool-call',
         toolCallId: 'tool-main-1',
-        toolName: 'mcp_call_tool',
+        toolName: 'filesystem_read_file',
         arguments: argumentsPayload,
       })
-      const toolResult = mcpTool?.execute
-        ? await mcpTool.execute(argumentsPayload)
+      const toolResult = readFileTool?.execute
+        ? await readFileTool.execute(argumentsPayload)
         : undefined
       await onEvent?.({
         type: 'tool-result',
@@ -8125,11 +8124,13 @@ describe('alicization runtime audit helpers', () => {
       .map(([, payload]) => payload)
 
     expect(toolCallEvents).toHaveLength(1)
-    expect(toolCallEvents[0]?.toolName).toBe('mcp_call_tool')
+    expect(toolCallEvents[0]?.toolName).toBe('filesystem_read_file')
     expect(toolResultEvents).toHaveLength(1)
     expect(toolResultEvents[0]?.result).toEqual(expect.objectContaining({
-      isError: true,
-      errorCode: 'MCP_CALL_UNAVAILABLE',
+      status: 'failed',
+      operation: 'read_file',
+      errorCode: expect.any(String),
+      errorMessage: expect.any(String),
     }))
   })
 
@@ -9579,6 +9580,7 @@ describe('alicization runtime audit helpers', () => {
         toolName: 'set_reminder',
         arguments: { minutes: 3, message: '3分钟后提醒我喝水' },
       })
+      await onEvent?.({ type: 'finish', finishReason: 'tool_calls' })
     })
 
     await setupAlicizationRuntime({
@@ -9892,6 +9894,7 @@ describe('alicization runtime audit helpers', () => {
           toolName: 'set_reminder',
           arguments: { minutes: 3, message: '取消测试提醒' },
         })
+        await onEvent?.({ type: 'finish', finishReason: 'tool_calls' })
         return
       }
 
@@ -10612,6 +10615,60 @@ describe('alicization runtime audit helpers', () => {
         sourceKind: 'active-demotion',
       }),
     ]))
+  })
+
+  it('forwards desktop inspection abort signals to browser reads and desktop enumeration', async () => {
+    const sandboxPath = await createSandboxPath()
+    const abortController = new AbortController()
+    foregroundWindowSample = {
+      appName: 'Google Chrome',
+      processName: 'Google Chrome',
+      title: 'Alicization',
+    }
+    localBrowserAutomationOverrides.readPage = vi.fn(async (input: { format?: string }) => ({
+      status: 'completed',
+      operation: 'browser_read_page',
+      browser: 'chrome',
+      url: 'https://example.com',
+      title: 'Alicization',
+      interactables: input.format === 'interactables' ? [] : undefined,
+      content: input.format === 'text' ? 'Current page' : '',
+      output: '',
+    }))
+    localBrowserAutomationOverrides.listDesktopInteractables = vi.fn(async () => ({
+      status: 'completed',
+      operation: 'desktop_list_interactables',
+      interactables: [],
+      output: '',
+    }))
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const desktopInspectScene = runtimeTestInternals.currentDesktopInspectScene
+    expect(desktopInspectScene).toBeTypeOf('function')
+    if (!desktopInspectScene)
+      return
+
+    await desktopInspectScene({
+      abortSignal: abortController.signal,
+      cardId: 'default',
+      question: 'Inspect the current browser page.',
+    })
+
+    expect(localBrowserAutomationOverrides.readPage).toHaveBeenCalledTimes(2)
+    expect(localBrowserAutomationOverrides.readPage).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      abortSignal: abortController.signal,
+      format: 'interactables',
+    }))
+    expect(localBrowserAutomationOverrides.readPage).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      abortSignal: abortController.signal,
+      format: 'text',
+    }))
+    expect(localBrowserAutomationOverrides.listDesktopInteractables).toHaveBeenCalledWith(expect.objectContaining({
+      abortSignal: abortController.signal,
+    }))
   })
 
   it('does not run the nightly replay benchmark when scheduled dream generation is unavailable', async () => {

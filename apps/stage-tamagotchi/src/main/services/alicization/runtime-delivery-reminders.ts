@@ -25,6 +25,28 @@ import { buildAlicizationTurnGraphFromSettlements } from './turn-os/turn-graph'
 
 const executionProviderSettlementRetryBudget = 3
 
+function executionDeliveryToolName(channel: string) {
+  const normalized = channel.trim().toLowerCase()
+  if (normalized === 'claude-code')
+    return 'claude_code'
+  if (normalized === 'local-visual')
+    return 'local_visual'
+  return normalized.replace(/[\s-]+/g, '_') || 'tool'
+}
+
+function executionDeliveryFailureCode(
+  status: AlicizationTaskThreadRecord['status'],
+  errorCode?: string,
+) {
+  if (errorCode?.trim())
+    return errorCode.trim()
+  if (status === 'cancelled')
+    return 'TOOL_EXECUTION_CANCELLED'
+  if (status === 'blocked')
+    return 'TOOL_EXECUTION_BLOCKED'
+  return 'TOOL_EXECUTION_FAILED'
+}
+
 interface CreateAlicizationDeliveryReminderRuntimeOptions {
   getActiveCardId: () => string
   isAlicizationKillSwitchSuspended: () => boolean
@@ -499,10 +521,6 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
     if (!pendingDelivery)
       return false
 
-    agentTurn?.ingestRuntimeActions([
-      options.buildExecutionDeliveryAction(pendingDelivery),
-    ])
-
     const firedTurnId = buildAlicizationAutonomousDialogueTurnId({
       kind: 'execution-callback',
       segments: [options.getActiveCardId(), pendingDelivery.threadId, Date.now()],
@@ -542,6 +560,96 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
       })
       return true
     }
+    const deliverTerminalExecutionFailure = async () => {
+      const failureSurface = resolveAlicizationChatFailureSurface({
+        kind: 'tool-execution',
+        toolExecution: {
+          code: executionDeliveryFailureCode(
+            pendingDelivery.status,
+            pendingDelivery.errorCode,
+          ),
+          message: pendingDelivery.errorMessage
+            || pendingDelivery.outcome
+            || pendingDelivery.summary
+            || 'Tool execution failed.',
+          toolName: executionDeliveryToolName(pendingDelivery.channel),
+        },
+      })
+
+      let persisted = false
+      let persistenceError: string | undefined
+      try {
+        persisted = Boolean(await options.appendConversationTurnWithGuards({
+          turnId: firedTurnId,
+          sessionId: pendingDelivery.sessionId,
+          assistantText: failureSurface.reply,
+          structured: {
+            format: 'alicization-chat-failure-v1',
+            ...failureSurface,
+          },
+          origin: resolveAlicizationAutonomousDialogueOrigin('proactive'),
+          createdAt: Date.now(),
+        }))
+      }
+      catch (error) {
+        persistenceError = options.errorMessageFrom(error) ?? 'failure-surface-persistence-error'
+      }
+
+      if (!persisted) {
+        persistenceError = persistenceError ?? 'failure-surface-write-skipped'
+        options.executionDeliveryRuntime.requeue(pendingDelivery)
+        await options.persistExecutionDeliveryState(options.getActiveCardId()).catch((error) => {
+          persistenceError = persistenceError ?? options.errorMessageFrom(error) ?? 'delivery-state-persistence-error'
+        })
+        options.queueSubconsciousWake(
+          options.getActiveCardId(),
+          `execution-delivery-tool-failure-retry:${pendingDelivery.threadId}`,
+          2_500,
+        )
+        await options.appendAuditLog({
+          level: 'warning',
+          category: 'alicization.executor.delivery',
+          action: 'tool-failure-requeued',
+          message: 'Terminal tool failure delivery was requeued because its visible turn was not persisted.',
+          payload: {
+            trigger,
+            threadId: pendingDelivery.threadId,
+            sessionId: pendingDelivery.sessionId,
+            status: pendingDelivery.status,
+            channel: pendingDelivery.channel,
+            errorCode: failureSurface.toolExecution?.code,
+            errorMessage: failureSurface.toolExecution?.message,
+            persisted,
+            persistenceError,
+          },
+        }).catch(() => {})
+        return false
+      }
+
+      // A terminal tool fact must never be sent back through the Provider retry loop.
+      options.executionDeliveryRuntime.markDelivered(pendingDelivery)
+      await options.persistExecutionDeliveryState(options.getActiveCardId()).catch((error) => {
+        persistenceError = persistenceError ?? options.errorMessageFrom(error) ?? 'delivery-state-persistence-error'
+      })
+      await options.appendAuditLog({
+        level: persistenceError ? 'warning' : 'notice',
+        category: 'alicization.executor.delivery',
+        action: 'tool-failure-delivered',
+        message: 'Delivered the terminal tool failure without starting a Provider continuation.',
+        payload: {
+          trigger,
+          threadId: pendingDelivery.threadId,
+          sessionId: pendingDelivery.sessionId,
+          status: pendingDelivery.status,
+          channel: pendingDelivery.channel,
+          errorCode: failureSurface.toolExecution?.code,
+          errorMessage: failureSurface.toolExecution?.message,
+          persisted,
+          persistenceError: persistenceError ?? null,
+        },
+      }).catch(() => {})
+      return true
+    }
     const handleProviderSettlementFailure = async (input: {
       reason: string
       settlementStatus: string
@@ -552,7 +660,7 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
       ) + 1
       if (providerSettlementAttempts >= executionProviderSettlementRetryBudget) {
         const failureSurface = resolveAlicizationChatFailureSurface({
-          kind: 'provider-output-invalid',
+          kind: 'provider-continuation-incomplete',
         })
         const persistedFailure = await options.appendConversationTurnWithGuards({
           turnId: firedTurnId,
@@ -619,6 +727,13 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
     try {
       if (await skipIfInlineSurfaced('pre-generate'))
         return false
+
+      if (pendingDelivery.status !== 'completed' || pendingDelivery.errorCode || pendingDelivery.errorMessage)
+        return await deliverTerminalExecutionFailure()
+
+      agentTurn?.ingestRuntimeActions([
+        options.buildExecutionDeliveryAction(pendingDelivery),
+      ])
 
       const deliveryPolicy = await options.resolveExecutionResultDeliveryPolicy({
         agentTurn,

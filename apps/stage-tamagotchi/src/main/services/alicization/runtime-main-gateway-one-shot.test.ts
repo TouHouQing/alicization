@@ -4,6 +4,7 @@ import { alicizationProviderResponseFormat } from '@proj-alicization/stage-share
 import { generateText } from '@xsai/generate-text'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { createAlicizationMainGatewayWorkCoordinator } from './main-gateway-work-coordinator'
 import { createAlicizationMainGatewayOneShotRuntime } from './runtime-main-gateway-one-shot'
 
 vi.mock('@xsai/generate-text', () => ({
@@ -102,6 +103,296 @@ describe('runtime main gateway one-shot', () => {
 
     expect(source).not.toContain('retiredOneShotStructuredKeys')
   })
+
+  it('does not start a background one-shot while foreground chat owns the provider', async () => {
+    const acquireOneShot = vi.fn(() => ({
+      accepted: false as const,
+      lane: 'background' as const,
+      reason: 'foreground-active' as const,
+    }))
+    const onFailure = vi.fn()
+    const { runtime, appendRuntimeDebugLine } = createOneShotRuntimeHarness({
+      providerWorkCoordinator: {
+        acquireOneShot,
+      },
+    } as any)
+    vi.mocked(generateText).mockResolvedValueOnce({
+      text: 'background response should not run',
+    } as any)
+
+    const result = await runtime.generateMainGatewayText({
+      system: 'background context',
+      user: 'background request',
+      source: 'proactive',
+      onFailure,
+    })
+
+    expect(result).toBeNull()
+    expect(acquireOneShot).toHaveBeenCalledWith({
+      source: 'proactive',
+    })
+    expect(generateText).not.toHaveBeenCalled()
+    expect(onFailure).not.toHaveBeenCalled()
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+      'main-gateway.one-shot-deferred',
+      expect.objectContaining({
+        source: 'proactive',
+        lane: 'background',
+        reason: 'foreground-active',
+      }),
+    )
+  })
+
+  it('preempts an in-flight background one-shot without reporting a Provider failure', async () => {
+    const providerWorkCoordinator = createAlicizationMainGatewayWorkCoordinator()
+    const onFailure = vi.fn()
+    const { runtime, appendRuntimeDebugLine } = createOneShotRuntimeHarness({
+      providerWorkCoordinator,
+    })
+    let providerAbortSignal: AbortSignal | undefined
+    vi.mocked(generateText).mockImplementationOnce(async (input: any) => {
+      providerAbortSignal = input.abortSignal
+      return await new Promise((_resolve, reject) => {
+        input.abortSignal.addEventListener('abort', () => reject(input.abortSignal.reason), {
+          once: true,
+        })
+      })
+    })
+
+    const backgroundPromise = runtime.generateMainGatewayText({
+      system: 'background context',
+      user: 'background request',
+      source: 'proactive',
+      onFailure,
+    })
+    await vi.waitFor(() => {
+      expect(providerAbortSignal).toBeDefined()
+    })
+
+    const foreground = providerWorkCoordinator.openForeground({
+      turnId: 'turn-user-chat',
+    })
+    const result = await backgroundPromise
+    foreground.release()
+
+    expect(result).toBeNull()
+    expect(providerAbortSignal?.aborted).toBe(true)
+    expect(onFailure).not.toHaveBeenCalled()
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+      'main-gateway.one-shot-preempted',
+      expect.objectContaining({
+        source: 'proactive',
+        lane: 'background',
+        reason: 'main-gateway-preempted-by-foreground-chat',
+      }),
+    )
+  })
+
+  it('settles a preempted background one-shot even when the Provider ignores abort and discards its late result', async () => {
+    const providerWorkCoordinator = createAlicizationMainGatewayWorkCoordinator()
+    const onFailure = vi.fn()
+    const rememberMainGatewayRoute = vi.fn()
+    const syncAgentTurnSessionMirror = vi.fn()
+    const { runtime, appendRuntimeDebugLine } = createOneShotRuntimeHarness({
+      providerWorkCoordinator,
+      rememberMainGatewayRoute,
+      syncAgentTurnSessionMirror,
+    })
+    let resolveProvider!: (value: { text: string }) => void
+    let providerAbortSignal: AbortSignal | undefined
+    vi.mocked(generateText).mockImplementationOnce(async (input: any) => {
+      providerAbortSignal = input.abortSignal
+      return await new Promise<any>((resolve) => {
+        resolveProvider = resolve
+      })
+    })
+
+    const backgroundPromise = runtime.generateMainGatewayText({
+      system: 'background context',
+      user: 'background request',
+      source: 'proactive',
+      onFailure,
+    })
+    await vi.waitFor(() => {
+      expect(providerAbortSignal).toBeDefined()
+    })
+
+    const foreground = providerWorkCoordinator.openForeground({
+      turnId: 'turn-user-chat-provider-ignores-abort',
+    })
+    await expect(Promise.race([
+      backgroundPromise,
+      new Promise(resolve => setTimeout(() => resolve('still-pending'), 50)),
+    ])).resolves.toBeNull()
+    foreground.release()
+
+    expect(providerAbortSignal?.aborted).toBe(true)
+    expect(onFailure).not.toHaveBeenCalled()
+    expect(rememberMainGatewayRoute).not.toHaveBeenCalled()
+    expect(syncAgentTurnSessionMirror).not.toHaveBeenCalled()
+    expect(providerWorkCoordinator.snapshot()).toEqual({
+      activeBackgroundSource: null,
+      activeForegroundCount: 0,
+    })
+
+    resolveProvider({ text: 'late background result' })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(rememberMainGatewayRoute).not.toHaveBeenCalled()
+    expect(syncAgentTurnSessionMirror).not.toHaveBeenCalled()
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+      'main-gateway.one-shot-preempted',
+      expect.objectContaining({
+        source: 'proactive',
+        lane: 'background',
+        reason: 'main-gateway-preempted-by-foreground-chat',
+      }),
+    )
+  })
+
+  it('settles an externally aborted one-shot even when the Provider ignores abort without reporting a Provider failure', async () => {
+    const controller = new AbortController()
+    const onFailure = vi.fn()
+    const rememberMainGatewayRoute = vi.fn()
+    const { runtime, appendRuntimeDebugLine } = createOneShotRuntimeHarness({
+      rememberMainGatewayRoute,
+    })
+    let providerAbortSignal: AbortSignal | undefined
+    vi.mocked(generateText).mockImplementationOnce(async (input: any) => {
+      providerAbortSignal = input.abortSignal
+      return await new Promise(() => {})
+    })
+
+    const generationPromise = runtime.generateMainGatewayText({
+      system: 'foreground perception context',
+      user: 'inspect the current screen',
+      source: 'screen-semantic',
+      abortSignal: controller.signal,
+      onFailure,
+    })
+    await vi.waitFor(() => {
+      expect(providerAbortSignal).toBeDefined()
+    })
+
+    controller.abort(new DOMException('user cancelled', 'AbortError'))
+
+    await expect(Promise.race([
+      generationPromise,
+      new Promise(resolve => setTimeout(() => resolve('still-pending'), 50)),
+    ])).resolves.toBeNull()
+    expect(providerAbortSignal?.aborted).toBe(true)
+    expect(onFailure).not.toHaveBeenCalled()
+    expect(rememberMainGatewayRoute).not.toHaveBeenCalled()
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+      'main-gateway.one-shot-aborted',
+      expect.objectContaining({
+        source: 'screen-semantic',
+      }),
+    )
+  })
+
+  it('backs off repeated background one-shots after a Provider failure', async () => {
+    const providerWorkCoordinator = createAlicizationMainGatewayWorkCoordinator()
+    const { runtime, appendRuntimeDebugLine } = createOneShotRuntimeHarness({
+      providerWorkCoordinator,
+    })
+    vi.mocked(generateText).mockRejectedValueOnce(
+      new Error('Remote sent 503 response: service unavailable'),
+    )
+
+    await expect(runtime.generateMainGatewayText({
+      system: 'background context',
+      user: 'first background request',
+      source: 'counterfactual-deliberation',
+    })).resolves.toBeNull()
+    await expect(runtime.generateMainGatewayText({
+      system: 'background context',
+      user: 'second background request',
+      source: 'counterfactual-deliberation',
+    })).resolves.toBeNull()
+
+    expect(generateText).toHaveBeenCalledTimes(2)
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+      'main-gateway.one-shot-deferred',
+      expect.objectContaining({
+        source: 'counterfactual-deliberation',
+        lane: 'background',
+        reason: 'background-backoff',
+      }),
+    )
+  })
+
+  it('retries five transient Provider failures and accepts the sixth one-shot result', async () => {
+    const { runtime, appendRuntimeDebugLine } = createOneShotRuntimeHarness()
+    vi.mocked(generateText)
+      .mockRejectedValueOnce(Object.assign(new Error('service unavailable'), { status: 503 }))
+      .mockRejectedValueOnce(Object.assign(new Error('rate limited'), { status: 429 }))
+      .mockRejectedValueOnce(Object.assign(new Error('socket reset'), { code: 'ECONNRESET' }))
+      .mockRejectedValueOnce(Object.assign(new Error('upstream timeout'), { status: 504 }))
+      .mockRejectedValueOnce(Object.assign(new Error('service unavailable'), { status: 503 }))
+      .mockResolvedValueOnce({ text: 'recovered one-shot response' } as any)
+
+    await expect(runtime.generateMainGatewayText({
+      system: 'foreground context',
+      user: 'foreground request',
+      source: 'scene-appraisal',
+      timeoutMs: 20_000,
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+      },
+    })).resolves.toBe('recovered one-shot response')
+
+    expect(generateText).toHaveBeenCalledTimes(6)
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+      'main-gateway.provider-retry-started',
+      expect.objectContaining({
+        attempt: 5,
+        maxRetries: 5,
+        providerId: 'provider-test',
+        model: 'model-test',
+      }),
+    )
+  }, 20_000)
+
+  it('reports one transparent failure after the one-shot Provider retry budget is exhausted', async () => {
+    const terminalError = Object.assign(new Error('service unavailable after retries'), {
+      status: 503,
+    })
+    const onFailure = vi.fn()
+    const { runtime, appendRuntimeDebugLine } = createOneShotRuntimeHarness()
+    vi.mocked(generateText).mockRejectedValue(terminalError)
+
+    await expect(runtime.generateMainGatewayText({
+      system: 'foreground context',
+      user: 'foreground request',
+      source: 'scene-appraisal',
+      timeoutMs: 20_000,
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+      },
+      onFailure,
+    })).resolves.toBeNull()
+
+    expect(generateText).toHaveBeenCalledTimes(6)
+    expect(onFailure).toHaveBeenCalledOnce()
+    expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({
+      reason: 'service unavailable after retries',
+      providerId: 'provider-test',
+      model: 'model-test',
+    }))
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+      'main-gateway.provider-retry-exhausted',
+      expect.objectContaining({
+        attempt: 5,
+        maxRetries: 5,
+        providerId: 'provider-test',
+        model: 'model-test',
+        status: 503,
+      }),
+    )
+  }, 20_000)
 
   it('drops generic structured residue from typed system blocks without rewriting user text', async () => {
     const { runtime } = createOneShotRuntimeHarness()

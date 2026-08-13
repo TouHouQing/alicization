@@ -133,6 +133,7 @@
     "remark-rehype": "^11.1.2",
     "rou3": "^0.7.12",
     "shiki": "^3.23.0",
+    "smol-toml": "catalog:",
     "splitpanes": "catalog:",
     "sqlite-vec": "catalog:",
     "sqlite3": "5.1.7",

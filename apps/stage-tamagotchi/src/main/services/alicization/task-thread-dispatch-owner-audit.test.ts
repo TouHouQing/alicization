@@ -77,7 +77,8 @@ describe('task-thread dispatch owner audit', () => {
       const source = readFileSync(new URL(`./${entry.relativePath}`, import.meta.url), 'utf8')
 
       expect(resolveAlicizationTaskThreadDispatchOwnerMode(entry.relativePath)).toBe('gateway-dispatch-owner')
-      expect(source).toContain('const dispatchResult = await options.dispatchTaskThread({')
+      expect(source).toContain('const dispatchInvocation = {')
+      expect(source).toContain('const dispatchResult = await options.dispatchTaskThread(dispatchInvocation)')
       expect(source).toContain('const killSwitchSuspended = options.getGlobalKillSwitchState() === \'SUSPENDED\'')
       expect(source).toContain('appendAuditLog: options.appendAuditLog,')
       expect(source).toContain('threadId: planning.thread.id,')
@@ -99,6 +100,16 @@ describe('task-thread dispatch owner audit', () => {
       expect(source).toContain('async function dispatchTaskThreadWithExecutionDelivery(')
       expect(source).toContain('dispatchAutonomyTaskThread: async (payload: any) => await dispatchTaskThreadWithExecutionDelivery({')
     }
+  })
+
+  it('requires the canonical gateway owner to forward abort signals into new and resumed task threads', () => {
+    const executorRuntimeSource = readFileSync(new URL('./executor-runtime.ts', import.meta.url), 'utf8')
+
+    expect(executorRuntimeSource).toContain('abortSignal: combineAbortSignals([')
+    expect(executorRuntimeSource).toContain('input.abortSignal,')
+    expect(executorRuntimeSource).toContain('input.context.abortSignal,')
+    expect(executorRuntimeSource).toContain('threadId: resumableThread.id,')
+    expect(executorRuntimeSource).toContain('abortSignal: input.abortSignal,')
   })
 
   it('requires autonomy dispatch owners to route auto-start task dispatch only through the audited autonomous payload builder after explicit eligibility checks', () => {

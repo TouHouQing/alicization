@@ -14,7 +14,10 @@ import type {
   AlicizationDispatchTaskThreadPayload,
   AlicizationSensoryCacheSnapshot,
 } from '../../../shared/eventa'
-import type { AlicizationCodingAgentDelegationAuthority } from './coding-agent-task-contract'
+import type {
+  AlicizationCodingAgentDelegationAuthority,
+  AlicizationCodingAgentName,
+} from './coding-agent-task-contract'
 import type {
   AlicizationLocalBrowserClickElementInput,
   AlicizationLocalBrowserNavigateInput,
@@ -33,6 +36,7 @@ import type {
 } from './local-browser-automation'
 import type { AlicizationLocalDesktopInspectSceneInput } from './local-desktop-inspection'
 import type { AlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
+import type { ToolRegistry } from './turn-os/tool-registry'
 
 import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
@@ -52,6 +56,7 @@ import {
   normalizeAlicizationCodingAgentTask,
   validateAlicizationCodingAgentInvocation,
 } from './coding-agent-task-contract'
+import { normalizeLocalVisualCrossLayerValue } from './executor-adapters/local-visual'
 import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 import { sanitizeBriefText } from './runtime-realtime'
 import { sanitizeText } from './runtime-soul'
@@ -120,7 +125,8 @@ export interface MainGatewayToolExecutionProgress {
 }
 
 export interface BuildMainGatewayToolsOptions {
-  toolSurface?: 'complete' | 'main-chat'
+  toolSurface: 'complete' | 'main-chat'
+  toolRegistry: ToolRegistry
   codingAgentDelegation?: AlicizationCodingAgentDelegationAuthority | null
   browserClickElement?: (input: AlicizationLocalBrowserClickElementInput) => Promise<unknown>
   browserNavigate?: (input: AlicizationLocalBrowserNavigateInput) => Promise<unknown>
@@ -153,13 +159,14 @@ export interface BuildMainGatewayToolsOptions {
   resumeTaskThread?: (input: {
     context: MainGatewayExecutionToolContext
     dispatchMode?: 'inline' | 'background'
-    expectedChannel?: AlicizationExecutionChannel
+    expectedChannel: AlicizationExecutionChannel
     threadId: string
     abortSignal?: AbortSignal
     onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
   }) => Promise<MainGatewayExecutionTaskThreadResult>
   executionCapabilityChannels: readonly AlicizationExecutionCapabilityChannel[]
   invokeMcpCallTool: (payload: {
+    abortSignal?: AbortSignal
     arguments?: Record<string, unknown>
     cardId?: string
     name: string
@@ -178,15 +185,47 @@ export interface BuildMainGatewayToolsOptions {
 }
 
 export const mainGatewayExecutorToolNames = [
-  'executor_run_coding_agent',
+  'cli',
+  'codex',
+  'claude_code',
+  'local_visual',
+  'openclaw',
+  'coding_agent',
+] as const
+
+type MainGatewayExecutorToolName = typeof mainGatewayExecutorToolNames[number]
+const mainGatewayExecutorAdapterToolNames = [
   'executor_run_cli',
   'executor_run_codex',
   'executor_run_claude_code',
   'executor_run_local_visual',
   'executor_run_openclaw',
+  'executor_run_coding_agent',
 ] as const
+type MainGatewayExecutorAdapterToolName = typeof mainGatewayExecutorAdapterToolNames[number]
+type MainGatewayToolNameProjector = (toolName: string) => string
 
-type MainGatewayExecutorToolName = typeof mainGatewayExecutorToolNames[number]
+function projectExecutorToolReferencesInText(
+  value: string,
+  projectToolName: MainGatewayToolNameProjector,
+) {
+  let projected = value
+  for (const toolName of [
+    ...mainGatewayExecutorToolNames,
+    ...mainGatewayExecutorAdapterToolNames,
+  ])
+    projected = projected.replaceAll(toolName, projectToolName(toolName))
+  return projected
+}
+
+function isExecutorToolReference(
+  toolName: string,
+  projectedExecutorToolNames: ReadonlySet<string>,
+) {
+  return mainGatewayExecutorToolNames.includes(toolName as MainGatewayExecutorToolName)
+    || mainGatewayExecutorAdapterToolNames.includes(toolName as MainGatewayExecutorAdapterToolName)
+    || projectedExecutorToolNames.has(toolName)
+}
 
 const filesystemToolDefaultMaxReturnBytes = 128 * 1024
 const filesystemToolMaxReturnBytes = 512 * 1024
@@ -448,6 +487,112 @@ function normalizeLocalToolResult(raw: unknown, operation: string): MainGatewayT
   }
 }
 
+const mutatingDirectLocalToolOperations = new Set([
+  'browser_open_url',
+  'browser_search_web',
+  'browser_click_element',
+  'browser_type_text',
+  'browser_navigate',
+  'desktop_click_element',
+  'desktop_type_text',
+  'desktop_press_keys',
+  'desktop_open_application',
+])
+
+function isAbortLikeLocalToolError(error: unknown) {
+  if (!error || typeof error !== 'object')
+    return false
+  const record = error as Record<string, unknown>
+  return record.name === 'AbortError'
+    || record.code === 'ABORT_ERR'
+    || record.code === 'ERR_ABORTED'
+}
+
+function localToolErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message.trim())
+    return error.message.trim()
+  const record = asRecord(error)
+  return sanitizeText(record?.message) || fallback
+}
+
+function safeJsonStringify(raw: unknown) {
+  try {
+    return JSON.stringify(raw)
+  }
+  catch {
+    return ''
+  }
+}
+
+function buildDirectLocalToolFailure(input: {
+  abortSignal?: AbortSignal
+  error: unknown
+  mutation: boolean
+  operation: string
+}): MainGatewayToolResultObject {
+  const cancelled = input.abortSignal?.aborted || isAbortLikeLocalToolError(input.error)
+  const errorMessage = localToolErrorMessage(
+    cancelled && input.abortSignal?.reason !== undefined
+      ? input.abortSignal.reason
+      : input.error,
+    cancelled
+      ? 'Local tool execution was cancelled.'
+      : 'Local tool host execution failed.',
+  )
+  return {
+    status: 'failed',
+    operation: input.operation,
+    errorCode: cancelled
+      ? 'ALICIZATION_TOOL_ABORTED'
+      : 'LOCAL_VISUAL_HOST_FAILED',
+    errorMessage,
+    output: errorMessage,
+    ...(cancelled ? { cancelled: true } : {}),
+    ...(input.mutation ? { sideEffectState: 'unknown' } : {}),
+  }
+}
+
+function buildDirectLocalActionVerificationFailure(input: {
+  actionResult: MainGatewayToolResultObject
+  failureField: 'autoWaitResult' | 'postActionInspection'
+  failureResult: MainGatewayToolResultObject
+  operation: string
+  workflowContinuation: MainGatewayToolResultObject
+}): MainGatewayToolResultObject {
+  const errorCode = sanitizeText(input.failureResult.errorCode)
+    || 'LOCAL_VISUAL_HOST_FAILED'
+  const errorMessage = sanitizeText(input.failureResult.errorMessage)
+    || sanitizeText(input.failureResult.summary)
+    || 'Local action verification failed.'
+  const autoWaitResult = input.failureField === 'autoWaitResult'
+    ? input.failureResult
+    : undefined
+  const postActionInspection = input.failureField === 'postActionInspection'
+    ? input.failureResult
+    : null
+  const output = safeJsonStringify({
+    actionResult: input.actionResult,
+    autoWaitResult: autoWaitResult ?? null,
+    postActionInspection,
+    workflowContinuation: input.workflowContinuation,
+  })
+
+  return {
+    ...input.actionResult,
+    status: 'failed',
+    operation: input.operation,
+    sideEffectState: 'applied-unverified',
+    errorCode,
+    errorMessage,
+    ...(input.failureResult.cancelled === true ? { cancelled: true } : {}),
+    actionResult: input.actionResult,
+    autoWaitResult,
+    postActionInspection,
+    workflowContinuation: input.workflowContinuation,
+    output,
+  }
+}
+
 function extractSuggestedActionRecords(raw: unknown) {
   return Array.isArray(raw)
     ? raw.filter(value => Boolean(asRecord(value))).map(value => asRecord(value)!).filter(Boolean)
@@ -674,7 +819,7 @@ function normalizeExecutorTimeoutMs(raw: number | undefined) {
 }
 
 const executorPlanningGraceMs = 30_000
-const executorOuterBudgetDefaultsMs: Record<MainGatewayExecutorToolName, number> = {
+const executorOuterBudgetDefaultsMs: Record<MainGatewayExecutorAdapterToolName, number> = {
   executor_run_coding_agent: 65 * 60_000,
   executor_run_cli: 150_000,
   executor_run_codex: 65 * 60_000,
@@ -693,7 +838,7 @@ function readToolInputTimeoutMs(input: unknown) {
 }
 
 function buildExecutorOuterBudgetMs(input: {
-  toolName: MainGatewayExecutorToolName
+  toolName: MainGatewayExecutorAdapterToolName
   toolInput: unknown
 }) {
   const requestedTimeoutMs = readToolInputTimeoutMs(input.toolInput)
@@ -706,7 +851,7 @@ function buildExecutorOuterBudgetMs(input: {
 }
 
 function createExecutorToolTimeoutError(input: {
-  toolName: MainGatewayExecutorToolName
+  toolName: MainGatewayExecutorAdapterToolName
   timeoutMs: number
 }) {
   return Object.assign(
@@ -722,7 +867,7 @@ function createExecutorToolTimeoutError(input: {
 }
 
 function normalizeExecutorToolAbortReason(
-  toolName: MainGatewayExecutorToolName,
+  toolName: MainGatewayExecutorAdapterToolName,
   reason: unknown,
 ) {
   if (reason instanceof Error && reason.name !== 'AbortError')
@@ -748,7 +893,7 @@ function normalizeExecutorToolAbortReason(
 function createExecutorToolBudget(input: {
   parentSignal?: AbortSignal
   timeoutMs: number
-  toolName: MainGatewayExecutorToolName
+  toolName: MainGatewayExecutorAdapterToolName
 }) {
   const controller = new AbortController()
   let timedOut = false
@@ -915,6 +1060,31 @@ function toMainGatewayExecutorToolResult(result: MainGatewayExecutionTaskThreadR
   return toolResult
 }
 
+function isExecutorMutationInput(
+  toolName: MainGatewayExecutorAdapterToolName,
+  input: unknown,
+) {
+  const record = asRecord(input)
+  const effect = sanitizeText(record?.effect)
+  if (effect === 'observe')
+    return false
+
+  if (
+    (toolName === 'executor_run_codex' || toolName === 'executor_run_claude_code')
+    && sanitizeText(record?.kind) === 'codebase-investigation'
+  ) {
+    return false
+  }
+
+  if (toolName === 'executor_run_coding_agent') {
+    const agent = sanitizeText(record?.agent)
+    if (agent !== 'cli' && sanitizeText(record?.kind) === 'codebase-investigation')
+      return false
+  }
+
+  return true
+}
+
 function buildCodingAgentRoutingFeedback(input: {
   errorCode: 'CODING_AGENT_CHANNEL_MISMATCH' | 'CODING_AGENT_DELEGATION_REQUIRED' | 'CODING_AGENT_INVALID_INPUT'
   errorMessage: string
@@ -950,7 +1120,9 @@ function buildCodingAgentRoutingFeedback(input: {
 }
 
 function toMainGatewayToolExecutionFailure(input: {
+  dispatchedMutation?: boolean
   error: unknown
+  projectToolName?: MainGatewayToolNameProjector
   toolName: string
 }): MainGatewayToolResultObject {
   const cancelled = input.error instanceof Error && input.error.name === 'AbortError'
@@ -959,18 +1131,22 @@ function toMainGatewayToolExecutionFailure(input: {
     message: 'Tool execution failed.',
     toolName: input.toolName,
   }
+  const projectToolName = input.projectToolName ?? ((toolName: string) => toolName)
+  const toolName = projectToolName(failure.toolName)
+  const message = projectExecutorToolReferencesInText(failure.message, projectToolName)
 
   return {
     status: 'failed',
     stage: 'tool',
     failureKind: 'tool-execution',
-    toolName: failure.toolName,
+    toolName,
     errorCode: failure.code,
-    errorMessage: failure.message,
-    summary: `${failure.toolName} failed: ${failure.message}`,
+    errorMessage: message,
+    summary: `${toolName} failed: ${message}`,
     output: null,
     continuationPolicy: 'stop',
     ...(cancelled ? { cancelled: true } : {}),
+    ...(input.dispatchedMutation ? { sideEffectState: 'unknown' } : {}),
   }
 }
 
@@ -997,7 +1173,7 @@ function defineMainGatewayExecutorToolSpec<TSchema extends z.ZodTypeAny>(spec: {
     context: MainGatewayExecutionToolContext,
     onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void,
   ) => Promise<MainGatewayExecutionTaskThreadResult>
-  name: MainGatewayExecutorToolName
+  name: MainGatewayExecutorAdapterToolName
   parameters: TSchema
 }) {
   return spec
@@ -1053,10 +1229,23 @@ export function buildExecutionCapabilitySystemBlocks(
 
 export async function buildMainGatewayTools(options: BuildMainGatewayToolsOptions) {
   const { context } = options
+  if (options.toolSurface !== 'complete' && options.toolSurface !== 'main-chat')
+    throw new TypeError('buildMainGatewayTools requires an explicit toolSurface')
+  if (!options.toolRegistry)
+    throw new TypeError('buildMainGatewayTools requires an explicit toolRegistry')
+  const toolRegistry = options.toolRegistry
   const toolCallIdentity = options.toolCallIdentity
     ?? createAlicizationMainChatToolCallIdentityRegistry()
+  const executorExecutionBoundaryByContext = new WeakMap<object, { entered: boolean }>()
+  const resolveDirectLocalAbortSignal = (executeOptions?: { abortSignal?: AbortSignal }) =>
+    executeOptions?.abortSignal
+    ?? options.abortSignal
+    ?? context.abortSignal
   const executeTaskThread = async (input: Parameters<BuildMainGatewayToolsOptions['executeTaskThread']>[0]) => {
     const abortSignal = input.abortSignal ?? input.context.abortSignal ?? options.abortSignal
+    const executionBoundary = executorExecutionBoundaryByContext.get(input.context)
+    if (executionBoundary)
+      executionBoundary.entered = true
     return await options.executeTaskThread({
       ...input,
       ...(abortSignal ? { abortSignal } : {}),
@@ -1066,12 +1255,16 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     if (!options.resumeTaskThread)
       throw new Error('resumeTaskThread is not configured.')
     const abortSignal = input.abortSignal ?? input.context.abortSignal ?? options.abortSignal
+    const executionBoundary = executorExecutionBoundaryByContext.get(input.context)
+    if (executionBoundary)
+      executionBoundary.entered = true
     return await options.resumeTaskThread({
       ...input,
       ...(abortSignal ? { abortSignal } : {}),
     })
   }
   let maybeFollowUpExecutorWorkflow: (input: {
+    abortSignal?: AbortSignal
     payload: MainGatewayExecutorFollowUpInput
     result: MainGatewayToolResultObject
   }) => Promise<MainGatewayToolResultObject>
@@ -1483,14 +1676,26 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   ] as const
 
   let codingAgentClaimed = false
-  const allowedCodingAgents = (
+  const requestedCodingAgents = (
     options.codingAgentDelegation?.allowedAgents?.length
       ? options.codingAgentDelegation.allowedAgents
       : ['cli', 'codex', 'claude-code']
-  ) as ['cli' | 'codex' | 'claude-code', ...('cli' | 'codex' | 'claude-code')[]]
+  ) as AlicizationCodingAgentName[]
+  const codingAgentCapabilityIds: Record<AlicizationCodingAgentName, string> = {
+    'cli': 'coding_agent.cli',
+    'codex': 'coding_agent.codex',
+    'claude-code': 'coding_agent.claude_code',
+  }
+  const allowedCodingAgents = requestedCodingAgents.filter(agent =>
+    Boolean(toolRegistry.resolveActive(codingAgentCapabilityIds[agent])),
+  )
   const codingAgentNameSchema = allowedCodingAgents.length === 1
-    ? z.literal(allowedCodingAgents[0])
-    : z.enum(allowedCodingAgents)
+    ? z.literal(allowedCodingAgents[0]!)
+    : z.enum(
+        allowedCodingAgents.length > 1
+          ? allowedCodingAgents as [AlicizationCodingAgentName, ...AlicizationCodingAgentName[]]
+          : ['codex', 'claude-code', 'cli'],
+      )
   const codingAgentFacadeSpec = defineMainGatewayExecutorToolSpec({
     name: 'executor_run_coding_agent',
     description: 'Run one concrete coding-agent task that the user has delegated for this turn. Choose exactly one agent and provide a structured task. Use kind=codebase-investigation for read-only project inspection or kind=codebase-edit only when the user explicitly asks to change code. Do not use this tool for capability questions or general conversation.',
@@ -1531,7 +1736,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           return buildCodingAgentRoutingFeedback({
             errorCode: invocationValidation.errorCode,
             errorMessage: invocationValidation.errorMessage,
-            allowedAgents: options.codingAgentDelegation?.allowedAgents,
+            allowedAgents: allowedCodingAgents,
             toolInput: input,
           })
         }
@@ -1619,14 +1824,15 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       context: MainGatewayExecutionToolContext,
       onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void,
     ) => Promise<MainGatewayExecutionTaskThreadResult>
-    name: MainGatewayExecutorToolName
+    name: MainGatewayExecutorAdapterToolName
     parameters: z.ZodTypeAny
   }) => tool({
-    name: spec.name,
+    name: toolRegistry.projectAdapterToolName(spec.name),
     description: spec.description,
     parameters: spec.parameters,
     execute: async (input, executeOptions) => {
       const startedAt = Date.now()
+      const providerToolName = toolRegistry.projectAdapterToolName(spec.name)
       const parentAbortSignal = executeOptions?.abortSignal
         ?? options.abortSignal
         ?? context.abortSignal
@@ -1641,7 +1847,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       const toolCallId = toolCallIdentity.resolveExecutorToolCall({
         arguments: input,
         toolCallId: executeOptions.toolCallId,
-        toolName: spec.name,
+        toolName: providerToolName,
       })
       const toolContext = {
         ...context,
@@ -1649,6 +1855,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         upstreamAbortSignal: parentAbortSignal,
         toolCallId,
       }
+      const executionBoundary = { entered: false }
+      executorExecutionBoundaryByContext.set(toolContext, executionBoundary)
       let terminalProgressEmitted = false
       let toolLifecycleOpen = true
       const timeoutMs = input && typeof input === 'object' && input !== null
@@ -1673,7 +1881,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         const occurredAt = Date.now()
         options.emitToolExecutionProgress({
           toolCallId,
-          toolName: spec.name,
+          toolName: providerToolName,
           phase,
           signal: progress?.signal
             ?? (terminal
@@ -1733,25 +1941,42 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
             emitProgress('running', {
               signal: 'semantic-progress',
               adapterEventType: 'executor.result-ready',
-              summary: `${spec.name} finished execution; preparing follow-up context.`,
+              summary: `${providerToolName} finished execution; preparing follow-up context.`,
             })
           }
           return await maybeFollowUpExecutorWorkflow({
+            abortSignal: outerBudget.signal,
             payload: input as MainGatewayExecutorFollowUpInput,
             result,
           })
         })
-        toolCallIdentity.registerExecutorResult(finalResult, toolCallId)
-        emitProgress(resolveMainGatewayToolProgressPhase(finalResult), {
-          errorCode: sanitizeText(finalResult.errorCode) || undefined,
-          errorMessage: sanitizeBriefText(sanitizeText(finalResult.errorMessage), 320) || undefined,
-          summary: sanitizeBriefText(sanitizeText(finalResult.summary), 220) || undefined,
+        const settledResult = executionBoundary.entered
+          && isExecutorMutationInput(spec.name, input)
+          && sanitizeText(finalResult.stage).toLowerCase() === 'dispatch'
+          && sanitizeText(finalResult.status).toLowerCase() !== 'completed'
+          && sanitizeText(finalResult.status).toLowerCase() !== 'accepted'
+          && finalResult.sideEffectState === undefined
+          ? {
+              ...finalResult,
+              sideEffectState: 'unknown',
+            }
+          : finalResult
+        toolCallIdentity.registerExecutorResult(settledResult, toolCallId)
+        emitProgress(resolveMainGatewayToolProgressPhase(settledResult), {
+          errorCode: sanitizeText(settledResult.errorCode) || undefined,
+          errorMessage: sanitizeBriefText(sanitizeText(settledResult.errorMessage), 320) || undefined,
+          summary: sanitizeBriefText(sanitizeText(settledResult.summary), 220) || undefined,
         })
-        return finalResult
+        return settledResult
       }
       catch (error) {
         const failureResult = toMainGatewayToolExecutionFailure({
+          dispatchedMutation: executionBoundary.entered
+            && (
+              isExecutorMutationInput(spec.name, input)
+            ),
           error,
+          projectToolName: toolName => toolRegistry.projectAdapterToolName(toolName),
           toolName: spec.name,
         })
         toolCallIdentity.registerExecutorResult(failureResult, toolCallId)
@@ -1772,10 +1997,14 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   const codingAgentRunTool = wrapExecutorToolSpec(codingAgentFacadeSpec)
   const codingAgentDelegationAllowed = options.toolSurface !== 'main-chat'
     || Boolean(options.codingAgentDelegation?.allowed)
-  const mainChatCodingAgentNames = options.codingAgentDelegation?.allowedAgents ?? []
+  const codingAgentFacadeCapabilityAvailable = Boolean(
+    toolRegistry.resolveActive('coding_agent'),
+  )
+  const mainChatCodingAgentNames = allowedCodingAgents
   const mainChatCodingAgentFacadeAllowed = options.toolSurface !== 'main-chat'
     || (
-      codingAgentDelegationAllowed
+      codingAgentFacadeCapabilityAvailable
+      && codingAgentDelegationAllowed
       && mainChatCodingAgentNames.some(agent => agent !== 'cli')
     )
   const mainChatCliExecutorAllowed = options.toolSurface !== 'main-chat'
@@ -1791,14 +2020,20 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   const mainChatLocalVisualExecutorTools = executorRunToolSpecs
     .filter(spec => spec.name === 'executor_run_local_visual')
     .map(spec => wrapExecutorToolSpec(spec))
-  const autoContinuationExecutorToolNames = new Set<MainGatewayExecutorToolName>([
-    'executor_run_cli',
-    'executor_run_codex',
-    'executor_run_claude_code',
+  const autoContinuationExecutorToolNames = new Set<string>([
+    'coding_agent',
+    'cli',
+    'codex',
+    'claude_code',
+    ...mainGatewayExecutorAdapterToolNames,
   ])
+  const projectedExecutorToolNames = new Set(
+    mainGatewayExecutorToolNames,
+  )
 
   const fileReadStateByPath = new Map<string, MainGatewayFileReadState>()
   let maybeFollowUpVisualWorkflow: (input: {
+    abortSignal?: AbortSignal
     operation: 'browser_open_url' | 'browser_search_web' | 'browser_click_element' | 'browser_type_text' | 'browser_navigate' | 'browser_scroll' | 'browser_wait' | 'desktop_click_element' | 'desktop_type_text' | 'desktop_press_keys' | 'desktop_open_application'
     payload:
       | AlicizationLocalBrowserOpenUrlInput
@@ -1815,7 +2050,62 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     result: MainGatewayToolResultObject
   }) => Promise<MainGatewayToolResultObject>
 
-  const executeAutoContinuationAction = async (action: Record<string, unknown>, remainingStepsAfterThis: number): Promise<MainGatewayToolResultObject | null> => {
+  const invokeDirectLocalToolHost = async <TInput extends object>(input: {
+    abortSignal?: AbortSignal
+    handler: (payload: TInput) => Promise<unknown>
+    operation: string
+    payload: TInput
+  }): Promise<MainGatewayToolResultObject> => {
+    const mutation = mutatingDirectLocalToolOperations.has(input.operation)
+    if (input.abortSignal?.aborted) {
+      return buildDirectLocalToolFailure({
+        abortSignal: input.abortSignal,
+        error: input.abortSignal.reason,
+        mutation,
+        operation: input.operation,
+      })
+    }
+
+    try {
+      const result = await input.handler({
+        ...input.payload,
+        ...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
+      })
+      if (input.abortSignal?.aborted) {
+        return buildDirectLocalToolFailure({
+          abortSignal: input.abortSignal,
+          error: input.abortSignal.reason,
+          mutation,
+          operation: input.operation,
+        })
+      }
+      const normalizedResult = normalizeLocalToolResult(result, input.operation)
+      const status = sanitizeText(normalizedResult.status).toLowerCase()
+      if (
+        mutation
+        && status
+        && status !== 'completed'
+        && normalizedResult.sideEffectState === undefined
+      ) {
+        normalizedResult.sideEffectState = 'unknown'
+      }
+      return normalizedResult
+    }
+    catch (error) {
+      return buildDirectLocalToolFailure({
+        abortSignal: input.abortSignal,
+        error,
+        mutation,
+        operation: input.operation,
+      })
+    }
+  }
+
+  const executeAutoContinuationAction = async (
+    action: Record<string, unknown>,
+    remainingStepsAfterThis: number,
+    abortSignal?: AbortSignal,
+  ): Promise<MainGatewayToolResultObject | null> => {
     const toolName = sanitizeText(action.toolName)
     const argumentsRecord = asRecord(action.arguments) ?? {}
     const recursiveArguments = remainingStepsAfterThis > 0
@@ -1826,24 +2116,41 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         }
       : argumentsRecord
 
-    if (toolName === 'browser_read_page' && options.browserReadPage)
-      return normalizeLocalToolResult(await options.browserReadPage(argumentsRecord as AlicizationLocalBrowserReadPageInput), 'browser_read_page')
-    if (toolName === 'desktop_list_interactables' && options.desktopListInteractables)
-      return normalizeLocalToolResult(await options.desktopListInteractables(argumentsRecord as AlicizationLocalDesktopListInteractablesInput), 'desktop_list_interactables')
-    if (toolName === 'desktop_wait' && options.desktopWait)
-      return normalizeLocalToolResult(await options.desktopWait(argumentsRecord as AlicizationLocalDesktopWaitInput), 'desktop_wait')
-    if (toolName === 'desktop_list_interactables' && options.desktopListInteractables)
-      return normalizeLocalToolResult(await options.desktopListInteractables(argumentsRecord as AlicizationLocalDesktopListInteractablesInput), 'desktop_list_interactables')
-    if (autoContinuationExecutorToolNames.has(toolName as MainGatewayExecutorToolName)) {
+    if (toolName === 'browser_read_page' && options.browserReadPage) {
+      return await invokeDirectLocalToolHost({
+        abortSignal,
+        handler: options.browserReadPage,
+        operation: 'browser_read_page',
+        payload: argumentsRecord as AlicizationLocalBrowserReadPageInput,
+      })
+    }
+    if (toolName === 'desktop_list_interactables' && options.desktopListInteractables) {
+      return await invokeDirectLocalToolHost({
+        abortSignal,
+        handler: options.desktopListInteractables,
+        operation: 'desktop_list_interactables',
+        payload: argumentsRecord as AlicizationLocalDesktopListInteractablesInput,
+      })
+    }
+    if (toolName === 'desktop_wait' && options.desktopWait) {
+      return await invokeDirectLocalToolHost({
+        abortSignal,
+        handler: options.desktopWait,
+        operation: 'desktop_wait',
+        payload: argumentsRecord as AlicizationLocalDesktopWaitInput,
+      })
+    }
+    if (autoContinuationExecutorToolNames.has(toolName)) {
+      const projectedToolName = toolRegistry.projectAdapterToolName(toolName)
       return {
         status: 'deferred',
         stage: 'auto-continuation',
-        toolName,
+        toolName: projectedToolName,
         reasonCode: 'executor-continuation-deferred-to-model',
-        summary: `${toolName} was suggested after an executor action and deferred back to the model.`,
+        summary: `${projectedToolName} was suggested after an executor action and deferred back to the model.`,
         output: JSON.stringify({
           suggestedAction: compactRecord({
-            toolName,
+            toolName: projectedToolName,
             arguments: argumentsRecord,
           }),
         }),
@@ -1851,72 +2158,126 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     }
 
     if (toolName === 'browser_click_element' && options.browserClickElement) {
-      const result = normalizeLocalToolResult(await options.browserClickElement(recursiveArguments as AlicizationLocalBrowserClickElementInput), 'browser_click_element')
+      const result = await invokeDirectLocalToolHost({
+        abortSignal,
+        handler: options.browserClickElement,
+        operation: 'browser_click_element',
+        payload: recursiveArguments as AlicizationLocalBrowserClickElementInput,
+      })
       return await maybeFollowUpVisualWorkflow({
+        abortSignal,
         operation: 'browser_click_element',
         payload: recursiveArguments as AlicizationLocalBrowserClickElementInput,
         result,
       })
     }
     if (toolName === 'browser_type_text' && options.browserTypeText) {
-      const result = normalizeLocalToolResult(await options.browserTypeText(recursiveArguments as unknown as AlicizationLocalBrowserTypeTextInput), 'browser_type_text')
+      const result = await invokeDirectLocalToolHost({
+        abortSignal,
+        handler: options.browserTypeText,
+        operation: 'browser_type_text',
+        payload: recursiveArguments as unknown as AlicizationLocalBrowserTypeTextInput,
+      })
       return await maybeFollowUpVisualWorkflow({
+        abortSignal,
         operation: 'browser_type_text',
         payload: recursiveArguments as unknown as AlicizationLocalBrowserTypeTextInput,
         result,
       })
     }
     if (toolName === 'browser_navigate' && options.browserNavigate) {
-      const result = normalizeLocalToolResult(await options.browserNavigate(recursiveArguments as unknown as AlicizationLocalBrowserNavigateInput), 'browser_navigate')
+      const result = await invokeDirectLocalToolHost({
+        abortSignal,
+        handler: options.browserNavigate,
+        operation: 'browser_navigate',
+        payload: recursiveArguments as unknown as AlicizationLocalBrowserNavigateInput,
+      })
       return await maybeFollowUpVisualWorkflow({
+        abortSignal,
         operation: 'browser_navigate',
         payload: recursiveArguments as unknown as AlicizationLocalBrowserNavigateInput,
         result,
       })
     }
     if (toolName === 'browser_scroll' && options.browserScroll) {
-      const result = normalizeLocalToolResult(await options.browserScroll(recursiveArguments as unknown as AlicizationLocalBrowserScrollInput), 'browser_scroll')
+      const result = await invokeDirectLocalToolHost({
+        abortSignal,
+        handler: options.browserScroll,
+        operation: 'browser_scroll',
+        payload: recursiveArguments as unknown as AlicizationLocalBrowserScrollInput,
+      })
       return await maybeFollowUpVisualWorkflow({
+        abortSignal,
         operation: 'browser_scroll',
         payload: recursiveArguments as unknown as AlicizationLocalBrowserScrollInput,
         result,
       })
     }
     if (toolName === 'browser_wait' && options.browserWait) {
-      const result = normalizeLocalToolResult(await options.browserWait(recursiveArguments as AlicizationLocalBrowserWaitInput), 'browser_wait')
+      const result = await invokeDirectLocalToolHost({
+        abortSignal,
+        handler: options.browserWait,
+        operation: 'browser_wait',
+        payload: recursiveArguments as AlicizationLocalBrowserWaitInput,
+      })
       return await maybeFollowUpVisualWorkflow({
+        abortSignal,
         operation: 'browser_wait',
         payload: recursiveArguments as AlicizationLocalBrowserWaitInput,
         result,
       })
     }
     if (toolName === 'desktop_click_element' && options.desktopClickElement) {
-      const result = normalizeLocalToolResult(await options.desktopClickElement(recursiveArguments as AlicizationLocalDesktopClickElementInput), 'desktop_click_element')
+      const result = await invokeDirectLocalToolHost({
+        abortSignal,
+        handler: options.desktopClickElement,
+        operation: 'desktop_click_element',
+        payload: recursiveArguments as AlicizationLocalDesktopClickElementInput,
+      })
       return await maybeFollowUpVisualWorkflow({
+        abortSignal,
         operation: 'desktop_click_element',
         payload: recursiveArguments as AlicizationLocalDesktopClickElementInput,
         result,
       })
     }
     if (toolName === 'desktop_type_text' && options.desktopTypeText) {
-      const result = normalizeLocalToolResult(await options.desktopTypeText(recursiveArguments as unknown as AlicizationLocalDesktopTypeTextInput), 'desktop_type_text')
+      const result = await invokeDirectLocalToolHost({
+        abortSignal,
+        handler: options.desktopTypeText,
+        operation: 'desktop_type_text',
+        payload: recursiveArguments as unknown as AlicizationLocalDesktopTypeTextInput,
+      })
       return await maybeFollowUpVisualWorkflow({
+        abortSignal,
         operation: 'desktop_type_text',
         payload: recursiveArguments as unknown as AlicizationLocalDesktopTypeTextInput,
         result,
       })
     }
     if (toolName === 'desktop_press_keys' && options.desktopPressKeys) {
-      const result = normalizeLocalToolResult(await options.desktopPressKeys(recursiveArguments as AlicizationLocalDesktopPressKeysInput), 'desktop_press_keys')
+      const result = await invokeDirectLocalToolHost({
+        abortSignal,
+        handler: options.desktopPressKeys,
+        operation: 'desktop_press_keys',
+        payload: recursiveArguments as AlicizationLocalDesktopPressKeysInput,
+      })
       return await maybeFollowUpVisualWorkflow({
+        abortSignal,
         operation: 'desktop_press_keys',
         payload: recursiveArguments as AlicizationLocalDesktopPressKeysInput,
         result,
       })
     }
     if (toolName === 'desktop_open_application' && options.desktopOpenApplication) {
-      const result = normalizeLocalToolResult(await options.desktopOpenApplication(recursiveArguments as AlicizationLocalDesktopOpenApplicationInput), 'desktop_open_application')
+      const result = await invokeDirectLocalToolHost({
+        abortSignal,
+        handler: options.desktopOpenApplication,
+        operation: 'desktop_open_application',
+        payload: recursiveArguments as AlicizationLocalDesktopOpenApplicationInput,
+      })
       return await maybeFollowUpVisualWorkflow({
+        abortSignal,
         operation: 'desktop_open_application',
         payload: recursiveArguments as AlicizationLocalDesktopOpenApplicationInput,
         result,
@@ -1927,6 +2288,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   }
 
   const executeAutoContinuation = async (input: {
+    abortSignal?: AbortSignal
     blockingSignals?: string[]
     continuationMode?: string | null
     requested: boolean
@@ -2058,9 +2420,12 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       })
       if (candidateIndex < 0) {
         deferredSuggestedActions = currentSuggestedActions
-          .filter(action => autoContinuationExecutorToolNames.has(sanitizeText(action.toolName) as MainGatewayExecutorToolName))
+          .filter(action => isExecutorToolReference(
+            sanitizeText(action.toolName),
+            projectedExecutorToolNames,
+          ))
           .map(action => compactRecord({
-            toolName: sanitizeText(action.toolName),
+            toolName: toolRegistry.projectAdapterToolName(sanitizeText(action.toolName)),
             title: sanitizeText(action.title),
             rationale: sanitizeBriefText(sanitizeText(action.rationale), 320),
             arguments: asRecord(action.arguments) ?? undefined,
@@ -2090,7 +2455,11 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         break
       }
 
-      const result = await executeAutoContinuationAction(candidate, remainingSteps - 1)
+      const result = await executeAutoContinuationAction(
+        candidate,
+        remainingSteps - 1,
+        input.abortSignal,
+      )
       if (!result) {
         stoppedReason = 'unsupported-action'
         break
@@ -2104,8 +2473,11 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       }))
       const toolName = sanitizeText(candidate.toolName)
       const resultStatus = sanitizeText(result.status).toLowerCase()
-      const shouldRetryNextExecutorCandidate = toolName.startsWith('executor_run_')
-        && resultStatus !== 'completed'
+      const shouldRetryNextExecutorCandidate = isExecutorToolReference(
+        toolName,
+        projectedExecutorToolNames,
+      )
+      && resultStatus !== 'completed'
       if (shouldRetryNextExecutorCandidate) {
         if (currentSuggestedActions.length <= 0) {
           stoppedReason = 'no-follow-up-action'
@@ -2223,6 +2595,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   }
 
   maybeFollowUpExecutorWorkflow = async (input: {
+    abortSignal?: AbortSignal
     payload: MainGatewayExecutorFollowUpInput
     result: MainGatewayToolResultObject
   }): Promise<MainGatewayToolResultObject> => {
@@ -2239,12 +2612,15 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       ? Math.max(1, Math.floor(inspectionMaxSuggestedActionsRaw))
       : 3
     const inspectionResultRaw = await options.desktopInspectScene({
+      ...(input.abortSignal ? { abortSignal: input.abortSignal } : {}),
       cardId: context.cardId,
       question: inspectionQuestionCandidate || undefined,
       forceRefresh: true,
       maxSuggestedActions: inspectionMaxSuggestedActions,
     })
-    const postActionInspection = asRecord(inspectionResultRaw)
+    const postActionInspection = asRecord(
+      normalizeLocalVisualCrossLayerValue(inspectionResultRaw),
+    )
     const observedPhase = sanitizeText(postActionInspection?.pagePhase) || undefined
     const nextActionIntent = sanitizeText(postActionInspection?.nextActionIntent) || undefined
     const browserPageContext = asRecord(postActionInspection?.browserPageContext)
@@ -2311,6 +2687,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       mergedResult.suggestedActions = suggestedActions
 
     const autoContinuation = await executeAutoContinuation({
+      abortSignal: input.abortSignal,
       continuationMode: sanitizeText(workflowPlan?.continuationMode) || undefined,
       blockingSignals,
       requested: autoContinueSuggestedActions,
@@ -2329,6 +2706,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   }
 
   maybeFollowUpVisualWorkflow = async (input: {
+    abortSignal?: AbortSignal
     operation: 'browser_open_url' | 'browser_search_web' | 'browser_click_element' | 'browser_type_text' | 'browser_navigate' | 'browser_scroll' | 'browser_wait' | 'desktop_click_element' | 'desktop_type_text' | 'desktop_press_keys' | 'desktop_open_application'
     payload:
       | AlicizationLocalBrowserOpenUrlInput
@@ -2369,12 +2747,16 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         || (input.operation === 'browser_type_text' && (input.payload as { submit?: unknown }).submit === true))
       && options.browserWait
     ) {
-      const waitResult = await options.browserWait({
-        browser: sanitizeText((input.payload as { browser?: unknown }).browser) || undefined,
-        state: 'complete',
-        timeoutMs: 5_000,
+      autoWaitResult = await invokeDirectLocalToolHost({
+        abortSignal: input.abortSignal,
+        handler: options.browserWait,
+        operation: 'browser_wait',
+        payload: {
+          browser: sanitizeText((input.payload as { browser?: unknown }).browser) || undefined,
+          state: 'complete',
+          timeoutMs: 5_000,
+        },
       })
-      autoWaitResult = asRecord(waitResult)
       const waitStatus = sanitizeText(autoWaitResult?.status).toLowerCase()
       if (waitStatus && waitStatus !== 'completed') {
         const workflowContinuation = compactRecord({
@@ -2382,16 +2764,13 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           autoWaitApplied: true,
           autoWaitStatus: waitStatus,
         })
-        return {
-          ...input.result,
+        return buildDirectLocalActionVerificationFailure({
+          actionResult: input.result,
+          failureField: 'autoWaitResult',
+          failureResult: autoWaitResult,
+          operation: input.operation,
           workflowContinuation,
-          postActionInspection: null,
-          output: JSON.stringify(compactRecord({
-            output: input.result.output,
-            workflowContinuation,
-            postActionInspection: null,
-          })),
-        }
+        })
       }
     }
 
@@ -2400,25 +2779,47 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     const inspectionMaxSuggestedActions = typeof inspectionMaxSuggestedActionsRaw === 'number' && Number.isFinite(inspectionMaxSuggestedActionsRaw)
       ? Math.max(1, Math.floor(inspectionMaxSuggestedActionsRaw))
       : 3
-    const inspectionResultRaw = await options.desktopInspectScene({
-      cardId: context.cardId,
-      question: inspectionQuestion,
-      forceRefresh: true,
-      maxSuggestedActions: inspectionMaxSuggestedActions,
+    const postActionInspection = await invokeDirectLocalToolHost({
+      abortSignal: input.abortSignal,
+      handler: options.desktopInspectScene,
+      operation: 'desktop_inspect_scene',
+      payload: {
+        cardId: context.cardId,
+        question: inspectionQuestion,
+        forceRefresh: true,
+        maxSuggestedActions: inspectionMaxSuggestedActions,
+      },
     })
-    const postActionInspection = asRecord(inspectionResultRaw)
-    const observedPhase = sanitizeText(postActionInspection?.pagePhase) || undefined
-    const nextActionIntent = sanitizeText(postActionInspection?.nextActionIntent) || undefined
-    const browserPageContext = asRecord(postActionInspection?.browserPageContext)
-    const hasBlockingSignals = Array.isArray(postActionInspection?.blockingSignals)
-    const blockingSignals = sanitizeStringList(postActionInspection?.blockingSignals)
-    const guiStructure = asRecord(postActionInspection?.guiStructure)
-    const workflowState = asRecord(postActionInspection?.workflowState)
-    const workflowPlan = asRecord(postActionInspection?.workflowPlan)
-    const executionStrategy = asRecord(postActionInspection?.executionStrategy)
-    const screenSemanticSummary = asRecord(postActionInspection?.screenSemanticSummary)
-    const inspectedSuggestedActions = Array.isArray(postActionInspection?.suggestedActions)
-      ? postActionInspection?.suggestedActions.filter(value => Boolean(asRecord(value))) as Array<Record<string, unknown>>
+    const normalizedPostActionInspection = asRecord(
+      normalizeLocalVisualCrossLayerValue(postActionInspection),
+    ) ?? postActionInspection
+    const inspectionStatus = sanitizeText(normalizedPostActionInspection.status).toLowerCase()
+    if (inspectionStatus && inspectionStatus !== 'completed') {
+      const workflowContinuation = compactRecord({
+        expectedPhase,
+        autoWaitApplied: autoWaitResult !== null,
+        autoWaitStatus: sanitizeText(autoWaitResult?.status) || undefined,
+      })
+      return buildDirectLocalActionVerificationFailure({
+        actionResult: input.result,
+        failureField: 'postActionInspection',
+        failureResult: normalizedPostActionInspection,
+        operation: input.operation,
+        workflowContinuation,
+      })
+    }
+    const observedPhase = sanitizeText(normalizedPostActionInspection.pagePhase) || undefined
+    const nextActionIntent = sanitizeText(normalizedPostActionInspection.nextActionIntent) || undefined
+    const browserPageContext = asRecord(normalizedPostActionInspection.browserPageContext)
+    const hasBlockingSignals = Array.isArray(normalizedPostActionInspection.blockingSignals)
+    const blockingSignals = sanitizeStringList(normalizedPostActionInspection.blockingSignals)
+    const guiStructure = asRecord(normalizedPostActionInspection.guiStructure)
+    const workflowState = asRecord(normalizedPostActionInspection.workflowState)
+    const workflowPlan = asRecord(normalizedPostActionInspection.workflowPlan)
+    const executionStrategy = asRecord(normalizedPostActionInspection.executionStrategy)
+    const screenSemanticSummary = asRecord(normalizedPostActionInspection.screenSemanticSummary)
+    const inspectedSuggestedActions = Array.isArray(normalizedPostActionInspection.suggestedActions)
+      ? normalizedPostActionInspection.suggestedActions.filter(value => Boolean(asRecord(value))) as Array<Record<string, unknown>>
       : []
     const matchedExpectedPhase = expectedPhase
       ? Boolean(observedPhase && observedPhase === expectedPhase)
@@ -2477,7 +2878,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           ]
         : inspectedSuggestedActions
     const hasSuggestedActions = suggestedActions.length > 0
-    const unavailableReason = sanitizeText(postActionInspection?.unavailableReason) || undefined
+    const unavailableReason = sanitizeText(normalizedPostActionInspection.unavailableReason) || undefined
     const maxAutoContinueSteps = normalizeAutoContinueStepCount((input.payload as { maxAutoContinueSteps?: unknown }).maxAutoContinueSteps)
     const progressState = sanitizeText(workflowState?.progressState) || undefined
     const continuationSummary = expectedPhase
@@ -2513,7 +2914,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       screenSemanticSummary,
       unavailableReason,
       workflowContinuation,
-      postActionInspection,
+      postActionInspection: normalizedPostActionInspection,
     })
     if (hasBlockingSignals)
       outputPayload.blockingSignals = blockingSignals
@@ -2534,7 +2935,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       unavailableReason,
       summary: [sanitizeText(input.result.summary), continuationSummary].filter(Boolean).join(' '),
       workflowContinuation,
-      postActionInspection,
+      postActionInspection: normalizedPostActionInspection,
       output,
     })
     if (hasBlockingSignals)
@@ -2543,6 +2944,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       mergedResult.suggestedActions = suggestedActions
 
     const autoContinuation = await executeAutoContinuation({
+      abortSignal: input.abortSignal,
       continuationMode: sanitizeText(workflowPlan?.continuationMode) || undefined,
       blockingSignals,
       requested: autoContinueSuggestedActions && (expectedPhase ? matchedExpectedPhase === true : true),
@@ -2561,6 +2963,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   }
 
   const runOptionalLocalTool = async <TInput extends object>(input: {
+    abortSignal?: AbortSignal
     handler?: ((payload: TInput) => Promise<unknown>) | null
     missingErrorCode: string
     missingErrorMessage: string
@@ -2576,12 +2979,12 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       }
     }
 
-    const result = await input.handler(input.payload)
-    const normalizedResult = asRecord(result) ?? {
-      status: 'completed',
+    const normalizedResult = await invokeDirectLocalToolHost({
+      abortSignal: input.abortSignal,
+      handler: input.handler,
       operation: input.operation,
-      result,
-    }
+      payload: input.payload,
+    })
     if (
       input.operation === 'browser_open_url'
       || input.operation === 'browser_search_web'
@@ -2596,6 +2999,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       || input.operation === 'desktop_open_application'
     ) {
       return await maybeFollowUpVisualWorkflow({
+        abortSignal: input.abortSignal,
         operation: input.operation as
         | 'browser_open_url'
         | 'browser_search_web'
@@ -2636,6 +3040,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   }
 
   const invokeMcpWithCandidates = async (input: {
+    abortSignal?: AbortSignal
     argumentCandidates: Record<string, unknown>[]
     toolNameCandidates: string[]
   }): Promise<MainGatewayMcpCallOutcome> => {
@@ -2656,7 +3061,55 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           continue
         seenArguments.add(signature)
 
+        const manifest = toolRegistry.resolveActive(toolName)
+        if (!manifest) {
+          const registeredManifest = toolRegistry.get(`mcp.${toolName}`)
+          const errorCode = registeredManifest
+            ? 'CAPABILITY_NOT_ACTIVE'
+            : 'CAPABILITY_NOT_REGISTERED'
+          const errorMessage = registeredManifest
+            ? `MCP capability "${toolName}" is not active for this turn.`
+            : `MCP capability "${toolName}" is not registered for this turn.`
+          finalResult = {
+            isError: true,
+            ok: false,
+            errorCode,
+            errorMessage,
+          }
+          finalToolName = toolName
+          finalArguments = argumentsObject
+          attempts.push({
+            toolName,
+            arguments: argumentsObject,
+            errorCode,
+            errorMessage,
+          })
+          break
+        }
+
+        const validation = toolRegistry.validateInput(manifest.capabilityId, argumentsObject)
+        if (!validation.valid) {
+          const errorCode = 'CAPABILITY_INPUT_INVALID'
+          const errorMessage = `MCP capability "${manifest.capabilityId}" rejected the candidate input.`
+          finalResult = {
+            isError: true,
+            ok: false,
+            errorCode,
+            errorMessage,
+          }
+          finalToolName = toolName
+          finalArguments = argumentsObject
+          attempts.push({
+            toolName,
+            arguments: argumentsObject,
+            errorCode,
+            errorMessage,
+          })
+          continue
+        }
+
         const normalizedResult = normalizeMcpToolCallResult(await options.invokeMcpCallTool({
+          abortSignal: input.abortSignal,
           cardId: context.cardId,
           name: toolName,
           arguments: argumentsObject,
@@ -2682,7 +3135,10 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           errorMessage,
         })
 
-        if (!isRecoverableMcpCandidateError(normalizedResult)) {
+        if (
+          manifest.idempotency === 'none'
+          || !isRecoverableMcpCandidateError(normalizedResult)
+        ) {
           return {
             attempts,
             toolName,
@@ -2707,6 +3163,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   }
 
   const readFileViaMcp = async (input: {
+    abortSignal?: AbortSignal
     path: string
     maxReturnBytes?: number
   }) => {
@@ -2722,9 +3179,9 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     }
 
     const invocation = await invokeMcpWithCandidates({
+      abortSignal: input.abortSignal,
       toolNameCandidates: [
         'filesystem::read_file',
-        'filesystem::read-file',
       ],
       argumentCandidates: [
         { path },
@@ -2774,6 +3231,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   }
 
   const writeFileViaMcp = async (input: {
+    abortSignal?: AbortSignal
     content: string
     expectedHash?: string
     path: string
@@ -2814,9 +3272,9 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     }
 
     const invocation = await invokeMcpWithCandidates({
+      abortSignal: input.abortSignal,
       toolNameCandidates: [
         'filesystem::write_file',
-        'filesystem::write-file',
       ],
       argumentCandidates: [
         { path, content: input.content },
@@ -2834,6 +3292,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         errorMessage: normalizeMcpErrorMessage(invocation.result),
         mcpToolName: invocation.toolName,
         attempts: invocation.attempts,
+        sideEffectState: 'unknown',
       } as const
     }
 
@@ -2858,6 +3317,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   }
 
   const patchFileViaMcp = async (input: {
+    abortSignal?: AbortSignal
     changes: Array<{
       newText: string
       oldText: string
@@ -2907,6 +3367,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     let readState = fileReadStateByPath.get(normalizedPath)
     if (!readState) {
       const readResult = await readFileViaMcp({
+        abortSignal: input.abortSignal,
         path: normalizedPath,
         maxReturnBytes: filesystemToolEditableMaxBytes,
       })
@@ -3050,6 +3511,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
     }
 
     const writeResult = await writeFileViaMcp({
+      abortSignal: input.abortSignal,
       path: normalizedPath,
       content: nextContent,
       expectedHash: readState.contentHash,
@@ -3062,6 +3524,9 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         errorCode: writeResult.errorCode ?? 'FILESYSTEM_PATCH_WRITE_FAILED',
         errorMessage: writeResult.errorMessage ?? 'Failed to persist patch changes.',
         writeFailure: writeResult,
+        ...(writeResult.sideEffectState !== undefined
+          ? { sideEffectState: writeResult.sideEffectState }
+          : {}),
       } as const
     }
 
@@ -3146,7 +3611,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         url: z.string().min(1).optional(),
         browser: z.enum(['default', 'chrome', 'safari']).optional(),
       }).strict(),
-      execute: async ({ autoContinueSuggestedActions, expectedPhase, inspectionMaxSuggestedActions, inspectionQuestion, maxAutoContinueSteps, reinspectAfterAction, site, url, browser }) => await runOptionalLocalTool({
+      execute: async ({ autoContinueSuggestedActions, expectedPhase, inspectionMaxSuggestedActions, inspectionQuestion, maxAutoContinueSteps, reinspectAfterAction, site, url, browser }, executeOptions) => await runOptionalLocalTool({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.browserOpenUrl,
         operation: 'browser_open_url',
         missingErrorCode: 'BROWSER_OPEN_URL_UNAVAILABLE',
@@ -3182,7 +3648,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         browser: z.enum(['default', 'chrome', 'safari']).optional(),
         searchEngine: z.enum(['baidu', 'bing', 'duckduckgo', 'google']).optional(),
       }).strict(),
-      execute: async ({ autoContinueSuggestedActions, expectedPhase, inspectionMaxSuggestedActions, inspectionQuestion, maxAutoContinueSteps, query, reinspectAfterAction, browser, searchEngine }) => await runOptionalLocalTool({
+      execute: async ({ autoContinueSuggestedActions, expectedPhase, inspectionMaxSuggestedActions, inspectionQuestion, maxAutoContinueSteps, query, reinspectAfterAction, browser, searchEngine }, executeOptions) => await runOptionalLocalTool({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.browserSearchWeb,
         operation: 'browser_search_web',
         missingErrorCode: 'BROWSER_SEARCH_WEB_UNAVAILABLE',
@@ -3212,7 +3679,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         format: z.enum(['html', 'interactables', 'text']).optional(),
         maxChars: z.coerce.number().optional(),
       }).strict(),
-      execute: async ({ browser, format, maxChars }) => await runOptionalLocalTool({
+      execute: async ({ browser, format, maxChars }, executeOptions) => await runOptionalLocalTool({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.browserReadPage,
         operation: 'browser_read_page',
         missingErrorCode: 'BROWSER_READ_PAGE_UNAVAILABLE',
@@ -3243,7 +3711,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       }).strict().refine(input => Boolean(sanitizeText(input.selector) || sanitizeText(input.text) || input.ordinal), {
         message: 'selector, text, or ordinal is required',
       }),
-      execute: async ({ autoContinueSuggestedActions, browser, ordinal, selector, targetType, text, exactText, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }) => await runOptionalLocalTool({
+      execute: async ({ autoContinueSuggestedActions, browser, ordinal, selector, targetType, text, exactText, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }, executeOptions) => await runOptionalLocalTool({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.browserClickElement,
         operation: 'browser_click_element',
         missingErrorCode: 'BROWSER_CLICK_ELEMENT_UNAVAILABLE',
@@ -3289,7 +3758,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         reinspectAfterAction: z.boolean().optional(),
         submit: z.boolean().optional(),
       }).strict(),
-      execute: async ({ autoContinueSuggestedActions, text, browser, targetText, selector, ordinal, exactText, clearExisting, submit, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }) => await runOptionalLocalTool({
+      execute: async ({ autoContinueSuggestedActions, text, browser, targetText, selector, ordinal, exactText, clearExisting, submit, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }, executeOptions) => await runOptionalLocalTool({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.browserTypeText,
         operation: 'browser_type_text',
         missingErrorCode: 'BROWSER_TYPE_TEXT_UNAVAILABLE',
@@ -3331,7 +3801,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         maxAutoContinueSteps: z.coerce.number().int().min(1).max(3).optional(),
         reinspectAfterAction: z.boolean().optional(),
       }).strict(),
-      execute: async ({ action, autoContinueSuggestedActions, browser, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }) => await runOptionalLocalTool({
+      execute: async ({ action, autoContinueSuggestedActions, browser, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }, executeOptions) => await runOptionalLocalTool({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.browserNavigate,
         operation: 'browser_navigate',
         missingErrorCode: 'BROWSER_NAVIGATE_UNAVAILABLE',
@@ -3366,7 +3837,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         maxAutoContinueSteps: z.coerce.number().int().min(1).max(3).optional(),
         reinspectAfterAction: z.boolean().optional(),
       }).strict(),
-      execute: async ({ action, amount, autoContinueSuggestedActions, browser, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }) => await runOptionalLocalTool({
+      execute: async ({ action, amount, autoContinueSuggestedActions, browser, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }, executeOptions) => await runOptionalLocalTool({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.browserScroll,
         operation: 'browser_scroll',
         missingErrorCode: 'BROWSER_SCROLL_UNAVAILABLE',
@@ -3406,7 +3878,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         timeoutMs: z.coerce.number().int().min(100).max(15_000).optional(),
         browser: z.enum(['default', 'chrome', 'safari']).optional(),
       }).strict(),
-      execute: async ({ autoContinueSuggestedActions, state, text, urlIncludes, timeoutMs, browser, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }) => await runOptionalLocalTool({
+      execute: async ({ autoContinueSuggestedActions, state, text, urlIncludes, timeoutMs, browser, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }, executeOptions) => await runOptionalLocalTool({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.browserWait,
         operation: 'browser_wait',
         missingErrorCode: 'BROWSER_WAIT_UNAVAILABLE',
@@ -3444,7 +3917,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         autoContinueSuggestedActions: z.boolean().optional(),
         maxAutoContinueSteps: z.coerce.number().int().min(1).max(3).optional(),
       }).strict(),
-      execute: async ({ question, site, url, forceRefresh, maxSuggestedActions, autoContinueSuggestedActions, maxAutoContinueSteps }) => {
+      execute: async ({ question, site, url, forceRefresh, maxSuggestedActions, autoContinueSuggestedActions, maxAutoContinueSteps }, executeOptions) => {
+        const abortSignal = resolveDirectLocalAbortSignal(executeOptions)
         const payload: AlicizationLocalDesktopInspectSceneInput = {
           question,
           site,
@@ -3460,6 +3934,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         }
 
         const result = await runOptionalLocalTool({
+          abortSignal,
           handler: options.desktopInspectScene,
           operation: 'desktop_inspect_scene',
           missingErrorCode: 'DESKTOP_INSPECT_SCENE_UNAVAILABLE',
@@ -3473,6 +3948,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           ? sanitizeStringList(result.blockingSignals)
           : []
         const autoContinuation = await executeAutoContinuation({
+          abortSignal,
           continuationMode: sanitizeText(workflowPlan?.continuationMode) || undefined,
           blockingSignals,
           requested: autoContinueSuggestedActions === true,
@@ -3513,7 +3989,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         role: z.enum(['button', 'checkbox', 'element', 'input', 'link', 'list-item', 'menu-item', 'radio', 'select', 'tab']).optional(),
         maxItems: z.coerce.number().int().min(1).max(40).optional(),
       }).strict(),
-      execute: async ({ role, maxItems }) => await runOptionalLocalTool({
+      execute: async ({ role, maxItems }, executeOptions) => await runOptionalLocalTool({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.desktopListInteractables,
         operation: 'desktop_list_interactables',
         missingErrorCode: 'DESKTOP_LIST_INTERACTABLES_UNAVAILABLE',
@@ -3541,7 +4018,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       }).strict().refine(input => Boolean(sanitizeText(input.text) || input.ordinal), {
         message: 'text or ordinal is required',
       }),
-      execute: async ({ autoContinueSuggestedActions, ordinal, role, text, exactText, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }) => await runOptionalLocalTool({
+      execute: async ({ autoContinueSuggestedActions, ordinal, role, text, exactText, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }, executeOptions) => await runOptionalLocalTool({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.desktopClickElement,
         operation: 'desktop_click_element',
         missingErrorCode: 'DESKTOP_CLICK_ELEMENT_UNAVAILABLE',
@@ -3584,7 +4062,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         reinspectAfterAction: z.boolean().optional(),
         submit: z.boolean().optional(),
       }).strict(),
-      execute: async ({ autoContinueSuggestedActions, text, targetText, ordinal, role, exactText, clearExisting, submit, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }) => await runOptionalLocalTool({
+      execute: async ({ autoContinueSuggestedActions, text, targetText, ordinal, role, exactText, clearExisting, submit, expectedPhase, reinspectAfterAction, inspectionQuestion, inspectionMaxSuggestedActions, maxAutoContinueSteps }, executeOptions) => await runOptionalLocalTool({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.desktopTypeText,
         operation: 'desktop_type_text',
         missingErrorCode: 'DESKTOP_TYPE_TEXT_UNAVAILABLE',
@@ -3625,7 +4104,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         shortcut: z.string().min(1),
         repeat: z.coerce.number().int().min(1).max(10).optional(),
       }).strict(),
-      execute: async ({ autoContinueSuggestedActions, expectedPhase, inspectionMaxSuggestedActions, inspectionQuestion, maxAutoContinueSteps, reinspectAfterAction, shortcut, repeat }) => await runOptionalLocalTool({
+      execute: async ({ autoContinueSuggestedActions, expectedPhase, inspectionMaxSuggestedActions, inspectionQuestion, maxAutoContinueSteps, reinspectAfterAction, shortcut, repeat }, executeOptions) => await runOptionalLocalTool({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.desktopPressKeys,
         operation: 'desktop_press_keys',
         missingErrorCode: 'DESKTOP_PRESS_KEYS_UNAVAILABLE',
@@ -3660,7 +4140,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         maxAutoContinueSteps: z.coerce.number().int().min(1).max(3).optional(),
         reinspectAfterAction: z.boolean().optional(),
       }).strict(),
-      execute: async ({ appName, path, args, autoContinueSuggestedActions, expectedPhase, inspectionMaxSuggestedActions, inspectionQuestion, maxAutoContinueSteps, reinspectAfterAction }) => await runOptionalLocalTool({
+      execute: async ({ appName, path, args, autoContinueSuggestedActions, expectedPhase, inspectionMaxSuggestedActions, inspectionQuestion, maxAutoContinueSteps, reinspectAfterAction }, executeOptions) => await runOptionalLocalTool({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.desktopOpenApplication,
         operation: 'desktop_open_application',
         missingErrorCode: 'DESKTOP_OPEN_APPLICATION_UNAVAILABLE',
@@ -3692,7 +4173,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       }).strict().refine(input => Boolean(sanitizeText(input.appName) || sanitizeText(input.titleIncludes)), {
         message: 'appName or titleIncludes is required',
       }),
-      execute: async ({ appName, titleIncludes, timeoutMs }) => await runOptionalLocalTool({
+      execute: async ({ appName, titleIncludes, timeoutMs }, executeOptions) => await runOptionalLocalTool({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         handler: options.desktopWait,
         operation: 'desktop_wait',
         missingErrorCode: 'DESKTOP_WAIT_UNAVAILABLE',
@@ -3713,11 +4195,12 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         path: z.string().min(1),
         maxReturnBytes: z.coerce.number().optional(),
       }).strict(),
-      execute: async ({ path, maxReturnBytes }) => {
+      execute: async ({ path, maxReturnBytes }, executeOptions) => {
         const normalizedMaxReturnBytes = typeof maxReturnBytes === 'number' && Number.isFinite(maxReturnBytes)
           ? maxReturnBytes
           : undefined
         return await readFileViaMcp({
+          abortSignal: resolveDirectLocalAbortSignal(executeOptions),
           path,
           maxReturnBytes: normalizedMaxReturnBytes,
         })
@@ -3731,7 +4214,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         content: z.string(),
         expectedHash: z.string().optional(),
       }).strict(),
-      execute: async ({ path, content, expectedHash }) => await writeFileViaMcp({
+      execute: async ({ path, content, expectedHash }, executeOptions) => await writeFileViaMcp({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         path,
         content,
         expectedHash,
@@ -3747,7 +4231,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         replaceAll: z.boolean().optional(),
         expectedHash: z.string().optional(),
       }).strict(),
-      execute: async ({ path, oldText, newText, replaceAll, expectedHash }): Promise<MainGatewayToolResultObject> => {
+      execute: async ({ path, oldText, newText, replaceAll, expectedHash }, executeOptions): Promise<MainGatewayToolResultObject> => {
         const normalizedPath = sanitizeText(path)
         if (!normalizedPath) {
           return {
@@ -3771,6 +4255,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         let readState = fileReadStateByPath.get(normalizedPath)
         if (!readState) {
           const readResult = await readFileViaMcp({
+            abortSignal: resolveDirectLocalAbortSignal(executeOptions),
             path: normalizedPath,
             maxReturnBytes: filesystemToolEditableMaxBytes,
           })
@@ -3837,6 +4322,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           ? readState.content.split(oldText).join(newText)
           : readState.content.replace(oldText, newText)
         const writeResult = await writeFileViaMcp({
+          abortSignal: resolveDirectLocalAbortSignal(executeOptions),
           path: normalizedPath,
           content: nextContent,
           expectedHash: readState.contentHash,
@@ -3849,6 +4335,9 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
             errorCode: writeResult.errorCode ?? 'FILESYSTEM_EDIT_WRITE_FAILED',
             errorMessage: writeResult.errorMessage ?? 'Failed to persist edit.',
             writeFailure: writeResult,
+            ...(writeResult.sideEffectState !== undefined
+              ? { sideEffectState: writeResult.sideEffectState }
+              : {}),
           }
         }
 
@@ -3879,7 +4368,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         dryRun: z.boolean().optional(),
         maxPreviewBytes: z.coerce.number().optional(),
       }).strict(),
-      execute: async ({ path, changes, expectedHash, ignoreMissing, dryRun, maxPreviewBytes }) => await patchFileViaMcp({
+      execute: async ({ path, changes, expectedHash, ignoreMissing, dryRun, maxPreviewBytes }, executeOptions) => await patchFileViaMcp({
+        abortSignal: resolveDirectLocalAbortSignal(executeOptions),
         path,
         changes,
         expectedHash,
@@ -3899,7 +4389,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         maxReturnBytes: z.coerce.number().optional(),
         maxEntries: z.coerce.number().optional(),
       }).strict(),
-      execute: async ({ path, recursive, maxReturnBytes, maxEntries }) => {
+      execute: async ({ path, recursive, maxReturnBytes, maxEntries }, executeOptions) => {
         const normalizedPath = sanitizeText(path)
         if (!normalizedPath) {
           return {
@@ -3912,10 +4402,9 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         }
 
         const invocation = await invokeMcpWithCandidates({
+          abortSignal: resolveDirectLocalAbortSignal(executeOptions),
           toolNameCandidates: [
             'filesystem::list_directory',
-            'filesystem::list-directory',
-            'filesystem::list',
           ],
           argumentCandidates: [
             { path: normalizedPath, recursive: recursive === true },
@@ -3988,7 +4477,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         excludeGlobs: z.array(z.string()).optional(),
         pathMode: z.enum(['absolute', 'raw', 'relative']).optional(),
       }).strict(),
-      execute: async ({ path, query, recursive, maxResults, maxReturnBytes, caseSensitive, regex, includeGlobs, excludeGlobs, pathMode }) => {
+      execute: async ({ path, query, recursive, maxResults, maxReturnBytes, caseSensitive, regex, includeGlobs, excludeGlobs, pathMode }, executeOptions) => {
         const normalizedPath = sanitizeText(path)
         if (!normalizedPath) {
           return {
@@ -4032,12 +4521,9 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         }
 
         const invocation = await invokeMcpWithCandidates({
+          abortSignal: resolveDirectLocalAbortSignal(executeOptions),
           toolNameCandidates: [
             'filesystem::search_files',
-            'filesystem::search-files',
-            'filesystem::search',
-            'filesystem::grep',
-            'filesystem::find_files',
           ],
           argumentCandidates: [
             compactRecord({
@@ -4167,32 +4653,48 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           ...mainChatLocalVisualExecutorTools,
         ]
       : executorRunTools),
-    tool({
-      name: 'mcp_list_tools',
-      description: 'List all tools available on the connected MCP servers.',
-      parameters: z.object({}).strict(),
-      execute: async () => await options.invokeMcpListTools(),
-    }),
-    tool({
-      name: 'mcp_call_tool',
-      description: 'Call a tool on MCP server by qualified tool name.',
-      parameters: z.object({
-        name: z.string().describe('Qualified MCP tool name, format: "<serverName>::<toolName>"'),
-        parameters: z.array(z.object({
-          name: z.string(),
-          value: z.unknown(),
-        }).strict()).default([]),
-      }).strict(),
-      execute: async ({ name, parameters = [] }) => {
-        const argumentsObject = Object.fromEntries(parameters.map(entry => [entry.name, entry.value]))
-        return await options.invokeMcpCallTool({
-          cardId: context.cardId,
-          name,
-          arguments: argumentsObject,
-        })
-      },
-    }),
   ]
 
-  return await Promise.all(tools)
+  const builtTools = await Promise.all(tools)
+  const projectedTools: Tool[] = []
+
+  for (const builtTool of builtTools) {
+    const providerToolName = builtTool.function.name
+    const manifest = toolRegistry.list().find(candidate =>
+      candidate.providerToolName === providerToolName,
+    )
+    if (!manifest)
+      continue
+    if (!toolRegistry.resolveActive(manifest.capabilityId))
+      continue
+
+    const execute = builtTool.execute
+    projectedTools.push({
+      ...builtTool,
+      execute: async (input, executeOptions) => {
+        const invocation = toolRegistry.resolveProviderInvocation(
+          manifest.providerToolName,
+          input,
+        )
+        if (
+          !invocation
+          || invocation.adapterToolName !== manifest.adapterToolName
+        ) {
+          const activeManifest = toolRegistry.resolveActive(manifest.capabilityId)
+          return {
+            status: 'failed',
+            errorCode: activeManifest
+              ? 'CAPABILITY_INPUT_INVALID'
+              : 'CAPABILITY_NOT_ACTIVE',
+            errorMessage: activeManifest
+              ? `Capability "${manifest.capabilityId}" rejected the tool input.`
+              : `Capability "${manifest.capabilityId}" is not active.`,
+          }
+        }
+        return await execute(input, executeOptions)
+      },
+    })
+  }
+
+  return projectedTools
 }

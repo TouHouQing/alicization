@@ -371,6 +371,49 @@ function createProviderProposalTools(tools: Tool[] | undefined) {
   }))
 }
 
+function projectRegisteredProviderTools(
+  prepared: AlicizationPreparedMainChatExecutionResult,
+  providerId: string,
+) {
+  const activeTools = prepared.tools?.filter((tool) => {
+    const manifest = prepared.toolRegistry.resolveAdapterToolName(tool.function.name)
+      ?? prepared.toolRegistry.list().find(candidate =>
+        candidate.providerToolName === sanitizeText(tool.function.name),
+      )
+    return Boolean(
+      manifest
+      && prepared.toolRegistry.resolveActive(manifest.capabilityId),
+    )
+  })
+  return adaptAlicizationProviderTools({
+    providerId,
+    tools: activeTools,
+    resolveProviderToolName: (toolName) => {
+      const manifest = prepared.toolRegistry.resolveAdapterToolName(toolName)
+        ?? prepared.toolRegistry.list().find(candidate =>
+          candidate.providerToolName === sanitizeText(toolName),
+        )
+      return manifest?.providerToolName
+    },
+  })
+}
+
+function resolveActiveProviderToolManifest(
+  prepared: AlicizationPreparedMainChatExecutionResult,
+  providerToolName: string,
+) {
+  const normalizedName = sanitizeText(providerToolName)
+  if (!normalizedName)
+    return undefined
+
+  const manifest = prepared.toolRegistry.list().find(candidate =>
+    candidate.providerToolName === normalizedName,
+  )
+  return manifest
+    ? prepared.toolRegistry.resolveActive(manifest.capabilityId)
+    : undefined
+}
+
 function appendProviderToolCallMessage(
   messages: Message[],
   input: {
@@ -411,10 +454,10 @@ export async function runAlicizationMainChatProviderStep(
     ?? input.providerRetryPolicy?.deadlineAt
     ?? (Date.now() + Math.max(90_000, input.firstEventTimeoutMs * 2))
   const invokeStreamText = input.streamTextImpl ?? (streamText as StreamTextInvoker)
-  const providerTools = createProviderProposalTools(adaptAlicizationProviderTools({
-    providerId: input.payload.providerId,
-    tools: input.prepared.tools,
-  }))
+  const providerTools = createProviderProposalTools(projectRegisteredProviderTools(
+    input.prepared,
+    input.payload.providerId,
+  ))
   const toolCallIdentity = input.prepared.toolCallIdentity
     ?? createAlicizationMainChatToolCallIdentityRegistry()
   const providerController = new AbortController()
@@ -615,6 +658,14 @@ export async function runAlicizationMainChatProviderStep(
           )
         }
         assertProviderToolArguments(providerTool, toolInput)
+        const providerInvocation = input.prepared.toolRegistry
+          .resolveProviderInvocation(toolName, toolInput)
+        if (!providerInvocation) {
+          throw createProviderToolProtocolError(
+            'chat-provider-tool-arguments-invalid',
+            `Provider tool "${toolName}" is not registered, is not eligible for this input, or has been revoked`,
+          )
+        }
         const toolCallId = toolCallIdentity.resolveProviderToolCall({
           arguments: toolInput,
           phase: 'call',
@@ -624,7 +675,8 @@ export async function runAlicizationMainChatProviderStep(
         pendingAction = {
           actionId: `${input.payload.turnId}:action:${toolCallId}`,
           toolCallId,
-          qualifiedToolName: toolName,
+          providerToolName: toolName,
+          capabilityId: providerInvocation.capabilityId,
           input: toolInput,
         }
         return null
@@ -706,13 +758,13 @@ export async function runAlicizationMainChatProviderStep(
       appendProviderToolCallMessage(input.messages, {
         input: completedAction.input,
         toolCallId: completedAction.toolCallId,
-        toolName: completedAction.qualifiedToolName,
+        toolName: completedAction.providerToolName,
       })
       input.emitToolCall({
         cardId: input.payload.cardId,
         turnId: input.payload.turnId,
         toolCallId: completedAction.toolCallId,
-        toolName: completedAction.qualifiedToolName,
+        toolName: completedAction.providerToolName,
         arguments: completedAction.input,
       })
       return {
@@ -873,10 +925,10 @@ export async function runAlicizationMainChatStream(
 ): Promise<AlicizationMainChatStreamRunnerResult> {
   const providerMessages = input.prepared.messages
   const normalizedPayload = input.payload
-  const providerTools = adaptAlicizationProviderTools({
-    providerId: normalizedPayload.providerId,
-    tools: input.prepared.tools,
-  })
+  const providerTools = projectRegisteredProviderTools(
+    input.prepared,
+    normalizedPayload.providerId,
+  )
   const providerRetryAttempt = input.providerRetryAttempt ?? 0
   const providerRetryDeadlineAt = input.providerRetryDeadlineAt
     ?? input.providerRetryPolicy?.deadlineAt
@@ -1452,12 +1504,39 @@ export async function runAlicizationMainChatStream(
           if (providerContinuationState !== 'none')
             clearProviderDeadline()
           const observedToolName = sanitizeText(event.toolName ?? event.name)
+          const providerTool = providerTools?.find(
+            tool => sanitizeText(tool.function.name) === observedToolName,
+          )
+          const toolArgumentsResult = readStreamToolArgumentsResult(event)
+          const toolInput = toolArgumentsResult.status === 'present'
+            ? toolArgumentsResult.value
+            : toolArgumentsResult.status === 'missing'
+              && isExplicitlyParameterlessTool(providerTool)
+              ? {}
+              : null
+          if (!toolInput) {
+            throw createProviderToolProtocolError(
+              'chat-provider-tool-arguments-invalid',
+              toolArgumentsResult.status === 'invalid'
+                ? `Provider emitted invalid JSON arguments for tool "${observedToolName}"`
+                : `Provider omitted required arguments for tool "${observedToolName}"`,
+            )
+          }
+          assertProviderToolArguments(providerTool, toolInput)
+          const providerInvocation = input.prepared.toolRegistry
+            .resolveProviderInvocation(observedToolName, toolInput)
+          if (!providerInvocation) {
+            throw createProviderToolProtocolError(
+              'chat-provider-tool-arguments-invalid',
+              `Provider tool "${observedToolName}" is not registered, is not eligible for this input, or has been revoked`,
+            )
+          }
           markProviderStreamPhase('tool-running', 'chat-stream.tool-execution-started', {
             toolName: observedToolName || null,
             toolCallId: sanitizeText(event.toolCallId) || null,
           })
           const providedToolCallId = sanitizeText(event.toolCallId)
-          const toolArguments = readStreamToolArguments(event)
+          const toolArguments = toolInput
           const toolCallId = toolCallIdentity.resolveProviderToolCall({
             arguments: toolArguments,
             phase: 'call',
@@ -1495,6 +1574,12 @@ export async function runAlicizationMainChatStream(
           if (providerContinuationState !== 'none')
             clearProviderDeadline()
           const toolName = sanitizeText(event.toolName ?? event.name)
+          if (!resolveActiveProviderToolManifest(input.prepared, toolName)) {
+            throw createProviderToolProtocolError(
+              'chat-provider-tool-arguments-invalid',
+              `Provider tool "${toolName}" is not registered, is not eligible for this input, or has been revoked`,
+            )
+          }
           markProviderStreamPhase('tool-argument-streaming', 'chat-stream.tool-argument-started', {
             toolName: toolName || null,
             toolCallId: sanitizeText(event.toolCallId) || null,

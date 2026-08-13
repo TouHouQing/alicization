@@ -194,6 +194,46 @@ describe('execution delivery runtime', () => {
     })
   })
 
+  it('preserves terminal execution failure facts across queue snapshots', () => {
+    const runtime = createAlicizationExecutionDeliveryRuntime({
+      getNow: () => 10_000,
+    })
+
+    const queued = runtime.enqueue({
+      cardId: 'default',
+      sessionId: 'session-1',
+      threadId: 'thread-failed',
+      channel: 'codex',
+      status: 'failed',
+      goal: 'Run the coding agent',
+      summary: 'Codex active command exceeded its execution step deadline',
+      outcome: 'Codex active work item command_execution (command-1) exceeded its 1800000ms deadline.',
+      errorCode: 'CODEX_ACTIVE_STEP_TIMEOUT',
+      errorMessage: 'Codex active work item command_execution (command-1) exceeded its 1800000ms deadline.',
+      signature: 'thread-failed:event',
+      completedAt: 9_000,
+    })
+
+    expect(queued).toMatchObject({
+      errorCode: 'CODEX_ACTIVE_STEP_TIMEOUT',
+      errorMessage: 'Codex active work item command_execution (command-1) exceeded its 1800000ms deadline.',
+    })
+
+    const snapshot = runtime.snapshot('default')
+    const restored = createAlicizationExecutionDeliveryRuntime({
+      getNow: () => 10_000,
+    })
+    restored.restore('default', snapshot)
+
+    expect(restored.takeNext({
+      cardId: 'default',
+      sessionId: 'session-1',
+    })).toMatchObject({
+      errorCode: 'CODEX_ACTIVE_STEP_TIMEOUT',
+      errorMessage: 'Codex active work item command_execution (command-1) exceeded its 1800000ms deadline.',
+    })
+  })
+
   it('blocks in-flight delivery requeue once the same execution result was already surfaced inline', () => {
     const now = 50_000
     const runtime = createAlicizationExecutionDeliveryRuntime({

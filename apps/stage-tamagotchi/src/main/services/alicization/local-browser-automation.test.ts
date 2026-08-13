@@ -96,6 +96,26 @@ describe('local browser automation service', () => {
     }))
   })
 
+  it('passes the caller abort signal to the host command process', async () => {
+    const service = createService()
+    const abortController = new AbortController()
+    mockExecFileOnce('')
+
+    await service.openApplication({
+      appName: 'Cursor',
+      abortSignal: abortController.signal,
+    })
+
+    expect(execFileMock).toBeCalledWith(
+      '/usr/bin/open',
+      ['-a', 'Cursor'],
+      expect.objectContaining({
+        signal: abortController.signal,
+      }),
+      expect.any(Function),
+    )
+  })
+
   it('searches the web by opening the engine result URL locally', async () => {
     const service = createService()
 

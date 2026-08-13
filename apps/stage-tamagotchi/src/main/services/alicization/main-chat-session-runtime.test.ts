@@ -587,17 +587,17 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       }),
       abortSignal: outerController.signal,
     })
-    const codexTool = result.tools?.find((entry: any) => entry.function?.name === 'executor_run_coding_agent') as any
-    const executorToolNames = result.tools
+    const codingAgentTool = result.tools?.find((entry: any) => entry.function?.name === 'coding_agent') as any
+    const providerExecutorToolNames = result.tools
       ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
-      .filter((toolName: string) => toolName.startsWith('executor_run_'))
+      .filter((toolName: string) => ['coding_agent', 'local_visual'].includes(toolName))
 
-    expect(executorToolNames).toEqual(expect.arrayContaining([
-      'executor_run_coding_agent',
-      'executor_run_local_visual',
+    expect(providerExecutorToolNames).toEqual(expect.arrayContaining([
+      'coding_agent',
+      'local_visual',
     ]))
-    expect(executorToolNames).toHaveLength(2)
-    await codexTool.execute({
+    expect(providerExecutorToolNames).toHaveLength(2)
+    await codingAgentTool.execute({
       agent: 'codex',
       threadId: 'thread-resume-signal',
     }, {
@@ -1325,15 +1325,15 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const toolNames = result.tools
       ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
       .filter(Boolean) ?? []
-    expect(toolNames.filter(toolName => toolName.startsWith('executor_run_'))).toEqual(expect.arrayContaining([
-      'executor_run_coding_agent',
-      'executor_run_local_visual',
+    expect(toolNames.filter(toolName => ['coding_agent', 'local_visual'].includes(toolName))).toEqual(expect.arrayContaining([
+      'coding_agent',
+      'local_visual',
     ]))
-    expect(toolNames.filter(toolName => toolName.startsWith('executor_run_'))).toHaveLength(2)
+    expect(toolNames.filter(toolName => ['coding_agent', 'local_visual'].includes(toolName))).toHaveLength(2)
     expect(toolNames).toContain('browser_open_url')
     expect(systemText).toContain('"type":"alicization-execution-capabilities"')
     const codingAgentTool = result.tools
-      ?.find((entry: any) => entry.function?.name === 'executor_run_coding_agent') as any
+      ?.find((entry: any) => entry.function?.name === 'coding_agent') as any
     expect(codingAgentTool.function.parameters.properties.agent).toEqual({
       type: 'string',
       const: 'codex',
@@ -1341,7 +1341,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const providerStreamingId = result.toolCallIdentity.resolveProviderToolCall({
       phase: 'streaming-start',
       toolCallId: 'provider-codex-streaming-1',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
       arguments: {
         prompt: '检查当前目录',
       },
@@ -1349,7 +1349,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const driftingStreamingId = result.toolCallIdentity.resolveProviderToolCall({
       phase: 'streaming-start',
       toolCallId: 'provider-codex-streaming-2',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
       arguments: {
         prompt: '检查当前目录',
       },
@@ -1380,9 +1380,9 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const capabilityToolNames = capabilityResult.tools
       ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
       .filter(Boolean) ?? []
-    expect(capabilityToolNames.filter(toolName => toolName.startsWith('executor_run_'))).toEqual([
-      'executor_run_cli',
-      'executor_run_local_visual',
+    expect(capabilityToolNames.filter(toolName => ['cli', 'local_visual'].includes(toolName))).toEqual([
+      'cli',
+      'local_visual',
     ])
 
     const localDirectoryQuery = '你看看桌面的git文件夹有哪些项目，列举给我'
@@ -1407,11 +1407,11 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const localDirectoryToolNames = localDirectoryResult.tools
       ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
       .filter(Boolean) ?? []
-    expect(localDirectoryToolNames.filter(toolName => toolName.startsWith('executor_run_'))).toEqual([
-      'executor_run_cli',
-      'executor_run_local_visual',
+    expect(localDirectoryToolNames.filter(toolName => ['cli', 'local_visual'].includes(toolName))).toEqual([
+      'cli',
+      'local_visual',
     ])
-    expect(localDirectoryToolNames).not.toContain('executor_run_openclaw')
+    expect(localDirectoryToolNames).not.toContain('openclaw')
   })
 
   it('respects provider tool capability independently of user wording', async () => {

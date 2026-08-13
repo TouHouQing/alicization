@@ -68,6 +68,11 @@ function createHarness(input: {
   const persistExecutionDeliveryState = vi.fn(async () => {})
   const queueSubconsciousWake = vi.fn()
   const requeue = vi.fn()
+  const buildExecutionDeliveryAction = vi.fn(() => ({
+    kind: 'executor',
+    status: 'completed',
+    label: 'callback:codex',
+  }))
 
   const runtime = createAlicizationDeliveryReminderRuntime({
     getActiveCardId: () => 'default',
@@ -104,11 +109,7 @@ function createHarness(input: {
       requeue,
       markDelivered,
     },
-    buildExecutionDeliveryAction: vi.fn(() => ({
-      kind: 'executor',
-      status: 'completed',
-      label: 'callback:codex',
-    })),
+    buildExecutionDeliveryAction,
     generateExecutionCallbackStructuredWithGateway,
     selectExecutionDeliveryReplySurface: vi.fn(() => input.selection),
     resolveExecutionResultDeliveryPolicy: vi.fn(async () => input.deliveryPolicy ?? ({
@@ -133,6 +134,7 @@ function createHarness(input: {
     persistExecutionDeliveryState,
     queueSubconsciousWake,
     requeue,
+    buildExecutionDeliveryAction,
     runtime,
   }
 }
@@ -403,7 +405,7 @@ describe('runtime delivery reminders', () => {
     expect(harness.markDelivered).toHaveBeenCalledWith(harness.pendingDelivery)
     const persisted = firstPersistedPayload(harness.appendConversationTurnWithGuards)
     expect(persisted?.structured).toMatchObject({
-      kind: 'provider-output-invalid',
+      kind: 'provider-continuation-incomplete',
       origin: 'failure-surface',
       allowLongTermCondensation: false,
       allowPersonaLearning: false,
@@ -411,6 +413,93 @@ describe('runtime delivery reminders', () => {
     })
     expect(harness.appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
       action: 'provider-settlement-failed',
+    }))
+  })
+
+  it.each([
+    ['failed', 'CODEX_ACTIVE_STEP_TIMEOUT', 'Codex active work item command_execution (command-1) exceeded its 1800000ms deadline.'],
+    ['blocked', 'TASK_THREAD_KILL_SWITCH_BLOCKED', 'The task was blocked before dispatch.'],
+    ['cancelled', 'ALICIZATION_TOOL_ABORTED', 'The task was cancelled by the user.'],
+  ] as const)(
+    'surfaces %s execution facts without starting a Provider callback',
+    async (status, errorCode, errorMessage) => {
+      const harness = createHarness({
+        providerStructured: null,
+        selection: {
+          status: 'pending-provider-settlement',
+          reason: 'the Provider must not be called for terminal tool failures',
+        },
+        pendingDeliveryPatch: {
+          status,
+          errorCode,
+          errorMessage,
+          outcome: errorMessage,
+        },
+      })
+
+      const processed = await harness.runtime.processPendingExecutionDeliveriesForCurrentCard('force')
+
+      expect(processed).toBe(true)
+      expect(harness.generateExecutionCallbackStructuredWithGateway).not.toHaveBeenCalled()
+      expect(harness.buildExecutionDeliveryAction).not.toHaveBeenCalled()
+      expect(harness.requeue).not.toHaveBeenCalled()
+      expect(harness.queueSubconsciousWake).not.toHaveBeenCalled()
+      expect(harness.markDelivered).toHaveBeenCalledTimes(1)
+      expect(harness.persistExecutionDeliveryState).toHaveBeenCalledWith('default')
+
+      const persisted = firstPersistedPayload(harness.appendConversationTurnWithGuards)
+      expect(persisted?.structured).toMatchObject({
+        kind: 'tool-execution',
+        origin: 'failure-surface',
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+        toolExecution: {
+          code: errorCode,
+          message: errorMessage,
+          toolName: 'codex',
+        },
+      })
+      expect(persisted?.structured).not.toMatchObject({
+        kind: 'provider-output-invalid',
+      })
+    },
+  )
+
+  it('requeues a terminal execution failure when its visible turn is not persisted', async () => {
+    const harness = createHarness({
+      providerStructured: null,
+      selection: {
+        status: 'pending-provider-settlement',
+        reason: 'the Provider must not be called for terminal tool failures',
+      },
+      persistConversationTurn: false,
+      pendingDeliveryPatch: {
+        status: 'failed',
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'Codex produced no semantic progress for 180000ms.',
+        outcome: 'Codex produced no semantic progress for 180000ms.',
+      },
+    })
+
+    const processed = await harness.runtime.processPendingExecutionDeliveriesForCurrentCard('force')
+
+    expect(processed).toBe(false)
+    expect(harness.generateExecutionCallbackStructuredWithGateway).not.toHaveBeenCalled()
+    expect(harness.markDelivered).not.toHaveBeenCalled()
+    expect(harness.requeue).toHaveBeenCalledWith(harness.pendingDelivery)
+    expect(harness.persistExecutionDeliveryState).toHaveBeenCalledWith('default')
+    expect(harness.queueSubconsciousWake).toHaveBeenCalledWith(
+      'default',
+      'execution-delivery-tool-failure-retry:thread-1',
+      2_500,
+    )
+    expect(harness.appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'tool-failure-requeued',
+      payload: expect.objectContaining({
+        persisted: false,
+        persistenceError: 'failure-surface-write-skipped',
+      }),
     }))
   })
 })

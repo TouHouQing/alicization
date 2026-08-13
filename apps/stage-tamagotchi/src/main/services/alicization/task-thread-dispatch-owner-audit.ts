@@ -22,7 +22,8 @@ function toServiceRelativePath(absolutePath: string) {
 const dispatchHelperImportNeedle = 'import { dispatchTaskThread } from \'./task-thread-dispatcher\''
 const invokeHandlerDispatchNeedle = 'registerInvokeHandler(electronAlicizationDispatchTaskThread'
 const directDispatchReturnNeedle = 'return await dispatchTaskThread({'
-const gatewayDispatchNeedle = 'const dispatchResult = await options.dispatchTaskThread({'
+const gatewayDispatchInvocationNeedle = 'const dispatchInvocation = {'
+const gatewayDispatchCallNeedle = 'options.dispatchTaskThread(dispatchInvocation)'
 const gatewayAuditNeedle = 'appendAuditLog: options.appendAuditLog,'
 const runtimeExecutionBridgeNeedle = 'dispatchTaskThread: invocation => dispatchTaskThreadWithExecutionDelivery(invocation)'
 const runtimeAutonomyBridgeNeedle = 'dispatchAutonomyTaskThread: async (payload: any) => await dispatchTaskThreadWithExecutionDelivery({'
@@ -56,7 +57,8 @@ export function collectAlicizationExecutionDispatchOwnerFiles(rootDir: string) {
         = source.includes(invokeHandlerDispatchNeedle)
           && source.includes(directDispatchReturnNeedle)
       const ownsGatewayDispatchEntry
-        = source.includes(gatewayDispatchNeedle)
+        = source.includes(gatewayDispatchInvocationNeedle)
+          && source.includes(gatewayDispatchCallNeedle)
           && source.includes(gatewayAuditNeedle)
       const ownsRuntimeDispatchBridge
         = source.includes(runtimeExecutionBridgeNeedle)

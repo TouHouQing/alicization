@@ -23,6 +23,7 @@ import type { AlicizationSelfContinuityAuthority } from './self-continuity-autho
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
 import {
+  normalizeAlicizationExecutionRuntimeContext,
   readHostPersonModelFromDerivedMindStateBundle,
   readKnowledgeEvidenceFromDerivedMindStateBundle,
   readPersonStateProjectionFromDerivedMindStateBundle,
@@ -40,6 +41,7 @@ import {
 import { deriveExecutionResultDeliveryPolicy } from './execution-interaction-learning'
 import {
   alicizationTerminalTaskThreadStatuses,
+  readExecutionFailure,
   readExecutionOutcome,
   readLatestExecutionEvent,
   readTaskThreadActivityAt,
@@ -65,6 +67,18 @@ function sanitizeExecutionDeliveryProjectFreeText(raw: unknown, maxChars = 320) 
   return sanitizeAlicizationProviderFacingText(ledgerText, maxChars, '', {
     origin: 'internal-structured-fact',
   }) || null
+}
+
+function readExecutionResultDeliveryMode(
+  thread: AlicizationTaskThreadRecord,
+): 'inline' | 'callback' | null {
+  const execution = thread.metadata?.execution
+  if (!execution || typeof execution !== 'object' || Array.isArray(execution))
+    return null
+
+  return normalizeAlicizationExecutionRuntimeContext(
+    (execution as Record<string, unknown>).runtimeContext,
+  )?.resultDeliveryMode ?? null
 }
 
 function sanitizeExecutionProjectionCarryText(raw: unknown, maxChars = 320) {
@@ -151,6 +165,10 @@ function sanitizeExecutionPersonStateProjection(projection: AlicizationPersonSta
 
 interface CreateAlicizationRuntimeExecutionDeliveryOptions {
   getActiveCardId: () => string
+  getActiveSessionId?: (cardId: string) => string | null | undefined
+  getNow?: () => number
+  executionDeliveryRecoveryWindowMs?: number
+  executionDeliveryRecoveryLimit?: number
   normalizeCardId: (raw: unknown) => string
   normalizeSessionId: (raw: unknown) => string
   withCardScope: <T>(nextCardIdRaw: unknown, task: () => Promise<T>, options?: {
@@ -171,6 +189,11 @@ interface CreateAlicizationRuntimeExecutionDeliveryOptions {
     getMetaValue: (key: string) => Promise<string | undefined>
     setMetaValue: (key: string, value: string) => Promise<void>
     listExecutionEvents: (input: { threadId: string, limit?: number }) => Promise<any[]>
+    listTaskThreads?: (input?: {
+      sessionId?: string
+      status?: AlicizationTaskThreadRecord['status'] | AlicizationTaskThreadRecord['status'][]
+      limit?: number
+    }) => Promise<AlicizationTaskThreadRecord[]>
   }
   executionDeliveryRuntime: ReturnType<typeof createAlicizationExecutionDeliveryRuntime>
   executionDeliveryStateMetaKey: string
@@ -220,6 +243,16 @@ function inferExecutionPersonStateContexts() {
 export function createAlicizationRuntimeExecutionDelivery(
   options: CreateAlicizationRuntimeExecutionDeliveryOptions,
 ) {
+  const getNow = options.getNow ?? Date.now
+  const executionDeliveryRecoveryWindowMs = Math.max(
+    1_000,
+    Math.floor(options.executionDeliveryRecoveryWindowMs ?? 30 * 60_000),
+  )
+  const executionDeliveryRecoveryLimit = Math.max(
+    1,
+    Math.floor(options.executionDeliveryRecoveryLimit ?? 32),
+  )
+
   const persistExecutionDeliveryState = async (cardIdRaw: unknown) => {
     const cardId = options.normalizeCardId(cardIdRaw)
     const state = options.executionDeliveryRuntime.snapshot(cardId)
@@ -228,12 +261,12 @@ export function createAlicizationRuntimeExecutionDelivery(
       : ''
 
     if (cardId === options.getActiveCardId()) {
-      await options.alicizationDb.setMetaValue(options.executionDeliveryStateMetaKey, value).catch(() => {})
+      await options.alicizationDb.setMetaValue(options.executionDeliveryStateMetaKey, value)
       return state
     }
 
     await options.withCardScope(cardId, async () => {
-      await options.alicizationDb.setMetaValue(options.executionDeliveryStateMetaKey, value).catch(() => {})
+      await options.alicizationDb.setMetaValue(options.executionDeliveryStateMetaKey, value)
     }, {
       label: `execution-delivery.persist:${cardId}`,
     })
@@ -242,6 +275,7 @@ export function createAlicizationRuntimeExecutionDelivery(
 
   const restoreExecutionDeliveryState = async (cardIdRaw: unknown) => {
     const cardId = options.normalizeCardId(cardIdRaw)
+    let stateReadSucceeded = false
     const apply = (raw: string | undefined) => {
       if (!raw)
         return options.executionDeliveryRuntime.restore(cardId, null)
@@ -252,20 +286,62 @@ export function createAlicizationRuntimeExecutionDelivery(
         return options.executionDeliveryRuntime.restore(cardId, null)
       }
     }
+    const readPersistedState = async () => {
+      try {
+        const raw = await options.alicizationDb.getMetaValue(options.executionDeliveryStateMetaKey)
+        stateReadSucceeded = true
+        return raw
+      }
+      catch (error) {
+        await options.appendAuditLog({
+          level: 'warning',
+          category: 'alicization.executor.delivery',
+          action: 'restore-state-read-failed',
+          message: 'Execution delivery state could not be read during restore; the persisted value will not be overwritten.',
+          payload: {
+            cardId,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+        }, cardId).catch(() => {})
+        return undefined
+      }
+    }
 
-    const restored = cardId === options.getActiveCardId()
-      ? apply(await options.alicizationDb.getMetaValue(options.executionDeliveryStateMetaKey).catch(() => undefined))
-      : await options.withCardScope(cardId, async () => apply(await options.alicizationDb.getMetaValue(options.executionDeliveryStateMetaKey).catch(() => undefined)), {
-          label: `execution-delivery.restore:${cardId}`,
-        })
+    if (cardId === options.getActiveCardId()) {
+      await apply(await readPersistedState())
+    }
+    else {
+      await options.withCardScope(cardId, async () => await apply(
+        await readPersistedState(),
+      ), {
+        label: `execution-delivery.restore:${cardId}`,
+      })
+    }
 
-    if (cardId === options.getActiveCardId() && restored.pending.length > 0)
+    await reconcileExecutionDeliveryCandidates(cardId)
+    if (stateReadSucceeded) {
+      await persistExecutionDeliveryState(cardId).catch(async (error) => {
+        await options.appendAuditLog({
+          level: 'critical',
+          category: 'alicization.executor.delivery',
+          action: 'restore-state-persist-failed',
+          message: 'Execution delivery reconciliation completed but its cleaned state could not be persisted.',
+          payload: {
+            cardId,
+            reason: error instanceof Error ? error.message : String(error),
+          },
+        }, cardId).catch(() => {})
+      })
+    }
+    const reconciled = options.executionDeliveryRuntime.snapshot(cardId)
+    if (cardId === options.getActiveCardId() && reconciled.pending.length > 0)
       options.queueSubconsciousWake(cardId, 'execution-delivery-restore', 240)
-    return restored
+    return reconciled
   }
 
   const queueExecutionDeliveryCandidate = async (input: {
     cardId: string
+    resultDeliveryMode?: 'inline' | 'callback'
     thread: AlicizationTaskThreadRecord
   }) => {
     const cardId = options.normalizeCardId(input.cardId)
@@ -280,9 +356,34 @@ export function createAlicizationRuntimeExecutionDelivery(
       limit: 8,
     }).catch(() => [])
     const latestEvent = readLatestExecutionEvent(events)
+    const executionFailure = readExecutionFailure(events)
     const completedAt = Number.isFinite(latestEvent?.createdAt)
       ? Math.max(0, Math.floor(Number(latestEvent?.createdAt)))
       : readTaskThreadActivityAt(input.thread)
+    const resultDeliveryMode = input.resultDeliveryMode
+      ?? readExecutionResultDeliveryMode(input.thread)
+    if (resultDeliveryMode === 'inline') {
+      options.executionDeliveryRuntime.suppressMatching({
+        cardId,
+        sessionId,
+        threadId: input.thread.id,
+        completedAt,
+      })
+      await persistExecutionDeliveryState(cardId)
+      await options.appendAuditLog({
+        level: 'notice',
+        category: 'alicization.executor.delivery',
+        action: 'inline-surfaced',
+        message: 'Skipped background execution callback because the active Provider tool loop owns result delivery.',
+        payload: {
+          threadId: input.thread.id,
+          sessionId,
+          status: input.thread.status,
+          completedAt,
+        },
+      }, cardId)
+      return null
+    }
     const queued = options.executionDeliveryRuntime.enqueue({
       cardId,
       sessionId,
@@ -294,6 +395,8 @@ export function createAlicizationRuntimeExecutionDelivery(
       goal: input.thread.goal,
       summary: input.thread.summary,
       outcome: readExecutionOutcome(events),
+      errorCode: executionFailure?.code || null,
+      errorMessage: executionFailure?.message || null,
       signature: sanitizeExecutionLedgerText(
         latestEvent
           ? `${input.thread.id}:${latestEvent.id ?? latestEvent.createdAt}`
@@ -306,7 +409,26 @@ export function createAlicizationRuntimeExecutionDelivery(
     if (!queued)
       return null
 
-    await persistExecutionDeliveryState(cardId)
+    let statePersistenceError: string | null = null
+    await persistExecutionDeliveryState(cardId).catch((error) => {
+      statePersistenceError = error instanceof Error ? error.message : String(error)
+    })
+    if (statePersistenceError) {
+      await options.appendAuditLog({
+        level: 'critical',
+        category: 'alicization.executor.delivery',
+        action: 'state-persist-failed',
+        message: 'Execution delivery was queued in memory but its durable state write failed; restore reconciliation will retry it.',
+        payload: {
+          cardId,
+          threadId: queued.threadId,
+          sessionId: queued.sessionId,
+          status: queued.status,
+          reason: statePersistenceError,
+        },
+      }, cardId).catch(() => {})
+      options.queueSubconsciousWake(cardId, `execution-delivery-reconcile:${queued.threadId}`, 2_500)
+    }
     await options.syncSessionMirrorFromCurrentCardState({
       cardId,
       decisionTraceId: queued.decisionTraceId,
@@ -331,6 +453,87 @@ export function createAlicizationRuntimeExecutionDelivery(
     }, cardId)
     options.queueSubconsciousWake(cardId, `execution-delivery:${queued.threadId}`, 240)
     return queued
+  }
+
+  const reconcileExecutionDeliveryCandidates = async (cardIdRaw: unknown) => {
+    const listTaskThreads = options.alicizationDb.listTaskThreads
+    if (!listTaskThreads)
+      return 0
+
+    const cardId = options.normalizeCardId(cardIdRaw)
+    const activeSessionId = options.normalizeSessionId(
+      options.getActiveSessionId?.(cardId),
+    )
+    const reconcile = async () => {
+      const threads = await listTaskThreads({
+        status: [...alicizationTerminalTaskThreadStatuses],
+        ...(activeSessionId ? { sessionId: activeSessionId } : {}),
+        limit: executionDeliveryRecoveryLimit,
+      }).catch(() => [])
+      const recoveryCutoff = getNow() - executionDeliveryRecoveryWindowMs
+      const recoverableThreads = threads.filter(thread => (
+        options.normalizeSessionId(thread.sessionId) === activeSessionId
+        && readTaskThreadActivityAt(thread) >= recoveryCutoff
+      ))
+      let queued = 0
+      for (const thread of recoverableThreads) {
+        const candidate = await queueExecutionDeliveryCandidate({
+          cardId,
+          thread,
+        }).catch(async (error) => {
+          await options.appendAuditLog({
+            level: 'warning',
+            category: 'alicization.executor.delivery',
+            action: 'reconcile-failed',
+            message: 'Failed to rebuild a terminal execution delivery candidate during restore.',
+            payload: {
+              cardId,
+              threadId: thread.id,
+              status: thread.status,
+              reason: error instanceof Error ? error.message : String(error),
+            },
+          }, cardId).catch(() => {})
+          return null
+        })
+        if (candidate)
+          queued += 1
+      }
+      if (threads.length !== recoverableThreads.length) {
+        await options.appendAuditLog({
+          level: 'notice',
+          category: 'alicization.executor.delivery',
+          action: 'reconcile-history-skipped',
+          message: 'Skipped terminal execution history outside the active session or delivery recovery window.',
+          payload: {
+            cardId,
+            activeSessionId: activeSessionId || null,
+            scanned: threads.length,
+            recovered: recoverableThreads.length,
+            recoveryWindowMs: executionDeliveryRecoveryWindowMs,
+          },
+        }, cardId).catch(() => {})
+      }
+      return queued
+    }
+
+    if (!activeSessionId) {
+      await options.appendAuditLog({
+        level: 'notice',
+        category: 'alicization.executor.delivery',
+        action: 'reconcile-skipped-no-active-session',
+        message: 'Skipped terminal execution delivery reconciliation because no active session is available.',
+        payload: {
+          cardId,
+        },
+      }, cardId).catch(() => {})
+      return 0
+    }
+
+    if (cardId === options.getActiveCardId())
+      return await reconcile()
+    return await options.withCardScope(cardId, reconcile, {
+      label: `execution-delivery.reconcile:${cardId}`,
+    })
   }
 
   const selectExecutionDeliveryReplySurface = (input: {
@@ -675,5 +878,6 @@ export function createAlicizationRuntimeExecutionDelivery(
     resolveExecutionHostPersonModelForRuntime,
     resolveExecutionKnowledgeEvidenceForRuntime,
     resolveExecutionPersonStateProjectionForRuntime,
+    reconcileExecutionDeliveryCandidates,
   }
 }

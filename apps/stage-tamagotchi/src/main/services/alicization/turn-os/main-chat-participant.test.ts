@@ -24,6 +24,7 @@ import {
   resolveAlicizationLocalRuntimeUserId,
 } from './main-chat-participant'
 import { createAlicizationRuntimeReplyArtifact } from './reply-artifact'
+import { createCanonicalToolRegistry } from './tool-registry'
 
 const scope = {
   turnId: 'turn-current',
@@ -266,7 +267,8 @@ describe('main chat EventLoop participant', () => {
       action: {
         actionId: 'action-1',
         toolCallId: 'tool-call-1',
-        qualifiedToolName: 'executor_run_codex',
+        capabilityId: 'coding_agent.codex',
+        providerToolName: 'codex',
         input: {
           prompt: 'inspect repository',
         },
@@ -377,6 +379,7 @@ describe('main chat EventLoop participant', () => {
       toolCallIdentity: {
         resolveProviderToolCall: vi.fn(() => 'tool-call-canonical'),
       },
+      toolRegistry: createCanonicalToolRegistry(),
     } as any
 
     const result = await runAlicizationMainChatProviderStep({
@@ -398,7 +401,7 @@ describe('main chat EventLoop participant', () => {
             controller.enqueue({
               type: 'tool-call',
               toolCallId: 'provider-tool-call-1',
-              toolName: 'executor_run_codex',
+              toolName: 'codex',
               args: JSON.stringify({ prompt: 'inspect repository' }),
             })
             controller.enqueue({
@@ -416,7 +419,8 @@ describe('main chat EventLoop participant', () => {
       action: {
         actionId: `${scope.turnId}:action:tool-call-canonical`,
         toolCallId: 'tool-call-canonical',
-        qualifiedToolName: 'executor_run_codex',
+        capabilityId: 'coding_agent.codex',
+        providerToolName: 'codex',
         input: {
           prompt: 'inspect repository',
         },
@@ -425,7 +429,7 @@ describe('main chat EventLoop participant', () => {
     expect(execute).not.toHaveBeenCalled()
     expect(emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
       toolCallId: 'tool-call-canonical',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
     }))
   })
 

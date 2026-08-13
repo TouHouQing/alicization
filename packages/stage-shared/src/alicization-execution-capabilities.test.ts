@@ -44,11 +44,12 @@ describe('alicization execution capabilities', () => {
 
   it('defines the executor tool names as a closed structured contract', () => {
     expect(capabilities.alicizationExecutorToolNames).toEqual([
-      'executor_run_cli',
-      'executor_run_codex',
-      'executor_run_claude_code',
-      'executor_run_local_visual',
-      'executor_run_openclaw',
+      'coding_agent',
+      'cli',
+      'codex',
+      'claude_code',
+      'local_visual',
+      'openclaw',
       'browser_open_url',
       'browser_search_web',
       'browser_read_page',
@@ -76,10 +77,10 @@ describe('alicization execution capabilities', () => {
       'software',
       'desktop',
     ]
-    const toolName: AlicizationExecutorToolName = 'executor_run_cli'
+    const toolName: AlicizationExecutorToolName = 'cli'
 
     expect(capabilityChannel).toBe('openfang')
     expect(actionChannels).toEqual(['cli', 'browser', 'software', 'desktop'])
-    expect(toolName).toBe('executor_run_cli')
+    expect(toolName).toBe('cli')
   })
 })

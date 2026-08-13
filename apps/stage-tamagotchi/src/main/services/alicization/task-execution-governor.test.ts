@@ -166,6 +166,127 @@ describe('task execution governor', () => {
     expect(port.appendExecutionEvents).not.toBeCalled()
   })
 
+  it('keeps different canonical Codex calls independent under a running-thread budget of one', async () => {
+    const governor = createTaskExecutionGovernor({
+      getNow: () => 240,
+      maxRunningThreadsPerSession: 1,
+    })
+    const runningThread = createThread({
+      id: 'thread-governor-codex-running-1',
+      goal: 'Inspect the runtime transport.',
+      status: 'running',
+      metadata: {
+        task: {
+          permissionMode: 'implicit',
+          effect: 'mutate',
+          canonicalToolCallId: 'codex-call-a',
+        },
+        fabric: {
+          state: 'routed',
+          preferredChannels: ['codex'],
+          fallbackChannels: [],
+          reasonTags: ['code-agent-fit'],
+          narrative: ['Inspect the runtime transport through Codex.'],
+          affirmationReasonCodes: [],
+          blockedReasonCodes: [],
+        },
+      },
+    })
+    const port = createPort({
+      taskThreads: [runningThread],
+    })
+
+    const result = await governor.plan(port, {
+      threadId: 'thread-governor-codex-new-1',
+      now: 240,
+      trace: {
+        decisionTraceId: 'mind:trace:governor-codex-independent',
+        turnId: 'turn-governor-codex-independent',
+        sessionId: 'session-governor-1',
+        origin: 'user-turn',
+      },
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Inspect the runtime transport.',
+        origin: 'user',
+        effect: 'mutate',
+        requestedChannel: 'codex',
+        prefersPersistentSession: true,
+      },
+      capabilities: createCapabilities(['codex']),
+      canonicalToolCallId: 'codex-call-b',
+    })
+
+    expect(result.plan.state).toBe('routed')
+    expect(result.thread.status).toBe('planned')
+    expect(result.thread.id).toBe('thread-governor-codex-new-1')
+    expect(result.governor.disposition).toBe('planned')
+    expect(result.governor.reasonCodes).toEqual([])
+    expect(port.upsertTaskThread).toBeCalledTimes(1)
+    expect(port.readPersistedThread()?.metadata).toEqual(expect.objectContaining({
+      governor: expect.objectContaining({
+        canonicalToolCallId: 'codex-call-b',
+      }),
+    }))
+  })
+
+  it('dedupes the same canonical Codex call when provider arguments drift', async () => {
+    const governor = createTaskExecutionGovernor({
+      getNow: () => 280,
+      maxRunningThreadsPerSession: 1,
+    })
+    const existingThread = createThread({
+      id: 'thread-governor-codex-duplicate-1',
+      goal: 'Inspect the runtime transport.',
+      status: 'running',
+      metadata: {
+        task: {
+          permissionMode: 'implicit',
+          effect: 'mutate',
+          canonicalToolCallId: 'codex-call-same',
+        },
+        fabric: {
+          state: 'routed',
+          preferredChannels: ['codex'],
+          fallbackChannels: [],
+          reasonTags: ['code-agent-fit'],
+          narrative: ['Inspect the runtime transport through Codex.'],
+          affirmationReasonCodes: [],
+          blockedReasonCodes: [],
+        },
+      },
+    })
+    const port = createPort({
+      taskThreads: [existingThread],
+    })
+
+    const result = await governor.plan(port, {
+      threadId: 'thread-governor-codex-duplicate-2',
+      now: 280,
+      trace: {
+        decisionTraceId: 'mind:trace:governor-codex-duplicate',
+        turnId: 'turn-governor-codex-duplicate',
+        sessionId: 'session-governor-1',
+        origin: 'user-turn',
+      },
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Inspect the runtime transport and summarize its retry states.',
+        origin: 'user',
+        effect: 'mutate',
+        requestedChannel: 'codex',
+        prefersPersistentSession: true,
+      },
+      capabilities: createCapabilities(['codex']),
+      canonicalToolCallId: 'codex-call-same',
+    })
+
+    expect(result.thread.id).toBe(existingThread.id)
+    expect(result.governor.disposition).toBe('duplicate')
+    expect(result.governor.reasonCodes).toContain('duplicate-active-thread')
+    expect(port.upsertTaskThread).not.toBeCalled()
+  })
+
   it('blocks new routed work when the session already carries a running task thread', async () => {
     const governor = createTaskExecutionGovernor({
       getNow: () => 400,

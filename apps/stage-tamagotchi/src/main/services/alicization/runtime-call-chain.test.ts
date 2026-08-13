@@ -64,6 +64,31 @@ describe('runtime call chain', () => {
     })).rejects.toBeInstanceOf(AlicizationRuntimeCircularCallError)
   })
 
+  it('allows sibling tool calls with the same phase id to run concurrently', async () => {
+    const chain = createAlicizationRuntimeCallChain()
+    let releaseFirst!: () => void
+    let releaseSecond!: () => void
+    const firstReady = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    const secondReady = new Promise<void>((resolve) => {
+      releaseSecond = resolve
+    })
+
+    const first = chain.track('tool:executor:cli', async () => {
+      releaseFirst()
+      await secondReady
+      return 'first'
+    })
+    const second = chain.track('tool:executor:cli', async () => {
+      releaseSecond()
+      await firstReady
+      return 'second'
+    })
+
+    await expect(Promise.all([first, second])).resolves.toEqual(['first', 'second'])
+  })
+
   it('rejects runtime chains beyond max depth', async () => {
     const chain = createAlicizationRuntimeCallChain({
       maxDepth: 1,

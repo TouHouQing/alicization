@@ -14,6 +14,7 @@ import type {
 import type { AlicizationAuditLogInput } from '../../../shared/eventa'
 import type { AlicizationLocalVisualDispatchSurface } from './executor-adapters/local-visual'
 
+import { errorMessageFrom } from '@moeru/std'
 import {
   normalizeAlicizationExecutionRuntimeContext,
 } from '@proj-alicization/stage-shared'
@@ -35,8 +36,112 @@ export type AlicizationTaskThreadDispatchPort = TaskThreadDispatchPort
 export interface AlicizationDispatchTaskThreadRuntimeInput extends AlicizationDispatchTaskThreadInput {
   killSwitchSuspended?: boolean
   abortSignal?: AbortSignal
+  onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
+  eventPersistenceTimeoutMs?: number
   workspaceRoot?: string
   now?: () => number
+}
+
+const defaultEventPersistenceTimeoutMs = 1_000
+const terminalTaskThreadStatuses = new Set<AlicizationTaskThreadRecord['status']>([
+  'completed',
+  'failed',
+  'cancelled',
+])
+
+function normalizePersistenceTimeoutMs(value: number | undefined) {
+  if (!Number.isFinite(value))
+    return defaultEventPersistenceTimeoutMs
+  return Math.max(1, Math.floor(value as number))
+}
+
+async function runBoundedPersistence<T>(input: {
+  label: string
+  operation: () => Promise<T>
+  timeoutMs: number
+}): Promise<
+  | { ok: true, value: T }
+  | { ok: false, reason: string }
+> {
+  return await new Promise((resolve) => {
+    let settled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const finish = (
+      result:
+        | { ok: true, value: T }
+        | { ok: false, reason: string },
+    ) => {
+      if (settled)
+        return
+      settled = true
+      if (timer)
+        clearTimeout(timer)
+      resolve(result)
+    }
+    timer = setTimeout(() => {
+      finish({
+        ok: false,
+        reason: `${input.label} timed out after ${input.timeoutMs}ms`,
+      })
+    }, input.timeoutMs)
+    timer.unref?.()
+
+    try {
+      void input.operation().then(
+        value => finish({ ok: true, value }),
+        error => finish({
+          ok: false,
+          reason: `${input.label} failed: ${errorMessageFrom(error)}`,
+        }),
+      )
+    }
+    catch (error) {
+      finish({
+        ok: false,
+        reason: `${input.label} failed: ${errorMessageFrom(error)}`,
+      })
+    }
+  })
+}
+
+function withExecutionPersistenceDiagnostics(
+  thread: AlicizationTaskThreadRecord,
+  failures: string[],
+  recordedAt: number,
+) {
+  if (failures.length === 0)
+    return thread.metadata
+  const execution = thread.metadata?.execution
+  const persistence = execution
+    && typeof execution === 'object'
+    && !Array.isArray(execution)
+    && 'persistence' in execution
+    && execution.persistence
+    && typeof execution.persistence === 'object'
+    && !Array.isArray(execution.persistence)
+    ? execution.persistence
+    : null
+  const previousFailures = persistence
+    && 'failures' in persistence
+    && Array.isArray(persistence.failures)
+    ? persistence.failures.filter((failure): failure is string => typeof failure === 'string')
+    : []
+  return {
+    ...thread.metadata,
+    execution: {
+      ...(execution && typeof execution === 'object' && !Array.isArray(execution)
+        ? execution
+        : {}),
+      persistence: {
+        status: 'degraded',
+        failures: [...new Set([
+          ...previousFailures,
+          ...failures,
+        ])],
+        recordedAt,
+      },
+    },
+  }
 }
 
 function withRuntimeContext<Command extends { runtimeContext?: AlicizationExecutionRuntimeContext | null }>(
@@ -148,34 +253,6 @@ async function appendAuditLog(port: TaskThreadDispatchPort, input: AlicizationAu
   await port.appendAuditLog(input).catch(() => {})
 }
 
-async function refreshThreadSummary(
-  port: TaskThreadDispatchPort,
-  threadId: string,
-  summary: string,
-  now: () => number,
-) {
-  const refreshed = await port.getTaskThread(threadId)
-  if (!refreshed)
-    throw new Error(`Task thread "${threadId}" disappeared during dispatch.`)
-
-  if (refreshed.summary === summary)
-    return refreshed
-
-  return await port.upsertTaskThread({
-    ...refreshed,
-    summary,
-    updatedAt: Math.max(refreshed.updatedAt, now()),
-    lastEventAt: refreshed.lastEventAt,
-    completedAt: refreshed.completedAt,
-  })
-}
-
-function collectCreatedEventKinds(events: AlicizationExecutionEventInput[]) {
-  return events
-    .map(event => event.kind)
-    .filter((kind): kind is AlicizationExecutionEventKind => Boolean(kind))
-}
-
 function buildExecutorSessionAffinityKey(thread: AlicizationTaskThreadRecord) {
   const sessionId = typeof thread.sessionId === 'string'
     ? thread.sessionId.trim()
@@ -261,6 +338,7 @@ export async function dispatchTaskThread(
   input: AlicizationDispatchTaskThreadRuntimeInput,
 ): Promise<AlicizationDispatchTaskThreadResult> {
   const now = input.now ?? Date.now
+  const eventPersistenceTimeoutMs = normalizePersistenceTimeoutMs(input.eventPersistenceTimeoutMs)
   let thread = await port.getTaskThread(input.threadId)
   if (!thread)
     throw new Error(`Task thread "${input.threadId}" was not found.`)
@@ -281,6 +359,8 @@ export async function dispatchTaskThread(
   }
 
   if (input.killSwitchSuspended) {
+    const blockedAt = now()
+    const blockedSummary = 'Execution stayed blocked because the kill switch is suspended.'
     const blockedEvent: AlicizationExecutionEventInput = {
       threadId: thread.id,
       decisionTraceId: thread.decisionTraceId,
@@ -291,36 +371,77 @@ export async function dispatchTaskThread(
       kind: 'cancel',
       threadStatus: 'blocked',
       payload: {
+        failureKind: 'tool-execution',
+        errorCode: 'TASK_THREAD_KILL_SWITCH_BLOCKED',
+        errorMessage: blockedSummary,
         reason: 'kill-switch-suspended',
         hasRuntimeContext: runtimeContext !== null,
         runtimeContext,
       },
-      createdAt: now(),
+      createdAt: blockedAt,
     }
-    await port.appendExecutionEvents([blockedEvent])
-    const blockedThread = await refreshThreadSummary(
-      port,
-      thread.id,
-      'Execution stayed blocked because the kill switch is suspended.',
-      now,
-    )
-    await appendAuditLog(port, {
+    const persistenceFailures: string[] = []
+    const eventWrite = await runBoundedPersistence({
+      label: 'kill-switch block event persistence',
+      operation: async () => await port.appendExecutionEvents([blockedEvent]),
+      timeoutMs: eventPersistenceTimeoutMs,
+    })
+    if (!eventWrite.ok)
+      persistenceFailures.push(eventWrite.reason)
+
+    const blockedInput: AlicizationTaskThreadUpsertInput = {
+      ...thread,
+      status: 'blocked',
+      summary: blockedSummary,
+      metadata: withExecutionPersistenceDiagnostics(
+        thread,
+        persistenceFailures,
+        blockedAt,
+      ),
+      updatedAt: Math.max(thread.updatedAt, blockedAt),
+      lastEventAt: eventWrite.ok ? blockedAt : thread.lastEventAt,
+      completedAt: thread.completedAt,
+    }
+    const threadWrite = await runBoundedPersistence({
+      label: 'kill-switch blocked task-thread persistence',
+      operation: async () => await port.upsertTaskThread(blockedInput),
+      timeoutMs: eventPersistenceTimeoutMs,
+    })
+    if (!threadWrite.ok)
+      persistenceFailures.push(threadWrite.reason)
+    const blockedThread = threadWrite.ok
+      ? threadWrite.value
+      : {
+          ...blockedInput,
+          metadata: withExecutionPersistenceDiagnostics(
+            thread,
+            persistenceFailures,
+            blockedAt,
+          ),
+        } as AlicizationTaskThreadRecord
+
+    void appendAuditLog(port, {
       level: 'warning',
       category: 'alicization.executor.dispatch',
       action: 'blocked-kill-switch',
-      message: 'Task-thread dispatch was blocked by kill switch before execution began.',
+      message: persistenceFailures.length > 0
+        ? 'Task-thread dispatch was blocked by kill switch with degraded persistence.'
+        : 'Task-thread dispatch was blocked by kill switch before execution began.',
       payload: {
         threadId: thread.id,
         selectedChannel: thread.selectedChannel,
+        failures: persistenceFailures,
       },
-    })
+    }).catch(() => {})
     return {
       thread: blockedThread,
-      createdEventKinds: ['cancel'],
+      createdEventKinds: eventWrite.ok ? ['cancel'] : [],
       ok: false,
-      summary: 'Execution stayed blocked because the kill switch is suspended.',
+      summary: blockedSummary,
       errorCode: 'TASK_THREAD_KILL_SWITCH_BLOCKED',
-      errorMessage: 'Kill switch is suspended.',
+      errorMessage: persistenceFailures.length > 0
+        ? `Kill switch is suspended; persistence degraded: ${persistenceFailures.join('; ')}`
+        : 'Kill switch is suspended.',
     }
   }
 
@@ -374,29 +495,368 @@ export async function dispatchTaskThread(
     }
   }
 
+  const runningDispatchSummary = buildRunningDispatchSummary(
+    preparedDispatch.channel,
+    thread.selectedChannel,
+  )
+  const runningAt = now()
+  thread = await port.upsertTaskThread({
+    ...thread,
+    status: 'running',
+    summary: runningDispatchSummary,
+    updatedAt: Math.max(thread.updatedAt, runningAt),
+    lastEventAt: runningAt,
+    completedAt: null,
+  })
+
   if (supportsExecutorSessionTracking(preparedDispatch.sessionTrackingChannel)) {
     await upsertExecutorSession(port, {
       thread,
       transportChannel: preparedDispatch.sessionTrackingChannel,
       status: 'running',
-      summary: buildRunningDispatchSummary(preparedDispatch.channel, thread.selectedChannel),
+      summary: runningDispatchSummary,
       now,
       runtimeContext,
     })
   }
 
-  const result = await preparedDispatch.run({
-    abortSignal: input.abortSignal,
-    workspaceRoot: input.workspaceRoot,
-    now,
-  })
-  const summarizedResult = result.summary.trim()
+  const persistedLiveEvents = new WeakSet<AlicizationExecutionEventInput>()
+  const persistedLiveEventIds = new Set<string>()
+  const pendingLiveEvents = new WeakSet<AlicizationExecutionEventInput>()
+  const pendingLiveEventIds = new Set<string>()
+  const observedLiveEvents: AlicizationExecutionEventInput[] = []
+  const persistedEventKinds = new Set<AlicizationExecutionEventKind>()
+  const persistenceFailures: string[] = []
+  let livePersistenceClosed = false
+  let liveEventQueue = Promise.resolve()
+  let lateEventQueue = Promise.resolve()
+  let terminalThreadSnapshot: AlicizationTaskThreadRecord | null = null
+  const scheduledLateEvents = new WeakSet<AlicizationExecutionEventInput>()
+  const scheduledLateEventIds = new Set<string>()
+  const eventIdOf = (event: AlicizationExecutionEventInput) => {
+    const eventId = typeof event.id === 'string' ? event.id.trim() : ''
+    return eventId.length > 0 ? eventId : null
+  }
+  const hasPersistedLiveEvent = (event: AlicizationExecutionEventInput) => {
+    const eventId = eventIdOf(event)
+    return persistedLiveEvents.has(event)
+      || (eventId !== null && persistedLiveEventIds.has(eventId))
+  }
+  const hasPendingLiveEvent = (event: AlicizationExecutionEventInput) => {
+    const eventId = eventIdOf(event)
+    return pendingLiveEvents.has(event)
+      || (eventId !== null && pendingLiveEventIds.has(eventId))
+  }
+  const collectUnpersistedEvents = (events: AlicizationExecutionEventInput[]) => {
+    const seenEvents = new WeakSet<AlicizationExecutionEventInput>()
+    const seenEventIds = new Set<string>()
+    return events.filter((event) => {
+      if (hasPersistedLiveEvent(event))
+        return false
+      const eventId = eventIdOf(event)
+      if (seenEvents.has(event) || (eventId !== null && seenEventIds.has(eventId)))
+        return false
+      seenEvents.add(event)
+      if (eventId !== null)
+        seenEventIds.add(eventId)
+      return true
+    })
+  }
+  const markEventsPersisted = (events: AlicizationExecutionEventInput[]) => {
+    for (const event of events) {
+      const eventId = eventIdOf(event)
+      persistedLiveEvents.add(event)
+      if (eventId !== null)
+        persistedLiveEventIds.add(eventId)
+      if (event.kind)
+        persistedEventKinds.add(event.kind)
+    }
+  }
+  const clearPendingEvents = (events: AlicizationExecutionEventInput[]) => {
+    for (const event of events) {
+      const eventId = eventIdOf(event)
+      pendingLiveEvents.delete(event)
+      if (eventId !== null)
+        pendingLiveEventIds.delete(eventId)
+    }
+  }
+  const scheduleLiveEventPersistence = (events: AlicizationExecutionEventInput[]) => {
+    if (livePersistenceClosed)
+      return
+    const pendingEvents = collectUnpersistedEvents(events)
+      .filter(event => !hasPendingLiveEvent(event))
+    if (pendingEvents.length === 0)
+      return
 
-  if (result.events.length > 0)
-    await port.appendExecutionEvents(result.events)
-  const summarizedThread = await refreshThreadSummary(port, thread.id, summarizedResult, now)
+    for (const event of pendingEvents) {
+      pendingLiveEvents.add(event)
+      const eventId = eventIdOf(event)
+      if (eventId !== null)
+        pendingLiveEventIds.add(eventId)
+    }
+
+    const delivery = liveEventQueue.then(async () => {
+      if (livePersistenceClosed) {
+        clearPendingEvents(pendingEvents)
+        return
+      }
+
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        if (livePersistenceClosed) {
+          clearPendingEvents(pendingEvents)
+          return
+        }
+        const write = await runBoundedPersistence({
+          label: `realtime execution event persistence attempt ${attempt}`,
+          operation: async () => await port.appendExecutionEvents(pendingEvents),
+          timeoutMs: eventPersistenceTimeoutMs,
+        })
+        if (write.ok) {
+          markEventsPersisted(pendingEvents)
+          clearPendingEvents(pendingEvents)
+          return
+        }
+      }
+      clearPendingEvents(pendingEvents)
+    })
+    liveEventQueue = delivery.catch(() => {})
+    void delivery
+  }
+  const scheduleLateEventPersistence = (event: AlicizationExecutionEventInput) => {
+    const eventId = eventIdOf(event)
+    if (
+      scheduledLateEvents.has(event)
+      || (eventId !== null && scheduledLateEventIds.has(eventId))
+    ) {
+      return
+    }
+    scheduledLateEvents.add(event)
+    if (eventId !== null)
+      scheduledLateEventIds.add(eventId)
+
+    const eventIdentity = eventId ?? `${event.kind ?? 'unknown'}@${event.createdAt ?? 'unknown'}`
+    const lateEventFailure = `A late execution event (${eventIdentity}) arrived after realtime persistence closed.`
+    const evidenceOnlyEvent: AlicizationExecutionEventInput = {
+      ...event,
+      threadStatus: undefined,
+      payload: {
+        ...event.payload,
+        lateAfterTerminal: true,
+        originalThreadStatus: event.threadStatus ?? null,
+      },
+    }
+    const delivery = lateEventQueue.then(async () => {
+      const lateFailures = [lateEventFailure]
+      if (!hasPersistedLiveEvent(event)) {
+        const eventWrite = await runBoundedPersistence({
+          label: 'late execution event persistence',
+          operation: async () => await port.appendExecutionEvents([evidenceOnlyEvent]),
+          timeoutMs: eventPersistenceTimeoutMs,
+        })
+        if (eventWrite.ok)
+          markEventsPersisted([event])
+        else
+          lateFailures.push(eventWrite.reason)
+      }
+
+      const refreshedThreadRead = await runBoundedPersistence({
+        label: 'late execution event task-thread refresh',
+        operation: async () => await port.getTaskThread(thread.id),
+        timeoutMs: eventPersistenceTimeoutMs,
+      })
+      if (!refreshedThreadRead.ok) {
+        lateFailures.push(refreshedThreadRead.reason)
+        return
+      }
+      const latestThread = refreshedThreadRead.value
+      if (!latestThread)
+        return
+      const terminalThread = terminalTaskThreadStatuses.has(latestThread.status)
+        ? latestThread
+        : terminalThreadSnapshot ?? latestThread
+      const diagnosticAt = now()
+      await runBoundedPersistence({
+        label: 'late execution event diagnostic persistence',
+        operation: async () => await port.upsertTaskThread({
+          ...latestThread,
+          status: terminalThread.status,
+          summary: terminalThread.summary,
+          metadata: withExecutionPersistenceDiagnostics(
+            latestThread,
+            lateFailures,
+            diagnosticAt,
+          ),
+          updatedAt: Math.max(latestThread.updatedAt, diagnosticAt),
+          lastEventAt: terminalThread.lastEventAt,
+          completedAt: terminalThread.completedAt,
+        }),
+        timeoutMs: eventPersistenceTimeoutMs,
+      })
+    })
+    lateEventQueue = delivery.catch(() => {})
+    void delivery
+  }
+  const persistAndPublishLiveEvent = (event: AlicizationExecutionEventInput) => {
+    if (livePersistenceClosed) {
+      scheduleLateEventPersistence(event)
+      return Promise.resolve()
+    }
+    // Runtime observers must see progress immediately. Database persistence is
+    // queued independently so a slow SQLite write cannot stall the executor or
+    // the Provider continuation.
+    try {
+      void Promise.resolve(input.onExecutionEvent?.(event)).catch(() => {})
+    }
+    catch {
+      // Synchronous observer failures must not affect executor lifecycle.
+    }
+    observedLiveEvents.push(event)
+    scheduleLiveEventPersistence([event])
+    return Promise.resolve()
+  }
+
+  let result: Awaited<ReturnType<typeof preparedDispatch.run>>
+  try {
+    result = await preparedDispatch.run({
+      abortSignal: input.abortSignal,
+      onExecutionEvent: persistAndPublishLiveEvent,
+      workspaceRoot: input.workspaceRoot,
+      now,
+    })
+  }
+  catch (error) {
+    const errorMessage = errorMessageFrom(error) || 'Executor adapter rejected without an error message.'
+    const rawErrorCode = error && typeof error === 'object' && 'code' in error
+      ? (error as { code?: unknown }).code
+      : undefined
+    const errorCode = typeof rawErrorCode === 'string' && rawErrorCode.trim()
+      ? rawErrorCode.trim()
+      : 'TASK_THREAD_ADAPTER_REJECTED'
+    const failedAt = now()
+    result = {
+      ok: false,
+      finalStatus: 'failed',
+      summary: `${preparedDispatch.channel} dispatch failed: ${errorMessage}`,
+      output: null,
+      errorCode,
+      errorMessage,
+      events: [{
+        threadId: thread.id,
+        decisionTraceId: thread.decisionTraceId,
+        turnId: thread.turnId,
+        sessionId: thread.sessionId,
+        origin: thread.origin,
+        channel: thread.selectedChannel,
+        kind: 'result',
+        threadStatus: 'failed',
+        payload: {
+          adapter: preparedDispatch.channel,
+          failureKind: 'tool-execution',
+          errorCode,
+          errorMessage,
+          rejected: true,
+          hasRuntimeContext: runtimeContext !== null,
+          runtimeContext,
+        },
+        createdAt: failedAt,
+      }],
+    }
+  }
+  const summarizedResult = result.summary.trim()
+  const finalThreadStatus = result.finalStatus ?? (result.ok ? 'completed' : 'failed')
+  const finalizedAt = now()
+  const finalThreadCompletedAt = finalThreadStatus === 'completed'
+    || finalThreadStatus === 'failed'
+    || finalThreadStatus === 'cancelled'
+    ? finalizedAt
+    : thread.completedAt
+  terminalThreadSnapshot = {
+    ...thread,
+    status: finalThreadStatus,
+    summary: summarizedResult,
+    updatedAt: Math.max(thread.updatedAt, finalizedAt),
+    lastEventAt: finalizedAt,
+    completedAt: finalThreadCompletedAt,
+  }
+
+  const liveDrain = await runBoundedPersistence({
+    label: 'realtime execution event drain',
+    operation: async () => {
+      while (true) {
+        const queueSnapshot = liveEventQueue
+        await queueSnapshot
+        if (queueSnapshot !== liveEventQueue)
+          continue
+        livePersistenceClosed = true
+        return
+      }
+    },
+    timeoutMs: eventPersistenceTimeoutMs,
+  })
+  if (!liveDrain.ok)
+    persistenceFailures.push(liveDrain.reason)
+  if (!livePersistenceClosed)
+    livePersistenceClosed = true
+
+  const finalEvents = collectUnpersistedEvents([
+    ...observedLiveEvents,
+    ...result.events,
+  ])
+  if (finalEvents.length > 0) {
+    const finalWrite = await runBoundedPersistence({
+      label: 'final execution event persistence',
+      operation: async () => await port.appendExecutionEvents(finalEvents),
+      timeoutMs: eventPersistenceTimeoutMs,
+    })
+    if (finalWrite.ok)
+      markEventsPersisted(finalEvents)
+    else
+      persistenceFailures.push(finalWrite.reason)
+  }
+
+  const refreshedThreadRead = await runBoundedPersistence({
+    label: 'terminal task-thread refresh',
+    operation: async () => await port.getTaskThread(thread.id),
+    timeoutMs: eventPersistenceTimeoutMs,
+  })
+  if (!refreshedThreadRead.ok)
+    persistenceFailures.push(refreshedThreadRead.reason)
+  const terminalBaseThread = refreshedThreadRead.ok && refreshedThreadRead.value
+    ? refreshedThreadRead.value
+    : thread
+  const terminalInput: AlicizationTaskThreadUpsertInput = {
+    ...terminalBaseThread,
+    status: finalThreadStatus,
+    summary: summarizedResult,
+    metadata: withExecutionPersistenceDiagnostics(
+      terminalBaseThread,
+      persistenceFailures,
+      finalizedAt,
+    ),
+    updatedAt: Math.max(terminalBaseThread.updatedAt, finalizedAt),
+    lastEventAt: finalizedAt,
+    completedAt: finalThreadCompletedAt,
+  }
+  const terminalWrite = await runBoundedPersistence({
+    label: 'terminal task-thread persistence',
+    operation: async () => await port.upsertTaskThread(terminalInput),
+    timeoutMs: eventPersistenceTimeoutMs,
+  })
+  if (!terminalWrite.ok)
+    persistenceFailures.push(terminalWrite.reason)
+  const summarizedThread = terminalWrite.ok
+    ? terminalWrite.value
+    : {
+        ...terminalInput,
+        metadata: withExecutionPersistenceDiagnostics(
+          terminalBaseThread,
+          persistenceFailures,
+          finalizedAt,
+        ),
+      } as AlicizationTaskThreadRecord
+  terminalThreadSnapshot = summarizedThread
   if (supportsExecutorSessionTracking(preparedDispatch.sessionTrackingChannel)) {
-    await upsertExecutorSession(port, {
+    void upsertExecutorSession(port, {
       thread,
       transportChannel: preparedDispatch.sessionTrackingChannel,
       status: result.ok || result.finalStatus === 'cancelled' ? 'active' : 'failed',
@@ -407,11 +867,27 @@ export async function dispatchTaskThread(
         ? result.externalSessionId
         : null,
       runtimeContext,
-    })
+    }).catch(() => {})
   }
   const auditChannelPrefix = thread.selectedChannel ?? 'unknown-channel'
+  const createdEventKinds = [...persistedEventKinds]
 
-  await appendAuditLog(port, {
+  if (persistenceFailures.length > 0) {
+    void appendAuditLog(port, {
+      level: 'warning',
+      category: 'alicization.executor.dispatch',
+      action: `${auditChannelPrefix}-persistence-degraded`,
+      message: 'Execution completed with degraded event or terminal persistence.',
+      payload: {
+        threadId: thread.id,
+        selectedChannel: thread.selectedChannel,
+        failures: persistenceFailures,
+        createdEventKinds,
+      },
+    }).catch(() => {})
+  }
+
+  void appendAuditLog(port, {
     level: result.ok ? 'notice' : result.finalStatus === 'cancelled' ? 'warning' : 'warning',
     category: 'alicization.executor.dispatch',
     action: result.ok
@@ -423,15 +899,16 @@ export async function dispatchTaskThread(
     payload: {
       threadId: thread.id,
       selectedChannel: thread.selectedChannel,
-      createdEventKinds: collectCreatedEventKinds(result.events),
+      createdEventKinds,
       errorCode: result.errorCode,
     },
-  })
+  }).catch(() => {})
 
   return {
     thread: summarizedThread,
-    createdEventKinds: collectCreatedEventKinds(result.events),
+    createdEventKinds,
     ok: result.ok,
+    finalStatus: result.finalStatus,
     summary: summarizedResult,
     output: result.output,
     errorCode: result.errorCode,

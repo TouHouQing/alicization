@@ -10,6 +10,7 @@ import {
 import { handleAlicizationMainChatRunFailure } from './main-chat-run-lifecycle'
 import { createAlicizationChatStreamMetaEmitter } from './main-chat-stream-meta'
 import { runAlicizationMainChatProviderStep } from './main-chat-stream-runner'
+import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 
 vi.mock('./main-chat-run-lifecycle', () => ({
   handleAlicizationMainChatRunFailure: vi.fn(),
@@ -73,6 +74,41 @@ function buildProviderReply(reply = 'Provider reply') {
 }
 
 function createPrepared(overrides?: Partial<any>): any {
+  const toolRegistry = overrides?.toolRegistry ?? createCanonicalToolRegistry()
+  for (const tool of overrides?.tools ?? []) {
+    const adapterToolName = String(tool?.function?.name ?? '').trim()
+    if (
+      !adapterToolName
+      || toolRegistry.resolveAdapterToolName(adapterToolName)
+      || toolRegistry.isKnownProviderToolName(adapterToolName)
+      || adapterToolName.startsWith('executor_run_')
+    ) {
+      continue
+    }
+    toolRegistry.register({
+      capabilityId: `test.${adapterToolName}`,
+      kind: 'tool',
+      version: '1.0.0',
+      description: adapterToolName,
+      inputSchema: tool.function?.parameters ?? {
+        type: 'object',
+        additionalProperties: true,
+      },
+      outputSchema: { type: 'object' },
+      scope: 'turn',
+      permissions: [],
+      risk: 'low',
+      executionChannel: 'test',
+      timeoutMs: 1_000,
+      supportsProgress: false,
+      supportsCancellation: true,
+      idempotency: 'none',
+      evaluationStatus: 'passed',
+      activationStatus: 'active',
+      providerToolName: adapterToolName,
+      adapterToolName,
+    })
+  }
   return {
     chatConfig: {
       model: 'gpt-test',
@@ -123,6 +159,7 @@ function createPrepared(overrides?: Partial<any>): any {
       maxDepth: 12,
       phaseOrder: ['prepare', 'stream'],
     },
+    toolRegistry,
     ...overrides,
   }
 }
@@ -740,6 +777,73 @@ describe('main chat background run', () => {
     }))
     expect(input.emitToolCall).not.toHaveBeenCalled()
     expect(input.emitToolResult).not.toHaveBeenCalled()
+  })
+
+  it('persists canonical action identity while executing and rendering the Provider alias', async () => {
+    const persistence = createInMemoryPersistence()
+    const execute = vi.fn(async () => ({
+      status: 'completed',
+      summary: 'repository inspected',
+    }))
+    const prepared = createPrepared({
+      toolRegistry: createCanonicalToolRegistry(),
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'coding_agent',
+          description: 'Run a coding agent.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        execute,
+      }],
+    })
+    const input = createInput('检查当前项目', {
+      prepareTurn: vi.fn(async () => prepared),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockResolvedValueOnce({
+        kind: 'action',
+        action: {
+          actionId: 'turn-1:action:canonical-tool-call',
+          input: {
+            agent: 'codex',
+            prompt: 'inspect the repository',
+          },
+          providerToolName: 'coding_agent',
+          capabilityId: 'coding_agent.codex',
+          toolCallId: 'canonical-tool-call',
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: '检查完成。',
+        text: '检查完成。',
+      })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(execute).toHaveBeenCalledOnce()
+    expect(input.emitToolResult).toHaveBeenCalledWith(expect.objectContaining({
+      toolName: 'coding_agent',
+    }))
+    expect(persistence.appendRuntimeEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: 'action.started',
+        payload: expect.objectContaining({
+          capabilityId: 'coding_agent.codex',
+        }),
+      }),
+    )
   })
 
   it('settles through the failure lifecycle when preparation ignores the abort signal', async () => {

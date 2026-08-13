@@ -10,6 +10,7 @@ interface HandleAlicizationDirectChatStartOptions {
   payload: AlicizationChatStartPayload
   withCardScope: <T>(nextCardIdRaw: unknown, task: () => Promise<T>, options?: {
     label?: string
+    lane?: 'foreground' | 'background'
     skipQueueWhenScopeAlreadyActive?: boolean
   }) => Promise<T>
   startMainChatStream: (
@@ -66,6 +67,7 @@ export async function handleAlicizationDirectChatStart(
     }
   }, {
     label: `chat-start:${cardId}`,
+    lane: 'foreground',
     skipQueueWhenScopeAlreadyActive: true,
   })
 }

@@ -34,6 +34,7 @@ function register() {
   const registerInvokeHandler = vi.fn()
   const ipcMainHandle = vi.fn()
   const appendRuntimeDebugLine = vi.fn(async () => {})
+  const withCardScope = vi.fn(async (_cardId, task) => await task())
   const startMainChatStream = vi.fn(async () => ({
     accepted: true as const,
     turnId: 'turn-1',
@@ -53,7 +54,7 @@ function register() {
 
   registerAlicizationChatInvokeHandlers({
     registerInvokeHandler,
-    withCardScope: vi.fn(async (_cardId, task) => await task()),
+    withCardScope,
     normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() || 'default' : 'default',
     sanitizeText: (raw: unknown, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
     appendRuntimeDebugLine,
@@ -71,6 +72,7 @@ function register() {
     registerInvokeHandler,
     ipcMainHandle,
     appendRuntimeDebugLine,
+    withCardScope,
     startMainChatStream,
     handleDirectChatStart,
   }
@@ -89,6 +91,11 @@ describe('runtime invoke handlers chat', () => {
 
     await handler(createPayload(), { raw: { event: 'invoke' } })
 
+    expect(harness.withCardScope).toHaveBeenCalledWith('card-1', expect.any(Function), {
+      label: 'chat-start:card-1',
+      lane: 'foreground',
+      skipQueueWhenScopeAlreadyActive: true,
+    })
     expect(harness.startMainChatStream).toHaveBeenCalledWith({
       cardId: 'card-1',
       turnId: 'turn-1',

@@ -2,7 +2,10 @@ import type { AlicizationTaskThreadRecord } from '@proj-alicization/stage-shared
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { executeLocalVisualTaskThread } from './local-visual'
+import {
+  executeLocalVisualTaskThread,
+  normalizeLocalVisualCrossLayerValue,
+} from './local-visual'
 
 function createThread(overrides: Partial<AlicizationTaskThreadRecord> = {}): AlicizationTaskThreadRecord {
   return {
@@ -51,6 +54,550 @@ function createRuntimeContext(overrides: Record<string, unknown> = {}) {
 }
 
 describe('local visual task-thread adapter', () => {
+  it('normalizes only standalone capability tokens in ordinary text', () => {
+    expect(normalizeLocalVisualCrossLayerValue(
+      'Use executor_run_codex now, but keep executor_run_codex_helper and /tmp/executor_run_codex plus `executor_run_codex` unchanged.',
+    )).toBe(
+      'Use coding_agent now, but keep executor_run_codex_helper and /tmp/executor_run_codex plus `executor_run_codex` unchanged.',
+    )
+  })
+
+  it('normalizes structured tool names in objects and JSON strings without rewriting unrelated keys', () => {
+    const structured = {
+      toolName: 'executor_run_codex',
+      title: 'executor_run_codex_helper',
+      arguments: {
+        path: '/tmp/executor_run_codex',
+      },
+    }
+    const normalized = normalizeLocalVisualCrossLayerValue(structured) as Record<string, any>
+    expect(normalized).toMatchObject({
+      toolName: 'coding_agent',
+      title: 'executor_run_codex_helper',
+      arguments: {
+        agent: 'codex',
+        path: '/tmp/executor_run_codex',
+      },
+    })
+    expect(JSON.parse(String(normalizeLocalVisualCrossLayerValue(JSON.stringify(structured))))).toEqual({
+      toolName: 'coding_agent',
+      title: 'executor_run_codex_helper',
+      arguments: {
+        agent: 'codex',
+        path: '/tmp/executor_run_codex',
+      },
+    })
+  })
+
+  it('deeply normalizes shared and cyclic objects without returning the raw object on repeat visits', () => {
+    const shared = {
+      toolName: 'executor_run_codex',
+      arguments: {
+        prompt: 'inspect the repository',
+      },
+    }
+    const root = {
+      first: shared,
+      second: shared,
+    }
+    const normalizedRoot = normalizeLocalVisualCrossLayerValue(root) as Record<string, any>
+    expect(normalizedRoot.first).toBe(normalizedRoot.second)
+    expect(normalizedRoot.first).not.toBe(shared)
+    expect(normalizedRoot.first.toolName).toBe('coding_agent')
+    expect(normalizedRoot.first.arguments.agent).toBe('codex')
+
+    const cyclic: Record<string, any> = {
+      toolName: 'executor_run_coding_agent',
+    }
+    cyclic.self = cyclic
+    const normalizedCyclic = normalizeLocalVisualCrossLayerValue(cyclic) as Record<string, any>
+    expect(normalizedCyclic).not.toBe(cyclic)
+    expect(normalizedCyclic.toolName).toBe('coding_agent')
+    expect(normalizedCyclic.self).toBe(normalizedCyclic)
+  })
+
+  it('returns a structured failed result when the initial host inspection throws', async () => {
+    const desktopInspectScene = vi.fn(async () => {
+      throw new Error('desktop inspection host unavailable')
+    })
+
+    const result = await executeLocalVisualTaskThread({
+      thread: createThread(),
+      channel: 'desktop',
+      command: {
+        instruction: 'Inspect the current desktop.',
+      },
+      surface: {
+        desktopInspectScene,
+      } as any,
+      now: () => 2_950,
+    })
+
+    expect(result.finalStatus).toBe('failed')
+    expect(result.errorCode).toBe('LOCAL_VISUAL_HOST_FAILED')
+    expect(result.output).toContain('desktop inspection host unavailable')
+    expect(result.events.at(-1)).toMatchObject({
+      kind: 'result',
+      threadStatus: 'failed',
+      payload: {
+        errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+      },
+    })
+  })
+
+  it('returns a failed structured result with unknown side effects when a mutating host action throws', async () => {
+    const desktopInspectScene = vi.fn(async () => ({
+      status: 'completed',
+      summary: 'A desktop control is ready.',
+      suggestedActions: [{
+        toolName: 'desktop_click_element',
+        title: 'Click the control',
+        rationale: 'Apply the requested local change.',
+        arguments: {},
+      }],
+      blockingSignals: [],
+    }))
+    const desktopClickElement = vi.fn(async () => {
+      throw new Error('desktop click host failed after dispatch')
+    })
+
+    const result = await executeLocalVisualTaskThread({
+      thread: createThread({
+        selectedChannel: 'desktop',
+        proposedChannel: 'desktop',
+      }),
+      channel: 'desktop',
+      command: {
+        instruction: 'Click the visible control.',
+        meta: {
+          maxAutoContinueSteps: 1,
+        },
+      },
+      surface: {
+        desktopInspectScene,
+        desktopClickElement,
+      } as any,
+      now: () => 3_000,
+    })
+
+    expect(result.finalStatus).toBe('failed')
+    expect(result.errorCode).toBe('LOCAL_VISUAL_HOST_FAILED')
+    expect(JSON.parse(result.output ?? '{}')).toMatchObject({
+      sideEffectState: 'unknown',
+      errorMessage: 'desktop click host failed after dispatch',
+    })
+    expect(result.events.at(-1)).toMatchObject({
+      kind: 'result',
+      threadStatus: 'failed',
+      payload: {
+        errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+        sideEffectState: 'unknown',
+      },
+    })
+  })
+
+  it('fails with applied-unverified side effects when post-action inspection throws', async () => {
+    const desktopInspectScene = vi.fn()
+      .mockResolvedValueOnce({
+        status: 'completed',
+        summary: 'A desktop control is ready.',
+        suggestedActions: [{
+          toolName: 'desktop_click_element',
+          title: 'Click the control',
+          rationale: 'Apply the requested local change.',
+          arguments: {
+            autoContinueSuggestedActions: true,
+            reinspectAfterAction: true,
+          },
+        }],
+        blockingSignals: [],
+      })
+      .mockRejectedValueOnce(new Error('post-action inspection host unavailable'))
+    const desktopClickElement = vi.fn(async () => ({
+      status: 'completed',
+      operation: 'desktop_click_element',
+      summary: 'Clicked the visible control.',
+      output: 'control click applied',
+    }))
+
+    const result = await executeLocalVisualTaskThread({
+      thread: createThread({
+        selectedChannel: 'desktop',
+        proposedChannel: 'desktop',
+      }),
+      channel: 'desktop',
+      command: {
+        instruction: 'Click the visible control and verify the result.',
+        meta: {
+          maxAutoContinueSteps: 1,
+        },
+      },
+      surface: {
+        desktopInspectScene,
+        desktopClickElement,
+      } as any,
+      now: () => 3_025,
+    })
+
+    expect(desktopClickElement).toHaveBeenCalledOnce()
+    expect(desktopInspectScene).toHaveBeenCalledTimes(2)
+    expect(result.finalStatus).toBe('failed')
+    expect(result.errorCode).toBe('LOCAL_VISUAL_HOST_FAILED')
+    expect(result.errorMessage).toBe('post-action inspection host unavailable')
+    expect(JSON.parse(result.output ?? '{}')).toMatchObject({
+      status: 'failed',
+      sideEffectState: 'applied-unverified',
+      errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+      actionResult: {
+        status: 'completed',
+        operation: 'desktop_click_element',
+        output: 'control click applied',
+      },
+      postActionInspection: {
+        status: 'failed',
+        operation: 'desktop_inspect_scene',
+        errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+        errorMessage: 'post-action inspection host unavailable',
+      },
+    })
+    expect(result.events.at(-1)).toMatchObject({
+      kind: 'result',
+      threadStatus: 'failed',
+      payload: {
+        errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+        errorMessage: 'post-action inspection host unavailable',
+        sideEffectState: 'applied-unverified',
+      },
+    })
+  })
+
+  it('fails with applied-unverified side effects when auto-wait fails after a browser mutation', async () => {
+    const desktopInspectScene = vi.fn(async () => ({
+      status: 'completed',
+      summary: 'A browser control is ready.',
+      suggestedActions: [{
+        toolName: 'browser_click_element',
+        title: 'Click the control',
+        rationale: 'Advance the visible browser workflow.',
+        arguments: {
+          autoContinueSuggestedActions: true,
+          reinspectAfterAction: true,
+        },
+      }],
+      blockingSignals: [],
+    }))
+    const browserClickElement = vi.fn(async () => ({
+      status: 'completed',
+      operation: 'browser_click_element',
+      summary: 'Clicked the browser control.',
+      output: 'browser click applied',
+    }))
+    const browserWait = vi.fn(async () => {
+      throw new Error('browser wait host unavailable')
+    })
+
+    const result = await executeLocalVisualTaskThread({
+      thread: createThread(),
+      channel: 'browser',
+      command: {
+        instruction: 'Click the browser control and verify the result.',
+        meta: {
+          maxAutoContinueSteps: 1,
+        },
+      },
+      surface: {
+        desktopInspectScene,
+        browserClickElement,
+        browserWait,
+      } as any,
+      now: () => 3_040,
+    })
+
+    expect(browserClickElement).toHaveBeenCalledOnce()
+    expect(browserWait).toHaveBeenCalledOnce()
+    expect(desktopInspectScene).toHaveBeenCalledOnce()
+    expect(result.finalStatus).toBe('failed')
+    expect(result.errorCode).toBe('LOCAL_VISUAL_HOST_FAILED')
+    expect(result.errorMessage).toBe('browser wait host unavailable')
+    expect(JSON.parse(result.output ?? '{}')).toMatchObject({
+      status: 'failed',
+      sideEffectState: 'applied-unverified',
+      errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+      actionResult: {
+        status: 'completed',
+        operation: 'browser_click_element',
+        output: 'browser click applied',
+      },
+      autoWaitResult: {
+        status: 'failed',
+        operation: 'browser_wait',
+        errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+        errorMessage: 'browser wait host unavailable',
+      },
+      postActionInspection: null,
+    })
+    expect(result.events.at(-1)).toMatchObject({
+      kind: 'result',
+      threadStatus: 'failed',
+      payload: {
+        errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+        errorMessage: 'browser wait host unavailable',
+        sideEffectState: 'applied-unverified',
+      },
+    })
+  })
+
+  it('cancels after an action aborts without reinspection or executing later actions', async () => {
+    const abortController = new AbortController()
+    const desktopInspectScene = vi.fn()
+      .mockResolvedValueOnce({
+        status: 'completed',
+        summary: 'The first desktop action is ready.',
+        suggestedActions: [{
+          toolName: 'desktop_click_element',
+          title: 'Click the first control',
+          rationale: 'Advance the local workflow.',
+          arguments: {},
+        }],
+        blockingSignals: [],
+      })
+      .mockResolvedValueOnce({
+        status: 'completed',
+        summary: 'The second desktop action is ready.',
+        suggestedActions: [{
+          toolName: 'desktop_type_text',
+          title: 'Type the second value',
+          rationale: 'Continue the local workflow.',
+          arguments: {
+            text: 'should not run',
+          },
+        }],
+        blockingSignals: [],
+      })
+    const desktopClickElement = vi.fn(async () => {
+      abortController.abort()
+      return {
+        status: 'completed',
+        operation: 'desktop_click_element',
+      }
+    })
+    const desktopTypeText = vi.fn(async () => ({
+      status: 'completed',
+      operation: 'desktop_type_text',
+    }))
+
+    const result = await executeLocalVisualTaskThread({
+      thread: createThread({
+        selectedChannel: 'desktop',
+        proposedChannel: 'desktop',
+      }),
+      channel: 'desktop',
+      command: {
+        instruction: 'Run the visible desktop workflow.',
+        meta: {
+          maxAutoContinueSteps: 2,
+        },
+      },
+      surface: {
+        desktopInspectScene,
+        desktopClickElement,
+        desktopTypeText,
+      } as any,
+      abortSignal: abortController.signal,
+      now: () => 3_050,
+    })
+
+    expect(result.finalStatus).toBe('cancelled')
+    expect(result.errorCode).toBe('LOCAL_VISUAL_ABORTED')
+    expect(desktopInspectScene).toHaveBeenCalledOnce()
+    expect(desktopClickElement).toHaveBeenCalledOnce()
+    expect(desktopTypeText).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      sideEffectState: 'unknown',
+    })
+    expect(result.events.at(-1)).toMatchObject({
+      kind: 'cancel',
+      threadStatus: 'cancelled',
+      payload: {
+        sideEffectState: 'unknown',
+      },
+    })
+  })
+
+  it('does not report side effects when a read-only inspection returns after abort', async () => {
+    const abortController = new AbortController()
+    const desktopInspectScene = vi.fn(async () => {
+      abortController.abort('inspection-cancelled')
+      return {
+        status: 'completed',
+        summary: 'Inspection completed after cancellation.',
+      }
+    })
+
+    const result = await executeLocalVisualTaskThread({
+      thread: createThread({
+        metadata: {
+          task: {
+            permissionMode: 'implicit',
+            effect: 'observe',
+          },
+        },
+      }),
+      channel: 'desktop',
+      command: {
+        instruction: 'Inspect the current desktop.',
+      },
+      surface: {
+        desktopInspectScene,
+      } as any,
+      abortSignal: abortController.signal,
+      now: () => 3_060,
+    })
+
+    expect(result).not.toHaveProperty('sideEffectState')
+    expect(result.events.at(-1)?.payload).not.toHaveProperty('sideEffectState')
+  })
+
+  it('sanitizes nested and JSON-string failure output instead of serializing the raw inspection result', async () => {
+    const desktopInspectScene = vi.fn(async () => ({
+      status: 'failed',
+      summary: 'inspection failed',
+      output: {
+        nested: {
+          message: 'executor_run_codex',
+        },
+        encoded: JSON.stringify({
+          detail: 'executor_run_cli',
+        }),
+      },
+      errorCode: 'LOCAL_VISUAL_FAILED',
+      errorMessage: 'inspection failed',
+    }))
+
+    const result = await executeLocalVisualTaskThread({
+      thread: createThread(),
+      channel: 'desktop',
+      command: {
+        instruction: 'Inspect the current desktop.',
+      },
+      surface: {
+        desktopInspectScene,
+      } as any,
+      now: () => 2_900,
+    })
+
+    expect(result.finalStatus).toBe('failed')
+    expect(result.output).not.toContain('executor_run_codex')
+    expect(result.output).not.toContain('executor_run_cli')
+    expect(result.output).toContain('coding_agent')
+    expect(JSON.parse(result.output ?? '{}')).toMatchObject({
+      output: {
+        nested: {
+          message: 'coding_agent',
+        },
+        encoded: JSON.stringify({
+          detail: 'coding_agent',
+        }),
+      },
+    })
+  })
+
+  it('normalizes legacy executor tokens across text, nested JSON, events, output, and deferred actions', async () => {
+    const legacyNames = [
+      'executor_run_codex',
+      'executor_run_claude_code',
+      'executor_run_cli',
+      'executor_run_coding_agent',
+    ]
+    const desktopInspectScene = vi.fn(async () => ({
+      status: 'completed',
+      summary: `summary ${legacyNames.join(' ')}`,
+      output: JSON.stringify({
+        title: `title ${legacyNames[0]}`,
+        rationale: `rationale ${legacyNames[1]}`,
+        result: {
+          output: `nested output ${legacyNames[2]}`,
+          toolName: legacyNames[3],
+        },
+      }),
+      suggestedActions: [
+        {
+          title: `suggested ${legacyNames[0]}`,
+          rationale: `why ${legacyNames[1]}`,
+          toolName: legacyNames[0],
+          arguments: { prompt: 'inspect the repository' },
+        },
+        {
+          title: `deferred ${legacyNames[2]}`,
+          rationale: `defer ${legacyNames[3]}`,
+          toolName: legacyNames[2],
+          arguments: { command: 'git status' },
+        },
+      ],
+      blockingSignals: [],
+    }))
+
+    const result = await executeLocalVisualTaskThread({
+      thread: createThread(),
+      channel: 'desktop',
+      command: {
+        instruction: 'Inspect the current desktop without executing a coding agent.',
+      },
+      surface: {
+        desktopInspectScene,
+      } as any,
+      now: () => 3_000,
+    })
+
+    const serialized = JSON.stringify(result)
+    for (const legacyName of legacyNames)
+      expect(serialized).not.toContain(legacyName)
+
+    expect(result.summary).toContain('coding_agent')
+    expect(result.output).toContain('coding_agent')
+    expect(result.events[1]?.payload).toMatchObject({
+      suggestedActions: [
+        expect.objectContaining({
+          toolName: 'coding_agent',
+          arguments: expect.objectContaining({ agent: 'codex' }),
+        }),
+        expect.objectContaining({
+          toolName: 'coding_agent',
+          arguments: expect.objectContaining({ agent: 'cli' }),
+        }),
+      ],
+      autoContinuation: {
+        deferredSuggestedActions: [
+          expect.objectContaining({
+            toolName: 'coding_agent',
+            arguments: expect.objectContaining({ agent: 'codex' }),
+          }),
+          expect.objectContaining({
+            toolName: 'coding_agent',
+            arguments: expect.objectContaining({ agent: 'cli' }),
+          }),
+        ],
+      },
+    })
+    expect(result.events[2]?.payload).toMatchObject({
+      suggestedActions: [
+        expect.objectContaining({ toolName: 'coding_agent' }),
+        expect.objectContaining({ toolName: 'coding_agent' }),
+      ],
+    })
+    expect(JSON.parse(result.output ?? '{}')).toMatchObject({
+      suggestedActions: [
+        expect.objectContaining({ toolName: 'coding_agent' }),
+        expect.objectContaining({ toolName: 'coding_agent' }),
+      ],
+      autoContinuation: {
+        deferredSuggestedActions: expect.arrayContaining([
+          expect.objectContaining({ toolName: 'coding_agent' }),
+        ]),
+      },
+    })
+  })
+
   it('auto-continues browser suggested actions through local browser handlers', async () => {
     const desktopInspectScene = vi.fn()
       .mockResolvedValueOnce({
@@ -1615,7 +2162,7 @@ describe('local visual task-thread adapter', () => {
     })
   })
 
-  it('auto-continues coding investigation into codex and reinspects the desktop scene', async () => {
+  it('defers a visual Codex suggestion back to the model instead of auto-dispatching it', async () => {
     const executeTaskThread = vi.fn(async (input: any) => ({
       ok: true,
       stage: 'dispatch',
@@ -1651,8 +2198,9 @@ describe('local visual task-thread adapter', () => {
         suggestedActions: [{
           title: '转给 Codex 调查当前代码/报错',
           rationale: '直接读取当前编码上下文并规划修复。',
-          toolName: 'executor_run_codex',
+          toolName: 'coding_agent',
           arguments: {
+            agent: 'codex',
             prompt: 'Investigate visible coding/error scene around Cursor runtime.ts. Visible summary: TypeScript error in runtime.ts.',
             kind: 'codebase-investigation',
             goal: 'Investigate visible coding scene',
@@ -1682,6 +2230,8 @@ describe('local visual task-thread adapter', () => {
         blockingSignals: [],
       })
 
+    const abortController = new AbortController()
+    const onExecutionEvent = vi.fn()
     const result = await executeLocalVisualTaskThread({
       thread: createThread({
         goal: 'Investigate the visible coding scene.',
@@ -1697,53 +2247,120 @@ describe('local visual task-thread adapter', () => {
         desktopInspectScene,
         executeTaskThread,
       } as any,
+      abortSignal: abortController.signal,
+      onExecutionEvent,
       now: () => 5_000,
-    })
+    } as any)
 
     expect(result.ok).toBe(true)
     expect(result.finalStatus).toBe('completed')
-    expect(executeTaskThread).toBeCalledTimes(1)
-    expect(executeTaskThread).toBeCalledWith(expect.objectContaining({
-      thread: expect.objectContaining({
-        id: 'thread-local-visual-1',
-        turnId: 'turn-local-visual-1',
-        decisionTraceId: 'mind:trace:local-visual-1',
-        sessionId: 'session-local-visual-1',
-      }),
-      task: expect.objectContaining({
-        kind: 'codebase-investigation',
-        requestedChannel: 'codex',
-        effect: 'observe',
-      }),
-      dispatch: expect.objectContaining({
-        codex: expect.objectContaining({
-          prompt: expect.stringContaining('TypeScript error in runtime.ts'),
-          runtimeContext: expect.objectContaining({
-            cardId: 'default',
-            turnId: 'turn-local-visual-runtime',
-            decisionTraceId: 'trace-local-visual-runtime',
-            sessionId: 'session-local-visual-runtime',
-          }),
-        }),
-      }),
-    }))
-    expect(desktopInspectScene).toBeCalledTimes(2)
-    expect(desktopInspectScene).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      question: 'Codex 调查当前代码/报错后现在界面到了哪一步',
-      forceRefresh: true,
-      maxSuggestedActions: 3,
-    }))
-    expect(result.summary).toContain('The fix plan page is now visible after Codex investigation.')
-    expect(result.summary).toContain('Auto-continued with executor_run_codex.')
+    expect(executeTaskThread).not.toHaveBeenCalled()
+    expect(desktopInspectScene).toHaveBeenCalledTimes(1)
+    expect(result.summary).not.toContain('The fix plan page is now visible after Codex investigation.')
     expect(JSON.parse(result.output ?? '{}')).toMatchObject({
-      pagePhase: 'content-detail',
+      pagePhase: 'unknown',
       autoContinuation: {
-        stoppedReason: 'step-limit-reached',
+        stoppedReason: 'executor-continuation-deferred-to-model',
+        deferredSuggestedActions: [{
+          toolName: 'coding_agent',
+          arguments: expect.objectContaining({
+            agent: 'codex',
+          }),
+        }],
       },
     })
   })
 
-  it('auto-continues coding investigation into claude code and reinspects the desktop scene', async () => {
+  it('normalizes every legacy executor suggestion before exposing deferred, step, result, or output payloads', async () => {
+    const executeTaskThread = vi.fn()
+    const desktopInspectScene = vi.fn(async () => ({
+      channel: 'desktop',
+      status: 'completed',
+      operation: 'desktop_inspect_scene',
+      summary: 'The visible scene suggests several coding-agent continuations.',
+      output: 'coding-agent continuations visible',
+      pagePhase: 'unknown',
+      nextActionIntent: 'unknown',
+      workflowPlan: {
+        continuationMode: 'ready-to-act',
+      },
+      suggestedActions: [
+        {
+          title: 'Use Codex',
+          toolName: 'executor_run_codex',
+          arguments: {
+            prompt: 'Inspect the repository.',
+          },
+        },
+        {
+          title: 'Use Claude Code',
+          toolName: 'executor_run_claude_code',
+          arguments: {
+            prompt: 'Review the current implementation.',
+          },
+        },
+        {
+          title: 'Use CLI',
+          toolName: 'executor_run_cli',
+          arguments: {
+            command: 'pnpm test',
+          },
+        },
+        {
+          title: 'Use coding-agent facade',
+          toolName: 'executor_run_coding_agent',
+          arguments: {
+            agent: 'codex',
+            prompt: 'Continue through the facade.',
+          },
+        },
+      ],
+      blockingSignals: [],
+    }))
+
+    const result = await executeLocalVisualTaskThread({
+      thread: createThread({
+        goal: 'Inspect the visible coding scene.',
+        selectedChannel: 'software',
+        proposedChannel: 'software',
+      }),
+      channel: 'software',
+      command: {
+        instruction: 'Inspect the visible coding scene.',
+        runtimeContext: createRuntimeContext(),
+      },
+      surface: {
+        desktopInspectScene,
+        executeTaskThread,
+      } as any,
+      now: () => 4_500,
+    })
+
+    const stepEvent = result.events.find(event => event.kind === 'step')!
+    const resultEvent = result.events.find(event => event.kind === 'result')!
+    const output = JSON.parse(result.output ?? '{}')
+    const expectedAgents = ['codex', 'claude-code', 'cli', 'codex']
+    const assertNormalizedActions = (actions: unknown) => {
+      expect(actions).toHaveLength(4)
+      expect((actions as any[]).map(action => action.toolName))
+        .toEqual(['coding_agent', 'coding_agent', 'coding_agent', 'coding_agent'])
+      expect((actions as any[]).map(action => action.arguments?.agent))
+        .toEqual(expectedAgents)
+      expect(JSON.stringify(actions)).not.toContain('executor_run_')
+    }
+
+    expect(result.ok).toBe(true)
+    expect(executeTaskThread).not.toHaveBeenCalled()
+    assertNormalizedActions((stepEvent.payload as any).suggestedActions)
+    assertNormalizedActions((resultEvent.payload as any).suggestedActions)
+    assertNormalizedActions(output.suggestedActions)
+    assertNormalizedActions(output.autoContinuation?.deferredSuggestedActions)
+    expect(JSON.stringify(stepEvent.payload)).not.toContain('executor_run_')
+    expect(JSON.stringify(resultEvent.payload)).not.toContain('executor_run_')
+    expect(result.output).not.toContain('executor_run_')
+  })
+
+  it('defers a visual Claude Code suggestion back to the model instead of auto-dispatching it', async () => {
     const executeTaskThread = vi.fn(async (input: any) => ({
       ok: true,
       stage: 'dispatch',
@@ -1779,8 +2396,9 @@ describe('local visual task-thread adapter', () => {
         suggestedActions: [{
           title: '转给 Claude Code 调查当前代码/报错',
           rationale: '直接读取当前编码上下文并规划修复。',
-          toolName: 'executor_run_claude_code',
+          toolName: 'coding_agent',
           arguments: {
+            agent: 'claude-code',
             prompt: 'Investigate visible coding/error scene around Cursor runtime.ts. Visible summary: TypeScript error in runtime.ts.',
             kind: 'codebase-investigation',
             goal: 'Investigate visible coding scene',
@@ -1830,43 +2448,24 @@ describe('local visual task-thread adapter', () => {
 
     expect(result.ok).toBe(true)
     expect(result.finalStatus).toBe('completed')
-    expect(executeTaskThread).toBeCalledTimes(1)
-    expect(executeTaskThread).toBeCalledWith(expect.objectContaining({
-      task: expect.objectContaining({
-        kind: 'codebase-investigation',
-        requestedChannel: 'claude-code',
-        effect: 'observe',
-      }),
-      dispatch: expect.objectContaining({
-        claudeCode: expect.objectContaining({
-          prompt: expect.stringContaining('TypeScript error in runtime.ts'),
-          allowTools: false,
-          runtimeContext: expect.objectContaining({
-            cardId: 'default',
-            turnId: 'turn-local-visual-runtime',
-            decisionTraceId: 'trace-local-visual-runtime',
-            sessionId: 'session-local-visual-runtime',
-          }),
-        }),
-      }),
-    }))
-    expect(desktopInspectScene).toBeCalledTimes(2)
-    expect(desktopInspectScene).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      question: 'Claude Code 调查当前代码/报错后现在界面到了哪一步',
-      forceRefresh: true,
-      maxSuggestedActions: 3,
-    }))
-    expect(result.summary).toContain('The fix plan page is now visible after Claude Code investigation.')
-    expect(result.summary).toContain('Auto-continued with executor_run_claude_code.')
+    expect(executeTaskThread).not.toHaveBeenCalled()
+    expect(desktopInspectScene).toHaveBeenCalledTimes(1)
+    expect(result.summary).not.toContain('The fix plan page is now visible after Claude Code investigation.')
     expect(JSON.parse(result.output ?? '{}')).toMatchObject({
-      pagePhase: 'content-detail',
+      pagePhase: 'unknown',
       autoContinuation: {
-        stoppedReason: 'step-limit-reached',
+        stoppedReason: 'executor-continuation-deferred-to-model',
+        deferredSuggestedActions: [{
+          toolName: 'coding_agent',
+          arguments: expect.objectContaining({
+            agent: 'claude-code',
+          }),
+        }],
       },
     })
   })
 
-  it('auto-continues terminal investigation into cli and reinspects the desktop scene', async () => {
+  it('defers a visual CLI suggestion back to the model instead of auto-dispatching it', async () => {
     const executeTaskThread = vi.fn(async (input: any) => ({
       ok: true,
       stage: 'dispatch',
@@ -1903,8 +2502,9 @@ describe('local visual task-thread adapter', () => {
         suggestedActions: [{
           title: '先用 CLI 调查可见终端命令“pnpm test”',
           rationale: '当前终端里已经能直接看见失败命令。',
-          toolName: 'executor_run_cli',
+          toolName: 'coding_agent',
           arguments: {
+            agent: 'cli',
             command: 'pnpm',
             args: ['test'],
             goal: 'Investigate visible terminal scene',
@@ -1954,38 +2554,19 @@ describe('local visual task-thread adapter', () => {
 
     expect(result.ok).toBe(true)
     expect(result.finalStatus).toBe('completed')
-    expect(executeTaskThread).toBeCalledTimes(1)
-    expect(executeTaskThread).toBeCalledWith(expect.objectContaining({
-      task: expect.objectContaining({
-        kind: 'run-command',
-        requestedChannel: 'cli',
-        effect: 'observe',
-      }),
-      dispatch: expect.objectContaining({
-        cli: expect.objectContaining({
-          command: 'pnpm',
-          args: ['test'],
-          runtimeContext: expect.objectContaining({
-            cardId: 'default',
-            turnId: 'turn-local-visual-runtime',
-            decisionTraceId: 'trace-local-visual-runtime',
-            sessionId: 'session-local-visual-runtime',
-          }),
-        }),
-      }),
-    }))
-    expect(desktopInspectScene).toBeCalledTimes(2)
-    expect(desktopInspectScene).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      question: 'CLI 调查可见终端命令后现在界面到了哪一步',
-      forceRefresh: true,
-      maxSuggestedActions: 3,
-    }))
-    expect(result.summary).toContain('The terminal follow-up state is now visible after CLI investigation.')
-    expect(result.summary).toContain('Auto-continued with executor_run_cli.')
+    expect(executeTaskThread).not.toHaveBeenCalled()
+    expect(desktopInspectScene).toHaveBeenCalledTimes(1)
+    expect(result.summary).not.toContain('The terminal follow-up state is now visible after CLI investigation.')
     expect(JSON.parse(result.output ?? '{}')).toMatchObject({
-      pagePhase: 'content-detail',
+      pagePhase: 'unknown',
       autoContinuation: {
-        stoppedReason: 'step-limit-reached',
+        stoppedReason: 'executor-continuation-deferred-to-model',
+        deferredSuggestedActions: [{
+          toolName: 'coding_agent',
+          arguments: expect.objectContaining({
+            agent: 'cli',
+          }),
+        }],
       },
     })
   })

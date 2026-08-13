@@ -5,8 +5,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { buildAlicizationExecutionRuntimeContext } from './execution-runtime-context'
 import {
   buildExecutionCapabilitySystemBlocks,
-  buildMainGatewayTools,
+  buildMainGatewayTools as buildMainGatewayToolsImplementation,
 } from './main-chat-execution-surface'
+import {
+  createCanonicalToolRegistry,
+  createToolRegistry,
+} from './turn-os/tool-registry'
 
 const executionChannels = [
   'cli',
@@ -52,7 +56,279 @@ function createBuildExecutionRuntimeContext() {
   }))
 }
 
+function buildMainGatewayTools(options: Record<string, unknown>) {
+  return buildMainGatewayToolsImplementation({
+    toolSurface: 'complete',
+    toolRegistry: createCanonicalToolRegistry(),
+    ...options,
+  } as any)
+}
+
 describe('main chat execution surface', () => {
+  it('requires an explicit tool surface and ToolRegistry', async () => {
+    const common = {
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-explicit-surface',
+        decisionTraceId: 'trace-explicit-surface',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(),
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    }
+
+    await expect(buildMainGatewayToolsImplementation({
+      ...common,
+      toolRegistry: createCanonicalToolRegistry(),
+    } as any)).rejects.toThrow(/toolSurface/u)
+    await expect(buildMainGatewayToolsImplementation({
+      ...common,
+      toolSurface: 'complete',
+    } as any)).rejects.toThrow(/toolRegistry/u)
+  })
+
+  it('does not expose generic MCP discovery or dispatch tools to the model', async () => {
+    const invokeMcpListTools = vi.fn(async () => ({ tools: [] }))
+    const invokeMcpCallTool = vi.fn(async () => ({ ok: true }))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-no-generic-mcp',
+        decisionTraceId: 'trace-no-generic-mcp',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(),
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools,
+      invokeMcpCallTool,
+    })
+
+    const toolNames = tools.map(tool => tool.function.name)
+    expect(toolNames).not.toContain('mcp_list_tools')
+    expect(toolNames).not.toContain('mcp_call_tool')
+    expect(invokeMcpListTools).not.toHaveBeenCalled()
+    expect(invokeMcpCallTool).not.toHaveBeenCalled()
+  })
+
+  it('exposes executor capabilities to the model only through canonical provider names', async () => {
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-canonical-executor-names',
+        decisionTraceId: 'trace-canonical-executor-names',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(),
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const toolNames = tools.map(tool => tool.function.name)
+    expect(toolNames).toEqual(expect.arrayContaining([
+      'cli',
+      'codex',
+      'claude_code',
+      'local_visual',
+      'openclaw',
+    ]))
+    expect(toolNames.some(toolName => toolName.startsWith('executor_run_'))).toBe(false)
+  })
+
+  it('omits a disabled canonical capability from the projected surface', async () => {
+    const toolRegistry = createCanonicalToolRegistry()
+    toolRegistry.setActivationStatus('coding_agent.codex', 'disabled')
+
+    const tools = await buildMainGatewayToolsImplementation({
+      toolSurface: 'complete',
+      toolRegistry,
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-disabled-codex',
+        decisionTraceId: 'trace-disabled-codex',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(),
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    expect(tools.map(tool => tool.function.name)).not.toContain('codex')
+  })
+
+  it('rechecks capability activation before executing an existing tool closure', async () => {
+    const toolRegistry = createCanonicalToolRegistry()
+    const executeTaskThread = vi.fn(async () => ({
+      ok: true,
+      stage: 'dispatch',
+      thread: {
+        id: 'thread-revoked-codex',
+        selectedChannel: 'codex',
+      },
+      plan: {
+        state: 'routed',
+      },
+      summary: 'done',
+      output: null,
+    }))
+    const tools = await buildMainGatewayToolsImplementation({
+      toolSurface: 'complete',
+      toolRegistry,
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-revoked-codex',
+        decisionTraceId: 'trace-revoked-codex',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: executeTaskThread as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const codexTool = tools.find(tool => tool.function.name === 'codex')!
+
+    toolRegistry.setActivationStatus('coding_agent.codex', 'revoked')
+    await expect(codexTool.execute({
+      prompt: 'inspect the repository',
+    }, {
+      messages: [],
+      toolCallId: 'revoked-codex-call',
+    })).resolves.toMatchObject({
+      status: 'failed',
+      errorCode: 'CAPABILITY_NOT_ACTIVE',
+    })
+    expect(executeTaskThread).not.toHaveBeenCalled()
+  })
+
+  it('reports invalid input while the capability remains active', async () => {
+    const toolRegistry = createCanonicalToolRegistry()
+    const executeTaskThread = vi.fn(async () => ({
+      ok: true,
+      stage: 'dispatch',
+      thread: {
+        id: 'thread-invalid-codex-input',
+        selectedChannel: 'codex',
+      },
+      plan: {
+        state: 'routed',
+      },
+      summary: 'done',
+      output: null,
+    }))
+    const tools = await buildMainGatewayToolsImplementation({
+      toolSurface: 'complete',
+      toolRegistry,
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-invalid-codex-input',
+        decisionTraceId: 'trace-invalid-codex-input',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: executeTaskThread as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const codexTool = tools.find(tool => tool.function.name === 'codex')!
+
+    await expect(codexTool.execute({}, {
+      messages: [],
+      toolCallId: 'invalid-codex-input-call',
+    })).resolves.toMatchObject({
+      status: 'failed',
+      errorCode: 'CAPABILITY_INPUT_INVALID',
+    })
+    expect(executeTaskThread).not.toHaveBeenCalled()
+  })
+
+  it('rejects an existing coding-agent facade closure after the facade is revoked', async () => {
+    const toolRegistry = createCanonicalToolRegistry()
+    const executeTaskThread = vi.fn(async () => ({
+      ok: true,
+      stage: 'dispatch',
+      thread: {
+        id: 'thread-revoked-coding-agent-facade',
+        selectedChannel: 'codex',
+      },
+      plan: {
+        state: 'routed',
+      },
+      summary: 'done',
+      output: null,
+    }))
+    const tools = await buildMainGatewayToolsImplementation({
+      toolSurface: 'main-chat',
+      toolRegistry,
+      codingAgentDelegation: {
+        allowed: true,
+        allowedAgents: ['codex'],
+        evidenceId: 'cognition:turn-revoked-facade:investigation',
+        turnId: 'turn-revoked-facade',
+        sourceTurnId: 'turn-revoked-facade',
+        allowInvestigation: true,
+        allowEdit: false,
+      },
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-revoked-facade',
+        decisionTraceId: 'trace-revoked-facade',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: executeTaskThread as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const codingAgentTool = tools.find(tool =>
+      tool.function.name === 'coding_agent',
+    )!
+
+    toolRegistry.setActivationStatus('coding_agent', 'revoked')
+    await expect(codingAgentTool.execute({
+      agent: 'codex',
+      kind: 'codebase-investigation',
+      prompt: 'inspect the repository',
+    }, {
+      messages: [],
+      toolCallId: 'revoked-coding-agent-facade-call',
+    })).resolves.toMatchObject({
+      status: 'failed',
+      errorCode: 'CAPABILITY_NOT_ACTIVE',
+    })
+    expect(executeTaskThread).not.toHaveBeenCalled()
+  })
+
   it('separates unobserved provider support from tools offered for the current turn', () => {
     const [capabilityBlock] = buildExecutionCapabilitySystemBlocks(
       [],
@@ -159,15 +435,488 @@ describe('main chat execution surface', () => {
       .filter(Boolean)
 
     expect(toolNames).toEqual(expect.arrayContaining([
-      'executor_run_codex',
-      'executor_run_cli',
+      'codex',
+      'cli',
+      'claude_code',
+      'local_visual',
+      'openclaw',
       'browser_open_url',
       'desktop_inspect_scene',
       'set_reminder',
     ]))
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
     expect(codexTool.function.parameters.properties).not.toHaveProperty('timeoutMs')
     expect(codexTool.function.parameters.properties).not.toHaveProperty('model')
+  })
+
+  it('keeps generic and coding-agent-like MCP dispatch outside the model tool surface', async () => {
+    const invokeMcpCallTool = vi.fn(async () => ({ ok: true, isError: false }))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-mcp-authority',
+        decisionTraceId: 'trace-mcp-authority',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(async () => ({
+        ok: true,
+        stage: 'dispatch',
+        thread: {
+          id: 'thread-mcp-authority',
+          selectedChannel: 'cli',
+        },
+        plan: {
+          state: 'routed',
+        },
+        summary: 'done',
+        output: null,
+      })) as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool,
+    })
+
+    expect(tools.map(tool => tool.function.name)).not.toContain('mcp_call_tool')
+    expect(invokeMcpCallTool).not.toHaveBeenCalled()
+  })
+
+  it('projects only execution adapters explicitly authorized by the registry', async () => {
+    const canonicalRegistry = createCanonicalToolRegistry({ mcpAllowlist: [] })
+    const registry = createToolRegistry({ mcpAllowlist: [] })
+    registry.register(canonicalRegistry.get('tool.set_reminder')!)
+
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-tool-registry-surface',
+        decisionTraceId: 'trace-tool-registry-surface',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(async () => ({
+        ok: true,
+        stage: 'dispatch',
+        thread: {
+          id: 'thread-tool-registry-surface',
+          selectedChannel: 'cli',
+        },
+        plan: {
+          state: 'routed',
+        },
+        summary: 'done',
+        output: null,
+      })) as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+      toolRegistry: registry,
+    })
+
+    const toolNames = tools.map(tool => tool.function.name)
+    expect(toolNames).toContain('set_reminder')
+    expect(toolNames).not.toContain('codex')
+    expect(toolNames).not.toContain('cli')
+    expect(registry.get('tool.executor_run_codex')).toBeUndefined()
+  })
+
+  it('fails closed for unknown built tools without registering a tool capability at surface-build time', async () => {
+    const registry = createToolRegistry({ mcpAllowlist: [] })
+    const before = registry.list()
+
+    const tools = await buildMainGatewayToolsImplementation({
+      toolSurface: 'complete',
+      toolRegistry: registry,
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-unknown-built-tool',
+        decisionTraceId: 'trace-unknown-built-tool',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    expect(tools.map(tool => tool.function.name)).not.toContain('set_reminder')
+    expect(registry.list()).toEqual(before)
+    expect(registry.list().some(manifest =>
+      manifest.capabilityId.startsWith('tool.'),
+    )).toBe(false)
+  })
+
+  it('exposes filesystem access through a dedicated schema-validated tool', async () => {
+    const invokeMcpCallTool = vi.fn(async () => ({ ok: true, isError: false }))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-mcp-schema',
+        decisionTraceId: 'trace-mcp-schema',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(async () => ({
+        ok: true,
+        stage: 'dispatch',
+        thread: {
+          id: 'thread-mcp-schema',
+          selectedChannel: 'cli',
+        },
+        plan: {
+          state: 'routed',
+        },
+        summary: 'done',
+        output: null,
+      })) as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool,
+    })
+    const readFileTool = tools.find(tool =>
+      tool.function.name === 'filesystem_read_file',
+    )!
+
+    await expect(readFileTool.execute({
+      path: 'notes/today.md',
+    }, {
+      messages: [],
+      toolCallId: 'filesystem-read-file-1',
+    })).resolves.toMatchObject({
+      status: 'completed',
+    })
+    expect(invokeMcpCallTool).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'default',
+      name: expect.stringMatching(/^filesystem::/u),
+      arguments: expect.objectContaining({
+        path: 'notes/today.md',
+      }),
+    }))
+  })
+
+  it('forwards the per-tool abort signal through filesystem MCP calls', async () => {
+    const toolController = new AbortController()
+    const invokeMcpCallTool = vi.fn(async () => ({ ok: true, isError: false }))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-mcp-abort-signal',
+        decisionTraceId: 'trace-mcp-abort-signal',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool,
+    })
+    const readFileTool = tools.find(tool =>
+      tool.function.name === 'filesystem_read_file',
+    )!
+
+    await readFileTool.execute({
+      path: 'notes/today.md',
+    }, {
+      messages: [],
+      toolCallId: 'filesystem-read-abort-signal-1',
+      abortSignal: toolController.signal,
+    })
+
+    expect(invokeMcpCallTool).toHaveBeenCalledWith(expect.objectContaining({
+      abortSignal: toolController.signal,
+    }))
+  })
+
+  it('marks a filesystem MCP write failure as an unknown side effect', async () => {
+    const invokeMcpCallTool = vi.fn(async () => ({
+      ok: false,
+      isError: true,
+      errorCode: 'MCP_CALL_FAILED',
+      errorMessage: 'filesystem host disconnected after write request',
+    }))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-mcp-write-unknown',
+        decisionTraceId: 'trace-mcp-write-unknown',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => ({ tools: [] })),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool,
+    })
+    const writeFileTool = tools.find(tool =>
+      tool.function.name === 'filesystem_write_file',
+    )!
+
+    await expect(writeFileTool.execute({
+      path: 'notes/today.md',
+      content: 'hello',
+    }, {
+      messages: [],
+      toolCallId: 'filesystem-write-unknown-1',
+    })).resolves.toMatchObject({
+      status: 'failed',
+      operation: 'write_file',
+      errorCode: 'MCP_CALL_FAILED',
+      sideEffectState: 'unknown',
+    })
+  })
+
+  it('preserves an unknown side effect when filesystem patch write confirmation fails', async () => {
+    const invokeMcpCallTool = vi.fn(async (input: { name: string }) => {
+      if (input.name === 'filesystem::read_file') {
+        return {
+          ok: true,
+          isError: false,
+          content: [{ type: 'text', text: 'hello' }],
+        }
+      }
+      return {
+        ok: false,
+        isError: true,
+        errorCode: 'MCP_CALL_FAILED',
+        errorMessage: 'filesystem host disconnected after patch request',
+      }
+    })
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-mcp-patch-unknown',
+        decisionTraceId: 'trace-mcp-patch-unknown',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool,
+    })
+    const patchFileTool = tools.find(tool =>
+      tool.function.name === 'filesystem_patch_file',
+    )!
+
+    await expect(patchFileTool.execute({
+      path: 'notes/today.md',
+      changes: [{ oldText: 'hello', newText: 'hi' }],
+    }, {
+      messages: [],
+      toolCallId: 'filesystem-patch-unknown-1',
+    })).resolves.toMatchObject({
+      status: 'failed',
+      operation: 'patch_file',
+      errorCode: 'MCP_CALL_FAILED',
+      sideEffectState: 'unknown',
+      writeFailure: expect.objectContaining({
+        sideEffectState: 'unknown',
+      }),
+    })
+  })
+
+  it('does not invoke MCP through an existing filesystem closure after read capability is revoked', async () => {
+    const toolRegistry = createCanonicalToolRegistry()
+    const invokeMcpCallTool = vi.fn(async () => ({ ok: true, isError: false }))
+    const tools = await buildMainGatewayToolsImplementation({
+      toolSurface: 'complete',
+      toolRegistry,
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-revoked-filesystem-read',
+        decisionTraceId: 'trace-revoked-filesystem-read',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool,
+    })
+    const readFileTool = tools.find(tool =>
+      tool.function.name === 'filesystem_read_file',
+    )!
+
+    toolRegistry.setActivationStatus('mcp.filesystem::read_file', 'revoked')
+    await expect(readFileTool.execute({
+      path: 'notes/today.md',
+    }, {
+      messages: [],
+      toolCallId: 'revoked-filesystem-read-call',
+    })).resolves.toMatchObject({
+      status: 'failed',
+    })
+    expect(invokeMcpCallTool).not.toHaveBeenCalled()
+  })
+
+  it('does not guess unregistered filesystem aliases after the canonical MCP tool is unavailable', async () => {
+    const invokeMcpCallTool = vi.fn(async (_input: {
+      arguments: Record<string, unknown>
+      cardId: string
+      name: string
+    }) => ({
+      ok: false,
+      isError: true,
+      errorCode: 'MCP_TOOL_NOT_FOUND',
+      errorMessage: 'tool not found',
+    }))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-filesystem-no-alias-guessing',
+        decisionTraceId: 'trace-filesystem-no-alias-guessing',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool,
+    })
+    const readFileTool = tools.find(tool =>
+      tool.function.name === 'filesystem_read_file',
+    )!
+
+    await readFileTool.execute({
+      path: 'notes/today.md',
+    }, {
+      messages: [],
+      toolCallId: 'filesystem-no-alias-guessing-call',
+    })
+
+    expect(invokeMcpCallTool.mock.calls.map(([input]) => input.name))
+      .toEqual(['filesystem::read_file'])
+    expect(invokeMcpCallTool).not.toHaveBeenCalledWith(expect.objectContaining({
+      name: 'filesystem::read-file',
+    }))
+  })
+
+  it('does not invoke an MCP candidate whose arguments fail the registered capability schema', async () => {
+    const invokeMcpCallTool = vi.fn(async () => ({
+      ok: false,
+      isError: true,
+      errorCode: 'MCP_INVALID_PARAMS',
+      errorMessage: 'invalid params',
+    }))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-filesystem-invalid-candidate',
+        decisionTraceId: 'trace-filesystem-invalid-candidate',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool,
+    })
+    const readFileTool = tools.find(tool =>
+      tool.function.name === 'filesystem_read_file',
+    )!
+
+    await readFileTool.execute({
+      path: 'notes/today.md',
+    }, {
+      messages: [],
+      toolCallId: 'filesystem-invalid-candidate-call',
+    })
+
+    expect(invokeMcpCallTool).not.toHaveBeenCalledWith(expect.objectContaining({
+      arguments: {
+        filePath: 'notes/today.md',
+      },
+    }))
+  })
+
+  it('does not retry a non-idempotent MCP capability after the first host call fails', async () => {
+    const canonicalRegistry = createCanonicalToolRegistry()
+    const toolRegistry = {
+      ...canonicalRegistry,
+      validateInput(capabilityIdOrQualifiedName: string, input: unknown) {
+        if (capabilityIdOrQualifiedName === 'mcp.filesystem::write_file')
+          return { valid: true as const, errors: null }
+        return canonicalRegistry.validateInput(capabilityIdOrQualifiedName, input)
+      },
+    }
+    const invokeMcpCallTool = vi.fn(async () => ({
+      ok: false,
+      isError: true,
+      errorCode: 'MCP_INVALID_PARAMS',
+      errorMessage: 'invalid params',
+    }))
+    const tools = await buildMainGatewayToolsImplementation({
+      toolSurface: 'complete',
+      toolRegistry,
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-filesystem-write-no-retry',
+        decisionTraceId: 'trace-filesystem-write-no-retry',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool,
+    } as any)
+    const writeFileTool = tools.find(tool =>
+      tool.function.name === 'filesystem_write_file',
+    )!
+
+    await expect(writeFileTool.execute({
+      path: 'notes/today.md',
+      content: 'hello',
+    }, {
+      messages: [],
+      toolCallId: 'filesystem-write-no-retry-call',
+    })).resolves.toMatchObject({
+      status: 'failed',
+      errorCode: 'MCP_INVALID_PARAMS',
+    })
+
+    expect(invokeMcpCallTool).toHaveBeenCalledOnce()
+    expect(invokeMcpCallTool).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'filesystem::write_file',
+      arguments: {
+        path: 'notes/today.md',
+        content: 'hello',
+      },
+    }))
   })
 
   it('offers one structured coding-agent facade on the main-chat tool surface', async () => {
@@ -214,12 +963,12 @@ describe('main chat execution surface', () => {
       .map((entry: any) => String(entry?.function?.name ?? '').trim())
       .filter(Boolean)
 
-    expect(toolNames).toContain('executor_run_coding_agent')
-    expect(toolNames).not.toContain('executor_run_cli')
-    expect(toolNames).not.toContain('executor_run_codex')
-    expect(toolNames).not.toContain('executor_run_claude_code')
-    expect(toolNames).not.toContain('executor_run_openclaw')
-    const codingAgentTool = tools.find((entry: any) => entry.function?.name === 'executor_run_coding_agent') as any
+    expect(toolNames).toContain('coding_agent')
+    expect(toolNames).not.toContain('cli')
+    expect(toolNames).not.toContain('codex')
+    expect(toolNames).not.toContain('claude_code')
+    expect(toolNames).not.toContain('openclaw')
+    const codingAgentTool = tools.find((entry: any) => entry.function?.name === 'coding_agent') as any
     expect(codingAgentTool.function.parameters.properties.agent).toEqual({
       type: 'string',
       const: 'codex',
@@ -229,6 +978,83 @@ describe('main chat execution surface', () => {
       'desktop_inspect_scene',
       'set_reminder',
     ]))
+  })
+
+  it('omits the coding-agent facade when every delegated agent capability is inactive', async () => {
+    const toolRegistry = createCanonicalToolRegistry()
+    toolRegistry.setActivationStatus('coding_agent.codex', 'revoked')
+
+    const tools = await buildMainGatewayTools({
+      toolSurface: 'main-chat',
+      toolRegistry,
+      codingAgentDelegation: {
+        allowed: true,
+        allowedAgents: ['codex'],
+        evidenceId: 'cognition:turn-revoked-agent:investigation',
+        turnId: 'turn-revoked-agent',
+        sourceTurnId: 'turn-revoked-agent',
+        allowInvestigation: true,
+        allowEdit: false,
+      },
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-revoked-agent',
+        decisionTraceId: 'trace-revoked-agent',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    expect(tools.map(tool => tool.function.name)).not.toContain('coding_agent')
+  })
+
+  it('narrows the coding-agent facade schema to the remaining active delegated agent', async () => {
+    const toolRegistry = createCanonicalToolRegistry()
+    toolRegistry.setActivationStatus('coding_agent.codex', 'disabled')
+
+    const tools = await buildMainGatewayTools({
+      toolSurface: 'main-chat',
+      toolRegistry,
+      codingAgentDelegation: {
+        allowed: true,
+        allowedAgents: ['codex', 'claude-code'],
+        evidenceId: 'cognition:turn-filtered-agents:investigation',
+        turnId: 'turn-filtered-agents',
+        sourceTurnId: 'turn-filtered-agents',
+        allowInvestigation: true,
+        allowEdit: false,
+      },
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-filtered-agents',
+        decisionTraceId: 'trace-filtered-agents',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const codingAgentTool = tools.find(tool =>
+      tool.function.name === 'coding_agent',
+    ) as any
+
+    expect(codingAgentTool).toBeDefined()
+    expect(codingAgentTool.function.parameters.properties.agent).toEqual({
+      type: 'string',
+      const: 'claude-code',
+    })
   })
 
   it('routes an explicit agent choice through the single coding-agent facade', async () => {
@@ -272,7 +1098,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codingAgentTool = tools.find((entry: any) => entry.function?.name === 'executor_run_coding_agent') as any
+    const codingAgentTool = tools.find((entry: any) => entry.function?.name === 'coding_agent') as any
 
     await codingAgentTool.execute({
       agent: 'codex',
@@ -326,7 +1152,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codingAgentTool = tools.find((entry: any) => entry.function?.name === 'executor_run_coding_agent') as any
+    const codingAgentTool = tools.find((entry: any) => entry.function?.name === 'coding_agent') as any
 
     const first = codingAgentTool.execute({
       agent: 'codex',
@@ -401,9 +1227,9 @@ describe('main chat execution surface', () => {
     })
 
     const toolNames = tools.map((entry: any) => entry.function?.name)
-    expect(toolNames).not.toContain('executor_run_coding_agent')
-    expect(toolNames).toContain('executor_run_cli')
-    expect(toolNames).not.toContain('executor_run_openclaw')
+    expect(toolNames).not.toContain('coding_agent')
+    expect(toolNames).toContain('cli')
+    expect(toolNames).not.toContain('openclaw')
   })
 
   it('keeps ordinary local command work on CLI and does not expose OpenClaw on the main-chat surface', async () => {
@@ -440,11 +1266,11 @@ describe('main chat execution surface', () => {
     })
 
     const toolNames = tools.map((entry: any) => entry.function?.name)
-    expect(toolNames).toContain('executor_run_cli')
-    expect(toolNames).not.toContain('executor_run_coding_agent')
-    expect(toolNames).not.toContain('executor_run_openclaw')
+    expect(toolNames).toContain('cli')
+    expect(toolNames).not.toContain('coding_agent')
+    expect(toolNames).not.toContain('openclaw')
 
-    const cliTool = tools.find((entry: any) => entry.function?.name === 'executor_run_cli') as any
+    const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any
     await cliTool.execute({
       command: 'find',
       args: ['/Users/touhouqing/Desktop/GIT', '-mindepth', '1', '-maxdepth', '1', '-type', 'd'],
@@ -499,9 +1325,9 @@ describe('main chat execution surface', () => {
     })
 
     const toolNames = tools.map((entry: any) => entry.function?.name)
-    expect(toolNames).toContain('executor_run_cli')
-    expect(toolNames).not.toContain('executor_run_coding_agent')
-    expect(toolNames).not.toContain('executor_run_openclaw')
+    expect(toolNames).toContain('cli')
+    expect(toolNames).not.toContain('coding_agent')
+    expect(toolNames).not.toContain('openclaw')
   })
 
   it('does not expose CLI when the turn authority does not allow commands', async () => {
@@ -534,9 +1360,9 @@ describe('main chat execution surface', () => {
     })
 
     const toolNames = tools.map((entry: any) => entry.function?.name)
-    expect(toolNames).not.toContain('executor_run_cli')
-    expect(toolNames).not.toContain('executor_run_coding_agent')
-    expect(toolNames).not.toContain('executor_run_openclaw')
+    expect(toolNames).not.toContain('cli')
+    expect(toolNames).not.toContain('coding_agent')
+    expect(toolNames).not.toContain('openclaw')
   })
 
   it('normalizes an underspecified Codex project summary as read-only investigation', async () => {
@@ -570,7 +1396,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     await codexTool.execute({
       prompt: '总结当前项目的架构、记忆链路和主要模块，不要修改文件。',
@@ -625,7 +1451,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const claudeTool = tools.find((entry: any) => entry.function?.name === 'executor_run_claude_code') as any
+    const claudeTool = tools.find((entry: any) => entry.function?.name === 'claude_code') as any
 
     await claudeTool.execute({
       prompt: '总结当前项目，不要修改文件。',
@@ -682,7 +1508,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     await codexTool.execute({
       prompt: 'inspect the workspace',
@@ -722,7 +1548,7 @@ describe('main chat execution surface', () => {
         invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
         invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       })
-      const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+      const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
       const pending = codexTool.execute({
         prompt: 'inspect the workspace',
@@ -733,7 +1559,7 @@ describe('main chat execution surface', () => {
 
       expect(emitToolExecutionProgress).toHaveBeenCalledWith(expect.objectContaining({
         toolCallId: 'codex-progress-1',
-        toolName: 'executor_run_codex',
+        toolName: 'codex',
         phase: 'started',
         signal: 'liveness',
       }))
@@ -741,7 +1567,7 @@ describe('main chat execution surface', () => {
       await vi.advanceTimersByTimeAsync(10_000)
       expect(emitToolExecutionProgress).toHaveBeenCalledWith(expect.objectContaining({
         toolCallId: 'codex-progress-1',
-        toolName: 'executor_run_codex',
+        toolName: 'codex',
         phase: 'running',
         signal: 'liveness',
       }))
@@ -764,7 +1590,7 @@ describe('main chat execution surface', () => {
 
       expect(emitToolExecutionProgress).toHaveBeenCalledWith(expect.objectContaining({
         toolCallId: 'codex-progress-1',
-        toolName: 'executor_run_codex',
+        toolName: 'codex',
         phase: 'completed',
       }))
     }
@@ -826,7 +1652,7 @@ describe('main chat execution surface', () => {
         invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
         invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       })
-      const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+      const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
       await codexTool.execute({
         prompt: 'inspect the workspace',
@@ -955,7 +1781,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     await codexTool.execute({
       prompt: 'inspect the workspace',
@@ -970,7 +1796,7 @@ describe('main chat execution surface', () => {
     }))
     expect(emitToolExecutionProgress).toHaveBeenCalledWith(expect.objectContaining({
       toolCallId: 'codex-semantic-progress-1',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
       phase: 'running',
       signal: 'semantic-progress',
       threadId: 'thread-codex-semantic-progress',
@@ -982,7 +1808,7 @@ describe('main chat execution surface', () => {
     }))
     expect(emitToolExecutionProgress).toHaveBeenCalledWith(expect.objectContaining({
       toolCallId: 'codex-semantic-progress-1',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
       phase: 'running',
       signal: 'liveness',
       adapterEventType: 'heartbeat',
@@ -992,7 +1818,7 @@ describe('main chat execution surface', () => {
     }))
     expect(emitToolExecutionProgress).toHaveBeenCalledWith(expect.objectContaining({
       toolCallId: 'codex-semantic-progress-1',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
       phase: 'running',
       signal: 'semantic-progress',
       adapterEventType: 'item.completed',
@@ -1003,7 +1829,7 @@ describe('main chat execution surface', () => {
     }))
     expect(emitToolExecutionProgress).toHaveBeenCalledWith(expect.objectContaining({
       toolCallId: 'codex-semantic-progress-1',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
       phase: 'running',
       signal: 'semantic-progress',
       adapterEventType: 'turn.completed',
@@ -1064,7 +1890,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     await codexTool.execute({
       prompt: 'inspect the workspace',
@@ -1076,7 +1902,7 @@ describe('main chat execution surface', () => {
 
     expect(emitToolExecutionProgress).toHaveBeenCalledWith(expect.objectContaining({
       toolCallId: 'codex-provider-diagnostic-1',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
       phase: 'running',
       signal: 'liveness',
       threadId: 'thread-codex-provider-diagnostic',
@@ -1122,7 +1948,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     await codexTool.execute({
       prompt: 'inspect the workspace',
@@ -1176,7 +2002,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     await codexTool.execute({
       prompt: 'inspect the workspace',
@@ -1223,7 +2049,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     const result = await codexTool.execute({
       prompt: 'inspect the workspace',
@@ -1293,7 +2119,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     await codexTool.execute({
       prompt: 'inspect the workspace',
@@ -1360,7 +2186,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     await codexTool.execute({
       threadId: 'thread-tool-specific-resume-abort-signal',
@@ -1398,7 +2224,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     const pending = codexTool.execute({
       prompt: 'inspect the workspace',
@@ -1444,7 +2270,7 @@ describe('main chat execution surface', () => {
         invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
         invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       })
-      const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+      const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
       const pending = codexTool.execute({
         prompt: 'inspect the workspace thoroughly',
@@ -1497,7 +2323,7 @@ describe('main chat execution surface', () => {
         invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
         invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       })
-      const cliTool = tools.find((entry: any) => entry.function?.name === 'executor_run_cli') as any
+      const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any
 
       const pending = cliTool.execute({
         command: 'git',
@@ -1577,7 +2403,7 @@ describe('main chat execution surface', () => {
         invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
         invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
       })
-      const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+      const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
       const pending = codexTool.execute({
         prompt: 'inspect the workspace',
@@ -1612,6 +2438,92 @@ describe('main chat execution surface', () => {
     finally {
       vi.useRealTimers()
     }
+  })
+
+  it('sanitizes executor follow-up inspection payloads before exposing them to the model', async () => {
+    const legacyInspection = {
+      status: 'completed',
+      summary: 'follow-up executor_run_codex',
+      nested: {
+        detail: 'executor_run_cli',
+      },
+      encoded: JSON.stringify({
+        detail: 'executor_run_claude_code',
+      }),
+      pagePhase: 'content-detail',
+      suggestedActions: [{
+        title: 'next executor_run_coding_agent',
+        rationale: 'continue executor_run_codex',
+        toolName: 'executor_run_codex',
+        arguments: {
+          prompt: 'inspect',
+        },
+      }],
+      blockingSignals: [],
+    }
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-tool-follow-up-sanitize',
+        decisionTraceId: 'trace-tool-follow-up-sanitize',
+        sessionId: 'session-1',
+      },
+      desktopInspectScene: vi.fn(async () => legacyInspection),
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(async () => ({
+        ok: true,
+        stage: 'dispatch',
+        thread: {
+          id: 'thread-tool-follow-up-sanitize',
+          selectedChannel: 'codex',
+          status: 'completed',
+        },
+        plan: {
+          state: 'routed',
+        },
+        summary: 'executor completed',
+        output: null,
+      })) as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
+
+    const result = await codexTool.execute({
+      prompt: 'inspect the workspace',
+      reinspectAfterAction: true,
+    }, {
+      toolCallId: 'codex-follow-up-sanitize-1',
+    })
+
+    const serialized = JSON.stringify(result)
+    expect(serialized).not.toContain('executor_run_')
+    expect(serialized).toContain('coding_agent')
+    expect(JSON.parse(String(result.output))).toMatchObject({
+      postActionInspection: {
+        summary: 'follow-up coding_agent',
+        nested: {
+          detail: 'coding_agent',
+        },
+        encoded: JSON.stringify({
+          detail: 'coding_agent',
+        }),
+        suggestedActions: [
+          expect.objectContaining({
+            title: 'next coding_agent',
+            rationale: 'continue coding_agent',
+            toolName: 'coding_agent',
+            arguments: expect.objectContaining({
+              agent: 'codex',
+            }),
+          }),
+        ],
+      },
+    })
   })
 
   it('forwards Codex progress observers when resuming an executor task thread', async () => {
@@ -1659,7 +2571,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     await codexTool.execute({
       threadId: 'thread-codex-progress-resume',
@@ -1697,7 +2609,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     const result = await codexTool.execute({
       prompt: 'inspect the workspace',
@@ -1738,7 +2650,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     const result = await codexTool.execute({
       prompt: 'inspect the workspace',
@@ -1789,7 +2701,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     const result = await codexTool.execute({
       prompt: 'inspect the workspace',
@@ -1841,7 +2753,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     const result = await codexTool.execute({
       prompt: 'cancel this inspection',
@@ -1893,7 +2805,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     await expect(codexTool.execute({
       prompt: 'inspect the workspace',
@@ -1942,7 +2854,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     await codexTool.execute({
       prompt: 'inspect the workspace',
@@ -1991,7 +2903,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     const result = await codexTool.execute({
       prompt: 'inspect the workspace',
@@ -2003,7 +2915,7 @@ describe('main chat execution surface', () => {
     expect(result).toMatchObject({
       status: 'failed',
       failureKind: 'tool-execution',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
     })
     expect(emitToolExecutionProgress.mock.calls.map(([event]) => event.phase)).toEqual([
       'started',
@@ -2013,6 +2925,84 @@ describe('main chat execution surface', () => {
     expect(emitToolExecutionProgress.mock.calls[1]?.[0]).toMatchObject({
       adapterEventType: 'executor.result-ready',
       signal: 'semantic-progress',
+    })
+  })
+
+  it('sanitizes visual follow-up inspection payloads before exposing them to the model', async () => {
+    const legacyInspection = {
+      status: 'completed',
+      summary: 'visual follow-up executor_run_codex',
+      nested: {
+        detail: 'executor_run_cli',
+      },
+      encoded: JSON.stringify({
+        detail: 'executor_run_claude_code',
+      }),
+      pagePhase: 'content-detail',
+      suggestedActions: [{
+        title: 'next executor_run_coding_agent',
+        rationale: 'continue executor_run_codex',
+        toolName: 'executor_run_codex',
+        arguments: {
+          prompt: 'inspect',
+        },
+      }],
+      blockingSignals: [],
+    }
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-visual-follow-up-sanitize',
+        decisionTraceId: 'trace-visual-follow-up-sanitize',
+        sessionId: 'session-1',
+      },
+      browserClickElement: vi.fn(async () => ({
+        status: 'completed',
+        operation: 'browser_click_element',
+      })),
+      desktopInspectScene: vi.fn(async () => legacyInspection),
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const browserClickTool = tools.find((entry: any) => entry.function?.name === 'browser_click_element') as any
+
+    const result = await browserClickTool.execute({
+      text: '继续',
+      expectedPhase: 'content-detail',
+      reinspectAfterAction: true,
+    }, {
+      toolCallId: 'browser-follow-up-sanitize-1',
+    })
+
+    const serialized = JSON.stringify(result)
+    expect(serialized).not.toContain('executor_run_')
+    expect(serialized).toContain('coding_agent')
+    expect(JSON.parse(String(result.output))).toMatchObject({
+      postActionInspection: {
+        summary: 'visual follow-up coding_agent',
+        nested: {
+          detail: 'coding_agent',
+        },
+        encoded: JSON.stringify({
+          detail: 'coding_agent',
+        }),
+        suggestedActions: [
+          expect.objectContaining({
+            title: 'next coding_agent',
+            rationale: 'continue coding_agent',
+            toolName: 'coding_agent',
+            arguments: expect.objectContaining({
+              agent: 'codex',
+            }),
+          }),
+        ],
+      },
     })
   })
 
@@ -2048,7 +3038,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const codexTool = tools.find((entry: any) => entry.function?.name === 'executor_run_codex') as any
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
 
     const result = await codexTool.execute({
       prompt: 'inspect the workspace',
@@ -2085,7 +3075,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const cliTool = tools.find((entry: any) => entry.function?.name === 'executor_run_cli') as any
+    const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any
 
     const result = await cliTool.execute({
       command: 'find',
@@ -2096,12 +3086,201 @@ describe('main chat execution surface', () => {
       status: 'failed',
       stage: 'tool',
       failureKind: 'tool-execution',
-      toolName: 'executor_run_cli',
+      toolName: 'cli',
       errorCode: 'RUNTIME_CALL_CIRCULAR',
       errorMessage: 'Circular runtime call detected: tool:executor:cli -> tool:executor:cli',
       output: null,
     })
-    expect(result.summary).toContain('executor_run_cli failed')
+    expect(result.summary).toContain('cli failed')
+    expect(executeTaskThread).toHaveBeenCalledOnce()
+  })
+
+  it('marks a dispatched mutation executor failure as an unknown side effect', async () => {
+    const executeTaskThread = vi.fn(async () => {
+      throw new Error('CLI host disconnected after command dispatch')
+    })
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-mutating-executor-failure',
+        decisionTraceId: 'trace-mutating-executor-failure',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: executeTaskThread as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any
+
+    await expect(cliTool.execute({
+      command: 'sh',
+      args: ['-c', 'printf changed > notes.txt'],
+      effect: 'mutate',
+    }, {})).resolves.toMatchObject({
+      status: 'failed',
+      sideEffectState: 'unknown',
+    })
+    expect(executeTaskThread).toHaveBeenCalledOnce()
+  })
+
+  it('marks a returned mutation executor failure as an unknown side effect', async () => {
+    const executeTaskThread = vi.fn(async () => ({
+      ok: false,
+      stage: 'dispatch',
+      finalStatus: 'failed',
+      thread: {
+        id: 'thread-returned-mutation-failure',
+        selectedChannel: 'cli',
+        status: 'failed',
+      },
+      plan: {
+        state: 'routed',
+      },
+      summary: 'CLI command failed after dispatch.',
+      output: null,
+      errorCode: 'CLI_EXECUTION_FAILED',
+      errorMessage: 'CLI command failed after dispatch.',
+    }))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-returned-mutating-executor-failure',
+        decisionTraceId: 'trace-returned-mutating-executor-failure',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: executeTaskThread as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any
+
+    await expect(cliTool.execute({
+      command: 'sh',
+      args: ['-c', 'printf changed > notes.txt'],
+      effect: 'mutate',
+    }, {})).resolves.toMatchObject({
+      status: 'failed',
+      sideEffectState: 'unknown',
+    })
+    expect(executeTaskThread).toHaveBeenCalledOnce()
+  })
+
+  it('keeps a returned read-only executor failure free of side-effect markers', async () => {
+    const executeTaskThread = vi.fn(async () => ({
+      ok: false,
+      stage: 'dispatch',
+      finalStatus: 'failed',
+      thread: {
+        id: 'thread-returned-observe-failure',
+        selectedChannel: 'codex',
+        status: 'failed',
+      },
+      plan: {
+        state: 'routed',
+      },
+      summary: 'Codex investigation failed after dispatch.',
+      output: null,
+      errorCode: 'CODEX_EXECUTION_FAILED',
+      errorMessage: 'Codex investigation failed after dispatch.',
+    }))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-returned-observing-executor-failure',
+        decisionTraceId: 'trace-returned-observing-executor-failure',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: executeTaskThread as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
+
+    const result = await codexTool.execute({
+      prompt: 'inspect the workspace',
+      kind: 'codebase-investigation',
+      effect: 'observe',
+    }, {}) as Record<string, unknown>
+
+    expect(result.status).toBe('failed')
+    expect(result).not.toHaveProperty('sideEffectState')
+    expect(executeTaskThread).toHaveBeenCalledOnce()
+  })
+
+  it('does not mark a rejected pre-dispatch mutation as an unknown side effect', async () => {
+    const executeTaskThread = vi.fn()
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-mutating-executor-preflight',
+        decisionTraceId: 'trace-mutating-executor-preflight',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: executeTaskThread as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any
+
+    const result = await cliTool.execute({
+      effect: 'mutate',
+    }, {}) as Record<string, unknown>
+
+    expect(result.status).toBe('failed')
+    expect(result).not.toHaveProperty('sideEffectState')
+    expect(executeTaskThread).not.toHaveBeenCalled()
+  })
+
+  it('keeps a dispatched read-only executor failure free of side-effect markers', async () => {
+    const executeTaskThread = vi.fn(async () => {
+      throw new Error('Codex investigation transport failed')
+    })
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-observing-executor-failure',
+        decisionTraceId: 'trace-observing-executor-failure',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: executeTaskThread as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
+
+    const result = await codexTool.execute({
+      prompt: 'inspect the workspace',
+      kind: 'codebase-investigation',
+      effect: 'observe',
+    }, {}) as Record<string, unknown>
+
+    expect(result.status).toBe('failed')
+    expect(result).not.toHaveProperty('sideEffectState')
     expect(executeTaskThread).toHaveBeenCalledOnce()
   })
 
@@ -2123,7 +3302,7 @@ describe('main chat execution surface', () => {
     const desktopInspectScene = vi.fn(async () => ({
       pagePhase: 'terminal',
       suggestedActions: [{
-        toolName: 'executor_run_codex',
+        toolName: 'codex',
         title: 'Continue with Codex',
         arguments: {
           prompt: 'Inspect the repository findings.',
@@ -2147,7 +3326,7 @@ describe('main chat execution surface', () => {
       invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
-    const cliTool = tools.find((entry: any) => entry.function?.name === 'executor_run_cli') as any
+    const cliTool = tools.find((entry: any) => entry.function?.name === 'cli') as any
 
     const result = await cliTool.execute({
       command: 'find',
@@ -2165,7 +3344,7 @@ describe('main chat execution surface', () => {
     })
     expect(output.suggestedActions).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        toolName: 'executor_run_codex',
+        toolName: 'codex',
       }),
     ]))
   })
@@ -2234,7 +3413,7 @@ describe('main chat execution surface', () => {
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
-    const localVisualTool = tools.find((entry: any) => entry.function?.name === 'executor_run_local_visual') as any
+    const localVisualTool = tools.find((entry: any) => entry.function?.name === 'local_visual') as any
     expect(localVisualTool.function.parameters.required).toContain('channel')
 
     await localVisualTool.execute({
@@ -2281,7 +3460,7 @@ describe('main chat execution surface', () => {
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
-    const openclawTool = tools.find((entry: any) => entry.function?.name === 'executor_run_openclaw') as any
+    const openclawTool = tools.find((entry: any) => entry.function?.name === 'openclaw') as any
     expect(openclawTool.function.parameters.properties).not.toHaveProperty('transport')
     expect(openclawTool.function.parameters.properties.kind.enum).not.toEqual(expect.arrayContaining([
       'run-command',
@@ -2302,6 +3481,512 @@ describe('main chat execution surface', () => {
       task: expect.objectContaining({
         requestedChannel: 'openclaw',
       }),
+    }))
+  })
+
+  it('forwards the per-tool abort signal to direct browser and desktop inspection handlers', async () => {
+    const outerController = new AbortController()
+    const toolController = new AbortController()
+    const browserReadPage = vi.fn(async () => ({
+      status: 'completed',
+      operation: 'browser_read_page',
+    }))
+    const desktopInspectScene = vi.fn(async () => ({
+      status: 'completed',
+      operation: 'desktop_inspect_scene',
+      suggestedActions: [],
+    }))
+    const tools = await buildMainGatewayTools({
+      abortSignal: outerController.signal,
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        abortSignal: outerController.signal,
+        cardId: 'default',
+        turnId: 'turn-direct-os-signal',
+        decisionTraceId: 'trace-direct-os-signal',
+        sessionId: 'session-1',
+      },
+      browserReadPage,
+      desktopInspectScene,
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+
+    const browserReadTool = tools.find(tool => tool.function.name === 'browser_read_page')!
+    const desktopInspectTool = tools.find(tool => tool.function.name === 'desktop_inspect_scene')!
+    await browserReadTool.execute({}, {
+      messages: [],
+      toolCallId: 'browser-read-signal-1',
+      abortSignal: toolController.signal,
+    })
+    await desktopInspectTool.execute({}, {
+      messages: [],
+      toolCallId: 'desktop-inspect-signal-1',
+      abortSignal: toolController.signal,
+    })
+
+    expect(browserReadPage).toHaveBeenCalledWith(expect.objectContaining({
+      abortSignal: toolController.signal,
+    }))
+    expect(desktopInspectScene).toHaveBeenCalledWith(expect.objectContaining({
+      abortSignal: toolController.signal,
+    }))
+    expect(browserReadPage).not.toHaveBeenCalledWith(expect.objectContaining({
+      abortSignal: outerController.signal,
+    }))
+  })
+
+  it('returns a structured cancellation when a direct read-only host throws AbortError', async () => {
+    const abortError = Object.assign(new Error('browser read cancelled'), {
+      name: 'AbortError',
+    })
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-direct-read-abort',
+        decisionTraceId: 'trace-direct-read-abort',
+        sessionId: 'session-1',
+      },
+      browserReadPage: vi.fn(async () => {
+        throw abortError
+      }),
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const browserReadTool = tools.find(tool => tool.function.name === 'browser_read_page')!
+
+    await expect(browserReadTool.execute({}, {
+      messages: [],
+      toolCallId: 'browser-read-abort-1',
+    })).resolves.toMatchObject({
+      status: 'failed',
+      operation: 'browser_read_page',
+      cancelled: true,
+      errorCode: 'ALICIZATION_TOOL_ABORTED',
+      errorMessage: 'browser read cancelled',
+    })
+  })
+
+  it('returns a failed read-only result without a side-effect marker when the host throws', async () => {
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-direct-read-failure',
+        decisionTraceId: 'trace-direct-read-failure',
+        sessionId: 'session-1',
+      },
+      desktopListInteractables: vi.fn(async () => {
+        throw new Error('desktop enumeration unavailable')
+      }),
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const desktopListTool = tools.find(tool => tool.function.name === 'desktop_list_interactables')!
+
+    const result = await desktopListTool.execute({}, {
+      messages: [],
+      toolCallId: 'desktop-list-failure-1',
+    }) as any
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      operation: 'desktop_list_interactables',
+      errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+      errorMessage: 'desktop enumeration unavailable',
+    })
+    expect(result).not.toHaveProperty('sideEffectState')
+  })
+
+  it('does not enter a direct host when the per-tool signal is already aborted', async () => {
+    const toolController = new AbortController()
+    toolController.abort(new DOMException('tool call cancelled before dispatch', 'AbortError'))
+    const browserReadPage = vi.fn(async () => ({
+      status: 'completed',
+      operation: 'browser_read_page',
+    }))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-direct-pre-abort',
+        decisionTraceId: 'trace-direct-pre-abort',
+        sessionId: 'session-1',
+      },
+      browserReadPage,
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const browserReadTool = tools.find(tool => tool.function.name === 'browser_read_page')!
+
+    await expect(browserReadTool.execute({}, {
+      messages: [],
+      toolCallId: 'browser-read-pre-abort-1',
+      abortSignal: toolController.signal,
+    })).resolves.toMatchObject({
+      status: 'failed',
+      operation: 'browser_read_page',
+      cancelled: true,
+      errorCode: 'ALICIZATION_TOOL_ABORTED',
+      errorMessage: 'tool call cancelled before dispatch',
+    })
+    expect(browserReadPage).not.toHaveBeenCalled()
+  })
+
+  it('returns unknown side effects when a primary direct mutation host throws', async () => {
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-direct-mutation-throw',
+        decisionTraceId: 'trace-direct-mutation-throw',
+        sessionId: 'session-1',
+      },
+      browserClickElement: vi.fn(async () => {
+        throw new Error('browser click host failed')
+      }),
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const browserClickTool = tools.find(tool => tool.function.name === 'browser_click_element')!
+
+    await expect(browserClickTool.execute({
+      text: '继续',
+    }, {
+      messages: [],
+      toolCallId: 'browser-click-throw-1',
+    })).resolves.toMatchObject({
+      status: 'failed',
+      operation: 'browser_click_element',
+      sideEffectState: 'unknown',
+      errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+      errorMessage: 'browser click host failed',
+    })
+  })
+
+  it('settles a failed auto-wait as applied-unverified and keeps the action evidence', async () => {
+    const actionResult = {
+      status: 'completed',
+      operation: 'browser_click_element',
+      output: 'click applied',
+    }
+    const autoWaitResult = {
+      status: 'failed',
+      operation: 'browser_wait',
+      errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+      errorMessage: 'page wait host failed',
+    }
+    const desktopInspectScene = vi.fn()
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-direct-auto-wait-failed',
+        decisionTraceId: 'trace-direct-auto-wait-failed',
+        sessionId: 'session-1',
+      },
+      browserClickElement: vi.fn(async () => actionResult),
+      browserWait: vi.fn(async () => {
+        throw new Error('page wait host failed')
+      }),
+      desktopInspectScene,
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const browserClickTool = tools.find(tool => tool.function.name === 'browser_click_element')!
+
+    const result = await browserClickTool.execute({
+      text: '继续',
+      expectedPhase: 'content-detail',
+      reinspectAfterAction: true,
+    }, {
+      messages: [],
+      toolCallId: 'browser-click-auto-wait-failed-1',
+    }) as any
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      operation: 'browser_click_element',
+      sideEffectState: 'applied-unverified',
+      errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+      errorMessage: 'page wait host failed',
+      actionResult,
+      autoWaitResult,
+      postActionInspection: null,
+    })
+    expect(JSON.parse(String(result.output))).toMatchObject({
+      actionResult,
+      autoWaitResult,
+      postActionInspection: null,
+    })
+    expect(desktopInspectScene).not.toHaveBeenCalled()
+  })
+
+  it('settles a non-completed auto-wait as applied-unverified', async () => {
+    const actionResult = {
+      status: 'completed',
+      operation: 'browser_open_url',
+      output: 'browser opened',
+    }
+    const autoWaitResult = {
+      status: 'failed',
+      operation: 'browser_wait',
+      errorCode: 'BROWSER_WAIT_FAILED',
+      errorMessage: 'page did not become ready',
+    }
+    const desktopInspectScene = vi.fn()
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-direct-auto-wait-result-failed',
+        decisionTraceId: 'trace-direct-auto-wait-result-failed',
+        sessionId: 'session-1',
+      },
+      browserOpenUrl: vi.fn(async () => actionResult),
+      browserWait: vi.fn(async () => autoWaitResult),
+      desktopInspectScene,
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const browserOpenTool = tools.find(tool => tool.function.name === 'browser_open_url')!
+
+    const result = await browserOpenTool.execute({
+      url: 'https://example.com',
+      reinspectAfterAction: true,
+    }, {
+      messages: [],
+      toolCallId: 'browser-open-auto-wait-result-failed-1',
+    }) as any
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      operation: 'browser_open_url',
+      sideEffectState: 'applied-unverified',
+      errorCode: 'BROWSER_WAIT_FAILED',
+      errorMessage: 'page did not become ready',
+      actionResult,
+      autoWaitResult,
+      postActionInspection: null,
+    })
+    expect(desktopInspectScene).not.toHaveBeenCalled()
+  })
+
+  it('settles a failed post-action inspection as applied-unverified and keeps the action evidence', async () => {
+    const actionResult = {
+      status: 'completed',
+      operation: 'desktop_click_element',
+      output: 'desktop click applied',
+    }
+    const postActionInspection = {
+      status: 'failed',
+      operation: 'desktop_inspect_scene',
+      errorCode: 'DESKTOP_INSPECT_SCENE_FAILED',
+      errorMessage: 'desktop verification unavailable',
+    }
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-direct-inspection-failed',
+        decisionTraceId: 'trace-direct-inspection-failed',
+        sessionId: 'session-1',
+      },
+      desktopClickElement: vi.fn(async () => actionResult),
+      desktopInspectScene: vi.fn(async () => postActionInspection),
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const desktopClickTool = tools.find(tool => tool.function.name === 'desktop_click_element')!
+
+    const result = await desktopClickTool.execute({
+      text: '确认',
+      expectedPhase: 'content-detail',
+      reinspectAfterAction: true,
+    }, {
+      messages: [],
+      toolCallId: 'desktop-click-inspection-failed-1',
+    }) as any
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      operation: 'desktop_click_element',
+      sideEffectState: 'applied-unverified',
+      errorCode: 'DESKTOP_INSPECT_SCENE_FAILED',
+      errorMessage: 'desktop verification unavailable',
+      actionResult,
+      postActionInspection,
+    })
+    expect(JSON.parse(String(result.output))).toMatchObject({
+      actionResult,
+      postActionInspection,
+    })
+  })
+
+  it('settles a thrown post-action inspection as applied-unverified', async () => {
+    const actionResult = {
+      status: 'completed',
+      operation: 'desktop_press_keys',
+      output: 'shortcut applied',
+    }
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-direct-inspection-throw',
+        decisionTraceId: 'trace-direct-inspection-throw',
+        sessionId: 'session-1',
+      },
+      desktopPressKeys: vi.fn(async () => actionResult),
+      desktopInspectScene: vi.fn(async () => {
+        throw new Error('desktop verification host threw')
+      }),
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const desktopPressTool = tools.find(tool => tool.function.name === 'desktop_press_keys')!
+
+    const result = await desktopPressTool.execute({
+      shortcut: 'command+l',
+      reinspectAfterAction: true,
+    }, {
+      messages: [],
+      toolCallId: 'desktop-press-inspection-throw-1',
+    }) as any
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      operation: 'desktop_press_keys',
+      sideEffectState: 'applied-unverified',
+      errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+      errorMessage: 'desktop verification host threw',
+      actionResult,
+      postActionInspection: {
+        status: 'failed',
+        operation: 'desktop_inspect_scene',
+        errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+        errorMessage: 'desktop verification host threw',
+      },
+    })
+  })
+
+  it('keeps one per-tool signal through auto-wait, inspection, and fallback auto-continuation', async () => {
+    const toolController = new AbortController()
+    const browserWait = vi.fn(async () => ({
+      status: 'completed',
+      operation: 'browser_wait',
+    }))
+    const desktopInspectScene = vi.fn(async () => ({
+      status: 'completed',
+      operation: 'desktop_inspect_scene',
+      pagePhase: 'content-detail',
+      browserPageContext: {
+        browser: 'chrome',
+        title: 'Alicization',
+        url: 'https://example.com',
+      },
+      executionStrategy: {
+        recommendedChannel: 'browser',
+      },
+      suggestedActions: [],
+      blockingSignals: [],
+    }))
+    const browserReadPage = vi.fn(async () => ({
+      status: 'completed',
+      operation: 'browser_read_page',
+      content: 'latest page',
+    }))
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-direct-follow-up-signal',
+        decisionTraceId: 'trace-direct-follow-up-signal',
+        sessionId: 'session-1',
+      },
+      browserClickElement: vi.fn(async () => ({
+        status: 'completed',
+        operation: 'browser_click_element',
+      })),
+      browserWait,
+      browserReadPage,
+      desktopInspectScene,
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn() as any,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const browserClickTool = tools.find(tool => tool.function.name === 'browser_click_element')!
+
+    await browserClickTool.execute({
+      text: '继续',
+      expectedPhase: 'content-detail',
+      reinspectAfterAction: true,
+      autoContinueSuggestedActions: true,
+      maxAutoContinueSteps: 1,
+    }, {
+      messages: [],
+      toolCallId: 'browser-click-follow-up-signal-1',
+      abortSignal: toolController.signal,
+    })
+
+    expect(browserWait).toHaveBeenCalledWith(expect.objectContaining({
+      abortSignal: toolController.signal,
+    }))
+    expect(desktopInspectScene).toHaveBeenCalledWith(expect.objectContaining({
+      abortSignal: toolController.signal,
+    }))
+    expect(browserReadPage).toHaveBeenCalledWith(expect.objectContaining({
+      abortSignal: toolController.signal,
     }))
   })
 })

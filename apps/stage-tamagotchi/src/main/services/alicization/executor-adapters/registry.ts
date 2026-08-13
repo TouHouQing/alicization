@@ -1,6 +1,7 @@
 import type {
   AlicizationDispatchTaskThreadInput,
   AlicizationExecutionChannel,
+  AlicizationExecutionEventInput,
   AlicizationLocalVisualCommandInput,
   AlicizationTaskThreadRecord,
 } from '@proj-alicization/stage-shared'
@@ -35,6 +36,7 @@ export type AlicizationDispatchAdapterResult
 
 interface AlicizationDispatchRuntimeInput {
   abortSignal?: AbortSignal
+  onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
   workspaceRoot?: string
   now?: () => number
 }
@@ -51,6 +53,7 @@ interface AlicizationDispatchAdapter<Channel extends AlicizationDispatchExecutab
     thread: AlicizationTaskThreadRecord
     command: unknown
     abortSignal?: AbortSignal
+    onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
     workspaceRoot?: string
     now?: () => number
   }) => Promise<AlicizationDispatchAdapterResult>
@@ -89,6 +92,7 @@ const dispatchAdapterRegistry = {
       thread: input.thread,
       command: input.command as NonNullable<AlicizationDispatchTaskThreadInput['codex']>,
       abortSignal: input.abortSignal,
+      onExecutionEvent: input.onExecutionEvent,
       workspaceRoot: input.workspaceRoot,
       now: input.now,
     }),
@@ -238,6 +242,7 @@ export function prepareTaskThreadDispatch(input: {
       thread: input.thread,
       command,
       abortSignal: runtime.abortSignal,
+      onExecutionEvent: runtime.onExecutionEvent,
       workspaceRoot: runtime.workspaceRoot,
       now: runtime.now,
     }),

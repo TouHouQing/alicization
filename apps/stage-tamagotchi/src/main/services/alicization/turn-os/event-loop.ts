@@ -36,7 +36,8 @@ import {
 export interface AlicizationModelAction {
   actionId: string
   toolCallId: string | null
-  qualifiedToolName: string
+  capabilityId: string
+  providerToolName: string
   input: unknown
 }
 
@@ -195,7 +196,8 @@ function parseModelAction(input: AlicizationModelAction): AlicizationModelAction
     toolCallId: input.toolCallId == null
       ? null
       : parseRequiredText(input.toolCallId, 'model toolCallId'),
-    qualifiedToolName: parseRequiredText(input.qualifiedToolName, 'model qualifiedToolName'),
+    capabilityId: parseRequiredText(input.capabilityId, 'model capabilityId'),
+    providerToolName: parseRequiredText(input.providerToolName, 'model providerToolName'),
     input: input.input,
   }
 }
@@ -549,7 +551,8 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           await append('model.tool_call.proposed', {
             actionId: action.actionId,
             toolCallId: action.toolCallId,
-            qualifiedToolName: action.qualifiedToolName,
+            capabilityId: action.capabilityId,
+            providerToolName: action.providerToolName,
             arguments: action.input,
           }, 'model')
           await append('model.step.completed', {
@@ -559,7 +562,8 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           await append('action.started', {
             actionId: action.actionId,
             toolCallId: action.toolCallId,
-            qualifiedToolName: action.qualifiedToolName,
+            capabilityId: action.capabilityId,
+            providerToolName: action.providerToolName,
           })
 
           failureSurface = 'tool'

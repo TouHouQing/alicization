@@ -150,17 +150,16 @@ describe('provider tool compatibility', () => {
     expect(JSON.stringify(tool.function.parameters)).toContain('"propertyNames"')
   })
 
-  it('preserves the complete tool registry for OpenAI-compatible gateways', () => {
+  it('preserves a complete Provider-safe tool list without applying surface policy', () => {
     const names = [
       'browser_click_element',
       'desktop_type_text',
-      'executor_run_codex',
+      'codex',
       'filesystem_read_file',
-      'executor_run_cli',
-      'mcp_call_tool',
-      'executor_run_claude_code',
-      'executor_run_local_visual',
-      'executor_run_openclaw',
+      'cli',
+      'claude_code',
+      'local_visual',
+      'openclaw',
       'executor_capability_snapshot',
       'sensory_capture_state',
       'set_reminder',
@@ -173,7 +172,6 @@ describe('provider tool compatibility', () => {
       'browser_search_web',
       'browser_read_page',
       'desktop_inspect_scene',
-      'mcp_list_tools',
       'browser_scroll',
       'desktop_press_keys',
       'desktop_open_application',
@@ -199,10 +197,11 @@ describe('provider tool compatibility', () => {
     const resultNames = result?.map(tool => tool.function.name) ?? []
 
     expect(resultNames).toEqual(names)
-    expect(resultNames).toContain('executor_run_codex')
+    expect(resultNames).toContain('codex')
     expect(resultNames).toContain('filesystem_patch_file')
     expect(resultNames).toContain('browser_click_element')
     expect(resultNames).toContain('desktop_type_text')
-    expect(resultNames).toContain('mcp_call_tool')
+    expect(resultNames).not.toContain('mcp_call_tool')
+    expect(resultNames).not.toContain('mcp_list_tools')
   })
 })

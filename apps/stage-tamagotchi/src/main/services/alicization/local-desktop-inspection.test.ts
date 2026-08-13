@@ -3385,37 +3385,31 @@ describe('local desktop inspection', () => {
     expect(snapshot.executionStrategy).toEqual(expect.objectContaining({
       mode: 'coding-investigation',
       recommendedChannel: 'codex',
-      recommendedToolNames: ['executor_run_codex', 'executor_run_claude_code', 'executor_run_cli'],
+      recommendedToolNames: ['coding_agent'],
     }))
     expect(snapshot.executionStrategy.rationale).toContain('编码')
     expect(snapshot.suggestedActions).toContainEqual(expect.objectContaining({
-      toolName: 'executor_run_codex',
+      toolName: 'coding_agent',
       arguments: expect.objectContaining({
+        agent: 'codex',
         kind: 'codebase-investigation',
         effect: 'observe',
-        autoContinueSuggestedActions: true,
-        maxAutoContinueSteps: 1,
-        reinspectAfterAction: true,
-        inspectionMaxSuggestedActions: 3,
       }),
     }))
-    const codexAction = snapshot.suggestedActions.find(action => action.toolName === 'executor_run_codex')
-    expect(codexAction?.arguments).toEqual(expect.objectContaining({
+    const codingAgentAction = snapshot.suggestedActions.find(action => action.toolName === 'coding_agent')
+    expect(codingAgentAction?.arguments).toEqual(expect.objectContaining({
+      agent: 'codex',
       prompt: expect.stringContaining('TypeScript error in runtime.ts'),
       goal: expect.stringContaining('Investigate visible coding scene'),
       inspectionQuestion: 'Codex 调查当前代码/报错后现在界面到了哪一步',
     }))
-    const claudeAction = snapshot.suggestedActions.find(action => action.toolName === 'executor_run_claude_code')
-    expect(claudeAction?.arguments).toEqual(expect.objectContaining({
-      prompt: expect.stringContaining('TypeScript error in runtime.ts'),
-      kind: 'codebase-investigation',
-      effect: 'observe',
-      autoContinueSuggestedActions: true,
-      maxAutoContinueSteps: 1,
-      reinspectAfterAction: true,
-      inspectionMaxSuggestedActions: 3,
-      inspectionQuestion: 'Claude Code 调查当前代码/报错后现在界面到了哪一步',
-    }))
+    expect(codingAgentAction?.arguments).not.toHaveProperty('autoContinueSuggestedActions')
+    expect(codingAgentAction?.arguments).not.toHaveProperty('reinspectAfterAction')
+    expect(snapshot.suggestedActions).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ toolName: 'executor_run_codex' }),
+      expect.objectContaining({ toolName: 'executor_run_claude_code' }),
+      expect.objectContaining({ toolName: 'executor_run_cli' }),
+    ]))
   })
 
   it('suggests cli investigation for terminal error scenes before codex fallback when a visible command can be inferred', () => {
@@ -3458,44 +3452,26 @@ describe('local desktop inspection', () => {
     expect(snapshot.executionStrategy).toEqual(expect.objectContaining({
       mode: 'terminal-investigation',
       recommendedChannel: 'cli',
-      recommendedToolNames: ['executor_run_cli', 'executor_run_codex', 'executor_run_claude_code'],
+      recommendedToolNames: ['coding_agent'],
     }))
     expect(snapshot.suggestedActions[0]).toEqual(expect.objectContaining({
-      toolName: 'executor_run_cli',
+      toolName: 'coding_agent',
       arguments: expect.objectContaining({
+        agent: 'cli',
         command: 'pnpm',
         args: ['test'],
         effect: 'observe',
         goal: expect.stringContaining('Investigate visible terminal scene'),
-        autoContinueSuggestedActions: true,
-        maxAutoContinueSteps: 1,
-        reinspectAfterAction: true,
-        inspectionMaxSuggestedActions: 3,
         inspectionQuestion: 'CLI 调查可见终端命令后现在界面到了哪一步',
       }),
     }))
-    const codexAction = snapshot.suggestedActions.find(action => action.toolName === 'executor_run_codex')
-    expect(codexAction?.arguments).toEqual(expect.objectContaining({
-      kind: 'codebase-investigation',
-      effect: 'observe',
-      prompt: expect.stringContaining('pnpm test failed with stack trace'),
-      autoContinueSuggestedActions: true,
-      maxAutoContinueSteps: 1,
-      reinspectAfterAction: true,
-      inspectionMaxSuggestedActions: 3,
-      inspectionQuestion: 'Codex 调查当前终端报错后现在界面到了哪一步',
-    }))
-    const claudeAction = snapshot.suggestedActions.find(action => action.toolName === 'executor_run_claude_code')
-    expect(claudeAction?.arguments).toEqual(expect.objectContaining({
-      kind: 'codebase-investigation',
-      effect: 'observe',
-      prompt: expect.stringContaining('pnpm test failed with stack trace'),
-      autoContinueSuggestedActions: true,
-      maxAutoContinueSteps: 1,
-      reinspectAfterAction: true,
-      inspectionMaxSuggestedActions: 3,
-      inspectionQuestion: 'Claude Code 调查当前终端报错后现在界面到了哪一步',
-    }))
+    expect(snapshot.suggestedActions[0]?.arguments).not.toHaveProperty('autoContinueSuggestedActions')
+    expect(snapshot.suggestedActions[0]?.arguments).not.toHaveProperty('reinspectAfterAction')
+    expect(snapshot.suggestedActions).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ toolName: 'executor_run_codex' }),
+      expect.objectContaining({ toolName: 'executor_run_claude_code' }),
+      expect.objectContaining({ toolName: 'executor_run_cli' }),
+    ]))
   })
 
   it('mentions structured controls in the inspection summary when semantic grounding is unavailable', () => {

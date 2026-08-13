@@ -795,22 +795,27 @@ class FakeSqliteDatabase {
       })
     }
 
-    if (sql.includes('INSERT INTO executor_events')) {
+    if (sql.includes('INTO executor_events')) {
       const [id, threadId, decisionTraceId, turnId, sessionId, origin, channel, kind, threadStatus, payloadJson, createdAt]
         = actualParams as [string, string, string | null, string | null, string | null, 'user-turn' | 'subconscious-proactive' | 'system', string | null, string, string | null, string | null, number]
-      executionEvents.push({
-        id,
-        thread_id: threadId,
-        decision_trace_id: decisionTraceId ?? null,
-        turn_id: turnId ?? null,
-        session_id: sessionId ?? null,
-        origin,
-        channel: channel ?? null,
-        kind,
-        thread_status: threadStatus ?? null,
-        payload_json: payloadJson ?? null,
-        created_at: createdAt,
-      })
+      if (executionEvents.some(event => event.id === id)) {
+        changes = 0
+      }
+      else {
+        executionEvents.push({
+          id,
+          thread_id: threadId,
+          decision_trace_id: decisionTraceId ?? null,
+          turn_id: turnId ?? null,
+          session_id: sessionId ?? null,
+          origin,
+          channel: channel ?? null,
+          kind,
+          thread_status: threadStatus ?? null,
+          payload_json: payloadJson ?? null,
+          created_at: createdAt,
+        })
+      }
     }
 
     if (sql.includes('INSERT INTO episodic_events')) {
@@ -1350,18 +1355,31 @@ class FakeSqliteDatabase {
       mindTurnEvents.length = 0
     }
     else if (sql.includes('UPDATE task_threads')) {
-      const [updatedAt, lastEventAt, status, completedAt, id] = actualParams as [number, number, string | null, number | null, string]
+      const [updatedAt, lastEventAt, projectedLastEventAt, status, completedAt, id, projectedStatus, activityAt]
+        = actualParams as [number, number, number, string | null, number | null, string, string | null, number]
       const thread = taskThreads.get(id)
       if (!thread) {
         changes = 0
       }
       else {
-        thread.updated_at = updatedAt
-        thread.last_event_at = lastEventAt
-        if (status)
-          thread.status = status
-        if (typeof completedAt === 'number' && Number.isFinite(completedAt))
-          thread.completed_at = completedAt
+        const terminalStatuses = new Set(['blocked', 'completed', 'failed', 'cancelled'])
+        const currentTerminal = terminalStatuses.has(thread.status)
+        const incomingTerminal = projectedStatus !== null && terminalStatuses.has(projectedStatus)
+        const currentLastEventAt = thread.last_event_at
+        const projectionIsCurrent = currentLastEventAt === null || currentLastEventAt <= activityAt
+        if (!currentTerminal && (incomingTerminal || projectionIsCurrent)) {
+          thread.updated_at = Math.max(thread.updated_at, updatedAt)
+          thread.last_event_at = currentLastEventAt === null || currentLastEventAt < lastEventAt
+            ? projectedLastEventAt
+            : currentLastEventAt
+          if (status)
+            thread.status = status
+          if (typeof completedAt === 'number' && Number.isFinite(completedAt))
+            thread.completed_at = completedAt
+        }
+        else {
+          changes = 0
+        }
       }
     }
 
@@ -4864,6 +4882,173 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('upserts a conversation turn by non-empty session and turn identity', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    })
+
+    await db.appendConversationTurn({
+      turnId: 'turn-idempotent-1',
+      sessionId: 'session-idempotent-1',
+      userText: 'first user text',
+      assistantText: 'first assistant text',
+      structured: {
+        phase: 'first',
+      },
+      createdAt: 100,
+    })
+    await db.appendConversationTurn({
+      turnId: 'turn-idempotent-1',
+      sessionId: 'session-idempotent-1',
+      userText: 'updated user text',
+      assistantText: 'updated assistant text',
+      structured: {
+        phase: 'updated',
+      },
+      createdAt: 200,
+    })
+
+    const turns = await db.listConversationTurnsBySession('session-idempotent-1')
+
+    expect(turns).toHaveLength(1)
+    expect(turns[0]).toMatchObject({
+      turnId: 'turn-idempotent-1',
+      sessionId: 'session-idempotent-1',
+      userText: 'updated user text',
+      assistantText: 'updated assistant text',
+      structuredJson: JSON.stringify({ phase: 'updated' }),
+      createdAt: 200,
+    })
+    await db.close()
+  })
+
+  it('keeps anonymous conversation turns with an empty turn id as separate rows', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    })
+
+    await db.appendConversationTurn({
+      turnId: ' ',
+      sessionId: 'session-anonymous-1',
+      userText: 'first anonymous turn',
+      assistantText: 'first response',
+      createdAt: 100,
+    })
+    await db.appendConversationTurn({
+      sessionId: 'session-anonymous-1',
+      userText: 'second anonymous turn',
+      assistantText: 'second response',
+      createdAt: 200,
+    })
+
+    const turns = await db.listConversationTurnsBySession('session-anonymous-1')
+
+    expect(turns).toHaveLength(2)
+    expect(turns.map(turn => turn.userText)).toEqual([
+      'first anonymous turn',
+      'second anonymous turn',
+    ])
+    await db.close()
+  })
+
+  it('deduplicates historical conversation turns before creating the scoped unique index', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'cards', 'card-a')
+    await mkdir(rootDir, { recursive: true })
+    const dbPath = join(rootDir, 'alicization.db')
+    const legacyDatabase = await openActualSqlite(dbPath)
+    await runActualSqlite(legacyDatabase, `
+      CREATE TABLE conversation_turns (
+        id TEXT PRIMARY KEY,
+        turn_id TEXT,
+        session_id TEXT NOT NULL,
+        user_text TEXT,
+        assistant_text TEXT,
+        structured_json TEXT,
+        created_at INTEGER NOT NULL
+      )
+    `)
+    await runActualSqlite(legacyDatabase, `
+      INSERT INTO conversation_turns (
+        id, turn_id, session_id, user_text, assistant_text, structured_json, created_at
+      ) VALUES
+        ('conversation-old', 'turn-history-1', 'session-history-1', 'old user', 'old assistant', '{"version":"old"}', 100),
+        ('conversation-new', 'turn-history-1', 'session-history-1', 'new user', 'new assistant', '{"version":"new"}', 200),
+        ('conversation-anonymous-1', '', 'session-history-1', 'anonymous one', 'response one', NULL, 300),
+        ('conversation-anonymous-2', NULL, 'session-history-1', 'anonymous two', 'response two', NULL, 400)
+    `)
+    await closeActualSqlite(legacyDatabase)
+
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+      sqliteDriver: actualSqliteDriver,
+    } as any)
+    await db.close()
+
+    const migratedDatabase = await openActualSqlite(dbPath)
+    const turns = await allActualSqlite<{
+      id: string
+      turn_id: string | null
+      user_text: string | null
+      created_at: number
+    }>(
+      migratedDatabase,
+      `
+      SELECT id, turn_id, user_text, created_at
+      FROM conversation_turns
+      WHERE session_id = ?
+      ORDER BY created_at ASC
+      `,
+      ['session-history-1'],
+    )
+    const indexes = await allActualSqlite<{
+      name: string
+      unique: number
+      partial: number
+    }>(migratedDatabase, 'PRAGMA index_list(conversation_turns)')
+    const indexSql = await allActualSqlite<{ sql: string | null }>(
+      migratedDatabase,
+      `
+      SELECT sql
+      FROM sqlite_master
+      WHERE type = 'index' AND name = ?
+      `,
+      ['idx_conversation_turns_session_turn_id'],
+    )
+    await closeActualSqlite(migratedDatabase)
+
+    expect(turns).toEqual([
+      {
+        id: 'conversation-new',
+        turn_id: 'turn-history-1',
+        user_text: 'new user',
+        created_at: 200,
+      },
+      {
+        id: 'conversation-anonymous-1',
+        turn_id: '',
+        user_text: 'anonymous one',
+        created_at: 300,
+      },
+      {
+        id: 'conversation-anonymous-2',
+        turn_id: null,
+        user_text: 'anonymous two',
+        created_at: 400,
+      },
+    ])
+    expect(indexes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: 'idx_conversation_turns_session_turn_id',
+        unique: 1,
+        partial: 1,
+      }),
+    ]))
+    expect(indexSql[0]?.sql).toContain('TRIM(session_id) != \'\'')
+    expect(indexSql[0]?.sql).toContain('TRIM(turn_id) != \'\'')
+  })
+
   it('stores and queries replayable mind-turn events by decision trace', async () => {
     runCalls.length = 0
     metaState.clear()
@@ -5091,6 +5276,277 @@ describe('alicization sqlite dao', () => {
     }))
     expect(events.map(item => item.kind)).toEqual(['dispatch', 'result'])
     expect(events[1]?.threadStatus).toBe('completed')
+    await db.close()
+  })
+
+  it('uses caller-provided execution event ids to make live progress replay idempotent', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    mindTurnEvents.length = 0
+    taskThreads.clear()
+    executionEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertTaskThread({
+      id: 'thread-codex-live-idempotent',
+      goal: 'Persist one Codex progress event once.',
+      kind: 'codebase-investigation',
+      status: 'running',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      createdAt: 100,
+      updatedAt: 100,
+    })
+    const event = {
+      id: 'thread-codex-live-idempotent:codex:run-1:1',
+      threadId: 'thread-codex-live-idempotent',
+      channel: 'codex' as const,
+      kind: 'step' as const,
+      threadStatus: 'running' as const,
+      payload: {
+        codexEventType: 'item.started',
+        semanticProgress: true,
+      },
+      createdAt: 120,
+    }
+
+    await db.appendExecutionEvents([event])
+    await db.appendExecutionEvents([event])
+
+    const events = await db.listExecutionEvents({
+      threadId: 'thread-codex-live-idempotent',
+      limit: 10,
+    })
+    expect(events).toHaveLength(1)
+    expect(events[0]?.id).toBe(event.id)
+    expect(runCalls.some(sql => sql.includes('INSERT OR IGNORE INTO executor_events'))).toBe(true)
+    await db.close()
+  })
+
+  it('does not project a duplicate execution event id with conflicting replay state', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    mindTurnEvents.length = 0
+    taskThreads.clear()
+    executionEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertTaskThread({
+      id: 'thread-duplicate-projection-fence',
+      goal: 'Keep duplicate execution evidence idempotent.',
+      kind: 'codebase-investigation',
+      status: 'running',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      createdAt: 100,
+      updatedAt: 100,
+    })
+
+    await db.appendExecutionEvents([{
+      id: 'thread-duplicate-projection-fence:event-1',
+      threadId: 'thread-duplicate-projection-fence',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'running',
+      createdAt: 200,
+    }])
+    await db.appendExecutionEvents([{
+      id: 'thread-duplicate-projection-fence:event-1',
+      threadId: 'thread-duplicate-projection-fence',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'paused',
+      createdAt: 300,
+    }])
+
+    const thread = await db.getTaskThread('thread-duplicate-projection-fence')
+    const events = await db.listExecutionEvents({
+      threadId: 'thread-duplicate-projection-fence',
+      limit: 10,
+    })
+
+    expect(thread).toEqual(expect.objectContaining({
+      status: 'running',
+      lastEventAt: 200,
+      updatedAt: 200,
+    }))
+    expect(events).toHaveLength(1)
+    expect(events[0]).toEqual(expect.objectContaining({
+      id: 'thread-duplicate-projection-fence:event-1',
+      threadStatus: 'running',
+      createdAt: 200,
+    }))
+    await db.close()
+  })
+
+  it('does not let a late non-terminal event reopen a terminal task thread', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    mindTurnEvents.length = 0
+    taskThreads.clear()
+    executionEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertTaskThread({
+      id: 'thread-terminal-fence',
+      goal: 'Keep a terminal task thread closed when late progress arrives.',
+      kind: 'codebase-investigation',
+      status: 'running',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      createdAt: 100,
+      updatedAt: 100,
+    })
+
+    await db.appendExecutionEvents([{
+      id: 'thread-terminal-fence:result',
+      threadId: 'thread-terminal-fence',
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'completed',
+      payload: {
+        summary: 'finished',
+      },
+      createdAt: 200,
+    }])
+
+    await db.appendExecutionEvents([{
+      id: 'thread-terminal-fence:late-running',
+      threadId: 'thread-terminal-fence',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'running',
+      payload: {
+        lateAfterTerminal: true,
+      },
+      createdAt: 300,
+    }])
+
+    const thread = await db.getTaskThread('thread-terminal-fence')
+    const events = await db.listExecutionEvents({
+      threadId: 'thread-terminal-fence',
+      limit: 10,
+    })
+
+    expect(thread).toEqual(expect.objectContaining({
+      status: 'completed',
+      lastEventAt: 200,
+      completedAt: 200,
+    }))
+    expect(events.map(item => item.id)).toEqual([
+      'thread-terminal-fence:result',
+      'thread-terminal-fence:late-running',
+    ])
+    await db.close()
+  })
+
+  it('keeps stale non-terminal events as evidence without regressing the task-thread projection', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    mindTurnEvents.length = 0
+    taskThreads.clear()
+    executionEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertTaskThread({
+      id: 'thread-stale-progress-fence',
+      goal: 'Keep the newest non-terminal execution projection.',
+      kind: 'codebase-investigation',
+      status: 'running',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      createdAt: 100,
+      updatedAt: 100,
+    })
+
+    await db.appendExecutionEvents([{
+      id: 'thread-stale-progress-fence:newer',
+      threadId: 'thread-stale-progress-fence',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'running',
+      payload: {
+        summary: 'newer progress',
+      },
+      createdAt: 300,
+    }])
+    await db.appendExecutionEvents([{
+      id: 'thread-stale-progress-fence:older',
+      threadId: 'thread-stale-progress-fence',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'paused',
+      payload: {
+        summary: 'stale progress',
+      },
+      createdAt: 200,
+    }])
+
+    const thread = await db.getTaskThread('thread-stale-progress-fence')
+    const events = await db.listExecutionEvents({
+      threadId: 'thread-stale-progress-fence',
+      limit: 10,
+    })
+
+    expect(thread).toEqual(expect.objectContaining({
+      status: 'running',
+      lastEventAt: 300,
+      updatedAt: 300,
+    }))
+    expect(events.map(item => item.id)).toEqual([
+      'thread-stale-progress-fence:older',
+      'thread-stale-progress-fence:newer',
+    ])
+    await db.close()
+  })
+
+  it('lets a terminal event settle a running thread even when its adapter timestamp is older', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    mindTurnEvents.length = 0
+    taskThreads.clear()
+    executionEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertTaskThread({
+      id: 'thread-terminal-precedence',
+      goal: 'Settle execution from terminal evidence.',
+      kind: 'codebase-investigation',
+      status: 'running',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      createdAt: 100,
+      updatedAt: 100,
+    })
+    await db.appendExecutionEvents([{
+      id: 'thread-terminal-precedence:progress',
+      threadId: 'thread-terminal-precedence',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'running',
+      createdAt: 300,
+    }])
+    await db.appendExecutionEvents([{
+      id: 'thread-terminal-precedence:result',
+      threadId: 'thread-terminal-precedence',
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'completed',
+      createdAt: 200,
+    }])
+
+    const thread = await db.getTaskThread('thread-terminal-precedence')
+    expect(thread).toEqual(expect.objectContaining({
+      status: 'completed',
+      lastEventAt: 300,
+      updatedAt: 300,
+      completedAt: 200,
+    }))
     await db.close()
   })
 

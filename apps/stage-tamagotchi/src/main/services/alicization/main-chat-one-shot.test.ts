@@ -4,6 +4,7 @@ import {
   generateAlicizationMainChatNonStreaming,
   recoverAlicizationMainChatFromTimeout,
 } from './main-chat-one-shot'
+import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 
 const typedMemoryContextBlock = JSON.stringify({
   type: 'alicization-turn-memory-context',
@@ -83,15 +84,98 @@ describe('main chat one-shot', () => {
     expect(generateTextImpl).toHaveBeenCalledOnce()
   })
 
+  it('retries five transient visual one-shot failures and succeeds on the sixth attempt', async () => {
+    const generateTextImpl = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('service unavailable'), { status: 503 }))
+      .mockRejectedValueOnce(Object.assign(new Error('rate limited'), { status: 429 }))
+      .mockRejectedValueOnce(Object.assign(new Error('socket reset'), { code: 'ECONNRESET' }))
+      .mockRejectedValueOnce(Object.assign(new Error('upstream timeout'), { status: 504 }))
+      .mockRejectedValueOnce(Object.assign(new Error('service unavailable'), { status: 503 }))
+      .mockResolvedValueOnce({
+        text: '视觉链路恢复。',
+        finishReason: 'stop',
+      })
+
+    await expect(generateAlicizationMainChatNonStreaming(createInput({
+      generateTextImpl,
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+      },
+    }))).resolves.toEqual({
+      finishReason: 'stop',
+      fullText: '视觉链路恢复。',
+    })
+    expect(generateTextImpl).toHaveBeenCalledTimes(6)
+  })
+
+  it('returns the original failure after the visual one-shot retry budget is exhausted', async () => {
+    const terminalError = Object.assign(new Error('service unavailable after retries'), {
+      status: 503,
+    })
+    const generateTextImpl = vi.fn().mockRejectedValue(terminalError)
+
+    await expect(generateAlicizationMainChatNonStreaming(createInput({
+      generateTextImpl,
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+      },
+    }))).rejects.toBe(terminalError)
+    expect(generateTextImpl).toHaveBeenCalledTimes(6)
+  })
+
+  it('does not replay a one-shot after a tool has produced a side effect', async () => {
+    let toolExecutions = 0
+    const toolRegistry = createCanonicalToolRegistry()
+    const tools = [{
+      type: 'function',
+      function: {
+        name: 'codex',
+        parameters: {},
+      },
+      execute: async () => {
+        toolExecutions += 1
+        return {
+          ok: true,
+          status: 'completed',
+        }
+      },
+    }] as any
+    const providerFailure = Object.assign(new Error('service unavailable after tool execution'), {
+      status: 503,
+    })
+    const generateTextImpl = vi.fn(async (input: Record<string, unknown>) => {
+      const providerTools = input.tools as Array<{ execute?: (...args: any[]) => Promise<unknown> }>
+      await providerTools[0]?.execute?.({ prompt: 'continue the current task' }, {
+        toolCallId: 'tool-call-1',
+      })
+      throw providerFailure
+    })
+
+    await expect(generateAlicizationMainChatNonStreaming(createInput({
+      tools,
+      toolRegistry,
+      generateTextImpl,
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+      },
+    }))).rejects.toBe(providerFailure)
+    expect(generateTextImpl).toHaveBeenCalledOnce()
+    expect(toolExecutions).toBe(1)
+  })
+
   it('forwards function tool choices during timeout recovery', async () => {
+    const toolRegistry = createCanonicalToolRegistry()
     const toolChoice = {
       type: 'function',
-      function: { name: 'executor_run_cli' },
+      function: { name: 'codex' },
     } as const
     const tools = [{
       type: 'function',
       function: {
-        name: 'executor_run_cli',
+        name: 'codex',
         parameters: {},
       },
     }] as any
@@ -103,7 +187,7 @@ describe('main chat one-shot', () => {
         finishReason: 'stop',
         toolCalls: [{
           function: {
-            name: 'executor_run_cli',
+            name: 'codex',
           },
         }],
       }
@@ -112,6 +196,7 @@ describe('main chat one-shot', () => {
     const result = await recoverAlicizationMainChatFromTimeout(createInput({
       tools,
       toolChoice,
+      toolRegistry,
       generateTextImpl,
     }))
 
@@ -119,14 +204,15 @@ describe('main chat one-shot', () => {
   })
 
   it('allows one-shot provider text without enforcing a tool call', async () => {
+    const toolRegistry = createCanonicalToolRegistry()
     const toolChoice = {
       type: 'function',
-      function: { name: 'executor_run_cli' },
+      function: { name: 'codex' },
     } as const
     const tools = [{
       type: 'function',
       function: {
-        name: 'executor_run_cli',
+        name: 'codex',
         parameters: {},
       },
     }] as any
@@ -139,11 +225,178 @@ describe('main chat one-shot', () => {
     await expect(generateAlicizationMainChatNonStreaming(createInput({
       tools,
       toolChoice,
+      toolRegistry,
       generateTextImpl,
     }))).resolves.toEqual({
       finishReason: 'stop',
       fullText: '我先守住真实边界。',
     })
+  })
+
+  it('rejects legacy executor tool names before calling the Provider', async () => {
+    const toolRegistry = createCanonicalToolRegistry()
+    const generateTextImpl = vi.fn(async () => ({
+      text: 'should not run',
+      finishReason: 'stop',
+    }))
+
+    await expect(generateAlicizationMainChatNonStreaming(createInput({
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'executor_run_codex',
+          parameters: {},
+        },
+      }] as any,
+      toolRegistry,
+      generateTextImpl,
+    }))).rejects.toThrow(/Legacy executor tool name/u)
+    expect(generateTextImpl).not.toHaveBeenCalled()
+  })
+
+  it('requires an explicit canonical registry when a one-shot exposes tools', async () => {
+    const generateTextImpl = vi.fn(async () => ({
+      text: 'should not run',
+      finishReason: 'stop',
+    }))
+
+    await expect(generateAlicizationMainChatNonStreaming(createInput({
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'codex',
+          parameters: {},
+        },
+      }] as any,
+      generateTextImpl,
+    }))).rejects.toThrow(/explicit toolRegistry/u)
+    expect(generateTextImpl).not.toHaveBeenCalled()
+  })
+
+  it('rejects a legacy executor tool choice before calling the Provider', async () => {
+    const toolRegistry = createCanonicalToolRegistry()
+    const generateTextImpl = vi.fn(async () => ({
+      text: 'should not run',
+      finishReason: 'stop',
+    }))
+
+    await expect(generateAlicizationMainChatNonStreaming(createInput({
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'codex',
+          parameters: {},
+        },
+      }] as any,
+      toolChoice: {
+        type: 'function',
+        function: {
+          name: 'executor_run_cli',
+        },
+      } as any,
+      toolRegistry,
+      generateTextImpl,
+    }))).rejects.toThrow(/Legacy executor tool choice/u)
+    expect(generateTextImpl).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['unknown provider tool', 'unknown_provider_tool', undefined],
+    ['legacy adapter tool', 'executor_run_codex', undefined],
+    ['inactive provider tool', 'codex', 'disabled'],
+  ])('rejects %s before calling the Provider', async (_label, toolName, activationStatus) => {
+    const toolRegistry = createCanonicalToolRegistry()
+    if (activationStatus) {
+      toolRegistry.setActivationStatus('coding_agent.codex', activationStatus as 'disabled')
+    }
+    const generateTextImpl = vi.fn(async () => ({
+      text: 'should not run',
+      finishReason: 'stop',
+    }))
+
+    await expect(generateAlicizationMainChatNonStreaming(createInput({
+      tools: [{
+        type: 'function',
+        function: {
+          name: toolName,
+          parameters: {},
+        },
+      }] as any,
+      toolRegistry,
+      generateTextImpl,
+    }))).rejects.toThrow(/Legacy executor|Provider tool/u)
+    expect(generateTextImpl).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['unknown provider tool', 'unknown_provider_tool', undefined],
+    ['inactive provider tool', 'codex', 'disabled'],
+  ])('rejects function toolChoice for %s before calling the Provider', async (_label, toolName, activationStatus) => {
+    const toolRegistry = createCanonicalToolRegistry()
+    if (activationStatus) {
+      toolRegistry.setActivationStatus('coding_agent.codex', activationStatus as 'disabled')
+    }
+    const generateTextImpl = vi.fn(async () => ({
+      text: 'should not run',
+      finishReason: 'stop',
+    }))
+
+    await expect(generateAlicizationMainChatNonStreaming(createInput({
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'set_reminder',
+          parameters: {},
+        },
+      }] as any,
+      toolChoice: {
+        type: 'function',
+        function: {
+          name: toolName,
+        },
+      } as any,
+      toolRegistry,
+      generateTextImpl,
+    }))).rejects.toThrow(/tool choice/u)
+    expect(generateTextImpl).not.toHaveBeenCalled()
+  })
+
+  it('returns a structured capability input failure without calling an executable tool for invalid input', async () => {
+    const toolRegistry = createCanonicalToolRegistry()
+    const execute = vi.fn(async () => ({
+      ok: true,
+      status: 'completed',
+    }))
+    const tools = [{
+      type: 'function',
+      function: {
+        name: 'codex',
+        parameters: {},
+      },
+      execute,
+    }] as any
+    const generateTextImpl = vi.fn(async (input: Record<string, unknown>) => {
+      const providerTools = input.tools as Array<{ execute?: (toolInput: unknown) => Promise<unknown> }>
+      const result = await providerTools[0]?.execute?.({})
+      expect(result).toMatchObject({
+        status: 'failed',
+        errorCode: 'CAPABILITY_INPUT_INVALID',
+      })
+      return {
+        text: 'input rejected',
+        finishReason: 'stop',
+      }
+    })
+
+    await expect(generateAlicizationMainChatNonStreaming(createInput({
+      tools,
+      toolRegistry,
+      generateTextImpl,
+    }))).resolves.toEqual({
+      finishReason: 'stop',
+      fullText: 'input rejected',
+    })
+    expect(execute).not.toHaveBeenCalled()
   })
 
   it('aborts one-shot generation after the enforced minimum timeout window', async () => {

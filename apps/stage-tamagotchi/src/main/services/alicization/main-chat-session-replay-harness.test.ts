@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   benchmarkMainChatSessionReplay,
   buildAdversarialHumanlikeMemoryBenchmarkPack,
+  buildCodexToolLoopReplayFixture,
   buildDefaultHumanlikeMemoryBenchmarkPack,
   buildFinalHumanlikeMemoryBenchmarkPack,
   buildGrowthHumanlikeMemoryBenchmarkPack,
@@ -17,6 +18,7 @@ import {
   evaluateReplayBenchmarkStandards,
   evaluateReplayMemoryQuality,
   mergeReplayBenchmarkDatasetBacklog,
+  replayCodexToolLoopFixture,
   replayMainChatSession,
 } from './main-chat-session-replay-harness'
 
@@ -204,6 +206,93 @@ function createReplayPreludeWithEmbodimentSurface(input?: {
 }
 
 describe('main chat session replay harness', { timeout: 10_000 }, () => {
+  it('records Provider-facing Codex events with the public alias', () => {
+    const fixture = buildCodexToolLoopReplayFixture({
+      outcome: 'success',
+    })
+
+    expect(fixture.toolName).toBe('codex')
+    expect(fixture.events.every(event => event.toolName === 'codex')).toBe(true)
+  })
+
+  it('replays a successful Codex tool loop through one terminal settlement and one continuation', () => {
+    const replay = replayCodexToolLoopFixture(buildCodexToolLoopReplayFixture({
+      outcome: 'success',
+    }))
+
+    expect(replay.canonicalToolCallId).toBe('provider-tool-call-a')
+    expect(replay.continuation).toEqual({
+      allowed: true,
+      started: true,
+      completed: true,
+    })
+    expect(replay.terminalSettlements).toHaveLength(1)
+    expect(replay.terminalSettlements[0]).toEqual(expect.objectContaining({
+      status: 'completed',
+      toolCallId: 'provider-tool-call-a',
+    }))
+  })
+
+  it('canonicalizes provider, executor, progress, and result ID drift to one call identity', () => {
+    const replay = replayCodexToolLoopFixture(buildCodexToolLoopReplayFixture({
+      outcome: 'success',
+    }))
+
+    expect(replay.observedToolCallIds).toEqual([
+      'provider-tool-call-a',
+      'provider-tool-call-b',
+      'executor-tool-call-c',
+      'progress-tool-call-d',
+      'result-tool-call-e',
+    ])
+    expect(new Set(replay.canonicalToolCallIds)).toEqual(new Set(['provider-tool-call-a']))
+  })
+
+  it('stops after a failed tool result, emits one terminal, and disables failure learning', () => {
+    const replay = replayCodexToolLoopFixture(buildCodexToolLoopReplayFixture({
+      outcome: 'failure',
+    }))
+
+    expect(replay.continuation).toEqual({
+      allowed: false,
+      started: false,
+      completed: false,
+    })
+    expect(replay.terminalSettlements).toHaveLength(1)
+    expect(replay.terminalSettlements[0]).toEqual(expect.objectContaining({
+      status: 'failed',
+      toolCallId: 'provider-tool-call-a',
+    }))
+    expect(replay.learningPolicy).toEqual({
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
+    })
+  })
+
+  it('does not turn a failed Provider continuation callback into a second success terminal', () => {
+    const replay = replayCodexToolLoopFixture(buildCodexToolLoopReplayFixture({
+      outcome: 'success',
+      callbackFailure: true,
+    } as any))
+
+    expect(replay.continuation).toEqual({
+      allowed: false,
+      started: true,
+      completed: false,
+    })
+    expect(replay.terminalSettlements).toHaveLength(1)
+    expect(replay.terminalSettlements[0]).toEqual(expect.objectContaining({
+      status: 'failed',
+      toolCallId: 'provider-tool-call-a',
+    }))
+    expect(replay.learningPolicy).toEqual({
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
+    })
+  })
+
   it('preserves reconsolidated execution carry without inventing downstream replay authority', () => {
     const pack = buildSampledHumanlikeMemoryBenchmarkPack({
       conversationTurns: [

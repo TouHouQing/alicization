@@ -368,11 +368,20 @@ export async function runAlicizationMainChatBackground(
         }
       },
       executeTool: async (action, context, runtime) => {
+        const providerToolName = action.providerToolName
+        const providerInvocation = context.prepared.toolRegistry
+          .resolveProviderInvocation(providerToolName, action.input)
+        if (
+          !providerInvocation
+          || providerInvocation.capabilityId !== action.capabilityId
+        ) {
+          throw new Error(`Provider tool "${providerToolName}" resolved to an invalid capability`)
+        }
         const tool = context.prepared.tools?.find(
-          candidate => sanitizeText(candidate.function?.name) === action.qualifiedToolName,
+          candidate => sanitizeText(candidate.function?.name) === providerInvocation.providerToolName,
         )
         if (!tool)
-          throw new Error(`Provider requested unavailable tool "${action.qualifiedToolName}"`)
+          throw new Error(`Provider requested unavailable tool "${providerToolName}"`)
         if (!action.toolCallId)
           throw new Error('Provider tool action requires a real toolCallId')
 
@@ -382,7 +391,7 @@ export async function runAlicizationMainChatBackground(
           toolCallId: action.toolCallId,
         })
         const toolFailure = isAlicizationToolExecutionFailureResult(result)
-          ? extractAlicizationToolExecutionFailure(result, action.qualifiedToolName)
+          ? extractAlicizationToolExecutionFailure(result, providerToolName)
           : null
         if (toolFailure) {
           throw Object.assign(new Error(toolFailure.message), {
@@ -397,7 +406,7 @@ export async function runAlicizationMainChatBackground(
           cardId: input.payload.cardId,
           turnId: input.payload.turnId,
           toolCallId: action.toolCallId,
-          toolName: action.qualifiedToolName,
+          toolName: providerToolName,
           result,
         })
         return {

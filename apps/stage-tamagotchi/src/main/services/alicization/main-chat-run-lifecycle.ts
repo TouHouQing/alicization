@@ -52,35 +52,6 @@ export function isProviderSchemaUnsupportedError(error: unknown) {
   return isAlicizationProviderSchemaUnsupportedError(error)
 }
 
-function resolveProviderProtocolFailure(error: unknown) {
-  const reason = error instanceof Error ? error.message : String(error ?? '')
-  if (reason.includes('Provider tool call is missing toolCallId')) {
-    return {
-      code: 'missing-tool-call-id',
-      reply: 'Provider 工具调用缺少 toolCallId，本轮工具未执行。',
-    }
-  }
-  if (reason.includes('Provider tool call has invalid arguments')) {
-    return {
-      code: 'invalid-tool-arguments',
-      reply: 'Provider 工具参数无效，本轮工具未执行。',
-    }
-  }
-  if (reason.includes('Provider tool call is missing toolName')) {
-    return {
-      code: 'missing-tool-name',
-      reply: 'Provider 工具调用缺少工具名称，本轮工具未执行。',
-    }
-  }
-  if (reason.includes('tool action input must be a serializable object')) {
-    return {
-      code: 'invalid-tool-action-input',
-      reply: 'Provider 工具输入不是可序列化对象，本轮工具未执行。',
-    }
-  }
-  return null
-}
-
 function sanitizeTimeoutDiagnosticSegment(raw: unknown) {
   return String(raw ?? '')
     .trim()
@@ -389,16 +360,13 @@ export async function handleAlicizationMainChatRunFailure(
   }
 
   if (!input.prepared) {
-    const failureSurface = {
-      ...resolveAlicizationChatFailureSurface({
-        kind: 'stream-failure',
-        userText: currentUserText,
-      }),
-      reply: '对话准备失败，短期记忆和长期记忆上下文未完成，本轮未请求模型。',
-    }
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'stream-failure',
+      userText: currentUserText,
+    })
     await emitFailureSurface({
       failureSurface,
-      finishReason: 'preparation-failed',
+      finishReason: 'prepare-failed',
       status: 'failed',
       options: input,
     })
@@ -406,29 +374,6 @@ export async function handleAlicizationMainChatRunFailure(
       cardId: input.payload.cardId,
       turnId: input.payload.turnId,
       reason,
-    })
-    return
-  }
-
-  const providerProtocolFailure = resolveProviderProtocolFailure(input.error)
-  if (providerProtocolFailure) {
-    const failureSurface = {
-      ...resolveAlicizationChatFailureSurface({
-        kind: 'provider-output-invalid',
-        userText: currentUserText,
-      }),
-      reply: providerProtocolFailure.reply,
-    }
-    await emitFailureSurface({
-      failureSurface,
-      finishReason: 'provider-protocol-invalid',
-      status: 'failed',
-      options: input,
-    })
-    await input.appendRuntimeDebugLine('chat-stream.provider-protocol-invalid', {
-      cardId: input.payload.cardId,
-      turnId: input.payload.turnId,
-      code: providerProtocolFailure.code,
     })
     return
   }

@@ -35,6 +35,7 @@ import {
 import { createAlicizationAgentRuntime } from './agent-runtime'
 import { projectAlicizationDigitalLifeSpineDigest } from './digital-life-spine'
 import { createAlicizationMainChatSessionRuntime } from './main-chat-session-runtime'
+import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 import {
   buildAlicizationMemoryRecallFeedbackSample,
   summarizeAlicizationMemoryRecallFeedback,
@@ -307,6 +308,349 @@ export interface AlicizationReplayTurn {
   tracePointer?: AlicizationReplayBenchmarkTracePointer
   sampledCategories?: AlicizationReplayBenchmarkSampleCategory[] | null
   gold?: AlicizationReplayGoldExpectation
+}
+
+type AlicizationCodexToolLoopReplayOutcome = 'success' | 'failure'
+type AlicizationCodexToolLoopReplayProgressPhase
+  = 'started'
+    | 'running'
+    | 'completed'
+    | 'failed'
+
+interface AlicizationCodexToolLoopReplayEvent {
+  arguments?: Record<string, unknown>
+  finishReason?: string
+  kind:
+    | 'executor-progress'
+    | 'executor-result'
+    | 'provider-finished'
+    | 'provider-tool-call'
+    | 'provider-tool-call-streaming-start'
+    | 'provider-tool-result'
+    | 'provider-continuation-started'
+    | 'provider-callback-failed'
+  phase?: AlicizationCodexToolLoopReplayProgressPhase
+  signal?: 'liveness' | 'semantic-progress' | 'terminal'
+  result?: Record<string, unknown>
+  text?: string
+  toolCallId: string
+  toolName: 'codex'
+}
+
+export interface AlicizationCodexToolLoopReplayFixture {
+  cardId: string
+  events: AlicizationCodexToolLoopReplayEvent[]
+  outcome: AlicizationCodexToolLoopReplayOutcome
+  threadId: string
+  toolName: 'codex'
+  turnId: string
+}
+
+export interface AlicizationCodexToolLoopReplayResult {
+  canonicalToolCallId: string | null
+  canonicalToolCallIds: string[]
+  continuation: {
+    allowed: boolean
+    completed: boolean
+    started: boolean
+  }
+  learningPolicy: {
+    allowLongTermCondensation: boolean
+    allowPersonaLearning: boolean
+    allowTraining: false
+  }
+  observedToolCallIds: string[]
+  terminalSettlements: Array<{
+    cardId: string
+    status: 'completed' | 'failed'
+    toolCallId: string
+    turnId: string
+  }>
+}
+
+function buildCodexToolLoopResult(
+  input: AlicizationCodexToolLoopReplayFixture,
+) {
+  const thread = {
+    id: input.threadId,
+    selectedChannel: 'codex',
+    sessionId: 'session-codex-tool-loop-replay',
+    status: input.outcome === 'success' ? 'completed' : 'failed',
+  }
+  if (input.outcome === 'success') {
+    return {
+      errorCode: undefined,
+      errorMessage: undefined,
+      finalStatus: 'completed',
+      failureKind: undefined,
+      ok: true,
+      continuationPolicy: 'continue',
+      output: 'Codex completed the deterministic replay.',
+      stage: 'dispatch',
+      summary: 'Codex completed the deterministic replay.',
+      thread,
+    } as Record<string, unknown>
+  }
+
+  return {
+    errorCode: 'CODEX_EXECUTION_FAILED',
+    errorMessage: 'Codex failed the deterministic replay.',
+    finalStatus: 'failed',
+    failureKind: 'tool-execution',
+    ok: false,
+    continuationPolicy: 'stop',
+    output: null,
+    stage: 'dispatch',
+    summary: 'Codex failed the deterministic replay.',
+    thread,
+  } as Record<string, unknown>
+}
+
+export function buildCodexToolLoopReplayFixture(input: {
+  outcome: AlicizationCodexToolLoopReplayOutcome
+  callbackFailure?: boolean
+}): AlicizationCodexToolLoopReplayFixture {
+  const result = buildCodexToolLoopResult({
+    cardId: 'card-codex-tool-loop-replay',
+    events: [],
+    outcome: input.outcome,
+    threadId: 'thread-codex-tool-loop-replay',
+    toolName: 'codex',
+    turnId: `turn-codex-tool-loop-${input.outcome}`,
+  })
+  const base = {
+    arguments: {
+      command: 'printf replay',
+      timeoutMs: 30_000,
+    },
+    cardId: 'card-codex-tool-loop-replay',
+    threadId: 'thread-codex-tool-loop-replay',
+    toolName: 'codex' as const,
+    turnId: `turn-codex-tool-loop-${input.outcome}`,
+  }
+  const events: AlicizationCodexToolLoopReplayEvent[] = [
+    {
+      ...base,
+      kind: 'provider-tool-call-streaming-start',
+      toolCallId: 'provider-tool-call-a',
+    },
+    {
+      ...base,
+      kind: 'provider-tool-call',
+      toolCallId: 'provider-tool-call-b',
+    },
+    {
+      ...base,
+      kind: 'executor-progress',
+      phase: 'started',
+      signal: 'liveness',
+      toolCallId: 'executor-tool-call-c',
+    },
+    {
+      ...base,
+      kind: 'executor-result',
+      result,
+      signal: 'terminal',
+      toolCallId: 'executor-tool-call-c',
+    },
+    {
+      ...base,
+      kind: 'executor-progress',
+      phase: input.outcome === 'success' ? 'completed' : 'failed',
+      signal: 'terminal',
+      toolCallId: 'progress-tool-call-d',
+    },
+    {
+      ...base,
+      kind: 'provider-tool-result',
+      result,
+      toolCallId: 'result-tool-call-e',
+    },
+  ]
+
+  if (input.outcome === 'success') {
+    events.push(
+      {
+        ...base,
+        kind: 'provider-continuation-started',
+        toolCallId: 'result-tool-call-e',
+      },
+      input.callbackFailure
+        ? {
+            ...base,
+            kind: 'provider-callback-failed',
+            result: {
+              errorCode: 'PROVIDER_CONTINUATION_FAILED',
+              errorMessage: 'Provider continuation callback failed after Codex completed.',
+            },
+            signal: 'terminal',
+            toolCallId: 'result-tool-call-e',
+          }
+        : {
+            ...base,
+            kind: 'provider-finished',
+            finishReason: 'stop',
+            toolCallId: 'result-tool-call-e',
+          },
+    )
+  }
+
+  return {
+    ...base,
+    events,
+    outcome: input.outcome,
+  }
+}
+
+export function replayCodexToolLoopFixture(
+  fixture: AlicizationCodexToolLoopReplayFixture,
+): AlicizationCodexToolLoopReplayResult {
+  const toolCallIdentity = createAlicizationMainChatToolCallIdentityRegistry({
+    singleFlightExecutorToolNames: [fixture.toolName],
+  })
+  const observedToolCallIds: string[] = []
+  const canonicalToolCallIds: string[] = []
+  const terminalSettlements: AlicizationCodexToolLoopReplayResult['terminalSettlements'] = []
+  let canonicalToolCallId: string | null = null
+  let continuationStarted = false
+  let continuationCompleted = false
+  let continuationAllowed = fixture.outcome === 'success'
+  let learningPolicy: AlicizationCodexToolLoopReplayResult['learningPolicy'] = {
+    allowLongTermCondensation: true,
+    allowPersonaLearning: true,
+    allowTraining: false,
+  }
+  let lastExecutorResult: Record<string, unknown> | null = null
+
+  const observeIdentity = (providedId: string, resolvedId: string) => {
+    if (!observedToolCallIds.includes(providedId))
+      observedToolCallIds.push(providedId)
+    canonicalToolCallIds.push(resolvedId)
+    canonicalToolCallId ??= resolvedId
+  }
+
+  const settleTerminal = (status: 'completed' | 'failed', toolCallId: string) => {
+    if (terminalSettlements.length > 0)
+      return
+    terminalSettlements.push({
+      cardId: fixture.cardId,
+      status,
+      toolCallId,
+      turnId: fixture.turnId,
+    })
+  }
+
+  for (const event of fixture.events) {
+    let resolvedToolCallId: string
+    if (event.kind === 'provider-tool-call-streaming-start') {
+      resolvedToolCallId = toolCallIdentity.resolveProviderToolCall({
+        arguments: event.arguments,
+        phase: 'streaming-start',
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+      })
+    }
+    else if (event.kind === 'provider-tool-call') {
+      resolvedToolCallId = toolCallIdentity.resolveProviderToolCall({
+        arguments: event.arguments,
+        phase: 'call',
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+      })
+    }
+    else if (event.kind === 'executor-progress') {
+      resolvedToolCallId = toolCallIdentity.resolveProgressToolCall({
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+      })
+    }
+    else if (event.kind === 'executor-result') {
+      resolvedToolCallId = toolCallIdentity.resolveExecutorToolCall({
+        arguments: event.arguments,
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+      })
+      lastExecutorResult = event.result ?? null
+      toolCallIdentity.registerExecutorResult(event.result, resolvedToolCallId)
+      if (event.result?.continuationPolicy === 'stop') {
+        continuationAllowed = false
+        learningPolicy = {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        }
+        settleTerminal('failed', resolvedToolCallId)
+      }
+    }
+    else if (event.kind === 'provider-tool-result') {
+      resolvedToolCallId = toolCallIdentity.resolveToolResult({
+        arguments: event.arguments,
+        result: event.result,
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+      })
+      if (event.result?.continuationPolicy === 'stop') {
+        continuationAllowed = false
+        learningPolicy = {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        }
+        settleTerminal('failed', resolvedToolCallId)
+      }
+    }
+    else if (event.kind === 'provider-continuation-started') {
+      resolvedToolCallId = toolCallIdentity.resolveToolResult({
+        arguments: event.arguments,
+        result: lastExecutorResult,
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+      })
+      if (continuationAllowed) {
+        continuationStarted = true
+      }
+    }
+    else if (event.kind === 'provider-callback-failed') {
+      resolvedToolCallId = toolCallIdentity.resolveToolResult({
+        arguments: event.arguments,
+        result: event.result,
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+      })
+      continuationAllowed = false
+      learningPolicy = {
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      }
+      settleTerminal('failed', resolvedToolCallId)
+    }
+    else {
+      resolvedToolCallId = toolCallIdentity.resolveProgressToolCall({
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+      })
+      if (event.kind === 'provider-finished' && continuationStarted) {
+        continuationCompleted = true
+        settleTerminal('completed', resolvedToolCallId)
+      }
+    }
+
+    observeIdentity(event.toolCallId, resolvedToolCallId)
+  }
+
+  return {
+    canonicalToolCallId,
+    canonicalToolCallIds,
+    continuation: {
+      allowed: continuationAllowed,
+      started: continuationStarted,
+      completed: continuationCompleted,
+    },
+    learningPolicy,
+    observedToolCallIds,
+    terminalSettlements,
+  }
 }
 
 type AlicizationReplayLatencyBudgetClass

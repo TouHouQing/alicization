@@ -92,7 +92,6 @@ import {
   isWeakAlicizationScreenSurfaceCue,
   isWeakAlicizationScreenSurfaceTarget,
   normalizeAlicizationDerivedMindStateBundle,
-  normalizeAlicizationExecutionRuntimeContext,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
 import { app, desktopCapturer, globalShortcut, ipcMain, powerMonitor, systemPreferences, webContents } from 'electron'
@@ -1610,6 +1609,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return null
   }
   const readDesktopInspectionBrowserPageContext = async (input: {
+    abortSignal?: AbortSignal
     focusTarget?: {
       appName?: string
       processName?: string
@@ -1647,14 +1647,24 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
 
     const [interactablesResult, textResult] = await Promise.all([
       localBrowserAutomation.readPage({
+        abortSignal: input.abortSignal,
         browser,
         format: 'interactables',
-      }).catch(() => null),
+      }).catch((error) => {
+        if (input.abortSignal?.aborted || isAbortError(error))
+          throw error
+        return null
+      }),
       localBrowserAutomation.readPage({
+        abortSignal: input.abortSignal,
         browser,
         format: 'text',
         maxChars: 600,
-      }).catch(() => null),
+      }).catch((error) => {
+        if (input.abortSignal?.aborted || isAbortError(error))
+          throw error
+        return null
+      }),
     ])
 
     const interactablesRecord = interactablesResult && typeof interactablesResult === 'object' && !Array.isArray(interactablesResult)
@@ -1713,6 +1723,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const now = Date.now()
 
     try {
+      if (input.abortSignal?.aborted)
+        throw input.abortSignal.reason ?? createAbortError('desktop-inspection-cancelled')
+
       if (input.forceRefresh === true)
         screenSemanticCacheByCard.delete(cardId)
 
@@ -1745,13 +1758,19 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       const screenSemanticSummary = grounding.summary ?? null
       const unavailableReason = grounding.unavailableReason ?? null
       const browserPageContext = await readDesktopInspectionBrowserPageContext({
+        abortSignal: input.abortSignal,
         focusTarget,
         foregroundWindow,
         summary: screenSemanticSummary,
       })
       const interactableResult = await localBrowserAutomation.listDesktopInteractables({
+        abortSignal: input.abortSignal,
         maxItems: 20,
-      }).catch(() => null)
+      }).catch((error) => {
+        if (input.abortSignal?.aborted || isAbortError(error))
+          throw error
+        return null
+      })
       const interactables: AlicizationLocalDesktopInspectionInteractable[] = interactableResult
         && typeof interactableResult === 'object'
         && !Array.isArray(interactableResult)
@@ -1864,15 +1883,21 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       } as const
     }
     catch (error) {
+      const cancelled = input.abortSignal?.aborted || isAbortError(error)
       return {
         channel: 'desktop',
         status: 'failed',
         operation: 'desktop_inspect_scene',
         question: question || null,
         goal,
-        summary: 'Failed to inspect current desktop scene.',
-        errorCode: 'DESKTOP_INSPECT_SCENE_FAILED',
+        summary: cancelled
+          ? 'Desktop inspection was cancelled.'
+          : 'Failed to inspect current desktop scene.',
+        errorCode: cancelled
+          ? 'ALICIZATION_TOOL_ABORTED'
+          : 'DESKTOP_INSPECT_SCENE_FAILED',
         errorMessage: errorMessageFrom(error) ?? 'Unknown desktop inspection error.',
+        ...(cancelled ? { cancelled: true } : {}),
         output: '',
       } as const
     }
@@ -2401,51 +2426,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           desktopOpenApplication: localBrowserAutomation.openApplication,
           desktopWait: localBrowserAutomation.waitForDesktop,
           desktopInspectScene,
-          executeTaskThread: async (localInput) => {
-            const runtimeContext = normalizeAlicizationExecutionRuntimeContext(
-              localInput.dispatch.cli?.runtimeContext
-              ?? localInput.dispatch.codex?.runtimeContext
-              ?? localInput.dispatch.claudeCode?.runtimeContext
-              ?? localInput.dispatch.localVisual?.runtimeContext
-              ?? localInput.dispatch.openclaw?.runtimeContext,
-            )
-            const toolContext = {
-              cardId: scopedCardId,
-              turnId: sanitizeText(localInput.thread.turnId, '').slice(0, 160)
-                || `execution-dispatch:${sanitizeText(localInput.thread.id, '').slice(0, 80) || randomUUID()}`,
-              decisionTraceId: sanitizeText(localInput.thread.decisionTraceId, '').slice(0, 200)
-                || `mind:${Date.now().toString(36)}:local-visual-executor`,
-              sessionId: sanitizeText(localInput.thread.sessionId, '').slice(0, 160) || null,
-            }
-            const nextDispatch = runtimeContext
-              ? applyDispatchRuntimeContext(localInput.dispatch, runtimeContext)
-              : localInput.dispatch
-
-            return await executeMainGatewayTaskThread({
-              context: toolContext,
-              task: localInput.task,
-              dispatch: nextDispatch,
-              abortSignal: localInput.abortSignal,
-              onExecutionEvent: localInput.onExecutionEvent,
-            })
-          },
-          resumeTaskThread: async (localInput) => {
-            const toolContext = {
-              cardId: scopedCardId,
-              turnId: sanitizeText(localInput.thread.turnId, '').slice(0, 160)
-                || `execution-dispatch:${sanitizeText(localInput.thread.id, '').slice(0, 80) || randomUUID()}`,
-              decisionTraceId: sanitizeText(localInput.thread.decisionTraceId, '').slice(0, 200)
-                || `mind:${Date.now().toString(36)}:local-visual-resume`,
-              sessionId: sanitizeText(localInput.thread.sessionId, '').slice(0, 160) || null,
-            }
-
-            return await resumeMainGatewayTaskThread({
-              context: toolContext,
-              threadId: localInput.threadId,
-              abortSignal: localInput.abortSignal,
-              onExecutionEvent: localInput.onExecutionEvent,
-            })
-          },
         },
       },
     })
@@ -6072,7 +6052,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   async function resumeMainGatewayTaskThread(input: {
     context: MainGatewayExecutionToolContext
     dispatchMode?: 'inline' | 'background'
-    expectedChannel?: AlicizationExecutionChannel
+    expectedChannel: AlicizationExecutionChannel
     threadId: string
     abortSignal?: AbortSignal
     onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void

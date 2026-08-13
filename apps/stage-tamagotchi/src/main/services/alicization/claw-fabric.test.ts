@@ -294,6 +294,23 @@ describe('buildClawFabricPlan', () => {
     expect(plan.blockedReasonCodes).not.toContain('requested-channel-mismatch')
   })
 
+  it('does not treat OpenClaw as a shell command channel', () => {
+    const plan = buildClawFabricPlan({
+      task: {
+        kind: 'run-command',
+        goal: 'List the immediate child directories under the local Desktop git folder.',
+        origin: 'user',
+        effect: 'observe',
+        requestedChannel: 'openclaw',
+      },
+      capabilities: createCapabilities(['openclaw']),
+    })
+
+    expect(plan.state).toBe('blocked')
+    expect(plan.selectedChannel).toBeNull()
+    expect(plan.blockedReasonCodes).toContain('unsupported-for-task')
+  })
+
   it('requires affirmation before proactive mutating software control', () => {
     const plan = buildClawFabricPlan({
       task: {

@@ -65,6 +65,7 @@ import type {
 } from './runtime-soul'
 import type { AlicizationSelfEvolutionVersionRuntimeSnapshot } from './self-evolution/version-runtime'
 import type { AlicizationTurnRuntimeContext } from './turn-os/runtime'
+import type { ToolRegistry } from './turn-os/tool-registry'
 import type { AlicizationTurnGraph } from './turn-os/turn-graph'
 import type { AlicizationMainChatReplyAuthoritySurface, AlicizationMainChatReplyExecutionPlanSurface } from './visible-reply/facade'
 
@@ -125,6 +126,7 @@ import {
   sanitizeToolPhaseSegment,
 } from './runtime-turn-composition'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
+import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 
 export interface AlicizationMainChatPerceptionAugmentation {
   messages: Message[]
@@ -187,6 +189,7 @@ export interface AlicizationPreparedMainChatExecutionResult extends PreparedMain
   sessionMirror: AlicizationDialogueSessionMirror | null
   sessionTrace: AlicizationRuntimeCallChainSnapshot
   toolCallIdentity: AlicizationMainChatToolCallIdentityRegistry
+  toolRegistry: ToolRegistry
   turnGraph: AlicizationTurnGraph
 }
 
@@ -1699,6 +1702,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const allowTools = payload.supportsTools !== false
     const waitForTools = allowTools
     const toolChoice = undefined
+    const toolRegistry = createCanonicalToolRegistry()
     const codingAgentDelegation = buildAlicizationCodingAgentDelegationAuthority({
       contextTurnId: payload.turnId,
       decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,
@@ -1772,7 +1776,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       resumeTaskThread: async (nextInput: {
         context: MainGatewayExecutionToolContext
         dispatchMode?: 'inline' | 'background'
-        expectedChannel?: AlicizationExecutionChannel
+        expectedChannel: AlicizationExecutionChannel
         threadId: string
         abortSignal?: AbortSignal
       }) => {
@@ -2202,6 +2206,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       allowTools
         ? agentTurn.trackPhase('tool-registry', async () => await buildMainGatewayTools({
             toolSurface: 'main-chat',
+            toolRegistry,
             codingAgentDelegation,
             context: {
               cardId: payload.cardId,
@@ -2656,6 +2661,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       sessionMirror,
       sessionTrace: agentTurn.snapshot(),
       toolCallIdentity,
+      toolRegistry,
     }
     turnRuntime.settleStage(turnContext, 'learning', {
       outputSummary: [

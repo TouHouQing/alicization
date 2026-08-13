@@ -99,6 +99,7 @@ catalog:
   pinia: ^3.0.4
   playwright: 1.58.2
   posthog-js: 1.306.1
+  smol-toml: ^1.6.0
   splitpanes: ^4.0.4
   sqlite-vec: 0.1.6
   sqlite3: ^5.1.7

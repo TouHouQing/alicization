@@ -8,8 +8,8 @@ interface SyncAlicizationMainChatLlmRouteOptions {
   setProviderCredentials: (value: Record<string, Record<string, unknown>>) => void
   setActiveProviderId: (value: string) => void
   setActiveModelId: (value: string) => void
-  persistLlmConfigToDisk: () => Promise<void> | void
-  resumePendingEmbeddingReindexJobs: () => Promise<unknown> | unknown
+  persistLlmConfigToDisk?: () => Promise<void> | void
+  resumePendingEmbeddingReindexJobs?: () => Promise<unknown> | unknown
 }
 
 export async function syncAlicizationMainChatLlmRoute(
@@ -37,8 +37,11 @@ export async function syncAlicizationMainChatLlmRoute(
   if (nextProviderCredentials !== currentProviderCredentials)
     input.setProviderCredentials(nextProviderCredentials)
 
-  await input.persistLlmConfigToDisk()
-  await input.resumePendingEmbeddingReindexJobs()
+  // Route selection is part of the chat critical path. Disk persistence and
+  // embedding recovery are maintenance work and must not delay the first
+  // Provider request for a user turn.
+  void Promise.resolve(input.persistLlmConfigToDisk?.()).catch(() => {})
+  void Promise.resolve(input.resumePendingEmbeddingReindexJobs?.()).catch(() => {})
 
   return {
     activeProviderId: input.mainGateway.providerId,

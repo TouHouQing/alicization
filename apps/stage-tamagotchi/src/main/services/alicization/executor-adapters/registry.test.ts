@@ -1,8 +1,23 @@
-import type { AlicizationTaskThreadRecord } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationExecutionEventInput,
+  AlicizationTaskThreadRecord,
+} from '@proj-alicization/stage-shared'
 
 import { describe, expect, it, vi } from 'vitest'
 
 import { prepareTaskThreadDispatch } from './registry'
+
+const { executeCodexTaskThreadMock } = vi.hoisted(() => ({
+  executeCodexTaskThreadMock: vi.fn(),
+}))
+
+vi.mock('./codex', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./codex')>()
+  return {
+    ...actual,
+    executeCodexTaskThread: executeCodexTaskThreadMock,
+  }
+})
 
 function createThread(overrides: Partial<AlicizationTaskThreadRecord> = {}): AlicizationTaskThreadRecord {
   return {
@@ -86,6 +101,58 @@ describe('task-thread dispatch adapter registry', () => {
     expect(result.ok).toBe(true)
     expect(result.finalStatus).toBe('completed')
     expect(result.summary).toContain('registry ok')
+  })
+
+  it('forwards live execution events into the Codex adapter runtime', async () => {
+    const liveEvent: AlicizationExecutionEventInput = {
+      threadId: 'thread-registry-1',
+      kind: 'step',
+      channel: 'codex',
+      threadStatus: 'running',
+      payload: {
+        codexEventType: 'item.started',
+        semanticProgress: true,
+      },
+      createdAt: 120,
+    }
+    executeCodexTaskThreadMock.mockImplementationOnce(async (input) => {
+      await input.onExecutionEvent?.(liveEvent)
+      return {
+        ok: true,
+        finalStatus: 'completed',
+        summary: 'codex registry live progress ok',
+        output: 'done',
+        events: [liveEvent],
+      }
+    })
+    const onExecutionEvent = vi.fn(async () => {})
+    const prepared = prepareTaskThreadDispatch({
+      thread: createThread({
+        selectedChannel: 'codex',
+        proposedChannel: 'codex',
+        kind: 'codebase-investigation',
+      }),
+      dispatchInput: {
+        codex: {
+          prompt: 'Inspect the current repository.',
+        },
+      },
+    })
+
+    expect(prepared.ok).toBe(true)
+    if (!prepared.ok)
+      return
+
+    const result = await prepared.run({
+      onExecutionEvent,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result.ok).toBe(true)
+    expect(onExecutionEvent).toHaveBeenCalledWith(liveEvent)
+    expect(executeCodexTaskThreadMock).toHaveBeenCalledWith(expect.objectContaining({
+      onExecutionEvent,
+    }))
   })
 
   it('prepares executable dispatch and routes openclaw instructions', async () => {

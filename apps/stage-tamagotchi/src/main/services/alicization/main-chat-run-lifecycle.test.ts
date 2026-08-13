@@ -224,7 +224,7 @@ describe('main chat run lifecycle', () => {
         kind: 'tool-execution',
         toolExecution: expect.objectContaining({
           code: 'CODEX_TIMEOUT',
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
         }),
       }),
     }))
@@ -441,7 +441,7 @@ describe('main chat run lifecycle', () => {
       failureSurface: expect.objectContaining({
         kind: 'tool-execution',
         toolExecution: expect.objectContaining({
-          toolName: 'executor_run_codex',
+          toolName: 'codex',
           code: 'RUNTIME_CALL_CIRCULAR',
         }),
       }),

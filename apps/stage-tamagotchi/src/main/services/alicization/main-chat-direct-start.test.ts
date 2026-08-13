@@ -48,6 +48,7 @@ describe('main chat direct start', () => {
     expect(result).toEqual(createChatStartResult())
     expect(input.withCardScope).toHaveBeenCalledWith('default', expect.any(Function), {
       label: 'chat-start:default',
+      lane: 'foreground',
       skipQueueWhenScopeAlreadyActive: true,
     })
     expect(input.startMainChatStream).toHaveBeenCalledWith({

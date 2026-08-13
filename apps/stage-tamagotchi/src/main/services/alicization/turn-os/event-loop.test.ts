@@ -135,6 +135,62 @@ function modelReply(visibleText: string, fullText = visibleText) {
 }
 
 describe('alicization event loop', () => {
+  it('persists canonical capability identity separately from the Provider tool alias', async () => {
+    const persistence = createPersistence()
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => ({
+          kind: 'action' as const,
+          action: {
+            actionId: 'action-codex',
+            toolCallId: 'tool-call-codex',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
+            input: {
+              prompt: 'inspect the repository',
+            },
+          },
+        })),
+        executeAction: vi.fn(async action => ({
+          actionId: action.actionId,
+          observationId: `${action.actionId}:observation`,
+          toolCallId: action.toolCallId,
+          terminal: true,
+          outcome: 'success' as const,
+          output: { status: 'completed' },
+        })),
+        settleReply: vi.fn(),
+      },
+      maxSteps: 1,
+    })
+
+    await eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-canonical-tool-identity' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+
+    const proposed = persistence.events.find(event =>
+      event.eventType === 'model.tool_call.proposed',
+    )
+    const started = persistence.events.find(event =>
+      event.eventType === 'action.started',
+    )
+
+    expect(proposed?.payload).toMatchObject({
+      capabilityId: 'coding_agent.codex',
+      providerToolName: 'codex',
+    })
+    expect(started?.payload).toMatchObject({
+      capabilityId: 'coding_agent.codex',
+      providerToolName: 'codex',
+    })
+    expect(proposed?.payload).not.toHaveProperty('qualifiedToolName')
+    expect(started?.payload).not.toHaveProperty('qualifiedToolName')
+  })
+
   it('commits and returns the complete Provider reply artifact', async () => {
     const persistence = createPersistence()
     const artifact = createAlicizationRuntimeReplyArtifact({
@@ -569,7 +625,8 @@ describe('alicization event loop', () => {
         action: {
           actionId: 'action-1',
           toolCallId: 'tool-call-1',
-          qualifiedToolName: 'coding_agent.codex',
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'codex',
           input: { prompt: 'inspect the workspace' },
         },
       },
@@ -680,7 +737,8 @@ describe('alicization event loop', () => {
         action: {
           actionId: 'action-isolated',
           toolCallId: 'tool-call-isolated',
-          qualifiedToolName: 'coding_agent.codex',
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'codex',
           input: {},
         },
       },
@@ -920,7 +978,8 @@ describe('alicization event loop', () => {
           action: {
             actionId: 'action-tool-failure',
             toolCallId: 'tool-call-failure',
-            qualifiedToolName: 'coding_agent.codex',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
             input: {},
           },
         })),
@@ -1001,7 +1060,8 @@ describe('alicization event loop', () => {
           action: {
             actionId: 'action-observation-append-failure',
             toolCallId: 'tool-call-observation-append-failure',
-            qualifiedToolName: 'coding_agent.codex',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
             input: {},
           },
         })),
@@ -1058,7 +1118,8 @@ describe('alicization event loop', () => {
           action: {
             actionId: 'action-observation-checkpoint-failure',
             toolCallId: 'tool-call-observation-checkpoint-failure',
-            qualifiedToolName: 'coding_agent.codex',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
             input: {},
           },
         })),
@@ -1098,7 +1159,8 @@ describe('alicization event loop', () => {
         action: {
           actionId: 'action-first-class-settlement',
           toolCallId: 'tool-call-first-class-settlement',
-          qualifiedToolName: 'coding_agent.codex',
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'codex',
           input: {},
         },
       })
@@ -1149,7 +1211,7 @@ describe('alicization event loop', () => {
     expect(result.state.pendingActionSettlements).toEqual({})
     expect(persistence.events.some(event =>
       event.eventType === 'action.started'
-      && (event.payload as { qualifiedToolName?: string }).qualifiedToolName
+      && (event.payload as { capabilityId?: string }).capabilityId
       === 'runtime.settlement-barrier',
     )).toBe(false)
   })
@@ -1177,7 +1239,8 @@ describe('alicization event loop', () => {
         action: {
           actionId: 'action-barrier-append-failure',
           toolCallId: 'tool-call-barrier-append-failure',
-          qualifiedToolName: 'coding_agent.codex',
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'codex',
           input: {},
         },
       })
@@ -1259,7 +1322,8 @@ describe('alicization event loop', () => {
           action: {
             actionId: 'action-observation-checkpoint-race',
             toolCallId: 'tool-call-observation-checkpoint-race',
-            qualifiedToolName: 'coding_agent.codex',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
             input: {},
           },
         })),
@@ -1368,7 +1432,8 @@ describe('alicization event loop', () => {
         action: {
           actionId: occupiedLegacyId,
           toolCallId: 'tool-call-occupied-legacy-id',
-          qualifiedToolName: 'coding_agent.codex',
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'codex',
           input: {},
         },
       },
@@ -1377,7 +1442,8 @@ describe('alicization event loop', () => {
         action: {
           actionId: targetActionId,
           toolCallId: 'tool-call-barrier-collision-target',
-          qualifiedToolName: 'coding_agent.codex',
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'codex',
           input: {},
         },
       },
@@ -1447,7 +1513,8 @@ describe('alicization event loop', () => {
         action: {
           actionId: 'action-barrier-success',
           toolCallId: 'tool-call-barrier-success',
-          qualifiedToolName: 'coding_agent.codex',
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'codex',
           input: {},
         },
       })
@@ -1958,7 +2025,8 @@ describe('alicization event loop', () => {
         action: {
           actionId: 'action-live-drift',
           toolCallId: 'tool-call-expected',
-          qualifiedToolName: 'coding_agent.codex',
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'codex',
           input: {},
         },
       })
@@ -2062,7 +2130,8 @@ describe('alicization event loop', () => {
           action: {
             actionId: 'action-cancel',
             toolCallId: 'tool-call-cancel',
-            qualifiedToolName: 'coding_agent.codex',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
             input: {},
           },
         })),
@@ -2148,7 +2217,8 @@ describe('alicization event loop', () => {
           action: {
             actionId: 'action-cancel-durability',
             toolCallId: 'tool-call-cancel-durability',
-            qualifiedToolName: 'coding_agent.codex',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
             input: {},
           },
         })),
@@ -2200,7 +2270,8 @@ describe('alicization event loop', () => {
           action: {
             actionId: 'action-cancel-failure',
             toolCallId: 'tool-call-cancel-failure',
-            qualifiedToolName: 'coding_agent.codex',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
             input: {},
           },
         })),
@@ -2261,7 +2332,8 @@ describe('alicization event loop', () => {
           action: {
             actionId: 'action-before-side-effect',
             toolCallId: 'tool-call-before-side-effect',
-            qualifiedToolName: 'coding_agent.codex',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
             input: {},
           },
         })),
@@ -2317,7 +2389,8 @@ describe('alicization event loop', () => {
             action: {
               actionId: 'action-observation-race',
               toolCallId: 'tool-call-observation-race',
-              qualifiedToolName: 'coding_agent.codex',
+              capabilityId: 'coding_agent.codex',
+              providerToolName: 'codex',
               input: {},
             },
           })
@@ -2396,7 +2469,8 @@ describe('alicization event loop', () => {
           action: {
             actionId: 'action-internal-external-race',
             toolCallId: 'tool-call-internal-external-race',
-            qualifiedToolName: 'coding_agent.codex',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
             input: {},
           },
         })),
@@ -2469,7 +2543,8 @@ describe('alicization event loop', () => {
           action: {
             actionId: 'action-external-internal-race',
             toolCallId: 'tool-call-external-internal-race',
-            qualifiedToolName: 'coding_agent.codex',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
             input: {},
           },
         })),
@@ -2551,7 +2626,8 @@ describe('alicization event loop', () => {
             action: {
               actionId: `action-${order}`,
               toolCallId: `tool-call-${order}`,
-              qualifiedToolName: 'coding_agent.codex',
+              capabilityId: 'coding_agent.codex',
+              providerToolName: 'codex',
               input: {},
             },
           })),
@@ -2665,7 +2741,8 @@ describe('alicization event loop', () => {
         action: {
           actionId: 'action-external-abort-race',
           toolCallId: 'tool-call-external-abort-race',
-          qualifiedToolName: 'coding_agent.codex',
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'codex',
           input: {},
         },
       })
@@ -2758,7 +2835,8 @@ describe('alicization event loop', () => {
           action: {
             actionId: 'action-observation-persistence-failure',
             toolCallId: 'tool-call-observation-persistence-failure',
-            qualifiedToolName: 'coding_agent.codex',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
             input: {},
           },
         })),

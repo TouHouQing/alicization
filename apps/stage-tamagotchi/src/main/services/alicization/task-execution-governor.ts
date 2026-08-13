@@ -43,6 +43,11 @@ export interface AlicizationGovernedTaskThreadPlanningResult extends Alicization
   governor: AlicizationTaskExecutionGovernorSnapshot
 }
 
+export interface AlicizationTaskExecutionGovernorPlanningInput extends AlicizationTaskThreadPlanningInput {
+  canonicalToolCallId?: string | null
+  toolCallId?: string | null
+}
+
 interface AlicizationTaskExecutionGovernorOptions {
   dedupeWindowMs?: number
   getNow?: () => number
@@ -125,6 +130,40 @@ function asExecutionChannelArray(raw: unknown) {
         .map(value => sanitizeText(value, 120))
         .filter((value): value is AlicizationExecutionChannel => executionChannelSet.has(value as AlicizationExecutionChannel))
     : []
+}
+
+function readCanonicalToolCallId(raw: unknown) {
+  const record = asRecord(raw)
+  const metadata = asRecord(record?.metadata)
+  const task = asRecord(metadata?.task)
+  const governor = asRecord(metadata?.governor)
+  const trace = asRecord(record?.trace)
+  return sanitizeText(
+    record?.canonicalToolCallId
+    ?? record?.toolCallId
+    ?? trace?.canonicalToolCallId
+    ?? trace?.toolCallId
+    ?? metadata?.canonicalToolCallId
+    ?? metadata?.toolCallId
+    ?? task?.canonicalToolCallId
+    ?? task?.toolCallId
+    ?? governor?.canonicalToolCallId
+    ?? governor?.toolCallId,
+    160,
+  ) || null
+}
+
+function buildThreadInvocationIdentity(input: {
+  canonicalToolCallId?: string | null
+  thread: Pick<AlicizationTaskThreadUpsertInput, 'id' | 'metadata'>
+}) {
+  const canonicalToolCallId = sanitizeText(
+    input.canonicalToolCallId ?? readCanonicalToolCallId(input.thread),
+    160,
+  )
+  if (canonicalToolCallId)
+    return `tool-call:${canonicalToolCallId}`
+  return `task-thread:${sanitizeText(input.thread.id, 160)}`
 }
 
 function resolveThreadChannel(
@@ -301,6 +340,7 @@ function buildPlanFromTaskThread(
 
 function buildGovernorMetadata(input: {
   activeThreadIds: string[]
+  canonicalToolCallId?: string | null
   disposition: AlicizationTaskExecutionGovernorSnapshot['disposition']
   duplicateThreadId?: string | null
   duplicateStatus?: AlicizationTaskThreadStatus | null
@@ -315,6 +355,10 @@ function buildGovernorMetadata(input: {
     ...existingMetadata,
     governor: {
       ...existingGovernor,
+      canonicalToolCallId: sanitizeText(
+        input.canonicalToolCallId ?? existingGovernor.canonicalToolCallId,
+        160,
+      ) || null,
       disposition: input.disposition,
       reasonCodes: uniqueStrings([
         ...asStringArray(existingGovernor.reasonCodes),
@@ -341,6 +385,7 @@ function buildGovernorMetadata(input: {
 
 function applyGovernorMetadataToDraft(input: {
   activeThreadIds: string[]
+  canonicalToolCallId?: string | null
   disposition: AlicizationTaskExecutionGovernorSnapshot['disposition']
   duplicateThreadId?: string | null
   duplicateStatus?: AlicizationTaskThreadStatus | null
@@ -354,6 +399,7 @@ function applyGovernorMetadataToDraft(input: {
       ...input.draft.thread,
       metadata: buildGovernorMetadata({
         activeThreadIds: input.activeThreadIds,
+        canonicalToolCallId: input.canonicalToolCallId,
         disposition: input.disposition,
         duplicateThreadId: input.duplicateThreadId,
         duplicateStatus: input.duplicateStatus,
@@ -367,6 +413,7 @@ function applyGovernorMetadataToDraft(input: {
 
 function applyBudgetBlockToDraft(input: {
   activeThreadIds: string[]
+  canonicalToolCallId?: string | null
   decision: AlicizationTaskThreadBudgetDecision
   draft: AlicizationTaskThreadPlanningDraft
 }) {
@@ -380,6 +427,7 @@ function applyBudgetBlockToDraft(input: {
   ])
   const draftWithGovernor = applyGovernorMetadataToDraft({
     activeThreadIds: input.activeThreadIds,
+    canonicalToolCallId: input.canonicalToolCallId,
     disposition: 'budget-blocked',
     draft: input.draft,
     reasonCodes: input.decision.reasonCodes,
@@ -451,6 +499,7 @@ function applyBudgetBlockToDraft(input: {
 }
 
 function matchDuplicateThread(input: {
+  canonicalToolCallId: string | null
   dedupeWindowMs: number
   draft: AlicizationTaskThreadPlanningDraft
   now: number
@@ -465,6 +514,15 @@ function matchDuplicateThread(input: {
       continue
     if (input.now - readTaskThreadActivityAt(thread) > input.dedupeWindowMs)
       continue
+    const existingCanonicalToolCallId = readCanonicalToolCallId(thread)
+    if (input.canonicalToolCallId || existingCanonicalToolCallId) {
+      if (input.canonicalToolCallId !== existingCanonicalToolCallId)
+        continue
+      return {
+        thread,
+        reasonCodes: ['duplicate-active-thread'],
+      }
+    }
     if (buildThreadGoalSignature(thread) !== signature)
       continue
 
@@ -479,6 +537,7 @@ function matchDuplicateThread(input: {
 
 function evaluateSessionBudget(input: {
   activeThreads: AlicizationTaskThreadRecord[]
+  canonicalToolCallId: string | null
   draft: AlicizationTaskThreadPlanningDraft
   maxActiveThreadsPerSession: number
   maxRunningThreadsPerSession: number
@@ -490,7 +549,17 @@ function evaluateSessionBudget(input: {
   if (activeThreads.length === 0)
     return null
 
-  const runningThreads = activeThreads.filter(thread => thread.status === 'running')
+  const draftInvocationIdentity = buildThreadInvocationIdentity({
+    canonicalToolCallId: input.canonicalToolCallId,
+    thread: input.draft.thread,
+  })
+  const runningThreads = activeThreads.filter((thread) => {
+    if (thread.status !== 'running' || thread.id === input.draft.thread.id)
+      return false
+    if (!input.canonicalToolCallId)
+      return true
+    return buildThreadInvocationIdentity({ thread }) === draftInvocationIdentity
+  })
   if (runningThreads.length >= input.maxRunningThreadsPerSession) {
     return {
       activeThreadIds: runningThreads.map(thread => thread.id),
@@ -568,7 +637,7 @@ export function createTaskExecutionGovernor(options: AlicizationTaskExecutionGov
 
   async function plan(
     port: AlicizationTaskExecutionGovernorPort,
-    input: AlicizationTaskThreadPlanningInput,
+    input: AlicizationTaskExecutionGovernorPlanningInput,
   ): Promise<AlicizationGovernedTaskThreadPlanningResult> {
     const now = Number.isFinite(input.now)
       ? Math.max(0, Math.floor(Number(input.now)))
@@ -611,8 +680,10 @@ export function createTaskExecutionGovernor(options: AlicizationTaskExecutionGov
       now,
       experience,
     })
+    const canonicalToolCallId = readCanonicalToolCallId(input)
 
     const duplicateMatch = matchDuplicateThread({
+      canonicalToolCallId,
       draft,
       dedupeWindowMs,
       now,
@@ -634,6 +705,7 @@ export function createTaskExecutionGovernor(options: AlicizationTaskExecutionGov
 
     const budgetDecision = evaluateSessionBudget({
       activeThreads: comparableThreads,
+      canonicalToolCallId,
       draft,
       maxActiveThreadsPerSession,
       maxRunningThreadsPerSession,
@@ -642,6 +714,7 @@ export function createTaskExecutionGovernor(options: AlicizationTaskExecutionGov
     const draftAfterBudget = budgetDecision
       ? applyBudgetBlockToDraft({
           activeThreadIds,
+          canonicalToolCallId,
           decision: budgetDecision,
           draft,
         })
@@ -649,6 +722,7 @@ export function createTaskExecutionGovernor(options: AlicizationTaskExecutionGov
     const sessionResumeHint = await resolveSessionResumeHint(port, draftAfterBudget)
     const finalDraft = applyGovernorMetadataToDraft({
       activeThreadIds,
+      canonicalToolCallId,
       disposition: budgetDecision ? 'budget-blocked' : 'planned',
       draft: draftAfterBudget,
       reasonCodes: budgetDecision?.reasonCodes ?? [],

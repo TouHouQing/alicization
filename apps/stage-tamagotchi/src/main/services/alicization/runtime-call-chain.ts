@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
+
 import { errorMessageFrom } from '@moeru/std'
 
 export interface AlicizationRuntimeCallFrameSnapshot {
@@ -66,7 +68,7 @@ function normalizeMetadata(raw?: Record<string, unknown>) {
 export function createAlicizationRuntimeCallChain(options: AlicizationRuntimeCallChainOptions = {}) {
   const getNow = options.getNow ?? Date.now
   const maxDepth = Math.max(1, Math.floor(options.maxDepth ?? 12))
-  const stack: string[] = []
+  const callChainStorage = new AsyncLocalStorage<string[]>()
   const history: AlicizationRuntimeCallFrameSnapshot[] = []
   const phaseOrder: string[] = []
 
@@ -79,55 +81,56 @@ export function createAlicizationRuntimeCallChain(options: AlicizationRuntimeCal
     if (!callId)
       return await task()
 
-    if (stack.includes(callId))
-      throw new AlicizationRuntimeCircularCallError(callId, stack)
-    if (stack.length >= maxDepth)
-      throw new AlicizationRuntimeCallChainTooDeepError(callId, stack, maxDepth)
+    const parentChain = callChainStorage.getStore() ?? []
+    if (parentChain.includes(callId))
+      throw new AlicizationRuntimeCircularCallError(callId, parentChain)
+    if (parentChain.length >= maxDepth)
+      throw new AlicizationRuntimeCallChainTooDeepError(callId, parentChain, maxDepth)
 
     const startedAt = getNow()
-    const depth = stack.length
+    const depth = parentChain.length
     if (!phaseOrder.includes(callId))
       phaseOrder.push(callId)
-    stack.push(callId)
+    const currentChain = [...parentChain, callId]
 
-    try {
-      const value = await task()
-      const finishedAt = getNow()
-      history.push({
-        callId,
-        depth,
-        startedAt,
-        finishedAt,
-        durationMs: Math.max(0, finishedAt - startedAt),
-        status: 'completed',
-        metadata: normalizeMetadata(metadata),
-        errorMessage: null,
-      })
-      return value
-    }
-    catch (error) {
-      const finishedAt = getNow()
-      history.push({
-        callId,
-        depth,
-        startedAt,
-        finishedAt,
-        durationMs: Math.max(0, finishedAt - startedAt),
-        status: 'failed',
-        metadata: normalizeMetadata(metadata),
-        errorMessage: errorMessageFrom(error) ?? 'unknown-runtime-call-error',
-      })
-      throw error
-    }
-    finally {
-      stack.pop()
-    }
+    return await callChainStorage.run(currentChain, async () => {
+      try {
+        const value = await task()
+        const finishedAt = getNow()
+        history.push({
+          callId,
+          depth,
+          startedAt,
+          finishedAt,
+          durationMs: Math.max(0, finishedAt - startedAt),
+          status: 'completed',
+          metadata: normalizeMetadata(metadata),
+          errorMessage: null,
+        })
+        return value
+      }
+      catch (error) {
+        const finishedAt = getNow()
+        history.push({
+          callId,
+          depth,
+          startedAt,
+          finishedAt,
+          durationMs: Math.max(0, finishedAt - startedAt),
+          status: 'failed',
+          metadata: normalizeMetadata(metadata),
+          errorMessage: errorMessageFrom(error) ?? 'unknown-runtime-call-error',
+        })
+        throw error
+      }
+    })
   }
 
   function snapshot(): AlicizationRuntimeCallChainSnapshot {
+    const currentChain = callChainStorage.getStore() ?? []
     return {
-      currentChain: [...stack],
-      currentDepth: stack.length,
+      currentChain: [...currentChain],
+      currentDepth: currentChain.length,
       history: history.map(frame => ({
         ...frame,
         metadata: frame.metadata ? { ...frame.metadata } : null,

@@ -1,9 +1,4 @@
 import type {
-  AlicizationClaudeCodeCommandInput,
-  AlicizationClawTaskIntent,
-  AlicizationCliCommandInput,
-  AlicizationCodexCommandInput,
-  AlicizationDispatchTaskThreadInput,
   AlicizationExecutionEventInput,
   AlicizationLocalVisualCommandInput,
   AlicizationTaskThreadRecord,
@@ -47,34 +42,6 @@ type LocalVisualToolName
     | 'desktop_press_keys'
     | 'desktop_open_application'
     | 'desktop_wait'
-    | 'executor_run_cli'
-    | 'executor_run_codex'
-    | 'executor_run_claude_code'
-
-type LocalVisualExecutorToolName
-  = | 'executor_run_cli'
-    | 'executor_run_codex'
-    | 'executor_run_claude_code'
-
-interface AlicizationLocalVisualToolContext {
-  cardId: string
-  decisionTraceId?: string | null
-  sessionId?: string | null
-  turnId: string
-}
-
-interface AlicizationLocalVisualExecuteTaskThreadInput {
-  context: AlicizationLocalVisualToolContext
-  thread: AlicizationTaskThreadRecord
-  task: AlicizationClawTaskIntent
-  dispatch: Pick<AlicizationDispatchTaskThreadInput, 'claudeCode' | 'cli' | 'codex' | 'localVisual' | 'openclaw'>
-}
-
-interface AlicizationLocalVisualResumeTaskThreadInput {
-  context: AlicizationLocalVisualToolContext
-  thread: AlicizationTaskThreadRecord
-  threadId: string
-}
 
 export interface AlicizationLocalVisualDispatchSurface {
   desktopInspectScene?: (input: AlicizationLocalDesktopInspectSceneInput) => Promise<unknown>
@@ -92,8 +59,6 @@ export interface AlicizationLocalVisualDispatchSurface {
   desktopPressKeys?: (input: AlicizationLocalDesktopPressKeysInput) => Promise<unknown>
   desktopOpenApplication?: (input: AlicizationLocalDesktopOpenApplicationInput) => Promise<unknown>
   desktopWait?: (input: AlicizationLocalDesktopWaitInput) => Promise<unknown>
-  executeTaskThread?: (input: AlicizationLocalVisualExecuteTaskThreadInput) => Promise<unknown>
-  resumeTaskThread?: (input: AlicizationLocalVisualResumeTaskThreadInput) => Promise<unknown>
 }
 
 export interface AlicizationLocalVisualAdapterInput {
@@ -111,6 +76,7 @@ export interface AlicizationLocalVisualAdapterResult {
   output: string | null
   errorCode?: string
   errorMessage?: string
+  sideEffectState?: 'unknown'
   finalStatus: AlicizationTaskThreadStatus
   events: AlicizationExecutionEventInput[]
 }
@@ -137,16 +103,108 @@ const supportedToolNames = new Set<LocalVisualToolName>([
   'desktop_press_keys',
   'desktop_open_application',
   'desktop_wait',
-  'executor_run_cli',
-  'executor_run_codex',
-  'executor_run_claude_code',
 ])
 
-const executorToolNames = new Set<LocalVisualExecutorToolName>([
-  'executor_run_cli',
-  'executor_run_codex',
-  'executor_run_claude_code',
+const mutatingLocalVisualToolNames = new Set<LocalVisualToolName>([
+  'browser_open_url',
+  'browser_search_web',
+  'browser_click_element',
+  'browser_type_text',
+  'browser_navigate',
+  'desktop_click_element',
+  'desktop_type_text',
+  'desktop_press_keys',
+  'desktop_open_application',
 ])
+
+const deferredCodingAgentToolName = 'coding_agent'
+const legacyCodingAgentNames = new Map<string, 'cli' | 'codex' | 'claude-code' | null>([
+  ['executor_run_codex', 'codex'],
+  ['executor_run_claude_code', 'claude-code'],
+  ['executor_run_cli', 'cli'],
+  ['executor_run_coding_agent', null],
+])
+const deferredCodingAgentToolNames = new Set([
+  deferredCodingAgentToolName,
+  ...legacyCodingAgentNames.keys(),
+])
+
+class LocalVisualAbortError extends Error {
+  readonly sideEffectState?: 'unknown'
+
+  constructor(
+    message = 'Local visual host execution was cancelled.',
+    sideEffectState?: 'unknown',
+  ) {
+    super(message)
+    this.name = 'AbortError'
+    this.sideEffectState = sideEffectState
+  }
+}
+
+function isAbortLikeError(error: unknown) {
+  if (error instanceof LocalVisualAbortError)
+    return true
+  if (!error || typeof error !== 'object')
+    return false
+
+  const record = error as Record<string, unknown>
+  return record.name === 'AbortError'
+    || record.code === 'ABORT_ERR'
+    || record.code === 'ERR_ABORTED'
+}
+
+function errorMessageFromLocalVisualHost(error: unknown) {
+  if (error instanceof Error && error.message.trim())
+    return error.message.trim()
+  if (error && typeof error === 'object') {
+    const message = (error as Record<string, unknown>).message
+    if (typeof message === 'string' && message.trim())
+      return message.trim()
+  }
+  return 'Local visual host execution failed.'
+}
+
+async function invokeLocalVisualHost<T>(input: {
+  abortSignal?: AbortSignal
+  invoke: () => Promise<T>
+  mutation?: boolean
+  operation: string
+}): Promise<T | Record<string, unknown>> {
+  if (input.abortSignal?.aborted)
+    throw new LocalVisualAbortError()
+
+  try {
+    const value = await input.invoke()
+    if (input.abortSignal?.aborted) {
+      throw new LocalVisualAbortError(
+        undefined,
+        input.mutation ? 'unknown' : undefined,
+      )
+    }
+    return value
+  }
+  catch (error) {
+    if (input.abortSignal?.aborted || isAbortLikeError(error)) {
+      throw new LocalVisualAbortError(
+        errorMessageFromLocalVisualHost(error),
+        error instanceof LocalVisualAbortError
+          ? error.sideEffectState
+          : undefined,
+      )
+    }
+
+    const errorMessage = errorMessageFromLocalVisualHost(error)
+    return {
+      status: 'failed',
+      operation: input.operation,
+      errorCode: 'LOCAL_VISUAL_HOST_FAILED',
+      errorMessage,
+      output: errorMessage,
+      ...(input.mutation ? { sideEffectState: 'unknown' } : {}),
+    }
+  }
+}
 
 const browserLikePagePhases = new Set([
   'login',
@@ -223,10 +281,140 @@ function normalizeAutoContinueStepCount(raw: unknown) {
   return Math.max(1, Math.min(3, Math.floor(raw)))
 }
 
+const localVisualOpaqueTextKeys = new Set([
+  'command',
+  'code',
+  'filePath',
+  'path',
+  'script',
+  'source',
+  'url',
+])
+
+function isWordCharacter(value: string | undefined) {
+  return Boolean(value && /\w/u.test(value))
+}
+
+function normalizeStandaloneCapabilityTokens(raw: string) {
+  const legacyNames = [...legacyCodingAgentNames.keys()]
+    .sort((left, right) => right.length - left.length)
+  let normalized = ''
+  let cursor = 0
+  let insideInlineCode = false
+
+  while (cursor < raw.length) {
+    const character = raw[cursor]
+    if (character === '`') {
+      insideInlineCode = !insideInlineCode
+      normalized += character
+      cursor += 1
+      continue
+    }
+
+    if (insideInlineCode) {
+      normalized += character
+      cursor += 1
+      continue
+    }
+
+    const match = legacyNames.find(name => raw.startsWith(name, cursor))
+    if (!match) {
+      normalized += character
+      cursor += 1
+      continue
+    }
+
+    const previous = raw[cursor - 1]
+    const next = raw[cursor + match.length]
+    const isStandalone = !isWordCharacter(previous) && !isWordCharacter(next)
+    const isPathSegment = previous === '/' || previous === '\\' || next === '/' || next === '\\'
+    if (isStandalone && !isPathSegment) {
+      normalized += deferredCodingAgentToolName
+      cursor += match.length
+      continue
+    }
+
+    normalized += match
+    cursor += match.length
+  }
+
+  return normalized
+}
+
+export function normalizeLocalVisualCrossLayerValue(
+  raw: unknown,
+  memo = new WeakMap<object, unknown>(),
+  opaqueText = false,
+): unknown {
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(raw)
+        return JSON.stringify(normalizeLocalVisualCrossLayerValue(parsed, new WeakMap()))
+      }
+      catch {
+        // Fall through to exact legacy token projection for non-JSON text.
+      }
+    }
+    return opaqueText ? raw : normalizeStandaloneCapabilityTokens(raw)
+  }
+
+  if (Array.isArray(raw)) {
+    const existing = memo.get(raw)
+    if (existing)
+      return existing
+
+    const normalized: unknown[] = []
+    memo.set(raw, normalized)
+    for (const value of raw)
+      normalized.push(normalizeLocalVisualCrossLayerValue(value, memo))
+    return normalized
+  }
+
+  const record = asRecord(raw)
+  if (!record)
+    return raw
+
+  const existing = memo.get(record)
+  if (existing)
+    return existing
+
+  const normalized: Record<string, unknown> = {}
+  memo.set(record, normalized)
+  const originalToolName = sanitizeText(record.toolName, 80)
+
+  for (const [key, value] of Object.entries(record)) {
+    if (key === 'toolName' && legacyCodingAgentNames.has(originalToolName)) {
+      normalized[key] = deferredCodingAgentToolName
+      continue
+    }
+    normalized[key] = normalizeLocalVisualCrossLayerValue(
+      value,
+      memo,
+      typeof value === 'string' && localVisualOpaqueTextKeys.has(key),
+    )
+  }
+
+  if (legacyCodingAgentNames.has(originalToolName)) {
+    const agent = legacyCodingAgentNames.get(originalToolName)
+    const argumentsRecord = asRecord(normalized.arguments)
+    if (argumentsRecord) {
+      if (agent)
+        argumentsRecord.agent = agent
+    }
+    else {
+      normalized.arguments = agent ? { agent } : {}
+    }
+  }
+
+  return normalized
+}
+
 function extractSuggestedActionRecords(raw: unknown) {
   return Array.isArray(raw)
     ? raw
-        .map(value => asRecord(value))
+        .map(value => asRecord(normalizeLocalVisualCrossLayerValue(value)))
         .filter((value): value is Record<string, unknown> => Boolean(value))
     : []
 }
@@ -415,236 +603,10 @@ function isHighImpactAutoContinuationAction(action: Record<string, unknown>) {
 }
 
 function normalizeLocalToolResult(raw: unknown, operation: string) {
-  return asRecord(raw) ?? {
+  return asRecord(normalizeLocalVisualCrossLayerValue(raw)) ?? {
     status: 'completed',
     operation,
-    result: raw,
-  }
-}
-
-function normalizeExecutorTimeoutMs(raw: unknown) {
-  if (typeof raw !== 'number' || !Number.isFinite(raw))
-    return undefined
-  return raw
-}
-
-function sanitizeCommandArgs(raw: unknown) {
-  return Array.isArray(raw)
-    ? raw.map(value => sanitizeText(value, 200)).filter(Boolean)
-    : []
-}
-
-function normalizeCodeTaskKind(raw: unknown) {
-  const normalized = sanitizeText(raw, 80)
-  return normalized === 'codebase-investigation'
-    ? 'codebase-investigation'
-    : 'codebase-edit'
-}
-
-function normalizeTaskEffect(raw: unknown, fallback: AlicizationTaskEffect): AlicizationTaskEffect {
-  return raw === 'observe' || raw === 'mutate' || raw === 'high-impact'
-    ? raw
-    : fallback
-}
-
-function normalizeTaskPermissionMode(raw: unknown) {
-  return raw === 'none' || raw === 'implicit' || raw === 'explicit'
-    ? raw
-    : 'implicit'
-}
-
-function normalizeCodexSandbox(raw: unknown) {
-  return raw === 'read-only' || raw === 'workspace-write'
-    ? raw
-    : undefined
-}
-
-function normalizeClaudePermissionMode(raw: unknown): AlicizationClaudeCodeCommandInput['permissionMode'] {
-  return raw === 'default'
-    || raw === 'acceptEdits'
-    || raw === 'bypassPermissions'
-    || raw === 'delegate'
-    || raw === 'dontAsk'
-    || raw === 'plan'
-    ? raw
-    : undefined
-}
-
-function toLocalVisualExecutorToolResult(raw: unknown) {
-  const result = asRecord(raw) ?? {}
-  const thread = asRecord(result.thread)
-  const plan = asRecord(result.plan)
-
-  return compactRecord({
-    status: result.ok === true
-      ? 'completed'
-      : sanitizeText(result.stage, 80) === 'plan'
-        ? 'not-routed'
-        : 'failed',
-    stage: sanitizeText(result.stage, 80) || null,
-    threadId: sanitizeText(thread?.id, 160) || null,
-    threadStatus: sanitizeText(thread?.status, 80) || 'unknown',
-    selectedChannel: sanitizeText(thread?.selectedChannel, 80) || null,
-    sessionId: sanitizeText(thread?.sessionId, 160) || null,
-    completedAt: typeof thread?.completedAt === 'number' && Number.isFinite(thread.completedAt)
-      ? Math.floor(thread.completedAt)
-      : null,
-    planState: sanitizeText(plan?.state, 80) || null,
-    proposedChannel: sanitizeText(plan?.proposedChannel, 80) || null,
-    routeReasonTags: asStringArray(plan?.reasonTags),
-    routeAffirmationReasonCodes: asStringArray(plan?.affirmationReasonCodes),
-    routeBlockedReasonCodes: asStringArray(plan?.blockedReasonCodes),
-    summary: sanitizeText(result.summary, 320) || null,
-    output: result.output ?? null,
-    errorCode: sanitizeText(result.errorCode, 120) || undefined,
-    errorMessage: sanitizeText(result.errorMessage, 220) || undefined,
-    createdEventKinds: asStringArray(result.createdEventKinds),
-  })
-}
-
-function buildExecutorTaskThreadInvocation(input: {
-  action: Record<string, unknown>
-  commandRuntimeContext: AlicizationLocalVisualCommandInput['runtimeContext']
-}) {
-  const runtimeContext = normalizeAlicizationExecutionRuntimeContext(input.commandRuntimeContext)
-  const toolName = sanitizeText(input.action.toolName, 80) as LocalVisualExecutorToolName
-  const argumentsRecord = asRecord(input.action.arguments) ?? {}
-  const resumedThreadId = sanitizeText(argumentsRecord.threadId, 160)
-
-  if (toolName === 'executor_run_cli') {
-    const command = sanitizeText(argumentsRecord.command, 1_000)
-    if (!command && !resumedThreadId)
-      return null
-
-    const args = sanitizeCommandArgs(argumentsRecord.args)
-    const effect = normalizeTaskEffect(argumentsRecord.effect, 'mutate')
-    const permissionMode = normalizeTaskPermissionMode(argumentsRecord.permissionMode)
-    const dispatch: Pick<AlicizationDispatchTaskThreadInput, 'claudeCode' | 'cli' | 'codex' | 'localVisual' | 'openclaw'> = {
-      cli: resumedThreadId
-        ? null
-        : {
-          command,
-          args,
-          cwd: sanitizeText(argumentsRecord.cwd, 400) || undefined,
-          timeoutMs: normalizeExecutorTimeoutMs(argumentsRecord.timeoutMs),
-          runtimeContext: runtimeContext ?? undefined,
-        } satisfies AlicizationCliCommandInput,
-    }
-
-    return {
-      resumedThreadId,
-      task: {
-        kind: 'run-command',
-        goal: sanitizeText(argumentsRecord.goal, 220) || `Run CLI command: ${sanitizeText([command, ...args].join(' '), 220)}`,
-        origin: 'user',
-        effect,
-        permissionMode,
-        justification: 'grounded',
-        riskBudget: 'medium',
-        requestedChannel: 'cli',
-        prefersPersistentSession: false,
-        requiresVisualGrounding: false,
-      } satisfies AlicizationClawTaskIntent,
-      dispatch,
-    }
-  }
-
-  if (toolName === 'executor_run_codex') {
-    const prompt = sanitizeText(argumentsRecord.prompt, 4_000)
-    if (!prompt && !resumedThreadId)
-      return null
-
-    const kind = normalizeCodeTaskKind(argumentsRecord.kind)
-    const dispatch: Pick<AlicizationDispatchTaskThreadInput, 'claudeCode' | 'cli' | 'codex' | 'localVisual' | 'openclaw'> = {
-      codex: resumedThreadId
-        ? null
-        : {
-          prompt,
-          cwd: sanitizeText(argumentsRecord.cwd, 400) || undefined,
-          timeoutMs: normalizeExecutorTimeoutMs(argumentsRecord.timeoutMs),
-          model: sanitizeText(argumentsRecord.model, 120) || undefined,
-          profile: sanitizeText(argumentsRecord.profile, 120) || undefined,
-          sandbox: normalizeCodexSandbox(argumentsRecord.sandbox),
-          runtimeContext: runtimeContext ?? undefined,
-        } satisfies AlicizationCodexCommandInput,
-    }
-
-    return {
-      resumedThreadId,
-      task: {
-        kind,
-        goal: sanitizeText(argumentsRecord.goal, 220) || `Run Codex task: ${sanitizeText(prompt, 220)}`,
-        origin: 'user',
-        effect: normalizeTaskEffect(argumentsRecord.effect, 'mutate'),
-        permissionMode: normalizeTaskPermissionMode(argumentsRecord.permissionMode),
-        justification: 'grounded',
-        riskBudget: 'medium',
-        requestedChannel: 'codex',
-        prefersPersistentSession: true,
-        requiresVisualGrounding: false,
-      } satisfies AlicizationClawTaskIntent,
-      dispatch,
-    }
-  }
-
-  if (toolName === 'executor_run_claude_code') {
-    const prompt = sanitizeText(argumentsRecord.prompt, 4_000)
-    if (!prompt && !resumedThreadId)
-      return null
-
-    const kind = normalizeCodeTaskKind(argumentsRecord.kind)
-    const effect = normalizeTaskEffect(argumentsRecord.effect, kind === 'codebase-investigation' ? 'observe' : 'mutate')
-    const resolvedAllowTools = typeof argumentsRecord.allowTools === 'boolean'
-      ? argumentsRecord.allowTools
-      : effect !== 'observe'
-    const dispatch: Pick<AlicizationDispatchTaskThreadInput, 'claudeCode' | 'cli' | 'codex' | 'localVisual' | 'openclaw'> = {
-      claudeCode: resumedThreadId
-        ? null
-        : {
-          prompt,
-          cwd: sanitizeText(argumentsRecord.cwd, 400) || undefined,
-          timeoutMs: normalizeExecutorTimeoutMs(argumentsRecord.timeoutMs),
-          model: sanitizeText(argumentsRecord.model, 120) || undefined,
-          allowTools: resolvedAllowTools,
-          permissionMode: normalizeClaudePermissionMode(argumentsRecord.claudePermissionMode),
-          runtimeContext: runtimeContext ?? undefined,
-        } satisfies AlicizationClaudeCodeCommandInput,
-    }
-
-    return {
-      resumedThreadId,
-      task: {
-        kind,
-        goal: sanitizeText(argumentsRecord.goal, 220) || `Run Claude Code task: ${sanitizeText(prompt, 220)}`,
-        origin: 'user',
-        effect,
-        permissionMode: normalizeTaskPermissionMode(argumentsRecord.permissionMode),
-        justification: 'grounded',
-        riskBudget: 'medium',
-        requestedChannel: 'claude-code',
-        prefersPersistentSession: true,
-        requiresVisualGrounding: false,
-      } satisfies AlicizationClawTaskIntent,
-      dispatch,
-    }
-  }
-
-  return null
-}
-
-function buildLocalVisualExecutorContext(input: {
-  thread: AlicizationTaskThreadRecord
-  runtimeContext: AlicizationLocalVisualCommandInput['runtimeContext']
-}): AlicizationLocalVisualToolContext {
-  const runtimeContext = normalizeAlicizationExecutionRuntimeContext(input.runtimeContext)
-  const threadTurnId = sanitizeText(input.thread.turnId, 160)
-  const runtimeTurnId = sanitizeText(runtimeContext?.turnId, 160)
-
-  return {
-    cardId: sanitizeText(runtimeContext?.cardId, 120) || 'default',
-    decisionTraceId: sanitizeText(input.thread.decisionTraceId, 200) || sanitizeText(runtimeContext?.decisionTraceId, 200) || null,
-    sessionId: sanitizeText(input.thread.sessionId, 160) || sanitizeText(runtimeContext?.sessionId, 160) || null,
-    turnId: threadTurnId || runtimeTurnId || 'local-visual-turn',
+    result: normalizeLocalVisualCrossLayerValue(raw),
   }
 }
 
@@ -797,7 +759,48 @@ function buildAutoContinuationSummary(autoContinuation: Record<string, unknown>)
   return collectAutoContinuationSummaryLines(autoContinuation).join(' ')
 }
 
+function buildLocalVisualActionVerificationFailure(input: {
+  actionResult: Record<string, unknown>
+  failureField: 'autoWaitResult' | 'postActionInspection'
+  failureResult: Record<string, unknown>
+  toolName: LocalVisualToolName
+  workflowContinuation: Record<string, unknown>
+}) {
+  const errorCode = sanitizeText(input.failureResult.errorCode, 80) || 'LOCAL_VISUAL_FAILED'
+  const errorMessage = sanitizeText(input.failureResult.errorMessage, 220)
+    || sanitizeText(input.failureResult.summary, 220)
+    || 'Local visual action verification failed.'
+  const autoWaitResult = input.failureField === 'autoWaitResult'
+    ? input.failureResult
+    : undefined
+  const postActionInspection = input.failureField === 'postActionInspection'
+    ? input.failureResult
+    : null
+  const output = safeJsonStringify(compactRecord({
+    actionResult: input.actionResult,
+    autoWaitResult,
+    postActionInspection,
+    workflowContinuation: input.workflowContinuation,
+  })) || null
+
+  return {
+    ...input.actionResult,
+    status: 'failed',
+    errorCode,
+    errorMessage,
+    ...(mutatingLocalVisualToolNames.has(input.toolName)
+      ? { sideEffectState: 'applied-unverified' }
+      : {}),
+    actionResult: input.actionResult,
+    autoWaitResult,
+    postActionInspection,
+    workflowContinuation: input.workflowContinuation,
+    output,
+  }
+}
+
 async function maybeFollowUpLocalVisualAction(input: {
+  abortSignal?: AbortSignal
   commandRuntimeContext: AlicizationLocalVisualCommandInput['runtimeContext']
   payload: Record<string, unknown>
   result: Record<string, unknown>
@@ -830,10 +833,15 @@ async function maybeFollowUpLocalVisualAction(input: {
     || input.toolName === 'browser_navigate'
     || (input.toolName === 'browser_type_text' && input.payload.submit === true)
   if (shouldAutoWait && input.surface.browserWait) {
-    autoWaitResult = normalizeLocalToolResult(await input.surface.browserWait({
-      browser: sanitizeText(input.payload.browser, 32) || undefined,
-      state: 'complete',
-      timeoutMs: 5_000,
+    autoWaitResult = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      operation: 'browser_wait',
+      invoke: async () => await input.surface.browserWait!({
+        abortSignal: input.abortSignal,
+        browser: sanitizeText(input.payload.browser, 32) || undefined,
+        state: 'complete',
+        timeoutMs: 5_000,
+      }),
     }), 'browser_wait')
     const waitStatus = sanitizeText(autoWaitResult.status, 60).toLowerCase()
     if (waitStatus && waitStatus !== 'completed') {
@@ -842,15 +850,12 @@ async function maybeFollowUpLocalVisualAction(input: {
         autoWaitApplied: true,
         autoWaitStatus: waitStatus,
       })
-      return compactRecord({
-        ...input.result,
+      return buildLocalVisualActionVerificationFailure({
+        actionResult: input.result,
+        failureField: 'autoWaitResult',
+        failureResult: autoWaitResult,
+        toolName: input.toolName,
         workflowContinuation,
-        postActionInspection: null,
-        output: safeJsonStringify(compactRecord({
-          output: input.result.output,
-          workflowContinuation,
-          postActionInspection: null,
-        })) || null,
       })
     }
   }
@@ -860,12 +865,34 @@ async function maybeFollowUpLocalVisualAction(input: {
     ? Math.max(1, Math.floor(inspectionMaxSuggestedActionsRaw))
     : 3
 
-  const inspectionResultRaw = await input.surface.desktopInspectScene({
-    question: inspectionQuestionCandidate || undefined,
-    forceRefresh: true,
-    maxSuggestedActions: inspectionMaxSuggestedActions,
+  const inspectionResultRaw = await invokeLocalVisualHost({
+    abortSignal: input.abortSignal,
+    operation: 'desktop_inspect_scene',
+    invoke: async () => await input.surface.desktopInspectScene!({
+      abortSignal: input.abortSignal,
+      question: inspectionQuestionCandidate || undefined,
+      forceRefresh: true,
+      maxSuggestedActions: inspectionMaxSuggestedActions,
+    }),
   })
-  const postActionInspection = asRecord(inspectionResultRaw) ?? {}
+  const postActionInspection = asRecord(
+    normalizeLocalVisualCrossLayerValue(inspectionResultRaw),
+  ) ?? {}
+  const postActionInspectionStatus = sanitizeText(postActionInspection.status, 60).toLowerCase()
+  if (postActionInspectionStatus && postActionInspectionStatus !== 'completed') {
+    return buildLocalVisualActionVerificationFailure({
+      actionResult: input.result,
+      failureField: 'postActionInspection',
+      failureResult: postActionInspection,
+      toolName: input.toolName,
+      workflowContinuation: compactRecord({
+        expectedPhase: expectedPhase || undefined,
+        autoWaitApplied: shouldAutoWait,
+        autoWaitStatus: sanitizeText(autoWaitResult?.status, 80) || undefined,
+        postActionInspectionStatus,
+      }),
+    })
+  }
   const observedPhase = sanitizeText(postActionInspection.pagePhase, 80) || undefined
   const nextActionIntent = sanitizeText(postActionInspection.nextActionIntent, 80) || undefined
   const browserPageContext = asRecord(postActionInspection.browserPageContext)
@@ -999,6 +1026,7 @@ async function maybeFollowUpLocalVisualAction(input: {
     return mergedResult
 
   const continuation = await executeAutoContinuation({
+    abortSignal: input.abortSignal,
     commandRuntimeContext: input.commandRuntimeContext,
     continuationMode: sanitizeText(workflowPlan?.continuationMode, 80) || undefined,
     blockingSignals,
@@ -1027,6 +1055,7 @@ async function maybeFollowUpLocalVisualAction(input: {
 
 async function executeLocalVisualAction(input: {
   action: Record<string, unknown>
+  abortSignal?: AbortSignal
   commandRuntimeContext: AlicizationLocalVisualCommandInput['runtimeContext']
   remainingStepsAfterThis: number
   surface: AlicizationLocalVisualDispatchSurface
@@ -1054,8 +1083,16 @@ async function executeLocalVisualAction(input: {
   const toolArguments = stripLocalVisualInternalArguments(recursiveArguments)
 
   if (toolName === 'browser_read_page' && input.surface.browserReadPage) {
-    const result = normalizeLocalToolResult(await input.surface.browserReadPage(toolArguments as AlicizationLocalBrowserReadPageInput), 'browser_read_page')
+    const result = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      operation: toolName,
+      invoke: async () => await input.surface.browserReadPage!({
+        ...toolArguments,
+        abortSignal: input.abortSignal,
+      } as AlicizationLocalBrowserReadPageInput),
+    }), toolName)
     return await maybeFollowUpLocalVisualAction({
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
       result,
@@ -1065,8 +1102,17 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'browser_open_url' && input.surface.browserOpenUrl) {
-    const result = normalizeLocalToolResult(await input.surface.browserOpenUrl(toolArguments as AlicizationLocalBrowserOpenUrlInput), 'browser_open_url')
+    const result = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      mutation: true,
+      operation: toolName,
+      invoke: async () => await input.surface.browserOpenUrl!({
+        ...toolArguments,
+        abortSignal: input.abortSignal,
+      } as AlicizationLocalBrowserOpenUrlInput),
+    }), toolName)
     return await maybeFollowUpLocalVisualAction({
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
       result,
@@ -1076,8 +1122,17 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'browser_search_web' && input.surface.browserSearchWeb) {
-    const result = normalizeLocalToolResult(await input.surface.browserSearchWeb(toolArguments as unknown as AlicizationLocalBrowserSearchWebInput), 'browser_search_web')
+    const result = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      mutation: true,
+      operation: toolName,
+      invoke: async () => await input.surface.browserSearchWeb!({
+        ...toolArguments,
+        abortSignal: input.abortSignal,
+      } as unknown as AlicizationLocalBrowserSearchWebInput),
+    }), toolName)
     return await maybeFollowUpLocalVisualAction({
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
       result,
@@ -1087,8 +1142,17 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'browser_click_element' && input.surface.browserClickElement) {
-    const result = normalizeLocalToolResult(await input.surface.browserClickElement(toolArguments as AlicizationLocalBrowserClickElementInput), 'browser_click_element')
+    const result = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      mutation: true,
+      operation: toolName,
+      invoke: async () => await input.surface.browserClickElement!({
+        ...toolArguments,
+        abortSignal: input.abortSignal,
+      } as AlicizationLocalBrowserClickElementInput),
+    }), toolName)
     return await maybeFollowUpLocalVisualAction({
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
       result,
@@ -1098,8 +1162,17 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'browser_type_text' && input.surface.browserTypeText) {
-    const result = normalizeLocalToolResult(await input.surface.browserTypeText(toolArguments as unknown as AlicizationLocalBrowserTypeTextInput), 'browser_type_text')
+    const result = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      mutation: true,
+      operation: toolName,
+      invoke: async () => await input.surface.browserTypeText!({
+        ...toolArguments,
+        abortSignal: input.abortSignal,
+      } as unknown as AlicizationLocalBrowserTypeTextInput),
+    }), toolName)
     return await maybeFollowUpLocalVisualAction({
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
       result,
@@ -1109,8 +1182,17 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'browser_navigate' && input.surface.browserNavigate) {
-    const result = normalizeLocalToolResult(await input.surface.browserNavigate(toolArguments as unknown as AlicizationLocalBrowserNavigateInput), 'browser_navigate')
+    const result = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      mutation: true,
+      operation: toolName,
+      invoke: async () => await input.surface.browserNavigate!({
+        ...toolArguments,
+        abortSignal: input.abortSignal,
+      } as unknown as AlicizationLocalBrowserNavigateInput),
+    }), toolName)
     return await maybeFollowUpLocalVisualAction({
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
       result,
@@ -1120,8 +1202,16 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'browser_scroll' && input.surface.browserScroll) {
-    const result = normalizeLocalToolResult(await input.surface.browserScroll(toolArguments as unknown as AlicizationLocalBrowserScrollInput), 'browser_scroll')
+    const result = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      operation: toolName,
+      invoke: async () => await input.surface.browserScroll!({
+        ...toolArguments,
+        abortSignal: input.abortSignal,
+      } as unknown as AlicizationLocalBrowserScrollInput),
+    }), toolName)
     return await maybeFollowUpLocalVisualAction({
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
       result,
@@ -1131,8 +1221,16 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'browser_wait' && input.surface.browserWait) {
-    const result = normalizeLocalToolResult(await input.surface.browserWait(toolArguments as AlicizationLocalBrowserWaitInput), 'browser_wait')
+    const result = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      operation: toolName,
+      invoke: async () => await input.surface.browserWait!({
+        ...toolArguments,
+        abortSignal: input.abortSignal,
+      } as AlicizationLocalBrowserWaitInput),
+    }), toolName)
     return await maybeFollowUpLocalVisualAction({
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
       result,
@@ -1142,8 +1240,16 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'desktop_list_interactables' && input.surface.desktopListInteractables) {
-    const result = normalizeLocalToolResult(await input.surface.desktopListInteractables(toolArguments as AlicizationLocalDesktopListInteractablesInput), 'desktop_list_interactables')
+    const result = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      operation: toolName,
+      invoke: async () => await input.surface.desktopListInteractables!({
+        ...toolArguments,
+        abortSignal: input.abortSignal,
+      } as AlicizationLocalDesktopListInteractablesInput),
+    }), toolName)
     return await maybeFollowUpLocalVisualAction({
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
       result,
@@ -1153,8 +1259,17 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'desktop_click_element' && input.surface.desktopClickElement) {
-    const result = normalizeLocalToolResult(await input.surface.desktopClickElement(toolArguments as AlicizationLocalDesktopClickElementInput), 'desktop_click_element')
+    const result = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      mutation: true,
+      operation: toolName,
+      invoke: async () => await input.surface.desktopClickElement!({
+        ...toolArguments,
+        abortSignal: input.abortSignal,
+      } as AlicizationLocalDesktopClickElementInput),
+    }), toolName)
     return await maybeFollowUpLocalVisualAction({
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
       result,
@@ -1164,8 +1279,17 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'desktop_type_text' && input.surface.desktopTypeText) {
-    const result = normalizeLocalToolResult(await input.surface.desktopTypeText(toolArguments as unknown as AlicizationLocalDesktopTypeTextInput), 'desktop_type_text')
+    const result = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      mutation: true,
+      operation: toolName,
+      invoke: async () => await input.surface.desktopTypeText!({
+        ...toolArguments,
+        abortSignal: input.abortSignal,
+      } as unknown as AlicizationLocalDesktopTypeTextInput),
+    }), toolName)
     return await maybeFollowUpLocalVisualAction({
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
       result,
@@ -1175,8 +1299,17 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'desktop_press_keys' && input.surface.desktopPressKeys) {
-    const result = normalizeLocalToolResult(await input.surface.desktopPressKeys(toolArguments as AlicizationLocalDesktopPressKeysInput), 'desktop_press_keys')
+    const result = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      mutation: true,
+      operation: toolName,
+      invoke: async () => await input.surface.desktopPressKeys!({
+        ...toolArguments,
+        abortSignal: input.abortSignal,
+      } as AlicizationLocalDesktopPressKeysInput),
+    }), toolName)
     return await maybeFollowUpLocalVisualAction({
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
       result,
@@ -1186,8 +1319,17 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'desktop_open_application' && input.surface.desktopOpenApplication) {
-    const result = normalizeLocalToolResult(await input.surface.desktopOpenApplication(toolArguments as AlicizationLocalDesktopOpenApplicationInput), 'desktop_open_application')
+    const result = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      mutation: true,
+      operation: toolName,
+      invoke: async () => await input.surface.desktopOpenApplication!({
+        ...toolArguments,
+        abortSignal: input.abortSignal,
+      } as AlicizationLocalDesktopOpenApplicationInput),
+    }), toolName)
     return await maybeFollowUpLocalVisualAction({
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
       result,
@@ -1197,8 +1339,16 @@ async function executeLocalVisualAction(input: {
     })
   }
   if (toolName === 'desktop_wait' && input.surface.desktopWait) {
-    const result = normalizeLocalToolResult(await input.surface.desktopWait(toolArguments as AlicizationLocalDesktopWaitInput), 'desktop_wait')
+    const result = normalizeLocalToolResult(await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      operation: toolName,
+      invoke: async () => await input.surface.desktopWait!({
+        ...toolArguments,
+        abortSignal: input.abortSignal,
+      } as AlicizationLocalDesktopWaitInput),
+    }), toolName)
     return await maybeFollowUpLocalVisualAction({
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       payload: recursiveArguments,
       result,
@@ -1207,51 +1357,11 @@ async function executeLocalVisualAction(input: {
       toolName,
     })
   }
-  if (executorToolNames.has(toolName as LocalVisualExecutorToolName)) {
-    const context = buildLocalVisualExecutorContext({
-      thread: input.thread,
-      runtimeContext: input.commandRuntimeContext,
-    })
-    const executorInvocation = buildExecutorTaskThreadInvocation({
-      action: compactRecord({
-        ...input.action,
-        arguments: toolArguments,
-      }),
-      commandRuntimeContext: input.commandRuntimeContext,
-    })
-    if (!executorInvocation)
-      return null
-
-    const rawResult = executorInvocation.resumedThreadId
-      ? await input.surface.resumeTaskThread?.({
-          context,
-          thread: input.thread,
-          threadId: executorInvocation.resumedThreadId,
-        })
-      : await input.surface.executeTaskThread?.({
-          context,
-          thread: input.thread,
-          task: executorInvocation.task,
-          dispatch: executorInvocation.dispatch,
-        })
-    if (!rawResult)
-      return null
-
-    const result = toLocalVisualExecutorToolResult(rawResult)
-    return await maybeFollowUpLocalVisualAction({
-      commandRuntimeContext: input.commandRuntimeContext,
-      payload: recursiveArguments,
-      result,
-      surface: input.surface,
-      thread: input.thread,
-      toolName,
-    })
-  }
-
   return null
 }
 
 async function executeAutoContinuation(input: {
+  abortSignal?: AbortSignal
   commandRuntimeContext: AlicizationLocalVisualCommandInput['runtimeContext']
   continuationMode?: string
   blockingSignals: string[]
@@ -1268,6 +1378,7 @@ async function executeAutoContinuation(input: {
   let currentSuggestedActions = [...input.suggestedActions]
   let remainingSteps = input.maxSteps
   let latestResult: Record<string, unknown> | null = null
+  let deferredSuggestedActions: Array<Record<string, unknown>> = []
   const visitedActionKeys = new Set(input.visitedActionKeys ?? [])
 
   while (remainingSteps > 0) {
@@ -1279,9 +1390,19 @@ async function executeAutoContinuation(input: {
       return !actionKey || !visitedActionKeys.has(actionKey)
     })
     if (candidateIndex < 0) {
+      deferredSuggestedActions = currentSuggestedActions
+        .filter(action => deferredCodingAgentToolNames.has(sanitizeText(action.toolName, 80)))
+        .map(action => compactRecord({
+          toolName: deferredCodingAgentToolName,
+          title: sanitizeText(action.title, 160),
+          rationale: sanitizeText(action.rationale, 320),
+          arguments: asRecord(action.arguments) ?? undefined,
+        }))
       stoppedReason = executedSteps.length > 0
         ? 'no-follow-up-action'
-        : 'no-suggested-actions'
+        : deferredSuggestedActions.length > 0
+          ? 'executor-continuation-deferred-to-model'
+          : 'no-suggested-actions'
       break
     }
 
@@ -1310,6 +1431,7 @@ async function executeAutoContinuation(input: {
 
     const result = await executeLocalVisualAction({
       action: candidate,
+      abortSignal: input.abortSignal,
       commandRuntimeContext: input.commandRuntimeContext,
       remainingStepsAfterThis: remainingSteps - 1,
       surface: input.surface,
@@ -1328,16 +1450,6 @@ async function executeAutoContinuation(input: {
       rationale: sanitizeText(candidate.rationale, 320),
       result,
     }))
-
-    const shouldRetryNextExecutorCandidate = executorToolNames.has(candidateToolName as LocalVisualExecutorToolName)
-      && sanitizeText(result.status, 80).toLowerCase() !== 'completed'
-    if (shouldRetryNextExecutorCandidate) {
-      if (currentSuggestedActions.length <= 0) {
-        stoppedReason = 'no-follow-up-action'
-        break
-      }
-      continue
-    }
 
     const resultWorkflowPlan = asRecord(result.workflowPlan)
     const resultBlockingSignals = sanitizeStringList(result.blockingSignals)
@@ -1384,6 +1496,7 @@ async function executeAutoContinuation(input: {
       maxSteps: input.maxSteps,
       stoppedReason,
       executedSteps,
+      deferredSuggestedActions,
     }),
     latestResult,
   }
@@ -1541,12 +1654,52 @@ export async function executeLocalVisualTaskThread(
     createdAt: dispatchCreatedAt,
   }
 
-  const rawInspectionResult = await input.surface.desktopInspectScene!({
-    question: spec.instruction,
-    forceRefresh: false,
-    maxSuggestedActions: 5,
-  })
-  const inspectionResult = asRecord(rawInspectionResult)
+  let rawInspectionResult: unknown
+  try {
+    rawInspectionResult = await invokeLocalVisualHost({
+      abortSignal: input.abortSignal,
+      operation: 'desktop_inspect_scene',
+      invoke: async () => await input.surface.desktopInspectScene!({
+        abortSignal: input.abortSignal,
+        question: spec.instruction,
+        forceRefresh: false,
+        maxSuggestedActions: 5,
+      }),
+    })
+  }
+  catch (error) {
+    if (!isAbortLikeError(error))
+      throw error
+
+    const createdAt = now()
+    return {
+      ok: false,
+      summary: 'Local visual execution was cancelled during desktop inspection.',
+      output: null,
+      errorCode: 'LOCAL_VISUAL_ABORTED',
+      errorMessage: errorMessageFromLocalVisualHost(error),
+      finalStatus: 'cancelled',
+      events: [dispatchEvent, {
+        threadId: thread.id,
+        decisionTraceId: thread.decisionTraceId,
+        turnId: thread.turnId,
+        sessionId: thread.sessionId,
+        origin: thread.origin,
+        channel: input.channel,
+        kind: 'cancel',
+        threadStatus: 'cancelled',
+        payload: {
+          adapter: 'local-visual',
+          transportChannel: 'local-visual',
+          errorCode: 'LOCAL_VISUAL_ABORTED',
+          errorMessage: errorMessageFromLocalVisualHost(error),
+        },
+        createdAt,
+      }],
+    }
+  }
+  const normalizedInspectionResult = normalizeLocalVisualCrossLayerValue(rawInspectionResult)
+  const inspectionResult = asRecord(normalizedInspectionResult)
   const inspectionStatus = sanitizeText(inspectionResult?.status, 60).toLowerCase()
   if (!inspectionResult || inspectionStatus !== 'completed') {
     const baseErrorMessage = sanitizeText(inspectionResult?.errorMessage, 220)
@@ -1576,7 +1729,7 @@ export async function executeLocalVisualTaskThread(
       summary,
       output: typeof inspectionResult?.output === 'string'
         ? inspectionResult.output
-        : safeJsonStringify(rawInspectionResult) || null,
+        : safeJsonStringify(normalizedInspectionResult) || null,
       errorCode: sanitizeText(inspectionResult?.errorCode, 80) || 'LOCAL_VISUAL_FAILED',
       errorMessage: baseErrorMessage,
       finalStatus: 'failed',
@@ -1587,19 +1740,95 @@ export async function executeLocalVisualTaskThread(
   const initialSuggestedActions = extractSuggestedActionRecords(inspectionResult.suggestedActions)
   const initialBlockingSignals = sanitizeStringList(inspectionResult.blockingSignals)
   const shouldAutoContinue = resolveInitialAutoContinuationRequested(input)
-  const initialContinuation = shouldAutoContinue
-    ? await executeAutoContinuation({
-        commandRuntimeContext: spec.runtimeContext,
-        continuationMode: sanitizeText(asRecord(inspectionResult.workflowPlan)?.continuationMode, 80) || undefined,
-        blockingSignals: initialBlockingSignals,
-        maxSteps: resolveInitialAutoContinuationStepCount(input.command),
-        suggestedActions: initialSuggestedActions,
-        surface: input.surface,
-        thread,
-      })
-    : null
+  let initialContinuation: LocalVisualActionExecutionResult | null = null
+  try {
+    initialContinuation = shouldAutoContinue
+      ? await executeAutoContinuation({
+          abortSignal: input.abortSignal,
+          commandRuntimeContext: spec.runtimeContext,
+          continuationMode: sanitizeText(asRecord(inspectionResult.workflowPlan)?.continuationMode, 80) || undefined,
+          blockingSignals: initialBlockingSignals,
+          maxSteps: resolveInitialAutoContinuationStepCount(input.command),
+          suggestedActions: initialSuggestedActions,
+          surface: input.surface,
+          thread,
+        })
+      : null
+  }
+  catch (error) {
+    if (!isAbortLikeError(error))
+      throw error
+
+    const createdAt = now()
+    const sideEffectState = error instanceof LocalVisualAbortError
+      ? error.sideEffectState
+      : undefined
+    return {
+      ok: false,
+      summary: 'Local visual execution was cancelled while applying a host action.',
+      output: null,
+      errorCode: 'LOCAL_VISUAL_ABORTED',
+      errorMessage: errorMessageFromLocalVisualHost(error),
+      ...(sideEffectState ? { sideEffectState } : {}),
+      finalStatus: 'cancelled',
+      events: [dispatchEvent, {
+        threadId: thread.id,
+        decisionTraceId: thread.decisionTraceId,
+        turnId: thread.turnId,
+        sessionId: thread.sessionId,
+        origin: thread.origin,
+        channel: input.channel,
+        kind: 'cancel',
+        threadStatus: 'cancelled',
+        payload: {
+          adapter: 'local-visual',
+          transportChannel: 'local-visual',
+          errorCode: 'LOCAL_VISUAL_ABORTED',
+          errorMessage: errorMessageFromLocalVisualHost(error),
+          ...(sideEffectState ? { sideEffectState } : {}),
+        },
+        createdAt,
+      }],
+    }
+  }
 
   const finalRecord = initialContinuation?.latestResult ?? inspectionResult
+  const finalStatus = sanitizeText(finalRecord.status, 60).toLowerCase()
+  if (finalStatus !== 'completed') {
+    const errorCode = sanitizeText(finalRecord.errorCode, 80) || 'LOCAL_VISUAL_FAILED'
+    const errorMessage = sanitizeText(finalRecord.errorMessage, 220)
+      || sanitizeText(finalRecord.summary, 220)
+      || 'Local visual host execution failed.'
+    const sideEffectState = sanitizeText(finalRecord.sideEffectState, 40) || undefined
+    const normalizedOutput = safeJsonStringify(finalRecord) || null
+    const resultEvent: AlicizationExecutionEventInput = {
+      threadId: thread.id,
+      decisionTraceId: thread.decisionTraceId,
+      turnId: thread.turnId,
+      sessionId: thread.sessionId,
+      origin: thread.origin,
+      channel: input.channel,
+      kind: 'result',
+      threadStatus: 'failed',
+      payload: compactRecord({
+        instruction: spec.instructionPreview,
+        transportChannel: 'local-visual',
+        errorCode,
+        errorMessage,
+        sideEffectState,
+      }),
+      createdAt: dispatchCreatedAt + 1,
+    }
+    return {
+      ok: false,
+      summary: buildFailureSummary(thread, errorMessage),
+      output: normalizedOutput,
+      errorCode,
+      errorMessage,
+      finalStatus: 'failed',
+      events: [dispatchEvent, resultEvent],
+    }
+  }
   const successfulResult = buildSuccessfulLocalVisualResult({
     thread,
     channel: input.channel,

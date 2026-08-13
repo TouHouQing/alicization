@@ -9,6 +9,18 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { dispatchTaskThread } from './task-thread-dispatcher'
 
+const { executeCodexTaskThreadMock } = vi.hoisted(() => ({
+  executeCodexTaskThreadMock: vi.fn(),
+}))
+
+vi.mock('./executor-adapters/codex', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./executor-adapters/codex')>()
+  return {
+    ...actual,
+    executeCodexTaskThread: executeCodexTaskThreadMock,
+  }
+})
+
 function createThread(overrides: Partial<AlicizationTaskThreadRecord> = {}): AlicizationTaskThreadRecord {
   return {
     id: 'thread-dispatch-1',
@@ -132,6 +144,967 @@ describe('task-thread dispatcher', () => {
     expect(result.summary).toContain('dispatcher ok')
     expect(port.appendExecutionEvents).toBeCalledTimes(1)
     expect(port.upsertTaskThread).toBeCalled()
+    expect(port.upsertTaskThread.mock.calls.some(([input]) => input.status === 'running')).toBe(true)
+  })
+
+  it('preserves the adapter cancelled final status in the shared dispatch result', async () => {
+    const port = createPort(createThread())
+    const controller = new AbortController()
+    const execution = dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      cli: {
+        command: 'node',
+        args: ['-e', 'setTimeout(() => console.log("late output"), 3000)'],
+        timeoutMs: 5_000,
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      abortSignal: controller.signal,
+      workspaceRoot: process.cwd(),
+    })
+
+    setTimeout(() => {
+      controller.abort('user-cancelled')
+    }, 80)
+
+    const result = await execution
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'cancelled',
+      thread: {
+        status: 'cancelled',
+      },
+    })
+  })
+
+  it('publishes Codex semantic progress before persisting it and avoids final duplicate writes', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    const order: string[] = []
+    const appendExecutionEvents = port.appendExecutionEvents
+    port.appendExecutionEvents = vi.fn(async (events: AlicizationExecutionEventInput[]) => {
+      order.push(`persist:${String(events[0]?.payload?.codexEventType ?? events[0]?.kind ?? 'unknown')}`)
+      await appendExecutionEvents(events)
+    })
+    const liveEvent: AlicizationExecutionEventInput = {
+      id: 'codex-run-1:1',
+      threadId: 'thread-dispatch-1',
+      decisionTraceId: 'mind:trace:dispatch-1',
+      turnId: 'turn-dispatch-1',
+      sessionId: 'session-dispatch-1',
+      origin: 'user-turn',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'running',
+      payload: {
+        codexEventType: 'item.started',
+        semanticProgress: true,
+        summary: 'Codex command started: git status --short',
+      },
+      createdAt: 120,
+    }
+    const resultEvent: AlicizationExecutionEventInput = {
+      id: 'codex-run-1:2',
+      threadId: 'thread-dispatch-1',
+      decisionTraceId: 'mind:trace:dispatch-1',
+      turnId: 'turn-dispatch-1',
+      sessionId: 'session-dispatch-1',
+      origin: 'user-turn',
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'completed',
+      payload: {
+        adapter: 'codex',
+      },
+      createdAt: 130,
+    }
+    executeCodexTaskThreadMock.mockImplementationOnce(async (input) => {
+      await input.onExecutionEvent?.(liveEvent)
+      return {
+        ok: true,
+        finalStatus: 'completed',
+        summary: 'Codex inspection completed.',
+        output: 'done',
+        events: [liveEvent, resultEvent],
+      }
+    })
+    const onExecutionEvent = vi.fn(async () => {
+      order.push('publish:item.started')
+    })
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      onExecutionEvent,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result.ok).toBe(true)
+    expect(order).toEqual([
+      'publish:item.started',
+      'persist:item.started',
+      'persist:result',
+    ])
+    const persistedEvents = port.appendExecutionEvents.mock.calls.flatMap(([events]) => events)
+    expect(persistedEvents.filter(event => event.id === liveEvent.id)).toHaveLength(1)
+    expect(persistedEvents.filter(event => event.id === resultEvent.id)).toHaveLength(1)
+  })
+
+  it('drains the realtime persistence queue until no accepted live events remain', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    const firstLiveEvent: AlicizationExecutionEventInput = {
+      id: 'codex-stable-drain:1',
+      threadId: 'thread-dispatch-1',
+      decisionTraceId: 'mind:trace:dispatch-1',
+      turnId: 'turn-dispatch-1',
+      sessionId: 'session-dispatch-1',
+      origin: 'user-turn',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'running',
+      payload: {
+        codexEventType: 'item.started',
+      },
+      createdAt: 120,
+    }
+    const secondLiveEvent: AlicizationExecutionEventInput = {
+      ...firstLiveEvent,
+      id: 'codex-stable-drain:2',
+      payload: {
+        codexEventType: 'item.completed',
+      },
+      createdAt: 121,
+    }
+    const resultEvent: AlicizationExecutionEventInput = {
+      ...firstLiveEvent,
+      id: 'codex-stable-drain:3',
+      kind: 'result',
+      threadStatus: 'completed',
+      payload: {
+        adapter: 'codex',
+      },
+      createdAt: 130,
+    }
+    let acceptedCallback:
+      | ((event: AlicizationExecutionEventInput) => Promise<void> | void)
+      | undefined
+    let markFirstWriteStarted!: () => void
+    let releaseFirstWrite!: () => void
+    const firstWriteStarted = new Promise<void>((resolve) => {
+      markFirstWriteStarted = resolve
+    })
+    const firstWriteReleased = new Promise<void>((resolve) => {
+      releaseFirstWrite = resolve
+    })
+    const persistedBatches: string[][] = []
+    const appendExecutionEvents = port.appendExecutionEvents
+    port.appendExecutionEvents = vi.fn(async (events: AlicizationExecutionEventInput[]) => {
+      persistedBatches.push(events.flatMap(event => event.id ? [event.id] : []))
+      if (events.some(event => event.id === firstLiveEvent.id)) {
+        markFirstWriteStarted()
+        await firstWriteReleased
+      }
+      await appendExecutionEvents(events)
+    })
+    executeCodexTaskThreadMock.mockImplementationOnce(async (input) => {
+      acceptedCallback = input.onExecutionEvent
+      await input.onExecutionEvent?.(firstLiveEvent)
+      return {
+        ok: true,
+        finalStatus: 'completed',
+        summary: 'Codex inspection completed.',
+        output: 'done',
+        events: [firstLiveEvent, secondLiveEvent, resultEvent],
+      }
+    })
+
+    const dispatch = dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    await firstWriteStarted
+    await new Promise(resolve => setTimeout(resolve, 0))
+    await acceptedCallback?.(secondLiveEvent)
+    releaseFirstWrite()
+    const result = await dispatch
+
+    expect(result.ok).toBe(true)
+    expect(persistedBatches).toEqual([
+      [firstLiveEvent.id],
+      [secondLiveEvent.id],
+      [resultEvent.id],
+    ])
+    const persistedEvents = port.appendExecutionEvents.mock.calls.flatMap(([events]) => events)
+    expect(persistedEvents.filter(event => event.id === firstLiveEvent.id)).toHaveLength(1)
+    expect(persistedEvents.filter(event => event.id === secondLiveEvent.id)).toHaveLength(1)
+    expect(persistedEvents.filter(event => event.id === resultEvent.id)).toHaveLength(1)
+  })
+
+  it('records and best-effort persists execution events that violate the adapter callback contract', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    const resultEvent: AlicizationExecutionEventInput = {
+      id: 'codex-late-event:1',
+      threadId: 'thread-dispatch-1',
+      decisionTraceId: 'mind:trace:dispatch-1',
+      turnId: 'turn-dispatch-1',
+      sessionId: 'session-dispatch-1',
+      origin: 'user-turn',
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'completed',
+      payload: {
+        adapter: 'codex',
+      },
+      createdAt: 130,
+    }
+    const lateEvent: AlicizationExecutionEventInput = {
+      ...resultEvent,
+      id: 'codex-late-event:2',
+      kind: 'step',
+      threadStatus: 'running',
+      payload: {
+        codexEventType: 'item.completed',
+      },
+      createdAt: 140,
+    }
+    let acceptedCallback:
+      | ((event: AlicizationExecutionEventInput) => Promise<void> | void)
+      | undefined
+    let persistedLateEvent: AlicizationExecutionEventInput | undefined
+    const lateAppendThreadStatuses: AlicizationTaskThreadRecord['status'][] = []
+    const appendExecutionEvents = port.appendExecutionEvents
+    port.appendExecutionEvents = vi.fn(async (events: AlicizationExecutionEventInput[]) => {
+      const lateCopy = events.find(event => event.id === lateEvent.id)
+      if (lateCopy)
+        persistedLateEvent = lateCopy
+      await appendExecutionEvents(events)
+      if (lateCopy)
+        lateAppendThreadStatuses.push(port.readThread().status)
+    })
+    executeCodexTaskThreadMock.mockImplementationOnce(async (input) => {
+      acceptedCallback = input.onExecutionEvent
+      return {
+        ok: true,
+        finalStatus: 'completed',
+        summary: 'Codex inspection completed.',
+        output: 'done',
+        events: [resultEvent],
+      }
+    })
+    const onExecutionEvent = vi.fn()
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      onExecutionEvent,
+      eventPersistenceTimeoutMs: 50,
+      workspaceRoot: process.cwd(),
+    })
+    await acceptedCallback?.(lateEvent)
+
+    await vi.waitFor(() => {
+      const persistedEvents = port.appendExecutionEvents.mock.calls.flatMap(([events]) => events)
+      expect(persistedEvents.filter(event => event.id === lateEvent.id)).toHaveLength(1)
+      expect(port.readThread()).toMatchObject({
+        status: 'completed',
+        metadata: {
+          execution: {
+            persistence: {
+              status: 'degraded',
+              failures: expect.arrayContaining([
+                expect.stringContaining('late execution event'),
+              ]),
+            },
+          },
+        },
+      })
+    }, {
+      timeout: 250,
+    })
+    expect(result.thread.status).toBe('completed')
+    expect(persistedLateEvent).not.toBe(lateEvent)
+    expect(persistedLateEvent).toMatchObject({
+      id: lateEvent.id,
+      kind: lateEvent.kind,
+      channel: lateEvent.channel,
+      createdAt: lateEvent.createdAt,
+      payload: {
+        codexEventType: 'item.completed',
+        lateAfterTerminal: true,
+        originalThreadStatus: 'running',
+      },
+    })
+    expect(persistedLateEvent?.threadStatus).toBeUndefined()
+    expect(lateEvent).toMatchObject({
+      threadStatus: 'running',
+      payload: {
+        codexEventType: 'item.completed',
+      },
+    })
+    expect(lateEvent.payload).not.toHaveProperty('lateAfterTerminal')
+    expect(lateAppendThreadStatuses).toEqual(['completed'])
+    expect(onExecutionEvent).not.toHaveBeenCalled()
+  })
+
+  it('establishes terminal settlement before late diagnostics can restore a running thread', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    const resultEvent: AlicizationExecutionEventInput = {
+      id: 'codex-terminal-race:1',
+      threadId: 'thread-dispatch-1',
+      decisionTraceId: 'mind:trace:dispatch-1',
+      turnId: 'turn-dispatch-1',
+      sessionId: 'session-dispatch-1',
+      origin: 'user-turn',
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'completed',
+      payload: {
+        adapter: 'codex',
+      },
+      createdAt: 150,
+    }
+    const lateEvent: AlicizationExecutionEventInput = {
+      ...resultEvent,
+      id: 'codex-terminal-race:2',
+      kind: 'step',
+      threadStatus: 'running',
+      payload: {
+        codexEventType: 'item.completed',
+      },
+      createdAt: 160,
+    }
+    let acceptedCallback:
+      | ((event: AlicizationExecutionEventInput) => Promise<void> | void)
+      | undefined
+    executeCodexTaskThreadMock.mockImplementationOnce(async (input) => {
+      acceptedCallback = input.onExecutionEvent
+      return {
+        ok: true,
+        finalStatus: 'completed',
+        summary: 'Codex inspection completed.',
+        output: 'done',
+        events: [],
+      }
+    })
+
+    let releaseTerminalWrite = () => {}
+    const terminalWriteGate = new Promise<void>((resolve) => {
+      releaseTerminalWrite = resolve
+    })
+    let signalTerminalWriteStarted = () => {}
+    const terminalWriteStarted = new Promise<void>((resolve) => {
+      signalTerminalWriteStarted = resolve
+    })
+    let releaseLateDiagnosticWrite = () => {}
+    const lateDiagnosticWriteGate = new Promise<void>((resolve) => {
+      releaseLateDiagnosticWrite = resolve
+    })
+    let signalLateDiagnosticWriteStarted = () => {}
+    const lateDiagnosticWriteStarted = new Promise<void>((resolve) => {
+      signalLateDiagnosticWriteStarted = resolve
+    })
+    const originalUpsertTaskThread = port.upsertTaskThread
+    const lateDiagnosticInputs: AlicizationTaskThreadUpsertInput[] = []
+    port.upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadUpsertInput) => {
+      const failures = (
+        input.metadata as {
+          execution?: {
+            persistence?: {
+              failures?: unknown[]
+            }
+          }
+        } | null | undefined
+      )?.execution?.persistence?.failures
+      const isLateDiagnostic = Array.isArray(failures)
+        && failures.some(failure =>
+          typeof failure === 'string' && failure.includes('late execution event'),
+        )
+
+      if (isLateDiagnostic) {
+        lateDiagnosticInputs.push(input)
+        signalLateDiagnosticWriteStarted()
+        await lateDiagnosticWriteGate
+      }
+      else if (input.status === 'completed') {
+        signalTerminalWriteStarted()
+        await terminalWriteGate
+      }
+
+      return await originalUpsertTaskThread(input)
+    })
+
+    const dispatch = dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      eventPersistenceTimeoutMs: 500,
+      workspaceRoot: process.cwd(),
+    })
+
+    await terminalWriteStarted
+    await acceptedCallback?.(lateEvent)
+    await lateDiagnosticWriteStarted
+    releaseTerminalWrite()
+    const result = await dispatch
+    releaseLateDiagnosticWrite()
+
+    await vi.waitFor(() => {
+      expect(port.readThread().status).toBe('completed')
+    })
+    expect(result.thread.status).toBe('completed')
+    expect(lateDiagnosticInputs).toHaveLength(1)
+    expect(lateDiagnosticInputs[0]?.status).toBe('completed')
+  })
+
+  it.each(['failed', 'cancelled'] as const)(
+    'preserves a newer %s terminal state when a late diagnostic follows an older completed snapshot',
+    async (latestStatus) => {
+      const port = createPort(createThread({
+        selectedChannel: 'codex',
+        proposedChannel: 'codex',
+        kind: 'codebase-investigation',
+        goal: 'Inspect the repository.',
+      }))
+      const resultEvent: AlicizationExecutionEventInput = {
+        id: `codex-late-terminal-${latestStatus}:1`,
+        threadId: 'thread-dispatch-1',
+        decisionTraceId: 'mind:trace:dispatch-1',
+        turnId: 'turn-dispatch-1',
+        sessionId: 'session-dispatch-1',
+        origin: 'user-turn',
+        channel: 'codex',
+        kind: 'result',
+        threadStatus: 'completed',
+        payload: {
+          adapter: 'codex',
+        },
+        createdAt: 150,
+      }
+      const lateEvent: AlicizationExecutionEventInput = {
+        ...resultEvent,
+        id: `codex-late-terminal-${latestStatus}:2`,
+        kind: 'step',
+        threadStatus: 'running',
+        payload: {
+          codexEventType: 'item.completed',
+        },
+        createdAt: 160,
+      }
+      let acceptedCallback:
+        | ((event: AlicizationExecutionEventInput) => Promise<void> | void)
+        | undefined
+      executeCodexTaskThreadMock.mockImplementationOnce(async (input) => {
+        acceptedCallback = input.onExecutionEvent
+        return {
+          ok: true,
+          finalStatus: 'completed',
+          summary: 'Older completed snapshot.',
+          output: 'done',
+          events: [resultEvent],
+        }
+      })
+
+      const originalAppendExecutionEvents = port.appendExecutionEvents
+      const originalUpsertTaskThread = port.upsertTaskThread
+      const lateDiagnosticInputs: AlicizationTaskThreadUpsertInput[] = []
+      let latestTerminalThread: AlicizationTaskThreadRecord | null = null
+      port.appendExecutionEvents = vi.fn(async (events: AlicizationExecutionEventInput[]) => {
+        await originalAppendExecutionEvents(events)
+        if (
+          latestTerminalThread
+          && events.some(event => event.id === lateEvent.id)
+        ) {
+          await originalUpsertTaskThread(latestTerminalThread)
+        }
+      })
+      port.upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadUpsertInput) => {
+        const failures = (
+          input.metadata as {
+            execution?: {
+              persistence?: {
+                failures?: unknown[]
+              }
+            }
+          } | null | undefined
+        )?.execution?.persistence?.failures
+        if (
+          Array.isArray(failures)
+          && failures.some(failure =>
+            typeof failure === 'string' && failure.includes('late execution event'),
+          )
+        ) {
+          lateDiagnosticInputs.push(input)
+        }
+        return await originalUpsertTaskThread(input)
+      })
+
+      const result = await dispatchTaskThread(port, {
+        threadId: 'thread-dispatch-1',
+        codex: {
+          prompt: 'Inspect the repository.',
+          sandbox: 'read-only',
+          runtimeContext: createExecutionRuntimeContext(),
+        },
+        eventPersistenceTimeoutMs: 500,
+        workspaceRoot: process.cwd(),
+      })
+      const transitionedAt = result.thread.updatedAt + 100
+      latestTerminalThread = {
+        ...port.readThread(),
+        status: latestStatus,
+        summary: `Latest ${latestStatus} summary.`,
+        updatedAt: transitionedAt,
+        lastEventAt: transitionedAt,
+        completedAt: transitionedAt,
+      }
+      await port.upsertTaskThread(latestTerminalThread)
+
+      await acceptedCallback?.(lateEvent)
+
+      await vi.waitFor(() => {
+        expect(lateDiagnosticInputs).toHaveLength(1)
+      })
+      expect(lateDiagnosticInputs[0]).toMatchObject({
+        status: latestStatus,
+        summary: `Latest ${latestStatus} summary.`,
+        lastEventAt: transitionedAt,
+        completedAt: transitionedAt,
+      })
+      expect(port.readThread()).toMatchObject({
+        status: latestStatus,
+        summary: `Latest ${latestStatus} summary.`,
+        lastEventAt: transitionedAt,
+        completedAt: transitionedAt,
+        metadata: {
+          execution: {
+            persistence: {
+              failures: expect.arrayContaining([
+                expect.stringContaining('late execution event'),
+              ]),
+            },
+          },
+        },
+      })
+    },
+  )
+
+  it('persists a failed terminal thread when the Codex adapter rejects', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    executeCodexTaskThreadMock.mockRejectedValueOnce(Object.assign(
+      new Error('Codex produced no semantic progress for 180000ms.'),
+      {
+        code: 'CODEX_TIMEOUT',
+      },
+    ))
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'failed',
+      errorCode: 'CODEX_TIMEOUT',
+      errorMessage: 'Codex produced no semantic progress for 180000ms.',
+      thread: {
+        status: 'failed',
+      },
+    })
+    expect(port.readThread()).toMatchObject({
+      status: 'failed',
+      completedAt: expect.any(Number),
+    })
+    expect(port.appendExecutionEvents.mock.calls.flatMap(([events]) => events)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'result',
+          threadStatus: 'failed',
+          payload: expect.objectContaining({
+            failureKind: 'tool-execution',
+            errorCode: 'CODEX_TIMEOUT',
+            errorMessage: 'Codex produced no semantic progress for 180000ms.',
+          }),
+        }),
+      ]),
+    )
+  })
+
+  it('publishes live executor progress before a slow database write resolves', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    const order: string[] = []
+    let releasePersist!: () => void
+    const persistenceReleased = new Promise<void>((resolve) => {
+      releasePersist = resolve
+    })
+    const appendExecutionEvents = port.appendExecutionEvents
+    port.appendExecutionEvents = vi.fn(async (events: AlicizationExecutionEventInput[]) => {
+      order.push(`persist-start:${String(events[0]?.payload?.codexEventType ?? events[0]?.kind ?? 'unknown')}`)
+      await persistenceReleased
+      await appendExecutionEvents(events)
+      order.push(`persist-end:${String(events[0]?.payload?.codexEventType ?? events[0]?.kind ?? 'unknown')}`)
+    })
+    const liveEvent: AlicizationExecutionEventInput = {
+      id: 'codex-run-slow-db:1',
+      threadId: 'thread-dispatch-1',
+      decisionTraceId: 'mind:trace:dispatch-1',
+      turnId: 'turn-dispatch-1',
+      sessionId: 'session-dispatch-1',
+      origin: 'user-turn',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'running',
+      payload: {
+        codexEventType: 'item.started',
+        semanticProgress: true,
+        summary: 'Codex command started: git status --short',
+      },
+      createdAt: 120,
+    }
+    executeCodexTaskThreadMock.mockImplementationOnce(async (input) => {
+      await input.onExecutionEvent?.(liveEvent)
+      return {
+        ok: true,
+        finalStatus: 'completed',
+        summary: 'Codex inspection completed.',
+        output: 'done',
+        events: [liveEvent],
+      }
+    })
+    const onExecutionEvent = vi.fn(() => {
+      order.push('publish:item.started')
+    })
+
+    const execution = dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      onExecutionEvent,
+      workspaceRoot: process.cwd(),
+    })
+
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(order).toContain('publish:item.started')
+    expect(order.indexOf('publish:item.started')).toBeLessThan(order.indexOf('persist-start:item.started'))
+
+    releasePersist()
+    await execution
+  })
+
+  it('retries a live event in the final result batch after both realtime writes fail', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    const liveEvent: AlicizationExecutionEventInput = {
+      id: 'codex-run-retry:1',
+      threadId: 'thread-dispatch-1',
+      decisionTraceId: 'mind:trace:dispatch-1',
+      turnId: 'turn-dispatch-1',
+      sessionId: 'session-dispatch-1',
+      origin: 'user-turn',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'running',
+      payload: {
+        codexEventType: 'item.started',
+        semanticProgress: true,
+      },
+      createdAt: 120,
+    }
+    const resultEvent: AlicizationExecutionEventInput = {
+      id: 'codex-run-retry:2',
+      threadId: 'thread-dispatch-1',
+      decisionTraceId: 'mind:trace:dispatch-1',
+      turnId: 'turn-dispatch-1',
+      sessionId: 'session-dispatch-1',
+      origin: 'user-turn',
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'completed',
+      payload: {
+        adapter: 'codex',
+      },
+      createdAt: 130,
+    }
+    const persistedEventIds: string[] = []
+    let liveWriteAttempts = 0
+    port.appendExecutionEvents = vi.fn(async (events: AlicizationExecutionEventInput[]) => {
+      if (events.some(event => event.id === liveEvent.id)) {
+        liveWriteAttempts += 1
+        if (liveWriteAttempts <= 2)
+          throw new Error(`realtime-write-${liveWriteAttempts}-failed`)
+      }
+      persistedEventIds.push(...events.flatMap(event => event.id ? [event.id] : []))
+    })
+    executeCodexTaskThreadMock.mockImplementationOnce(async (input) => {
+      await input.onExecutionEvent?.(liveEvent)
+      return {
+        ok: true,
+        finalStatus: 'completed',
+        summary: 'Codex inspection completed.',
+        output: 'done',
+        events: [liveEvent, resultEvent],
+      }
+    })
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result.ok).toBe(true)
+    expect(liveWriteAttempts).toBe(3)
+    expect(persistedEventIds).toEqual(expect.arrayContaining([
+      liveEvent.id,
+      resultEvent.id,
+    ]))
+  })
+
+  it('isolates synchronous and asynchronous execution observers from the executor lifecycle', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    const syncEvent: AlicizationExecutionEventInput = {
+      id: 'codex-observer:1',
+      threadId: 'thread-dispatch-1',
+      decisionTraceId: 'mind:trace:dispatch-1',
+      turnId: 'turn-dispatch-1',
+      sessionId: 'session-dispatch-1',
+      origin: 'user-turn',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'running',
+      payload: {
+        codexEventType: 'item.started',
+      },
+      createdAt: 120,
+    }
+    const asyncEvent: AlicizationExecutionEventInput = {
+      ...syncEvent,
+      id: 'codex-observer:2',
+      createdAt: 121,
+    }
+    executeCodexTaskThreadMock.mockImplementationOnce(async (input) => {
+      await input.onExecutionEvent?.(syncEvent)
+      await input.onExecutionEvent?.(asyncEvent)
+      return {
+        ok: true,
+        finalStatus: 'completed',
+        summary: 'Codex inspection completed.',
+        output: 'done',
+        events: [syncEvent, asyncEvent],
+      }
+    })
+    const onExecutionEvent = vi.fn((event: AlicizationExecutionEventInput) => {
+      if (event.id === syncEvent.id)
+        throw new Error('observer-sync-failed')
+      return Promise.reject(new Error('observer-async-failed'))
+    })
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      onExecutionEvent,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result.ok).toBe(true)
+    expect(onExecutionEvent).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not let a never-settling realtime event write own the dispatch lifecycle', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    const liveEvent: AlicizationExecutionEventInput = {
+      id: 'codex-never-settles:1',
+      threadId: 'thread-dispatch-1',
+      decisionTraceId: 'mind:trace:dispatch-1',
+      turnId: 'turn-dispatch-1',
+      sessionId: 'session-dispatch-1',
+      origin: 'user-turn',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'running',
+      payload: {
+        codexEventType: 'item.started',
+      },
+      createdAt: 120,
+    }
+    const resultEvent: AlicizationExecutionEventInput = {
+      ...liveEvent,
+      id: 'codex-never-settles:2',
+      kind: 'result',
+      threadStatus: 'completed',
+      createdAt: 130,
+    }
+    port.appendExecutionEvents = vi.fn(() => new Promise<void>(() => {}))
+    executeCodexTaskThreadMock.mockImplementationOnce(async (input) => {
+      await input.onExecutionEvent?.(liveEvent)
+      return {
+        ok: true,
+        finalStatus: 'completed',
+        summary: 'Codex inspection completed.',
+        output: 'done',
+        events: [liveEvent, resultEvent],
+      }
+    })
+
+    const dispatch = dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      eventPersistenceTimeoutMs: 10,
+      workspaceRoot: process.cwd(),
+    })
+    const outcome = await Promise.race([
+      dispatch.then(result => ({ kind: 'result' as const, result })),
+      new Promise<{ kind: 'timeout' }>(resolve => setTimeout(() => resolve({ kind: 'timeout' }), 150)),
+    ])
+
+    expect(outcome.kind).toBe('result')
+    if (outcome.kind === 'result') {
+      expect(outcome.result.ok).toBe(true)
+      expect(outcome.result.thread.status).toBe('completed')
+      expect(outcome.result.createdEventKinds).toEqual([])
+    }
+    expect(port.upsertTaskThread).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'completed',
+    }))
+  })
+
+  it('still persists the terminal thread when every final event write fails', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    const resultEvent: AlicizationExecutionEventInput = {
+      id: 'codex-final-write-fails:1',
+      threadId: 'thread-dispatch-1',
+      decisionTraceId: 'mind:trace:dispatch-1',
+      turnId: 'turn-dispatch-1',
+      sessionId: 'session-dispatch-1',
+      origin: 'user-turn',
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'completed',
+      payload: {
+        adapter: 'codex',
+      },
+      createdAt: 130,
+    }
+    port.appendExecutionEvents = vi.fn(async () => {
+      throw new Error('sqlite-event-write-failed')
+    })
+    executeCodexTaskThreadMock.mockResolvedValueOnce({
+      ok: true,
+      finalStatus: 'completed',
+      summary: 'Codex inspection completed.',
+      output: 'done',
+      events: [resultEvent],
+    })
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      eventPersistenceTimeoutMs: 10,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.thread.status).toBe('completed')
+    expect(result.createdEventKinds).toEqual([])
+    expect(result.thread.metadata).toEqual(expect.objectContaining({
+      execution: expect.objectContaining({
+        persistence: expect.objectContaining({
+          status: 'degraded',
+        }),
+      }),
+    }))
+    expect(port.upsertTaskThread).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'completed',
+    }))
   })
 
   it('requires execution runtime context before dispatch begins when neither payload nor stored thread metadata carries one', async () => {
@@ -195,6 +1168,40 @@ describe('task-thread dispatcher', () => {
         threadStatus: 'blocked',
       }),
     ])
+  })
+
+  it('does not let kill-switch event persistence block the dispatch lifecycle', async () => {
+    const port = createPort(createThread())
+    port.appendExecutionEvents = vi.fn(() => new Promise<void>(() => {}))
+
+    const dispatch = dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      cli: {
+        command: 'node',
+        args: ['-e', 'console.log("blocked")'],
+      },
+      eventPersistenceTimeoutMs: 10,
+      killSwitchSuspended: true,
+      workspaceRoot: process.cwd(),
+    })
+    const outcome = await Promise.race([
+      dispatch.then(result => ({ kind: 'result' as const, result })),
+      new Promise<{ kind: 'timeout' }>(resolve => setTimeout(() => resolve({ kind: 'timeout' }), 150)),
+    ])
+
+    expect(outcome.kind).toBe('result')
+    if (outcome.kind === 'result') {
+      expect(outcome.result.ok).toBe(false)
+      expect(outcome.result.thread.status).toBe('blocked')
+      expect(outcome.result.createdEventKinds).toEqual([])
+      expect(outcome.result.thread.metadata).toEqual(expect.objectContaining({
+        execution: expect.objectContaining({
+          persistence: expect.objectContaining({
+            status: 'degraded',
+          }),
+        }),
+      }))
+    }
   })
 
   it('requires codex payload when the planned thread selects codex', async () => {

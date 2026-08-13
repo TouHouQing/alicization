@@ -115,14 +115,16 @@ describe('runtime execution delivery', () => {
 
     const runtime = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
-      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
-      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
-      withCardScope: async (_cardId, task) => await task(),
+      getActiveSessionId: () => 'session-reconcile-1',
+      getNow: () => 10_000,
+      normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : 'default',
+      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
+      withCardScope: async <T>(_cardId: unknown, task: () => Promise<T>) => await task(),
       queueSubconsciousWake,
       appendAuditLog: async () => {},
       syncSessionMirrorFromCurrentCardState: async () => {},
       alicizationDb: {
-        getMetaValue: async key => meta.get(key),
+        getMetaValue: async (key: string) => meta.get(key),
         setMetaValue: async (key, value) => {
           meta.set(key, value)
         },
@@ -155,14 +157,14 @@ describe('runtime execution delivery', () => {
     })
     const restored = createAlicizationRuntimeExecutionDelivery({
       getActiveCardId: () => 'default',
-      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
-      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
-      withCardScope: async (_cardId, task) => await task(),
+      normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : 'default',
+      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
+      withCardScope: async <T>(_cardId: unknown, task: () => Promise<T>) => await task(),
       queueSubconsciousWake,
       appendAuditLog: async () => {},
       syncSessionMirrorFromCurrentCardState: async () => {},
       alicizationDb: {
-        getMetaValue: async key => meta.get(key),
+        getMetaValue: async (key: string) => meta.get(key),
         setMetaValue: async (key, value) => {
           meta.set(key, value)
         },
@@ -190,6 +192,293 @@ describe('runtime execution delivery', () => {
     const restoredState = await restored.restoreExecutionDeliveryState('default')
     expect(restoredState.pending).toHaveLength(1)
     expect(queueSubconsciousWake).toHaveBeenCalledWith('default', 'execution-delivery-restore', 240)
+  })
+
+  it('surfaces delivery state persistence failures instead of swallowing them', async () => {
+    const runtime = createAlicizationRuntimeExecutionDelivery({
+      getActiveCardId: () => 'default',
+      normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : 'default',
+      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
+      withCardScope: async <T>(_cardId: unknown, task: () => Promise<T>) => await task(),
+      queueSubconsciousWake: vi.fn(),
+      appendAuditLog: vi.fn(async () => {}),
+      syncSessionMirrorFromCurrentCardState: vi.fn(async () => {}),
+      alicizationDb: {
+        getMetaValue: async () => undefined,
+        setMetaValue: async () => {
+          throw new Error('sqlite delivery state write failed')
+        },
+        listExecutionEvents: async () => [],
+      },
+      executionDeliveryRuntime: createAlicizationExecutionDeliveryRuntime(),
+      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
+      generateMainGatewayText: async () => null,
+      getPerformanceManifest: async () => null,
+      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
+      normalizeAlicizationPerformancePayload: (raw: unknown) => raw,
+      clampAlicizationPerformancePayloadToManifest: (raw: unknown) => raw,
+      ensureVisualPresenceState: async () => null,
+      buildHostPersonModel: async () => null,
+    })
+
+    await expect(runtime.persistExecutionDeliveryState('default')).rejects.toThrow(
+      'sqlite delivery state write failed',
+    )
+  })
+
+  it('reconciles terminal task threads into the delivery queue during restore', async () => {
+    const meta = new Map<string, string>()
+    const queueSubconsciousWake = vi.fn()
+    const setMetaValue = vi.fn(async (key: string, value: string) => {
+      meta.set(key, value)
+    })
+    const terminalThread = {
+      id: 'thread-reconcile-1',
+      decisionTraceId: 'trace-reconcile-1',
+      turnId: 'turn-reconcile-1',
+      sessionId: 'session-reconcile-1',
+      origin: 'user-turn',
+      goal: 'Inspect the repository.',
+      kind: 'codebase-investigation',
+      status: 'failed',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      summary: 'Codex timed out.',
+      metadata: null,
+      createdAt: 9_000,
+      updatedAt: 9_500,
+      lastEventAt: 9_500,
+      completedAt: 9_500,
+    } as any
+    const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime({
+      getNow: () => 10_000,
+    })
+    const runtime = createAlicizationRuntimeExecutionDelivery({
+      getActiveCardId: () => 'default',
+      getActiveSessionId: () => 'session-reconcile-1',
+      getNow: () => 10_000,
+      normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : 'default',
+      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
+      withCardScope: async <T>(_cardId: unknown, task: () => Promise<T>) => await task(),
+      queueSubconsciousWake,
+      appendAuditLog: vi.fn(async () => {}),
+      syncSessionMirrorFromCurrentCardState: vi.fn(async () => {}),
+      alicizationDb: {
+        getMetaValue: async (key: string) => meta.get(key),
+        setMetaValue,
+        listExecutionEvents: async () => [{
+          id: 'event-reconcile-1',
+          createdAt: 9_500,
+          kind: 'result',
+          threadStatus: 'failed',
+          payload: {
+            errorCode: 'CODEX_TIMEOUT',
+            errorMessage: 'Codex produced no semantic progress for 180000ms.',
+          },
+        }],
+        listTaskThreads: vi.fn(async () => [terminalThread]),
+      },
+      executionDeliveryRuntime,
+      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
+      generateMainGatewayText: async () => null,
+      getPerformanceManifest: async () => null,
+      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
+      normalizeAlicizationPerformancePayload: (raw: unknown) => raw,
+      clampAlicizationPerformancePayloadToManifest: (raw: unknown) => raw,
+      ensureVisualPresenceState: async () => null,
+      buildHostPersonModel: async () => null,
+    } as any)
+
+    const restored = await runtime.restoreExecutionDeliveryState('default')
+
+    expect(restored.pending).toEqual([
+      expect.objectContaining({
+        threadId: 'thread-reconcile-1',
+        status: 'failed',
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'Codex produced no semantic progress for 180000ms.',
+      }),
+    ])
+    expect(setMetaValue).toHaveBeenCalled()
+    expect(queueSubconsciousWake).toHaveBeenCalledWith(
+      'default',
+      'execution-delivery:thread-reconcile-1',
+      240,
+    )
+  })
+
+  it('does not rebuild historical terminal tasks from an unrelated session during restore', async () => {
+    const meta = new Map<string, string>()
+    const appendAuditLog = vi.fn(async () => {})
+    const queueSubconsciousWake = vi.fn()
+    const oldThread = {
+      id: 'thread-old-session',
+      decisionTraceId: 'trace-old-session',
+      turnId: 'turn-old-session',
+      sessionId: 'session-old',
+      origin: 'user-turn',
+      goal: 'old Codex task',
+      kind: 'task',
+      status: 'failed',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      summary: 'old failure',
+      metadata: null,
+      createdAt: 99_500,
+      updatedAt: 99_500,
+      lastEventAt: 99_500,
+      completedAt: 99_500,
+    } as any
+    const listTaskThreads = vi.fn(async () => [oldThread])
+    const runtime = createAlicizationRuntimeExecutionDelivery({
+      getActiveCardId: () => 'default',
+      getActiveSessionId: () => 'session-current',
+      getNow: () => 100_000,
+      executionDeliveryRecoveryWindowMs: 10_000,
+      normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : 'default',
+      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
+      withCardScope: async <T>(_cardId: unknown, task: () => Promise<T>) => await task(),
+      queueSubconsciousWake,
+      appendAuditLog,
+      syncSessionMirrorFromCurrentCardState: async () => {},
+      alicizationDb: {
+        getMetaValue: async (key: string) => meta.get(key),
+        setMetaValue: async (key: string, value: string) => {
+          meta.set(key, value)
+        },
+        listExecutionEvents: async () => [],
+        listTaskThreads,
+      },
+      executionDeliveryRuntime: createAlicizationExecutionDeliveryRuntime({
+        getNow: () => 100_000,
+        maxAgeMs: 10_000,
+      }),
+      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
+      generateMainGatewayText: async () => null,
+      getPerformanceManifest: async () => null,
+      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
+      normalizeAlicizationPerformancePayload: (raw: unknown) => raw,
+      clampAlicizationPerformancePayloadToManifest: (raw: unknown) => raw,
+      ensureVisualPresenceState: async () => null,
+      buildHostPersonModel: async () => null,
+    } as any)
+
+    const restored = await runtime.restoreExecutionDeliveryState('default')
+
+    expect(listTaskThreads).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-current',
+      limit: 32,
+    }))
+    expect(restored.pending).toEqual([])
+    expect(queueSubconsciousWake).not.toHaveBeenCalled()
+    expect(meta.get('execution_delivery_state_v1')).toBe('')
+    expect(appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'reconcile-history-skipped',
+    }), 'default')
+  })
+
+  it('persists an empty delivery state after restoring and pruning stale persisted entries', async () => {
+    const staleState = JSON.stringify({
+      version: 2,
+      pending: [{
+        key: 'default::session-current::thread-stale::1000::failed',
+        cardId: 'default',
+        sessionId: 'session-current',
+        threadId: 'thread-stale',
+        decisionTraceId: null,
+        turnId: null,
+        channel: 'codex',
+        status: 'failed',
+        goal: 'stale task',
+        summary: 'stale',
+        outcome: '',
+        signature: 'thread-stale:1000',
+        queuedAt: 1000,
+        completedAt: 1000,
+      }],
+      delivered: [],
+      surfaced: [],
+    })
+    const meta = new Map([['execution_delivery_state_v1', staleState]])
+    const setMetaValue = vi.fn(async (key: string, value: string) => {
+      meta.set(key, value)
+    })
+    const runtime = createAlicizationRuntimeExecutionDelivery({
+      getActiveCardId: () => 'default',
+      getActiveSessionId: () => 'session-current',
+      getNow: () => 100_000,
+      normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : 'default',
+      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
+      withCardScope: async <T>(_cardId: unknown, task: () => Promise<T>) => await task(),
+      queueSubconsciousWake: vi.fn(),
+      appendAuditLog: async () => {},
+      syncSessionMirrorFromCurrentCardState: async () => {},
+      alicizationDb: {
+        getMetaValue: async (key: string) => meta.get(key),
+        setMetaValue,
+        listExecutionEvents: async () => [],
+        listTaskThreads: async () => [],
+      },
+      executionDeliveryRuntime: createAlicizationExecutionDeliveryRuntime({
+        getNow: () => 100_000,
+        maxAgeMs: 10_000,
+      }),
+      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
+      generateMainGatewayText: async () => null,
+      getPerformanceManifest: async () => null,
+      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
+      normalizeAlicizationPerformancePayload: (raw: unknown) => raw,
+      clampAlicizationPerformancePayloadToManifest: (raw: unknown) => raw,
+      ensureVisualPresenceState: async () => null,
+      buildHostPersonModel: async () => null,
+    } as any)
+
+    const restored = await runtime.restoreExecutionDeliveryState('default')
+
+    expect(restored.pending).toEqual([])
+    expect(setMetaValue).toHaveBeenLastCalledWith('execution_delivery_state_v1', '')
+  })
+
+  it('does not overwrite persisted delivery state when the restore read fails', async () => {
+    const appendAuditLog = vi.fn(async () => {})
+    const setMetaValue = vi.fn(async () => {})
+    const runtime = createAlicizationRuntimeExecutionDelivery({
+      getActiveCardId: () => 'default',
+      getActiveSessionId: () => 'session-current',
+      getNow: () => 100_000,
+      normalizeCardId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : 'default',
+      normalizeSessionId: (raw: unknown) => typeof raw === 'string' ? raw.trim() : '',
+      withCardScope: async <T>(_cardId: unknown, task: () => Promise<T>) => await task(),
+      queueSubconsciousWake: vi.fn(),
+      appendAuditLog,
+      syncSessionMirrorFromCurrentCardState: async () => {},
+      alicizationDb: {
+        getMetaValue: async () => {
+          throw new Error('sqlite read unavailable')
+        },
+        setMetaValue,
+        listExecutionEvents: async () => [],
+        listTaskThreads: async () => [],
+      },
+      executionDeliveryRuntime: createAlicizationExecutionDeliveryRuntime({
+        getNow: () => 100_000,
+      }),
+      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
+      generateMainGatewayText: async () => null,
+      getPerformanceManifest: async () => null,
+      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
+      normalizeAlicizationPerformancePayload: (raw: unknown) => raw,
+      clampAlicizationPerformancePayloadToManifest: (raw: unknown) => raw,
+      ensureVisualPresenceState: async () => null,
+      buildHostPersonModel: async () => null,
+    } as any)
+
+    await runtime.restoreExecutionDeliveryState('default')
+
+    expect(setMetaValue).not.toHaveBeenCalled()
+    expect(appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'restore-state-read-failed',
+    }), 'default')
   })
 
   it('queues a settled execution callback candidate and emits audit/sync hooks', async () => {
@@ -270,6 +559,100 @@ describe('runtime execution delivery', () => {
     const queuedAudit = ((appendAuditLog.mock.calls as unknown[][]).at(0)?.[0]) as any
     expect(queuedAudit?.payload).not.toHaveProperty('projectContinuity')
     expect(queueSubconsciousWake).toHaveBeenCalledWith('default', 'execution-delivery:thread-1', 240)
+  })
+
+  it('marks an inline Provider-owned execution as surfaced instead of queuing a second callback', async () => {
+    const executionDeliveryRuntime = createAlicizationExecutionDeliveryRuntime({
+      getNow: () => 10_000,
+    })
+    const queueSubconsciousWake = vi.fn()
+    const runtime = createAlicizationRuntimeExecutionDelivery({
+      getActiveCardId: () => 'default',
+      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
+      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
+      withCardScope: async (_cardId, task) => await task(),
+      queueSubconsciousWake,
+      appendAuditLog: async () => {},
+      syncSessionMirrorFromCurrentCardState: async () => {},
+      alicizationDb: {
+        getMetaValue: async () => undefined,
+        setMetaValue: async () => {},
+        listExecutionEvents: async () => [{
+          id: 'event-inline-1',
+          createdAt: 9_500,
+          kind: 'result',
+          payload: {
+            stdout: 'inline result',
+          },
+        }],
+      },
+      executionDeliveryRuntime,
+      executionDeliveryStateMetaKey: 'execution_delivery_state_v1',
+      generateMainGatewayText: async () => null,
+      getPerformanceManifest: async () => null,
+      normalizeAlicizationEmotion: () => ({ emotion: 'thinking', downgraded: false }),
+      normalizeAlicizationPerformancePayload: raw => raw,
+      clampAlicizationPerformancePayloadToManifest: () => ({
+        performance: {
+          baseEmotion: 'thinking',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+      }),
+      ensureVisualPresenceState: async () => null,
+      buildHostPersonModel: async () => null,
+    })
+
+    const queued = await runtime.queueExecutionDeliveryCandidate({
+      cardId: 'default',
+      thread: {
+        id: 'thread-inline-1',
+        decisionTraceId: 'trace-inline-1',
+        turnId: 'turn-inline-1',
+        sessionId: 'session-inline-1',
+        origin: 'user-turn',
+        goal: 'inspect inline',
+        kind: 'task',
+        status: 'completed',
+        selectedChannel: 'codex',
+        proposedChannel: 'codex',
+        summary: 'inline summary',
+        metadata: {
+          execution: {
+            runtimeContext: {
+              generatedAt: 9_000,
+              cardId: 'default',
+              turnId: 'turn-inline-1',
+              sessionId: 'session-inline-1',
+              resultDeliveryMode: 'inline',
+              sensory: {
+                collectedAt: 9_000,
+                running: true,
+                stale: false,
+                ageMs: 0,
+                foregroundWindow: null,
+                capture: null,
+              },
+            },
+          },
+        },
+        createdAt: 9_000,
+        updatedAt: 9_500,
+        lastEventAt: 9_500,
+        completedAt: 9_500,
+      } as any,
+    })
+
+    expect(queued).toBeNull()
+    expect(queueSubconsciousWake).not.toHaveBeenCalled()
+    expect(executionDeliveryRuntime.snapshot('default')).toMatchObject({
+      pending: [],
+      surfaced: [expect.objectContaining({
+        identity: expect.stringContaining('thread-inline-1'),
+      })],
+    })
   })
 
   it('uses the latest execution event timestamp as delivery identity even when thread summary refresh makes updatedAt newer', async () => {

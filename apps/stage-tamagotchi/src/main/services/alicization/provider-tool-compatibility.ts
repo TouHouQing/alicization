@@ -60,6 +60,7 @@ function isStrictCompatibleSchema(value: unknown): boolean {
 export function adaptAlicizationProviderTools(input: {
   providerId: string
   tools: Tool[] | undefined
+  resolveProviderToolName?: (toolName: string) => string | undefined
 }): Tool[] | undefined {
   if (!input.tools)
     return undefined
@@ -70,11 +71,14 @@ export function adaptAlicizationProviderTools(input: {
     const parameters = toPortableProviderSchema(tool.function.parameters) as Tool['function']['parameters']
     const strict = officialStrictToolSchemaProviderIds.has(providerId)
       && isStrictCompatibleSchema(parameters)
+    const providerToolName = input.resolveProviderToolName?.(tool.function.name)
+      ?? tool.function.name
 
     return {
       ...tool,
       function: {
         ...tool.function,
+        name: providerToolName,
         strict,
         parameters,
       },

@@ -1,3 +1,5 @@
+import type { AlicizationExecutionRuntimeContext } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationAuditLogInput,
   AlicizationChannelCapability,
@@ -6,13 +8,15 @@ import type {
   AlicizationDispatchTaskThreadPayload,
   AlicizationExecutionChannel,
   AlicizationExecutionEventInput,
+  AlicizationExecutionEventKind,
   AlicizationExecutionEventRecord,
   AlicizationTaskThreadRecord,
+  AlicizationTaskThreadStatus,
 } from '../../../shared/eventa'
 import type { AlicizationDbService } from './db'
 import type { MainGatewayExecutionTaskThreadResult, MainGatewayExecutionToolContext } from './main-chat-execution-surface'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
-import type { AlicizationTaskThreadPlanningInput } from './task-thread-governor'
+import type { AlicizationTaskExecutionGovernorPlanningInput } from './task-execution-governor'
 import type { AlicizationTaskThreadDispatchInvocation } from './task-thread-orchestrator'
 
 import { randomUUID } from 'node:crypto'
@@ -23,7 +27,7 @@ import { errorMessageFrom } from '@moeru/std'
 import { locateAlicizationExecutionBinary } from './execution-command-env'
 import { readExecutionOutcome, readLatestExecutionEvent, readTaskThreadActivityAt, sanitizeExecutionLedgerText } from './execution-ledger-shared'
 import { expandOpenClawBackedCapabilities } from './executor-adapters/embodied-channel'
-import { probeOpenClawCapability, readOpenClawCapabilitySnapshot } from './executor-adapters/openclaw'
+import { probeOpenClawCapability } from './executor-adapters/openclaw'
 import { buildHostPersonModelSnapshot } from './humanlike-memory'
 import { createTaskExecutionGovernor } from './task-execution-governor'
 
@@ -45,9 +49,10 @@ type AlicizationExecutorRuntimeDbPort = Pick<AlicizationDbService, 'appendExecut
 interface AlicizationExecutorRuntimeOptions {
   appendAuditLog: (input: AlicizationAuditLogInput) => Promise<void>
   dispatchTaskThread: (input: AlicizationTaskThreadDispatchInvocation) => Promise<{
-    createdEventKinds?: string[]
+    createdEventKinds?: AlicizationExecutionEventKind[]
     errorCode?: string
     errorMessage?: string
+    finalStatus?: AlicizationTaskThreadStatus
     ok: boolean
     output?: unknown | null
     summary: string
@@ -63,6 +68,83 @@ interface AlicizationExecutorRuntimeOptions {
 }
 
 const executionCapabilityProbeTtlMs = 45_000
+
+function combineAbortSignals(signals: readonly (AbortSignal | undefined)[]) {
+  const uniqueSignals = signals.filter((signal, index, all): signal is AbortSignal => (
+    signal !== undefined
+    && all.indexOf(signal) === index
+  ))
+  if (uniqueSignals.length === 0)
+    return undefined
+  if (uniqueSignals.length === 1)
+    return uniqueSignals[0]
+
+  const controller = new AbortController()
+  const abortFrom = (signal: AbortSignal) => {
+    if (!controller.signal.aborted)
+      controller.abort(signal.reason)
+  }
+  for (const signal of uniqueSignals) {
+    if (signal.aborted) {
+      abortFrom(signal)
+      break
+    }
+    signal.addEventListener('abort', () => abortFrom(signal), { once: true })
+  }
+  return controller.signal
+}
+
+function resolveAbortMessage(signal: AbortSignal, fallback: string) {
+  const reason = signal.reason
+  if (typeof reason === 'string' && reason.trim())
+    return reason.trim()
+  return errorMessageFrom(reason) || fallback
+}
+
+function withResultDeliveryMode<
+  Command extends { runtimeContext?: AlicizationExecutionRuntimeContext | null },
+>(
+  command: Command | null | undefined,
+  resultDeliveryMode: 'inline' | 'callback',
+): Command | null | undefined {
+  if (!command?.runtimeContext)
+    return command
+
+  return {
+    ...command,
+    runtimeContext: {
+      ...command.runtimeContext,
+      resultDeliveryMode,
+    },
+  }
+}
+
+function withDispatchResultDeliveryMode(
+  dispatch: Pick<AlicizationDispatchTaskThreadPayload, 'cli' | 'codex' | 'claudeCode' | 'localVisual' | 'openclaw'>,
+  resultDeliveryMode: 'inline' | 'callback',
+) {
+  return {
+    cli: withResultDeliveryMode(dispatch.cli, resultDeliveryMode),
+    codex: withResultDeliveryMode(dispatch.codex, resultDeliveryMode),
+    claudeCode: withResultDeliveryMode(dispatch.claudeCode, resultDeliveryMode),
+    localVisual: withResultDeliveryMode(dispatch.localVisual, resultDeliveryMode),
+    openclaw: withResultDeliveryMode(dispatch.openclaw, resultDeliveryMode),
+  }
+}
+
+function areCapabilityManifestsFresh(
+  manifests: AlicizationChannelCapabilityManifestRecord[],
+  nowTs = Date.now(),
+) {
+  return manifests.length > 0
+    && manifests.every((manifest) => {
+      const lastCheckedAt = manifest.lastCheckedAt
+      return typeof lastCheckedAt === 'number'
+        && Number.isFinite(lastCheckedAt)
+        && nowTs - lastCheckedAt <= executionCapabilityProbeTtlMs
+    })
+}
+
 function normalizePlanningCapability(capability: AlicizationChannelCapability): AlicizationChannelCapability {
   return {
     channel: capability.channel,
@@ -526,6 +608,115 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     ready: boolean
   }>()
   const taskExecutionGovernor = createTaskExecutionGovernor()
+  const inFlightTaskThreadResumes = new Map<
+    string,
+    Promise<MainGatewayExecutionTaskThreadResult>
+  >()
+  const terminalTaskThreadStatuses = new Set<AlicizationTaskThreadStatus>([
+    'blocked',
+    'cancelled',
+    'completed',
+    'failed',
+  ])
+
+  async function persistBackgroundDispatchFailure(input: {
+    action: 'dispatch-failed' | 'resume-dispatch-failed'
+    error: unknown
+    selectedChannel: AlicizationExecutionChannel | null
+    threadId: string
+  }) {
+    const db = options.getAlicizationDb()
+    const errorMessage = errorMessageFrom(input.error) ?? 'Background task-thread dispatch failed.'
+    const rawErrorCode = input.error && typeof input.error === 'object' && 'code' in input.error
+      ? (input.error as { code?: unknown }).code
+      : undefined
+    const errorCode = typeof rawErrorCode === 'string' && rawErrorCode.trim()
+      ? rawErrorCode.trim()
+      : 'TASK_THREAD_BACKGROUND_DISPATCH_FAILED'
+    const failedAt = Date.now()
+    const currentThread = await db.getTaskThread(input.threadId).catch(() => undefined)
+    if (!currentThread) {
+      await options.appendAuditLog({
+        level: 'warning',
+        category: 'alicization.executor.background-dispatch',
+        action: input.action,
+        message: 'Background task-thread dispatch failed and its thread could not be reloaded.',
+        payload: {
+          threadId: input.threadId,
+          selectedChannel: input.selectedChannel,
+          errorCode,
+          errorMessage,
+        },
+      }).catch(() => {})
+      return
+    }
+
+    if (terminalTaskThreadStatuses.has(currentThread.status)) {
+      await options.appendAuditLog({
+        level: 'notice',
+        category: 'alicization.executor.background-dispatch',
+        action: `${input.action}-already-settled`,
+        message: 'Ignored a late background dispatch rejection because the task thread was already terminal.',
+        payload: {
+          threadId: currentThread.id,
+          selectedChannel: currentThread.selectedChannel ?? input.selectedChannel,
+          threadStatus: currentThread.status,
+          errorCode,
+          errorMessage,
+        },
+      }).catch(() => {})
+      return
+    }
+
+    const summary = `${currentThread.selectedChannel ?? input.selectedChannel ?? 'executor'} background dispatch failed: ${errorMessage}`
+    const failureEvent: AlicizationExecutionEventInput = {
+      id: `${currentThread.id}:${input.action}`,
+      threadId: currentThread.id,
+      decisionTraceId: currentThread.decisionTraceId,
+      turnId: currentThread.turnId,
+      sessionId: currentThread.sessionId,
+      origin: currentThread.origin,
+      channel: currentThread.selectedChannel ?? input.selectedChannel,
+      kind: 'result',
+      threadStatus: 'failed',
+      payload: {
+        failureKind: 'tool-execution',
+        errorCode,
+        errorMessage,
+        backgroundDispatch: true,
+      },
+      createdAt: failedAt,
+    }
+    let eventPersistenceError: string | null = null
+    await db.appendExecutionEvents([failureEvent]).catch((error) => {
+      eventPersistenceError = errorMessageFrom(error) ?? 'execution-event-persistence-failed'
+    })
+    let threadPersistenceError: string | null = null
+    await db.upsertTaskThread({
+      ...currentThread,
+      status: 'failed',
+      summary,
+      updatedAt: Math.max(currentThread.updatedAt, failedAt),
+      lastEventAt: failedAt,
+      completedAt: failedAt,
+    }).catch((error) => {
+      threadPersistenceError = errorMessageFrom(error) ?? 'task-thread-persistence-failed'
+    })
+    await options.appendAuditLog({
+      level: eventPersistenceError || threadPersistenceError ? 'critical' : 'warning',
+      category: 'alicization.executor.background-dispatch',
+      action: input.action,
+      message: 'Background task-thread dispatch failed after the Provider accepted the task.',
+      payload: {
+        threadId: currentThread.id,
+        selectedChannel: currentThread.selectedChannel ?? input.selectedChannel,
+        errorCode,
+        errorMessage,
+        eventPersistenceError,
+        threadPersistenceError,
+      },
+    }).catch(() => {})
+  }
 
   async function probeBinaryReady(binary: string) {
     const cached = executionCapabilityProbeCache.get(binary)
@@ -545,12 +736,92 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     return resolved
   }
 
+  async function recordCapabilityProbeFailure(input: {
+    channel: AlicizationExecutionChannel | 'local'
+    error: unknown
+    source: CapabilityManifestSnapshotSource
+  }) {
+    const reason = errorMessageFrom(input.error) ?? 'unknown-error'
+    await options.appendAuditLog({
+      level: 'warning',
+      category: 'alicization.executor.capability-manifest',
+      action: 'probe-failed',
+      message: 'Failed to refresh executor capability manifest snapshot.',
+      payload: {
+        source: input.source,
+        channel: input.channel,
+        reason,
+      },
+    }).catch(() => {})
+    return reason
+  }
+
+  async function resolveBinaryCapabilityProbe(
+    binary: 'codex' | 'claude',
+    source: CapabilityManifestSnapshotSource,
+  ) {
+    try {
+      return {
+        ready: await probeBinaryReady(binary),
+        reason: null,
+      }
+    }
+    catch (error) {
+      const errorReason = await recordCapabilityProbeFailure({
+        channel: binary === 'claude' ? 'claude-code' : 'codex',
+        error,
+        source,
+      })
+      return {
+        ready: false,
+        reason: `${binary}-capability-probe-failed: ${errorReason}`,
+      }
+    }
+  }
+
+  async function resolveLocalCapabilityProbe(source: CapabilityManifestSnapshotSource) {
+    if (!options.resolveLocalCapabilityChannels)
+      return []
+    try {
+      return await options.resolveLocalCapabilityChannels()
+    }
+    catch (error) {
+      await recordCapabilityProbeFailure({
+        channel: 'local',
+        error,
+        source,
+      })
+      return []
+    }
+  }
+
+  async function resolveOpenClawCapabilityProbe(source: CapabilityManifestSnapshotSource) {
+    try {
+      return await probeOpenClawCapability()
+    }
+    catch (error) {
+      const errorReason = await recordCapabilityProbeFailure({
+        channel: 'openclaw',
+        error,
+        source,
+      })
+      return {
+        channel: 'openclaw',
+        available: false,
+        enabled: false,
+        ready: false,
+        sessionAffinity: true,
+        reason: `openclaw-capability-probe-failed: ${errorReason}`,
+      } satisfies AlicizationChannelCapability
+    }
+  }
+
   async function resolveDefaultPlanningCapabilities() {
     const [codexReady, claudeReady, openClawCapability, localCapabilities] = await Promise.all([
-      probeBinaryReady('codex'),
-      probeBinaryReady('claude'),
-      probeOpenClawCapability(),
-      options.resolveLocalCapabilityChannels?.().catch(() => []) ?? [],
+      resolveBinaryCapabilityProbe('codex', 'runtime-default-probe'),
+      resolveBinaryCapabilityProbe('claude', 'runtime-default-probe'),
+      resolveOpenClawCapabilityProbe('runtime-default-probe'),
+      resolveLocalCapabilityProbe('runtime-default-probe'),
     ])
 
     const defaults = [
@@ -564,19 +835,19 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       },
       {
         channel: 'codex',
-        available: codexReady,
-        enabled: codexReady,
-        ready: codexReady,
+        available: codexReady.ready,
+        enabled: codexReady.ready,
+        ready: codexReady.ready,
         sessionAffinity: true,
-        reason: codexReady ? null : 'codex-binary-missing',
+        reason: codexReady.ready ? null : codexReady.reason ?? 'codex-binary-missing',
       },
       {
         channel: 'claude-code',
-        available: claudeReady,
-        enabled: claudeReady,
-        ready: claudeReady,
+        available: claudeReady.ready,
+        enabled: claudeReady.ready,
+        ready: claudeReady.ready,
         sessionAffinity: true,
-        reason: claudeReady ? null : 'claude-cli-binary-missing',
+        reason: claudeReady.ready ? null : claudeReady.reason ?? 'claude-cli-binary-missing',
       },
       ...expandOpenClawBackedCapabilities(openClawCapability),
       {
@@ -593,10 +864,11 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
   }
 
   async function resolveDefaultPromptCapabilities() {
-    const [codexReady, claudeReady, localCapabilities] = await Promise.all([
-      probeBinaryReady('codex'),
-      probeBinaryReady('claude'),
-      options.resolveLocalCapabilityChannels?.().catch(() => []) ?? [],
+    const [codexReady, claudeReady, openClawCapability, localCapabilities] = await Promise.all([
+      resolveBinaryCapabilityProbe('codex', 'runtime-default-probe'),
+      resolveBinaryCapabilityProbe('claude', 'runtime-default-probe'),
+      resolveOpenClawCapabilityProbe('runtime-default-probe'),
+      resolveLocalCapabilityProbe('runtime-default-probe'),
     ])
 
     const defaults = [
@@ -610,21 +882,21 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       },
       {
         channel: 'codex',
-        available: codexReady,
-        enabled: codexReady,
-        ready: codexReady,
+        available: codexReady.ready,
+        enabled: codexReady.ready,
+        ready: codexReady.ready,
         sessionAffinity: true,
-        reason: codexReady ? null : 'codex-binary-missing',
+        reason: codexReady.ready ? null : codexReady.reason ?? 'codex-binary-missing',
       },
       {
         channel: 'claude-code',
-        available: claudeReady,
-        enabled: claudeReady,
-        ready: claudeReady,
+        available: claudeReady.ready,
+        enabled: claudeReady.ready,
+        ready: claudeReady.ready,
         sessionAffinity: true,
-        reason: claudeReady ? null : 'claude-cli-binary-missing',
+        reason: claudeReady.ready ? null : claudeReady.reason ?? 'claude-cli-binary-missing',
       },
-      ...expandOpenClawBackedCapabilities(readOpenClawCapabilitySnapshot()),
+      ...expandOpenClawBackedCapabilities(openClawCapability),
       {
         channel: 'openfang',
         available: false,
@@ -693,7 +965,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       })
       return [] as AlicizationChannelCapabilityManifestRecord[]
     })
-    if (persisted.length > 0)
+    if (areCapabilityManifestsFresh(persisted))
       return persisted.map(mapManifestToPlanningCapability)
 
     const defaults = await resolveDefaultPlanningCapabilities()
@@ -705,12 +977,14 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     const persisted = await options.getAlicizationDb().listChannelCapabilityManifests({
       limit: 64,
     }).catch(() => [] as AlicizationChannelCapabilityManifestRecord[])
-    if (persisted.length > 0)
+    if (areCapabilityManifestsFresh(persisted))
       return persisted.map(mapManifestToPlanningCapability)
-    return await resolveDefaultPromptCapabilities()
+    const defaults = await resolveDefaultPromptCapabilities()
+    await persistCapabilityManifestSnapshot(defaults, 'runtime-default-probe')
+    return defaults
   }
 
-  async function planTaskThread(input: AlicizationTaskThreadPlanningInput & {
+  async function planTaskThread(input: AlicizationTaskExecutionGovernorPlanningInput & {
     killSwitchSuspended?: boolean
   }) {
     const db = options.getAlicizationDb()
@@ -781,8 +1055,11 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
 
   async function executeMainGatewayTaskThread(input: {
     context: MainGatewayExecutionToolContext
+    dispatchMode?: 'inline' | 'background'
     dispatch: Pick<AlicizationDispatchTaskThreadPayload, 'cli' | 'codex' | 'claudeCode' | 'localVisual' | 'openclaw'>
     task: AlicizationClawTaskIntent
+    abortSignal?: AbortSignal
+    onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
   }): Promise<MainGatewayExecutionTaskThreadResult> {
     const killSwitchSuspended = options.getGlobalKillSwitchState() === 'SUSPENDED'
       || options.getCardKillSwitchState(input.context.cardId) === 'SUSPENDED'
@@ -790,6 +1067,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     const capabilities = await resolveTaskPlanningCapabilities()
     const db = options.getAlicizationDb()
     const planning = await planTaskThread({
+      canonicalToolCallId: options.sanitizeText(input.context.toolCallId) || null,
       threadId: `thread:tool:${randomUUID()}`,
       trace: {
         decisionTraceId: options.sanitizeText(input.context.decisionTraceId) || null,
@@ -823,7 +1101,12 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       }
     }
 
-    const dispatchResult = await options.dispatchTaskThread({
+    const resultDeliveryMode: 'inline' | 'callback' = input.dispatchMode === 'background'
+      ? 'callback'
+      : 'inline'
+    const dispatch = withDispatchResultDeliveryMode(input.dispatch, resultDeliveryMode)
+    const dispatchInvocation = {
+      resultDeliveryMode,
       port: {
         getTaskThread: db.getTaskThread,
         upsertTaskThread: db.upsertTaskThread,
@@ -833,17 +1116,52 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       },
       input: {
         threadId: planning.thread.id,
-        cli: input.dispatch.cli,
-        codex: input.dispatch.codex,
-        claudeCode: input.dispatch.claudeCode,
-        localVisual: input.dispatch.localVisual,
-        openclaw: input.dispatch.openclaw,
+        cli: dispatch.cli,
+        codex: dispatch.codex,
+        claudeCode: dispatch.claudeCode,
+        localVisual: dispatch.localVisual,
+        openclaw: dispatch.openclaw,
         killSwitchSuspended,
+        ...(input.dispatchMode === 'background'
+          ? {}
+          : {
+              // Keep the Provider's original signal at the resume adapter
+              // boundary, but enforce the execution-surface deadline at the
+              // actual task-thread dispatcher.
+              abortSignal: combineAbortSignals([
+                input.abortSignal,
+                input.context.abortSignal,
+              ]),
+              onExecutionEvent: input.onExecutionEvent,
+            }),
       },
-    })
+    }
+
+    if (input.dispatchMode === 'background') {
+      void options.dispatchTaskThread(dispatchInvocation).catch(async error => await persistBackgroundDispatchFailure({
+        action: 'dispatch-failed',
+        error,
+        selectedChannel: planning.thread.selectedChannel,
+        threadId: planning.thread.id,
+      }))
+      return {
+        accepted: true,
+        ok: true,
+        finalStatus: null,
+        stage: 'dispatch',
+        thread: planning.thread,
+        plan: planning.plan,
+        summary: `${planning.thread.selectedChannel} task accepted for background execution.`,
+        output: null,
+        createdEventKinds: planning.createdEventKinds,
+      }
+    }
+
+    const dispatchResult = await options.dispatchTaskThread(dispatchInvocation)
 
     return {
       ok: dispatchResult.ok,
+      finalStatus: dispatchResult.finalStatus,
       stage: 'dispatch',
       thread: dispatchResult.thread,
       plan: planning.plan,
@@ -982,10 +1300,32 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     }
   }
 
-  async function resumeMainGatewayTaskThread(input: {
+  async function resumeMainGatewayTaskThreadOnce(input: {
     context: MainGatewayExecutionToolContext
+    dispatchMode?: 'inline' | 'background'
+    expectedChannel: AlicizationExecutionChannel
     threadId: string
+    abortSignal?: AbortSignal
+    onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
   }): Promise<MainGatewayExecutionTaskThreadResult> {
+    if (!input.expectedChannel) {
+      return {
+        ok: false,
+        stage: 'dispatch',
+        thread: {
+          id: input.threadId,
+          selectedChannel: null,
+          status: 'failed',
+        },
+        plan: {
+          state: 'blocked',
+        },
+        summary: 'task-thread-resume:channel-required',
+        errorCode: 'TASK_THREAD_RESUME_CHANNEL_REQUIRED',
+        errorMessage: 'Task thread resume requires an expected execution channel.',
+      }
+    }
+
     const db = options.getAlicizationDb()
     const originalThread = await db.getTaskThread(input.threadId).catch(() => undefined)
     if (!originalThread) {
@@ -1021,6 +1361,59 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       }
     }
 
+    if (resumeChannel !== input.expectedChannel) {
+      return {
+        ok: false,
+        stage: 'dispatch',
+        thread: originalThread,
+        plan: {
+          state: 'blocked',
+          proposedChannel: resumeChannel,
+        },
+        summary: `Task thread belongs to ${resumeChannel}; ${input.expectedChannel} resume was rejected.`,
+        errorCode: 'TASK_THREAD_RESUME_CHANNEL_MISMATCH',
+        errorMessage: `This task thread belongs to ${resumeChannel} and cannot be resumed through ${input.expectedChannel}.`,
+      }
+    }
+
+    const resumeDispatch = buildResumeDispatchPayload({
+      thread: originalThread,
+    })
+    if (!resumeDispatch) {
+      return {
+        ok: false,
+        stage: 'dispatch',
+        thread: originalThread,
+        plan: {
+          state: 'blocked',
+          proposedChannel: resumeChannel,
+        },
+        summary: `Task thread resume is not supported yet for channel ${resumeChannel}.`,
+        errorCode: 'TASK_THREAD_RESUME_UNSUPPORTED_CHANNEL',
+        errorMessage: `Resume is not supported for ${resumeChannel}.`,
+      }
+    }
+
+    if (input.abortSignal?.aborted) {
+      return {
+        ok: false,
+        finalStatus: 'cancelled',
+        stage: 'dispatch',
+        thread: originalThread,
+        plan: {
+          state: 'blocked',
+          proposedChannel: resumeChannel,
+        },
+        summary: `Task thread resume was cancelled before ${resumeChannel} redispatch.`,
+        errorCode: 'TASK_THREAD_RESUME_ABORTED',
+        errorMessage: resolveAbortMessage(
+          input.abortSignal,
+          'Task thread resume was cancelled before redispatch.',
+        ),
+        createdEventKinds: [],
+      }
+    }
+
     const resumableThread = originalThread.status === 'needs-affirmation'
       ? await db.upsertTaskThread({
           ...originalThread,
@@ -1043,27 +1436,14 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       ])
     }
 
-    const dispatch = buildResumeDispatchPayload({
-      thread: resumableThread,
-    })
-    if (!dispatch) {
-      return {
-        ok: false,
-        stage: 'dispatch',
-        thread: resumableThread,
-        plan: {
-          state: 'blocked',
-          proposedChannel: resumeChannel,
-        },
-        summary: `Task thread resume is not supported yet for channel ${resumeChannel}.`,
-        errorCode: 'TASK_THREAD_RESUME_UNSUPPORTED_CHANNEL',
-        errorMessage: `Resume is not supported for ${resumeChannel}.`,
-      }
-    }
-
     const killSwitchSuspended = options.getGlobalKillSwitchState() === 'SUSPENDED'
       || options.getCardKillSwitchState(input.context.cardId) === 'SUSPENDED'
-    const dispatchResult = await options.dispatchTaskThread({
+    const resultDeliveryMode: 'inline' | 'callback' = input.dispatchMode === 'background'
+      ? 'callback'
+      : 'inline'
+    const dispatch = withDispatchResultDeliveryMode(resumeDispatch, resultDeliveryMode)
+    const dispatchInvocation = {
+      resultDeliveryMode,
       port: {
         getTaskThread: db.getTaskThread,
         upsertTaskThread: db.upsertTaskThread,
@@ -1075,11 +1455,45 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         threadId: resumableThread.id,
         ...dispatch,
         killSwitchSuspended,
+        ...(input.dispatchMode === 'background'
+          ? {}
+          : {
+              abortSignal: input.abortSignal,
+              onExecutionEvent: input.onExecutionEvent,
+            }),
       },
-    })
+    }
+
+    if (input.dispatchMode === 'background') {
+      void options.dispatchTaskThread(dispatchInvocation).catch(async error => await persistBackgroundDispatchFailure({
+        action: 'resume-dispatch-failed',
+        error,
+        selectedChannel: resumeChannel,
+        threadId: resumableThread.id,
+      }))
+      return {
+        accepted: true,
+        ok: true,
+        finalStatus: null,
+        stage: 'dispatch',
+        thread: resumableThread,
+        plan: {
+          state: 'routed',
+          proposedChannel: resumeChannel,
+        },
+        summary: `${resumeChannel} task resumed for background execution.`,
+        output: null,
+        createdEventKinds: originalThread.status === 'needs-affirmation'
+          ? ['resume']
+          : [],
+      }
+    }
+
+    const dispatchResult = await options.dispatchTaskThread(dispatchInvocation)
 
     return {
       ok: dispatchResult.ok,
+      finalStatus: dispatchResult.finalStatus,
       stage: 'dispatch',
       thread: dispatchResult.thread,
       plan: {
@@ -1092,6 +1506,27 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       errorMessage: dispatchResult.errorMessage,
       createdEventKinds: dispatchResult.createdEventKinds,
     }
+  }
+
+  function resumeMainGatewayTaskThread(
+    input: Parameters<typeof resumeMainGatewayTaskThreadOnce>[0],
+  ) {
+    if (!input.expectedChannel)
+      return resumeMainGatewayTaskThreadOnce(input)
+
+    const threadId = input.threadId.trim()
+    const inFlightKey = `${threadId}:${input.expectedChannel}`
+    const inFlight = inFlightTaskThreadResumes.get(inFlightKey)
+    if (inFlight)
+      return inFlight
+
+    const resume = resumeMainGatewayTaskThreadOnce(input)
+    inFlightTaskThreadResumes.set(inFlightKey, resume)
+    void resume.finally(() => {
+      if (inFlightTaskThreadResumes.get(inFlightKey) === resume)
+        inFlightTaskThreadResumes.delete(inFlightKey)
+    }).catch(() => {})
+    return resume
   }
 
   return {

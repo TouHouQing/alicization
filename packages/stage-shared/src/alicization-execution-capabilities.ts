@@ -12,11 +12,12 @@ export const alicizationExecutionCapabilityChannels = [
 export type AlicizationExecutionCapabilityChannel = typeof alicizationExecutionCapabilityChannels[number]
 
 export const alicizationExecutorToolNames = [
-  'executor_run_cli',
-  'executor_run_codex',
-  'executor_run_claude_code',
-  'executor_run_local_visual',
-  'executor_run_openclaw',
+  'coding_agent',
+  'cli',
+  'codex',
+  'claude_code',
+  'local_visual',
+  'openclaw',
   'browser_open_url',
   'browser_search_web',
   'browser_read_page',

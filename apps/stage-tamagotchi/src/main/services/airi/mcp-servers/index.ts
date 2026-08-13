@@ -49,6 +49,11 @@ import {
   isAlicizationKillSwitchSuspended,
   onAlicizationKillSwitchChanged,
 } from '../../alicization/state'
+import {
+  createCanonicalToolRegistry,
+  isCodingAgentLikeMcpName,
+  registerDiscoveredMcpCapability,
+} from '../../alicization/turn-os/tool-registry'
 
 interface McpServerSession {
   client: Client
@@ -56,12 +61,20 @@ interface McpServerSession {
   config: ElectronMcpStdioServerConfig
 }
 
+function isCodingAgentLikeQualifiedMcpName(name: string) {
+  if (isCodingAgentLikeMcpName(name))
+    return true
+
+  const normalizedName = name.trim().toLowerCase()
+  return /codex|claude[_-]?code|coding[_-]?agent/.test(normalizedName)
+}
+
 export interface McpStdioManager {
   ensureConfigFile: () => Promise<{ path: string }>
   openConfigFile: () => Promise<{ path: string }>
   applyAndRestart: () => Promise<ElectronMcpStdioApplyResult>
   listTools: () => Promise<ElectronMcpToolDescriptor[]>
-  callTool: (payload: ElectronMcpCallToolPayload) => Promise<ElectronMcpCallToolResult>
+  callTool: (payload: ElectronMcpCallToolPayload, signal?: AbortSignal) => Promise<ElectronMcpCallToolResult>
   stopAll: () => Promise<void>
   getRuntimeStatus: () => ElectronMcpStdioRuntimeStatus
   getCapabilitiesSnapshot: () => Promise<ElectronMcpCapabilitiesSnapshot>
@@ -89,7 +102,7 @@ const permissionRequestTimeoutMsec = 60_000
 const mcpWorkspaceDirectoryName = 'Alicization_Workspace'
 const defaultAlicizationCardId = 'default'
 let sharedMcpListToolsInvoker: (() => Promise<ElectronMcpToolDescriptor[]>) | undefined
-let sharedMcpCallToolInvoker: ((payload: ElectronMcpCallToolPayload) => Promise<ElectronMcpCallToolResult>) | undefined
+let sharedMcpCallToolInvoker: ((payload: ElectronMcpCallToolPayload, signal?: AbortSignal) => Promise<ElectronMcpCallToolResult>) | undefined
 
 export async function invokeAlicizationMcpListToolsFromMain() {
   if (!sharedMcpListToolsInvoker)
@@ -97,14 +110,14 @@ export async function invokeAlicizationMcpListToolsFromMain() {
   return await sharedMcpListToolsInvoker()
 }
 
-export async function invokeAlicizationMcpCallToolFromMain(payload: ElectronMcpCallToolPayload) {
+export async function invokeAlicizationMcpCallToolFromMain(payload: ElectronMcpCallToolPayload, signal?: AbortSignal) {
   if (!sharedMcpCallToolInvoker) {
     return createToolErrorResult(
       'MCP_CALL_UNAVAILABLE',
       'MCP runtime is not ready yet; tool execution is unavailable.',
     )
   }
-  return await sharedMcpCallToolInvoker(payload)
+  return await sharedMcpCallToolInvoker(payload, signal)
 }
 
 interface ToolPermissionEvaluation {
@@ -549,7 +562,7 @@ export function createMcpStdioManager(): McpStdioManager {
     return listResult.flat()
   }
 
-  const callTool = async (payload: ElectronMcpCallToolPayload): Promise<ElectronMcpCallToolResult> => {
+  const callTool = async (payload: ElectronMcpCallToolPayload, signal?: AbortSignal): Promise<ElectronMcpCallToolResult> => {
     if (isAlicizationKillSwitchSuspended()) {
       throw new Error('Alicization kill switch is suspended; MCP tool execution is disabled.')
     }
@@ -562,6 +575,7 @@ export function createMcpStdioManager(): McpStdioManager {
       }, undefined, {
         timeout: mcpRequestTimeoutMsec,
         maxTotalTimeout: mcpRequestMaxTotalTimeoutMsec,
+        signal,
       })
 
       const normalized: ElectronMcpCallToolResult = {}
@@ -726,6 +740,8 @@ export async function setupMcpStdioManager() {
 
 export function createMcpServersService(params: { context: ReturnType<typeof createContext>['context'], manager: McpStdioManager }) {
   const log = useLogg('main/mcp-safety').useGlobalConfig()
+  const registry = createCanonicalToolRegistry()
+  let dynamicMcpAllowlistSync: Promise<void> | undefined
   const pendingPermissionRequests = new Map<string, PendingPermissionRequest>()
   const sessionReadWhitelistByCard = new Map<string, Set<string>>()
   const userDataAbsolutePath = normalizeFsPath(app.getPath('userData'))
@@ -740,6 +756,51 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
   const ensureWorkspaceReady = mkdir(workspaceRootPath, { recursive: true }).catch((error) => {
     log.withError(error).warn('failed to prepare Alicization workspace directory')
   })
+
+  function registerDiscoveredMcpTool(tool: ElectronMcpToolDescriptor) {
+    const qualifiedName = tool.name.trim()
+    if (
+      qualifiedName === 'mcp_call_tool'
+      || qualifiedName.toLowerCase().startsWith('coding_agent.')
+      || isCodingAgentLikeQualifiedMcpName(qualifiedName)
+    ) {
+      return
+    }
+
+    const parsedName = parseQualifiedToolName(qualifiedName)
+    if (
+      parsedName.serverName !== tool.serverName
+      || parsedName.toolName !== tool.toolName
+    ) {
+      return
+    }
+
+    registerDiscoveredMcpCapability(registry, tool)
+  }
+
+  async function synchronizeDynamicMcpAllowlist() {
+    if (!dynamicMcpAllowlistSync) {
+      dynamicMcpAllowlistSync = params.manager.listTools()
+        .then((tools) => {
+          for (const tool of tools) {
+            try {
+              registerDiscoveredMcpTool(tool)
+            }
+            catch (error) {
+              log.withFields({ name: tool.name }).withError(error).warn('failed to register dynamically discovered mcp tool')
+            }
+          }
+        })
+        .catch((error) => {
+          log.withError(error).warn('failed to synchronize dynamically discovered mcp tools')
+        })
+        .finally(() => {
+          dynamicMcpAllowlistSync = undefined
+        })
+    }
+
+    await dynamicMcpAllowlistSync
+  }
 
   function isPathDeniedByBlacklist(targetPath: string) {
     if (isPathWithin(userDataAbsolutePath, targetPath))
@@ -872,12 +933,33 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
       resourcePath?: string
       argumentsSummary?: ReturnType<typeof summarizeToolArguments>
     },
+    signal?: AbortSignal,
   ) {
     const resourcePath = options?.resourcePath
     const argumentsSummary = options?.argumentsSummary
     return await new Promise<AlicizationSafetyPermissionDecision>((resolve) => {
-      const timeout = setTimeout(async () => {
+      let settled = false
+      let timeout: ReturnType<typeof setTimeout>
+      let onAbort = () => {}
+      const finish = (decision: AlicizationSafetyPermissionDecision) => {
+        if (settled)
+          return
+        settled = true
+        clearTimeout(timeout)
+        signal?.removeEventListener('abort', onAbort)
         pendingPermissionRequests.delete(request.token)
+        resolve(decision)
+      }
+      onAbort = () => {
+        finish({
+          cardId: request.cardId,
+          token: request.token,
+          requestId: request.requestId,
+          allow: false,
+          reason: 'aborted',
+        })
+      }
+      timeout = setTimeout(async () => {
         await appendSafetyAudit({
           level: 'warning',
           category: 'alicization.safety.permission',
@@ -892,7 +974,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
             argumentsSummary,
           },
         })
-        resolve({
+        finish({
           token: request.token,
           requestId: request.requestId,
           allow: false,
@@ -902,11 +984,17 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
 
       pendingPermissionRequests.set(request.token, {
         request,
-        resolve,
+        resolve: finish,
         timeout,
         resourcePath,
         argumentsSummary,
       })
+      if (signal?.aborted) {
+        onAbort()
+      }
+      else {
+        signal?.addEventListener('abort', onAbort, { once: true })
+      }
     })
   }
 
@@ -953,27 +1041,45 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     }
   }
 
-  async function runToolCallWithKillSwitchGuard(payload: ElectronMcpCallToolPayload, cardId: string) {
-    if (isAlicizationKillSwitchSuspended() || isAlicizationCardKillSwitchSuspended(cardId)) {
+  async function runToolCallWithKillSwitchGuard(payload: ElectronMcpCallToolPayload, cardId: string, signal?: AbortSignal) {
+    if (signal?.aborted || isAlicizationKillSwitchSuspended() || isAlicizationCardKillSwitchSuspended(cardId)) {
       return createToolErrorResult('ALICIZATION_TOOL_ABORTED', 'Alicization kill switch is suspended; tool execution was aborted.')
     }
 
     return await new Promise<ElectronMcpCallToolResult>((resolve) => {
-      const detach = onAlicizationKillSwitchChanged((snapshot) => {
+      let settled = false
+      let detachKillSwitch = () => {}
+      let onAbort = () => {}
+      const cleanup = () => {
+        detachKillSwitch()
+        signal?.removeEventListener('abort', onAbort)
+      }
+      const finish = (result: ElectronMcpCallToolResult) => {
+        if (settled)
+          return
+        settled = true
+        cleanup()
+        resolve(result)
+      }
+      onAbort = () => {
+        finish(createToolErrorResult('ALICIZATION_TOOL_ABORTED', 'MCP tool execution was aborted.'))
+      }
+      detachKillSwitch = onAlicizationKillSwitchChanged((snapshot) => {
         if (snapshot.state !== 'SUSPENDED')
           return
-        detach()
-        resolve(createToolErrorResult('ALICIZATION_TOOL_ABORTED', 'Alicization kill switch is suspended; tool execution was aborted.'))
+        finish(createToolErrorResult('ALICIZATION_TOOL_ABORTED', 'Alicization kill switch is suspended; tool execution was aborted.'))
       })
 
-      params.manager.callTool(payload)
-        .then((result) => {
-          detach()
-          resolve(result)
-        })
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) {
+        onAbort()
+        return
+      }
+
+      params.manager.callTool(payload, signal)
+        .then(result => finish(result))
         .catch((error) => {
-          detach()
-          resolve(createToolErrorResult('MCP_CALL_FAILED', stringifyError(error)))
+          finish(createToolErrorResult('MCP_CALL_FAILED', stringifyError(error)))
         })
     })
   }
@@ -1068,11 +1174,15 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     return { accepted: true }
   })
 
-  const executeGuardedCallTool = async (payload: ElectronMcpCallToolPayload) => {
+  const executeGuardedCallTool = async (payload: ElectronMcpCallToolPayload, signal?: AbortSignal) => {
+    if (signal?.aborted) {
+      return createToolErrorResult('ALICIZATION_TOOL_ABORTED', 'MCP tool execution was aborted.')
+    }
+
     await ensureWorkspaceReady
     const cardId = normalizeCardId(payload.cardId)
 
-    if (isAlicizationKillSwitchSuspended() || getAlicizationCardKillSwitchSnapshot(cardId).state === 'SUSPENDED') {
+    if (signal?.aborted || isAlicizationKillSwitchSuspended() || getAlicizationCardKillSwitchSnapshot(cardId).state === 'SUSPENDED') {
       return createToolErrorResult('ALICIZATION_TOOL_ABORTED', 'Alicization kill switch is suspended; MCP tool execution is disabled.')
     }
 
@@ -1082,6 +1192,27 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
     }
     catch (error) {
       return createToolErrorResult('INVALID_TOOL_NAME', stringifyError(error))
+    }
+
+    if (!registry.resolveActive(payload.name)) {
+      await synchronizeDynamicMcpAllowlist()
+    }
+    if (signal?.aborted) {
+      return createToolErrorResult('ALICIZATION_TOOL_ABORTED', 'MCP tool execution was aborted.')
+    }
+    if (!registry.resolveActive(payload.name)) {
+      return createToolErrorResult(
+        'MCP_CAPABILITY_NOT_ALLOWLISTED',
+        `MCP tool is not registered in the canonical capability registry: ${payload.name}`,
+      )
+    }
+
+    const inputValidation = registry.validateInput(payload.name, payload.arguments ?? {})
+    if (!inputValidation.valid) {
+      return createToolErrorResult(
+        'MCP_CAPABILITY_INPUT_INVALID',
+        `MCP tool arguments failed canonical schema validation: ${JSON.stringify(inputValidation.errors ?? [])}`,
+      )
     }
 
     const permission = evaluateToolPermission(payload, cardId)
@@ -1172,13 +1303,16 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
       const decision = await waitForPermissionDecision(request, {
         resourcePath: permission.resourcePath,
         argumentsSummary,
-      })
+      }, signal)
+      if (decision.reason === 'aborted') {
+        return createToolErrorResult('ALICIZATION_TOOL_ABORTED', 'MCP tool execution was aborted.')
+      }
       if (!decision.allow) {
         return createPermissionDeniedResult(decision.reason)
       }
     }
 
-    const result = await runToolCallWithKillSwitchGuard(payload, cardId)
+    const result = await runToolCallWithKillSwitchGuard(payload, cardId, signal)
     if (result.isError) {
       await appendSafetyAudit({
         level: result.errorCode === 'ALICIZATION_TOOL_ABORTED' ? 'notice' : 'warning',
@@ -1199,7 +1333,7 @@ export function createMcpServersService(params: { context: ReturnType<typeof cre
   }
 
   sharedMcpListToolsInvoker = async () => await params.manager.listTools()
-  sharedMcpCallToolInvoker = async payload => await executeGuardedCallTool(payload)
+  sharedMcpCallToolInvoker = async (payload, signal) => await executeGuardedCallTool(payload, signal)
 
   defineInvokeHandler(params.context, electronMcpCallTool, async payload => await executeGuardedCallTool(payload))
 

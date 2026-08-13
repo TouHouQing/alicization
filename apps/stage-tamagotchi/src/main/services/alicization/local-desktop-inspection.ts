@@ -13,6 +13,7 @@ import type {
 import { resolveAlicizationKnownWebsiteBySite } from './local-known-websites'
 
 export interface AlicizationLocalDesktopInspectSceneInput {
+  abortSignal?: AbortSignal
   autoContinueSuggestedActions?: boolean
   cardId?: string
   forceRefresh?: boolean
@@ -28,7 +29,7 @@ export interface AlicizationLocalDesktopInspectionSuggestedAction {
   kind: string
   rationale: string
   title: string
-  toolName?: string
+  toolName?: AlicizationLocalDesktopInspectionSuggestedToolName
 }
 
 export interface AlicizationLocalDesktopInspectionInteractable {
@@ -122,6 +123,10 @@ export type AlicizationLocalDesktopInspectionWorkflowStepStatus
     | 'pending'
     | 'blocked'
 
+export type AlicizationLocalDesktopInspectionSuggestedToolName
+  = AlicizationExecutorToolName
+    | 'sensory_capture_state'
+
 export interface AlicizationLocalDesktopInspectionWorkflowStep {
   arguments?: Record<string, unknown>
   id: string
@@ -129,7 +134,7 @@ export interface AlicizationLocalDesktopInspectionWorkflowStep {
   rationale: string
   status: AlicizationLocalDesktopInspectionWorkflowStepStatus
   title: string
-  toolName?: AlicizationExecutorToolName
+  toolName?: AlicizationLocalDesktopInspectionSuggestedToolName
 }
 
 export interface AlicizationLocalDesktopInspectionWorkflowPlan {
@@ -157,7 +162,7 @@ export interface AlicizationLocalDesktopInspectionExecutionStrategy {
   mode: AlicizationLocalDesktopInspectionExecutionMode
   rationale: string
   recommendedChannel: AlicizationExecutionActionChannel
-  recommendedToolNames: AlicizationExecutorToolName[]
+  recommendedToolNames: AlicizationLocalDesktopInspectionSuggestedToolName[]
 }
 
 export interface AlicizationLocalDesktopInspectionSceneSnapshot {
@@ -223,14 +228,10 @@ function buildExecutionStrategyPrompt(input: {
   return parts.join(' ')
 }
 
-function buildExecutorFollowUpArguments(input: {
+function buildExecutorSuggestionArguments(input: {
   inspectionQuestion: string
 }) {
   return {
-    autoContinueSuggestedActions: true,
-    maxAutoContinueSteps: 1,
-    reinspectAfterAction: true,
-    inspectionMaxSuggestedActions: 3,
     inspectionQuestion: sanitizeText(input.inspectionQuestion, 220) || undefined,
   } satisfies Record<string, unknown>
 }
@@ -3517,7 +3518,7 @@ export function buildAlicizationDesktopInspectionExecutionStrategy(input: {
       mode: 'terminal-investigation',
       rationale: `当前场景更像终端或日志界面，围绕 ${focusLabel} 先走 CLI / Codex 调查链更稳，适合读取日志、复现命令和继续修复。`,
       recommendedChannel: 'cli',
-      recommendedToolNames: ['executor_run_cli', 'executor_run_codex', 'executor_run_claude_code'],
+      recommendedToolNames: ['coding_agent'],
     } satisfies AlicizationLocalDesktopInspectionExecutionStrategy
   }
 
@@ -3527,7 +3528,7 @@ export function buildAlicizationDesktopInspectionExecutionStrategy(input: {
       mode: 'coding-investigation',
       rationale: `当前场景更像编码、差异或报错调查，围绕 ${focusLabel} 先走 Codex / CLI 开发链更稳，适合看代码、定位报错、修改并验证。`,
       recommendedChannel: 'codex',
-      recommendedToolNames: ['executor_run_codex', 'executor_run_claude_code', 'executor_run_cli'],
+      recommendedToolNames: ['coding_agent'],
     } satisfies AlicizationLocalDesktopInspectionExecutionStrategy
   }
 
@@ -4140,14 +4141,15 @@ export function buildAlicizationDesktopInspectionSuggestedActions(input: {
         kind: 'delegate-terminal-cli-investigation',
         title: `先用 CLI 调查可见终端命令“${visibleTerminalCommand.displayText}”`,
         rationale: '当前终端里已经直接看见失败命令。先用 CLI 复现或观察这条命令，比先切去代码调查更稳。',
-        toolName: 'executor_run_cli',
+        toolName: 'coding_agent',
         arguments: {
+          agent: 'cli',
           command: visibleTerminalCommand.command,
           args: visibleTerminalCommand.args,
           goal: 'Investigate visible terminal scene',
           effect: 'observe',
           permissionMode: 'implicit',
-          ...buildExecutorFollowUpArguments({
+          ...buildExecutorSuggestionArguments({
             inspectionQuestion: 'CLI 调查可见终端命令后现在界面到了哪一步',
           }),
         },
@@ -4155,52 +4157,23 @@ export function buildAlicizationDesktopInspectionSuggestedActions(input: {
     }
   }
 
-  if (executionStrategy.mode === 'coding-investigation' || executionStrategy.mode === 'terminal-investigation') {
+  if (executionStrategy.mode === 'coding-investigation') {
     pushAction({
-      kind: executionStrategy.mode === 'coding-investigation'
-        ? 'delegate-coding-investigation'
-        : 'delegate-terminal-investigation',
-      title: executionStrategy.mode === 'coding-investigation'
-        ? '转给 Codex 调查当前代码/报错'
-        : '转给 Codex 调查当前终端报错',
-      rationale: executionStrategy.mode === 'coding-investigation'
-        ? '当前屏幕已经明显是代码或报错调查场景，直接转给 Codex 做代码级调查，比继续人工描述界面更稳。'
-        : '当前屏幕已经明显是终端或日志报错场景，直接转给 Codex 读取上下文并规划修复，比停在界面描述更稳。',
-      toolName: 'executor_run_codex',
+      kind: 'delegate-coding-investigation',
+      title: '转给 Codex 调查当前代码/报错',
+      rationale: '当前屏幕已经明显是代码或报错调查场景，直接转给 Codex 做代码级调查，比继续人工描述界面更稳。',
+      toolName: 'coding_agent',
       arguments: {
+        agent: 'codex',
         prompt: strategyPrompt,
         kind: 'codebase-investigation',
         goal: `Investigate visible ${summary?.workload.kind ?? 'desktop'} scene`,
         effect: 'observe',
         permissionMode: 'implicit',
-        ...buildExecutorFollowUpArguments({
+        ...buildExecutorSuggestionArguments({
           inspectionQuestion: executionStrategy.mode === 'coding-investigation'
             ? 'Codex 调查当前代码/报错后现在界面到了哪一步'
             : 'Codex 调查当前终端报错后现在界面到了哪一步',
-        }),
-      },
-    })
-    pushAction({
-      kind: executionStrategy.mode === 'coding-investigation'
-        ? 'delegate-coding-investigation-claude-code'
-        : 'delegate-terminal-investigation-claude-code',
-      title: executionStrategy.mode === 'coding-investigation'
-        ? '转给 Claude Code 调查当前代码/报错'
-        : '转给 Claude Code 调查当前终端报错',
-      rationale: executionStrategy.mode === 'coding-investigation'
-        ? '如果更适合走 Claude Code 的代码阅读与补丁链，也可以直接转给它读取当前编码上下文并规划修复。'
-        : '如果更适合走 Claude Code 的代码阅读链，也可以直接转给它读取终端报错相关代码上下文并规划修复。',
-      toolName: 'executor_run_claude_code',
-      arguments: {
-        prompt: strategyPrompt,
-        kind: 'codebase-investigation',
-        goal: `Investigate visible ${summary?.workload.kind ?? 'desktop'} scene`,
-        effect: 'observe',
-        permissionMode: 'implicit',
-        ...buildExecutorFollowUpArguments({
-          inspectionQuestion: executionStrategy.mode === 'coding-investigation'
-            ? 'Claude Code 调查当前代码/报错后现在界面到了哪一步'
-            : 'Claude Code 调查当前终端报错后现在界面到了哪一步',
         }),
       },
     })

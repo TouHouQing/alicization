@@ -617,6 +617,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
     sessionMirrorRecollection?: OrganicMemoryRecollectionCarry | null
+    providerPlanning?: 'enabled' | 'disabled'
   }): Promise<AlicizationOrganicMemoryPreludeResolution> {
     const budgetClass = input.budgetClass ?? 'realtime-reply'
     const sessionMirrorRecollectionIntent = deriveSessionMirrorRecollectionIntent(
@@ -662,7 +663,9 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         getMemoryTuningAdvice,
       },
       policy: {
-        planRecollectionIntent,
+        planRecollectionIntent: input.providerPlanning === 'disabled'
+          ? undefined
+          : planRecollectionIntent,
         deriveSceneTriggeredRecollectionIntent,
         isPersonaResidueMemoryText,
       },
@@ -831,6 +834,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     turnId?: string | null
     budgetClass?: AlicizationMemoryRetrievalBudgetClass
     sessionMirrorRecollection?: OrganicMemoryRecollectionCarry | null
+    providerPlanning?: 'enabled' | 'disabled'
   }): Promise<OrganicMemoryPromptContext> {
     const prelude = await resolveOrganicMemoryPrelude({
       recallSeed: options?.recallSeed,
@@ -841,6 +845,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       turnId: options?.turnId ?? null,
       budgetClass: options?.budgetClass,
       sessionMirrorRecollection: options?.sessionMirrorRecollection ?? null,
+      providerPlanning: options?.providerPlanning,
     })
     const {
       budgetClass,
@@ -905,10 +910,16 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recalledConversationHistory: agendaRankedConversationHistory,
       clusterState,
       digitalLifeRuntimeSurface,
-      planMemoryRecollection,
-      planRecollectionSpeech,
-      planMemoryDeliberation,
       resolveRecollectionPlanSearch,
+      planMemoryRecollection: options?.providerPlanning === 'disabled'
+        ? undefined
+        : planMemoryRecollection,
+      planRecollectionSpeech: options?.providerPlanning === 'disabled'
+        ? undefined
+        : planRecollectionSpeech,
+      planMemoryDeliberation: options?.providerPlanning === 'disabled'
+        ? undefined
+        : planMemoryDeliberation,
       recordMemoryPlannerLatency,
       recordMemorySpeechPlanLatency,
     })

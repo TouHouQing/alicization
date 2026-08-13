@@ -17,6 +17,8 @@ export interface AlicizationPendingExecutionDelivery {
   goal: string
   summary: string
   outcome: string
+  errorCode?: string
+  errorMessage?: string
   signature: string
   queuedAt: number
   completedAt: number
@@ -211,6 +213,8 @@ export function createAlicizationExecutionDeliveryRuntime(
     goal?: string | null
     summary?: string | null
     outcome?: string | null
+    errorCode?: string | null
+    errorMessage?: string | null
     signature?: string | null
     queuedAt?: number
     completedAt: number
@@ -265,6 +269,8 @@ export function createAlicizationExecutionDeliveryRuntime(
       goal: sanitizeExecutionLedgerText(input.goal, 180) || 'the current task',
       summary: sanitizeExecutionLedgerText(input.summary, 220),
       outcome: sanitizeExecutionLedgerText(input.outcome, 240),
+      errorCode: sanitizeExecutionLedgerText(input.errorCode, 96) || undefined,
+      errorMessage: sanitizeExecutionLedgerText(input.errorMessage, 320) || undefined,
       signature: sanitizeSignature(input.signature, `${threadId}:${completedAt}`),
       queuedAt: Number.isFinite(input.queuedAt)
         ? Math.max(completedAt, Math.floor(Number(input.queuedAt)))
@@ -538,6 +544,8 @@ export function createAlicizationExecutionDeliveryRuntime(
         goal: sanitizeExecutionLedgerText(pending.goal, 180) || 'the current task',
         summary: sanitizeExecutionLedgerText(pending.summary, 220),
         outcome: sanitizeExecutionLedgerText(pending.outcome, 240),
+        errorCode: sanitizeExecutionLedgerText(pending.errorCode, 96) || undefined,
+        errorMessage: sanitizeExecutionLedgerText(pending.errorMessage, 320) || undefined,
         signature: sanitizeSignature(pending.signature, `${sanitizeThreadId(pending.threadId)}:${Math.max(0, Math.floor(Number(pending.completedAt ?? 0)))}`),
         queuedAt: Number.isFinite(pending.queuedAt)
           ? Math.max(0, Math.floor(Number(pending.queuedAt)))

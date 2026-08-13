@@ -1,4 +1,8 @@
-import type { AlicizationDispatchTaskThreadResult, AlicizationTaskThreadRecord } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationDispatchTaskThreadResult,
+  AlicizationExecutionEventInput,
+  AlicizationTaskThreadRecord,
+} from '@proj-alicization/stage-shared'
 
 import type { AlicizationTaskThreadDispatchPort } from './task-thread-dispatcher'
 
@@ -72,6 +76,18 @@ function buildDispatchResult(thread: AlicizationTaskThreadRecord): AlicizationDi
     summary: `completed:${thread.id}`,
     output: null,
   }
+}
+
+function waitForAbort(signal: AbortSignal | undefined) {
+  return new Promise<void>((resolve) => {
+    if (!signal)
+      return
+    if (signal.aborted) {
+      resolve()
+      return
+    }
+    signal.addEventListener('abort', () => resolve(), { once: true })
+  })
 }
 
 describe('task-thread orchestrator', () => {
@@ -159,6 +175,59 @@ describe('task-thread orchestrator', () => {
     expect(resultA.summary).toBe(resultB.summary)
   })
 
+  it('lets a duplicate caller abort only its own wait without cancelling the shared dispatch', async () => {
+    const thread = createThread('thread-codex-dedupe-wait-abort', 'codex')
+    const port = createPort([thread])
+    const gate = createDeferredGate()
+    const duplicateAbortController = new AbortController()
+    let sharedSignal: AbortSignal | undefined
+    let runCount = 0
+    const orchestrator = createTaskThreadOrchestrator({
+      runDispatch: async ({ input }) => {
+        runCount += 1
+        sharedSignal = input.abortSignal
+        await gate.wait
+        return buildDispatchResult(thread)
+      },
+    })
+
+    const sharedDispatch = orchestrator.dispatch({
+      port,
+      input: { threadId: thread.id },
+    })
+    await vi.waitFor(() => {
+      expect(runCount).toBe(1)
+    })
+
+    const duplicateWait = orchestrator.dispatch({
+      port,
+      input: {
+        threadId: thread.id,
+        abortSignal: duplicateAbortController.signal,
+      },
+    })
+    duplicateAbortController.abort('duplicate-caller-stopped-waiting')
+
+    await expect(Promise.race([
+      duplicateWait,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('duplicate wait did not abort')), 150)),
+    ])).rejects.toMatchObject({
+      name: 'AbortError',
+      code: 'TASK_THREAD_WAIT_ABORTED',
+      message: 'duplicate-caller-stopped-waiting',
+    })
+    expect(sharedSignal?.aborted).toBe(false)
+    expect(runCount).toBe(1)
+
+    gate.release()
+    await expect(sharedDispatch).resolves.toMatchObject({
+      ok: true,
+      thread: {
+        status: 'completed',
+      },
+    })
+  })
+
   it('allows parallel dispatch for non-serialized channels', async () => {
     const threadA = createThread('thread-cli-1', 'cli')
     const threadB = createThread('thread-cli-2', 'cli')
@@ -200,5 +269,541 @@ describe('task-thread orchestrator', () => {
     gateA.release()
     gateB.release()
     await Promise.all([promiseA, promiseB])
+  })
+
+  it('runs direct dispatch with an orchestrator-owned signal that follows external aborts', async () => {
+    const thread = createThread('thread-cli-owned-signal', 'cli')
+    const port = createPort([thread])
+    const externalAbortController = new AbortController()
+    const cleanupGate = createDeferredGate()
+    let runningSignal: AbortSignal | undefined
+
+    const orchestrator = createTaskThreadOrchestrator({
+      runDispatch: async ({ input }) => {
+        runningSignal = input.abortSignal
+        await Promise.race([
+          waitForAbort(input.abortSignal),
+          cleanupGate.wait,
+        ])
+        return buildDispatchResult(thread)
+      },
+    })
+
+    const dispatchPromise = orchestrator.dispatch({
+      port,
+      input: {
+        threadId: thread.id,
+        abortSignal: externalAbortController.signal,
+      },
+    })
+
+    await vi.waitFor(() => {
+      expect(runningSignal).toBeDefined()
+    })
+
+    try {
+      expect(runningSignal).not.toBe(externalAbortController.signal)
+      expect(runningSignal?.aborted).toBe(false)
+
+      externalAbortController.abort('user-cancelled-direct-dispatch')
+
+      await vi.waitFor(() => {
+        expect(runningSignal?.aborted).toBe(true)
+        expect(runningSignal?.reason).toBe('user-cancelled-direct-dispatch')
+      })
+    }
+    finally {
+      cleanupGate.release()
+      await dispatchPromise
+    }
+  })
+
+  it('dispose aborts every running direct dispatch channel without serializing them', async () => {
+    const threads = [
+      createThread('thread-cli-dispose-running', 'cli'),
+      createThread('thread-openclaw-dispose-running', 'openclaw'),
+      createThread('thread-local-visual-dispose-running', 'desktop'),
+    ]
+    const port = createPort(threads)
+    const cleanupGate = createDeferredGate()
+    const runningSignals = new Map<string, AbortSignal | undefined>()
+    let active = 0
+    let maxActive = 0
+
+    const orchestrator = createTaskThreadOrchestrator({
+      shutdownDrainTimeoutMs: 20,
+      runDispatch: async ({ input }) => {
+        const thread = await port.getTaskThread(input.threadId)
+        if (!thread)
+          throw new Error('thread not found')
+        runningSignals.set(thread.id, input.abortSignal)
+        active += 1
+        maxActive = Math.max(maxActive, active)
+        await Promise.race([
+          waitForAbort(input.abortSignal),
+          cleanupGate.wait,
+        ])
+        active -= 1
+        return buildDispatchResult(thread)
+      },
+    })
+
+    const dispatches = threads.map(thread => orchestrator.dispatch({
+      port,
+      input: { threadId: thread.id },
+    }))
+
+    await vi.waitFor(() => {
+      expect(runningSignals.size).toBe(threads.length)
+      expect(maxActive).toBe(threads.length)
+    })
+
+    const disposal = orchestrator.dispose()
+
+    try {
+      await vi.waitFor(() => {
+        for (const thread of threads) {
+          const signal = runningSignals.get(thread.id)
+          expect(signal?.aborted).toBe(true)
+          expect(signal?.reason).toBe('orchestrator-disposed')
+        }
+      }, { timeout: 200 })
+    }
+    finally {
+      cleanupGate.release()
+      await Promise.allSettled([
+        ...dispatches,
+        disposal,
+      ])
+    }
+  })
+
+  it('removes and resolves an aborted queued job without waiting for the running job', async () => {
+    const threadA = createThread('thread-codex-running', 'codex')
+    const threadB = createThread('thread-codex-queued-cancelled', 'codex')
+    const port = createPort([threadA, threadB])
+    const runningGate = createDeferredGate()
+    const queuedAbortController = new AbortController()
+    const started: string[] = []
+
+    const orchestrator = createTaskThreadOrchestrator({
+      runDispatch: async ({ input }) => {
+        const thread = await port.getTaskThread(input.threadId)
+        if (!thread)
+          throw new Error('thread not found')
+        started.push(thread.id)
+        if (thread.id === threadA.id)
+          await runningGate.wait
+        return buildDispatchResult(thread)
+      },
+    })
+
+    const runningPromise = orchestrator.dispatch({
+      port,
+      input: { threadId: threadA.id },
+    })
+    await vi.waitFor(() => {
+      expect(started).toEqual([threadA.id])
+    })
+
+    let queuedResult: AlicizationDispatchTaskThreadResult | undefined
+    let queuedSettled = false
+    const queuedPromise = orchestrator.dispatch({
+      port,
+      input: {
+        threadId: threadB.id,
+        abortSignal: queuedAbortController.signal,
+      },
+    }).then((result) => {
+      queuedResult = result
+      queuedSettled = true
+      return result
+    })
+
+    await vi.waitFor(() => {
+      expect(orchestrator.snapshot().queued.codex).toEqual([threadB.id])
+    })
+
+    queuedAbortController.abort('user-cancelled-while-queued')
+
+    try {
+      await vi.waitFor(() => {
+        const snapshot = orchestrator.snapshot()
+        expect(snapshot.queued.codex).toEqual([])
+        expect(snapshot.inFlightThreadIds).not.toContain(threadB.id)
+        expect(queuedSettled).toBe(true)
+      }, { timeout: 200 })
+
+      expect(queuedResult?.errorCode).toBe('TASK_THREAD_ABORTED_BEFORE_DISPATCH')
+      expect(queuedResult?.errorMessage).toBe('user-cancelled-while-queued')
+      expect(port.appendExecutionEvents).toHaveBeenCalledWith([
+        expect.objectContaining({
+          threadId: threadB.id,
+          kind: 'cancel',
+          threadStatus: 'cancelled',
+          payload: expect.objectContaining({
+            reason: 'user-cancelled-while-queued',
+          }),
+        }),
+      ])
+      expect(port.upsertTaskThread).toHaveBeenCalledWith(expect.objectContaining({
+        id: threadB.id,
+        status: 'cancelled',
+      }))
+    }
+    finally {
+      runningGate.release()
+      await Promise.allSettled([runningPromise, queuedPromise])
+    }
+  })
+
+  it('reports queued cancellation persistence failures without overwriting a newer thread snapshot', async () => {
+    const runningThread = createThread('thread-codex-running-for-cancel-failure', 'codex')
+    const queuedThread = createThread('thread-codex-queued-cancel-failure', 'codex')
+    const latestQueuedThread: AlicizationTaskThreadRecord = {
+      ...queuedThread,
+      summary: 'newer queued state',
+      metadata: {
+        ...queuedThread.metadata,
+        latestRevision: 'preserve-me',
+      },
+      updatedAt: 180,
+    }
+    const runningGate = createDeferredGate()
+    const abortController = new AbortController()
+    let queuedThreadReads = 0
+    const basePort = createPort([runningThread, queuedThread])
+    const port: AlicizationTaskThreadDispatchPort = {
+      ...basePort,
+      getTaskThread: vi.fn(async (id: string) => {
+        if (id === queuedThread.id) {
+          queuedThreadReads += 1
+          return queuedThreadReads === 1 ? queuedThread : latestQueuedThread
+        }
+        return runningThread
+      }),
+      appendExecutionEvents: vi.fn(async (events: AlicizationExecutionEventInput[]) => {
+        if (events.some(event => event.threadId === queuedThread.id))
+          throw new Error('sqlite-cancel-event-write-failed')
+      }),
+    }
+    const orchestrator = createTaskThreadOrchestrator({
+      persistenceTimeoutMs: 10,
+      runDispatch: async ({ input }) => {
+        const thread = await port.getTaskThread(input.threadId)
+        if (!thread)
+          throw new Error('thread not found')
+        if (thread.id === runningThread.id)
+          await runningGate.wait
+        return buildDispatchResult(thread)
+      },
+    })
+
+    const runningPromise = orchestrator.dispatch({
+      port,
+      input: { threadId: runningThread.id },
+    })
+    await vi.waitFor(() => {
+      expect(orchestrator.snapshot().running.codex).toBe(runningThread.id)
+    })
+    const queuedPromise = orchestrator.dispatch({
+      port,
+      input: {
+        threadId: queuedThread.id,
+        abortSignal: abortController.signal,
+      },
+    })
+    await vi.waitFor(() => {
+      expect(orchestrator.snapshot().queued.codex).toEqual([queuedThread.id])
+    })
+
+    abortController.abort('cancel-with-degraded-persistence')
+    const result = await queuedPromise
+
+    expect(result.finalStatus).toBe('cancelled')
+    expect(result.createdEventKinds).toEqual([])
+    expect(result.errorMessage).toContain('cancel-with-degraded-persistence')
+    expect(result.errorMessage).toContain('persistence')
+    expect(port.upsertTaskThread).toHaveBeenCalledWith(expect.objectContaining({
+      id: queuedThread.id,
+      status: 'cancelled',
+      metadata: expect.objectContaining({
+        latestRevision: 'preserve-me',
+      }),
+    }))
+
+    runningGate.release()
+    await runningPromise
+  })
+
+  it('runs each serialized job with an orchestrator-owned signal that follows external aborts', async () => {
+    const thread = createThread('thread-codex-owned-signal', 'codex')
+    const port = createPort([thread])
+    const externalAbortController = new AbortController()
+    const cleanupGate = createDeferredGate()
+    let runningSignal: AbortSignal | undefined
+
+    const orchestrator = createTaskThreadOrchestrator({
+      runDispatch: async ({ input }) => {
+        runningSignal = input.abortSignal
+        await Promise.race([
+          waitForAbort(input.abortSignal),
+          cleanupGate.wait,
+        ])
+        return buildDispatchResult(thread)
+      },
+    })
+
+    const dispatchPromise = orchestrator.dispatch({
+      port,
+      input: {
+        threadId: thread.id,
+        abortSignal: externalAbortController.signal,
+      },
+    })
+
+    await vi.waitFor(() => {
+      expect(runningSignal).toBeDefined()
+    })
+
+    try {
+      expect(runningSignal).not.toBe(externalAbortController.signal)
+      expect(runningSignal?.aborted).toBe(false)
+
+      externalAbortController.abort('user-cancelled-while-running')
+
+      await vi.waitFor(() => {
+        expect(runningSignal?.aborted).toBe(true)
+        expect(runningSignal?.reason).toBe('user-cancelled-while-running')
+      })
+    }
+    finally {
+      if (!externalAbortController.signal.aborted)
+        externalAbortController.abort('test-cleanup')
+      cleanupGate.release()
+      await dispatchPromise
+    }
+  })
+
+  it('does not overwrite a completed dispatcher terminal result when abort races with completion', async () => {
+    const thread = createThread('thread-codex-late-success', 'codex')
+    const port = createPort([thread])
+    const externalAbortController = new AbortController()
+    let runningSignal: AbortSignal | undefined
+
+    const orchestrator = createTaskThreadOrchestrator({
+      runDispatch: async ({ input }) => {
+        runningSignal = input.abortSignal
+        await waitForAbort(input.abortSignal)
+        return buildDispatchResult(thread)
+      },
+    })
+
+    const dispatchPromise = orchestrator.dispatch({
+      port,
+      input: {
+        threadId: thread.id,
+        abortSignal: externalAbortController.signal,
+      },
+    })
+
+    await vi.waitFor(() => {
+      expect(orchestrator.snapshot().running.codex).toBe(thread.id)
+      expect(runningSignal).toBeDefined()
+    })
+
+    externalAbortController.abort('user-cancelled-after-dispatch-started')
+
+    const result = await dispatchPromise
+
+    expect(result.ok).toBe(true)
+    expect(result.finalStatus).toBeUndefined()
+    expect(result.thread.status).toBe('completed')
+    expect(result.summary).toBe(`completed:${thread.id}`)
+    expect(port.appendExecutionEvents).not.toHaveBeenCalled()
+    expect(port.upsertTaskThread).not.toHaveBeenCalled()
+    expect(orchestrator.snapshot().running.codex).toBeUndefined()
+    expect(orchestrator.snapshot().inFlightThreadIds).toEqual([])
+  })
+
+  it('dispose cancels queued jobs and aborts the running serialized job', async () => {
+    const threadA = createThread('thread-codex-dispose-running', 'codex')
+    const threadB = createThread('thread-codex-dispose-queued', 'codex')
+    const port = createPort([threadA, threadB])
+    const cleanupGate = createDeferredGate()
+    let runningSignal: AbortSignal | undefined
+
+    const orchestrator = createTaskThreadOrchestrator({
+      runDispatch: async ({ input }) => {
+        const thread = await port.getTaskThread(input.threadId)
+        if (!thread)
+          throw new Error('thread not found')
+        runningSignal = input.abortSignal
+        await Promise.race([
+          waitForAbort(input.abortSignal),
+          cleanupGate.wait,
+        ])
+        return buildDispatchResult(thread)
+      },
+    })
+
+    let runningSettled = false
+    let queuedSettled = false
+    const runningPromise = orchestrator.dispatch({
+      port,
+      input: { threadId: threadA.id },
+    }).then((result) => {
+      runningSettled = true
+      return result
+    })
+
+    await vi.waitFor(() => {
+      expect(orchestrator.snapshot().running.codex).toBe(threadA.id)
+    })
+
+    const queuedPromise = orchestrator.dispatch({
+      port,
+      input: { threadId: threadB.id },
+    }).then((result) => {
+      queuedSettled = true
+      return result
+    })
+
+    await vi.waitFor(() => {
+      expect(orchestrator.snapshot().queued.codex).toEqual([threadB.id])
+    })
+
+    orchestrator.dispose()
+
+    try {
+      await vi.waitFor(() => {
+        const snapshot = orchestrator.snapshot()
+        expect(runningSignal?.aborted).toBe(true)
+        expect(runningSignal?.reason).toBe('orchestrator-disposed')
+        expect(snapshot.queued.codex).toEqual([])
+        expect(snapshot.running.codex).toBeUndefined()
+        expect(runningSettled).toBe(true)
+        expect(queuedSettled).toBe(true)
+      }, { timeout: 200 })
+
+      expect(port.upsertTaskThread).toHaveBeenCalledWith(expect.objectContaining({
+        id: threadB.id,
+        status: 'cancelled',
+      }))
+    }
+    finally {
+      cleanupGate.release()
+      await Promise.allSettled([runningPromise, queuedPromise])
+    }
+  })
+
+  it('exposes disposed state, rejects new work, and bounds shutdown drain time', async () => {
+    const thread = createThread('thread-codex-dispose-bounded', 'codex')
+    const port = createPort([thread])
+    const orchestrator = createTaskThreadOrchestrator({
+      shutdownDrainTimeoutMs: 20,
+      runDispatch: async () => await new Promise<AlicizationDispatchTaskThreadResult>(() => {}),
+    })
+
+    void orchestrator.dispatch({
+      port,
+      input: { threadId: thread.id },
+    })
+    await vi.waitFor(() => {
+      expect(orchestrator.snapshot().running.codex).toBe(thread.id)
+    })
+
+    const startedAt = Date.now()
+    const disposal = orchestrator.dispose()
+    expect(disposal).toBeInstanceOf(Promise)
+    await disposal
+
+    expect(Date.now() - startedAt).toBeLessThan(150)
+    expect(orchestrator.snapshot().disposed).toBe(true)
+    await expect(orchestrator.dispatch({
+      port,
+      input: { threadId: thread.id },
+    })).rejects.toMatchObject({
+      code: 'TASK_THREAD_ORCHESTRATOR_DISPOSED',
+    })
+  })
+
+  it('forwards abort after queued-to-running transition without persisting queued cancellation twice', async () => {
+    const thread = createThread('thread-codex-abort-race', 'codex')
+    const port = createPort([thread])
+    const externalAbortController = new AbortController()
+    const cleanupGate = createDeferredGate()
+    let runningSignal: AbortSignal | undefined
+    let settlements = 0
+
+    const orchestrator = createTaskThreadOrchestrator({
+      runDispatch: async ({ input }) => {
+        runningSignal = input.abortSignal
+        await Promise.race([
+          waitForAbort(input.abortSignal),
+          cleanupGate.wait,
+        ])
+        return {
+          ...buildDispatchResult(thread),
+          thread: {
+            ...thread,
+            status: 'cancelled',
+            summary: 'cancelled by dispatcher',
+            updatedAt: 200,
+            completedAt: 200,
+            lastEventAt: 200,
+          },
+          createdEventKinds: ['cancel'],
+          ok: false,
+          finalStatus: 'cancelled',
+          summary: 'cancelled by dispatcher',
+          errorCode: 'CODEX_EXECUTION_CANCELLED',
+          errorMessage: String(input.abortSignal?.reason ?? 'cancelled'),
+        }
+      },
+    })
+
+    const dispatchPromise = orchestrator.dispatch({
+      port,
+      input: {
+        threadId: thread.id,
+        abortSignal: externalAbortController.signal,
+      },
+    }).then((result) => {
+      settlements += 1
+      return result
+    })
+
+    await vi.waitFor(() => {
+      expect(orchestrator.snapshot().running.codex).toBe(thread.id)
+      expect(runningSignal).toBeDefined()
+    })
+
+    try {
+      externalAbortController.abort('abort-after-running')
+      orchestrator.dispose()
+      await dispatchPromise
+
+      expect(runningSignal).not.toBe(externalAbortController.signal)
+      expect(runningSignal?.aborted).toBe(true)
+      expect(runningSignal?.reason).toBe('abort-after-running')
+      expect(settlements).toBe(1)
+      expect(port.appendExecutionEvents).not.toHaveBeenCalled()
+      expect(port.upsertTaskThread).not.toHaveBeenCalled()
+      await expect(dispatchPromise).resolves.toMatchObject({
+        ok: false,
+        finalStatus: 'cancelled',
+        errorCode: 'CODEX_EXECUTION_CANCELLED',
+        errorMessage: 'abort-after-running',
+        thread: {
+          status: 'cancelled',
+        },
+      })
+      expect(orchestrator.snapshot().inFlightThreadIds).toEqual([])
+    }
+    finally {
+      cleanupGate.release()
+      await Promise.allSettled([dispatchPromise])
+    }
   })
 })

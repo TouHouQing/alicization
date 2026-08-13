@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { buildAlicizationMainChatMemoryContext } from './main-chat-memory-context'
 import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 import { createAlicizationRuntimeMainChatRuntime } from './runtime-main-chat-runtime'
+import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 
 function createTestMemoryContext() {
   return buildAlicizationMainChatMemoryContext({
@@ -150,6 +151,7 @@ describe('runtime main chat runtime', () => {
         sessionMirror: null,
         sessionTrace: {} as any,
         toolCallIdentity: createAlicizationMainChatToolCallIdentityRegistry(),
+        toolRegistry: createCanonicalToolRegistry(),
         turnGraph: {} as any,
         ...input.prelude,
       }),

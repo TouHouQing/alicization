@@ -17,6 +17,7 @@ export type AlicizationLocalBrowserScrollAction = 'down' | 'up' | 'top' | 'botto
 export type AlicizationLocalBrowserWaitState = 'complete' | 'interactive'
 
 export interface AlicizationLocalBrowserOpenUrlInput {
+  abortSignal?: AbortSignal
   autoContinueSuggestedActions?: boolean
   browser?: string
   expectedPhase?: string
@@ -29,6 +30,7 @@ export interface AlicizationLocalBrowserOpenUrlInput {
 }
 
 export interface AlicizationLocalBrowserSearchWebInput {
+  abortSignal?: AbortSignal
   autoContinueSuggestedActions?: boolean
   browser?: string
   expectedPhase?: string
@@ -41,12 +43,14 @@ export interface AlicizationLocalBrowserSearchWebInput {
 }
 
 export interface AlicizationLocalBrowserReadPageInput {
+  abortSignal?: AbortSignal
   browser?: string
   format?: string
   maxChars?: number
 }
 
 export interface AlicizationLocalBrowserClickElementInput {
+  abortSignal?: AbortSignal
   autoContinueSuggestedActions?: boolean
   browser?: string
   exactText?: boolean
@@ -62,6 +66,7 @@ export interface AlicizationLocalBrowserClickElementInput {
 }
 
 export interface AlicizationLocalBrowserTypeTextInput {
+  abortSignal?: AbortSignal
   autoContinueSuggestedActions?: boolean
   browser?: string
   clearExisting?: boolean
@@ -79,6 +84,7 @@ export interface AlicizationLocalBrowserTypeTextInput {
 }
 
 export interface AlicizationLocalBrowserNavigateInput {
+  abortSignal?: AbortSignal
   action: string
   autoContinueSuggestedActions?: boolean
   browser?: string
@@ -90,6 +96,7 @@ export interface AlicizationLocalBrowserNavigateInput {
 }
 
 export interface AlicizationLocalBrowserScrollInput {
+  abortSignal?: AbortSignal
   action: string
   amount?: number
   autoContinueSuggestedActions?: boolean
@@ -102,6 +109,7 @@ export interface AlicizationLocalBrowserScrollInput {
 }
 
 export interface AlicizationLocalBrowserWaitInput {
+  abortSignal?: AbortSignal
   autoContinueSuggestedActions?: boolean
   browser?: string
   expectedPhase?: string
@@ -116,11 +124,13 @@ export interface AlicizationLocalBrowserWaitInput {
 }
 
 export interface AlicizationLocalDesktopListInteractablesInput {
+  abortSignal?: AbortSignal
   maxItems?: number
   role?: string
 }
 
 export interface AlicizationLocalDesktopClickElementInput {
+  abortSignal?: AbortSignal
   autoContinueSuggestedActions?: boolean
   exactText?: boolean
   expectedPhase?: string
@@ -134,6 +144,7 @@ export interface AlicizationLocalDesktopClickElementInput {
 }
 
 export interface AlicizationLocalDesktopTypeTextInput {
+  abortSignal?: AbortSignal
   autoContinueSuggestedActions?: boolean
   clearExisting?: boolean
   exactText?: boolean
@@ -150,6 +161,7 @@ export interface AlicizationLocalDesktopTypeTextInput {
 }
 
 export interface AlicizationLocalDesktopPressKeysInput {
+  abortSignal?: AbortSignal
   autoContinueSuggestedActions?: boolean
   expectedPhase?: string
   inspectionMaxSuggestedActions?: number
@@ -161,6 +173,7 @@ export interface AlicizationLocalDesktopPressKeysInput {
 }
 
 export interface AlicizationLocalDesktopOpenApplicationInput {
+  abortSignal?: AbortSignal
   appName?: string
   args?: string[]
   autoContinueSuggestedActions?: boolean
@@ -173,6 +186,7 @@ export interface AlicizationLocalDesktopOpenApplicationInput {
 }
 
 export interface AlicizationLocalDesktopWaitInput {
+  abortSignal?: AbortSignal
   appName?: string
   timeoutMs?: number
   titleIncludes?: string
@@ -216,6 +230,44 @@ const browserReadPageScrollStateScript = [
   'const canScrollDown = offsetY + viewportHeight < documentHeight - 24;',
   'const canScrollUp = offsetY > 0;',
 ].join('')
+
+function createLocalAutomationAbortError(abortSignal?: AbortSignal) {
+  const reason = abortSignal?.reason
+  if (reason instanceof Error)
+    return reason
+  const error = new Error('Local automation was cancelled.')
+  error.name = 'AbortError'
+  return error
+}
+
+function throwIfLocalAutomationAborted(abortSignal?: AbortSignal) {
+  if (abortSignal?.aborted)
+    throw createLocalAutomationAbortError(abortSignal)
+}
+
+async function waitForLocalAutomationDelay(
+  timeoutMs: number,
+  abortSignal?: AbortSignal,
+) {
+  throwIfLocalAutomationAborted(abortSignal)
+  await new Promise<void>((resolve, reject) => {
+    let settled = false
+    const finish = (operation: () => void) => {
+      if (settled)
+        return
+      settled = true
+      clearTimeout(timer)
+      abortSignal?.removeEventListener('abort', onAbort)
+      operation()
+    }
+    const onAbort = () => finish(() => reject(createLocalAutomationAbortError(abortSignal)))
+    const timer = setTimeout(() => finish(resolve), timeoutMs)
+    timer.unref?.()
+    abortSignal?.addEventListener('abort', onAbort, { once: true })
+    if (abortSignal?.aborted)
+      onAbort()
+  })
+}
 
 function sanitizeText(raw: unknown) {
   return typeof raw === 'string' ? raw.trim() : ''
@@ -453,10 +505,17 @@ function summarizeBrowserName(browser: AlicizationLocalBrowser) {
 export function createAlicizationLocalBrowserAutomationService(
   options: AlicizationLocalBrowserAutomationServiceOptions,
 ) {
-  async function runCommand(command: string, args: string[], timeoutMs = defaultCommandTimeoutMs) {
+  async function runCommand(
+    command: string,
+    args: string[],
+    timeoutMs = defaultCommandTimeoutMs,
+    abortSignal?: AbortSignal,
+  ) {
+    throwIfLocalAutomationAborted(abortSignal)
     const boundedTimeout = Math.max(500, Math.floor(timeoutMs))
     return await new Promise<string>((resolve, reject) => {
       const child = execFile(command, args, {
+        signal: abortSignal,
         timeout: boundedTimeout,
         windowsHide: true,
       }, (error, stdout, stderr) => {
@@ -470,15 +529,33 @@ export function createAlicizationLocalBrowserAutomationService(
     })
   }
 
-  async function runAppleScript(lines: string[], timeoutMs = defaultCommandTimeoutMs) {
-    return await runCommand('/usr/bin/osascript', lines.flatMap(line => ['-e', line]), timeoutMs)
+  async function runAppleScript(
+    lines: string[],
+    timeoutMs = defaultCommandTimeoutMs,
+    abortSignal?: AbortSignal,
+  ) {
+    return await runCommand(
+      '/usr/bin/osascript',
+      lines.flatMap(line => ['-e', line]),
+      timeoutMs,
+      abortSignal,
+    )
   }
 
-  async function runJavaScriptAutomation(lines: string[], timeoutMs = defaultCommandTimeoutMs) {
-    return await runCommand('/usr/bin/osascript', ['-l', 'JavaScript', ...lines.flatMap(line => ['-e', line])], timeoutMs)
+  async function runJavaScriptAutomation(
+    lines: string[],
+    timeoutMs = defaultCommandTimeoutMs,
+    abortSignal?: AbortSignal,
+  ) {
+    return await runCommand(
+      '/usr/bin/osascript',
+      ['-l', 'JavaScript', ...lines.flatMap(line => ['-e', line])],
+      timeoutMs,
+      abortSignal,
+    )
   }
 
-  async function readFrontmostDesktopWindow() {
+  async function readFrontmostDesktopWindow(abortSignal?: AbortSignal) {
     const raw = await runJavaScriptAutomation([
       '(() => {',
       'const safeRead = (fn, fallback = null) => {',
@@ -501,7 +578,7 @@ export function createAlicizationLocalBrowserAutomationService(
       '  windowTitle: normalize(safeRead(() => frontWindow ? frontWindow.name() : "", "")),',
       '});',
       '})()',
-    ], 5_000)
+    ], 5_000, abortSignal)
 
     return JSON.parse(raw) as {
       appName?: unknown
@@ -511,34 +588,37 @@ export function createAlicizationLocalBrowserAutomationService(
     }
   }
 
-  async function readFrontmostBrowser() {
+  async function readFrontmostBrowser(abortSignal?: AbortSignal) {
     if (platform !== 'darwin')
       return null
     const appName = sanitizeText(await runAppleScript([
       'tell application "System Events" to return name of first application process whose frontmost is true',
-    ], 3_000).catch(() => ''))
+    ], 3_000, abortSignal).catch(() => ''))
     return mapFrontmostBrowser(appName)
   }
 
-  async function isBrowserRunning(browser: AlicizationSupportedBrowser) {
+  async function isBrowserRunning(browser: AlicizationSupportedBrowser, abortSignal?: AbortSignal) {
     const appName = getBrowserApplicationName(browser)
     const output = sanitizeText(await runAppleScript([
       `tell application "${appName}" to return running`,
-    ], 3_000).catch(() => 'false'))
+    ], 3_000, abortSignal).catch(() => 'false'))
     return /\btrue\b/i.test(output)
   }
 
-  async function resolveSupportedBrowser(rawBrowser: unknown): Promise<AlicizationSupportedBrowser> {
+  async function resolveSupportedBrowser(
+    rawBrowser: unknown,
+    abortSignal?: AbortSignal,
+  ): Promise<AlicizationSupportedBrowser> {
     const browser = normalizeBrowser(rawBrowser)
     if (browser === 'chrome' || browser === 'safari')
       return browser
 
-    const frontmost = await readFrontmostBrowser()
+    const frontmost = await readFrontmostBrowser(abortSignal)
     if (frontmost)
       return frontmost
-    if (await isBrowserRunning('chrome'))
+    if (await isBrowserRunning('chrome', abortSignal))
       return 'chrome'
-    if (await isBrowserRunning('safari'))
+    if (await isBrowserRunning('safari', abortSignal))
       return 'safari'
     return 'chrome'
   }
@@ -560,8 +640,10 @@ export function createAlicizationLocalBrowserAutomationService(
       return buildUnsupportedPlatformResult('browser_open_url')
 
     try {
+      throwIfLocalAutomationAborted(input.abortSignal)
       if (browser === 'default') {
         await shell.openExternal(url)
+        throwIfLocalAutomationAborted(input.abortSignal)
         return {
           channel: 'browser',
           status: 'completed',
@@ -586,7 +668,7 @@ export function createAlicizationLocalBrowserAutomationService(
       const openArgs = requestedUrl
         ? ['-a', getBrowserApplicationName(browser), url]
         : ['-a', getBrowserApplicationName(browser)]
-      await runCommand('/usr/bin/open', openArgs, 8_000)
+      await runCommand('/usr/bin/open', openArgs, 8_000, input.abortSignal)
       return {
         channel: 'browser',
         status: 'completed',
@@ -630,6 +712,7 @@ export function createAlicizationLocalBrowserAutomationService(
 
     const url = buildSearchUrl(query, searchEngine)
     const openResult = await openUrl({
+      abortSignal: input.abortSignal,
       url,
       browser,
     })
@@ -647,7 +730,10 @@ export function createAlicizationLocalBrowserAutomationService(
     } satisfies AlicizationLocalAutomationResult
   }
 
-  async function readBrowserTabMeta(browser: AlicizationSupportedBrowser) {
+  async function readBrowserTabMeta(
+    browser: AlicizationSupportedBrowser,
+    abortSignal?: AbortSignal,
+  ) {
     const appName = getBrowserApplicationName(browser)
     const lines = browser === 'safari'
       ? [
@@ -676,7 +762,7 @@ export function createAlicizationLocalBrowserAutomationService(
           'return pageUrl & linefeed & pageTitle',
           'end tell',
         ]
-    const output = await runAppleScript(lines, 5_000)
+    const output = await runAppleScript(lines, 5_000, abortSignal)
     const [url = '', title = ''] = output.split('\n')
     return {
       url: sanitizeText(url),
@@ -684,7 +770,11 @@ export function createAlicizationLocalBrowserAutomationService(
     }
   }
 
-  async function runBrowserJavaScript(browser: AlicizationSupportedBrowser, source: string) {
+  async function runBrowserJavaScript(
+    browser: AlicizationSupportedBrowser,
+    source: string,
+    abortSignal?: AbortSignal,
+  ) {
     const appName = getBrowserApplicationName(browser)
     const escaped = escapeAppleScriptString(source)
     const lines = browser === 'safari'
@@ -694,7 +784,7 @@ export function createAlicizationLocalBrowserAutomationService(
       : [
           `tell application "${appName}" to execute active tab of front window javascript "${escaped}"`,
         ]
-    return await runAppleScript(lines, 8_000)
+    return await runAppleScript(lines, 8_000, abortSignal)
   }
 
   function isBrowserJavaScriptPermissionError(message: string) {
@@ -705,10 +795,10 @@ export function createAlicizationLocalBrowserAutomationService(
     if (platform !== 'darwin')
       return buildUnsupportedPlatformResult('browser_read_page')
 
-    const browser = await resolveSupportedBrowser(input.browser)
+    const browser = await resolveSupportedBrowser(input.browser, input.abortSignal)
     const format = normalizeReadFormat(input.format)
     const maxChars = normalizeMaxChars(input.maxChars)
-    const meta = await readBrowserTabMeta(browser).catch(() => ({
+    const meta = await readBrowserTabMeta(browser, input.abortSignal).catch(() => ({
       url: '',
       title: '',
     }))
@@ -761,7 +851,7 @@ export function createAlicizationLocalBrowserAutomationService(
         : `(() => {${browserReadPageScrollStateScript}return JSON.stringify({ title: document.title ?? "", url: location.href ?? "", content: document.body?.innerText ?? "", scrollState: { offsetY, viewportHeight, documentHeight, canScrollDown, canScrollUp } });})()`
 
     try {
-      const raw = await runBrowserJavaScript(browser, jsSource)
+      const raw = await runBrowserJavaScript(browser, jsSource, input.abortSignal)
       const payload = JSON.parse(raw) as {
         content?: unknown
         interactables?: unknown
@@ -827,8 +917,8 @@ export function createAlicizationLocalBrowserAutomationService(
     if (platform !== 'darwin')
       return buildUnsupportedPlatformResult('browser_click_element')
 
-    const browser = await resolveSupportedBrowser(input.browser)
-    const meta = await readBrowserTabMeta(browser).catch(() => ({
+    const browser = await resolveSupportedBrowser(input.browser, input.abortSignal)
+    const meta = await readBrowserTabMeta(browser, input.abortSignal).catch(() => ({
       url: '',
       title: '',
     }))
@@ -901,7 +991,7 @@ export function createAlicizationLocalBrowserAutomationService(
     ].join('')
 
     try {
-      const raw = await runBrowserJavaScript(browser, jsSource)
+      const raw = await runBrowserJavaScript(browser, jsSource, input.abortSignal)
       const payload = JSON.parse(raw) as {
         code?: unknown
         matchedText?: unknown
@@ -993,8 +1083,8 @@ export function createAlicizationLocalBrowserAutomationService(
     if (platform !== 'darwin')
       return buildUnsupportedPlatformResult('browser_type_text')
 
-    const browser = await resolveSupportedBrowser(input.browser)
-    const meta = await readBrowserTabMeta(browser).catch(() => ({
+    const browser = await resolveSupportedBrowser(input.browser, input.abortSignal)
+    const meta = await readBrowserTabMeta(browser, input.abortSignal).catch(() => ({
       url: '',
       title: '',
     }))
@@ -1142,7 +1232,7 @@ export function createAlicizationLocalBrowserAutomationService(
     ].join('')
 
     try {
-      const raw = await runBrowserJavaScript(browser, jsSource)
+      const raw = await runBrowserJavaScript(browser, jsSource, input.abortSignal)
       const payload = JSON.parse(raw) as {
         code?: unknown
         matchedText?: unknown
@@ -1251,9 +1341,9 @@ export function createAlicizationLocalBrowserAutomationService(
     if (platform !== 'darwin')
       return buildUnsupportedPlatformResult('browser_navigate')
 
-    const browser = await resolveSupportedBrowser(input.browser)
+    const browser = await resolveSupportedBrowser(input.browser, input.abortSignal)
     const appName = getBrowserApplicationName(browser)
-    const meta = await readBrowserTabMeta(browser).catch(() => ({
+    const meta = await readBrowserTabMeta(browser, input.abortSignal).catch(() => ({
       url: '',
       title: '',
     }))
@@ -1271,8 +1361,8 @@ export function createAlicizationLocalBrowserAutomationService(
         keystrokeLine,
         'end tell',
         'delay 0.2',
-      ], 5_000)
-      const nextMeta = await readBrowserTabMeta(browser).catch(() => meta)
+      ], 5_000, input.abortSignal)
+      const nextMeta = await readBrowserTabMeta(browser, input.abortSignal).catch(() => meta)
       const actionSummary = action === 'reload'
         ? 'reloaded the browser page'
         : action === 'forward'
@@ -1314,8 +1404,8 @@ export function createAlicizationLocalBrowserAutomationService(
       return buildUnsupportedPlatformResult('browser_scroll')
 
     const amount = normalizeBrowserScrollAmount(input.amount)
-    const browser = await resolveSupportedBrowser(input.browser)
-    const meta = await readBrowserTabMeta(browser).catch(() => ({
+    const browser = await resolveSupportedBrowser(input.browser, input.abortSignal)
+    const meta = await readBrowserTabMeta(browser, input.abortSignal).catch(() => ({
       url: '',
       title: '',
     }))
@@ -1355,7 +1445,7 @@ export function createAlicizationLocalBrowserAutomationService(
     ].join('')
 
     try {
-      const raw = await runBrowserJavaScript(browser, jsSource)
+      const raw = await runBrowserJavaScript(browser, jsSource, input.abortSignal)
       const payload = JSON.parse(raw) as {
         afterY?: unknown
         beforeY?: unknown
@@ -1429,8 +1519,8 @@ export function createAlicizationLocalBrowserAutomationService(
     const text = sanitizeText(input.text)
     const urlIncludes = sanitizeText(input.urlIncludes)
     const timeoutMs = normalizeBrowserWaitTimeoutMs(input.timeoutMs)
-    const browser = await resolveSupportedBrowser(input.browser)
-    const meta = await readBrowserTabMeta(browser).catch(() => ({
+    const browser = await resolveSupportedBrowser(input.browser, input.abortSignal)
+    const meta = await readBrowserTabMeta(browser, input.abortSignal).catch(() => ({
       url: '',
       title: '',
     }))
@@ -1467,7 +1557,7 @@ export function createAlicizationLocalBrowserAutomationService(
 
     try {
       while (Date.now() - startedAt <= timeoutMs) {
-        const raw = await runBrowserJavaScript(browser, jsSource)
+        const raw = await runBrowserJavaScript(browser, jsSource, input.abortSignal)
         const payload = JSON.parse(raw) as {
           matchedText?: unknown
           ok?: unknown
@@ -1502,7 +1592,7 @@ export function createAlicizationLocalBrowserAutomationService(
 
         if (Date.now() - startedAt >= timeoutMs)
           break
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await waitForLocalAutomationDelay(100, input.abortSignal)
       }
 
       return {
@@ -1562,7 +1652,7 @@ export function createAlicizationLocalBrowserAutomationService(
 
     try {
       while (Date.now() - startedAt <= timeoutMs) {
-        const payload = await readFrontmostDesktopWindow()
+        const payload = await readFrontmostDesktopWindow(input.abortSignal)
         lastAppName = sanitizeText(payload.appName) || lastAppName
         lastTitle = sanitizeText(payload.windowTitle) || lastTitle
 
@@ -1598,7 +1688,7 @@ export function createAlicizationLocalBrowserAutomationService(
 
         if (Date.now() - startedAt >= timeoutMs)
           break
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await waitForLocalAutomationDelay(100, input.abortSignal)
       }
 
       return {
@@ -1635,7 +1725,7 @@ export function createAlicizationLocalBrowserAutomationService(
     ordinal?: number | null
     role?: string
     text?: string
-  }) {
+  }, abortSignal?: AbortSignal) {
     const raw = await runJavaScriptAutomation([
       '(() => {',
       'const safeRead = (fn, fallback = null) => {',
@@ -1807,7 +1897,7 @@ export function createAlicizationLocalBrowserAutomationService(
       '  windowTitle,',
       '});',
       '})()',
-    ], 8_000)
+    ], 8_000, abortSignal)
 
     return JSON.parse(raw) as Record<string, unknown>
   }
@@ -1824,7 +1914,7 @@ export function createAlicizationLocalBrowserAutomationService(
         mode: 'list',
         role: role ?? undefined,
         maxItems,
-      })
+      }, input.abortSignal)
       const interactables = Array.isArray(payload.interactables)
         ? payload.interactables
         : []
@@ -1876,7 +1966,7 @@ export function createAlicizationLocalBrowserAutomationService(
         text: text || undefined,
         ordinal,
         exactText,
-      })
+      }, input.abortSignal)
       if (payload.ok !== true) {
         return {
           channel: 'desktop',
@@ -1952,6 +2042,7 @@ export function createAlicizationLocalBrowserAutomationService(
     let matchedText: string | null = null
     if (targetText || ordinal) {
       const focusResult = await clickDesktopElement({
+        abortSignal: input.abortSignal,
         text: targetText || undefined,
         ordinal: ordinal ?? undefined,
         exactText,
@@ -1978,7 +2069,7 @@ export function createAlicizationLocalBrowserAutomationService(
         submit ? 'key code 36' : '',
         'end tell',
       ].filter(Boolean)
-      await runAppleScript(lines, 5_000)
+      await runAppleScript(lines, 5_000, input.abortSignal)
       return {
         channel: 'desktop',
         status: 'completed',
@@ -2039,7 +2130,7 @@ export function createAlicizationLocalBrowserAutomationService(
         ...Array.from({ length: repeat }, () => keyLine),
         'end tell',
       ]
-      await runAppleScript(lines, 5_000)
+      await runAppleScript(lines, 5_000, input.abortSignal)
       return {
         channel: 'desktop',
         status: 'completed',
@@ -2081,7 +2172,7 @@ export function createAlicizationLocalBrowserAutomationService(
         : [path]
       if (args.length > 0)
         openArgs.push('--args', ...args)
-      await runCommand('/usr/bin/open', openArgs, 8_000)
+      await runCommand('/usr/bin/open', openArgs, 8_000, input.abortSignal)
       return {
         channel: 'desktop',
         status: 'completed',

@@ -18,6 +18,7 @@ interface RegisterAlicizationChatInvokeHandlersOptions {
   registerInvokeHandler: (channel: unknown, handler: (...args: any[]) => Promise<unknown>) => void
   withCardScope: <T>(nextCardIdRaw: unknown, task: () => Promise<T>, options?: {
     label?: string
+    lane?: 'foreground' | 'background'
     skipQueueWhenScopeAlreadyActive?: boolean
   }) => Promise<T>
   normalizeCardId: (raw: unknown) => string
@@ -84,6 +85,7 @@ export function registerAlicizationChatInvokeHandlers(options: RegisterAlicizati
       }
     }, {
       label: `chat-start:${cardId}`,
+      lane: 'foreground',
       skipQueueWhenScopeAlreadyActive: true,
     })
   })

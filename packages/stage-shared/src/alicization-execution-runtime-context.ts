@@ -213,6 +213,9 @@ export function normalizeAlicizationExecutionRuntimeContext(raw: unknown): Alici
     turnId: sanitizeText(value.turnId, 160) || null,
     sessionId: sanitizeText(value.sessionId, 160) || null,
     agentSessionId: sanitizeText(value.agentSessionId, 160) || null,
+    resultDeliveryMode: value.resultDeliveryMode === 'inline' || value.resultDeliveryMode === 'callback'
+      ? value.resultDeliveryMode
+      : null,
     ...(affectiveResidue ? { affectiveResidue } : {}),
     ...(derivedMindStateBundle ? { derivedMindStateBundle } : {}),
     ...(memoryClosureExecution ? { memoryClosureExecution } : {}),

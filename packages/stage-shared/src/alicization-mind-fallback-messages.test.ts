@@ -13,7 +13,11 @@ describe('alicization mind failure messages', () => {
   })
 
   it('returns terse Chinese failure messages for the visible chat boundary', () => {
-    expect(translateGovernedMindFallback('mind-repair.stream-timeout', undefined, '你好')).toBe('超时了。')
+    expect(translateGovernedMindFallback(
+      'mind-repair.stream-timeout',
+      { provider: 'openai-compatible', model: 'gpt-test' },
+      '你好',
+    )).toBe('Provider 等待首个响应超时（openai-compatible / gpt-test）。')
     expect(translateGovernedMindFallback('mind-repair.stream-failure', undefined, '你好')).toBe('回复流失败。')
     expect(translateGovernedMindFallback('mind-repair.provider-config', undefined, '你好')).toBe('提供方或模型配置不完整。')
     expect(translateGovernedMindFallback('mind-repair.recall-failure', undefined, '你好')).toBe('本轮长期记忆召回失败。')
