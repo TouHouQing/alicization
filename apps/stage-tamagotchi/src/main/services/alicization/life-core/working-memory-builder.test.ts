@@ -4,6 +4,25 @@ import { buildAlicizationMainChatMemoryContext } from '../main-chat-memory-conte
 import { buildWorkingMemorySnapshot } from './working-memory-builder'
 import { buildWorkingMemoryOwnerContext } from './working-memory-owner-context'
 
+function createWorkingMemoryLongTermEvidence(input: {
+  kind: 'episode' | 'preference' | 'relationship' | 'procedure' | 'correction'
+  summary: string
+  reason: string
+  evidenceSnippet: string
+}) {
+  return {
+    version: 'working-memory-long-term-evidence-v1' as const,
+    source: 'explicit-structured-memory-evidence' as const,
+    kind: input.kind,
+    summary: input.summary,
+    reason: input.reason,
+    evidenceSnippets: [input.evidenceSnippet],
+    salience: 0.82,
+    sensitivity: 'personal' as const,
+    confidence: 0.9,
+  }
+}
+
 describe('working memory snapshot builder', () => {
   it('builds current thread, questions, commitments, corrections, and query hints from runtime signals', () => {
     const snapshot = buildWorkingMemorySnapshot({
@@ -126,6 +145,93 @@ describe('working memory snapshot builder', () => {
     })
     expect(nextSnapshot.activeTask?.summary).toBe('WorkingMemory owner')
     expect(nextSnapshot.memoryQueryHints).toEqual(['短期记忆'])
+  })
+
+  it('carries the previous uncompressed raw window without reviving compressed turns', () => {
+    const previousSnapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-owner-window',
+      now: 10_000,
+      currentTurnId: 'turn-owner-1',
+      currentUserText: '第一轮用户内容',
+      currentAssistantText: '第一轮助手内容',
+      currentOrigin: 'provider',
+      currentLearningPolicy: {
+        allowLongTermCondensation: true,
+        allowPersonaLearning: true,
+        allowTraining: false,
+      },
+    })
+    previousSnapshot.compressedTimeline = [{
+      id: 'episodelet-old',
+      sourceTurnIds: ['turn-compressed:user', 'turn-compressed:alice'],
+      summary: '已经压缩的旧轮次。',
+      thread: null,
+      unresolvedQuestions: [],
+      commitments: [],
+      corrections: [],
+      relationshipPosture: null,
+      emotionalPosture: null,
+      executionCarry: null,
+      importance: 0.6,
+      createdAt: 9_000,
+    }]
+    previousSnapshot.compression = {
+      level: 'light',
+      sourceTurnIds: ['turn-compressed:user', 'turn-compressed:alice'],
+      lastCompressedAt: 9_000,
+    }
+    previousSnapshot.recentRawTurns.unshift(
+      {
+        ...previousSnapshot.recentRawTurns[0]!,
+        turnId: 'turn-compressed:user',
+        text: '这条已经进入压缩摘要。',
+        createdAt: 8_000,
+      },
+      {
+        ...previousSnapshot.recentRawTurns[1]!,
+        turnId: 'turn-compressed:alice',
+        text: '这条也已经进入压缩摘要。',
+        createdAt: 8_001,
+      },
+    )
+
+    const nextSnapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-owner-window',
+      now: 11_000,
+      currentTurnId: 'turn-owner-2',
+      currentUserText: '继续',
+      currentAssistantText: '继续当前记忆线。',
+      currentOrigin: 'provider',
+      currentLearningPolicy: {
+        allowLongTermCondensation: true,
+        allowPersonaLearning: true,
+        allowTraining: false,
+      },
+      previousSnapshot,
+    })
+
+    expect(nextSnapshot.recentRawTurns.map(turn => turn.turnId)).toEqual(
+      expect.arrayContaining([
+        'turn-owner-1:user',
+        'turn-owner-1:alice',
+        'turn-owner-2:user',
+        'turn-owner-2:alice',
+      ]),
+    )
+    expect(nextSnapshot.recentRawTurns.map(turn => turn.turnId)).not.toEqual(
+      expect.arrayContaining([
+        'turn-compressed:user',
+        'turn-compressed:alice',
+      ]),
+    )
+    expect(nextSnapshot.compressedTimeline).toEqual([
+      expect.objectContaining({
+        id: 'episodelet-old',
+        sourceTurnIds: ['turn-compressed:user', 'turn-compressed:alice'],
+      }),
+    ])
   })
 
   it('clears resolved questions and commitments while settling the active task', () => {
@@ -410,6 +516,12 @@ describe('working memory snapshot builder', () => {
           allowPersonaLearning: true,
           allowTraining: false,
         },
+        memoryEvidence: createWorkingMemoryLongTermEvidence({
+          kind: 'preference',
+          summary: '用户更喜欢先说结论，再给必要细节。',
+          reason: '用户明确表达了稳定的回复顺序偏好。',
+          evidenceSnippet: '我喜欢先说结论，再给必要细节。',
+        }),
       }] as any,
     })
 
@@ -420,6 +532,46 @@ describe('working memory snapshot builder', () => {
         allowTraining: false,
       }),
     ])
+  })
+
+  it('uses the runtime turn identity for the current settled user and assistant pair', () => {
+    const snapshot = buildWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-current-turn',
+      now: 15_000,
+      currentTurnId: 'turn-current-real',
+      currentUserText: '我喜欢先说结论。',
+      currentAssistantText: '记住了。',
+      currentOrigin: 'provider',
+      currentLearningPolicy: {
+        allowLongTermCondensation: true,
+        allowPersonaLearning: true,
+        allowTraining: false,
+      },
+      currentMemoryEvidence: createWorkingMemoryLongTermEvidence({
+        kind: 'preference',
+        summary: '用户更喜欢先说结论。',
+        reason: '用户明确表达了结论优先偏好。',
+        evidenceSnippet: '我喜欢先说结论。',
+      }),
+    })
+
+    expect(snapshot.recentRawTurns).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        turnId: 'turn-current-real:user',
+        role: 'user',
+      }),
+      expect.objectContaining({
+        turnId: 'turn-current-real:alice',
+        role: 'alice',
+      }),
+    ]))
+    expect(snapshot.recentRawTurns.map(turn => turn.turnId)).not.toContain('current-user')
+    expect(snapshot.longTermCandidates).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        sourceTurnIds: ['turn-current-real:user'],
+      }),
+    ]))
   })
 
   it('preserves user correction text while dropping generic structured assistant residue', () => {
@@ -498,6 +650,12 @@ describe('working memory snapshot builder', () => {
         userText: rawCorrection,
         assistantText: '收到。',
         createdAt: 15_000,
+        memoryEvidence: createWorkingMemoryLongTermEvidence({
+          kind: 'correction',
+          summary: rawCorrection,
+          reason: '用户明确纠正了日期事实。',
+          evidenceSnippet: rawCorrection,
+        }),
       }],
     })
 

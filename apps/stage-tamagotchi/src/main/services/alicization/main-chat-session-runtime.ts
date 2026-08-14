@@ -1,10 +1,13 @@
 import type {
   AlicizationChannelCapability,
-  AlicizationChatFailureKind,
+  AlicizationChatMemoryFailureStage,
   AlicizationChatMemoryFailureSurface,
   AlicizationExecutionCapabilityChannel,
   AlicizationExecutionChannel,
   AlicizationPersonaKernelSnapshot,
+  AlicizationProviderMemoryEvidence,
+  AlicizationVisibleArtifactLearningPolicy,
+  AlicizationVisibleArtifactOrigin,
 } from '@proj-alicization/stage-shared'
 import type { PromptBudgetReport } from '@proj-alicization/stage-ui/composables/alicization-guardrails'
 import type { Message } from '@xsai/shared-chat'
@@ -37,8 +40,16 @@ import type {
   AlicizationExecutionCallbackDigest,
 } from './execution-callback-runtime'
 import type { buildAlicizationExecutionRuntimeContext } from './execution-runtime-context'
-import type { WorkingMemorySnapshot } from './life-core/working-memory'
+import type {
+  WorkingMemoryLongTermEvidence,
+  WorkingMemorySnapshot,
+} from './life-core/working-memory'
 import type { WorkingMemoryRecentTurnInput } from './life-core/working-memory-builder'
+import type {
+  WorkingMemoryConversationTurnRecord,
+  WorkingMemoryHistoryOwner,
+} from './life-core/working-memory-history-owner'
+import type { WorkingMemoryLongTermQueueItem } from './life-core/working-memory-long-term-queue'
 import type { WorkingMemoryStore } from './life-core/working-memory-store'
 import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
 import type { AlicizationMainChatActionObligation } from './main-chat-action-obligation'
@@ -71,7 +82,6 @@ import type { AlicizationMainChatReplyAuthoritySurface, AlicizationMainChatReply
 
 import { errorMessageFrom } from '@moeru/std'
 import {
-  containsAlicizationFixedTemplateResidue,
   normalizeAlicizationRuntimeDigest,
   resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
@@ -81,7 +91,9 @@ import { buildAlicizationCodingAgentDelegationAuthority } from './coding-agent-t
 import { deriveAlicizationDialogueMemoryCarryPolicy } from './dialogue-memory-governor'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
 import { deriveAlicizationDigitalLifeSpineFromSurface } from './digital-life-spine'
+import { normalizeWorkingMemoryLongTermEvidence } from './life-core/working-memory'
 import { buildWorkingMemorySnapshot } from './life-core/working-memory-builder'
+import { createWorkingMemoryHistoryOwner } from './life-core/working-memory-history-owner'
 import {
   buildWorkingMemoryOwnerContext,
   projectWorkingMemoryOwnerEpisodes,
@@ -164,9 +176,63 @@ export interface AlicizationPreparedMainChatPrelude {
   executionCallbackContextPromise: Promise<AlicizationExecutionCallbackContext>
   executionLedgerContextPromise: Promise<AlicizationExecutionLedgerContext>
   perceptionAugmentation: AlicizationMainChatPerceptionAugmentation
+  workingMemoryHydration?: AlicizationWorkingMemoryHydration | null
 }
 
 export type AlicizationMainChatMemoryFailureSurface = AlicizationChatMemoryFailureSurface
+
+export interface AlicizationWorkingMemoryHydration {
+  version: 'working-memory-hydration-v1'
+  cardId: string
+  turnId: string
+  sessionId: string
+  snapshot: WorkingMemorySnapshot | null
+  recentTurns: WorkingMemoryRecentTurnInput[]
+  failures: AlicizationMainChatMemoryFailureSurface[]
+}
+
+export interface AlicizationMemoryWriteIntent {
+  version: 'memory-write-intent-v1'
+  workingMemorySnapshot: WorkingMemorySnapshot
+  memoryWriteItems: WorkingMemoryLongTermQueueItem[]
+}
+
+export interface AlicizationMemoryOwnerSettlement {
+  owner:
+    | 'working-memory-store'
+    | 'working-memory-checkpoint'
+    | 'long-term-memory-queue'
+    | 'long-term-memory-drain'
+    | 'dialogue-session-mirror'
+    | 'autobiographical-memory'
+    | 'persona-learning'
+  status: 'succeeded' | 'failed' | 'skipped'
+  errorSummary?: string
+  reason?: string
+}
+
+export interface AlicizationCommittedMemoryWrite extends AlicizationMemoryWriteIntent {
+  ownerSettlements: AlicizationMemoryOwnerSettlement[]
+}
+
+function resolveProviderMemoryEvidenceForWorkingMemory(
+  evidence: AlicizationProviderMemoryEvidence | null | undefined,
+): WorkingMemoryLongTermEvidence | null {
+  if (!evidence)
+    return null
+
+  return normalizeWorkingMemoryLongTermEvidence({
+    version: 'working-memory-long-term-evidence-v1',
+    source: 'explicit-structured-memory-evidence',
+    kind: evidence.kind ?? 'episode',
+    summary: evidence.summary,
+    reason: evidence.reason,
+    evidenceSnippets: evidence.evidenceSnippets,
+    salience: evidence.salience,
+    sensitivity: evidence.sensitivity,
+    confidence: evidence.confidence,
+  })
+}
 
 export interface AlicizationPreparedMainChatExecutionResult extends PreparedMainChatExecution {
   conversationSessionId: string | null
@@ -175,6 +241,17 @@ export interface AlicizationPreparedMainChatExecutionResult extends PreparedMain
   getSessionTrace: () => AlicizationRuntimeCallChainSnapshot
   memoryContext: AlicizationMainChatMemoryContext
   memoryFailures: AlicizationMainChatMemoryFailureSurface[]
+  workingMemorySnapshot?: WorkingMemorySnapshot
+  memoryWriteItems?: WorkingMemoryLongTermQueueItem[]
+  resolveMemoryWriteIntent?: (input: {
+    assistantText: string
+    memoryEvidence?: AlicizationProviderMemoryEvidence | null
+  }) => AlicizationMemoryWriteIntent
+  commitMemoryWriteIntent?: (input: {
+    assistantText: string
+    memoryEvidence?: AlicizationProviderMemoryEvidence | null
+    intent?: AlicizationMemoryWriteIntent
+  }) => Promise<AlicizationCommittedMemoryWrite>
   promptBudgetReport?: PromptBudgetReport
   mindTurnContract: AlicizationMindTurnContractSnapshot | null
   organicMemoryContext?: OrganicMemoryPromptContext
@@ -202,15 +279,6 @@ interface PreparedRuntimeSurfaceChainDiagnostics {
   answerPlannerReducedRuntimeSurface: AlicizationDigitalLifeRuntimeSurface | null
 }
 
-interface WorkingMemoryConversationTurnRecord {
-  turnId: string | null
-  sessionId: string
-  userText: string | null
-  assistantText: string | null
-  structuredJson: string | null
-  createdAt: number
-}
-
 interface CreateAlicizationMainChatSessionRuntimeOptions {
   buildMainRuntimeCorePromptBlocks: (input: {
     hostName: string
@@ -224,16 +292,53 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     sessionId: string
     items: ReturnType<typeof buildWorkingMemoryOwnerContext>['longTermQueue']
   }) => Promise<void>
-  drainWorkingMemoryLongTermQueue?: (limit?: number) => Promise<unknown>
+  drainWorkingMemoryLongTermQueue?: (limit?: number) => Promise<{
+    cleaned: number
+    admitted: number
+    applied: number
+    rejected: number
+    review: number
+    failed: number
+    pending: number
+  }>
+  drainWorkingMemoryLongTermQueueScoped?: (input: {
+    cardId: string
+    sessionId: string
+    queueItemIds: string[]
+  }) => Promise<{
+    cleaned: number
+    admitted: number
+    applied: number
+    rejected: number
+    review: number
+    failed: number
+    pending: number
+    settlements: Array<{
+      queueItemId: string
+      transactionId: string | null
+      status:
+        | 'pending-cleaning'
+        | 'cleaning'
+        | 'rejected'
+        | 'needs-user-review'
+        | 'admitted'
+        | 'applied'
+        | 'dead-lettered'
+        | 'missing'
+      errorSummary: string | null
+    }>
+  }>
   listConversationTurnsBySession?: (
     sessionId: string,
     options?: { limit?: number },
   ) => Promise<WorkingMemoryConversationTurnRecord[]>
+  workingMemoryHistoryOwner?: WorkingMemoryHistoryOwner
   getWorkingMemoryCheckpoint?: (cardId: string, sessionId: string) => Promise<WorkingMemorySnapshot | null>
   persistWorkingMemoryCheckpoint?: (snapshot: WorkingMemorySnapshot) => Promise<void>
   promptBudgetTokens?: number
   retrieveLongTermMemoryEvidence?: (input: {
     cardId: string
+    userId?: string
     currentUserText: string
     workingMemoryQueryHints?: string[]
     currentThreadTitle?: string | null
@@ -482,7 +587,6 @@ function buildUnavailableLongTermMemoryEvidenceBundle(
       procedureHints: [],
       threadHints: [],
       negativeCues: [],
-      confidencePolicy: 'direct',
       riskFlags: [riskFlag],
       targetKinds: [],
     },
@@ -588,99 +692,27 @@ function mergeWorkingMemoryRecentTurns(
     .slice(-8)
 }
 
-function parseWorkingMemoryStructuredTurn(raw: string | null | undefined) {
-  if (!raw)
-    return null
-  try {
-    const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
-      : null
-  }
-  catch {
-    return null
-  }
-}
+function scopeProviderMessagesToWorkingMemoryOwner(
+  messages: Message[],
+  hasWorkingMemoryCheckpoint: boolean,
+) {
+  if (!hasWorkingMemoryCheckpoint)
+    return messages
 
-function mapPersistedConversationTurnsToWorkingMemory(
-  turns: Awaited<ReturnType<NonNullable<CreateAlicizationMainChatSessionRuntimeOptions['listConversationTurnsBySession']>>>,
-): WorkingMemoryRecentTurnInput[] {
-  return turns.slice(-6).map((turn, index) => {
-    const structured = parseWorkingMemoryStructuredTurn(turn.structuredJson)
-    const nestedFailureSurface = structured?.failureSurface && typeof structured.failureSurface === 'object'
-      ? structured.failureSurface as Record<string, unknown>
-      : null
-    const rawFailureSurface = nestedFailureSurface
-      ?? (
-        structured?.origin === 'failure-surface'
-        && typeof structured.kind === 'string'
-          ? structured
-          : null
-      )
-    const rawOrigin = rawFailureSurface?.origin === 'failure-surface'
-      ? 'failure-surface'
-      : structured?.origin
-    const origin = rawOrigin === 'provider'
-      || rawOrigin === 'failure-surface'
-      || rawOrigin === 'authorization-surface'
-      ? rawOrigin
-      : null
-    const rawLearningPolicy = structured?.learningPolicy && typeof structured.learningPolicy === 'object'
-      ? structured.learningPolicy as Record<string, unknown>
-      : structured
-        && (
-          'allowLongTermCondensation' in structured
-          || 'allowPersonaLearning' in structured
-          || 'allowTraining' in structured
-        )
-        ? structured
-        : null
-    const learningPolicy = rawLearningPolicy
-      ? {
-          allowLongTermCondensation: rawLearningPolicy.allowLongTermCondensation === true,
-          allowPersonaLearning: rawLearningPolicy.allowPersonaLearning === true,
-          allowTraining: false,
-        }
-      : rawFailureSurface
-        ? {
-            allowLongTermCondensation: false,
-            allowPersonaLearning: false,
-            allowTraining: false,
-          }
-        : null
-    const failureKind = typeof rawFailureSurface?.kind === 'string'
-      ? rawFailureSurface.kind as AlicizationChatFailureKind
-      : null
-    const memorySideFailureAuditText = structured?.artifactRole === 'memory-side-failure'
-      ? [
-          rawFailureSurface?.reply,
-          rawFailureSurface?.errorSummary,
-          failureKind,
-        ].find(value => typeof value === 'string' && value.trim().length > 0) as string | undefined
-      : undefined
-    const assistantText = turn.assistantText ?? memorySideFailureAuditText ?? null
-
-    return {
-      turnId: turn.turnId ?? `persisted-${index + 1}`,
-      userText: turn.userText,
-      assistantText,
-      createdAt: turn.createdAt,
-      origin,
-      learningPolicy,
-      failureSurface: failureKind && origin === 'failure-surface'
-        ? {
-            kind: failureKind,
-            origin: 'failure-surface',
-            allowLongTermCondensation: false,
-            allowPersonaLearning: false,
-            allowTraining: false,
-          }
-        : null,
-      contaminated: containsAlicizationFixedTemplateResidue(assistantText ?? '', {
-        provenance: 'internal-structured-fact',
-      }),
+  let currentTurnStart = -1
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'user') {
+      currentTurnStart = index
+      break
     }
-  })
+  }
+  if (currentTurnStart < 0)
+    return messages.filter(message => message?.role === 'system')
+
+  return messages.filter((message, index) =>
+    message?.role === 'system'
+    || index >= currentTurnStart,
+  )
 }
 
 function buildWorkingMemoryOwnerContextFromRuntime(input: {
@@ -693,6 +725,12 @@ function buildWorkingMemoryOwnerContextFromRuntime(input: {
   hasActiveExecution: boolean
   messages: Message[]
   now: number
+  currentTurnId: string
+  currentAssistantText?: string | null
+  currentOrigin?: AlicizationVisibleArtifactOrigin | null
+  currentLearningPolicy?: AlicizationVisibleArtifactLearningPolicy | null
+  currentMemoryEvidence?: WorkingMemoryLongTermEvidence | null
+  includeMessageHistory?: boolean
   persistedRecentTurns?: WorkingMemoryRecentTurnInput[]
   previousSnapshot?: WorkingMemorySnapshot | null
   sessionId: string
@@ -703,7 +741,9 @@ function buildWorkingMemoryOwnerContextFromRuntime(input: {
   ].map(text => normalizePreparedExecutionText(text, 1200)).filter(Boolean).join('\n') || null
   const recentTurns = mergeWorkingMemoryRecentTurns(
     input.persistedRecentTurns ?? [],
-    buildWorkingMemoryRecentTurns(input.messages, input.now, null),
+    input.includeMessageHistory === false
+      ? []
+      : buildWorkingMemoryRecentTurns(input.messages, input.now, null),
   )
   if (executionCarryText) {
     recentTurns.push({
@@ -717,7 +757,12 @@ function buildWorkingMemoryOwnerContextFromRuntime(input: {
     cardId: input.cardId,
     sessionId: input.sessionId,
     now: input.now,
+    currentTurnId: input.currentTurnId,
     currentUserText: readLatestUserMessageText(input.messages),
+    currentAssistantText: input.currentAssistantText,
+    currentOrigin: input.currentOrigin,
+    currentLearningPolicy: input.currentLearningPolicy,
+    currentMemoryEvidence: input.currentMemoryEvidence,
     recentTurns,
     conversationState: input.conversationState as any,
     dialogueWorldThread: input.dialogueWorldThread as any,
@@ -1446,6 +1491,87 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       staleAfterMs: options.dialogueSessionMirrorTtlMs,
     })
   const workingMemoryStore = options.workingMemoryStore ?? createWorkingMemoryStore()
+  const workingMemoryHistoryOwner = options.workingMemoryHistoryOwner
+    ?? (
+      options.listConversationTurnsBySession
+        ? createWorkingMemoryHistoryOwner({
+            listConversationTurnsBySession:
+              options.listConversationTurnsBySession,
+          })
+        : null
+    )
+
+  async function hydrateWorkingMemory(input: {
+    cardId: string
+    turnId: string
+    sessionId: string
+  }): Promise<AlicizationWorkingMemoryHydration> {
+    const cachedSnapshot = workingMemoryStore.get(input.cardId, input.sessionId)
+    if (cachedSnapshot) {
+      return {
+        version: 'working-memory-hydration-v1',
+        cardId: input.cardId,
+        turnId: input.turnId,
+        sessionId: input.sessionId,
+        snapshot: structuredClone(cachedSnapshot),
+        recentTurns: [],
+        failures: [],
+      }
+    }
+
+    const failures: AlicizationMainChatMemoryFailureSurface[] = []
+    let snapshot: WorkingMemorySnapshot | null = null
+    if (options.getWorkingMemoryCheckpoint) {
+      try {
+        snapshot = await options.getWorkingMemoryCheckpoint(
+          input.cardId,
+          input.sessionId,
+        )
+      }
+      catch (error) {
+        failures.push({
+          ...resolveAlicizationChatFailureSurface({
+            kind: 'recall-failure',
+          }),
+          stage: 'working-memory-checkpoint-load',
+          cardId: input.cardId,
+          turnId: input.turnId,
+          occurredAt: getNow(),
+          errorSummary: normalizeAlicizationMemoryFailureErrorSummary(error),
+        })
+      }
+    }
+    let recentTurns: WorkingMemoryRecentTurnInput[] = []
+    if (!snapshot && workingMemoryHistoryOwner) {
+      try {
+        recentTurns = await workingMemoryHistoryOwner.loadFallback(
+          input.sessionId,
+        )
+      }
+      catch (error) {
+        failures.push({
+          ...resolveAlicizationChatFailureSurface({
+            kind: 'recall-failure',
+          }),
+          stage: 'working-memory-history',
+          cardId: input.cardId,
+          turnId: input.turnId,
+          occurredAt: getNow(),
+          errorSummary: normalizeAlicizationMemoryFailureErrorSummary(error),
+        })
+      }
+    }
+
+    return {
+      version: 'working-memory-hydration-v1',
+      cardId: input.cardId,
+      turnId: input.turnId,
+      sessionId: input.sessionId,
+      snapshot: snapshot ? structuredClone(snapshot) : null,
+      recentTurns: structuredClone(recentTurns),
+      failures,
+    }
+  }
 
   async function prepareExecution(input: {
     payload: AlicizationChatStartPayload
@@ -1453,6 +1579,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     agentTurn?: AlicizationAgentTurnRuntime
     emitToolProgress?: (input: MainGatewayToolExecutionProgress) => void
     abortSignal?: AbortSignal
+    userId?: string
   }): Promise<AlicizationPreparedMainChatExecutionResult> {
     const payload = input.payload
     const rawPayload = payload
@@ -1528,6 +1655,26 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     })
     turnContext.sessionId = agentTurn.conversationSessionId
     let messages = prelude.messages
+    const workingMemorySessionId = agentTurn.conversationSessionId ?? payload.turnId
+    const preludeHydration = prelude.workingMemoryHydration
+    const workingMemoryHydration = preludeHydration
+      && preludeHydration.cardId === payload.cardId
+      && preludeHydration.turnId === payload.turnId
+      && preludeHydration.sessionId === workingMemorySessionId
+      ? structuredClone(preludeHydration)
+      : await hydrateWorkingMemory({
+          cardId: payload.cardId,
+          turnId: payload.turnId,
+          sessionId: workingMemorySessionId,
+        })
+    const memoryFailures: AlicizationMainChatMemoryFailureSurface[] = [
+      ...workingMemoryHydration.failures,
+    ]
+    const previousWorkingMemorySnapshot = workingMemoryHydration.snapshot
+    messages = scopeProviderMessagesToWorkingMemoryOwner(
+      messages,
+      Boolean(previousWorkingMemorySnapshot),
+    )
 
     agentTurn.ingestDigitalLifeSpine(digitalLifeSpine)
     agentTurn.ingestDigitalLifeArchitecture(digitalLifeArchitecture)
@@ -1539,7 +1686,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     })
     const memoryCarryPolicy = deriveAlicizationDialogueMemoryCarryPolicy({
       now,
-      mirror: previousSessionMirror
+      mirror: !previousWorkingMemorySnapshot && previousSessionMirror
         ? {
             memorySummary: previousSessionMirror.memorySummary,
             updatedAt: previousSessionMirror.updatedAt,
@@ -1675,16 +1822,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     })
     const organicPromptContext = memoryOsRuntime.context
     const memoryTurnArtifact = memoryOsRuntime.artifact
-    await runOrganicLearningGovernor({
-      agentTurn,
-      cardId: payload.cardId,
-      turnId: payload.turnId,
-      personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
-      organicPromptContext,
-      scheduleOrganicLearningAction: options.scheduleOrganicLearningAction,
-      listMemoryReflections: options.listMemoryReflections,
-      listRelationshipOutcomes: options.listRelationshipOutcomes,
-    })
     const {
       effectiveMindTurnGovernanceWithRecollection,
       llmMindAuthorityGovernance,
@@ -2370,86 +2507,45 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
         : ['visible-reply-authority-missing'],
     })
     const providerPlanningMessages = filterAlicizationProviderSystemMessages(runtimeSurface.messages)
-    const workingMemorySessionId = agentTurn.conversationSessionId ?? payload.turnId
-    const memoryFailures: AlicizationMainChatMemoryFailureSurface[] = []
-    const persistedRecentTurns = options.listConversationTurnsBySession
-      ? await options.listConversationTurnsBySession(workingMemorySessionId, {
-          limit: 6,
-        }).then(mapPersistedConversationTurnsToWorkingMemory).catch((error) => {
-          memoryFailures.push({
-            ...resolveAlicizationChatFailureSurface({
-              kind: 'recall-failure',
-            }),
-            stage: 'working-memory-history',
-            cardId: payload.cardId,
-            turnId: payload.turnId,
-            occurredAt: now,
-            errorSummary: normalizeAlicizationMemoryFailureErrorSummary(error),
-          })
-          return []
-        })
-      : []
-    let previousWorkingMemorySnapshot = workingMemoryStore.get(payload.cardId, workingMemorySessionId)
-    if (!previousWorkingMemorySnapshot && options.getWorkingMemoryCheckpoint) {
-      try {
-        previousWorkingMemorySnapshot = await options.getWorkingMemoryCheckpoint(
-          payload.cardId,
-          workingMemorySessionId,
-        )
-        if (previousWorkingMemorySnapshot)
-          workingMemoryStore.upsert(previousWorkingMemorySnapshot)
-      }
-      catch (error) {
-        memoryFailures.push({
-          ...resolveAlicizationChatFailureSurface({
-            kind: 'recall-failure',
-          }),
-          stage: 'working-memory-checkpoint-load',
-          cardId: payload.cardId,
-          turnId: payload.turnId,
-          occurredAt: now,
-          errorSummary: normalizeAlicizationMemoryFailureErrorSummary(error),
-        })
-      }
-    }
-    const workingMemoryOwner = buildWorkingMemoryOwnerContextFromRuntime({
+    const persistedRecentTurns = previousWorkingMemorySnapshot
+      ? []
+      : workingMemoryHydration.recentTurns
+    const ownerScopedProviderMessages = scopeProviderMessagesToWorkingMemoryOwner(
+      providerPlanningMessages,
+      Boolean(previousWorkingMemorySnapshot),
+    )
+    const workingMemoryBuildInput = {
       cardId: payload.cardId,
       currentConsciousFrame: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.currentConsciousFrame ?? null,
       conversationState: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.conversationState ?? null,
+      currentLearningPolicy: {
+        allowLongTermCondensation: true,
+        allowPersonaLearning: true,
+        allowTraining: false,
+      },
+      currentOrigin: 'provider' as const,
+      currentTurnId: payload.turnId,
       dialogueWorldThread: runtimeSurface.digitalLifeRuntimeSurface?.dialogue?.dialogueWorldThread ?? null,
       executionCallbackRecallText: executionCallbackContext.recallText,
       executionLedgerRecallText: executionLedgerContext.recallText,
       hasActiveExecution: executionLedgerContext.entries.length > 0,
-      messages: providerPlanningMessages,
+      includeMessageHistory: !previousWorkingMemorySnapshot,
+      messages: ownerScopedProviderMessages,
       now,
       persistedRecentTurns,
       previousSnapshot: previousWorkingMemorySnapshot,
       sessionId: workingMemorySessionId,
-    })
-    workingMemoryStore.upsert(workingMemoryOwner.snapshot)
-    if (options.persistWorkingMemoryCheckpoint) {
-      try {
-        await options.persistWorkingMemoryCheckpoint(workingMemoryOwner.snapshot)
-      }
-      catch (error) {
-        memoryFailures.push({
-          ...resolveAlicizationChatFailureSurface({
-            kind: 'memory-persistence',
-          }),
-          stage: 'working-memory-checkpoint-save',
-          cardId: payload.cardId,
-          turnId: payload.turnId,
-          occurredAt: now,
-          errorSummary: normalizeAlicizationMemoryFailureErrorSummary(error),
-        })
-      }
     }
+    const workingMemoryOwner = buildWorkingMemoryOwnerContextFromRuntime(
+      workingMemoryBuildInput,
+    )
     let longTermMemoryBundle: LongTermMemoryEvidenceBundle | null = null
-    const currentUserText = readLatestUserMessageText(providerPlanningMessages)
+    const currentUserText = readLatestUserMessageText(ownerScopedProviderMessages)
     if (options.retrieveLongTermMemoryEvidence) {
       try {
         longTermMemoryBundle = await options.retrieveLongTermMemoryEvidence({
           cardId: payload.cardId,
+          userId: input.userId,
           currentUserText,
           workingMemoryQueryHints: workingMemoryOwner.ownerContext.queryHints,
           currentThreadTitle: workingMemoryOwner.ownerContext.current.threadTitle,
@@ -2495,28 +2591,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       workingMemorySnapshot: workingMemoryOwner.snapshot,
       longTermRecall: longTermMemoryBundle,
     })
-    if (workingMemoryOwner.ownerContext.longTermQueue.length > 0 && options.enqueueWorkingMemoryLongTermQueue) {
-      try {
-        await options.enqueueWorkingMemoryLongTermQueue({
-          cardId: payload.cardId,
-          sessionId: workingMemorySessionId,
-          items: workingMemoryOwner.ownerContext.longTermQueue,
-        })
-        await options.drainWorkingMemoryLongTermQueue?.(4)
-      }
-      catch (error) {
-        memoryFailures.push({
-          ...resolveAlicizationChatFailureSurface({
-            kind: 'memory-persistence',
-          }),
-          stage: 'working-memory-long-term-queue',
-          cardId: payload.cardId,
-          turnId: payload.turnId,
-          occurredAt: now,
-          errorSummary: normalizeAlicizationMemoryFailureErrorSummary(error),
-        })
-      }
-    }
+    const memoryWriteItems = structuredClone(workingMemoryOwner.ownerContext.longTermQueue)
     const workingMemoryOwnedRuntimeSurface = applyWorkingMemoryOwnerToDigitalLifeRuntimeSurface({
       surface: runtimeSurface.digitalLifeRuntimeSurface,
       snapshot: workingMemoryOwner.snapshot,
@@ -2548,7 +2623,10 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       ? cloneRuntimeSurfaceForDiagnostics(runtimeSurfaceForBuilder)
       : null
 
-    messages = runtimeSurface.messages
+    messages = scopeProviderMessagesToWorkingMemoryOwner(
+      runtimeSurface.messages,
+      Boolean(previousWorkingMemorySnapshot),
+    )
     const rebuiltMindTurnContract = rebuildProviderFacingMindTurnContract({
       contract: prelude.perceptionAugmentation.chatGovernance.mindTurnContract,
       governance: llmMindAuthorityGovernance,
@@ -2561,7 +2639,6 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       runtimeSurface,
     )
     const finalizedReturnedMindTurnContract = normalizedMindTurnContract
-    messages = runtimeSurface.messages
     messages = filterAlicizationProviderSystemMessages(messages)
     messages = injectAlicizationMainChatMemoryContext(messages, memoryContext)
     messages = filterAlicizationProviderSystemMessages(messages)
@@ -2605,7 +2682,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     }
 
     const rawGeneratedSessionMirror = agentTurn.conversationSessionId
-      ? dialogueSessionManager.ingestPreparedExecution({
+      ? dialogueSessionManager.previewPreparedExecution({
           agentSession: agentTurn.getSessionSnapshot(),
           cardId: payload.cardId,
           organicMemoryContext: organicPromptContext,
@@ -2621,15 +2698,330 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       incoming: incomingPreludeDialogueSessionMirror,
       generated: rawSessionMirror,
     })
-    if (agentTurn.conversationSessionId && sessionMirror) {
-      await options.persistAutobiographicalEpisodesFromPreparedMirror?.({
-        cardId: payload.cardId,
-        decisionTraceId: runtimeSurface.trace.decisionTraceId ?? null,
-        turnId: payload.turnId,
-        sessionId: agentTurn.conversationSessionId,
-        previousMirror: previousSessionMirror,
-        mirror: sessionMirror,
+    const resolveMemoryWriteIntent = (resolveInput: {
+      assistantText: string
+      memoryEvidence?: AlicizationProviderMemoryEvidence | null
+    }): AlicizationMemoryWriteIntent => {
+      const settledWorkingMemoryOwner = buildWorkingMemoryOwnerContextFromRuntime({
+        ...workingMemoryBuildInput,
+        currentAssistantText: resolveInput.assistantText,
+        currentMemoryEvidence: resolveProviderMemoryEvidenceForWorkingMemory(
+          resolveInput.memoryEvidence,
+        ),
       })
+      return {
+        version: 'memory-write-intent-v1',
+        workingMemorySnapshot: structuredClone(
+          settledWorkingMemoryOwner.snapshot,
+        ),
+        memoryWriteItems: structuredClone(
+          settledWorkingMemoryOwner.ownerContext.longTermQueue,
+        ),
+      }
+    }
+    let memoryWriteCommitPromise: Promise<AlicizationCommittedMemoryWrite> | null = null
+    const commitMemoryWriteIntent = (commitInput: {
+      assistantText: string
+      memoryEvidence?: AlicizationProviderMemoryEvidence | null
+      intent?: AlicizationMemoryWriteIntent
+    }) => {
+      if (memoryWriteCommitPromise)
+        return memoryWriteCommitPromise
+
+      memoryWriteCommitPromise = (async () => {
+        const intent = commitInput.intent
+          ? structuredClone(commitInput.intent)
+          : resolveMemoryWriteIntent(commitInput)
+        const ownerSettlements: AlicizationMemoryOwnerSettlement[] = []
+        const recordOwnerFailure = (
+          owner: AlicizationMemoryOwnerSettlement['owner'],
+          stage: AlicizationChatMemoryFailureStage,
+          error: unknown,
+        ) => {
+          const errorSummary = normalizeAlicizationMemoryFailureErrorSummary(error)
+          ownerSettlements.push({
+            owner,
+            status: 'failed',
+            errorSummary,
+          })
+          memoryFailures.push({
+            ...resolveAlicizationChatFailureSurface({
+              kind: 'memory-persistence',
+            }),
+            stage,
+            cardId: payload.cardId,
+            turnId: payload.turnId,
+            occurredAt: getNow(),
+            errorSummary,
+          })
+        }
+
+        try {
+          workingMemoryStore.upsert(intent.workingMemorySnapshot)
+          ownerSettlements.push({
+            owner: 'working-memory-store',
+            status: 'succeeded',
+          })
+        }
+        catch (error) {
+          recordOwnerFailure(
+            'working-memory-store',
+            'working-memory-checkpoint-save',
+            error,
+          )
+        }
+
+        if (!options.persistWorkingMemoryCheckpoint) {
+          ownerSettlements.push({
+            owner: 'working-memory-checkpoint',
+            status: 'skipped',
+            reason: 'owner-unavailable',
+          })
+        }
+        else {
+          try {
+            await options.persistWorkingMemoryCheckpoint(
+              intent.workingMemorySnapshot,
+            )
+            ownerSettlements.push({
+              owner: 'working-memory-checkpoint',
+              status: 'succeeded',
+            })
+          }
+          catch (error) {
+            recordOwnerFailure(
+              'working-memory-checkpoint',
+              'working-memory-checkpoint-save',
+              error,
+            )
+          }
+        }
+
+        let longTermQueueEnqueued = false
+        if (intent.memoryWriteItems.length === 0) {
+          ownerSettlements.push({
+            owner: 'long-term-memory-queue',
+            status: 'skipped',
+            reason: 'no-items',
+          })
+        }
+        else if (!options.enqueueWorkingMemoryLongTermQueue) {
+          ownerSettlements.push({
+            owner: 'long-term-memory-queue',
+            status: 'skipped',
+            reason: 'owner-unavailable',
+          })
+        }
+        else {
+          try {
+            await options.enqueueWorkingMemoryLongTermQueue({
+              cardId: payload.cardId,
+              sessionId: workingMemorySessionId,
+              items: structuredClone(intent.memoryWriteItems),
+            })
+            ownerSettlements.push({
+              owner: 'long-term-memory-queue',
+              status: 'succeeded',
+            })
+            longTermQueueEnqueued = true
+          }
+          catch (error) {
+            recordOwnerFailure(
+              'long-term-memory-queue',
+              'working-memory-long-term-queue',
+              error,
+            )
+          }
+        }
+
+        if (intent.memoryWriteItems.length === 0) {
+          ownerSettlements.push({
+            owner: 'long-term-memory-drain',
+            status: 'skipped',
+            reason: 'no-items',
+          })
+        }
+        else if (!options.enqueueWorkingMemoryLongTermQueue) {
+          ownerSettlements.push({
+            owner: 'long-term-memory-drain',
+            status: 'skipped',
+            reason: 'queue-owner-unavailable',
+          })
+        }
+        else if (!longTermQueueEnqueued) {
+          ownerSettlements.push({
+            owner: 'long-term-memory-drain',
+            status: 'skipped',
+            reason: 'queue-enqueue-failed',
+          })
+        }
+        else if (!options.drainWorkingMemoryLongTermQueueScoped) {
+          ownerSettlements.push({
+            owner: 'long-term-memory-drain',
+            status: 'skipped',
+            reason: 'owner-unavailable',
+          })
+        }
+        else {
+          try {
+            const queueItemIds = intent.memoryWriteItems.map(item => item.id)
+            const drainResult = await options.drainWorkingMemoryLongTermQueueScoped({
+              cardId: payload.cardId,
+              sessionId: workingMemorySessionId,
+              queueItemIds,
+            })
+            const settlementByQueueItemId = new Map(
+              drainResult.settlements.map(settlement => [settlement.queueItemId, settlement]),
+            )
+            const settlements = queueItemIds.map(queueItemId =>
+              settlementByQueueItemId.get(queueItemId) ?? {
+                queueItemId,
+                transactionId: null,
+                status: 'missing' as const,
+                errorSummary: 'queue item settlement was not returned',
+              },
+            )
+            const failed = settlements.filter(settlement => settlement.status === 'dead-lettered').length
+            const pending = settlements.filter(settlement =>
+              settlement.status === 'pending-cleaning'
+              || settlement.status === 'cleaning'
+              || settlement.status === 'admitted',
+            ).length
+            const missing = settlements.filter(settlement => settlement.status === 'missing').length
+            const applied = settlements.filter(settlement => settlement.status === 'applied').length
+            const review = settlements.filter(settlement => settlement.status === 'needs-user-review').length
+            const rejected = settlements.filter(settlement => settlement.status === 'rejected').length
+            if (failed > 0 || pending > 0 || missing > 0) {
+              recordOwnerFailure(
+                'long-term-memory-drain',
+                'working-memory-long-term-drain',
+                new Error([
+                  `failed=${failed}`,
+                  `pending=${pending}`,
+                  `missing=${missing}`,
+                  `applied=${applied}`,
+                  `review=${review}`,
+                  `rejected=${rejected}`,
+                ].join(' ')),
+              )
+            }
+            else {
+              ownerSettlements.push({
+                owner: 'long-term-memory-drain',
+                status: 'succeeded',
+              })
+            }
+          }
+          catch (error) {
+            recordOwnerFailure(
+              'long-term-memory-drain',
+              'working-memory-long-term-drain',
+              error,
+            )
+          }
+        }
+
+        if (!rawGeneratedSessionMirror) {
+          ownerSettlements.push({
+            owner: 'dialogue-session-mirror',
+            status: 'skipped',
+            reason: 'no-mirror',
+          })
+        }
+        else {
+          try {
+            dialogueSessionManager.commitPreparedExecution(rawGeneratedSessionMirror)
+            ownerSettlements.push({
+              owner: 'dialogue-session-mirror',
+              status: 'succeeded',
+            })
+          }
+          catch (error) {
+            recordOwnerFailure(
+              'dialogue-session-mirror',
+              'dialogue-session-mirror-commit',
+              error,
+            )
+          }
+        }
+
+        if (!agentTurn.conversationSessionId || !sessionMirror) {
+          ownerSettlements.push({
+            owner: 'autobiographical-memory',
+            status: 'skipped',
+            reason: 'no-session-mirror',
+          })
+        }
+        else if (!options.persistAutobiographicalEpisodesFromPreparedMirror) {
+          ownerSettlements.push({
+            owner: 'autobiographical-memory',
+            status: 'skipped',
+            reason: 'owner-unavailable',
+          })
+        }
+        else {
+          try {
+            await options.persistAutobiographicalEpisodesFromPreparedMirror({
+              cardId: payload.cardId,
+              decisionTraceId: runtimeSurface.trace.decisionTraceId ?? null,
+              turnId: payload.turnId,
+              sessionId: agentTurn.conversationSessionId,
+              previousMirror: previousSessionMirror,
+              mirror: sessionMirror,
+            })
+            ownerSettlements.push({
+              owner: 'autobiographical-memory',
+              status: 'succeeded',
+            })
+          }
+          catch (error) {
+            recordOwnerFailure(
+              'autobiographical-memory',
+              'autobiographical-memory-write',
+              error,
+            )
+          }
+        }
+
+        if (!options.scheduleOrganicLearningAction) {
+          ownerSettlements.push({
+            owner: 'persona-learning',
+            status: 'skipped',
+            reason: 'owner-unavailable',
+          })
+        }
+        else {
+          try {
+            await runOrganicLearningGovernor({
+              agentTurn,
+              cardId: payload.cardId,
+              turnId: payload.turnId,
+              personaKernelMode: prelude.perceptionAugmentation.chatGovernance.personaKernelMode,
+              organicPromptContext,
+              scheduleOrganicLearningAction: options.scheduleOrganicLearningAction,
+              listMemoryReflections: options.listMemoryReflections,
+              listRelationshipOutcomes: options.listRelationshipOutcomes,
+            })
+            ownerSettlements.push({
+              owner: 'persona-learning',
+              status: 'succeeded',
+            })
+          }
+          catch (error) {
+            recordOwnerFailure(
+              'persona-learning',
+              'persona-learning-schedule',
+              error,
+            )
+          }
+        }
+
+        return {
+          ...structuredClone(intent),
+          ownerSettlements,
+        }
+      })()
+      return memoryWriteCommitPromise
     }
 
     const preparedResultBase = {
@@ -2647,6 +3039,10 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
       governance: runtimeSurface.governance,
       memoryContext,
       memoryFailures,
+      workingMemorySnapshot: structuredClone(workingMemoryOwner.snapshot),
+      memoryWriteItems,
+      resolveMemoryWriteIntent,
+      commitMemoryWriteIntent,
       promptBudgetReport: promptBudgetResult.report,
       mindTurnContract: finalizedReturnedMindTurnContract,
       organicMemoryContext: organicPromptContext,
@@ -2697,6 +3093,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
 
   return {
     clear: () => dialogueSessionManager.clear(),
+    hydrateWorkingMemory,
     openExecutionTurn: options.openAgentTurn,
     prepareExecution,
   }

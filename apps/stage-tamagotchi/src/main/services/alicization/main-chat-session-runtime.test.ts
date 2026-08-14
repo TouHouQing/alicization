@@ -25,6 +25,7 @@ import { filterAlicizationProviderSystemMessages } from './main-chat-runtime-sur
 import {
   createAlicizationMainChatSessionRuntime,
 } from './main-chat-session-runtime'
+import { createAlicizationMainChatPreludeRuntime } from './runtime-main-chat-prelude'
 
 type ExecutiveTurnOrganicMemoryTuneInput = Parameters<
   Parameters<typeof createAlicizationMainChatSessionRuntime>[0]['tuneOrganicMemoryPromptContextForExecutiveTurn']
@@ -33,6 +34,34 @@ type ExecutiveTurnOrganicMemoryTuneInput = Parameters<
 type MainRuntimeCorePromptBlocksInput = Parameters<
   Parameters<typeof createAlicizationMainChatSessionRuntime>[0]['buildMainRuntimeCorePromptBlocks']
 >[0]
+
+type WorkingMemoryLongTermQueueEnqueue = NonNullable<
+  Parameters<typeof createAlicizationMainChatSessionRuntime>[0]['enqueueWorkingMemoryLongTermQueue']
+>
+
+type WorkingMemoryLongTermQueueScopedDrain = NonNullable<
+  Parameters<typeof createAlicizationMainChatSessionRuntime>[0]['drainWorkingMemoryLongTermQueueScoped']
+>
+
+function createWorkingMemoryLongTermEvidence(input: {
+  kind: 'episode' | 'preference' | 'relationship' | 'procedure' | 'correction'
+  summary: string
+  reason: string
+  evidenceSnippet: string
+  sensitivity?: 'public' | 'personal' | 'private' | 'secret'
+}) {
+  return {
+    version: 'working-memory-long-term-evidence-v1' as const,
+    source: 'explicit-structured-memory-evidence' as const,
+    kind: input.kind,
+    summary: input.summary,
+    reason: input.reason,
+    evidenceSnippets: [input.evidenceSnippet],
+    salience: 0.8,
+    sensitivity: input.sensitivity ?? 'personal',
+    confidence: 0.86,
+  }
+}
 
 type PreparedPreludeWithRuntimeSurface = AlicizationPreparedMainChatPrelude & {
   perceptionAugmentation: AlicizationPreparedMainChatPrelude['perceptionAugmentation'] & {
@@ -467,7 +496,6 @@ function createEmptyLongTermMemoryEvidenceBundle(
       procedureHints: [],
       threadHints: [],
       negativeCues: [],
-      confidencePolicy: 'direct',
       riskFlags: [],
       targetKinds: [],
     },
@@ -1625,7 +1653,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
     })
 
-    await runtime.prepareExecution({
+    const prepared = await runtime.prepareExecution({
       payload: {
         cardId: 'default',
         turnId: 'turn-learning-rich-context',
@@ -1641,6 +1669,12 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           content: '继续，记住你刚才说的验证优先',
         } as Message],
       }),
+    })
+
+    expect(scheduleOrganicLearningAction).not.toHaveBeenCalled()
+
+    await prepared.commitMemoryWriteIntent?.({
+      assistantText: '我会把验证优先落实到这轮成功回复之后。',
     })
 
     expect(scheduleOrganicLearningAction).toHaveBeenCalledTimes(1)
@@ -2328,7 +2362,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
             selectedWindowIds: [],
             selectedProcedureIds: ['procedure-runtime'],
             selectedEpisodeIds: [],
-            selectedConversationTurnIds: [],
             selectedRelationshipLines: ['Carry the same runtime seam before branching.'],
             selectedEras: [{
               id: 'consolidation-runtime',
@@ -2418,6 +2451,12 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       surfaceMode: 'internal-only',
       visibility: 'inward',
     })
+    expect(persistAutobiographicalEpisodesFromPreparedMirror).not.toHaveBeenCalled()
+
+    await firstResult.commitMemoryWriteIntent?.({
+      assistantText: '我会沿着这条连续性继续。',
+    })
+
     expect(persistAutobiographicalEpisodesFromPreparedMirror).toHaveBeenCalledWith(expect.objectContaining({
       cardId: 'default',
       turnId: 'turn-afterthought-1',
@@ -4352,7 +4391,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           selectedWindowIds: [],
           selectedProcedureIds: ['procedure-runtime'],
           selectedEpisodeIds: [],
-          selectedConversationTurnIds: [],
           selectedRelationshipLines: ['Carry the same runtime seam before branching.'],
           selectedEras: [],
           selectedPeriods: [{
@@ -4374,7 +4412,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
             periodId: 'consolidation-runtime',
             episodeId: null,
             procedureId: 'procedure-runtime',
-            conversationTurnId: null,
             relationshipLine: 'Carry the same runtime seam before branching.',
           }],
           selectedChains: [{
@@ -4667,7 +4704,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(prepared.getSessionTrace()).toEqual(agentTurn.snapshot())
   })
 
-  it('uses the injected WorkingMemory store so UI and dialogue share the same short-term owner', async () => {
+  it('commits the injected WorkingMemory store only after the visible reply settles', async () => {
     const workingMemoryStore = createWorkingMemoryStore()
     const { runtime } = createWorkingMemoryRuntimeFixture({
       workingMemoryStore,
@@ -4679,7 +4716,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       } as Message],
     })
 
-    await runtime.prepareExecution({
+    const prepared = await runtime.prepareExecution({
       payload: {
         cardId: 'default',
         turnId: 'turn-working-memory-visible',
@@ -4691,22 +4728,41 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       prelude,
     })
 
+    expect(workingMemoryStore.latest('default')).toBeNull()
+
+    await prepared.commitMemoryWriteIntent?.({
+      assistantText: '记忆中心 UI 会继续沿着这条线推进。',
+    })
+
     const latest = workingMemoryStore.latest('default')
     expect(latest?.currentThread?.currentUserMove).toContain('记忆中心 UI')
+    expect(latest?.recentRawTurns).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        turnId: 'turn-working-memory-visible:user',
+        role: 'user',
+      }),
+      expect.objectContaining({
+        turnId: 'turn-working-memory-visible:alice',
+        role: 'alice',
+        text: '记忆中心 UI 会继续沿着这条线推进。',
+      }),
+    ]))
+    expect(latest?.recentRawTurns.map(turn => turn.turnId)).not.toContain('current-user')
   })
 
   it('merges persisted history with newer in-memory turns before building WorkingMemory', async () => {
     const workingMemoryStore = createWorkingMemoryStore()
+    const listConversationTurnsBySession = vi.fn(async () => [{
+      turnId: 'turn-persisted-old',
+      sessionId: 'session-1',
+      userText: '旧问题',
+      assistantText: '旧回答',
+      structuredJson: null,
+      createdAt: 10,
+    }])
     const { runtime } = createWorkingMemoryRuntimeFixture({
       workingMemoryStore,
-      listConversationTurnsBySession: vi.fn(async () => [{
-        turnId: 'turn-persisted-old',
-        sessionId: 'session-1',
-        userText: '旧问题',
-        assistantText: '旧回答',
-        structuredJson: null,
-        createdAt: 10,
-      }]),
+      listConversationTurnsBySession,
     })
     const messages: Message[] = [
       { role: 'user', content: '旧问题' },
@@ -4717,7 +4773,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     ]
     const prelude = createReflectivePrelude({ messages })
 
-    await runtime.prepareExecution({
+    const prepared = await runtime.prepareExecution({
       payload: {
         cardId: 'default',
         turnId: 'turn-working-memory-merge-live-history',
@@ -4727,12 +4783,56 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       prelude,
     })
 
+    expect(workingMemoryStore.latest('default')).toBeNull()
+
+    await prepared.commitMemoryWriteIntent?.({
+      assistantText: '我会按最新纠正继续。',
+    })
+
     const latest = workingMemoryStore.latest('default')
-    const recentText = latest?.recentRawTurns.map(turn => turn.text).join('\n') ?? ''
-    expect(recentText).toContain('旧问题')
-    expect(recentText).toContain('最新纠正是先合并尚未落盘的消息')
-    expect(recentText).toContain('先保留这条最新纠正')
-    expect(recentText.match(/旧问题/gu)).toHaveLength(1)
+    const retainedText = [
+      ...(latest?.recentRawTurns.map(turn => turn.text) ?? []),
+      ...(latest?.compressedTimeline.map(episodelet => episodelet.summary) ?? []),
+    ].join('\n')
+    expect(retainedText).toContain('旧问题')
+    expect(retainedText).toContain('最新纠正是先合并尚未落盘的消息')
+    expect(retainedText).toContain('先保留这条最新纠正')
+    expect(retainedText.match(/旧问题/gu)).toHaveLength(1)
+    expect(listConversationTurnsBySession).toHaveBeenCalledWith('session-1', {
+      limit: 6,
+    })
+  })
+
+  it('loads DB fallback during WorkingMemory hydration instead of session assembly', async () => {
+    const listConversationTurnsBySession = vi.fn(async () => [{
+      turnId: 'turn-owner-hydration',
+      sessionId: 'session-owner-hydration',
+      userText: '由 WorkingMemory owner 加载历史。',
+      assistantText: '历史加载归 owner 管理。',
+      structuredJson: null,
+      createdAt: 10,
+    }])
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      workingMemoryStore: createWorkingMemoryStore(),
+      getWorkingMemoryCheckpoint: vi.fn(async () => null),
+      listConversationTurnsBySession,
+    })
+
+    const hydration = await runtime.hydrateWorkingMemory({
+      cardId: 'default',
+      turnId: 'turn-owner-hydration-current',
+      sessionId: 'session-owner-hydration',
+    })
+
+    expect(hydration.snapshot).toBeNull()
+    expect(hydration.recentTurns).toEqual([
+      expect.objectContaining({
+        turnId: 'turn-owner-hydration',
+        userText: '由 WorkingMemory owner 加载历史。',
+        assistantText: '历史加载归 owner 管理。',
+      }),
+    ])
+    expect(listConversationTurnsBySession).toHaveBeenCalledOnce()
   })
 
   it('hydrates WorkingMemory from a persisted checkpoint when the process store is empty', async () => {
@@ -4795,6 +4895,13 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     })
 
     expect(getWorkingMemoryCheckpoint).toHaveBeenCalledWith('default', 'session-1')
+    expect(persistWorkingMemoryCheckpoint).not.toHaveBeenCalled()
+    expect(workingMemoryStore.get('default', 'session-1')).toBeNull()
+
+    await result.commitMemoryWriteIntent?.({
+      assistantText: '我会从 checkpoint 恢复并继续。',
+    })
+
     expect(persistWorkingMemoryCheckpoint).toHaveBeenCalledWith(expect.objectContaining({
       cardId: 'default',
       sessionId: 'session-1',
@@ -4807,6 +4914,423 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       '不要让固定模板干扰人格回复',
       '读写 checkpoint 失败要透明告诉用户',
     ]))
+  })
+
+  it('hydrates the WorkingMemory owner before organic recall and blocks old transport from the recall/provider chain', async () => {
+    const events: string[] = []
+    const workingMemoryStore = createWorkingMemoryStore()
+    const checkpoint = createEmptyWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-1',
+      now: 100,
+    })
+    checkpoint.currentThread = {
+      title: 'checkpoint 当前线程',
+      currentUserMove: 'checkpoint 当前用户状态',
+      currentAliceMove: 'checkpoint 当前助手状态',
+      primaryAnchor: 'WorkingMemory owner',
+      mode: 'task',
+      shouldHold: true,
+      confidence: 0.9,
+    }
+    const perceptionMessages = vi.fn()
+    const resolveOrganicMemoryPromptContext = vi.fn(async (input: { recallSeed: string }) => {
+      events.push('organic')
+      return {
+        hostAttitude: '',
+        coreIncarnation: '',
+        activeThoughts: [],
+        retrievedFacts: [],
+        recalledFragments: [],
+        observedRecallSeed: input.recallSeed,
+      }
+    })
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      workingMemoryStore,
+      getWorkingMemoryCheckpoint: vi.fn(async () => {
+        events.push('checkpoint')
+        return checkpoint
+      }),
+      listConversationTurnsBySession: vi.fn(async () => []),
+      resolveOrganicMemoryPromptContext,
+    })
+    const preludeRuntime = createAlicizationMainChatPreludeRuntime({
+      readLatestUserMessageText: (messages) => {
+        for (let index = messages.length - 1; index >= 0; index -= 1) {
+          if (messages[index]?.role === 'user')
+            return String(messages[index]?.content ?? '')
+        }
+        return ''
+      },
+      senderWebContentsIdFromInvokeOptions: () => null,
+      resolveChatMessages: payload => payload.messages as any,
+      buildMainChatContextualString: vi.fn(async () => 'U: 当前用户轮次'),
+      buildMainChatExecutionCallbackContext: vi.fn(async () => ({
+        actions: [],
+        callbacks: [],
+        continuitySignals: [],
+        recallText: '',
+        systemBlock: '',
+      })),
+      buildMainChatExecutionLedgerContext: vi.fn(async () => ({
+        systemBlock: '',
+        entries: [],
+        recallText: '',
+      })) as any,
+      augmentMainChatMessagesWithPerception: vi.fn(async (input: { messages: Message[] }) => {
+        perceptionMessages(input.messages)
+        return {
+          messages: input.messages,
+          systemBlocks: [],
+          promptSystemBlocks: [],
+          digitalLifeRuntimeSurface: null,
+          memoryRecallSeed: input.messages
+            .map(message => String(message.content ?? ''))
+            .join('|'),
+          recallGovernor: null,
+          capture: {
+            inspectionRequested: false,
+            groundedThisTurn: false,
+            snapshot: null,
+            fallbackReason: null,
+          },
+          chatGovernance: {
+            turnMode: 'answer' as const,
+            personaKernelMode: 'full' as const,
+            mindTurnGovernance: null,
+          },
+        }
+      }),
+      prepareMainChatSessionExecution: vi.fn(),
+    })
+    const payload = {
+      cardId: 'default',
+      turnId: 'turn-owner-prelude-chain',
+      providerId: 'openai',
+      model: 'gpt-test',
+      providerConfig: {},
+      messages: [
+        { role: 'system', content: 'system context' },
+        { role: 'user', content: '旧 transport 用户轮次' },
+        { role: 'assistant', content: '旧 transport 助手轮次' },
+        { role: 'user', content: '当前用户轮次' },
+      ],
+      supportsTools: true,
+    } as any
+    const prelude = await preludeRuntime.prepareMainChatPrelude(payload, {
+      provider: {
+        chat: vi.fn(() => ({ provider: 'test-chat' })),
+      },
+      model: 'gpt-test',
+    } as any)
+
+    const result = await runtime.prepareExecution({
+      payload,
+      prelude,
+    })
+
+    expect(events.indexOf('checkpoint')).toBeGreaterThanOrEqual(0)
+    expect(events.indexOf('organic')).toBeGreaterThanOrEqual(0)
+    expect(events.indexOf('checkpoint')).toBeLessThan(events.indexOf('organic'))
+    expect(perceptionMessages).toHaveBeenCalledWith([
+      { role: 'system', content: 'system context' },
+      { role: 'user', content: '当前用户轮次' },
+    ])
+    const organicRecallSeed = String(
+      resolveOrganicMemoryPromptContext.mock.calls.at(-1)?.[0]?.recallSeed ?? '',
+    )
+    expect(organicRecallSeed).not.toContain('旧 transport 用户轮次')
+    expect(organicRecallSeed).not.toContain('旧 transport 助手轮次')
+    expect(organicRecallSeed).toContain('当前用户轮次')
+    const providerMessagesText = result.messages
+      .map(message => String(message.content ?? ''))
+      .join('\n')
+    expect(providerMessagesText).not.toContain('旧 transport 用户轮次')
+    expect(providerMessagesText).not.toContain('旧 transport 助手轮次')
+    expect(providerMessagesText).toContain('当前用户轮次')
+  })
+
+  it('does not let a previous session mirror memory summary bypass a WorkingMemory checkpoint owner', async () => {
+    const previousMirror = {
+      cardId: 'default',
+      sessionId: 'session-1',
+      updatedAt: 100,
+      memorySummary: '旧 transport summary 不应绕过 WorkingMemory',
+      recollection: null,
+    } as any
+    const dialogueSessionManager = {
+      clear: vi.fn(),
+      commitPreparedExecution: vi.fn((mirror: unknown) => mirror),
+      getSessionMirror: vi.fn(() => previousMirror),
+      ingestAgentSessionSnapshot: vi.fn(() => previousMirror),
+      ingestPreparedExecution: vi.fn(() => previousMirror),
+      previewPreparedExecution: vi.fn(() => previousMirror),
+    }
+    const workingMemoryStore = createWorkingMemoryStore()
+    const checkpoint = createEmptyWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-1',
+      now: 100,
+    })
+    const resolveOrganicMemoryPromptContext = vi.fn(async (_input: {
+      recallSeed?: string
+    }) => ({
+      hostAttitude: '',
+      coreIncarnation: '',
+      activeThoughts: [],
+      retrievedFacts: [],
+      recalledFragments: [],
+    }))
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      workingMemoryStore,
+      dialogueSessionManager: dialogueSessionManager as any,
+      getWorkingMemoryCheckpoint: vi.fn(async () => checkpoint),
+      resolveOrganicMemoryPromptContext,
+    })
+
+    await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-checkpoint-mirror-boundary',
+        messages: [{
+          role: 'user',
+          content: '当前 checkpoint 线程继续。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{
+          role: 'user',
+          content: '当前 checkpoint 线程继续。',
+        } as Message],
+      }),
+    })
+
+    const organicInput = resolveOrganicMemoryPromptContext.mock.calls.at(-1)?.[0] as {
+      recallSeed?: string
+    }
+    expect(String(organicInput?.recallSeed ?? ''))
+      .not
+      .toContain('旧 transport summary 不应绕过 WorkingMemory')
+    expect(String(organicInput?.recallSeed ?? ''))
+      .toContain('memory_recall_mode:thread')
+  })
+
+  it('feeds a compressed checkpoint from the previous turn into the next Provider context', async () => {
+    const workingMemoryStore = createWorkingMemoryStore()
+    let persistedCheckpoint = null as ReturnType<typeof createEmptyWorkingMemorySnapshot> | null
+    let now = 100
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      workingMemoryStore,
+      getNow: () => now,
+      getWorkingMemoryCheckpoint: vi.fn(async () => persistedCheckpoint),
+      persistWorkingMemoryCheckpoint: vi.fn(async (snapshot) => {
+        persistedCheckpoint = structuredClone(snapshot)
+      }),
+      listConversationTurnsBySession: vi.fn(async () => []),
+    })
+    const firstMessages: Message[] = [
+      { role: 'user', content: '第一步先确认长期目标。' },
+      { role: 'assistant', content: '目标是让记忆跨轮连续。' },
+      { role: 'user', content: '第二步记录用户纠正。' },
+      { role: 'assistant', content: '会保留纠正证据。' },
+      { role: 'user', content: '第三步验证压缩。' },
+      { role: 'assistant', content: '压缩后仍应进入下一轮。' },
+      { role: 'user', content: '第四步准备继续。' },
+      { role: 'assistant', content: '已经准备继续。' },
+    ]
+
+    const firstResult = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-compress-1',
+        messages: firstMessages,
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({ messages: firstMessages }),
+    })
+
+    expect(firstResult.workingMemorySnapshot?.compressedTimeline).toHaveLength(1)
+    expect(persistedCheckpoint).toBeNull()
+
+    await firstResult.commitMemoryWriteIntent?.({
+      assistantText: '第一轮已经成功完成，可以提交压缩后的 WorkingMemory。',
+    })
+
+    expect(persistedCheckpoint?.compressedTimeline).toHaveLength(1)
+    const firstEpisodelet = structuredClone(
+      persistedCheckpoint!.compressedTimeline[0],
+    )
+
+    workingMemoryStore.clear()
+    now = 200
+    const secondMessages: Message[] = [{
+      role: 'user',
+      content: '继续刚才压缩后的记忆线。',
+    }]
+    const secondResult = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-compress-2',
+        messages: secondMessages,
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({ messages: secondMessages }),
+    })
+    const providerMemoryContext = findOnlyAlicizationTurnMemoryContextMessage(
+      secondResult.messages,
+    ).context
+
+    expect(providerMemoryContext.workingMemory.compressedTimeline).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sourceTurnIds: firstEpisodelet.sourceTurnIds,
+          summary: firstEpisodelet.summary,
+          thread: firstEpisodelet.thread,
+        }),
+      ]),
+    )
+    expect(
+      secondResult.workingMemorySnapshot?.recentRawTurns
+        .map(turn => turn.turnId),
+    ).not.toEqual(expect.arrayContaining(firstEpisodelet.sourceTurnIds))
+    expect(
+      secondResult.workingMemorySnapshot?.recentRawTurns
+        .filter(turn => turn.role === 'alice')
+        .map(turn => turn.text),
+    ).not.toContain('这条当前轮回复还没有生成。')
+  })
+
+  it('does not reopen DB history after a WorkingMemory checkpoint owns the session', async () => {
+    const workingMemoryStore = createWorkingMemoryStore()
+    const checkpoint = createEmptyWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-1',
+      now: 100,
+    })
+    checkpoint.recentRawTurns = [
+      {
+        turnId: 'turn-owner-recent:user',
+        role: 'user',
+        text: 'checkpoint 中仍然活跃的用户轮。',
+        createdAt: 90,
+        source: 'conversation-turn',
+        visibility: 'user-visible',
+        failureKind: null,
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
+        failureSurface: null,
+        contaminated: false,
+        importance: 0.8,
+      },
+      {
+        turnId: 'turn-owner-recent:alice',
+        role: 'alice',
+        text: 'checkpoint 中仍然活跃的助手轮。',
+        createdAt: 91,
+        source: 'conversation-turn',
+        visibility: 'user-visible',
+        failureKind: null,
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
+        failureSurface: null,
+        contaminated: false,
+        importance: 0.7,
+      },
+    ]
+    checkpoint.compressedTimeline = [{
+      id: 'episodelet-owned',
+      sourceTurnIds: ['turn-owner-compressed:user', 'turn-owner-compressed:alice'],
+      summary: 'checkpoint 已经压缩的旧轮次。',
+      thread: 'WorkingMemory owner',
+      unresolvedQuestions: [],
+      commitments: [],
+      corrections: [],
+      relationshipPosture: null,
+      emotionalPosture: null,
+      executionCarry: null,
+      importance: 0.7,
+      createdAt: 80,
+    }]
+    checkpoint.compression = {
+      level: 'light',
+      sourceTurnIds: ['turn-owner-compressed:user', 'turn-owner-compressed:alice'],
+      lastCompressedAt: 100,
+    }
+    const listConversationTurnsBySession = vi.fn(async () => [{
+      turnId: 'turn-owner-compressed',
+      sessionId: 'session-1',
+      userText: '这条 DB 历史不应重新进入 raw window。',
+      assistantText: '这条 DB 回复也不应重新进入 raw window。',
+      structuredJson: JSON.stringify({
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
+      }),
+      createdAt: 80,
+    }])
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      workingMemoryStore,
+      getWorkingMemoryCheckpoint: vi.fn(async () => checkpoint),
+      listConversationTurnsBySession,
+    })
+    const messages: Message[] = [
+      { role: 'user', content: '这条 transport 旧消息也不应重新展开。' },
+      { role: 'assistant', content: '旧 transport 回复。' },
+      { role: 'user', content: '继续' },
+    ]
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-owner-next',
+        messages,
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({ messages }),
+    })
+
+    expect(listConversationTurnsBySession).not.toHaveBeenCalled()
+    expect(result.workingMemorySnapshot?.recentRawTurns.map(turn => turn.turnId))
+      .toEqual(expect.arrayContaining([
+        'turn-owner-recent:user',
+        'turn-owner-recent:alice',
+        'turn-owner-next:user',
+      ]))
+    expect(JSON.stringify(result.workingMemorySnapshot))
+      .not
+      .toContain('这条 DB 历史不应重新进入 raw window。')
+    expect(JSON.stringify(result.workingMemorySnapshot))
+      .not
+      .toContain('这条 transport 旧消息也不应重新展开。')
+    const providerMessagesText = result.messages
+      .map(message => String(message.content ?? ''))
+      .join('\n')
+    expect(providerMessagesText)
+      .not
+      .toContain('这条 transport 旧消息也不应重新展开。')
+    expect(providerMessagesText)
+      .not
+      .toContain('旧 transport 回复。')
+    expect(providerMessagesText)
+      .toContain('继续')
+    expect(result.workingMemorySnapshot?.compressedTimeline).toEqual([
+      expect.objectContaining({
+        id: 'episodelet-owned',
+        sourceTurnIds: ['turn-owner-compressed:user', 'turn-owner-compressed:alice'],
+      }),
+    ])
   })
 
   it('reports WorkingMemory checkpoint persistence failure without blocking the Provider context', async () => {
@@ -4839,6 +5363,12 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
 
     expect(result.memoryContext.workingMemory.current.currentUserMove)
       .toContain('继续把短期记忆落盘')
+    expect(persistWorkingMemoryCheckpoint).not.toHaveBeenCalled()
+
+    await result.commitMemoryWriteIntent?.({
+      assistantText: '我会继续处理短期记忆落盘。',
+    })
+
     expect(result.memoryFailures).toEqual(expect.arrayContaining([
       expect.objectContaining({
         kind: 'memory-persistence',
@@ -5086,8 +5616,8 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(context.workingMemory).not.toHaveProperty('longTermQueue')
   })
 
-  it('enqueues WorkingMemory owner long-term queue without blocking visible reply planning', async () => {
-    const enqueueWorkingMemoryLongTermQueue = vi.fn(async () => {})
+  it('keeps raw persisted turns in WorkingMemory but does not enqueue long-term writes without structured evidence', async () => {
+    const enqueueWorkingMemoryLongTermQueue = vi.fn<WorkingMemoryLongTermQueueEnqueue>(async () => {})
     const drainWorkingMemoryLongTermQueue = vi.fn(async () => ({
       cleaned: 0,
       admitted: 0,
@@ -5097,9 +5627,25 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       failed: 0,
       pending: 0,
     }))
+    const drainWorkingMemoryLongTermQueueScoped = vi.fn<WorkingMemoryLongTermQueueScopedDrain>(async input => ({
+      cleaned: input.queueItemIds.length,
+      admitted: input.queueItemIds.length,
+      applied: input.queueItemIds.length,
+      rejected: 0,
+      review: 0,
+      failed: 0,
+      pending: 0,
+      settlements: input.queueItemIds.map(queueItemId => ({
+        queueItemId,
+        transactionId: `transaction:${queueItemId}`,
+        status: 'applied' as const,
+        errorSummary: null,
+      })),
+    }))
     const { runtime } = createWorkingMemoryRuntimeFixture({
       enqueueWorkingMemoryLongTermQueue,
       drainWorkingMemoryLongTermQueue,
+      drainWorkingMemoryLongTermQueueScoped,
       listConversationTurnsBySession: vi.fn(async () => [{
         turnId: 'turn-working-memory-provider-settled',
         sessionId: 'session-1',
@@ -5135,24 +5681,203 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       } as any,
       prelude,
     })
-    await new Promise(resolve => setTimeout(resolve, 0))
 
     expect(findOnlyAlicizationTurnMemoryContextMessage(result.messages).message.content)
       .toBe(result.memoryContext.providerSystemBlock)
-    expect(enqueueWorkingMemoryLongTermQueue).toHaveBeenCalledWith(expect.objectContaining({
-      cardId: 'default',
-      items: expect.arrayContaining([
-        expect.objectContaining({
-          source: 'working-memory-owner',
-          kind: 'correction',
-          summary: expect.stringContaining('固定模板'),
-        }),
-      ]),
-    }))
-    expect(drainWorkingMemoryLongTermQueue).toHaveBeenCalledWith(4)
+    expect(enqueueWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
+    expect(drainWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
+    expect(drainWorkingMemoryLongTermQueueScoped).not.toHaveBeenCalled()
+    const workingMemorySnapshot = result.workingMemorySnapshot!
+    expect(JSON.stringify(workingMemorySnapshot.recentRawTurns))
+      .toContain('我不想要固定模板回复，我需要她数字生命自身的人格回复。')
+    expect(workingMemorySnapshot.longTermCandidates).toEqual([])
+    expect(workingMemorySnapshot.audit.excludedLongTermCandidateTurnIds)
+      .toContain('turn-working-memory-provider-settled:user')
+    expect(workingMemorySnapshot.audit.notes)
+      .toContain('missing-structured-memory-evidence')
+
+    const committed = await result.commitMemoryWriteIntent?.({
+      assistantText: '我会从成功回复后再提交这条长期候选。',
+    })
+
+    expect(enqueueWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
+    expect(drainWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
+    expect(drainWorkingMemoryLongTermQueueScoped).not.toHaveBeenCalled()
+    expect(committed?.ownerSettlements).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        owner: 'long-term-memory-queue',
+        status: 'skipped',
+        reason: 'no-items',
+      }),
+      expect.objectContaining({
+        owner: 'long-term-memory-drain',
+        status: 'skipped',
+        reason: 'no-items',
+      }),
+    ]))
   })
 
-  it('keeps typed failure turns in WorkingMemory audit without enqueueing their user text', async () => {
+  it('settles Provider memory evidence into the WorkingMemory snapshot and long-term queue', async () => {
+    const enqueueWorkingMemoryLongTermQueue = vi.fn<WorkingMemoryLongTermQueueEnqueue>(async () => {})
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      enqueueWorkingMemoryLongTermQueue,
+      listConversationTurnsBySession: vi.fn(async () => []),
+    })
+    const messages: Message[] = [{
+      role: 'user',
+      content: '请记住我喜欢先说结论，再给必要细节。',
+    }]
+
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-provider-memory-evidence',
+        messages,
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({ messages }),
+    })
+
+    expect(result.workingMemorySnapshot?.longTermCandidates).toEqual([])
+
+    const intent = result.resolveMemoryWriteIntent?.({
+      assistantText: '我会先说结论，再补充必要细节。',
+      memoryEvidence: {
+        version: 'provider-memory-evidence-v1',
+        kind: 'preference',
+        summary: '用户更喜欢先说结论，再给必要细节。',
+        reason: '用户明确提出了稳定的回复顺序偏好。',
+        evidenceSnippets: ['请记住我喜欢先说结论，再给必要细节。'],
+        salience: 0.86,
+        sensitivity: 'personal',
+        confidence: 0.92,
+      },
+    })
+
+    expect(intent).toEqual(expect.objectContaining({
+      workingMemorySnapshot: expect.objectContaining({
+        recentRawTurns: expect.arrayContaining([
+          expect.objectContaining({
+            turnId: 'turn-provider-memory-evidence:user',
+            memoryEvidence: expect.objectContaining({
+              source: 'explicit-structured-memory-evidence',
+              kind: 'preference',
+            }),
+          }),
+        ]),
+        longTermCandidates: [
+          expect.objectContaining({
+            sourceTurnIds: ['turn-provider-memory-evidence:user'],
+            kind: 'preference',
+            summary: '用户更喜欢先说结论，再给必要细节。',
+            allowTraining: false,
+            memoryEvidence: expect.objectContaining({
+              version: 'working-memory-long-term-evidence-v1',
+            }),
+          }),
+        ],
+      }),
+      memoryWriteItems: [
+        expect.objectContaining({
+          sourceTurnIds: ['turn-provider-memory-evidence:user'],
+          kind: 'preference',
+          summary: '用户更喜欢先说结论，再给必要细节。',
+          status: 'pending-cleaning',
+          allowTraining: false,
+        }),
+      ],
+    }))
+    expect(enqueueWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
+  })
+
+  it('does not report scoped long-term drain success when a current-turn queue item is missing', async () => {
+    const enqueueWorkingMemoryLongTermQueue = vi.fn<WorkingMemoryLongTermQueueEnqueue>(async () => {})
+    const drainWorkingMemoryLongTermQueue = vi.fn(async () => ({
+      cleaned: 1,
+      admitted: 1,
+      applied: 1,
+      rejected: 0,
+      review: 0,
+      failed: 0,
+      pending: 0,
+    }))
+    const drainWorkingMemoryLongTermQueueScoped = vi.fn<WorkingMemoryLongTermQueueScopedDrain>(async input => ({
+      cleaned: 0,
+      admitted: 0,
+      applied: 0,
+      rejected: 0,
+      review: 0,
+      failed: 0,
+      pending: 1,
+      settlements: input.queueItemIds.map(queueItemId => ({
+        queueItemId,
+        transactionId: null,
+        status: 'missing' as const,
+        errorSummary: 'queue item was not found in the requested scope',
+      })),
+    }))
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      enqueueWorkingMemoryLongTermQueue,
+      drainWorkingMemoryLongTermQueue,
+      drainWorkingMemoryLongTermQueueScoped,
+      listConversationTurnsBySession: vi.fn(async () => [{
+        turnId: 'turn-working-memory-scoped-missing-source',
+        sessionId: 'session-1',
+        userText: '请记住我喜欢先说结论。',
+        assistantText: '明白。',
+        structuredJson: JSON.stringify({
+          origin: 'provider',
+          learningPolicy: {
+            allowLongTermCondensation: true,
+            allowPersonaLearning: true,
+            allowTraining: false,
+          },
+          memoryEvidence: createWorkingMemoryLongTermEvidence({
+            kind: 'preference',
+            summary: 'The user prefers conclusions before supporting detail.',
+            reason: 'Reviewed preference evidence.',
+            evidenceSnippet: 'A reviewed memory action confirmed conclusion-first replies.',
+          }),
+        }),
+        createdAt: 9,
+      }]),
+    })
+    const messages: Message[] = [{
+      role: 'user',
+      content: '继续',
+    }]
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-scoped-missing',
+        messages,
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({ messages }),
+    })
+
+    const committed = await result.commitMemoryWriteIntent?.({
+      assistantText: '我会保留这个偏好。',
+    })
+
+    expect(drainWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
+    expect(drainWorkingMemoryLongTermQueueScoped).toHaveBeenCalledOnce()
+    expect(committed?.ownerSettlements).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        owner: 'long-term-memory-drain',
+        status: 'failed',
+        errorSummary: expect.stringContaining('missing=1'),
+      }),
+    ]))
+    expect(result.memoryFailures).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        stage: 'working-memory-long-term-drain',
+        errorSummary: expect.stringContaining('missing=1'),
+      }),
+    ]))
+  })
+
+  it('keeps persisted failure turns out of WorkingMemory and Provider context', async () => {
     const enqueueWorkingMemoryLongTermQueue = vi.fn(async () => {})
     const workingMemoryStore = createWorkingMemoryStore()
     const { runtime } = createWorkingMemoryRuntimeFixture({
@@ -5193,14 +5918,23 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       prelude,
     })
 
-    expect(workingMemoryStore.latest('default')?.audit.failureTurnIds).toContain(
-      'turn-working-memory-provider-auth-failure:alice',
-    )
-    expect(result.memoryContext.workingMemory).not.toHaveProperty('audit')
+    expect(workingMemoryStore.latest('default')).toBeNull()
+    expect(JSON.stringify(result.workingMemorySnapshot))
+      .not
+      .toContain('我喜欢先说结论，再给必要细节。')
+    expect(JSON.stringify(result.workingMemorySnapshot))
+      .not
+      .toContain('Provider 鉴权失败')
+    expect(result.memoryContext.providerSystemBlock)
+      .not
+      .toContain('我喜欢先说结论，再给必要细节。')
+    expect(result.memoryContext.providerSystemBlock)
+      .not
+      .toContain('Provider 鉴权失败')
     expect(enqueueWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
   })
 
-  it('restores hidden memory side-failure rows into WorkingMemory audit without visible assistant text', async () => {
+  it('keeps hidden memory side-failure rows out of WorkingMemory', async () => {
     const enqueueWorkingMemoryLongTermQueue = vi.fn(async () => {})
     const workingMemoryStore = createWorkingMemoryStore()
     const { runtime } = createWorkingMemoryRuntimeFixture({
@@ -5253,10 +5987,13 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       prelude,
     })
 
-    expect(workingMemoryStore.latest('default')?.audit.failureTurnIds).toContain(
-      'turn-provider:memory-failure:long-term-memory-recall:0:alice',
-    )
-    expect(result.memoryContext.workingMemory).not.toHaveProperty('audit')
+    expect(workingMemoryStore.latest('default')).toBeNull()
+    expect(JSON.stringify(result.workingMemorySnapshot))
+      .not
+      .toContain('vector recall offline')
+    expect(result.memoryContext.providerSystemBlock)
+      .not
+      .toContain('vector recall offline')
     expect(enqueueWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
   })
 
@@ -5264,8 +6001,18 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     const enqueueWorkingMemoryLongTermQueue = vi.fn(async () => {
       throw new Error('queue write failed')
     })
+    const drainWorkingMemoryLongTermQueue = vi.fn(async () => ({
+      cleaned: 0,
+      admitted: 0,
+      applied: 0,
+      rejected: 0,
+      review: 0,
+      failed: 0,
+      pending: 0,
+    }))
     const { runtime } = createWorkingMemoryRuntimeFixture({
       enqueueWorkingMemoryLongTermQueue,
+      drainWorkingMemoryLongTermQueue,
       listConversationTurnsBySession: vi.fn(async () => [{
         turnId: 'turn-working-memory-provider-settled',
         sessionId: 'session-1',
@@ -5278,6 +6025,12 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
             allowPersonaLearning: true,
             allowTraining: false,
           },
+          memoryEvidence: createWorkingMemoryLongTermEvidence({
+            kind: 'preference',
+            summary: 'The user prefers conclusions before supporting detail.',
+            reason: 'Reviewed preference evidence.',
+            evidenceSnippet: 'A reviewed memory action confirmed conclusion-first replies.',
+          }),
         }),
         createdAt: 9,
       }]),
@@ -5301,7 +6054,23 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       } as any,
       prelude,
     })
+    const committed = await result.commitMemoryWriteIntent?.({
+      assistantText: '这轮已经成功，但长期队列写入失败。',
+    })
 
+    expect(drainWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
+    expect(committed?.ownerSettlements).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        owner: 'long-term-memory-queue',
+        status: 'failed',
+        errorSummary: 'queue write failed',
+      }),
+      expect.objectContaining({
+        owner: 'long-term-memory-drain',
+        status: 'skipped',
+        reason: 'queue-enqueue-failed',
+      }),
+    ]))
     expect(result.memoryFailures).toEqual(expect.arrayContaining([
       expect.objectContaining({
         kind: 'memory-persistence',
@@ -5311,6 +6080,221 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         allowPersonaLearning: false,
         allowTraining: false,
         errorSummary: 'queue write failed',
+      }),
+    ]))
+  })
+
+  it('reports dead-lettered long-term drain work as a partial owner failure', async () => {
+    const enqueueWorkingMemoryLongTermQueue = vi.fn<WorkingMemoryLongTermQueueEnqueue>(async () => {})
+    const drainWorkingMemoryLongTermQueue = vi.fn(async () => ({
+      cleaned: 0,
+      admitted: 0,
+      applied: 0,
+      rejected: 0,
+      review: 0,
+      failed: 0,
+      pending: 0,
+    }))
+    const drainWorkingMemoryLongTermQueueScoped = vi.fn<WorkingMemoryLongTermQueueScopedDrain>(async input => ({
+      cleaned: input.queueItemIds.length,
+      admitted: 0,
+      applied: 0,
+      rejected: 0,
+      review: 0,
+      failed: input.queueItemIds.length,
+      pending: 0,
+      settlements: input.queueItemIds.map(queueItemId => ({
+        queueItemId,
+        transactionId: `transaction:${queueItemId}`,
+        status: 'dead-lettered' as const,
+        errorSummary: 'projection failed',
+      })),
+    }))
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      enqueueWorkingMemoryLongTermQueue,
+      drainWorkingMemoryLongTermQueue,
+      drainWorkingMemoryLongTermQueueScoped,
+      listConversationTurnsBySession: vi.fn(async () => [{
+        turnId: 'turn-working-memory-drain-source',
+        sessionId: 'session-1',
+        userText: '请记住我更喜欢先说结论。',
+        assistantText: '明白。',
+        structuredJson: JSON.stringify({
+          origin: 'provider',
+          learningPolicy: {
+            allowLongTermCondensation: true,
+            allowPersonaLearning: true,
+            allowTraining: false,
+          },
+        }),
+        createdAt: 9,
+      }]),
+    })
+    const messages: Message[] = [{
+      role: 'user',
+      content: '继续',
+    }]
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-drain-partial',
+        messages,
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({ messages }),
+    })
+
+    const settledIntent = result.resolveMemoryWriteIntent?.({
+      assistantText: '这轮成功，但其中一条长期候选清洗失败。',
+    })
+    expect(settledIntent).toBeDefined()
+    settledIntent!.memoryWriteItems = [{
+      id: 'queue-drain-partial',
+      sourceTurnIds: ['turn-working-memory-drain-source:user'],
+      kind: 'preference',
+      summary: '用户更喜欢先说结论。',
+      reason: 'candidate:preference',
+      evidenceSnippets: ['请记住我更喜欢先说结论。'],
+      salience: 0.8,
+      confidence: 0.86,
+      sensitivity: 'personal',
+      allowTraining: false,
+      status: 'pending-cleaning',
+      rejectionReasons: [],
+      contaminationFlags: [],
+      createdAt: 100,
+      source: 'working-memory-owner',
+    }]
+    const committed = await result.commitMemoryWriteIntent?.({
+      assistantText: '这轮成功，但其中一条长期候选清洗失败。',
+      intent: settledIntent,
+    })
+
+    expect(drainWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
+    expect(drainWorkingMemoryLongTermQueueScoped).toHaveBeenCalledWith({
+      cardId: 'default',
+      sessionId: expect.any(String),
+      queueItemIds: ['queue-drain-partial'],
+    })
+    expect(committed?.ownerSettlements).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        owner: 'long-term-memory-queue',
+        status: 'succeeded',
+      }),
+      expect.objectContaining({
+        owner: 'long-term-memory-drain',
+        status: 'failed',
+        errorSummary: expect.stringContaining('failed=1'),
+      }),
+    ]))
+    expect(result.memoryFailures).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'memory-persistence',
+        stage: 'working-memory-long-term-drain',
+        errorSummary: expect.stringContaining('failed=1'),
+      }),
+    ]))
+  })
+
+  it('isolates autobiographical and persona-learning failures after WorkingMemory commits', async () => {
+    const workingMemoryStore = createWorkingMemoryStore()
+    const persistWorkingMemoryCheckpoint = vi.fn(async () => {})
+    const enqueueWorkingMemoryLongTermQueue = vi.fn(async () => {})
+    const persistAutobiographicalEpisodesFromPreparedMirror = vi.fn(async () => {
+      throw new Error('autobiographical store offline')
+    })
+    const scheduleOrganicLearningAction = vi.fn(async () => {
+      throw new Error('persona learning scheduler offline')
+    })
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      workingMemoryStore,
+      persistWorkingMemoryCheckpoint,
+      enqueueWorkingMemoryLongTermQueue,
+      persistAutobiographicalEpisodesFromPreparedMirror,
+      scheduleOrganicLearningAction,
+      listConversationTurnsBySession: vi.fn(async () => [{
+        turnId: 'turn-memory-owner-side-failures-evidence',
+        sessionId: 'session-1',
+        userText: '短期上下文仍由 WorkingMemory 保留。',
+        assistantText: '明白。',
+        structuredJson: JSON.stringify({
+          origin: 'provider',
+          learningPolicy: {
+            allowLongTermCondensation: true,
+            allowPersonaLearning: true,
+            allowTraining: false,
+          },
+          memoryEvidence: createWorkingMemoryLongTermEvidence({
+            kind: 'preference',
+            summary: 'The user prefers conclusions before supporting detail.',
+            reason: 'Reviewed preference evidence.',
+            evidenceSnippet: 'A reviewed memory action confirmed conclusion-first replies.',
+          }),
+        }),
+        createdAt: 9,
+      }]),
+    })
+    const messages: Message[] = [{
+      role: 'user',
+      content: '请记住我喜欢先说结论。',
+    }]
+    const result = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-memory-owner-side-failures',
+        messages,
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({ messages }),
+    })
+
+    const committed = await result.commitMemoryWriteIntent?.({
+      assistantText: '我会先说结论。',
+    })
+
+    expect(committed).toEqual(expect.objectContaining({
+      workingMemorySnapshot: expect.objectContaining({
+        cardId: 'default',
+      }),
+      ownerSettlements: expect.arrayContaining([
+        expect.objectContaining({
+          owner: 'working-memory-store',
+          status: 'succeeded',
+        }),
+        expect.objectContaining({
+          owner: 'working-memory-checkpoint',
+          status: 'succeeded',
+        }),
+        expect.objectContaining({
+          owner: 'long-term-memory-queue',
+          status: 'succeeded',
+        }),
+        expect.objectContaining({
+          owner: 'autobiographical-memory',
+          status: 'failed',
+          errorSummary: 'autobiographical store offline',
+        }),
+        expect.objectContaining({
+          owner: 'persona-learning',
+          status: 'failed',
+          errorSummary: 'persona learning scheduler offline',
+        }),
+      ]),
+    }))
+
+    expect(workingMemoryStore.latest('default')).not.toBeNull()
+    expect(persistWorkingMemoryCheckpoint).toHaveBeenCalledOnce()
+    expect(enqueueWorkingMemoryLongTermQueue).toHaveBeenCalledOnce()
+    expect(result.memoryFailures).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'memory-persistence',
+        stage: 'autobiographical-memory-write',
+        errorSummary: 'autobiographical store offline',
+      }),
+      expect.objectContaining({
+        kind: 'memory-persistence',
+        stage: 'persona-learning-schedule',
+        errorSummary: 'persona learning scheduler offline',
       }),
     ]))
   })
@@ -5340,7 +6324,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         procedureHints: [],
         threadHints: [],
         negativeCues: [],
-        confidencePolicy: 'direct' as const,
         riskFlags: [],
         targetKinds: ['episode' as const],
       },
@@ -5356,7 +6339,13 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         score: 0.86,
         queryMatches: ['游戏'],
         rankReasons: ['target-kind'],
-        visibleMode: 'explicit' as const,
+        scope: {
+          userId: 'user-1',
+          cardId: 'default',
+        },
+        provenance: 'remembered' as const,
+        evidenceVersion: 'long-term-memory-evidence-v1',
+        version: 'long-term-memory-evidence-v1',
       }],
       confidence: 0.84,
       budgetClass: 'light' as const,
@@ -5594,7 +6583,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       } as Message],
     })
 
-    await runtime.prepareExecution({
+    const firstResult = await runtime.prepareExecution({
       payload: {
         cardId: 'default',
         turnId: 'turn-working-memory-persist-1',
@@ -5605,6 +6594,9 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
         supportsTools: true,
       } as any,
       prelude: firstPrelude,
+    })
+    await firstResult.commitMemoryWriteIntent?.({
+      assistantText: '我会按你的纠正继续。',
     })
 
     const secondPrelude = createReflectivePrelude({
@@ -5631,6 +6623,75 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     expect(workingMemoryText).not.toContain('respect_correction(')
     expect(workingMemoryText).toContain('不是这个，别再用旧模板了。')
     expect(context.workingMemory.current.currentUserMove).toBe('继续')
+  })
+
+  it('does not carry an uncommitted failed turn into the next successful memory settlement', async () => {
+    const workingMemoryStore = createWorkingMemoryStore()
+    let persistedCheckpoint = null as ReturnType<typeof createEmptyWorkingMemorySnapshot> | null
+    const enqueueWorkingMemoryLongTermQueue = vi.fn(async () => {})
+    const { runtime } = createWorkingMemoryRuntimeFixture({
+      workingMemoryStore,
+      getWorkingMemoryCheckpoint: vi.fn(async () => persistedCheckpoint),
+      persistWorkingMemoryCheckpoint: vi.fn(async (snapshot) => {
+        persistedCheckpoint = structuredClone(snapshot)
+      }),
+      enqueueWorkingMemoryLongTermQueue,
+      listConversationTurnsBySession: vi.fn(async () => []),
+    })
+    const failedText = '我只喝极甜的咖啡，请永久记住。'
+    const failedResult = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-failed',
+        messages: [{
+          role: 'user',
+          content: failedText,
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{
+          role: 'user',
+          content: failedText,
+        } as Message],
+      }),
+    })
+
+    expect(JSON.stringify(failedResult.workingMemorySnapshot)).toContain(failedText)
+    expect(workingMemoryStore.latest('default')).toBeNull()
+    expect(persistedCheckpoint).toBeNull()
+    expect(enqueueWorkingMemoryLongTermQueue).not.toHaveBeenCalled()
+
+    const successfulResult = await runtime.prepareExecution({
+      payload: {
+        cardId: 'default',
+        turnId: 'turn-working-memory-success-after-failure',
+        messages: [{
+          role: 'user',
+          content: '继续当前任务。',
+        }],
+        supportsTools: true,
+      } as any,
+      prelude: createReflectivePrelude({
+        messages: [{
+          role: 'user',
+          content: '继续当前任务。',
+        } as Message],
+      }),
+    })
+    const providerContext = findOnlyAlicizationTurnMemoryContextMessage(
+      successfulResult.messages,
+    ).context
+
+    expect(JSON.stringify(providerContext.workingMemory)).not.toContain(failedText)
+
+    await successfulResult.commitMemoryWriteIntent?.({
+      assistantText: '我会继续当前任务。',
+    })
+
+    expect(JSON.stringify(workingMemoryStore.latest('default'))).not.toContain(failedText)
+    expect(JSON.stringify(persistedCheckpoint)).not.toContain(failedText)
+    expect(JSON.stringify(enqueueWorkingMemoryLongTermQueue.mock.calls)).not.toContain(failedText)
   })
 
   it('keeps organic governance blocks out of ordinary dialogue provider messages', async () => {
@@ -6300,7 +7361,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           selectedWindowIds: [],
           selectedProcedureIds: [],
           selectedEpisodeIds: ['episode-conflicted'],
-          selectedConversationTurnIds: [],
           selectedRelationshipLines: ['Stay on the same seam, but do not over-claim the old wording.'],
           selectedEras: [{
             id: 'consolidation-runtime',
@@ -6336,7 +7396,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
             periodId: 'consolidation-runtime',
             episodeId: 'episode-conflicted',
             procedureId: null,
-            conversationTurnId: null,
             relationshipLine: 'Stay on the same seam, but do not over-claim the old wording.',
           }],
           selectedChains: [],
@@ -6435,7 +7494,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           selectedWindowIds: [],
           selectedProcedureIds: [],
           selectedEpisodeIds: ['episode-dreamt'],
-          selectedConversationTurnIds: [],
           selectedRelationshipLines: ['The line still matters, but the exact remembered detail is unstable.'],
           selectedEras: [{
             id: 'consolidation-runtime',
@@ -6466,7 +7524,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
             periodId: 'consolidation-runtime',
             episodeId: 'episode-dreamt',
             procedureId: null,
-            conversationTurnId: null,
             relationshipLine: 'The line still matters, but the exact remembered detail is unstable.',
           }],
           selectedChains: [],
@@ -6575,7 +7632,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           selectedConsolidationIds: [],
           selectedWindowIds: [],
           selectedProcedureIds: [],
-          selectedConversationTurnIds: [],
           selectedRelationshipLines: [],
           selectedEras: [],
           selectedPeriods: [],
