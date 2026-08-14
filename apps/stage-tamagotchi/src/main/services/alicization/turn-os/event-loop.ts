@@ -3,6 +3,8 @@ import type {
   AlicizationRuntimeEventEnvelope,
   AlicizationRuntimeEventSource,
   AlicizationRuntimeEventType,
+  AlicizationRuntimeToolProgressSignal,
+  AlicizationRuntimeToolProjectionPhase,
 } from '@proj-alicization/stage-shared'
 
 import type {
@@ -16,6 +18,8 @@ import type {
 import type {
   AlicizationTurnRuntimeState,
 } from './runtime-state'
+
+import { isDeepStrictEqual } from 'node:util'
 
 import {
   createAlicizationRuntimeEvent,
@@ -45,6 +49,30 @@ export interface AlicizationModelObservation extends AlicizationActionObservatio
   output?: unknown
 }
 
+export interface AlicizationActionProgress {
+  actionId: string
+  toolCallId: string
+  capabilityId: string
+  providerToolName: string
+  selectedChannel?: string | null
+  signal?: AlicizationRuntimeToolProgressSignal
+  phase: AlicizationRuntimeToolProjectionPhase
+  elapsedMs: number
+  timeoutMs?: number
+  errorCode?: string
+  errorMessage?: string
+  occurredAt?: number
+  eventId?: string
+  threadId?: string
+  adapterEventType?: string
+  itemType?: string
+  summary?: string
+  command?: string
+  commandStatus?: string
+  commandExitCode?: number
+  outputPreview?: string
+}
+
 export interface AlicizationModelTextReply {
   artifact: AlicizationRuntimeReplyArtifact
 }
@@ -59,8 +87,33 @@ export type AlicizationModelStep
     reply: AlicizationModelTextReply
   }
 
+export type AlicizationMemoryRuntimeEventType = Extract<
+  AlicizationRuntimeEventType,
+  | 'working_memory.snapshot.created'
+  | 'working_memory.updated'
+  | 'working_memory.compression.started'
+  | 'working_memory.compression.completed'
+  | 'long_term_memory.recall.started'
+  | 'long_term_memory.recall.evidence'
+  | 'long_term_memory.recall.abstained'
+  | 'long_term_memory.recall.completed'
+  | 'memory.write.proposed'
+  | 'memory.write.accepted'
+  | 'memory.write.rejected'
+  | 'memory.owner.settled'
+  | 'memory.tombstoned'
+>
+
 export interface AlicizationEventLoopRuntimeView extends AlicizationTurnRuntimeState {
   abortSignal: AbortSignal
+  appendActionProgress: (
+    progress: AlicizationActionProgress,
+  ) => Promise<void>
+  appendMemoryEvent: (
+    eventType: AlicizationMemoryRuntimeEventType,
+    payload: unknown,
+    idempotencyKey?: string | null,
+  ) => Promise<void>
 }
 
 export interface AlicizationEventLoopParticipant<TTurnInput = unknown, TModelContext = unknown> {
@@ -80,6 +133,11 @@ export interface AlicizationEventLoopParticipant<TTurnInput = unknown, TModelCon
     reply: AlicizationModelTextReply,
     runtime: AlicizationEventLoopRuntimeView,
   ) => Promise<void>
+  onTurnSettled?: (input: {
+    status: AlicizationEventLoopResult['status']
+    error: string | null
+    runtime: AlicizationEventLoopRuntimeView
+  }) => Promise<void>
 }
 
 export interface AlicizationEventLoopPersistence {
@@ -98,6 +156,8 @@ export interface AlicizationEventLoopResult {
   error: string | null
   cause: unknown | null
   replyArtifact: AlicizationRuntimeReplyArtifact | null
+  settlementError: string | null
+  settlementCause: unknown | null
 }
 
 interface LiveTurn {
@@ -211,6 +271,14 @@ function parseTextReply(input: AlicizationModelTextReply): AlicizationModelTextR
 function runtimeView(
   state: AlicizationTurnRuntimeState,
   abortSignal: AbortSignal,
+  appendActionProgress: (
+    progress: AlicizationActionProgress,
+  ) => Promise<void>,
+  appendMemoryEvent: (
+    eventType: AlicizationMemoryRuntimeEventType,
+    payload: unknown,
+    idempotencyKey?: string | null,
+  ) => Promise<void>,
 ): AlicizationEventLoopRuntimeView {
   return {
     ...state,
@@ -240,7 +308,27 @@ function runtimeView(
       : null,
     issues: [...state.issues],
     abortSignal,
+    appendActionProgress,
+    appendMemoryEvent,
   }
+}
+
+function isRepeatedIdempotentPersistenceResult(
+  pending: AlicizationRuntimeEventEnvelope,
+  persisted: AlicizationRuntimeEventEnvelope,
+) {
+  return Boolean(pending.idempotencyKey)
+    && persisted.idempotencyKey === pending.idempotencyKey
+    && persisted.eventType === pending.eventType
+    && persisted.schemaVersion === pending.schemaVersion
+    && persisted.turnId === pending.turnId
+    && persisted.cardId === pending.cardId
+    && persisted.userId === pending.userId
+    && persisted.conversationId === pending.conversationId
+    && persisted.source === pending.source
+    && persisted.causationId === pending.causationId
+    && persisted.correlationId === pending.correlationId
+    && isDeepStrictEqual(persisted.payload, pending.payload)
 }
 
 function actionTerminalEventType(
@@ -382,6 +470,13 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
         payload,
       })
       const persistedEvent = await options.persistence.appendRuntimeEvent(input.scope, pendingEvent)
+      if (persistedEvent.sequence <= state.sequence) {
+        if (isRepeatedIdempotentPersistenceResult(pendingEvent, persistedEvent))
+          return persistedEvent
+        throw new Error(
+          `runtime persistence returned already-applied non-idempotent event sequence ${persistedEvent.sequence}`,
+        )
+      }
       state = reduceAlicizationRuntimeEvent(state, persistedEvent)
       liveTurn.terminalEventType = state.terminalEventType
       return persistedEvent
@@ -404,6 +499,76 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       )
       return persistedEvent
     }
+
+    const appendActionProgress = async (progress: AlicizationActionProgress) => {
+      const actionId = parseRequiredText(progress.actionId, 'action progress actionId')
+      const toolCallId = parseRequiredText(progress.toolCallId, 'action progress toolCallId')
+      const action = state.actions[actionId]
+      if (!action)
+        throw new Error(`action progress ${actionId} references an unknown action`)
+      if (action.toolCallId !== toolCallId)
+        throw new Error(`action progress ${actionId} toolCallId does not match its action`)
+      await append(
+        'action.progress',
+        {
+          ...progress,
+          actionId,
+          toolCallId,
+        },
+        'tool',
+        progress.eventId
+          ? `${actionId}:progress:${progress.eventId}`
+          : null,
+      )
+    }
+
+    const appendMemoryEvent = async (
+      eventType: AlicizationMemoryRuntimeEventType,
+      payload: unknown,
+      idempotencyKey: string | null = null,
+    ) => {
+      await append(eventType, payload, 'memory', idempotencyKey)
+    }
+
+    const currentRuntimeView = () => runtimeView(
+      state,
+      controller.signal,
+      appendActionProgress,
+      appendMemoryEvent,
+    )
+
+    const notifyParticipantSettled = async (
+      status: AlicizationEventLoopResult['status'],
+      error: string | null,
+    ) => {
+      try {
+        await options.participant.onTurnSettled?.({
+          status,
+          error,
+          runtime: currentRuntimeView(),
+        })
+        return {
+          settlementError: null,
+          settlementCause: null,
+        }
+      }
+      catch (settlementCause) {
+        return {
+          settlementError: errorMessage(settlementCause),
+          settlementCause,
+        }
+      }
+    }
+
+    const settleParticipant = async (
+      result: Omit<
+        AlicizationEventLoopResult,
+        'settlementError' | 'settlementCause'
+      >,
+    ): Promise<AlicizationEventLoopResult> => ({
+      ...result,
+      ...await notifyParticipantSettled(result.status, result.error),
+    })
 
     const appendTerminalActionObservation = async (input: {
       actionId: string
@@ -445,13 +610,17 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           reason: errorMessage(reason),
         }, 'runtime', `${input.scope.turnId}:terminal:cancelled`)
       }
-      return {
+      const result = {
         status: 'cancelled',
         state,
         error: errorMessage(reason),
         cause: reason ?? null,
         replyArtifact: null,
-      }
+      } satisfies Omit<
+        AlicizationEventLoopResult,
+        'settlementError' | 'settlementCause'
+      >
+      return await settleParticipant(result)
     }
 
     try {
@@ -464,7 +633,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       const context = await raceWithAbort(
         () => options.participant.assembleContext(
           input.turnInput,
-          runtimeView(state, controller.signal),
+          currentRuntimeView(),
         ),
         controller.signal,
       )
@@ -515,7 +684,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           const participantStep = await raceWithAbort(
             () => options.participant.runModelStep(
               context,
-              runtimeView(state, controller.signal),
+              currentRuntimeView(),
             ),
             controller.signal,
           )
@@ -574,7 +743,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
             observation = await raceWithAbort(
               () => options.participant.executeAction(
                 action,
-                runtimeView(state, controller.signal),
+                currentRuntimeView(),
               ),
               controller.signal,
             )
@@ -689,7 +858,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           await raceWithAbort(
             () => options.participant.settleReply(
               reply,
-              runtimeView(state, controller.signal),
+              currentRuntimeView(),
             ),
             controller.signal,
           )
@@ -726,13 +895,17 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           'runtime',
           `${input.scope.turnId}:terminal:completed`,
         )
-        return {
+        const result = {
           status: 'completed',
           state,
           error: null,
           cause: null,
           replyArtifact: state.committedDelivery?.artifact ?? null,
-        }
+        } satisfies Omit<
+          AlicizationEventLoopResult,
+          'settlementError' | 'settlementCause'
+        >
+        return await settleParticipant(result)
       }
 
       if (!claimTerminalAuthority(liveTurn, 'timed-out'))
@@ -740,13 +913,17 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       await append('runtime.timed_out', {
         reason: `model step budget exhausted after ${maxSteps} steps`,
       }, 'runtime', `${input.scope.turnId}:terminal:timed-out`)
-      return {
+      const result = {
         status: 'timed-out',
         state,
         error: `model step budget exhausted after ${maxSteps} steps`,
         cause: null,
         replyArtifact: null,
-      }
+      } satisfies Omit<
+        AlicizationEventLoopResult,
+        'settlementError' | 'settlementCause'
+      >
+      return await settleParticipant(result)
     }
     catch (error) {
       if (
@@ -771,13 +948,13 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
 
       if (!claimTerminalAuthority(liveTurn, 'failed')) {
         if (liveTurn.terminalAuthority === 'completed' && state.terminalEventType === 'turn.completed') {
-          return {
+          return await settleParticipant({
             status: 'completed',
             state,
             error: null,
             cause: null,
             replyArtifact: state.committedDelivery?.artifact ?? null,
-          }
+          })
         }
         throw error
       }
@@ -822,13 +999,17 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
         error: errorMessage(error),
         surface: failureSurface,
       }, 'runtime', `${input.scope.turnId}:terminal:failed`)
-      return {
+      const result = {
         status: 'failed',
         state,
         error: errorMessage(error),
         cause: error,
         replyArtifact: null,
-      }
+      } satisfies Omit<
+        AlicizationEventLoopResult,
+        'settlementError' | 'settlementCause'
+      >
+      return await settleParticipant(result)
     }
     finally {
       if (

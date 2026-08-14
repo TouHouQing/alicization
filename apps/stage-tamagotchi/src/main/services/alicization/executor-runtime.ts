@@ -1017,7 +1017,6 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         mode: 'execution-procedure',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: [input.task.goal, ...planningContexts],
         rationale: 'recall:execution-procedure',

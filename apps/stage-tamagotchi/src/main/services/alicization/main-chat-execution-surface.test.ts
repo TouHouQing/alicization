@@ -1599,6 +1599,56 @@ describe('main chat execution surface', () => {
     }
   })
 
+  it('keeps executor settlement authoritative when progress delivery fails', async () => {
+    const executeTaskThread = vi.fn(async () => ({
+      ok: true,
+      stage: 'dispatch',
+      thread: {
+        id: 'thread-tool-progress-delivery-failure',
+        selectedChannel: 'codex',
+        status: 'completed',
+      },
+      plan: {
+        state: 'routed',
+      },
+      summary: 'completed',
+      output: null,
+    }))
+    const emitToolExecutionProgress = vi.fn(() => {
+      throw new Error('renderer progress delivery failed')
+    })
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-tool-progress-delivery-failure',
+        decisionTraceId: 'trace-tool-progress-delivery-failure',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: executeTaskThread as any,
+      emitToolExecutionProgress,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
+
+    await expect(codexTool.execute({
+      prompt: 'inspect the workspace',
+    }, {
+      toolCallId: 'codex-progress-delivery-failure-1',
+    })).resolves.toMatchObject({
+      status: 'completed',
+      threadId: 'thread-tool-progress-delivery-failure',
+    })
+
+    expect(executeTaskThread).toHaveBeenCalledOnce()
+    expect(emitToolExecutionProgress).toHaveBeenCalled()
+  })
+
   it('does not emit a late adapter heartbeat after a terminal executor result', async () => {
     vi.useFakeTimers()
     try {
@@ -3053,6 +3103,50 @@ describe('main chat execution surface', () => {
       'started',
       'failed',
     ])
+  })
+
+  it('does not project an invalid executor channel as a canonical runtime fact', async () => {
+    const emitToolExecutionProgress = vi.fn()
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-invalid-selected-channel',
+        decisionTraceId: 'trace-invalid-selected-channel',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(async () => ({
+        ok: true,
+        stage: 'dispatch',
+        thread: {
+          id: 'thread-invalid-selected-channel',
+          selectedChannel: 'not-a-real-channel',
+          status: 'completed',
+        },
+        plan: {
+          state: 'routed',
+        },
+        summary: 'completed',
+        output: null,
+      })) as any,
+      emitToolExecutionProgress,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
+
+    const result = await codexTool.execute({
+      prompt: 'inspect the workspace',
+    }, {
+      toolCallId: 'codex-invalid-channel-1',
+    })
+
+    expect(result.selectedChannel).toBeNull()
+    expect(emitToolExecutionProgress.mock.calls.at(-1)?.[0]).not.toHaveProperty('selectedChannel')
   })
 
   it('returns executor failures as structured tool results instead of rejecting the provider stream', async () => {

@@ -47,6 +47,7 @@ import {
   buildAlicizationProviderFactBlock,
   extractAlicizationToolExecutionFailure,
   isAlicizationToolExecutionFailureResult,
+  normalizeAlicizationExecutionChannel,
   normalizeAlicizationProviderToolCapabilityLastError,
 } from '@proj-alicization/stage-shared'
 import { tool } from '@xsai/tool'
@@ -106,6 +107,7 @@ export interface MainGatewayExecutionTaskThreadResult {
 export interface MainGatewayToolExecutionProgress {
   toolCallId: string
   toolName: string
+  selectedChannel?: AlicizationExecutionChannel | null
   signal: 'liveness' | 'semantic-progress' | 'terminal'
   phase: 'started' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout'
   elapsedMs: number
@@ -1029,7 +1031,7 @@ function toMainGatewayExecutorToolResult(result: MainGatewayExecutionTaskThreadR
     stage: result.stage,
     threadId: result.thread.id,
     threadStatus: sanitizeText(result.thread.status) || 'unknown',
-    selectedChannel: result.thread.selectedChannel,
+    selectedChannel: normalizeAlicizationExecutionChannel(result.thread.selectedChannel),
     sessionId: sanitizeText(result.thread.sessionId) || null,
     completedAt: typeof result.thread.completedAt === 'number' && Number.isFinite(result.thread.completedAt)
       ? Math.floor(result.thread.completedAt)
@@ -1859,6 +1861,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       executorExecutionBoundaryByContext.set(toolContext, executionBoundary)
       let terminalProgressEmitted = false
       let toolLifecycleOpen = true
+      let selectedChannel: AlicizationExecutionChannel | null = null
       const timeoutMs = input && typeof input === 'object' && input !== null
         && typeof (input as Record<string, unknown>).timeoutMs === 'number'
         && Number.isFinite((input as Record<string, unknown>).timeoutMs)
@@ -1879,19 +1882,26 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         if (terminal)
           terminalProgressEmitted = true
         const occurredAt = Date.now()
-        options.emitToolExecutionProgress({
-          toolCallId,
-          toolName: providerToolName,
-          phase,
-          signal: progress?.signal
-            ?? (terminal
-              ? 'terminal'
-              : 'liveness'),
-          elapsedMs: Math.max(0, occurredAt - startedAt),
-          occurredAt,
-          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-          ...progress,
-        })
+        try {
+          options.emitToolExecutionProgress({
+            toolCallId,
+            toolName: providerToolName,
+            ...(selectedChannel ? { selectedChannel } : {}),
+            phase,
+            signal: progress?.signal
+              ?? (terminal
+                ? 'terminal'
+                : 'liveness'),
+            elapsedMs: Math.max(0, occurredAt - startedAt),
+            occurredAt,
+            ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+            ...progress,
+          })
+        }
+        catch {
+          // Progress delivery is a projection sidecar. The executor result and
+          // Turn OS observation remain authoritative if the renderer is absent.
+        }
       }
       emitProgress('started')
       const heartbeat = setInterval(() => emitProgress('running', {
@@ -1905,6 +1915,8 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
             async (event) => {
               if (!toolLifecycleOpen)
                 return
+              if (event.channel)
+                selectedChannel = event.channel
               const payload = asRecord(event.payload)
               const summary = sanitizeBriefText(sanitizeText(payload?.summary), 220)
               const adapterEventType = sanitizeText(payload?.codexEventType)
@@ -1961,6 +1973,9 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
               sideEffectState: 'unknown',
             }
           : finalResult
+        selectedChannel = normalizeAlicizationExecutionChannel(
+          settledResult.selectedChannel,
+        )
         toolCallIdentity.registerExecutorResult(settledResult, toolCallId)
         emitProgress(resolveMainGatewayToolProgressPhase(settledResult), {
           errorCode: sanitizeText(settledResult.errorCode) || undefined,
@@ -1979,6 +1994,12 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
           projectToolName: toolName => toolRegistry.projectAdapterToolName(toolName),
           toolName: spec.name,
         })
+        selectedChannel = normalizeAlicizationExecutionChannel(
+          failureResult && typeof failureResult === 'object'
+          && 'selectedChannel' in failureResult
+            ? failureResult.selectedChannel
+            : null,
+        )
         toolCallIdentity.registerExecutorResult(failureResult, toolCallId)
         emitProgress(resolveMainGatewayToolProgressPhase(failureResult), {
           errorCode: sanitizeText(failureResult.errorCode) || undefined,

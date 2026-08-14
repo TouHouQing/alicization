@@ -135,6 +135,110 @@ function modelReply(visibleText: string, fullText = visibleText) {
 }
 
 describe('alicization event loop', () => {
+  it('persists typed tool progress facts before the terminal observation', async () => {
+    const persistence = createPersistence()
+    const steps = [
+      {
+        kind: 'action' as const,
+        action: {
+          actionId: 'action-progress',
+          toolCallId: 'tool-call-progress',
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'coding_agent',
+          input: { prompt: 'inspect the workspace' },
+        },
+      },
+      {
+        kind: 'reply' as const,
+        reply: modelReply('检查完成。'),
+      },
+    ]
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => steps.shift()!),
+        executeAction: vi.fn(async (action, runtime) => {
+          await runtime.appendActionProgress({
+            actionId: action.actionId,
+            toolCallId: action.toolCallId!,
+            capabilityId: action.capabilityId,
+            providerToolName: action.providerToolName,
+            selectedChannel: 'codex',
+            phase: 'timeout',
+            signal: 'terminal',
+            elapsedMs: 180_000,
+            timeoutMs: 180_000,
+            errorCode: 'CODEX_TIMEOUT',
+            errorMessage: 'Codex produced no semantic progress for 180000ms.',
+            occurredAt: 181_000,
+            eventId: 'codex-timeout-event',
+            threadId: 'codex-thread-1',
+            adapterEventType: 'turn.failed',
+            itemType: 'error',
+            summary: 'Codex timed out.',
+            command: 'codex exec',
+            commandStatus: 'timed-out',
+            outputPreview: 'No semantic progress was observed.',
+          })
+          return {
+            actionId: action.actionId,
+            observationId: `${action.actionId}:observation`,
+            toolCallId: action.toolCallId,
+            terminal: true,
+            outcome: 'failure' as const,
+            output: {
+              errorCode: 'CODEX_TIMEOUT',
+            },
+          }
+        }),
+        settleReply: vi.fn(async () => {}),
+      },
+    })
+
+    const result = await eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-tool-progress-facts' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+
+    expect(result.status).toBe('completed')
+    const progressIndex = persistence.events.findIndex(event =>
+      event.eventType === 'action.progress',
+    )
+    const observationIndex = persistence.events.findIndex(event =>
+      event.eventType === 'action.observation',
+    )
+    expect(progressIndex).toBeGreaterThan(-1)
+    expect(observationIndex).toBeGreaterThan(progressIndex)
+    expect(persistence.events[progressIndex]).toMatchObject({
+      source: 'tool',
+      idempotencyKey: 'action-progress:progress:codex-timeout-event',
+      payload: {
+        actionId: 'action-progress',
+        toolCallId: 'tool-call-progress',
+        capabilityId: 'coding_agent.codex',
+        providerToolName: 'coding_agent',
+        selectedChannel: 'codex',
+        phase: 'timeout',
+        signal: 'terminal',
+        elapsedMs: 180_000,
+        timeoutMs: 180_000,
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'Codex produced no semantic progress for 180000ms.',
+        occurredAt: 181_000,
+        eventId: 'codex-timeout-event',
+        threadId: 'codex-thread-1',
+        adapterEventType: 'turn.failed',
+        itemType: 'error',
+        summary: 'Codex timed out.',
+        command: 'codex exec',
+        commandStatus: 'timed-out',
+        outputPreview: 'No semantic progress was observed.',
+      },
+    })
+  })
+
   it('persists canonical capability identity separately from the Provider tool alias', async () => {
     const persistence = createPersistence()
     const eventLoop = createAlicizationEventLoop({
@@ -817,6 +921,48 @@ describe('alicization event loop', () => {
         surface: 'delivery',
       },
     })
+  })
+
+  it('rejects an already-applied non-idempotent event returned by persistence', async () => {
+    const persistence = createPersistence()
+    const appendRuntimeEvent = persistence.appendRuntimeEvent.getMockImplementation()!
+    let firstPersistedEvent: AlicizationRuntimeEventEnvelope | null = null
+    let appendCalls = 0
+    persistence.appendRuntimeEvent.mockImplementation(async (scope, event) => {
+      appendCalls += 1
+      if (appendCalls === 1) {
+        firstPersistedEvent = await appendRuntimeEvent(scope, event)
+        return firstPersistedEvent
+      }
+      if (appendCalls === 2)
+        return firstPersistedEvent!
+      return await appendRuntimeEvent(scope, event)
+    })
+    const assembleContext = vi.fn(async () => ({}))
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext,
+        runModelStep: vi.fn(async () => ({
+          kind: 'reply' as const,
+          reply: modelReply('不应到达这里。'),
+        })),
+        executeAction: vi.fn(async () => {
+          throw new Error('unexpected tool execution')
+        }),
+        settleReply: vi.fn(async () => {}),
+      },
+    })
+
+    const result = await eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-invalid-stale-persistence' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+
+    expect(result.status).toBe('failed')
+    expect(result.error).toContain('already-applied non-idempotent event')
+    expect(assembleContext).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -2940,10 +3086,11 @@ describe('alicization event loop', () => {
     const persistence = createPersistence()
     const scope = runtimeScope({ turnId: 'turn-reply-publish-cancel-race' })
     let cancellation: Promise<boolean> | null = null
+    let eventLoop: ReturnType<typeof createAlicizationEventLoop>
     const settleReply = vi.fn(async () => {
       cancellation = eventLoop.cancelTurn(scope, 'cancel after visible publish')
     })
-    const eventLoop = createAlicizationEventLoop({
+    eventLoop = createAlicizationEventLoop({
       persistence,
       participant: {
         assembleContext: vi.fn(async () => ({})),
@@ -2983,11 +3130,12 @@ describe('alicization event loop', () => {
     const persistence = createPersistence()
     const scope = runtimeScope({ turnId: 'turn-reply-settlement-failure-cancel' })
     let cancellation: Promise<boolean> | null = null
+    let eventLoop: ReturnType<typeof createAlicizationEventLoop>
     const settleReply = vi.fn(async () => {
       cancellation = eventLoop.cancelTurn(scope, 'cancel after publish failure')
       throw new Error('renderer disconnected after visible publish')
     })
-    const eventLoop = createAlicizationEventLoop({
+    eventLoop = createAlicizationEventLoop({
       persistence,
       participant: {
         assembleContext: vi.fn(async () => ({})),
@@ -3099,6 +3247,43 @@ describe('alicization event loop', () => {
     })
     expect(cancellationAccepted).toBe(false)
     expect(persistence.events.map(event => event.eventType)).not.toContain('runtime.cancelled')
+  })
+
+  it('returns participant settlement failure without replacing a committed reply', async () => {
+    const persistence = createPersistence()
+    const settlementError = new Error('memory settlement failed')
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => ({
+          kind: 'reply' as const,
+          reply: modelReply('正常回复仍然有效。'),
+        })),
+        executeAction: vi.fn(async () => {
+          throw new Error('unexpected tool execution')
+        }),
+        settleReply: vi.fn(async () => {}),
+        onTurnSettled: vi.fn(async () => {
+          throw settlementError
+        }),
+      },
+    })
+
+    const result = await eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-settlement-failure-visible' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+
+    expect(result).toMatchObject({
+      status: 'completed',
+      settlementError: 'memory settlement failed',
+      settlementCause: settlementError,
+      replyArtifact: {
+        visibleText: '正常回复仍然有效。',
+      },
+    })
   })
 
   it('rejects sequence, scope, and delivery-owner drift', () => {
