@@ -46,6 +46,20 @@ function isTerminalToolProjectionEvent(event: AlicizationBridgeChatStreamEvent) 
     || event.phase === 'timeout'
 }
 
+function isToolEvent(event: AlicizationBridgeChatStreamEvent) {
+  return event.type === 'tool-call'
+    || event.type === 'tool-progress'
+    || event.type === 'tool-result'
+}
+
+function canDeliverAfterTerminalSettlement(event: AlicizationBridgeChatStreamEvent) {
+  if (!isToolEvent(event) || event.type === 'tool-call')
+    return false
+  if (event.projection?.traceOnly === true)
+    return true
+  return isTerminalToolProjectionEvent(event)
+}
+
 export function createAlicizationChatStreamLifecycle(
   options: AlicizationChatStreamLifecycleOptions,
 ) {
@@ -84,7 +98,7 @@ export function createAlicizationChatStreamLifecycle(
 
   return {
     publish(event: AlicizationBridgeChatStreamEvent) {
-      if (terminalScheduled)
+      if (terminalScheduled && !canDeliverAfterTerminalSettlement(event))
         return
       const suppressAfterObservedError = event.type === 'tool-call'
         || (event.type === 'tool-progress'

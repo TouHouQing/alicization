@@ -694,6 +694,62 @@ describe('alicization chat stream bridge', () => {
     ])
   })
 
+  it('delivers terminal tool facts published after finish settlement is scheduled', async () => {
+    const observed: AlicizationBridgeChatStreamEvent[] = []
+    const lifecycle = createAlicizationChatStreamLifecycle({
+      onStreamEvent: async (event) => {
+        observed.push(event)
+      },
+      resolve: () => {},
+      reject: () => {},
+    })
+
+    lifecycle.resolveAfter([{
+      type: 'finish',
+      finishReason: 'provider-finished',
+    } as AlicizationBridgeChatStreamEvent])
+    lifecycle.publish({
+      type: 'tool-result',
+      toolCallId: 'terminal-after-finish',
+      toolName: 'codex',
+      result: {
+        status: 'completed',
+      },
+      projection: {
+        factType: 'tool-result',
+        accepted: false,
+        traceOnly: true,
+        card: {
+          toolCallId: 'terminal-after-finish',
+          toolName: 'codex',
+          selectedChannel: 'codex',
+          phase: 'completed',
+          terminal: true,
+          revision: 2,
+          elapsedMs: 240,
+          timeoutMs: null,
+          errorCode: null,
+          errorMessage: null,
+          step: null,
+          result: {
+            status: 'completed',
+          },
+        },
+      },
+    } as AlicizationBridgeChatStreamEvent)
+
+    await lifecycle.waitForIdle()
+
+    expect(observed.map(event => event.type)).toEqual(['finish', 'tool-result'])
+    expect(observed[1]).toMatchObject({
+      type: 'tool-result',
+      toolCallId: 'terminal-after-finish',
+      projection: {
+        traceOnly: true,
+      },
+    })
+  })
+
   it('continues delivery but rejects settlement when tool event handling fails', async () => {
     const observedErrors: unknown[] = []
     const observedEvents: string[] = []

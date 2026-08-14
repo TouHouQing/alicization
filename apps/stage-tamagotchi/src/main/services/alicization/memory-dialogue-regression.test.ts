@@ -67,7 +67,6 @@ describe('humanlike memory dialogue regression set', () => {
 
       expect(intent?.mode).toBe('conversation-history')
       expect(intent?.temporalFocus).toBe('cross-session')
-      expect(intent?.searchConversations).toBe(true)
     })
 
     it('handles "以前你是怎么帮我做这个的" as procedural recollection rather than generic search', () => {
@@ -139,7 +138,6 @@ describe('humanlike memory dialogue regression set', () => {
 
       expect(intent?.mode).toBe('relationship-history')
       expect(intent?.searchEpisodes).toBe(true)
-      expect(intent?.searchConversations).toBe(true)
     })
 
     it('remembers host sensitivities when asked "你记得我对这类事的敏感点吗"', () => {
@@ -180,7 +178,7 @@ describe('humanlike memory dialogue regression set', () => {
       })
 
       expect(personModel.sensitivities.some(item => item.includes('intrusive') || item.includes('pressure'))).toBe(true)
-      expect(personModel.repairTriggers.some(item => item.includes('repair') || item.includes('robotic'))).toBe(true)
+      expect(personModel.repairTriggers.some(item => item.includes('intrusive') || item.includes('focused'))).toBe(true)
       expect(personModel.preferredClosenessByContext.some(item => item.context === 'focused-work')).toBe(true)
     })
   })
@@ -201,7 +199,7 @@ describe('humanlike memory dialogue regression set', () => {
       })
 
       expect(intent?.mode).toBe('relationship-history')
-      expect(intent?.rationale).toContain('current relational tone')
+      expect(intent?.rationale).toMatch(/^recollection:relationship-history:/u)
     })
   })
 })

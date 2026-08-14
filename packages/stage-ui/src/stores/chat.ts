@@ -2967,6 +2967,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         }).catch(() => {})
       }
 
+      if (toolProjectionDeliveryError && primaryStreamError === undefined)
+        primaryStreamError = toolProjectionDeliveryError
+
       if (primaryStreamError !== undefined)
         throw primaryStreamError
 

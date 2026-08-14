@@ -2407,8 +2407,8 @@ describe('chat orchestrator reply authority', () => {
     }))
   })
 
-  it('completes the turn when a real tool projection queue handler fails', async () => {
-    const reply = 'Provider 回复仍然应该在工具投影失败后提交。'
+  it('does not finalize the turn when a real tool projection queue handler fails', async () => {
+    const reply = 'Provider 回复不应该在工具投影失败后提交。'
     const fullText = createProviderFullText(reply)
     const queueFailure = new Error('tool projection slice write failed')
     chatToolProjectionMocks.failure = {
@@ -2462,15 +2462,21 @@ describe('chat orchestrator reply authority', () => {
     installAlicizationBridge({ streamChat })
 
     const store = useChatOrchestratorStore()
-    await store.ingest('请用 Codex 检查仓库', {
+    await expect(store.ingest('请用 Codex 检查仓库', {
       model: 'mock-model',
       chatProvider: createChatProviderStub(),
       origin: 'ui-user',
-    })
+    })).resolves.toBeUndefined()
 
     const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
-    expect(persisted.assistantText).toBe(reply)
-    expect(persisted.structured.origin).toBe('provider')
+    expect(persisted.assistantText).not.toBe(reply)
+    expect(persisted.structured.origin).toBe('failure-surface')
+    expect(persisted.structured.failureSurface).toMatchObject({
+      kind: 'tool-execution',
+      toolExecution: {
+        code: 'ALICIZATION_TOOL_EVENT_DELIVERY_FAILED',
+      },
+    })
     expect(appendAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
       category: 'alicization.chat',
       action: 'tool-projection-drain-failed',
