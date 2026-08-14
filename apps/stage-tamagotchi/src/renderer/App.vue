@@ -4,7 +4,7 @@ import type {
   AlicizationVisualPresenceStateSnapshot as AlicizationBridgeVisualPresenceStateSnapshot,
 } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
-import type { AlicizationCardScope, AlicizationChatAbortPayload, AlicizationChatAbortResult, AlicizationChatErrorEvent, AlicizationChatFinishEvent, AlicizationChatMetaEvent, AlicizationChatStartPayload, AlicizationChatStartResult, AlicizationChatStreamChunkEvent, AlicizationChatStreamDispatchPayload, AlicizationChatToolCallEvent, AlicizationChatToolResultEvent, AlicizationDialogueRespondedPayload, AlicizationKillSwitchSnapshot, AlicizationLlmConfigPayload, AlicizationPresencePulsePayload, AlicizationSafetyPermissionRequest, AlicizationSoulSnapshot, AlicizationVisualPresenceStateChangedPayload } from '../shared/eventa'
+import type { AlicizationCardScope, AlicizationChatAbortPayload, AlicizationChatAbortResult, AlicizationChatErrorEvent, AlicizationChatFinishEvent, AlicizationChatMetaEvent, AlicizationChatStartPayload, AlicizationChatStartResult, AlicizationChatStreamChunkEvent, AlicizationChatStreamDispatchPayload, AlicizationChatToolCallEvent, AlicizationChatToolProgressEvent, AlicizationChatToolResultEvent, AlicizationDialogueRespondedPayload, AlicizationKillSwitchSnapshot, AlicizationLlmConfigPayload, AlicizationPresencePulsePayload, AlicizationSafetyPermissionRequest, AlicizationSoulSnapshot, AlicizationTurnToolProjectionReplayRecord, AlicizationVisualPresenceStateChangedPayload } from '../shared/eventa'
 
 import { defineInvokeHandler } from '@moeru/eventa'
 import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-alicization/electron-vueuse'
@@ -16,6 +16,12 @@ import { useAlicizationEpoch1Store } from '@proj-alicization/stage-ui/stores/ali
 import { useAlicizationPresenceDispatcherStore } from '@proj-alicization/stage-ui/stores/alicization-presence-dispatcher'
 import { useSharedAnalyticsStore } from '@proj-alicization/stage-ui/stores/analytics'
 import { useCharacterOrchestratorStore } from '@proj-alicization/stage-ui/stores/character'
+import {
+  projectRecoveredTurnToolProjectionsIntoMessages,
+  removeChatInfrastructureErrorMessage,
+  replaceChatAssistantTextPreservingToolProjection,
+  upsertChatInfrastructureErrorMessage,
+} from '@proj-alicization/stage-ui/stores/chat-tool-projection'
 import { useChatSessionStore } from '@proj-alicization/stage-ui/stores/chat/session-store'
 import { usePluginHostInspectorStore } from '@proj-alicization/stage-ui/stores/devtools/plugin-host-debug'
 import { useDisplayModelsStore } from '@proj-alicization/stage-ui/stores/display-models'
@@ -48,6 +54,7 @@ import {
   alicizationChatStreamFinish,
   alicizationChatStreamMeta,
   alicizationChatStreamToolCall,
+  alicizationChatStreamToolProgress,
   alicizationChatStreamToolResult,
   alicizationDialogueResponded,
   alicizationKillSwitchStateChanged,
@@ -85,6 +92,7 @@ import {
   electronAlicizationListMemoryDecisionTraces,
   electronAlicizationListMindTurnEvents,
   electronAlicizationListTaskThreads,
+  electronAlicizationListTurnToolProjections,
   electronAlicizationLlmGetConfig,
   electronAlicizationLlmSyncConfig,
   electronAlicizationMemoryImportLegacy,
@@ -142,13 +150,33 @@ import {
   pluginProtocolListProvidersEventName,
 } from '../shared/eventa'
 import {
+  AlicizationChatAbortUnconfirmedError,
+  bridgeAlicizationChatAbortedFinishEventToStreamErrorEvent,
   bridgeAlicizationChatChunkEventToStreamEvent,
   bridgeAlicizationChatErrorEventToStreamEvent,
   bridgeAlicizationChatFinishEventToStreamEvent,
   bridgeAlicizationChatMetaEventToStreamEvent,
   bridgeAlicizationChatStartResultToStreamEvent,
+  createAlicizationChatStartAbortCoordinator,
+  createAlicizationChatStreamLifecycle,
 } from './alicization-chat-stream-bridge'
+import {
+  createAlicizationChatStreamIngressDeduplicator,
+  resolveAlicizationLogicalChatStreamTurnId,
+  scheduleAlicizationLateToolEventDisposal,
+} from './alicization-chat-stream-routing'
 import { normalizeChatStructuredRecord, resolveVisibleReasoning } from './alicization-chat-structured-record'
+import {
+  refreshAlicizationProactiveAssistantMessage,
+} from './alicization-proactive-turn-projection'
+import {
+  createAlicizationRendererReconcileKey,
+  isAlicizationRendererReconcileCurrent,
+} from './alicization-reconcile-scope'
+import {
+  clearAlicizationSessionRecoveryFailure,
+  projectAlicizationSessionRecoveryFailure,
+} from './alicization-session-recovery-projection'
 import { initializeStageThreeRuntimeTraceBridge } from './bridges/stage-three-runtime-trace'
 import { useServerChannelSettingsStore } from './stores/settings/server-channel'
 import { useStageWindowLifecycleStore } from './stores/stage-window-lifecycle'
@@ -172,6 +200,7 @@ const cardStore = useAiriCardStore()
 const { activeCardId } = storeToRefs(cardStore)
 const chatSessionStore = useChatSessionStore()
 const { activeSessionId } = storeToRefs(chatSessionStore)
+const chatStreamIngressDeduplicator = createAlicizationChatStreamIngressDeduplicator()
 const serverChannelStore = useModsServerChannelStore()
 const characterOrchestratorStore = useCharacterOrchestratorStore()
 const analyticsStore = useSharedAnalyticsStore()
@@ -201,6 +230,7 @@ const alicizationGetKillSwitchState = useElectronEventaInvoke(electronAlicizatio
 const alicizationSuspendKillSwitch = useElectronEventaInvoke(electronAlicizationKillSwitchSuspend)
 const alicizationResumeKillSwitch = useElectronEventaInvoke(electronAlicizationKillSwitchResume)
 const alicizationListConversationTurns = useElectronEventaInvoke(electronAlicizationListConversationTurns)
+const alicizationListTurnToolProjections = useElectronEventaInvoke(electronAlicizationListTurnToolProjections)
 const alicizationListMindTurnEvents = useElectronEventaInvoke(electronAlicizationListMindTurnEvents)
 const alicizationListMemoryDecisionTraces = useElectronEventaInvoke(electronAlicizationListMemoryDecisionTraces)
 const alicizationListHumanlikeMemoryAudit = useElectronEventaInvoke(electronAlicizationListHumanlikeMemoryAudit)
@@ -267,20 +297,29 @@ const isCurrentAlicizationCard = (cardId: string) => cardId === (activeCardId.va
 const currentHitlRequest = ref<AlicizationSafetyPermissionRequest | null>(null)
 const pendingHitlRequests = ref<AlicizationSafetyPermissionRequest[]>([])
 const hitlResolving = ref(false)
+const alicizationLateToolEventGraceMs = 5_000
 let llmSyncTimer: ReturnType<typeof setTimeout> | undefined
 let lastLlmSyncSignature = ''
 let llmConfigHydrating = false
 const llmConfigHydrated = ref(false)
-const pendingAlicizationChatStreams = new Map<string, {
-  onStreamEvent?: (event: AlicizationBridgeChatStreamEvent) => Promise<void> | void
+
+interface PendingAlicizationChatStream {
+  cardId: string
+  sessionId: string
+  logicalTurnId: string
+  lifecycle: ReturnType<typeof createAlicizationChatStreamLifecycle>
+  requestAbort: (reason: string) => Promise<AlicizationChatAbortResult>
+  dispose: () => void
   visibleReplyExecution?: AlicizationChatFinishEvent['visibleReplyExecution']
   visibleReplyCritic?: AlicizationBridgeChatFinishEvent['visibleReplyCritic']
   visibleReplyClosure?: AlicizationBridgeChatFinishEvent['visibleReplyClosure']
-  resolve: () => void
-  reject: (error: unknown) => void
-}>()
+}
+
+const pendingAlicizationChatStreams = new Map<string, PendingAlicizationChatStream>()
+const alicizationConversationCardIdsBySession = new Map<string, string>()
 const proactiveBackfillInFlight = new Set<string>()
 const sessionReconcileInFlight = new Set<string>()
+let alicizationRendererScopeEpoch = 0
 const handledDialogueRespondedKeys = new Set<string>()
 const handledDialogueRespondedQueue: string[] = []
 const handledDialogueRespondedMax = 600
@@ -290,11 +329,84 @@ function alicizationChatStreamKey(cardId: string, turnId: string) {
 }
 
 function resolvePendingAlicizationStream(cardId: string, turnId: string) {
-  return pendingAlicizationChatStreams.get(alicizationChatStreamKey(cardId, turnId))
+  const exact = pendingAlicizationChatStreams.get(alicizationChatStreamKey(cardId, turnId))
+  if (exact)
+    return exact
+
+  const logicalTurnId = resolveAlicizationLogicalChatStreamTurnId(
+    [...pendingAlicizationChatStreams.values()]
+      .filter(pending => pending.cardId === cardId)
+      .map(pending => pending.logicalTurnId),
+    turnId,
+  )
+  return logicalTurnId
+    ? pendingAlicizationChatStreams.get(alicizationChatStreamKey(cardId, logicalTurnId))
+    : undefined
 }
 
-function settlePendingAlicizationStream(cardId: string, turnId: string) {
-  pendingAlicizationChatStreams.delete(alicizationChatStreamKey(cardId, turnId))
+function deletePendingAlicizationStream(pending: Pick<PendingAlicizationChatStream, 'cardId' | 'logicalTurnId'>) {
+  const key = alicizationChatStreamKey(pending.cardId, pending.logicalTurnId)
+  if (pendingAlicizationChatStreams.get(key) === pending)
+    pendingAlicizationChatStreams.delete(key)
+}
+
+async function retirePendingAlicizationStream(
+  pending: PendingAlicizationChatStream,
+  error: unknown,
+  options: {
+    abortReason: string
+    invalidateSession?: boolean
+  },
+) {
+  deletePendingAlicizationStream(pending)
+  if (options.invalidateSession !== false && pending.sessionId)
+    chatSessionStore.bumpSessionGeneration(pending.sessionId)
+
+  let settlementError = error
+  try {
+    await pending.requestAbort(options.abortReason)
+  }
+  catch (abortError) {
+    settlementError = abortError
+  }
+  pending.dispose()
+  pending.lifecycle.rejectAfter([], settlementError)
+  await pending.lifecycle.waitForIdle()
+}
+
+async function retirePendingAlicizationStreamsForCard(
+  cardId: string,
+  error: unknown,
+) {
+  const pendingStreams = [...new Set(
+    [...pendingAlicizationChatStreams.values()]
+      .filter(pending => pending.cardId === cardId),
+  )]
+  await Promise.all(pendingStreams.map(async pending =>
+    await retirePendingAlicizationStream(pending, error, {
+      abortReason: 'renderer-card-switch',
+    }),
+  ))
+}
+
+async function retireAllPendingAlicizationStreams(error: unknown) {
+  const pendingStreams = [...new Set(pendingAlicizationChatStreams.values())]
+  await Promise.all(pendingStreams.map(async pending =>
+    await retirePendingAlicizationStream(pending, error, {
+      abortReason: 'renderer-unmounted',
+    }),
+  ))
+}
+
+function resolveAlicizationConversationCardId(sessionIdRaw?: string) {
+  const sessionId = sessionIdRaw?.trim() || ''
+  const pinnedCardId = sessionId
+    ? alicizationConversationCardIdsBySession.get(sessionId)?.trim()
+    : ''
+  const sessionCardId = sessionId
+    ? chatSessionStore.sessionMetas[sessionId]?.characterId?.trim()
+    : ''
+  return pinnedCardId || sessionCardId || resolveAlicizationScope().cardId
 }
 
 function alicizationChatStreamText(path: string, params?: Record<string, unknown>) {
@@ -449,17 +561,12 @@ async function upsertProactiveAssistantTurn(payload: {
   const sessionMessages = chatSessionStore.getSessionMessages(ensuredSessionId)
   const existing = sessionMessages.find(message => message.id === turnId && message.role === 'assistant')
   if (existing) {
-    const existingAssistant = existing as any
-    existingAssistant.content = assistantText
-    existingAssistant.createdAt = normalizedCreatedAt
-    existingAssistant.slices = [{ type: 'text', text: assistantText }]
-    existingAssistant.tool_results = []
-    existingAssistant.origin = 'subconscious-proactive'
-    existingAssistant.structured = normalizedStructured
-    existingAssistant.categorization = {
-      speech: assistantText,
+    refreshAlicizationProactiveAssistantMessage(existing as any, {
+      assistantText,
+      createdAt: normalizedCreatedAt,
+      structured: normalizedStructured,
       reasoning: resolveVisibleReasoning(normalizedStructured, 'subconscious-proactive'),
-    }
+    })
   }
   else {
     sessionMessages.push({
@@ -548,27 +655,91 @@ function findReplayMessageIndex(messages: any[], options: {
 
 async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
   const sessionId = sessionIdRaw.trim()
-  if (!sessionId || sessionReconcileInFlight.has(sessionId))
+  const cardId = resolveAlicizationScope().cardId
+  const token = {
+    cardId,
+    sessionId,
+    epoch: alicizationRendererScopeEpoch,
+  }
+  const reconcileKey = createAlicizationRendererReconcileKey(token)
+  if (!sessionId || sessionReconcileInFlight.has(reconcileKey))
     return
 
-  sessionReconcileInFlight.add(sessionId)
+  sessionReconcileInFlight.add(reconcileKey)
   try {
+    const isCurrent = () => isAlicizationRendererReconcileCurrent(token, {
+      cardId: resolveAlicizationScope().cardId,
+      sessionId: token.sessionId,
+      epoch: alicizationRendererScopeEpoch,
+    })
+    if (!isCurrent())
+      return
+
     const ensuredSessionId = await chatSessionStore.ensureExternalSession(sessionId, {
       setActive: sessionId === activeSessionId.value,
     })
-    if (!ensuredSessionId)
+    if (!ensuredSessionId || !isCurrent())
       return
 
-    const rows = await alicizationListConversationTurns({
-      ...resolveAlicizationScope(),
-      sessionId: ensuredSessionId,
-      limit: 500,
-    })
-    if (!rows.length)
+    const scope = { cardId: token.cardId }
+    const [turnsResult, projectionsResult] = await Promise.allSettled([
+      alicizationListConversationTurns({
+        ...scope,
+        sessionId: ensuredSessionId,
+        limit: 500,
+      }),
+      alicizationListTurnToolProjections({
+        ...scope,
+        sessionId: ensuredSessionId,
+        limit: 500,
+      }),
+    ])
+    if (!isCurrent())
       return
-
+    const rows = turnsResult.status === 'fulfilled' ? turnsResult.value : []
+    const recoveredToolProjections: AlicizationTurnToolProjectionReplayRecord[] = projectionsResult.status === 'fulfilled'
+      ? projectionsResult.value.filter(projection => projection.cardId === token.cardId)
+      : []
     const sessionMessages = chatSessionStore.getSessionMessages(ensuredSessionId)
     let changed = false
+    if (turnsResult.status === 'rejected') {
+      const message = turnsResult.reason instanceof Error
+        ? turnsResult.reason.message
+        : String(turnsResult.reason)
+      console.warn('[alicization-renderer] failed to reconcile conversation turns from main:', turnsResult.reason)
+      if (upsertChatInfrastructureErrorMessage(sessionMessages as any[], {
+        id: `${ensuredSessionId}:conversation-query-error`,
+        code: 'CONVERSATION_QUERY_FAILED',
+        message,
+        label: '对话记录恢复失败',
+      })) {
+        changed = true
+      }
+    }
+    else if (removeChatInfrastructureErrorMessage(
+      sessionMessages as any[],
+      `${ensuredSessionId}:conversation-query-error`,
+    )) {
+      changed = true
+    }
+    if (projectionsResult.status === 'rejected') {
+      const message = projectionsResult.reason instanceof Error
+        ? projectionsResult.reason.message
+        : String(projectionsResult.reason)
+      if (upsertChatInfrastructureErrorMessage(sessionMessages as any[], {
+        id: `${ensuredSessionId}:tool-projection-query-error`,
+        code: 'TOOL_PROJECTION_QUERY_FAILED',
+        message,
+      })) {
+        changed = true
+      }
+    }
+    else if (removeChatInfrastructureErrorMessage(
+      sessionMessages as any[],
+      `${ensuredSessionId}:tool-projection-query-error`,
+    )) {
+      changed = true
+    }
     const orderedRows = [...rows].sort((a, b) => normalizeCreatedAt(a.createdAt) - normalizeCreatedAt(b.createdAt))
     for (const row of orderedRows) {
       const createdAt = normalizeCreatedAt(row.createdAt)
@@ -638,11 +809,9 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
             structured: existing.structured ?? null,
           })
           existing.id = turnId
-          existing.content = assistantText
+          replaceChatAssistantTextPreservingToolProjection(existing, assistantText)
           existing.createdAt = createdAt
           existing.origin = inferredOrigin
-          existing.slices = [{ type: 'text', text: assistantText }]
-          existing.tool_results = Array.isArray(existing.tool_results) ? existing.tool_results : []
           existing.structured = structured
           existing.categorization = {
             speech: assistantText,
@@ -677,6 +846,19 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
       }
     }
 
+    if (projectRecoveredTurnToolProjectionsIntoMessages(
+      sessionMessages as any[],
+      recoveredToolProjections,
+    )) {
+      changed = true
+    }
+    if (clearAlicizationSessionRecoveryFailure(
+      sessionMessages as any[],
+      ensuredSessionId,
+    )) {
+      changed = true
+    }
+
     if (changed) {
       sortSessionMessagesInPlace(sessionMessages as any[])
       chatSessionStore.persistSessionMessages(ensuredSessionId)
@@ -684,9 +866,23 @@ async function reconcileSessionTurnsFromMain(sessionIdRaw: string) {
   }
   catch (error) {
     console.warn('[alicization-renderer] failed to reconcile session turns from main:', error)
+    if (isAlicizationRendererReconcileCurrent(token, {
+      cardId: resolveAlicizationScope().cardId,
+      sessionId: token.sessionId,
+      epoch: alicizationRendererScopeEpoch,
+    })) {
+      const sessionMessages = chatSessionStore.getSessionMessages(sessionId)
+      if (projectAlicizationSessionRecoveryFailure(sessionMessages as any[], {
+        sessionId,
+        error,
+      })) {
+        sortSessionMessagesInPlace(sessionMessages as any[])
+        chatSessionStore.persistSessionMessages(sessionId)
+      }
+    }
   }
   finally {
-    sessionReconcileInFlight.delete(sessionId)
+    sessionReconcileInFlight.delete(reconcileKey)
   }
 }
 
@@ -817,7 +1013,7 @@ function handleAlicizationChatStreamChunk(payload?: AlicizationChatStreamChunkEv
   const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
   if (!pending)
     return
-  void pending.onStreamEvent?.(bridgeAlicizationChatChunkEventToStreamEvent(payload))
+  pending.lifecycle.publish(bridgeAlicizationChatChunkEventToStreamEvent(payload))
 }
 
 function handleAlicizationChatStreamMeta(payload?: AlicizationChatMetaEvent) {
@@ -826,7 +1022,7 @@ function handleAlicizationChatStreamMeta(payload?: AlicizationChatMetaEvent) {
   const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
   if (!pending)
     return
-  void pending.onStreamEvent?.(bridgeAlicizationChatMetaEventToStreamEvent(payload))
+  pending.lifecycle.publish(bridgeAlicizationChatMetaEventToStreamEvent(payload))
 }
 
 function handleAlicizationChatStreamToolCall(payload?: AlicizationChatToolCallEvent) {
@@ -835,10 +1031,12 @@ function handleAlicizationChatStreamToolCall(payload?: AlicizationChatToolCallEv
   const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
   if (!pending)
     return
-  void pending.onStreamEvent?.({
+  pending.lifecycle.publish({
     type: 'tool-call',
     toolCallId: payload.toolCallId,
     toolName: payload.toolName,
+    ...(payload.selectedChannel !== undefined ? { selectedChannel: payload.selectedChannel } : {}),
+    ...(payload.projection ? { projection: payload.projection } : {}),
     args: JSON.stringify(payload.arguments ?? {}),
     toolCallType: 'function',
   })
@@ -850,10 +1048,44 @@ function handleAlicizationChatStreamToolResult(payload?: AlicizationChatToolResu
   const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
   if (!pending)
     return
-  void pending.onStreamEvent?.({
+  pending.lifecycle.publish({
     type: 'tool-result',
     toolCallId: payload.toolCallId,
+    ...(payload.toolName ? { toolName: payload.toolName } : {}),
+    ...(payload.selectedChannel !== undefined ? { selectedChannel: payload.selectedChannel } : {}),
+    ...(payload.projection ? { projection: payload.projection } : {}),
     result: payload.result,
+  })
+}
+
+function handleAlicizationChatStreamToolProgress(payload?: AlicizationChatToolProgressEvent) {
+  if (!payload)
+    return
+  const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
+  if (!pending)
+    return
+  pending.lifecycle.publish({
+    type: 'tool-progress',
+    toolCallId: payload.toolCallId,
+    toolName: payload.toolName,
+    ...(payload.selectedChannel !== undefined ? { selectedChannel: payload.selectedChannel } : {}),
+    ...(payload.projection ? { projection: payload.projection } : {}),
+    phase: payload.phase,
+    ...(payload.signal ? { signal: payload.signal } : {}),
+    elapsedMs: payload.elapsedMs,
+    ...(payload.timeoutMs !== undefined ? { timeoutMs: payload.timeoutMs } : {}),
+    ...(payload.errorCode ? { errorCode: payload.errorCode } : {}),
+    ...(payload.errorMessage ? { errorMessage: payload.errorMessage } : {}),
+    ...(payload.occurredAt !== undefined ? { occurredAt: payload.occurredAt } : {}),
+    ...(payload.eventId ? { eventId: payload.eventId } : {}),
+    ...(payload.threadId ? { threadId: payload.threadId } : {}),
+    ...(payload.adapterEventType ? { adapterEventType: payload.adapterEventType } : {}),
+    ...(payload.itemType ? { itemType: payload.itemType } : {}),
+    ...(payload.summary ? { summary: payload.summary } : {}),
+    ...(payload.command ? { command: payload.command } : {}),
+    ...(payload.commandStatus ? { commandStatus: payload.commandStatus } : {}),
+    ...(payload.commandExitCode !== undefined ? { commandExitCode: payload.commandExitCode } : {}),
+    ...(payload.outputPreview ? { outputPreview: payload.outputPreview } : {}),
   })
 }
 
@@ -863,11 +1095,7 @@ function handleAlicizationChatStreamError(payload?: AlicizationChatErrorEvent) {
   const pending = resolvePendingAlicizationStream(payload.cardId, payload.turnId)
   if (!pending)
     return
-  void pending.onStreamEvent?.(bridgeAlicizationChatErrorEventToStreamEvent(payload))
-  pending.reject(createAlicizationStreamError(
-    String(payload.error || alicizationChatStreamText('error')),
-    'alicization-stream-error',
-  ))
+  pending.lifecycle.publish(bridgeAlicizationChatErrorEventToStreamEvent(payload))
 }
 
 function handleAlicizationChatStreamFinish(payload?: AlicizationChatFinishEvent) {
@@ -879,26 +1107,37 @@ function handleAlicizationChatStreamFinish(payload?: AlicizationChatFinishEvent)
   pending.visibleReplyExecution = payload.visibleReplyExecution ?? null
   pending.visibleReplyCritic = summarizeAlicizationVisibleReplyCriticForRenderer(payload.visibleReplyCritic)
   pending.visibleReplyClosure = summarizeAlicizationVisibleReplyClosureForRenderer(payload.visibleReplyClosure)
-  if (payload.status === 'completed') {
-    void pending.onStreamEvent?.(bridgeAlicizationChatFinishEventToStreamEvent({
-      ...payload,
-      visibleReplyExecution: pending.visibleReplyExecution ?? null,
-      visibleReplyCritic: pending.visibleReplyCritic ?? null,
-      visibleReplyClosure: pending.visibleReplyClosure ?? null,
-    }))
-    pending.resolve()
-    return
-  }
-  if (payload.status === 'aborted') {
-    pending.reject(createAlicizationAbortError(payload.finishReason))
-    return
-  }
-  const error = payload.error || alicizationChatStreamText('failed')
-  void pending.onStreamEvent?.(bridgeAlicizationChatErrorEventToStreamEvent({
+  const finishEvent = bridgeAlicizationChatFinishEventToStreamEvent({
     ...payload,
-    error,
-  }))
-  pending.reject(createAlicizationStreamError(String(error), 'alicization-stream-failed'))
+    visibleReplyExecution: pending.visibleReplyExecution ?? null,
+    visibleReplyCritic: pending.visibleReplyCritic ?? null,
+    visibleReplyClosure: pending.visibleReplyClosure ?? null,
+  })
+  if (payload.status === 'completed') {
+    pending.lifecycle.resolveAfter([finishEvent])
+    return
+  }
+  const terminalEvents: AlicizationBridgeChatStreamEvent[] = []
+  if (!pending.lifecycle.hasObservedError()) {
+    terminalEvents.push(
+      bridgeAlicizationChatAbortedFinishEventToStreamErrorEvent(payload),
+    )
+  }
+  terminalEvents.push(finishEvent)
+  if (payload.status === 'aborted') {
+    pending.lifecycle.rejectAfter(
+      terminalEvents,
+      createAlicizationAbortError(payload.finishReason),
+    )
+    return
+  }
+  const error = payload.error
+    || pending.lifecycle.getObservedError()?.error
+    || alicizationChatStreamText('failed')
+  pending.lifecycle.rejectAfter(
+    terminalEvents,
+    createAlicizationStreamError(String(error), 'alicization-stream-failed'),
+  )
 }
 
 function createDialogueRespondedDedupKey(payload: AlicizationDialogueRespondedPayload) {
@@ -983,6 +1222,13 @@ function handleAlicizationVisualPresenceStatePayload(payload?: AlicizationVisual
 function handleAlicizationChatStreamDispatch(payload?: AlicizationChatStreamDispatchPayload) {
   if (!payload)
     return
+  if (payload.eventType !== 'dialogue-responded' && !chatStreamIngressDeduplicator.accept(
+    'dispatch',
+    payload.eventType,
+    payload.body,
+  )) {
+    return
+  }
   switch (payload.eventType) {
     case 'meta':
       handleAlicizationChatStreamMeta(payload.body)
@@ -995,6 +1241,9 @@ function handleAlicizationChatStreamDispatch(payload?: AlicizationChatStreamDisp
       return
     case 'tool-result':
       handleAlicizationChatStreamToolResult(payload.body)
+      return
+    case 'tool-progress':
+      handleAlicizationChatStreamToolProgress(payload.body)
       return
     case 'finish':
       handleAlicizationChatStreamFinish(payload.body)
@@ -1044,6 +1293,7 @@ async function resolveHitlDecision(payload: { allow: boolean, rememberSession: b
 }
 
 setAlicizationBridge({
+  streamLifecycleOwner: 'main',
   bootstrap: async () => await alicizationBootstrap(resolveAlicizationScope()),
   getSoul: async () => await alicizationGetSoul(resolveAlicizationScope()),
   initializeGenesis: async payload => await alicizationInitializeGenesis({ ...resolveAlicizationScope(), ...payload }),
@@ -1081,7 +1331,10 @@ setAlicizationBridge({
     ...resolveAlicizationScope(),
     manifest: sanitizeCharacterPerformanceManifest(manifest),
   }),
-  appendConversationTurn: async payload => await alicizationAppendConversationTurn({ ...resolveAlicizationScope(), ...payload }),
+  appendConversationTurn: async payload => await alicizationAppendConversationTurn({
+    cardId: resolveAlicizationConversationCardId(payload.sessionId),
+    ...payload,
+  }),
   listMindTurnEvents: async payload => await alicizationListMindTurnEvents({ ...resolveAlicizationScope(), ...payload }),
   listMemoryDecisionTraces: async payload => await alicizationListMemoryDecisionTraces({ ...resolveAlicizationScope(), ...payload }),
   listHumanlikeMemoryAudit: async payload => await alicizationListHumanlikeMemoryAudit({ ...resolveAlicizationScope(), ...payload }),
@@ -1128,63 +1381,142 @@ setAlicizationBridge({
   streamChat: async (payload, options) => await new Promise<void>((resolve, reject) => {
     void (async () => {
       const scope = resolveAlicizationScope()
+      const sessionId = activeSessionId.value?.trim() || ''
+      if (sessionId)
+        alicizationConversationCardIdsBySession.set(sessionId, scope.cardId)
       const key = alicizationChatStreamKey(scope.cardId, payload.turnId)
       const previousPending = pendingAlicizationChatStreams.get(key)
       if (previousPending) {
         // NOTICE: Retry path may restart the same turnId after timeout.
-        // Forcefully supersede the old pending stream so retried stream can proceed.
-        await invokeAlicizationChatAbortTransport({
-          ...scope,
-          turnId: payload.turnId,
-          reason: 'renderer-restart',
-        }).catch(() => {})
-        previousPending.reject(createAlicizationStreamError(
-          alicizationChatStreamText('superseded', { turnId: payload.turnId }),
-          'alicization-stream-superseded',
-        ))
-        pendingAlicizationChatStreams.delete(key)
+        // Drain the old projection queue before the replacement starts.
+        await retirePendingAlicizationStream(
+          previousPending,
+          createAlicizationStreamError(
+            alicizationChatStreamText('superseded', { turnId: payload.turnId }),
+            'alicization-stream-superseded',
+          ),
+          {
+            abortReason: 'renderer-restart',
+            invalidateSession: false,
+          },
+        )
       }
 
       let disposed = false
-      const abortHandler = () => {
-        void invokeAlicizationChatAbortTransport({
-          ...scope,
-          turnId: payload.turnId,
-          reason: 'renderer-abort',
-        })
-      }
+      let lateToolEventCleanupTimer: ReturnType<typeof scheduleAlicizationLateToolEventDisposal> | undefined
+      let abortHandler = () => {}
+      let pending: PendingAlicizationChatStream
       const dispose = () => {
         if (disposed)
           return
         disposed = true
+        if (lateToolEventCleanupTimer) {
+          lateToolEventCleanupTimer.cancel()
+          lateToolEventCleanupTimer = undefined
+        }
         options.abortSignal?.removeEventListener('abort', abortHandler)
-        settlePendingAlicizationStream(scope.cardId, payload.turnId)
+        deletePendingAlicizationStream(pending)
+      }
+      const schedulePendingAlicizationStreamDisposal = () => {
+        lateToolEventCleanupTimer?.cancel()
+        lateToolEventCleanupTimer = scheduleAlicizationLateToolEventDisposal({
+          delayMs: alicizationLateToolEventGraceMs,
+          onDispose: () => {
+            lateToolEventCleanupTimer = undefined
+            dispose()
+          },
+        })
+        options.abortSignal?.removeEventListener('abort', abortHandler)
       }
       const rejectAndDispose = (error: unknown) => {
         dispose()
         reject(error)
       }
-      const resolveAndDispose = () => {
-        dispose()
+      const resolveAndScheduleDispose = () => {
+        schedulePendingAlicizationStreamDisposal()
         resolve()
       }
-
-      pendingAlicizationChatStreams.set(key, {
+      const lifecycle = createAlicizationChatStreamLifecycle({
         onStreamEvent: options.onStreamEvent,
+        onDeliveryError: async (error, event) => {
+          await alicizationAppendAuditLog({
+            ...scope,
+            level: 'warning',
+            category: 'alicization.chat',
+            action: 'renderer-tool-projection-failed',
+            message: 'A renderer tool projection failed without interrupting the main-owned stream lifecycle.',
+            payload: {
+              turnId: payload.turnId,
+              eventType: event.type,
+              toolCallId: 'toolCallId' in event ? event.toolCallId : null,
+              reason: error instanceof Error ? error.message : String(error),
+            },
+          }).catch(() => {})
+        },
+        resolve: resolveAndScheduleDispose,
+        reject: rejectAndDispose,
+      })
+      let pendingAbortReason = 'renderer-abort'
+      let mainStartAccepted = false
+      const abortCoordinator = createAlicizationChatStartAbortCoordinator(
+        async () => await invokeAlicizationChatAbortTransport({
+          ...scope,
+          turnId: payload.turnId,
+          reason: pendingAbortReason,
+        }),
+      )
+      const requestAbort = async (reason: string) => {
+        pendingAbortReason = reason
+        const result = await abortCoordinator.requestAbort()
+        if (
+          mainStartAccepted
+          && !result.accepted
+          && result.state !== 'aborted'
+        ) {
+          void reconcileSessionTurnsFromMain(sessionId)
+          throw new AlicizationChatAbortUnconfirmedError(result)
+        }
+        return result
+      }
+      abortHandler = () => {
+        void requestAbort('renderer-abort').catch((error) => {
+          lifecycle.rejectAfter([], error)
+        })
+      }
+
+      pending = {
+        cardId: scope.cardId,
+        sessionId,
+        logicalTurnId: payload.turnId,
+        lifecycle,
+        requestAbort,
+        dispose,
         visibleReplyExecution: null,
         visibleReplyCritic: null,
         visibleReplyClosure: null,
-        resolve: resolveAndDispose,
-        reject: rejectAndDispose,
-      })
+      }
+      pendingAlicizationChatStreams.set(key, pending)
+
+      if (!isCurrentAlicizationCard(pending.cardId)) {
+        await retirePendingAlicizationStream(
+          pending,
+          createAlicizationAbortError('renderer-card-switch'),
+          {
+            abortReason: 'renderer-card-switch',
+          },
+        )
+        return
+      }
 
       if (options.abortSignal?.aborted) {
-        await invokeAlicizationChatAbortTransport({
-          ...scope,
-          turnId: payload.turnId,
-          reason: 'renderer-abort',
-        })
-        rejectAndDispose(createAlicizationAbortError('renderer-abort'))
+        try {
+          await requestAbort('renderer-abort')
+        }
+        catch (abortError) {
+          lifecycle.rejectAfter([], abortError)
+          return
+        }
+        lifecycle.rejectAfter([], createAlicizationAbortError('renderer-abort'))
         return
       }
 
@@ -1222,7 +1554,11 @@ setAlicizationBridge({
         let start = await invokeAlicizationChatStartTransport(transportPayload)
         if (!start.accepted && start.state === 'duplicate-running') {
           for (let attempt = 0; attempt < 4; attempt += 1) {
+            if (abortCoordinator.isAbortRequested())
+              break
             await new Promise(resolveDelay => setTimeout(resolveDelay, 120 * (attempt + 1)))
+            if (abortCoordinator.isAbortRequested())
+              break
             start = await invokeAlicizationChatStartTransport(transportPayload)
             if (start.accepted || start.state !== 'duplicate-running')
               break
@@ -1244,23 +1580,62 @@ setAlicizationBridge({
           },
         }).catch(() => {})
         if (start.accepted) {
-          await options.onStreamEvent?.(bridgeAlicizationChatStartResultToStreamEvent(scope.cardId, start))
+          mainStartAccepted = true
+          const abortResult = await abortCoordinator.reconcileAcceptedStart()
+          if (abortCoordinator.isAbortRequested()) {
+            if (
+              abortResult
+              && !abortResult.accepted
+              && abortResult.state !== 'aborted'
+            ) {
+              void reconcileSessionTurnsFromMain(sessionId)
+              lifecycle.rejectAfter(
+                [],
+                new AlicizationChatAbortUnconfirmedError(abortResult),
+              )
+            }
+            else if (!abortCoordinator.isAbortAccepted()) {
+              lifecycle.rejectAfter(
+                [],
+                createAlicizationAbortError('renderer-abort'),
+              )
+            }
+            return
+          }
+          lifecycle.publish(
+            bridgeAlicizationChatStartResultToStreamEvent(scope.cardId, start),
+          )
+        }
+        if (!start.accepted && abortCoordinator.isAbortRequested()) {
+          if (
+            start.state !== 'duplicate-running'
+            || !abortCoordinator.isAbortAccepted()
+          ) {
+            lifecycle.rejectAfter(
+              [],
+              createAlicizationAbortError('renderer-abort'),
+            )
+          }
+          return
         }
         if (!start.accepted) {
           const state = typeof start.state === 'string' ? start.state : 'unknown'
-          rejectAndDispose(createAlicizationStreamError(
-            typeof start.reason === 'string' && start.reason.trim()
-              ? alicizationChatStreamText('start-rejected-with-reason', {
-                  turnId: payload.turnId,
-                  state,
-                  reason: start.reason,
-                })
-              : alicizationChatStreamText('start-rejected', {
-                  turnId: payload.turnId,
-                  state,
-                }),
-            'alicization-stream-start-rejected',
-          ))
+          lifecycle.rejectAfter(
+            [],
+            createAlicizationStreamError(
+              typeof start.reason === 'string' && start.reason.trim()
+                ? alicizationChatStreamText('start-rejected-with-reason', {
+                    turnId: payload.turnId,
+                    state,
+                    reason: start.reason,
+                  })
+                : alicizationChatStreamText('start-rejected', {
+                    turnId: payload.turnId,
+                    state,
+                  }),
+              'alicization-stream-start-rejected',
+            ),
+          )
         }
       }
       catch (error) {
@@ -1284,7 +1659,24 @@ setAlicizationBridge({
               : undefined,
           },
         }).catch(() => {})
-        rejectAndDispose(error)
+        if (abortCoordinator.isAbortRequested()) {
+          try {
+            await abortCoordinator.reconcileAcceptedStart()
+          }
+          catch (abortError) {
+            lifecycle.rejectAfter([], abortError)
+            return
+          }
+          if (!abortCoordinator.isAbortAccepted()) {
+            lifecycle.rejectAfter(
+              [],
+              createAlicizationAbortError('renderer-abort'),
+            )
+          }
+        }
+        else {
+          lifecycle.rejectAfter([], error)
+        }
       }
     })()
   }),
@@ -1325,27 +1717,38 @@ context.value.on(alicizationSafetyPermissionRequested, (event: EventEnvelope<Ali
 })
 
 context.value.on(alicizationChatStreamChunk, (event: EventEnvelope<AlicizationChatStreamChunkEvent>) => {
-  handleAlicizationChatStreamChunk(event?.body)
+  if (event?.body && chatStreamIngressDeduplicator.accept('eventa', 'chunk', event.body))
+    handleAlicizationChatStreamChunk(event.body)
 })
 
 context.value.on(alicizationChatStreamMeta, (event: EventEnvelope<AlicizationChatMetaEvent>) => {
-  handleAlicizationChatStreamMeta(event?.body)
+  if (event?.body && chatStreamIngressDeduplicator.accept('eventa', 'meta', event.body))
+    handleAlicizationChatStreamMeta(event.body)
 })
 
 context.value.on(alicizationChatStreamToolCall, (event: EventEnvelope<AlicizationChatToolCallEvent>) => {
-  handleAlicizationChatStreamToolCall(event?.body)
+  if (event?.body && chatStreamIngressDeduplicator.accept('eventa', 'tool-call', event.body))
+    handleAlicizationChatStreamToolCall(event.body)
 })
 
 context.value.on(alicizationChatStreamToolResult, (event: EventEnvelope<AlicizationChatToolResultEvent>) => {
-  handleAlicizationChatStreamToolResult(event?.body)
+  if (event?.body && chatStreamIngressDeduplicator.accept('eventa', 'tool-result', event.body))
+    handleAlicizationChatStreamToolResult(event.body)
+})
+
+context.value.on(alicizationChatStreamToolProgress, (event: EventEnvelope<AlicizationChatToolProgressEvent>) => {
+  if (event?.body && chatStreamIngressDeduplicator.accept('eventa', 'tool-progress', event.body))
+    handleAlicizationChatStreamToolProgress(event.body)
 })
 
 context.value.on(alicizationChatStreamError, (event: EventEnvelope<AlicizationChatErrorEvent>) => {
-  handleAlicizationChatStreamError(event?.body)
+  if (event?.body && chatStreamIngressDeduplicator.accept('eventa', 'error', event.body))
+    handleAlicizationChatStreamError(event.body)
 })
 
 context.value.on(alicizationChatStreamFinish, (event: EventEnvelope<AlicizationChatFinishEvent>) => {
-  handleAlicizationChatStreamFinish(event?.body)
+  if (event?.body && chatStreamIngressDeduplicator.accept('eventa', 'finish', event.body))
+    handleAlicizationChatStreamFinish(event.body)
 })
 
 // NOTICE: register plugin host bridge during setup to avoid race with pages using it in immediate watchers.
@@ -1373,7 +1776,14 @@ watch(language, () => {
   setLocale(language.value)
 })
 
-watch(activeCardId, () => {
+watch(activeCardId, (_cardId, previousCardId) => {
+  alicizationRendererScopeEpoch += 1
+  if (previousCardId?.trim()) {
+    void retirePendingAlicizationStreamsForCard(
+      previousCardId,
+      createAlicizationAbortError('renderer-card-switch'),
+    )
+  }
   currentHitlRequest.value = null
   pendingHitlRequests.value = []
   hitlResolving.value = false
@@ -1391,6 +1801,7 @@ watch(activeCardId, () => {
 }, { immediate: true })
 
 watch(activeSessionId, (sessionId) => {
+  alicizationRendererScopeEpoch += 1
   if (!sessionId?.trim())
     return
   void alicizationSetActiveSession({
@@ -1478,13 +1889,13 @@ onUnmounted(() => {
   if (llmSyncTimer)
     clearTimeout(llmSyncTimer)
   removeAlicizationChatStreamDispatchListener?.()
-  for (const [key, pending] of pendingAlicizationChatStreams.entries()) {
-    pendingAlicizationChatStreams.delete(key)
-    pending.reject(createAlicizationStreamError(
+  void retireAllPendingAlicizationStreams(
+    createAlicizationStreamError(
       alicizationChatStreamText('renderer-unmounted'),
       'alicization-stream-renderer-unmounted',
-    ))
-  }
+    ),
+  )
+  alicizationConversationCardIdsBySession.clear()
   contextBridgeStore.dispose()
   clearMcpToolBridge()
   alicizationEpoch1Store.dispose()

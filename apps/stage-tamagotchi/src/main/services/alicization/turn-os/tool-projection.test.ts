@@ -52,6 +52,88 @@ function runtimeEvent(
 }
 
 describe('alicization runtime tool event projector', () => {
+  it('does not re-project the same persisted action event twice', () => {
+    const scope = runtimeScope({ turnId: 'turn-duplicate-action-event' })
+    const projector = toolProjectionModule.createAlicizationRuntimeToolEventProjector()
+    const proposed = runtimeEvent(scope, 1, 'model.tool_call.proposed', {
+      actionId: 'action-duplicate',
+      toolCallId: 'tool-call-duplicate',
+      capabilityId: 'coding_agent.codex',
+      providerToolName: 'coding_agent',
+      selectedChannel: 'codex',
+    })
+    const started = runtimeEvent(scope, 2, 'action.started', {
+      actionId: 'action-duplicate',
+      toolCallId: 'tool-call-duplicate',
+      capabilityId: 'coding_agent.codex',
+      providerToolName: 'coding_agent',
+      selectedChannel: 'codex',
+    })
+
+    projector.project(proposed)
+    const first = projector.project(started)
+    const duplicate = projector.project(started)
+
+    expect(first).toHaveLength(1)
+    expect(first[0]?.update).toMatchObject({
+      accepted: true,
+      traceOnly: false,
+      card: {
+        revision: 2,
+      },
+    })
+    expect(duplicate).toEqual([])
+    expect(projector.snapshot().cards).toMatchObject([{
+      toolCallId: 'tool-call-duplicate',
+      revision: 2,
+      phase: 'started',
+      terminal: false,
+    }])
+  })
+
+  it('replays tool events by their persisted sequence when delivery order is scrambled', () => {
+    const scope = runtimeScope({ turnId: 'turn-scrambled-tool-events' })
+    const projection = projectAlicizationRuntimeToolEvents([
+      runtimeEvent(scope, 1, 'model.tool_call.proposed', {
+        actionId: 'action-scrambled',
+        toolCallId: 'tool-call-scrambled',
+        capabilityId: 'coding_agent.codex',
+        providerToolName: 'coding_agent',
+      }),
+      runtimeEvent(scope, 2, 'action.started', {
+        actionId: 'action-scrambled',
+        toolCallId: 'tool-call-scrambled',
+        capabilityId: 'coding_agent.codex',
+        providerToolName: 'coding_agent',
+      }),
+      runtimeEvent(scope, 4, 'action.observation', {
+        actionId: 'action-scrambled',
+        observationId: 'observation-scrambled',
+        toolCallId: 'tool-call-scrambled',
+        terminal: true,
+        outcome: 'success',
+        output: { ok: true },
+      }),
+      runtimeEvent(scope, 3, 'action.progress', {
+        actionId: 'action-scrambled',
+        toolCallId: 'tool-call-scrambled',
+        phase: 'running',
+        elapsedMs: 100,
+        summary: '读取工具进度',
+      }),
+    ])
+
+    expect(projection.cards).toMatchObject([{
+      toolCallId: 'tool-call-scrambled',
+      phase: 'completed',
+      terminal: true,
+      step: {
+        summary: '读取工具进度',
+      },
+      result: { ok: true },
+    }])
+  })
+
   it('uses the same stateful reducer for cancelled observations and late progress', () => {
     const createProjector = Reflect.get(
       toolProjectionModule,

@@ -10,16 +10,11 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import {
+  normalizeWorkingMemoryLongTermEvidence,
   normalizeWorkingMemoryText,
   uniqueWorkingMemoryTexts,
 } from './working-memory'
 import { createWorkingMemoryLongTermCleaningTransaction } from './working-memory-long-term-cleaning'
-
-const correctionCuePattern = /不是|不对|错|纠正|改成|不要|别|停止|移除|清除/u
-const preferenceCuePattern = /我喜欢|我不喜欢|偏好|习惯|明确喜欢|希望.*(回复|方式)|以后.*(要|不要|别)/u
-const episodeCuePattern = /一起|共同|经历|上周|昨天|今天|那次|玩过|完成|任务节点|下次/u
-const procedureCuePattern = /流程|步骤|方式|按|红测|验证|先.*再|认可|复用|推进/u
-const relationshipCuePattern = /关系|边界|修复|出错|超时|直接说明|透明/u
 
 const minimumAutomaticConfidence = 0.7
 const minimumAutomaticSalience = 0.6
@@ -35,14 +30,6 @@ function sanitizeCleanerText(raw: unknown, maxChars = 260) {
     '',
     internalStructuredFactContext,
   )
-}
-
-function candidateText(item: WorkingMemoryLongTermQueueItem) {
-  return [
-    item.summary,
-    item.reason,
-    ...item.evidenceSnippets,
-  ].map(text => normalizeWorkingMemoryText(text, 320)).filter(Boolean).join(' ')
 }
 
 function buildRetrievalCues(input: {
@@ -146,25 +133,11 @@ function hasStructuredResidue(item: WorkingMemoryLongTermQueueItem) {
   ))
 }
 
-function cuePatternForKind(kind: WorkingMemoryLongTermQueueItem['kind']) {
-  switch (kind) {
-    case 'preference':
-      return preferenceCuePattern
-    case 'episode':
-      return episodeCuePattern
-    case 'procedure':
-      return procedureCuePattern
-    case 'relationship':
-      return relationshipCuePattern
-    default:
-      return null
-  }
-}
-
 function rejectionReasonsFor(input: {
   transaction: WorkingMemoryLongTermCleaningTransaction
 }) {
   const item = input.transaction.item
+  const memoryEvidence = normalizeWorkingMemoryLongTermEvidence(item.memoryEvidence)
   const reasons = [
     ...input.transaction.rejectionReasons,
     ...input.transaction.contaminationFlags,
@@ -178,6 +151,9 @@ function rejectionReasonsFor(input: {
     reasons.push('missing-source-turns')
   if (item.evidenceSnippets.length === 0)
     reasons.push('missing-evidence')
+  if (!memoryEvidence) {
+    reasons.push('missing-structured-memory-evidence')
+  }
   if (hasStructuredResidue(item))
     reasons.push('structured-residue')
 
@@ -186,7 +162,6 @@ function rejectionReasonsFor(input: {
 
 function reviewReasonsFor(input: {
   transaction: WorkingMemoryLongTermCleaningTransaction
-  text: string
 }) {
   const item = input.transaction.item
   const reasons: string[] = []
@@ -197,15 +172,6 @@ function reviewReasonsFor(input: {
     reasons.push('low-confidence')
   if (item.salience < minimumAutomaticSalience)
     reasons.push('low-salience')
-  if (item.kind === 'correction') {
-    if (!correctionCuePattern.test(input.text))
-      reasons.push('weak-correction-cue')
-  }
-  else {
-    const pattern = cuePatternForKind(item.kind)
-    if (!pattern || !pattern.test(input.text))
-      reasons.push(`weak-${item.kind}-cue`)
-  }
 
   return uniqueWorkingMemoryTexts(reasons, 12, 180)
 }
@@ -221,11 +187,10 @@ export function cleanWorkingMemoryLongTermQueueItem(input: {
     ...input,
     now,
   })
-  const text = candidateText(transaction.item)
   const rejectionReasons = rejectionReasonsFor({ transaction })
   const reviewReasons = rejectionReasons.length > 0
     ? []
-    : reviewReasonsFor({ transaction, text })
+    : reviewReasonsFor({ transaction })
 
   if (rejectionReasons.length > 0) {
     return {

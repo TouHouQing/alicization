@@ -1,11 +1,15 @@
+import type { AlicizationProviderMemoryEvidence } from '@proj-alicization/stage-shared'
+
 import type { AlicizationVisibleReplyExecution } from '../../../../shared/eventa'
 import type {
   AlicizationVisibleReplyPublicClosureSummary,
   AlicizationVisibleReplyPublicCriticSummary,
   AlicizationVisibleReplyRealizationArtifact,
-} from '../visible-reply/realization-engine'
+} from '../visible-reply/facade'
 
 import { createHash } from 'node:crypto'
+
+import { normalizeAlicizationProviderMemoryEvidence } from '@proj-alicization/stage-shared'
 
 export interface AlicizationRuntimeReplyArtifact {
   artifactVersion: 1
@@ -14,6 +18,7 @@ export interface AlicizationRuntimeReplyArtifact {
   finishReason: string
   visibleReplyExecution: AlicizationVisibleReplyExecution
   realization: AlicizationVisibleReplyRealizationArtifact
+  memoryEvidence?: AlicizationProviderMemoryEvidence | null
 }
 
 export interface AlicizationRuntimeReplyDeliveryIdentity {
@@ -269,9 +274,17 @@ export function parseAlicizationRuntimeReplyArtifact(
     'finishReason',
     'visibleReplyExecution',
     'realization',
+    'memoryEvidence',
   ], 'runtime reply artifact')
   if (record.artifactVersion !== 1)
     throw new TypeError('runtime reply artifact version must be 1')
+
+  const memoryEvidence = record.memoryEvidence === undefined || record.memoryEvidence === null
+    ? null
+    : normalizeAlicizationProviderMemoryEvidence(record.memoryEvidence)
+  if (record.memoryEvidence !== undefined && record.memoryEvidence !== null && !memoryEvidence) {
+    throw new TypeError('runtime reply artifact memoryEvidence is invalid')
+  }
 
   const artifact: AlicizationRuntimeReplyArtifact = {
     artifactVersion: 1,
@@ -291,6 +304,7 @@ export function parseAlicizationRuntimeReplyArtifact(
     ),
     visibleReplyExecution: parseExecution(record.visibleReplyExecution),
     realization: parseRealization(record.realization),
+    memoryEvidence,
   }
 
   if (artifact.realization.visibleText !== artifact.visibleText) {

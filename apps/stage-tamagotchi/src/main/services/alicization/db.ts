@@ -136,6 +136,7 @@ import { errorMessageFrom } from '@moeru/std'
 import { normalizeAlicizationMemoryProvenance, sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
 
 import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
+import { normalizeWorkingMemoryLongTermEvidence } from './life-core/working-memory'
 import {
   parseWorkingMemoryCheckpoint,
   serializeWorkingMemoryCheckpoint,
@@ -6391,7 +6392,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
 
     for (const row of rows) {
       try {
-        const cleanedTransaction = row.status === 'admitted' && row.decision === 'admit' && row.cleanedCandidate
+        const existingMemoryEvidence = normalizeWorkingMemoryLongTermEvidence(row.item.memoryEvidence)
+        const cleanedTransaction = row.status === 'admitted'
+          && row.decision === 'admit'
+          && row.cleanedCandidate
+          && existingMemoryEvidence
           ? {
               ...row,
               status: 'admitted' as const,

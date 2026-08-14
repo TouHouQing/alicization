@@ -263,6 +263,7 @@ export function createAlicizationRuntimeToolEventProjector():
 AlicizationRuntimeToolEventProjector {
   const reducer = createAlicizationRuntimeToolProjectionReducer()
   const actions = new Map<string, ToolIdentity>()
+  const projectedEventIds = new Set<string>()
   let turnTerminal = false
 
   const snapshot = (): AlicizationReplayedToolProjection => {
@@ -282,6 +283,10 @@ AlicizationRuntimeToolEventProjector {
     event: AlicizationRuntimeEventEnvelope,
   ): AlicizationRuntimeToolEventProjection[] => {
     const projected: AlicizationRuntimeToolEventProjection[] = []
+    if (projectedEventIds.has(event.eventId))
+      return projected
+    projectedEventIds.add(event.eventId)
+
     const reduceProjectedFact = (
       identity: ToolIdentity,
       fact: AlicizationRuntimeToolProjectionFact,
@@ -561,7 +566,11 @@ export function projectAlicizationRuntimeToolEvents(
   events: AlicizationRuntimeEventEnvelope[],
 ): AlicizationReplayedToolProjection {
   const projector = createAlicizationRuntimeToolEventProjector()
-  for (const event of events)
+  const orderedEvents = events
+    .map((event, index) => ({ event, index }))
+    .sort((left, right) =>
+      left.event.sequence - right.event.sequence || left.index - right.index)
+  for (const { event } of orderedEvents)
     projector.project(event)
   return projector.snapshot()
 }

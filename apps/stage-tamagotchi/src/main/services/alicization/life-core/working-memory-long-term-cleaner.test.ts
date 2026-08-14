@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { cleanWorkingMemoryLongTermQueueItem } from './working-memory-long-term-cleaner'
 
 function item(overrides: Partial<WorkingMemoryLongTermQueueItem> = {}): WorkingMemoryLongTermQueueItem {
-  return {
+  const base: WorkingMemoryLongTermQueueItem = {
     id: 'queue-1',
     source: 'working-memory-owner',
     kind: 'correction',
@@ -21,7 +21,26 @@ function item(overrides: Partial<WorkingMemoryLongTermQueueItem> = {}): WorkingM
     rejectionReasons: [],
     contaminationFlags: [],
     createdAt: 2_000,
+  }
+  const merged = {
+    ...base,
     ...overrides,
+  }
+  return {
+    ...merged,
+    memoryEvidence: overrides.memoryEvidence === undefined
+      ? {
+          version: 'working-memory-long-term-evidence-v1',
+          source: 'explicit-structured-memory-evidence',
+          kind: merged.kind,
+          summary: merged.summary,
+          reason: merged.reason,
+          evidenceSnippets: merged.evidenceSnippets,
+          salience: merged.salience,
+          sensitivity: merged.sensitivity,
+          confidence: merged.confidence,
+        }
+      : overrides.memoryEvidence,
   }
 }
 
@@ -142,6 +161,42 @@ describe('working memory long-term cleaner', () => {
     expect(result.status).toBe('rejected')
     expect(result.cleanedCandidate).toBeNull()
     expect(result.rejectionReasons).toContain('missing-evidence')
+  })
+
+  it('rejects legacy queue items without explicit structured memory evidence', () => {
+    const legacyItem = item() as WorkingMemoryLongTermQueueItem & {
+      memoryEvidence?: unknown
+    }
+    delete legacyItem.memoryEvidence
+
+    const result = cleanWorkingMemoryLongTermQueueItem({
+      cardId: 'default',
+      sessionId: 'session-1',
+      item: legacyItem,
+      now: 3_000,
+    })
+
+    expect(result.status).toBe('rejected')
+    expect(result.cleanedCandidate).toBeNull()
+    expect(result.rejectionReasons).toContain('missing-structured-memory-evidence')
+  })
+
+  it('rejects partially shaped structured evidence instead of admitting it', () => {
+    const result = cleanWorkingMemoryLongTermQueueItem({
+      cardId: 'default',
+      sessionId: 'session-1',
+      item: item({
+        memoryEvidence: {
+          version: 'working-memory-long-term-evidence-v1',
+          source: 'explicit-structured-memory-evidence',
+        } as WorkingMemoryLongTermQueueItem['memoryEvidence'],
+      }),
+      now: 3_000,
+    })
+
+    expect(result.status).toBe('rejected')
+    expect(result.cleanedCandidate).toBeNull()
+    expect(result.rejectionReasons).toContain('missing-structured-memory-evidence')
   })
 
   it('rejects a structured summary even when the other candidate fields are natural language', () => {
@@ -292,32 +347,32 @@ describe('working memory long-term cleaner', () => {
     }))
   })
 
-  it('routes vague non-correction candidates to review instead of automatic write', () => {
+  it('admits explicit structured evidence without classifying its wording through local regex', () => {
     const result = clean({
       kind: 'preference',
-      summary: '用户说这样也行。',
-      reason: 'Vague preference-like statement.',
-      evidenceSnippets: ['这样也行。'],
+      summary: 'Reviewed preference evidence item 42.',
+      reason: 'Confirmed through the structured memory evidence owner.',
+      evidenceSnippets: ['review-id:preference-42'],
       salience: 0.76,
       confidence: 0.78,
     })
 
-    expect(result.status).toBe('needs-user-review')
-    expect(result.reviewReasons).toContain('weak-preference-cue')
+    expect(result.status).toBe('admitted')
+    expect(result.reviewReasons).toEqual([])
   })
 
-  it('routes weak correction cues to review', () => {
+  it('does not require raw correction cue words for explicit structured evidence', () => {
     const result = clean({
-      summary: '用户希望以后对话节奏安静一点。',
-      reason: 'User gave a gentle conversation style note.',
-      evidenceSnippets: ['以后节奏安静一点。'],
+      summary: 'Reviewed correction evidence item 7.',
+      reason: 'Confirmed through the structured memory evidence owner.',
+      evidenceSnippets: ['review-id:correction-7'],
     })
 
-    expect(result.status).toBe('needs-user-review')
+    expect(result.status).toBe('admitted')
     expect(result.cleanedCandidate).toEqual(expect.objectContaining({
       trainingEligibility: 'blocked',
     }))
-    expect(result.reviewReasons).toContain('weak-correction-cue')
+    expect(result.reviewReasons).toEqual([])
   })
 
   it('routes secret candidates to review', () => {

@@ -2,16 +2,21 @@ import type { AlicizationBridgeChatStreamEvent } from '@proj-alicization/stage-u
 
 import { readFileSync } from 'node:fs'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createAlicizationChatStreamLifecycle } from './alicization-chat-stream-bridge'
 import {
   createAlicizationChatStreamIngressDeduplicator,
   isAlicizationChatStreamAttemptForLogicalTurn,
   resolveAlicizationLogicalChatStreamTurnId,
+  scheduleAlicizationLateToolEventDisposal,
 } from './alicization-chat-stream-routing'
 
 describe('alicization chat stream routing', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('treats gateway retry attempts as one logical turn', () => {
     expect(isAlicizationChatStreamAttemptForLogicalTurn('turn-1', 'turn-1')).toBe(true)
     expect(isAlicizationChatStreamAttemptForLogicalTurn('turn-1', 'turn-1:gw1')).toBe(true)
@@ -56,6 +61,71 @@ describe('alicization chat stream routing', () => {
     expect(deduplicator.accept('eventa', 'tool-progress', { ...payload })).toBe(true)
   })
 
+  it('keeps the pending stream addressable until the late-tool grace period expires', () => {
+    vi.useFakeTimers()
+    const onDispose = vi.fn()
+    const handle = scheduleAlicizationLateToolEventDisposal({
+      delayMs: 5_000,
+      onDispose,
+    })
+
+    vi.advanceTimersByTime(4_999)
+    expect(onDispose).not.toHaveBeenCalled()
+
+    vi.advanceTimersByTime(1)
+    expect(onDispose).toHaveBeenCalledOnce()
+
+    handle.cancel()
+    expect(onDispose).toHaveBeenCalledOnce()
+  })
+
+  it('cancels pending stream disposal when the stream is retired early', () => {
+    vi.useFakeTimers()
+    const onDispose = vi.fn()
+    const handle = scheduleAlicizationLateToolEventDisposal({
+      delayMs: 5_000,
+      onDispose,
+    })
+
+    handle.cancel()
+    vi.advanceTimersByTime(5_000)
+
+    expect(onDispose).not.toHaveBeenCalled()
+  })
+
+  it('scopes eventId deduplication by card, turn, tool call, and executor thread identity', () => {
+    const deduplicator = createAlicizationChatStreamIngressDeduplicator({
+      getNow: () => 1_000,
+    })
+    const payload = {
+      cardId: 'card-a',
+      turnId: 'turn-a',
+      toolCallId: 'tool-a',
+      toolName: 'executor_run_codex',
+      phase: 'running',
+      elapsedMs: 120,
+      eventId: 'shared-event-id',
+      threadId: 'thread-a',
+    } as any
+
+    expect(deduplicator.accept('dispatch', 'tool-progress', payload)).toBe(true)
+    expect(deduplicator.accept('eventa', 'tool-progress', { ...payload })).toBe(false)
+
+    for (const identity of [
+      { cardId: 'card-b' },
+      { turnId: 'turn-b' },
+      { toolCallId: 'tool-b' },
+      { threadId: 'thread-b' },
+    ]) {
+      const scopedPayload = {
+        ...payload,
+        ...identity,
+      }
+      expect(deduplicator.accept('dispatch', 'tool-progress', scopedPayload)).toBe(true)
+      expect(deduplicator.accept('eventa', 'tool-progress', { ...scopedPayload })).toBe(false)
+    }
+  })
+
   it('does not suppress identity-less tool progress across ingress sources', () => {
     const deduplicator = createAlicizationChatStreamIngressDeduplicator({
       getNow: () => 1_000,
@@ -98,8 +168,21 @@ describe('alicization chat stream routing', () => {
     expect(appSource).toMatch(/retirePendingAlicizationStreamsForCard\(\s*previousCardId,/)
     expect(appSource).toContain('pending.lifecycle.rejectAfter([], settlementError)')
     expect(appSource).toContain('await pending.lifecycle.waitForIdle()')
+    expect(appSource).toContain('pending.dispose()')
     expect(appSource).toMatch(/if \(options\.abortSignal\?\.aborted\) \{\s*try \{\s*await requestAbort\('renderer-abort'\)\s*\}\s*catch \(abortError\) \{\s*lifecycle\.rejectAfter\(\[\], abortError\)/)
     expect(appSource).not.toMatch(/\b(?:previousPending|pending)\.reject\(/)
+  })
+
+  it('retains a resolved pending stream for a bounded late terminal-tool grace period', () => {
+    const appSource = readFileSync(new URL('./App.vue', import.meta.url), 'utf8')
+
+    expect(appSource).toContain('const alicizationLateToolEventGraceMs =')
+    expect(appSource).toContain('schedulePendingAlicizationStreamDisposal')
+    expect(appSource).toContain('scheduleAlicizationLateToolEventDisposal')
+    expect(appSource).toContain('resolve: resolveAndScheduleDispose')
+    expect(appSource).toMatch(/const resolveAndScheduleDispose = \(\) => \{\s*schedulePendingAlicizationStreamDisposal\(\)\s*resolve\(\)\s*\}/)
+    expect(appSource).toContain('lateToolEventCleanupTimer?.cancel()')
+    expect(appSource).toContain('lateToolEventCleanupTimer.cancel()')
   })
 
   it('retires every pending desktop stream through the lifecycle queue during unmount', () => {

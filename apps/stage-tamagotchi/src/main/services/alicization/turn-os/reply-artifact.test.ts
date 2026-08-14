@@ -56,11 +56,38 @@ function replyArtifactInput(
         finalCriticStatus: 'pass',
       },
     },
+    memoryEvidence: null,
     ...overrides,
   }
 }
 
 describe('runtime reply artifact', () => {
+  it('preserves Provider memory evidence as an internal durable sidecar', () => {
+    const artifact = createAlicizationRuntimeReplyArtifact(replyArtifactInput({
+      memoryEvidence: {
+        version: 'provider-memory-evidence-v1',
+        kind: 'preference',
+        summary: '用户更喜欢先说结论。',
+        reason: '用户明确提出了稳定的表达偏好。',
+        evidenceSnippets: ['请记住我更喜欢先说结论。'],
+        salience: 0.86,
+        sensitivity: 'personal',
+        confidence: 0.92,
+      },
+    }))
+
+    expect(artifact.memoryEvidence).toEqual({
+      version: 'provider-memory-evidence-v1',
+      kind: 'preference',
+      summary: '用户更喜欢先说结论。',
+      reason: '用户明确提出了稳定的表达偏好。',
+      evidenceSnippets: ['请记住我更喜欢先说结论。'],
+      salience: 0.86,
+      sensitivity: 'personal',
+      confidence: 0.92,
+    })
+  })
+
   it('preserves Provider fullText while hashing the complete committed artifact', () => {
     const artifact = createAlicizationRuntimeReplyArtifact(replyArtifactInput())
     const intent = createAlicizationRuntimeReplyDeliveryIntent(
