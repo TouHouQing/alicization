@@ -1,3 +1,5 @@
+import type { AlicizationTaskThreadRecord } from '@proj-alicization/stage-shared'
+
 import type { AlicizationChannelCapability, AlicizationExecutionChannel } from './claw-fabric'
 
 import { describe, expect, it, vi } from 'vitest'
@@ -34,6 +36,7 @@ describe('task-thread governor', () => {
         goal: 'Patch the runtime regression.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'codex',
         prefersPersistentSession: true,
       },
       capabilities: createCapabilities(['codex', 'claude-code', 'cli']),
@@ -74,6 +77,7 @@ describe('task-thread governor', () => {
         goal: 'Publish the current foreground draft.',
         origin: 'proactive',
         effect: 'mutate',
+        requestedChannel: 'software',
       },
       capabilities: createCapabilities(['software', 'desktop']),
     })
@@ -212,6 +216,7 @@ describe('task-thread governor', () => {
         goal: 'Fix the task-thread planner regressions.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'claude-code',
         prefersPersistentSession: true,
       },
       capabilities: createCapabilities(['codex', 'claude-code', 'cli']),
@@ -353,6 +358,7 @@ describe('task-thread governor', () => {
         goal: 'Run the local test suite.',
         origin: 'user',
         effect: 'mutate',
+        requestedChannel: 'cli',
       },
       capabilities: createCapabilities(['cli']),
     })
@@ -380,5 +386,38 @@ describe('task-thread governor', () => {
         status: 'planned',
       }),
     }))
+  })
+
+  it('rejects planning through the persistence helper when the requested thread id already exists', async () => {
+    const existingThread = {
+      id: 'thread-persist-existing',
+      status: 'completed',
+    } as AlicizationTaskThreadRecord
+    const upsertTaskThread = vi.fn()
+    const appendExecutionEvents = vi.fn()
+    const getTaskThread = vi.fn(async (id: string) => (
+      id === existingThread.id ? existingThread : undefined
+    ))
+
+    await expect(persistTaskThreadPlanningDraft({
+      getTaskThread,
+      upsertTaskThread,
+      appendExecutionEvents,
+    }, {
+      threadId: existingThread.id,
+      now: 1_710_000_000_123,
+      task: {
+        kind: 'run-command',
+        goal: 'Do not overwrite a completed task thread.',
+        origin: 'user',
+        effect: 'mutate',
+      },
+      capabilities: createCapabilities(['cli']),
+    })).rejects.toMatchObject({
+      code: 'TASK_THREAD_ALREADY_EXISTS',
+      threadId: existingThread.id,
+    })
+    expect(upsertTaskThread).not.toHaveBeenCalled()
+    expect(appendExecutionEvents).not.toHaveBeenCalled()
   })
 })

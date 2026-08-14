@@ -2015,6 +2015,58 @@ describe('main chat execution surface', () => {
     )
   })
 
+  it('keeps an accepted background executor result visibly non-terminal', async () => {
+    const emitToolExecutionProgress = vi.fn()
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-tool-accepted',
+        decisionTraceId: 'trace-tool-accepted',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(async () => ({
+        accepted: true,
+        ok: true,
+        stage: 'dispatch',
+        thread: {
+          id: 'thread-tool-accepted',
+          selectedChannel: 'codex',
+          status: 'planned',
+        },
+        plan: {
+          state: 'routed',
+        },
+        summary: 'accepted for background execution',
+        output: null,
+      })) as any,
+      emitToolExecutionProgress,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
+
+    const result = await codexTool.execute({
+      prompt: 'inspect the workspace in the background',
+    }, {
+      toolCallId: 'codex-accepted-1',
+    })
+
+    expect(result).toMatchObject({
+      status: 'accepted',
+      threadStatus: 'planned',
+      continuationPolicy: 'continue',
+    })
+    expect(emitToolExecutionProgress.mock.calls.map(([event]) => event.phase)).toEqual([
+      'started',
+      'running',
+    ])
+  })
+
   it('derives an executor budget signal from the main chat abort signal', async () => {
     const controller = new AbortController()
     let forwardedSignal: AbortSignal | undefined

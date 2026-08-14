@@ -610,6 +610,95 @@ describe('executor runtime executeMainGatewayTaskThread', () => {
       ]),
     )
   })
+
+  it('does not regress a newer completed thread when an older background dispatch rejects', async () => {
+    resetCapabilityProbeMocks()
+    const dbState = createDbState(createNeedsAffirmationThread())
+    const appendAuditLog = vi.fn(async () => {})
+    const dispatchTaskThread = vi.fn(async () => {
+      throw Object.assign(
+        new Error('background dispatch rejected after completion'),
+        {
+          code: 'TASK_THREAD_BACKGROUND_DISPATCH_FAILED',
+        },
+      )
+    })
+    dbState.appendExecutionEvents.mockImplementation(async (events: any[]) => {
+      if (!events.some(event => event.payload?.backgroundDispatch === true))
+        return
+      const currentThread = dbState.getCurrentThread()
+      await dbState.upsertTaskThread({
+        ...currentThread,
+        status: 'completed',
+        summary: 'newer owner completed the task',
+        updatedAt: currentThread.updatedAt + 1,
+        completedAt: currentThread.updatedAt + 1,
+      })
+    })
+    const runtime = createRuntime({
+      appendAuditLog,
+      dbState,
+      dispatchTaskThread,
+      localCapabilities: [{
+        channel: 'codex',
+        available: true,
+        enabled: true,
+        ready: true,
+        sessionAffinity: true,
+        reason: null,
+      }],
+    })
+
+    const accepted = await runtime.executeMainGatewayTaskThread({
+      context: {
+        cardId: 'default',
+        turnId: 'turn-background-late-rejection',
+        decisionTraceId: 'trace-background-late-rejection',
+        sessionId: 'session-background-late-rejection',
+        toolCallId: 'codex-background-late-rejection-call-1',
+      },
+      dispatchMode: 'background',
+      task: {
+        kind: 'codebase-investigation',
+        goal: 'Keep the newer completion authoritative.',
+        origin: 'user',
+        effect: 'observe',
+        permissionMode: 'implicit',
+        justification: 'grounded',
+        riskBudget: 'low',
+        requestedChannel: 'codex',
+        prefersPersistentSession: true,
+        requiresVisualGrounding: false,
+      },
+      dispatch: {
+        codex: {
+          prompt: 'Inspect the repository.',
+          sandbox: 'read-only',
+        },
+      },
+    } as any)
+
+    expect(accepted).toMatchObject({
+      accepted: true,
+      ok: true,
+    })
+    for (let attempt = 0; attempt < 50 && dbState.getCurrentThread().status !== 'completed'; attempt++)
+      await new Promise<void>(resolve => setTimeout(resolve, 0))
+
+    expect(dbState.getCurrentThread()).toMatchObject({
+      status: 'completed',
+      summary: 'newer owner completed the task',
+    })
+    expect(dbState.upsertTaskThread).not.toHaveBeenCalledWith(expect.objectContaining({
+      status: 'failed',
+    }))
+    expect(appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'dispatch-failed-already-settled',
+      payload: expect.objectContaining({
+        threadStatus: 'completed',
+      }),
+    }))
+  })
 })
 
 describe('executor runtime resumeMainGatewayTaskThread', () => {

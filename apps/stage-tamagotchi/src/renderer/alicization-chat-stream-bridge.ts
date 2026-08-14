@@ -34,11 +34,24 @@ interface AlicizationChatStreamLifecycleOptions {
   reject: (error: unknown) => void
 }
 
+function isTerminalToolProjectionEvent(event: AlicizationBridgeChatStreamEvent) {
+  if (event.type === 'tool-result')
+    return event.projection?.card.terminal === true
+  if (event.type !== 'tool-progress')
+    return false
+  return event.projection?.card.terminal === true
+    || event.phase === 'completed'
+    || event.phase === 'failed'
+    || event.phase === 'cancelled'
+    || event.phase === 'timeout'
+}
+
 export function createAlicizationChatStreamLifecycle(
   options: AlicizationChatStreamLifecycleOptions,
 ) {
   let queueTail = Promise.resolve()
   let firstDeliveryError: unknown
+  let firstToolDeliveryError: unknown
   let observedError: Extract<AlicizationBridgeChatStreamEvent, { type: 'error' }> | null = null
   let terminalScheduled = false
 
@@ -60,6 +73,7 @@ export function createAlicizationChatStreamLifecycle(
             // Projection and its audit path are both secondary to the
             // main-owned Provider/tool lifecycle.
           }
+          firstToolDeliveryError ??= error
           return
         }
         firstDeliveryError ??= error
@@ -72,14 +86,16 @@ export function createAlicizationChatStreamLifecycle(
     publish(event: AlicizationBridgeChatStreamEvent) {
       if (terminalScheduled)
         return
+      const suppressAfterObservedError = event.type === 'tool-call'
+        || (event.type === 'tool-progress'
+          && event.projection?.traceOnly !== true
+          && !isTerminalToolProjectionEvent(event))
+        || (event.type === 'tool-result' && !isTerminalToolProjectionEvent(event))
       if (
         observedError
         && event.type !== 'error'
         && event.type !== 'finish'
-        && (
-          event.type !== 'tool-progress'
-          || event.projection?.traceOnly !== true
-        )
+        && suppressAfterObservedError
       ) {
         return
       }
@@ -103,6 +119,10 @@ export function createAlicizationChatStreamLifecycle(
         }
         if (observedError) {
           options.reject(new Error(String(observedError.error || 'Alicization chat stream failed.')))
+          return
+        }
+        if (firstToolDeliveryError !== undefined) {
+          options.reject(firstToolDeliveryError)
           return
         }
         options.resolve()

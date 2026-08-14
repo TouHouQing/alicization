@@ -1163,7 +1163,9 @@ function resolveMainGatewayToolProgressPhase(
     return 'cancelled'
   if (status === 'timeout' || finalStatus === 'timeout' || /(?:^|_)timeout$/u.test(errorCode))
     return 'timeout'
-  if (status === 'completed' || status === 'accepted')
+  if (status === 'accepted')
+    return 'running'
+  if (status === 'completed')
     return 'completed'
   return 'failed'
 }

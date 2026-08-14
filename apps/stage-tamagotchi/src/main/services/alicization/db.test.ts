@@ -6,7 +6,15 @@ import { join } from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createEmptyWorkingMemorySnapshot } from './life-core/working-memory'
+import { createEmptyWorkingMemorySnapshot, normalizeWorkingMemoryTurn } from './life-core/working-memory'
+import { buildWorkingMemoryLongTermCandidateQueue } from './life-core/working-memory-long-term-queue'
+
+function explicitWorkingMemoryQueueEvidence() {
+  return {
+    version: 'working-memory-long-term-evidence-v1' as const,
+    source: 'explicit-structured-memory-evidence' as const,
+  }
+}
 
 function runtimeCheckpointProjection(activeActionIds: string[] = []) {
   return {
@@ -775,24 +783,38 @@ class FakeSqliteDatabase {
       const [id, decisionTraceId, turnId, sessionId, origin, goal, kind, status, selectedChannel, proposedChannel, summary, metadataJson, createdAt, updatedAt, lastEventAt, completedAt]
         = actualParams as [string, string | null, string | null, string | null, 'user-turn' | 'subconscious-proactive' | 'system', string, string, string, string | null, string | null, string | null, string | null, number, number, number | null, number | null]
       const existing = taskThreads.get(id)
-      taskThreads.set(id, {
-        id,
-        decision_trace_id: decisionTraceId ?? null,
-        turn_id: turnId ?? null,
-        session_id: sessionId ?? null,
-        origin,
-        goal,
-        kind,
-        status,
-        selected_channel: selectedChannel ?? null,
-        proposed_channel: proposedChannel ?? null,
-        summary: summary ?? null,
-        metadata_json: metadataJson ?? null,
-        created_at: existing?.created_at ?? createdAt,
-        updated_at: updatedAt,
-        last_event_at: lastEventAt ?? null,
-        completed_at: completedAt ?? existing?.completed_at ?? null,
-      })
+      const expectedUpdatedAt = actualParams.length > 16
+        ? actualParams[16] as number | null
+        : null
+      const createOnly = sql.includes('ON CONFLICT(id) DO NOTHING')
+      if (existing && createOnly) {
+        changes = 0
+      }
+      else if (existing && expectedUpdatedAt !== null && existing.updated_at !== expectedUpdatedAt) {
+        changes = 0
+      }
+      else {
+        taskThreads.set(id, {
+          id,
+          decision_trace_id: decisionTraceId ?? null,
+          turn_id: turnId ?? null,
+          session_id: sessionId ?? null,
+          origin,
+          goal,
+          kind,
+          status,
+          selected_channel: selectedChannel ?? null,
+          proposed_channel: proposedChannel ?? null,
+          summary: summary ?? null,
+          metadata_json: metadataJson ?? null,
+          created_at: existing?.created_at ?? createdAt,
+          updated_at: existing
+            ? Math.max(updatedAt, existing.updated_at + 1)
+            : updatedAt,
+          last_event_at: lastEventAt ?? null,
+          completed_at: completedAt ?? existing?.completed_at ?? null,
+        })
+      }
     }
 
     if (sql.includes('INTO executor_events')) {
@@ -1455,6 +1477,14 @@ class FakeSqliteDatabase {
       return this
     }
 
+    if (sql.includes('FROM learning_tasks') && sql.includes('card_id = ?') && sql.includes('task_id = ?') && sql.includes('LIMIT 1')) {
+      const [cardId, taskId] = actualParams as [string, string]
+      const row = [...learningTasks.values()]
+        .find(item => item.card_id === cardId && item.task_id === taskId)
+      actualCallback?.(null, row)
+      return this
+    }
+
     actualCallback?.(null, undefined)
     return this
   }
@@ -1480,25 +1510,47 @@ class FakeSqliteDatabase {
       return this
     }
     if (_sql.includes('FROM working_memory_long_term_transactions')) {
+      let parameterIndex = 0
+      const cardIdParam = _sql.includes('card_id = ?')
+        ? String(actualParams[parameterIndex++] ?? '')
+        : ''
+      const sessionIdParam = _sql.includes('session_id = ?')
+        ? String(actualParams[parameterIndex++] ?? '')
+        : ''
+      const queueItemPlaceholderMatch = _sql.match(/queue_item_id IN \(([^)]+)\)/)
+      const queueItemIdCount = queueItemPlaceholderMatch
+        ? (queueItemPlaceholderMatch[1]?.match(/\?/g) ?? []).length
+        : 0
+      const queueItemIds = new Set(
+        actualParams
+          .slice(parameterIndex, parameterIndex + queueItemIdCount)
+          .map(value => String(value ?? '')),
+      )
+      parameterIndex += queueItemIdCount
+      const dueAt = _sql.includes('COALESCE(next_attempt_at, created_at) <= ?')
+        ? Number(actualParams[parameterIndex] ?? 0)
+        : null
+      const limit = _sql.includes('LIMIT ?')
+        ? Number(actualParams.at(-1) ?? 256)
+        : 256
       const rows = [...workingMemoryLongTermTransactions.values()]
         .filter((item) => {
           if (_sql.includes(`status IN ('pending-cleaning', 'admitted')`) && item.status !== 'pending-cleaning' && item.status !== 'admitted')
             return false
           if (_sql.includes(`status = 'needs-user-review'`) && item.status !== 'needs-user-review')
             return false
-          if (_sql.includes('card_id = ?')) {
-            const cardIdParam = String(actualParams[0] ?? '')
-            if (cardIdParam && item.card_id !== cardIdParam)
-              return false
-          }
-          if (_sql.includes('COALESCE(next_attempt_at, created_at) <= ?')) {
-            const dueAt = Number(actualParams[0] ?? 0)
-            return (item.next_attempt_at ?? item.created_at) <= dueAt
-          }
+          if (cardIdParam && item.card_id !== cardIdParam)
+            return false
+          if (sessionIdParam && item.session_id !== sessionIdParam)
+            return false
+          if (queueItemIds.size > 0 && !queueItemIds.has(item.queue_item_id))
+            return false
+          if (dueAt != null && (item.next_attempt_at ?? item.created_at) > dueAt)
+            return false
           return true
         })
         .sort((a, b) => a.created_at - b.created_at)
-        .slice(0, Number(actualParams.at(-1) ?? 256))
+        .slice(0, limit)
       actualCallback?.(null, rows)
       return this
     }
@@ -3252,7 +3304,6 @@ describe('alicization sqlite dao', () => {
         mode: 'relationship-history',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: true,
         searchProceduralExperience: false,
         queryHints: ['runtime continuity', 'robotic', 'directness'],
         rationale: 'The host corrected which remembered reply style fits this same thread.',
@@ -3270,7 +3321,6 @@ describe('alicization sqlite dao', () => {
         mode: 'experience-pattern',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: true,
         searchProceduralExperience: true,
         queryHints: ['runtime continuity', 'continue', 'direct', 'lived-in', 'host correction'],
         rationale: 'Recall the remembered way this same thread should now be answered.',
@@ -3334,7 +3384,6 @@ describe('alicization sqlite dao', () => {
         mode: 'relationship-history',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: true,
         searchProceduralExperience: true,
         queryHints: ['execution callback', 'continuity state', '同一个她'],
         rationale: 'The same thread should now be answered with the richer identity-continuity',
@@ -3411,7 +3460,6 @@ describe('alicization sqlite dao', () => {
         mode: 'experience-pattern',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime seam', 'carry into next session'],
         rationale: 'A cross-session afterglow on the same seam should stay easier to recall.',
@@ -3485,7 +3533,6 @@ describe('alicization sqlite dao', () => {
         mode: 'experience-pattern',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['return before branching', 'runtime seam'],
         rationale: 'The host is asking to reconnect the same task line.',
@@ -3535,7 +3582,6 @@ describe('alicization sqlite dao', () => {
         mode: 'experience-pattern',
         temporalFocus: 'distant',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['return before branching', 'runtime seam'],
         rationale: 'A very old but semantically matching seam should still be reachable.',
@@ -3635,7 +3681,6 @@ describe('alicization sqlite dao', () => {
         mode: 'experience-pattern',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime continuity', 'return before branching'],
         rationale: 'The dominant continuity seam should win even in a noisy cluster.',
@@ -3682,7 +3727,6 @@ describe('alicization sqlite dao', () => {
         mode: 'conversation-history',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
-        searchConversations: true,
         searchProceduralExperience: false,
         queryHints: ['runtime continuity', 'proactive closure'],
         rationale: 'Need long-range gist.',
@@ -3742,7 +3786,6 @@ describe('alicization sqlite dao', () => {
         mode: 'relationship-history',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
-        searchConversations: true,
         searchProceduralExperience: false,
         queryHints: ['runtime repair', 'close without crowding'],
         rationale: 'Need the bond-era memory first.',
@@ -4061,6 +4104,7 @@ describe('alicization sqlite dao', () => {
       items: [{
         id: 'queue-correction-1',
         source: 'working-memory-owner',
+        memoryEvidence: explicitWorkingMemoryQueueEvidence(),
         kind: 'correction',
         summary: '不要固定模板回复，要数字生命自身人格。',
         reason: 'candidate:correction',
@@ -4115,6 +4159,183 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('drains only the requested WorkingMemory queue items within their card and session scope', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const queueItem = (
+      id: string,
+      summary: string,
+      sourceTurnId: string,
+      createdAt: number,
+    ) => ({
+      id,
+      source: 'working-memory-owner' as const,
+      memoryEvidence: explicitWorkingMemoryQueueEvidence(),
+      kind: 'correction' as const,
+      summary,
+      reason: 'candidate:correction',
+      sourceTurnIds: [sourceTurnId],
+      evidenceSnippets: [summary],
+      salience: 0.8,
+      confidence: 0.86,
+      sensitivity: 'personal' as const,
+      allowTraining: false,
+      status: 'pending-cleaning' as const,
+      rejectionReasons: [],
+      contaminationFlags: [],
+      createdAt,
+    })
+
+    await db.enqueueWorkingMemoryLongTermQueueItems({
+      cardId: 'default',
+      sessionId: 'session-older',
+      items: [
+        queueItem(
+          'queue-older-session',
+          '不要处理旧会话候选，它不属于当前 turn。',
+          'turn-older:user',
+          1_000,
+        ),
+      ],
+    })
+    await db.enqueueWorkingMemoryLongTermQueueItems({
+      cardId: 'default',
+      sessionId: 'session-current',
+      items: [
+        queueItem(
+          'queue-current-session-unrequested',
+          '不要顺带处理当前会话中未被本轮指定的候选。',
+          'turn-current-older:user',
+          1_500,
+        ),
+        queueItem(
+          'queue-current-session',
+          '不要遗漏当前会话候选，它应由本轮准确结算。',
+          'turn-current:user',
+          2_000,
+        ),
+      ],
+    })
+
+    const result = await db.drainWorkingMemoryLongTermQueueScoped({
+      cardId: 'default',
+      sessionId: 'session-current',
+      queueItemIds: ['queue-current-session'],
+    })
+
+    expect(result).toMatchObject({
+      cleaned: 1,
+      applied: 1,
+      failed: 0,
+      pending: 0,
+      settlements: [{
+        queueItemId: 'queue-current-session',
+        status: 'applied',
+        errorSummary: null,
+      }],
+    })
+    expect([...workingMemoryLongTermTransactions.values()]).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        queue_item_id: 'queue-older-session',
+        session_id: 'session-older',
+        status: 'pending-cleaning',
+      }),
+      expect.objectContaining({
+        queue_item_id: 'queue-current-session',
+        session_id: 'session-current',
+        status: 'applied',
+      }),
+      expect.objectContaining({
+        queue_item_id: 'queue-current-session-unrequested',
+        session_id: 'session-current',
+        status: 'pending-cleaning',
+      }),
+    ]))
+
+    await db.close()
+  })
+
+  it('settles a canonical WorkingMemory queue id from long candidate input without reporting missing', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const sourceTurnIds = Array.from(
+      { length: 12 },
+      (_, index) => `turn-long-source-${index}-${'s'.repeat(72)}`,
+    )
+    const snapshot = createEmptyWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: `session-long-${'x'.repeat(220)}`,
+      now: 3_000,
+    })
+    snapshot.recentRawTurns = sourceTurnIds.map((turnId, index) =>
+      normalizeWorkingMemoryTurn({
+        turnId,
+        role: 'user',
+        text: `不要遗漏这条长期候选证据 ${index}。`,
+        createdAt: 2_000 + index,
+        source: 'conversation-turn',
+        visibility: 'user-visible',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
+        importance: 1,
+      }),
+    )
+    snapshot.longTermCandidates = [{
+      sourceTurnIds,
+      kind: 'correction',
+      summary: `不要截断长期候选的 canonical queue id，${'摘要'.repeat(100)}`,
+      reason: 'candidate:correction',
+      evidenceSnippets: ['Reviewed canonical queue identity evidence.'],
+      salience: 0.9,
+      sensitivity: 'personal',
+      confidence: 0.9,
+      allowTraining: false,
+      memoryEvidence: {
+        version: 'working-memory-long-term-evidence-v1',
+        source: 'explicit-structured-memory-evidence',
+        kind: 'correction',
+        summary: `不要截断长期候选的 canonical queue id，${'摘要'.repeat(100)}`,
+        reason: 'candidate:correction',
+        evidenceSnippets: ['Reviewed canonical queue identity evidence.'],
+        salience: 0.9,
+        sensitivity: 'personal',
+        confidence: 0.9,
+      },
+    }]
+    const queue = buildWorkingMemoryLongTermCandidateQueue(snapshot)
+    const queueItem = queue[0]!
+
+    expect(queueItem.id.length).toBeLessThan(240)
+    await db.enqueueWorkingMemoryLongTermQueueItems({
+      cardId: snapshot.cardId,
+      sessionId: snapshot.sessionId,
+      items: queue,
+    })
+    const result = await db.drainWorkingMemoryLongTermQueueScoped({
+      cardId: snapshot.cardId,
+      sessionId: snapshot.sessionId,
+      queueItemIds: [queueItem.id],
+    })
+
+    expect(result.settlements).toEqual([
+      expect.objectContaining({
+        queueItemId: queueItem.id,
+        transactionId: expect.any(String),
+      }),
+    ])
+    expect(result.settlements[0]?.status).not.toBe('missing')
+    expect([...workingMemoryLongTermTransactions.values()]).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        queue_item_id: queueItem.id,
+        session_id: snapshot.sessionId,
+      }),
+    ]))
+
+    await db.close()
+  })
+
   it('drains WorkingMemory long-term preference episode procedure and relationship candidates into durable stores', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
 
@@ -4125,6 +4346,7 @@ describe('alicization sqlite dao', () => {
         {
           id: 'queue-preference-1',
           source: 'working-memory-owner',
+          memoryEvidence: explicitWorkingMemoryQueueEvidence(),
           kind: 'preference',
           summary: '用户明确喜欢回复先说结论，再给必要细节。',
           reason: 'candidate:preference',
@@ -4142,6 +4364,7 @@ describe('alicization sqlite dao', () => {
         {
           id: 'queue-episode-1',
           source: 'working-memory-owner',
+          memoryEvidence: explicitWorkingMemoryQueueEvidence(),
           kind: 'episode',
           summary: '上周我们一起玩过 Minecraft，用户说下次还想继续联机探索。',
           reason: 'Shared episode with time and activity anchor.',
@@ -4159,6 +4382,7 @@ describe('alicization sqlite dao', () => {
         {
           id: 'queue-procedure-1',
           source: 'working-memory-owner',
+          memoryEvidence: explicitWorkingMemoryQueueEvidence(),
           kind: 'procedure',
           summary: '用户认可长期记忆开发按红测、实现、验证的方式推进。',
           reason: 'candidate:procedure',
@@ -4176,6 +4400,7 @@ describe('alicization sqlite dao', () => {
         {
           id: 'queue-relationship-1',
           source: 'working-memory-owner',
+          memoryEvidence: explicitWorkingMemoryQueueEvidence(),
           kind: 'relationship',
           summary: '用户希望出错或超时时直接说明问题，不要固定安抚模板。',
           reason: 'Relationship boundary for failure transparency.',
@@ -4247,6 +4472,7 @@ describe('alicization sqlite dao', () => {
       items: [{
         id: 'queue-private-preference',
         source: 'working-memory-owner',
+        memoryEvidence: explicitWorkingMemoryQueueEvidence(),
         kind: 'preference',
         summary: '用户明确喜欢回复先说结论，再给必要细节。',
         reason: 'candidate:preference',
@@ -4305,6 +4531,7 @@ describe('alicization sqlite dao', () => {
       items: [{
         id: 'queue-private-relationship',
         source: 'working-memory-owner',
+        memoryEvidence: explicitWorkingMemoryQueueEvidence(),
         kind: 'relationship',
         summary: '用户希望某个私人关系边界只在内在记忆治理中使用。',
         reason: 'private relationship boundary',
@@ -4405,6 +4632,7 @@ describe('alicization sqlite dao', () => {
 
     const gameBundle = await db.retrieveLongTermMemoryEvidence({
       cardId: 'default',
+      userId: 'user-real',
       currentUserText: '我们去打游戏吧',
       workingMemoryQueryHints: ['游戏'],
       limit: 4,
@@ -4416,6 +4644,10 @@ describe('alicization sqlite dao', () => {
           id: 'episode-game-last-week',
           source: 'episodic_events',
         }),
+        scope: {
+          userId: 'user-real',
+          cardId: 'default',
+        },
       }),
     ]))
 
@@ -4493,6 +4725,7 @@ describe('alicization sqlite dao', () => {
       items: [{
         id: 'queue-private-boundary',
         source: 'working-memory-owner',
+        memoryEvidence: explicitWorkingMemoryQueueEvidence(),
         kind: 'relationship',
         summary: '用户把某个私人边界设为只内在使用。',
         reason: 'private relationship boundary',
@@ -4635,7 +4868,6 @@ describe('alicization sqlite dao', () => {
         mode: 'experience-pattern',
         temporalFocus: 'distant',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime continuity', 'return before branching'],
         rationale: 'Delayed reconstructed continuity should still be reachable while ingest is degraded.',
@@ -4919,6 +5151,69 @@ describe('alicization sqlite dao', () => {
       structuredJson: JSON.stringify({ phase: 'updated' }),
       createdAt: 200,
     })
+    await db.close()
+  })
+
+  it('returns the latest limited conversation window in chronological order', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    })
+
+    for (let index = 1; index <= 8; index += 1) {
+      await db.appendConversationTurn({
+        turnId: `turn-window-${index}`,
+        sessionId: 'session-latest-window',
+        userText: `user-${index}`,
+        assistantText: `assistant-${index}`,
+        createdAt: index * 100,
+      })
+    }
+
+    const turns = await db.listConversationTurnsBySession(
+      'session-latest-window',
+      { limit: 3 },
+    )
+
+    expect(turns.map(turn => turn.turnId)).toEqual([
+      'turn-window-6',
+      'turn-window-7',
+      'turn-window-8',
+    ])
+    await db.close()
+  })
+
+  it('keeps conversation history available by session for WorkingMemory hydration', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    })
+    const rawUserText = 'RAW_DB_CROSS_SESSION_USER_SECRET'
+    const rawAssistantText = 'RAW_DB_CROSS_SESSION_ASSISTANT_SECRET'
+
+    await db.appendConversationTurn({
+      turnId: 'turn-cross-session-source',
+      sessionId: 'session-cross-session-source',
+      userText: rawUserText,
+      assistantText: rawAssistantText,
+      createdAt: 100,
+    })
+    await db.appendConversationTurn({
+      turnId: 'turn-current-session',
+      sessionId: 'session-current',
+      userText: 'current session text',
+      assistantText: 'current session reply',
+      createdAt: 200,
+    })
+
+    const visibleHistory = await db.listConversationTurnsBySession(
+      'session-cross-session-source',
+    )
+    expect(visibleHistory).toEqual([
+      expect.objectContaining({
+        turnId: 'turn-cross-session-source',
+        userText: rawUserText,
+        assistantText: rawAssistantText,
+      }),
+    ])
     await db.close()
   })
 
@@ -5276,6 +5571,134 @@ describe('alicization sqlite dao', () => {
     }))
     expect(events.map(item => item.kind)).toEqual(['dispatch', 'result'])
     expect(events[1]?.threadStatus).toBe('completed')
+    await db.close()
+  })
+
+  it('rejects a stale task-thread upsert without regressing a newer terminal projection', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    mindTurnEvents.length = 0
+    taskThreads.clear()
+    executionEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertTaskThread({
+      id: 'thread-task-cas',
+      goal: 'Preserve the newest task-thread owner.',
+      kind: 'codebase-investigation',
+      status: 'running',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      createdAt: 100,
+      updatedAt: 100,
+    })
+
+    await db.appendExecutionEvents([{
+      id: 'thread-task-cas:completed',
+      threadId: 'thread-task-cas',
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'completed',
+      payload: {
+        summary: 'completed by the current owner',
+      },
+      createdAt: 200,
+    }])
+
+    await expect(db.upsertTaskThread({
+      id: 'thread-task-cas',
+      goal: 'Preserve the newest task-thread owner.',
+      kind: 'codebase-investigation',
+      status: 'failed',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      createdAt: 100,
+      updatedAt: 300,
+      expectedUpdatedAt: 100,
+      summary: 'stale dispatcher result',
+      completedAt: 300,
+    })).rejects.toMatchObject({
+      code: 'TASK_THREAD_VERSION_CONFLICT',
+    })
+
+    const thread = await db.getTaskThread('thread-task-cas')
+    expect(thread).toEqual(expect.objectContaining({
+      status: 'completed',
+      updatedAt: 200,
+      completedAt: 200,
+      summary: null,
+    }))
+    await db.close()
+  })
+
+  it('atomically creates explicit task threads and rejects same-millisecond stale owners', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    mindTurnEvents.length = 0
+    taskThreads.clear()
+    executionEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const base = {
+      id: 'thread-task-atomic-create',
+      goal: 'Allow only one planner to own this explicit thread id.',
+      kind: 'codebase-investigation' as const,
+      status: 'running' as const,
+      selectedChannel: 'codex' as const,
+      proposedChannel: 'codex' as const,
+      createdAt: 100,
+      updatedAt: 100,
+    }
+
+    const created = await db.upsertTaskThread({
+      ...base,
+      createOnly: true,
+    })
+    expect(created.updatedAt).toBe(100)
+
+    await expect(db.upsertTaskThread({
+      ...base,
+      status: 'completed',
+      updatedAt: 100,
+      createOnly: true,
+    })).rejects.toMatchObject({
+      code: 'TASK_THREAD_ALREADY_EXISTS',
+    })
+
+    const sameRevisionWrites = await Promise.allSettled([
+      db.upsertTaskThread({
+        ...base,
+        status: 'completed',
+        updatedAt: 100,
+        expectedUpdatedAt: 100,
+        summary: 'first terminal owner',
+      }),
+      db.upsertTaskThread({
+        ...base,
+        status: 'failed',
+        updatedAt: 100,
+        expectedUpdatedAt: 100,
+        summary: 'second terminal owner',
+      }),
+    ])
+    expect(sameRevisionWrites.filter(result => result.status === 'fulfilled')).toHaveLength(1)
+    expect(sameRevisionWrites.filter(result => result.status === 'rejected')).toHaveLength(1)
+
+    const persisted = await db.getTaskThread(base.id)
+    expect(persisted?.updatedAt).toBe(101)
+    expect(['completed', 'failed']).toContain(persisted?.status)
+
+    await expect(db.upsertTaskThread({
+      ...base,
+      id: 'thread-task-cas-missing',
+      expectedUpdatedAt: 100,
+      updatedAt: 101,
+    })).rejects.toMatchObject({
+      code: 'TASK_THREAD_VERSION_CONFLICT',
+    })
+    expect(await db.getTaskThread('thread-task-cas-missing')).toBeUndefined()
     await db.close()
   })
 
@@ -5895,6 +6318,94 @@ describe('alicization sqlite dao', () => {
       lastCompletedTaskId: 'learning-task-1',
       lastCompletedSummary: 'verification finished',
     }))
+    await db.close()
+  })
+
+  it('skips learning task insert when the turn write signal is aborted', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    learningTasks.clear()
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const controller = new AbortController()
+    controller.abort(new DOMException('Turn was suspended', 'AbortError'))
+
+    await expect(db.insertLearningTask({
+      cardId: 'default',
+      taskId: 'learning:default:internalize:aborted-turn',
+      triggerAt: 1_000,
+      action: 'internalize',
+      message: 'learning-action=internalize',
+      payload: {
+        sourceTurnId: 'turn-aborted-learning-write',
+        decisionTraceId: 'trace-aborted-learning-write',
+        sourceSessionId: 'session-aborted-learning-write',
+        action: 'internalize',
+        reason: 'validated learning',
+        focuses: ['validated-learning'],
+        dominantTrajectory: 'Validated learning',
+        sourceSignals: ['validated-outcome'],
+        learningReadiness: 0.8,
+        contradictionPressure: 0.1,
+        revisionPressure: 0.1,
+        autobiographicalStability: 0.9,
+        supportingFactIds: [],
+        supportingReflectionIds: [],
+        supportingOutcomeIds: [],
+        supersedeTargets: [],
+        conflictTargets: [],
+      },
+    }, {
+      signal: controller.signal,
+    })).rejects.toMatchObject({ name: 'AbortError' })
+
+    expect(learningTasks.has('learning:default:internalize:aborted-turn')).toBe(false)
+    expect(runCalls.some(sql => sql.includes('INSERT INTO learning_tasks'))).toBe(false)
+    await db.close()
+  })
+
+  it('returns the existing learning task when the same replay identity is inserted twice', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    learningTasks.clear()
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const input = {
+      cardId: 'default',
+      taskId: 'learning:default:internalize:stable-replay',
+      triggerAt: 1_000,
+      action: 'internalize' as const,
+      message: 'learning-action=internalize',
+      payload: {
+        sourceTurnId: 'turn-stable-replay',
+        decisionTraceId: 'trace-stable-replay',
+        sourceSessionId: 'session-stable-replay',
+        action: 'internalize' as const,
+        reason: 'stable replay',
+        focuses: ['stable-replay'],
+        dominantTrajectory: 'Stable replay',
+        sourceSignals: ['Stable replay'],
+        learningReadiness: 0.8,
+        contradictionPressure: 0.1,
+        revisionPressure: 0.2,
+        autobiographicalStability: 0.9,
+        supportingFactIds: [],
+        supportingReflectionIds: [],
+        supportingOutcomeIds: [],
+        supersedeTargets: [],
+        conflictTargets: [],
+      },
+    }
+
+    const first = await db.insertLearningTask(input)
+    const replay = await db.insertLearningTask({
+      ...input,
+      triggerAt: 9_000,
+    })
+
+    expect(replay.id).toBe(first.id)
+    expect(replay.triggerAt).toBe(first.triggerAt)
+    expect(learningTasks.size).toBe(1)
     await db.close()
   })
 })

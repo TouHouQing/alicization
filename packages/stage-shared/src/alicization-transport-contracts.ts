@@ -14,6 +14,7 @@ import type {
   AlicizationVisibleArtifactLearningPolicy,
   AlicizationVisibleArtifactOrigin,
 } from './alicization-provider-response'
+import type { AlicizationRuntimeToolProjectionUpdate } from './alicization-runtime-projection'
 
 import { normalizeAlicizationDialogueSpeechTimeline } from './alicization-dialogue-speech-timeline'
 import { normalizeAlicizationDigitalLifeEnvelope } from './alicization-digital-life'
@@ -485,7 +486,6 @@ export interface AlicizationMemoryRecollectionIntentSnapshot {
   mode: AlicizationMemoryRecollectionMode
   temporalFocus: AlicizationMemoryRecollectionTemporalFocus
   searchEpisodes: boolean
-  searchConversations: boolean
   searchProceduralExperience: boolean
   queryHints: string[]
   rationale: string
@@ -497,7 +497,6 @@ export type AlicizationRecollectionSearchFocus
   = 'era'
     | 'procedure'
     | 'relationship-line'
-    | 'conversation-turn'
     | 'episode'
 
 export type AlicizationRecollectionSearchAction
@@ -505,7 +504,6 @@ export type AlicizationRecollectionSearchAction
     | 'expand-era'
     | 'expand-procedure'
     | 'expand-relationship-line'
-    | 'expand-conversation'
     | 'narrow-to-stable-core'
 
 export type AlicizationRecollectionEvidenceGap
@@ -514,7 +512,6 @@ export type AlicizationRecollectionEvidenceGap
     | 'need-episode-detail'
     | 'need-procedure-detail'
     | 'need-relationship-meaning'
-    | 'need-conversation-evidence'
     | 'need-disambiguation'
 
 export type AlicizationRecollectionAmbiguityPosture = 'settled' | 'approximate' | 'ambiguous'
@@ -561,7 +558,6 @@ export interface AlicizationRecollectionPlan {
   selectedWindowIds: string[]
   selectedProceduralIds: string[]
   selectedEpisodeIds: string[]
-  selectedConversationTurnIds: string[]
   selectedRelationshipLines?: string[]
   searchTrace?: AlicizationRecollectionSearchTrace | null
   opening: string
@@ -621,7 +617,6 @@ export interface AlicizationMemoryDeliberationSelectedBundle {
   periodId?: string | null
   episodeId?: string | null
   procedureId?: string | null
-  conversationTurnId?: string | null
   relationshipLine?: string | null
 }
 
@@ -660,7 +655,6 @@ export interface AlicizationMemoryDeliberation {
   selectedWindowIds: string[]
   selectedProcedureIds: string[]
   selectedEpisodeIds: string[]
-  selectedConversationTurnIds: string[]
   selectedRelationshipLines: string[]
   ambiguityPosture?: AlicizationRecollectionAmbiguityPosture
   searchTrace?: AlicizationRecollectionSearchTrace | null
@@ -928,6 +922,16 @@ export interface AlicizationTaskThreadUpsertInput {
   metadata?: Record<string, unknown> | null
   createdAt?: number
   updatedAt?: number
+  /**
+   * Optional optimistic-concurrency fence for updates to an existing task thread.
+   * When present, the write is accepted only if the stored updatedAt still matches.
+   */
+  expectedUpdatedAt?: number | null
+  /**
+   * Create the task thread only when its id is absent. Existing rows are never
+   * overwritten when this flag is set.
+   */
+  createOnly?: boolean
   lastEventAt?: number | null
   completedAt?: number | null
 }
@@ -5675,6 +5679,12 @@ export type AlicizationBridgeChatStreamEvent
     failureSurface?: AlicizationChatFailureSurface | null
   }
   | {
+    type: 'provider-progress'
+    phase: 'reasoning' | 'tool-input'
+    toolCallId?: string
+    toolName?: string
+  }
+  | {
     type: 'meta'
     governance: AlicizationMindTurnGovernance | null
     embodiment?: AlicizationDialogueEmbodimentEnvelope | null
@@ -5684,8 +5694,46 @@ export type AlicizationBridgeChatStreamEvent
     digitalLifeSpine?: AlicizationDigitalLifeSpineDigest | null
     runtimeDigest?: AlicizationRuntimeDigest | null
   }
-  | { type: 'tool-call', toolCallId: string, toolName: string, args: string, toolCallType: 'function' }
-  | { type: 'tool-result', toolCallId: string, result?: unknown }
+  | {
+    type: 'tool-call'
+    toolCallId: string
+    toolName: string
+    selectedChannel?: AlicizationExecutionChannel | null
+    projection?: AlicizationRuntimeToolProjectionUpdate
+    args: string
+    toolCallType: 'function'
+  }
+  | {
+    type: 'tool-result'
+    toolCallId: string
+    toolName?: string
+    selectedChannel?: AlicizationExecutionChannel | null
+    projection?: AlicizationRuntimeToolProjectionUpdate
+    result?: unknown
+  }
+  | {
+    type: 'tool-progress'
+    toolCallId: string
+    toolName: string
+    selectedChannel?: AlicizationExecutionChannel | null
+    projection?: AlicizationRuntimeToolProjectionUpdate
+    signal?: 'liveness' | 'semantic-progress' | 'terminal'
+    phase: 'started' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout'
+    elapsedMs: number
+    timeoutMs?: number
+    errorCode?: string
+    errorMessage?: string
+    occurredAt?: number
+    eventId?: string
+    threadId?: string
+    adapterEventType?: string
+    itemType?: string
+    summary?: string
+    command?: string
+    commandStatus?: string
+    commandExitCode?: number
+    outputPreview?: string
+  }
   | {
     type: 'finish'
     origin?: AlicizationVisibleArtifactOrigin

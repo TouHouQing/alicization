@@ -128,6 +128,55 @@ function createPort(input?: {
 }
 
 describe('task execution governor', () => {
+  it('does not reuse an explicitly supplied task-thread id after the thread already exists', async () => {
+    const governor = createTaskExecutionGovernor({
+      getNow: () => 300,
+    })
+    const existingThread = createThread({
+      status: 'completed',
+      updatedAt: 240,
+      lastEventAt: 240,
+      completedAt: 240,
+    })
+    const basePort = createPort({
+      taskThreads: [existingThread],
+    })
+    const port = {
+      ...basePort,
+      getTaskThread: vi.fn(async (id: string) => (
+        id === existingThread.id ? existingThread : undefined
+      )),
+    }
+
+    const result = await governor.plan(port, {
+      threadId: existingThread.id,
+      now: 300,
+      trace: {
+        decisionTraceId: 'mind:trace:governor-cas',
+        turnId: 'turn-governor-cas',
+        sessionId: 'session-governor-cas',
+        origin: 'user-turn',
+      },
+      task: {
+        kind: 'codebase-edit',
+        goal: 'Do not overwrite the completed task thread.',
+        origin: 'user',
+        effect: 'mutate',
+      },
+      capabilities: createCapabilities(['codex']),
+    })
+
+    expect(result.thread).toEqual(existingThread)
+    expect(result.governor).toMatchObject({
+      disposition: 'duplicate',
+      duplicateThreadId: existingThread.id,
+      duplicateStatus: 'completed',
+      reasonCodes: ['explicit-thread-id-already-exists'],
+    })
+    expect(basePort.upsertTaskThread).not.toHaveBeenCalled()
+    expect(basePort.appendExecutionEvents).not.toHaveBeenCalled()
+  })
+
   it('dedupes an active task thread instead of persisting a duplicate plan', async () => {
     const governor = createTaskExecutionGovernor({
       getNow: () => 160,

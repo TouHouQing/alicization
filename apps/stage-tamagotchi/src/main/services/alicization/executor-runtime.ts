@@ -101,6 +101,12 @@ function resolveAbortMessage(signal: AbortSignal, fallback: string) {
   return errorMessageFrom(reason) || fallback
 }
 
+function isTaskThreadVersionConflict(error: unknown) {
+  if (!error || typeof error !== 'object')
+    return false
+  return String((error as { code?: unknown }).code ?? '').toUpperCase() === 'TASK_THREAD_VERSION_CONFLICT'
+}
+
 function withResultDeliveryMode<
   Command extends { runtimeContext?: AlicizationExecutionRuntimeContext | null },
 >(
@@ -691,12 +697,32 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     await db.appendExecutionEvents([failureEvent]).catch((error) => {
       eventPersistenceError = errorMessageFrom(error) ?? 'execution-event-persistence-failed'
     })
+    const failedThreadBase = await db.getTaskThread(currentThread.id).catch(() => undefined)
+      ?? currentThread
+    if (terminalTaskThreadStatuses.has(failedThreadBase.status)) {
+      await options.appendAuditLog({
+        level: 'notice',
+        category: 'alicization.executor.background-dispatch',
+        action: `${input.action}-already-settled`,
+        message: 'Ignored a late background dispatch rejection because a newer terminal state was persisted.',
+        payload: {
+          threadId: failedThreadBase.id,
+          selectedChannel: failedThreadBase.selectedChannel ?? input.selectedChannel,
+          threadStatus: failedThreadBase.status,
+          errorCode,
+          errorMessage,
+          eventPersistenceError,
+        },
+      }).catch(() => {})
+      return
+    }
     let threadPersistenceError: string | null = null
     await db.upsertTaskThread({
-      ...currentThread,
+      ...failedThreadBase,
       status: 'failed',
       summary,
-      updatedAt: Math.max(currentThread.updatedAt, failedAt),
+      updatedAt: Math.max(failedThreadBase.updatedAt, failedAt),
+      expectedUpdatedAt: failedThreadBase.updatedAt,
       lastEventAt: failedAt,
       completedAt: failedAt,
     }).catch((error) => {
@@ -1413,8 +1439,10 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       }
     }
 
-    const resumableThread = originalThread.status === 'needs-affirmation'
-      ? await db.upsertTaskThread({
+    let resumableThread = originalThread
+    if (originalThread.status === 'needs-affirmation') {
+      try {
+        resumableThread = await db.upsertTaskThread({
           ...originalThread,
           selectedChannel: resumeChannel,
           status: 'planned',
@@ -1422,8 +1450,35 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
             metadata: originalThread.metadata,
           }),
           updatedAt: Date.now(),
+          expectedUpdatedAt: originalThread.updatedAt,
         })
-      : originalThread
+      }
+      catch (error) {
+        if (!isTaskThreadVersionConflict(error))
+          throw error
+        const latestThread = await db.getTaskThread(originalThread.id).catch(() => undefined)
+          ?? originalThread
+        const latestIsTerminal = ['blocked', 'completed', 'failed', 'cancelled'].includes(latestThread.status)
+        return {
+          ok: false,
+          stage: 'dispatch',
+          thread: latestThread,
+          plan: {
+            state: 'blocked',
+            proposedChannel: resumeChannel,
+          },
+          summary: latestIsTerminal
+            ? latestThread.summary ?? `Task thread is already terminal with status ${latestThread.status}.`
+            : 'Task thread changed before resume could begin.',
+          errorCode: latestIsTerminal
+            ? 'TASK_THREAD_ALREADY_TERMINAL'
+            : 'TASK_THREAD_VERSION_CONFLICT',
+          errorMessage: latestIsTerminal
+            ? `Task thread is already terminal with status ${latestThread.status}.`
+            : 'Task thread changed before resume could begin.',
+        }
+      }
+    }
 
     if (originalThread.status === 'needs-affirmation') {
       await db.appendExecutionEvents([

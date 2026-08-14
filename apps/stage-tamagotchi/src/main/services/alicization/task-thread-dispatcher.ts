@@ -44,6 +44,7 @@ export interface AlicizationDispatchTaskThreadRuntimeInput extends AlicizationDi
 
 const defaultEventPersistenceTimeoutMs = 1_000
 const terminalTaskThreadStatuses = new Set<AlicizationTaskThreadRecord['status']>([
+  'blocked',
   'completed',
   'failed',
   'cancelled',
@@ -244,6 +245,7 @@ async function persistExecutionRuntimeContext(
       },
     },
     updatedAt: Math.max(input.thread.updatedAt, input.now()),
+    expectedUpdatedAt: input.thread.updatedAt,
   })
 }
 
@@ -251,6 +253,206 @@ async function appendAuditLog(port: TaskThreadDispatchPort, input: AlicizationAu
   if (!port.appendAuditLog)
     return
   await port.appendAuditLog(input).catch(() => {})
+}
+
+function readExecutionErrorCode(error: unknown) {
+  if (!error || typeof error !== 'object')
+    return ''
+  const code = (error as { code?: unknown }).code
+  return typeof code === 'string' ? code.trim() : ''
+}
+
+function readExecutionErrorText(error: unknown) {
+  if (typeof error === 'string')
+    return error.trim()
+  if (!error || typeof error !== 'object')
+    return ''
+  const message = (error as { message?: unknown }).message
+  return typeof message === 'string' ? message.trim() : ''
+}
+
+function isTaskThreadVersionConflict(error: unknown) {
+  if (!error || typeof error !== 'object')
+    return false
+  return String((error as { code?: unknown }).code ?? '').toUpperCase() === 'TASK_THREAD_VERSION_CONFLICT'
+}
+
+function isTimeoutExecutionFailure(error: unknown, signal?: AbortSignal) {
+  return [error, signal?.reason].some((candidate) => {
+    const code = readExecutionErrorCode(candidate).toUpperCase()
+    const name = candidate && typeof candidate === 'object' && 'name' in candidate
+      ? String((candidate as { name?: unknown }).name ?? '').toUpperCase()
+      : ''
+    const text = readExecutionErrorText(candidate).toUpperCase()
+    return /(?:^|_)TIMEOUT(?:$|_)/u.test(code)
+      || name.includes('TIMEOUT')
+      || /\bTIMED?\s*OUT\b|\bTIMEOUT\b/u.test(text)
+  })
+}
+
+function isCancelledExecutionFailure(error: unknown, signal?: AbortSignal) {
+  if (signal?.reason && error === signal.reason)
+    return true
+  if (!error || typeof error !== 'object')
+    return false
+  const record = error as { code?: unknown, name?: unknown }
+  const code = typeof record.code === 'string' ? record.code.toUpperCase() : ''
+  const name = typeof record.name === 'string' ? record.name : ''
+  return name === 'AbortError'
+    || code.includes('ABORT')
+    || code.includes('CANCEL')
+}
+
+async function persistCancelledBeforeDispatch(input: {
+  port: TaskThreadDispatchPort
+  thread: AlicizationTaskThreadRecord
+  reason: string
+  now: () => number
+  persistenceTimeoutMs: number
+}): Promise<AlicizationDispatchTaskThreadResult> {
+  const createdAt = input.now()
+  const summary = 'Execution was cancelled before dispatch began.'
+  const latestThreadRead = await runBoundedPersistence({
+    label: 'pre-dispatch cancellation thread refresh',
+    operation: async () => await input.port.getTaskThread(input.thread.id),
+    timeoutMs: input.persistenceTimeoutMs,
+  })
+  const persistenceFailures: string[] = []
+  if (!latestThreadRead.ok)
+    persistenceFailures.push(latestThreadRead.reason)
+  const latestThread = latestThreadRead.ok && latestThreadRead.value
+    ? latestThreadRead.value
+    : input.thread
+
+  if (terminalTaskThreadStatuses.has(latestThread.status)) {
+    return {
+      thread: latestThread,
+      createdEventKinds: [],
+      ok: false,
+      finalStatus: latestThread.status,
+      summary: latestThread.summary
+        ?? `Task thread is already terminal with status ${latestThread.status}.`,
+      errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+      errorMessage: `Task thread is already terminal with status ${latestThread.status}.`,
+    }
+  }
+
+  const cancelEvent: AlicizationExecutionEventInput = {
+    threadId: input.thread.id,
+    decisionTraceId: input.thread.decisionTraceId,
+    turnId: input.thread.turnId,
+    sessionId: input.thread.sessionId,
+    origin: input.thread.origin,
+    channel: input.thread.selectedChannel,
+    kind: 'cancel',
+    threadStatus: 'cancelled',
+    payload: {
+      failureKind: 'tool-execution',
+      errorCode: 'TASK_THREAD_ABORTED_BEFORE_DISPATCH',
+      errorMessage: input.reason,
+      reason: input.reason,
+      source: 'task-thread-dispatcher',
+    },
+    createdAt,
+  }
+  const eventWrite = await runBoundedPersistence({
+    label: 'pre-dispatch cancellation event persistence',
+    operation: async () => await input.port.appendExecutionEvents([cancelEvent]),
+    timeoutMs: input.persistenceTimeoutMs,
+  })
+  if (!eventWrite.ok)
+    persistenceFailures.push(eventWrite.reason)
+  const terminalThreadRead = await runBoundedPersistence({
+    label: 'pre-dispatch cancellation terminal refresh',
+    operation: async () => await input.port.getTaskThread(input.thread.id),
+    timeoutMs: input.persistenceTimeoutMs,
+  })
+  if (!terminalThreadRead.ok)
+    persistenceFailures.push(terminalThreadRead.reason)
+  const terminalThread = terminalThreadRead.ok && terminalThreadRead.value
+    ? terminalThreadRead.value
+    : latestThread
+
+  let updatedThread: AlicizationTaskThreadRecord | null = terminalThread
+  let finalStatus: AlicizationDispatchTaskThreadResult['finalStatus'] = terminalThread.status
+  let finalSummary = terminalThread.summary ?? summary
+  if (!terminalTaskThreadStatuses.has(terminalThread.status)) {
+    const cancelledThread: AlicizationTaskThreadUpsertInput = {
+      ...terminalThread,
+      status: 'cancelled',
+      summary,
+      metadata: withExecutionPersistenceDiagnostics(
+        terminalThread,
+        persistenceFailures,
+        createdAt,
+      ),
+      updatedAt: Math.max(terminalThread.updatedAt, createdAt),
+      lastEventAt: createdAt,
+      completedAt: createdAt,
+      expectedUpdatedAt: terminalThread.updatedAt,
+    }
+    const threadWrite = await runBoundedPersistence({
+      label: 'pre-dispatch cancellation terminal persistence',
+      operation: async () => await input.port.upsertTaskThread(cancelledThread),
+      timeoutMs: input.persistenceTimeoutMs,
+    })
+    if (!threadWrite.ok)
+      persistenceFailures.push(threadWrite.reason)
+    updatedThread = threadWrite.ok
+      ? threadWrite.value
+      : null
+    if (!updatedThread) {
+      const reconciledThreadRead = await runBoundedPersistence({
+        label: 'pre-dispatch cancellation terminal reconciliation',
+        operation: async () => await input.port.getTaskThread(input.thread.id),
+        timeoutMs: input.persistenceTimeoutMs,
+      })
+      if (!reconciledThreadRead.ok)
+        persistenceFailures.push(reconciledThreadRead.reason)
+      updatedThread = reconciledThreadRead.ok && reconciledThreadRead.value
+        ? reconciledThreadRead.value
+        : {
+            ...cancelledThread,
+            metadata: withExecutionPersistenceDiagnostics(
+              terminalThread,
+              persistenceFailures,
+              createdAt,
+            ),
+          } as AlicizationTaskThreadRecord
+    }
+    finalStatus = updatedThread.status
+    finalSummary = updatedThread.summary ?? summary
+  }
+
+  if (persistenceFailures.length > 0) {
+    await appendAuditLog(input.port, {
+      level: 'warning',
+      category: 'alicization.executor.dispatch',
+      action: 'pre-dispatch-cancellation-persistence-degraded',
+      message: 'Execution was cancelled before dispatch with degraded persistence.',
+      payload: {
+        threadId: input.thread.id,
+        reason: input.reason,
+        failures: persistenceFailures,
+      },
+    })
+  }
+
+  return {
+    thread: updatedThread,
+    createdEventKinds: eventWrite.ok ? ['cancel'] : [],
+    ok: false,
+    finalStatus,
+    summary: finalSummary,
+    errorCode: finalStatus === 'cancelled'
+      ? 'TASK_THREAD_ABORTED_BEFORE_DISPATCH'
+      : 'TASK_THREAD_ALREADY_TERMINAL',
+    errorMessage: persistenceFailures.length > 0
+      ? `${input.reason}; cancellation persistence degraded: ${persistenceFailures.join('; ')}`
+      : finalStatus === 'cancelled'
+        ? input.reason
+        : `Task thread is already terminal with status ${finalStatus}.`,
+  }
 }
 
 function buildExecutorSessionAffinityKey(thread: AlicizationTaskThreadRecord) {
@@ -343,6 +545,17 @@ export async function dispatchTaskThread(
   if (!thread)
     throw new Error(`Task thread "${input.threadId}" was not found.`)
 
+  if (thread.status !== 'planned') {
+    return {
+      thread,
+      createdEventKinds: [],
+      ok: false,
+      summary: `Task thread is not dispatchable while status is ${thread.status}.`,
+      errorCode: 'TASK_THREAD_NOT_DISPATCHABLE',
+      errorMessage: `Expected planned status but received ${thread.status}.`,
+    }
+  }
+
   const payloadRuntimeContext = resolveExecutionRuntimeContext(input)
   const storedRuntimeContext = resolvePersistedExecutionRuntimeContext(thread)
   const runtimeContext = mergeExecutionRuntimeContexts({
@@ -389,18 +602,30 @@ export async function dispatchTaskThread(
     if (!eventWrite.ok)
       persistenceFailures.push(eventWrite.reason)
 
+    const blockedThreadId = thread.id
+    const blockedThreadRead = await runBoundedPersistence({
+      label: 'kill-switch block task-thread refresh',
+      operation: async () => await port.getTaskThread(blockedThreadId),
+      timeoutMs: eventPersistenceTimeoutMs,
+    })
+    if (!blockedThreadRead.ok)
+      persistenceFailures.push(blockedThreadRead.reason)
+    const blockedBaseThread = blockedThreadRead.ok && blockedThreadRead.value
+      ? blockedThreadRead.value
+      : thread
     const blockedInput: AlicizationTaskThreadUpsertInput = {
-      ...thread,
+      ...blockedBaseThread,
       status: 'blocked',
       summary: blockedSummary,
       metadata: withExecutionPersistenceDiagnostics(
-        thread,
+        blockedBaseThread,
         persistenceFailures,
         blockedAt,
       ),
-      updatedAt: Math.max(thread.updatedAt, blockedAt),
-      lastEventAt: eventWrite.ok ? blockedAt : thread.lastEventAt,
-      completedAt: thread.completedAt,
+      updatedAt: Math.max(blockedBaseThread.updatedAt, blockedAt),
+      lastEventAt: eventWrite.ok ? blockedAt : blockedBaseThread.lastEventAt,
+      completedAt: blockedAt,
+      expectedUpdatedAt: blockedBaseThread.updatedAt,
     }
     const threadWrite = await runBoundedPersistence({
       label: 'kill-switch blocked task-thread persistence',
@@ -409,16 +634,28 @@ export async function dispatchTaskThread(
     })
     if (!threadWrite.ok)
       persistenceFailures.push(threadWrite.reason)
-    const blockedThread = threadWrite.ok
+    let blockedThread = threadWrite.ok
       ? threadWrite.value
-      : {
-          ...blockedInput,
-          metadata: withExecutionPersistenceDiagnostics(
-            thread,
-            persistenceFailures,
-            blockedAt,
-          ),
-        } as AlicizationTaskThreadRecord
+      : null
+    if (!blockedThread) {
+      const reconciledThreadRead = await runBoundedPersistence({
+        label: 'kill-switch blocked task-thread reconciliation',
+        operation: async () => await port.getTaskThread(blockedThreadId),
+        timeoutMs: eventPersistenceTimeoutMs,
+      })
+      if (!reconciledThreadRead.ok)
+        persistenceFailures.push(reconciledThreadRead.reason)
+      blockedThread = reconciledThreadRead.ok && reconciledThreadRead.value
+        ? reconciledThreadRead.value
+        : {
+            ...blockedInput,
+            metadata: withExecutionPersistenceDiagnostics(
+              thread,
+              persistenceFailures,
+              blockedAt,
+            ),
+          } as AlicizationTaskThreadRecord
+    }
 
     void appendAuditLog(port, {
       level: 'warning',
@@ -445,15 +682,14 @@ export async function dispatchTaskThread(
     }
   }
 
-  if (thread.status !== 'planned') {
-    return {
+  if (input.abortSignal?.aborted) {
+    return await persistCancelledBeforeDispatch({
+      port,
       thread,
-      createdEventKinds: [],
-      ok: false,
-      summary: `Task thread is not dispatchable while status is ${thread.status}.`,
-      errorCode: 'TASK_THREAD_NOT_DISPATCHABLE',
-      errorMessage: `Expected planned status but received ${thread.status}.`,
-    }
+      reason: errorMessageFrom(input.abortSignal.reason) || 'Dispatch was cancelled before execution began.',
+      now,
+      persistenceTimeoutMs: eventPersistenceTimeoutMs,
+    })
   }
 
   const dispatchInput = applyExecutionRuntimeContextToDispatchInput(input, runtimeContext)
@@ -500,14 +736,36 @@ export async function dispatchTaskThread(
     thread.selectedChannel,
   )
   const runningAt = now()
-  thread = await port.upsertTaskThread({
-    ...thread,
-    status: 'running',
-    summary: runningDispatchSummary,
-    updatedAt: Math.max(thread.updatedAt, runningAt),
-    lastEventAt: runningAt,
-    completedAt: null,
-  })
+  try {
+    thread = await port.upsertTaskThread({
+      ...thread,
+      status: 'running',
+      summary: runningDispatchSummary,
+      updatedAt: Math.max(thread.updatedAt, runningAt),
+      expectedUpdatedAt: thread.updatedAt,
+      lastEventAt: runningAt,
+      completedAt: null,
+    })
+  }
+  catch (error) {
+    if (!isTaskThreadVersionConflict(error))
+      throw error
+    const latestThread = await port.getTaskThread(thread.id) ?? thread
+    return {
+      thread: latestThread,
+      createdEventKinds: [],
+      ok: false,
+      finalStatus: latestThread.status,
+      summary: latestThread.summary
+        ?? 'Task thread changed before execution could begin.',
+      errorCode: terminalTaskThreadStatuses.has(latestThread.status)
+        ? 'TASK_THREAD_ALREADY_TERMINAL'
+        : 'TASK_THREAD_VERSION_CONFLICT',
+      errorMessage: terminalTaskThreadStatuses.has(latestThread.status)
+        ? `Task thread is already terminal with status ${latestThread.status}.`
+        : 'Task thread changed before execution could begin.',
+    }
+  }
 
   if (supportsExecutorSessionTracking(preparedDispatch.sessionTrackingChannel)) {
     await upsertExecutorSession(port, {
@@ -616,6 +874,8 @@ export async function dispatchTaskThread(
           clearPendingEvents(pendingEvents)
           return
         }
+        if (attempt === 2)
+          persistenceFailures.push(write.reason)
       }
       clearPendingEvents(pendingEvents)
     })
@@ -687,6 +947,7 @@ export async function dispatchTaskThread(
             diagnosticAt,
           ),
           updatedAt: Math.max(latestThread.updatedAt, diagnosticAt),
+          expectedUpdatedAt: latestThread.updatedAt,
           lastEventAt: terminalThread.lastEventAt,
           completedAt: terminalThread.completedAt,
         }),
@@ -726,17 +987,23 @@ export async function dispatchTaskThread(
   }
   catch (error) {
     const errorMessage = errorMessageFrom(error) || 'Executor adapter rejected without an error message.'
-    const rawErrorCode = error && typeof error === 'object' && 'code' in error
-      ? (error as { code?: unknown }).code
-      : undefined
-    const errorCode = typeof rawErrorCode === 'string' && rawErrorCode.trim()
-      ? rawErrorCode.trim()
-      : 'TASK_THREAD_ADAPTER_REJECTED'
+    const rawErrorCode = readExecutionErrorCode(error)
+    const timedOut = isTimeoutExecutionFailure(error, input.abortSignal)
+    const cancelled = !timedOut && isCancelledExecutionFailure(error, input.abortSignal)
+    const timeoutErrorCode = `${preparedDispatch.channel.replace(/[^a-z0-9]+/giu, '_').toUpperCase()}_TIMEOUT`
+    const errorCode = timedOut
+      ? /TIMEOUT/u.test(rawErrorCode.toUpperCase())
+        ? rawErrorCode
+        : timeoutErrorCode
+      : rawErrorCode || 'TASK_THREAD_ADAPTER_REJECTED'
+    const finalStatus = cancelled ? 'cancelled' : 'failed'
     const failedAt = now()
     result = {
       ok: false,
-      finalStatus: 'failed',
-      summary: `${preparedDispatch.channel} dispatch failed: ${errorMessage}`,
+      finalStatus,
+      summary: cancelled
+        ? `${preparedDispatch.channel} dispatch was cancelled: ${errorMessage}`
+        : `${preparedDispatch.channel} dispatch failed: ${errorMessage}`,
       output: null,
       errorCode,
       errorMessage,
@@ -747,14 +1014,16 @@ export async function dispatchTaskThread(
         sessionId: thread.sessionId,
         origin: thread.origin,
         channel: thread.selectedChannel,
-        kind: 'result',
-        threadStatus: 'failed',
+        kind: cancelled ? 'cancel' : 'result',
+        threadStatus: finalStatus,
         payload: {
           adapter: preparedDispatch.channel,
           failureKind: 'tool-execution',
           errorCode,
           errorMessage,
           rejected: true,
+          cancelled,
+          timedOut,
           hasRuntimeContext: runtimeContext !== null,
           runtimeContext,
         },
@@ -768,6 +1037,7 @@ export async function dispatchTaskThread(
   const finalThreadCompletedAt = finalThreadStatus === 'completed'
     || finalThreadStatus === 'failed'
     || finalThreadStatus === 'cancelled'
+    || finalThreadStatus === 'blocked'
     ? finalizedAt
     : thread.completedAt
   terminalThreadSnapshot = {
@@ -824,18 +1094,41 @@ export async function dispatchTaskThread(
   const terminalBaseThread = refreshedThreadRead.ok && refreshedThreadRead.value
     ? refreshedThreadRead.value
     : thread
+  const terminalBaseIsSettled = terminalTaskThreadStatuses.has(terminalBaseThread.status)
+  const preserveNewerTerminal = terminalBaseIsSettled
+    && terminalBaseThread.status !== finalThreadStatus
+  const effectiveFinalStatus = terminalBaseIsSettled
+    ? terminalBaseThread.status
+    : finalThreadStatus
+  const effectiveSummary = preserveNewerTerminal
+    ? terminalBaseThread.summary ?? summarizedResult
+    : summarizedResult
+  const effectiveCompletedAt = preserveNewerTerminal
+    ? terminalBaseThread.completedAt
+    : effectiveFinalStatus === 'completed'
+      || effectiveFinalStatus === 'failed'
+      || effectiveFinalStatus === 'cancelled'
+      || effectiveFinalStatus === 'blocked'
+      ? finalizedAt
+      : terminalBaseThread.completedAt
+  const effectiveLastEventAt = preserveNewerTerminal
+    ? terminalBaseThread.lastEventAt
+    : finalizedAt
   const terminalInput: AlicizationTaskThreadUpsertInput = {
     ...terminalBaseThread,
-    status: finalThreadStatus,
-    summary: summarizedResult,
+    status: effectiveFinalStatus,
+    summary: effectiveSummary,
     metadata: withExecutionPersistenceDiagnostics(
       terminalBaseThread,
       persistenceFailures,
       finalizedAt,
     ),
-    updatedAt: Math.max(terminalBaseThread.updatedAt, finalizedAt),
-    lastEventAt: finalizedAt,
-    completedAt: finalThreadCompletedAt,
+    updatedAt: preserveNewerTerminal
+      ? terminalBaseThread.updatedAt
+      : Math.max(terminalBaseThread.updatedAt, finalizedAt),
+    expectedUpdatedAt: terminalBaseThread.updatedAt,
+    lastEventAt: effectiveLastEventAt,
+    completedAt: effectiveCompletedAt,
   }
   const terminalWrite = await runBoundedPersistence({
     label: 'terminal task-thread persistence',
@@ -844,23 +1137,46 @@ export async function dispatchTaskThread(
   })
   if (!terminalWrite.ok)
     persistenceFailures.push(terminalWrite.reason)
-  const summarizedThread = terminalWrite.ok
+  let summarizedThread = terminalWrite.ok
     ? terminalWrite.value
-    : {
-        ...terminalInput,
-        metadata: withExecutionPersistenceDiagnostics(
-          terminalBaseThread,
-          persistenceFailures,
-          finalizedAt,
-        ),
-      } as AlicizationTaskThreadRecord
+    : null
+  if (!summarizedThread) {
+    const reconciledThreadRead = await runBoundedPersistence({
+      label: 'terminal task-thread reconciliation',
+      operation: async () => await port.getTaskThread(thread.id),
+      timeoutMs: eventPersistenceTimeoutMs,
+    })
+    if (!reconciledThreadRead.ok)
+      persistenceFailures.push(reconciledThreadRead.reason)
+    summarizedThread = reconciledThreadRead.ok && reconciledThreadRead.value
+      ? reconciledThreadRead.value
+      : {
+          ...terminalInput,
+          metadata: withExecutionPersistenceDiagnostics(
+            terminalBaseThread,
+            persistenceFailures,
+            finalizedAt,
+          ),
+        } as AlicizationTaskThreadRecord
+  }
+  const reconciledTerminalState = !terminalWrite.ok
+    && terminalTaskThreadStatuses.has(summarizedThread.status)
+    ? summarizedThread
+    : null
+  const resolvedFinalStatus = reconciledTerminalState?.status ?? effectiveFinalStatus
+  const resolvedSummary = reconciledTerminalState?.summary ?? effectiveSummary
+  const resolvedNewerTerminal = preserveNewerTerminal
+    || Boolean(reconciledTerminalState && reconciledTerminalState.status !== finalThreadStatus)
   terminalThreadSnapshot = summarizedThread
   if (supportsExecutorSessionTracking(preparedDispatch.sessionTrackingChannel)) {
     void upsertExecutorSession(port, {
       thread,
       transportChannel: preparedDispatch.sessionTrackingChannel,
-      status: result.ok || result.finalStatus === 'cancelled' ? 'active' : 'failed',
-      summary: summarizedResult,
+      status: resolvedFinalStatus === 'completed'
+        || resolvedFinalStatus === 'cancelled'
+        ? 'active'
+        : 'failed',
+      summary: resolvedSummary,
       now,
       errorCode: result.errorCode,
       externalSessionId: 'externalSessionId' in result && typeof result.externalSessionId === 'string'
@@ -887,31 +1203,39 @@ export async function dispatchTaskThread(
     }).catch(() => {})
   }
 
+  const resolvedOk = result.ok && resolvedFinalStatus === 'completed'
+  const effectiveErrorCode = !resolvedOk
+    && resolvedNewerTerminal
+    && !result.errorCode
+    ? 'TASK_THREAD_ALREADY_TERMINAL'
+    : result.errorCode
   void appendAuditLog(port, {
-    level: result.ok ? 'notice' : result.finalStatus === 'cancelled' ? 'warning' : 'warning',
+    level: resolvedOk ? 'notice' : 'warning',
     category: 'alicization.executor.dispatch',
-    action: result.ok
+    action: resolvedOk
       ? `${auditChannelPrefix}-completed`
-      : result.finalStatus === 'cancelled'
+      : resolvedFinalStatus === 'cancelled'
         ? `${auditChannelPrefix}-cancelled`
         : `${auditChannelPrefix}-failed`,
-    message: summarizedResult,
+    message: resolvedSummary,
     payload: {
       threadId: thread.id,
       selectedChannel: thread.selectedChannel,
       createdEventKinds,
-      errorCode: result.errorCode,
+      errorCode: effectiveErrorCode,
     },
   }).catch(() => {})
 
   return {
     thread: summarizedThread,
     createdEventKinds,
-    ok: result.ok,
-    finalStatus: result.finalStatus,
-    summary: summarizedResult,
-    output: result.output,
-    errorCode: result.errorCode,
-    errorMessage: result.errorMessage,
+    ok: resolvedOk,
+    finalStatus: resolvedFinalStatus,
+    summary: resolvedSummary,
+    output: resolvedOk ? result.output : null,
+    errorCode: effectiveErrorCode,
+    errorMessage: resolvedNewerTerminal
+      ? resolvedSummary
+      : result.errorMessage,
   }
 }

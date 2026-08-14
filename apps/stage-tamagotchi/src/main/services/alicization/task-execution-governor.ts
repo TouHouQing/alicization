@@ -24,6 +24,7 @@ import { buildTaskThreadPlanningDraft } from './task-thread-governor'
 
 export interface AlicizationTaskExecutionGovernorPort {
   appendExecutionEvents: (events: AlicizationExecutionEventInput[]) => Promise<void>
+  getTaskThread?: (id: string) => Promise<AlicizationTaskThreadRecord | undefined>
   listExecutorSessions: (input?: AlicizationListExecutorSessionsInput) => Promise<AlicizationExecutorSessionRecord[]>
   listTaskThreads: (input?: AlicizationListTaskThreadsInput) => Promise<AlicizationTaskThreadRecord[]>
   upsertTaskThread: (input: AlicizationTaskThreadUpsertInput) => Promise<AlicizationTaskThreadRecord>
@@ -729,7 +730,67 @@ export function createTaskExecutionGovernor(options: AlicizationTaskExecutionGov
       sessionResumeHint,
     })
 
-    const thread = await port.upsertTaskThread(finalDraft.thread)
+    const requestedThreadId = sanitizeText(input.threadId, 160)
+    const existingRequestedThread = requestedThreadId && port.getTaskThread
+      ? await port.getTaskThread(requestedThreadId)
+      : undefined
+    if (existingRequestedThread) {
+      const explicitDuplicateMatch: AlicizationTaskThreadDuplicateMatch = {
+        thread: existingRequestedThread,
+        reasonCodes: ['explicit-thread-id-already-exists'],
+      }
+      return {
+        thread: existingRequestedThread,
+        plan: buildPlanFromTaskThread(existingRequestedThread, finalDraft.plan),
+        createdEventKinds: [],
+        governor: createGovernorSnapshot({
+          activeThreadIds,
+          disposition: 'duplicate',
+          duplicateMatch: explicitDuplicateMatch,
+          reasonCodes: explicitDuplicateMatch.reasonCodes,
+          sessionResumeHint,
+        }),
+      }
+    }
+
+    let thread: AlicizationTaskThreadRecord
+    try {
+      thread = await port.upsertTaskThread({
+        ...finalDraft.thread,
+        createOnly: Boolean(requestedThreadId),
+      })
+    }
+    catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error
+        ? String((error as { code?: unknown }).code ?? '')
+        : ''
+      if (
+        code === 'TASK_THREAD_ALREADY_EXISTS'
+        && requestedThreadId
+        && port.getTaskThread
+      ) {
+        const existingThread = await port.getTaskThread(requestedThreadId)
+        if (existingThread) {
+          const explicitDuplicateMatch: AlicizationTaskThreadDuplicateMatch = {
+            thread: existingThread,
+            reasonCodes: ['explicit-thread-id-already-exists'],
+          }
+          return {
+            thread: existingThread,
+            plan: buildPlanFromTaskThread(existingThread, finalDraft.plan),
+            createdEventKinds: [],
+            governor: createGovernorSnapshot({
+              activeThreadIds,
+              disposition: 'duplicate',
+              duplicateMatch: explicitDuplicateMatch,
+              reasonCodes: explicitDuplicateMatch.reasonCodes,
+              sessionResumeHint,
+            }),
+          }
+        }
+      }
+      throw error
+    }
     await port.appendExecutionEvents(finalDraft.events)
 
     return {

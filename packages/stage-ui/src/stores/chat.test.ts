@@ -9,7 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
 import { clearAlicizationBridge, setAlicizationBridge } from './alicization-bridge'
-import { useChatOrchestratorStore } from './chat'
+import { hasVerifiedToolResult, useChatOrchestratorStore } from './chat'
 
 const hookCapture = vi.hoisted(() => ({
   beforeSendContexts: [] as any[],
@@ -459,6 +459,31 @@ function installAlicizationBridge(options?: {
     onVisualPresencePulse: () => () => {},
   } as any)
 }
+
+describe('verified tool result evidence', () => {
+  it('does not treat a failed structured result with content as successful evidence', () => {
+    expect(hasVerifiedToolResult({
+      status: 'failed',
+      errorCode: 'CODEX_TIMEOUT',
+      content: [{ type: 'text', text: 'the provider timed out' }],
+    })).toBe(false)
+  })
+
+  it('does not treat an accepted background result as completed evidence', () => {
+    expect(hasVerifiedToolResult({
+      status: 'accepted',
+      content: [{ type: 'text', text: 'task accepted for background execution' }],
+    })).toBe(false)
+  })
+
+  it('accepts content from a completed structured result', () => {
+    expect(hasVerifiedToolResult({
+      status: 'completed',
+      finalStatus: 'completed',
+      content: [{ type: 'text', text: 'the task completed successfully' }],
+    })).toBe(true)
+  })
+})
 
 describe('chat orchestrator reply authority', () => {
   beforeEach(() => {

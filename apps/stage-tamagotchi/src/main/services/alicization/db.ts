@@ -75,6 +75,10 @@ import type {
   AlicizationTaskThreadUpsertInput,
 } from '../../../shared/eventa'
 import type { WorkingMemorySnapshot } from './life-core/working-memory'
+import type {
+  WorkingMemoryLongTermCleaningStatus,
+  WorkingMemoryLongTermCleaningTransaction,
+} from './life-core/working-memory-long-term-cleaning'
 import type { WorkingMemoryLongTermQueueItem } from './life-core/working-memory-long-term-queue'
 import type { WorkingMemoryQualityFixture } from './life-core/working-memory-quality-harness'
 import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
@@ -115,6 +119,8 @@ import type {
 import type {
   AlicizationRuntimeEventListOptions,
   AlicizationRuntimeEventScope,
+  AlicizationRuntimeEventScopeQuery,
+  AlicizationRuntimeEventScopeRecord,
 } from './turn-os/event-store'
 import type { WorkingMemoryCompressionBehaviorFixture } from './working-memory-compression-behavior-harness'
 
@@ -164,7 +170,6 @@ import { createSqliteVecLongTermMemoryVectorBackend } from './long-term-memory-s
 import { createLongTermMemoryVectorIndexAdapter } from './long-term-memory-vector-index-adapter'
 import { buildMemoryConsolidationRecords, searchMemoryConsolidationRecords } from './memory-consolidation'
 import { createAlicizationMemoryConsolidationRuntime } from './memory-consolidation-runtime'
-import { rankAlicizationConversationTurnsForRecall } from './memory-conversation-retrieval'
 import { inferMemoryDomainFromFact, normalizeMemoryDomain } from './memory-domain-model'
 import { createMemoryEmbeddingReindexRuntime } from './memory-embedding-reindex-runtime'
 import { createAlicizationMemoryEpisodicReconsolidationRuntime } from './memory-episodic-reconsolidation-runtime'
@@ -190,7 +195,6 @@ import { createMemoryWorkbenchPersonaCandidateRuntime } from './memory-workbench
 import { createMemoryWorkbenchPolicyStoreRuntime } from './memory-workbench-policy-store'
 import { createAlicizationPersonStateEvolutionRuntime } from './person-state-evolution-runtime'
 import { createPersonaTrainingDatasetRuntime } from './persona-training-dataset-runtime'
-import { normalizeOrganicRecallText } from './runtime-organic-recall'
 import {
   resolveAlicizationAutonomousDialogueFamilyClassification,
   resolveAlicizationAutonomousDialogueOrigin,
@@ -548,7 +552,6 @@ interface AlicizationMemoryRecollectionIntentLike {
   mode: 'none' | 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
   temporalFocus: 'recent' | 'recent-or-mid' | 'cross-session' | 'experience-matched' | 'distant'
   searchEpisodes: boolean
-  searchConversations: boolean
   searchProceduralExperience: boolean
   queryHints: string[]
   rationale: string
@@ -1501,6 +1504,9 @@ export interface AlicizationDbService {
     scope: AlicizationRuntimeEventScope,
     options?: AlicizationRuntimeEventListOptions,
   ) => Promise<AlicizationRuntimeEventEnvelope[]>
+  listRuntimeEventScopes: (
+    query: AlicizationRuntimeEventScopeQuery,
+  ) => Promise<AlicizationRuntimeEventScopeRecord[]>
   saveRuntimeCheckpoint: (
     checkpoint: AlicizationRuntimeCheckpoint,
   ) => Promise<AlicizationRuntimeCheckpoint>
@@ -1508,7 +1514,7 @@ export interface AlicizationDbService {
     scope: AlicizationRuntimeCheckpointScope,
   ) => Promise<AlicizationRuntimeCheckpoint | null>
   getMetaValue: (key: string) => Promise<string | undefined>
-  setMetaValue: (key: string, value: string) => Promise<void>
+  setMetaValue: (key: string, value: string, options?: DbWriteOptions) => Promise<void>
   getLatestConversationSessionId: () => Promise<string | undefined>
   getWorkingMemoryCheckpoint: (cardId: string, sessionId: string) => Promise<WorkingMemorySnapshot | null>
   listWorkingMemoryCheckpoints: (cardId: string, options?: { limit?: number }) => Promise<WorkingMemorySnapshot[]>
@@ -1528,17 +1534,6 @@ export interface AlicizationDbService {
     userText: string | null
     assistantText: string | null
     structuredJson: string | null
-    createdAt: number
-  }>>
-  searchConversationTurnsForRecall: (input: {
-    query: string
-    limit?: number
-    recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
-  }) => Promise<Array<{
-    turnId: string | null
-    sessionId: string
-    userText: string
-    assistantText: string
     createdAt: number
   }>>
   listMemoryConsolidations: (limit?: number) => Promise<AlicizationMemoryConsolidationRecord[]>
@@ -1571,6 +1566,7 @@ export interface AlicizationDbService {
   retrieveMemoryFacts: (query: string, limit?: number) => Promise<AlicizationMemoryFact[]>
   retrieveLongTermMemoryEvidence: (input: {
     cardId: string
+    userId?: string
     currentUserText: string
     workingMemoryQueryHints?: string[]
     currentThreadTitle?: string | null
@@ -1682,6 +1678,25 @@ export interface AlicizationDbService {
     failed: number
     pending: number
   }>
+  drainWorkingMemoryLongTermQueueScoped: (input: {
+    cardId: string
+    sessionId: string
+    queueItemIds: string[]
+  }) => Promise<{
+    cleaned: number
+    admitted: number
+    applied: number
+    rejected: number
+    review: number
+    failed: number
+    pending: number
+    settlements: Array<{
+      queueItemId: string
+      transactionId: string | null
+      status: WorkingMemoryLongTermCleaningStatus | 'missing'
+      errorSummary: string | null
+    }>
+  }>
   listLongTermMemoryReviewItems: (input: {
     cardId: string
     limit?: number
@@ -1750,7 +1765,7 @@ export interface AlicizationDbService {
     turnId?: string
   }) => Promise<AlicizationPersonaReinforcementEventRecord[]>
   readMindHead: <T>(cardId: string, key: AlicizationMindHeadKey) => Promise<T | null>
-  upsertMindHead: (cardId: string, key: AlicizationMindHeadKey, value: unknown) => Promise<void>
+  upsertMindHead: (cardId: string, key: AlicizationMindHeadKey, value: unknown, options?: DbWriteOptions) => Promise<void>
   runMemoryPrune: () => Promise<AlicizationMemoryStats>
   importLegacyMemory: (snapshot: AlicizationMemoryLegacySnapshot) => Promise<AlicizationMemoryMigrationResult>
   overrideMemoryStats: (next: AlicizationMemoryStats) => Promise<AlicizationMemoryStats>
@@ -1789,7 +1804,7 @@ export interface AlicizationDbService {
     message: string
     payload: AlicizationLearningTaskPayload
     maxAttempts?: number
-  }) => Promise<AlicizationLearningTaskRecord>
+  }, options?: DbWriteOptions) => Promise<AlicizationLearningTaskRecord>
   claimDueLearningTasks: (cardId: string, nowMs: number, limit: number) => Promise<AlicizationLearningTaskRecord[]>
   startLearningTask: (taskId: string, startedAt?: number) => Promise<void>
   blockLearningTask: (taskId: string, input: {
@@ -1944,6 +1959,13 @@ export async function setupAlicizationDb(
   ) {
     resolveMemoryCardId(scope.cardId, 'runtime event list')
     return await runtimeEventStore.list(scope, options)
+  }
+
+  async function listRuntimeEventScopes(
+    query: AlicizationRuntimeEventScopeQuery,
+  ) {
+    resolveMemoryCardId(query.cardId, 'runtime event scope list')
+    return await runtimeEventStore.listScopes(query)
   }
 
   async function saveRuntimeCheckpoint(checkpoint: AlicizationRuntimeCheckpoint) {
@@ -3447,11 +3469,22 @@ export async function setupAlicizationDb(
         assistant_text,
         structured_json,
         created_at
-      FROM conversation_turns
-      WHERE session_id = ?
-        AND created_at >= ?
-      ORDER BY created_at ASC
-      LIMIT ?
+      FROM (
+        SELECT
+          rowid AS sort_rowid,
+          turn_id,
+          session_id,
+          user_text,
+          assistant_text,
+          structured_json,
+          created_at
+        FROM conversation_turns
+        WHERE session_id = ?
+          AND created_at >= ?
+        ORDER BY created_at DESC, rowid DESC
+        LIMIT ?
+      )
+      ORDER BY created_at ASC, sort_rowid ASC
       `,
       [sessionId, sinceCreatedAt, limit],
     )
@@ -3464,48 +3497,6 @@ export async function setupAlicizationDb(
       structuredJson: row.structured_json,
       createdAt: row.created_at,
     }))
-  }
-
-  async function searchConversationTurnsForRecall(input: {
-    query: string
-    limit?: number
-    recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
-  }) {
-    const query = normalizeOrganicRecallText(input.query)
-    if (!query)
-      return []
-
-    const safeLimit = Math.max(1, Math.min(12, Math.floor(input.limit ?? 6)))
-    const rows = await all<DbConversationTurnRow>(
-      database,
-      `
-      SELECT
-        turn_id,
-        session_id,
-        user_text,
-        assistant_text,
-        structured_json,
-        created_at
-      FROM conversation_turns
-      ORDER BY created_at DESC
-      LIMIT 4000
-      `,
-    )
-    if (rows.length === 0)
-      return []
-    return rankAlicizationConversationTurnsForRecall({
-      rows: rows.map(row => ({
-        turnId: row.turn_id,
-        sessionId: row.session_id,
-        userText: row.user_text,
-        assistantText: row.assistant_text,
-        createdAt: row.created_at,
-      })),
-      query,
-      limit: safeLimit,
-      nowTs: now(),
-      recollectionIntent: input.recollectionIntent ?? null,
-    })
   }
 
   const memoryConsolidationRuntime = createAlicizationMemoryConsolidationRuntime({
@@ -3914,6 +3905,10 @@ export async function setupAlicizationDb(
     const updatedAt = Number.isFinite(input.updatedAt)
       ? Math.max(createdAt, Math.floor(Number(input.updatedAt)))
       : currentTs
+    const expectedUpdatedAt = Number.isFinite(input.expectedUpdatedAt)
+      ? Math.max(0, Math.floor(Number(input.expectedUpdatedAt)))
+      : null
+    const createOnly = input.createOnly === true
     const lastEventAt = Number.isFinite(input.lastEventAt)
       ? Math.max(0, Math.floor(Number(input.lastEventAt)))
       : null
@@ -3922,9 +3917,21 @@ export async function setupAlicizationDb(
       : null
 
     assertWriteNotAborted(options)
+    let writeResult: SqliteStatementResult | undefined
     await enqueueWrite(async () => {
       assertWriteNotAborted(options)
-      await run(
+      if (expectedUpdatedAt !== null && !createOnly) {
+        const existing = await get<{ id: string }>(
+          database,
+          'SELECT id FROM task_threads WHERE id = ? LIMIT 1',
+          [id],
+        )
+        if (!existing) {
+          writeResult = { changes: 0, lastID: 0 }
+          return
+        }
+      }
+      writeResult = await run(
         database,
         `
         INSERT INTO task_threads (
@@ -3945,7 +3952,9 @@ export async function setupAlicizationDb(
           last_event_at,
           completed_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id)
+        ${createOnly
+          ? 'ON CONFLICT(id) DO NOTHING'
+          : `ON CONFLICT(id)
         DO UPDATE SET
           decision_trace_id = excluded.decision_trace_id,
           turn_id = excluded.turn_id,
@@ -3957,10 +3966,10 @@ export async function setupAlicizationDb(
           selected_channel = excluded.selected_channel,
           proposed_channel = excluded.proposed_channel,
           summary = excluded.summary,
-          metadata_json = excluded.metadata_json,
-          updated_at = excluded.updated_at,
+          updated_at = MAX(excluded.updated_at, task_threads.updated_at + 1),
           last_event_at = excluded.last_event_at,
           completed_at = excluded.completed_at
+        WHERE ? IS NULL OR task_threads.updated_at = ?`}
         `,
         [
           id,
@@ -3979,28 +3988,34 @@ export async function setupAlicizationDb(
           updatedAt,
           lastEventAt,
           completedAt,
+          ...(createOnly ? [] : [expectedUpdatedAt, expectedUpdatedAt]),
         ],
       )
     }, options)
 
-    return {
-      id,
-      decisionTraceId,
-      turnId,
-      sessionId,
-      origin,
-      goal,
-      kind,
-      status,
-      selectedChannel,
-      proposedChannel,
-      summary,
-      metadata: metadataJson ? parseJsonObject(metadataJson) : null,
-      createdAt,
-      updatedAt,
-      lastEventAt,
-      completedAt,
-    } satisfies AlicizationTaskThreadRecord
+    if (createOnly && writeResult?.changes === 0) {
+      const error = new Error(`Task thread ${id} already exists.`)
+      Object.assign(error, {
+        code: 'TASK_THREAD_ALREADY_EXISTS',
+        threadId: id,
+      })
+      throw error
+    }
+
+    if (expectedUpdatedAt !== null && writeResult?.changes === 0) {
+      const error = new Error(`Task thread ${id} changed before this update could be applied.`)
+      Object.assign(error, {
+        code: 'TASK_THREAD_VERSION_CONFLICT',
+        threadId: id,
+        expectedUpdatedAt,
+      })
+      throw error
+    }
+
+    const persistedThread = await getTaskThread(id)
+    if (!persistedThread)
+      throw new Error(`Task thread "${id}" disappeared after persistence.`)
+    return persistedThread
   }
 
   async function getTaskThread(id: string) {
@@ -4596,6 +4611,7 @@ export async function setupAlicizationDb(
           const completedAt = statusEvent.threadStatus === 'completed'
             || statusEvent.threadStatus === 'failed'
             || statusEvent.threadStatus === 'cancelled'
+            || statusEvent.threadStatus === 'blocked'
             ? statusEvent.createdAt
             : null
           await run(
@@ -4928,7 +4944,7 @@ export async function setupAlicizationDb(
     message: string
     payload: AlicizationLearningTaskPayload
     maxAttempts?: number
-  }) {
+  }, options?: DbWriteOptions) {
     const cardId = input.cardId.trim()
     const taskId = input.taskId.trim()
     const triggerAt = Math.max(0, Math.floor(input.triggerAt))
@@ -4940,12 +4956,26 @@ export async function setupAlicizationDb(
     if (!message)
       throw new Error('message is required')
 
-    const id = randomUUID()
-    const createdAt = now()
-    const updatedAt = createdAt
     const maxAttempts = Math.max(1, Math.min(8, Math.floor(input.maxAttempts ?? 3)))
     const payloadJson = JSON.stringify(input.payload)
-    await enqueueWrite(async () => {
+    return await enqueueWrite(async () => {
+      const existing = await get<DbLearningTaskRow>(
+        database,
+        `
+        SELECT *
+        FROM learning_tasks
+        WHERE card_id = ?
+          AND task_id = ?
+        LIMIT 1
+        `,
+        [cardId, taskId],
+      )
+      if (existing)
+        return mapLearningTaskRow(existing)
+
+      const id = randomUUID()
+      const createdAt = now()
+      const updatedAt = createdAt
       await run(
         database,
         `
@@ -4979,35 +5009,35 @@ export async function setupAlicizationDb(
           input.payload.sourceTurnId,
         ],
       )
-    })
 
-    return {
-      id,
-      cardId,
-      taskId,
-      status: 'scheduled',
-      triggerAt,
-      action: input.action,
-      message,
-      payload: parseLearningTaskPayload(payloadJson),
-      attemptCount: 0,
-      maxAttempts,
-      createdAt,
-      updatedAt,
-      claimedAt: null,
-      startedAt: null,
-      completedAt: null,
-      blockedAt: null,
-      cancelledAt: null,
-      downgradedAt: null,
-      reopenedAt: null,
-      nextRetryAt: null,
-      sourceTurnId: input.payload.sourceTurnId,
-      resultSummary: null,
-      failureKind: null,
-      lastError: null,
-      firedTurnId: null,
-    } satisfies AlicizationLearningTaskRecord
+      return mapLearningTaskRow({
+        id,
+        card_id: cardId,
+        task_id: taskId,
+        status: 'scheduled',
+        trigger_at: triggerAt,
+        action: input.action,
+        message,
+        payload_json: payloadJson,
+        attempt_count: 0,
+        max_attempts: maxAttempts,
+        created_at: createdAt,
+        updated_at: updatedAt,
+        claimed_at: null,
+        started_at: null,
+        completed_at: null,
+        blocked_at: null,
+        cancelled_at: null,
+        downgraded_at: null,
+        reopened_at: null,
+        next_retry_at: null,
+        source_turn_id: input.payload.sourceTurnId,
+        result_summary: null,
+        failure_kind: null,
+        last_error: null,
+        fired_turn_id: null,
+      })
+    }, options)
   }
 
   async function claimDueLearningTasks(cardIdRaw: string, nowMs: number, limit: number) {
@@ -6346,7 +6376,9 @@ export async function setupAlicizationDb(
     })
   }
 
-  async function drainWorkingMemoryLongTermQueue(limit = 4) {
+  async function drainWorkingMemoryLongTermTransactions(
+    rows: WorkingMemoryLongTermCleaningTransaction[],
+  ) {
     let cleaned = 0
     let admitted = 0
     let applied = 0
@@ -6354,7 +6386,6 @@ export async function setupAlicizationDb(
     let review = 0
     let failed = 0
 
-    const rows = await workingMemoryLongTermCleaningStore.listDueTransactions(limit, now())
     for (const row of rows) {
       try {
         const cleanedTransaction = row.status === 'admitted' && row.decision === 'admit' && row.cleanedCandidate
@@ -6508,7 +6539,6 @@ export async function setupAlicizationDb(
       }
     }
 
-    const pending = (await workingMemoryLongTermCleaningStore.listDueTransactions(32, now())).length
     return {
       cleaned,
       admitted,
@@ -6516,7 +6546,73 @@ export async function setupAlicizationDb(
       rejected,
       review,
       failed,
+    }
+  }
+
+  async function drainWorkingMemoryLongTermQueue(limit = 4) {
+    const result = await drainWorkingMemoryLongTermTransactions(
+      await workingMemoryLongTermCleaningStore.listDueTransactions(limit, now()),
+    )
+    const pending = (await workingMemoryLongTermCleaningStore.listDueTransactions(32, now())).length
+    return {
+      ...result,
       pending,
+    }
+  }
+
+  async function drainWorkingMemoryLongTermQueueScoped(input: {
+    cardId: string
+    sessionId: string
+    queueItemIds: string[]
+  }) {
+    const queueItemIds = [...new Set(
+      input.queueItemIds
+        .map(queueItemId => queueItemId.trim())
+        .filter(Boolean),
+    )]
+    const scope = {
+      cardId: input.cardId,
+      sessionId: input.sessionId,
+      queueItemIds,
+    }
+    const result = await drainWorkingMemoryLongTermTransactions(
+      await workingMemoryLongTermCleaningStore.listDueTransactionsByScope(scope),
+    )
+    const transactions = await workingMemoryLongTermCleaningStore.listTransactionsByScope(scope)
+    const transactionByQueueItemId = new Map(
+      transactions.map(transaction => [transaction.queueItemId, transaction]),
+    )
+    const settlements = queueItemIds.map((queueItemId) => {
+      const transaction = transactionByQueueItemId.get(queueItemId)
+      if (!transaction) {
+        return {
+          queueItemId,
+          transactionId: null,
+          status: 'missing' as const,
+          errorSummary: 'queue item was not found in the requested scope',
+        }
+      }
+      return {
+        queueItemId,
+        transactionId: transaction.id,
+        status: transaction.status,
+        errorSummary: transaction.lastError,
+      }
+    })
+
+    return {
+      cleaned: result.cleaned,
+      admitted: result.admitted,
+      applied: settlements.filter(settlement => settlement.status === 'applied').length,
+      rejected: settlements.filter(settlement => settlement.status === 'rejected').length,
+      review: settlements.filter(settlement => settlement.status === 'needs-user-review').length,
+      failed: settlements.filter(settlement => settlement.status === 'dead-lettered').length,
+      pending: settlements.filter(settlement =>
+        settlement.status === 'pending-cleaning'
+        || settlement.status === 'cleaning'
+        || settlement.status === 'admitted',
+      ).length,
+      settlements,
     }
   }
 
@@ -6773,6 +6869,7 @@ export async function setupAlicizationDb(
 
   async function retrieveLongTermMemoryEvidence(input: {
     cardId: string
+    userId?: string
     currentUserText: string
     workingMemoryQueryHints?: string[]
     currentThreadTitle?: string | null
@@ -6813,6 +6910,7 @@ export async function setupAlicizationDb(
 
   async function retrieveLongTermMemoryEvidenceInternal(input: {
     cardId: string
+    userId?: string
     currentUserText: string
     workingMemoryQueryHints?: string[]
     currentThreadTitle?: string | null
@@ -6841,6 +6939,10 @@ export async function setupAlicizationDb(
           candidates: [],
           now: now(),
           limit: safeLimit,
+          scope: {
+            userId: input.userId ?? 'local-user',
+            cardId: input.cardId,
+          },
         }),
         semanticError: null,
       }
@@ -6916,6 +7018,10 @@ export async function setupAlicizationDb(
         limit: safeLimit,
         candidates: mergedCandidates,
         semanticScores: semantic.scores,
+        scope: {
+          userId: input.userId ?? 'local-user',
+          cardId: input.cardId,
+        },
       }),
       semanticError: semantic.error,
     }
@@ -7146,7 +7252,7 @@ export async function setupAlicizationDb(
           episodicQueries: [],
           threadHints: [],
           negativeCues: [],
-          confidencePolicy: 'direct',
+          riskFlags: ['empty-query'],
         },
         evidence: [],
         semantic,
@@ -7189,7 +7295,7 @@ export async function setupAlicizationDb(
           episodicQueries: bundle.plan.episodicQueries,
           threadHints: bundle.plan.threadHints,
           negativeCues: bundle.plan.negativeCues,
-          confidencePolicy: bundle.plan.confidencePolicy,
+          riskFlags: bundle.plan.riskFlags,
         },
         evidence: bundle.evidence.map(item => ({
           id: item.candidate.id,
@@ -7197,7 +7303,12 @@ export async function setupAlicizationDb(
           summary: item.candidate.summary,
           source: item.candidate.source,
           score: item.score,
-          visibleMode: item.visibleMode,
+          confidence: item.candidate.confidence,
+          sensitivity: item.candidate.sensitivity ?? null,
+          scope: item.scope,
+          provenance: item.provenance,
+          evidenceVersion: item.evidenceVersion,
+          version: item.version,
           queryMatches: item.queryMatches,
           rankReasons: item.rankReasons,
         })),
@@ -7236,7 +7347,7 @@ export async function setupAlicizationDb(
           episodicQueries: [],
           threadHints: [],
           negativeCues: [],
-          confidencePolicy: 'direct',
+          riskFlags: ['recall-probe-failed'],
         },
         evidence: [],
         semantic,
@@ -8184,13 +8295,14 @@ export async function setupAlicizationDb(
     },
     appendRuntimeEvent,
     listRuntimeEvents,
+    listRuntimeEventScopes,
     saveRuntimeCheckpoint,
     loadRuntimeCheckpoint,
     getMetaValue,
-    setMetaValue: async (key: string, value: string) => {
+    setMetaValue: async (key: string, value: string, options?: DbWriteOptions) => {
       await enqueueWrite(async () => {
         await upsertMeta(key, value)
-      })
+      }, options)
     },
     getLatestConversationSessionId,
     getWorkingMemoryCheckpoint,
@@ -8199,7 +8311,6 @@ export async function setupAlicizationDb(
     clearWorkingMemoryCheckpoints,
     listConversationTurnsSince,
     listConversationTurnsBySession,
-    searchConversationTurnsForRecall,
     appendMindTurnEvents,
     listMindTurnEvents,
     getTaskThread,
@@ -8245,6 +8356,7 @@ export async function setupAlicizationDb(
     revokePersonaTrainingDatasetSource,
     enqueueWorkingMemoryLongTermQueueItems,
     drainWorkingMemoryLongTermQueue,
+    drainWorkingMemoryLongTermQueueScoped,
     listLongTermMemoryReviewItems,
     applyLongTermMemoryReviewDecision,
     tombstoneLongTermMemorySources,

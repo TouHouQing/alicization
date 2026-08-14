@@ -891,7 +891,7 @@ function stringifyAssistantContent(content: unknown) {
     .join('')
 }
 
-function hasVerifiedToolResult(result?: unknown) {
+export function hasVerifiedToolResult(result?: unknown) {
   if (typeof result === 'string') {
     return result.trim().length > 0
   }
@@ -912,6 +912,32 @@ function hasVerifiedToolResult(result?: unknown) {
   const payload = result as Record<string, unknown>
   if (payload.isError === true || payload.ok === false)
     return false
+
+  const status = typeof payload.status === 'string'
+    ? payload.status.trim().toLowerCase()
+    : ''
+  const finalStatus = typeof payload.finalStatus === 'string'
+    ? payload.finalStatus.trim().toLowerCase()
+    : ''
+  if (
+    [
+      'accepted',
+      'blocked',
+      'cancelled',
+      'dead-lettered',
+      'failed',
+      'needs-affirmation',
+      'paused',
+      'pending',
+      'planned',
+      'running',
+      'timeout',
+      'timed-out',
+    ].includes(status)
+    || (finalStatus && finalStatus !== 'completed')
+  ) {
+    return false
+  }
 
   const content = payload.content
   const structuredContent = payload.structuredContent

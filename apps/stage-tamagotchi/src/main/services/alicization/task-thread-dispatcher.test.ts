@@ -125,6 +125,63 @@ function createExecutionRuntimeContext(
 }
 
 describe('task-thread dispatcher', () => {
+  it('does not enter the adapter when the planned-to-running CAS loses to a terminal owner', async () => {
+    const plannedThread = createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    })
+    const terminalThread: AlicizationTaskThreadRecord = {
+      ...plannedThread,
+      status: 'completed',
+      summary: 'Another owner completed this task first.',
+      updatedAt: 240,
+      lastEventAt: 240,
+      completedAt: 240,
+    }
+    const basePort = createPort(plannedThread)
+    let reads = 0
+    const port = {
+      ...basePort,
+      getTaskThread: vi.fn(async (id: string) => {
+        if (id !== plannedThread.id)
+          return undefined
+        reads += 1
+        return reads === 1 ? plannedThread : terminalThread
+      }),
+      upsertTaskThread: vi.fn(async (input: AlicizationTaskThreadUpsertInput) => {
+        if (input.status === 'running') {
+          const error = new Error('task thread version changed')
+          Object.assign(error, {
+            code: 'TASK_THREAD_VERSION_CONFLICT',
+          })
+          throw error
+        }
+        return await basePort.upsertTaskThread(input)
+      }),
+    }
+    const adapterCallsBefore = executeCodexTaskThreadMock.mock.calls.length
+
+    const result = await dispatchTaskThread(port, {
+      threadId: plannedThread.id,
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'completed',
+      errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+      thread: terminalThread,
+    })
+    expect(executeCodexTaskThreadMock.mock.calls.length).toBe(adapterCallsBefore)
+  })
+
   it('dispatches a planned CLI thread into completed state', async () => {
     const port = createPort(createThread())
 
@@ -139,6 +196,7 @@ describe('task-thread dispatcher', () => {
     })
 
     expect(result.ok).toBe(true)
+    expect(result.finalStatus).toBe('completed')
     expect(result.thread.status).toBe('completed')
     expect(result.createdEventKinds).toEqual(expect.arrayContaining(['dispatch', 'result']))
     expect(result.summary).toContain('dispatcher ok')
@@ -175,6 +233,322 @@ describe('task-thread dispatcher', () => {
         status: 'cancelled',
       },
     })
+  })
+
+  it('settles an already aborted dispatch before entering the adapter', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    const controller = new AbortController()
+    controller.abort('user-cancelled-before-dispatch')
+    const adapterCallsBefore = executeCodexTaskThreadMock.mock.calls.length
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      abortSignal: controller.signal,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'cancelled',
+      errorCode: 'TASK_THREAD_ABORTED_BEFORE_DISPATCH',
+      thread: {
+        status: 'cancelled',
+      },
+    })
+    expect(executeCodexTaskThreadMock.mock.calls.length).toBe(adapterCallsBefore)
+    expect(port.appendExecutionEvents.mock.calls.flatMap(([events]) => events)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'cancel',
+          threadStatus: 'cancelled',
+          payload: expect.objectContaining({
+            errorCode: 'TASK_THREAD_ABORTED_BEFORE_DISPATCH',
+          }),
+        }),
+      ]),
+    )
+  })
+
+  it('preserves a terminal thread when pre-dispatch cancellation races with completion', async () => {
+    const plannedThread = createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    })
+    const completedThread: AlicizationTaskThreadRecord = {
+      ...plannedThread,
+      status: 'completed',
+      summary: 'Codex completed before cancellation settled.',
+      updatedAt: 240,
+      lastEventAt: 240,
+      completedAt: 240,
+    }
+    const controller = new AbortController()
+    let threadReads = 0
+    const basePort = createPort(plannedThread)
+    const port = {
+      ...basePort,
+      getTaskThread: vi.fn(async (id: string) => {
+        if (id !== plannedThread.id)
+          return undefined
+        threadReads += 1
+        return threadReads === 1 ? plannedThread : completedThread
+      }),
+    }
+    controller.abort('cancel-lost-race')
+
+    const result = await dispatchTaskThread(port, {
+      threadId: plannedThread.id,
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      abortSignal: controller.signal,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'completed',
+      errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+      errorMessage: 'Task thread is already terminal with status completed.',
+      thread: {
+        status: 'completed',
+        summary: 'Codex completed before cancellation settled.',
+      },
+    })
+    expect(basePort.appendExecutionEvents).not.toHaveBeenCalled()
+    expect(basePort.upsertTaskThread).not.toHaveBeenCalledWith(expect.objectContaining({
+      id: plannedThread.id,
+      status: 'cancelled',
+    }))
+  })
+
+  it('maps an adapter AbortError rejection to one cancelled terminal settlement', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    executeCodexTaskThreadMock.mockRejectedValueOnce(Object.assign(
+      new Error('user cancelled the Codex process'),
+      {
+        name: 'AbortError',
+        code: 'TOOL_EXECUTION_CANCELLED',
+      },
+    ))
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'cancelled',
+      errorCode: 'TOOL_EXECUTION_CANCELLED',
+      thread: {
+        status: 'cancelled',
+      },
+    })
+    const terminalEvents = port.appendExecutionEvents.mock.calls
+      .flatMap(([events]) => events)
+      .filter(event => event.threadStatus === 'cancelled' || event.threadStatus === 'failed')
+    expect(terminalEvents).toHaveLength(1)
+    expect(terminalEvents[0]).toMatchObject({
+      kind: 'cancel',
+      threadStatus: 'cancelled',
+      payload: expect.objectContaining({
+        errorCode: 'TOOL_EXECUTION_CANCELLED',
+      }),
+    })
+  })
+
+  it('keeps timeout semantics when the abort reason is a string', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    const controller = new AbortController()
+    executeCodexTaskThreadMock.mockImplementationOnce(async () => {
+      controller.abort('codex timeout')
+      throw new DOMException('execution-timeout', 'AbortError')
+    })
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      abortSignal: controller.signal,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'failed',
+      errorCode: 'CODEX_TIMEOUT',
+      thread: {
+        status: 'failed',
+      },
+    })
+    expect(port.appendExecutionEvents.mock.calls.flatMap(([events]) => events)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'result',
+          threadStatus: 'failed',
+          payload: expect.objectContaining({
+            timedOut: true,
+            cancelled: false,
+            errorCode: 'CODEX_TIMEOUT',
+          }),
+        }),
+      ]),
+    )
+  })
+
+  it('keeps a provider rejection failed when an abort races with the rejection', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    const controller = new AbortController()
+    executeCodexTaskThreadMock.mockImplementationOnce(async () => {
+      controller.abort('user-cancelled-after-provider-failure')
+      throw Object.assign(new Error('Provider returned HTTP 503.'), {
+        code: 'CODEX_PROVIDER_UNAVAILABLE',
+      })
+    })
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      abortSignal: controller.signal,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'failed',
+      errorCode: 'CODEX_PROVIDER_UNAVAILABLE',
+      thread: {
+        status: 'failed',
+      },
+    })
+    expect(port.appendExecutionEvents.mock.calls.flatMap(([events]) => events)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'result',
+          threadStatus: 'failed',
+          payload: expect.objectContaining({
+            timedOut: false,
+            cancelled: false,
+            errorCode: 'CODEX_PROVIDER_UNAVAILABLE',
+          }),
+        }),
+      ]),
+    )
+  })
+
+  it('preserves a newer terminal thread when the adapter result is stale', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    }))
+    const resultEvent: AlicizationExecutionEventInput = {
+      id: 'codex-stale-result:1',
+      threadId: 'thread-dispatch-1',
+      decisionTraceId: 'mind:trace:dispatch-1',
+      turnId: 'turn-dispatch-1',
+      sessionId: 'session-dispatch-1',
+      origin: 'user-turn',
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'completed',
+      payload: {
+        adapter: 'codex',
+      },
+      createdAt: 200,
+    }
+    const originalGetTaskThread = port.getTaskThread
+    let threadReads = 0
+    port.getTaskThread = vi.fn(async (id: string) => {
+      const thread = await originalGetTaskThread(id)
+      threadReads += 1
+      if (thread && threadReads >= 2) {
+        return {
+          ...thread,
+          status: 'cancelled',
+          summary: 'Cancelled by a newer terminal event.',
+          updatedAt: 300,
+          lastEventAt: 300,
+          completedAt: 300,
+        }
+      }
+      return thread
+    })
+    executeCodexTaskThreadMock.mockResolvedValueOnce({
+      ok: true,
+      finalStatus: 'completed',
+      summary: 'Completed from a stale adapter result.',
+      output: 'stale output',
+      events: [resultEvent],
+    })
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(threadReads).toBeGreaterThanOrEqual(2)
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'cancelled',
+      summary: 'Cancelled by a newer terminal event.',
+      thread: {
+        status: 'cancelled',
+        summary: 'Cancelled by a newer terminal event.',
+      },
+    })
+    expect(port.upsertTaskThread).not.toHaveBeenCalledWith(expect.objectContaining({
+      status: 'completed',
+      summary: 'Completed from a stale adapter result.',
+    }))
   })
 
   it('publishes Codex semantic progress before persisting it and avoids final duplicate writes', async () => {
@@ -592,7 +966,7 @@ describe('task-thread dispatcher', () => {
     expect(lateDiagnosticInputs[0]?.status).toBe('completed')
   })
 
-  it.each(['failed', 'cancelled'] as const)(
+  it.each(['failed', 'cancelled', 'blocked'] as const)(
     'preserves a newer %s terminal state when a late diagnostic follows an older completed snapshot',
     async (latestStatus) => {
       const port = createPort(createThread({
@@ -1048,6 +1422,77 @@ describe('task-thread dispatcher', () => {
     }))
   })
 
+  it('records realtime event write failures after retry exhaustion in terminal diagnostics', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Preserve evidence when realtime event persistence is degraded.',
+    }))
+    const liveEvent: AlicizationExecutionEventInput = {
+      id: 'codex-realtime-write-fails:1',
+      threadId: 'thread-dispatch-1',
+      decisionTraceId: 'mind:trace:dispatch-1',
+      turnId: 'turn-dispatch-1',
+      sessionId: 'session-dispatch-1',
+      origin: 'user-turn',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'running',
+      payload: {
+        codexEventType: 'item.started',
+      },
+      createdAt: 120,
+    }
+    const resultEvent: AlicizationExecutionEventInput = {
+      ...liveEvent,
+      id: 'codex-realtime-write-fails:2',
+      kind: 'result',
+      threadStatus: 'completed',
+      createdAt: 130,
+    }
+    let appendAttempts = 0
+    port.appendExecutionEvents = vi.fn(async () => {
+      appendAttempts += 1
+      if (appendAttempts <= 2)
+        throw new Error('realtime-event-write-failed')
+    })
+    executeCodexTaskThreadMock.mockImplementationOnce(async (input) => {
+      await input.onExecutionEvent?.(liveEvent)
+      return {
+        ok: true,
+        finalStatus: 'completed',
+        summary: 'Codex inspection completed.',
+        output: 'done',
+        events: [liveEvent, resultEvent],
+      }
+    })
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      eventPersistenceTimeoutMs: 100,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result.ok).toBe(true)
+    expect(appendAttempts).toBeGreaterThanOrEqual(3)
+    expect(result.thread.metadata).toEqual(expect.objectContaining({
+      execution: expect.objectContaining({
+        persistence: expect.objectContaining({
+          status: 'degraded',
+          failures: expect.arrayContaining([
+            expect.stringContaining('realtime execution event persistence attempt 2 failed'),
+          ]),
+        }),
+      }),
+    }))
+  })
+
   it('still persists the terminal thread when every final event write fails', async () => {
     const port = createPort(createThread({
       selectedChannel: 'codex',
@@ -1168,6 +1613,33 @@ describe('task-thread dispatcher', () => {
         threadStatus: 'blocked',
       }),
     ])
+  })
+
+  it('does not rewrite an already terminal thread to blocked under kill-switch suspension', async () => {
+    const port = createPort(createThread({
+      status: 'completed',
+      summary: 'The task already completed.',
+      updatedAt: 240,
+      lastEventAt: 240,
+      completedAt: 240,
+    }))
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      killSwitchSuspended: true,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      errorCode: 'TASK_THREAD_NOT_DISPATCHABLE',
+      thread: {
+        status: 'completed',
+        summary: 'The task already completed.',
+      },
+    })
+    expect(port.appendExecutionEvents).not.toHaveBeenCalled()
+    expect(port.upsertTaskThread).not.toHaveBeenCalled()
   })
 
   it('does not let kill-switch event persistence block the dispatch lifecycle', async () => {

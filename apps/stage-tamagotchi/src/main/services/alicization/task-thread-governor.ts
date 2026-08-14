@@ -21,9 +21,10 @@ import {
 } from './runtime-structured-format'
 
 type TaskThreadPersistencePort = Pick<{
+  getTaskThread?: (id: string) => Promise<AlicizationTaskThreadRecord | undefined>
   upsertTaskThread: (input: AlicizationTaskThreadUpsertInput) => Promise<AlicizationTaskThreadRecord>
   appendExecutionEvents: (events: AlicizationExecutionEventInput[]) => Promise<void>
-}, 'upsertTaskThread' | 'appendExecutionEvents'>
+}, 'upsertTaskThread' | 'appendExecutionEvents' | 'getTaskThread'>
 
 export interface AlicizationTaskThreadPlanningInput extends AlicizationPlanTaskThreadInput {
   experience?: AlicizationClawFabricExperience | null
@@ -285,7 +286,24 @@ export async function persistTaskThreadPlanningDraft(
   input: AlicizationTaskThreadPlanningInput,
 ): Promise<AlicizationPlanTaskThreadResult> {
   const draft = buildTaskThreadPlanningDraft(input)
-  const thread = await port.upsertTaskThread(draft.thread)
+  const requestedThreadId = typeof input.threadId === 'string'
+    ? input.threadId.trim()
+    : ''
+  if (requestedThreadId && port.getTaskThread) {
+    const existingThread = await port.getTaskThread(requestedThreadId)
+    if (existingThread) {
+      const error = new Error(`Task thread "${requestedThreadId}" already exists.`)
+      Object.assign(error, {
+        code: 'TASK_THREAD_ALREADY_EXISTS',
+        threadId: requestedThreadId,
+      })
+      throw error
+    }
+  }
+  const thread = await port.upsertTaskThread({
+    ...draft.thread,
+    createOnly: Boolean(requestedThreadId),
+  })
   await port.appendExecutionEvents(draft.events)
   return {
     thread,
