@@ -8,14 +8,22 @@ import type {
   AlicizationChatStreamChunkEvent,
   AlicizationChatStreamDispatchPayload,
   AlicizationChatToolCallEvent,
+  AlicizationChatToolCallInput,
   AlicizationChatToolProgressEvent,
+  AlicizationChatToolProgressInput,
   AlicizationChatToolResultEvent,
+  AlicizationChatToolResultInput,
   AlicizationDialogueRespondedPayload,
 } from '../../../shared/eventa'
 import type {
   ChatRunState,
   StreamDispatchEventType,
 } from './runtime-soul'
+
+import {
+  AlicizationToolEventDeliveryError,
+  createAlicizationRuntimeToolProjectionReducer,
+} from '@proj-alicization/stage-shared'
 
 interface CreateAlicizationChatStreamRuntimeOptions {
   normalizeTransportMessageContent: (content: unknown) => unknown
@@ -42,6 +50,32 @@ interface CreateAlicizationChatStreamRuntimeOptions {
   }) => Promise<void>
   appendRuntimeDebugLine: (event: string, payload?: Record<string, unknown>) => Promise<void>
 }
+
+type AlicizationChatStreamVisibleDispatchPayload = Exclude<
+  AlicizationChatStreamDispatchPayload,
+  { eventType: 'dialogue-responded' }
+>
+type AlicizationChatStreamVisibleDispatchBody = AlicizationChatStreamVisibleDispatchPayload['body']
+type AlicizationChatStreamDispatchBodyFor<EventType extends AlicizationChatStreamDispatchPayload['eventType']> = Extract<
+  AlicizationChatStreamDispatchPayload,
+  { eventType: EventType }
+>['body']
+
+type AlicizationChatStreamEventArgs = {
+  [EventType in StreamDispatchEventType]: [
+    eventType: EventType,
+    body: EventType extends 'tool-call'
+      ? AlicizationChatToolCallInput
+      : EventType extends 'tool-result'
+        ? AlicizationChatToolResultInput
+        : EventType extends 'tool-progress'
+          ? AlicizationChatToolProgressInput
+          : Extract<
+            AlicizationChatStreamDispatchPayload,
+            { eventType: EventType }
+          >['body'],
+  ]
+}[StreamDispatchEventType]
 
 export function createAlicizationChatStreamRuntime(options: CreateAlicizationChatStreamRuntimeOptions) {
   function resolveChatMessages(
@@ -86,43 +120,65 @@ export function createAlicizationChatStreamRuntime(options: CreateAlicizationCha
   }
 
   function toAlicizationChatStreamDispatchPayload(
-    eventType: AlicizationChatStreamDispatchPayload['eventType'],
-    body: AlicizationChatMetaEvent | AlicizationChatStreamChunkEvent | AlicizationChatToolCallEvent | AlicizationChatToolProgressEvent | AlicizationChatToolResultEvent | AlicizationChatFinishEvent | AlicizationChatErrorEvent | AlicizationDialogueRespondedPayload,
-  ): AlicizationChatStreamDispatchPayload {
+    eventType: StreamDispatchEventType,
+    body: AlicizationChatStreamVisibleDispatchBody,
+  ): AlicizationChatStreamVisibleDispatchPayload
+  function toAlicizationChatStreamDispatchPayload(
+    eventType: 'dialogue-responded',
+    body: AlicizationDialogueRespondedPayload,
+  ): Extract<AlicizationChatStreamDispatchPayload, { eventType: 'dialogue-responded' }>
+  function toAlicizationChatStreamDispatchPayload<
+    EventType extends AlicizationChatStreamDispatchPayload['eventType'],
+  >(
+    eventType: EventType,
+    body: AlicizationChatStreamDispatchBodyFor<EventType>,
+  ): Extract<AlicizationChatStreamDispatchPayload, { eventType: EventType }> {
     switch (eventType) {
       case 'meta':
-        return { eventType, body: body as AlicizationChatMetaEvent }
+        return { eventType, body: body as AlicizationChatMetaEvent } as Extract<AlicizationChatStreamDispatchPayload, { eventType: EventType }>
       case 'chunk':
-        return { eventType, body: body as AlicizationChatStreamChunkEvent }
+        return { eventType, body: body as AlicizationChatStreamChunkEvent } as Extract<AlicizationChatStreamDispatchPayload, { eventType: EventType }>
       case 'tool-call':
-        return { eventType, body: body as AlicizationChatToolCallEvent }
+        return { eventType, body: body as AlicizationChatToolCallEvent } as Extract<AlicizationChatStreamDispatchPayload, { eventType: EventType }>
       case 'tool-result':
-        return { eventType, body: body as AlicizationChatToolResultEvent }
+        return { eventType, body: body as AlicizationChatToolResultEvent } as Extract<AlicizationChatStreamDispatchPayload, { eventType: EventType }>
       case 'tool-progress':
-        return { eventType, body: body as AlicizationChatToolProgressEvent }
+        return { eventType, body: body as AlicizationChatToolProgressEvent } as Extract<AlicizationChatStreamDispatchPayload, { eventType: EventType }>
       case 'finish':
-        return { eventType, body: body as AlicizationChatFinishEvent }
+        return { eventType, body: body as AlicizationChatFinishEvent } as Extract<AlicizationChatStreamDispatchPayload, { eventType: EventType }>
       case 'error':
-        return { eventType, body: body as AlicizationChatErrorEvent }
+        return { eventType, body: body as AlicizationChatErrorEvent } as Extract<AlicizationChatStreamDispatchPayload, { eventType: EventType }>
       case 'dialogue-responded':
-        return { eventType, body: body as AlicizationDialogueRespondedPayload }
+        return { eventType, body: body as AlicizationDialogueRespondedPayload } as Extract<AlicizationChatStreamDispatchPayload, { eventType: EventType }>
     }
   }
 
   function emitChatStreamEventForState(
     state: ChatRunState | undefined,
-    eventType: StreamDispatchEventType,
-    body: AlicizationChatMetaEvent | AlicizationChatStreamChunkEvent | AlicizationChatToolCallEvent | AlicizationChatToolProgressEvent | AlicizationChatToolResultEvent | AlicizationChatFinishEvent | AlicizationChatErrorEvent,
+    ...[eventType, body]: AlicizationChatStreamEventArgs
   ) {
     if (!state)
       return
 
-    if (state.state === 'finished' && eventType !== 'finish')
+    const isToolEvent = eventType === 'tool-call'
+      || eventType === 'tool-progress'
+      || eventType === 'tool-result'
+    const isFinishedRun = state.state === 'finished'
+
+    if (isFinishedRun && eventType !== 'finish' && !isToolEvent)
       return
 
     if (state.errorEmitted) {
-      if (eventType !== 'finish')
+      // A provider error ends visible dialogue delivery, but executor progress
+      // can still arrive from the main-owned action stream. Let the projection
+      // reducer classify that late fact as trace-only after terminal settlement.
+      if (
+        eventType !== 'finish'
+        && eventType !== 'tool-progress'
+        && (!isFinishedRun || !isToolEvent)
+      ) {
         return
+      }
     }
 
     if (eventType === 'error') {
@@ -160,16 +216,8 @@ export function createAlicizationChatStreamRuntime(options: CreateAlicizationCha
     }
 
     if (eventType === 'tool-progress') {
-      const progress = body as AlicizationChatToolProgressEvent
+      const progress = body as AlicizationChatToolProgressInput
       const toolCallId = readToolCallId()
-      const terminal = progress.phase === 'completed'
-        || progress.phase === 'failed'
-        || progress.phase === 'cancelled'
-        || progress.phase === 'timeout'
-      const terminalToolCallIds = state.terminalToolCallIds ??= new Set<string>()
-      if (toolCallId && terminalToolCallIds.has(toolCallId) && !terminal)
-        return
-
       const progressKey = progress.eventId?.trim()
         ? `event:${toolCallId}:${progress.eventId.trim()}`
         : [
@@ -190,14 +238,81 @@ export function createAlicizationChatStreamRuntime(options: CreateAlicizationCha
       if (emittedToolProgressKeys.has(progressKey))
         return
       emittedToolProgressKeys.add(progressKey)
-      if (toolCallId && terminal)
-        terminalToolCallIds.add(toolCallId)
+    }
+
+    let projectedBody: AlicizationChatStreamVisibleDispatchBody = body as AlicizationChatStreamVisibleDispatchBody
+    if (isToolEvent) {
+      const projectionReducer = state.toolProjection ??= createAlicizationRuntimeToolProjectionReducer()
+      const projectionOptions = isFinishedRun
+        ? { traceOnly: true }
+        : undefined
+      if (eventType === 'tool-call') {
+        const input = body as AlicizationChatToolCallInput
+        const projection = projectionReducer.reduce({
+          type: 'tool-call',
+          toolCallId: input.toolCallId,
+          toolName: input.toolName,
+          selectedChannel: input.selectedChannel,
+          arguments: input.arguments,
+        }, projectionOptions)
+        projectedBody = {
+          ...input,
+          selectedChannel: projection.card.selectedChannel,
+          projection,
+        } satisfies AlicizationChatToolCallEvent
+      }
+      else if (eventType === 'tool-progress') {
+        const input = body as AlicizationChatToolProgressInput
+        const projection = projectionReducer.reduce({
+          type: 'tool-progress',
+          toolCallId: input.toolCallId,
+          toolName: input.toolName,
+          selectedChannel: input.selectedChannel,
+          signal: input.signal,
+          phase: input.phase,
+          elapsedMs: input.elapsedMs,
+          timeoutMs: input.timeoutMs,
+          errorCode: input.errorCode,
+          errorMessage: input.errorMessage,
+          occurredAt: input.occurredAt,
+          eventId: input.eventId,
+          threadId: input.threadId,
+          adapterEventType: input.adapterEventType,
+          itemType: input.itemType,
+          summary: input.summary,
+          command: input.command,
+          commandStatus: input.commandStatus,
+          commandExitCode: input.commandExitCode,
+          outputPreview: input.outputPreview,
+        }, projectionOptions)
+        projectedBody = {
+          ...input,
+          selectedChannel: projection.card.selectedChannel,
+          projection,
+        } satisfies AlicizationChatToolProgressEvent
+      }
+      else {
+        const input = body as AlicizationChatToolResultInput
+        const projection = projectionReducer.reduce({
+          type: 'tool-result',
+          toolCallId: input.toolCallId,
+          toolName: input.toolName ?? '',
+          selectedChannel: input.selectedChannel,
+          phase: input.phase,
+          result: input.result,
+        }, projectionOptions)
+        projectedBody = {
+          ...input,
+          selectedChannel: projection.card.selectedChannel,
+          projection,
+        } satisfies AlicizationChatToolResultEvent
+      }
     }
 
     const sender = state.sender
     if (sender && !sender.isDestroyed()) {
       try {
-        sender.send(options.dispatchChannel as never, toAlicizationChatStreamDispatchPayload(eventType, body))
+        sender.send(options.dispatchChannel as never, toAlicizationChatStreamDispatchPayload(eventType, projectedBody))
         if (!state.hasLoggedDispatchBinding) {
           state.hasLoggedDispatchBinding = true
           void options.queueScopedAuditLog(state.cardId, {
@@ -268,12 +383,44 @@ export function createAlicizationChatStreamRuntime(options: CreateAlicizationCha
                 ? options.finishEvent
                 : options.errorEvent
 
-    if (eventaOptions) {
-      options.emitContextEvent(eventaEvent, body, eventaOptions)
-      return
-    }
+    try {
+      if (eventaOptions) {
+        options.emitContextEvent(eventaEvent, projectedBody, eventaOptions)
+        return
+      }
 
-    options.emitContextEvent(eventaEvent, body)
+      options.emitContextEvent(eventaEvent, projectedBody)
+    }
+    catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      void options.queueScopedAuditLog(state.cardId, {
+        level: 'warning',
+        category: 'alicization.main-gateway',
+        action: 'stream-eventa-dispatch-failed',
+        message: 'Failed to deliver a main-owned chat stream projection through the Eventa fallback.',
+        payload: {
+          cardId: state.cardId,
+          turnId: state.turnId,
+          eventType,
+          reason,
+        },
+      }).catch(() => {})
+      void options.appendRuntimeDebugLine('chat-stream.eventa-dispatch-failed', {
+        cardId: state.cardId,
+        turnId: state.turnId,
+        eventType,
+        reason,
+      }).catch(() => {})
+      if (isToolEvent) {
+        throw new AlicizationToolEventDeliveryError(error, {
+          type: eventType === 'tool-result' ? 'tool-result' : eventType,
+          toolCallId: readToolCallId(),
+          toolName: 'toolName' in body && typeof body.toolName === 'string'
+            ? body.toolName
+            : undefined,
+        })
+      }
+    }
   }
 
   return {

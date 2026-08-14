@@ -14,6 +14,9 @@ import type { AlicizationRuntimeReplyArtifact } from './reply-artifact'
 import type {
   AlicizationTurnRuntimeState,
 } from './runtime-state'
+import type {
+  AlicizationReplayedToolProjection,
+} from './tool-projection'
 
 import {
   parseAlicizationRuntimeCheckpoint,
@@ -24,6 +27,9 @@ import {
   reduceAlicizationRuntimeEvent,
   restoreAlicizationTurnRuntimeState,
 } from './runtime-state'
+import {
+  projectAlicizationRuntimeToolEvents,
+} from './tool-projection'
 
 export interface AlicizationRuntimeReplayReader {
   loadRuntimeCheckpoint: (
@@ -39,9 +45,25 @@ export interface AlicizationRuntimeReplayResult {
   checkpoint: AlicizationRuntimeCheckpoint | null
   tailEvents: AlicizationRuntimeEventEnvelope[]
   state: AlicizationTurnRuntimeState
+  toolProjection: AlicizationReplayedToolProjection
   replyArtifact: AlicizationRuntimeReplyArtifact | null
   recoveryRequired: boolean
   reasonCodes: string[]
+}
+
+function readDeliveryOwnerFromEvents(
+  events: AlicizationRuntimeEventEnvelope[],
+): AlicizationRuntimeDeliveryOwner | null {
+  for (const event of events) {
+    if (event.eventType !== 'turn.accepted')
+      continue
+    const payload = event.payload && typeof event.payload === 'object' && !Array.isArray(event.payload)
+      ? event.payload as Record<string, unknown>
+      : null
+    if (payload?.deliveryOwner === 'inline' || payload?.deliveryOwner === 'callback')
+      return payload.deliveryOwner
+  }
+  return null
 }
 
 function assertCheckpointScope(
@@ -95,7 +117,7 @@ function buildRecoveryReasons(state: AlicizationTurnRuntimeState) {
 export async function replayTurn(input: {
   scope: AlicizationRuntimeEventScope
   reader: AlicizationRuntimeReplayReader
-  deliveryOwner: AlicizationRuntimeDeliveryOwner
+  deliveryOwner?: AlicizationRuntimeDeliveryOwner
 }): Promise<AlicizationRuntimeReplayResult> {
   const persistedCheckpoint = await input.reader.loadRuntimeCheckpoint(input.scope)
   const checkpoint = persistedCheckpoint
@@ -104,21 +126,36 @@ export async function replayTurn(input: {
   if (checkpoint)
     assertCheckpointScope(input.scope, checkpoint)
 
-  const tailEvents = await input.reader.listRuntimeEvents(input.scope, {
-    afterSequence: checkpoint?.sequence ?? 0,
+  const completeEvents = await input.reader.listRuntimeEvents(input.scope, {
+    afterSequence: 0,
   })
+  const tailEvents = checkpoint
+    ? completeEvents.filter(event => event.sequence > checkpoint.sequence)
+    : completeEvents
+  const deliveryOwner = checkpoint?.deliveryOwner
+    ?? input.deliveryOwner
+    ?? readDeliveryOwnerFromEvents(completeEvents)
+  if (!deliveryOwner)
+    throw new Error('runtime replay delivery owner is missing from persisted facts')
   let state = checkpoint
     ? restoreAlicizationTurnRuntimeState(checkpoint)
-    : createAlicizationTurnRuntimeState(input.scope, input.deliveryOwner)
+    : createAlicizationTurnRuntimeState(input.scope, deliveryOwner)
 
   for (const event of tailEvents)
     state = reduceAlicizationRuntimeEvent(state, event)
 
-  const reasonCodes = buildRecoveryReasons(state)
+  const toolProjection = projectAlicizationRuntimeToolEvents(completeEvents)
+  const reasonCodes = [
+    ...new Set([
+      ...buildRecoveryReasons(state),
+      ...toolProjection.recoveryReasonCodes,
+    ]),
+  ]
   return {
     checkpoint,
     tailEvents,
     state,
+    toolProjection,
     replyArtifact: state.committedDelivery?.artifact ?? null,
     recoveryRequired: reasonCodes.length > 0,
     reasonCodes,

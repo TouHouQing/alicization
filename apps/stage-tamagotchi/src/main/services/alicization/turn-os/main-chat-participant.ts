@@ -92,6 +92,16 @@ export function createAlicizationMainChatParticipant<TPrepared extends {
     turnId: string
     userId: string
   }) => Promise<void>
+  onContextAssembled?: (
+    context: AlicizationMainChatParticipantContext<TPrepared>,
+    runtime: AlicizationEventLoopRuntimeView,
+  ) => Promise<void>
+  onTurnSettled?: (input: {
+    status: 'completed' | 'failed' | 'cancelled' | 'timed-out'
+    error: string | null
+    runtime: AlicizationEventLoopRuntimeView
+    context: AlicizationMainChatParticipantContext<TPrepared> | null
+  }) => Promise<void>
 }): AlicizationEventLoopParticipant<
   AlicizationMainChatParticipantTurnInput<TPrepared>,
   AlicizationMainChatParticipantContext<TPrepared>
@@ -133,6 +143,7 @@ export function createAlicizationMainChatParticipant<TPrepared extends {
           : [],
       }
       contextByTurnId.set(runtime.turnId, context)
+      await options.onContextAssembled?.(context, runtime)
       return context
     },
 
@@ -171,7 +182,19 @@ export function createAlicizationMainChatParticipant<TPrepared extends {
         turnId: runtime.turnId,
         userId: runtime.userId,
       })
-      contextByTurnId.delete(runtime.turnId)
+    },
+
+    onTurnSettled: async (input) => {
+      const context = contextByTurnId.get(input.runtime.turnId) ?? null
+      try {
+        await options.onTurnSettled?.({
+          ...input,
+          context,
+        })
+      }
+      finally {
+        contextByTurnId.delete(input.runtime.turnId)
+      }
     },
   }
 }

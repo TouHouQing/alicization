@@ -114,6 +114,89 @@ describe('main chat run state', () => {
     })
   })
 
+  it('does not synthesize a tool terminal state when an aborted chat finishes', () => {
+    const runs = new Map<string, ChatRunState>()
+    const emitFinishEvent = vi.fn()
+    const controller = createAlicizationMainChatRunStateController({
+      runs,
+      sessionTraceGetters: new Map(),
+      recentlyFinishedRuns: new Map(),
+      finishedRetentionMs: 100,
+      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() || 'default' : 'default',
+      appendRuntimeDebugLine: vi.fn(async () => {}),
+      emitFinishEvent,
+      getNow: () => 2_000,
+    })
+    const key = controller.createKey('card-1', 'turn-1')
+    const listCards = vi.fn(() => [
+      {
+        toolCallId: 'tool-running-1',
+        toolName: 'codex',
+        selectedChannel: 'codex',
+        phase: 'running',
+        terminal: false,
+        revision: 2,
+        elapsedMs: 1_200,
+        timeoutMs: 120_000,
+        errorCode: null,
+        errorMessage: null,
+        step: null,
+        result: undefined,
+      },
+    ])
+    const toolProjection = {
+      listCards,
+    }
+    runs.set(key, {
+      cardId: 'card-1',
+      turnId: 'turn-1',
+      controller: new AbortController(),
+      chunkCount: 0,
+      rawChunkChars: 0,
+      state: 'aborted',
+      toolProjection: toolProjection as any,
+    })
+
+    controller.finishRun(key, {
+      status: 'aborted',
+      finishReason: 'manual',
+    })
+
+    expect(listCards).not.toHaveBeenCalled()
+    expect(runs.has(key)).toBe(false)
+    expect(emitFinishEvent).toHaveBeenCalledOnce()
+  })
+
+  it('actively releases recently finished state after the retention window', () => {
+    vi.useFakeTimers()
+    try {
+      const { controller, runs, recentlyFinishedRuns } = createController()
+      const key = controller.createKey('card-1', 'turn-active-expiry')
+      runs.set(key, {
+        cardId: 'card-1',
+        turnId: 'turn-active-expiry',
+        controller: new AbortController(),
+        chunkCount: 0,
+        rawChunkChars: 0,
+        state: 'running',
+      })
+
+      controller.finishRun(key, {
+        status: 'completed',
+        finishReason: 'stop',
+      })
+      expect(recentlyFinishedRuns.has(key)).toBe(true)
+
+      vi.advanceTimersByTime(101)
+
+      expect(recentlyFinishedRuns.has(key)).toBe(false)
+      expect(controller.getRun(key)).toBeUndefined()
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('expires recently finished keys after the retention window', () => {
     const { controller, runs, recentlyFinishedRuns, setNow } = createController()
     const key = controller.createKey('card-1', 'turn-1')

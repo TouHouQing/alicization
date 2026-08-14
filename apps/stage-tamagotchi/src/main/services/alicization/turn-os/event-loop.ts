@@ -382,6 +382,13 @@ function settleCancellationDurability(
 export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext = unknown>(options: {
   persistence: AlicizationEventLoopPersistence
   participant: AlicizationEventLoopParticipant<TTurnInput, TModelContext>
+  onPersistedEvent?: (
+    event: AlicizationRuntimeEventEnvelope,
+  ) => Promise<void> | void
+  onPersistedEventFailure?: (input: {
+    event: AlicizationRuntimeEventEnvelope
+    error: unknown
+  }) => Promise<void> | void
   now?: () => number
   createEventId?: () => string
   maxSteps?: number
@@ -497,6 +504,20 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       await options.persistence.saveRuntimeCheckpoint(
         toAlicizationRuntimeCheckpoint(state, now()),
       )
+      try {
+        await options.onPersistedEvent?.(persistedEvent)
+      }
+      catch (error) {
+        try {
+          await options.onPersistedEventFailure?.({
+            event: persistedEvent,
+            error,
+          })
+        }
+        catch {
+          // Sidecar diagnostics cannot re-enter Turn OS settlement.
+        }
+      }
       return persistedEvent
     }
 

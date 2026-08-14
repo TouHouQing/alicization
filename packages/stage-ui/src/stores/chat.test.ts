@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs'
 
-import { resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
+import {
+  createAlicizationRuntimeToolProjectionReducer,
+  resolveAlicizationChatFailureSurface,
+} from '@proj-alicization/stage-shared'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
@@ -12,6 +15,7 @@ const hookCapture = vi.hoisted(() => ({
   beforeSendContexts: [] as any[],
   embodimentMetas: [] as any[],
   contextsSnapshot: {} as Record<string, unknown>,
+  toolCallError: null as Error | null,
 }))
 
 const streamMock = vi.fn()
@@ -20,8 +24,15 @@ const appendConversationTurnMock = vi.fn()
 const appendAuditLogMock = vi.fn()
 const suspendKillSwitchMock = vi.fn()
 const resumeKillSwitchMock = vi.fn()
+const chatAbortMock = vi.fn()
 const chatSessionStoreMocks = vi.hoisted(() => ({
   ensureSessionReady: vi.fn(),
+}))
+const chatToolProjectionMocks = vi.hoisted(() => ({
+  failure: null as null | {
+    error: Error
+    toolCallId: string
+  },
 }))
 
 const activeSessionId = ref('session-test')
@@ -150,6 +161,27 @@ vi.mock('./llm', () => ({
   }),
 }))
 
+vi.mock('./chat-tool-projection', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./chat-tool-projection')>()
+  return {
+    ...actual,
+    applyChatToolProjectionSlice: (
+      ...args: Parameters<typeof actual.applyChatToolProjectionSlice>
+    ) => {
+      const slice = args[1]
+      const toolCallId = slice.type === 'tool-call'
+        ? slice.toolCall.toolCallId
+        : slice.type === 'tool-call-result'
+          ? slice.id
+          : slice.toolCallId
+      const failure = chatToolProjectionMocks.failure
+      if (failure && failure.toolCallId === toolCallId)
+        throw failure.error
+      return actual.applyChatToolProjectionSlice(...args)
+    },
+  }
+})
+
 vi.mock('./alicization-execution-engine', () => ({
   useAlicizationExecutionEngineStore: () => ({
     executeRealtimeQueryTurn: executeRealtimeQueryTurnMock,
@@ -232,7 +264,10 @@ vi.mock('./chat/hooks', () => ({
         hookCapture.embodimentMetas.push(meta)
       },
       emitAssistantResponseEndHooks: noopAsync,
-      emitToolCallHooks: noopAsync,
+      emitToolCallHooks: async () => {
+        if (hookCapture.toolCallError)
+          throw hookCapture.toolCallError
+      },
       emitAssistantMessageHooks: noopAsync,
       emitChatTurnCompleteHooks: noopAsync,
       onBeforeMessageComposed: () => () => {},
@@ -306,10 +341,80 @@ function createChatProviderStub() {
   } as any
 }
 
+function createMainProjectedStreamEventEmitter(
+  onStreamEvent?: (event: any) => Promise<void> | void,
+) {
+  const toolProjection = createAlicizationRuntimeToolProjectionReducer()
+
+  return async (event: any) => {
+    if (
+      event.type !== 'tool-call'
+      && event.type !== 'tool-progress'
+      && event.type !== 'tool-result'
+    ) {
+      await onStreamEvent?.(event)
+      return
+    }
+
+    if (event.projection) {
+      await onStreamEvent?.(event)
+      return
+    }
+
+    const projection = toolProjection.reduce(event.type === 'tool-call'
+      ? {
+          type: 'tool-call',
+          toolCallId: event.toolCallId,
+          toolName: event.toolName,
+          selectedChannel: event.selectedChannel,
+          arguments: event.args,
+        }
+      : event.type === 'tool-progress'
+        ? {
+            type: 'tool-progress',
+            toolCallId: event.toolCallId,
+            toolName: event.toolName,
+            selectedChannel: event.selectedChannel,
+            phase: event.phase,
+            signal: event.signal,
+            elapsedMs: event.elapsedMs,
+            timeoutMs: event.timeoutMs,
+            errorCode: event.errorCode,
+            errorMessage: event.errorMessage,
+            occurredAt: event.occurredAt,
+            eventId: event.eventId,
+            threadId: event.threadId,
+            adapterEventType: event.adapterEventType,
+            itemType: event.itemType,
+            summary: event.summary,
+            command: event.command,
+            commandStatus: event.commandStatus,
+            commandExitCode: event.commandExitCode,
+            outputPreview: event.outputPreview,
+          }
+        : {
+            type: 'tool-result',
+            toolCallId: event.toolCallId,
+            toolName: event.toolName ?? '',
+            selectedChannel: event.selectedChannel,
+            result: event.result,
+          })
+
+    await onStreamEvent?.({
+      ...event,
+      selectedChannel: projection.card.selectedChannel,
+      projection,
+    })
+  }
+}
+
 function installAlicizationBridge(options?: {
   streamChat?: (payload: any, options: any) => Promise<void>
+  streamLifecycleOwner?: 'main' | 'renderer'
 }) {
+  const streamChat = options?.streamChat
   setAlicizationBridge({
+    streamLifecycleOwner: options?.streamLifecycleOwner,
     bootstrap: vi.fn(),
     getSoul: vi.fn().mockResolvedValue({
       content: '# SOUL\nAlicization',
@@ -333,6 +438,7 @@ function installAlicizationBridge(options?: {
     }),
     suspendKillSwitch: suspendKillSwitchMock,
     resumeKillSwitch: resumeKillSwitchMock,
+    chatAbort: chatAbortMock,
     appendConversationTurn: appendConversationTurnMock,
     appendAuditLog: appendAuditLogMock,
     getSensorySnapshot: vi.fn().mockResolvedValue({
@@ -342,7 +448,14 @@ function installAlicizationBridge(options?: {
       nextTickAt: Date.now() + 60_000,
       running: true,
     }),
-    streamChat: options?.streamChat,
+    streamChat: streamChat
+      ? async (payload: any, streamOptions: any) => {
+        await streamChat(payload, {
+          ...streamOptions,
+          onStreamEvent: createMainProjectedStreamEventEmitter(streamOptions.onStreamEvent),
+        })
+      }
+      : undefined,
     onVisualPresencePulse: () => () => {},
   } as any)
 }
@@ -355,11 +468,14 @@ describe('chat orchestrator reply authority', () => {
     executeRealtimeQueryTurnMock.mockReset()
     appendConversationTurnMock.mockReset()
     appendAuditLogMock.mockReset()
+    chatToolProjectionMocks.failure = null
     suspendKillSwitchMock.mockReset()
     resumeKillSwitchMock.mockReset()
+    chatAbortMock.mockReset()
     hookCapture.beforeSendContexts.length = 0
     hookCapture.embodimentMetas.length = 0
     hookCapture.contextsSnapshot = {}
+    hookCapture.toolCallError = null
     executeRealtimeQueryTurnMock.mockResolvedValue({ handled: false })
     appendConversationTurnMock.mockResolvedValue(undefined)
     appendAuditLogMock.mockResolvedValue(undefined)
@@ -370,6 +486,10 @@ describe('chat orchestrator reply authority', () => {
     resumeKillSwitchMock.mockResolvedValue({
       state: 'ACTIVE',
       updatedAt: Date.now(),
+    })
+    chatAbortMock.mockResolvedValue({
+      accepted: true,
+      state: 'aborted',
     })
     localStorageEntries.clear()
     sessionMessagesMap.clear()
@@ -615,11 +735,12 @@ describe('chat orchestrator reply authority', () => {
     await pending
   })
 
-  it('preserves actual tool-call and tool-result evidence without requiring a route', async () => {
+  it('preserves main-projected tool-call and tool-result evidence without requiring an execution route', async () => {
     const reply = '我查到结果了。'
     const fullText = createProviderFullText(reply)
     streamMock.mockImplementation(async (_model, _provider, _messages, options) => {
-      await options.onStreamEvent?.({
+      const emit = createMainProjectedStreamEventEmitter(options.onStreamEvent)
+      await emit({
         type: 'tool-call',
         toolCallId: 'tool-search-1',
         toolName: 'fetch_tasks',
@@ -627,9 +748,10 @@ describe('chat orchestrator reply authority', () => {
         toolCallType: 'function',
       })
       await new Promise(resolve => setTimeout(resolve, 0))
-      await options.onStreamEvent?.({
+      await emit({
         type: 'tool-result',
         toolCallId: 'tool-search-1',
+        toolName: 'fetch_tasks',
         result: {
           ok: true,
           output: '结果内容',
@@ -688,6 +810,1294 @@ describe('chat orchestrator reply authority', () => {
         },
       }),
     ]))
+  })
+
+  it('does not abort a tool execution that remains alive beyond the generic renderer idle window', async () => {
+    vi.useFakeTimers()
+    try {
+      const reply = 'Codex 已经完成了垃圾文件检查。'
+      const fullText = createProviderFullText(reply)
+      const streamChat = vi.fn(async (_payload: any, options: any) => {
+        await options.onStreamEvent?.({
+          type: 'tool-call',
+          toolCallId: 'tool-codex-long-1',
+          toolName: 'codex',
+          args: '{}',
+          toolCallType: 'function',
+        })
+        for (const elapsedMs of [10_000, 20_000, 30_000, 40_000]) {
+          await new Promise(resolve => setTimeout(resolve, 10_000))
+          if (options.abortSignal?.aborted)
+            throw options.abortSignal.reason ?? new Error('renderer aborted the live tool execution')
+          await options.onStreamEvent?.({
+            type: 'tool-progress',
+            toolCallId: 'tool-codex-long-1',
+            toolName: 'codex',
+            phase: 'running',
+            elapsedMs,
+          })
+        }
+        await options.onStreamEvent?.({
+          type: 'tool-result',
+          toolCallId: 'tool-codex-long-1',
+          result: {
+            ok: true,
+            output: '完成',
+          },
+        })
+        await options.onStreamEvent?.({
+          type: 'text-delta',
+          text: reply,
+          origin: 'provider',
+          learningPolicy: providerLearningPolicy(),
+          failureSurface: null,
+        })
+        await options.onStreamEvent?.({
+          type: 'finish',
+          origin: 'provider',
+          learningPolicy: providerLearningPolicy(),
+          fullText,
+          finishReason: 'stop',
+        })
+      })
+      installAlicizationBridge({ streamChat })
+
+      const store = useChatOrchestratorStore()
+      const pending = store.ingest('你试试用 codex 看看我电脑有哪些垃圾文件可以清理', {
+        model: 'mock-model',
+        chatProvider: createChatProviderStub(),
+        origin: 'ui-user',
+      })
+
+      await vi.advanceTimersByTimeAsync(45_000)
+      expect(chatAbortMock).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      await pending
+
+      expect(chatAbortMock).not.toHaveBeenCalled()
+      expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+        assistantText: reply,
+      }))
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps a renderer-owned provider stream alive while only private reasoning progress is arriving', async () => {
+    vi.useFakeTimers()
+    try {
+      const reply = '我已经完成了思考。'
+      const fullText = createProviderFullText(reply)
+      const streamChat = vi.fn(async (_payload: any, options: any) => {
+        for (const elapsedMs of [40_000, 80_000, 120_000]) {
+          await new Promise(resolve => setTimeout(resolve, 40_000))
+          if (options.abortSignal?.aborted)
+            throw options.abortSignal.reason ?? new Error('renderer aborted live provider reasoning')
+          await options.onStreamEvent?.({
+            type: 'provider-progress',
+            phase: 'reasoning',
+            elapsedMs,
+          })
+        }
+        await new Promise(resolve => setTimeout(resolve, 10_000))
+        await options.onStreamEvent?.({
+          type: 'text-delta',
+          text: reply,
+          origin: 'provider',
+          learningPolicy: providerLearningPolicy(),
+          failureSurface: null,
+        })
+        await options.onStreamEvent?.({
+          type: 'finish',
+          origin: 'provider',
+          learningPolicy: providerLearningPolicy(),
+          fullText,
+          finishReason: 'stop',
+        })
+      })
+      installAlicizationBridge({
+        streamChat,
+        streamLifecycleOwner: 'renderer',
+      })
+
+      const store = useChatOrchestratorStore()
+      const pending = store.ingest('请仔细想一想再回答。', {
+        model: 'mock-model',
+        chatProvider: createChatProviderStub(),
+        origin: 'ui-user',
+      })
+
+      await vi.advanceTimersByTimeAsync(130_000)
+      await pending
+
+      expect(chatAbortMock).not.toHaveBeenCalled()
+      expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+        assistantText: reply,
+      }))
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not let the renderer abort a main-owned task when transport progress is temporarily quiet', async () => {
+    vi.useFakeTimers()
+    try {
+      const reply = 'Codex 最终完成了检查。'
+      const fullText = createProviderFullText(reply)
+      const streamChat = vi.fn(async (_payload: any, options: any) => {
+        await options.onStreamEvent?.({
+          type: 'tool-call',
+          toolCallId: 'tool-codex-main-owned-1',
+          toolName: 'codex',
+          args: '{}',
+          toolCallType: 'function',
+        })
+
+        await new Promise(resolve => setTimeout(resolve, 70_000))
+        if (options.abortSignal?.aborted)
+          throw options.abortSignal.reason ?? new Error('main-owned task was aborted by renderer')
+
+        await options.onStreamEvent?.({
+          type: 'tool-result',
+          toolCallId: 'tool-codex-main-owned-1',
+          result: {
+            status: 'completed',
+            output: '完成',
+          },
+        })
+        await options.onStreamEvent?.({
+          type: 'text-delta',
+          text: reply,
+          origin: 'provider',
+          learningPolicy: providerLearningPolicy(),
+          failureSurface: null,
+        })
+        await options.onStreamEvent?.({
+          type: 'finish',
+          origin: 'provider',
+          learningPolicy: providerLearningPolicy(),
+          fullText,
+          finishReason: 'stop',
+        })
+      })
+      installAlicizationBridge({
+        streamChat,
+        streamLifecycleOwner: 'main',
+      })
+
+      const store = useChatOrchestratorStore()
+      const pending = store.ingest('请用 Codex 检查仓库', {
+        model: 'mock-model',
+        chatProvider: createChatProviderStub(),
+        origin: 'ui-user',
+      })
+
+      await vi.advanceTimersByTimeAsync(70_000)
+      await pending
+
+      expect(chatAbortMock).not.toHaveBeenCalled()
+      expect(appendAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+        action: 'stream-lifecycle-owner-resolved',
+        payload: expect.objectContaining({
+          lifecycleOwner: 'main',
+          watchdogEnabled: false,
+        }),
+      }))
+      expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+        assistantText: reply,
+      }))
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('defaults an omitted bridge lifecycle owner to renderer-owned execution', async () => {
+    const reply = '这轮由显式的 renderer 生命周期看护完成。'
+    const fullText = createProviderFullText(reply)
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请直接回复，不要启动工具。', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(chatAbortMock).not.toHaveBeenCalled()
+    expect(appendAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'stream-lifecycle-owner-resolved',
+      payload: expect.objectContaining({
+        lifecycleOwner: 'renderer',
+        watchdogEnabled: true,
+        declaredLifecycleOwner: null,
+      }),
+    }))
+    expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+      assistantText: reply,
+    }))
+  })
+
+  it('honors an explicit renderer lifecycle owner even inside an Electron shell', async () => {
+    vi.useFakeTimers()
+    const originalWindow = (globalThis as Record<string, unknown>).window
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        electron: {
+          ipcRenderer: {
+            invoke: vi.fn(),
+          },
+        },
+      },
+    })
+
+    try {
+      const streamChat = vi.fn(async (_payload: any, options: any) => {
+        await options.onStreamEvent?.({
+          type: 'tool-call',
+          toolCallId: 'tool-renderer-owner-precedence-1',
+          toolName: 'codex',
+          args: '{}',
+          toolCallType: 'function',
+        })
+
+        await new Promise(resolve => setTimeout(resolve, 46_000))
+        if (options.abortSignal?.aborted)
+          throw options.abortSignal.reason ?? new Error('renderer-owned stream was aborted')
+
+        await options.onStreamEvent?.({
+          type: 'text-delta',
+          text: '这条回复不应该在超时之后继续提交。',
+          origin: 'provider',
+          learningPolicy: providerLearningPolicy(),
+          failureSurface: null,
+        })
+        await options.onStreamEvent?.({
+          type: 'finish',
+          origin: 'provider',
+          learningPolicy: providerLearningPolicy(),
+          fullText: createProviderFullText('这条回复不应该在超时之后继续提交。'),
+          finishReason: 'stop',
+        })
+      })
+      installAlicizationBridge({
+        streamChat,
+        streamLifecycleOwner: 'renderer',
+      })
+
+      const store = useChatOrchestratorStore()
+      const pending = store.ingest('请用 Codex 检查仓库', {
+        model: 'mock-model',
+        chatProvider: createChatProviderStub(),
+        origin: 'ui-user',
+      })
+
+      await vi.advanceTimersByTimeAsync(46_000)
+      await pending
+
+      expect(chatAbortMock).toHaveBeenCalledWith(expect.objectContaining({
+        reason: 'stream-timeout',
+      }))
+      expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+        assistantText: 'Provider 等待首个响应超时（mock-provider / mock-model）。',
+      }))
+    }
+    finally {
+      vi.useRealTimers()
+      if (originalWindow === undefined)
+        Reflect.deleteProperty(globalThis, 'window')
+      else
+        Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow })
+    }
+  })
+
+  it('uses the provider continuation deadline after a tool result instead of the short tool idle deadline', async () => {
+    vi.useFakeTimers()
+    const originalWindow = (globalThis as Record<string, unknown>).window
+    if (originalWindow !== undefined)
+      Reflect.deleteProperty(globalThis, 'window')
+
+    try {
+      const reply = '工具结果已经交给 Provider 继续处理。'
+      const streamChat = vi.fn(async (_payload: any, options: any) => {
+        await options.onStreamEvent?.({
+          type: 'tool-call',
+          toolCallId: 'tool-provider-continuation-1',
+          toolName: 'codex',
+          args: '{}',
+          toolCallType: 'function',
+        })
+        await new Promise(resolve => setTimeout(resolve, 1_000))
+        await options.onStreamEvent?.({
+          type: 'tool-result',
+          toolCallId: 'tool-provider-continuation-1',
+          result: {
+            status: 'completed',
+            output: '检查完成',
+          },
+        })
+
+        await new Promise(resolve => setTimeout(resolve, 50_000))
+        if (options.abortSignal?.aborted)
+          throw options.abortSignal.reason ?? new Error('provider continuation was aborted')
+
+        await options.onStreamEvent?.({
+          type: 'text-delta',
+          text: reply,
+          origin: 'provider',
+          learningPolicy: providerLearningPolicy(),
+          failureSurface: null,
+        })
+        await options.onStreamEvent?.({
+          type: 'finish',
+          origin: 'provider',
+          learningPolicy: providerLearningPolicy(),
+          fullText: createProviderFullText(reply),
+          finishReason: 'stop',
+        })
+      })
+      installAlicizationBridge({
+        streamChat,
+        streamLifecycleOwner: 'renderer',
+      })
+
+      const store = useChatOrchestratorStore()
+      const pending = store.ingest('请用 Codex 检查仓库', {
+        model: 'mock-model',
+        chatProvider: createChatProviderStub(),
+        origin: 'ui-user',
+      })
+
+      await vi.advanceTimersByTimeAsync(51_000)
+      await pending
+
+      expect(chatAbortMock).not.toHaveBeenCalled()
+      expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+        assistantText: reply,
+      }))
+    }
+    finally {
+      vi.useRealTimers()
+      if (originalWindow === undefined)
+        Reflect.deleteProperty(globalThis, 'window')
+      else
+        Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow })
+    }
+  })
+
+  it('aborts the renderer-owned underlying stream on watchdog timeout and quarantines late events', async () => {
+    vi.useFakeTimers()
+    try {
+      const reply = '这条迟到的 Provider 回复不应该进入已经失败的会话。'
+      const fullText = createProviderFullText(reply)
+      let capturedAbortSignal: AbortSignal | undefined
+      let emitLateEvent: ((event: any) => void | Promise<void>) | undefined
+      let markStreamStarted!: () => void
+      const streamStarted = new Promise<void>((resolve) => {
+        markStreamStarted = resolve
+      })
+      const streamChat = vi.fn(async (_payload: any, options: any) => {
+        capturedAbortSignal = options.abortSignal
+        emitLateEvent = options.onStreamEvent
+        await options.onStreamEvent?.({
+          type: 'tool-call',
+          toolCallId: 'tool-renderer-watchdog-1',
+          toolName: 'codex',
+          args: '{}',
+          toolCallType: 'function',
+        })
+        markStreamStarted()
+
+        await new Promise<void>((_resolve, reject) => {
+          const signal = options.abortSignal as AbortSignal
+          const rejectOnAbort = () => reject(signal.reason ?? new Error('renderer-owned stream was aborted'))
+          if (signal.aborted) {
+            rejectOnAbort()
+            return
+          }
+          signal.addEventListener('abort', rejectOnAbort, { once: true })
+        })
+      })
+      installAlicizationBridge({
+        streamChat,
+        streamLifecycleOwner: 'renderer',
+      })
+
+      const store = useChatOrchestratorStore()
+      const pending = store.ingest('请用 Codex 检查仓库', {
+        model: 'mock-model',
+        chatProvider: createChatProviderStub(),
+        origin: 'ui-user',
+      })
+
+      await streamStarted
+      await vi.advanceTimersByTimeAsync(45_000)
+      await pending
+
+      expect(chatAbortMock).toHaveBeenCalledWith(expect.objectContaining({
+        reason: 'stream-timeout',
+      }))
+      expect(capturedAbortSignal?.aborted).toBe(true)
+      expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+        assistantText: 'Provider 等待首个响应超时（mock-provider / mock-model）。',
+      }))
+
+      await emitLateEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await emitLateEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        fullText,
+        finishReason: 'stop',
+      })
+
+      const persistedAssistantTexts = appendConversationTurnMock.mock.calls
+        .map(call => String((call[0] as any)?.assistantText ?? ''))
+      expect(persistedAssistantTexts).not.toContain(reply)
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('labels liveness-only tool heartbeats as no new semantic progress', async () => {
+    const reply = 'Codex 已经完成检查。'
+    const fullText = createProviderFullText(reply)
+    let releaseStream!: () => void
+    let markProgressObserved!: () => void
+    const progressObserved = new Promise<void>((resolve) => {
+      markProgressObserved = resolve
+    })
+    const streamGate = new Promise<void>((resolve) => {
+      releaseStream = resolve
+    })
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'tool-codex-progress-ui-1',
+        toolName: 'codex',
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-progress',
+        toolCallId: 'tool-codex-progress-ui-1',
+        toolName: 'codex',
+        phase: 'running',
+        signal: 'liveness',
+        elapsedMs: 10_000,
+        timeoutMs: 120_000,
+        occurredAt: 1_710_000_000_000,
+      })
+      markProgressObserved()
+      await streamGate
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'tool-codex-progress-ui-1',
+        result: {
+          status: 'completed',
+          output: '完成',
+        },
+      })
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    const pending = store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    await progressObserved
+
+    expect(streamingMessage.value.slices).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'execution-status',
+        phase: 'tool-running',
+        toolCallId: 'tool-codex-progress-ui-1',
+        elapsedMs: 10_000,
+        timeoutMs: 120_000,
+      }),
+    ]))
+    expect(streamingMessage.value.slices).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        label: expect.stringContaining('暂时没有新进展'),
+      }),
+    ]))
+
+    releaseStream()
+    await pending
+  })
+
+  it('shows the selected coding-agent channel from the unified facade before the result arrives', async () => {
+    const reply = '我已经完成了检查。'
+    const fullText = createProviderFullText(reply)
+    let releaseStream!: () => void
+    let markProgressObserved!: () => void
+    const streamGate = new Promise<void>((resolve) => {
+      releaseStream = resolve
+    })
+    const progressObserved = new Promise<void>((resolve) => {
+      markProgressObserved = resolve
+    })
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'coding-agent-facade-codex-1',
+        toolName: 'coding_agent',
+        selectedChannel: 'codex',
+        args: JSON.stringify({
+          agent: 'codex',
+          prompt: '检查当前仓库',
+        }),
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-progress',
+        toolCallId: 'coding-agent-facade-codex-1',
+        toolName: 'coding_agent',
+        selectedChannel: 'codex',
+        phase: 'running',
+        signal: 'semantic-progress',
+        elapsedMs: 2_000,
+        summary: '正在检查仓库',
+      })
+      markProgressObserved()
+      await streamGate
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'coding-agent-facade-codex-1',
+        toolName: 'coding_agent',
+        result: {
+          status: 'completed',
+          selectedChannel: 'codex',
+          summary: '检查完成',
+        },
+      })
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    const pending = store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    await progressObserved
+
+    expect(streamingMessage.value.slices).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'execution-status',
+        phase: 'tool-running',
+        toolName: 'coding_agent',
+        label: expect.stringContaining('Codex'),
+      }),
+    ]))
+
+    releaseStream()
+    await pending
+  })
+
+  it('uses liveness-only tool heartbeats to keep a renderer-owned stream alive', async () => {
+    vi.useFakeTimers()
+    try {
+      const reply = 'Codex 的长任务最终完成了。'
+      const fullText = createProviderFullText(reply)
+      let releaseStream!: () => void
+      const streamGate = new Promise<void>((resolve) => {
+        releaseStream = resolve
+      })
+      const streamChat = vi.fn(async (_payload: any, options: any) => {
+        await options.onStreamEvent?.({
+          type: 'tool-call',
+          toolCallId: 'tool-codex-liveness-watchdog-1',
+          toolName: 'codex',
+          args: '{}',
+          toolCallType: 'function',
+        })
+        for (const elapsedMs of [10_000, 20_000, 30_000]) {
+          await new Promise(resolve => setTimeout(resolve, 10_000))
+          await options.onStreamEvent?.({
+            type: 'tool-progress',
+            toolCallId: 'tool-codex-liveness-watchdog-1',
+            toolName: 'codex',
+            phase: 'running',
+            signal: 'liveness',
+            elapsedMs,
+          })
+        }
+        await streamGate
+        await options.onStreamEvent?.({
+          type: 'tool-result',
+          toolCallId: 'tool-codex-liveness-watchdog-1',
+          result: {
+            status: 'completed',
+            output: '完成',
+          },
+        })
+        await options.onStreamEvent?.({
+          type: 'text-delta',
+          text: reply,
+          origin: 'provider',
+          learningPolicy: providerLearningPolicy(),
+          failureSurface: null,
+        })
+        await options.onStreamEvent?.({
+          type: 'finish',
+          origin: 'provider',
+          learningPolicy: providerLearningPolicy(),
+          fullText,
+          finishReason: 'stop',
+        })
+      })
+      installAlicizationBridge({ streamChat, streamLifecycleOwner: 'renderer' })
+
+      const store = useChatOrchestratorStore()
+      const pending = store.ingest('请用 Codex 检查仓库', {
+        model: 'mock-model',
+        chatProvider: createChatProviderStub(),
+        origin: 'ui-user',
+      })
+
+      await vi.advanceTimersByTimeAsync(30_000)
+      await vi.advanceTimersByTimeAsync(20_000)
+      expect(chatAbortMock).not.toHaveBeenCalled()
+
+      releaseStream()
+      await vi.advanceTimersByTimeAsync(0)
+      await pending
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not resurrect a terminal execution status from a late liveness event', async () => {
+    const reply = 'Codex 已经完成检查。'
+    const fullText = createProviderFullText(reply)
+    let releaseStream!: () => void
+    let lateEventObserved!: () => void
+    const streamGate = new Promise<void>((resolve) => {
+      releaseStream = resolve
+    })
+    const lateEvent = new Promise<void>((resolve) => {
+      lateEventObserved = resolve
+    })
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'tool-codex-terminal-1',
+        toolName: 'codex',
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'tool-codex-terminal-1',
+        result: {
+          status: 'completed',
+          output: '完成',
+        },
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-progress',
+        toolCallId: 'tool-codex-terminal-1',
+        toolName: 'codex',
+        phase: 'running',
+        signal: 'liveness',
+        elapsedMs: 180_000,
+        timeoutMs: 120_000,
+      })
+      lateEventObserved()
+      await streamGate
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    const pending = store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    await lateEvent
+    const executionStatuses = streamingMessage.value.slices.filter((slice: any) => slice.type === 'execution-status')
+
+    expect(executionStatuses).toHaveLength(1)
+    expect(executionStatuses[0]).toMatchObject({
+      phase: 'completed',
+      toolCallId: 'tool-codex-terminal-1',
+    })
+
+    releaseStream()
+    await pending
+  })
+
+  it('uses the main projection phase when a result status conflicts with it', async () => {
+    const reply = 'Codex 仍在继续。'
+    const fullText = createProviderFullText(reply)
+    let releaseStream!: () => void
+    const streamGate = new Promise<void>((resolve) => {
+      releaseStream = resolve
+    })
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'tool-canonical-phase-1',
+        toolName: 'codex',
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-progress',
+        toolCallId: 'tool-canonical-phase-1',
+        toolName: 'codex',
+        phase: 'running',
+        signal: 'semantic-progress',
+        elapsedMs: 100,
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'tool-canonical-phase-1',
+        toolName: 'codex',
+        projection: {
+          factType: 'tool-result',
+          accepted: true,
+          traceOnly: false,
+          card: {
+            toolCallId: 'tool-canonical-phase-1',
+            toolName: 'codex',
+            selectedChannel: 'codex',
+            phase: 'completed',
+            terminal: true,
+            revision: 3,
+            elapsedMs: 100,
+            timeoutMs: null,
+            errorCode: null,
+            errorMessage: null,
+            step: null,
+            result: {
+              status: 'failed',
+              errorCode: 'LEGACY_CONFLICT',
+            },
+          },
+        },
+        result: {
+          status: 'failed',
+          errorCode: 'LEGACY_CONFLICT',
+        },
+      })
+      await streamGate
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    const pending = store.ingest('请继续执行', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    await vi.waitFor(() => {
+      expect(streamingMessage.value.slices).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          type: 'execution-status',
+          toolCallId: 'tool-canonical-phase-1',
+          phase: 'completed',
+        }),
+      ]))
+    })
+
+    releaseStream()
+    await pending
+  })
+
+  it('does not guess that different canonical toolCallIds belong to one execution', async () => {
+    const reply = 'Codex 已经完成检查。'
+    const fullText = createProviderFullText(reply)
+    let releaseStream!: () => void
+    let lateEventObserved!: () => void
+    const streamGate = new Promise<void>((resolve) => {
+      releaseStream = resolve
+    })
+    const lateEvent = new Promise<void>((resolve) => {
+      lateEventObserved = resolve
+    })
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'provider-tool-call-a',
+        toolName: 'codex',
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-progress',
+        toolCallId: 'provider-tool-call-a',
+        toolName: 'codex',
+        phase: 'running',
+        signal: 'semantic-progress',
+        elapsedMs: 100,
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-progress',
+        toolCallId: 'executor-tool-call-b',
+        toolName: 'codex',
+        phase: 'running',
+        signal: 'liveness',
+        elapsedMs: 200,
+      })
+      lateEventObserved()
+      await streamGate
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'provider-result-c',
+        toolName: 'codex',
+        result: {
+          status: 'completed',
+          output: '完成',
+        },
+      })
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    const pending = store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    await lateEvent
+    const executionStatuses = streamingMessage.value.slices
+      .filter((slice: any) => slice.type === 'execution-status')
+
+    expect(executionStatuses).toHaveLength(2)
+    expect(executionStatuses).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        phase: 'tool-running',
+        toolCallId: 'provider-tool-call-a',
+        toolName: 'codex',
+        signal: 'semantic-progress',
+      }),
+      expect.objectContaining({
+        phase: 'tool-running',
+        toolCallId: 'executor-tool-call-b',
+        toolName: 'codex',
+        signal: 'liveness',
+      }),
+    ]))
+
+    releaseStream()
+    await pending
+  })
+
+  it('keeps repeated canonical execution facts on one card and preserves the tool failure surface', async () => {
+    let markResultObserved!: () => void
+    const resultObserved = new Promise<void>((resolve) => {
+      markResultObserved = resolve
+    })
+    let releaseStream!: () => void
+    const streamGate = new Promise<void>((resolve) => {
+      releaseStream = resolve
+    })
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      for (let index = 0; index < 3; index += 1) {
+        await options.onStreamEvent?.({
+          type: 'tool-call',
+          toolCallId: 'canonical-codex-failure-1',
+          toolName: 'codex',
+          args: '{}',
+          toolCallType: 'function',
+        })
+      }
+      await options.onStreamEvent?.({
+        type: 'tool-progress',
+        toolCallId: 'canonical-codex-failure-1',
+        toolName: 'codex',
+        phase: 'running',
+        signal: 'liveness',
+        elapsedMs: 29_000,
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'canonical-codex-failure-1',
+        toolName: 'codex',
+        result: {
+          status: 'failed',
+          finalStatus: 'failed',
+          continuationPolicy: 'stop',
+          failureKind: 'tool-execution',
+          toolName: 'codex',
+          errorCode: 'CODEX_TIMEOUT',
+          errorMessage: 'Codex execution exceeded its configured deadline.',
+          summary: 'Codex execution exceeded its configured deadline.',
+        },
+      })
+      markResultObserved()
+      await streamGate
+      throw Object.assign(new Error('Codex execution exceeded its configured deadline.'), {
+        name: 'AlicizationToolExecutionError',
+        failureKind: 'tool-execution',
+        toolName: 'codex',
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'Codex execution exceeded its configured deadline.',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    const pending = store.ingest('你试试用codex看看我电脑有哪些垃圾文件可以清理', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    await resultObserved
+    await vi.waitFor(() => {
+      expect(
+        streamingMessage.value.slices
+          .filter((slice: any) => slice.type === 'execution-status'),
+      ).toEqual([
+        expect.objectContaining({
+          phase: 'tool-timeout',
+          toolName: 'codex',
+        }),
+      ])
+    })
+    const executionStatuses = streamingMessage.value.slices
+      .filter((slice: any) => slice.type === 'execution-status')
+
+    expect(executionStatuses).toHaveLength(1)
+    expect(executionStatuses[0]).toMatchObject({
+      phase: 'tool-timeout',
+      toolName: 'codex',
+    })
+
+    releaseStream()
+    await pending
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted).toMatchObject({
+      structured: {
+        origin: 'failure-surface',
+        failureSurface: {
+          kind: 'tool-execution',
+          toolExecution: {
+            code: 'CODEX_TIMEOUT',
+            toolName: 'codex',
+          },
+        },
+      },
+    })
+    expect(
+      ensureSessionMessages('session-test')
+        .filter(message => message.role === 'assistant')
+        .filter(message => message.structured?.failureSurface?.kind === 'provider-output-invalid'),
+    ).toHaveLength(0)
+  })
+
+  it('does not resurrect a failed execution status from late running or semantic progress', async () => {
+    const reply = 'Codex 已经透明报告失败。'
+    const fullText = createProviderFullText(reply)
+    let releaseStream!: () => void
+    let lateEventsObserved!: () => void
+    const streamGate = new Promise<void>((resolve) => {
+      releaseStream = resolve
+    })
+    const lateEvents = new Promise<void>((resolve) => {
+      lateEventsObserved = resolve
+    })
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'tool-codex-failed-terminal-1',
+        toolName: 'codex',
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'tool-codex-failed-terminal-1',
+        result: {
+          status: 'failed',
+          errorCode: 'CODEX_ACTIVE_STEP_TIMEOUT',
+          errorMessage: 'Codex active command exceeded its execution deadline.',
+          summary: 'Codex active command exceeded its execution deadline.',
+        },
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-progress',
+        toolCallId: 'tool-codex-failed-terminal-1',
+        toolName: 'codex',
+        phase: 'running',
+        signal: 'liveness',
+        elapsedMs: 180_000,
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-progress',
+        toolCallId: 'tool-codex-failed-terminal-1',
+        toolName: 'codex',
+        phase: 'running',
+        signal: 'semantic-progress',
+        elapsedMs: 181_000,
+      })
+      lateEventsObserved()
+      await streamGate
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    const pending = store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    await lateEvents
+    const executionStatuses = streamingMessage.value.slices.filter((slice: any) => slice.type === 'execution-status')
+
+    expect(executionStatuses).toHaveLength(1)
+    expect(executionStatuses[0]).toMatchObject({
+      phase: 'tool-timeout',
+      toolCallId: 'tool-codex-failed-terminal-1',
+    })
+
+    releaseStream()
+    await pending
+  })
+
+  it('shows normalized Codex semantic progress instead of a generic running template', async () => {
+    const reply = 'Codex 已经完成检查。'
+    const fullText = createProviderFullText(reply)
+    let releaseStream!: () => void
+    let releaseResult!: () => void
+    let markProgressObserved!: () => void
+    let markResultObserved!: () => void
+    const progressObserved = new Promise<void>((resolve) => {
+      markProgressObserved = resolve
+    })
+    const resultObserved = new Promise<void>((resolve) => {
+      markResultObserved = resolve
+    })
+    const streamGate = new Promise<void>((resolve) => {
+      releaseStream = resolve
+    })
+    const resultGate = new Promise<void>((resolve) => {
+      releaseResult = resolve
+    })
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'tool-codex-semantic-ui-1',
+        toolName: 'codex',
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-progress',
+        toolCallId: 'tool-codex-semantic-ui-1',
+        toolName: 'codex',
+        phase: 'running',
+        signal: 'semantic-progress',
+        elapsedMs: 2_000,
+        occurredAt: 1_710_000_000_000,
+        adapterEventType: 'item.completed',
+        itemType: 'command_execution',
+        summary: 'Codex command completed: git status --short',
+        command: 'git status --short',
+        commandStatus: 'completed',
+        commandExitCode: 0,
+        outputPreview: '## main...origin/main',
+      })
+      markProgressObserved()
+      await streamGate
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'tool-codex-semantic-ui-1',
+        result: {
+          status: 'completed',
+          output: '完成',
+        },
+      })
+      markResultObserved()
+      await resultGate
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    const pending = store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    await progressObserved
+
+    expect(streamingMessage.value.slices).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'execution-status',
+        phase: 'tool-running',
+        toolCallId: 'tool-codex-semantic-ui-1',
+        label: expect.stringContaining('已完成命令'),
+        command: 'git status --short',
+        commandStatus: 'completed',
+        commandExitCode: 0,
+        outputPreview: '## main...origin/main',
+      }),
+    ]))
+    expect(streamingMessage.value.slices).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        label: expect.stringContaining('git status --short'),
+      }),
+    ]))
+
+    releaseStream()
+    await resultObserved
+
+    expect(streamingMessage.value.slices).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'execution-status',
+        phase: 'completed',
+        toolCallId: 'tool-codex-semantic-ui-1',
+        command: 'git status --short',
+        commandStatus: 'completed',
+        commandExitCode: 0,
+        outputPreview: '## main...origin/main',
+      }),
+    ]))
+
+    releaseResult()
+    await pending
   })
 
   it('retries once without tools when the provider rejects tool support before progress', async () => {
@@ -847,12 +2257,417 @@ describe('chat orchestrator reply authority', () => {
     }))
   })
 
+  it('quarantines a provider reply that follows a failed tool result', async () => {
+    const providerReply = 'Codex 没有成功，但我会假装已经完成。'
+    const fullText = createProviderFullText(providerReply)
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'codex-failed-1',
+        toolName: 'codex',
+        arguments: {
+          prompt: '检查当前仓库',
+        },
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'codex-failed-1',
+        result: JSON.stringify({
+          status: 'failed',
+          stage: 'tool',
+          failureKind: 'tool-execution',
+          toolName: 'codex',
+          errorCode: 'CODEX_TIMEOUT',
+          errorMessage: 'Codex timed out after 120000ms.',
+          summary: 'codex failed: Codex timed out after 120000ms.',
+          output: null,
+        }),
+      })
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: fullText,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请用 Codex 检查当前仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted.assistantText).toContain('Codex')
+    expect(persisted.assistantText).not.toContain(providerReply)
+    expect(persisted.structured).toMatchObject({
+      origin: 'failure-surface',
+      failureSurface: {
+        kind: 'tool-execution',
+        toolExecution: {
+          toolName: 'codex',
+          code: 'CODEX_TIMEOUT',
+        },
+      },
+      learningPolicy: {
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      },
+    })
+  })
+
+  it('does not turn a tool-call display hook failure into a chat stream failure', async () => {
+    const reply = 'Codex 已完成检查。'
+    const fullText = createProviderFullText(reply)
+    hookCapture.toolCallError = new Error('tool card renderer failed')
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'codex-hook-error-1',
+        toolName: 'codex',
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'codex-hook-error-1',
+        result: {
+          status: 'completed',
+          output: '检查完成',
+        },
+      })
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted.assistantText).toBe(reply)
+    expect(persisted.structured.origin).toBe('provider')
+    expect(appendAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'alicization.chat',
+      action: 'stream-side-effect-failed',
+    }))
+  })
+
+  it('completes the turn when a real tool projection queue handler fails', async () => {
+    const reply = 'Provider 回复仍然应该在工具投影失败后提交。'
+    const fullText = createProviderFullText(reply)
+    const queueFailure = new Error('tool projection slice write failed')
+    chatToolProjectionMocks.failure = {
+      error: queueFailure,
+      toolCallId: 'codex-queue-handler-error-1',
+    }
+
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'codex-queue-handler-error-1',
+        toolName: 'custom_tool',
+        projection: {
+          factType: 'tool-call',
+          accepted: true,
+          traceOnly: false,
+          card: {
+            toolCallId: 'codex-queue-handler-error-1',
+            toolName: 'custom_tool',
+            selectedChannel: null,
+            phase: 'started',
+            terminal: false,
+            revision: 1,
+            elapsedMs: null,
+            timeoutMs: null,
+            errorCode: null,
+            errorMessage: null,
+            step: null,
+            result: undefined,
+          },
+        },
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted.assistantText).toBe(reply)
+    expect(persisted.structured.origin).toBe('provider')
+    expect(appendAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'alicization.chat',
+      action: 'tool-projection-drain-failed',
+      payload: expect.objectContaining({
+        errorCode: 'ALICIZATION_TOOL_EVENT_DELIVERY_FAILED',
+        eventType: 'tool-call',
+        toolCallId: 'codex-queue-handler-error-1',
+      }),
+    }))
+  })
+
+  it('keeps a desktop turn usable when a tool fact has no canonical projection', async () => {
+    const providerReply = 'Provider 回复不应该被投影协议错误吞掉。'
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'desktop-missing-projection-1',
+        toolName: 'custom_tool',
+        projection: {} as any,
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: providerReply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请调用工具', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted.assistantText).toBe(providerReply)
+    expect(persisted.structured.origin).toBe('provider')
+    expect(appendAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'alicization.chat',
+      action: 'tool-projection-delivery-failed',
+      payload: expect.objectContaining({
+        errorCode: 'ALICIZATION_TOOL_EVENT_DELIVERY_FAILED',
+        eventType: 'tool-call',
+        toolCallId: 'desktop-missing-projection-1',
+      }),
+    }))
+  })
+
+  it('keeps the Provider failure ahead of a queued tool projection handler failure', async () => {
+    const queueFailure = new Error('tool projection slice write failed')
+    chatToolProjectionMocks.failure = {
+      error: queueFailure,
+      toolCallId: 'provider-priority-queue-error-1',
+    }
+    appendAuditLogMock.mockRejectedValue(new Error('audit persistence failed'))
+    const providerFailure = resolveAlicizationChatFailureSurface({
+      kind: 'provider-request',
+      userText: '请调用工具',
+      providerRequest: {
+        providerId: 'mock-provider',
+        model: 'mock-model',
+        status: 503,
+        code: 'provider_unavailable',
+        message: 'Provider unavailable.',
+      },
+    })
+    const providerError = new Error(
+      'Remote sent 503 response: {"error":{"message":"Provider unavailable.","code":"provider_unavailable"}}',
+    )
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'provider-priority-queue-error-1',
+        toolName: 'custom_tool',
+        projection: {
+          factType: 'tool-call',
+          accepted: true,
+          traceOnly: false,
+          card: {
+            toolCallId: 'provider-priority-queue-error-1',
+            toolName: 'custom_tool',
+            selectedChannel: null,
+            phase: 'started',
+            terminal: false,
+            revision: 1,
+            elapsedMs: null,
+            timeoutMs: null,
+            errorCode: null,
+            errorMessage: null,
+            step: null,
+            result: undefined,
+          },
+        },
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'error',
+        error: providerFailure.reply,
+        origin: 'failure-surface',
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+        failureSurface: providerFailure,
+      })
+      throw providerError
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请调用工具', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted.structured).toMatchObject({
+      origin: 'failure-surface',
+      failureSurface: {
+        kind: 'provider-request',
+        providerRequest: {
+          status: 503,
+          code: 'provider_unavailable',
+        },
+      },
+    })
+    expect(persisted.structured.failureSurface).not.toHaveProperty(
+      'code',
+      'ALICIZATION_TOOL_EVENT_DELIVERY_FAILED',
+    )
+  })
+
+  it('keeps the provider reply when both a tool display hook and audit persistence fail', async () => {
+    const reply = '工具卡和审计都失败时，模型回复仍然完成。'
+    const fullText = createProviderFullText(reply)
+    hookCapture.toolCallError = new Error('tool card renderer failed')
+    appendAuditLogMock.mockRejectedValue(new Error('audit storage failed'))
+    let toolDeliveryRejected = false
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      try {
+        await options.onStreamEvent?.({
+          type: 'tool-call',
+          toolCallId: 'codex-double-side-effect-error-1',
+          toolName: 'codex',
+          projection: {
+            factType: 'tool-call',
+            accepted: true,
+            traceOnly: false,
+            card: {
+              toolCallId: 'codex-double-side-effect-error-1',
+              toolName: 'codex',
+              selectedChannel: 'codex',
+              phase: 'started',
+              terminal: false,
+              revision: 1,
+              elapsedMs: null,
+              timeoutMs: null,
+              errorCode: null,
+              errorMessage: null,
+              step: null,
+              result: undefined,
+            },
+          },
+          args: '{}',
+          toolCallType: 'function',
+        })
+      }
+      catch {
+        toolDeliveryRejected = true
+      }
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await expect(store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })).resolves.toBeUndefined()
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(toolDeliveryRejected).toBe(false)
+    expect(persisted.assistantText).toBe(reply)
+    expect(persisted.structured.origin).toBe('provider')
+  })
+
   it('persists provider tool rejection per provider and model without contaminating another model', async () => {
     const reply = '普通文本继续完成。'
     const fullText = createProviderFullText(reply)
+    let rejectNextToolsProbe = true
     const streamChat = vi.fn(async (payload: any, options: any) => {
-      if (payload.model === 'model-without-tools' && payload.supportsTools === true)
+      if (
+        payload.model === 'model-without-tools'
+        && payload.supportsTools === true
+        && rejectNextToolsProbe
+      ) {
+        rejectNextToolsProbe = false
         throw new Error('provider does not support tools')
+      }
 
       await options.onStreamEvent?.({
         type: 'text-delta',
@@ -878,6 +2693,14 @@ describe('chat orchestrator reply authority', () => {
       chatProvider: createChatProviderStub(),
       origin: 'ui-user',
     })
+
+    const rejectedToolsStorageKey = [
+      'alicization/provider-tool-capability/v1',
+      encodeURIComponent('mock-provider'),
+      encodeURIComponent('model-without-tools'),
+    ].join('/')
+    expect(localStorageEntries.get(rejectedToolsStorageKey)).toEqual(expect.stringContaining('"supported":false'))
+
     await store.ingest('第二轮', {
       model: 'model-without-tools',
       chatProvider: createChatProviderStub(),
@@ -905,7 +2728,8 @@ describe('chat orchestrator reply authority', () => {
     })
     expect(streamChat.mock.calls[2]?.[0]).toMatchObject({
       model: 'model-without-tools',
-      supportsTools: false,
+      supportsTools: true,
+      waitForTools: true,
       providerToolCapabilityObservation: {
         supported: false,
         source: 'observed-provider-error',
@@ -918,7 +2742,7 @@ describe('chat orchestrator reply authority', () => {
     expect(streamChat.mock.calls[3]?.[0]).not.toHaveProperty('providerToolCapabilityObservation')
   })
 
-  it('does not replay sensitive provider error text from persisted tool capability observations', async () => {
+  it('keeps persisted tool capability diagnostics sanitized while reprobeing tools', async () => {
     const storageKey = [
       'alicization/provider-tool-capability/v1',
       encodeURIComponent('mock-provider'),
@@ -960,7 +2784,8 @@ describe('chat orchestrator reply authority', () => {
 
     const payload = streamChat.mock.calls[0]?.[0]
     expect(payload).toMatchObject({
-      supportsTools: false,
+      supportsTools: true,
+      waitForTools: true,
       providerToolCapabilityObservation: {
         supported: false,
         source: 'observed-provider-error',
@@ -1185,6 +3010,41 @@ describe('chat orchestrator reply authority', () => {
     expect(persisted.assistantText).not.toContain(fragment)
   })
 
+  it('keeps a provider-authored reply when optional structured fields are incomplete', async () => {
+    const reply = '你好，我在。我们可以直接聊，不需要先满足一份内部结构。'
+    const fullText = JSON.stringify({
+      format: 'mind-turn-v1',
+      reply,
+    })
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted.assistantText).toBe(reply)
+    expect(persisted.structured).toMatchObject({
+      origin: 'provider',
+      reply,
+      contractFailed: false,
+    })
+    expect(persisted.structured.failureSurface).toBeUndefined()
+  })
+
   it('shows and persists memory side failures without replacing the Provider reply', async () => {
     const reply = '这是主进程 Provider 根据当前可用记忆生成的回复。'
     const fullText = createProviderFullText(reply)
@@ -1245,6 +3105,77 @@ describe('chat orchestrator reply authority', () => {
         failureSurface: {
           kind: 'recall-failure',
           stage: 'long-term-memory-recall',
+        },
+      },
+    })
+  })
+
+  it.each([
+    'working-memory-long-term-drain',
+    'dialogue-session-mirror-commit',
+    'autobiographical-memory-write',
+    'persona-learning-schedule',
+    'runtime-event-store',
+    'memory-turn-settlement',
+  ] as const)('shows and persists the %s side failure without replacing the Provider reply', async (stage) => {
+    const reply = 'Provider 回复已经成功提交。'
+    const fullText = createProviderFullText(reply)
+    const memoryFailure = {
+      kind: 'memory-persistence',
+      reply: '本轮记忆持久化失败。',
+      origin: 'failure-surface',
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
+      nonHumanAuthoredStatus: 'direct-infra-repair:memory-persistence',
+      visibleReplySource: 'infrastructure-failure',
+      excludeFromPersonaLearning: true,
+      excludeFromMemoryCondensation: true,
+      auditCategory: 'alicization.chat-failure',
+      stage,
+      cardId: 'default',
+      turnId: 'turn-provider',
+      occurredAt: 10,
+      errorSummary: `${stage} failed`,
+    } as const
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+        memoryFailures: [memoryFailure],
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('继续当前对话', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted.assistantText).toBe(reply)
+    expect(persisted.structured.memoryFailures).toEqual([memoryFailure])
+    expect(ensureSessionMessages(activeSessionId.value).at(-1)).toMatchObject({
+      role: 'assistant',
+      content: memoryFailure.reply,
+      structured: {
+        origin: 'failure-surface',
+        failureSurface: {
+          kind: 'memory-persistence',
+          stage,
         },
       },
     })
@@ -1524,7 +3455,7 @@ describe('chat orchestrator reply authority', () => {
     expect(persisted.structured.reply).toBe(persisted.assistantText)
   })
 
-  it.each(invalidProviderContractCases)('routes %s to a non-learning provider output failure surface', async (_label, payload) => {
+  it.each(invalidProviderContractCases)('keeps a visible reply for %s and only fails when reply is missing', async (_label, payload) => {
     const providerReply = typeof payload.reply === 'string'
       ? payload.reply
       : '缺失 reply 的候选也不能成为 Provider artifact。'
@@ -1550,6 +3481,20 @@ describe('chat orchestrator reply authority', () => {
 
     const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
     expect(streamChat).toHaveBeenCalledTimes(1)
+    if (typeof payload.reply === 'string' && payload.reply.trim()) {
+      expect(persisted).toMatchObject({
+        structured: {
+          parsePath: 'json',
+          contractFailed: false,
+          origin: 'provider',
+          reply: providerReply,
+        },
+      })
+      expect(persisted.structured.failureSurface).toBeUndefined()
+      expect(persisted.assistantText).toBe(providerReply)
+      return
+    }
+
     expect(persisted).toMatchObject({
       structured: {
         parsePath: 'fallback',
@@ -1622,6 +3567,330 @@ describe('chat orchestrator reply authority', () => {
         },
       }),
     }))
+  })
+
+  it('keeps the first tool failure terminal when a later Provider format failure arrives', async () => {
+    const providerFailureSurface = {
+      kind: 'provider-output-invalid',
+      reply: '模型输出格式异常，这轮回复已拦截。',
+      origin: 'failure-surface',
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
+      nonHumanAuthoredStatus: 'direct-infra-repair:provider-output-invalid',
+      visibleReplySource: 'infrastructure-failure',
+      excludeFromPersonaLearning: true,
+      excludeFromMemoryCondensation: true,
+      auditCategory: 'alicization.chat-failure',
+    } as const
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'codex-first-terminal-1',
+        toolName: 'codex',
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'codex-first-terminal-1',
+        result: {
+          status: 'failed',
+          finalStatus: 'failed',
+          continuationPolicy: 'stop',
+          failureKind: 'tool-execution',
+          toolName: 'codex',
+          errorCode: 'CODEX_PROVIDER_UNAVAILABLE',
+          errorMessage: 'Codex Provider reconnect attempts were exhausted.',
+        },
+      })
+      await options.onStreamEvent?.({
+        type: 'error',
+        error: providerFailureSurface.reply,
+        origin: providerFailureSurface.origin,
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+        failureSurface: providerFailureSurface,
+      })
+      throw new Error(providerFailureSurface.reply)
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted).toMatchObject({
+      structured: {
+        origin: 'failure-surface',
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+        failureSurface: {
+          kind: 'tool-execution',
+          toolExecution: {
+            toolName: 'codex',
+            code: 'CODEX_PROVIDER_UNAVAILABLE',
+            message: 'Codex Provider reconnect attempts were exhausted.',
+          },
+        },
+      },
+    })
+    expect(persisted.assistantText).toContain('CODEX_PROVIDER_UNAVAILABLE')
+    expect(persisted.assistantText).not.toBe(providerFailureSurface.reply)
+  })
+
+  it('lets a later real tool failure replace an earlier provider-output-invalid surface', async () => {
+    const providerFailureSurface = {
+      kind: 'provider-output-invalid',
+      reply: '模型输出格式异常，这轮回复已拦截。',
+      origin: 'failure-surface',
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
+      nonHumanAuthoredStatus: 'direct-infra-repair:provider-output-invalid',
+      visibleReplySource: 'infrastructure-failure',
+      excludeFromPersonaLearning: true,
+      excludeFromMemoryCondensation: true,
+      auditCategory: 'alicization.chat-failure',
+    } as const
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'error',
+        error: providerFailureSurface.reply,
+        origin: providerFailureSurface.origin,
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+        failureSurface: providerFailureSurface,
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'codex-late-failure-1',
+        toolName: 'codex',
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'codex-late-failure-1',
+        result: {
+          status: 'failed',
+          finalStatus: 'failed',
+          continuationPolicy: 'stop',
+          failureKind: 'tool-execution',
+          toolName: 'codex',
+          errorCode: 'CODEX_TIMEOUT',
+          errorMessage: 'Codex execution exceeded its configured deadline.',
+        },
+      })
+      throw new Error(providerFailureSurface.reply)
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted).toMatchObject({
+      structured: {
+        origin: 'failure-surface',
+        failureSurface: {
+          kind: 'tool-execution',
+          toolExecution: {
+            toolName: 'codex',
+            code: 'CODEX_TIMEOUT',
+          },
+        },
+      },
+    })
+    expect(persisted.assistantText).toContain('CODEX_TIMEOUT')
+    expect(persisted.assistantText).not.toBe(providerFailureSurface.reply)
+  })
+
+  it('drops trace-only late progress after canonical terminal settlement', async () => {
+    const reply = 'Codex 已完成检查。'
+    const fullText = createProviderFullText(reply)
+    let releaseStream!: () => void
+    const streamGate = new Promise<void>((resolve) => {
+      releaseStream = resolve
+    })
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'codex-terminal-1',
+        toolName: 'codex',
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-progress',
+        toolCallId: 'codex-terminal-1',
+        toolName: 'codex',
+        phase: 'completed',
+        signal: 'terminal',
+        elapsedMs: 1_000,
+        occurredAt: 10,
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-progress',
+        toolCallId: 'codex-terminal-1',
+        toolName: 'codex',
+        phase: 'running',
+        signal: 'liveness',
+        elapsedMs: 1_100,
+        occurredAt: 11,
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-progress',
+        toolCallId: 'codex-terminal-1',
+        toolName: 'codex',
+        phase: 'failed',
+        signal: 'terminal',
+        elapsedMs: 1_200,
+        occurredAt: 12,
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'Late terminal alias must not overwrite completion.',
+      })
+      await streamGate
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    const pending = store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+    await vi.waitFor(() => {
+      const executionStatuses = streamingMessage.value.slices.filter((slice: any) => slice.type === 'execution-status')
+      expect(executionStatuses).toHaveLength(1)
+    })
+    expect(streamingMessage.value.slices).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'execution-status',
+        phase: 'completed',
+        toolCallId: 'codex-terminal-1',
+      }),
+    ]))
+
+    releaseStream()
+    await pending
+
+    const persistedAssistant = ensureSessionMessages('session-test')
+      .filter(message => message.role === 'assistant')
+      .at(-1)
+    expect(persistedAssistant?.slices).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'execution-status',
+        phase: 'completed',
+        toolCallId: 'codex-terminal-1',
+      }),
+    ]))
+  })
+
+  it('keeps cancellation, timeout and failure as distinct execution terminal phases', async () => {
+    const reply = '执行状态已经记录。'
+    const fullText = createProviderFullText(reply)
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      for (const [toolCallId, phase] of [
+        ['cancelled-tool', 'cancelled'],
+        ['timeout-tool', 'timeout'],
+        ['failed-tool', 'failed'],
+      ] as const) {
+        await options.onStreamEvent?.({
+          type: 'tool-call',
+          toolCallId,
+          toolName: 'codex',
+          args: '{}',
+          toolCallType: 'function',
+        })
+        await options.onStreamEvent?.({
+          type: 'tool-progress',
+          toolCallId,
+          toolName: 'codex',
+          phase,
+          signal: 'terminal',
+          elapsedMs: 100,
+          errorCode: phase === 'timeout' ? 'CODEX_TIMEOUT' : undefined,
+          errorMessage: phase === 'timeout' ? 'Codex timed out.' : undefined,
+        })
+      }
+      await options.onStreamEvent?.({
+        type: 'text-delta',
+        text: reply,
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        origin: 'provider',
+        learningPolicy: providerLearningPolicy(),
+        failureSurface: null,
+        fullText,
+        finishReason: 'stop',
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请记录三个执行状态', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persistedAssistant = ensureSessionMessages('session-test')
+      .filter(message => message.role === 'assistant')
+      .at(-1)
+    expect(persistedAssistant?.slices).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'execution-status',
+        toolCallId: 'cancelled-tool',
+        phase: 'tool-cancelled',
+      }),
+      expect.objectContaining({
+        type: 'execution-status',
+        toolCallId: 'timeout-tool',
+        phase: 'tool-timeout',
+      }),
+      expect.objectContaining({
+        type: 'execution-status',
+        toolCallId: 'failed-tool',
+        phase: 'tool-failed',
+      }),
+    ]))
   })
 
   it('uses a transparent local-runtime-unavailable surface instead of renderer direct provider fallback', async () => {

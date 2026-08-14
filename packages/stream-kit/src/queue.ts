@@ -16,7 +16,7 @@ export function createQueue<T>(options: {
   handlers: Array<(ctx: HandlerContext<T>) => Promise<void>>
 }) {
   const queue: T[] = []
-  let drainTask: Promise<any> | undefined
+  let drainTask: Promise<unknown[]> | undefined
 
   const internalEventListeners: Events<T> = {
     enqueue: [],
@@ -34,7 +34,14 @@ export function createQueue<T>(options: {
 
   function emit<E extends keyof Events<T>>(eventName: E, ...params: Parameters<Events<T>[E][number]>) {
     const listeners = internalEventListeners[eventName] as Events<T>[E]
-    listeners.forEach(listener => (listener as any)(...params))
+    listeners.forEach((listener) => {
+      try {
+        ;(listener as any)(...params)
+      }
+      catch {
+        // Lifecycle observers must never interrupt queue consumption.
+      }
+    })
   }
 
   function onHandlerEvent(eventName: string, listener: (...params: any[]) => void) {
@@ -50,9 +57,7 @@ export function createQueue<T>(options: {
   function enqueue(payload: T) {
     queue.push(payload)
     emit('enqueue', payload, queue.length)
-    if (!drainTask) {
-      drainTask = drain()
-    }
+    ensureDrain()
   }
 
   function clear() {
@@ -60,34 +65,81 @@ export function createQueue<T>(options: {
   }
 
   async function drain() {
-    while (queue.length > 0) {
-      const payload = queue.shift() as T
-      emit('dequeue', payload, queue.length)
-      for (const handler of options.handlers) {
-        emit('process', payload, handler)
-        try {
-          const result = await handler({ data: payload, emit: emitHandlerEvent })
-          emit('result', payload, result, handler)
-        }
-        catch (err) {
-          emit('error', payload, err, handler)
-          continue
+    const errors: unknown[] = []
+    do {
+      while (queue.length > 0) {
+        const payload = queue.shift() as T
+        emit('dequeue', payload, queue.length)
+        for (const handler of options.handlers) {
+          emit('process', payload, handler)
+          try {
+            const result = await handler({ data: payload, emit: emitHandlerEvent })
+            emit('result', payload, result, handler)
+          }
+          catch (err) {
+            emit('error', payload, err, handler)
+            errors.push(err)
+            continue
+          }
         }
       }
-    }
 
-    emit('drain')
+      emit('drain')
+    } while (queue.length > 0)
+
+    return errors
+  }
+
+  function ensureDrain() {
+    if (drainTask)
+      return
+
+    let resolveTask!: (errors: unknown[]) => void
+    let rejectTask!: (error: unknown) => void
+    const task = new Promise<unknown[]>((resolve, reject) => {
+      resolveTask = resolve
+      rejectTask = reject
+    })
+    drainTask = task
+    void drain().then(resolveTask, rejectTask)
+    void task.then(
+      () => finishDrain(task),
+      () => finishDrain(task),
+    )
+  }
+
+  function finishDrain(task: Promise<unknown[]>) {
+    if (drainTask !== task)
+      return
+
     drainTask = undefined
+    if (queue.length > 0)
+      ensureDrain()
   }
 
   function length() {
     return queue.length
   }
 
+  async function waitForIdle() {
+    const errors: unknown[] = []
+    let task = drainTask
+    while (task) {
+      errors.push(...await task)
+      task = drainTask
+    }
+
+    if (errors.length === 1)
+      throw errors[0]
+    if (errors.length > 1)
+      throw new AggregateError(errors, `${errors.length} queue handlers failed`)
+  }
+
   return {
     enqueue,
     clear,
     length,
+    waitForIdle,
     on,
     onHandlerEvent,
   }

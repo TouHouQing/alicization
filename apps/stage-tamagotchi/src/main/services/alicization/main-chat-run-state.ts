@@ -19,6 +19,8 @@ export function createAlicizationMainChatRunStateController(
 ) {
   const getNow = options.getNow ?? Date.now
   const recentlyFinishedPayloads = options.recentlyFinishedPayloads ?? new Map<string, Omit<AlicizationChatFinishEvent, 'cardId' | 'turnId'>>()
+  const recentlyFinishedStates = new Map<string, ChatRunState>()
+  const finishedExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   function createKey(cardId: string, turnId: string) {
     return `${options.normalizeCardId(cardId)}::${turnId.trim()}`
@@ -26,10 +28,27 @@ export function createAlicizationMainChatRunStateController(
 
   function rememberFinished(key: string, finishedAt = getNow()) {
     options.recentlyFinishedRuns.set(key, finishedAt)
+    const previousTimer = finishedExpiryTimers.get(key)
+    if (previousTimer)
+      clearTimeout(previousTimer)
+    const expiryTimer = setTimeout(() => {
+      options.recentlyFinishedRuns.delete(key)
+      recentlyFinishedPayloads.delete(key)
+      recentlyFinishedStates.delete(key)
+      finishedExpiryTimers.delete(key)
+    }, Math.max(0, options.finishedRetentionMs))
+    expiryTimer.unref?.()
+    finishedExpiryTimers.set(key, expiryTimer)
+
     for (const [knownKey, knownFinishedAt] of options.recentlyFinishedRuns.entries()) {
       if (finishedAt - knownFinishedAt > options.finishedRetentionMs) {
         options.recentlyFinishedRuns.delete(knownKey)
         recentlyFinishedPayloads.delete(knownKey)
+        recentlyFinishedStates.delete(knownKey)
+        const timer = finishedExpiryTimers.get(knownKey)
+        if (timer)
+          clearTimeout(timer)
+        finishedExpiryTimers.delete(knownKey)
       }
     }
   }
@@ -41,9 +60,23 @@ export function createAlicizationMainChatRunStateController(
     if (now - finishedAt > options.finishedRetentionMs) {
       options.recentlyFinishedRuns.delete(key)
       recentlyFinishedPayloads.delete(key)
+      recentlyFinishedStates.delete(key)
+      const timer = finishedExpiryTimers.get(key)
+      if (timer)
+        clearTimeout(timer)
+      finishedExpiryTimers.delete(key)
       return false
     }
     return true
+  }
+
+  function getRun(key: string, now = getNow()) {
+    const active = options.runs.get(key)
+    if (active)
+      return active
+    if (!hasRecentlyFinished(key, now))
+      return undefined
+    return recentlyFinishedStates.get(key)
   }
 
   function getRecentlyFinishedPayload(key: string, now = getNow()) {
@@ -59,6 +92,9 @@ export function createAlicizationMainChatRunStateController(
   function clearFinishedRuns() {
     options.recentlyFinishedRuns.clear()
     recentlyFinishedPayloads.clear()
+    recentlyFinishedStates.clear()
+    finishedExpiryTimers.forEach(clearTimeout)
+    finishedExpiryTimers.clear()
   }
 
   function clearAll() {
@@ -66,6 +102,9 @@ export function createAlicizationMainChatRunStateController(
     options.runs.clear()
     options.recentlyFinishedRuns.clear()
     recentlyFinishedPayloads.clear()
+    recentlyFinishedStates.clear()
+    finishedExpiryTimers.forEach(clearTimeout)
+    finishedExpiryTimers.clear()
   }
 
   function finishRun(key: string, payload: Omit<AlicizationChatFinishEvent, 'cardId' | 'turnId'>) {
@@ -77,6 +116,7 @@ export function createAlicizationMainChatRunStateController(
 
     state.state = 'finished'
     options.runs.delete(key)
+    recentlyFinishedStates.set(key, state)
     const sessionTrace = options.sessionTraceGetters.get(key)?.()
     options.sessionTraceGetters.delete(key)
     recentlyFinishedPayloads.set(key, payload)
@@ -107,6 +147,7 @@ export function createAlicizationMainChatRunStateController(
     clearFinishedRuns,
     createKey,
     finishRun,
+    getRun,
     getRecentlyFinishedPayload,
     hasRecentlyFinished,
     setSessionTraceGetter,

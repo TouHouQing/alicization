@@ -164,6 +164,26 @@ function createPrepared(overrides?: Partial<any>): any {
   }
 }
 
+function createMemoryWriteItem() {
+  return {
+    id: 'queue-turn-1',
+    sourceTurnIds: ['turn-1:user'],
+    kind: 'preference',
+    summary: '用户希望失败时不要污染长期记忆。',
+    reason: 'candidate:preference',
+    evidenceSnippets: ['失败时不要污染长期记忆。'],
+    salience: 0.8,
+    confidence: 0.86,
+    sensitivity: 'personal',
+    allowTraining: false,
+    status: 'pending-cleaning',
+    rejectionReasons: [],
+    contaminationFlags: [],
+    createdAt: 100,
+    source: 'working-memory-owner',
+  }
+}
+
 function createInMemoryPersistence() {
   const events: any[] = []
   return {
@@ -238,6 +258,7 @@ function createInput(
     emitMeta: vi.fn(),
     emitChunk: vi.fn(),
     emitToolCall: vi.fn(),
+    emitToolProgress: vi.fn(),
     emitToolResult: vi.fn(),
     emitError: vi.fn(),
     incrementChunkStats: vi.fn(),
@@ -702,6 +723,431 @@ describe('main chat background run', () => {
       .toBe(providerFailure)
   })
 
+  it('rejects memory writeback without committing it when the Provider fails', async () => {
+    const events: any[] = []
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+    }
+    const commitMemoryWriteIntent = vi.fn(async () => {})
+    const providerFailure = new Error('provider unavailable')
+    vi.mocked(runAlicizationMainChatProviderStep).mockRejectedValueOnce(providerFailure)
+    const input = createInput('记住这轮', {
+      prepareTurn: vi.fn(async () => createPrepared({
+        commitMemoryWriteIntent,
+        memoryWriteItems: [createMemoryWriteItem()],
+      })),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(commitMemoryWriteIntent).not.toHaveBeenCalled()
+    expect(events.map(event => event.eventType)).toContain('memory.write.rejected')
+    expect(events.map(event => event.eventType)).not.toContain('memory.write.proposed')
+    expect(events.map(event => event.eventType)).not.toContain('memory.write.accepted')
+  })
+
+  it('rejects memory writeback without committing it when a tool fails', async () => {
+    const events: any[] = []
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+    }
+    const commitMemoryWriteIntent = vi.fn(async () => {})
+    const prepared = createPrepared({
+      commitMemoryWriteIntent,
+      memoryWriteItems: [createMemoryWriteItem()],
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'coding_agent',
+          description: 'Run a coding agent.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        execute: vi.fn(async () => {
+          throw new Error('coding agent failed')
+        }),
+      }],
+    })
+    const input = createInput('检查项目', {
+      prepareTurn: vi.fn(async () => prepared),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
+      kind: 'action',
+      action: {
+        actionId: 'turn-1:action:tool-failure',
+        input: {
+          agent: 'codex',
+          prompt: 'inspect the repository',
+        },
+        providerToolName: 'coding_agent',
+        capabilityId: 'coding_agent.codex',
+        toolCallId: 'tool-failure-call',
+      },
+    } as any)
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(commitMemoryWriteIntent).not.toHaveBeenCalled()
+    expect(events.map(event => event.eventType)).toContain('tool.failed')
+    expect(events.map(event => event.eventType)).toContain('memory.write.rejected')
+    expect(events.map(event => event.eventType)).not.toContain('memory.write.proposed')
+    expect(events.map(event => event.eventType)).not.toContain('memory.write.accepted')
+  })
+
+  it('rejects memory writeback without committing it when the turn is cancelled', async () => {
+    const events: any[] = []
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+    }
+    const commitMemoryWriteIntent = vi.fn(async () => {})
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(
+      async () => await new Promise<never>(() => {}),
+    )
+    const input = createInput('停止这轮', {
+      prepareTurn: vi.fn(async () => createPrepared({
+        commitMemoryWriteIntent,
+        memoryWriteItems: [createMemoryWriteItem()],
+      })),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+
+    const running = runAlicizationMainChatBackground(input)
+    await vi.waitFor(() => {
+      expect(input.runState.cancelTurn).toBeTypeOf('function')
+      expect(runAlicizationMainChatProviderStep).toHaveBeenCalledOnce()
+    })
+    await input.runState.cancelTurn?.('user-cancelled')
+    await running
+
+    expect(commitMemoryWriteIntent).not.toHaveBeenCalled()
+    expect(events.map(event => event.eventType)).toContain('runtime.cancelled')
+    expect(events.map(event => event.eventType)).toContain('memory.write.rejected')
+    expect(events.map(event => event.eventType)).not.toContain('memory.write.proposed')
+    expect(events.map(event => event.eventType)).not.toContain('memory.write.accepted')
+  })
+
+  it('rejects memory writeback without committing it when the model step budget is exhausted', async () => {
+    const events: any[] = []
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+    }
+    const commitMemoryWriteIntent = vi.fn(async () => {})
+    const prepared = createPrepared({
+      commitMemoryWriteIntent,
+      memoryWriteItems: [createMemoryWriteItem()],
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'coding_agent',
+          description: 'Run a coding agent.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        execute: vi.fn(async () => ({
+          status: 'completed',
+        })),
+      }],
+    })
+    const input = createInput('持续检查直到预算耗尽', {
+      prepareTurn: vi.fn(async () => prepared),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementation(
+      async (_options: any) => {
+        const index = vi.mocked(runAlicizationMainChatProviderStep).mock.calls.length
+        return {
+          kind: 'action',
+          action: {
+            actionId: `turn-1:action:budget-${index}`,
+            input: {
+              agent: 'codex',
+              prompt: `inspect pass ${index}`,
+            },
+            providerToolName: 'coding_agent',
+            capabilityId: 'coding_agent.codex',
+            toolCallId: `budget-call-${index}`,
+          },
+        } as any
+      },
+    )
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(runAlicizationMainChatProviderStep).toHaveBeenCalledTimes(8)
+    expect(commitMemoryWriteIntent).not.toHaveBeenCalled()
+    expect(events.map(event => event.eventType)).toContain('runtime.timed_out')
+    expect(events.map(event => event.eventType)).toContain('memory.write.rejected')
+    expect(events.map(event => event.eventType)).not.toContain('memory.write.proposed')
+    expect(events.map(event => event.eventType)).not.toContain('memory.write.accepted')
+  })
+
+  it('commits the settled Provider reply before publishing WorkingMemory events', async () => {
+    const events: any[] = []
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+    }
+    const settledSnapshot = {
+      version: 'working-memory-v1',
+      updatedAt: 100,
+      compressedTimeline: [{
+        id: 'episodelet-1',
+        sourceTurnIds: ['turn-old:user'],
+        summary: '旧对话已经压缩。',
+      }],
+      compression: {
+        level: 'light',
+        sourceTurnIds: ['turn-old:user'],
+        lastCompressedAt: 100,
+      },
+    }
+    const commitMemoryWriteIntent = vi.fn(async () => ({
+      workingMemorySnapshot: settledSnapshot,
+      memoryWriteItems: [createMemoryWriteItem()],
+    }))
+    const input = createInput('记住成功回复', {
+      prepareTurn: vi.fn(async () => createPrepared({
+        commitMemoryWriteIntent,
+        memoryWriteItems: [createMemoryWriteItem()],
+      })),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
+      kind: 'reply',
+      finishReason: 'stop',
+      fullText: '最终 Provider 回复',
+      text: '最终 Provider 回复',
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(commitMemoryWriteIntent).toHaveBeenCalledOnce()
+    expect(commitMemoryWriteIntent).toHaveBeenCalledWith({
+      assistantText: '最终 Provider 回复',
+    })
+    const eventTypes = events.map(event => event.eventType)
+    expect(eventTypes.indexOf('turn.completed')).toBeLessThan(
+      eventTypes.indexOf('memory.write.proposed'),
+    )
+    expect(eventTypes.indexOf('memory.write.accepted')).toBeLessThan(
+      eventTypes.indexOf('working_memory.compression.completed'),
+    )
+    expect(eventTypes.indexOf('working_memory.compression.completed')).toBeLessThan(
+      eventTypes.indexOf('working_memory.snapshot.created'),
+    )
+  })
+
+  it('publishes memory write events from the final settled candidates instead of prepare-time candidates', async () => {
+    const events: any[] = []
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+    }
+    const preparedItem = createMemoryWriteItem()
+    const settledItem = {
+      ...createMemoryWriteItem(),
+      id: 'queue-final',
+      sourceTurnIds: ['turn-1:user', 'turn-1:alice'],
+      summary: '这条候选由最终成功回复凝练。',
+    }
+    const settledSnapshot = {
+      version: 'working-memory-v1',
+      updatedAt: 100,
+      compressedTimeline: [],
+      compression: {
+        level: 'none',
+        sourceTurnIds: [],
+        lastCompressedAt: null,
+      },
+    }
+    const resolvedIntent = {
+      version: 'memory-write-intent-v1',
+      workingMemorySnapshot: settledSnapshot,
+      memoryWriteItems: [settledItem],
+    }
+    const resolveMemoryWriteIntent = vi.fn(() => resolvedIntent)
+    const commitMemoryWriteIntent = vi.fn(async () => ({
+      ...resolvedIntent,
+      ownerSettlements: [{
+        owner: 'working-memory-checkpoint',
+        status: 'succeeded',
+      }],
+    }))
+    const input = createInput('记住最终回复', {
+      prepareTurn: vi.fn(async () => createPrepared({
+        resolveMemoryWriteIntent,
+        commitMemoryWriteIntent,
+        memoryWriteItems: [preparedItem],
+      })),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
+      kind: 'reply',
+      finishReason: 'stop',
+      fullText: '最终 Provider 回复',
+      text: '最终 Provider 回复',
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(resolveMemoryWriteIntent).toHaveBeenCalledWith({
+      assistantText: '最终 Provider 回复',
+    })
+    expect(commitMemoryWriteIntent).toHaveBeenCalledWith({
+      assistantText: '最终 Provider 回复',
+      intent: resolvedIntent,
+    })
+    expect(events.find(event => event.eventType === 'memory.write.proposed')?.payload)
+      .toMatchObject({
+        itemCount: 1,
+        sourceTurnIds: ['turn-1:user', 'turn-1:alice'],
+      })
+    expect(events.find(event => event.eventType === 'memory.write.accepted')?.payload)
+      .toMatchObject({
+        itemCount: 1,
+        sourceTurnIds: ['turn-1:user', 'turn-1:alice'],
+      })
+    expect(JSON.stringify(events.filter(event =>
+      event.eventType === 'memory.write.proposed'
+      || event.eventType === 'memory.write.accepted',
+    ))).not.toContain('用户希望失败时不要污染长期记忆。')
+  })
+
+  it('does not complete or commit memory when the visible reply is no longer deliverable', async () => {
+    const events: any[] = []
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+    }
+    let active = true
+    const commitMemoryWriteIntent = vi.fn(async () => ({
+      workingMemorySnapshot: {
+        version: 'working-memory-v1',
+        updatedAt: 100,
+        compressedTimeline: [],
+        compression: {
+          level: 'none',
+          sourceTurnIds: [],
+          lastCompressedAt: null,
+        },
+      },
+      memoryWriteItems: [createMemoryWriteItem()],
+    }))
+    const input = createInput('这轮已经失效', {
+      isRunActive: () => active,
+      prepareTurn: vi.fn(async () => createPrepared({
+        commitMemoryWriteIntent,
+        memoryWriteItems: [createMemoryWriteItem()],
+      })),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockImplementationOnce(async () => {
+      active = false
+      return {
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: '这条回复不应投递。',
+        text: '这条回复不应投递。',
+      }
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(input.emitChunk).not.toHaveBeenCalled()
+    expect(commitMemoryWriteIntent).not.toHaveBeenCalled()
+    expect(events.map(event => event.eventType)).not.toContain('assistant.reply.committed')
+    expect(events.map(event => event.eventType)).not.toContain('turn.completed')
+    expect(events.map(event => event.eventType)).not.toContain('memory.write.proposed')
+    expect(events.map(event => event.eventType)).not.toContain('memory.write.accepted')
+  })
+
   it('settles presented execution callbacks after an EventLoop Provider reply', async () => {
     const settlePresentedExecutionCallbacks = vi.fn(async () => {})
     const callback = {
@@ -841,6 +1287,870 @@ describe('main chat background run', () => {
         eventType: 'action.started',
         payload: expect.objectContaining({
           capabilityId: 'coding_agent.codex',
+        }),
+      }),
+    )
+  })
+
+  it('projects Provider tool calls only after model.tool_call.proposed is durable', async () => {
+    const order: string[] = []
+    let lastAppendedEventType = ''
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        lastAppendedEventType = event.eventType
+        order.push(`append:${event.eventType}`)
+        return {
+          ...event,
+          sequence: order.filter(item => item.startsWith('append:')).length,
+        }
+      }),
+      saveRuntimeCheckpoint: vi.fn(async (checkpoint) => {
+        order.push(`checkpoint:${lastAppendedEventType}`)
+        return checkpoint
+      }),
+    }
+    const execute = vi.fn(async () => ({
+      status: 'completed',
+    }))
+    const prepared = createPrepared({
+      toolRegistry: createCanonicalToolRegistry(),
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'coding_agent',
+          description: 'Run a coding agent.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        execute,
+      }],
+    })
+    const input = createInput('检查当前项目', {
+      prepareTurn: vi.fn(async () => prepared),
+      emitToolCall: vi.fn(() => {
+        order.push('emit:tool-call')
+      }),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockImplementationOnce(async (options: any) => {
+        options.emitToolCall({
+          cardId: 'card-1',
+          turnId: 'turn-1',
+          toolCallId: 'durable-tool-call',
+          toolName: 'coding_agent',
+          arguments: {
+            agent: 'codex',
+            prompt: 'inspect the repository',
+          },
+        })
+        return {
+          kind: 'action',
+          action: {
+            actionId: 'turn-1:action:durable-tool-call',
+            input: {
+              agent: 'codex',
+              prompt: 'inspect the repository',
+            },
+            providerToolName: 'coding_agent',
+            capabilityId: 'coding_agent.codex',
+            toolCallId: 'durable-tool-call',
+          },
+        } as any
+      })
+      .mockResolvedValueOnce({
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: '检查完成。',
+        text: '检查完成。',
+      })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(input.emitToolCall).toHaveBeenCalledOnce()
+    expect(input.emitToolCall).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: 'durable-tool-call',
+      toolName: 'coding_agent',
+      arguments: {
+        agent: 'codex',
+        prompt: 'inspect the repository',
+      },
+    }))
+    expect(order.indexOf('append:model.tool_call.proposed')).toBeLessThan(
+      order.indexOf('checkpoint:model.tool_call.proposed'),
+    )
+    expect(order.indexOf('checkpoint:model.tool_call.proposed')).toBeLessThan(
+      order.indexOf('emit:tool-call'),
+    )
+  })
+
+  it.each([
+    'append',
+    'checkpoint',
+  ] as const)('does not emit a tool result when observation %s fails', async (failureStage) => {
+    const events: any[] = []
+    let lastAppendedEventType = ''
+    const persistenceError = new Error(`observation ${failureStage} failed`)
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        lastAppendedEventType = event.eventType
+        if (
+          failureStage === 'append'
+          && event.eventType === 'action.observation'
+        ) {
+          throw persistenceError
+        }
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async (checkpoint) => {
+        if (
+          failureStage === 'checkpoint'
+          && lastAppendedEventType === 'action.observation'
+        ) {
+          throw persistenceError
+        }
+        return checkpoint
+      }),
+    }
+    const prepared = createPrepared({
+      toolRegistry: createCanonicalToolRegistry(),
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'coding_agent',
+          description: 'Run a coding agent.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        execute: vi.fn(async () => ({
+          status: 'completed',
+        })),
+      }],
+    })
+    const input = createInput('检查当前项目', {
+      prepareTurn: vi.fn(async () => prepared),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
+      kind: 'action',
+      action: {
+        actionId: `turn-1:action:observation-${failureStage}-failure`,
+        input: {
+          agent: 'codex',
+          prompt: 'inspect the repository',
+        },
+        providerToolName: 'coding_agent',
+        capabilityId: 'coding_agent.codex',
+        toolCallId: `observation-${failureStage}-failure`,
+      },
+    } as any)
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(input.emitToolResult).not.toHaveBeenCalled()
+  })
+
+  it('emits a tool result only after action.observation is durable', async () => {
+    const order: string[] = []
+    let lastAppendedEventType = ''
+    let sequence = 0
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        lastAppendedEventType = event.eventType
+        order.push(`append:${event.eventType}`)
+        return {
+          ...event,
+          sequence: ++sequence,
+        }
+      }),
+      saveRuntimeCheckpoint: vi.fn(async (checkpoint) => {
+        order.push(`checkpoint:${lastAppendedEventType}`)
+        return checkpoint
+      }),
+    }
+    const prepared = createPrepared({
+      toolRegistry: createCanonicalToolRegistry(),
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'coding_agent',
+          description: 'Run a coding agent.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        execute: vi.fn(async () => ({
+          status: 'completed',
+          summary: 'repository inspected',
+        })),
+      }],
+    })
+    const input = createInput('检查当前项目', {
+      prepareTurn: vi.fn(async () => prepared),
+      emitToolResult: vi.fn(() => {
+        order.push('emit:tool-result')
+      }),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockResolvedValueOnce({
+        kind: 'action',
+        action: {
+          actionId: 'turn-1:action:durable-observation',
+          input: {
+            agent: 'codex',
+            prompt: 'inspect the repository',
+          },
+          providerToolName: 'coding_agent',
+          capabilityId: 'coding_agent.codex',
+          toolCallId: 'durable-observation',
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: '检查完成。',
+        text: '检查完成。',
+      })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(input.emitToolResult).toHaveBeenCalledOnce()
+    expect(order.indexOf('append:action.observation')).toBeLessThan(
+      order.indexOf('checkpoint:action.observation'),
+    )
+    expect(order.indexOf('checkpoint:action.observation')).toBeLessThan(
+      order.indexOf('emit:tool-result'),
+    )
+  })
+
+  it('keeps a successful tool observation when tool-result delivery fails', async () => {
+    const persistence = createInMemoryPersistence()
+    const execute = vi.fn(async () => ({
+      status: 'completed',
+      summary: 'repository inspected',
+    }))
+    const prepared = createPrepared({
+      toolRegistry: createCanonicalToolRegistry(),
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'coding_agent',
+          description: 'Run a coding agent.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        execute,
+      }],
+    })
+    const deliveryError = new Error('renderer tool-result delivery failed')
+    const input = createInput('检查当前项目', {
+      prepareTurn: vi.fn(async () => prepared),
+      emitToolResult: vi.fn(() => {
+        throw deliveryError
+      }),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockResolvedValueOnce({
+        kind: 'action',
+        action: {
+          actionId: 'turn-1:action:delivery-failure',
+          input: {
+            agent: 'codex',
+            prompt: 'inspect the repository',
+          },
+          providerToolName: 'coding_agent',
+          capabilityId: 'coding_agent.codex',
+          toolCallId: 'delivery-failure-tool-call',
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: '检查完成。',
+        text: '检查完成。',
+      })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(execute).toHaveBeenCalledOnce()
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(
+      'card-1::turn-1',
+      expect.objectContaining({
+        status: 'completed',
+        fullText: '检查完成。',
+      }),
+    )
+    expect(persistence.appendRuntimeEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: 'action.observation',
+        payload: expect.objectContaining({
+          actionId: 'turn-1:action:delivery-failure',
+          outcome: 'success',
+          output: {
+            status: 'completed',
+            summary: 'repository inspected',
+          },
+        }),
+      }),
+    )
+    expect(persistence.appendRuntimeEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: 'action.completed',
+        payload: expect.objectContaining({
+          actionId: 'turn-1:action:delivery-failure',
+        }),
+      }),
+    )
+    expect(persistence.appendRuntimeEvent).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: 'action.failed',
+      }),
+    )
+    expect(persistence.appendRuntimeEvent).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: 'tool.failed',
+      }),
+    )
+    expect(input.queueScopedAuditLog).toHaveBeenCalledWith(
+      'card-1',
+      expect.objectContaining({
+        category: 'alicization.executor.delivery',
+        action: 'tool-result-delivery-failed',
+        payload: expect.objectContaining({
+          toolCallId: 'delivery-failure-tool-call',
+          reason: deliveryError.message,
+        }),
+      }),
+    )
+  })
+
+  it('keeps the Provider action loop alive when tool-call delivery fails', async () => {
+    const persistence = createInMemoryPersistence()
+    const execute = vi.fn(async () => ({
+      status: 'completed',
+      summary: 'repository inspected',
+    }))
+    const prepared = createPrepared({
+      toolRegistry: createCanonicalToolRegistry(),
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'coding_agent',
+          description: 'Run a coding agent.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        execute,
+      }],
+    })
+    const deliveryError = new Error('renderer tool-call delivery failed')
+    const input = createInput('检查当前项目', {
+      prepareTurn: vi.fn(async () => prepared),
+      emitToolCall: vi.fn(() => {
+        throw deliveryError
+      }),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockImplementationOnce(async (options: any) => {
+        options.emitToolCall({
+          cardId: 'card-1',
+          turnId: 'turn-1',
+          toolCallId: 'delivery-failure-tool-call',
+          toolName: 'coding_agent',
+        })
+        return {
+          kind: 'action',
+          action: {
+            actionId: 'turn-1:action:tool-call-delivery-failure',
+            input: {
+              agent: 'codex',
+              prompt: 'inspect the repository',
+            },
+            providerToolName: 'coding_agent',
+            capabilityId: 'coding_agent.codex',
+            toolCallId: 'delivery-failure-tool-call',
+          },
+        } as any
+      })
+      .mockResolvedValueOnce({
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: '检查完成。',
+        text: '检查完成。',
+      })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(execute).toHaveBeenCalledOnce()
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(
+      'card-1::turn-1',
+      expect.objectContaining({
+        status: 'completed',
+        fullText: '检查完成。',
+      }),
+    )
+    expect(persistence.appendRuntimeEvent).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        eventType: 'provider.failed',
+      }),
+    )
+    expect(input.queueScopedAuditLog).toHaveBeenCalledWith(
+      'card-1',
+      expect.objectContaining({
+        category: 'alicization.executor.delivery',
+        action: 'tool-call-delivery-failed',
+        payload: expect.objectContaining({
+          toolCallId: 'delivery-failure-tool-call',
+          reason: deliveryError.message,
+        }),
+      }),
+    )
+  })
+
+  it('persists online tool progress under the active Turn OS action scope', async () => {
+    const persistence = createInMemoryPersistence()
+    const runState = {
+      cardId: 'card-1',
+      turnId: 'turn-1',
+      controller: new AbortController(),
+      sender: { id: 7 } as any,
+      chunkCount: 0,
+      rawChunkChars: 0,
+      state: 'running' as const,
+      toolProgressListeners: new Set<(event: any) => void>(),
+    }
+    const execute = vi.fn(async () => {
+      for (const listener of runState.toolProgressListeners) {
+        listener({
+          toolCallId: 'canonical-tool-call',
+          toolName: 'coding_agent',
+          selectedChannel: 'codex',
+          phase: 'running',
+          signal: 'semantic-progress',
+          elapsedMs: 320,
+          timeoutMs: 180_000,
+          occurredAt: 1_320,
+          eventId: 'codex-progress-1',
+          threadId: 'codex-thread-1',
+          adapterEventType: 'item.completed',
+          itemType: 'command_execution',
+          summary: 'Inspected package metadata.',
+          command: 'pnpm -v',
+          commandStatus: 'completed',
+          commandExitCode: 0,
+          outputPreview: '10.14.0',
+        })
+      }
+      return {
+        status: 'completed',
+        summary: 'repository inspected',
+      }
+    })
+    const prepared = createPrepared({
+      toolRegistry: createCanonicalToolRegistry(),
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'coding_agent',
+          description: 'Run a coding agent.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        execute,
+      }],
+    })
+    const input = createInput('检查当前项目', {
+      runState,
+      prepareTurn: vi.fn(async () => prepared),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockResolvedValueOnce({
+        kind: 'action',
+        action: {
+          actionId: 'turn-1:action:canonical-tool-call',
+          input: {
+            agent: 'codex',
+            prompt: 'inspect the repository',
+          },
+          providerToolName: 'coding_agent',
+          capabilityId: 'coding_agent.codex',
+          toolCallId: 'canonical-tool-call',
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: '检查完成。',
+        text: '检查完成。',
+      })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(persistence.appendRuntimeEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        cardId: 'card-1',
+        userId: 'local-user-stable',
+        conversationId: 'conversation-1',
+        turnId: 'turn-1',
+      }),
+      expect.objectContaining({
+        eventType: 'action.progress',
+        payload: expect.objectContaining({
+          actionId: 'turn-1:action:canonical-tool-call',
+          toolCallId: 'canonical-tool-call',
+          selectedChannel: 'codex',
+          eventId: 'codex-progress-1',
+          summary: 'Inspected package metadata.',
+        }),
+      }),
+    )
+    expect(runState.toolProgressListeners).toHaveLength(0)
+  })
+
+  it('projects action progress only after its runtime checkpoint is durable', async () => {
+    const order: string[] = []
+    let lastAppendedEventType = ''
+    let sequence = 0
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        lastAppendedEventType = event.eventType
+        order.push(`append:${event.eventType}`)
+        return {
+          ...event,
+          sequence: ++sequence,
+        }
+      }),
+      saveRuntimeCheckpoint: vi.fn(async (checkpoint) => {
+        order.push(`checkpoint:${lastAppendedEventType}`)
+        return checkpoint
+      }),
+    }
+    const runState = {
+      cardId: 'card-1',
+      turnId: 'turn-1',
+      controller: new AbortController(),
+      sender: { id: 7 } as any,
+      chunkCount: 0,
+      rawChunkChars: 0,
+      state: 'running' as const,
+      toolProgressListeners: new Set<(event: any) => void>(),
+    }
+    const execute = vi.fn(async () => {
+      for (const listener of runState.toolProgressListeners) {
+        listener({
+          toolCallId: 'durable-progress-tool-call',
+          toolName: 'coding_agent',
+          selectedChannel: 'codex',
+          phase: 'running',
+          signal: 'semantic-progress',
+          elapsedMs: 320,
+          occurredAt: 1_320,
+          eventId: 'durable-progress-1',
+          summary: 'Inspected package metadata.',
+        })
+      }
+      return {
+        status: 'completed',
+      }
+    })
+    const prepared = createPrepared({
+      toolRegistry: createCanonicalToolRegistry(),
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'coding_agent',
+          description: 'Run a coding agent.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        execute,
+      }],
+    })
+    const input = createInput('检查当前项目', {
+      runState,
+      prepareTurn: vi.fn(async () => prepared),
+      emitToolProgress: vi.fn(() => {
+        order.push('emit:tool-progress')
+      }),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    } as any)
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockResolvedValueOnce({
+        kind: 'action',
+        action: {
+          actionId: 'turn-1:action:durable-progress',
+          input: {
+            agent: 'codex',
+            prompt: 'inspect the repository',
+          },
+          providerToolName: 'coding_agent',
+          capabilityId: 'coding_agent.codex',
+          toolCallId: 'durable-progress-tool-call',
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: '检查完成。',
+        text: '检查完成。',
+      })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect((input as any).emitToolProgress).toHaveBeenCalledOnce()
+    expect(order.indexOf('append:action.progress')).toBeLessThan(
+      order.indexOf('checkpoint:action.progress'),
+    )
+    expect(order.indexOf('checkpoint:action.progress')).toBeLessThan(
+      order.indexOf('emit:tool-progress'),
+    )
+  })
+
+  it('projects a durable cancelled observation as a cancelled tool result', async () => {
+    const execute = vi.fn(async (
+      _input: unknown,
+      options: { abortSignal: AbortSignal },
+    ) => await new Promise<never>((_resolve, reject) => {
+      options.abortSignal.addEventListener('abort', () => {
+        reject(new DOMException('cancelled', 'AbortError'))
+      }, { once: true })
+    }))
+    const prepared = createPrepared({
+      toolRegistry: createCanonicalToolRegistry(),
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'coding_agent',
+          description: 'Run a coding agent.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        execute,
+      }],
+    })
+    const emitToolProgress = vi.fn()
+    const emitToolResult = vi.fn()
+    const input = createInput('停止工具', {
+      prepareTurn: vi.fn(async () => prepared),
+      emitToolProgress,
+      emitToolResult,
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
+      kind: 'action',
+      action: {
+        actionId: 'turn-1:action:cancelled-observation',
+        input: {
+          agent: 'codex',
+          prompt: 'inspect the repository',
+        },
+        providerToolName: 'coding_agent',
+        capabilityId: 'coding_agent.codex',
+        toolCallId: 'cancelled-observation-tool-call',
+      },
+    } as any)
+
+    const running = runAlicizationMainChatBackground(input)
+    await vi.waitFor(() => {
+      expect(execute).toHaveBeenCalledOnce()
+      expect(input.runState.cancelTurn).toBeTypeOf('function')
+    })
+    await input.runState.cancelTurn?.('user cancelled the tool')
+    await running
+
+    expect(emitToolResult).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: 'cancelled-observation-tool-call',
+      toolName: 'coding_agent',
+      phase: 'cancelled',
+    }))
+    expect(emitToolProgress).toHaveBeenCalledWith(expect.objectContaining({
+      toolCallId: 'cancelled-observation-tool-call',
+      toolName: 'coding_agent',
+      phase: 'cancelled',
+      signal: 'terminal',
+      errorMessage: 'user cancelled the tool',
+    }))
+    expect(emitToolProgress.mock.invocationCallOrder[0]).toBeLessThan(
+      emitToolResult.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('keeps a successful tool result when action progress persistence fails', async () => {
+    const events: any[] = []
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        if (event.eventType === 'action.progress')
+          throw new Error('progress event store unavailable')
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+    }
+    const runState = {
+      cardId: 'card-1',
+      turnId: 'turn-1',
+      controller: new AbortController(),
+      sender: { id: 7 } as any,
+      chunkCount: 0,
+      rawChunkChars: 0,
+      state: 'running' as const,
+      toolProgressListeners: new Set<(event: any) => void>(),
+    }
+    const execute = vi.fn(async () => {
+      for (const listener of runState.toolProgressListeners) {
+        listener({
+          toolCallId: 'progress-failure-tool-call',
+          toolName: 'coding_agent',
+          selectedChannel: 'codex',
+          phase: 'running',
+          signal: 'semantic-progress',
+          elapsedMs: 320,
+          timeoutMs: 180_000,
+          occurredAt: 1_320,
+          eventId: 'progress-failure-1',
+          summary: 'Inspected package metadata.',
+        })
+      }
+      return {
+        status: 'completed',
+        summary: 'repository inspected',
+      }
+    })
+    const prepared = createPrepared({
+      toolRegistry: createCanonicalToolRegistry(),
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'coding_agent',
+          description: 'Run a coding agent.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        execute,
+      }],
+    })
+    const input = createInput('检查当前项目', {
+      runState,
+      prepareTurn: vi.fn(async () => prepared),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockResolvedValueOnce({
+        kind: 'action',
+        action: {
+          actionId: 'turn-1:action:progress-failure',
+          input: {
+            agent: 'codex',
+            prompt: 'inspect the repository',
+          },
+          providerToolName: 'coding_agent',
+          capabilityId: 'coding_agent.codex',
+          toolCallId: 'progress-failure-tool-call',
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: '检查完成。',
+        text: '检查完成。',
+      })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(execute).toHaveBeenCalledOnce()
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(
+      'card-1::turn-1',
+      expect.objectContaining({
+        status: 'completed',
+        fullText: '检查完成。',
+      }),
+    )
+    expect(events.map(event => event.eventType)).toContain('action.completed')
+    expect(events.map(event => event.eventType)).not.toContain('action.failed')
+    expect(events.map(event => event.eventType)).not.toContain('tool.failed')
+    expect(input.appendRuntimeDebugLine).toHaveBeenCalledWith(
+      'chat-stream.tool-progress-persistence-failed',
+      expect.objectContaining({
+        actionId: 'turn-1:action:progress-failure',
+        toolCallId: 'progress-failure-tool-call',
+        reason: 'progress event store unavailable',
+      }),
+    )
+    expect(input.queueScopedAuditLog).toHaveBeenCalledWith(
+      'card-1',
+      expect.objectContaining({
+        category: 'alicization.executor.persistence',
+        action: 'tool-progress-persistence-failed',
+        payload: expect.objectContaining({
+          actionId: 'turn-1:action:progress-failure',
+          toolCallId: 'progress-failure-tool-call',
+          persistenceFailureOnly: true,
         }),
       }),
     )
@@ -1160,6 +2470,74 @@ describe('main chat background run', () => {
         errorSummary: 'recall offline',
       }),
     ])
+  })
+
+  it('reports runtime memory event persistence failure without replacing the Provider reply', async () => {
+    const events: any[] = []
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        if (event.eventType === 'memory.write.proposed')
+          throw new Error('runtime event store unavailable')
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+    }
+    const commitMemoryWriteIntent = vi.fn(async () => ({
+      workingMemorySnapshot: {
+        version: 'working-memory-v1',
+        updatedAt: 100,
+        compressedTimeline: [],
+        compression: {
+          level: 'none',
+          sourceTurnIds: [],
+          lastCompressedAt: null,
+        },
+      },
+      memoryWriteItems: [createMemoryWriteItem()],
+      ownerSettlements: [],
+    }))
+    const input = createInput('记住成功回复', {
+      prepareTurn: vi.fn(async () => createPrepared({
+        commitMemoryWriteIntent,
+        memoryWriteItems: [createMemoryWriteItem()],
+      })),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
+      kind: 'reply',
+      finishReason: 'stop',
+      fullText: 'Provider 正常回复。',
+      text: 'Provider 正常回复。',
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    const finishPayload = vi.mocked(input.runStateController.finishRun).mock.calls.at(-1)?.[1]
+    expect(finishPayload).toMatchObject({
+      status: 'completed',
+      fullText: 'Provider 正常回复。',
+      memoryFailures: [
+        expect.objectContaining({
+          kind: 'memory-persistence',
+          stage: 'runtime-event-store',
+          errorSummary: 'runtime event store unavailable',
+        }),
+      ],
+    })
+    expect(commitMemoryWriteIntent).not.toHaveBeenCalled()
+    expect(input.emitChunk).toHaveBeenCalledWith(expect.objectContaining({
+      text: 'Provider 正常回复。',
+      origin: 'provider',
+    }))
   })
 
   it('builds the runtime digest fallback only from available emotional facts', () => {

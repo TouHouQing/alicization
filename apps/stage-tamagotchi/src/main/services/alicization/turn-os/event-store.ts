@@ -1,11 +1,13 @@
 import type {
   AlicizationRuntimeEventEnvelope,
+  AlicizationRuntimeEventType,
 } from '@proj-alicization/stage-shared'
 import type sqlite3 from 'sqlite3'
 
 import { isDeepStrictEqual } from 'node:util'
 
 import {
+  alicizationRuntimeEventTypes,
   parseAlicizationRuntimeEvent,
 } from '@proj-alicization/stage-shared'
 
@@ -18,6 +20,19 @@ export interface AlicizationRuntimeEventScope {
 
 export interface AlicizationRuntimeEventListOptions {
   afterSequence?: number
+}
+
+export interface AlicizationRuntimeEventScopeQuery {
+  cardId: string
+  userId: string
+  conversationId: string
+  eventTypes?: AlicizationRuntimeEventType[]
+  limit?: number
+}
+
+export interface AlicizationRuntimeEventScopeRecord extends AlicizationRuntimeEventScope {
+  startedAt: number
+  updatedAt: number
 }
 
 interface AlicizationRuntimeEventRow {
@@ -42,6 +57,15 @@ interface AlicizationRuntimeCheckpointScopeRow {
   card_id: string
   user_id: string
   conversation_id: string
+}
+
+interface AlicizationRuntimeEventScopeRow {
+  turn_id: string
+  card_id: string
+  user_id: string
+  conversation_id: string
+  started_at: number
+  updated_at: number
 }
 
 interface AlicizationRuntimeEventStoreOptions {
@@ -243,6 +267,27 @@ function parseAfterSequence(value: number | undefined) {
   if (!Number.isInteger(value) || value < 0)
     throw new TypeError('afterSequence must be a non-negative integer')
   return value
+}
+
+function parseScopeQuery(input: AlicizationRuntimeEventScopeQuery) {
+  const limit = input.limit === undefined ? 200 : input.limit
+  if (!Number.isInteger(limit) || limit <= 0)
+    throw new TypeError('runtime event scope query limit must be a positive integer')
+
+  const runtimeEventTypeSet = new Set<AlicizationRuntimeEventType>(alicizationRuntimeEventTypes)
+  const eventTypes = input.eventTypes === undefined
+    ? []
+    : [...new Set(input.eventTypes)]
+  if (eventTypes.some(eventType => !runtimeEventTypeSet.has(eventType)))
+    throw new TypeError('runtime event scope query eventTypes must contain known runtime event types')
+
+  return {
+    cardId: parseRequiredScopeId(input.cardId, 'cardId'),
+    userId: parseRequiredScopeId(input.userId, 'userId'),
+    conversationId: parseRequiredScopeId(input.conversationId, 'conversationId'),
+    eventTypes,
+    limit: Math.min(limit, 500),
+  }
 }
 
 export function createAlicizationRuntimeEventStore(
@@ -447,8 +492,83 @@ export function createAlicizationRuntimeEventStore(
     return rows.map(mapRuntimeEventRow)
   }
 
+  async function listScopes(queryInput: AlicizationRuntimeEventScopeQuery) {
+    const query = parseScopeQuery(queryInput)
+    const eventTypePlaceholders = query.eventTypes.map(() => '?').join(', ')
+    const eventTypeFilter = query.eventTypes.length > 0
+      ? `
+        AND EXISTS (
+          SELECT 1
+          FROM alicization_runtime_events matched_events
+          WHERE matched_events.turn_id = alicization_runtime_events.turn_id
+            AND matched_events.card_id = alicization_runtime_events.card_id
+            AND matched_events.user_id = alicization_runtime_events.user_id
+            AND matched_events.conversation_id = alicization_runtime_events.conversation_id
+            AND matched_events.event_type IN (${eventTypePlaceholders})
+        )
+      `
+      : ''
+    const rows = await options.all<AlicizationRuntimeEventScopeRow>(
+      options.database,
+      `
+      WITH turn_scopes AS (
+        SELECT
+          turn_id,
+          card_id,
+          user_id,
+          conversation_id,
+          MIN(occurred_at) AS started_at,
+          MAX(occurred_at) AS updated_at
+        FROM alicization_runtime_events
+        WHERE card_id = ?
+          AND user_id = ?
+          AND conversation_id = ?
+          ${eventTypeFilter}
+        GROUP BY turn_id, card_id, user_id, conversation_id
+      ),
+      latest_turn_scopes AS (
+        SELECT
+          turn_id,
+          card_id,
+          user_id,
+          conversation_id,
+          started_at,
+          updated_at
+        FROM turn_scopes
+        ORDER BY updated_at DESC, started_at DESC, turn_id DESC
+        LIMIT ?
+      )
+      SELECT
+        turn_id,
+        card_id,
+        user_id,
+        conversation_id,
+        started_at,
+        updated_at
+      FROM latest_turn_scopes
+      ORDER BY started_at ASC, turn_id ASC
+      `,
+      [
+        query.cardId,
+        query.userId,
+        query.conversationId,
+        ...query.eventTypes,
+        query.limit,
+      ],
+    )
+    return rows.map((row): AlicizationRuntimeEventScopeRecord => ({
+      turnId: row.turn_id,
+      cardId: row.card_id,
+      userId: row.user_id,
+      conversationId: row.conversation_id,
+      startedAt: row.started_at,
+      updatedAt: row.updated_at,
+    }))
+  }
+
   return {
     append,
     list,
+    listScopes,
   }
 }

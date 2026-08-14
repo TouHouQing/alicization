@@ -197,6 +197,8 @@ import type {
   AlicizationRunReplayBenchmarkResult as SharedAlicizationRunReplayBenchmarkResult,
   AlicizationRuntimeDigest as SharedAlicizationRuntimeDigest,
   AlicizationRuntimeEventEnvelope as SharedAlicizationRuntimeEventEnvelope,
+  AlicizationRuntimeToolCardProjection as SharedAlicizationRuntimeToolCardProjection,
+  AlicizationRuntimeToolProjectionUpdate as SharedAlicizationRuntimeToolProjectionUpdate,
   AlicizationSelfEvolutionKernelSnapshot as SharedAlicizationSelfEvolutionKernelSnapshot,
   AlicizationSelfEvolutionVersionRuntimeSnapshot as SharedAlicizationSelfEvolutionVersionRuntimeSnapshot,
   AlicizationSensoryCacheSnapshot as SharedAlicizationSensoryCacheSnapshot,
@@ -666,9 +668,7 @@ export type AlicizationMemoryWorkbenchTrainingState = 'allowed' | 'blocked'
 export type AlicizationMemoryWorkbenchReviewDecision = 'approve' | 'reject' | 'tombstone' | 'inward-only' | 'no-training'
 export type AlicizationMemoryRecallProbeMode = 'none' | 'episodic' | 'relationship' | 'preference' | 'procedure' | 'task' | 'mixed'
 export type AlicizationMemoryRecallProbeTemporalFocus = 'current' | 'recent' | 'recent-or-mid' | 'cross-session' | 'distant' | 'unspecified'
-export type AlicizationMemoryRecallProbeConfidencePolicy = 'direct' | 'tentative' | 'inward-only'
 export type AlicizationMemoryRecallProbeEvidenceKind = 'fact' | 'reflection' | 'episode' | 'consolidation'
-export type AlicizationMemoryRecallProbeEvidenceVisibility = 'explicit' | 'inward-only' | 'tentative'
 
 export interface AlicizationWorkingMemoryWorkbenchSnapshot {
   cardId: string
@@ -1198,7 +1198,7 @@ export interface AlicizationMemoryRecallProbeResult {
     episodicQueries: string[]
     threadHints: string[]
     negativeCues: string[]
-    confidencePolicy: AlicizationMemoryRecallProbeConfidencePolicy
+    riskFlags: string[]
   }
   evidence: Array<{
     id: string
@@ -1206,7 +1206,15 @@ export interface AlicizationMemoryRecallProbeResult {
     summary: string
     source: string
     score: number
-    visibleMode: AlicizationMemoryRecallProbeEvidenceVisibility
+    confidence: number
+    sensitivity: AlicizationMemoryWorkbenchSensitivity | null
+    scope: {
+      userId: string
+      cardId: string | null
+    }
+    provenance: AlicizationMemoryProvenance
+    evidenceVersion: string
+    version: string
     queryMatches: string[]
     rankReasons: string[]
   }>
@@ -1264,7 +1272,6 @@ export interface AlicizationOrganicMemorySnapshot {
     mode: 'none' | 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
     temporalFocus: 'recent' | 'recent-or-mid' | 'cross-session' | 'experience-matched' | 'distant'
     searchEpisodes: boolean
-    searchConversations: boolean
     searchProceduralExperience: boolean
     queryHints: string[]
     rationale: string
@@ -1275,7 +1282,6 @@ export interface AlicizationOrganicMemorySnapshot {
     selectedWindowIds: string[]
     selectedProceduralIds: string[]
     selectedEpisodeIds: string[]
-    selectedConversationTurnIds: string[]
     opening: string
     certainty: 'firm' | 'approximate' | 'fragmentary'
     rationale: string
@@ -1357,6 +1363,28 @@ export interface AlicizationListConversationTurnsPayload extends AlicizationCard
   sessionId: string
   sinceCreatedAt?: number
   limit?: number
+}
+
+export interface AlicizationListTurnToolProjectionsPayload extends AlicizationCardScope {
+  sessionId: string
+  limit?: number
+}
+
+export interface AlicizationTurnToolProjectionReplayFailure {
+  code: string
+  message: string
+}
+
+export interface AlicizationTurnToolProjectionReplayRecord {
+  cardId: string
+  turnId: string
+  sessionId: string
+  startedAt: number
+  updatedAt: number
+  cards: SharedAlicizationRuntimeToolCardProjection[]
+  recoveryRequired: boolean
+  reasonCodes: string[]
+  failure: AlicizationTurnToolProjectionReplayFailure | null
 }
 
 export type AlicizationMindTurnEventKind = SharedAlicizationMindTurnEventKind
@@ -3702,27 +3730,41 @@ export interface AlicizationSubconsciousForceDreamPayload extends Partial<Aliciz
   reason?: string
 }
 
-export interface AlicizationChatToolCallEvent {
+export interface AlicizationChatToolCallInput {
   cardId: string
   turnId: string
   toolCallId: string
   toolName: string
+  selectedChannel?: SharedAlicizationExecutionChannel | null
   arguments?: Record<string, unknown>
 }
 
-export interface AlicizationChatToolResultEvent {
+export interface AlicizationChatToolCallEvent extends AlicizationChatToolCallInput {
+  selectedChannel: SharedAlicizationExecutionChannel | null
+  projection: SharedAlicizationRuntimeToolProjectionUpdate
+}
+
+export interface AlicizationChatToolResultInput {
   cardId: string
   turnId: string
   toolCallId: string
   toolName?: string
+  selectedChannel?: SharedAlicizationExecutionChannel | null
+  phase?: 'completed' | 'failed' | 'cancelled' | 'timeout'
   result?: unknown
 }
 
-export interface AlicizationChatToolProgressEvent {
+export interface AlicizationChatToolResultEvent extends AlicizationChatToolResultInput {
+  selectedChannel: SharedAlicizationExecutionChannel | null
+  projection: SharedAlicizationRuntimeToolProjectionUpdate
+}
+
+export interface AlicizationChatToolProgressInput {
   cardId: string
   turnId: string
   toolCallId: string
   toolName: string
+  selectedChannel?: SharedAlicizationExecutionChannel | null
   signal?: 'liveness' | 'semantic-progress' | 'terminal'
   phase: 'started' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout'
   elapsedMs: number
@@ -3739,6 +3781,11 @@ export interface AlicizationChatToolProgressEvent {
   commandStatus?: string
   commandExitCode?: number
   outputPreview?: string
+}
+
+export interface AlicizationChatToolProgressEvent extends AlicizationChatToolProgressInput {
+  selectedChannel: SharedAlicizationExecutionChannel | null
+  projection: SharedAlicizationRuntimeToolProjectionUpdate
 }
 
 export interface AlicizationChatStreamChunkEvent {
@@ -3972,6 +4019,7 @@ export const electronAlicizationGetPerformanceManifest = defineInvokeEventa<Char
 export const electronAlicizationSetPerformanceManifest = defineInvokeEventa<void, AlicizationCardScope & { manifest: CharacterPerformanceCapabilitiesManifest | null }>('eventa:invoke:electron:alicization:performance:set-manifest')
 export const electronAlicizationAppendConversationTurn = defineInvokeEventa<void, AlicizationCardScope & AlicizationConversationTurnInput>('eventa:invoke:electron:alicization:conversation:append-turn')
 export const electronAlicizationListConversationTurns = defineInvokeEventa<AlicizationConversationTurnRecord[], AlicizationListConversationTurnsPayload>('eventa:invoke:electron:alicization:conversation:list-turns')
+export const electronAlicizationListTurnToolProjections = defineInvokeEventa<AlicizationTurnToolProjectionReplayRecord[], AlicizationListTurnToolProjectionsPayload>('eventa:invoke:electron:alicization:conversation:list-tool-projections')
 export const electronAlicizationListMindTurnEvents = defineInvokeEventa<AlicizationMindTurnEventRecord[], AlicizationListMindTurnEventsPayload>('eventa:invoke:electron:alicization:conversation:list-mind-turn-events')
 export const electronAlicizationListLearningArtifactLedger = defineInvokeEventa<AlicizationLearningArtifactLedgerRecord[], AlicizationListLearningArtifactLedgerPayload>('eventa:invoke:electron:alicization:conversation:list-learning-artifact-ledger')
 export const electronAlicizationListMemoryDecisionTraces = defineInvokeEventa<AlicizationMemoryDecisionTraceRecord[], AlicizationListMemoryDecisionTracesPayload>('eventa:invoke:electron:alicization:conversation:list-memory-decision-traces')

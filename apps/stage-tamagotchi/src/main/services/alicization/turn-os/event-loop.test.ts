@@ -1297,6 +1297,127 @@ describe('alicization event loop', () => {
     expect(attemptedEvents.map(event => event.eventType)).not.toContain('turn.failed')
   })
 
+  it('publishes only checkpointed events to the persisted-event sidecar', async () => {
+    const persistence = createPersistence()
+    const persistenceError = new Error('failed to checkpoint durable observation')
+    const onPersistedEvent = vi.fn(async (_event: AlicizationRuntimeEventEnvelope) => {})
+    let injectedFailure = false
+    persistence.saveRuntimeCheckpoint.mockImplementation(async (checkpoint) => {
+      const action = checkpoint.projection.actions['action-sidecar-checkpoint-failure']
+      if (
+        !injectedFailure
+        && action?.lastObservation?.observationId === 'observation-sidecar-checkpoint-failure'
+      ) {
+        injectedFailure = true
+        throw persistenceError
+      }
+      persistence.checkpoints.push(structuredClone(checkpoint))
+      return checkpoint
+    })
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => ({
+          kind: 'action' as const,
+          action: {
+            actionId: 'action-sidecar-checkpoint-failure',
+            toolCallId: 'tool-call-sidecar-checkpoint-failure',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'coding_agent',
+            input: {},
+          },
+        })),
+        executeAction: vi.fn(async () => ({
+          actionId: 'action-sidecar-checkpoint-failure',
+          observationId: 'observation-sidecar-checkpoint-failure',
+          toolCallId: 'tool-call-sidecar-checkpoint-failure',
+          terminal: true,
+          outcome: 'success' as const,
+          output: { status: 'completed' },
+        })),
+        settleReply: vi.fn(),
+      },
+      onPersistedEvent,
+    } as any)
+
+    await expect(eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-sidecar-checkpoint-failure' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })).rejects.toBe(persistenceError)
+
+    const sidecarEventTypes = onPersistedEvent.mock.calls
+      .map(([event]) => event.eventType)
+    expect(sidecarEventTypes).toContain('model.tool_call.proposed')
+    expect(sidecarEventTypes).not.toContain('action.observation')
+  })
+
+  it('does not let a persisted-event sidecar failure change Turn OS settlement', async () => {
+    const persistence = createPersistence()
+    const sidecarError = new Error('renderer projection failed')
+    const onPersistedEvent = vi.fn(async (event: AlicizationRuntimeEventEnvelope) => {
+      if (event.eventType === 'action.observation')
+        throw sidecarError
+    })
+    const onPersistedEventFailure = vi.fn(async (_input: {
+      event: AlicizationRuntimeEventEnvelope
+      error: unknown
+    }) => {})
+    const steps = [
+      {
+        kind: 'action' as const,
+        action: {
+          actionId: 'action-sidecar-delivery-failure',
+          toolCallId: 'tool-call-sidecar-delivery-failure',
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'coding_agent',
+          input: {},
+        },
+      },
+      {
+        kind: 'reply' as const,
+        reply: modelReply('工具已经完成。'),
+      },
+    ]
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => steps.shift()!),
+        executeAction: vi.fn(async action => ({
+          actionId: action.actionId,
+          observationId: 'observation-sidecar-delivery-failure',
+          toolCallId: action.toolCallId,
+          terminal: true,
+          outcome: 'success' as const,
+          output: { status: 'completed' },
+        })),
+        settleReply: vi.fn(async () => {}),
+      },
+      onPersistedEvent,
+      onPersistedEventFailure,
+    } as any)
+
+    await expect(eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-sidecar-delivery-failure' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })).resolves.toMatchObject({
+      status: 'completed',
+      error: null,
+    })
+    expect(onPersistedEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'action.observation',
+    }))
+    expect(onPersistedEventFailure).toHaveBeenCalledWith({
+      event: expect.objectContaining({
+        eventType: 'action.observation',
+      }),
+      error: sidecarError,
+    })
+  })
+
   it('uses first-class settlement events without creating executable barrier actions', async () => {
     const persistence = createPersistence()
     const runModelStep = vi.fn()

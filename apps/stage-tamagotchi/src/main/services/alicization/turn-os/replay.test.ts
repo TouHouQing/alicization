@@ -528,7 +528,7 @@ describe('alicization turn replay', () => {
       restoredFromCheckpoint: true,
     })
     expect(reader.listRuntimeEvents).toHaveBeenCalledWith(scope, {
-      afterSequence: 3,
+      afterSequence: 0,
     })
     expect(appendRuntimeEvent).not.toHaveBeenCalled()
     expect(saveRuntimeCheckpoint).not.toHaveBeenCalled()
@@ -586,6 +586,68 @@ describe('alicization turn replay', () => {
     expect(replay.replyArtifact).toEqual(completedReply.artifact)
   })
 
+  it('rebuilds canonical tool projection from the complete persisted turn event stream', async () => {
+    const scope = runtimeScope({ turnId: 'turn-tool-projection-replay' })
+    const checkpoint = runtimeCheckpoint(scope)
+    const allEvents = [
+      runtimeEvent(scope, 1, 'turn.accepted', {
+        deliveryOwner: 'inline',
+      }),
+      runtimeEvent(scope, 2, 'model.tool_call.proposed', {
+        actionId: 'action-1',
+        toolCallId: 'tool-call-1',
+        capabilityId: 'coding_agent.codex',
+        providerToolName: 'codex',
+      }),
+      runtimeEvent(scope, 3, 'action.started', {
+        actionId: 'action-1',
+        toolCallId: 'tool-call-1',
+        capabilityId: 'coding_agent.codex',
+        providerToolName: 'codex',
+      }),
+      runtimeEvent(scope, 4, 'action.observation', {
+        actionId: 'action-1',
+        observationId: 'observation-1',
+        toolCallId: 'tool-call-1',
+        terminal: true,
+        outcome: 'success',
+        output: { changedFiles: 1 },
+      }),
+      runtimeEvent(scope, 5, 'action.completed', {
+        actionId: 'action-1',
+        toolCallId: 'tool-call-1',
+      }),
+    ]
+    const listRuntimeEvents = vi.fn(async (
+      _scope: AlicizationRuntimeEventScope,
+      options?: { afterSequence?: number },
+    ) => options?.afterSequence
+      ? allEvents.filter(event => event.sequence > options.afterSequence!)
+      : allEvents)
+
+    const replay = await replayTurn({
+      scope,
+      reader: {
+        loadRuntimeCheckpoint: vi.fn(async () => checkpoint),
+        listRuntimeEvents,
+      },
+      deliveryOwner: 'inline',
+    })
+
+    expect(replay.toolProjection).toMatchObject({
+      cards: [{
+        toolCallId: 'tool-call-1',
+        selectedChannel: 'codex',
+        phase: 'completed',
+        terminal: true,
+        result: { changedFiles: 1 },
+      }],
+      recoveryRequired: false,
+    })
+    expect(listRuntimeEvents).toHaveBeenCalledTimes(1)
+    expect(listRuntimeEvents).toHaveBeenCalledWith(scope, { afterSequence: 0 })
+  })
+
   it('does not reopen a terminal action after duplicate late progress', async () => {
     const scope = runtimeScope()
     const events = [
@@ -632,6 +694,69 @@ describe('alicization turn replay', () => {
     expect(replay.reasonCodes).toEqual([
       'runtime-replay:turn-started-without-terminal',
     ])
+  })
+
+  it('merges unresolved tool projection recovery into the top-level replay result', async () => {
+    const scope = runtimeScope()
+    const replay = await replayTurn({
+      scope,
+      reader: {
+        loadRuntimeCheckpoint: vi.fn(async () => null),
+        listRuntimeEvents: vi.fn(async () => [
+          runtimeEvent(scope, 1, 'model.tool_call.proposed', {
+            actionId: 'action-proposed-only',
+            toolCallId: 'tool-proposed-only',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
+          }),
+        ]),
+      },
+      deliveryOwner: 'inline',
+    })
+
+    expect(replay.state.actions).toEqual({})
+    expect(replay.toolProjection.recoveryRequired).toBe(true)
+    expect(replay.recoveryRequired).toBe(true)
+    expect(replay.reasonCodes).toContain('runtime-replay:tool-actions-unsettled')
+  })
+
+  it('derives the delivery owner from persisted turn facts for read-only recovery', async () => {
+    const scope = runtimeScope({ turnId: 'turn-derived-owner' })
+    const replay = await replayTurn({
+      scope,
+      reader: {
+        loadRuntimeCheckpoint: vi.fn(async () => null),
+        listRuntimeEvents: vi.fn(async () => [
+          runtimeEvent(scope, 1, 'turn.accepted', {
+            deliveryOwner: 'callback',
+          }),
+          runtimeEvent(scope, 2, 'runtime.cancelled', {
+            reason: 'host-restart',
+          }),
+        ]),
+      },
+    })
+
+    expect(replay.state.deliveryOwner).toBe('callback')
+    expect(replay.state.status).toBe('cancelled')
+  })
+
+  it('fails transparently when persisted facts cannot establish a delivery owner', async () => {
+    const scope = runtimeScope({ turnId: 'turn-missing-owner' })
+
+    await expect(replayTurn({
+      scope,
+      reader: {
+        loadRuntimeCheckpoint: vi.fn(async () => null),
+        listRuntimeEvents: vi.fn(async () => [
+          runtimeEvent(scope, 1, 'model.tool_call.proposed', {
+            actionId: 'action-missing-owner',
+            toolCallId: 'tool-missing-owner',
+            capabilityId: 'coding_agent.codex',
+          }),
+        ]),
+      },
+    })).rejects.toThrow('runtime replay delivery owner is missing from persisted facts')
   })
 
   it('keeps cancellation authoritative when a late successful observation arrives', async () => {

@@ -4,6 +4,7 @@ import type {
   AlicizationChatFailureSurface,
   AlicizationChatMemoryFailureSurface,
   AlicizationProviderToolCapabilityObservation,
+  AlicizationToolExecutionFailureContext,
   AlicizationVisibleArtifactLearningPolicy,
   AlicizationVisibleArtifactOrigin,
 } from '@proj-alicization/stage-shared'
@@ -12,7 +13,7 @@ import type { CommonContentPart, Message, ToolMessage } from '@xsai/shared-chat'
 
 import type { StructuredOutputResult, StructuredValidationIssue } from '../composables/alicization-structured-output'
 import type { AlicizationAbortReason } from '../composables/alicization-turn-abort'
-import type { ChatAssistantMessage, ChatAssistantStructuredPayload, ChatSlices, ChatSlicesExecutionStatus, ChatStreamEventContext, StreamingAssistantMessage } from '../types/chat'
+import type { ChatAssistantMessage, ChatAssistantStructuredPayload, ChatSlices, ChatStreamEventContext, StreamingAssistantMessage } from '../types/chat'
 import type {
   AlicizationConversationTurnInput,
   AlicizationDialogueEmbodimentEnvelope,
@@ -24,12 +25,16 @@ import type {
   AlicizationMindTurnGovernance,
   AlicizationRuntimeDigest,
 } from './alicization-bridge'
+import type { ChatToolProjectionSlice } from './chat-tool-projection'
 import type { StreamEvent, StreamOptions } from './llm'
 
 import {
+  AlicizationToolEventDeliveryError,
   deriveAlicizationRendererBridgeWatchdogTimeoutPolicy,
   extractAlicizationProviderRequestFailure,
+  extractAlicizationToolExecutionFailure,
   isAlicizationProviderSchemaUnsupportedError,
+  isAlicizationToolExecutionFailureResult,
   looksLikeAlicizationStructuredPayloadText,
   normalizeAlicizationProviderToolCapabilityLastError,
   resolveAlicizationChatFailureSurface,
@@ -61,9 +66,15 @@ import {
 import { useAlicizationPresenceDispatcherStore } from './alicization-presence-dispatcher'
 import {
   blockAlicizationRendererLocalVisibleReply,
-  removeAlicizationExecutionStatusSlices,
   shouldBlockAlicizationRendererLocalVisibleReply,
 } from './alicization-visible-reply-guard'
+import { resolveChatToolCallProjection } from './chat-tool-call-identity'
+import {
+  applyChatToolProjectionSlice,
+  buildChatExecutionStatusFromProjection,
+  extractChatExecutorToolReplyEvidence,
+  isChatExecutionProjectionToolName,
+} from './chat-tool-projection'
 import { createDatetimeContext, createSensoryContext } from './chat/context-providers'
 import { useChatContextStore } from './chat/context-store'
 import { createChatHooks } from './chat/hooks'
@@ -99,6 +110,12 @@ const memoryFailureStages = new Set<AlicizationChatMemoryFailureSurface['stage']
   'working-memory-checkpoint-load',
   'working-memory-checkpoint-save',
   'working-memory-long-term-queue',
+  'working-memory-long-term-drain',
+  'dialogue-session-mirror-commit',
+  'autobiographical-memory-write',
+  'persona-learning-schedule',
+  'runtime-event-store',
+  'memory-turn-settlement',
 ])
 
 function normalizeTransportMemoryFailures(raw: unknown): AlicizationChatMemoryFailureSurface[] {
@@ -114,7 +131,13 @@ function normalizeTransportMemoryFailures(raw: unknown): AlicizationChatMemoryFa
       ? value.stage as AlicizationChatMemoryFailureSurface['stage']
       : null
     const expectedKind = stage === 'working-memory-long-term-queue'
+      || stage === 'working-memory-long-term-drain'
       || stage === 'working-memory-checkpoint-save'
+      || stage === 'dialogue-session-mirror-commit'
+      || stage === 'autobiographical-memory-write'
+      || stage === 'persona-learning-schedule'
+      || stage === 'runtime-event-store'
+      || stage === 'memory-turn-settlement'
       ? 'memory-persistence'
       : 'recall-failure'
     const reply = typeof value.reply === 'string' ? value.reply.trim() : ''
@@ -292,28 +315,6 @@ const assistantProviderNetworkFallbackReply = (userText?: string) => chatFailure
 const assistantProviderConfigFallbackReply = (userText?: string) => chatFailureReply('provider-config', userText)
 const assistantUnsupportedToolsFallbackReply = (userText?: string) => chatFailureReply('model-tools-unsupported', userText)
 const runtimeGatewayWatchdogPolicy = deriveAlicizationRendererBridgeWatchdogTimeoutPolicy()
-const executionEvidenceToolNames = new Set([
-  'executor_run_cli',
-  'executor_run_codex',
-  'executor_run_claude_code',
-  'executor_run_local_visual',
-  'executor_run_openclaw',
-  'browser_open_url',
-  'browser_search_web',
-  'browser_read_page',
-  'browser_click_element',
-  'browser_type_text',
-  'browser_navigate',
-  'browser_scroll',
-  'browser_wait',
-  'desktop_inspect_scene',
-  'desktop_list_interactables',
-  'desktop_click_element',
-  'desktop_type_text',
-  'desktop_press_keys',
-  'desktop_open_application',
-  'desktop_wait',
-])
 function createEmptyStreamingMessage(): StreamingAssistantMessage {
   return {
     role: 'assistant',
@@ -325,6 +326,7 @@ function createEmptyStreamingMessage(): StreamingAssistantMessage {
 
 interface TurnToolEvidence {
   verifiedToolResult: boolean
+  toolExecutionFailure: AlicizationToolExecutionFailureContext | null
   executorToolCallIds: Set<string>
   deniedBySafety: boolean
   deniedReason?: string
@@ -334,142 +336,22 @@ interface TurnToolEvidence {
   reminderMessage?: string
 }
 
-interface ExecutorToolReplyEvidence {
-  channel: string
-  errorCode: string
-  errorMessage: string
-  output: string
-  stage: string
-  status: string
-  summary: string
-  toolName: string
+function resolveStreamLifecycleOwner(bridge: {
+  streamLifecycleOwner?: 'main' | 'renderer'
+}): 'main' | 'renderer' {
+  // An omitted marker is treated as renderer-owned. Lifecycle ownership must
+  // come from the bridge contract, never from the host environment shape.
+  return bridge.streamLifecycleOwner ?? 'renderer'
 }
 
-function isExecutionEvidenceToolName(toolName: string) {
-  return executionEvidenceToolNames.has(toolName)
-}
-
-function normalizeExecutorChannelLabel(toolName: string) {
-  if (toolName === 'executor_run_cli')
-    return 'CLI'
-  if (toolName === 'executor_run_codex')
-    return 'Codex'
-  if (toolName === 'executor_run_claude_code')
-    return 'Claude Code'
-  if (toolName === 'executor_run_local_visual')
-    return '本地视觉执行'
-  if (toolName === 'executor_run_openclaw')
-    return 'OpenClaw'
-  if (toolName.startsWith('browser_'))
-    return '浏览器'
-  if (toolName.startsWith('desktop_'))
-    return '桌面'
-  return '执行通道'
-}
-
-function buildExecutorExecutionStatus(input: {
-  toolName: string
-  result?: ExecutorToolReplyEvidence | null
-}): ChatSlicesExecutionStatus {
-  const channel = normalizeExecutorChannelLabel(input.toolName)
-  const status = input.result?.status ?? 'running'
-  const detail = sanitizeExecutorReplyEvidenceText(
-    input.result?.summary || input.result?.errorMessage || input.result?.output || '',
-    96,
-  )
-
-  if (status === 'failed' || status === 'blocked' || status === 'cancelled') {
-    return {
-      type: 'execution-status',
-      phase: 'tool-failed',
-      label: detail ? `${channel} 没有跑通: ${detail}` : `${channel} 没有跑通`,
-      source: 'builtin',
-    }
-  }
-
-  if (status === 'completed') {
-    return {
-      type: 'execution-status',
-      phase: 'completed',
-      label: detail ? `${channel} 已经拿到结果: ${detail}` : `${channel} 已经拿到结果`,
-      source: 'builtin',
-    }
-  }
-
-  return {
-    type: 'execution-status',
-    phase: 'tool-running',
-    label: `${channel} 正在处理这件事`,
-    source: 'builtin',
-  }
-}
-
-function upsertExecutionStatusSlice(slices: ChatSlices[], next: ChatSlicesExecutionStatus) {
-  const existingIndex = slices.findIndex(slice => slice.type === 'execution-status')
-  if (existingIndex >= 0) {
-    slices.splice(existingIndex, 1, next)
-    return
-  }
-  slices.push(next)
-}
-
-const removeExecutionStatusSlices = removeAlicizationExecutionStatusSlices
-
-function sanitizeExecutorReplyEvidenceText(raw: unknown, maxChars = 320) {
-  if (typeof raw !== 'string')
-    return ''
-  return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-}
-
-function extractExecutorToolReplyEvidence(result: unknown, toolName: string): ExecutorToolReplyEvidence | null {
-  const normalizedToolName = sanitizeExecutorReplyEvidenceText(toolName, 96) || 'executor'
-
-  if (typeof result === 'string') {
-    const summary = sanitizeExecutorReplyEvidenceText(result)
-    if (!summary)
-      return null
-    return {
-      toolName: normalizedToolName,
-      channel: '',
-      status: 'unknown',
-      stage: '',
-      summary,
-      output: summary,
-      errorCode: '',
-      errorMessage: '',
-    }
-  }
-
-  if (!result || typeof result !== 'object')
-    return null
-
-  const payload = result as Record<string, unknown>
-  const rawOutput = typeof payload.output === 'string'
-    ? payload.output
-    : payload.output != null
-      ? JSON.stringify(payload.output)
-      : ''
-  const summary = sanitizeExecutorReplyEvidenceText(payload.summary)
-    || sanitizeExecutorReplyEvidenceText(payload.errorMessage)
-    || sanitizeExecutorReplyEvidenceText(rawOutput, 420)
-    || sanitizeExecutorReplyEvidenceText(payload.status)
-
-  if (!summary)
-    return null
-
-  const status = sanitizeExecutorReplyEvidenceText(payload.status, 48).toLowerCase()
-    || (payload.ok === true ? 'completed' : payload.ok === false ? 'failed' : 'unknown')
-
-  return {
-    toolName: normalizedToolName,
-    channel: sanitizeExecutorReplyEvidenceText(payload.selectedChannel, 48).toLowerCase(),
-    status,
-    stage: sanitizeExecutorReplyEvidenceText(payload.stage, 48).toLowerCase(),
-    summary,
-    output: sanitizeExecutorReplyEvidenceText(rawOutput, 420),
-    errorCode: sanitizeExecutorReplyEvidenceText(payload.errorCode, 96),
-    errorMessage: sanitizeExecutorReplyEvidenceText(payload.errorMessage, 280),
-  }
+function retainTerminalExecutionStatusSlices(slices: ChatSlices[]) {
+  return slices.filter(slice => (
+    slice.type !== 'execution-status'
+    || slice.phase === 'completed'
+    || slice.phase === 'tool-cancelled'
+    || slice.phase === 'tool-timeout'
+    || slice.phase === 'tool-failed'
+  ))
 }
 
 type StructuredWithContract = StructuredOutputResult
@@ -644,7 +526,8 @@ function persistProviderToolCapabilityObservation(input: {
 
 function resolveMainGatewayToolingPolicy(providerId: string, model: string) {
   const providerToolCapabilityObservation = readProviderToolCapabilityObservation(providerId, model)
-  const supportsTools = providerToolCapabilityObservation?.supported ?? true
+  // Capability observations explain a previous turn; every new turn must probe tools again.
+  const supportsTools = true
   return {
     toolingRequired: false,
     supportsTools,
@@ -701,9 +584,20 @@ function resolveAbortReason(error: unknown, stale: boolean): AlicizationAbortRea
 
 type StreamFailureKind = AlicizationChatFailureKind
 
-function buildTimeoutDiagnosticReply(error: unknown, userText?: string) {
+function buildTimeoutDiagnosticFailure(error: unknown, userText?: string, providerContext?: {
+  providerId?: string
+  model?: string
+}) {
   void error
-  return chatFailureReply('timeout', userText)
+  return resolveAlicizationChatFailureSurface({
+    kind: 'timeout',
+    userText,
+    timeout: {
+      providerId: providerContext?.providerId?.trim() || 'unknown-provider',
+      model: providerContext?.model?.trim() || 'unknown-model',
+      phase: 'provider-first-event',
+    },
+  })
 }
 
 function resolveStreamFailureFallback(error: unknown, userText?: string, providerContext?: {
@@ -718,6 +612,22 @@ function resolveStreamFailureFallback(error: unknown, userText?: string, provide
     ? String((error as { code?: unknown }).code ?? '').toLowerCase()
     : ''
   const message = String(error instanceof Error ? error.message : error ?? '').toLowerCase()
+  if (error instanceof AlicizationToolEventDeliveryError) {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'tool-execution',
+      userText,
+      toolExecution: {
+        code: error.code,
+        message: error.message,
+        toolName: error.toolName,
+      },
+    })
+    return {
+      reply: failureSurface.reply,
+      kind: 'tool-execution',
+      failureSurface,
+    }
+  }
   if (isAlicizationProviderSchemaUnsupportedError(error)) {
     return {
       reply: chatFailureReply('provider-schema-unsupported', userText),
@@ -767,6 +677,19 @@ function resolveStreamFailureFallback(error: unknown, userText?: string, provide
       kind: 'local-runtime-unavailable',
     }
   }
+  const toolExecution = extractAlicizationToolExecutionFailure(error)
+  if (toolExecution) {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'tool-execution',
+      userText,
+      toolExecution,
+    })
+    return {
+      reply: failureSurface.reply,
+      kind: 'tool-execution',
+      failureSurface,
+    }
+  }
   if (
     message.includes('chat_timeout')
     || message.includes('chat completions timed out before the first event')
@@ -774,9 +697,11 @@ function resolveStreamFailureFallback(error: unknown, userText?: string, provide
     || message.includes('after-dispatch-meta')
     || message.includes('main-gateway-timeout-recovery')
   ) {
+    const failureSurface = buildTimeoutDiagnosticFailure(error, userText, providerContext)
     return {
-      reply: buildTimeoutDiagnosticReply(error, userText),
+      reply: failureSurface.reply,
       kind: 'timeout',
+      failureSurface,
     }
   }
   if (
@@ -801,9 +726,11 @@ function resolveStreamFailureFallback(error: unknown, userText?: string, provide
     || message.includes('timeout')
     || message.includes('timed out')
   ) {
+    const failureSurface = buildTimeoutDiagnosticFailure(error, userText, providerContext)
     return {
-      reply: buildTimeoutDiagnosticReply(error, userText),
+      reply: failureSurface.reply,
       kind: 'timeout',
+      failureSurface,
     }
   }
   if (
@@ -1131,11 +1058,10 @@ function isUsableMindTurnGovernanceCandidate(value: unknown): value is Alicizati
 
 function hasProviderAuthoredVisibleReplyContract(
   structured: StructuredOutputResult | undefined,
-  validationIssues: StructuredValidationIssue[],
+  _validationIssues: StructuredValidationIssue[],
 ) {
   return Boolean(
     structured
-    && validationIssues.length === 0
     && structured.reply.trim()
     && (structured.parsePath === 'json' || structured.parsePath === 'fallback'),
   )
@@ -1522,7 +1448,27 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       turnRuntimeDigest = normalizeDialogueStructuredArtifact(event.runtimeDigest ?? turnRuntimeDigest)
     }
 
+    const transportFailurePriority = (failureSurface: AlicizationChatFailureSurface) => {
+      if (failureSurface.kind === 'tool-execution')
+        return 100
+      if (failureSurface.kind === 'provider-output-invalid' || failureSurface.kind === 'internal-leak')
+        return 10
+      return 50
+    }
+
     const setStagedAssistantResolution = (resolution: StagedAssistantResolution) => {
+      if (turnTransportFailureSurface) {
+        const resolutionFailureSurface = resolution.structured.failureSurface
+        if (
+          resolution.origin !== 'failure-surface'
+          || (
+            resolutionFailureSurface
+            && transportFailurePriority(resolutionFailureSurface) < transportFailurePriority(turnTransportFailureSurface)
+          )
+        ) {
+          return stagedAssistantResolution ?? resolution
+        }
+      }
       stagedAssistantResolution = resolution
       finalAssistantDisplayText = resolution.reply
       return resolution
@@ -1533,6 +1479,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       replyText?: string,
       emotion: StructuredOutputResult['emotion'] = 'concerned',
     ) => {
+      if (stagedAssistantResolution?.origin === 'failure-surface')
+        return stagedAssistantResolution
+
       const structured = createFailureStructuredArtifact({
         kind,
         replyText,
@@ -1554,6 +1503,13 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       failureSurface: AlicizationChatFailureSurface,
       emotion: StructuredOutputResult['emotion'] = 'concerned',
     ) => {
+      if (
+        turnTransportFailureSurface
+        && transportFailurePriority(turnTransportFailureSurface) >= transportFailurePriority(failureSurface)
+      ) {
+        return stagedAssistantResolution
+      }
+
       turnTransportArtifactOrigin = failureSurface.origin
       turnTransportLearningPolicy = {
         allowLongTermCondensation: failureSurface.allowLongTermCondensation,
@@ -1735,7 +1691,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         speech: finalReply,
       }
       const finalizedSlices = finalReply
-        ? removeExecutionStatusSlices(replaceAssistantTextSlices(buildingMessage.slices, finalReply))
+        ? retainTerminalExecutionStatusSlices(replaceAssistantTextSlices(buildingMessage.slices, finalReply))
         : replaceAssistantTextSlices(buildingMessage.slices, finalReply)
 
       buildingMessage.categorization = finalizedCategorization
@@ -1827,12 +1783,12 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
       )
       const turnToolEvidence: TurnToolEvidence = {
         verifiedToolResult: false,
+        toolExecutionFailure: null,
         executorToolCallIds: new Set<string>(),
         deniedBySafety: false,
         reminderToolCallIds: new Set<string>(),
         reminderScheduled: false,
       }
-      const observedToolNamesById = new Map<string, string>()
       let bridgeStreamAttemptSeq = 0
       const headers = (resolvedRoute.providerConfig.headers || {}) as Record<string, string>
       await appendAlicizationAuditLog({
@@ -1853,7 +1809,8 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         messages: Message[],
         streamOptions: StreamOptions,
       ) => {
-        type StreamWatchdogTouchKind = 'progress' | 'liveness'
+        type StreamWatchdogTouchKind = 'provider-progress' | 'tool-execution' | 'provider-continuation' | 'liveness'
+        type StreamWatchdogStage = 'provider' | 'tool-execution' | 'provider-continuation'
         type StreamWatchdogTimeoutPhase = 'first-event-timeout' | 'liveness-timeout' | 'idle-timeout'
 
         const withStreamWatchdog = async (
@@ -1864,6 +1821,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             idleTimeoutMs: number
             onTimeout?: (payload: {
               phase: StreamWatchdogTimeoutPhase
+              stage: StreamWatchdogStage
               timeoutMs: number
               sawAnyEvent: boolean
               sawProgress: boolean
@@ -1873,6 +1831,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           let timer: ReturnType<typeof setTimeout> | undefined
           let sawAnyEvent = false
           let sawProgress = false
+          let stage: StreamWatchdogStage = 'provider'
           let settled = false
 
           const clearTimer = () => {
@@ -1893,6 +1852,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                 return
               options.onTimeout?.({
                 phase,
+                stage,
                 timeoutMs,
                 sawAnyEvent,
                 sawProgress,
@@ -1920,16 +1880,28 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
 
               scheduleTimeout(options.firstEventTimeoutMs, 'first-event-timeout', rejectOnce)
               void execute({
-                touch: (kind = 'progress') => {
+                touch: (kind = 'provider-progress') => {
                   sawAnyEvent = true
-                  if (kind === 'progress') {
+                  if (kind === 'tool-execution') {
+                    stage = 'tool-execution'
                     sawProgress = true
                     scheduleTimeout(options.idleTimeoutMs, 'idle-timeout', rejectOnce)
                     return
                   }
-                  if (!sawProgress) {
+                  if (kind === 'provider-continuation') {
+                    stage = 'provider-continuation'
+                    sawProgress = true
                     scheduleTimeout(options.livenessTimeoutMs, 'liveness-timeout', rejectOnce)
+                    return
                   }
+                  if (kind === 'provider-progress') {
+                    stage = 'provider'
+                    sawProgress = true
+                    scheduleTimeout(options.idleTimeoutMs, 'idle-timeout', rejectOnce)
+                    return
+                  }
+
+                  scheduleTimeout(options.livenessTimeoutMs, 'liveness-timeout', rejectOnce)
                 },
               })
                 .then(resolveOnce)
@@ -1997,8 +1969,19 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             let sawMeta = false
             let lastEventType = ''
             const startedAt = Date.now()
+            const streamAbortController = new AbortController()
+            const parentAbortHandler = () => {
+              streamAbortController.abort(
+                streamOptions.abortSignal?.reason
+                ?? new DOMException('Renderer stream aborted', 'AbortError'),
+              )
+            }
+            if (streamOptions.abortSignal?.aborted)
+              parentAbortHandler()
+            else
+              streamOptions.abortSignal?.addEventListener('abort', parentAbortHandler, { once: true })
             try {
-              await withStreamWatchdog(async ({ touch }) => {
+              const executeBridgeStream = async (touch?: (kind?: StreamWatchdogTouchKind) => void) => {
                 await bridgeStreamChat({
                   turnId: bridgeAttemptTurnId,
                   providerId: resolvedRoute.providerId,
@@ -2011,12 +1994,14 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                     ? { providerToolCapabilityObservation }
                     : {}),
                 }, {
-                  abortSignal: streamOptions.abortSignal,
+                  abortSignal: streamAbortController.signal,
                   onStreamEvent: async (event) => {
+                    if (streamAbortController.signal.aborted)
+                      return
                     lastEventType = typeof event?.type === 'string' ? event.type : ''
                     if (event.type === 'meta') {
                       sawMeta = true
-                      touch('liveness')
+                      touch?.('liveness')
                     }
                     if (event.type === 'finish') {
                       turnVisibleReplyExecution = (event as { visibleReplyExecution?: AlicizationConversationTurnInput['visibleReplyExecution'] }).visibleReplyExecution ?? turnVisibleReplyExecution
@@ -2027,50 +2012,108 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                         (event as { visibleReplyClosure?: AlicizationConversationTurnInput['visibleReplyClosure'] }).visibleReplyClosure,
                       ) ?? turnVisibleReplyClosure
                     }
-                    if (event.type === 'text-delta' || event.type === 'tool-call' || event.type === 'tool-result') {
+                    if (event.type === 'text-delta') {
                       sawProgress = true
-                      touch('progress')
+                      touch?.('provider-progress')
+                    }
+                    if (event.type === 'provider-progress') {
+                      sawProgress = true
+                      touch?.('provider-progress')
+                    }
+                    if (event.type === 'tool-call') {
+                      sawProgress = true
+                      touch?.('tool-execution')
+                    }
+                    if (event.type === 'tool-progress') {
+                      if (event.signal === 'liveness') {
+                        touch?.('liveness')
+                      }
+                      else {
+                        sawProgress = true
+                        touch?.(
+                          event.phase === 'started' || event.phase === 'running'
+                            ? 'tool-execution'
+                            : 'provider-continuation',
+                        )
+                      }
+                    }
+                    if (event.type === 'tool-result') {
+                      sawProgress = true
+                      touch?.('provider-continuation')
                     }
                     if (event.type === 'text-delta' && event.text.trim())
                       runtimeAuthoritativeModelTextObserved = true
                     await streamOptions.onStreamEvent?.(event)
                   },
                 })
-              }, {
-                firstEventTimeoutMs: timeoutOptions.firstEventTimeoutMs,
-                livenessTimeoutMs: timeoutOptions.livenessTimeoutMs,
-                idleTimeoutMs: timeoutOptions.idleTimeoutMs,
-                onTimeout: ({ phase, timeoutMs, sawAnyEvent: watchdogSawAnyEvent, sawProgress: watchdogSawProgress }) => {
-                  void appendAlicizationAuditLog({
-                    level: 'warning',
-                    category: 'alicization.main-gateway',
-                    action: 'renderer-stream-watchdog-timeout',
-                    message: 'Renderer bridge watchdog timed out while waiting for main-process stream progress.',
-                    details: {
-                      sessionId,
-                      turnId,
-                      bridgeAttemptTurnId,
-                      supportsTools,
-                      waitForTools,
-                      firstEventTimeoutMs: timeoutOptions.firstEventTimeoutMs,
-                      livenessTimeoutMs: timeoutOptions.livenessTimeoutMs,
-                      idleTimeoutMs: timeoutOptions.idleTimeoutMs,
-                      timeoutMs,
-                      timeoutPhase: phase,
-                      sawProgress,
-                      sawMeta,
-                      watchdogSawAnyEvent,
-                      watchdogSawProgress,
-                      lastEventType: lastEventType || null,
-                      elapsedMs: Date.now() - startedAt,
-                    },
-                  })
-                  void bridge?.chatAbort?.({
-                    turnId: bridgeAttemptTurnId,
-                    reason: 'stream-timeout',
-                  }).catch(() => {})
+              }
+              const streamLifecycleOwner = resolveStreamLifecycleOwner(bridge)
+              const mainProcessOwnsStreamLifecycle = streamLifecycleOwner === 'main'
+              void appendAlicizationAuditLog({
+                level: 'info',
+                category: 'alicization.main-gateway',
+                action: 'stream-lifecycle-owner-resolved',
+                message: 'Resolved the bridge stream lifecycle owner before starting the Provider request.',
+                details: {
+                  sessionId,
+                  turnId,
+                  bridgeAttemptTurnId,
+                  lifecycleOwner: streamLifecycleOwner,
+                  watchdogEnabled: !mainProcessOwnsStreamLifecycle,
+                  declaredLifecycleOwner: bridge.streamLifecycleOwner ?? null,
                 },
               })
+              if (mainProcessOwnsStreamLifecycle) {
+                // The Electron main process owns provider and executor deadlines.
+                // A renderer-side idle timer must not abort a live Codex process
+                // just because one IPC progress event was delayed or dropped.
+                await executeBridgeStream()
+              }
+              else {
+                await withStreamWatchdog(async ({ touch }) => {
+                  await executeBridgeStream(touch)
+                }, {
+                  firstEventTimeoutMs: timeoutOptions.firstEventTimeoutMs,
+                  livenessTimeoutMs: timeoutOptions.livenessTimeoutMs,
+                  idleTimeoutMs: timeoutOptions.idleTimeoutMs,
+                  onTimeout: ({ phase, stage, timeoutMs, sawAnyEvent: watchdogSawAnyEvent, sawProgress: watchdogSawProgress }) => {
+                    if (!streamAbortController.signal.aborted) {
+                      streamAbortController.abort(
+                        new DOMException('Renderer stream watchdog timed out', 'AbortError'),
+                      )
+                    }
+                    void appendAlicizationAuditLog({
+                      level: 'warning',
+                      category: 'alicization.main-gateway',
+                      action: 'renderer-stream-watchdog-timeout',
+                      message: 'Renderer bridge watchdog timed out while waiting for main-process stream progress.',
+                      details: {
+                        sessionId,
+                        turnId,
+                        bridgeAttemptTurnId,
+                        supportsTools,
+                        waitForTools,
+                        firstEventTimeoutMs: timeoutOptions.firstEventTimeoutMs,
+                        livenessTimeoutMs: timeoutOptions.livenessTimeoutMs,
+                        idleTimeoutMs: timeoutOptions.idleTimeoutMs,
+                        timeoutMs,
+                        timeoutPhase: phase,
+                        watchdogStage: stage,
+                        sawProgress,
+                        sawMeta,
+                        watchdogSawAnyEvent,
+                        watchdogSawProgress,
+                        lastEventType: lastEventType || null,
+                        elapsedMs: Date.now() - startedAt,
+                      },
+                    })
+                    void bridge?.chatAbort?.({
+                      turnId: bridgeAttemptTurnId,
+                      reason: 'stream-timeout',
+                    }).catch(() => {})
+                  },
+                })
+              }
             }
             catch (error) {
               if (error instanceof Error) {
@@ -2078,6 +2121,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                 streamError.__alicizationSawProgress = sawProgress || streamError.__alicizationSawProgress === true
               }
               throw error
+            }
+            finally {
+              streamOptions.abortSignal?.removeEventListener('abort', parentAbortHandler)
             }
             if (supportsTools === true) {
               persistProviderToolCapabilityObservation({
@@ -2156,31 +2202,69 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
           return
         }
 
-        await withStreamWatchdog(async ({ touch }) => {
-          await llmStore.stream(options.model, options.chatProvider, messages, {
-            ...streamOptions,
-            onStreamEvent: async (event) => {
-              if (event.type === 'meta')
-                touch('liveness')
-              if (event.type === 'finish') {
-                turnVisibleReplyExecution = (event as { visibleReplyExecution?: AlicizationConversationTurnInput['visibleReplyExecution'] }).visibleReplyExecution ?? turnVisibleReplyExecution
-                turnVisibleReplyCritic = normalizeVisibleReplyCriticForPersistence(
-                  (event as { visibleReplyCritic?: AlicizationConversationTurnInput['visibleReplyCritic'] }).visibleReplyCritic,
-                ) ?? turnVisibleReplyCritic
-                turnVisibleReplyClosure = normalizeVisibleReplyClosureForPersistence(
-                  (event as { visibleReplyClosure?: AlicizationConversationTurnInput['visibleReplyClosure'] }).visibleReplyClosure,
-                ) ?? turnVisibleReplyClosure
-              }
-              if (event.type === 'text-delta' || event.type === 'tool-call' || event.type === 'tool-result')
-                touch('progress')
-              await streamOptions.onStreamEvent?.(event)
-            },
+        const streamAbortController = new AbortController()
+        const parentAbortHandler = () => {
+          streamAbortController.abort(
+            streamOptions.abortSignal?.reason
+            ?? new DOMException('Renderer stream aborted', 'AbortError'),
+          )
+        }
+        if (streamOptions.abortSignal?.aborted)
+          parentAbortHandler()
+        else
+          streamOptions.abortSignal?.addEventListener('abort', parentAbortHandler, { once: true })
+
+        try {
+          await withStreamWatchdog(async ({ touch }) => {
+            await llmStore.stream(options.model, options.chatProvider, messages, {
+              ...streamOptions,
+              abortSignal: streamAbortController.signal,
+              onStreamEvent: async (event) => {
+                if (streamAbortController.signal.aborted)
+                  return
+                if (event.type === 'meta')
+                  touch('liveness')
+                if (event.type === 'finish') {
+                  turnVisibleReplyExecution = (event as { visibleReplyExecution?: AlicizationConversationTurnInput['visibleReplyExecution'] }).visibleReplyExecution ?? turnVisibleReplyExecution
+                  turnVisibleReplyCritic = normalizeVisibleReplyCriticForPersistence(
+                    (event as { visibleReplyCritic?: AlicizationConversationTurnInput['visibleReplyCritic'] }).visibleReplyCritic,
+                  ) ?? turnVisibleReplyCritic
+                  turnVisibleReplyClosure = normalizeVisibleReplyClosureForPersistence(
+                    (event as { visibleReplyClosure?: AlicizationConversationTurnInput['visibleReplyClosure'] }).visibleReplyClosure,
+                  ) ?? turnVisibleReplyClosure
+                }
+                if (event.type === 'text-delta')
+                  touch('provider-progress')
+                if (event.type === 'provider-progress')
+                  touch('provider-progress')
+                if (event.type === 'tool-call')
+                  touch('tool-execution')
+                if (event.type === 'tool-progress') {
+                  if (event.signal === 'liveness') {
+                    touch('liveness')
+                  }
+                  else {
+                    touch(
+                      event.phase === 'started' || event.phase === 'running'
+                        ? 'tool-execution'
+                        : 'provider-continuation',
+                    )
+                  }
+                }
+                if (event.type === 'tool-result')
+                  touch('provider-continuation')
+                await streamOptions.onStreamEvent?.(event)
+              },
+            })
+          }, {
+            firstEventTimeoutMs: runtimeGatewayWatchdogPolicy.firstEventTimeoutMs,
+            livenessTimeoutMs: runtimeGatewayWatchdogPolicy.livenessTimeoutMs,
+            idleTimeoutMs: runtimeGatewayWatchdogPolicy.idleTimeoutMs,
           })
-        }, {
-          firstEventTimeoutMs: runtimeGatewayWatchdogPolicy.firstEventTimeoutMs,
-          livenessTimeoutMs: runtimeGatewayWatchdogPolicy.livenessTimeoutMs,
-          idleTimeoutMs: runtimeGatewayWatchdogPolicy.idleTimeoutMs,
-        })
+        }
+        finally {
+          streamOptions.abortSignal?.removeEventListener('abort', parentAbortHandler)
+        }
       }
 
       const categorizer = createStreamingCategorizer(activeProvider.value)
@@ -2517,29 +2601,42 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         minLiteralEmitLength: 24,
       })
 
-      const toolCallQueue = createQueue<ChatSlices>({
+      const toolCallQueue = createQueue<ChatToolProjectionSlice>({
         handlers: [
           async (ctx) => {
             if (shouldAbort())
               return
-            if (ctx.data.type === 'tool-call') {
-              buildingMessage.slices.push(ctx.data)
-              updateUI()
-              return
-            }
-
-            if (ctx.data.type === 'execution-status') {
-              upsertExecutionStatusSlice(buildingMessage.slices, ctx.data)
-              updateUI()
-              return
-            }
-
-            if (ctx.data.type === 'tool-call-result') {
-              buildingMessage.tool_results.push(ctx.data)
-              updateUI()
-            }
+            applyChatToolProjectionSlice(buildingMessage, ctx.data, updateUI)
           },
         ],
+      })
+      let toolProjectionQueueFailure: AlicizationToolEventDeliveryError | undefined
+      toolCallQueue.on('error', (payload, error) => {
+        if (toolProjectionQueueFailure)
+          return
+
+        const event = payload.type === 'tool-call'
+          ? {
+              type: 'tool-call' as const,
+              toolCallId: typeof payload.toolCall?.toolCallId === 'string'
+                ? payload.toolCall.toolCallId
+                : '',
+              toolName: typeof payload.toolCall?.toolName === 'string'
+                ? payload.toolCall.toolName
+                : undefined,
+            }
+          : payload.type === 'tool-call-result'
+            ? {
+                type: 'tool-result' as const,
+                toolCallId: payload.id,
+                toolName: undefined,
+              }
+            : {
+                type: 'tool-progress' as const,
+                toolCallId: payload.toolCallId ?? '',
+                toolName: payload.toolName,
+              }
+        toolProjectionQueueFailure = new AlicizationToolEventDeliveryError(error, event)
       })
 
       let newMessages = sessionMessagesForSend
@@ -2597,122 +2694,255 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
         turnToolEvidence.denialSource = classifyDeniedSource(rawReason)
       }
 
+      const runStreamSideEffectSafely = async (
+        sideEffect: string,
+        callback: () => Promise<void>,
+      ) => {
+        try {
+          await callback()
+        }
+        catch (error) {
+          await appendAlicizationAuditLog({
+            level: 'warning',
+            category: 'alicization.chat',
+            action: 'stream-side-effect-failed',
+            message: 'A renderer-side stream projection failed without interrupting the Provider/tool lifecycle.',
+            details: {
+              sideEffect,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          })
+        }
+      }
+
       const recordObservedToolCall = async (event: StreamToolCallPayload) => {
         const toolMessage = toToolMessageFromStreamEvent(event)
         turnToolCalls.push(toolMessage)
-        await hooks.emitToolCallHooks(event, streamingMessageContext)
+        await runStreamSideEffectSafely(
+          'tool-call-hook',
+          async () => await hooks.emitToolCallHooks(event, streamingMessageContext),
+        )
       }
 
-      await streamWithRuntimeGateway(newMessages as Message[], {
-        headers,
-        tools: options.tools,
-        supportsTools: runtimeGatewayToolingPolicy.supportsTools,
-        abortSignal,
-        // NOTICE: xsai stream may emit `finish` before tool steps continue, so keep waiting until
-        // the final non-tool finish to avoid ending the chat turn with no assistant reply.
-        waitForTools: runtimeGatewayToolingPolicy.waitForTools,
-        onStreamEvent: async (event: StreamEvent) => {
-          switch (event.type) {
-            case 'meta':
-              ingestTurnStructuredRuntimeMeta(event)
-              if (event.embodiment || event.embodimentScript || event.speechTimeline || event.digitalLife || event.digitalLifeSpine || event.runtimeDigest) {
-                await hooks.emitEmbodimentMetaHooks({
-                  governance: event.governance ?? turnMindGovernance,
-                  embodiment: normalizeDialogueStructuredArtifact(event.embodiment ?? null),
-                  embodimentScript: normalizeDialogueStructuredArtifact(event.embodimentScript ?? null),
-                  speechTimeline: normalizeDialogueStructuredArtifact(event.speechTimeline ?? null),
-                  digitalLife: normalizeDialogueStructuredArtifact(resolveChatRuntimeDigitalLifeAuthority({
-                    digitalLife: event.digitalLife,
-                    embodimentScript: event.embodimentScript,
-                  })),
-                  digitalLifeSpine: normalizeDialogueStructuredArtifact(event.digitalLifeSpine ?? null),
-                  runtimeDigest: normalizeDialogueStructuredArtifact(event.runtimeDigest ?? null),
-                }, streamingMessageContext)
-              }
-              break
-            case 'tool-call': {
-              await recordObservedToolCall(event)
-              {
-                const observedToolName = normalizeObservedToolName(event)
-                if (event.toolCallId && observedToolName)
-                  observedToolNamesById.set(event.toolCallId, observedToolName)
-                if (isExecutionEvidenceToolName(observedToolName)) {
-                  if (event.toolCallId)
-                    turnToolEvidence.executorToolCallIds.add(event.toolCallId)
-                }
-              }
-              if (normalizeObservedToolName(event) === 'set_reminder' && event.toolCallId)
-                turnToolEvidence.reminderToolCallIds.add(event.toolCallId)
-              const observedToolName = normalizeObservedToolName(event)
-              toolCallQueue.enqueue(isExecutionEvidenceToolName(observedToolName)
-                ? buildExecutorExecutionStatus({
+      let primaryStreamError: unknown
+      try {
+        await streamWithRuntimeGateway(newMessages as Message[], {
+          headers,
+          tools: options.tools,
+          supportsTools: runtimeGatewayToolingPolicy.supportsTools,
+          abortSignal,
+          // NOTICE: xsai stream may emit `finish` before tool steps continue, so keep waiting until
+          // the final non-tool finish to avoid ending the chat turn with no assistant reply.
+          waitForTools: runtimeGatewayToolingPolicy.waitForTools,
+          onStreamEvent: async (event: StreamEvent) => {
+            try {
+              switch (event.type) {
+                case 'meta':
+                  ingestTurnStructuredRuntimeMeta(event)
+                  if (event.embodiment || event.embodimentScript || event.speechTimeline || event.digitalLife || event.digitalLifeSpine || event.runtimeDigest) {
+                    await runStreamSideEffectSafely(
+                      'embodiment-meta-hook',
+                      async () => await hooks.emitEmbodimentMetaHooks({
+                        governance: event.governance ?? turnMindGovernance,
+                        embodiment: normalizeDialogueStructuredArtifact(event.embodiment ?? null),
+                        embodimentScript: normalizeDialogueStructuredArtifact(event.embodimentScript ?? null),
+                        speechTimeline: normalizeDialogueStructuredArtifact(event.speechTimeline ?? null),
+                        digitalLife: normalizeDialogueStructuredArtifact(resolveChatRuntimeDigitalLifeAuthority({
+                          digitalLife: event.digitalLife,
+                          embodimentScript: event.embodimentScript,
+                        })),
+                        digitalLifeSpine: normalizeDialogueStructuredArtifact(event.digitalLifeSpine ?? null),
+                        runtimeDigest: normalizeDialogueStructuredArtifact(event.runtimeDigest ?? null),
+                      }, streamingMessageContext),
+                    )
+                  }
+                  break
+                case 'tool-call': {
+                  const projection = resolveChatToolCallProjection({
+                    ...event,
+                    eventType: 'tool-call',
+                  })
+                  if (!projection)
+                    break
+                  const observedToolName = projection.toolName
+                  const toolCallId = projection.toolCallId
+                  const projectedEvent = {
+                    ...event,
+                    toolCallId,
                     toolName: observedToolName,
-                  })
-                : {
-                    type: 'tool-call',
-                    toolCall: event,
-                  })
+                  }
+                  await recordObservedToolCall(projectedEvent)
+                  if (isChatExecutionProjectionToolName(observedToolName))
+                    turnToolEvidence.executorToolCallIds.add(toolCallId)
+                  if (observedToolName === 'set_reminder')
+                    turnToolEvidence.reminderToolCallIds.add(toolCallId)
+                  toolCallQueue.enqueue(isChatExecutionProjectionToolName(observedToolName)
+                    ? buildChatExecutionStatusFromProjection(projection)
+                    : {
+                        type: 'tool-call',
+                        toolCall: projectedEvent,
+                      })
 
-              break
+                  break
+                }
+                case 'tool-result': {
+                  const projection = resolveChatToolCallProjection({
+                    ...event,
+                    eventType: 'tool-result',
+                  })
+                  if (!projection)
+                    break
+                  const toolCallId = projection.toolCallId
+                  const toolName = projection.toolName
+                  if (
+                    isAlicizationToolExecutionFailureResult(event.result)
+                    && !turnToolEvidence.toolExecutionFailure
+                  ) {
+                    const toolExecution = extractAlicizationToolExecutionFailure(event.result, toolName)
+                    if (toolExecution) {
+                      turnToolEvidence.toolExecutionFailure = toolExecution
+                      stageTransportFailureSurface(resolveAlicizationChatFailureSurface({
+                        kind: 'tool-execution',
+                        userText: sendingMessage,
+                        toolExecution,
+                      }))
+                    }
+                  }
+                  if (hasVerifiedToolResult(event.result))
+                    turnToolEvidence.verifiedToolResult = true
+                  if (turnToolEvidence.executorToolCallIds.has(toolCallId)) {
+                    const executorResult = extractChatExecutorToolReplyEvidence(event.result, toolName)
+                    if (executorResult) {
+                      toolCallQueue.enqueue(buildChatExecutionStatusFromProjection(projection, {
+                        result: executorResult,
+                      }))
+                    }
+                  }
+                  if (turnToolEvidence.reminderToolCallIds.has(toolCallId)) {
+                    const reminderPayload = extractScheduledReminderPayload(event.result)
+                    if (reminderPayload.scheduled) {
+                      turnToolEvidence.reminderScheduled = true
+                      if (reminderPayload.message)
+                        turnToolEvidence.reminderMessage = reminderPayload.message
+                    }
+                  }
+                  toolCallQueue.enqueue({
+                    type: 'tool-call-result',
+                    id: toolCallId,
+                    result: event.result,
+                  })
+                  {
+                    const deniedReason = extractDeniedToolReason(event.result)
+                    if (deniedReason) {
+                      trackToolDeniedReason(deniedReason)
+                    }
+                  }
+
+                  break
+                }
+                case 'tool-progress':
+                  {
+                    const projection = resolveChatToolCallProjection({
+                      ...event,
+                      eventType: 'tool-progress',
+                    })
+                    if (!projection)
+                      break
+                    if (isChatExecutionProjectionToolName(projection.toolName))
+                      toolCallQueue.enqueue(buildChatExecutionStatusFromProjection(projection))
+                  }
+                  break
+                case 'provider-progress':
+                  break
+                case 'text-delta':
+                  ingestTransportVisibleArtifactMetadata(event)
+                  if (runtimeAuthoritativeBridge) {
+                    turnTransportVisibleText += event.text
+                    if (event.origin === 'provider' && event.text.trim())
+                      runtimeAuthoritativeModelTextObserved = true
+                    break
+                  }
+                  await parser.consume(event.text)
+                  break
+                case 'finish':
+                  ingestTransportVisibleArtifactMetadata(event)
+                  turnMemoryFailures = normalizeTransportMemoryFailures(event.memoryFailures)
+                  if (event.origin === 'provider' && typeof event.fullText === 'string' && event.fullText.trim()) {
+                    turnTransportProviderFullText = event.fullText
+                    runtimeAuthoritativeModelTextObserved = true
+                  }
+                  break
+                case 'error':
+                  ingestTransportVisibleArtifactMetadata(event)
+                  break
+              }
             }
-            case 'tool-result':
-              if (hasVerifiedToolResult(event.result))
-                turnToolEvidence.verifiedToolResult = true
-              if (turnToolEvidence.executorToolCallIds.has(event.toolCallId)) {
-                const executorToolName = observedToolNamesById.get(event.toolCallId) ?? 'executor'
-                const executorResult = extractExecutorToolReplyEvidence(event.result, executorToolName)
-                if (executorResult) {
-                  toolCallQueue.enqueue(buildExecutorExecutionStatus({
-                    toolName: executorToolName,
-                    result: executorResult,
-                  }))
+            catch (error) {
+              if (
+                event.type === 'tool-call'
+                || event.type === 'tool-result'
+                || event.type === 'tool-progress'
+              ) {
+                if (error instanceof AlicizationToolEventDeliveryError) {
+                  void appendAlicizationAuditLog({
+                    level: 'warning',
+                    category: 'alicization.chat',
+                    action: 'tool-projection-delivery-failed',
+                    message: 'A tool projection fact could not be rendered, but the Provider/tool lifecycle remains authoritative.',
+                    details: {
+                      error: error.message,
+                      errorCode: error.code,
+                      eventType: error.eventType,
+                      toolCallId: error.toolCallId,
+                      toolName: error.toolName,
+                    },
+                  }).catch(() => {})
+                  return
                 }
               }
-              if (turnToolEvidence.reminderToolCallIds.has(event.toolCallId)) {
-                const reminderPayload = extractScheduledReminderPayload(event.result)
-                if (reminderPayload.scheduled) {
-                  turnToolEvidence.reminderScheduled = true
-                  if (reminderPayload.message)
-                    turnToolEvidence.reminderMessage = reminderPayload.message
-                }
-              }
-              {
-                const deniedReason = extractDeniedToolReason(event.result)
-                if (deniedReason) {
-                  trackToolDeniedReason(deniedReason)
-                }
-              }
-              toolCallQueue.enqueue({
-                type: 'tool-call-result',
-                id: event.toolCallId,
-                result: event.result,
-              })
+              throw error
+            }
+          },
+        })
+      }
+      catch (error) {
+        primaryStreamError = error
+      }
 
-              break
-            case 'text-delta':
-              ingestTransportVisibleArtifactMetadata(event)
-              if (runtimeAuthoritativeBridge) {
-                turnTransportVisibleText += event.text
-                if (event.origin === 'provider' && event.text.trim())
-                  runtimeAuthoritativeModelTextObserved = true
-                break
-              }
-              await parser.consume(event.text)
-              break
-            case 'finish':
-              ingestTransportVisibleArtifactMetadata(event)
-              turnMemoryFailures = normalizeTransportMemoryFailures(event.memoryFailures)
-              if (event.origin === 'provider' && typeof event.fullText === 'string' && event.fullText.trim()) {
-                turnTransportProviderFullText = event.fullText
-                runtimeAuthoritativeModelTextObserved = true
-              }
-              break
-            case 'error':
-              ingestTransportVisibleArtifactMetadata(event)
-              break
-          }
-        },
-      })
+      let toolProjectionDeliveryError: AlicizationToolEventDeliveryError | undefined
+      // Tool/progress slices are projected asynchronously so they cannot block
+      // Provider streaming. Drain them before settlement even when the primary
+      // stream failed, while preserving the primary Provider/main error.
+      try {
+        await toolCallQueue.waitForIdle()
+      }
+      catch (error) {
+        toolProjectionDeliveryError = toolProjectionQueueFailure
+          ?? (error instanceof AlicizationToolEventDeliveryError
+            ? error
+            : new AlicizationToolEventDeliveryError(error, {
+                type: 'tool-progress',
+                toolCallId: '',
+              }))
+      }
+      toolProjectionDeliveryError ??= toolProjectionQueueFailure
+      if (toolProjectionDeliveryError) {
+        void appendAlicizationAuditLog({
+          level: 'warning',
+          category: 'alicization.chat',
+          action: 'tool-projection-drain-failed',
+          message: 'Provider streaming completed, but one or more renderer tool projections failed.',
+          details: {
+            error: toolProjectionDeliveryError.message,
+            errorCode: toolProjectionDeliveryError.code,
+            eventType: toolProjectionDeliveryError.eventType,
+            toolCallId: toolProjectionDeliveryError.toolCallId,
+          },
+        }).catch(() => {})
+      }
+
+      if (primaryStreamError !== undefined)
+        throw primaryStreamError
 
       if (runtimeAuthoritativeBridge) {
         const approvedVisibleText = turnTransportVisibleText.trim()
