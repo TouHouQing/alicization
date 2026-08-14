@@ -2,6 +2,7 @@ import type {
   AlicizationDispatchTaskThreadResult,
   AlicizationExecutionEventInput,
   AlicizationTaskThreadRecord,
+  AlicizationTaskThreadUpsertInput,
 } from '@proj-alicization/stage-shared'
 
 import type { AlicizationTaskThreadDispatchPort } from './task-thread-dispatcher'
@@ -381,7 +382,20 @@ describe('task-thread orchestrator', () => {
   it('removes and resolves an aborted queued job without waiting for the running job', async () => {
     const threadA = createThread('thread-codex-running', 'codex')
     const threadB = createThread('thread-codex-queued-cancelled', 'codex')
-    const port = createPort([threadA, threadB])
+    const basePort = createPort([threadA, threadB])
+    const settlementOrder: string[] = []
+    const port: AlicizationTaskThreadDispatchPort = {
+      ...basePort,
+      upsertTaskThread: vi.fn(async (input: AlicizationTaskThreadUpsertInput) => {
+        if (input.id === threadB.id && input.status === 'cancelled')
+          settlementOrder.push('thread')
+        return input as AlicizationTaskThreadRecord
+      }),
+      appendExecutionEvents: vi.fn(async (events: AlicizationExecutionEventInput[]) => {
+        if (events.some(event => event.threadId === threadB.id && event.kind === 'cancel'))
+          settlementOrder.push('event')
+      }),
+    }
     const runningGate = createDeferredGate()
     const queuedAbortController = new AbortController()
     const started: string[] = []
@@ -449,7 +463,9 @@ describe('task-thread orchestrator', () => {
       expect(port.upsertTaskThread).toHaveBeenCalledWith(expect.objectContaining({
         id: threadB.id,
         status: 'cancelled',
+        expectedUpdatedAt: threadB.updatedAt,
       }))
+      expect(settlementOrder).toEqual(['thread', 'event'])
     }
     finally {
       runningGate.release()
@@ -531,6 +547,255 @@ describe('task-thread orchestrator', () => {
         latestRevision: 'preserve-me',
       }),
     }))
+
+    runningGate.release()
+    await runningPromise
+  })
+
+  it('preserves a terminal queued thread when cancellation races with completion', async () => {
+    const runningThread = createThread('thread-codex-running-for-terminal-race', 'codex')
+    const queuedThread = createThread('thread-codex-queued-terminal-race', 'codex')
+    const completedQueuedThread: AlicizationTaskThreadRecord = {
+      ...queuedThread,
+      status: 'completed',
+      summary: 'completed before queued cancellation settled',
+      updatedAt: 240,
+      lastEventAt: 240,
+      completedAt: 240,
+    }
+    const runningGate = createDeferredGate()
+    const abortController = new AbortController()
+    let queuedThreadReads = 0
+    const basePort = createPort([runningThread, queuedThread])
+    const port: AlicizationTaskThreadDispatchPort = {
+      ...basePort,
+      getTaskThread: vi.fn(async (id: string) => {
+        if (id === queuedThread.id) {
+          queuedThreadReads += 1
+          return queuedThreadReads === 1 ? queuedThread : completedQueuedThread
+        }
+        return runningThread
+      }),
+    }
+    const orchestrator = createTaskThreadOrchestrator({
+      runDispatch: async ({ input }) => {
+        const thread = await port.getTaskThread(input.threadId)
+        if (!thread)
+          throw new Error('thread not found')
+        if (thread.id === runningThread.id)
+          await runningGate.wait
+        return buildDispatchResult(thread)
+      },
+    })
+
+    const runningPromise = orchestrator.dispatch({
+      port,
+      input: { threadId: runningThread.id },
+    })
+    await vi.waitFor(() => {
+      expect(orchestrator.snapshot().running.codex).toBe(runningThread.id)
+    })
+    const queuedPromise = orchestrator.dispatch({
+      port,
+      input: {
+        threadId: queuedThread.id,
+        abortSignal: abortController.signal,
+      },
+    })
+    await vi.waitFor(() => {
+      expect(orchestrator.snapshot().queued.codex).toEqual([queuedThread.id])
+    })
+
+    abortController.abort('cancel-lost-race')
+    const result = await queuedPromise
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'completed',
+      errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+      errorMessage: 'Task thread is already terminal with status completed.',
+      thread: {
+        status: 'completed',
+        summary: 'completed before queued cancellation settled',
+      },
+    })
+    expect(port.appendExecutionEvents).not.toHaveBeenCalledWith([
+      expect.objectContaining({
+        threadId: queuedThread.id,
+        kind: 'cancel',
+      }),
+    ])
+    expect(port.upsertTaskThread).not.toHaveBeenCalledWith(expect.objectContaining({
+      id: queuedThread.id,
+      status: 'cancelled',
+    }))
+
+    runningGate.release()
+    await runningPromise
+  })
+
+  it('does not cancel a queued thread that became running before cancellation ownership', async () => {
+    const runningThread = createThread('thread-codex-running-for-running-race', 'codex')
+    const queuedThread = createThread('thread-codex-queued-running-race', 'codex')
+    const runningQueuedThread: AlicizationTaskThreadRecord = {
+      ...queuedThread,
+      status: 'running',
+      summary: 'another owner started this task',
+      updatedAt: 220,
+      lastEventAt: 220,
+    }
+    const runningGate = createDeferredGate()
+    const abortController = new AbortController()
+    let queuedThreadReads = 0
+    const basePort = createPort([runningThread, queuedThread])
+    const port: AlicizationTaskThreadDispatchPort = {
+      ...basePort,
+      getTaskThread: vi.fn(async (id: string) => {
+        if (id === queuedThread.id) {
+          queuedThreadReads += 1
+          return queuedThreadReads === 1 ? queuedThread : runningQueuedThread
+        }
+        return runningThread
+      }),
+    }
+    const orchestrator = createTaskThreadOrchestrator({
+      runDispatch: async ({ input }) => {
+        const thread = await port.getTaskThread(input.threadId)
+        if (!thread)
+          throw new Error('thread not found')
+        if (thread.id === runningThread.id)
+          await runningGate.wait
+        return buildDispatchResult(thread)
+      },
+    })
+
+    const runningPromise = orchestrator.dispatch({
+      port,
+      input: { threadId: runningThread.id },
+    })
+    await vi.waitFor(() => {
+      expect(orchestrator.snapshot().running.codex).toBe(runningThread.id)
+    })
+    const queuedPromise = orchestrator.dispatch({
+      port,
+      input: {
+        threadId: queuedThread.id,
+        abortSignal: abortController.signal,
+      },
+    })
+    await vi.waitFor(() => {
+      expect(orchestrator.snapshot().queued.codex).toEqual([queuedThread.id])
+    })
+
+    abortController.abort('cancel-after-running-owner')
+    const result = await queuedPromise
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'running',
+      errorCode: 'TASK_THREAD_VERSION_CONFLICT',
+      thread: {
+        status: 'running',
+        summary: 'another owner started this task',
+      },
+    })
+    expect(port.appendExecutionEvents).not.toHaveBeenCalledWith([
+      expect.objectContaining({
+        threadId: queuedThread.id,
+        kind: 'cancel',
+      }),
+    ])
+    expect(port.upsertTaskThread).not.toHaveBeenCalledWith(expect.objectContaining({
+      id: queuedThread.id,
+      status: 'cancelled',
+    }))
+
+    runningGate.release()
+    await runningPromise
+  })
+
+  it.each(['completed', 'failed', 'cancelled', 'blocked'] as const)('does not append a cancellation event when queued cancellation loses the terminal CAS to %s', async (status) => {
+    const runningThread = createThread('thread-codex-running-for-cancel-cas', 'codex')
+    const queuedThread = createThread('thread-codex-queued-cancel-cas', 'codex')
+    const completedQueuedThread: AlicizationTaskThreadRecord = {
+      ...queuedThread,
+      status,
+      summary: `${status} before cancellation ownership was acquired`,
+      updatedAt: 240,
+      lastEventAt: 240,
+      completedAt: 240,
+    }
+    const runningGate = createDeferredGate()
+    const abortController = new AbortController()
+    let queuedThreadReads = 0
+    const basePort = createPort([runningThread, queuedThread])
+    const port: AlicizationTaskThreadDispatchPort = {
+      ...basePort,
+      getTaskThread: vi.fn(async (id: string) => {
+        if (id === queuedThread.id) {
+          queuedThreadReads += 1
+          return queuedThreadReads <= 2 ? queuedThread : completedQueuedThread
+        }
+        return runningThread
+      }),
+      upsertTaskThread: vi.fn(async (input) => {
+        if (input.id === queuedThread.id && input.status === 'cancelled') {
+          const error = new Error('queued cancellation lost terminal ownership')
+          Object.assign(error, {
+            code: 'TASK_THREAD_VERSION_CONFLICT',
+          })
+          throw error
+        }
+        return input as AlicizationTaskThreadRecord
+      }),
+    }
+    const orchestrator = createTaskThreadOrchestrator({
+      runDispatch: async ({ input }) => {
+        const thread = await port.getTaskThread(input.threadId)
+        if (!thread)
+          throw new Error('thread not found')
+        if (thread.id === runningThread.id)
+          await runningGate.wait
+        return buildDispatchResult(thread)
+      },
+    })
+
+    const runningPromise = orchestrator.dispatch({
+      port,
+      input: { threadId: runningThread.id },
+    })
+    await vi.waitFor(() => {
+      expect(orchestrator.snapshot().running.codex).toBe(runningThread.id)
+    })
+    const queuedPromise = orchestrator.dispatch({
+      port,
+      input: {
+        threadId: queuedThread.id,
+        abortSignal: abortController.signal,
+      },
+    })
+    await vi.waitFor(() => {
+      expect(orchestrator.snapshot().queued.codex).toEqual([queuedThread.id])
+    })
+
+    abortController.abort('cancel-lost-terminal-cas')
+    const result = await queuedPromise
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: status,
+      errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+      thread: {
+        status,
+        summary: `${status} before cancellation ownership was acquired`,
+      },
+    })
+    expect(port.appendExecutionEvents).not.toHaveBeenCalledWith([
+      expect.objectContaining({
+        threadId: queuedThread.id,
+        kind: 'cancel',
+      }),
+    ])
 
     runningGate.release()
     await runningPromise

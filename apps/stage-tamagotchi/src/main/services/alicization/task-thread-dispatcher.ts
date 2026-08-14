@@ -336,14 +336,26 @@ async function persistCancelledBeforeDispatch(input: {
       errorMessage: `Task thread is already terminal with status ${latestThread.status}.`,
     }
   }
+  if (latestThread.status !== 'planned') {
+    return {
+      thread: latestThread,
+      createdEventKinds: [],
+      ok: false,
+      finalStatus: latestThread.status,
+      summary: latestThread.summary
+        ?? `Task thread changed before pre-dispatch cancellation could be persisted while status is ${latestThread.status}.`,
+      errorCode: 'TASK_THREAD_VERSION_CONFLICT',
+      errorMessage: `Task thread changed before pre-dispatch cancellation could be persisted while status is ${latestThread.status}.`,
+    }
+  }
 
   const cancelEvent: AlicizationExecutionEventInput = {
     threadId: input.thread.id,
-    decisionTraceId: input.thread.decisionTraceId,
-    turnId: input.thread.turnId,
-    sessionId: input.thread.sessionId,
-    origin: input.thread.origin,
-    channel: input.thread.selectedChannel,
+    decisionTraceId: latestThread.decisionTraceId,
+    turnId: latestThread.turnId,
+    sessionId: latestThread.sessionId,
+    origin: latestThread.origin,
+    channel: latestThread.selectedChannel,
     kind: 'cancel',
     threadStatus: 'cancelled',
     payload: {
@@ -355,73 +367,124 @@ async function persistCancelledBeforeDispatch(input: {
     },
     createdAt,
   }
-  const eventWrite = await runBoundedPersistence({
-    label: 'pre-dispatch cancellation event persistence',
-    operation: async () => await input.port.appendExecutionEvents([cancelEvent]),
+  const cancelledThread: AlicizationTaskThreadUpsertInput = {
+    ...latestThread,
+    status: 'cancelled',
+    summary,
+    metadata: withExecutionPersistenceDiagnostics(
+      latestThread,
+      persistenceFailures,
+      createdAt,
+    ),
+    updatedAt: Math.max(latestThread.updatedAt, createdAt),
+    lastEventAt: createdAt,
+    completedAt: createdAt,
+    expectedUpdatedAt: latestThread.updatedAt,
+  }
+  const threadWrite = await runBoundedPersistence({
+    label: 'pre-dispatch cancellation terminal persistence',
+    operation: async () => await input.port.upsertTaskThread(cancelledThread),
     timeoutMs: input.persistenceTimeoutMs,
   })
-  if (!eventWrite.ok)
-    persistenceFailures.push(eventWrite.reason)
-  const terminalThreadRead = await runBoundedPersistence({
-    label: 'pre-dispatch cancellation terminal refresh',
-    operation: async () => await input.port.getTaskThread(input.thread.id),
-    timeoutMs: input.persistenceTimeoutMs,
-  })
-  if (!terminalThreadRead.ok)
-    persistenceFailures.push(terminalThreadRead.reason)
-  const terminalThread = terminalThreadRead.ok && terminalThreadRead.value
-    ? terminalThreadRead.value
-    : latestThread
 
-  let updatedThread: AlicizationTaskThreadRecord | null = terminalThread
-  let finalStatus: AlicizationDispatchTaskThreadResult['finalStatus'] = terminalThread.status
-  let finalSummary = terminalThread.summary ?? summary
-  if (!terminalTaskThreadStatuses.has(terminalThread.status)) {
-    const cancelledThread: AlicizationTaskThreadUpsertInput = {
-      ...terminalThread,
-      status: 'cancelled',
-      summary,
-      metadata: withExecutionPersistenceDiagnostics(
-        terminalThread,
-        persistenceFailures,
-        createdAt,
-      ),
-      updatedAt: Math.max(terminalThread.updatedAt, createdAt),
-      lastEventAt: createdAt,
-      completedAt: createdAt,
-      expectedUpdatedAt: terminalThread.updatedAt,
-    }
-    const threadWrite = await runBoundedPersistence({
-      label: 'pre-dispatch cancellation terminal persistence',
-      operation: async () => await input.port.upsertTaskThread(cancelledThread),
-      timeoutMs: input.persistenceTimeoutMs,
-    })
-    if (!threadWrite.ok)
-      persistenceFailures.push(threadWrite.reason)
-    updatedThread = threadWrite.ok
-      ? threadWrite.value
-      : null
-    if (!updatedThread) {
-      const reconciledThreadRead = await runBoundedPersistence({
-        label: 'pre-dispatch cancellation terminal reconciliation',
-        operation: async () => await input.port.getTaskThread(input.thread.id),
-        timeoutMs: input.persistenceTimeoutMs,
-      })
-      if (!reconciledThreadRead.ok)
-        persistenceFailures.push(reconciledThreadRead.reason)
-      updatedThread = reconciledThreadRead.ok && reconciledThreadRead.value
-        ? reconciledThreadRead.value
-        : {
-            ...cancelledThread,
-            metadata: withExecutionPersistenceDiagnostics(
-              terminalThread,
-              persistenceFailures,
-              createdAt,
-            ),
-          } as AlicizationTaskThreadRecord
-    }
+  let updatedThread = latestThread
+  let finalStatus: AlicizationTaskThreadRecord['status'] = latestThread.status
+  let finalSummary = latestThread.summary ?? summary
+  let createdEventKinds: AlicizationDispatchTaskThreadResult['createdEventKinds'] = []
+  let errorCode = 'TASK_THREAD_CANCELLATION_PERSISTENCE_FAILED'
+  let errorMessage = `${input.reason}; cancellation persistence failed.`
+
+  if (threadWrite.ok) {
+    updatedThread = threadWrite.value
     finalStatus = updatedThread.status
     finalSummary = updatedThread.summary ?? summary
+    const eventWrite = await runBoundedPersistence({
+      label: 'pre-dispatch cancellation event persistence',
+      operation: async () => await input.port.appendExecutionEvents([cancelEvent]),
+      timeoutMs: input.persistenceTimeoutMs,
+    })
+    if (!eventWrite.ok)
+      persistenceFailures.push(eventWrite.reason)
+    else
+      createdEventKinds = ['cancel']
+
+    if (!eventWrite.ok) {
+      const diagnosticInput: AlicizationTaskThreadUpsertInput = {
+        ...updatedThread,
+        metadata: withExecutionPersistenceDiagnostics(
+          updatedThread,
+          persistenceFailures,
+          createdAt,
+        ),
+        updatedAt: Math.max(updatedThread.updatedAt, createdAt),
+        expectedUpdatedAt: updatedThread.updatedAt,
+      }
+      const diagnosticWrite = await runBoundedPersistence({
+        label: 'pre-dispatch cancellation persistence diagnostics',
+        operation: async () => await input.port.upsertTaskThread(diagnosticInput),
+        timeoutMs: input.persistenceTimeoutMs,
+      })
+      if (!diagnosticWrite.ok) {
+        persistenceFailures.push(diagnosticWrite.reason)
+      }
+      else {
+        updatedThread = diagnosticWrite.value
+        finalStatus = updatedThread.status
+        finalSummary = updatedThread.summary ?? finalSummary
+      }
+      if (!diagnosticWrite.ok) {
+        const reconciledThreadRead = await runBoundedPersistence({
+          label: 'pre-dispatch cancellation diagnostics reconciliation',
+          operation: async () => await input.port.getTaskThread(input.thread.id),
+          timeoutMs: input.persistenceTimeoutMs,
+        })
+        if (!reconciledThreadRead.ok) {
+          persistenceFailures.push(reconciledThreadRead.reason)
+        }
+        else if (reconciledThreadRead.value) {
+          updatedThread = reconciledThreadRead.value
+          finalStatus = updatedThread.status
+          finalSummary = updatedThread.summary ?? finalSummary
+        }
+      }
+    }
+
+    errorCode = finalStatus === 'cancelled'
+      ? 'TASK_THREAD_ABORTED_BEFORE_DISPATCH'
+      : terminalTaskThreadStatuses.has(finalStatus)
+        ? 'TASK_THREAD_ALREADY_TERMINAL'
+        : 'TASK_THREAD_CANCELLATION_PERSISTENCE_FAILED'
+    errorMessage = persistenceFailures.length > 0
+      ? `${input.reason}; cancellation persistence degraded: ${persistenceFailures.join('; ')}`
+      : finalStatus === 'cancelled'
+        ? input.reason
+        : terminalTaskThreadStatuses.has(finalStatus)
+          ? `Task thread is already terminal with status ${finalStatus}.`
+          : `${input.reason}; cancellation persistence failed.`
+  }
+  else {
+    persistenceFailures.push(threadWrite.reason)
+    const reconciledThreadRead = await runBoundedPersistence({
+      label: 'pre-dispatch cancellation terminal reconciliation',
+      operation: async () => await input.port.getTaskThread(input.thread.id),
+      timeoutMs: input.persistenceTimeoutMs,
+    })
+    if (!reconciledThreadRead.ok)
+      persistenceFailures.push(reconciledThreadRead.reason)
+    updatedThread = reconciledThreadRead.ok && reconciledThreadRead.value
+      ? reconciledThreadRead.value
+      : latestThread
+    if (terminalTaskThreadStatuses.has(updatedThread.status)) {
+      finalStatus = updatedThread.status
+      finalSummary = updatedThread.summary
+        ?? `Task thread is already terminal with status ${updatedThread.status}.`
+      errorCode = 'TASK_THREAD_ALREADY_TERMINAL'
+      errorMessage = `Task thread is already terminal with status ${updatedThread.status}.`
+    }
+    else {
+      finalSummary = updatedThread.summary ?? 'Task thread cancellation could not be persisted.'
+      errorMessage = `${input.reason}; cancellation persistence failed: ${persistenceFailures.join('; ')}`
+    }
   }
 
   if (persistenceFailures.length > 0) {
@@ -440,18 +503,12 @@ async function persistCancelledBeforeDispatch(input: {
 
   return {
     thread: updatedThread,
-    createdEventKinds: eventWrite.ok ? ['cancel'] : [],
+    createdEventKinds,
     ok: false,
     finalStatus,
     summary: finalSummary,
-    errorCode: finalStatus === 'cancelled'
-      ? 'TASK_THREAD_ABORTED_BEFORE_DISPATCH'
-      : 'TASK_THREAD_ALREADY_TERMINAL',
-    errorMessage: persistenceFailures.length > 0
-      ? `${input.reason}; cancellation persistence degraded: ${persistenceFailures.join('; ')}`
-      : finalStatus === 'cancelled'
-        ? input.reason
-        : `Task thread is already terminal with status ${finalStatus}.`,
+    errorCode,
+    errorMessage,
   }
 }
 
@@ -574,13 +631,49 @@ export async function dispatchTaskThread(
   if (input.killSwitchSuspended) {
     const blockedAt = now()
     const blockedSummary = 'Execution stayed blocked because the kill switch is suspended.'
+    const persistenceFailures: string[] = []
+    const blockedThreadId = thread.id
+    const blockedThreadRead = await runBoundedPersistence({
+      label: 'kill-switch block task-thread refresh',
+      operation: async () => await port.getTaskThread(blockedThreadId),
+      timeoutMs: eventPersistenceTimeoutMs,
+    })
+    if (!blockedThreadRead.ok)
+      persistenceFailures.push(blockedThreadRead.reason)
+    const blockedBaseThread = blockedThreadRead.ok && blockedThreadRead.value
+      ? blockedThreadRead.value
+      : thread
+    if (terminalTaskThreadStatuses.has(blockedBaseThread.status)) {
+      return {
+        thread: blockedBaseThread,
+        createdEventKinds: [],
+        ok: false,
+        finalStatus: blockedBaseThread.status,
+        summary: blockedBaseThread.summary
+          ?? `Task thread is already terminal with status ${blockedBaseThread.status}.`,
+        errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+        errorMessage: `Task thread is already terminal with status ${blockedBaseThread.status}.`,
+      }
+    }
+    if (blockedBaseThread.status !== 'planned') {
+      return {
+        thread: blockedBaseThread,
+        createdEventKinds: [],
+        ok: false,
+        finalStatus: blockedBaseThread.status,
+        summary: blockedBaseThread.summary
+          ?? `Task thread changed before kill-switch blocking could be persisted while status is ${blockedBaseThread.status}.`,
+        errorCode: 'TASK_THREAD_VERSION_CONFLICT',
+        errorMessage: `Task thread changed before kill-switch blocking could be persisted while status is ${blockedBaseThread.status}.`,
+      }
+    }
     const blockedEvent: AlicizationExecutionEventInput = {
-      threadId: thread.id,
-      decisionTraceId: thread.decisionTraceId,
-      turnId: thread.turnId,
-      sessionId: thread.sessionId,
-      origin: thread.origin,
-      channel: thread.selectedChannel,
+      threadId: blockedBaseThread.id,
+      decisionTraceId: blockedBaseThread.decisionTraceId,
+      turnId: blockedBaseThread.turnId,
+      sessionId: blockedBaseThread.sessionId,
+      origin: blockedBaseThread.origin,
+      channel: blockedBaseThread.selectedChannel,
       kind: 'cancel',
       threadStatus: 'blocked',
       payload: {
@@ -593,26 +686,6 @@ export async function dispatchTaskThread(
       },
       createdAt: blockedAt,
     }
-    const persistenceFailures: string[] = []
-    const eventWrite = await runBoundedPersistence({
-      label: 'kill-switch block event persistence',
-      operation: async () => await port.appendExecutionEvents([blockedEvent]),
-      timeoutMs: eventPersistenceTimeoutMs,
-    })
-    if (!eventWrite.ok)
-      persistenceFailures.push(eventWrite.reason)
-
-    const blockedThreadId = thread.id
-    const blockedThreadRead = await runBoundedPersistence({
-      label: 'kill-switch block task-thread refresh',
-      operation: async () => await port.getTaskThread(blockedThreadId),
-      timeoutMs: eventPersistenceTimeoutMs,
-    })
-    if (!blockedThreadRead.ok)
-      persistenceFailures.push(blockedThreadRead.reason)
-    const blockedBaseThread = blockedThreadRead.ok && blockedThreadRead.value
-      ? blockedThreadRead.value
-      : thread
     const blockedInput: AlicizationTaskThreadUpsertInput = {
       ...blockedBaseThread,
       status: 'blocked',
@@ -623,7 +696,7 @@ export async function dispatchTaskThread(
         blockedAt,
       ),
       updatedAt: Math.max(blockedBaseThread.updatedAt, blockedAt),
-      lastEventAt: eventWrite.ok ? blockedAt : blockedBaseThread.lastEventAt,
+      lastEventAt: blockedAt,
       completedAt: blockedAt,
       expectedUpdatedAt: blockedBaseThread.updatedAt,
     }
@@ -632,12 +705,81 @@ export async function dispatchTaskThread(
       operation: async () => await port.upsertTaskThread(blockedInput),
       timeoutMs: eventPersistenceTimeoutMs,
     })
-    if (!threadWrite.ok)
+    let blockedThread = blockedBaseThread
+    let finalStatus: AlicizationTaskThreadRecord['status'] = blockedBaseThread.status
+    let createdEventKinds: AlicizationDispatchTaskThreadResult['createdEventKinds'] = []
+    let errorCode = 'TASK_THREAD_BLOCKED_PERSISTENCE_FAILED'
+    let errorMessage = 'Kill switch is suspended; blocked state could not be persisted.'
+    let blockedSummaryForResult = blockedSummary
+    if (threadWrite.ok) {
+      blockedThread = threadWrite.value
+      finalStatus = blockedThread.status
+      const eventWrite = await runBoundedPersistence({
+        label: 'kill-switch block event persistence',
+        operation: async () => await port.appendExecutionEvents([blockedEvent]),
+        timeoutMs: eventPersistenceTimeoutMs,
+      })
+      if (!eventWrite.ok)
+        persistenceFailures.push(eventWrite.reason)
+      else
+        createdEventKinds = ['cancel']
+
+      if (!eventWrite.ok) {
+        const diagnosticInput: AlicizationTaskThreadUpsertInput = {
+          ...blockedThread,
+          metadata: withExecutionPersistenceDiagnostics(
+            blockedThread,
+            persistenceFailures,
+            blockedAt,
+          ),
+          updatedAt: Math.max(blockedThread.updatedAt, blockedAt),
+          expectedUpdatedAt: blockedThread.updatedAt,
+        }
+        const diagnosticWrite = await runBoundedPersistence({
+          label: 'kill-switch block persistence diagnostics',
+          operation: async () => await port.upsertTaskThread(diagnosticInput),
+          timeoutMs: eventPersistenceTimeoutMs,
+        })
+        if (!diagnosticWrite.ok) {
+          persistenceFailures.push(diagnosticWrite.reason)
+        }
+        else {
+          blockedThread = diagnosticWrite.value
+          finalStatus = blockedThread.status
+          blockedSummaryForResult = blockedThread.summary ?? blockedSummaryForResult
+        }
+        if (!diagnosticWrite.ok) {
+          const reconciledThreadRead = await runBoundedPersistence({
+            label: 'kill-switch block diagnostics reconciliation',
+            operation: async () => await port.getTaskThread(blockedThreadId),
+            timeoutMs: eventPersistenceTimeoutMs,
+          })
+          if (!reconciledThreadRead.ok) {
+            persistenceFailures.push(reconciledThreadRead.reason)
+          }
+          else if (reconciledThreadRead.value) {
+            blockedThread = reconciledThreadRead.value
+            finalStatus = blockedThread.status
+            blockedSummaryForResult = blockedThread.summary ?? blockedSummaryForResult
+          }
+        }
+      }
+
+      errorCode = finalStatus === 'blocked'
+        ? 'TASK_THREAD_KILL_SWITCH_BLOCKED'
+        : terminalTaskThreadStatuses.has(finalStatus)
+          ? 'TASK_THREAD_ALREADY_TERMINAL'
+          : 'TASK_THREAD_BLOCKED_PERSISTENCE_FAILED'
+      errorMessage = persistenceFailures.length > 0
+        ? `Kill switch is suspended; persistence degraded: ${persistenceFailures.join('; ')}`
+        : finalStatus === 'blocked'
+          ? 'Kill switch is suspended.'
+          : terminalTaskThreadStatuses.has(finalStatus)
+            ? `Task thread is already terminal with status ${finalStatus}.`
+            : 'Kill switch is suspended; blocked state could not be persisted.'
+    }
+    else {
       persistenceFailures.push(threadWrite.reason)
-    let blockedThread = threadWrite.ok
-      ? threadWrite.value
-      : null
-    if (!blockedThread) {
       const reconciledThreadRead = await runBoundedPersistence({
         label: 'kill-switch blocked task-thread reconciliation',
         operation: async () => await port.getTaskThread(blockedThreadId),
@@ -647,14 +789,19 @@ export async function dispatchTaskThread(
         persistenceFailures.push(reconciledThreadRead.reason)
       blockedThread = reconciledThreadRead.ok && reconciledThreadRead.value
         ? reconciledThreadRead.value
-        : {
-            ...blockedInput,
-            metadata: withExecutionPersistenceDiagnostics(
-              thread,
-              persistenceFailures,
-              blockedAt,
-            ),
-          } as AlicizationTaskThreadRecord
+        : blockedBaseThread
+      finalStatus = blockedThread.status
+      if (terminalTaskThreadStatuses.has(blockedThread.status)) {
+        blockedSummaryForResult = blockedThread.summary
+          ?? `Task thread is already terminal with status ${blockedThread.status}.`
+        errorCode = 'TASK_THREAD_ALREADY_TERMINAL'
+        errorMessage = `Task thread is already terminal with status ${blockedThread.status}.`
+      }
+      else {
+        blockedSummaryForResult = blockedThread.summary
+          ?? 'Task thread block could not be persisted.'
+        errorMessage = `Kill switch is suspended; blocked state persistence failed: ${persistenceFailures.join('; ')}`
+      }
     }
 
     void appendAuditLog(port, {
@@ -672,13 +819,12 @@ export async function dispatchTaskThread(
     }).catch(() => {})
     return {
       thread: blockedThread,
-      createdEventKinds: eventWrite.ok ? ['cancel'] : [],
+      createdEventKinds,
       ok: false,
-      summary: blockedSummary,
-      errorCode: 'TASK_THREAD_KILL_SWITCH_BLOCKED',
-      errorMessage: persistenceFailures.length > 0
-        ? `Kill switch is suspended; persistence degraded: ${persistenceFailures.join('; ')}`
-        : 'Kill switch is suspended.',
+      finalStatus,
+      summary: blockedSummaryForResult,
+      errorCode,
+      errorMessage,
     }
   }
 

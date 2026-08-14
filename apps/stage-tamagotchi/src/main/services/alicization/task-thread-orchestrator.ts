@@ -55,6 +55,12 @@ interface AlicizationTaskThreadOrchestratorOptions {
 
 const defaultPersistenceTimeoutMs = 1_000
 const defaultShutdownDrainTimeoutMs = 5_000
+const terminalTaskThreadStatuses = new Set<AlicizationTaskThreadRecord['status']>([
+  'blocked',
+  'completed',
+  'failed',
+  'cancelled',
+])
 
 function isSerializedDispatchChannel(
   channel: AlicizationExecutionChannel | null | undefined,
@@ -203,13 +209,50 @@ async function persistQueuedCancellation(input: {
   const { job } = input
   const createdAt = job.now()
   const summary = 'Execution was cancelled before dispatcher slot became available.'
+  const latestThreadRead = await runBoundedOperation({
+    label: 'queued cancellation thread refresh',
+    operation: async () => await job.port.getTaskThread(job.thread.id),
+    timeoutMs: job.persistenceTimeoutMs,
+  })
+  const failures: string[] = []
+  if (!latestThreadRead.ok)
+    failures.push(latestThreadRead.reason)
+  const latestThread = latestThreadRead.ok && latestThreadRead.value
+    ? latestThreadRead.value
+    : job.thread
+
+  if (terminalTaskThreadStatuses.has(latestThread.status)) {
+    return {
+      thread: latestThread,
+      createdEventKinds: [],
+      ok: false,
+      finalStatus: latestThread.status,
+      summary: latestThread.summary
+        ?? `Task thread is already terminal with status ${latestThread.status}.`,
+      errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+      errorMessage: `Task thread is already terminal with status ${latestThread.status}.`,
+    } satisfies AlicizationDispatchTaskThreadResult
+  }
+  if (latestThread.status !== 'planned') {
+    return {
+      thread: latestThread,
+      createdEventKinds: [],
+      ok: false,
+      finalStatus: latestThread.status,
+      summary: latestThread.summary
+        ?? `Task thread changed before queued cancellation could be persisted while status is ${latestThread.status}.`,
+      errorCode: 'TASK_THREAD_VERSION_CONFLICT',
+      errorMessage: `Task thread changed before queued cancellation could be persisted while status is ${latestThread.status}.`,
+    } satisfies AlicizationDispatchTaskThreadResult
+  }
+
   const cancelEvent: AlicizationExecutionEventInput = {
     threadId: job.thread.id,
-    decisionTraceId: job.thread.decisionTraceId,
-    turnId: job.thread.turnId,
-    sessionId: job.thread.sessionId,
-    origin: job.thread.origin,
-    channel: job.thread.selectedChannel,
+    decisionTraceId: latestThread.decisionTraceId,
+    turnId: latestThread.turnId,
+    sessionId: latestThread.sessionId,
+    origin: latestThread.origin,
+    channel: latestThread.selectedChannel,
     kind: 'cancel',
     threadStatus: 'cancelled',
     payload: {
@@ -221,49 +264,125 @@ async function persistQueuedCancellation(input: {
     },
     createdAt,
   }
-  const [eventWrite, latestThreadRead] = await Promise.all([
-    runBoundedOperation({
-      label: 'queued cancellation event persistence',
-      operation: async () => await job.port.appendExecutionEvents([cancelEvent]),
-      timeoutMs: job.persistenceTimeoutMs,
-    }),
-    runBoundedOperation({
-      label: 'queued cancellation thread refresh',
-      operation: async () => await job.port.getTaskThread(job.thread.id),
-      timeoutMs: job.persistenceTimeoutMs,
-    }),
-  ])
-  const failures: string[] = []
-  if (!eventWrite.ok)
-    failures.push(eventWrite.reason)
-  if (!latestThreadRead.ok)
-    failures.push(latestThreadRead.reason)
-  const latestThread = latestThreadRead.ok && latestThreadRead.value
-    ? latestThreadRead.value
-    : job.thread
-
-  const upsertInput: AlicizationTaskThreadUpsertInput = {
+  const cancellationInput: AlicizationTaskThreadUpsertInput = {
     ...latestThread,
     status: 'cancelled',
     summary,
-    metadata: withPersistenceDiagnostics(latestThread, failures, createdAt),
+    metadata: withPersistenceDiagnostics(
+      latestThread,
+      failures,
+      createdAt,
+    ),
     updatedAt: Math.max(latestThread.updatedAt, createdAt),
+    expectedUpdatedAt: latestThread.updatedAt,
     lastEventAt: createdAt,
     completedAt: createdAt,
   }
   const threadWrite = await runBoundedOperation({
     label: 'queued cancellation terminal persistence',
-    operation: async () => await job.port.upsertTaskThread(upsertInput),
+    operation: async () => await job.port.upsertTaskThread(cancellationInput),
     timeoutMs: job.persistenceTimeoutMs,
   })
-  if (!threadWrite.ok)
+
+  let updatedThread = latestThread
+  let finalStatus: AlicizationTaskThreadRecord['status'] = latestThread.status
+  let finalSummary = latestThread.summary ?? summary
+  let createdEventKinds: AlicizationDispatchTaskThreadResult['createdEventKinds'] = []
+  let errorCode = 'TASK_THREAD_CANCELLATION_PERSISTENCE_FAILED'
+  let errorMessage = `${input.reason}; cancellation persistence failed.`
+
+  if (threadWrite.ok) {
+    updatedThread = threadWrite.value
+    finalStatus = updatedThread.status
+    finalSummary = updatedThread.summary ?? summary
+    const eventWrite = await runBoundedOperation({
+      label: 'queued cancellation event persistence',
+      operation: async () => await job.port.appendExecutionEvents([cancelEvent]),
+      timeoutMs: job.persistenceTimeoutMs,
+    })
+    if (!eventWrite.ok)
+      failures.push(eventWrite.reason)
+    else
+      createdEventKinds = ['cancel']
+
+    if (!eventWrite.ok) {
+      const diagnosticInput: AlicizationTaskThreadUpsertInput = {
+        ...updatedThread,
+        metadata: withPersistenceDiagnostics(
+          updatedThread,
+          failures,
+          createdAt,
+        ),
+        updatedAt: Math.max(updatedThread.updatedAt, createdAt),
+        expectedUpdatedAt: updatedThread.updatedAt,
+      }
+      const diagnosticWrite = await runBoundedOperation({
+        label: 'queued cancellation persistence diagnostics',
+        operation: async () => await job.port.upsertTaskThread(diagnosticInput),
+        timeoutMs: job.persistenceTimeoutMs,
+      })
+      if (!diagnosticWrite.ok) {
+        failures.push(diagnosticWrite.reason)
+      }
+      else {
+        updatedThread = diagnosticWrite.value
+        finalStatus = updatedThread.status
+        finalSummary = updatedThread.summary ?? finalSummary
+      }
+      if (!diagnosticWrite.ok) {
+        const reconciledThreadRead = await runBoundedOperation({
+          label: 'queued cancellation diagnostics reconciliation',
+          operation: async () => await job.port.getTaskThread(job.thread.id),
+          timeoutMs: job.persistenceTimeoutMs,
+        })
+        if (!reconciledThreadRead.ok) {
+          failures.push(reconciledThreadRead.reason)
+        }
+        else if (reconciledThreadRead.value) {
+          updatedThread = reconciledThreadRead.value
+          finalStatus = updatedThread.status
+          finalSummary = updatedThread.summary ?? finalSummary
+        }
+      }
+    }
+
+    errorCode = finalStatus === 'cancelled'
+      ? 'TASK_THREAD_ABORTED_BEFORE_DISPATCH'
+      : terminalTaskThreadStatuses.has(finalStatus)
+        ? 'TASK_THREAD_ALREADY_TERMINAL'
+        : 'TASK_THREAD_CANCELLATION_PERSISTENCE_FAILED'
+    errorMessage = failures.length > 0
+      ? `${input.reason}; cancellation persistence degraded: ${failures.join('; ')}`
+      : finalStatus === 'cancelled'
+        ? input.reason
+        : terminalTaskThreadStatuses.has(finalStatus)
+          ? `Task thread is already terminal with status ${finalStatus}.`
+          : `${input.reason}; cancellation persistence failed.`
+  }
+  else {
     failures.push(threadWrite.reason)
-  const updatedThread = threadWrite.ok
-    ? threadWrite.value
-    : {
-        ...upsertInput,
-        metadata: withPersistenceDiagnostics(latestThread, failures, createdAt),
-      } as AlicizationTaskThreadRecord
+    const reconciledThreadRead = await runBoundedOperation({
+      label: 'queued cancellation terminal reconciliation',
+      operation: async () => await job.port.getTaskThread(job.thread.id),
+      timeoutMs: job.persistenceTimeoutMs,
+    })
+    if (!reconciledThreadRead.ok)
+      failures.push(reconciledThreadRead.reason)
+    updatedThread = reconciledThreadRead.ok && reconciledThreadRead.value
+      ? reconciledThreadRead.value
+      : latestThread
+    if (terminalTaskThreadStatuses.has(updatedThread.status)) {
+      finalStatus = updatedThread.status
+      finalSummary = updatedThread.summary
+        ?? `Task thread is already terminal with status ${updatedThread.status}.`
+      errorCode = 'TASK_THREAD_ALREADY_TERMINAL'
+      errorMessage = `Task thread is already terminal with status ${updatedThread.status}.`
+    }
+    else {
+      finalSummary = updatedThread.summary ?? 'Task thread cancellation could not be persisted.'
+      errorMessage = `${input.reason}; cancellation persistence failed: ${failures.join('; ')}`
+    }
+  }
 
   if (failures.length > 0) {
     void job.port.appendAuditLog?.({
@@ -281,14 +400,12 @@ async function persistQueuedCancellation(input: {
 
   return {
     thread: updatedThread,
-    createdEventKinds: eventWrite.ok ? ['cancel'] : [],
+    createdEventKinds,
     ok: false,
-    finalStatus: 'cancelled' as const,
-    summary,
-    errorCode: 'TASK_THREAD_ABORTED_BEFORE_DISPATCH',
-    errorMessage: failures.length > 0
-      ? `${input.reason}; cancellation persistence degraded: ${failures.join('; ')}`
-      : input.reason,
+    finalStatus,
+    summary: finalSummary,
+    errorCode,
+    errorMessage,
   } satisfies AlicizationDispatchTaskThreadResult
 }
 

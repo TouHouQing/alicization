@@ -236,12 +236,26 @@ describe('task-thread dispatcher', () => {
   })
 
   it('settles an already aborted dispatch before entering the adapter', async () => {
-    const port = createPort(createThread({
+    const basePort = createPort(createThread({
       selectedChannel: 'codex',
       proposedChannel: 'codex',
       kind: 'codebase-investigation',
       goal: 'Inspect the repository.',
     }))
+    const settlementOrder: string[] = []
+    const port = {
+      ...basePort,
+      upsertTaskThread: vi.fn(async (input: AlicizationTaskThreadUpsertInput) => {
+        if (input.status === 'cancelled')
+          settlementOrder.push('thread')
+        return await basePort.upsertTaskThread(input)
+      }),
+      appendExecutionEvents: vi.fn(async (events: AlicizationExecutionEventInput[]) => {
+        if (events.some(event => event.kind === 'cancel'))
+          settlementOrder.push('event')
+        return await basePort.appendExecutionEvents(events)
+      }),
+    }
     const controller = new AbortController()
     controller.abort('user-cancelled-before-dispatch')
     const adapterCallsBefore = executeCodexTaskThreadMock.mock.calls.length
@@ -277,6 +291,11 @@ describe('task-thread dispatcher', () => {
         }),
       ]),
     )
+    expect(settlementOrder).toEqual(['thread', 'event'])
+    expect(port.upsertTaskThread).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'cancelled',
+      expectedUpdatedAt: expect.any(Number),
+    }))
   })
 
   it('preserves a terminal thread when pre-dispatch cancellation races with completion', async () => {
@@ -334,6 +353,125 @@ describe('task-thread dispatcher', () => {
       id: plannedThread.id,
       status: 'cancelled',
     }))
+  })
+
+  it('does not cancel a thread that became running before pre-dispatch cancellation ownership', async () => {
+    const plannedThread = createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    })
+    const runningThread: AlicizationTaskThreadRecord = {
+      ...plannedThread,
+      status: 'running',
+      summary: 'another owner started this task',
+      updatedAt: 220,
+      lastEventAt: 220,
+    }
+    const controller = new AbortController()
+    let threadReads = 0
+    const basePort = createPort(plannedThread)
+    const port = {
+      ...basePort,
+      getTaskThread: vi.fn(async (id: string) => {
+        if (id !== plannedThread.id)
+          return undefined
+        threadReads += 1
+        return threadReads === 1 ? plannedThread : runningThread
+      }),
+    }
+    controller.abort('cancel-after-running-owner')
+
+    const result = await dispatchTaskThread(port, {
+      threadId: plannedThread.id,
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+      },
+      abortSignal: controller.signal,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'running',
+      errorCode: 'TASK_THREAD_VERSION_CONFLICT',
+      thread: {
+        status: 'running',
+        summary: 'another owner started this task',
+      },
+    })
+    expect(basePort.appendExecutionEvents).not.toHaveBeenCalled()
+    expect(basePort.upsertTaskThread).not.toHaveBeenCalledWith(expect.objectContaining({
+      status: 'cancelled',
+    }))
+  })
+
+  it('does not append a cancellation event when pre-dispatch cancellation loses the terminal CAS', async () => {
+    const plannedThread = createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+    })
+    const completedThread: AlicizationTaskThreadRecord = {
+      ...plannedThread,
+      status: 'completed',
+      summary: 'Codex completed before cancellation ownership was acquired.',
+      updatedAt: 240,
+      lastEventAt: 240,
+      completedAt: 240,
+    }
+    const controller = new AbortController()
+    let threadReads = 0
+    const basePort = createPort(plannedThread)
+    const port = {
+      ...basePort,
+      getTaskThread: vi.fn(async (id: string) => {
+        if (id !== plannedThread.id)
+          return undefined
+        threadReads += 1
+        return threadReads <= 2 ? plannedThread : completedThread
+      }),
+      upsertTaskThread: vi.fn(async (input: AlicizationTaskThreadUpsertInput) => {
+        if (input.status === 'cancelled') {
+          const error = new Error('pre-dispatch cancellation lost terminal ownership')
+          Object.assign(error, {
+            code: 'TASK_THREAD_VERSION_CONFLICT',
+          })
+          throw error
+        }
+        return await basePort.upsertTaskThread(input)
+      }),
+    }
+    controller.abort('cancel-lost-terminal-cas')
+
+    const result = await dispatchTaskThread(port, {
+      threadId: plannedThread.id,
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+      },
+      abortSignal: controller.signal,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'completed',
+      errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+      thread: {
+        status: 'completed',
+        summary: 'Codex completed before cancellation ownership was acquired.',
+      },
+    })
+    expect(basePort.appendExecutionEvents).not.toHaveBeenCalledWith([
+      expect.objectContaining({
+        threadId: plannedThread.id,
+        kind: 'cancel',
+      }),
+    ])
   })
 
   it('maps an adapter AbortError rejection to one cancelled terminal settlement', async () => {
@@ -1613,6 +1751,186 @@ describe('task-thread dispatcher', () => {
         threadStatus: 'blocked',
       }),
     ])
+  })
+
+  it('does not append a blocked event when kill-switch settlement loses the terminal CAS', async () => {
+    const plannedThread = createThread()
+    const completedThread: AlicizationTaskThreadRecord = {
+      ...plannedThread,
+      status: 'completed',
+      summary: 'Another owner completed this task before the kill switch settled.',
+      updatedAt: 240,
+      lastEventAt: 240,
+      completedAt: 240,
+    }
+    let threadReads = 0
+    const basePort = createPort(plannedThread)
+    const port = {
+      ...basePort,
+      getTaskThread: vi.fn(async (id: string) => {
+        if (id !== plannedThread.id)
+          return undefined
+        threadReads += 1
+        return threadReads <= 2 ? plannedThread : completedThread
+      }),
+      upsertTaskThread: vi.fn(async (input: AlicizationTaskThreadUpsertInput) => {
+        if (input.status === 'blocked') {
+          const error = new Error('kill-switch settlement lost terminal ownership')
+          Object.assign(error, {
+            code: 'TASK_THREAD_VERSION_CONFLICT',
+          })
+          throw error
+        }
+        return await basePort.upsertTaskThread(input)
+      }),
+    }
+
+    const result = await dispatchTaskThread(port, {
+      threadId: plannedThread.id,
+      killSwitchSuspended: true,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'completed',
+      errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+      thread: {
+        status: 'completed',
+        summary: 'Another owner completed this task before the kill switch settled.',
+      },
+    })
+    expect(basePort.appendExecutionEvents).not.toHaveBeenCalledWith([
+      expect.objectContaining({
+        threadId: plannedThread.id,
+        threadStatus: 'blocked',
+      }),
+    ])
+  })
+
+  it('does not attempt a blocked CAS after the kill-switch refresh observes a terminal thread', async () => {
+    const plannedThread = createThread()
+    const completedThread: AlicizationTaskThreadRecord = {
+      ...plannedThread,
+      status: 'completed',
+      summary: 'The task completed before the kill switch refresh finished.',
+      updatedAt: 240,
+      lastEventAt: 240,
+      completedAt: 240,
+    }
+    let threadReads = 0
+    const basePort = createPort(plannedThread)
+    const port = {
+      ...basePort,
+      getTaskThread: vi.fn(async (id: string) => {
+        if (id !== plannedThread.id)
+          return undefined
+        threadReads += 1
+        return threadReads === 1 ? plannedThread : completedThread
+      }),
+    }
+
+    const result = await dispatchTaskThread(port, {
+      threadId: plannedThread.id,
+      killSwitchSuspended: true,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'completed',
+      errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+      thread: {
+        status: 'completed',
+        summary: 'The task completed before the kill switch refresh finished.',
+      },
+    })
+    expect(basePort.appendExecutionEvents).not.toHaveBeenCalled()
+    expect(basePort.upsertTaskThread).not.toHaveBeenCalledWith(expect.objectContaining({
+      status: 'blocked',
+    }))
+  })
+
+  it.each(['failed', 'cancelled', 'blocked'] as const)('returns an observed %s thread without appending a blocked event', async (status) => {
+    const plannedThread = createThread()
+    const terminalThread: AlicizationTaskThreadRecord = {
+      ...plannedThread,
+      status,
+      summary: `The task is already ${status}.`,
+      updatedAt: 240,
+      lastEventAt: 240,
+      completedAt: 240,
+    }
+    let threadReads = 0
+    const basePort = createPort(plannedThread)
+    const port = {
+      ...basePort,
+      getTaskThread: vi.fn(async (id: string) => {
+        if (id !== plannedThread.id)
+          return undefined
+        threadReads += 1
+        return threadReads === 1 ? plannedThread : terminalThread
+      }),
+    }
+
+    const result = await dispatchTaskThread(port, {
+      threadId: plannedThread.id,
+      killSwitchSuspended: true,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: status,
+      errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+      thread: terminalThread,
+    })
+    expect(basePort.appendExecutionEvents).not.toHaveBeenCalled()
+    expect(basePort.upsertTaskThread).not.toHaveBeenCalledWith(expect.objectContaining({
+      status: 'blocked',
+    }))
+  })
+
+  it('does not block a thread that became running before kill-switch ownership', async () => {
+    const plannedThread = createThread()
+    const runningThread: AlicizationTaskThreadRecord = {
+      ...plannedThread,
+      status: 'running',
+      summary: 'another owner started this task',
+      updatedAt: 220,
+      lastEventAt: 220,
+    }
+    let threadReads = 0
+    const basePort = createPort(plannedThread)
+    const port = {
+      ...basePort,
+      getTaskThread: vi.fn(async (id: string) => {
+        if (id !== plannedThread.id)
+          return undefined
+        threadReads += 1
+        return threadReads === 1 ? plannedThread : runningThread
+      }),
+    }
+
+    const result = await dispatchTaskThread(port, {
+      threadId: plannedThread.id,
+      killSwitchSuspended: true,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'running',
+      errorCode: 'TASK_THREAD_VERSION_CONFLICT',
+      thread: {
+        status: 'running',
+        summary: 'another owner started this task',
+      },
+    })
+    expect(basePort.appendExecutionEvents).not.toHaveBeenCalled()
+    expect(basePort.upsertTaskThread).not.toHaveBeenCalledWith(expect.objectContaining({
+      status: 'blocked',
+    }))
   })
 
   it('does not rewrite an already terminal thread to blocked under kill-switch suspension', async () => {

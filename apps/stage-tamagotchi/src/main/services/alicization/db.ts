@@ -3899,6 +3899,9 @@ export async function setupAlicizationDb(
     const metadataJson = input.metadata && typeof input.metadata === 'object'
       ? JSON.stringify(input.metadata)
       : null
+    const metadataUpdateClause = input.metadata === undefined
+      ? ''
+      : '          metadata_json = excluded.metadata_json,\n'
     const createdAt = Number.isFinite(input.createdAt)
       ? Math.max(0, Math.floor(Number(input.createdAt)))
       : currentTs
@@ -3966,7 +3969,7 @@ export async function setupAlicizationDb(
           selected_channel = excluded.selected_channel,
           proposed_channel = excluded.proposed_channel,
           summary = excluded.summary,
-          updated_at = MAX(excluded.updated_at, task_threads.updated_at + 1),
+${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_threads.updated_at + 1),
           last_event_at = excluded.last_event_at,
           completed_at = excluded.completed_at
         WHERE ? IS NULL OR task_threads.updated_at = ?`}

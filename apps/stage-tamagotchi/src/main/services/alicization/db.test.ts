@@ -5574,6 +5574,145 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('updates task-thread metadata when an optimistic upsert wins', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    scheduledTasks.clear()
+    mindTurnEvents.length = 0
+    taskThreads.clear()
+    executionEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    const created = await db.upsertTaskThread({
+      id: 'thread-task-metadata-cas',
+      goal: 'Persist task-thread diagnostics.',
+      kind: 'codebase-investigation',
+      status: 'cancelled',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      metadata: {
+        execution: {
+          persistence: {
+            status: 'healthy',
+          },
+        },
+      },
+      createdAt: 100,
+      updatedAt: 100,
+    })
+
+    const updated = await db.upsertTaskThread({
+      id: created.id,
+      goal: 'Persist task-thread diagnostics.',
+      kind: 'codebase-investigation',
+      status: 'cancelled',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      metadata: {
+        execution: {
+          persistence: {
+            status: 'degraded',
+            failures: ['queued cancellation event persistence failed'],
+          },
+        },
+      },
+      createdAt: 100,
+      updatedAt: 200,
+      expectedUpdatedAt: created.updatedAt,
+    })
+
+    expect(updated.metadata).toEqual({
+      execution: {
+        persistence: {
+          status: 'degraded',
+          failures: ['queued cancellation event persistence failed'],
+        },
+      },
+    })
+    await expect(db.getTaskThread(created.id)).resolves.toEqual(expect.objectContaining({
+      metadata: {
+        execution: {
+          persistence: {
+            status: 'degraded',
+            failures: ['queued cancellation event persistence failed'],
+          },
+        },
+      },
+    }))
+    await db.close()
+  })
+
+  it('persists task-thread metadata updates with the actual sqlite driver', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const rootDir = join(userDataPath, 'alicizations', 'cards', 'card-a')
+    const db = await setupAlicizationDb(userDataPath, {
+      rootDir,
+      cardId: 'card-a',
+      sqliteDriver: actualSqliteDriver,
+    })
+    const created = await db.upsertTaskThread({
+      id: 'thread-task-metadata-real-sqlite',
+      goal: 'Persist task-thread diagnostics in SQLite.',
+      kind: 'codebase-investigation',
+      status: 'cancelled',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      metadata: {
+        execution: {
+          persistence: {
+            status: 'healthy',
+          },
+        },
+      },
+      createdAt: 100,
+      updatedAt: 100,
+    })
+
+    const updated = await db.upsertTaskThread({
+      id: created.id,
+      goal: 'Persist task-thread diagnostics in SQLite.',
+      kind: 'codebase-investigation',
+      status: 'cancelled',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      metadata: {
+        execution: {
+          persistence: {
+            status: 'degraded',
+            failures: ['event persistence failed'],
+          },
+        },
+      },
+      createdAt: 100,
+      updatedAt: 200,
+      expectedUpdatedAt: created.updatedAt,
+    })
+
+    await db.upsertTaskThread({
+      id: created.id,
+      goal: 'Persist task-thread diagnostics in SQLite.',
+      kind: 'codebase-investigation',
+      status: 'cancelled',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      createdAt: 100,
+      updatedAt: 300,
+      expectedUpdatedAt: updated.updatedAt,
+    })
+
+    await expect(db.getTaskThread(created.id)).resolves.toEqual(expect.objectContaining({
+      metadata: {
+        execution: {
+          persistence: {
+            status: 'degraded',
+            failures: ['event persistence failed'],
+          },
+        },
+      },
+    }))
+    await db.close()
+  })
+
   it('rejects a stale task-thread upsert without regressing a newer terminal projection', async () => {
     runCalls.length = 0
     metaState.clear()
