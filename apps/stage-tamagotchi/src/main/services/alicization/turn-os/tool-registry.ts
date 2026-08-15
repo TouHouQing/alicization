@@ -52,6 +52,7 @@ export type InputValidationResult = InputValidationSuccess | InputValidationFail
 
 export interface ToolRegistry {
   register: (manifest: CapabilityManifest) => CapabilityManifest
+  replace: (manifest: CapabilityManifest) => CapabilityManifest
   allowMcpName: (name: string) => void
   get: (capabilityId: string) => CapabilityManifest | undefined
   list: () => CapabilityManifest[]
@@ -806,6 +807,37 @@ export function createToolRegistry(options: CreateToolRegistryOptions = {}): Too
       const adapterCapabilityId = adapterToolNames.get(manifest.adapterToolName)
       if (adapterCapabilityId)
         throw new Error(`adapterToolName "${manifest.adapterToolName}" is already registered by ${adapterCapabilityId}`)
+
+      const internalManifest = cloneJsonCompatibleValue(manifest)
+      const validator = ajv.compile(internalManifest.inputSchema)
+      deepFreeze(internalManifest)
+      manifests.set(internalManifest.capabilityId, internalManifest)
+      providerToolNames.set(internalManifest.providerToolName, internalManifest.capabilityId)
+      adapterToolNames.set(internalManifest.adapterToolName, internalManifest.capabilityId)
+      validators.set(internalManifest.capabilityId, validator)
+      return createManifestSnapshot(internalManifest)
+    },
+
+    replace(manifest) {
+      assertManifest(manifest)
+      const existing = manifests.get(manifest.capabilityId)
+      if (!existing)
+        return this.register(manifest)
+
+      if (existing.providerToolName !== manifest.providerToolName) {
+        const owner = providerToolNames.get(manifest.providerToolName)
+        if (owner && owner !== manifest.capabilityId)
+          throw new Error(`providerToolName "${manifest.providerToolName}" is already registered by ${owner}`)
+      }
+      if (existing.adapterToolName !== manifest.adapterToolName) {
+        const owner = adapterToolNames.get(manifest.adapterToolName)
+        if (owner && owner !== manifest.capabilityId)
+          throw new Error(`adapterToolName "${manifest.adapterToolName}" is already registered by ${owner}`)
+      }
+
+      providerToolNames.delete(existing.providerToolName)
+      adapterToolNames.delete(existing.adapterToolName)
+      validators.delete(existing.capabilityId)
 
       const internalManifest = cloneJsonCompatibleValue(manifest)
       const validator = ajv.compile(internalManifest.inputSchema)

@@ -534,6 +534,7 @@ pages:
         persona: Persona Candidates
         quality: Quality Trial
         health: Health & Audit
+        skills: Skills & Capabilities
       actions:
         refresh: Refresh
         approve: Approve
@@ -564,6 +565,9 @@ pages:
         load_gold_labels: Load Monthly Labels
         run_quality_trial: Run Quality Trial
         build_gold_regression: Freeze Monthly Regression
+        run_persona_training: Run Persona Training
+        refresh_persona_training: Refresh Training State
+        rollback_persona_increment: Roll Back Persona Increment
       states:
         empty_working: No working memory snapshot yet. Send one dialogue turn and refresh.
         empty_long_term: No matching long-term memory yet.
@@ -575,6 +579,9 @@ pages:
         persona_dataset_staged: Persona dataset staging version created. No training was started.
         persona_dataset_exported: Immutable export manifest created. No training was started.
         persona_dataset_revoked: Source revocation propagated to dataset examples.
+        persona_training_succeeded: Training completed and produced a rollbackable increment.
+        persona_training_failed: Training failed. The persona core was not changed.
+        empty_persona_training_increments: No rollbackable persona training increments yet.
         dataset_staged: Staged
         dataset_quarantined: Quarantined
         dataset_revoked: Revoked
@@ -614,6 +621,7 @@ pages:
         empty_gold_labels: No labels for this month yet. Run recall probe and click one of the four feedback buttons.
       fields:
         health: Memory Health
+        runtime_health: Runtime Health
         pending_review: Pending Review
         recall_latency: Recall Latency
         queue: Queue
@@ -704,9 +712,12 @@ pages:
         coverage_ratio: Vector Coverage
         debug_details: Debug Details
         month: Month
+        replay_pack_id: Replay Session ID
         query: Query
         count: Count
         trace: Trace
+        persona_training_last_run: Last Training Run
+        persona_training_increments: Persona Training Increments
         long_term_fixtures: Long-Term Fixtures
         working_memory_fixtures: Working Memory Fixtures
         compressed_context_fixtures: Compressed-Context Fixtures
@@ -715,6 +726,14 @@ pages:
         experience_quality: Experience Quality
         scope_fuzz_cases: Scope Fuzz Cases
         persona_fixtures: Persona Fixtures
+        dialogue_replay: Dialogue Replay
+        replay_turns: Replay Turns
+        replay_succeeded_turns: Succeeded Turns
+        replay_failed_turns: Failed Turns
+        replay_checkpoint_writes: Working-Memory Writes
+        replay_recalled_evidence: Long-Term Evidence
+        replay_turn_trace: Per-turn Replay Trace
+        last_error: Last Error
         recall_at_k: Recall@K
         failing_stages: Failing Stages
         failing_fixtures: Failing Fixtures
@@ -723,6 +742,14 @@ pages:
         expected_ids: Expected IDs
         surfaced_ids: Surfaced IDs
         wrong_thread_ids: Wrong Thread IDs
+      skills:
+        title: Skills & Capabilities
+        description: Inspect discovered Skill versions and control which ones enter the production tool registry.
+        empty: No Skills discovered yet. Put a SKILL.md in the local skills directory and refresh.
+        permissions: Permissions
+        activate: Activate
+        rollback: Roll Back
+        revoke: Revoke
       quality:
         title: Quality Trial
         description: Run local DB gates for long-term recall, working-memory compression, and Persona/LoRA hygiene. Failures and recommended actions stay visible.
@@ -762,6 +789,7 @@ pages:
           allowed: Training Allowed
           blocked: No Training
       placeholders:
+        replay_pack_id: Leave empty to use the latest WorkingMemory session
         long_term_search: Search summaries, evidence, or source IDs...
         long_term_source: Filter by source, for example memory_reflections
         embedding_provider: openai-compatible

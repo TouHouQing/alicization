@@ -21,6 +21,9 @@ import type {
   AlicizationPersonaTrainingDatasetExportResult,
   AlicizationPersonaTrainingDatasetSnapshot,
   AlicizationPersonaTrainingDatasetStagePayload,
+  AlicizationPersonaTrainingPipelineIncrement,
+  AlicizationPersonaTrainingPipelineResult,
+  AlicizationSkillWorkbenchItem,
   AlicizationMemoryQualityGoldLabelItem as BridgeMemoryQualityGoldLabelItem,
   AlicizationMemoryQualityGoldLabelPayload as BridgeMemoryQualityGoldLabelPayload,
   AlicizationMemoryQualityMonthlyGoldRegressionPack as BridgeMemoryQualityMonthlyGoldRegressionPack,
@@ -33,7 +36,7 @@ import { computed, ref } from 'vue'
 
 import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
 
-export type AlicizationMemoryWorkbenchTab = 'working' | 'long-term' | 'review' | 'probe' | 'persona' | 'quality' | 'health'
+export type AlicizationMemoryWorkbenchTab = 'working' | 'long-term' | 'review' | 'probe' | 'persona' | 'quality' | 'health' | 'skills'
 export type AlicizationMemoryQualityGoldLabelReason = 'wrong-thread' | 'expired' | 'not-needed' | 'should-abstain'
 export type AlicizationMemoryQualityGoldLabelPayload = Omit<BridgeMemoryQualityGoldLabelPayload, 'cardId'> & {
   reason?: AlicizationMemoryQualityGoldLabelReason | null
@@ -69,6 +72,11 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   const personaTrainingDataset = ref<AlicizationPersonaTrainingDatasetSnapshot | null>(null)
   const personaTrainingDatasetLoading = ref(false)
   const personaTrainingDatasetExport = ref<AlicizationPersonaTrainingDatasetExportResult | null>(null)
+  const personaTrainingIncrements = ref<AlicizationPersonaTrainingPipelineIncrement[]>([])
+  const personaTrainingRunLoading = ref(false)
+  const personaTrainingRun = ref<AlicizationPersonaTrainingPipelineResult | null>(null)
+  const skills = ref<AlicizationSkillWorkbenchItem[]>([])
+  const skillLoading = ref(false)
   const reindexLoading = ref(false)
   const reindexResult = ref<AlicizationMemoryEmbeddingReindexResult | null>(null)
   const reindexDeadLetterItems = ref<AlicizationMemoryEmbeddingReindexDeadLetterItem[]>([])
@@ -471,6 +479,123 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
   }
 
+  async function refreshPersonaTrainingIncrements() {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListPersonaTrainingIncrements)
+      return []
+    personaTrainingRunLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListPersonaTrainingIncrements!()
+      personaTrainingIncrements.value = result.items
+      lastError.value = null
+      return result.items
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return []
+    }
+    finally {
+      personaTrainingRunLoading.value = false
+    }
+  }
+
+  async function runPersonaTraining(datasetId?: string | null) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRunPersonaTraining)
+      return null
+    personaTrainingRunLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchRunPersonaTraining!({ datasetId })
+      personaTrainingRun.value = result
+      await refreshPersonaTrainingIncrements()
+      lastError.value = result.status === 'failed' ? result.error : null
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaTrainingRunLoading.value = false
+    }
+  }
+
+  async function rollbackPersonaTrainingIncrement(incrementId: string) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRollbackPersonaTrainingIncrement)
+      return null
+    personaTrainingRunLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchRollbackPersonaTrainingIncrement!({ incrementId })
+      await refreshPersonaTrainingIncrements()
+      lastError.value = null
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaTrainingRunLoading.value = false
+    }
+  }
+
+  async function refreshSkills(productionOnly = false) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().skillWorkbenchList)
+      return []
+    skillLoading.value = true
+    try {
+      const result = await getAlicizationBridge().skillWorkbenchList!({ productionOnly })
+      skills.value = result.items
+      lastError.value = null
+      return result.items
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return []
+    }
+    finally {
+      skillLoading.value = false
+    }
+  }
+
+  async function transitionSkill(
+    action: 'skillWorkbenchActivate' | 'skillWorkbenchRollback' | 'skillWorkbenchRevoke',
+    id: string,
+    version: string,
+  ) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge()[action])
+      return null
+    skillLoading.value = true
+    try {
+      const result = await getAlicizationBridge()[action]!({ id, version })
+      const index = skills.value.findIndex(item => item.id === result.id && item.version === result.version)
+      if (index >= 0)
+        skills.value.splice(index, 1, result)
+      else
+        skills.value = [result, ...skills.value]
+      await refreshSkills(false)
+      lastError.value = null
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      skillLoading.value = false
+    }
+  }
+
+  async function activateSkill(id: string, version: string) {
+    return await transitionSkill('skillWorkbenchActivate', id, version)
+  }
+
+  async function rollbackSkill(id: string, version: string) {
+    return await transitionSkill('skillWorkbenchRollback', id, version)
+  }
+
+  async function revokeSkill(id: string, version: string) {
+    return await transitionSkill('skillWorkbenchRevoke', id, version)
+  }
+
   function normalizeGoldLabelMonth(month?: string | null) {
     const normalized = typeof month === 'string' ? month.trim() : ''
     return /^\d{4}-\d{2}$/u.test(normalized)
@@ -727,6 +852,11 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     personaTrainingDataset,
     personaTrainingDatasetLoading,
     personaTrainingDatasetExport,
+    personaTrainingIncrements,
+    personaTrainingRunLoading,
+    personaTrainingRun,
+    skills,
+    skillLoading,
     reindexLoading,
     reindexResult,
     reindexDeadLetterItems,
@@ -766,6 +896,13 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     rollbackPersonaTrainingDataset,
     setPersonaTrainingDatasetExamplePolicy,
     revokePersonaTrainingDatasetSource,
+    refreshPersonaTrainingIncrements,
+    runPersonaTraining,
+    rollbackPersonaTrainingIncrement,
+    refreshSkills,
+    activateSkill,
+    rollbackSkill,
+    revokeSkill,
     loadMonthlyGoldLabels,
     applyGoldLabel,
     buildMonthlyGoldRegression,

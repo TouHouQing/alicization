@@ -315,6 +315,221 @@ describe('memory production trial runner', () => {
     ]))
   })
 
+  it('treats healthy runtime metrics as a passing production stage', async () => {
+    const report = await runMemoryProductionTrialRunner({
+      id: 'production-trial-runtime-health-ok',
+      cardId: 'alice-main',
+      createdAt: now,
+      runtimeHealth: {
+        queue: {
+          pending: 0,
+          review: 0,
+          applied: 4,
+          failed: 0,
+          deadLettered: 0,
+        },
+        recall: {
+          lastLatencyMs: 24,
+          p95LatencyMs: 48,
+          lastError: null,
+        },
+        embedding: {
+          providerConfigured: true,
+          modelId: 'test-embedding',
+          dimensions: 3,
+          vectorSpaceId: 'test-space',
+          reindexRequired: false,
+          indexMode: 'sqlite-vec',
+          approximate: false,
+          degraded: false,
+          nativeIndexReady: true,
+          searchReady: true,
+          lastError: null,
+          canonicalCount: 4,
+          indexedCount: 4,
+          missingCount: 0,
+          textHashMismatchCount: 0,
+          staleOrFailedCount: 0,
+          orphanedCount: 0,
+          coverageRatio: 1,
+          reindexJob: null,
+        },
+        errors: [],
+      },
+    })
+
+    expect(report.passed).toBe(true)
+    expect(report.runtimeHealth).toEqual({
+      queue: {
+        pending: 0,
+        review: 0,
+        applied: 4,
+        failed: 0,
+        deadLettered: 0,
+      },
+      recall: {
+        lastLatencyMs: 24,
+        p95LatencyMs: 48,
+        lastError: null,
+      },
+      embedding: {
+        providerConfigured: true,
+        modelId: 'test-embedding',
+        dimensions: 3,
+        vectorSpaceId: 'test-space',
+        reindexRequired: false,
+        indexMode: 'sqlite-vec',
+        approximate: false,
+        degraded: false,
+        nativeIndexReady: true,
+        searchReady: true,
+        lastError: null,
+        canonicalCount: 4,
+        indexedCount: 4,
+        missingCount: 0,
+        textHashMismatchCount: 0,
+        staleOrFailedCount: 0,
+        orphanedCount: 0,
+        coverageRatio: 1,
+        reindexJob: null,
+      },
+      errors: [],
+    })
+    expect(report.stages).toContainEqual({
+      stage: 'runtime-health',
+      id: 'runtime-health',
+      passed: true,
+      itemCount: 1,
+      error: null,
+    })
+  })
+
+  it('fails the production trial when runtime health exposes queue, recall, or embedding degradation', async () => {
+    const report = await runMemoryProductionTrialRunner({
+      id: 'production-trial-runtime-health-degraded',
+      cardId: 'alice-main',
+      createdAt: now,
+      runtimeHealth: {
+        queue: {
+          pending: 3,
+          review: 2,
+          applied: 8,
+          failed: 1,
+          deadLettered: 2,
+        },
+        recall: {
+          lastLatencyMs: 220,
+          p95LatencyMs: 420,
+          lastError: 'recall provider unavailable',
+        },
+        embedding: {
+          providerConfigured: false,
+          modelId: null,
+          dimensions: null,
+          vectorSpaceId: null,
+          reindexRequired: true,
+          indexMode: 'brute-force',
+          approximate: false,
+          degraded: true,
+          nativeIndexReady: false,
+          searchReady: false,
+          lastError: 'embedding provider unavailable',
+          canonicalCount: 10,
+          indexedCount: 8,
+          missingCount: 2,
+          textHashMismatchCount: 1,
+          staleOrFailedCount: 1,
+          orphanedCount: 1,
+          coverageRatio: 0.8,
+          reindexJob: null,
+        },
+        errors: [],
+      },
+    })
+
+    expect(report.passed).toBe(false)
+    expect(report.summary.failingStageIds).toContain('runtime-health')
+    expect(report.stages).toContainEqual({
+      stage: 'runtime-health',
+      id: 'runtime-health',
+      passed: false,
+      itemCount: 1,
+      error: 'memory-queue-failed-items',
+    })
+    expect(report.recommendedNextActions).toEqual(expect.arrayContaining([
+      '处理真实健康指标：memory-queue-failed-items。',
+      '处理真实健康指标：memory-queue-dead-lettered-items。',
+      '处理真实健康指标：memory-recall-error。',
+      '处理真实健康指标：embedding-provider-not-configured。',
+      '处理真实健康指标：embedding-reindex-required。',
+      '处理真实健康指标：embedding-index-brute-force。',
+      '处理真实健康指标：embedding-index-degraded。',
+      '处理真实健康指标：embedding-native-index-not-ready。',
+      '处理真实健康指标：embedding-search-not-ready。',
+      '处理真实健康指标：embedding-health-error。',
+      '处理真实健康指标：embedding-missing-vectors。',
+      '处理真实健康指标：embedding-text-hash-mismatch。',
+      '处理真实健康指标：embedding-stale-or-failed。',
+      '处理真实健康指标：embedding-orphaned-vectors。',
+      '处理真实健康指标：embedding-coverage-below-target。',
+    ]))
+  })
+
+  it('keeps health query failures visible instead of returning a stale passing report', async () => {
+    const report = await runMemoryProductionTrialRunner({
+      id: 'production-trial-runtime-health-query-error',
+      cardId: 'alice-main',
+      createdAt: now,
+      runtimeHealth: {
+        queue: {
+          pending: 0,
+          review: 0,
+          applied: 0,
+          failed: 0,
+          deadLettered: 0,
+        },
+        recall: {
+          lastLatencyMs: null,
+          p95LatencyMs: null,
+          lastError: null,
+        },
+        embedding: {
+          providerConfigured: true,
+          modelId: 'test-embedding',
+          dimensions: 3,
+          vectorSpaceId: 'test-space',
+          reindexRequired: false,
+          indexMode: 'sqlite-vec',
+          approximate: false,
+          degraded: false,
+          nativeIndexReady: true,
+          searchReady: true,
+          lastError: null,
+          canonicalCount: 0,
+          indexedCount: 0,
+          missingCount: 0,
+          textHashMismatchCount: 0,
+          staleOrFailedCount: 0,
+          orphanedCount: 0,
+          coverageRatio: 1,
+          reindexJob: null,
+        },
+        errors: ['queue health unavailable: database is busy'],
+      },
+    })
+
+    expect(report.passed).toBe(false)
+    expect(report.stages).toContainEqual({
+      stage: 'runtime-health',
+      id: 'runtime-health',
+      passed: false,
+      itemCount: 1,
+      error: 'runtime-health-query-error',
+    })
+    expect(report.summary.lastError).toBe('queue health unavailable: database is busy')
+    expect(report.recommendedNextActions).toContain('健康指标查询失败：queue health unavailable: database is busy。')
+  })
+
   it('keeps replay failures explicit and still returns a quality report for remaining fixtures', async () => {
     const report = await runMemoryProductionTrialRunner({
       id: 'production-trial-replay-failure',

@@ -332,6 +332,7 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
     sessionId: string,
     options?: { limit?: number },
   ) => Promise<WorkingMemoryConversationTurnRecord[]>
+  buildToolRegistry?: () => ToolRegistry | Promise<ToolRegistry>
   workingMemoryHistoryOwner?: WorkingMemoryHistoryOwner
   getWorkingMemoryCheckpoint?: (cardId: string, sessionId: string) => Promise<WorkingMemorySnapshot | null>
   persistWorkingMemoryCheckpoint?: (snapshot: WorkingMemorySnapshot) => Promise<void>
@@ -1839,7 +1840,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
     const allowTools = payload.supportsTools !== false
     const waitForTools = allowTools
     const toolChoice = undefined
-    const toolRegistry = createCanonicalToolRegistry()
+    const toolRegistry = await options.buildToolRegistry?.() ?? createCanonicalToolRegistry()
     const codingAgentDelegation = buildAlicizationCodingAgentDelegationAuthority({
       contextTurnId: payload.turnId,
       decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,

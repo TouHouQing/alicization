@@ -22,6 +22,11 @@ const {
   personaTrainingDataset,
   personaTrainingDatasetExport,
   personaTrainingDatasetLoading,
+  personaTrainingIncrements,
+  personaTrainingRun,
+  personaTrainingRunLoading,
+  skills,
+  skillLoading,
   reindexLoading,
   reindexResult,
   reindexDeadLetterItems,
@@ -49,6 +54,7 @@ const personaTrainingConsentGranted = ref(false)
 const personaTrainingPolicyVersion = ref('persona-training-consent-v1')
 const personaTrainingScope = ref('persona-dataset')
 const selectedGoldLabelReason = ref<AlicizationMemoryQualityGoldLabelReason | null>(null)
+const qualityReplayPackId = ref('')
 
 const tabs = computed(() => [
   { id: 'working' as const, icon: 'i-solar:clipboard-list-bold-duotone', label: t('settings.pages.memory.workbench.tabs.working') },
@@ -58,6 +64,7 @@ const tabs = computed(() => [
   { id: 'persona' as const, icon: 'i-solar:user-heart-bold-duotone', label: t('settings.pages.memory.workbench.tabs.persona') },
   { id: 'quality' as const, icon: 'i-solar:clipboard-check-bold-duotone', label: t('settings.pages.memory.workbench.tabs.quality') },
   { id: 'health' as const, icon: 'i-solar:pulse-2-bold-duotone', label: t('settings.pages.memory.workbench.tabs.health') },
+  { id: 'skills' as const, icon: 'i-solar:stars-bold-duotone', label: t('settings.pages.memory.workbench.tabs.skills') },
 ])
 
 const kindOptions = ['all', 'fact', 'episode', 'reflection', 'consolidation'] as const
@@ -392,7 +399,7 @@ function loadQualityGoldLabels() {
 }
 
 function runQualityTrial() {
-  void store.runQualityTrial(goldLabelMonth.value)
+  void store.runQualityTrial(goldLabelMonth.value, qualityReplayPackId.value.trim() || null)
 }
 
 function buildGoldRegression() {
@@ -424,6 +431,8 @@ onMounted(() => {
   void store.refreshSnapshot()
   void store.refreshPersonaCandidates()
   void store.refreshPersonaTrainingDataset()
+  void store.refreshPersonaTrainingIncrements()
+  void store.refreshSkills(false)
   void store.loadMonthlyGoldLabels(goldLabelMonth.value)
 })
 </script>
@@ -903,6 +912,14 @@ onMounted(() => {
               @keydown.enter.prevent="loadQualityGoldLabels()"
             >
           </label>
+          <label :class="['mt-3', 'grid', 'gap-1']">
+            <span :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.replay_pack_id') }}</span>
+            <input
+              v-model="qualityReplayPackId"
+              :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+              :placeholder="t('settings.pages.memory.workbench.placeholders.replay_pack_id')"
+            >
+          </label>
           <div :class="['mt-3', 'flex', 'flex-wrap', 'gap-2']">
             <Button
               :label="t('settings.pages.memory.workbench.actions.load_gold_labels')"
@@ -999,7 +1016,66 @@ onMounted(() => {
               <div>{{ t('settings.pages.memory.workbench.fields.experience_quality') }}: {{ qualityTrialReport.summary.experienceQualityFixtureCount }}</div>
               <div>{{ t('settings.pages.memory.workbench.fields.scope_fuzz_cases') }}: {{ qualityTrialReport.summary.scopeFuzzCaseCount }}</div>
               <div>{{ t('settings.pages.memory.workbench.fields.persona_fixtures') }}: {{ qualityTrialReport.summary.personaTrainingFixtureCount }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.dialogue_replay') }}: {{ qualityTrialReport.summary.dialogueReplayCount }}</div>
               <div>{{ t('settings.pages.memory.workbench.fields.recall_at_k') }}: {{ formatQualityScore(qualityTrialReport.quality.summary.recallAtK) }}</div>
+            </div>
+            <div v-if="qualityTrialReport.dialogueReplay" :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+              <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.fields.dialogue_replay') }}
+              </div>
+              <div :class="['mt-2', 'grid', 'grid-cols-2', 'gap-2', 'text-sm', 'lg:grid-cols-4']">
+                <div>{{ t('settings.pages.memory.workbench.fields.replay_turns') }}: {{ qualityTrialReport.dialogueReplay.summary.turnCount }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.replay_succeeded_turns') }}: {{ qualityTrialReport.dialogueReplay.summary.succeededTurnCount }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.replay_failed_turns') }}: {{ qualityTrialReport.dialogueReplay.summary.failedTurnCount }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.replay_checkpoint_writes') }}: {{ qualityTrialReport.dialogueReplay.summary.checkpointWriteCount }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.replay_recalled_evidence') }}: {{ qualityTrialReport.dialogueReplay.summary.recalledEvidenceCount }}</div>
+              </div>
+              <div v-if="qualityTrialReport.dialogueReplay.summary.lastError" :class="['mt-2', 'text-sm', 'text-amber-600', 'dark:text-amber-300']">
+                {{ t('settings.pages.memory.workbench.fields.last_error') }}:
+                {{ qualityTrialReport.dialogueReplay.summary.lastError }}
+              </div>
+              <details v-if="qualityTrialReport.dialogueReplay.turns.length > 0" :class="['mt-3', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+                <summary :class="['cursor-pointer', 'text-xs', 'font-semibold', 'text-neutral-500']">
+                  {{ t('settings.pages.memory.workbench.fields.replay_turn_trace') }}
+                </summary>
+                <pre :class="['mt-2', 'max-h-80', 'overflow-auto', 'whitespace-pre-wrap', 'text-xs']">{{ JSON.stringify(qualityTrialReport.dialogueReplay.turns, null, 2) }}</pre>
+              </details>
+            </div>
+            <div v-if="qualityTrialReport.runtimeHealth" :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+              <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.fields.runtime_health') }}
+              </div>
+              <div :class="['mt-2', 'grid', 'grid-cols-2', 'gap-2', 'text-sm', 'lg:grid-cols-3']">
+                <div>{{ t('settings.pages.memory.workbench.fields.queue_pending') }}: {{ qualityTrialReport.runtimeHealth.queue.pending }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.queue_review') }}: {{ qualityTrialReport.runtimeHealth.queue.review }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.queue_applied') }}: {{ qualityTrialReport.runtimeHealth.queue.applied }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.queue_failed') }}: {{ qualityTrialReport.runtimeHealth.queue.failed }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.queue_dead_lettered') }}: {{ qualityTrialReport.runtimeHealth.queue.deadLettered }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.recall_latency') }}: {{ qualityTrialReport.runtimeHealth.recall.lastLatencyMs ?? '-' }} ms</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.recall_p95') }}: {{ qualityTrialReport.runtimeHealth.recall.p95LatencyMs ?? '-' }} ms</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.embedding_provider') }}: {{ qualityTrialReport.runtimeHealth.embedding.providerConfigured ? t('settings.pages.memory.workbench.states.configured') : t('settings.pages.memory.workbench.states.not_configured') }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.model') }}: {{ qualityTrialReport.runtimeHealth.embedding.modelId ?? '-' }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.dimensions') }}: {{ qualityTrialReport.runtimeHealth.embedding.dimensions ?? '-' }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.index_mode') }}: {{ formatIndexMode(qualityTrialReport.runtimeHealth.embedding.indexMode) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.degraded') }}: {{ formatBoolean(qualityTrialReport.runtimeHealth.embedding.degraded) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.native_index') }}: {{ formatBoolean(qualityTrialReport.runtimeHealth.embedding.nativeIndexReady) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.reindex_required') }}: {{ formatBoolean(qualityTrialReport.runtimeHealth.embedding.reindexRequired) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.search_ready') }}: {{ formatBoolean(qualityTrialReport.runtimeHealth.embedding.searchReady) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.coverage_ratio') }}: {{ formatCoverageRatio(qualityTrialReport.runtimeHealth.embedding.coverageRatio) }}</div>
+              </div>
+              <div v-if="qualityTrialReport.runtimeHealth.recall.lastError" :class="['mt-2', 'text-sm', 'text-amber-600', 'dark:text-amber-300']">
+                {{ t('settings.pages.memory.workbench.fields.recall_health') }}:
+                {{ qualityTrialReport.runtimeHealth.recall.lastError }}
+              </div>
+              <div v-if="qualityTrialReport.runtimeHealth.embedding.lastError" :class="['mt-2', 'text-sm', 'text-amber-600', 'dark:text-amber-300']">
+                {{ t('settings.pages.memory.workbench.fields.embedding_health') }}:
+                {{ qualityTrialReport.runtimeHealth.embedding.lastError }}
+              </div>
+              <ul v-if="qualityTrialReport.runtimeHealth.errors.length > 0" :class="['mt-2', 'list-disc', 'space-y-1', 'pl-5', 'text-sm', 'text-amber-600', 'dark:text-amber-300']">
+                <li v-for="error in qualityTrialReport.runtimeHealth.errors" :key="error">
+                  {{ error }}
+                </li>
+              </ul>
             </div>
             <div v-if="qualityTrialReport.summary.failingStageIds.length > 0" :class="['mt-3', 'text-sm', 'text-amber-600', 'dark:text-amber-300']">
               {{ t('settings.pages.memory.workbench.fields.failing_stages') }}:
@@ -1090,6 +1166,65 @@ onMounted(() => {
           :loading="personaLoading"
           @click="store.refreshPersonaCandidates()"
         />
+        <Button
+          :label="t('settings.pages.memory.workbench.actions.run_persona_training')"
+          icon="i-solar:play-bold-duotone"
+          size="sm"
+          variant="secondary"
+          :loading="personaTrainingRunLoading"
+          :disabled="!personaTrainingDataset?.activeVersionId"
+          @click="store.runPersonaTraining(personaTrainingDataset?.activeVersionId)"
+        />
+        <Button
+          :label="t('settings.pages.memory.workbench.actions.refresh_persona_training')"
+          icon="i-solar:refresh-bold-duotone"
+          size="sm"
+          variant="secondary"
+          :loading="personaTrainingRunLoading"
+          @click="store.refreshPersonaTrainingIncrements()"
+        />
+      </div>
+      <div v-if="personaTrainingRun" :class="['border', personaTrainingRun.status === 'failed' ? 'border-rose-200 dark:border-rose-900' : 'border-emerald-200 dark:border-emerald-900', 'p-4']">
+        <div :class="['text-sm', 'font-semibold']">
+          {{ t('settings.pages.memory.workbench.fields.persona_training_last_run') }}
+        </div>
+        <div :class="['mt-2', 'text-sm']">
+          {{ personaTrainingRun.status === 'succeeded'
+            ? t('settings.pages.memory.workbench.states.persona_training_succeeded')
+            : t('settings.pages.memory.workbench.states.persona_training_failed') }}
+          · {{ personaTrainingRun.runId }}
+        </div>
+        <div v-if="personaTrainingRun.status === 'failed'" :class="['mt-1', 'text-sm', 'text-rose-600', 'dark:text-rose-300']">
+          {{ personaTrainingRun.error }}
+        </div>
+      </div>
+      <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <div :class="['text-sm', 'font-semibold']">
+          {{ t('settings.pages.memory.workbench.fields.persona_training_increments') }}
+        </div>
+        <div v-if="personaTrainingIncrements.length === 0" :class="['mt-2', 'text-sm', 'text-neutral-500']">
+          {{ t('settings.pages.memory.workbench.states.empty_persona_training_increments') }}
+        </div>
+        <article v-for="increment in personaTrainingIncrements" :key="increment.id" :class="['mt-3', 'border', 'border-neutral-200', 'p-3', 'dark:border-neutral-800']">
+          <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
+            <span>{{ increment.id }}</span>
+            <span>{{ increment.state }}</span>
+            <span>{{ formatTimestamp(increment.createdAt) }}</span>
+          </div>
+          <div :class="['mt-1', 'text-xs', 'text-neutral-500']">
+            {{ t('settings.pages.memory.workbench.fields.dataset_manifest') }}: {{ increment.manifestHash }}
+          </div>
+          <Button
+            v-if="increment.state === 'available'"
+            :class="['mt-2']"
+            :label="t('settings.pages.memory.workbench.actions.rollback_persona_increment')"
+            icon="i-solar:restart-bold-duotone"
+            size="sm"
+            variant="secondary"
+            :loading="personaTrainingRunLoading"
+            @click="store.rollbackPersonaTrainingIncrement(increment.id)"
+          />
+        </article>
       </div>
       <div v-if="personaCandidates.length === 0" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
         {{ t('settings.pages.memory.workbench.states.empty_persona') }}
@@ -1131,6 +1266,71 @@ onMounted(() => {
           <Button size="sm" :label="t('settings.pages.memory.workbench.actions.approve_candidate')" :loading="personaLoading" @click="store.applyPersonaCandidateAction(item.id, 'approve')" />
           <Button size="sm" variant="secondary" :label="t('settings.pages.memory.workbench.actions.reject_candidate')" :loading="personaLoading" @click="store.applyPersonaCandidateAction(item.id, 'reject')" />
           <Button size="sm" variant="secondary" :label="t('settings.pages.memory.workbench.actions.no_training')" :loading="personaLoading" @click="store.applyPersonaCandidateAction(item.id, 'no-training')" />
+        </div>
+      </article>
+    </section>
+
+    <section v-else-if="activeTab === 'skills'" :class="['flex', 'flex-col', 'gap-3']">
+      <div :class="['flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
+        <div>
+          <h2 :class="['text-lg', 'font-semibold']">
+            {{ t('settings.pages.memory.workbench.skills.title') }}
+          </h2>
+          <p :class="['mt-1', 'text-sm', 'text-neutral-500']">
+            {{ t('settings.pages.memory.workbench.skills.description') }}
+          </p>
+        </div>
+        <Button
+          :label="t('settings.pages.memory.workbench.actions.refresh')"
+          icon="i-solar:refresh-bold-duotone"
+          size="sm"
+          :loading="skillLoading"
+          @click="store.refreshSkills(false)"
+        />
+      </div>
+      <div v-if="skills.length === 0" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
+        {{ t('settings.pages.memory.workbench.skills.empty') }}
+      </div>
+      <article v-for="skill in skills" :key="`${skill.id}@${skill.version}`" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
+          <span class="font-semibold">{{ skill.id }}@{{ skill.version }}</span>
+          <span>{{ skill.activationStatus }}</span>
+          <span>{{ skill.evaluationStatus }}</span>
+          <span>{{ skill.risk }}</span>
+        </div>
+        <div :class="['mt-2', 'text-sm']">
+          {{ skill.description }}
+        </div>
+        <div :class="['mt-2', 'text-xs', 'text-neutral-500']">
+          {{ t('settings.pages.memory.workbench.skills.permissions') }}: {{ listText(skill.permissions) }}
+        </div>
+        <div :class="['mt-3', 'flex', 'flex-wrap', 'gap-2']">
+          <Button
+            v-if="skill.activationStatus !== 'active'"
+            :label="t('settings.pages.memory.workbench.skills.activate')"
+            icon="i-solar:play-bold-duotone"
+            size="sm"
+            :loading="skillLoading"
+            @click="store.activateSkill(skill.id, skill.version)"
+          />
+          <Button
+            v-if="skill.activationStatus === 'active'"
+            :label="t('settings.pages.memory.workbench.skills.rollback')"
+            icon="i-solar:restart-bold-duotone"
+            size="sm"
+            variant="secondary"
+            :loading="skillLoading"
+            @click="store.rollbackSkill(skill.id, skill.version)"
+          />
+          <Button
+            v-if="skill.activationStatus !== 'revoked'"
+            :label="t('settings.pages.memory.workbench.skills.revoke')"
+            icon="i-solar:forbidden-circle-bold-duotone"
+            size="sm"
+            variant="danger"
+            :loading="skillLoading"
+            @click="store.revokeSkill(skill.id, skill.version)"
+          />
         </div>
       </article>
     </section>

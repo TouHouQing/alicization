@@ -19,18 +19,22 @@ import {
   electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction,
   electronAlicizationMemoryWorkbenchApplyReviewAction,
   electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression,
+  electronAlicizationMemoryWorkbenchCancelPersonaTraining,
   electronAlicizationMemoryWorkbenchExportPersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchGetSnapshot,
   electronAlicizationMemoryWorkbenchListEmbeddingModels,
   electronAlicizationMemoryWorkbenchListLongTerm,
   electronAlicizationMemoryWorkbenchListPersonaCandidates,
+  electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements,
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
   electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationMemoryWorkbenchRecordQualityGoldLabel,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
   electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSource,
   electronAlicizationMemoryWorkbenchRollbackPersonaTrainingDataset,
+  electronAlicizationMemoryWorkbenchRollbackPersonaTrainingIncrement,
+  electronAlicizationMemoryWorkbenchRunPersonaTraining,
   electronAlicizationMemoryWorkbenchRunQualityTrial,
   electronAlicizationMemoryWorkbenchSetPersonaTrainingDatasetExamplePolicy,
   electronAlicizationMemoryWorkbenchStagePersonaTrainingDataset,
@@ -278,6 +282,28 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
   registerInvokeHandler(electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSource, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().revokePersonaTrainingDatasetSource({
     cardId: cardIdFrom(payload),
     sourceId: sanitizeText(payload.sourceId),
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchRunPersonaTraining, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().runPersonaTraining({
+    cardId: cardIdFrom(payload),
+    datasetId: sanitizeText(payload.datasetId, '') || null,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchCancelPersonaTraining, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().cancelPersonaTraining({
+    cardId: cardIdFrom(payload),
+    runId: sanitizeText(payload.runId),
+    reason: sanitizeText(payload.reason, '') || null,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchRollbackPersonaTrainingIncrement, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().rollbackPersonaTrainingIncrement({
+    cardId: cardIdFrom(payload),
+    incrementId: sanitizeText(payload.incrementId),
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements, async payload => await withCardScope(payload.cardId, async () => ({
+    items: await getAlicizationDb().listPersonaTrainingIncrements({
+      cardId: cardIdFrom(payload),
+    }),
   })))
 
   registerInvokeHandler(electronAlicizationGetMemoryStats, async scope => await withCardScope(cardIdFrom(scope), async () => await getAlicizationDb().getMemoryStats()))

@@ -67,6 +67,7 @@ import type {
   ScreenSemanticCacheState,
   SubconsciousCardState,
 } from './runtime-soul'
+import type { AlicizationSkillLoader } from './turn-os/skill-loader'
 import type {
   AlicizationVisibleReplyRealizationArtifact,
   AlicizationVisibleReplyValidationStatus,
@@ -270,6 +271,7 @@ import { registerAlicizationChatInvokeHandlers } from './runtime-invoke-handlers
 import { registerAlicizationDialogueInvokeHandlers } from './runtime-invoke-handlers-dialogue'
 import { registerAlicizationMaintenanceInvokeHandlers } from './runtime-invoke-handlers-maintenance'
 import { registerAlicizationMemoryInvokeHandlers } from './runtime-invoke-handlers-memory'
+import { registerAlicizationSkillInvokeHandlers } from './runtime-invoke-handlers-skill'
 import { registerAlicizationSoulStateInvokeHandlers } from './runtime-invoke-handlers-soul-state'
 import { registerAlicizationTaskInvokeHandlers } from './runtime-invoke-handlers-task'
 import { createAlicizationRuntimeMainChatRuntime } from './runtime-main-chat-runtime'
@@ -397,6 +399,9 @@ import {
 } from './state'
 import { createTaskThreadOrchestrator } from './task-thread-orchestrator'
 import { resolveAlicizationLocalRuntimeUserId } from './turn-os/main-chat-participant'
+import { createAlicizationSkillLoader } from './turn-os/skill-loader'
+import { createAlicizationSkillRegistry } from './turn-os/skill-registry'
+import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 import { registerDialogueWorldThreadAssistantTurn } from './turn-outcome-reducer'
 import {
   buildVisualRecallSeed,
@@ -646,6 +651,59 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     cardId: activeCardId,
     resolveEmbeddingProvider: resolveLongTermMemoryEmbeddingProvider,
   })
+  const runtimeToolRegistry = createCanonicalToolRegistry()
+  const runtimeSkillRegistry = createAlicizationSkillRegistry()
+  const runtimeSkillsDirectory = join(userDataPath, 'alicizations', 'skills')
+  await mkdir(runtimeSkillsDirectory, { recursive: true })
+  const runtimeSkillLoader: AlicizationSkillLoader = createAlicizationSkillLoader({
+    skillsDirectory: runtimeSkillsDirectory,
+    skillRegistry: runtimeSkillRegistry,
+    toolRegistry: runtimeToolRegistry,
+    projection: {
+      scope: 'turn',
+      executionChannel: 'skill',
+      timeoutMs: 30_000,
+      supportsProgress: true,
+      supportsCancellation: true,
+      idempotency: 'best-effort',
+      providerToolName: skill => `skill_${skill.id.replaceAll('.', '_')}`,
+      adapterToolName: skill => `skill_adapter_${skill.id.replaceAll('.', '_')}`,
+    },
+    availableTools: runtimeToolRegistry.list().map(manifest => manifest.capabilityId),
+    availablePermissions: [
+      'memory.read',
+      'memory.write',
+      'workspace.read',
+      'workspace.write',
+      'mcp.invoke',
+      'execution.invoke',
+    ],
+    onAudit: async (event) => {
+      await alicizationDb.appendAuditLog({
+        level: event.action === 'revoke' ? 'warning' : 'info',
+        category: 'alicization.skill',
+        action: event.action,
+        message: `${event.id}@${event.version} ${event.previousActivationStatus} -> ${event.activationStatus}`,
+        payload: { ...event },
+        createdAt: event.occurredAt,
+      })
+    },
+  })
+  try {
+    await runtimeSkillLoader.projectProduction()
+  }
+  catch (error) {
+    await alicizationDb.appendAuditLog({
+      level: 'warning',
+      category: 'alicization.skill',
+      action: 'projection-failed',
+      message: errorMessageFrom(error) ?? String(error),
+      payload: {
+        skillsDirectory: runtimeSkillsDirectory,
+      },
+      createdAt: Date.now(),
+    }).catch(() => {})
+  }
   const localRuntimeUserId = await resolveAlicizationLocalRuntimeUserId({
     getMetaValue: key => alicizationDb.getMetaValue(key),
     setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
@@ -1954,6 +2012,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   mainChatRuntime.bindInspectionIntentFromMessageHistory(sensoryRuntime.resolveInspectionIntentFromMessageHistory)
   const workingMemoryStore = createWorkingMemoryStore()
   const mainChatSessionRuntime = createAlicizationMainChatSessionRuntime({
+    buildToolRegistry: () => runtimeToolRegistry,
     workingMemoryStore,
     buildMainRuntimeCorePromptBlocks,
     dialogueSessionManager,
@@ -6517,6 +6576,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     normalizeSessionId,
     errorMessageFrom,
     workingMemoryStore,
+  })
+  registerAlicizationSkillInvokeHandlers({
+    registerInvokeHandler: (channel, handler) => defineInvokeHandler(context, channel as never, handler as never),
+    withCardScope,
+    cardIdFrom,
+    getSkillLoader: () => runtimeSkillLoader,
+    appendAuditLog,
+    sanitizeText,
   })
   registerAlicizationDialogueInvokeHandlers({
     registerInvokeHandler: (channel, handler) => defineInvokeHandler(context, channel as never, handler as never),

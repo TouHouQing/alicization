@@ -3,6 +3,8 @@ import type {
   LongTermMemoryTemporalConflictFixture,
   LongTermMemoryTemporalConflictReport,
 } from './long-term-memory-temporal-conflict-harness'
+import type { MemoryDialogueReplayReport } from './memory-db-dialogue-replay-harness'
+import type { MemoryEmbeddingReindexProgress } from './memory-embedding-reindex-runtime'
 import type {
   MemoryExperienceQualityFixture,
   MemoryExperienceQualityReport,
@@ -33,6 +35,7 @@ import { runWorkingMemoryCompressionBehaviorHarness } from './working-memory-com
 
 export type MemoryProductionTrialStageKind
   = | 'dialogue-replay'
+    | 'runtime-health'
     | 'working-memory-compression'
     | 'compressed-context-behavior'
     | 'long-term-recall'
@@ -46,6 +49,7 @@ export interface MemoryProductionTrialDialogueReplayResult {
   id: string
   passed: boolean
   turnCount: number
+  report?: MemoryDialogueReplayReport | null
   workingMemory?: WorkingMemoryQualityFixture[]
   userTrials?: MemoryUserTrialHarnessInput[]
   error?: string | null
@@ -74,6 +78,44 @@ export interface MemoryProductionTrialRunnerInput {
   experienceQuality?: MemoryExperienceQualityFixture[]
   scopeFuzz?: Parameters<typeof runMemoryScopeFuzzHarness>[0]
   personaTraining?: PersonaTrainingDatasetQualityFixture[]
+  runtimeHealth?: MemoryProductionTrialRuntimeHealth | null
+}
+
+export interface MemoryProductionTrialRuntimeHealth {
+  queue: {
+    pending: number
+    review: number
+    applied: number
+    failed: number
+    deadLettered: number
+  }
+  recall: {
+    lastLatencyMs: number | null
+    p95LatencyMs: number | null
+    lastError: string | null
+  }
+  embedding: {
+    providerConfigured: boolean
+    modelId: string | null
+    dimensions: number | null
+    vectorSpaceId: string | null
+    reindexRequired: boolean
+    indexMode: 'sqlite-vec' | 'hnsw' | 'ann' | 'brute-force'
+    approximate: boolean
+    degraded: boolean
+    nativeIndexReady: boolean
+    searchReady: boolean
+    lastError: string | null
+    canonicalCount: number
+    indexedCount: number
+    missingCount: number
+    textHashMismatchCount: number
+    staleOrFailedCount: number
+    orphanedCount: number
+    coverageRatio: number | null
+    reindexJob: MemoryEmbeddingReindexProgress | null
+  }
+  errors: string[]
 }
 
 export interface MemoryProductionTrialReport {
@@ -99,6 +141,8 @@ export interface MemoryProductionTrialReport {
     lastError: string | null
   }
   stages: MemoryProductionTrialStageResult[]
+  dialogueReplay: MemoryDialogueReplayReport | null
+  runtimeHealth: MemoryProductionTrialRuntimeHealth | null
   quality: MemoryQualityHarnessReport
   compressedContextBehavior: WorkingMemoryCompressionBehaviorReport | null
   temporalConflict: LongTermMemoryTemporalConflictReport | null
@@ -142,6 +186,8 @@ export async function runMemoryProductionTrialRunner(
   input: MemoryProductionTrialRunnerInput,
 ): Promise<MemoryProductionTrialReport> {
   const stages: MemoryProductionTrialStageResult[] = []
+  let dialogueReplay: MemoryDialogueReplayReport | null = null
+  const runtimeHealth = input.runtimeHealth ?? null
   const workingMemory: WorkingMemoryQualityFixture[] = [...(input.workingMemory ?? [])]
   const userTrials: MemoryUserTrialHarnessInput[] = [...(input.userTrials ?? [])]
   const recommendedNextActions: string[] = []
@@ -175,6 +221,7 @@ export async function runMemoryProductionTrialRunner(
   if (input.dialogueReplay) {
     try {
       const replay = await input.dialogueReplay()
+      dialogueReplay = replay.report ?? null
       workingMemory.push(...(replay.workingMemory ?? []))
       userTrials.push(...(replay.userTrials ?? []))
       recommendedNextActions.push(...(replay.recommendedNextActions ?? []))
@@ -199,6 +246,42 @@ export async function runMemoryProductionTrialRunner(
     userTrials,
     personaTraining: input.personaTraining ?? [],
   })
+
+  if (runtimeHealth) {
+    const reindexJobPending = runtimeHealth.embedding.reindexJob
+      ? ['queued', 'running', 'cancel_requested', 'failed'].includes(runtimeHealth.embedding.reindexJob.status)
+      : false
+    const healthFailures = [
+      ...runtimeHealth.errors.map(() => 'runtime-health-query-error'),
+      runtimeHealth.queue.failed > 0 ? 'memory-queue-failed-items' : null,
+      runtimeHealth.queue.deadLettered > 0 ? 'memory-queue-dead-lettered-items' : null,
+      runtimeHealth.recall.lastError ? 'memory-recall-error' : null,
+      !runtimeHealth.embedding.providerConfigured ? 'embedding-provider-not-configured' : null,
+      runtimeHealth.embedding.reindexRequired ? 'embedding-reindex-required' : null,
+      runtimeHealth.embedding.indexMode === 'brute-force' ? 'embedding-index-brute-force' : null,
+      runtimeHealth.embedding.degraded ? 'embedding-index-degraded' : null,
+      !runtimeHealth.embedding.nativeIndexReady ? 'embedding-native-index-not-ready' : null,
+      !runtimeHealth.embedding.searchReady ? 'embedding-search-not-ready' : null,
+      runtimeHealth.embedding.lastError ? 'embedding-health-error' : null,
+      runtimeHealth.embedding.missingCount > 0 ? 'embedding-missing-vectors' : null,
+      runtimeHealth.embedding.textHashMismatchCount > 0 ? 'embedding-text-hash-mismatch' : null,
+      runtimeHealth.embedding.staleOrFailedCount > 0 ? 'embedding-stale-or-failed' : null,
+      runtimeHealth.embedding.orphanedCount > 0 ? 'embedding-orphaned-vectors' : null,
+      runtimeHealth.embedding.coverageRatio !== null && runtimeHealth.embedding.coverageRatio < 0.999
+        ? 'embedding-coverage-below-target'
+        : null,
+      reindexJobPending ? 'embedding-reindex-job-not-settled' : null,
+    ].filter(Boolean) as string[]
+    stages.push({
+      stage: 'runtime-health',
+      id: 'runtime-health',
+      passed: healthFailures.length === 0,
+      itemCount: 1,
+      error: healthFailures[0] ?? null,
+    })
+    recommendedNextActions.push(...healthFailures.map(failure => `处理真实健康指标：${failure}。`))
+    recommendedNextActions.push(...runtimeHealth.errors.map(error => `健康指标查询失败：${error}。`))
+  }
 
   stages.push(
     stageFromQuality({
@@ -292,6 +375,10 @@ export async function runMemoryProductionTrialRunner(
     ...(scopeFuzz?.recommendedActions ?? []),
   ])
   const lastStageError = [...stages].reverse().find(stage => stage.error)?.error ?? null
+  const lastRuntimeHealthError = runtimeHealth?.errors.at(-1)
+    ?? runtimeHealth?.recall.lastError
+    ?? runtimeHealth?.embedding.lastError
+    ?? null
 
   return {
     version: 'memory-production-trial-runner-v1',
@@ -319,9 +406,11 @@ export async function runMemoryProductionTrialRunner(
       failingStageIds,
       optimizationFindingCount: quality.summary.optimizationFindingCount,
       recommendedActionCount: mergedRecommendedActions.length,
-      lastError: quality.summary.lastError ?? lastStageError,
+      lastError: quality.summary.lastError ?? lastRuntimeHealthError ?? lastStageError,
     },
     stages,
+    dialogueReplay,
+    runtimeHealth,
     quality,
     compressedContextBehavior,
     temporalConflict,

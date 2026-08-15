@@ -903,6 +903,43 @@ export interface AlicizationMemoryQualityTrialPayload extends AlicizationCardSco
   replayPackId?: string | null
 }
 
+export interface AlicizationMemoryDialogueReplayReport {
+  version: 'memory-db-dialogue-replay-report-v1'
+  id: string
+  passed: boolean
+  createdAt: number
+  summary: {
+    turnCount: number
+    succeededTurnCount: number
+    failedTurnCount: number
+    checkpointWriteCount: number
+    personaWriteCount: number
+    recalledEvidenceCount: number
+    lastError: string | null
+  }
+  turns: Array<{
+    turnId: string
+    status: 'succeeded' | 'failed'
+    providerOutput: string | null
+    providerMessages: Array<{
+      role: 'system' | 'user' | 'assistant'
+      content: string
+    }>
+    recalledEvidenceIds: string[]
+    stages: Array<{
+      name: 'hydration' | 'compression' | 'context-assembly' | 'recall' | 'provider-adapter' | 'commit'
+      status: 'succeeded' | 'failed'
+      details: Record<string, unknown>
+      error: string | null
+    }>
+    writeback: {
+      checkpoint: 'written' | 'skipped'
+      persona: 'written' | 'skipped'
+    }
+    error: string | null
+  }>
+}
+
 export interface AlicizationMemoryQualityTrialReport {
   version: 'memory-production-trial-runner-v1'
   id: string
@@ -932,6 +969,43 @@ export interface AlicizationMemoryQualityTrialReport {
     itemCount: number
     error: string | null
   }>
+  dialogueReplay: AlicizationMemoryDialogueReplayReport | null
+  runtimeHealth: {
+    queue: {
+      pending: number
+      review: number
+      applied: number
+      failed: number
+      deadLettered: number
+    }
+    recall: {
+      lastLatencyMs: number | null
+      p95LatencyMs: number | null
+      lastError: string | null
+    }
+    embedding: {
+      providerConfigured: boolean
+      modelId: string | null
+      dimensions: number | null
+      vectorSpaceId: string | null
+      reindexRequired: boolean
+      indexMode: 'sqlite-vec' | 'hnsw' | 'ann' | 'brute-force'
+      approximate: boolean
+      degraded: boolean
+      nativeIndexReady: boolean
+      searchReady: boolean
+      lastError: string | null
+      canonicalCount: number
+      indexedCount: number
+      missingCount: number
+      textHashMismatchCount: number
+      staleOrFailedCount: number
+      orphanedCount: number
+      coverageRatio: number | null
+      reindexJob: AlicizationMemoryEmbeddingReindexProgress | null
+    }
+    errors: string[]
+  } | null
   quality: {
     passed: boolean
     summary: {
@@ -1079,6 +1153,82 @@ export interface AlicizationPersonaTrainingDatasetExamplePolicyPayload extends A
 
 export interface AlicizationPersonaTrainingDatasetRevokePayload extends AlicizationCardScope {
   sourceId: string
+}
+
+export type AlicizationPersonaTrainingPipelineIncrementState = 'available' | 'rolled-back' | 'revoked'
+
+export interface AlicizationPersonaTrainingPipelineIncrement {
+  id: string
+  kind: 'persona-lora-increment'
+  cardId: string
+  datasetId: string
+  manifestHash: string
+  sourceIds: string[]
+  basePersonaRevision: string
+  artifact: unknown
+  state: AlicizationPersonaTrainingPipelineIncrementState
+  createdAt: number
+}
+
+export type AlicizationPersonaTrainingPipelineRunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
+
+export interface AlicizationPersonaTrainingPipelineRunResult {
+  status: 'succeeded'
+  runId: string
+  increment: AlicizationPersonaTrainingPipelineIncrement
+}
+
+export interface AlicizationPersonaTrainingPipelineFailureResult {
+  status: 'failed'
+  runId: string
+  reason: 'executor-failed' | 'source-revoked' | 'dataset-rolled-back' | 'dataset-not-active' | 'manifest-no-longer-usable' | 'cancelled'
+  error: string
+}
+
+export type AlicizationPersonaTrainingPipelineResult
+  = AlicizationPersonaTrainingPipelineRunResult
+    | AlicizationPersonaTrainingPipelineFailureResult
+
+export interface AlicizationPersonaTrainingRunPayload extends AlicizationCardScope {
+  datasetId?: string | null
+}
+
+export interface AlicizationPersonaTrainingCancelPayload extends AlicizationCardScope {
+  runId: string
+  reason?: string | null
+}
+
+export interface AlicizationPersonaTrainingIncrementPayload extends AlicizationCardScope {
+  incrementId: string
+}
+
+export interface AlicizationPersonaTrainingIncrementsResult {
+  items: AlicizationPersonaTrainingPipelineIncrement[]
+}
+
+export interface AlicizationSkillWorkbenchItem {
+  id: string
+  version: string
+  description: string
+  dependencies: string[]
+  requiredTools: string[]
+  permissions: string[]
+  risk: 'low' | 'medium' | 'high' | 'critical'
+  evaluationStatus: 'unvalidated' | 'sandbox-passed' | 'replay-passed' | 'approved' | 'failed'
+  activationStatus: 'candidate' | 'active' | 'rolled-back' | 'revoked'
+}
+
+export interface AlicizationSkillWorkbenchListPayload extends AlicizationCardScope {
+  productionOnly?: boolean
+}
+
+export interface AlicizationSkillWorkbenchListResult {
+  items: AlicizationSkillWorkbenchItem[]
+}
+
+export interface AlicizationSkillWorkbenchLifecyclePayload extends AlicizationCardScope {
+  id: string
+  version: string
 }
 
 export interface AlicizationMemoryEmbeddingReindexPayload extends AlicizationCardScope {
@@ -4010,6 +4160,14 @@ export const electronAlicizationMemoryWorkbenchActivatePersonaTrainingDataset = 
 export const electronAlicizationMemoryWorkbenchRollbackPersonaTrainingDataset = defineInvokeEventa<AlicizationPersonaTrainingDatasetVersion | null, Required<AlicizationPersonaTrainingDatasetVersionPayload>>('eventa:invoke:electron:alicization:memory-workbench:rollback-persona-training-dataset')
 export const electronAlicizationMemoryWorkbenchSetPersonaTrainingDatasetExamplePolicy = defineInvokeEventa<AlicizationPersonaTrainingDatasetExample | null, AlicizationPersonaTrainingDatasetExamplePolicyPayload>('eventa:invoke:electron:alicization:memory-workbench:set-persona-training-dataset-example-policy')
 export const electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSource = defineInvokeEventa<{ affected: number }, AlicizationPersonaTrainingDatasetRevokePayload>('eventa:invoke:electron:alicization:memory-workbench:revoke-persona-training-dataset-source')
+export const electronAlicizationMemoryWorkbenchRunPersonaTraining = defineInvokeEventa<AlicizationPersonaTrainingPipelineResult, AlicizationPersonaTrainingRunPayload>('eventa:invoke:electron:alicization:memory-workbench:run-persona-training')
+export const electronAlicizationMemoryWorkbenchCancelPersonaTraining = defineInvokeEventa<boolean, AlicizationPersonaTrainingCancelPayload>('eventa:invoke:electron:alicization:memory-workbench:cancel-persona-training')
+export const electronAlicizationMemoryWorkbenchRollbackPersonaTrainingIncrement = defineInvokeEventa<AlicizationPersonaTrainingPipelineIncrement | null, AlicizationPersonaTrainingIncrementPayload>('eventa:invoke:electron:alicization:memory-workbench:rollback-persona-training-increment')
+export const electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements = defineInvokeEventa<AlicizationPersonaTrainingIncrementsResult, AlicizationCardScope>('eventa:invoke:electron:alicization:memory-workbench:list-persona-training-increments')
+export const electronAlicizationSkillWorkbenchList = defineInvokeEventa<AlicizationSkillWorkbenchListResult, AlicizationSkillWorkbenchListPayload>('eventa:invoke:electron:alicization:skill-workbench:list')
+export const electronAlicizationSkillWorkbenchActivate = defineInvokeEventa<AlicizationSkillWorkbenchItem, AlicizationSkillWorkbenchLifecyclePayload>('eventa:invoke:electron:alicization:skill-workbench:activate')
+export const electronAlicizationSkillWorkbenchRollback = defineInvokeEventa<AlicizationSkillWorkbenchItem, AlicizationSkillWorkbenchLifecyclePayload>('eventa:invoke:electron:alicization:skill-workbench:rollback')
+export const electronAlicizationSkillWorkbenchRevoke = defineInvokeEventa<AlicizationSkillWorkbenchItem, AlicizationSkillWorkbenchLifecyclePayload>('eventa:invoke:electron:alicization:skill-workbench:revoke')
 export const electronAlicizationMemoryWorkbenchReindexEmbeddings = defineInvokeEventa<AlicizationMemoryEmbeddingReindexResult, AlicizationMemoryEmbeddingReindexPayload>('eventa:invoke:electron:alicization:memory-workbench:reindex-embeddings')
 export const electronAlicizationMemoryWorkbenchListEmbeddingModels = defineInvokeEventa<AlicizationMemoryEmbeddingModelListResult, AlicizationMemoryEmbeddingModelListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-embedding-models')
 export const electronAlicizationMemoryWorkbenchTestEmbeddingConnection = defineInvokeEventa<AlicizationMemoryEmbeddingConnectionTestResult, AlicizationMemoryEmbeddingConnectionTestPayload>('eventa:invoke:electron:alicization:memory-workbench:test-embedding-connection')

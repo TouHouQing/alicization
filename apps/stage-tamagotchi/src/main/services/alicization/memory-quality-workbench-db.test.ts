@@ -226,4 +226,135 @@ describe('memory quality workbench DB loop', () => {
       await db.close()
     }
   })
+
+  it('runs the selected persisted conversation as a structured DB dialogue replay report', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const sessionId = 'session-production-replay'
+      const createdAt = Date.parse('2026-08-04T08:30:00.000Z')
+      const checkpoint = createEmptyWorkingMemorySnapshot({
+        cardId: 'default',
+        sessionId,
+        now: createdAt,
+      })
+      await db.upsertWorkingMemoryCheckpoint(checkpoint)
+      const productionCheckpointBeforeTrial = await db.getWorkingMemoryCheckpoint('default', sessionId)
+      await db.appendConversationTurn({
+        turnId: 'turn-replay-1',
+        sessionId,
+        userText: '先记住这条真实回放。',
+        assistantText: '我会把这条真实回放接住。',
+        createdAt,
+      })
+      await db.appendConversationTurn({
+        turnId: 'turn-replay-2',
+        sessionId,
+        userText: '继续验证回放报告。',
+        assistantText: '回放报告已经沿着持久化记忆链路运行。',
+        createdAt: createdAt + 1_000,
+      })
+
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        replayPackId: sessionId,
+        month: '2026-08',
+      })
+
+      expect(report.passed).toBe(false)
+      expect(report.summary.failingStageIds).toContain('runtime-health')
+      expect(report.runtimeHealth?.embedding.providerConfigured).toBe(false)
+      expect(report.summary.dialogueReplayCount).toBe(1)
+      expect(report.dialogueReplay).toMatchObject({
+        version: 'memory-db-dialogue-replay-report-v1',
+        passed: true,
+        summary: {
+          turnCount: 2,
+          succeededTurnCount: 2,
+          failedTurnCount: 0,
+          checkpointWriteCount: 2,
+        },
+      })
+      expect(report.dialogueReplay?.turns.map(turn => turn.providerOutput)).toEqual([
+        '我会把这条真实回放接住。',
+        '回放报告已经沿着持久化记忆链路运行。',
+      ])
+      expect(report.dialogueReplay?.turns[0]?.stages.find(stage => stage.name === 'hydration')).toMatchObject({
+        details: {
+          found: false,
+        },
+      })
+      expect(report.stages).toContainEqual(expect.objectContaining({
+        stage: 'dialogue-replay',
+        passed: true,
+        itemCount: 2,
+      }))
+      expect(await db.getWorkingMemoryCheckpoint('default', sessionId)).toEqual(productionCheckpointBeforeTrial)
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('defaults to the latest WorkingMemory session for the current card', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const sessionId = 'session-default-replay'
+      const createdAt = Date.parse('2026-08-04T08:40:00.000Z')
+      await db.upsertWorkingMemoryCheckpoint(createEmptyWorkingMemorySnapshot({
+        cardId: 'default',
+        sessionId,
+        now: createdAt,
+      }))
+      await db.appendConversationTurn({
+        turnId: 'turn-default-replay',
+        sessionId,
+        userText: '运行默认回放。',
+        assistantText: '默认回放已读取当前机体的会话。',
+        createdAt,
+      })
+
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        month: '2026-08',
+      })
+
+      expect(report.summary.dialogueReplayCount).toBe(1)
+      expect(report.dialogueReplay?.id).toContain(sessionId)
+      expect(report.dialogueReplay?.summary.turnCount).toBe(1)
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('rejects an explicitly selected session outside the current card scope', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const foreignSessionId = 'session-foreign-card'
+      await db.appendConversationTurn({
+        turnId: 'turn-foreign',
+        sessionId: foreignSessionId,
+        userText: '这条会话不属于当前机体。',
+        assistantText: '不应该被当前机体回放。',
+        createdAt: Date.parse('2026-08-04T08:50:00.000Z'),
+      })
+
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        replayPackId: foreignSessionId,
+        month: '2026-08',
+      })
+
+      expect(report.passed).toBe(false)
+      expect(report.stages[0]).toMatchObject({
+        stage: 'dialogue-replay',
+        passed: false,
+        error: `会话 ${foreignSessionId} 不属于当前机体的 WorkingMemory 范围，无法运行真实对话回放。`,
+      })
+      expect(report.dialogueReplay).toBeNull()
+    }
+    finally {
+      await db.close()
+    }
+  })
 })

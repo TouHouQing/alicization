@@ -525,6 +525,7 @@ pages:
         persona: 人格候选
         quality: 质量试用
         health: 健康与审计
+        skills: 能力与技能
       actions:
         refresh: 刷新
         approve: 批准
@@ -555,6 +556,9 @@ pages:
         load_gold_labels: 读取本月标注
         run_quality_trial: 运行质量试用
         build_gold_regression: 固定为月度回归
+        run_persona_training: 运行人格训练
+        refresh_persona_training: 刷新人格训练状态
+        rollback_persona_increment: 回滚人格增量
       states:
         empty_working: 还没有可显示的短期记忆快照。发送一轮对话后再刷新。
         empty_long_term: 还没有匹配的长期记忆。
@@ -566,6 +570,9 @@ pages:
         persona_dataset_staged: 人格数据集 staging 版本已生成，尚未训练。
         persona_dataset_exported: 已生成不可变导出清单，仍不会自动训练。
         persona_dataset_revoked: 来源撤回已传播到数据集样本。
+        persona_training_succeeded: 训练执行完成，生成了可回滚增量。
+        persona_training_failed: 训练执行失败，未改变人格核心。
+        empty_persona_training_increments: 还没有可回滚的人格训练增量。
         dataset_staged: 待训练
         dataset_quarantined: 已隔离
         dataset_revoked: 已撤回
@@ -605,6 +612,7 @@ pages:
         empty_gold_labels: 本月还没有标注。先在召回测试后点四个反馈按钮之一。
       fields:
         health: 记忆健康
+        runtime_health: 运行健康
         pending_review: 待审核
         recall_latency: 召回延迟
         queue: 队列
@@ -695,9 +703,12 @@ pages:
         coverage_ratio: 向量覆盖率
         debug_details: 调试详情
         month: 月份
+        replay_pack_id: 回放会话 ID
         query: 查询
         count: 数量
         trace: Trace
+        persona_training_last_run: 最近一次训练运行
+        persona_training_increments: 人格训练增量
         long_term_fixtures: 长期召回样本
         working_memory_fixtures: 短期压缩样本
         compressed_context_fixtures: 压缩后行为样本
@@ -706,6 +717,14 @@ pages:
         experience_quality: 体验质量
         scope_fuzz_cases: Scope 隔离样本
         persona_fixtures: 人格数据样本
+        dialogue_replay: 对话回放
+        replay_turns: 回放轮数
+        replay_succeeded_turns: 成功轮数
+        replay_failed_turns: 失败轮数
+        replay_checkpoint_writes: 短期记忆写回
+        replay_recalled_evidence: 长期记忆证据
+        replay_turn_trace: 回放逐轮链路
+        last_error: 最后错误
         recall_at_k: Recall@K
         failing_stages: 失败阶段
         failing_fixtures: 失败样本
@@ -714,6 +733,14 @@ pages:
         expected_ids: 应该命中
         surfaced_ids: 已提到
         wrong_thread_ids: 错线程
+      skills:
+        title: 能力与技能
+        description: 查看已发现的 Skill 版本，并控制它们是否进入生产工具注册表。
+        empty: 还没有发现 Skill。将 SKILL.md 放入本地 skills 目录后刷新。
+        permissions: 权限
+        activate: 激活
+        rollback: 回滚
+        revoke: 撤回
       quality:
         title: 质量试用
         description: 从本地 DB 跑长期召回、短期压缩和 Persona/LoRA 清洗质量门禁，结果会暴露失败项与建议动作。
@@ -753,6 +780,7 @@ pages:
           allowed: 允许训练
           blocked: 禁止训练
       placeholders:
+        replay_pack_id: 留空则使用最近的 WorkingMemory 会话
         long_term_search: 搜索长期记忆摘要、证据、来源 ID...
         long_term_source: 按来源筛选，例如 memory_reflections
         embedding_provider: openai-compatible

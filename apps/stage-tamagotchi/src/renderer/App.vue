@@ -101,14 +101,18 @@ import {
   electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction,
   electronAlicizationMemoryWorkbenchApplyReviewAction,
   electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression,
+  electronAlicizationMemoryWorkbenchCancelPersonaTraining,
   electronAlicizationMemoryWorkbenchGetSnapshot,
   electronAlicizationMemoryWorkbenchListEmbeddingModels,
   electronAlicizationMemoryWorkbenchListLongTerm,
   electronAlicizationMemoryWorkbenchListPersonaCandidates,
+  electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements,
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
   electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationMemoryWorkbenchRecordQualityGoldLabel,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
+  electronAlicizationMemoryWorkbenchRollbackPersonaTrainingIncrement,
+  electronAlicizationMemoryWorkbenchRunPersonaTraining,
   electronAlicizationMemoryWorkbenchRunQualityTrial,
   electronAlicizationMemoryWorkbenchTestEmbeddingConnection,
   electronAlicizationPlanTaskThread,
@@ -122,6 +126,10 @@ import {
   electronAlicizationSearchOrganicSubconsciousFragments,
   electronAlicizationSetActiveSession,
   electronAlicizationSetPerformanceManifest,
+  electronAlicizationSkillWorkbenchActivate,
+  electronAlicizationSkillWorkbenchList,
+  electronAlicizationSkillWorkbenchRevoke,
+  electronAlicizationSkillWorkbenchRollback,
   electronAlicizationSubconsciousForceDream,
   electronAlicizationSubconsciousForceTick,
   electronAlicizationSubconsciousGetState,
@@ -261,6 +269,14 @@ const memoryWorkbenchApplyReviewAction = useElectronEventaInvoke(electronAliciza
 const memoryWorkbenchRecallProbe = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRecallProbe)
 const memoryWorkbenchListPersonaCandidates = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListPersonaCandidates)
 const memoryWorkbenchApplyPersonaCandidateAction = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction)
+const memoryWorkbenchRunPersonaTraining = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRunPersonaTraining)
+const memoryWorkbenchCancelPersonaTraining = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchCancelPersonaTraining)
+const memoryWorkbenchRollbackPersonaTrainingIncrement = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRollbackPersonaTrainingIncrement)
+const memoryWorkbenchListPersonaTrainingIncrements = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements)
+const skillWorkbenchList = useElectronEventaInvoke(electronAlicizationSkillWorkbenchList)
+const skillWorkbenchActivate = useElectronEventaInvoke(electronAlicizationSkillWorkbenchActivate)
+const skillWorkbenchRollback = useElectronEventaInvoke(electronAlicizationSkillWorkbenchRollback)
+const skillWorkbenchRevoke = useElectronEventaInvoke(electronAlicizationSkillWorkbenchRevoke)
 const memoryWorkbenchReindexEmbeddings = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchReindexEmbeddings)
 const memoryWorkbenchListEmbeddingModels = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListEmbeddingModels)
 const memoryWorkbenchTestEmbeddingConnection = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchTestEmbeddingConnection)
@@ -1314,6 +1330,14 @@ setAlicizationBridge({
   memoryWorkbenchRecallProbe: async payload => await memoryWorkbenchRecallProbe({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListPersonaCandidates: async payload => await memoryWorkbenchListPersonaCandidates({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchApplyPersonaCandidateAction: async payload => await memoryWorkbenchApplyPersonaCandidateAction({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchRunPersonaTraining: async payload => await memoryWorkbenchRunPersonaTraining({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchCancelPersonaTraining: async payload => await memoryWorkbenchCancelPersonaTraining({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchRollbackPersonaTrainingIncrement: async payload => await memoryWorkbenchRollbackPersonaTrainingIncrement({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchListPersonaTrainingIncrements: async () => await memoryWorkbenchListPersonaTrainingIncrements(resolveAlicizationScope()),
+  skillWorkbenchList: async payload => await skillWorkbenchList({ ...resolveAlicizationScope(), ...payload }),
+  skillWorkbenchActivate: async payload => await skillWorkbenchActivate({ ...resolveAlicizationScope(), ...payload }),
+  skillWorkbenchRollback: async payload => await skillWorkbenchRollback({ ...resolveAlicizationScope(), ...payload }),
+  skillWorkbenchRevoke: async payload => await skillWorkbenchRevoke({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchReindexEmbeddings: async payload => await memoryWorkbenchReindexEmbeddings({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListEmbeddingModels: async payload => await memoryWorkbenchListEmbeddingModels({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchTestEmbeddingConnection: async payload => await memoryWorkbenchTestEmbeddingConnection({ ...resolveAlicizationScope(), ...payload }),

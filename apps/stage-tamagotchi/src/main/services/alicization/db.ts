@@ -101,7 +101,10 @@ import type {
   SimpleRecallGoldLabel,
   SimpleRecallGoldReason,
 } from './memory-os/simple-recall-gold-labels'
-import type { MemoryProductionTrialReport } from './memory-production-trial-runner'
+import type {
+  MemoryProductionTrialReport,
+  MemoryProductionTrialRuntimeHealth,
+} from './memory-production-trial-runner'
 import type { PersonaTrainingDatasetQualityFixture } from './persona-training-dataset-quality-harness'
 import type {
   PersonaTrainingDatasetCleaningProvenance,
@@ -112,6 +115,14 @@ import type {
   PersonaTrainingDatasetSource,
   PersonaTrainingDatasetVersion,
 } from './persona-training-dataset-runtime'
+import type {
+  PersonaTrainingExecutorInput,
+  PersonaTrainingExecutorOutput,
+  PersonaTrainingPipelineGate,
+  PersonaTrainingPipelineIncrement,
+  PersonaTrainingPipelinePersistence,
+  PersonaTrainingPipelineResult,
+} from './persona-training-pipeline-gate'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 import type {
   AlicizationRuntimeCheckpoint,
@@ -172,6 +183,7 @@ import { createSqliteVecLongTermMemoryVectorBackend } from './long-term-memory-s
 import { createLongTermMemoryVectorIndexAdapter } from './long-term-memory-vector-index-adapter'
 import { buildMemoryConsolidationRecords, searchMemoryConsolidationRecords } from './memory-consolidation'
 import { createAlicizationMemoryConsolidationRuntime } from './memory-consolidation-runtime'
+import { replayMemoryDialogue } from './memory-db-dialogue-replay-harness'
 import { inferMemoryDomainFromFact, normalizeMemoryDomain } from './memory-domain-model'
 import { createMemoryEmbeddingReindexRuntime } from './memory-embedding-reindex-runtime'
 import { createAlicizationMemoryEpisodicReconsolidationRuntime } from './memory-episodic-reconsolidation-runtime'
@@ -200,6 +212,9 @@ import { createMemoryWorkbenchPersonaCandidateRuntime } from './memory-workbench
 import { createMemoryWorkbenchPolicyStoreRuntime } from './memory-workbench-policy-store'
 import { createAlicizationPersonStateEvolutionRuntime } from './person-state-evolution-runtime'
 import { createPersonaTrainingDatasetRuntime } from './persona-training-dataset-runtime'
+import {
+  createPersonaTrainingPipelineGate,
+} from './persona-training-pipeline-gate'
 import {
   resolveAlicizationAutonomousDialogueFamilyClassification,
   resolveAlicizationAutonomousDialogueOrigin,
@@ -778,6 +793,27 @@ function parseJsonObject(raw: string | null) {
     return parsed && typeof parsed === 'object'
       ? parsed as Record<string, unknown>
       : null
+  }
+  catch {
+    return null
+  }
+}
+
+function parseJsonUnknown(raw: string | null): unknown {
+  if (!raw)
+    return null
+  try {
+    return JSON.parse(raw) as unknown
+  }
+  catch {
+    return null
+  }
+}
+
+function serializePersonaTrainingArtifact(artifact: unknown) {
+  try {
+    const serialized = JSON.stringify(artifact)
+    return serialized === undefined ? null : serialized
   }
   catch {
     return null
@@ -1698,6 +1734,10 @@ export interface AlicizationDbService {
     consent: Omit<PersonaTrainingDatasetConsentSnapshot, 'capturedAt'> & { capturedAt?: number }
   }) => Promise<PersonaTrainingDatasetExample | null>
   revokePersonaTrainingDatasetSource: (input: { cardId: string, sourceId: string }) => Promise<{ affected: number }>
+  runPersonaTraining: (input: { cardId: string, datasetId?: string | null }) => Promise<PersonaTrainingPipelineResult>
+  cancelPersonaTraining: (input: { cardId: string, runId: string, reason?: string | null }) => Promise<boolean>
+  rollbackPersonaTrainingIncrement: (input: { cardId: string, incrementId: string }) => Promise<PersonaTrainingPipelineIncrement | null>
+  listPersonaTrainingIncrements: (input: { cardId: string }) => Promise<PersonaTrainingPipelineIncrement[]>
   enqueueWorkingMemoryLongTermQueueItems: (input: {
     cardId: string
     sessionId: string
@@ -1895,6 +1935,7 @@ export async function setupAlicizationDb(
     sqliteDriver?: SqliteDriver
     embeddingProvider?: LongTermMemoryEmbeddingProvider | null
     resolveEmbeddingProvider?: () => LongTermMemoryEmbeddingProvider | null
+    personaTrainingExecutor?: (input: PersonaTrainingExecutorInput) => Promise<PersonaTrainingExecutorOutput>
   },
 ): Promise<AlicizationDbService> {
   const configuredCardId = normalizeOrganicMemoryText(options?.cardId, 120)
@@ -2430,6 +2471,38 @@ export async function setupAlicizationDb(
       )
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_training_source_provenance_transaction ON persona_training_source_provenance(card_id, cleaning_transaction_id)')
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS persona_training_runs (
+        run_id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        dataset_id TEXT NOT NULL,
+        manifest_hash TEXT NOT NULL,
+        source_ids_json TEXT NOT NULL,
+        base_persona_revision TEXT NOT NULL,
+        status TEXT NOT NULL,
+        error TEXT,
+        started_at INTEGER NOT NULL,
+        finished_at INTEGER
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_training_runs_card_started ON persona_training_runs(card_id, started_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_training_runs_dataset_status ON persona_training_runs(dataset_id, status, started_at DESC)')
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS persona_training_increments (
+        id TEXT PRIMARY KEY,
+        run_id TEXT NOT NULL UNIQUE,
+        card_id TEXT NOT NULL,
+        dataset_id TEXT NOT NULL,
+        manifest_hash TEXT NOT NULL,
+        source_ids_json TEXT NOT NULL,
+        base_persona_revision TEXT NOT NULL,
+        artifact_json TEXT,
+        state TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_training_increments_card_created ON persona_training_increments(card_id, created_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_training_increments_dataset_state ON persona_training_increments(dataset_id, state, created_at DESC)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS memory_reflections (
@@ -4926,6 +4999,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       await deleteCardScoped('long_term_memory_vectors')
       await deleteCardScoped('memory_quality_gold_labels')
       await deleteCardScoped('persona_training_candidate_reviews')
+      await deleteCardScoped('persona_training_runs')
+      await deleteCardScoped('persona_training_increments')
       await deleteCardScoped('memory_reflections')
       await deleteCardScoped('relationship_outcomes')
       await deleteCardScoped('person_state_evolution_log')
@@ -6337,6 +6412,164 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       return row ? mapPersonaTrainingDatasetExampleRow(row) : null
     },
   }
+  const personaTrainingPipelinePersistence: PersonaTrainingPipelinePersistence = {
+    createRun: async (runRecord) => {
+      await enqueueWrite(async () => {
+        await run(
+          database,
+          `
+          INSERT INTO persona_training_runs (
+            run_id, card_id, dataset_id, manifest_hash, source_ids_json,
+            base_persona_revision, status, error, started_at, finished_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+          [
+            runRecord.runId,
+            runRecord.cardId,
+            runRecord.datasetId,
+            runRecord.manifestHash,
+            JSON.stringify(runRecord.sourceIds),
+            runRecord.basePersonaRevision,
+            runRecord.status,
+            runRecord.error,
+            runRecord.startedAt,
+            runRecord.finishedAt,
+          ],
+        )
+      })
+    },
+    updateRun: async (runUpdate) => {
+      const updates: string[] = []
+      const values: unknown[] = []
+      if (runUpdate.cardId !== undefined) {
+        updates.push('card_id = ?')
+        values.push(runUpdate.cardId)
+      }
+      if (runUpdate.datasetId !== undefined) {
+        updates.push('dataset_id = ?')
+        values.push(runUpdate.datasetId)
+      }
+      if (runUpdate.manifestHash !== undefined) {
+        updates.push('manifest_hash = ?')
+        values.push(runUpdate.manifestHash)
+      }
+      if (runUpdate.sourceIds !== undefined) {
+        updates.push('source_ids_json = ?')
+        values.push(JSON.stringify(runUpdate.sourceIds))
+      }
+      if (runUpdate.basePersonaRevision !== undefined) {
+        updates.push('base_persona_revision = ?')
+        values.push(runUpdate.basePersonaRevision)
+      }
+      if (runUpdate.status !== undefined) {
+        updates.push('status = ?')
+        values.push(runUpdate.status)
+      }
+      if (runUpdate.error !== undefined) {
+        updates.push('error = ?')
+        values.push(runUpdate.error)
+      }
+      if (runUpdate.startedAt !== undefined) {
+        updates.push('started_at = ?')
+        values.push(runUpdate.startedAt)
+      }
+      if (runUpdate.finishedAt !== undefined) {
+        updates.push('finished_at = ?')
+        values.push(runUpdate.finishedAt)
+      }
+      if (updates.length === 0)
+        return
+      values.push(runUpdate.runId)
+      await enqueueWrite(async () => {
+        await run(
+          database,
+          `UPDATE persona_training_runs SET ${updates.join(', ')} WHERE run_id = ?`,
+          values,
+        )
+      })
+    },
+    createIncrement: async (increment) => {
+      await enqueueWrite(async () => {
+        await run(
+          database,
+          `
+          INSERT INTO persona_training_increments (
+            id, run_id, card_id, dataset_id, manifest_hash, source_ids_json,
+            base_persona_revision, artifact_json, state, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+          [
+            increment.id,
+            increment.id.replace(/^persona-training-increment:/, ''),
+            increment.cardId,
+            increment.datasetId,
+            increment.manifestHash,
+            JSON.stringify(increment.sourceIds),
+            increment.basePersonaRevision,
+            serializePersonaTrainingArtifact(increment.artifact),
+            increment.state,
+            increment.createdAt,
+          ],
+        )
+      })
+    },
+    updateIncrementState: async (incrementUpdate) => {
+      await enqueueWrite(async () => {
+        await run(
+          database,
+          'UPDATE persona_training_increments SET state = ? WHERE id = ?',
+          [incrementUpdate.state, incrementUpdate.incrementId],
+        )
+      })
+    },
+    appendEvent: async (event) => {
+      await appendAuditLog({
+        level: event.action === 'training-failed' ? 'warning' : 'notice',
+        category: 'persona-training',
+        action: event.action,
+        message: `Persona training lifecycle event: ${event.action}.`,
+        payload: {
+          runId: event.runId,
+          incrementId: event.incrementId,
+          cardId: event.cardId,
+          datasetId: event.datasetId,
+          manifestHash: event.manifestHash,
+          sourceIds: event.sourceIds,
+          reason: event.reason,
+        },
+        createdAt: event.createdAt,
+      })
+    },
+    listIncrements: async () => {
+      const rows = await all<{
+        id: string
+        run_id: string
+        card_id: string
+        dataset_id: string
+        manifest_hash: string
+        source_ids_json: string
+        base_persona_revision: string
+        artifact_json: string | null
+        state: PersonaTrainingPipelineIncrement['state']
+        created_at: number
+      }>(
+        database,
+        'SELECT * FROM persona_training_increments ORDER BY created_at DESC, id DESC',
+      )
+      return rows.map(row => ({
+        id: row.id,
+        kind: 'persona-lora-increment' as const,
+        cardId: row.card_id,
+        datasetId: row.dataset_id,
+        manifestHash: row.manifest_hash,
+        sourceIds: parseJsonStringArray(row.source_ids_json),
+        basePersonaRevision: row.base_persona_revision,
+        artifact: parseJsonUnknown(row.artifact_json),
+        state: row.state,
+        createdAt: row.created_at,
+      }))
+    },
+  }
   async function recordPersonaTrainingSourceProvenance(input: {
     cardId: string
     cleaningTransactionId: string
@@ -6450,6 +6683,16 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         }),
       ]
     },
+  })
+  const personaTrainingPipelineGate: PersonaTrainingPipelineGate = createPersonaTrainingPipelineGate({
+    datasetRuntime: personaTrainingDatasetRuntime,
+    trainingExecutor: options?.personaTrainingExecutor ?? (async () => {
+      throw new Error('persona training executor is not configured')
+    }),
+    persistence: personaTrainingPipelinePersistence,
+    now,
+    randomUUID,
+    basePersonaRevision: async () => await getMetaValue('persona_core_revision') ?? 'persona-core-unversioned',
   })
   async function appendMemoryWorkbenchRecallMetricSafely(
     metric: Parameters<typeof memoryWorkbenchHealthRuntime.appendRecallMetric>[0],
@@ -8037,6 +8280,13 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     const cardId = resolveMemoryCardId(input.cardId, 'memory workbench production trial')
     const createdAt = now()
     const month = normalizeMemoryQualityMonth(input.month, createdAt)
+    const requestedReplaySessionId = typeof input.replayPackId === 'string'
+      ? input.replayPackId.trim().replace(/^session:/u, '')
+      : ''
+    const selectedWorkingMemoryCheckpoint = requestedReplaySessionId
+      ? await getWorkingMemoryCheckpoint(cardId, requestedReplaySessionId)
+      : (await listWorkingMemoryCheckpoints(cardId, { limit: 1 }))[0] ?? null
+    const replaySessionId = selectedWorkingMemoryCheckpoint?.sessionId ?? null
     const labels = await listAllMemoryQualityGoldLabels({ cardId, month })
     const semantic = await getMemoryWorkbenchRecallProbeSemantic({ cardId })
     const personaSnapshot = await getPersonaTrainingDataset({ cardId }).catch(() => null)
@@ -8049,6 +8299,96 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       cardId,
       checkpoints: workingMemoryCheckpoints,
     })
+    const [queueResult, recallResult, embeddingResult] = await Promise.allSettled([
+      getMemoryWorkbenchQueueHealth({ cardId }),
+      getMemoryWorkbenchRecallHealth({ cardId }),
+      getMemoryWorkbenchEmbeddingHealth({ cardId }),
+    ])
+    const runtimeHealthErrors: string[] = []
+    const queueHealth: AlicizationMemoryWorkbenchHealth['queue'] = queueResult.status === 'fulfilled'
+      ? queueResult.value
+      : {
+          pending: 0,
+          review: 0,
+          applied: 0,
+          failed: 0,
+          deadLettered: 0,
+        }
+    if (queueResult.status === 'rejected') {
+      runtimeHealthErrors.push(`queue health unavailable: ${errorMessageFrom(queueResult.reason) ?? String(queueResult.reason)}`)
+    }
+    const recallHealth: AlicizationMemoryWorkbenchHealth['recall'] = recallResult.status === 'fulfilled'
+      ? recallResult.value
+      : {
+          lastLatencyMs: null,
+          p95LatencyMs: null,
+          lastError: errorMessageFrom(recallResult.reason) ?? String(recallResult.reason),
+        }
+    if (recallResult.status === 'rejected') {
+      runtimeHealthErrors.push(`recall health unavailable: ${errorMessageFrom(recallResult.reason) ?? String(recallResult.reason)}`)
+    }
+    const embeddingHealth: AlicizationMemoryWorkbenchHealth['embedding'] = embeddingResult.status === 'fulfilled'
+      ? embeddingResult.value
+      : {
+          providerConfigured: false,
+          modelId: null,
+          dimensions: null,
+          vectorSpaceId: null,
+          reindexRequired: true,
+          indexMode: 'brute-force',
+          approximate: false,
+          degraded: true,
+          nativeIndexReady: false,
+          searchReady: false,
+          lastError: errorMessageFrom(embeddingResult.reason) ?? String(embeddingResult.reason),
+          canonicalCount: 0,
+          indexedCount: 0,
+          missingCount: 0,
+          textHashMismatchCount: 0,
+          staleOrFailedCount: 0,
+          orphanedCount: 0,
+          coverageRatio: null,
+          reindexJob: null,
+        }
+    if (embeddingResult.status === 'rejected') {
+      runtimeHealthErrors.push(`embedding health unavailable: ${errorMessageFrom(embeddingResult.reason) ?? String(embeddingResult.reason)}`)
+    }
+    const runtimeHealth: MemoryProductionTrialRuntimeHealth = {
+      queue: {
+        pending: queueHealth.pending,
+        review: queueHealth.review,
+        applied: queueHealth.applied,
+        failed: queueHealth.failed,
+        deadLettered: queueHealth.deadLettered,
+      },
+      recall: {
+        lastLatencyMs: recallHealth.lastLatencyMs,
+        p95LatencyMs: recallHealth.p95LatencyMs,
+        lastError: recallHealth.lastError,
+      },
+      embedding: {
+        providerConfigured: embeddingHealth.providerConfigured,
+        modelId: embeddingHealth.modelId,
+        dimensions: embeddingHealth.dimensions,
+        vectorSpaceId: embeddingHealth.vectorSpaceId,
+        reindexRequired: embeddingHealth.reindexRequired,
+        indexMode: embeddingHealth.indexMode,
+        approximate: embeddingHealth.approximate,
+        degraded: embeddingHealth.degraded,
+        nativeIndexReady: embeddingHealth.nativeIndexReady,
+        searchReady: embeddingHealth.searchReady,
+        lastError: embeddingHealth.lastError,
+        canonicalCount: embeddingHealth.canonicalCount,
+        indexedCount: embeddingHealth.indexedCount,
+        missingCount: embeddingHealth.missingCount,
+        textHashMismatchCount: embeddingHealth.textHashMismatchCount,
+        staleOrFailedCount: embeddingHealth.staleOrFailedCount,
+        orphanedCount: embeddingHealth.orphanedCount,
+        coverageRatio: embeddingHealth.coverageRatio,
+        reindexJob: embeddingHealth.reindexJob,
+      },
+      errors: runtimeHealthErrors,
+    }
     const longTerm = labels.map((label) => {
       const shouldAbstain = label.evaluationClass === 'should-abstain'
       const falseRecall = label.evaluationClass === 'false-recall'
@@ -8088,16 +8428,123 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         now,
       }
     })
+    const dialogueReplay = async () => {
+      if (!replaySessionId) {
+        return {
+          id: `memory-db-replay:${cardId}:unavailable:${createdAt}`,
+          passed: false,
+          turnCount: 0,
+          error: requestedReplaySessionId
+            ? `会话 ${requestedReplaySessionId} 不属于当前机体的 WorkingMemory 范围，无法运行真实对话回放。`
+            : '没有找到当前机体可用的 WorkingMemory 会话，无法运行真实对话回放。',
+          recommendedNextActions: [
+            requestedReplaySessionId
+              ? '选择当前机体已有的 WorkingMemory 会话后再运行质量试用。'
+              : '先完成至少一轮本地对话，让 WorkingMemory checkpoint 持久化后再运行质量试用。',
+          ],
+        }
+      }
+
+      const persistedTurns = await listConversationTurnsBySession(replaySessionId, {
+        limit: 500,
+      })
+      const replayTurns = persistedTurns
+        .map((row, index) => {
+          const userText = typeof row.userText === 'string' ? row.userText.trim() : ''
+          if (!userText)
+            return null
+
+          const turnId = typeof row.turnId === 'string' && row.turnId.trim()
+            ? row.turnId.trim()
+            : `persisted-replay-turn-${index + 1}`
+          return {
+            row,
+            turn: {
+              turnId,
+              userText,
+              now: row.createdAt,
+            },
+          }
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null)
+
+      if (replayTurns.length === 0) {
+        return {
+          id: `memory-db-replay:${cardId}:${replaySessionId}:${createdAt}`,
+          passed: false,
+          turnCount: 0,
+          error: `会话 ${replaySessionId} 没有可回放的用户消息。`,
+          recommendedNextActions: [
+            '选择包含用户消息和助手回复的本地会话后再运行质量试用。',
+          ],
+        }
+      }
+
+      const assistantTextByTurnId = new Map(
+        replayTurns.map(({ row, turn }) => [
+          turn.turnId,
+          typeof row.assistantText === 'string' ? row.assistantText : '',
+        ]),
+      )
+      // A selected session identifies the replay source; replay itself rebuilds
+      // WorkingMemory from persisted turns so the current checkpoint is not
+      // replayed a second time.
+      let replayCheckpoint: WorkingMemorySnapshot | null = null
+      const replayReport = await replayMemoryDialogue({
+        id: `memory-db-replay:${cardId}:${replaySessionId}:${createdAt}`,
+        cardId,
+        sessionId: replaySessionId,
+        userId: 'local-user',
+        turns: replayTurns.map(item => item.turn),
+        db: {
+          getWorkingMemoryCheckpoint: async (lookupCardId, lookupSessionId) => {
+            if (
+              lookupCardId !== cardId
+              || lookupSessionId !== replaySessionId
+              || !replayCheckpoint
+            ) {
+              return null
+            }
+            return structuredClone(replayCheckpoint)
+          },
+          upsertWorkingMemoryCheckpoint: async (snapshot) => {
+            replayCheckpoint = structuredClone(snapshot)
+          },
+          retrieveLongTermMemoryEvidence: async recallInput =>
+            await retrieveLongTermMemoryEvidence(recallInput),
+        },
+        provider: {
+          generate: async ({ turnId }) => ({
+            text: assistantTextByTurnId.get(turnId) ?? '',
+          }),
+        },
+        maxRawTurns: 6,
+        recallLimit: 5,
+      })
+
+      return {
+        id: replayReport.id,
+        passed: replayReport.passed,
+        turnCount: replayReport.summary.turnCount,
+        report: replayReport,
+        error: replayReport.summary.lastError,
+        recommendedNextActions: replayReport.passed
+          ? []
+          : ['检查持久化会话中的空助手回复、WorkingMemory 压缩或长期记忆召回失败。'],
+      }
+    }
     const report = await runMemoryProductionTrialRunner({
       id: `memory-production-trial:${cardId}:${month}:${createdAt}`,
       cardId,
       createdAt,
+      dialogueReplay,
       workingMemory: buildWorkingMemoryQualityFixturesFromCheckpoints({
         checkpoints: workingMemoryCheckpoints,
         createdAt,
       }),
       compressedContextBehavior,
       experienceQuality,
+      runtimeHealth,
       longTerm,
       personaTraining: personaSnapshot
         ? buildPersonaDatasetQualityFixturesFromSnapshot({
@@ -8259,26 +8706,68 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
 
   async function exportPersonaTrainingDataset(input: { cardId: string, datasetId?: string | null }) {
     const cardId = resolveMemoryCardId(input.cardId, 'persona training dataset export')
-    return await personaTrainingDatasetRuntime.exportVersion({
+    const exported = await personaTrainingDatasetRuntime.exportVersion({
       cardId,
       datasetId: input.datasetId,
     })
+    await appendAuditLog({
+      level: 'notice',
+      category: 'persona-training-dataset',
+      action: 'dataset-exported',
+      message: 'Persona training dataset manifest exported.',
+      payload: {
+        cardId,
+        datasetId: exported.dataset.id,
+        manifestHash: exported.manifest.manifestHash,
+        exampleCount: exported.manifest.exampleCount,
+        qualityGatePassed: exported.qualityGate.passed,
+      },
+    })
+    return exported
   }
 
   async function activatePersonaTrainingDataset(input: { cardId: string, datasetId: string }) {
     const cardId = resolveMemoryCardId(input.cardId, 'persona training dataset activation')
-    return await personaTrainingDatasetRuntime.activateVersion({
+    const activated = await personaTrainingPipelineGate.activateVersion({
       cardId,
       datasetId: input.datasetId,
     })
+    if (activated) {
+      await appendAuditLog({
+        level: 'notice',
+        category: 'persona-training-dataset',
+        action: 'dataset-activated',
+        message: 'Persona training dataset version activated.',
+        payload: {
+          cardId,
+          datasetId: activated.id,
+          version: activated.version,
+        },
+      })
+    }
+    return activated
   }
 
   async function rollbackPersonaTrainingDataset(input: { cardId: string, datasetId: string }) {
     const cardId = resolveMemoryCardId(input.cardId, 'persona training dataset rollback')
-    return await personaTrainingDatasetRuntime.rollbackVersion({
+    const rolledBack = await personaTrainingPipelineGate.rollbackVersion({
       cardId,
       datasetId: input.datasetId,
     })
+    if (rolledBack) {
+      await appendAuditLog({
+        level: 'warning',
+        category: 'persona-training-dataset',
+        action: 'dataset-rolled-back',
+        message: 'Persona training dataset version rolled back.',
+        payload: {
+          cardId,
+          datasetId: rolledBack.id,
+          version: rolledBack.version,
+        },
+      })
+    }
+    return rolledBack
   }
 
   async function setPersonaTrainingDatasetExamplePolicy(input: {
@@ -8298,10 +8787,53 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
 
   async function revokePersonaTrainingDatasetSource(input: { cardId: string, sourceId: string }) {
     const cardId = resolveMemoryCardId(input.cardId, 'persona training dataset source revoke')
-    return await personaTrainingDatasetRuntime.revokeSource({
+    const revoked = await personaTrainingPipelineGate.revokeSource({
       cardId,
       sourceId: input.sourceId,
     })
+    await appendAuditLog({
+      level: 'warning',
+      category: 'persona-training-dataset',
+      action: 'source-revoked',
+      message: 'Persona training dataset source revoked.',
+      payload: {
+        cardId,
+        sourceId: input.sourceId,
+        affected: revoked.affected,
+      },
+    })
+    return revoked
+  }
+
+  async function runPersonaTraining(input: { cardId: string, datasetId?: string | null }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'persona training run')
+    return await personaTrainingPipelineGate.train({
+      cardId,
+      datasetId: input.datasetId,
+    })
+  }
+
+  async function cancelPersonaTraining(input: { cardId: string, runId: string, reason?: string | null }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'persona training cancellation')
+    return await personaTrainingPipelineGate.cancel({
+      runId: input.runId,
+      cardId,
+      reason: input.reason,
+    })
+  }
+
+  async function rollbackPersonaTrainingIncrement(input: { cardId: string, incrementId: string }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'persona training increment rollback')
+    return await personaTrainingPipelineGate.rollbackIncrement({
+      incrementId: input.incrementId,
+      cardId,
+    })
+  }
+
+  async function listPersonaTrainingIncrements(input: { cardId: string }) {
+    const persisted = await personaTrainingPipelineGate.listPersistedIncrements()
+    const cardId = resolveMemoryCardId(input.cardId, 'persona training increment list')
+    return persisted.filter(increment => increment.cardId === cardId)
   }
 
   async function runMemoryPrune() {
@@ -8584,6 +9116,10 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     rollbackPersonaTrainingDataset,
     setPersonaTrainingDatasetExamplePolicy,
     revokePersonaTrainingDatasetSource,
+    runPersonaTraining,
+    cancelPersonaTraining,
+    rollbackPersonaTrainingIncrement,
+    listPersonaTrainingIncrements,
     enqueueWorkingMemoryLongTermQueueItems,
     drainWorkingMemoryLongTermQueue,
     drainWorkingMemoryLongTermQueueScoped,

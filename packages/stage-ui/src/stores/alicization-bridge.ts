@@ -491,6 +491,43 @@ export interface AlicizationMemoryQualityTrialPayload extends AlicizationCardSco
   replayPackId?: string | null
 }
 
+export interface AlicizationMemoryDialogueReplayReport {
+  version: 'memory-db-dialogue-replay-report-v1'
+  id: string
+  passed: boolean
+  createdAt: number
+  summary: {
+    turnCount: number
+    succeededTurnCount: number
+    failedTurnCount: number
+    checkpointWriteCount: number
+    personaWriteCount: number
+    recalledEvidenceCount: number
+    lastError: string | null
+  }
+  turns: Array<{
+    turnId: string
+    status: 'succeeded' | 'failed'
+    providerOutput: string | null
+    providerMessages: Array<{
+      role: 'system' | 'user' | 'assistant'
+      content: string
+    }>
+    recalledEvidenceIds: string[]
+    stages: Array<{
+      name: 'hydration' | 'compression' | 'context-assembly' | 'recall' | 'provider-adapter' | 'commit'
+      status: 'succeeded' | 'failed'
+      details: Record<string, unknown>
+      error: string | null
+    }>
+    writeback: {
+      checkpoint: 'written' | 'skipped'
+      persona: 'written' | 'skipped'
+    }
+    error: string | null
+  }>
+}
+
 export interface AlicizationMemoryQualityTrialReport {
   version: 'memory-production-trial-runner-v1'
   id: string
@@ -520,6 +557,43 @@ export interface AlicizationMemoryQualityTrialReport {
     itemCount: number
     error: string | null
   }>
+  dialogueReplay: AlicizationMemoryDialogueReplayReport | null
+  runtimeHealth: {
+    queue: {
+      pending: number
+      review: number
+      applied: number
+      failed: number
+      deadLettered: number
+    }
+    recall: {
+      lastLatencyMs: number | null
+      p95LatencyMs: number | null
+      lastError: string | null
+    }
+    embedding: {
+      providerConfigured: boolean
+      modelId: string | null
+      dimensions: number | null
+      vectorSpaceId: string | null
+      reindexRequired: boolean
+      indexMode: 'sqlite-vec' | 'hnsw' | 'ann' | 'brute-force'
+      approximate: boolean
+      degraded: boolean
+      nativeIndexReady: boolean
+      searchReady: boolean
+      lastError: string | null
+      canonicalCount: number
+      indexedCount: number
+      missingCount: number
+      textHashMismatchCount: number
+      staleOrFailedCount: number
+      orphanedCount: number
+      coverageRatio: number | null
+      reindexJob: AlicizationMemoryEmbeddingProgress | null
+    }
+    errors: string[]
+  } | null
   quality: {
     passed: boolean
     summary: {
@@ -663,6 +737,75 @@ export interface AlicizationPersonaCandidateActionPayload extends AlicizationCar
   candidateId: string
   decision: AlicizationPersonaCandidateWorkbenchDecision
   reason?: string | null
+}
+
+export type AlicizationPersonaTrainingPipelineIncrementState = 'available' | 'rolled-back' | 'revoked'
+
+export interface AlicizationPersonaTrainingPipelineIncrement {
+  id: string
+  kind: 'persona-lora-increment'
+  cardId: string
+  datasetId: string
+  manifestHash: string
+  sourceIds: string[]
+  basePersonaRevision: string
+  artifact: unknown
+  state: AlicizationPersonaTrainingPipelineIncrementState
+  createdAt: number
+}
+
+export type AlicizationPersonaTrainingPipelineFailureReason
+  = 'executor-failed'
+    | 'source-revoked'
+    | 'dataset-rolled-back'
+    | 'dataset-not-active'
+    | 'manifest-no-longer-usable'
+    | 'cancelled'
+
+export type AlicizationPersonaTrainingPipelineResult
+  = {
+    status: 'succeeded'
+    runId: string
+    increment: AlicizationPersonaTrainingPipelineIncrement
+  }
+  | {
+    status: 'failed'
+    runId: string
+    reason: AlicizationPersonaTrainingPipelineFailureReason
+    error: string
+  }
+
+export interface AlicizationPersonaTrainingRunPayload extends AlicizationCardScope {
+  datasetId?: string | null
+}
+
+export interface AlicizationPersonaTrainingCancelPayload extends AlicizationCardScope {
+  runId: string
+  reason?: string | null
+}
+
+export interface AlicizationPersonaTrainingIncrementPayload extends AlicizationCardScope {
+  incrementId: string
+}
+
+export interface AlicizationPersonaTrainingIncrementsResult {
+  items: AlicizationPersonaTrainingPipelineIncrement[]
+}
+
+export type AlicizationSkillWorkbenchRisk = 'low' | 'medium' | 'high' | 'critical'
+export type AlicizationSkillWorkbenchEvaluationStatus = 'unvalidated' | 'sandbox-passed' | 'replay-passed' | 'approved' | 'failed'
+export type AlicizationSkillWorkbenchActivationStatus = 'candidate' | 'active' | 'rolled-back' | 'revoked'
+
+export interface AlicizationSkillWorkbenchItem {
+  id: string
+  version: string
+  description: string
+  dependencies: string[]
+  requiredTools: string[]
+  permissions: string[]
+  risk: AlicizationSkillWorkbenchRisk
+  evaluationStatus: AlicizationSkillWorkbenchEvaluationStatus
+  activationStatus: AlicizationSkillWorkbenchActivationStatus
 }
 
 export interface AlicizationMemoryEmbeddingReindexPayload extends AlicizationCardScope {
@@ -2593,6 +2736,14 @@ interface AlicizationBridge {
   memoryWorkbenchRollbackPersonaTrainingDataset?: (payload: Omit<Required<AlicizationPersonaTrainingDatasetVersionPayload>, 'cardId'>) => Promise<AlicizationPersonaTrainingDatasetVersion | null>
   memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy?: (payload: Omit<AlicizationPersonaTrainingDatasetExamplePolicyPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingDatasetExample | null>
   memoryWorkbenchRevokePersonaTrainingDatasetSource?: (payload: { sourceId: string }) => Promise<{ affected: number }>
+  memoryWorkbenchRunPersonaTraining?: (payload: Omit<AlicizationPersonaTrainingRunPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingPipelineResult>
+  memoryWorkbenchCancelPersonaTraining?: (payload: Omit<AlicizationPersonaTrainingCancelPayload, 'cardId'>) => Promise<boolean>
+  memoryWorkbenchRollbackPersonaTrainingIncrement?: (payload: Omit<AlicizationPersonaTrainingIncrementPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingPipelineIncrement | null>
+  memoryWorkbenchListPersonaTrainingIncrements?: () => Promise<AlicizationPersonaTrainingIncrementsResult>
+  skillWorkbenchList?: (payload: { productionOnly?: boolean }) => Promise<{ items: AlicizationSkillWorkbenchItem[] }>
+  skillWorkbenchActivate?: (payload: { id: string, version: string }) => Promise<AlicizationSkillWorkbenchItem>
+  skillWorkbenchRollback?: (payload: { id: string, version: string }) => Promise<AlicizationSkillWorkbenchItem>
+  skillWorkbenchRevoke?: (payload: { id: string, version: string }) => Promise<AlicizationSkillWorkbenchItem>
   memoryWorkbenchReindexEmbeddings?: (payload: Omit<AlicizationMemoryEmbeddingReindexPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingReindexResult>
   memoryWorkbenchListEmbeddingModels?: (payload: Omit<AlicizationMemoryEmbeddingModelListPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingModelListResult>
   memoryWorkbenchTestEmbeddingConnection?: (payload: Omit<AlicizationMemoryEmbeddingConnectionTestPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingConnectionTestResult>
