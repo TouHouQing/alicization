@@ -165,6 +165,25 @@ describe('chat tool projection', () => {
     }))
   })
 
+  it('surfaces dead-lettered tools as manual-review state instead of ordinary failure', () => {
+    expect(buildChatExecutionStatusFromProjection(toolCard({
+      phase: 'dead-lettered',
+      errorCode: 'SIDE_EFFECT_RECONCILIATION_EXHAUSTED',
+      errorMessage: '动作已经执行，但无法安全确认最终状态。',
+      result: {
+        finalStatus: 'dead-lettered',
+        summary: '需要人工核对本地状态。',
+      },
+    }))).toEqual(expect.objectContaining({
+      type: 'execution-status',
+      phase: 'tool-dead-lettered',
+      toolCallId: 'tool-call-recovered',
+      toolName: 'coding_agent',
+      errorCode: 'SIDE_EFFECT_RECONCILIATION_EXHAUSTED',
+      label: 'Codex 需要人工核对: 需要人工核对本地状态。',
+    }))
+  })
+
   it('does not infer an execution channel from the tool name', () => {
     expect(buildChatExecutionStatusFromProjection(toolCard({
       toolName: 'codex',

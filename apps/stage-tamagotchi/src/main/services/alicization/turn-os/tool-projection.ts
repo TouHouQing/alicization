@@ -11,6 +11,7 @@ import type {
 import {
   createAlicizationRuntimeToolProjectionReducer,
   normalizeAlicizationExecutionChannel,
+  resolveAlicizationRuntimeToolResultPhase,
 } from '@proj-alicization/stage-shared'
 
 export interface AlicizationReplayedToolProjection {
@@ -53,6 +54,7 @@ const progressPhases = new Set<AlicizationRuntimeToolProjectionPhase>([
   'running',
   'completed',
   'failed',
+  'dead-lettered',
   'cancelled',
   'timeout',
 ])
@@ -201,14 +203,24 @@ function progressSignal(value: unknown) {
 function progressPhase(value: unknown): AlicizationRuntimeToolProjectionPhase {
   return typeof value === 'string'
     && progressPhases.has(value as AlicizationRuntimeToolProjectionPhase)
-    ? value as 'started' | 'running'
+    ? value as AlicizationRuntimeToolProjectionPhase
     : 'running'
 }
 
-function observationPhase(outcome: unknown): Extract<
+function observationPhase(
+  outcome: unknown,
+  output: unknown,
+  observationPayload: unknown,
+): Extract<
   AlicizationRuntimeToolProjectionPhase,
-  'completed' | 'failed' | 'cancelled'
+  'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'
 > {
+  if (
+    resolveAlicizationRuntimeToolResultPhase(output) === 'dead-lettered'
+    || resolveAlicizationRuntimeToolResultPhase(observationPayload) === 'dead-lettered'
+  ) {
+    return 'dead-lettered'
+  }
   if (outcome === 'success')
     return 'completed'
   if (outcome === 'cancelled')
@@ -218,22 +230,26 @@ function observationPhase(outcome: unknown): Extract<
 
 function terminalEventPhase(
   eventType: AlicizationRuntimeEventEnvelope['eventType'],
-): Extract<AlicizationRuntimeToolProjectionPhase, 'failed' | 'cancelled'> | null {
+): Extract<AlicizationRuntimeToolProjectionPhase, 'failed' | 'dead-lettered' | 'cancelled'> | null {
   if (eventType === 'action.cancelled')
     return 'cancelled'
-  if (eventType === 'action.failed' || eventType === 'action.dead_lettered')
+  if (eventType === 'action.dead_lettered')
+    return 'dead-lettered'
+  if (eventType === 'action.failed')
     return 'failed'
   return null
 }
 
 function terminalTurnToolPhase(
   eventType: AlicizationRuntimeEventEnvelope['eventType'],
-): Extract<AlicizationRuntimeToolProjectionPhase, 'failed' | 'cancelled' | 'timeout'> | null {
+): Extract<AlicizationRuntimeToolProjectionPhase, 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'> | null {
   if (eventType === 'runtime.cancelled')
     return 'cancelled'
   if (eventType === 'runtime.timed_out')
     return 'timeout'
-  if (eventType === 'runtime.dead_lettered' || eventType === 'turn.failed')
+  if (eventType === 'runtime.dead_lettered')
+    return 'dead-lettered'
+  if (eventType === 'turn.failed')
     return 'failed'
   return null
 }
@@ -480,7 +496,10 @@ AlicizationRuntimeToolEventProjector {
         })
       }
 
-      const phase = observationPhase(payload.outcome)
+      const output = Object.prototype.hasOwnProperty.call(payload, 'output')
+        ? payload.output
+        : undefined
+      const phase = observationPhase(payload.outcome, output, payload)
       const errorCode = readText(payload.errorCode)
       const errorMessage = readText(payload.errorMessage) || readText(payload.error)
       const resultFact = {
@@ -489,9 +508,7 @@ AlicizationRuntimeToolEventProjector {
         toolName: identity.toolName,
         selectedChannel: identity.selectedChannel,
         phase,
-        result: Object.prototype.hasOwnProperty.call(payload, 'output')
-          ? payload.output
-          : undefined,
+        result: output,
       } as AlicizationRuntimeToolProjectionFact
       if (errorCode || errorMessage) {
         reduceProjectedFact(identity, {

@@ -1036,7 +1036,7 @@ function handleAlicizationChatStreamToolCall(payload?: AlicizationChatToolCallEv
     toolCallId: payload.toolCallId,
     toolName: payload.toolName,
     ...(payload.selectedChannel !== undefined ? { selectedChannel: payload.selectedChannel } : {}),
-    ...(payload.projection ? { projection: payload.projection } : {}),
+    projection: payload.projection,
     args: JSON.stringify(payload.arguments ?? {}),
     toolCallType: 'function',
   })
@@ -1053,7 +1053,7 @@ function handleAlicizationChatStreamToolResult(payload?: AlicizationChatToolResu
     toolCallId: payload.toolCallId,
     ...(payload.toolName ? { toolName: payload.toolName } : {}),
     ...(payload.selectedChannel !== undefined ? { selectedChannel: payload.selectedChannel } : {}),
-    ...(payload.projection ? { projection: payload.projection } : {}),
+    projection: payload.projection,
     result: payload.result,
   })
 }
@@ -1069,7 +1069,7 @@ function handleAlicizationChatStreamToolProgress(payload?: AlicizationChatToolPr
     toolCallId: payload.toolCallId,
     toolName: payload.toolName,
     ...(payload.selectedChannel !== undefined ? { selectedChannel: payload.selectedChannel } : {}),
-    ...(payload.projection ? { projection: payload.projection } : {}),
+    projection: payload.projection,
     phase: payload.phase,
     ...(payload.signal ? { signal: payload.signal } : {}),
     elapsedMs: payload.elapsedMs,

@@ -1,6 +1,33 @@
-import type { ChatHistoryItem } from '../../types/chat'
+import type {
+  ChatHistoryItem,
+  ChatSlicesExecutionStatus,
+  ChatSlicesToolCallResult,
+} from '../../types/chat'
 
 import { normalizeDialogueStructuredArtifact } from '../../composables/alicization-structured-output'
+
+type ChatAssistantMessage = Extract<ChatHistoryItem, { role: 'assistant' }>
+type ChatToolResult = ChatAssistantMessage['tool_results'][number]
+
+const settledExecutionPhases = new Set<ChatSlicesExecutionStatus['phase']>([
+  'completed',
+  'tool-cancelled',
+  'tool-dead-lettered',
+  'tool-failed',
+  'tool-timeout',
+])
+
+const settledToolResultStatuses = new Set([
+  'cancelled',
+  'completed',
+  'dead-lettered',
+  'failed',
+  'timeout',
+  'tool-cancelled',
+  'tool-dead-lettered',
+  'tool-failed',
+  'tool-timeout',
+])
 
 function extractMessageContent(message: ChatHistoryItem) {
   if (typeof message.content === 'string')
@@ -111,6 +138,100 @@ function cloneValue<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
+function mergeExecutionStatus(
+  existing: ChatSlicesExecutionStatus,
+  next: ChatSlicesExecutionStatus,
+) {
+  if (settledExecutionPhases.has(existing.phase))
+    return existing
+
+  return {
+    ...existing,
+    ...next,
+    toolName: next.toolName ?? existing.toolName,
+    elapsedMs: next.elapsedMs ?? existing.elapsedMs,
+    timeoutMs: next.timeoutMs ?? existing.timeoutMs,
+    errorCode: next.errorCode ?? existing.errorCode,
+    errorMessage: next.errorMessage ?? existing.errorMessage,
+    signal: next.signal ?? existing.signal,
+    adapterEventType: next.adapterEventType ?? existing.adapterEventType,
+    itemType: next.itemType ?? existing.itemType,
+    summary: next.summary ?? existing.summary,
+    command: next.command ?? existing.command,
+    commandStatus: next.commandStatus ?? existing.commandStatus,
+    commandExitCode: next.commandExitCode ?? existing.commandExitCode,
+    outputPreview: next.outputPreview ?? existing.outputPreview,
+    source: next.source ?? existing.source,
+    category: next.category ?? existing.category,
+  }
+}
+
+function extractToolResultStatus(result: unknown) {
+  if (!result || typeof result !== 'object' || Array.isArray(result))
+    return ''
+
+  const status = (result as Record<string, unknown>).status
+  return typeof status === 'string' ? status.trim().toLowerCase() : ''
+}
+
+function hasMeaningfulToolResult(result: unknown) {
+  if (result === undefined || result === null)
+    return false
+  if (typeof result === 'string')
+    return result.trim().length > 0
+  if (Array.isArray(result))
+    return result.length > 0
+  if (typeof result === 'object')
+    return Object.keys(result).length > 0
+  return true
+}
+
+function mergeToolResultValue(existing: unknown, next: unknown) {
+  if (!hasMeaningfulToolResult(next))
+    return existing
+  if (!hasMeaningfulToolResult(existing))
+    return next
+
+  const existingIsSettled = settledToolResultStatuses.has(extractToolResultStatus(existing))
+  if (existingIsSettled)
+    return existing
+
+  if (
+    existing
+    && next
+    && typeof existing === 'object'
+    && typeof next === 'object'
+    && !Array.isArray(existing)
+    && !Array.isArray(next)
+  ) {
+    return {
+      ...existing,
+      ...next,
+    }
+  }
+
+  return next
+}
+
+function mergeToolResult(existing: ChatToolResult, next: ChatToolResult): ChatToolResult {
+  return {
+    ...existing,
+    ...next,
+    result: mergeToolResultValue(existing.result, next.result),
+  }
+}
+
+function mergeToolCallResultSlice(
+  existing: ChatSlicesToolCallResult,
+  next: ChatSlicesToolCallResult,
+): ChatSlicesToolCallResult {
+  return {
+    ...existing,
+    ...next,
+    result: mergeToolResultValue(existing.result, next.result),
+  }
+}
+
 function sanitizeCanonicalMessage(message: ChatHistoryItem) {
   const cloned = cloneValue(message)
   if (cloned.role !== 'assistant' || !cloned.structured)
@@ -179,17 +300,71 @@ function mergeEquivalentMessages(left: ChatHistoryItem, right: ChatHistoryItem):
     merged.content = cloneValue(secondary.content)
 
   if (merged.role === 'assistant') {
-    const primaryAssistant = primary as Extract<ChatHistoryItem, { role: 'assistant' }>
-    const secondaryAssistant = secondary as Extract<ChatHistoryItem, { role: 'assistant' }>
-    const mergedAssistant = merged as Extract<ChatHistoryItem, { role: 'assistant' }>
+    const leftAssistant = left as ChatAssistantMessage
+    const rightAssistant = right as ChatAssistantMessage
+    const primaryAssistant = primary as ChatAssistantMessage
+    const secondaryAssistant = secondary as ChatAssistantMessage
+    const mergedAssistant = merged as ChatAssistantMessage
 
     mergedAssistant.origin = primaryAssistant.origin ?? secondaryAssistant.origin
-    mergedAssistant.slices = (primaryAssistant.slices?.length ?? 0) >= (secondaryAssistant.slices?.length ?? 0)
-      ? cloneValue(primaryAssistant.slices) ?? []
-      : cloneValue(secondaryAssistant.slices) ?? []
-    mergedAssistant.tool_results = (primaryAssistant.tool_results?.length ?? 0) >= (secondaryAssistant.tool_results?.length ?? 0)
-      ? cloneValue(primaryAssistant.tool_results) ?? []
-      : cloneValue(secondaryAssistant.tool_results) ?? []
+    const mergedSlices = cloneValue(leftAssistant.slices) ?? []
+    for (const slice of cloneValue(rightAssistant.slices) ?? []) {
+      if (slice.type === 'execution-status' && slice.toolCallId) {
+        const existingIndex = mergedSlices.findIndex(candidate => (
+          candidate.type === 'execution-status'
+          && candidate.toolCallId === slice.toolCallId
+        ))
+        if (existingIndex >= 0) {
+          const existing = mergedSlices[existingIndex]
+          if (existing?.type === 'execution-status')
+            mergedSlices.splice(existingIndex, 1, mergeExecutionStatus(existing, slice))
+          continue
+        }
+      }
+      if (slice.type === 'tool-call-result') {
+        const existingIndex = mergedSlices.findIndex(candidate => (
+          candidate.type === 'tool-call-result'
+          && candidate.id === slice.id
+        ))
+        if (existingIndex >= 0) {
+          const existing = mergedSlices[existingIndex]
+          if (existing?.type === 'tool-call-result')
+            mergedSlices.splice(existingIndex, 1, mergeToolCallResultSlice(existing, slice))
+          continue
+        }
+      }
+      if (slice.type === 'tool-call') {
+        const toolCallId = typeof slice.toolCall?.toolCallId === 'string' ? slice.toolCall.toolCallId : ''
+        const existingIndex = toolCallId
+          ? mergedSlices.findIndex(candidate => (
+              candidate.type === 'tool-call'
+              && candidate.toolCall?.toolCallId === toolCallId
+            ))
+          : -1
+        if (existingIndex >= 0) {
+          mergedSlices.splice(existingIndex, 1, slice)
+          continue
+        }
+      }
+      if (
+        slice.type === 'text'
+        && mergedSlices.some(candidate => candidate.type === 'text' && candidate.text === slice.text)
+      ) {
+        continue
+      }
+      mergedSlices.push(slice)
+    }
+    mergedAssistant.slices = mergedSlices
+
+    const mergedToolResults = cloneValue(leftAssistant.tool_results) ?? []
+    for (const result of cloneValue(rightAssistant.tool_results) ?? []) {
+      const existingIndex = mergedToolResults.findIndex(candidate => candidate.id === result.id)
+      if (existingIndex >= 0)
+        mergedToolResults.splice(existingIndex, 1, mergeToolResult(mergedToolResults[existingIndex], result))
+      else
+        mergedToolResults.push(result)
+    }
+    mergedAssistant.tool_results = mergedToolResults
 
     const primaryStructuredScore = primaryAssistant.structured?.thought?.trim()
       || primaryAssistant.structured?.reply?.trim()

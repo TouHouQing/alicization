@@ -173,6 +173,228 @@ describe('mergeLoadedSessionMessages', () => {
     })
   })
 
+  it('merges recovered execution slices and tool results by canonical toolCallId', () => {
+    const stableTurnId = 'chat:session-1:turn-tool-recovery'
+    const canonical = canonicalizeSessionMessages([
+      {
+        role: 'assistant',
+        content: '检查已经完成。',
+        createdAt: 25_000,
+        id: stableTurnId,
+        slices: [
+          { type: 'text', text: '检查已经完成。' },
+          {
+            type: 'execution-status',
+            phase: 'completed',
+            toolCallId: 'tool-recovered',
+            toolName: 'coding_agent',
+            label: 'Codex 已经拿到结果',
+          },
+        ],
+        tool_results: [{
+          id: 'tool-recovered',
+          result: { status: 'completed' },
+        }],
+      },
+      {
+        role: 'assistant',
+        content: '检查已经完成。',
+        createdAt: 25_100,
+        id: 'temporary-tool-recovery-message',
+        slices: [
+          { type: 'text', text: '检查已经完成。' },
+          {
+            type: 'execution-status',
+            phase: 'tool-failed',
+            toolCallId: 'tool-other',
+            toolName: 'cli',
+            label: 'CLI 没有跑通',
+          },
+        ],
+        tool_results: [{
+          id: 'tool-other',
+          result: { status: 'failed' },
+        }],
+      },
+    ])
+
+    const assistant = canonical.find(message => message.role === 'assistant') as Extract<
+      ChatHistoryItem,
+      { role: 'assistant' }
+    >
+    assert.deepEqual(
+      assistant.slices.filter(slice => slice.type === 'execution-status').map(slice => slice.toolCallId),
+      ['tool-recovered', 'tool-other'],
+    )
+    assert.deepEqual(
+      assistant.tool_results.map(result => result.id),
+      ['tool-recovered', 'tool-other'],
+    )
+  })
+
+  it('never downgrades a terminal execution status with running or recovery snapshots', () => {
+    const terminalPhases = [
+      'completed',
+      'tool-dead-lettered',
+      'tool-failed',
+      'tool-cancelled',
+      'tool-timeout',
+    ] as const
+
+    for (const terminalPhase of terminalPhases) {
+      const toolCallId = `tool-terminal-${terminalPhase}`
+      const canonical = canonicalizeSessionMessages([
+        {
+          role: 'assistant',
+          content: '工具已经结算。',
+          createdAt: 26_000,
+          id: `chat:session-1:turn-${terminalPhase}`,
+          slices: [{
+            type: 'execution-status',
+            phase: terminalPhase,
+            toolCallId,
+            toolName: 'coding_agent',
+            label: `terminal ${terminalPhase}`,
+            outputPreview: '真实终态输出',
+          }],
+          tool_results: [{
+            id: toolCallId,
+            result: {
+              status: terminalPhase,
+              summary: '真实终态结果',
+            },
+          }],
+        },
+        {
+          role: 'assistant',
+          content: '工具已经结算。',
+          createdAt: 26_100,
+          id: `chat:session-1:turn-${terminalPhase}`,
+          slices: [{
+            type: 'execution-status',
+            phase: 'tool-running',
+            toolCallId,
+            toolName: 'coding_agent',
+            label: '旧快照仍显示运行中',
+          }],
+          tool_results: [{
+            id: toolCallId,
+            result: {
+              status: 'running',
+            },
+          }],
+        },
+        {
+          role: 'assistant',
+          content: '工具已经结算。',
+          createdAt: 26_200,
+          id: `chat:session-1:turn-${terminalPhase}`,
+          slices: [{
+            type: 'execution-status',
+            phase: 'tool-recovery-required',
+            toolCallId,
+            toolName: 'coding_agent',
+            label: '旧快照要求恢复',
+          }],
+          tool_results: [{
+            id: toolCallId,
+          }],
+        },
+      ])
+
+      const assistant = canonical.find(message => message.role === 'assistant') as Extract<
+        ChatHistoryItem,
+        { role: 'assistant' }
+      >
+      const status = assistant.slices.find(slice => (
+        slice.type === 'execution-status'
+        && slice.toolCallId === toolCallId
+      ))
+
+      assert.equal(status?.type, 'execution-status')
+      if (status?.type !== 'execution-status')
+        throw new Error('expected execution status')
+      assert.equal(status.phase, terminalPhase)
+      assert.equal(status.outputPreview, '真实终态输出')
+      assert.deepEqual(assistant.tool_results, [{
+        id: toolCallId,
+        result: {
+          status: terminalPhase,
+          summary: '真实终态结果',
+        },
+      }])
+    }
+  })
+
+  it('lets a newer terminal snapshot replace a non-terminal execution status and result', () => {
+    const canonical = canonicalizeSessionMessages([
+      {
+        role: 'assistant',
+        content: '工具状态正在更新。',
+        createdAt: 27_000,
+        id: 'chat:session-1:turn-terminal-upgrade',
+        slices: [{
+          type: 'execution-status',
+          phase: 'tool-running',
+          toolCallId: 'tool-terminal-upgrade',
+          toolName: 'cli',
+          label: 'CLI 正在运行',
+          command: 'pnpm test',
+        }],
+        tool_results: [{
+          id: 'tool-terminal-upgrade',
+          result: {
+            status: 'running',
+          },
+        }],
+      },
+      {
+        role: 'assistant',
+        content: '工具状态正在更新。',
+        createdAt: 27_100,
+        id: 'chat:session-1:turn-terminal-upgrade',
+        slices: [{
+          type: 'execution-status',
+          phase: 'completed',
+          toolCallId: 'tool-terminal-upgrade',
+          toolName: 'cli',
+          label: 'CLI 已完成',
+          outputPreview: '全部测试通过',
+        }],
+        tool_results: [{
+          id: 'tool-terminal-upgrade',
+          result: {
+            status: 'completed',
+            summary: '全部测试通过',
+          },
+        }],
+      },
+    ])
+
+    const assistant = canonical.find(message => message.role === 'assistant') as Extract<
+      ChatHistoryItem,
+      { role: 'assistant' }
+    >
+    const status = assistant.slices.find(slice => (
+      slice.type === 'execution-status'
+      && slice.toolCallId === 'tool-terminal-upgrade'
+    ))
+
+    assert.equal(status?.type, 'execution-status')
+    if (status?.type !== 'execution-status')
+      throw new Error('expected execution status')
+    assert.equal(status.phase, 'completed')
+    assert.equal(status.command, 'pnpm test')
+    assert.equal(status.outputPreview, '全部测试通过')
+    assert.deepEqual(assistant.tool_results, [{
+      id: 'tool-terminal-upgrade',
+      result: {
+        status: 'completed',
+        summary: '全部测试通过',
+      },
+    }])
+  })
+
   it('preserves memory and runtime facts during canonicalization', () => {
     const canonical = canonicalizeSessionMessages([
       {

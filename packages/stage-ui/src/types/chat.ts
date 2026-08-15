@@ -38,8 +38,22 @@ export interface ChatSlicesToolCallResult {
 
 export interface ChatSlicesExecutionStatus {
   type: 'execution-status'
-  phase: 'planning' | 'tool-running' | 'tool-failed' | 'completed'
+  phase: 'planning' | 'tool-running' | 'tool-recovery-required' | 'tool-cancelled' | 'tool-timeout' | 'tool-failed' | 'tool-dead-lettered' | 'completed'
   label: string
+  toolCallId?: string
+  toolName?: string
+  elapsedMs?: number
+  timeoutMs?: number
+  errorCode?: string
+  errorMessage?: string
+  signal?: 'liveness' | 'semantic-progress' | 'terminal'
+  adapterEventType?: string
+  itemType?: string
+  summary?: string
+  command?: string
+  commandStatus?: string
+  commandExitCode?: number
+  outputPreview?: string
   source?: 'builtin' | 'mcp'
   category?: 'news' | 'weather' | 'finance' | 'sports'
 }

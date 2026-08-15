@@ -897,6 +897,7 @@ export type AlicizationTaskThreadStatus
     | 'completed'
     | 'failed'
     | 'cancelled'
+    | 'dead-lettered'
 
 export type AlicizationExecutionEventKind
   = | 'plan'
@@ -5699,7 +5700,7 @@ export type AlicizationBridgeChatStreamEvent
     toolCallId: string
     toolName: string
     selectedChannel?: AlicizationExecutionChannel | null
-    projection?: AlicizationRuntimeToolProjectionUpdate
+    projection: AlicizationRuntimeToolProjectionUpdate
     args: string
     toolCallType: 'function'
   }
@@ -5708,7 +5709,7 @@ export type AlicizationBridgeChatStreamEvent
     toolCallId: string
     toolName?: string
     selectedChannel?: AlicizationExecutionChannel | null
-    projection?: AlicizationRuntimeToolProjectionUpdate
+    projection: AlicizationRuntimeToolProjectionUpdate
     result?: unknown
   }
   | {
@@ -5716,9 +5717,9 @@ export type AlicizationBridgeChatStreamEvent
     toolCallId: string
     toolName: string
     selectedChannel?: AlicizationExecutionChannel | null
-    projection?: AlicizationRuntimeToolProjectionUpdate
+    projection: AlicizationRuntimeToolProjectionUpdate
     signal?: 'liveness' | 'semantic-progress' | 'terminal'
-    phase: 'started' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout'
+    phase: 'started' | 'running' | 'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'
     elapsedMs: number
     timeoutMs?: number
     errorCode?: string

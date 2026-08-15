@@ -3750,7 +3750,7 @@ export interface AlicizationChatToolResultInput {
   toolCallId: string
   toolName?: string
   selectedChannel?: SharedAlicizationExecutionChannel | null
-  phase?: 'completed' | 'failed' | 'cancelled' | 'timeout'
+  phase?: 'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'
   result?: unknown
 }
 
@@ -3766,7 +3766,7 @@ export interface AlicizationChatToolProgressInput {
   toolName: string
   selectedChannel?: SharedAlicizationExecutionChannel | null
   signal?: 'liveness' | 'semantic-progress' | 'terminal'
-  phase: 'started' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout'
+  phase: 'started' | 'running' | 'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'
   elapsedMs: number
   timeoutMs?: number
   errorCode?: string

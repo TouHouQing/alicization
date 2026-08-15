@@ -1,12 +1,17 @@
-import type { AlicizationPersistentPresenceAuthoritySnapshot } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationBridgeChatStreamEvent,
+  AlicizationPersistentPresenceAuthoritySnapshot,
+  AlicizationRuntimeToolProjectionUpdate,
+} from '@proj-alicization/stage-shared'
 
 import type {
   AlicizationChatErrorEvent,
   AlicizationChatFinishEvent,
   AlicizationChatStreamChunkEvent,
-  AlicizationMemoryRecallProbeConfidencePolicy,
+  AlicizationChatToolCallEvent,
+  AlicizationChatToolProgressEvent,
+  AlicizationChatToolResultEvent,
   AlicizationMemoryRecallProbeEvidenceKind,
-  AlicizationMemoryRecallProbeEvidenceVisibility,
   AlicizationMemoryRecallProbeMode,
   AlicizationMemoryRecallProbeResult,
   AlicizationMemoryRecallProbeTemporalFocus,
@@ -16,6 +21,10 @@ import type {
 
 type Expect<T extends true> = T
 type Extends<T, U> = T extends U ? true : false
+type IsRequired<T> = undefined extends T ? false : true
+type BridgeToolCallEvent = Extract<AlicizationBridgeChatStreamEvent, { type: 'tool-call' }>
+type BridgeToolProgressEvent = Extract<AlicizationBridgeChatStreamEvent, { type: 'tool-progress' }>
+type BridgeToolResultEvent = Extract<AlicizationBridgeChatStreamEvent, { type: 'tool-result' }>
 
 const chatChunkOrigin: Expect<Extends<
   AlicizationChatStreamChunkEvent['origin'],
@@ -37,6 +46,42 @@ const chatErrorFailureSurface: Expect<Extends<
   AlicizationChatErrorEvent['failureSurface'],
   { kind: string, origin: 'failure-surface' } | null | undefined
 >> = true
+const eventaToolCallProjectionRequired: Expect<
+  IsRequired<AlicizationChatToolCallEvent['projection']>
+> = true
+const eventaToolResultProjectionRequired: Expect<
+  IsRequired<AlicizationChatToolResultEvent['projection']>
+> = true
+const eventaToolProgressProjectionRequired: Expect<
+  IsRequired<AlicizationChatToolProgressEvent['projection']>
+> = true
+const eventaToolCallProjectionShape: Expect<Extends<
+  AlicizationChatToolCallEvent['projection'],
+  AlicizationRuntimeToolProjectionUpdate
+>> = true
+const eventaToolCallIdRequired: Expect<
+  IsRequired<AlicizationChatToolCallEvent['toolCallId']>
+> = true
+const eventaSelectedChannelRequired: Expect<
+  IsRequired<AlicizationChatToolCallEvent['selectedChannel']>
+> = true
+const eventaDeadLetteredTerminalPhase: Expect<Extends<
+  'dead-lettered',
+  AlicizationChatToolProgressEvent['phase']
+>> = true
+const bridgeToolCallProjectionRequired: Expect<
+  IsRequired<BridgeToolCallEvent['projection']>
+> = true
+const bridgeToolResultProjectionRequired: Expect<
+  IsRequired<BridgeToolResultEvent['projection']>
+> = true
+const bridgeToolProgressProjectionRequired: Expect<
+  IsRequired<BridgeToolProgressEvent['projection']>
+> = true
+const bridgeDeadLetteredTerminalPhase: Expect<Extends<
+  'dead-lettered',
+  BridgeToolProgressEvent['phase']
+>> = true
 
 const authorityFields: AlicizationPersistentPresenceAuthoritySnapshot = {} as AlicizationVisualPresenceStateSnapshot
 
@@ -44,6 +89,17 @@ void chatChunkOrigin
 void chatChunkLearningPolicy
 void chatFinishFailureSurface
 void chatErrorFailureSurface
+void eventaToolCallProjectionRequired
+void eventaToolResultProjectionRequired
+void eventaToolProgressProjectionRequired
+void eventaToolCallProjectionShape
+void eventaToolCallIdRequired
+void eventaSelectedChannelRequired
+void eventaDeadLetteredTerminalPhase
+void bridgeToolCallProjectionRequired
+void bridgeToolResultProjectionRequired
+void bridgeToolProgressProjectionRequired
+void bridgeDeadLetteredTerminalPhase
 void authorityFields
 
 const memoryWorkbenchSnapshot: AlicizationMemoryWorkbenchSnapshot = {
@@ -180,7 +236,7 @@ const recallProbe: AlicizationMemoryRecallProbeResult = {
     episodicQueries: ['一起做过的事情'],
     threadHints: [],
     negativeCues: [],
-    confidencePolicy: 'direct',
+    riskFlags: [],
   },
   evidence: [
     {
@@ -189,7 +245,15 @@ const recallProbe: AlicizationMemoryRecallProbeResult = {
       summary: 'The host and Alicization played a game together.',
       source: 'long-term-memory',
       score: 0.76,
-      visibleMode: 'tentative',
+      confidence: 0.82,
+      sensitivity: 'personal',
+      scope: {
+        userId: 'user-1',
+        cardId: 'card-1',
+      },
+      provenance: 'remembered',
+      evidenceVersion: 'long-term-memory-evidence-v1',
+      version: 'long-term-memory-evidence-v1',
       queryMatches: ['打游戏'],
       rankReasons: ['episodic cue match'],
     },
@@ -206,17 +270,13 @@ const recallProbe: AlicizationMemoryRecallProbeResult = {
 
 const recallMode: AlicizationMemoryRecallProbeMode = recallProbe.intent.mode
 const temporalFocus: AlicizationMemoryRecallProbeTemporalFocus = recallProbe.intent.temporalFocus
-const confidencePolicy: AlicizationMemoryRecallProbeConfidencePolicy = recallProbe.plan.confidencePolicy
 const evidenceKind: AlicizationMemoryRecallProbeEvidenceKind = recallProbe.evidence[0].kind
-const evidenceVisibility: AlicizationMemoryRecallProbeEvidenceVisibility = recallProbe.evidence[0].visibleMode
 
 void memoryWorkbenchSnapshot
 void recallProbe
 void recallMode
 void temporalFocus
-void confidencePolicy
 void evidenceKind
-void evidenceVisibility
 
 export type EventaSnapshotExtendsAuthority = Expect<
   Extends<AlicizationVisualPresenceStateSnapshot, AlicizationPersistentPresenceAuthoritySnapshot>

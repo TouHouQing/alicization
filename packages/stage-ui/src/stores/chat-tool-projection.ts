@@ -58,6 +58,7 @@ const executionEvidenceToolNames = new Set([
 const terminalExecutionPhases = new Set<ChatSlicesExecutionStatus['phase']>([
   'completed',
   'tool-cancelled',
+  'tool-dead-lettered',
   'tool-failed',
   'tool-recovery-required',
   'tool-timeout',
@@ -243,6 +244,27 @@ export function buildChatExecutionStatusFromProjection(
       label: progressErrorCode
         ? `${channel} 执行超时（${progressErrorCode}）`
         : `${channel} 执行超时`,
+      source: 'builtin',
+    }
+  }
+
+  if (progressPhase === 'dead-lettered') {
+    const progressDetail = [progressErrorCode, progressErrorMessage].filter(Boolean).join(': ')
+    return {
+      type: 'execution-status',
+      phase: 'tool-dead-lettered',
+      toolCallId: projection.toolCallId,
+      toolName: projection.toolName,
+      elapsedMs,
+      timeoutMs,
+      errorCode: progressErrorCode || undefined,
+      errorMessage: progressErrorMessage || undefined,
+      ...commandDetails,
+      label: detail
+        ? `${channel} 需要人工核对: ${detail}`
+        : progressDetail
+          ? `${channel} 需要人工核对: ${progressDetail}`
+          : `${channel} 需要人工核对`,
       source: 'builtin',
     }
   }

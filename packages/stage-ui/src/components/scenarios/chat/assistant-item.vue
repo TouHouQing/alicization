@@ -66,12 +66,26 @@ const boxClasses = computed(() => [
             v-else-if="slice.type === 'execution-status'"
             :class="[
               'mb-2 rounded-md border px-2 py-1 text-xs',
-              slice.phase === 'tool-failed'
-                ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950/20 dark:text-amber-300'
-                : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-700 dark:bg-sky-950/20 dark:text-sky-300',
+              slice.phase === 'tool-dead-lettered'
+                ? 'border-red-400 bg-red-50 text-red-800 dark:border-red-700 dark:bg-red-950/25 dark:text-red-200'
+                : slice.phase === 'tool-failed'
+                  ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950/20 dark:text-amber-300'
+                  : slice.phase === 'tool-recovery-required'
+                    ? 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-700 dark:bg-rose-950/20 dark:text-rose-300'
+                    : slice.phase === 'tool-cancelled'
+                      ? 'border-slate-300 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-950/20 dark:text-slate-300'
+                      : slice.phase === 'tool-timeout'
+                        ? 'border-orange-300 bg-orange-50 text-orange-700 dark:border-orange-700 dark:bg-orange-950/20 dark:text-orange-300'
+                        : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-700 dark:bg-sky-950/20 dark:text-sky-300',
             ]"
           >
-            <span class="font-medium">{{ slice.label }}</span>
+            <div class="font-medium">
+              {{ slice.label }}
+            </div>
+            <pre
+              v-if="slice.outputPreview"
+              class="mt-1 max-h-28 overflow-auto whitespace-pre-wrap break-words border-t border-current/15 pt-1 text-[11px] font-mono opacity-80"
+            >{{ slice.outputPreview }}</pre>
           </div>
           <template v-else-if="slice.type === 'text'">
             <MarkdownRenderer :content="slice.text" />

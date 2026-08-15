@@ -1,3 +1,5 @@
+import type { AlicizationRuntimeToolProjectionUpdate } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationAuditLogInput,
   AlicizationBridgeChatStreamEvent,
@@ -40,6 +42,7 @@ import type {
 import { errorMessageFrom } from '@moeru/std'
 import {
   alicizationProviderResponseFormat,
+  AlicizationToolEventDeliveryError,
   buildAlicizationFinanceSurface,
   buildAlicizationMemoryDecisionTraceRecords,
   buildAlicizationNewsSurface,
@@ -124,8 +127,21 @@ interface BrowserStreamServerErrorPayload {
   message?: string
 }
 
+type BrowserToolStreamEvent = {
+  [TType in 'tool-call' | 'tool-progress' | 'tool-result']:
+    Omit<Extract<AlicizationBridgeChatStreamEvent, { type: TType }>, 'projection'>
+    & { projection?: AlicizationRuntimeToolProjectionUpdate }
+}['tool-call' | 'tool-progress' | 'tool-result']
+
+type BrowserNormalizedStreamEvent
+  = | Exclude<
+    AlicizationBridgeChatStreamEvent,
+    { type: 'tool-call' | 'tool-progress' | 'tool-result' }
+  >
+  | BrowserToolStreamEvent
+
 type BrowserStreamServerEvent
-  = AlicizationBridgeChatStreamEvent
+  = BrowserNormalizedStreamEvent
     | { type: 'error', error?: BrowserStreamServerErrorPayload | string | null }
 
 interface BrowserSoulRecord {
@@ -195,6 +211,14 @@ interface BrowserProactiveFeedbackSummary {
   summary: string | null
 }
 
+interface BrowserPendingChatStream {
+  cardId: string
+  turnId: string
+  controller: AbortController
+  settled: Promise<void>
+  settle: () => void
+}
+
 const defaultFrontmatter: AlicizationSoulFrontmatter = {
   schemaVersion: currentSoulSchemaVersion,
   initialized: false,
@@ -234,6 +258,18 @@ function normalizeCardId(raw?: unknown) {
     return defaultAlicizationCardId
   const trimmed = raw.trim()
   return trimmed || defaultAlicizationCardId
+}
+
+function buildPendingChatStreamKey(cardId: string, turnId: string) {
+  return `${cardId}::${turnId}`
+}
+
+function createSettledSignal() {
+  let settle!: () => void
+  const settled = new Promise<void>((resolve) => {
+    settle = resolve
+  })
+  return { settled, settle }
 }
 
 function clamp01(value: number) {
@@ -364,7 +400,7 @@ function resolveNormalizedBridgeDigitalLife(input: {
   )
 }
 
-function normalizeServerStreamEvent(raw: unknown): AlicizationBridgeChatStreamEvent {
+function normalizeServerStreamEvent(raw: unknown): BrowserNormalizedStreamEvent {
   if (!raw || typeof raw !== 'object')
     throw new Error(stageChatText('stream.invalid-event'))
 
@@ -375,6 +411,19 @@ function normalizeServerStreamEvent(raw: unknown): AlicizationBridgeChatStreamEv
         ...event,
         type: 'text-delta',
         text: typeof event.text === 'string' ? event.text : '',
+      }
+    case 'provider-progress':
+      return {
+        type: 'provider-progress',
+        phase: event.phase === 'tool-input'
+          ? 'tool-input'
+          : 'reasoning',
+        ...(typeof event.toolCallId === 'string'
+          ? { toolCallId: event.toolCallId }
+          : {}),
+        ...(typeof event.toolName === 'string'
+          ? { toolName: event.toolName }
+          : {}),
       }
     case 'meta': {
       const normalizedEmbodimentScript = normalizeAlicizationEmbodimentScript(event.embodimentScript)
@@ -403,6 +452,8 @@ function normalizeServerStreamEvent(raw: unknown): AlicizationBridgeChatStreamEv
         type: 'tool-call',
         toolCallId: typeof event.toolCallId === 'string' ? event.toolCallId : '',
         toolName: typeof event.toolName === 'string' ? event.toolName : '',
+        ...(event.selectedChannel !== undefined ? { selectedChannel: event.selectedChannel } : {}),
+        ...(event.projection ? { projection: event.projection } : {}),
         args: typeof event.args === 'string' ? event.args : '',
         toolCallType: 'function',
       }
@@ -410,7 +461,72 @@ function normalizeServerStreamEvent(raw: unknown): AlicizationBridgeChatStreamEv
       return {
         type: 'tool-result',
         toolCallId: typeof event.toolCallId === 'string' ? event.toolCallId : '',
+        ...(event.toolName ? { toolName: event.toolName } : {}),
+        ...(event.selectedChannel !== undefined ? { selectedChannel: event.selectedChannel } : {}),
+        ...(event.projection ? { projection: event.projection } : {}),
         result: event.result,
+      }
+    case 'tool-progress':
+      return {
+        type: 'tool-progress',
+        toolCallId: typeof event.toolCallId === 'string' ? event.toolCallId : '',
+        toolName: typeof event.toolName === 'string' ? event.toolName : '',
+        ...(event.selectedChannel !== undefined ? { selectedChannel: event.selectedChannel } : {}),
+        ...(event.projection ? { projection: event.projection } : {}),
+        ...(event.signal === 'liveness' || event.signal === 'semantic-progress' || event.signal === 'terminal'
+          ? { signal: event.signal }
+          : {}),
+        phase: event.phase === 'started'
+          || event.phase === 'running'
+          || event.phase === 'completed'
+          || event.phase === 'failed'
+          || event.phase === 'dead-lettered'
+          || event.phase === 'cancelled'
+          || event.phase === 'timeout'
+          ? event.phase
+          : 'running',
+        elapsedMs: typeof event.elapsedMs === 'number' && Number.isFinite(event.elapsedMs)
+          ? Math.max(0, Math.floor(event.elapsedMs))
+          : 0,
+        ...(typeof event.timeoutMs === 'number' && Number.isFinite(event.timeoutMs)
+          ? { timeoutMs: Math.max(0, Math.floor(event.timeoutMs)) }
+          : {}),
+        ...(typeof event.errorCode === 'string' && event.errorCode.trim()
+          ? { errorCode: event.errorCode.trim().slice(0, 120) }
+          : {}),
+        ...(typeof event.errorMessage === 'string' && event.errorMessage.trim()
+          ? { errorMessage: event.errorMessage.trim().slice(0, 360) }
+          : {}),
+        ...(typeof event.occurredAt === 'number' && Number.isFinite(event.occurredAt)
+          ? { occurredAt: Math.max(0, Math.floor(event.occurredAt)) }
+          : {}),
+        ...(typeof event.eventId === 'string' && event.eventId.trim()
+          ? { eventId: event.eventId.trim().slice(0, 240) }
+          : {}),
+        ...(typeof event.threadId === 'string' && event.threadId.trim()
+          ? { threadId: event.threadId.trim().slice(0, 240) }
+          : {}),
+        ...(typeof event.adapterEventType === 'string' && event.adapterEventType.trim()
+          ? { adapterEventType: event.adapterEventType.trim().slice(0, 120) }
+          : {}),
+        ...(typeof event.itemType === 'string' && event.itemType.trim()
+          ? { itemType: event.itemType.trim().slice(0, 120) }
+          : {}),
+        ...(typeof event.summary === 'string' && event.summary.trim()
+          ? { summary: event.summary.trim().slice(0, 400) }
+          : {}),
+        ...(typeof event.command === 'string' && event.command.trim()
+          ? { command: event.command.trim().slice(0, 2_000) }
+          : {}),
+        ...(typeof event.commandStatus === 'string' && event.commandStatus.trim()
+          ? { commandStatus: event.commandStatus.trim().slice(0, 120) }
+          : {}),
+        ...(typeof event.commandExitCode === 'number' && Number.isFinite(event.commandExitCode)
+          ? { commandExitCode: Math.trunc(event.commandExitCode) }
+          : {}),
+        ...(typeof event.outputPreview === 'string' && event.outputPreview.trim()
+          ? { outputPreview: event.outputPreview.trim().slice(0, 2_000) }
+          : {}),
       }
     case 'finish':
       return {
@@ -2393,9 +2509,10 @@ async function buildSensorySnapshot(runtime: BrowserRuntimeKind): Promise<Aliciz
 
 export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRuntimeKind }) {
   const runtime = options?.runtime ?? 'web'
-  const pendingChatStreams = new Map<string, AbortController>()
+  const pendingChatStreams = new Map<string, BrowserPendingChatStream>()
 
   setAlicizationBridge({
+    streamLifecycleOwner: 'renderer',
     bootstrap: async () => {
       const cardId = resolveActiveCardId()
       const record = await readSoulRecord(cardId)
@@ -3051,16 +3168,29 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
         }
       }
 
-      const controller = pendingChatStreams.get(payload.turnId)
-      if (!controller) {
+      const requestedCardId = (payload as { cardId?: unknown }).cardId
+      const requestedCardIdValue = typeof requestedCardId === 'string' && requestedCardId.trim()
+        ? normalizeCardId(requestedCardId)
+        : null
+      const pendingKey = requestedCardIdValue
+        ? buildPendingChatStreamKey(requestedCardIdValue, payload.turnId)
+        : null
+      const turnEntries = pendingKey
+        ? []
+        : [...pendingChatStreams.values()].filter(candidate => candidate.turnId === payload.turnId)
+      const entry = pendingKey
+        ? pendingChatStreams.get(pendingKey)
+        : turnEntries.length === 1
+          ? turnEntries[0]
+          : undefined
+      if (!entry) {
         return {
           accepted: false,
           state: 'not-found',
         }
       }
 
-      controller.abort(createAbortError(payload.reason ?? 'renderer-abort'))
-      pendingChatStreams.delete(payload.turnId)
+      entry.controller.abort(createAbortError(payload.reason ?? 'renderer-abort'))
       return {
         accepted: true,
         state: 'aborted',
@@ -3068,7 +3198,16 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
     },
     streamChat: runtime === 'web'
       ? async (payload, options) => {
+        const cardId = resolveActiveCardId()
         const controller = new AbortController()
+        const pendingKey = buildPendingChatStreamKey(cardId, payload.turnId)
+        const settledSignal = createSettledSignal()
+        const pendingEntry: BrowserPendingChatStream = {
+          cardId,
+          turnId: payload.turnId,
+          controller,
+          ...settledSignal,
+        }
         const outerAbortHandler = () => {
           controller.abort(options.abortSignal?.reason ?? createAbortError('renderer-abort'))
         }
@@ -3077,8 +3216,71 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
           throw options.abortSignal.reason ?? createAbortError('renderer-abort')
         }
 
-        pendingChatStreams.set(payload.turnId, controller)
+        while (true) {
+          const superseded = pendingChatStreams.get(pendingKey)
+          if (!superseded)
+            break
+          superseded.controller.abort(createAbortError('renderer-superseded'))
+          await superseded.settled
+        }
+
+        if (options.abortSignal?.aborted) {
+          throw options.abortSignal.reason ?? createAbortError('renderer-abort')
+        }
+
+        pendingChatStreams.set(pendingKey, pendingEntry)
         options.abortSignal?.addEventListener('abort', outerAbortHandler, { once: true })
+        let firstToolEventDeliveryError: AlicizationToolEventDeliveryError | undefined
+
+        const deliverStreamEvent = async (event: BrowserNormalizedStreamEvent) => {
+          const isToolEvent = event.type === 'tool-call'
+            || event.type === 'tool-progress'
+            || event.type === 'tool-result'
+          if (isToolEvent && !event.projection) {
+            firstToolEventDeliveryError ??= new AlicizationToolEventDeliveryError(
+              new Error('Server tool event did not include a canonical runtime projection.'),
+              event,
+            )
+            void appendAuditLog(cardId, {
+              level: 'warning',
+              category: 'alicization.chat',
+              action: 'unprojected-tool-event-dropped',
+              message: 'Dropped a server tool fact without a canonical runtime projection.',
+              payload: {
+                turnId: payload.turnId,
+                toolCallId: event.toolCallId,
+                eventType: event.type,
+              },
+            }).catch(() => {})
+            return
+          }
+
+          if (!isToolEvent) {
+            if (event.type === 'finish' && firstToolEventDeliveryError)
+              return
+            await options.onStreamEvent?.(event)
+            return
+          }
+
+          try {
+            await options.onStreamEvent?.(event as AlicizationBridgeChatStreamEvent)
+          }
+          catch (error) {
+            firstToolEventDeliveryError ??= new AlicizationToolEventDeliveryError(error, event)
+            void appendAuditLog(cardId, {
+              level: 'warning',
+              category: 'alicization.chat',
+              action: 'tool-projection-delivery-failed',
+              message: 'A canonical tool projection could not be delivered to the renderer.',
+              payload: {
+                turnId: payload.turnId,
+                toolCallId: event.toolCallId,
+                eventType: event.type,
+                error: errorMessageFrom(error) ?? String(error),
+              },
+            }).catch(() => {})
+          }
+        }
 
         try {
           const response = await fetch(`${SERVER_URL}/api/chats/stream`, {
@@ -3088,8 +3290,8 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              cardId: resolveActiveCardId(),
               ...payload,
+              cardId,
               responseFormat: alicizationProviderResponseFormat,
             }),
             signal: controller.signal,
@@ -3130,17 +3332,17 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
               let event = normalizeServerStreamEvent(JSON.parse(line))
               if (event.type === 'meta') {
                 event = await enrichBrowserMetaEventWithLocalMemory({
-                  cardId: resolveActiveCardId(),
+                  cardId,
                   event,
                   runtime,
                 })
                 await persistVisualPresencePulseFromStreamMeta({
-                  cardId: resolveActiveCardId(),
+                  cardId,
                   runtime,
                   event,
                 })
               }
-              await options.onStreamEvent?.(event)
+              await deliverStreamEvent(event)
             }
           }
 
@@ -3149,18 +3351,21 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
             let event = normalizeServerStreamEvent(JSON.parse(tail))
             if (event.type === 'meta') {
               event = await enrichBrowserMetaEventWithLocalMemory({
-                cardId: resolveActiveCardId(),
+                cardId,
                 event,
                 runtime,
               })
               await persistVisualPresencePulseFromStreamMeta({
-                cardId: resolveActiveCardId(),
+                cardId,
                 runtime,
                 event,
               })
             }
-            await options.onStreamEvent?.(event)
+            await deliverStreamEvent(event)
           }
+
+          if (firstToolEventDeliveryError)
+            throw firstToolEventDeliveryError
         }
         catch (error) {
           if (controller.signal.aborted) {
@@ -3169,7 +3374,9 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
           throw error
         }
         finally {
-          pendingChatStreams.delete(payload.turnId)
+          if (pendingChatStreams.get(pendingKey) === pendingEntry)
+            pendingChatStreams.delete(pendingKey)
+          pendingEntry.settle()
           options.abortSignal?.removeEventListener('abort', outerAbortHandler)
         }
       }
@@ -3193,7 +3400,7 @@ export function installBrowserAlicizationBridge(options?: { runtime?: BrowserRun
   })
 
   return () => {
-    pendingChatStreams.forEach(controller => controller.abort(createAbortError('bridge-dispose')))
+    pendingChatStreams.forEach(entry => entry.controller.abort(createAbortError('bridge-dispose')))
     pendingChatStreams.clear()
     visualPresencePulseListeners.clear()
     visualPresenceStateListeners.clear()

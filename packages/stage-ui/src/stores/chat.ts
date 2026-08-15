@@ -349,6 +349,7 @@ function retainTerminalExecutionStatusSlices(slices: ChatSlices[]) {
     slice.type !== 'execution-status'
     || slice.phase === 'completed'
     || slice.phase === 'tool-cancelled'
+    || slice.phase === 'tool-dead-lettered'
     || slice.phase === 'tool-timeout'
     || slice.phase === 'tool-failed'
   ))

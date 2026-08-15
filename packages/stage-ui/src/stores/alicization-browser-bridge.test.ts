@@ -16,6 +16,10 @@ import {
   buildPerformanceManifestKey,
 } from './alicization-browser-storage'
 
+const activeCardState = vi.hoisted(() => ({
+  value: 'default',
+}))
+
 const storageMap = new Map<string, unknown>()
 
 vi.mock('../database/storage', () => ({
@@ -50,7 +54,9 @@ vi.mock('./character', () => ({
 
 vi.mock('./modules/airi-card', () => ({
   useAiriCardStore: () => ({
-    activeCardId: 'default',
+    get activeCardId() {
+      return activeCardState.value
+    },
   }),
 }))
 
@@ -184,6 +190,7 @@ describe('browser alicization bridge visual presence listeners', () => {
 
   beforeEach(() => {
     setActivePinia(createPinia())
+    activeCardState.value = 'default'
     storageMap.clear()
   })
 
@@ -302,6 +309,690 @@ describe('browser alicization bridge visual presence listeners', () => {
     const request = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined
     const body = JSON.parse(String(request?.body ?? '{}')) as Record<string, unknown>
     expect(body.responseFormat).toEqual(alicizationProviderResponseFormat)
+
+    vi.unstubAllGlobals()
+  })
+
+  it('aborts and drains a superseded same-scope stream before starting its replacement', async () => {
+    let firstSignal: AbortSignal | null = null
+    let rejectSecondFetch: ((error: unknown) => void) | undefined
+    const fetchMock = vi.fn()
+      .mockImplementationOnce((_input: RequestInfo | URL, init?: RequestInit) => new Promise<Partial<Response>>((_resolve, reject) => {
+        firstSignal = init?.signal ?? null
+        init?.signal?.addEventListener('abort', () => {
+          reject(init.signal?.reason ?? new Error('aborted'))
+        }, { once: true })
+      }))
+      .mockImplementationOnce((_input: RequestInfo | URL, init?: RequestInit) => new Promise<Partial<Response>>((_resolve, reject) => {
+        rejectSecondFetch = reject
+        init?.signal?.addEventListener('abort', () => {
+          reject(init.signal?.reason ?? new Error('aborted'))
+        }, { once: true })
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    const firstStream = bridge.streamChat?.({
+      turnId: 'turn-browser-supersede',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: vi.fn(),
+    })
+    void firstStream?.catch(() => {})
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)).cardId).toBe('default')
+
+    const secondStream = bridge.streamChat?.({
+      turnId: 'turn-browser-supersede',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: vi.fn(),
+    })
+
+    expect(firstSignal).not.toBeNull()
+    expect((firstSignal as unknown as AbortSignal).aborted).toBe(true)
+    await expect(firstStream).rejects.toBeDefined()
+    await vi.waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+    expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body)).cardId).toBe('default')
+
+    const abortResult = await bridge.chatAbort?.({
+      cardId: 'default',
+      turnId: 'turn-browser-supersede',
+      reason: 'test-abort',
+    })
+
+    expect(abortResult).toEqual({
+      accepted: true,
+      state: 'aborted',
+    })
+    expect(rejectSecondFetch).toBeTypeOf('function')
+    await expect(secondStream).rejects.toBeDefined()
+
+    vi.unstubAllGlobals()
+  })
+
+  it('keeps same-turn streams isolated by explicit card scope', async () => {
+    const fetchRejectors: Array<(error: unknown) => void> = []
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => new Promise<Partial<Response>>((_resolve, reject) => {
+      fetchRejectors.push(reject)
+      init?.signal?.addEventListener('abort', () => {
+        reject(init.signal?.reason ?? new Error('aborted'))
+      }, { once: true })
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    activeCardState.value = 'card-a'
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    const firstStream = bridge.streamChat?.({
+      turnId: 'turn-browser-card-scope',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: vi.fn(),
+    })
+
+    activeCardState.value = 'card-b'
+    const secondStream = bridge.streamChat?.({
+      turnId: 'turn-browser-card-scope',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: vi.fn(),
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchRejectors).toHaveLength(2)
+    await expect(bridge.chatAbort?.({
+      turnId: 'turn-browser-card-scope',
+      reason: 'ambiguous-without-card',
+    })).resolves.toEqual({
+      accepted: false,
+      state: 'not-found',
+    })
+    await expect(bridge.chatAbort?.({
+      cardId: 'card-b',
+      turnId: 'turn-browser-card-scope',
+      reason: 'abort-card-b',
+    })).resolves.toEqual({
+      accepted: true,
+      state: 'aborted',
+    })
+    await expect(secondStream).rejects.toBeDefined()
+
+    await expect(bridge.chatAbort?.({
+      cardId: 'card-a',
+      turnId: 'turn-browser-card-scope',
+      reason: 'abort-card-a',
+    })).resolves.toEqual({
+      accepted: true,
+      state: 'aborted',
+    })
+    await expect(firstStream).rejects.toBeDefined()
+
+    vi.unstubAllGlobals()
+  })
+
+  it('aborts a pending stream by its fixed card scope when cardId is omitted after a card switch', async () => {
+    let rejectFetch: ((error: unknown) => void) | undefined
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => new Promise<Partial<Response>>((_resolve, reject) => {
+      rejectFetch = reject
+      init?.signal?.addEventListener('abort', () => {
+        reject(init.signal?.reason ?? new Error('aborted'))
+      }, { once: true })
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    activeCardState.value = 'card-a'
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    const stream = bridge.streamChat?.({
+      turnId: 'turn-browser-fixed-scope',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: vi.fn(),
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)).cardId).toBe('card-a')
+
+    activeCardState.value = 'card-b'
+    const abortResult = await bridge.chatAbort?.({
+      turnId: 'turn-browser-fixed-scope',
+      reason: 'test-abort-after-card-switch',
+    })
+
+    expect(abortResult).toEqual({
+      accepted: true,
+      state: 'aborted',
+    })
+    expect(rejectFetch).toBeTypeOf('function')
+    await expect(stream).rejects.toBeDefined()
+
+    vi.unstubAllGlobals()
+  })
+
+  it('keeps stream-local memory and presence on the card captured before a card switch', async () => {
+    let resolveFetch: ((response: Partial<Response>) => void) | undefined
+    const fetchMock = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) => new Promise<Partial<Response>>((resolve) => {
+      resolveFetch = resolve
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    activeCardState.value = 'card-a'
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    await bridge.setActiveSession?.({
+      sessionId: 'session-card-a',
+    })
+
+    const seenMetaEvents: any[] = []
+    const stream = bridge.streamChat?.({
+      turnId: 'turn-browser-card-capture',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: (event) => {
+        if (event.type === 'meta')
+          seenMetaEvents.push(event)
+      },
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)).cardId).toBe('card-a')
+
+    activeCardState.value = 'card-b'
+    resolveFetch?.(createStreamResponse([
+      {
+        type: 'meta',
+        governance: { decisionTraceId: 'trace-browser-card-capture' },
+      },
+      { type: 'finish' },
+    ]))
+    await stream
+
+    expect(seenMetaEvents).toHaveLength(1)
+    expect(seenMetaEvents[0]?.digitalLifeSpine?.proactive?.activeThreadId).toBe('session-card-a')
+    expect(storageMap.has(buildVisualPresenceStorageKey('card-a'))).toBe(true)
+    expect(storageMap.has(buildVisualPresenceStorageKey('card-b'))).toBe(false)
+
+    vi.unstubAllGlobals()
+  })
+
+  it('forwards provider progress heartbeats without exposing reasoning or partial tool arguments', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
+      {
+        type: 'provider-progress',
+        phase: 'reasoning',
+      },
+      {
+        type: 'provider-progress',
+        phase: 'tool-input',
+        toolCallId: 'tool-codex-browser-1',
+        toolName: 'codex',
+      },
+      {
+        type: 'finish',
+        finishReason: 'stop',
+      },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    const events: unknown[] = []
+
+    await bridge.streamChat?.({
+      turnId: 'turn-browser-provider-progress',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: (event) => {
+        events.push(event)
+      },
+    })
+
+    expect(events).toEqual([
+      {
+        type: 'provider-progress',
+        phase: 'reasoning',
+      },
+      {
+        type: 'provider-progress',
+        phase: 'tool-input',
+        toolCallId: 'tool-codex-browser-1',
+        toolName: 'codex',
+      },
+      {
+        type: 'finish',
+        finishReason: 'stop',
+        fullText: undefined,
+      },
+    ])
+    expect(JSON.stringify(events)).not.toContain('reasoningText')
+    expect(JSON.stringify(events)).not.toContain('argsTextDelta')
+
+    vi.unstubAllGlobals()
+  })
+
+  it('preserves upstream canonical tool projections without inferring them in the browser bridge', async () => {
+    const runningCard = {
+      toolCallId: 'tool-browser-projection-1',
+      toolName: 'coding_agent',
+      selectedChannel: 'codex',
+      phase: 'running',
+      terminal: false,
+      revision: 2,
+      elapsedMs: 1_200,
+      timeoutMs: 120_000,
+      errorCode: null,
+      errorMessage: null,
+      step: {
+        signal: 'semantic-progress',
+        elapsedMs: 1_200,
+        occurredAt: 100,
+        eventId: 'event-browser-projection-1',
+        threadId: 'thread-browser-projection-1',
+        adapterEventType: 'item.completed',
+        itemType: 'command_execution',
+        summary: 'Codex completed a command.',
+        command: 'git status --short',
+        commandStatus: 'completed',
+        commandExitCode: 0,
+        outputPreview: '## main',
+      },
+      result: undefined,
+    } as const
+    const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
+      {
+        type: 'tool-call',
+        toolCallId: runningCard.toolCallId,
+        toolName: runningCard.toolName,
+        selectedChannel: runningCard.selectedChannel,
+        projection: {
+          factType: 'tool-call',
+          accepted: true,
+          traceOnly: false,
+          card: {
+            ...runningCard,
+            phase: 'started',
+            revision: 1,
+            elapsedMs: null,
+            timeoutMs: null,
+            step: null,
+          },
+        },
+        args: '{}',
+        toolCallType: 'function',
+      },
+      {
+        type: 'tool-progress',
+        toolCallId: runningCard.toolCallId,
+        toolName: runningCard.toolName,
+        selectedChannel: runningCard.selectedChannel,
+        projection: {
+          factType: 'tool-progress',
+          accepted: true,
+          traceOnly: false,
+          card: runningCard,
+        },
+        phase: 'running',
+        signal: 'semantic-progress',
+        elapsedMs: 1_200,
+        timeoutMs: 120_000,
+        occurredAt: 100,
+        eventId: 'event-browser-projection-1',
+        threadId: 'thread-browser-projection-1',
+        adapterEventType: 'item.completed',
+        itemType: 'command_execution',
+        summary: 'Codex completed a command.',
+        command: 'git status --short',
+        commandStatus: 'completed',
+        commandExitCode: 0,
+        outputPreview: '## main',
+      },
+      {
+        type: 'tool-result',
+        toolCallId: runningCard.toolCallId,
+        toolName: runningCard.toolName,
+        selectedChannel: runningCard.selectedChannel,
+        projection: {
+          factType: 'tool-result',
+          accepted: true,
+          traceOnly: false,
+          card: {
+            ...runningCard,
+            phase: 'completed',
+            terminal: true,
+            revision: 3,
+            result: {
+              status: 'completed',
+            },
+          },
+        },
+        result: {
+          status: 'completed',
+        },
+      },
+      {
+        type: 'finish',
+        finishReason: 'stop',
+      },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    const events: unknown[] = []
+
+    await bridge.streamChat?.({
+      turnId: 'turn-browser-tool-projection',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: (event) => {
+        events.push(event)
+      },
+    })
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        type: 'tool-call',
+        selectedChannel: 'codex',
+        projection: expect.objectContaining({
+          factType: 'tool-call',
+          card: expect.objectContaining({
+            toolCallId: runningCard.toolCallId,
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        type: 'tool-progress',
+        selectedChannel: 'codex',
+        projection: expect.objectContaining({
+          factType: 'tool-progress',
+          card: runningCard,
+        }),
+      }),
+      expect.objectContaining({
+        type: 'tool-result',
+        toolName: 'coding_agent',
+        selectedChannel: 'codex',
+        projection: expect.objectContaining({
+          factType: 'tool-result',
+          card: expect.objectContaining({
+            phase: 'completed',
+            terminal: true,
+          }),
+        }),
+      }),
+      {
+        type: 'finish',
+        finishReason: 'stop',
+        fullText: undefined,
+      },
+    ])
+
+    vi.unstubAllGlobals()
+  })
+
+  it('preserves dead-lettered tool progress instead of reopening it as running', async () => {
+    const deadLetteredCard = {
+      toolCallId: 'tool-browser-dead-lettered-1',
+      toolName: 'coding_agent',
+      selectedChannel: 'codex',
+      phase: 'dead-lettered',
+      terminal: true,
+      revision: 3,
+      elapsedMs: 2_400,
+      timeoutMs: 120_000,
+      errorCode: 'SIDE_EFFECT_RECONCILIATION_EXHAUSTED',
+      errorMessage: 'The applied side effect could not be verified safely.',
+      step: {
+        signal: 'terminal',
+        elapsedMs: 2_400,
+        occurredAt: 200,
+        eventId: 'event-browser-dead-lettered-1',
+        threadId: 'thread-browser-dead-lettered-1',
+        adapterEventType: 'action.dead_lettered',
+        itemType: 'reconciliation',
+        summary: 'Manual reconciliation is required.',
+        command: null,
+        commandStatus: null,
+        commandExitCode: null,
+        outputPreview: null,
+      },
+      result: undefined,
+    } as const
+    const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
+      {
+        type: 'tool-progress',
+        toolCallId: deadLetteredCard.toolCallId,
+        toolName: deadLetteredCard.toolName,
+        selectedChannel: deadLetteredCard.selectedChannel,
+        projection: {
+          factType: 'tool-progress',
+          accepted: true,
+          traceOnly: false,
+          card: deadLetteredCard,
+        },
+        phase: 'dead-lettered',
+        signal: 'terminal',
+        elapsedMs: 2_400,
+        timeoutMs: 120_000,
+        errorCode: deadLetteredCard.errorCode,
+        errorMessage: deadLetteredCard.errorMessage,
+      },
+      {
+        type: 'finish',
+        finishReason: 'stop',
+      },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    const events: any[] = []
+
+    await bridge.streamChat?.({
+      turnId: 'turn-browser-dead-lettered-projection',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: (event) => {
+        events.push(event)
+      },
+    })
+
+    expect(events[0]).toMatchObject({
+      type: 'tool-progress',
+      phase: 'dead-lettered',
+      projection: {
+        card: {
+          phase: 'dead-lettered',
+          terminal: true,
+        },
+      },
+    })
+
+    vi.unstubAllGlobals()
+  })
+
+  it('rejects settlement when server tool facts have no canonical runtime projection', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
+      {
+        type: 'tool-call',
+        toolCallId: 'tool-browser-raw-1',
+        toolName: 'executor_run_codex',
+        args: '{"prompt":"检查项目"}',
+        toolCallType: 'function',
+      },
+      {
+        type: 'tool-progress',
+        toolCallId: 'tool-browser-raw-1',
+        toolName: 'executor_run_codex',
+        phase: 'running',
+        signal: 'semantic-progress',
+        elapsedMs: 1_200,
+        itemType: 'command_execution',
+        command: 'git status --short',
+        summary: 'Codex 正在检查项目',
+      },
+      {
+        type: 'tool-result',
+        toolCallId: 'tool-browser-raw-1',
+        toolName: 'executor_run_codex',
+        result: {
+          ok: false,
+          channel: 'cli',
+          errorCode: 'CODEX_FAILED',
+          errorMessage: 'Codex execution failed',
+        },
+      },
+      {
+        type: 'finish',
+        finishReason: 'stop',
+      },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    const events: any[] = []
+
+    await expect(bridge.streamChat?.({
+      turnId: 'turn-browser-raw-tool-events',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: (event) => {
+        events.push(event)
+      },
+    })).rejects.toMatchObject({
+      name: 'AlicizationToolEventDeliveryError',
+      code: 'ALICIZATION_TOOL_EVENT_DELIVERY_FAILED',
+      eventType: 'tool-call',
+      toolCallId: 'tool-browser-raw-1',
+    })
+
+    expect(events).toEqual([])
+
+    vi.unstubAllGlobals()
+  })
+
+  it('keeps a Provider error ahead of an earlier missing canonical tool projection', async () => {
+    const providerError = 'Provider failed after emitting an unprojected tool fact.'
+    const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
+      {
+        type: 'tool-progress',
+        toolCallId: 'tool-browser-provider-priority-1',
+        toolName: 'coding_agent',
+        phase: 'running',
+        signal: 'semantic-progress',
+        elapsedMs: 1_200,
+      },
+      {
+        type: 'error',
+        error: providerError,
+      },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    const events: any[] = []
+
+    await expect(bridge.streamChat?.({
+      turnId: 'turn-browser-provider-error-priority',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: (event) => {
+        events.push(event)
+      },
+    })).rejects.toEqual(expect.objectContaining({
+      name: 'Error',
+      message: providerError,
+    }))
+
+    expect(events).toEqual([])
+
+    vi.unstubAllGlobals()
+  })
+
+  it('continues provider text but rejects settlement when canonical tool projection delivery fails', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
+      {
+        type: 'tool-call',
+        toolCallId: 'tool-browser-delivery-1',
+        toolName: 'coding_agent',
+        selectedChannel: 'codex',
+        projection: {
+          factType: 'tool-call',
+          accepted: true,
+          traceOnly: false,
+          card: {
+            toolCallId: 'tool-browser-delivery-1',
+            toolName: 'coding_agent',
+            selectedChannel: 'codex',
+            phase: 'started',
+            terminal: false,
+            revision: 1,
+            elapsedMs: null,
+            timeoutMs: null,
+            errorCode: null,
+            errorMessage: null,
+            step: null,
+          },
+        },
+        args: '{}',
+        toolCallType: 'function',
+      },
+      {
+        type: 'text-delta',
+        text: '工具卡渲染失败不应中断回复。',
+      },
+      {
+        type: 'finish',
+        finishReason: 'stop',
+      },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+    const events: any[] = []
+
+    await expect(bridge.streamChat?.({
+      turnId: 'turn-browser-tool-delivery-failure',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: (event) => {
+        if (event.type === 'tool-call')
+          throw new Error('renderer tool projection failed')
+        events.push(event)
+      },
+    })).rejects.toMatchObject({
+      name: 'AlicizationToolEventDeliveryError',
+      code: 'ALICIZATION_TOOL_EVENT_DELIVERY_FAILED',
+      eventType: 'tool-call',
+      toolCallId: 'tool-browser-delivery-1',
+    })
+
+    expect(events).toEqual([
+      {
+        type: 'text-delta',
+        text: '工具卡渲染失败不应中断回复。',
+      },
+    ])
 
     vi.unstubAllGlobals()
   })

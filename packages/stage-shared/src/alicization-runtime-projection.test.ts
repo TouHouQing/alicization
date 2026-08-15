@@ -522,6 +522,30 @@ describe('alicization runtime tool projection', () => {
     expect(reducer.listCards()).toHaveLength(0)
   })
 
+  it('preserves dead-lettered as a distinct terminal phase', () => {
+    const reducer = createAlicizationRuntimeToolProjectionReducer()
+
+    const projected = reducer.reduce({
+      type: 'tool-result',
+      toolCallId: 'tool-call-dead-lettered',
+      toolName: 'coding_agent',
+      selectedChannel: 'codex',
+      result: {
+        finalStatus: 'dead-lettered',
+        errorCode: 'SIDE_EFFECT_RECONCILIATION_EXHAUSTED',
+        errorMessage: 'The applied side effect could not be verified safely.',
+      },
+    })
+
+    expect(projected.card).toMatchObject({
+      phase: 'dead-lettered',
+      terminal: true,
+      result: {
+        finalStatus: 'dead-lettered',
+      },
+    })
+  })
+
   it('records a forced trace-only fact without mutating canonical cards', () => {
     const reducer = createAlicizationRuntimeToolProjectionReducer()
 

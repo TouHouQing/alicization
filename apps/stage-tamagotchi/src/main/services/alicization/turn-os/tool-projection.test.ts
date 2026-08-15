@@ -534,6 +534,43 @@ describe('alicization runtime tool projection replay', () => {
     expect(projection.cards[0]?.result).toBeUndefined()
   })
 
+  it('preserves dead-lettered status declared by an observation payload', () => {
+    const scope = runtimeScope({ turnId: 'turn-observation-dead-lettered' })
+    const projection = projectAlicizationRuntimeToolEvents([
+      runtimeEvent(scope, 1, 'model.tool_call.proposed', {
+        actionId: 'action-observation-dead-lettered',
+        toolCallId: 'tool-call-observation-dead-lettered',
+        capabilityId: 'coding_agent.codex',
+        providerToolName: 'codex',
+      }),
+      runtimeEvent(scope, 2, 'action.started', {
+        actionId: 'action-observation-dead-lettered',
+        toolCallId: 'tool-call-observation-dead-lettered',
+        capabilityId: 'coding_agent.codex',
+        providerToolName: 'codex',
+      }),
+      runtimeEvent(scope, 3, 'action.observation', {
+        actionId: 'action-observation-dead-lettered',
+        observationId: 'observation-dead-lettered',
+        toolCallId: 'tool-call-observation-dead-lettered',
+        terminal: true,
+        outcome: 'failure',
+        finalStatus: 'dead-lettered',
+        errorCode: 'SIDE_EFFECT_RECONCILIATION_EXHAUSTED',
+        errorMessage: 'Manual reconciliation is required.',
+      }),
+    ])
+
+    expect(projection.cards).toMatchObject([{
+      toolCallId: 'tool-call-observation-dead-lettered',
+      phase: 'dead-lettered',
+      terminal: true,
+      errorCode: 'SIDE_EFFECT_RECONCILIATION_EXHAUSTED',
+      errorMessage: 'Manual reconciliation is required.',
+    }])
+    expect(projection.recoveryRequired).toBe(false)
+  })
+
   it.each([
     {
       eventType: 'action.failed' as const,
@@ -556,7 +593,7 @@ describe('alicization runtime tool projection replay', () => {
     },
     {
       eventType: 'action.dead_lettered' as const,
-      expectedPhase: 'failed',
+      expectedPhase: 'dead-lettered',
       payload: {
         errorCode: 'ACTION_DEAD_LETTERED',
         errorMessage: 'retry budget exhausted',

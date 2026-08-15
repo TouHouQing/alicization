@@ -1,6 +1,7 @@
 import type {
   AlicizationChatFailureSurface,
   alicizationProviderResponseFormat,
+  AlicizationRuntimeToolProjectionUpdate,
   AlicizationVisibleArtifactLearningPolicy,
   AlicizationVisibleArtifactOrigin,
 } from '@proj-alicization/stage-shared'
@@ -34,6 +35,12 @@ export type StreamEvent
     failureSurface?: AlicizationChatFailureSurface | null
   }
   | {
+    type: 'provider-progress'
+    phase: 'reasoning' | 'tool-input'
+    toolCallId?: string
+    toolName?: string
+  }
+  | {
     type: 'meta'
     governance: AlicizationMindTurnGovernance | null
     embodiment?: AlicizationDialogueEmbodimentEnvelope | null
@@ -51,8 +58,42 @@ export type StreamEvent
     finishReason?: string
     fullText?: string
   } & any)
-  | ({ type: 'tool-call' } & CompletionToolCall)
-  | { type: 'tool-result', toolCallId: string, result?: unknown }
+  | ({
+    type: 'tool-call'
+    selectedChannel?: import('@proj-alicization/stage-shared').AlicizationExecutionChannel | null
+    projection?: AlicizationRuntimeToolProjectionUpdate
+  } & CompletionToolCall)
+  | {
+    type: 'tool-result'
+    toolCallId: string
+    toolName?: string
+    selectedChannel?: import('@proj-alicization/stage-shared').AlicizationExecutionChannel | null
+    projection?: AlicizationRuntimeToolProjectionUpdate
+    result?: unknown
+  }
+  | {
+    type: 'tool-progress'
+    toolCallId: string
+    toolName: string
+    selectedChannel?: import('@proj-alicization/stage-shared').AlicizationExecutionChannel | null
+    projection?: AlicizationRuntimeToolProjectionUpdate
+    phase: 'started' | 'running' | 'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'
+    elapsedMs: number
+    timeoutMs?: number
+    signal?: 'liveness' | 'semantic-progress' | 'terminal'
+    errorCode?: string
+    errorMessage?: string
+    occurredAt?: number
+    eventId?: string
+    threadId?: string
+    adapterEventType?: string
+    itemType?: string
+    summary?: string
+    command?: string
+    commandStatus?: string
+    commandExitCode?: number
+    outputPreview?: string
+  }
   | {
     type: 'error'
     error: any
@@ -127,6 +168,9 @@ async function streamFrom(model: string, chatProvider: ChatProvider, messages: M
 
   return new Promise<void>((resolve, reject) => {
     let settled = false
+    let sourceResolved = false
+    let fullStreamMode = false
+    const queuedLegacyEvents: unknown[] = []
     const abortSignal = options?.abortSignal
     function resolveOnce() {
       if (settled)
@@ -153,7 +197,7 @@ async function streamFrom(model: string, chatProvider: ChatProvider, messages: M
 
     abortSignal?.addEventListener('abort', abortHandler, { once: true })
 
-    const onEvent = async (event: unknown) => {
+    const handleEvent = async (event: unknown) => {
       try {
         await options?.onStreamEvent?.(event as StreamEvent)
         if (event && (event as StreamEvent).type === 'finish') {
@@ -171,25 +215,36 @@ async function streamFrom(model: string, chatProvider: ChatProvider, messages: M
       }
     }
 
+    const onEvent = (event: unknown) => {
+      if (!sourceResolved) {
+        queuedLegacyEvents.push(event)
+        return
+      }
+      if (!fullStreamMode)
+        void handleEvent(event)
+    }
+
+    const readFullStream = (result: unknown) => {
+      if (!result || typeof result !== 'object')
+        return null
+      const fullStream = (result as Record<string, unknown>).fullStream
+      if (!fullStream || typeof fullStream !== 'object')
+        return null
+      return typeof (fullStream as { getReader?: unknown }).getReader === 'function'
+        ? fullStream as {
+          getReader: () => {
+            read: () => Promise<{ done: boolean, value?: unknown }>
+            releaseLock?: () => void
+          }
+        }
+        : null
+    }
+
     const observeStreamTextResultErrors = (result: unknown) => {
       if (!result || typeof result !== 'object')
         return
 
       const streamResult = result as Record<string, unknown>
-      const fullStream = streamResult.fullStream as {
-        pipeTo?: (destination: WritableStream<unknown>) => Promise<void>
-      } | undefined
-      if (typeof fullStream?.pipeTo === 'function') {
-        try {
-          void fullStream
-            .pipeTo(new WritableStream())
-            .catch(rejectOnce)
-        }
-        catch (error) {
-          rejectOnce(error)
-        }
-      }
-
       for (const key of ['messages', 'steps', 'totalUsage', 'usage'] as const) {
         const pending = streamResult[key]
         if (pending && typeof (pending as PromiseLike<unknown>).then === 'function')
@@ -209,7 +264,51 @@ async function streamFrom(model: string, chatProvider: ChatProvider, messages: M
         tools,
         onEvent,
       })
-      observeStreamTextResultErrors(result)
+      void Promise.resolve(result)
+        .then(async (resolvedResult) => {
+          sourceResolved = true
+          const fullStream = readFullStream(resolvedResult)
+          observeStreamTextResultErrors(resolvedResult)
+
+          if (fullStream) {
+            fullStreamMode = true
+            let sawFinish = false
+            const reader = fullStream.getReader()
+            try {
+              while (true) {
+                if (settled)
+                  break
+                const next = await reader.read()
+                if (next.done)
+                  break
+                if (next.value && typeof next.value === 'object' && (next.value as StreamEvent).type === 'finish') {
+                  const finishReason = (next.value as any).finishReason
+                  if (finishReason !== 'tool_calls' || !options?.waitForTools)
+                    sawFinish = true
+                }
+                await handleEvent(next.value)
+              }
+              if (!settled) {
+                rejectOnce(new Error(
+                  sawFinish
+                    ? 'Provider stream closed before lifecycle settlement.'
+                    : 'Provider stream closed before a finish event.',
+                ))
+              }
+            }
+            catch (error) {
+              rejectOnce(error)
+            }
+            finally {
+              reader.releaseLock?.()
+            }
+            return
+          }
+
+          for (const event of queuedLegacyEvents.splice(0))
+            await handleEvent(event)
+        })
+        .catch(rejectOnce)
     }
     catch (err) {
       rejectOnce(err)

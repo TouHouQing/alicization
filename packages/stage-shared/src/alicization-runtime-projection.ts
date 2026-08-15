@@ -5,6 +5,7 @@ export type AlicizationRuntimeToolProjectionPhase
     | 'running'
     | 'completed'
     | 'failed'
+    | 'dead-lettered'
     | 'cancelled'
     | 'timeout'
 
@@ -78,7 +79,7 @@ export interface AlicizationRuntimeToolResultFact extends AlicizationRuntimeTool
   type: 'tool-result'
   phase?: Extract<
     AlicizationRuntimeToolProjectionPhase,
-    'completed' | 'failed' | 'cancelled' | 'timeout'
+    'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'
   >
   result?: unknown
 }
@@ -147,6 +148,7 @@ const executionChannels = new Set<AlicizationExecutionChannel>([
 const terminalPhases = new Set<AlicizationRuntimeToolProjectionPhase>([
   'completed',
   'failed',
+  'dead-lettered',
   'cancelled',
   'timeout',
 ])
@@ -235,7 +237,7 @@ export function resolveAlicizationRuntimeToolResultPhase(
   result: unknown,
 ): Extract<
   AlicizationRuntimeToolProjectionPhase,
-  'completed' | 'failed' | 'cancelled' | 'timeout'
+  'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'
 > {
   const record = readRecord(result)
   const status = normalizeText(record?.status).toLowerCase()
@@ -255,6 +257,12 @@ export function resolveAlicizationRuntimeToolResultPhase(
     || /(?:^|_)timeout$/u.test(errorCode)
   ) {
     return 'timeout'
+  }
+  if (
+    status === 'dead-lettered'
+    || finalStatus === 'dead-lettered'
+  ) {
+    return 'dead-lettered'
   }
   if (
     status === 'failed'
