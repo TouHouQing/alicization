@@ -388,6 +388,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
     jobId: string
     tempRootDir: string
   }) => Promise<string>
+  removeTempDir?: (path: string) => Promise<void>
 }) {
   const executeJob = input.executeJob ?? executeMemorySemanticScaleJob
   const maxAttempts = normalizePositiveInteger(input.maxAttempts, 3, 20)
@@ -400,6 +401,8 @@ export function createMemorySemanticScaleJobRuntime(input: {
     await mkdir(tempRootDir, { recursive: true })
     return await mkdtemp(join(tempRootDir, 'alicization-memory-semantic-scale-'))
   })
+  const removeTempDir = input.removeTempDir ?? (async path =>
+    await rm(path, { recursive: true, force: true }))
   const activeWorkers = new Map<string, Promise<void>>()
   const activeControllers = new Map<string, AbortController>()
   let workerTail = Promise.resolve()
@@ -877,7 +880,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
       finally {
         if (tempDir) {
           try {
-            await rm(tempDir, { recursive: true, force: true })
+            await removeTempDir(tempDir)
           }
           catch (error) {
             executionError ??= error
@@ -887,8 +890,17 @@ export function createMemorySemanticScaleJobRuntime(input: {
 
       if (!claimed)
         return await getJob(jobId)
+      if (stopLeaseHeartbeat) {
+        const heartbeatError = await stopLeaseHeartbeat()
+        executionError ??= heartbeatError
+        stopLeaseHeartbeat = null
+      }
       let settlementFailureCount = 0
-      while (true) {
+      const settlementRetryLimit = 3
+      let settled = false
+      while (settlementFailureCount < settlementRetryLimit) {
+        if (settlementFailureCount > 0 && stopping)
+          break
         try {
           await settleExecution({
             claimed,
@@ -896,14 +908,25 @@ export function createMemorySemanticScaleJobRuntime(input: {
             error: executionError,
             signal: controller.signal,
           })
+          settled = true
           break
         }
         catch (error) {
           settlementFailureCount += 1
           await persistWorkerErrorBestEffort(jobId, error)
-          await wait(workerRetryDelay(settlementFailureCount))
+          if (stopping || settlementFailureCount >= settlementRetryLimit)
+            break
+          const retryDelayBudget = Math.floor(
+            Math.max(0, leaseMs - 1) / Math.max(1, settlementRetryLimit - 1),
+          )
+          await waitUntilAborted(
+            Math.min(workerRetryDelay(settlementFailureCount), retryDelayBudget),
+            controller.signal,
+          )
         }
       }
+      if (!settled)
+        return mapJobRow(claimed.row)
       return await getJob(jobId)
     }
     finally {
@@ -951,6 +974,8 @@ export function createMemorySemanticScaleJobRuntime(input: {
             const next = await runNextAttempt(normalizedJobId)
             workerFailureCount = 0
             if (['completed', 'cancelled', 'failed'].includes(next.status))
+              break
+            if (next.status === 'running' || next.status === 'cancel_requested')
               break
           }
           catch (error) {

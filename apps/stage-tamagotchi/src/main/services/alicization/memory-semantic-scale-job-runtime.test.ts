@@ -136,6 +136,7 @@ function attachRuntime(
       jobId: string
       tempRootDir: string
     }) => Promise<string>
+    removeTempDir?: (path: string) => Promise<void>
     run?: (sql: string, params?: unknown[]) => Promise<unknown>
     get?: <T>(sql: string, params?: unknown[]) => Promise<T | undefined>
     writeQueue?: WriteQueue
@@ -174,6 +175,7 @@ function attachRuntime(
     retryMaxMs: input.retryMaxMs,
     tempRootDir: input.tempRootDir,
     createTempDir: input.createTempDir,
+    removeTempDir: input.removeTempDir,
   })
   return { runtime, writeQueue }
 }
@@ -190,6 +192,7 @@ async function createRuntimeHarness(input?: {
     jobId: string
     tempRootDir: string
   }) => Promise<string>
+  removeTempDir?: (path: string) => Promise<void>
   run?: (sql: string, params?: unknown[]) => Promise<unknown>
 }) {
   const harness = await createSqliteHarness()
@@ -905,6 +908,58 @@ describe('memory semantic scale job runtime', () => {
     expect(result.nextRetryAt).not.toBeNull()
   })
 
+  it('retries when the lease heartbeat fails after the executor returns a successful report', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let cleanupStarted = false
+    let heartbeatWriteFailed = false
+    let releaseCleanup: (() => void) | undefined
+    const heartbeatFailedPromise = new Promise<void>((resolve) => {
+      releaseCleanup = resolve
+    })
+    const { runtime } = attachRuntime(harness, {
+      leaseMs: 15,
+      maxAttempts: 2,
+      retryBaseMs: 1,
+      tempRootDir,
+      run: async (sql, params = []) => {
+        if (
+          cleanupStarted
+          && !heartbeatWriteFailed
+          && sql.includes('SET lease_expires_at = ?, updated_at = ?')
+        ) {
+          heartbeatWriteFailed = true
+          releaseCleanup?.()
+          throw new Error('lease heartbeat failed after report')
+        }
+        return await harness.run(sql, params)
+      },
+      executeJob: async ({ corpusSize }) =>
+        createReport(corpusSize, 'successful-report-before-heartbeat-failure'),
+      removeTempDir: async (path) => {
+        cleanupStarted = true
+        await heartbeatFailedPromise
+        await rm(path, { recursive: true, force: true })
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+
+    const result = await runtime.runNextAttempt(job.jobId)
+
+    expect(cleanupStarted).toBe(true)
+    expect(heartbeatWriteFailed).toBe(true)
+    expect(result).toMatchObject({
+      status: 'queued',
+      deadLettered: false,
+      attemptCount: 1,
+      lastError: 'lease heartbeat failed after report',
+      report: {
+        id: 'successful-report-before-heartbeat-failure',
+      },
+    })
+  })
+
   it('keeps the worker scheduled after a transient getJob read failure', async () => {
     const harness = await createSqliteHarness()
     const tempRootDir = await createTempRoot()
@@ -1019,6 +1074,57 @@ describe('memory semantic scale job runtime', () => {
       report: {
         id: 'settlement-report-preserved',
       },
+    })
+  })
+
+  it('bounds persistent settlement failures so stop resolves and leaves the lease recoverable', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let settlementFailureEnabled = true
+    let settlementAttempts = 0
+    let executions = 0
+    const { runtime } = attachRuntime(harness, {
+      tempRootDir,
+      run: async (sql, params = []) => {
+        if (
+          settlementFailureEnabled
+          && (
+            sql.includes(`SET status = 'completed'`)
+            || sql.includes(`SET status = 'queued', dead_lettered = 0`)
+          )
+        ) {
+          settlementAttempts += 1
+          throw new Error('SQLITE_FULL: persistent settlement failure')
+        }
+        return await harness.run(sql, params)
+      },
+      executeJob: async ({ corpusSize }) => {
+        executions += 1
+        return createReport(corpusSize, 'persistent-settlement-report')
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    const worker = runtime.runJob(job.jobId)
+    await waitFor(() => {
+      expect(settlementAttempts).toBeGreaterThanOrEqual(2)
+    })
+
+    const stopPromise = runtime.stop().then(() => 'stopped' as const)
+    const stopResult = await Promise.race([
+      stopPromise,
+      new Promise<'timed-out'>(resolve => setTimeout(() => resolve('timed-out'), 200)),
+    ])
+    settlementFailureEnabled = false
+    await Promise.all([worker, stopPromise])
+
+    expect(stopResult).toBe('stopped')
+    expect(executions).toBe(1)
+    expect(settlementAttempts).toBeLessThanOrEqual(3)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'running',
+      attemptCount: 1,
+      report: null,
     })
   })
 
