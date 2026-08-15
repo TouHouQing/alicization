@@ -12,6 +12,8 @@ import type {
   AlicizationMemoryRecallProbeResult,
   AlicizationMemoryReplaySessionSummary,
   AlicizationMemoryReviewActionPayload,
+  AlicizationMemorySemanticScaleJob,
+  AlicizationMemorySemanticScaleJobTier,
   AlicizationMemoryWorkbenchItem,
   AlicizationMemoryWorkbenchListPayload,
   AlicizationMemoryWorkbenchSnapshot,
@@ -81,6 +83,10 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   const reindexLoading = ref(false)
   const reindexResult = ref<AlicizationMemoryEmbeddingReindexResult | null>(null)
   const reindexDeadLetterItems = ref<AlicizationMemoryEmbeddingReindexDeadLetterItem[]>([])
+  const semanticScaleTier = ref<AlicizationMemorySemanticScaleJobTier>('10k')
+  const semanticScaleJob = ref<AlicizationMemorySemanticScaleJob | null>(null)
+  const semanticScaleJobs = ref<AlicizationMemorySemanticScaleJob[]>([])
+  const semanticScaleLoading = ref(false)
   const embeddingModels = ref<AlicizationMemoryEmbeddingModelInfo[]>([])
   const embeddingModelDiscoveryLoading = ref(false)
   const embeddingModelDiscoveryResult = ref<AlicizationMemoryEmbeddingModelListResult | null>(null)
@@ -95,6 +101,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   const qualityTrialMode = ref<'historical-replay' | 'live-provider'>('historical-replay')
   let qualityReplaySessionsRevision = 0
   let qualityTrialContextRevision = 0
+  let semanticScaleContextRevision = 0
   const goldLabelLoading = ref(false)
   const goldLabelMonth = ref(new Date().toISOString().slice(0, 7))
   const monthlyGoldLabels = ref<AlicizationMemoryQualityGoldLabelItem[]>([])
@@ -120,6 +127,16 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
     if (!reindexLoading.value)
       await refreshReindexJob(progress.jobId)
+  }, 2_000, { immediate: false })
+  const activeSemanticScaleStatuses = new Set(['queued', 'running', 'cancel_requested'])
+  const { pause: pauseSemanticScalePolling, resume: resumeSemanticScalePolling } = useIntervalFn(async () => {
+    const job = semanticScaleJob.value
+    if (!job || !activeSemanticScaleStatuses.has(job.status)) {
+      pauseSemanticScalePolling()
+      return
+    }
+    if (!semanticScaleLoading.value)
+      await refreshSemanticScaleJob(job.jobId)
   }, 2_000, { immediate: false })
 
   function updateReindexResult(result: AlicizationMemoryEmbeddingReindexResult) {
@@ -148,6 +165,171 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       deadLetterItems: [],
       progress,
     })
+  }
+
+  function updateSemanticScaleResult(result: {
+    job: AlicizationMemorySemanticScaleJob | null
+    jobs: AlicizationMemorySemanticScaleJob[]
+  }) {
+    if (result.job)
+      semanticScaleJob.value = result.job
+    if (result.jobs.length > 0) {
+      const byId = new Map(semanticScaleJobs.value.map(job => [job.jobId, job]))
+      for (const job of result.jobs)
+        byId.set(job.jobId, job)
+      if (result.job)
+        byId.set(result.job.jobId, result.job)
+      semanticScaleJobs.value = [...byId.values()]
+        .sort((left, right) => right.createdAt - left.createdAt || right.jobId.localeCompare(left.jobId))
+    }
+    lastError.value = result.job?.lastError ?? null
+    if (semanticScaleJob.value && activeSemanticScaleStatuses.has(semanticScaleJob.value.status))
+      resumeSemanticScalePolling()
+    else
+      pauseSemanticScalePolling()
+  }
+
+  async function loadSemanticScaleJobs() {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchManageSemanticScaleJobs)
+      return []
+    const revision = semanticScaleContextRevision
+    semanticScaleLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchManageSemanticScaleJobs!({
+        action: 'list',
+        limit: 30,
+      })
+      if (revision !== semanticScaleContextRevision)
+        return []
+      semanticScaleJobs.value = result.jobs
+      semanticScaleJob.value = result.job
+      updateSemanticScaleResult(result)
+      return result.jobs
+    }
+    catch (error) {
+      if (revision === semanticScaleContextRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return []
+    }
+    finally {
+      if (revision === semanticScaleContextRevision)
+        semanticScaleLoading.value = false
+    }
+  }
+
+  async function startSemanticScaleJob(tier: AlicizationMemorySemanticScaleJobTier = semanticScaleTier.value) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchManageSemanticScaleJobs)
+      return null
+    const revision = semanticScaleContextRevision
+    semanticScaleLoading.value = true
+    semanticScaleTier.value = tier
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchManageSemanticScaleJobs!({
+        action: 'start',
+        tier,
+      })
+      if (revision !== semanticScaleContextRevision)
+        return null
+      updateSemanticScaleResult(result)
+      return result.job
+    }
+    catch (error) {
+      if (revision === semanticScaleContextRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      if (revision === semanticScaleContextRevision)
+        semanticScaleLoading.value = false
+    }
+  }
+
+  async function refreshSemanticScaleJob(jobId: string) {
+    if (!jobId.trim() || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchManageSemanticScaleJobs)
+      return null
+    const revision = semanticScaleContextRevision
+    semanticScaleLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchManageSemanticScaleJobs!({
+        action: 'status',
+        jobId,
+      })
+      if (revision !== semanticScaleContextRevision)
+        return null
+      updateSemanticScaleResult(result)
+      return result.job
+    }
+    catch (error) {
+      if (revision === semanticScaleContextRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      if (revision === semanticScaleContextRevision)
+        semanticScaleLoading.value = false
+    }
+  }
+
+  async function cancelSemanticScaleJob(jobId: string, reason?: string | null) {
+    if (!jobId.trim() || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchManageSemanticScaleJobs)
+      return null
+    const revision = semanticScaleContextRevision
+    semanticScaleLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchManageSemanticScaleJobs!({
+        action: 'cancel',
+        jobId,
+        reason,
+      })
+      if (revision !== semanticScaleContextRevision)
+        return null
+      updateSemanticScaleResult(result)
+      return result.job
+    }
+    catch (error) {
+      if (revision === semanticScaleContextRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      if (revision === semanticScaleContextRevision)
+        semanticScaleLoading.value = false
+    }
+  }
+
+  async function retrySemanticScaleJob(jobId: string) {
+    if (!jobId.trim() || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchManageSemanticScaleJobs)
+      return null
+    const revision = semanticScaleContextRevision
+    semanticScaleLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchManageSemanticScaleJobs!({
+        action: 'retry',
+        jobId,
+      })
+      if (revision !== semanticScaleContextRevision)
+        return null
+      updateSemanticScaleResult(result)
+      return result.job
+    }
+    catch (error) {
+      if (revision === semanticScaleContextRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      if (revision === semanticScaleContextRevision)
+        semanticScaleLoading.value = false
+    }
+  }
+
+  function resetSemanticScaleJobContext() {
+    semanticScaleContextRevision += 1
+    pauseSemanticScalePolling()
+    semanticScaleTier.value = '10k'
+    semanticScaleJob.value = null
+    semanticScaleJobs.value = []
+    semanticScaleLoading.value = false
   }
 
   async function refreshSnapshot(sessionId?: string | null) {
@@ -975,6 +1157,10 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     reindexLoading,
     reindexResult,
     reindexDeadLetterItems,
+    semanticScaleTier,
+    semanticScaleJob,
+    semanticScaleJobs,
+    semanticScaleLoading,
     embeddingModels,
     embeddingModelDiscoveryLoading,
     embeddingModelDiscoveryResult,
@@ -1036,6 +1222,12 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     refreshReindexJob,
     cancelReindexJob,
     retryDeadLetterReindex,
+    loadSemanticScaleJobs,
+    startSemanticScaleJob,
+    refreshSemanticScaleJob,
+    cancelSemanticScaleJob,
+    retrySemanticScaleJob,
+    resetSemanticScaleJobContext,
     discoverEmbeddingModels,
     testEmbeddingConnection,
   }

@@ -1,5 +1,6 @@
 import type {
   AlicizationMemoryEmbeddingReindexResult,
+  AlicizationMemorySemanticScaleJobResult,
   AlicizationPersonaCandidateWorkbenchItem,
 } from '../../../shared/eventa'
 
@@ -14,6 +15,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction,
   electronAlicizationMemoryWorkbenchListPersonaCandidates,
+  electronAlicizationMemoryWorkbenchManageSemanticScaleJobs,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
 } from '../../../shared/eventa'
 import { setupAlicizationDb } from './db'
@@ -739,11 +741,17 @@ describe('memory workbench projection', () => {
       errors: [],
       deadLetterItems: [],
     }
+    const semanticScale: AlicizationMemorySemanticScaleJobResult = {
+      job: null,
+      jobs: [],
+    }
 
     expect(candidate.allowTraining).toBe(false)
     expect(reindex.scheduled).toBe(1)
+    expect(semanticScale.jobs).toEqual([])
     expect(electronAlicizationMemoryWorkbenchListPersonaCandidates).toBeTruthy()
     expect(electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction).toBeTruthy()
+    expect(electronAlicizationMemoryWorkbenchManageSemanticScaleJobs).toBeTruthy()
     expect(electronAlicizationMemoryWorkbenchReindexEmbeddings).toBeTruthy()
   })
 })

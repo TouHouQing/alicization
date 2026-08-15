@@ -565,6 +565,10 @@ pages:
         load_gold_labels: Load Monthly Labels
         run_quality_trial: Run Quality Trial
         build_gold_regression: Freeze Monthly Regression
+        start_semantic_scale: Start Semantic Scale Soak
+        cancel_semantic_scale: Cancel Semantic Scale Soak
+        retry_semantic_scale: Retry Semantic Scale Soak
+        refresh_semantic_scale: Refresh Soak Status
         run_persona_training: Run Persona Training
         refresh_persona_training: Refresh Training State
         rollback_persona_increment: Roll Back Persona Increment
@@ -619,6 +623,14 @@ pages:
         quality_failed: Needs Work
         empty_quality_report: No quality trial report yet. Run a quality trial first.
         empty_gold_labels: No labels for this month yet. Run recall probe and click one of the four feedback buttons.
+        semantic_scale_queued: Queued
+        semantic_scale_running: Running
+        semantic_scale_cancel_requested: Cancelling
+        semantic_scale_completed: Completed
+        semantic_scale_cancelled: Cancelled
+        semantic_scale_failed: Failed
+        semantic_scale_cancelled_by_user: Semantic scale soak cancelled by user
+        empty_semantic_scale_history: No semantic scale soak history for this card yet.
       fields:
         health: Memory Health
         runtime_health: Runtime Health
@@ -722,6 +734,13 @@ pages:
         compressed_context_fixtures: Compressed-Context Fixtures
         temporal_conflict_fixtures: Temporal Conflict Fixtures
         semantic_scale_soak: Semantic Scale Soak
+        semantic_scale_tier: Soak Tier
+        semantic_scale_progress: Soak Progress
+        semantic_scale_queries: Query Rounds
+        semantic_scale_history: Report History
+        corpus_size: Corpus Size
+        next_retry_at: Next Retry
+        lease_expires_at: Lease Expires
         experience_quality: Experience Quality
         scope_fuzz_cases: Scope Fuzz Cases
         persona_fixtures: Persona Fixtures
@@ -757,6 +776,8 @@ pages:
         report_title: Trial Report
         gold_labels_title: Monthly Labels
         trial_mode: Trial Mode
+        semantic_scale_title: Durable Semantic Scale Soak
+        semantic_scale_description: Run real sqlite-vec 10k or 100k trials in an isolated temporary database. Jobs are recoverable and cancellable, and soak data never enters long-term memory.
         historical_replay: Historical Replay
         live_provider: Live Provider
         session_title: Replay Session

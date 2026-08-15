@@ -29,6 +29,7 @@ import {
   electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements,
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
   electronAlicizationMemoryWorkbenchListReplaySessions,
+  electronAlicizationMemoryWorkbenchManageSemanticScaleJobs,
   electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationMemoryWorkbenchRecordQualityGoldLabel,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
@@ -202,6 +203,15 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     query: sanitizeText(payload.query),
     sessionId: normalizeSessionId(payload.sessionId) || null,
     includeWorkingMemory: payload.includeWorkingMemory === true,
+    limit: payload.limit,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchManageSemanticScaleJobs, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().manageMemoryWorkbenchSemanticScaleJobs({
+    cardId: cardIdFrom(payload),
+    action: payload.action,
+    jobId: sanitizeText(payload.jobId, '') || undefined,
+    tier: payload.tier,
+    reason: sanitizeText(payload.reason, '') || undefined,
     limit: payload.limit,
   })))
 

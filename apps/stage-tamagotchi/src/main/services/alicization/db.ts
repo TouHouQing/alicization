@@ -108,6 +108,11 @@ import type {
   MemoryProductionTrialReport,
   MemoryProductionTrialRuntimeHealth,
 } from './memory-production-trial-runner'
+import type {
+  MemorySemanticScaleJob,
+  MemorySemanticScaleJobExecutor,
+  MemorySemanticScaleJobTier,
+} from './memory-semantic-scale-job-runtime'
 import type { PersonaTrainingDatasetQualityFixture } from './persona-training-dataset-quality-harness'
 import type {
   PersonaTrainingDatasetCleaningProvenance,
@@ -208,6 +213,7 @@ import { runMemoryProductionTrialRunner } from './memory-production-trial-runner
 import { createAlicizationMemoryRelationshipRuntime } from './memory-relationship-runtime'
 import { createAlicizationMemoryRetrievalTelemetryRuntime } from './memory-retrieval-telemetry'
 import { runMemoryScopeFuzzDbTrial } from './memory-scope-fuzz-db-trial'
+import { createMemorySemanticScaleJobRuntime } from './memory-semantic-scale-job-runtime'
 import { buildAlicizationMemoryStatsProjection } from './memory-stats-projection'
 import { createAlicizationMemorySubconsciousRuntime } from './memory-subconscious-runtime'
 import {
@@ -1728,6 +1734,17 @@ export interface AlicizationDbService {
     month?: string | null
     sessionId?: string | null
   }) => Promise<MemoryProductionTrialReport>
+  manageMemoryWorkbenchSemanticScaleJobs: (input: {
+    cardId: string
+    action?: 'start' | 'status' | 'list' | 'cancel' | 'retry'
+    jobId?: string
+    tier?: MemorySemanticScaleJobTier
+    reason?: string | null
+    limit?: number
+  }) => Promise<{
+    job: MemorySemanticScaleJob | null
+    jobs: MemorySemanticScaleJob[]
+  }>
   reindexMemoryWorkbenchEmbeddings: (input: {
     cardId: string
     action?: 'start' | 'status' | 'cancel' | 'retry-dead-letter'
@@ -1979,6 +1996,14 @@ export async function setupAlicizationDb(
     memoryTrialProvider?: AlicizationMemoryTrialProvider | null
     resolveMemoryTrialProvider?: () => AlicizationMemoryTrialProvider | null
     personaTrainingExecutor?: (input: PersonaTrainingExecutorInput) => Promise<PersonaTrainingExecutorOutput>
+    semanticScaleJobOptions?: {
+      executeJob?: MemorySemanticScaleJobExecutor
+      maxAttempts?: number
+      leaseMs?: number
+      retryBaseMs?: number
+      retryMaxMs?: number
+      tempRootDir?: string
+    }
   },
 ): Promise<AlicizationDbService> {
   const configuredCardId = normalizeOrganicMemoryText(options?.cardId, 120)
@@ -2430,6 +2455,7 @@ export async function setupAlicizationDb(
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_model ON long_term_memory_vectors(card_id, vector_space_id, model_id, dimensions, status)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_source ON long_term_memory_vectors(card_id, source_id, source)')
     await memoryEmbeddingReindexRuntime.initializeSchema()
+    await memorySemanticScaleJobRuntime.initializeSchema()
     await longTermMemoryVectorIndexAdapter.initialize()
     await longTermMemorySearchIndexRuntime.initializeSchema()
 
@@ -6944,6 +6970,22 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       }])
     },
   })
+  const memorySemanticScaleJobRuntime = createMemorySemanticScaleJobRuntime({
+    database,
+    now,
+    randomUUID,
+    run,
+    get,
+    all,
+    enqueueWrite,
+    runInTransaction,
+    executeJob: options?.semanticScaleJobOptions?.executeJob,
+    maxAttempts: options?.semanticScaleJobOptions?.maxAttempts,
+    leaseMs: options?.semanticScaleJobOptions?.leaseMs,
+    retryBaseMs: options?.semanticScaleJobOptions?.retryBaseMs,
+    retryMaxMs: options?.semanticScaleJobOptions?.retryMaxMs,
+    tempRootDir: options?.semanticScaleJobOptions?.tempRootDir,
+  })
   const memoryWorkbenchPersonaCandidateRuntime = createMemoryWorkbenchPersonaCandidateRuntime({
     database,
     now,
@@ -8656,6 +8698,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       cardId,
       checkpoints: workingMemoryCheckpoints,
     })
+    const semanticScaleJobReport = await memorySemanticScaleJobRuntime.getLatestCompletedReport(cardId)
     const [queueResult, recallResult, embeddingResult] = await Promise.allSettled([
       getMemoryWorkbenchQueueHealth({ cardId }),
       getMemoryWorkbenchRecallHealth({ cardId }),
@@ -8949,6 +8992,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       }),
       compressedContextBehavior,
       temporalConflict,
+      semanticScaleSoakReport: semanticScaleJobReport?.report ?? null,
       experienceQuality,
       scopeFuzzReport,
       runtimeHealth,
@@ -8977,6 +9021,58 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       }
     }
     return report
+  }
+
+  async function manageMemoryWorkbenchSemanticScaleJobs(input: {
+    cardId: string
+    action?: 'start' | 'status' | 'list' | 'cancel' | 'retry'
+    jobId?: string
+    tier?: MemorySemanticScaleJobTier
+    reason?: string | null
+    limit?: number
+  }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'memory semantic scale job')
+    const action = input.action ?? 'list'
+    if (action === 'list') {
+      const jobs = await memorySemanticScaleJobRuntime.listJobs(cardId, {
+        limit: input.limit,
+      })
+      return {
+        job: jobs[0] ?? null,
+        jobs,
+      }
+    }
+
+    if (action === 'start') {
+      const job = await memorySemanticScaleJobRuntime.startJob({
+        cardId,
+        tier: input.tier === '100k' ? '100k' : '10k',
+      })
+      void memorySemanticScaleJobRuntime.runJob(job.jobId).catch(() => {})
+      return {
+        job,
+        jobs: [job],
+      }
+    }
+
+    const jobId = normalizeOrganicMemoryText(input.jobId, 240)
+    if (!jobId)
+      throw new Error(`memory semantic scale ${action} requires jobId`)
+    const job = action === 'status'
+      ? await memorySemanticScaleJobRuntime.getJob(jobId, cardId)
+      : action === 'cancel'
+        ? await memorySemanticScaleJobRuntime.requestCancel(
+            jobId,
+            normalizeOrganicMemoryText(input.reason, 500) || undefined,
+            cardId,
+          )
+        : await memorySemanticScaleJobRuntime.retryJob(jobId, cardId)
+    if (action === 'retry')
+      void memorySemanticScaleJobRuntime.runJob(jobId).catch(() => {})
+    return {
+      job,
+      jobs: [job],
+    }
   }
 
   function memoryEmbeddingReindexResult(
@@ -9460,11 +9556,13 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
   })
   await rebuildLongTermMemorySearchIndexForCard(boundCardId, 'initial long-term memory search index rebuild')
   await memoryEmbeddingReindexRuntime.resumePendingJobs(8, boundCardId)
+  await memorySemanticScaleJobRuntime.resumePendingJobs(boundCardId)
 
   return {
     dbPath,
     close: async () => {
       await memoryEmbeddingReindexRuntime.stop()
+      await memorySemanticScaleJobRuntime.stop()
       await close(database)
     },
     appendRuntimeEvent,
@@ -9520,6 +9618,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     listMemoryQualityGoldLabels,
     buildMonthlyGoldRegressionPack,
     runMemoryWorkbenchProductionTrial,
+    manageMemoryWorkbenchSemanticScaleJobs,
     reindexMemoryWorkbenchEmbeddings,
     resumePendingMemoryEmbeddingReindexJobs,
     listMemoryWorkbenchPersonaCandidates,

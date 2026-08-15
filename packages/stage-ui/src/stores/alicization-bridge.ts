@@ -860,6 +860,73 @@ export interface AlicizationSkillWorkbenchItem {
   activationStatus: AlicizationSkillWorkbenchActivationStatus
 }
 
+export type AlicizationMemorySemanticScaleJobTier = '10k' | '100k'
+export type AlicizationMemorySemanticScaleJobStatus = 'queued' | 'running' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
+
+export interface AlicizationMemorySemanticScaleJobProgress {
+  phase: 'queued' | 'indexing' | 'querying' | 'completed'
+  completed: number
+  total: number
+  ratio: number
+  indexedCount: number
+  queryCount: number
+  corpusSize: number
+}
+
+export interface AlicizationMemorySemanticScaleSoakReport {
+  version: 'memory-semantic-scale-soak-harness-v1'
+  id: string
+  createdAt: number
+  passed: boolean
+  summary: {
+    corpusSize: number
+    queryCount: number
+    p95LatencyMs: number
+    p99LatencyMs: number
+    recallAtK: number
+    falseRecallRate: number
+    coverageRatio: number
+    failingChecks: string[]
+  }
+  searchMetrics: Array<Record<string, unknown>>
+  providerDegradation: Record<string, unknown> | null
+  reindex: Record<string, unknown> | null
+  recommendedNextActions: string[]
+}
+
+export interface AlicizationMemorySemanticScaleJob {
+  jobId: string
+  cardId: string
+  tier: AlicizationMemorySemanticScaleJobTier
+  corpusSize: number
+  status: AlicizationMemorySemanticScaleJobStatus
+  deadLettered: boolean
+  attemptCount: number
+  maxAttempts: number
+  nextRetryAt: number | null
+  leaseExpiresAt: number | null
+  progress: AlicizationMemorySemanticScaleJobProgress
+  report: AlicizationMemorySemanticScaleSoakReport | null
+  lastError: string | null
+  createdAt: number
+  updatedAt: number
+  startedAt: number | null
+  completedAt: number | null
+}
+
+export interface AlicizationMemorySemanticScaleJobPayload extends AlicizationCardScope {
+  action?: 'start' | 'status' | 'list' | 'cancel' | 'retry'
+  jobId?: string
+  tier?: AlicizationMemorySemanticScaleJobTier
+  reason?: string | null
+  limit?: number
+}
+
+export interface AlicizationMemorySemanticScaleJobResult {
+  job: AlicizationMemorySemanticScaleJob | null
+  jobs: AlicizationMemorySemanticScaleJob[]
+}
+
 export interface AlicizationMemoryEmbeddingReindexPayload extends AlicizationCardScope {
   action?: 'start' | 'status' | 'cancel' | 'retry-dead-letter'
   jobId?: string
@@ -2797,6 +2864,7 @@ interface AlicizationBridge {
   skillWorkbenchActivate?: (payload: { id: string, version: string }) => Promise<AlicizationSkillWorkbenchItem>
   skillWorkbenchRollback?: (payload: { id: string, version: string }) => Promise<AlicizationSkillWorkbenchItem>
   skillWorkbenchRevoke?: (payload: { id: string, version: string }) => Promise<AlicizationSkillWorkbenchItem>
+  memoryWorkbenchManageSemanticScaleJobs?: (payload: Omit<AlicizationMemorySemanticScaleJobPayload, 'cardId'>) => Promise<AlicizationMemorySemanticScaleJobResult>
   memoryWorkbenchReindexEmbeddings?: (payload: Omit<AlicizationMemoryEmbeddingReindexPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingReindexResult>
   memoryWorkbenchListEmbeddingModels?: (payload: Omit<AlicizationMemoryEmbeddingModelListPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingModelListResult>
   memoryWorkbenchTestEmbeddingConnection?: (payload: Omit<AlicizationMemoryEmbeddingConnectionTestPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingConnectionTestResult>

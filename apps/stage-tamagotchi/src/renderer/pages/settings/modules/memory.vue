@@ -34,6 +34,10 @@ const {
   reindexLoading,
   reindexResult,
   reindexDeadLetterItems,
+  semanticScaleTier,
+  semanticScaleJob,
+  semanticScaleJobs,
+  semanticScaleLoading,
   qualityTrialLoading,
   qualityTrialReport,
   qualityReplaySessions,
@@ -115,6 +119,15 @@ const reindexStatusLabelKeys = {
   completed: 'settings.pages.memory.workbench.states.reindex_completed',
   cancelled: 'settings.pages.memory.workbench.states.reindex_cancelled',
   failed: 'settings.pages.memory.workbench.states.reindex_failed',
+} as const
+
+const semanticScaleStatusLabelKeys = {
+  queued: 'settings.pages.memory.workbench.states.semantic_scale_queued',
+  running: 'settings.pages.memory.workbench.states.semantic_scale_running',
+  cancel_requested: 'settings.pages.memory.workbench.states.semantic_scale_cancel_requested',
+  completed: 'settings.pages.memory.workbench.states.semantic_scale_completed',
+  cancelled: 'settings.pages.memory.workbench.states.semantic_scale_cancelled',
+  failed: 'settings.pages.memory.workbench.states.semantic_scale_failed',
 } as const
 
 const datasetStateLabelKeys = {
@@ -314,6 +327,10 @@ function formatReindexStatus(value: string) {
   return t(reindexStatusLabelKeys[value as keyof typeof reindexStatusLabelKeys] ?? value)
 }
 
+function formatSemanticScaleStatus(value: string) {
+  return t(semanticScaleStatusLabelKeys[value as keyof typeof semanticScaleStatusLabelKeys] ?? value)
+}
+
 function formatDatasetState(value: string) {
   return t(datasetStateLabelKeys[value as keyof typeof datasetStateLabelKeys] ?? value)
 }
@@ -437,7 +454,9 @@ function applyProbeGoldLabel(label: AlicizationSimpleRecallGoldLabel) {
 
 function reloadQualityTrialContext() {
   store.resetQualityTrialContext()
+  store.resetSemanticScaleJobContext()
   void store.loadQualityReplaySessions()
+  void store.loadSemanticScaleJobs()
 }
 
 onMounted(() => {
@@ -965,6 +984,131 @@ watch(activeCardId, () => {
               :loading="goldLabelLoading"
               @click="buildGoldRegression()"
             />
+          </div>
+        </section>
+
+        <section :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+          <div :class="['flex', 'flex-wrap', 'items-start', 'justify-between', 'gap-3']">
+            <div>
+              <div :class="['text-sm', 'font-semibold']">
+                {{ t('settings.pages.memory.workbench.quality.semantic_scale_title') }}
+              </div>
+              <p :class="['mt-1', 'text-xs', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.quality.semantic_scale_description') }}
+              </p>
+            </div>
+            <Button
+              :label="t('settings.pages.memory.workbench.actions.refresh_semantic_scale')"
+              icon="i-solar:refresh-bold-duotone"
+              size="sm"
+              variant="secondary"
+              :loading="semanticScaleLoading"
+              @click="store.loadSemanticScaleJobs()"
+            />
+          </div>
+
+          <div :class="['mt-4', 'grid', 'grid-cols-2', 'gap-2']">
+            <label
+              v-for="tier in ['10k', '100k'] as const"
+              :key="tier"
+              :class="[
+                'flex', 'min-w-0', 'cursor-pointer', 'items-center', 'justify-center', 'gap-2',
+                'border', 'px-3', 'py-2', 'text-sm',
+                semanticScaleTier === tier
+                  ? 'border-neutral-950 bg-neutral-950 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-950'
+                  : 'border-neutral-300 bg-white text-neutral-700 dark:border-neutral-700 dark:bg-neutral-950 dark:text-neutral-200',
+              ]"
+            >
+              <input v-model="semanticScaleTier" class="sr-only" type="radio" :value="tier">
+              <span>{{ tier }}</span>
+            </label>
+          </div>
+          <div :class="['mt-3', 'flex', 'flex-wrap', 'gap-2']">
+            <Button
+              :label="t('settings.pages.memory.workbench.actions.start_semantic_scale')"
+              icon="i-solar:play-circle-bold-duotone"
+              size="sm"
+              :loading="semanticScaleLoading"
+              :disabled="Boolean(semanticScaleJob && ['queued', 'running', 'cancel_requested'].includes(semanticScaleJob.status))"
+              @click="store.startSemanticScaleJob(semanticScaleTier)"
+            />
+            <Button
+              v-if="semanticScaleJob && ['queued', 'running', 'cancel_requested'].includes(semanticScaleJob.status)"
+              :label="t('settings.pages.memory.workbench.actions.cancel_semantic_scale')"
+              icon="i-solar:close-circle-bold-duotone"
+              size="sm"
+              variant="secondary"
+              :loading="semanticScaleLoading"
+              @click="store.cancelSemanticScaleJob(semanticScaleJob.jobId, t('settings.pages.memory.workbench.states.semantic_scale_cancelled_by_user'))"
+            />
+            <Button
+              v-if="semanticScaleJob?.deadLettered"
+              :label="t('settings.pages.memory.workbench.actions.retry_semantic_scale')"
+              icon="i-solar:restart-bold-duotone"
+              size="sm"
+              variant="secondary"
+              :loading="semanticScaleLoading"
+              @click="store.retrySemanticScaleJob(semanticScaleJob.jobId)"
+            />
+          </div>
+
+          <div v-if="semanticScaleJob" :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+            <div :class="['grid', 'grid-cols-2', 'gap-2', 'text-sm']">
+              <div>{{ t('settings.pages.memory.workbench.fields.status') }}: {{ formatSemanticScaleStatus(semanticScaleJob.status) }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_tier') }}: {{ semanticScaleJob.tier }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.corpus_size') }}: {{ semanticScaleJob.corpusSize }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.attempt_count') }}: {{ semanticScaleJob.attemptCount }}/{{ semanticScaleJob.maxAttempts }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.indexed') }}: {{ semanticScaleJob.progress.indexedCount }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_queries') }}: {{ semanticScaleJob.progress.queryCount }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.next_retry_at') }}: {{ formatTimestamp(semanticScaleJob.nextRetryAt) }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.lease_expires_at') }}: {{ formatTimestamp(semanticScaleJob.leaseExpiresAt) }}</div>
+            </div>
+            <div :class="['mt-3', 'h-2', 'overflow-hidden', 'bg-neutral-200', 'dark:bg-neutral-800']">
+              <div
+                :class="['h-full', 'bg-emerald-500', 'transition-[width]']"
+                :style="{ width: `${Math.round(semanticScaleJob.progress.ratio * 100)}%` }"
+              />
+            </div>
+            <div :class="['mt-1', 'text-xs', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.fields.semantic_scale_progress') }}:
+              {{ Math.round(semanticScaleJob.progress.ratio * 100) }}%
+            </div>
+            <div v-if="semanticScaleJob.lastError" :class="['mt-2', 'text-sm', 'text-rose-600', 'dark:text-rose-300']">
+              {{ semanticScaleJob.lastError }}
+            </div>
+            <div v-if="semanticScaleJob.report" :class="['mt-3', 'grid', 'grid-cols-2', 'gap-2', 'text-sm']">
+              <div>Recall@K: {{ formatQualityScore(semanticScaleJob.report.summary.recallAtK) }}</div>
+              <div>P95: {{ semanticScaleJob.report.summary.p95LatencyMs.toFixed(1) }} ms</div>
+              <div>P99: {{ semanticScaleJob.report.summary.p99LatencyMs.toFixed(1) }} ms</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.coverage_ratio') }}: {{ formatCoverageRatio(semanticScaleJob.report.summary.coverageRatio) }}</div>
+            </div>
+          </div>
+
+          <div :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+            <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.fields.semantic_scale_history') }}
+            </div>
+            <div v-if="semanticScaleJobs.length === 0" :class="['mt-2', 'text-sm', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.states.empty_semantic_scale_history') }}
+            </div>
+            <article
+              v-for="job in semanticScaleJobs"
+              :key="job.jobId"
+              :class="['mt-3', 'border-t', 'border-neutral-200', 'pt-3', 'text-sm', 'dark:border-neutral-800']"
+            >
+              <div :class="['flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
+                <span>{{ job.tier }} · {{ formatSemanticScaleStatus(job.status) }}</span>
+                <span :class="['text-xs', 'text-neutral-500']">{{ formatTimestamp(job.completedAt ?? job.updatedAt) }}</span>
+              </div>
+              <div v-if="job.report" :class="['mt-1', 'text-xs', 'text-neutral-500']">
+                Recall@K {{ formatQualityScore(job.report.summary.recallAtK) }}
+                · P95 {{ job.report.summary.p95LatencyMs.toFixed(1) }} ms
+                · {{ t('settings.pages.memory.workbench.fields.coverage_ratio') }} {{ formatCoverageRatio(job.report.summary.coverageRatio) }}
+              </div>
+              <div v-if="job.deadLettered" :class="['mt-1', 'text-xs', 'text-rose-600', 'dark:text-rose-300']">
+                dead-letter · {{ job.lastError ?? '-' }}
+              </div>
+            </article>
           </div>
         </section>
 

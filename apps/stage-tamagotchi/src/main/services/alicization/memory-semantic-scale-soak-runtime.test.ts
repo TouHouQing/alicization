@@ -131,6 +131,87 @@ afterEach(async () => {
 })
 
 describe('memory semantic scale soak runtime', () => {
+  it('reports persisted-work progress after every index batch and query round', async () => {
+    const database = await createSoakDatabase()
+    const progress: Array<{
+      phase: string
+      completed: number
+      total: number
+      ratio: number
+      indexedCount: number
+      queryCount: number
+      corpusSize: number
+    }> = []
+    try {
+      await runMemorySemanticScaleVectorAdapterSoak({
+        id: 'sqlite-vec-progress-soak',
+        createdAt: Date.parse('2026-08-15T00:00:00.000Z'),
+        adapter: database.adapter,
+        prepareCanonical: database.prepareCanonical,
+        cardId: 'card-progress',
+        foreignCardId: 'card-progress-foreign',
+        modelId: 'deterministic-soak-v1',
+        dimensions: 12,
+        corpusSizes: [20],
+        queryCount: 4,
+        batchSize: 10,
+        onProgress: async (next) => {
+          progress.push(next)
+        },
+      })
+
+      expect(progress.filter(item => item.phase === 'indexing')).toHaveLength(2)
+      expect(progress.filter(item => item.phase === 'querying')).toHaveLength(4)
+      expect(progress.map(item => item.completed)).toEqual([1, 2, 3, 4, 5, 6])
+      expect(progress.at(-1)).toMatchObject({
+        phase: 'querying',
+        total: 6,
+        ratio: 1,
+        indexedCount: 20,
+        queryCount: 4,
+        corpusSize: 20,
+      })
+    }
+    finally {
+      await database.close()
+    }
+  })
+
+  it('aborts the real sqlite-vec soak between index batches', async () => {
+    const database = await createSoakDatabase()
+    const controller = new AbortController()
+    let indexedBatchCount = 0
+    try {
+      await expect(runMemorySemanticScaleVectorAdapterSoak({
+        id: 'sqlite-vec-cancelled-soak',
+        createdAt: Date.parse('2026-08-15T00:00:00.000Z'),
+        adapter: database.adapter,
+        prepareCanonical: database.prepareCanonical,
+        cardId: 'card-cancelled',
+        foreignCardId: 'card-cancelled-foreign',
+        modelId: 'deterministic-soak-v1',
+        dimensions: 12,
+        corpusSizes: [1_000],
+        queryCount: 4,
+        batchSize: 100,
+        signal: controller.signal,
+        onProgress: async (progress) => {
+          if (progress.phase !== 'indexing')
+            return
+          indexedBatchCount += 1
+          controller.abort(new DOMException('cancel semantic scale soak', 'AbortError'))
+        },
+      })).rejects.toMatchObject({
+        name: 'AbortError',
+        message: 'cancel semantic scale soak',
+      })
+      expect(indexedBatchCount).toBe(1)
+    }
+    finally {
+      await database.close()
+    }
+  })
+
   it('runs a real sqlite-vec adapter soak at 10k and optionally 100k scale', async () => {
     const database = await createSoakDatabase()
     const smokeCorpusSize = Math.max(1, Number(process.env.ALICIZATION_MEMORY_SOAK_SIZE ?? 10_000))

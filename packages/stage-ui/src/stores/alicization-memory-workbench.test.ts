@@ -388,6 +388,116 @@ describe('alicization memory workbench store', () => {
     expect(memoryWorkbenchReindexEmbeddings).toHaveBeenCalledTimes(3)
   })
 
+  it('starts and polls only the active semantic scale job until completion', async () => {
+    vi.useFakeTimers()
+    const queued = {
+      jobId: 'semantic-job-polling',
+      cardId: 'default',
+      tier: '100k',
+      corpusSize: 100_000,
+      status: 'queued',
+      deadLettered: false,
+      attemptCount: 0,
+      maxAttempts: 3,
+      nextRetryAt: null,
+      leaseExpiresAt: null,
+      progress: {
+        phase: 'queued',
+        completed: 0,
+        total: 0,
+        ratio: 0,
+        indexedCount: 0,
+        queryCount: 0,
+        corpusSize: 100_000,
+      },
+      report: null,
+      lastError: null,
+      createdAt: 1,
+      updatedAt: 1,
+      startedAt: null,
+      completedAt: null,
+    } as const
+    const memoryWorkbenchManageSemanticScaleJobs = vi.fn()
+      .mockResolvedValueOnce({ job: queued, jobs: [queued] })
+      .mockResolvedValueOnce({
+        job: {
+          ...queued,
+          status: 'completed',
+          progress: {
+            ...queued.progress,
+            phase: 'completed',
+            completed: 224,
+            total: 224,
+            ratio: 1,
+            indexedCount: 100_000,
+            queryCount: 24,
+          },
+          report: {
+            id: 'semantic-scale-completed',
+            passed: true,
+            summary: {
+              corpusSize: 100_000,
+              queryCount: 24,
+              p95LatencyMs: 10,
+              p99LatencyMs: 12,
+              recallAtK: 1,
+              falseRecallRate: 0,
+              coverageRatio: 1,
+              failingChecks: [],
+            },
+          },
+          completedAt: 2,
+        },
+        jobs: [],
+      })
+    setAlicizationBridge({ memoryWorkbenchManageSemanticScaleJobs } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.startSemanticScaleJob('100k')
+    expect(store.semanticScaleJob?.status).toBe('queued')
+
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(store.semanticScaleJob?.status).toBe('completed')
+    expect(memoryWorkbenchManageSemanticScaleJobs.mock.calls.map(call => call[0])).toEqual([
+      { action: 'start', tier: '100k' },
+      { action: 'status', jobId: 'semantic-job-polling' },
+    ])
+
+    await vi.advanceTimersByTimeAsync(4_000)
+    expect(memoryWorkbenchManageSemanticScaleJobs).toHaveBeenCalledTimes(2)
+  })
+
+  it('clears semantic scale state and ignores stale async results after a card switch', async () => {
+    let resolveList: ((value: any) => void) | undefined
+    const memoryWorkbenchManageSemanticScaleJobs = vi.fn(() => new Promise((resolve) => {
+      resolveList = resolve
+    }))
+    setAlicizationBridge({ memoryWorkbenchManageSemanticScaleJobs } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const pending = store.loadSemanticScaleJobs()
+    expect(store.semanticScaleLoading).toBe(true)
+
+    store.resetSemanticScaleJobContext()
+    expect(store.semanticScaleLoading).toBe(false)
+    expect(store.semanticScaleJob).toBeNull()
+    expect(store.semanticScaleJobs).toEqual([])
+
+    resolveList?.({
+      job: {
+        jobId: 'stale-semantic-job',
+        status: 'completed',
+      },
+      jobs: [{
+        jobId: 'stale-semantic-job',
+        status: 'completed',
+      }],
+    })
+    await expect(pending).resolves.toEqual([])
+    expect(store.semanticScaleJob).toBeNull()
+    expect(store.semanticScaleJobs).toEqual([])
+  })
+
   it('discovers embedding models and tests embedding connectivity through the bridge', async () => {
     const memoryWorkbenchListEmbeddingModels = vi.fn(async payload => ({
       items: [

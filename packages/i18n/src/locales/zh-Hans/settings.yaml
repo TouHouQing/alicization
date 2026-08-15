@@ -556,6 +556,10 @@ pages:
         load_gold_labels: 读取本月标注
         run_quality_trial: 运行质量试用
         build_gold_regression: 固定为月度回归
+        start_semantic_scale: 开始语义规模压测
+        cancel_semantic_scale: 取消语义规模压测
+        retry_semantic_scale: 重试语义规模压测
+        refresh_semantic_scale: 刷新压测状态
         run_persona_training: 运行人格训练
         refresh_persona_training: 刷新人格训练状态
         rollback_persona_increment: 回滚人格增量
@@ -610,6 +614,14 @@ pages:
         quality_failed: 需要优化
         empty_quality_report: 还没有质量试用报告。先运行一次质量试用。
         empty_gold_labels: 本月还没有标注。先在召回测试后点四个反馈按钮之一。
+        semantic_scale_queued: 等待执行
+        semantic_scale_running: 正在压测
+        semantic_scale_cancel_requested: 正在取消
+        semantic_scale_completed: 压测完成
+        semantic_scale_cancelled: 已取消
+        semantic_scale_failed: 压测失败
+        semantic_scale_cancelled_by_user: 用户取消语义规模压测
+        empty_semantic_scale_history: 当前机体还没有语义规模压测记录。
       fields:
         health: 记忆健康
         runtime_health: 运行健康
@@ -713,6 +725,13 @@ pages:
         compressed_context_fixtures: 压缩后行为样本
         temporal_conflict_fixtures: 时间冲突样本
         semantic_scale_soak: 语义规模压测
+        semantic_scale_tier: 压测档位
+        semantic_scale_progress: 压测进度
+        semantic_scale_queries: 查询轮数
+        semantic_scale_history: 历史报告
+        corpus_size: 语料规模
+        next_retry_at: 下次重试
+        lease_expires_at: 租约到期
         experience_quality: 体验质量
         scope_fuzz_cases: Scope 隔离样本
         persona_fixtures: 人格数据样本
@@ -748,6 +767,8 @@ pages:
         report_title: 试用报告
         gold_labels_title: 本月标注
         trial_mode: 试用方式
+        semantic_scale_title: 持久化语义规模压测
+        semantic_scale_description: 在隔离临时数据库中运行真实 sqlite-vec 10k 或 100k 压测；任务可恢复、可取消，压测语料不会写入长期记忆。
         historical_replay: 历史回放
         live_provider: 真实模型试用
         session_title: 回放会话

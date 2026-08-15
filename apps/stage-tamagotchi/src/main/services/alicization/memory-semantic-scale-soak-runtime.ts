@@ -14,6 +14,16 @@ interface MemorySemanticScaleCanonicalRecord {
   text: string
 }
 
+export interface MemorySemanticScaleSoakProgress {
+  phase: 'indexing' | 'querying'
+  completed: number
+  total: number
+  ratio: number
+  indexedCount: number
+  queryCount: number
+  corpusSize: number
+}
+
 function normalizePositiveInteger(value: unknown, fallback: number, maximum: number) {
   if (!Number.isFinite(Number(value)))
     return fallback
@@ -87,6 +97,19 @@ function queryIndexes(corpusSize: number, queryCount: number) {
     Math.min(corpusSize - 1, Math.floor(index * (corpusSize - 1) / (count - 1))))
 }
 
+function throwIfAborted(signal?: AbortSignal) {
+  if (!signal?.aborted)
+    return
+  if (signal.reason instanceof Error)
+    throw signal.reason
+  throw new DOMException(
+    typeof signal.reason === 'string' && signal.reason.trim()
+      ? signal.reason
+      : 'semantic scale soak aborted',
+    'AbortError',
+  )
+}
+
 export async function runMemorySemanticScaleVectorAdapterSoak(input: {
   id: string
   createdAt: number
@@ -102,6 +125,8 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
   maxP95LatencyMs?: number
   maxP99LatencyMs?: number
   minimumCoverageRatio?: number
+  signal?: AbortSignal
+  onProgress?: (progress: MemorySemanticScaleSoakProgress) => void | Promise<void>
 }): Promise<MemorySemanticScaleSoakReport> {
   const dimensions = normalizePositiveInteger(input.dimensions, 12, 4_096)
   const corpusSizes = normalizeCorpusSizes(input.corpusSizes)
@@ -112,10 +137,18 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
     dimensions,
   })
   const searches = []
+  const totalWork = corpusSizes.reduce((total, corpusSize, index) => {
+    const previousCorpusSize = corpusSizes[index - 1] ?? 0
+    const indexBatchCount = Math.ceil(Math.max(0, corpusSize - previousCorpusSize) / batchSize)
+    return total + indexBatchCount + queryIndexes(corpusSize, queryCount).length
+  }, 0)
+  let completedWork = 0
   let indexedCorpusSize = 0
+  let completedQueryCount = 0
 
   for (const corpusSize of corpusSizes) {
     for (let offset = indexedCorpusSize; offset < corpusSize; offset += batchSize) {
+      throwIfAborted(input.signal)
       const end = Math.min(corpusSize, offset + batchSize)
       const records = Array.from({ length: end - offset }, (_item, relativeIndex) =>
         buildVectorRecord({
@@ -127,11 +160,24 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
           updatedAt: input.createdAt + offset + relativeIndex,
         }))
       await input.prepareCanonical(records.map(canonicalRecord))
+      throwIfAborted(input.signal)
       await input.adapter.upsert(records)
+      completedWork += 1
+      await input.onProgress?.({
+        phase: 'indexing',
+        completed: completedWork,
+        total: totalWork,
+        ratio: totalWork === 0 ? 1 : completedWork / totalWork,
+        indexedCount: end,
+        queryCount: completedQueryCount,
+        corpusSize,
+      })
+      throwIfAborted(input.signal)
     }
     indexedCorpusSize = corpusSize
 
     const indexes = queryIndexes(corpusSize, queryCount)
+    throwIfAborted(input.signal)
     const foreignRecords = indexes.map(index =>
       buildVectorRecord({
         cardId: input.foreignCardId,
@@ -143,7 +189,9 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
         foreign: true,
       }))
     await input.prepareCanonical(foreignRecords.map(canonicalRecord))
+    throwIfAborted(input.signal)
     await input.adapter.upsert(foreignRecords)
+    throwIfAborted(input.signal)
 
     const health = await input.adapter.getHealth({
       cardId: input.cardId,
@@ -153,6 +201,7 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
     })
     const queries = []
     for (const index of indexes) {
+      throwIfAborted(input.signal)
       const target = buildVectorRecord({
         cardId: input.cardId,
         modelId: input.modelId,
@@ -179,6 +228,7 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
         vectorSpaceId,
         limit: 5,
       })
+      throwIfAborted(input.signal)
       queries.push({
         id: `semantic-scale-query:${corpusSize}:${index}`,
         expectedTopIds: [target.id],
@@ -186,6 +236,18 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
         forbiddenIds: [foreign.id],
         latencyMs: performance.now() - startedAt,
       })
+      completedWork += 1
+      completedQueryCount += 1
+      await input.onProgress?.({
+        phase: 'querying',
+        completed: completedWork,
+        total: totalWork,
+        ratio: totalWork === 0 ? 1 : completedWork / totalWork,
+        indexedCount: indexedCorpusSize,
+        queryCount: completedQueryCount,
+        corpusSize,
+      })
+      throwIfAborted(input.signal)
     }
 
     searches.push({

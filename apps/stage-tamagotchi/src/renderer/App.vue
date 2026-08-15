@@ -109,6 +109,7 @@ import {
   electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements,
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
   electronAlicizationMemoryWorkbenchListReplaySessions,
+  electronAlicizationMemoryWorkbenchManageSemanticScaleJobs,
   electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationMemoryWorkbenchRecordQualityGoldLabel,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
@@ -278,6 +279,7 @@ const skillWorkbenchList = useElectronEventaInvoke(electronAlicizationSkillWorkb
 const skillWorkbenchActivate = useElectronEventaInvoke(electronAlicizationSkillWorkbenchActivate)
 const skillWorkbenchRollback = useElectronEventaInvoke(electronAlicizationSkillWorkbenchRollback)
 const skillWorkbenchRevoke = useElectronEventaInvoke(electronAlicizationSkillWorkbenchRevoke)
+const memoryWorkbenchManageSemanticScaleJobs = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchManageSemanticScaleJobs)
 const memoryWorkbenchReindexEmbeddings = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchReindexEmbeddings)
 const memoryWorkbenchListEmbeddingModels = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListEmbeddingModels)
 const memoryWorkbenchTestEmbeddingConnection = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchTestEmbeddingConnection)
@@ -1340,6 +1342,7 @@ setAlicizationBridge({
   skillWorkbenchActivate: async payload => await skillWorkbenchActivate({ ...resolveAlicizationScope(), ...payload }),
   skillWorkbenchRollback: async payload => await skillWorkbenchRollback({ ...resolveAlicizationScope(), ...payload }),
   skillWorkbenchRevoke: async payload => await skillWorkbenchRevoke({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchManageSemanticScaleJobs: async payload => await memoryWorkbenchManageSemanticScaleJobs({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchReindexEmbeddings: async payload => await memoryWorkbenchReindexEmbeddings({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListEmbeddingModels: async payload => await memoryWorkbenchListEmbeddingModels({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchTestEmbeddingConnection: async payload => await memoryWorkbenchTestEmbeddingConnection({ ...resolveAlicizationScope(), ...payload }),

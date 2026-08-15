@@ -9,6 +9,7 @@ import {
   createEmptyWorkingMemorySnapshot,
   normalizeWorkingMemoryTurn,
 } from './life-core/working-memory'
+import { runMemorySemanticScaleSoakHarness } from './memory-semantic-scale-soak-harness'
 
 const sandboxDirs: string[] = []
 
@@ -16,6 +17,46 @@ async function createSandboxUserDataPath() {
   const dir = await mkdtemp(join(tmpdir(), 'alicization-memory-quality-db-'))
   sandboxDirs.push(dir)
   return dir
+}
+
+function createSemanticScaleReport(corpusSize: number, id: string) {
+  return runMemorySemanticScaleSoakHarness({
+    id,
+    createdAt: Date.parse('2026-08-15T00:00:00.000Z'),
+    minimumCorpusSize: corpusSize,
+    searches: [{
+      id: `${id}:search`,
+      corpusSize,
+      indexMode: 'sqlite-vec',
+      approximate: false,
+      degraded: false,
+      nativeIndexReady: true,
+      coverageRatio: 1,
+      queries: [{
+        id: `${id}:query`,
+        expectedTopIds: ['target'],
+        returnedIds: ['target'],
+        forbiddenIds: ['foreign'],
+        latencyMs: 1,
+      }],
+    }],
+  })
+}
+
+async function waitFor<T>(
+  read: () => Promise<T>,
+  predicate: (value: T) => boolean,
+  timeoutMs = 2_000,
+) {
+  const startedAt = Date.now()
+  while (true) {
+    const value = await read()
+    if (predicate(value))
+      return value
+    if (Date.now() - startedAt >= timeoutMs)
+      throw new Error('timed out waiting for semantic scale job state')
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
 }
 
 afterEach(async () => {
@@ -28,6 +69,162 @@ afterEach(async () => {
 })
 
 describe('memory quality workbench DB loop', () => {
+  it('controls card-scoped semantic scale jobs through start, status, list, cancel, and retry', async () => {
+    let mode: 'block' | 'fail' | 'succeed' = 'block'
+    let executionStarted: (() => void) | undefined
+    const executionStartedPromise = new Promise<void>((resolve) => {
+      executionStarted = resolve
+    })
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      semanticScaleJobOptions: {
+        maxAttempts: 1,
+        retryBaseMs: 1,
+        executeJob: async ({ corpusSize, signal }) => {
+          executionStarted?.()
+          if (mode === 'block') {
+            await new Promise<void>((_resolve, reject) => {
+              signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+            })
+          }
+          if (mode === 'fail')
+            throw new Error('semantic scale test failure')
+          return createSemanticScaleReport(corpusSize, 'semantic-scale-db-control')
+        },
+      },
+    })
+    try {
+      const started = await db.manageMemoryWorkbenchSemanticScaleJobs({
+        cardId: 'default',
+        action: 'start',
+        tier: '10k',
+      })
+      expect(started.job).toMatchObject({
+        cardId: 'default',
+        tier: '10k',
+        corpusSize: 10_000,
+      })
+      await executionStartedPromise
+
+      const running = await db.manageMemoryWorkbenchSemanticScaleJobs({
+        cardId: 'default',
+        action: 'status',
+        jobId: started.job!.jobId,
+      })
+      expect(running.job?.status).toBe('running')
+
+      const history = await db.manageMemoryWorkbenchSemanticScaleJobs({
+        cardId: 'default',
+        action: 'list',
+      })
+      expect(history.jobs.map(job => job.jobId)).toContain(started.job!.jobId)
+
+      await expect(db.manageMemoryWorkbenchSemanticScaleJobs({
+        cardId: 'other-card',
+        action: 'status',
+        jobId: started.job!.jobId,
+      })).rejects.toThrow('does not belong to card')
+
+      const cancelRequested = await db.manageMemoryWorkbenchSemanticScaleJobs({
+        cardId: 'default',
+        action: 'cancel',
+        jobId: started.job!.jobId,
+        reason: '用户取消 10k 语义规模压测',
+      })
+      expect(cancelRequested.job?.status).toBe('cancel_requested')
+      const cancelled = await waitFor(
+        async () => await db.manageMemoryWorkbenchSemanticScaleJobs({
+          cardId: 'default',
+          action: 'status',
+          jobId: started.job!.jobId,
+        }),
+        result => result.job?.status === 'cancelled',
+      )
+      expect(cancelled.job?.lastError).toBe('用户取消 10k 语义规模压测')
+
+      mode = 'fail'
+      const failedStart = await db.manageMemoryWorkbenchSemanticScaleJobs({
+        cardId: 'default',
+        action: 'start',
+        tier: '100k',
+      })
+      const failed = await waitFor(
+        async () => await db.manageMemoryWorkbenchSemanticScaleJobs({
+          cardId: 'default',
+          action: 'status',
+          jobId: failedStart.job!.jobId,
+        }),
+        result => result.job?.deadLettered === true,
+      )
+      expect(failed.job).toMatchObject({
+        status: 'failed',
+        deadLettered: true,
+        attemptCount: 1,
+        maxAttempts: 1,
+        lastError: 'semantic scale test failure',
+      })
+
+      mode = 'succeed'
+      const retried = await db.manageMemoryWorkbenchSemanticScaleJobs({
+        cardId: 'default',
+        action: 'retry',
+        jobId: failedStart.job!.jobId,
+      })
+      expect(retried.job?.status).toBe('queued')
+      const completed = await waitFor(
+        async () => await db.manageMemoryWorkbenchSemanticScaleJobs({
+          cardId: 'default',
+          action: 'status',
+          jobId: failedStart.job!.jobId,
+        }),
+        result => result.job?.status === 'completed',
+      )
+      expect(completed.job?.report?.id).toBe('semantic-scale-db-control')
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('feeds the latest completed semantic scale report into production trial without writing long-term memory', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      semanticScaleJobOptions: {
+        executeJob: async ({ corpusSize }) =>
+          createSemanticScaleReport(corpusSize, 'semantic-scale-production-report'),
+      },
+    })
+    try {
+      const started = await db.manageMemoryWorkbenchSemanticScaleJobs({
+        cardId: 'default',
+        action: 'start',
+        tier: '10k',
+      })
+      await waitFor(
+        async () => await db.manageMemoryWorkbenchSemanticScaleJobs({
+          cardId: 'default',
+          action: 'status',
+          jobId: started.job!.jobId,
+        }),
+        result => result.job?.status === 'completed',
+      )
+
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        month: '2026-08',
+      })
+      const longTerm = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+      })
+
+      expect(report.summary.semanticScaleSoakRunCount).toBe(1)
+      expect(report.summary.notRunStageIds).not.toContain('semantic-scale-soak')
+      expect(report.semanticScaleSoak?.id).toBe('semantic-scale-production-report')
+      expect(longTerm.items).toEqual([])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
   it('persists beginner recall labels and exports a monthly regression pack', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {
