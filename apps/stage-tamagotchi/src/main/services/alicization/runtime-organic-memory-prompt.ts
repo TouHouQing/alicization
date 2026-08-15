@@ -559,7 +559,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     recallEpisodicEventsWithGovernor,
     buildHostPersonModel,
     getMemoryStats,
-    recallConversationHistory,
     recallMemoryConsolidations,
     getMemoryTuningAdvice,
     getPersonStateEvolutionSummary,
@@ -624,7 +623,9 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       input.sessionMirrorRecollection,
     )
     const sessionMirrorForeground
-      = sessionMirrorRecollectionIntent?.queryHints[0] ?? ''
+      = input.sessionMirrorRecollection?.visibility === 'visible'
+        ? sessionMirrorRecollectionIntent?.queryHints[0] ?? ''
+        : ''
     const retrievalPolicyRecallSeed = uniquePromptList([
       input.recallSeed ?? input.recallGovernor?.recallSeed ?? '',
       sessionMirrorForeground,
@@ -682,6 +683,11 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       stage: 'search-prelude',
       latencyMs: Date.now() - preludeStartedAt,
     }).catch(() => {})
+    const memoryReflectionQuery = {
+      limit: 8,
+      turnId: input.turnId ?? undefined,
+      status: 'confirmed' as const,
+    }
     const [
       personStateEvolutionSummary,
       memoryStats,
@@ -695,10 +701,7 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         limit: 8,
         turnId: input.turnId ?? undefined,
       }).catch(() => []) ?? Promise.resolve([]),
-      listMemoryReflections?.({
-        limit: 8,
-        turnId: input.turnId ?? undefined,
-      }).catch(() => []) ?? Promise.resolve([]),
+      listMemoryReflections?.(memoryReflectionQuery).catch(() => []) ?? Promise.resolve([]),
       resolveRecentMemoryClosureExecution({
         listMindTurnEvents,
         sessionId: input.sessionId ?? null,
@@ -706,6 +709,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       }),
     ])
     const now = Date.now()
+    const confirmedRecentMemoryReflections = (recentMemoryReflections ?? [])
+      .filter(reflection => reflection.status === 'confirmed')
     const memoryClosureReflection = buildMemoryClosureReflection({
       memoryClosureExecution,
       sessionId: input.sessionId ?? null,
@@ -713,8 +718,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       now,
     })
     const memoryClosureRecentMemoryReflections = memoryClosureReflection
-      ? [memoryClosureReflection, ...(recentMemoryReflections ?? [])].slice(0, 8)
-      : recentMemoryReflections
+      ? [memoryClosureReflection, ...confirmedRecentMemoryReflections].slice(0, 8)
+      : confirmedRecentMemoryReflections
     const derivedPersonStateProjection = buildMemoryPromptPersonStateProjectionHelper({
       recallSeed: prelude.recallSeed,
       recollectionIntent: prelude.activeRecollectionIntent,
@@ -754,7 +759,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     }).catch(() => {})
     const retrieved = await retrieveMemorySearchCandidates({
       access: {
-        recallConversationHistory,
         recallMemoryConsolidations,
       },
       recallSeed: input.prelude.recallSeed,
@@ -809,7 +813,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recollectedWindows: retrieved.recollectedWindows,
       proceduralMemories: retrieved.proceduralMemories,
       recalledEpisodes: input.prelude.recalledEpisodes,
-      recalledConversationHistory: retrieved.recalledConversationHistory,
     })
     void recordOrganicMemoryStageLatency?.({
       stage: 'candidate-ranking',
@@ -868,7 +871,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       memoryClosureExecution,
     } = prelude
     const {
-      recalledConversationHistory,
       consolidatedMemories,
       recollectedWindows,
       proceduralMemories,
@@ -878,7 +880,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       agendaRankedWindowsClustered,
       agendaRankedProceduralMemories,
       agendaRankedEpisodes,
-      agendaRankedConversationHistory,
       stageLatencyMs: candidateStageLatencyMs,
     } = await resolveOrganicMemoryCandidates({
       prelude,
@@ -895,7 +896,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       plannedWindows,
       plannedProceduralMemories,
       plannedEpisodes,
-      plannedConversationHistory,
       recollectionNarratives,
       recollectionSpeechPlan,
       rawMemoryDeliberation,
@@ -907,7 +907,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recollectedWindows: agendaRankedWindowsClustered,
       proceduralMemories: agendaRankedProceduralMemories,
       recalledEpisodes: agendaRankedEpisodes,
-      recalledConversationHistory: agendaRankedConversationHistory,
       clusterState,
       digitalLifeRuntimeSurface,
       resolveRecollectionPlanSearch,
@@ -931,10 +930,8 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     const selectedWindowIds = new Set(recollectionPlan?.selectedWindowIds ?? [])
     const selectedProceduralIds = new Set(recollectionPlan?.selectedProceduralIds ?? [])
     const selectedEpisodeIds = new Set(recollectionPlan?.selectedEpisodeIds ?? [])
-    const selectedConversationTurnIds = new Set(recollectionPlan?.selectedConversationTurnIds ?? [])
     const initialReconstructionPass = runReconstructionAmbiguityRetrievalPass({
       episodes: plannedEpisodes,
-      recalledConversationHistory: plannedConversationHistory,
       competingVariants: clusterState.competingVariants,
     })
     const {
@@ -979,7 +976,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       recollectedWindows,
       proceduralMemories,
       recalledEpisodes,
-      recalledConversationHistory,
       retrievalHealth: memoryStats?.retrievalHealth ?? null,
       knowledgeEvidence,
       clusterContext: {
@@ -1028,7 +1024,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
     const finalSelectedWindowIds = new Set(plannerMemoryDeliberation?.selectedWindowIds ?? [...selectedWindowIds])
     const finalSelectedProcedureIds = new Set(plannerMemoryDeliberation?.selectedProcedureIds ?? [...selectedProceduralIds])
     const finalSelectedEpisodeIds = new Set(plannerMemoryDeliberation?.selectedEpisodeIds ?? [...selectedEpisodeIds])
-    const finalSelectedConversationTurnIds = new Set(plannerMemoryDeliberation?.selectedConversationTurnIds ?? [...selectedConversationTurnIds])
     const finalSelectedEraIds = new Set(preferredSelectedEras.map(item => item.id))
     const shouldCarryDeliberatedRecall = plannerMemoryDeliberation
       ? plannerMemoryDeliberation.shouldRecall
@@ -1095,15 +1090,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
               : plannedEpisodes
           )
       : []
-    const deliberatedConversationHistoryRaw = shouldCarryDeliberatedRecall
-      ? plannerMemoryDeliberation
-        ? recalledConversationHistory.filter(item => item.turnId && finalSelectedConversationTurnIds.has(item.turnId))
-        : (
-            finalSelectedConversationTurnIds.size > 0
-              ? recalledConversationHistory.filter(item => item.turnId && finalSelectedConversationTurnIds.has(item.turnId))
-              : plannedConversationHistory
-          )
-      : []
     const deliberatedEpisodes = finalSelectedEraIds.size > 0
       ? rankByEraAffinity({
           items: deliberatedEpisodesRaw.length > 0
@@ -1135,13 +1121,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           toText: item => [item.label, item.approach, ...(item.cues ?? [])].filter(Boolean).join(' '),
         })
       : deliberatedProceduralMemoriesRaw
-    const deliberatedConversationHistory = finalSelectedEraIds.size > 0
-      ? rankByEraAffinity({
-          items: deliberatedConversationHistoryRaw,
-          eraTexts,
-          toText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-        })
-      : deliberatedConversationHistoryRaw
     const surfacePlanningStartedAt = Date.now()
     const deliberatedRecollectionSpeechPlan = applyMemoryDeliberationToSpeechPlan({
       deliberation: plannerMemoryDeliberation,
@@ -1182,7 +1161,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       : []
     const reconstructionPass = runReconstructionAmbiguityRetrievalPass({
       episodes: constrainedDeliberatedEpisodes,
-      recalledConversationHistory: deliberatedConversationHistory,
       competingVariants: clusterState.competingVariants,
     })
     const synthesizedConflictState = deriveMemoryDeliberationConflictState({
@@ -1296,7 +1274,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
       queryTexts: [recallSeed, activeRecollectionIntent?.rationale ?? '', activeRecollectionIntent?.recollectionAgenda?.whyRecallNow ?? ''],
       retrievedFacts,
       recalledEpisodes: constrainedDeliberatedEpisodes,
-      recalledConversationHistory: deliberatedConversationHistory,
       consolidatedMemories: deliberatedConsolidatedMemories,
       proceduralMemories: deliberatedProceduralMemories,
       hostAttitude: relationshipDynamics?.hostAttitude || snapshot.hostAttitude,
@@ -1364,7 +1341,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
           budgetClass,
           inputs: [recallSeed, activeRecollectionIntent?.temporalFocus ?? 'none'],
           outputs: [
-            `conversations=${recalledConversationHistory.length}`,
             `consolidations=${consolidatedMemories.length}`,
             `windows=${recollectedWindows.length}`,
             `procedures=${proceduralMemories.length}`,
@@ -1459,7 +1435,6 @@ export function createAlicizationOrganicMemoryPromptRuntime(options: CreateAlici
         retrievedFacts,
         recalledFragments,
         recalledEpisodes: constrainedDeliberatedEpisodes,
-        recalledConversationHistory: deliberatedConversationHistory,
         consolidatedMemories: deliberatedConsolidatedMemories,
         recollectedWindows: deliberatedWindows,
         recollectionNarratives: plannedNarratives,

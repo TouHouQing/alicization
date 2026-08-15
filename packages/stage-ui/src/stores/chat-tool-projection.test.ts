@@ -117,6 +117,49 @@ describe('chat tool projection', () => {
     }])
   })
 
+  it('does not downgrade a live dead-lettered tool result when late failure arrives', () => {
+    const message: any = {
+      role: 'assistant',
+      content: '',
+      slices: [],
+      tool_results: [],
+    }
+
+    applyChatToolProjectionSlice(message, {
+      type: 'tool-call-result',
+      id: 'tool-call-dead-letter-live',
+      result: {
+        finalStatus: 'dead-lettered',
+        summary: '需要人工核对。',
+      },
+    }, vi.fn())
+    applyChatToolProjectionSlice(message, {
+      type: 'tool-call-result',
+      id: 'tool-call-dead-letter-live',
+      result: {
+        status: 'failed',
+        summary: '迟到的普通失败。',
+      },
+    }, vi.fn())
+    applyChatToolProjectionSlice(message, {
+      type: 'tool-call-result',
+      id: 'tool-call-dead-letter-live',
+      result: {
+        status: 'running',
+        summary: '迟到的运行快照。',
+      },
+    }, vi.fn())
+
+    expect(message.tool_results).toEqual([{
+      type: 'tool-call-result',
+      id: 'tool-call-dead-letter-live',
+      result: {
+        finalStatus: 'dead-lettered',
+        summary: '需要人工核对。',
+      },
+    }])
+  })
+
   it('upserts duplicate tool-call cards by canonical toolCallId', () => {
     const message: any = {
       role: 'assistant',
@@ -244,6 +287,39 @@ describe('chat tool projection', () => {
       expect.objectContaining({
         toolCallId: 'tool-call-recovered',
         phase: 'completed',
+      }),
+    ])
+  })
+
+  it('keeps dead-lettered live state ahead of later ordinary terminal projections', () => {
+    const slices: any[] = [
+      buildChatExecutionStatusFromProjection(toolCard({
+        phase: 'dead-lettered',
+        errorCode: 'SIDE_EFFECT_RECONCILIATION_EXHAUSTED',
+        result: {
+          finalStatus: 'dead-lettered',
+          summary: '需要人工核对。',
+        },
+      })),
+    ]
+
+    upsertChatExecutionStatusSlice(
+      slices,
+      buildChatExecutionStatusFromProjection(toolCard({
+        phase: 'failed',
+        errorCode: 'TOOL_FAILED',
+        result: {
+          finalStatus: 'failed',
+          summary: '普通失败不应遮蔽 dead-letter。',
+        },
+      })),
+    )
+
+    expect(slices).toEqual([
+      expect.objectContaining({
+        toolCallId: 'tool-call-recovered',
+        phase: 'tool-dead-lettered',
+        errorCode: 'SIDE_EFFECT_RECONCILIATION_EXHAUSTED',
       }),
     ])
   })

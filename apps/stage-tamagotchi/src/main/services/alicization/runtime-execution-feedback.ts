@@ -8,6 +8,7 @@ import type {
   AlicizationTaskThreadStatus,
 } from '../../../shared/eventa'
 import type { AlicizationOutcomeClosureResult, buildExecutionProposalFeedbackOutcomeClosure, buildExecutionResultFeedbackOutcomeClosure, deriveExecutionProposalFeedbackKind, deriveExecutionResultFeedbackKind } from './outcome-reinforcement'
+import type { AlicizationTrustedExecutionResultEvidence } from './runtime-memory-reconsolidation'
 
 import {
   normalizeAlicizationDerivedMindStateBundle,
@@ -15,6 +16,7 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import {
+  readExecutionOutcome,
   readLatestExecutionEvent,
   sanitizeExecutionLedgerText,
 } from './execution-ledger-shared'
@@ -25,13 +27,6 @@ import {
 
 type AlicizationExecutionProposalFeedbackKind = NonNullable<ReturnType<typeof deriveExecutionProposalFeedbackKind>>
 type AlicizationExecutionResultFeedbackKind = NonNullable<ReturnType<typeof deriveExecutionResultFeedbackKind>>
-
-interface AlicizationFeedbackMemoryExperience {
-  felt?: string | null
-  relationshipMeaning?: string | null
-  lesson?: string | null
-  tags?: string[] | null
-}
 
 interface CreateAlicizationRuntimeExecutionFeedbackOptions {
   normalizeCardId: (raw: unknown) => string
@@ -54,16 +49,10 @@ interface CreateAlicizationRuntimeExecutionFeedbackOptions {
   memoryReconsolidationRuntime?: {
     reconsolidateExecutionResultFeedbackMemoryTrace?: (input: {
       cardId: string
-      decisionTraceId: string | null
       feedback: AlicizationExecutionResultFeedbackKind | null
-      previousAssistantText: string
-      userText: string
-      sessionId: string | null
-      turnId: string | null
       at: number
-      goal: string
-      outcome?: string | null
-      feedbackExperience?: AlicizationFeedbackMemoryExperience | null
+      executionResult: AlicizationTrustedExecutionResultEvidence
+      outcomeClosure: AlicizationOutcomeClosureResult
       memoryClosureExecution?: AlicizationExecutionRuntimeMemoryClosureExecution | null
       safetyGateSummary?: string | null
       resumeConfirmationSummary?: string | null
@@ -110,34 +99,6 @@ function buildExecutionResultFeedbackHostAttitude(feedback: AlicizationExecution
   if (feedback === 'intrusive')
     return 'execution_feedback=intrusive; distance_delta=more_space; reply_policy=lower_pressure; visibility=structured'
   return 'execution_feedback=interrupted; distance_delta=paused; reply_policy=wait_for_new_user_opening; visibility=structured'
-}
-
-function extractExecutionResultFeedbackExperienceFromClosure(
-  closure: AlicizationOutcomeClosureResult | null | undefined,
-  sanitizeText: CreateAlicizationRuntimeExecutionFeedbackOptions['sanitizeText'],
-): AlicizationFeedbackMemoryExperience | null {
-  const event = closure?.episodicEvents?.find(item => sanitizeText(item?.sourceKind, '') === 'execution-result')
-    ?? closure?.episodicEvents?.find(item => sanitizeText(item?.sourceKind, '').includes('execution'))
-    ?? closure?.episodicEvents?.[0]
-  if (!event)
-    return null
-
-  const tags = Array.isArray(event.tags)
-    ? event.tags.map(tag => sanitizeText(tag, '').slice(0, 64)).filter(Boolean).slice(0, 16)
-    : []
-  const felt = sanitizeText(event.felt, '').slice(0, 220) || null
-  const relationshipMeaning = sanitizeText(event.relationshipMeaning, '').slice(0, 240) || null
-  const lesson = sanitizeText(event.lesson, '').slice(0, 240) || null
-
-  if (!felt && !relationshipMeaning && !lesson && tags.length === 0)
-    return null
-
-  return {
-    felt,
-    relationshipMeaning,
-    lesson,
-    tags,
-  }
 }
 
 function readExecutionFeedbackRuntimeContextRecord(thread: AlicizationTaskThreadRecord) {
@@ -270,24 +231,56 @@ function buildExecutionResultFeedbackResumeConfirmationSummary(events: Alicizati
   return summary || null
 }
 
-async function readExecutionResultFeedbackLedgerSummaries(input: {
-  threadId: string
+function matchesRequiredExecutionOwnerId(
+  left: string | null | undefined,
+  right: string | null | undefined,
+) {
+  const normalizedLeft = typeof left === 'string' ? left.trim() : ''
+  const normalizedRight = typeof right === 'string' ? right.trim() : ''
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight)
+}
+
+function matchesExecutionEventOwner(
+  event: AlicizationExecutionEventRecord,
+  thread: AlicizationTaskThreadRecord,
+) {
+  return matchesRequiredExecutionOwnerId(event.threadId, thread.id)
+    && matchesRequiredExecutionOwnerId(event.decisionTraceId, thread.decisionTraceId)
+    && matchesRequiredExecutionOwnerId(event.turnId, thread.turnId)
+    && matchesRequiredExecutionOwnerId(event.sessionId, thread.sessionId)
+}
+
+async function readTrustedExecutionResultFeedbackLedger(input: {
+  thread: AlicizationTaskThreadRecord
   listExecutionEvents?: (input: { threadId: string, limit?: number }) => Promise<AlicizationExecutionEventRecord[]>
 }) {
-  if (!input.listExecutionEvents) {
-    return {
-      safetyGateSummary: null,
-      resumeConfirmationSummary: null,
-    }
-  }
+  if (!input.listExecutionEvents)
+    return null
 
   const events = await input.listExecutionEvents({
-    threadId: input.threadId,
-    limit: 6,
+    threadId: input.thread.id,
+    limit: 12,
   }).catch(() => [] as AlicizationExecutionEventRecord[])
+  const ownedEvents = events.filter(event => matchesExecutionEventOwner(event, input.thread))
+  const completedResultEvent = [...ownedEvents]
+    .sort((left, right) => right.createdAt - left.createdAt)
+    .find(event =>
+      event.kind === 'result'
+      && event.threadStatus === 'completed',
+    ) ?? null
+  if (!completedResultEvent)
+    return null
+  const trustedResumeEvents = ownedEvents.filter((event) => {
+    if (event.kind !== 'resume' || event.createdAt > completedResultEvent.createdAt)
+      return false
+    const payload = readExecutionFeedbackPayloadObject(event.payload)
+    return sanitizeExecutionLedgerText(payload?.approval, 80) === 'host-confirmed'
+  })
+
   return {
-    safetyGateSummary: buildExecutionResultFeedbackSafetyGateSummary(events),
-    resumeConfirmationSummary: buildExecutionResultFeedbackResumeConfirmationSummary(events),
+    outcome: readExecutionOutcome([completedResultEvent]),
+    safetyGateSummary: buildExecutionResultFeedbackSafetyGateSummary([completedResultEvent]),
+    resumeConfirmationSummary: buildExecutionResultFeedbackResumeConfirmationSummary(trustedResumeEvents),
   }
 }
 
@@ -353,8 +346,6 @@ export function createAlicizationRuntimeExecutionFeedback(
       return null
 
     const affirmationReasonCodes = readFabricAffirmationReasonCodes(latest)
-    const affectiveResidue = readExecutionFeedbackAffectiveResidue(latest)
-    const emotionalTransitionLedger = readExecutionFeedbackEmotionalTransitionLedger(latest)
     const feedback = options.deriveExecutionProposalFeedbackKind({
       userText,
       thread: {
@@ -369,27 +360,6 @@ export function createAlicizationRuntimeExecutionFeedback(
     })
     if (!feedback)
       return null
-
-    const closure = options.attachSynthesizedReflections(options.buildExecutionProposalFeedbackOutcomeClosure({
-      now: at,
-      cardId,
-      sessionId,
-      decisionTraceId: latest.decisionTraceId ?? null,
-      turnId: options.sanitizeText(normalizedPayload.turnId) || null,
-      feedback,
-      affectiveResidue,
-      emotionalTransitionLedger,
-      thread: {
-        threadId: latest.id,
-        goal: latest.goal,
-        summary: latest.summary ?? '',
-        userText,
-        proposedChannel: latest.proposedChannel ?? null,
-        selectedChannel: latest.selectedChannel ?? null,
-        affirmationReasonCodes,
-      },
-    }))
-    await options.persistOutcomeClosure(cardId, closure)
 
     if (feedback === 'denied' || feedback === 'interrupted') {
       const nextStatus = feedback === 'denied' ? 'cancelled' : 'paused'
@@ -443,13 +413,15 @@ export function createAlicizationRuntimeExecutionFeedback(
 
     const threads = await options.withCardScope(cardId, async () => await options.alicizationDb.listTaskThreads({
       sessionId,
-      status: ['completed', 'failed', 'blocked', 'cancelled'],
+      status: ['completed'],
       limit: 8,
     }).catch(() => []), {
       label: `execution-result-feedback.list:${cardId}`,
       skipQueueWhenScopeAlreadyActive: true,
     })
     const latest = threads
+      .filter(thread => thread.status === 'completed')
+      .filter(thread => matchesRequiredExecutionOwnerId(thread.sessionId, sessionId))
       .filter(thread => hasAutonomousExecutionThreadOwnershipProof(thread))
       .filter((thread) => {
         const executionMetadata = thread.metadata && typeof thread.metadata === 'object' && !Array.isArray(thread.metadata)
@@ -462,9 +434,20 @@ export function createAlicizationRuntimeExecutionFeedback(
       .sort((left, right) => options.readTaskThreadActivityAt(right) - options.readTaskThreadActivityAt(left))[0] ?? null
     if (!latest)
       return null
+    const executionLedger = await options.withCardScope(cardId, async () => await readTrustedExecutionResultFeedbackLedger({
+      thread: latest,
+      listExecutionEvents: options.alicizationDb.listExecutionEvents,
+    }), {
+      label: `execution-result-feedback.completed-result:${cardId}`,
+      skipQueueWhenScopeAlreadyActive: true,
+    })
+    if (!executionLedger)
+      return null
+
     const affectiveResidue = readExecutionFeedbackAffectiveResidue(latest)
     const emotionalTransitionLedger = readExecutionFeedbackEmotionalTransitionLedger(latest)
     const memoryClosureExecution = readExecutionFeedbackMemoryClosureExecution(latest)
+    const trustedOutcome = executionLedger.outcome || latest.summary || ''
 
     const feedback = options.deriveExecutionResultFeedbackKind({
       previousAssistantText,
@@ -473,7 +456,7 @@ export function createAlicizationRuntimeExecutionFeedback(
         threadId: latest.id,
         goal: latest.goal,
         summary: latest.summary ?? '',
-        outcome: latest.summary ?? '',
+        outcome: trustedOutcome,
         previousAssistantText,
         userText,
         memoryClosureExecution,
@@ -484,15 +467,8 @@ export function createAlicizationRuntimeExecutionFeedback(
     if (!feedback)
       return null
 
-    const executionLedgerSummaries = await options.withCardScope(cardId, async () => await readExecutionResultFeedbackLedgerSummaries({
-      threadId: latest.id,
-      listExecutionEvents: options.alicizationDb.listExecutionEvents,
-    }), {
-      label: `execution-result-feedback.safety-gate:${cardId}`,
-      skipQueueWhenScopeAlreadyActive: true,
-    })
-    const safetyGateSummary = executionLedgerSummaries.safetyGateSummary
-    const resumeConfirmationSummary = executionLedgerSummaries.resumeConfirmationSummary
+    const safetyGateSummary = executionLedger.safetyGateSummary
+    const resumeConfirmationSummary = executionLedger.resumeConfirmationSummary
 
     const closure = options.attachSynthesizedReflections(options.buildExecutionResultFeedbackOutcomeClosure({
       now: at,
@@ -507,7 +483,7 @@ export function createAlicizationRuntimeExecutionFeedback(
         threadId: latest.id,
         goal: latest.goal,
         summary: latest.summary ?? '',
-        outcome: latest.summary ?? '',
+        outcome: trustedOutcome,
         previousAssistantText,
         userText,
         memoryClosureExecution,
@@ -517,20 +493,23 @@ export function createAlicizationRuntimeExecutionFeedback(
         safetyGateSummary,
       },
     }))
-    const feedbackExperience = extractExecutionResultFeedbackExperienceFromClosure(closure, options.sanitizeText)
     await options.persistOutcomeClosure(cardId, closure)
     await options.memoryReconsolidationRuntime?.reconsolidateExecutionResultFeedbackMemoryTrace?.({
       cardId,
-      decisionTraceId: latest.decisionTraceId ?? null,
       feedback,
-      previousAssistantText,
-      userText,
-      sessionId,
-      turnId: latest.turnId ?? null,
       at,
-      goal: latest.goal,
-      outcome: latest.summary ?? '',
-      feedbackExperience,
+      executionResult: {
+        provenance: 'execution-ledger',
+        status: 'completed',
+        cardId,
+        threadId: latest.id,
+        decisionTraceId: options.sanitizeText(latest.decisionTraceId, ''),
+        turnId: options.sanitizeText(latest.turnId, ''),
+        sessionId: options.sanitizeText(latest.sessionId, ''),
+        goal: options.sanitizeText(latest.goal, ''),
+        outcome: options.sanitizeText(trustedOutcome, '') || null,
+      },
+      outcomeClosure: closure,
       memoryClosureExecution,
       safetyGateSummary,
       resumeConfirmationSummary,

@@ -48,6 +48,17 @@ describe('working memory owner context', () => {
     snapshot.longTermCandidates = [{
       sourceTurnIds: ['turn-1:user'],
       kind: 'correction',
+      memoryEvidence: {
+        version: 'working-memory-long-term-evidence-v1',
+        source: 'explicit-structured-memory-evidence',
+        kind: 'correction',
+        summary: '不要固定模板回复，要数字生命自身人格',
+        reason: 'candidate:correction',
+        evidenceSnippets: ['不要固定模板回复，要数字生命自身人格'],
+        salience: 0.82,
+        sensitivity: 'personal',
+        confidence: 0.78,
+      },
       summary: '不要固定模板回复，要数字生命自身人格',
       reason: 'candidate:correction',
       salience: 0.82,

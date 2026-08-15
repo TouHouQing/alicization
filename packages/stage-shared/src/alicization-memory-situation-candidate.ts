@@ -36,7 +36,6 @@ function asRecord(raw: unknown) {
 export type AlicizationMemorySituationSourceKind
   = | 'event-graph'
     | 'episodic-event'
-    | 'conversation-turn'
     | 'fact'
     | 'consolidation'
     | 'procedure'
@@ -124,7 +123,6 @@ export function normalizeAlicizationMemorySituationCandidate(raw: unknown): Alic
     .filter(kind => [
       'event-graph',
       'episodic-event',
-      'conversation-turn',
       'fact',
       'consolidation',
       'procedure',

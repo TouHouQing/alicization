@@ -1,11 +1,14 @@
+import type {
+  AlicizationProviderMemoryEvidence,
+} from '@proj-alicization/stage-shared'
 import type { Message, Tool } from '@xsai/shared-chat'
 
 import type {
   AlicizationChatStartPayload,
   AlicizationChatStreamChunkEvent,
-  AlicizationChatToolCallEvent,
-  AlicizationChatToolProgressEvent,
-  AlicizationChatToolResultEvent,
+  AlicizationChatToolCallInput,
+  AlicizationChatToolProgressInput,
+  AlicizationChatToolResultInput,
   AlicizationEmotionalKernelSnapshot,
   AlicizationVisibleReplyExecution,
 } from '../../../shared/eventa'
@@ -259,6 +262,7 @@ export interface AlicizationMainChatStreamRunnerResult {
     allowTraining: false
   }
   failureSurface: null
+  memoryEvidence: AlicizationProviderMemoryEvidence | null
   visibleReplyExecution: AlicizationVisibleReplyExecution
   visibleReplyRealization: AlicizationVisibleReplyRealizationArtifact
 }
@@ -286,10 +290,10 @@ export interface RunAlicizationMainChatStreamOptions {
   isRunActive: () => boolean
   incrementChunkStats: (rawDelta: string) => void
   emitChunk: (payload: AlicizationChatStreamChunkEvent) => void
-  emitToolCall: (payload: AlicizationChatToolCallEvent) => void
-  emitToolResult: (payload: AlicizationChatToolResultEvent) => void
+  emitToolCall: (payload: AlicizationChatToolCallInput) => void
+  emitToolResult: (payload: AlicizationChatToolResultInput) => void
   subscribeToolExecutionProgress?: (
-    listener: (event: Omit<AlicizationChatToolProgressEvent, 'cardId' | 'turnId'>) => void,
+    listener: (event: Omit<AlicizationChatToolProgressInput, 'cardId' | 'turnId'>) => void,
   ) => () => void
   streamMeta: AlicizationMainChatStreamMetaController
   nonProgressEventTypes: Set<string>
@@ -354,7 +358,7 @@ export interface RunAlicizationMainChatProviderStepOptions {
   providerReaderCancelTimeoutMs?: number
   isRunActive: () => boolean
   nonProgressEventTypes: Set<string>
-  emitToolCall: (payload: AlicizationChatToolCallEvent) => void
+  emitToolCall: (payload: AlicizationChatToolCallInput) => void
   appendRuntimeDebugLine?: (event: string, payload: Record<string, unknown>) => Promise<void>
   streamTextImpl?: StreamTextInvoker
   providerRetryAttempt?: number
@@ -899,6 +903,7 @@ function createProviderResult(input: {
   visibleReplyExecution: AlicizationVisibleReplyExecution
   visibleReplyRealization: AlicizationVisibleReplyRealizationArtifact
   memoryUsage: Parameters<typeof createAlicizationProviderVisibleArtifact>[0]['memoryUsage']
+  memoryEvidence: AlicizationProviderMemoryEvidence | null
 }) {
   const artifact = createAlicizationProviderVisibleArtifact({
     reply: input.visibleReplyRealization.visibleText ?? '',
@@ -915,6 +920,7 @@ function createProviderResult(input: {
       allowTraining: artifact.allowTraining,
     },
     failureSurface: null,
+    memoryEvidence: input.memoryEvidence,
     visibleReplyExecution: input.visibleReplyExecution,
     visibleReplyRealization: input.visibleReplyRealization,
   } satisfies AlicizationMainChatStreamRunnerResult
@@ -1088,6 +1094,7 @@ export async function runAlicizationMainChatStream(
       visibleReplyExecution,
       visibleReplyRealization,
       memoryUsage: validatedPayload.memoryUsage,
+      memoryEvidence: validatedPayload.memoryEvidence,
     })
   }
 
@@ -2019,5 +2026,6 @@ export async function runAlicizationMainChatStream(
     visibleReplyExecution,
     visibleReplyRealization,
     memoryUsage: validatedPayload.memoryUsage,
+    memoryEvidence: validatedPayload.memoryEvidence,
   })
 }

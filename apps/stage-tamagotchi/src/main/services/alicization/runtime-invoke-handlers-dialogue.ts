@@ -1,3 +1,5 @@
+import type { AlicizationRuntimeEventEnvelope } from '@proj-alicization/stage-shared'
+
 import type {
   AlicizationAuditLogInput,
   AlicizationConversationTurnInput,
@@ -19,6 +21,7 @@ import type {
   AlicizationRunReplayBenchmarkPayload,
   AlicizationRunReplayBenchmarkResult,
   AlicizationSelfEvolutionVersionRuntimeSnapshot,
+  AlicizationTurnToolProjectionReplayRecord,
   CharacterPerformanceCapabilitiesManifest,
 } from '../../../shared/eventa'
 import type {
@@ -27,6 +30,13 @@ import type {
   AlicizationProactiveLoopState,
   AlicizationRecentProactiveOutcome,
 } from './proactive-feedback'
+import type { AlicizationRuntimeCheckpoint } from './turn-os/checkpoint-store'
+import type {
+  AlicizationRuntimeEventListOptions,
+  AlicizationRuntimeEventScope,
+  AlicizationRuntimeEventScopeQuery,
+  AlicizationRuntimeEventScopeRecord,
+} from './turn-os/event-store'
 
 import {
   buildAlicizationMemoryDecisionTraceRecords,
@@ -46,6 +56,7 @@ import {
   electronAlicizationListMemoryDecisionTraces,
   electronAlicizationListMindTurnEvents,
   electronAlicizationListPersonStateUpdates,
+  electronAlicizationListTurnToolProjections,
   electronAlicizationReplayDialogues,
   electronAlicizationReportProactiveFeedback,
   electronAlicizationRunReplayBenchmark,
@@ -56,6 +67,41 @@ import { personStateUpdateRecordFromMindTurnEvent } from './person-state-update-
 import {
   createAlicizationReplayBenchmarkRuntime,
 } from './replay-benchmark-runtime'
+import { replayTurn } from './turn-os/replay'
+
+const toolProjectionReplayEventTypes = [
+  'model.tool_call.proposed',
+  'action.started',
+  'action.progress',
+  'action.output.delta',
+  'action.observation',
+  'action.failed',
+  'action.cancelled',
+  'action.dead_lettered',
+] as const
+
+const toolProjectionReplayConcurrency = 8
+
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+) {
+  if (items.length === 0)
+    return [] as R[]
+
+  const results = Array.from<R>({ length: items.length })
+  let nextIndex = 0
+  const workerCount = Math.min(Math.max(1, Math.floor(concurrency)), items.length)
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex
+      nextIndex += 1
+      results[index] = await mapper(items[index], index)
+    }
+  }))
+  return results
+}
 
 interface ReplayConversationTurnRow {
   turnId: string | null
@@ -76,6 +122,7 @@ interface RegisterAlicizationDialogueInvokeHandlersOptions {
   sanitizeText: (raw: unknown, fallback?: string) => string
   appendRuntimeDebugLine: (event: string, payload?: Record<string, unknown>) => Promise<void>
   getActiveCardId: () => string
+  localRuntimeUserId: string
   persistActiveSessionId: (cardId: string, sessionId: string) => Promise<void>
   appendConversationTurnWithGuards: (payload: AlicizationConversationTurnInput) => Promise<boolean | undefined>
   getDialogueAckCursor: (cardId: string, sessionIdRaw: unknown) => number
@@ -114,6 +161,16 @@ interface RegisterAlicizationDialogueInvokeHandlersOptions {
       sinceCreatedAt?: number
       limit?: number
     }) => Promise<ReplayConversationTurnRow[]>
+    listRuntimeEventScopes: (
+      query: AlicizationRuntimeEventScopeQuery,
+    ) => Promise<AlicizationRuntimeEventScopeRecord[]>
+    loadRuntimeCheckpoint: (
+      scope: AlicizationRuntimeEventScope,
+    ) => Promise<AlicizationRuntimeCheckpoint | null>
+    listRuntimeEvents: (
+      scope: AlicizationRuntimeEventScope,
+      options?: AlicizationRuntimeEventListOptions,
+    ) => Promise<AlicizationRuntimeEventEnvelope[]>
     getMemoryStats: () => Promise<any>
     listMindTurnEvents: (options: {
       decisionTraceId?: string
@@ -151,6 +208,7 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
     sanitizeText,
     appendRuntimeDebugLine,
     getActiveCardId,
+    localRuntimeUserId,
     persistActiveSessionId,
     appendConversationTurnWithGuards,
     getDialogueAckCursor,
@@ -321,6 +379,74 @@ export function registerAlicizationDialogueInvokeHandlers(options: RegisterAlici
     })
   }, {
     label: `dialogue-list-turns:${payload.cardId}`,
+    skipQueueWhenScopeAlreadyActive: true,
+  }))
+
+  registerInvokeHandler(electronAlicizationListTurnToolProjections, async payload => await withCardScope(payload.cardId, async () => {
+    const activeCardId = getActiveCardId()
+    const sessionId = normalizeSessionId(payload.sessionId)
+    if (!sessionId)
+      return [] as AlicizationTurnToolProjectionReplayRecord[]
+
+    const limit = Math.max(1, Math.min(500, Math.floor(payload.limit ?? 200)))
+    const db = getAlicizationDb()
+    const scopes = await db.listRuntimeEventScopes({
+      cardId: activeCardId,
+      userId: localRuntimeUserId,
+      conversationId: sessionId,
+      eventTypes: [...toolProjectionReplayEventTypes],
+      limit,
+    })
+    return await mapWithConcurrency(scopes, toolProjectionReplayConcurrency, async (scope): Promise<AlicizationTurnToolProjectionReplayRecord> => {
+      const runtimeScope: AlicizationRuntimeEventScope = {
+        turnId: scope.turnId,
+        cardId: scope.cardId,
+        userId: scope.userId,
+        conversationId: scope.conversationId,
+      }
+      try {
+        const replay = await replayTurn({
+          scope: runtimeScope,
+          reader: db,
+        })
+        return {
+          cardId: activeCardId,
+          turnId: scope.turnId,
+          sessionId,
+          startedAt: scope.startedAt,
+          updatedAt: scope.updatedAt,
+          cards: replay.toolProjection.cards,
+          recoveryRequired: replay.recoveryRequired,
+          reasonCodes: replay.reasonCodes,
+          failure: null,
+        }
+      }
+      catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        await appendRuntimeDebugLine('dialogue-tool-projection-replay.failed', {
+          cardId: activeCardId,
+          sessionId,
+          turnId: scope.turnId,
+          error: message,
+        }).catch(() => {})
+        return {
+          cardId: activeCardId,
+          turnId: scope.turnId,
+          sessionId,
+          startedAt: scope.startedAt,
+          updatedAt: scope.updatedAt,
+          cards: [],
+          recoveryRequired: true,
+          reasonCodes: ['runtime-replay:failed'],
+          failure: {
+            code: 'RUNTIME_REPLAY_FAILED',
+            message,
+          },
+        }
+      }
+    })
+  }, {
+    label: `dialogue-list-tool-projections:${payload.cardId}`,
     skipQueueWhenScopeAlreadyActive: true,
   }))
 

@@ -31,7 +31,10 @@ describe('replay benchmark status summaries', () => {
 
     const presenceGate = shipGate.find(row => row.key === 'presence-qa-gate')
     expect(presenceGate?.detail).not.toContain('Continuity')
-    expect(presenceGate?.detail).not.toContain('continuity')
-    expect(presenceGate?.detail).not.toContain('longRun')
+    expect(presenceGate?.detail).toContain('continuityMindCarryRate')
+    expect(presenceGate?.detail).toContain('runtimeMemoryClosureLongRunClosureRate')
+    expect(presenceGate?.detail).not.toContain('longRunContinuityClosureRate')
+    expect(presenceGate?.detail).not.toContain('longRunContinuitySessionClosureRate')
+    expect(presenceGate?.detail).not.toContain('runtimeLongRunContinuitySessionClosureRate')
   })
 })

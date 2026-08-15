@@ -124,109 +124,128 @@ describe('working memory policy', () => {
     expect(createLongTermCandidatesFromWorkingTurns([failure])).toEqual([])
   })
 
-  it('does not promote ordinary requests as corrections', () => {
+  it('does not derive long-term candidates from raw user transcript wording', () => {
     const ordinaryRequest = turn({
       turnId: 'turn-request',
       role: 'user',
       text: '我需要你帮我写测试',
     })
-    const candidates = createLongTermCandidatesFromWorkingTurns([
+    const rawTurns = [
       turn({
         turnId: 'turn-correction',
         role: 'user',
         text: '我不是要固定回复，我需要她数字生命自身的人格回复',
       }),
       ordinaryRequest,
-    ])
-
-    expect(candidates).toHaveLength(1)
-    expect(candidates[0]).toMatchObject({
-      kind: 'correction',
-      allowTraining: false,
-      sourceTurnIds: ['turn-correction'],
-    })
-    expect(createLongTermCandidatesFromWorkingTurns([ordinaryRequest])).toEqual([])
-  })
-
-  it('preserves explicit user corrections instead of replacing them with a fixed summary', () => {
-    const rawCorrection = '不要固定模板，请保留这句纠正原文。'
-    const candidates = createLongTermCandidatesFromWorkingTurns([
       turn({
-        turnId: 'template-rejection',
-        role: 'user',
-        text: rawCorrection,
-      }),
-    ])
-
-    expect(candidates).toHaveLength(1)
-    expect(candidates[0]).toEqual(expect.objectContaining({
-      kind: 'correction',
-      allowTraining: false,
-      sourceTurnIds: ['template-rejection'],
-    }))
-    expect(candidates[0]?.summary).toBe(rawCorrection)
-  })
-
-  it('recognizes a generic explicit correction without relying on template-topic words', () => {
-    const rawCorrection = '请不要把周五记成周四，实际是周五。'
-    const candidates = createLongTermCandidatesFromWorkingTurns([
-      turn({
-        turnId: 'date-correction',
-        role: 'user',
-        text: rawCorrection,
-      }),
-    ])
-
-    expect(candidates).toEqual([
-      expect.objectContaining({
-        kind: 'correction',
-        summary: rawCorrection,
-        sourceTurnIds: ['date-correction'],
-        allowTraining: false,
-      }),
-    ])
-  })
-
-  it('creates long-term candidates for clear preference episode procedure and relationship signals', () => {
-    const candidates = createLongTermCandidatesFromWorkingTurns([
-      turn({
-        turnId: 'preference',
+        turnId: 'turn-preference',
         role: 'user',
         text: '我喜欢你先说结论，再给必要细节。',
       }),
       turn({
-        turnId: 'episode',
+        turnId: 'turn-episode',
         role: 'user',
         text: '上周我们一起玩过 Minecraft，下次继续联机探索。',
       }),
       turn({
-        turnId: 'procedure',
+        turnId: 'turn-procedure',
         role: 'user',
         text: '以后长期记忆开发按红测、实现、验证这个流程推进。',
       }),
       turn({
-        turnId: 'relationship',
+        turnId: 'turn-relationship',
         role: 'user',
         text: '如果出错或超时了就直接说明问题，不要固定安抚模板。',
       }),
+    ]
+
+    expect(createLongTermCandidatesFromWorkingTurns(rawTurns)).toEqual([])
+    for (const rawTurn of rawTurns)
+      expect(shouldExcludeTurnFromLongTermCandidate(rawTurn)).toBe(true)
+  })
+
+  it('creates a long-term candidate only from explicit structured memory evidence', () => {
+    const rawTranscript = 'RAW_USER_TRANSCRIPT must remain short-term only'
+    const structuredSummary = 'The user prefers conclusions before supporting detail.'
+    const candidates = createLongTermCandidatesFromWorkingTurns([
       turn({
-        turnId: 'vague',
+        turnId: 'structured-preference',
         role: 'user',
-        text: '这样也行。',
+        text: rawTranscript,
+        memoryEvidence: {
+          version: 'working-memory-long-term-evidence-v1',
+          source: 'explicit-structured-memory-evidence',
+          kind: 'preference',
+          summary: structuredSummary,
+          reason: 'Reviewed preference evidence.',
+          evidenceSnippets: ['Preference confirmed through an explicit memory review action.'],
+          salience: 0.8,
+          sensitivity: 'personal',
+          confidence: 0.86,
+        },
+      } as any),
+    ])
+
+    expect(candidates).toEqual([
+      expect.objectContaining({
+        kind: 'preference',
+        summary: structuredSummary,
+        reason: 'Reviewed preference evidence.',
+        evidenceSnippets: ['Preference confirmed through an explicit memory review action.'],
+        memoryEvidence: expect.objectContaining({
+          version: 'working-memory-long-term-evidence-v1',
+          source: 'explicit-structured-memory-evidence',
+        }),
+        sourceTurnIds: ['structured-preference'],
+        allowTraining: false,
+      }),
+    ])
+    expect(JSON.stringify(candidates)).not.toContain(rawTranscript)
+  })
+
+  it('rejects failure or review-like raw turns even when typed learning flags allow condensation', () => {
+    const candidates = createLongTermCandidatesFromWorkingTurns([
+      turn({
+        turnId: 'raw-review-like',
+        role: 'user',
+        text: 'Review this provider failure and remember the timeout transcript.',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
       }),
     ])
 
-    expect(candidates.map(candidate => candidate.kind)).toEqual([
-      'preference',
-      'episode',
-      'procedure',
-      'relationship',
+    expect(candidates).toEqual([])
+  })
+
+  it('keeps explicit structured memory evidence training-blocked', () => {
+    const candidates = createLongTermCandidatesFromWorkingTurns([
+      turn({
+        turnId: 'structured-correction',
+        role: 'user',
+        text: '短期上下文仍保留这句原文。',
+        memoryEvidence: {
+          version: 'working-memory-long-term-evidence-v1',
+          source: 'explicit-structured-memory-evidence',
+          kind: 'correction',
+          summary: 'A reviewed correction changed the remembered date to Friday.',
+          reason: 'Reviewed correction evidence.',
+          evidenceSnippets: ['The corrected date is Friday.'],
+          salience: 0.82,
+          sensitivity: 'personal',
+          confidence: 0.9,
+        },
+      } as any),
     ])
-    expect(candidates.find(candidate => candidate.kind === 'preference')).toEqual(expect.objectContaining({
-      sourceTurnIds: ['preference'],
+
+    expect(candidates[0]).toEqual(expect.objectContaining({
+      kind: 'correction',
       allowTraining: false,
+      sourceTurnIds: ['structured-correction'],
     }))
-    expect(candidates.some(candidate => candidate.sourceTurnIds.includes('vague'))).toBe(false)
   })
 
   it('demotes failed turns even if they start with high raw importance', () => {

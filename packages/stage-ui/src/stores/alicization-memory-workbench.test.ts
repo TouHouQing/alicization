@@ -65,7 +65,7 @@ describe('alicization memory workbench store', () => {
           episodicQueries: [],
           threadHints: [],
           negativeCues: [],
-          confidencePolicy: 'direct',
+          riskFlags: [],
         },
         evidence: [],
         latencyMs: 1,

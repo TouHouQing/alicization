@@ -2488,17 +2488,23 @@ describe('chat orchestrator reply authority', () => {
     }))
   })
 
-  it('keeps a desktop turn usable when a tool fact has no canonical projection', async () => {
+  it('rejects desktop turn settlement when a tool fact has no canonical projection', async () => {
     const providerReply = 'Provider 回复不应该被投影协议错误吞掉。'
     const streamChat = vi.fn(async (_payload: any, options: any) => {
-      await options.onStreamEvent?.({
-        type: 'tool-call',
-        toolCallId: 'desktop-missing-projection-1',
-        toolName: 'custom_tool',
-        projection: {} as any,
-        args: '{}',
-        toolCallType: 'function',
-      })
+      let projectionError: unknown
+      try {
+        await options.onStreamEvent?.({
+          type: 'tool-call',
+          toolCallId: 'desktop-missing-projection-1',
+          toolName: 'custom_tool',
+          projection: {} as any,
+          args: '{}',
+          toolCallType: 'function',
+        })
+      }
+      catch (error) {
+        projectionError = error
+      }
       await options.onStreamEvent?.({
         type: 'text-delta',
         text: providerReply,
@@ -2506,6 +2512,8 @@ describe('chat orchestrator reply authority', () => {
         learningPolicy: providerLearningPolicy(),
         failureSurface: null,
       })
+      if (projectionError)
+        throw projectionError
     })
     installAlicizationBridge({ streamChat })
 
@@ -2517,8 +2525,14 @@ describe('chat orchestrator reply authority', () => {
     })
 
     const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
-    expect(persisted.assistantText).toBe(providerReply)
-    expect(persisted.structured.origin).toBe('provider')
+    expect(persisted.assistantText).not.toBe(providerReply)
+    expect(persisted.structured.origin).toBe('failure-surface')
+    expect(persisted.structured.failureSurface).toMatchObject({
+      kind: 'tool-execution',
+      toolExecution: {
+        code: 'ALICIZATION_TOOL_EVENT_DELIVERY_FAILED',
+      },
+    })
     expect(appendAuditLogMock).toHaveBeenCalledWith(expect.objectContaining({
       category: 'alicization.chat',
       action: 'tool-projection-delivery-failed',

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -63,6 +65,17 @@ function buildEpisode(overrides: Record<string, unknown> = {}) {
 }
 
 describe('memory-search-retrieval-operators', () => {
+  it('does not expose a conversation transcript recall provider in the production operator', () => {
+    const source = readFileSync(
+      new URL('./memory-search-retrieval-operators.ts', import.meta.url),
+      'utf8',
+    )
+
+    expect(source).not.toContain('recallConversationHistory')
+    expect(source).not.toMatch(/\b(?:userText|assistantText)\b/u)
+    expect(source).not.toContain('for (const turn of input.recalledConversationHistory')
+  })
+
   it('does not reopen resting session-mirror recollection state', () => {
     expect(deriveSessionMirrorRecollectionIntent({
       afterthoughtState: 'resting',
@@ -182,7 +195,6 @@ describe('memory-search-retrieval-operators', () => {
       mode: 'relationship-history' as const,
       temporalFocus: 'cross-session' as const,
       searchEpisodes: true,
-      searchConversations: true,
       searchProceduralExperience: false,
       queryHints: ['relationship tone'],
       rationale: 'planner-result',
@@ -251,7 +263,6 @@ describe('memory-search-retrieval-operators', () => {
           mode: 'execution-procedure' as const,
           temporalFocus: 'experience-matched' as const,
           searchEpisodes: true,
-          searchConversations: false,
           searchProceduralExperience: true,
           queryHints: ['runtime seam'],
           rationale: 'matched-prior-procedure',
@@ -269,7 +280,6 @@ describe('memory-search-retrieval-operators', () => {
       searchProceduralExperience: true,
     }))
 
-    const recalledConversationHistory = vi.fn(async () => [])
     const recalledConsolidations = vi.fn(async () => [{
       id: 'consolidation-runtime',
       kind: 'autobiographical' as const,
@@ -288,7 +298,6 @@ describe('memory-search-retrieval-operators', () => {
 
     const candidates = await retrieveMemorySearchCandidates({
       access: {
-        recallConversationHistory: recalledConversationHistory,
         recallMemoryConsolidations: recalledConsolidations,
       },
       recallSeed: prelude.recallSeed,
@@ -296,10 +305,36 @@ describe('memory-search-retrieval-operators', () => {
       recalledEpisodes: prelude.recalledEpisodes,
     })
 
-    expect(recalledConversationHistory).not.toHaveBeenCalled()
     expect(recalledConsolidations).toHaveBeenCalledTimes(1)
     expect(candidates.consolidatedMemories[0]?.id).toBe('consolidation-runtime')
     expect(candidates.proceduralMemories[0]?.label).toContain('runtime seam')
     expect(candidates.recollectedWindows[0]?.summary).toContain('runtime seam')
+  })
+
+  it('does not call conversation transcript recall from long-term retrieval operators', async () => {
+    const rawUserText = 'RAW_CROSS_SESSION_USER_TRANSCRIPT'
+    const rawAssistantText = 'RAW_CROSS_SESSION_ASSISTANT_TRANSCRIPT'
+    const recallMemoryConsolidations = vi.fn(async () => [])
+
+    const candidates = await retrieveMemorySearchCandidates({
+      access: {
+        recallMemoryConsolidations,
+      },
+      recallSeed: rawUserText,
+      recollectionIntent: {
+        mode: 'conversation-history',
+        temporalFocus: 'cross-session',
+        searchEpisodes: false,
+        searchProceduralExperience: false,
+        queryHints: [rawUserText],
+        rationale: 'The host asked about an earlier session.',
+        confidence: 0.9,
+      } as any,
+      recalledEpisodes: [],
+    })
+
+    expect(candidates.retrospectiveRecall).toBe(true)
+    expect(JSON.stringify(candidates)).not.toContain(rawUserText)
+    expect(JSON.stringify(candidates)).not.toContain(rawAssistantText)
   })
 })

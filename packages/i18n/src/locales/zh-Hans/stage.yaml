@@ -11,12 +11,15 @@ chat:
     epoch1-strict: 当前处于受限实时数据模式，无法访问外部实时数据源。
     structured-contract: '模型输出格式异常，这轮回复已拦截。'
     stream-failure: 回复流在完成前失败了。
+    provider-continuation-timeout: 工具已完成，但 Provider 等待最终回复超时（{provider} / {model}）。
+    provider-continuation-incomplete: 工具已完成，但 Provider 没有返回最终回复。
     local-runtime-unavailable: 本地模型服务不可用，例如 `11434` 上的 Ollama 或 `1234` 上的 LM Studio。
-    stream-timeout: '超时：这轮等待模型响应过久。'
+    stream-timeout: 'Provider 等待首个响应超时（{provider} / {model}）。'
     provider-auth: 当前提供方认证失败，API Key 或模型权限无效。
     provider-network: 当前到模型服务的网络连接不稳定。
     provider-config: '提供方或模型配置不完整：例如 `provider`、`model` 或 `baseUrl` 缺失。'
     provider-request: 'Provider 请求失败（{provider} / {model}，HTTP {status}）。上游返回 {code}：{message}。请检查当前模型是否支持该 Provider，或切换模型。'
+    tool-execution: '工具执行失败（{tool}，{code}）：{message}。'
     unsupported-tools: 当前模型不支持这轮所需的工具调用。
     low-obedience-host-denied: 未授予权限，因此操作未执行。
     low-obedience-system-denied: 系统权限已阻止该操作。

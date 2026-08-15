@@ -277,6 +277,39 @@ describe('alicization-affective-residue-memory', () => {
     expect(residue.residues).toEqual([])
   })
 
+  it.each(['pending', 'denied', 'superseded'] as const)(
+    'keeps %s reflections out of affective residue',
+    (status) => {
+      const now = 1_700_000_250_000
+      const baseline = buildAlicizationAffectiveResidueMemory({ now })
+      const residue = buildAlicizationAffectiveResidueMemory({
+        now,
+        recentMemoryReflections: [{
+          id: `reflection-${status}`,
+          cardId: 'default',
+          decisionTraceId: `trace-${status}`,
+          turnId: `turn-${status}`,
+          sessionId: `session-${status}`,
+          targetScope: 'boundary',
+          sourceKind: 'maintenance',
+          status,
+          summary: `${status}-reflection-must-not-shape-residue`,
+          lesson: `${status}-reflection-must-not-shape-affect`,
+          supportingFactIds: [],
+          supportingOutcomeIds: [],
+          confidence: 1,
+          createdAt: now,
+          updatedAt: now,
+          confirmedAt: null,
+          deniedAt: status === 'denied' ? now : null,
+        }],
+      })
+
+      expect(residue).toEqual(baseline)
+      expect(JSON.stringify(residue)).not.toContain('must-not-shape')
+    },
+  )
+
   it('does not derive browser fallback residue from episodic prose alone', () => {
     const residue = buildAlicizationBrowserAffectiveResidueMemory({
       now: 1_700_000_333_000,

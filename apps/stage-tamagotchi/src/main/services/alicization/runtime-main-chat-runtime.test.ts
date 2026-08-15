@@ -73,13 +73,6 @@ describe('runtime main chat runtime', () => {
           entries: [],
           recallText: '',
         } as any),
-        resolveRecentContextualTurns: async () => [
-          {
-            userText: 'old user',
-            assistantText: 'old assistant',
-          },
-        ],
-        shouldExtendContextualRecall: () => false,
         detectInvitedInspectionIntent: () => ({ active: false }),
       },
       inspection: {

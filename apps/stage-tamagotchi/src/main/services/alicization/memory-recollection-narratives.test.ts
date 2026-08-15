@@ -9,7 +9,6 @@ describe('memory recollection narratives', () => {
         mode: 'conversation-history',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
-        searchConversations: true,
         searchProceduralExperience: false,
         queryHints: ['runtime continuity'],
         rationale: 'Need to remember what we talked about before.',

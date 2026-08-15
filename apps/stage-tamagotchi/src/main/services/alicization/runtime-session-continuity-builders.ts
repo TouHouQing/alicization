@@ -113,7 +113,7 @@ export function createAlicizationSessionContinuityBuildersRuntime(options: Creat
   ): AlicizationAgentSessionActionInput['status'] {
     if (status === 'completed')
       return 'completed'
-    if (status === 'failed' || status === 'cancelled' || status === 'blocked')
+    if (status === 'failed' || status === 'cancelled' || status === 'blocked' || status === 'dead-lettered')
       return 'failed'
     return 'pending'
   }

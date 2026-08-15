@@ -41,6 +41,7 @@ type AlicizationExecutorRuntimeDbPort = Pick<AlicizationDbService, 'appendExecut
   | 'listRecentEpisodicEvents'
   | 'listExecutorSessions'
   | 'listTaskThreads'
+  | 'resumeTaskThread'
   | 'searchMemoryConsolidations'
   | 'upsertChannelCapabilityManifest'
   | 'upsertExecutorSession'
@@ -63,6 +64,7 @@ interface AlicizationExecutorRuntimeOptions {
   getCardKillSwitchState: (cardId: string) => 'ACTIVE' | 'SUSPENDED'
   getGlobalKillSwitchState: () => 'ACTIVE' | 'SUSPENDED'
   normalizeSessionId: (raw: unknown) => string
+  now?: () => number
   resolveLocalCapabilityChannels?: () => Promise<AlicizationChannelCapability[]>
   sanitizeText: (raw: unknown, fallback?: string) => string
 }
@@ -611,6 +613,8 @@ function buildRememberedProcedures(
 }
 
 export function createAlicizationExecutorRuntime(options: AlicizationExecutorRuntimeOptions) {
+  const now = options.now ?? (() => Date.now())
+
   const executionCapabilityProbeCache = new Map<string, {
     checkedAt: number
     ready: boolean
@@ -1202,6 +1206,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
   }
 
   function buildResumeDispatchPayload(input: {
+    mode: 'confirmation' | 'recovery'
     thread: {
       goal: string
       kind: string
@@ -1219,30 +1224,42 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     const goal = options.sanitizeText(thread.goal) || 'the current task'
     const summary = options.sanitizeText(thread.summary) || 'none'
     const failureTransparency = 'failure-transparency:required'
-    const instruction = `Continue the already-confirmed task directly.\nGoal: ${goal}\nSummary: ${summary}\n${failureTransparency}`
+    const instruction = input.mode === 'recovery'
+      ? `Reconcile the paused task without repeating its mutation.\nGoal: ${goal}\nLast known state: ${summary}\nInspect current state only and report whether the intended effect is already present.\n${failureTransparency}`
+      : `Continue the already-confirmed task directly.\nGoal: ${goal}\nSummary: ${summary}\n${failureTransparency}`
 
     if (resumeChannel === 'codex') {
       return {
         codex: {
-          prompt: thread.kind === 'codebase-edit'
-            ? `${instruction}\nMake the code change now.`
-            : `${instruction}\nUse read-only investigation mode.`,
-          sandbox: thread.kind === 'codebase-edit' ? 'workspace-write' as const : 'read-only' as const,
+          prompt: input.mode === 'recovery'
+            ? instruction
+            : thread.kind === 'codebase-edit'
+              ? `${instruction}\nMake the code change now.`
+              : `${instruction}\nUse read-only investigation mode.`,
+          sandbox: input.mode === 'recovery' || thread.kind !== 'codebase-edit'
+            ? 'read-only' as const
+            : 'workspace-write' as const,
         },
       }
     }
     if (resumeChannel === 'claude-code') {
       return {
         claudeCode: {
-          prompt: thread.kind === 'codebase-edit'
-            ? `${instruction}\nMake the code change now.`
-            : `${instruction}\nUse investigation mode.`,
-          allowTools: thread.kind === 'codebase-edit',
-          permissionMode: thread.kind === 'codebase-edit' ? 'acceptEdits' as const : 'plan' as const,
+          prompt: input.mode === 'recovery'
+            ? instruction
+            : thread.kind === 'codebase-edit'
+              ? `${instruction}\nMake the code change now.`
+              : `${instruction}\nUse investigation mode.`,
+          allowTools: input.mode !== 'recovery' && thread.kind === 'codebase-edit',
+          permissionMode: input.mode !== 'recovery' && thread.kind === 'codebase-edit'
+            ? 'acceptEdits' as const
+            : 'plan' as const,
         },
       }
     }
     if (resumeChannel === 'openclaw') {
+      if (input.mode === 'recovery')
+        return null
       return {
         openclaw: {
           instruction,
@@ -1253,6 +1270,13 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       return {
         localVisual: {
           instruction,
+          ...(input.mode === 'recovery'
+            ? {
+                meta: {
+                  maxAutoContinueSteps: 0,
+                },
+              }
+            : {}),
         },
       }
     }
@@ -1290,7 +1314,37 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       : []
   }
 
-  function buildConfirmedResumeExecutionEvent(input: {
+  function buildRecoveryResumeMetadata(input: {
+    metadata: AlicizationTaskThreadRecord['metadata']
+    resumedAt: number
+  }) {
+    const metadata = readResumeRecord(input.metadata)
+    const task = readResumeRecord(metadata.task)
+    const execution = readResumeRecord(metadata.execution)
+    const recovery = readResumeRecord(execution.recovery)
+    const originalEffect = options.sanitizeText(task.effect) || 'mutate'
+    return {
+      ...metadata,
+      task: {
+        ...task,
+        effect: 'observe',
+      },
+      execution: {
+        ...execution,
+        recovery: {
+          ...recovery,
+          mode: 'reconcile-before-replay',
+          originalEffect,
+          resumedAt: input.resumedAt,
+          state: 'reconciling',
+        },
+      },
+    }
+  }
+
+  function buildResumeExecutionEvent(input: {
+    createdAt: number
+    mode: 'confirmation' | 'recovery'
     originalThread: AlicizationTaskThreadRecord
     resumeChannel: NonNullable<AlicizationTaskThreadRecord['selectedChannel']>
     resumableThread: AlicizationTaskThreadRecord
@@ -1302,6 +1356,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     const fabricMetadata = readResumeRecord(originalMetadata.fabric)
 
     return {
+      id: `${input.originalThread.id}:resume:${input.originalThread.updatedAt}:${input.mode}`,
       threadId: input.resumableThread.id,
       decisionTraceId: input.originalThread.decisionTraceId,
       turnId: input.originalThread.turnId,
@@ -1310,21 +1365,37 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       channel: input.resumeChannel,
       kind: 'resume',
       threadStatus: input.resumableThread.status,
-      payload: {
-        approval: 'host-confirmed',
-        previousStatus: input.originalThread.status,
-        resumedStatus: input.resumableThread.status,
-        previousPermissionMode: options.sanitizeText(originalTaskMetadata.permissionMode) || null,
-        permissionMode: options.sanitizeText(resumableTaskMetadata.permissionMode) || 'explicit',
-        effect: options.sanitizeText(originalTaskMetadata.effect) || null,
-        riskBudget: options.sanitizeText(originalTaskMetadata.riskBudget) || null,
-        justification: options.sanitizeText(originalTaskMetadata.justification) || null,
-        affirmationReasonCodes: readResumeStringArray(fabricMetadata.affirmationReasonCodes),
-        confirmationBoundary: 'host-confirmed-before-redispatch',
-        auditability: 'resume-before-dispatch',
-        interruptibility: 'process-not-yet-restarted',
-      },
-      createdAt: Date.now(),
+      payload: input.mode === 'recovery'
+        ? {
+            resumeMode: 'recovery',
+            previousStatus: input.originalThread.status,
+            resumedStatus: input.resumableThread.status,
+            previousPermissionMode: options.sanitizeText(originalTaskMetadata.permissionMode) || null,
+            permissionMode: options.sanitizeText(resumableTaskMetadata.permissionMode) || null,
+            previousEffect: options.sanitizeText(originalTaskMetadata.effect) || 'mutate',
+            effect: options.sanitizeText(resumableTaskMetadata.effect) || 'observe',
+            riskBudget: options.sanitizeText(originalTaskMetadata.riskBudget) || null,
+            justification: options.sanitizeText(originalTaskMetadata.justification) || null,
+            recoveryBoundary: 'inspect-before-replay',
+            auditability: 'recovery-before-dispatch',
+            interruptibility: 'mutation-not-restarted',
+          }
+        : {
+            resumeMode: 'confirmation',
+            approval: 'host-confirmed',
+            previousStatus: input.originalThread.status,
+            resumedStatus: input.resumableThread.status,
+            previousPermissionMode: options.sanitizeText(originalTaskMetadata.permissionMode) || null,
+            permissionMode: options.sanitizeText(resumableTaskMetadata.permissionMode) || 'explicit',
+            effect: options.sanitizeText(originalTaskMetadata.effect) || null,
+            riskBudget: options.sanitizeText(originalTaskMetadata.riskBudget) || null,
+            justification: options.sanitizeText(originalTaskMetadata.justification) || null,
+            affirmationReasonCodes: readResumeStringArray(fabricMetadata.affirmationReasonCodes),
+            confirmationBoundary: 'host-confirmed-before-redispatch',
+            auditability: 'resume-before-dispatch',
+            interruptibility: 'process-not-yet-restarted',
+          },
+      createdAt: input.createdAt,
     }
   }
 
@@ -1422,7 +1493,11 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       }
     }
 
+    const resumeMode = originalThread.status === 'paused'
+      ? 'recovery'
+      : 'confirmation'
     const resumeDispatch = buildResumeDispatchPayload({
+      mode: resumeMode,
       thread: originalThread,
     })
     if (!resumeDispatch) {
@@ -1460,18 +1535,46 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       }
     }
 
+    const requiresResumeTransition = originalThread.status === 'needs-affirmation'
+      || originalThread.status === 'paused'
     let resumableThread = originalThread
-    if (originalThread.status === 'needs-affirmation') {
-      try {
-        resumableThread = await db.upsertTaskThread({
-          ...originalThread,
-          selectedChannel: resumeChannel,
-          status: 'planned',
-          metadata: promoteApprovedTaskMetadata({
+    if (requiresResumeTransition) {
+      const resumedAt = now()
+      const resumableMetadata = originalThread.status === 'needs-affirmation'
+        ? promoteApprovedTaskMetadata({
             metadata: originalThread.metadata,
-          }),
-          updatedAt: Date.now(),
+          })
+        : buildRecoveryResumeMetadata({
+            metadata: originalThread.metadata,
+            resumedAt,
+          })
+      const resumableCandidate: AlicizationTaskThreadRecord = {
+        ...originalThread,
+        selectedChannel: resumeChannel,
+        status: 'planned',
+        metadata: resumableMetadata,
+        updatedAt: resumedAt,
+        completedAt: null,
+      }
+      const resumeEvent = buildResumeExecutionEvent({
+        createdAt: resumedAt,
+        mode: resumeMode,
+        originalThread,
+        resumeChannel,
+        resumableThread: resumableCandidate,
+      })
+      try {
+        resumableThread = await db.resumeTaskThread({
+          event: resumeEvent,
+          expectedChannel: resumeChannel,
+          expectedStatus: originalThread.status === 'paused'
+            ? 'paused'
+            : 'needs-affirmation',
           expectedUpdatedAt: originalThread.updatedAt,
+          metadata: resumableMetadata,
+          selectedChannel: resumeChannel,
+          threadId: originalThread.id,
+          updatedAt: resumedAt,
         })
       }
       catch (error) {
@@ -1499,16 +1602,6 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
             : 'Task thread changed before resume could begin.',
         }
       }
-    }
-
-    if (originalThread.status === 'needs-affirmation') {
-      await db.appendExecutionEvents([
-        buildConfirmedResumeExecutionEvent({
-          originalThread,
-          resumeChannel,
-          resumableThread,
-        }),
-      ])
     }
 
     const killSwitchSuspended = options.getGlobalKillSwitchState() === 'SUSPENDED'
@@ -1558,7 +1651,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
         },
         summary: `${resumeChannel} task resumed for background execution.`,
         output: null,
-        createdEventKinds: originalThread.status === 'needs-affirmation'
+        createdEventKinds: requiresResumeTransition
           ? ['resume']
           : [],
       }

@@ -9,7 +9,6 @@ describe('recall-planner', () => {
         mode: 'execution-procedure',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime seam'],
         rationale: 'The current task resembles an earlier repair seam.',
@@ -20,7 +19,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProceduralIds: ['procedure-runtime'],
         selectedEpisodeIds: ['episode-runtime'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         searchTrace: {
           firstHop: {
@@ -111,7 +109,6 @@ describe('recall-planner', () => {
         reconsolidationCount: 0,
         latestReconsolidation: null,
       }],
-      recalledConversationHistory: [],
     })
 
     expect(decision.shouldRecall).toBe(true)
@@ -129,7 +126,6 @@ describe('recall-planner', () => {
         mode: 'conversation-history',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
-        searchConversations: true,
         searchProceduralExperience: false,
         queryHints: ['a few days ago'],
         rationale: 'The wording sounds retrospective, but memory may still stay closed.',
@@ -140,7 +136,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: ['episode-old'],
-        selectedConversationTurnIds: ['turn-old'],
         selectedRelationshipLines: [],
         searchTrace: null,
         opening: 'An older exchange is available.',
@@ -163,7 +158,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         selectedEras: [],
         selectedPeriods: [],
@@ -182,14 +176,12 @@ describe('recall-planner', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
     })
 
     expect(decision.shouldRecall).toBe(false)
     expect(decision.recollectionPlan).toBeNull()
     expect(decision.memoryDeliberation?.shouldRecall).toBe(false)
     expect(decision.memoryDeliberation?.surfacePolicy).toBe('internal-only')
-    expect(decision.selectedConversationTurnIds).toEqual([])
     expect(decision.whyNotOthers).toBeNull()
   })
 
@@ -199,7 +191,6 @@ describe('recall-planner', () => {
         mode: 'execution-procedure',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime seam'],
         rationale: 'A remembered way exists, but it has conflict pressure.',
@@ -210,7 +201,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProceduralIds: ['procedure-runtime'],
         selectedEpisodeIds: ['episode-runtime'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         searchTrace: null,
         opening: 'The old runtime seam still comes back.',
@@ -271,7 +261,6 @@ describe('recall-planner', () => {
         reconsolidationCount: 0,
         latestReconsolidation: null,
       }],
-      recalledConversationHistory: [],
       knowledgeEvidence: {
         validationCount: 1,
         contradictionCount: 4,
@@ -290,7 +279,6 @@ describe('recall-planner', () => {
         mode: 'execution-procedure',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime seam'],
         rationale: 'The remembered procedure is very stable.',
@@ -301,7 +289,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProceduralIds: ['procedure-runtime'],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         searchTrace: null,
         opening: 'The seam repair procedure comes back first.',
@@ -323,7 +310,6 @@ describe('recall-planner', () => {
         cues: ['runtime seam'],
       }],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       knowledgeEvidence: {
         validationCount: 5,
         contradictionCount: 0,
@@ -341,7 +327,6 @@ describe('recall-planner', () => {
         mode: 'experience-pattern',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['same seam'],
         rationale: 'This task resembles an earlier repair pattern.',
@@ -352,7 +337,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProceduralIds: ['procedure-runtime'],
         selectedEpisodeIds: ['episode-runtime'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['Carry the same seam before branching.'],
         searchTrace: null,
         opening: 'The same runtime seam comes back first.',
@@ -368,7 +352,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: ['episode-runtime'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         selectedEras: [],
         selectedPeriods: [],
@@ -440,14 +423,6 @@ describe('recall-planner', () => {
         reconsolidationCount: 0,
         latestReconsolidation: null,
       }],
-      recalledConversationHistory: [{
-        turnId: 'turn-old',
-        sessionId: 'session-old',
-        userText: '几天前我们聊过这个',
-        assistantText: '是那条 runtime seam。',
-        createdAt: Date.UTC(2026, 3, 12, 8, 0, 0),
-        provenance: 'reconstructed',
-      }],
     })
 
     expect(decision.shouldRecall).toBe(true)
@@ -463,7 +438,6 @@ describe('recall-planner', () => {
         mode: 'experience-pattern',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime seam'],
         rationale: 'The seam feels familiar.',
@@ -474,7 +448,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: ['episode-runtime'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         searchTrace: null,
         opening: 'A runtime seam comes back.',
@@ -530,7 +503,6 @@ describe('recall-planner', () => {
           lesson: 'Carry the stable core and drop the unsafe detail.',
         },
       }],
-      recalledConversationHistory: [],
       clusterContext: {
         ambiguous: true,
         dominantSummary: 'runtime seam branch A',
@@ -564,7 +536,6 @@ describe('recall-planner', () => {
         mode: 'conversation-history',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
-        searchConversations: true,
         searchProceduralExperience: false,
         queryHints: ['a few days ago'],
         rationale: 'A retrospective cue is present, but reliability is poor.',
@@ -575,7 +546,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: ['episode-old'],
-        selectedConversationTurnIds: ['turn-old'],
         selectedRelationshipLines: [],
         searchTrace: null,
         opening: 'An older exchange is available.',
@@ -615,7 +585,6 @@ describe('recall-planner', () => {
         lesson: null,
         latestReconsolidation: null,
       }] as any,
-      recalledConversationHistory: [],
       retrievalHealth: {
         semanticLatencyMs: null,
         graphLatencyMs: null,
@@ -643,7 +612,6 @@ describe('recall-planner', () => {
         mode: 'experience-pattern',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['same seam'],
         rationale: 'The seam is still relevant, but reliability is pressured.',
@@ -654,7 +622,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProceduralIds: ['procedure-runtime'],
         selectedEpisodeIds: ['episode-runtime'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['Carry the same seam before branching.'],
         searchTrace: null,
         opening: 'The same runtime seam comes back first.',
@@ -694,7 +661,6 @@ describe('recall-planner', () => {
         lesson: null,
         latestReconsolidation: null,
       }] as any,
-      recalledConversationHistory: [],
       retrievalHealth: {
         semanticLatencyMs: null,
         graphLatencyMs: null,
@@ -722,7 +688,6 @@ describe('recall-planner', () => {
         mode: 'autobiographical-history',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: false,
         queryHints: ['old self story'],
         rationale: 'The host is asking whether an older self line is still being revised.',
@@ -733,7 +698,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: ['episode-self-old'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         searchTrace: null,
         opening: 'The older self-story still comes back first.',
@@ -801,7 +765,6 @@ describe('recall-planner', () => {
         reconsolidationCount: 0,
         latestReconsolidation: null,
       }],
-      recalledConversationHistory: [],
     })
 
     expect(decision.surfaceMode).toBe('internal-only')
@@ -829,7 +792,6 @@ describe('recall-planner', () => {
         mode: 'relationship-history',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
-        searchConversations: true,
         searchProceduralExperience: false,
         queryHints: ['not that repair', 'another relationship phase'],
         rationale: 'The host is pushing back that this is not the same repair phase.',
@@ -840,7 +802,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: ['episode-relationship-old'],
-        selectedConversationTurnIds: ['turn-relationship-old'],
         selectedRelationshipLines: ['Leave more room before warmth.', 'Stay near, but not with that old distance.'],
         searchTrace: null,
         opening: 'The old relationship seam still comes back first.',
@@ -911,13 +872,6 @@ describe('recall-planner', () => {
         reconsolidationCount: 0,
         latestReconsolidation: null,
       }],
-      recalledConversationHistory: [{
-        turnId: 'turn-relationship-old',
-        sessionId: 'session-relationship-old',
-        userText: '不是那次修复后的关系距离',
-        assistantText: '那次关系距离更远一些。',
-        createdAt: Date.UTC(2026, 3, 24, 8, 35, 0),
-      }] as any,
     })
 
     expect(decision.surfaceMode).toBe('internal-only')
@@ -945,7 +899,6 @@ describe('recall-planner', () => {
         mode: 'relationship-history',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['grounded relationship memory'],
         rationale: 'The selected records are relevant to the current relationship question.',
@@ -956,7 +909,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProceduralIds: ['procedure-1'],
         selectedEpisodeIds: ['episode-1'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['Provider-authored relationship line.'],
         searchTrace: null,
         opening: 'Provider-authored opening.',
@@ -979,7 +931,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProcedureIds: ['procedure-1'],
         selectedEpisodeIds: ['episode-1'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['Provider-authored relationship line.'],
         selectedEras: [],
         selectedPeriods: [],
@@ -1053,7 +1004,6 @@ describe('recall-planner', () => {
         lesson: 'Grounded episode lesson.',
         latestReconsolidation: null,
       }] as any,
-      recalledConversationHistory: [],
       reconstructionContext: {
         candidates: [],
         stableCore: ['Grounded reconstruction core.'],
@@ -1084,7 +1034,6 @@ describe('recall-planner', () => {
         mode: 'relationship-history',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: false,
         queryHints: ['grounded relationship memory'],
         rationale: 'A selected owner record may be relevant.',
@@ -1095,7 +1044,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         searchTrace: null,
         opening: '',
@@ -1126,7 +1074,6 @@ describe('recall-planner', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
     })
 
     expect(decision.selectedConsolidationIds).toEqual([' con-visible '])
@@ -1140,7 +1087,6 @@ describe('recall-planner', () => {
         mode: 'autobiographical-history',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: false,
         queryHints: ['reconstructed event'],
         rationale: 'A prior event may be relevant.',
@@ -1151,7 +1097,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: ['episode-neutral'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         searchTrace: null,
         opening: '',
@@ -1167,7 +1112,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: ['episode-neutral'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         selectedEras: [],
         selectedPeriods: [],
@@ -1208,7 +1152,6 @@ describe('recall-planner', () => {
         lesson: 'Use the recorded evidence.',
         latestReconsolidation: null,
       }] as any,
-      recalledConversationHistory: [],
     })
 
     expect(decision.suppressionReasons).not.toContain('stale-self-model')
@@ -1221,7 +1164,6 @@ describe('recall-planner', () => {
         mode: 'relationship-history',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: false,
         queryHints: ['relationship memory'],
         rationale: 'A relationship memory was considered.',
@@ -1232,7 +1174,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: ['episode-unselected'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['Provider-authored relationship line.'],
         searchTrace: null,
         opening: '',
@@ -1248,7 +1189,6 @@ describe('recall-planner', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         selectedEras: [],
         selectedPeriods: [],
@@ -1290,7 +1230,6 @@ describe('recall-planner', () => {
         lesson: 'Unselected episode lesson.',
         latestReconsolidation: null,
       }] as any,
-      recalledConversationHistory: [],
     })
 
     expect(decision.shouldRecall).toBe(false)
@@ -1298,7 +1237,6 @@ describe('recall-planner', () => {
     expect(decision.selectedWindowIds).toEqual([])
     expect(decision.selectedProcedureIds).toEqual([])
     expect(decision.selectedEpisodeIds).toEqual([])
-    expect(decision.selectedConversationTurnIds).toEqual([])
     expect(decision.selectedEraIds).toEqual([])
     expect(decision.selectedRelationshipLines).toEqual([])
     expect(decision.stableCore).toEqual([])
@@ -1316,26 +1254,24 @@ describe('recall-planner', () => {
   it('matches relationship lines by owner kind as well as owner id', () => {
     const decision = planAlicizationRecall({
       recollectionIntent: {
-        mode: 'conversation-history',
+        mode: 'relationship-history',
         temporalFocus: 'cross-session',
-        searchEpisodes: false,
-        searchConversations: true,
+        searchEpisodes: true,
         searchProceduralExperience: false,
-        queryHints: ['selected conversation'],
-        rationale: 'A selected conversation owner may carry relationship meaning.',
+        queryHints: ['selected consolidation'],
+        rationale: 'A selected consolidation owner may carry relationship meaning.',
         confidence: 0.8,
       },
       recollectionPlanCandidate: {
-        selectedConsolidationIds: [],
+        selectedConsolidationIds: ['shared-owner'],
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: ['shared-owner'],
         selectedRelationshipLines: [],
         searchTrace: null,
         opening: '',
         certainty: 'firm',
-        rationale: 'The selected conversation owner is relevant.',
+        rationale: 'The selected consolidation owner is relevant.',
         confidence: 0.8,
       },
       recollectionSpeechCandidate: null,
@@ -1348,37 +1284,34 @@ describe('recall-planner', () => {
           line: 'The unselected episode line must stay out.',
           provenance: 'remembered',
           confidence: 0.96,
-          cues: ['selected conversation'],
+          cues: ['selected consolidation'],
         },
         {
-          id: 'conversation-line',
-          sourceKind: 'conversation',
+          id: 'consolidation-line',
+          sourceKind: 'consolidation',
           sourceId: 'shared-owner',
-          line: 'The selected conversation line may carry forward.',
-          provenance: 'reconstructed',
+          line: 'The selected consolidation line may carry forward.',
+          provenance: 'remembered',
           confidence: 0.72,
-          cues: ['selected conversation'],
+          cues: ['selected consolidation'],
         },
       ],
-      consolidatedMemories: [],
+      consolidatedMemories: [{
+        id: 'shared-owner',
+        lesson: null,
+      }] as any,
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [{
-        turnId: 'shared-owner',
-        userText: 'Selected conversation evidence.',
-        assistantText: 'Selected conversation response.',
-        provenance: 'reconstructed',
-      }] as any,
     })
 
     expect(decision.shouldRecall).toBe(true)
-    expect(decision.selectedConversationTurnIds).toEqual(['shared-owner'])
+    expect(decision.selectedConsolidationIds).toEqual(['shared-owner'])
     expect(decision.selectedRelationshipLines).toEqual([
-      'The selected conversation line may carry forward.',
+      'The selected consolidation line may carry forward.',
     ])
     expect(decision.stableCore).toEqual([
-      'The selected conversation line may carry forward.',
+      'The selected consolidation line may carry forward.',
     ])
   })
 })

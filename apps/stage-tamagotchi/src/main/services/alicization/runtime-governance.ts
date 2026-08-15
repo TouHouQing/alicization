@@ -1956,13 +1956,13 @@ export interface AlicizationMindTraceMemorySnapshot {
   } | null
   searchTrace?: {
     firstHop: {
-      focus: 'era' | 'procedure' | 'relationship-line' | 'conversation-turn' | 'episode'
+      focus: 'era' | 'procedure' | 'relationship-line' | 'episode'
       summary: string
       targetIds: string[]
     }
     secondHop: {
-      action: 'hold' | 'expand-era' | 'expand-procedure' | 'expand-relationship-line' | 'expand-conversation' | 'narrow-to-stable-core'
-      evidenceGap: 'none' | 'need-period-anchor' | 'need-episode-detail' | 'need-procedure-detail' | 'need-relationship-meaning' | 'need-conversation-evidence' | 'need-disambiguation'
+      action: 'hold' | 'expand-era' | 'expand-procedure' | 'expand-relationship-line' | 'narrow-to-stable-core'
+      evidenceGap: 'none' | 'need-period-anchor' | 'need-episode-detail' | 'need-procedure-detail' | 'need-relationship-meaning' | 'need-disambiguation'
       summary: string
       targetIds: string[]
     }

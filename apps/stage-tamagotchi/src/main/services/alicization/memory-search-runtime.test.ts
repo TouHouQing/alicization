@@ -21,7 +21,6 @@ describe('memory-search-runtime', () => {
         recallSubconsciousFragmentsWithGovernor: async () => [],
         recallEpisodicEventsWithGovernor: async () => [],
         buildHostPersonModel: async () => null,
-        recallConversationHistory: async () => [],
         recallMemoryConsolidations: async () => [],
         isPersonaResidueMemoryText: () => false,
       },
@@ -132,9 +131,11 @@ describe('memory-search-runtime', () => {
     })
 
     expect(governor?.mode).toBe('self-continuity')
-    expect(governor?.recallSeed).toContain('self:I am still here in this exact return')
-    expect(governor?.recallSeed).toContain('relationship:When I come back, I should reopen gently')
-    expect(governor?.recallSeed).toContain('inward:Return softly first')
-    expect(governor?.recallSeed).toContain('authority:I am still here in this exact return, carrying the same bond back gently')
+    expect(governor?.recallSeed).toContain('callback continuity')
+    expect(governor?.recallSeed).toContain('relation:attune')
+    expect(governor?.recallSeed).not.toContain('self:')
+    expect(governor?.recallSeed).not.toContain('relationship:')
+    expect(governor?.recallSeed).not.toContain('inward:')
+    expect(governor?.recallSeed).not.toContain('authority:')
   })
 })

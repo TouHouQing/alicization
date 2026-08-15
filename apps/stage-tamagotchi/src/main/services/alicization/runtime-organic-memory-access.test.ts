@@ -6,6 +6,44 @@ import { replayBenchmarkTuningAdviceMetaKey } from './memory-tuning-advice'
 import { createAlicizationOrganicMemoryAccessRuntime } from './runtime-organic-memory-access'
 
 describe('runtime-organic-memory-access', () => {
+  it('keeps persisted failure artifacts out of recent contextual turns', async () => {
+    const failureText = 'FAILED_TURN_MUST_NOT_ENTER_ORGANIC_CONTEXT'
+    const runtime = createAlicizationOrganicMemoryAccessRuntime({
+      listConversationTurnsBySession: async () => [
+        {
+          userText: failureText,
+          assistantText: '工具执行失败。',
+          structuredJson: JSON.stringify({
+            origin: 'failure-surface',
+            failureSurface: {
+              kind: 'tool-execution',
+              origin: 'failure-surface',
+            },
+          }),
+        },
+        {
+          userText: '继续当前任务',
+          assistantText: '我会继续。',
+          structuredJson: JSON.stringify({
+            origin: 'provider',
+            learningPolicy: {
+              allowLongTermCondensation: true,
+              allowPersonaLearning: true,
+              allowTraining: false,
+            },
+          }),
+        },
+      ],
+    } as any)
+
+    await expect(runtime.resolveRecentContextualTurns('session-1', 4))
+      .resolves
+      .toEqual([{
+        userText: '继续当前任务',
+        assistantText: '我会继续。',
+      }])
+  })
+
   it('returns a main-runtime authoritative organic snapshot for long-lived mind state consumers', async () => {
     const runtime = createAlicizationOrganicMemoryAccessRuntime({
       getActiveCardId: () => 'default',
@@ -117,7 +155,6 @@ describe('runtime-organic-memory-access', () => {
       }),
       readMindHead: async () => null,
       searchEpisodicEvents: async () => [],
-      searchConversationTurnsForRecall: async () => [],
       searchMemoryConsolidations: async () => [],
       listConversationTurnsBySession: async () => [],
       getLatestLearningExecutionState: async () => null,
@@ -250,7 +287,6 @@ describe('runtime-organic-memory-access', () => {
       }),
       readMindHead: async () => null,
       searchEpisodicEvents: async () => [],
-      searchConversationTurnsForRecall: async () => [],
       searchMemoryConsolidations: async () => [],
       listConversationTurnsBySession: async () => [],
       getLatestLearningExecutionState: async () => null,
@@ -309,14 +345,7 @@ describe('runtime-organic-memory-access', () => {
     expect(snapshot).not.toHaveProperty('activeContinuityGovernance')
   })
 
-  it('reuses short-lived caches for repeated consolidation and conversation recall', async () => {
-    const searchConversationTurnsForRecall = vi.fn(async () => [{
-      turnId: 'turn-1',
-      sessionId: 'session-1',
-      userText: '前几天我们聊过什么',
-      assistantText: '我们聊过 runtime seam。',
-      createdAt: 1,
-    }])
+  it('reuses short-lived caches for repeated consolidation recall', async () => {
     const searchMemoryConsolidations = vi.fn(async () => [
       {
         id: 'consolidation-1',
@@ -377,17 +406,10 @@ describe('runtime-organic-memory-access', () => {
       }),
       readMindHead: async () => null,
       searchEpisodicEvents: async () => [],
-      searchConversationTurnsForRecall,
       searchMemoryConsolidations,
       listConversationTurnsBySession: async () => [],
     })
 
-    const firstConversation = await runtime.recallConversationHistory({
-      query: '前几天我们聊过什么',
-    })
-    const secondConversation = await runtime.recallConversationHistory({
-      query: '前几天我们聊过什么',
-    })
     const firstConsolidation = await runtime.recallMemoryConsolidations({
       query: '继续按之前那样修这个 runtime seam',
     })
@@ -395,11 +417,8 @@ describe('runtime-organic-memory-access', () => {
       query: '继续按之前那样修这个 runtime seam',
     })
 
-    expect(firstConversation).toHaveLength(1)
-    expect(secondConversation).toHaveLength(1)
     expect(firstConsolidation.map(item => item.id)).toEqual(['consolidation-1'])
     expect(secondConsolidation.map(item => item.id)).toEqual(['consolidation-1'])
-    expect(searchConversationTurnsForRecall).toHaveBeenCalledTimes(1)
     expect(searchMemoryConsolidations).toHaveBeenCalledTimes(1)
   })
 
@@ -521,7 +540,6 @@ describe('runtime-organic-memory-access', () => {
       }),
       readMindHead: async () => null,
       searchEpisodicEvents,
-      searchConversationTurnsForRecall: async () => [],
       searchMemoryConsolidations,
       listConversationTurnsBySession: async () => [],
     })
@@ -543,7 +561,6 @@ describe('runtime-organic-memory-access', () => {
           mode: 'experience-pattern',
           temporalFocus: 'experience-matched',
           searchEpisodes: true,
-          searchConversations: true,
           searchProceduralExperience: true,
           queryHints: ['execution callback', 'continuity state'],
           rationale: 'A fresher callback recollection should refresh the long-horizon summary in the same runtime.',
@@ -563,7 +580,6 @@ describe('runtime-organic-memory-access', () => {
 
   it('prewarms hot retrieval lines for deep-thread recall seeds', async () => {
     const searchEpisodicEvents = vi.fn(async () => [])
-    const searchConversationTurnsForRecall = vi.fn(async () => [])
     const searchMemoryConsolidations = vi.fn(async () => [])
 
     const runtime = createAlicizationOrganicMemoryAccessRuntime({
@@ -608,7 +624,6 @@ describe('runtime-organic-memory-access', () => {
       }),
       readMindHead: async () => null,
       searchEpisodicEvents,
-      searchConversationTurnsForRecall,
       searchMemoryConsolidations,
       listConversationTurnsBySession: async () => [],
     })
@@ -620,7 +635,6 @@ describe('runtime-organic-memory-access', () => {
           mode: 'experience-pattern',
           temporalFocus: 'experience-matched',
           searchEpisodes: true,
-          searchConversations: false,
           searchProceduralExperience: true,
           queryHints: ['旧方法', '接回去'],
           rationale: 'Task migration should reopen prior procedure continuity.',
@@ -634,7 +648,6 @@ describe('runtime-organic-memory-access', () => {
 
     expect(plan?.prewarmKey).toContain('runtime seam')
     expect(searchEpisodicEvents).toHaveBeenCalledTimes(1)
-    expect(searchConversationTurnsForRecall).toHaveBeenCalledTimes(1)
     expect(searchMemoryConsolidations).toHaveBeenCalledTimes(1)
   })
 
@@ -733,7 +746,6 @@ describe('runtime-organic-memory-access', () => {
       }),
       readMindHead: async () => null,
       searchEpisodicEvents,
-      searchConversationTurnsForRecall: async () => [],
       searchMemoryConsolidations: async () => [],
       listConversationTurnsBySession: async () => [],
     })

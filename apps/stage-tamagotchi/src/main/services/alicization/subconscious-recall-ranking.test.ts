@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { rankSubconsciousRecallFragments } from './subconscious-recall-ranking'
 
 describe('rankSubconsciousRecallFragments', () => {
-  it('prioritizes dialogue and fact-ledger rows when lexical scores tie', () => {
+  it('excludes legacy dialogue-turn rows from durable subconscious recall', () => {
     const ranked = rankSubconsciousRecallFragments({
       rows: [
         {
@@ -32,10 +32,10 @@ describe('rankSubconsciousRecallFragments', () => {
         },
       ],
       terms: ['ProjectAtlas', '5173'],
-      limit: 2,
+      limit: 3,
     })
 
-    expect(ranked.map(item => item.id)).toEqual(['dialogue', 'fact'])
+    expect(ranked.map(item => item.id)).toEqual(['fact', 'dream'])
   })
 
   it('keeps lexical match score as first-order rank signal', () => {
@@ -50,9 +50,9 @@ describe('rankSubconsciousRecallFragments', () => {
           recallCount: 0,
         },
         {
-          id: 'dialogue-weaker-lexical',
+          id: 'fact-weaker-lexical',
           text: 'ProjectAtlas conflict',
-          sourceKind: 'dialogue-turn',
+          sourceKind: 'fact-ledger',
           createdAt: 40,
           lastRecalledAt: null,
           recallCount: 0,
@@ -69,17 +69,17 @@ describe('rankSubconsciousRecallFragments', () => {
     const ranked = rankSubconsciousRecallFragments({
       rows: [
         {
-          id: 'dialogue-new',
+          id: 'fact-new',
           text: 'same fragment',
-          sourceKind: 'dialogue-turn',
+          sourceKind: 'fact-ledger',
           createdAt: 50,
           lastRecalledAt: null,
           recallCount: 0,
         },
         {
-          id: 'dialogue-old',
+          id: 'fact-old',
           text: 'same fragment',
-          sourceKind: 'dialogue-turn',
+          sourceKind: 'fact-ledger',
           createdAt: 10,
           lastRecalledAt: null,
           recallCount: 0,
@@ -90,24 +90,24 @@ describe('rankSubconsciousRecallFragments', () => {
     })
 
     expect(ranked).toHaveLength(1)
-    expect(ranked[0]?.id).toBe('dialogue-new')
+    expect(ranked[0]?.id).toBe('fact-new')
   })
 
   it('applies source budget first, then falls back when budget-exhausted', () => {
     const ranked = rankSubconsciousRecallFragments({
       rows: [
         {
-          id: 'dialogue-1',
+          id: 'fact-1',
           text: 'ProjectAtlas 5173 conflict',
-          sourceKind: 'dialogue-turn',
+          sourceKind: 'fact-ledger',
           createdAt: 30,
           lastRecalledAt: null,
           recallCount: 0,
         },
         {
-          id: 'dialogue-2',
+          id: 'fact-2',
           text: 'ProjectAtlas 5173 conflict second',
-          sourceKind: 'dialogue-turn',
+          sourceKind: 'fact-ledger',
           createdAt: 20,
           lastRecalledAt: null,
           recallCount: 0,
@@ -124,12 +124,12 @@ describe('rankSubconsciousRecallFragments', () => {
       terms: ['ProjectAtlas', '5173', 'conflict'],
       limit: 2,
       sourceBudget: [
-        { sourceKind: 'dialogue-turn', maxItems: 1 },
+        { sourceKind: 'fact-ledger', maxItems: 1 },
         { sourceKind: 'dream-fragment', maxItems: 0 },
       ],
     })
 
-    // The initial ranking pass keeps one dialogue row; a subsequent pass lets deferred rows fill the remaining slot.
-    expect(ranked.map(item => item.id)).toEqual(['dialogue-1', 'dialogue-2'])
+    // The initial ranking pass keeps one fact row; a subsequent pass lets deferred rows fill the remaining slot.
+    expect(ranked.map(item => item.id)).toEqual(['fact-1', 'fact-2'])
   })
 })

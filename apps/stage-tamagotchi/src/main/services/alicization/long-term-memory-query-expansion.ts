@@ -6,7 +6,7 @@ export interface LongTermMemoryQueryExpansion {
   entityHints: string[]
   temporalHints: string[]
   procedureHints: string[]
-  confidencePolicy: 'direct' | 'tentative' | 'inward-only'
+  riskFlags: string[]
 }
 
 function normalizeText(raw: unknown, maxChars = 360) {
@@ -98,11 +98,10 @@ export function expandLongTermMemoryQuery(input: {
     /继续|接着|上次/u.test(normalizedQuery) ? '继续 上次任务 未完成事项' : '',
     /怎么做|步骤|流程|方案/u.test(normalizedQuery) ? '流程 步骤 方法' : '',
   ], 6, 100)
-  const confidencePolicy = /也许|可能|好像|不确定|似乎/u.test(normalizedQuery)
-    ? 'tentative'
-    : /秘密|隐私|私下|别说出来/u.test(normalizedQuery)
-      ? 'inward-only'
-      : 'direct'
+  const riskFlags = uniqueTexts([
+    /也许|可能|好像|不确定|似乎/u.test(normalizedQuery) ? 'query-uncertain' : '',
+    /秘密|隐私|私下|别说出来/u.test(normalizedQuery) ? 'query-sensitive' : '',
+  ], 4, 80)
 
   return {
     normalizedQuery,
@@ -116,6 +115,6 @@ export function expandLongTermMemoryQuery(input: {
     entityHints,
     temporalHints,
     procedureHints,
-    confidencePolicy,
+    riskFlags,
   }
 }

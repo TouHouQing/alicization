@@ -330,6 +330,9 @@ function isDigitalLifeContinuitySignal(signal: Pick<AlicizationAgentContinuityRe
 
 function toExecutionActionDigest(task: AlicizationAgentTaskRecord) {
   const threadStatus = readRawTaskStatusDetail(task)
+  const internalStructuredFactContext = {
+    origin: 'internal-structured-fact' as const,
+  }
   return {
     kind: task.kind,
     status: task.status,
@@ -344,8 +347,8 @@ function toExecutionActionDigest(task: AlicizationAgentTaskRecord) {
       || threadStatus === 'cancelled'
         ? threadStatus
         : null,
-    label: sanitizeAlicizationProviderFacingText(task.label, 120, '') || task.kind,
-    summary: sanitizeAlicizationProviderFacingText(task.summary, 180, '') || null,
+    label: sanitizeAlicizationProviderFacingText(task.label, 120, '', internalStructuredFactContext) || task.kind,
+    summary: sanitizeAlicizationProviderFacingText(task.summary, 180, '', internalStructuredFactContext) || null,
   } as const
 }
 

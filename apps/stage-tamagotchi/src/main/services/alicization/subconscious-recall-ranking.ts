@@ -1,13 +1,13 @@
 import type { AlicizationSubconsciousFragment, AlicizationSubconsciousFragmentSourceKind } from '../../../shared/eventa'
 
+import { isRawDialogueTranscriptSubconsciousSource } from './dialogue-memory'
+
 function normalizeRecallTerm(raw: string) {
   return raw.trim().toLowerCase()
 }
 
 export function scoreSubconsciousSourcePriority(sourceKind: AlicizationSubconsciousFragment['sourceKind']) {
   switch (sourceKind) {
-    case 'dialogue-turn':
-      return 6
     case 'fact-ledger':
       return 5
     case 'autobiographical-episode':
@@ -53,21 +53,23 @@ export function rankSubconsciousRecallFragments(input: {
       .filter((item): item is readonly [AlicizationSubconsciousFragmentSourceKind, number] => Boolean(item)),
   )
 
-  const reranked = [...input.rows].sort((left, right) => {
-    const leftText = left.text.toLowerCase()
-    const rightText = right.text.toLowerCase()
-    const leftLexicalScore = loweredTerms.reduce((score, term) => score + (leftText.includes(term) ? 1 : 0), 0)
-    const rightLexicalScore = loweredTerms.reduce((score, term) => score + (rightText.includes(term) ? 1 : 0), 0)
-    if (leftLexicalScore !== rightLexicalScore)
-      return rightLexicalScore - leftLexicalScore
+  const reranked = input.rows
+    .filter(row => !isRawDialogueTranscriptSubconsciousSource(row.sourceKind))
+    .sort((left, right) => {
+      const leftText = left.text.toLowerCase()
+      const rightText = right.text.toLowerCase()
+      const leftLexicalScore = loweredTerms.reduce((score, term) => score + (leftText.includes(term) ? 1 : 0), 0)
+      const rightLexicalScore = loweredTerms.reduce((score, term) => score + (rightText.includes(term) ? 1 : 0), 0)
+      if (leftLexicalScore !== rightLexicalScore)
+        return rightLexicalScore - leftLexicalScore
 
-    const leftSourceScore = scoreSubconsciousSourcePriority(left.sourceKind)
-    const rightSourceScore = scoreSubconsciousSourcePriority(right.sourceKind)
-    if (leftSourceScore !== rightSourceScore)
-      return rightSourceScore - leftSourceScore
+      const leftSourceScore = scoreSubconsciousSourcePriority(left.sourceKind)
+      const rightSourceScore = scoreSubconsciousSourcePriority(right.sourceKind)
+      if (leftSourceScore !== rightSourceScore)
+        return rightSourceScore - leftSourceScore
 
-    return right.createdAt - left.createdAt
-  })
+      return right.createdAt - left.createdAt
+    })
 
   const deduped: AlicizationSubconsciousFragment[] = []
   const sourceUsed = new Map<AlicizationSubconsciousFragmentSourceKind, number>()

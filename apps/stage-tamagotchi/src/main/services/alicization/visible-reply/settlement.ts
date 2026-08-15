@@ -1,4 +1,5 @@
 import type {
+  AlicizationProviderMemoryEvidence,
   AlicizationProviderMemoryUsage,
   AlicizationProviderResponsePayload,
 } from '@proj-alicization/stage-shared'
@@ -16,6 +17,7 @@ import {
   alicizationEmotionWhitelist,
   alicizationPerformanceDeliveryWhitelist,
   looksLikeAlicizationStructuredPayloadText,
+  normalizeAlicizationProviderMemoryEvidence,
   resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
 
@@ -45,6 +47,7 @@ export interface AlicizationVisibleReplySettlementDraft {
 
 export interface AlicizationVisibleReplySettlementResult extends AlicizationResolvedVisibleReply {
   closureResult: AlicizationVisibleReplyClosureResult
+  memoryEvidence: AlicizationProviderMemoryEvidence | null
 }
 
 export class AlicizationVisibleReplySettlementBlockedError extends Error {
@@ -179,6 +182,7 @@ function buildPlainTextProviderPayload(input: {
         emphasis: 0,
       },
       memoryUsage,
+      memoryEvidence: null,
     },
     issues,
   }
@@ -202,6 +206,7 @@ export function validateAlicizationProviderSettlementPayload(input: {
         payload: plainText.payload,
         issues: [],
         memoryUsage: plainText.payload.memoryUsage,
+        memoryEvidence: plainText.payload.memoryEvidence,
       } as const
     }
     return {
@@ -222,6 +227,7 @@ export function validateAlicizationProviderSettlementPayload(input: {
       payload: null,
       issues: ['provider-payload-json-invalid'],
       memoryUsage: null,
+      memoryEvidence: null,
     }
   }
 
@@ -245,6 +251,7 @@ export function validateAlicizationProviderSettlementPayload(input: {
       payload: null,
       issues,
       memoryUsage: null,
+      memoryEvidence: null,
     }
   }
 
@@ -316,12 +323,20 @@ export function validateAlicizationProviderSettlementPayload(input: {
     }
   }
 
+  let normalizedMemoryEvidence: AlicizationProviderMemoryEvidence | null = null
+  if (parsed.memoryEvidence !== undefined && parsed.memoryEvidence !== null) {
+    normalizedMemoryEvidence = normalizeAlicizationProviderMemoryEvidence(parsed.memoryEvidence)
+    if (!normalizedMemoryEvidence)
+      issues.push('provider-memory-evidence-invalid')
+  }
+
   if (issues.length > 0) {
     return {
       valid: false,
       payload: null,
       issues,
       memoryUsage: normalizedMemoryUsage,
+      memoryEvidence: normalizedMemoryEvidence,
     }
   }
 
@@ -334,9 +349,11 @@ export function validateAlicizationProviderSettlementPayload(input: {
       reply: providerReply,
       performance: normalizedPerformance,
       memoryUsage: normalizedMemoryUsage,
+      memoryEvidence: normalizedMemoryEvidence,
     } satisfies AlicizationProviderResponsePayload,
     issues: [],
     memoryUsage: normalizedMemoryUsage,
+    memoryEvidence: normalizedMemoryEvidence,
   }
 }
 
@@ -441,5 +458,6 @@ export async function settleAlicizationVisibleReply(input: {
       closureResult,
     }),
     closureResult,
+    memoryEvidence: validation.payload.memoryEvidence,
   }
 }

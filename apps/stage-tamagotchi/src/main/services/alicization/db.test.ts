@@ -13,6 +13,13 @@ function explicitWorkingMemoryQueueEvidence() {
   return {
     version: 'working-memory-long-term-evidence-v1' as const,
     source: 'explicit-structured-memory-evidence' as const,
+    kind: 'correction' as const,
+    summary: '结构化长期记忆候选。',
+    reason: '测试构造了可审计的结构化长期记忆证据。',
+    evidenceSnippets: ['结构化长期记忆候选。'],
+    salience: 0.82,
+    sensitivity: 'personal' as const,
+    confidence: 0.82,
   }
 }
 
@@ -793,6 +800,9 @@ class FakeSqliteDatabase {
       else if (existing && expectedUpdatedAt !== null && existing.updated_at !== expectedUpdatedAt) {
         changes = 0
       }
+      else if (existing && existing.status === 'dead-lettered' && status !== 'dead-lettered') {
+        changes = 0
+      }
       else {
         taskThreads.set(id, {
           id,
@@ -1384,12 +1394,16 @@ class FakeSqliteDatabase {
         changes = 0
       }
       else {
-        const terminalStatuses = new Set(['blocked', 'completed', 'failed', 'cancelled'])
+        const terminalStatuses = new Set(['blocked', 'completed', 'failed', 'cancelled', 'dead-lettered'])
         const currentTerminal = terminalStatuses.has(thread.status)
         const incomingTerminal = projectedStatus !== null && terminalStatuses.has(projectedStatus)
+        const incomingDeadLettered = projectedStatus === 'dead-lettered'
         const currentLastEventAt = thread.last_event_at
         const projectionIsCurrent = currentLastEventAt === null || currentLastEventAt <= activityAt
-        if (!currentTerminal && (incomingTerminal || projectionIsCurrent)) {
+        if (
+          (!currentTerminal && (incomingTerminal || projectionIsCurrent))
+          || (currentTerminal && incomingDeadLettered && thread.status !== 'dead-lettered')
+        ) {
           thread.updated_at = Math.max(thread.updated_at, updatedAt)
           thread.last_event_at = currentLastEventAt === null || currentLastEventAt < lastEventAt
             ? projectedLastEventAt
@@ -5574,6 +5588,148 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('persists dead-lettered task threads as irreversible terminal ledger state', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    taskThreads.clear()
+    executionEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertTaskThread({
+      id: 'thread-dead-lettered',
+      decisionTraceId: 'mind:trace:dead-lettered',
+      turnId: 'turn-dead-lettered',
+      sessionId: 'session-dead-lettered',
+      origin: 'user-turn',
+      goal: 'Apply one irreversible action safely.',
+      kind: 'codebase-edit',
+      status: 'running',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      createdAt: 100,
+      updatedAt: 100,
+    })
+
+    await db.appendExecutionEvents([{
+      id: 'thread-dead-lettered:result',
+      threadId: 'thread-dead-lettered',
+      decisionTraceId: 'mind:trace:dead-lettered',
+      turnId: 'turn-dead-lettered',
+      sessionId: 'session-dead-lettered',
+      origin: 'user-turn',
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'dead-lettered',
+      payload: {
+        failureKind: 'tool-execution',
+        errorCode: 'CODEX_RETRY_EXHAUSTED_SIDE_EFFECT_UNKNOWN',
+        retryExhausted: true,
+      },
+      createdAt: 200,
+    }])
+    await db.appendExecutionEvents([{
+      id: 'thread-dead-lettered:late-progress',
+      threadId: 'thread-dead-lettered',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'running',
+      payload: {
+        lateAfterTerminal: true,
+      },
+      createdAt: 300,
+    }])
+    await db.appendExecutionEvents([{
+      id: 'thread-dead-lettered:late-completed',
+      threadId: 'thread-dead-lettered',
+      channel: 'codex',
+      kind: 'result',
+      threadStatus: 'completed',
+      payload: {
+        lateAfterTerminal: true,
+      },
+      createdAt: 400,
+    }])
+
+    const thread = await db.getTaskThread('thread-dead-lettered')
+    const filtered = await db.listTaskThreads({
+      status: 'dead-lettered',
+      limit: 10,
+    })
+
+    expect(thread).toEqual(expect.objectContaining({
+      status: 'dead-lettered',
+      lastEventAt: 200,
+      completedAt: 200,
+    }))
+    expect(filtered.map(item => item.id)).toEqual(['thread-dead-lettered'])
+    if (!thread)
+      throw new Error('dead-lettered task thread was not persisted')
+    await expect(db.upsertTaskThread({
+      ...thread,
+      status: 'planned',
+      updatedAt: 300,
+      expectedUpdatedAt: 200,
+    })).rejects.toMatchObject({
+      code: 'TASK_THREAD_VERSION_CONFLICT',
+    })
+    await db.close()
+  })
+
+  it('keeps a dead-lettered projection ahead of an ordinary terminal event even when it arrives older', async () => {
+    runCalls.length = 0
+    metaState.clear()
+    taskThreads.clear()
+    executionEvents.length = 0
+
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    await db.upsertTaskThread({
+      id: 'thread-same-timestamp-dead-lettered',
+      decisionTraceId: 'mind:trace:same-timestamp-dead-lettered',
+      turnId: 'turn-same-timestamp-dead-lettered',
+      sessionId: 'session-same-timestamp-dead-lettered',
+      origin: 'user-turn',
+      goal: 'Preserve the most safety-critical terminal fact.',
+      kind: 'codebase-edit',
+      status: 'running',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      createdAt: 100,
+      updatedAt: 100,
+    })
+
+    await db.appendExecutionEvents([
+      {
+        id: 'thread-same-timestamp-dead-lettered:failed',
+        threadId: 'thread-same-timestamp-dead-lettered',
+        channel: 'codex',
+        kind: 'result',
+        threadStatus: 'failed',
+        payload: {
+          errorCode: 'LATE_ORDINARY_FAILURE',
+        },
+        createdAt: 300,
+      },
+      {
+        id: 'thread-same-timestamp-dead-lettered:dead-lettered',
+        threadId: 'thread-same-timestamp-dead-lettered',
+        channel: 'codex',
+        kind: 'result',
+        threadStatus: 'dead-lettered',
+        payload: {
+          errorCode: 'SIDE_EFFECT_RECONCILIATION_EXHAUSTED',
+        },
+        createdAt: 200,
+      },
+    ])
+
+    expect(await db.getTaskThread('thread-same-timestamp-dead-lettered')).toEqual(expect.objectContaining({
+      status: 'dead-lettered',
+      completedAt: 200,
+      lastEventAt: 300,
+    }))
+    await db.close()
+  })
+
   it('updates task-thread metadata when an optimistic upsert wins', async () => {
     runCalls.length = 0
     metaState.clear()
@@ -5883,6 +6039,243 @@ describe('alicization sqlite dao', () => {
     expect(events).toHaveLength(1)
     expect(events[0]?.id).toBe(event.id)
     expect(runCalls.some(sql => sql.includes('INSERT OR IGNORE INTO executor_events'))).toBe(true)
+    await db.close()
+  })
+
+  it('atomically resumes a task thread with exactly one matching resume event', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    })
+    const paused = await db.upsertTaskThread({
+      id: 'thread-atomic-resume',
+      decisionTraceId: 'trace-atomic-resume',
+      turnId: 'turn-atomic-resume',
+      sessionId: 'session-atomic-resume',
+      goal: 'Reconcile a possibly applied repository change.',
+      kind: 'codebase-edit',
+      status: 'paused',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      metadata: {
+        task: {
+          effect: 'mutate',
+          permissionMode: 'implicit',
+        },
+      },
+      createdAt: 100,
+      updatedAt: 100,
+    })
+
+    const resumed = await db.resumeTaskThread({
+      threadId: paused.id,
+      expectedUpdatedAt: paused.updatedAt,
+      expectedStatus: 'paused',
+      expectedChannel: 'codex',
+      selectedChannel: 'codex',
+      metadata: {
+        task: {
+          effect: 'observe',
+          permissionMode: 'implicit',
+        },
+        execution: {
+          recovery: {
+            mode: 'reconcile-before-replay',
+            originalEffect: 'mutate',
+            state: 'reconciling',
+          },
+        },
+      },
+      updatedAt: 150,
+      event: {
+        id: 'thread-atomic-resume:resume:100',
+        threadId: paused.id,
+        decisionTraceId: paused.decisionTraceId,
+        turnId: paused.turnId,
+        sessionId: paused.sessionId,
+        origin: paused.origin,
+        channel: 'codex',
+        kind: 'resume',
+        threadStatus: 'planned',
+        payload: {
+          resumeMode: 'recovery',
+          previousStatus: 'paused',
+          resumedStatus: 'planned',
+        },
+        createdAt: 150,
+      },
+    })
+
+    expect(resumed).toEqual(expect.objectContaining({
+      id: paused.id,
+      status: 'planned',
+      selectedChannel: 'codex',
+      completedAt: null,
+      metadata: expect.objectContaining({
+        task: expect.objectContaining({
+          effect: 'observe',
+        }),
+      }),
+    }))
+    expect(await db.listExecutionEvents({
+      threadId: paused.id,
+      limit: 10,
+    })).toEqual([
+      expect.objectContaining({
+        id: 'thread-atomic-resume:resume:100',
+        kind: 'resume',
+        threadStatus: 'planned',
+      }),
+    ])
+
+    await expect(db.resumeTaskThread({
+      threadId: paused.id,
+      expectedUpdatedAt: paused.updatedAt,
+      expectedStatus: 'paused',
+      expectedChannel: 'codex',
+      selectedChannel: 'codex',
+      metadata: resumed.metadata,
+      updatedAt: 160,
+      event: {
+        id: 'thread-atomic-resume:resume:stale',
+        threadId: paused.id,
+        channel: 'codex',
+        kind: 'resume',
+        threadStatus: 'planned',
+        payload: {
+          resumeMode: 'recovery',
+        },
+        createdAt: 160,
+      },
+    })).rejects.toMatchObject({
+      code: 'TASK_THREAD_VERSION_CONFLICT',
+    })
+    expect(await db.listExecutionEvents({
+      threadId: paused.id,
+      limit: 10,
+    })).toHaveLength(1)
+    await db.close()
+  })
+
+  it('rejects a paused resume that is not an explicit read-only recovery', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    })
+    const paused = await db.upsertTaskThread({
+      id: 'thread-paused-resume-invariant',
+      decisionTraceId: 'trace-paused-resume-invariant',
+      turnId: 'turn-paused-resume-invariant',
+      sessionId: 'session-paused-resume-invariant',
+      goal: 'Keep an uncertain mutation from being replayed.',
+      kind: 'codebase-edit',
+      status: 'paused',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      metadata: {
+        task: {
+          effect: 'mutate',
+        },
+      },
+      createdAt: 100,
+      updatedAt: 100,
+    })
+
+    await expect(db.resumeTaskThread({
+      threadId: paused.id,
+      expectedUpdatedAt: paused.updatedAt,
+      expectedStatus: 'paused',
+      expectedChannel: 'codex',
+      selectedChannel: 'codex',
+      metadata: {
+        task: {
+          effect: 'mutate',
+        },
+      },
+      updatedAt: 150,
+      event: {
+        id: 'thread-paused-resume-invariant:invalid-resume',
+        threadId: paused.id,
+        channel: 'codex',
+        kind: 'resume',
+        threadStatus: 'planned',
+        payload: {
+          resumeMode: 'confirmation',
+          approval: 'host-confirmed',
+        },
+        createdAt: 150,
+      },
+    })).rejects.toThrow('paused recovery must be read-only')
+
+    expect(await db.getTaskThread(paused.id)).toEqual(expect.objectContaining({
+      status: 'paused',
+      updatedAt: paused.updatedAt,
+    }))
+    expect(await db.listExecutionEvents({
+      threadId: paused.id,
+      limit: 10,
+    })).toEqual([])
+    await db.close()
+  })
+
+  it('rolls back a resume status transition when its event insert conflicts', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    })
+    await db.upsertTaskThread({
+      id: 'thread-resume-event-owner',
+      goal: 'Own the conflicting resume event id.',
+      kind: 'codebase-investigation',
+      status: 'running',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      createdAt: 100,
+      updatedAt: 100,
+    })
+    await db.appendExecutionEvents([{
+      id: 'shared-resume-event-id',
+      threadId: 'thread-resume-event-owner',
+      channel: 'codex',
+      kind: 'step',
+      threadStatus: 'running',
+      createdAt: 110,
+    }])
+    const paused = await db.upsertTaskThread({
+      id: 'thread-resume-event-conflict',
+      goal: 'Remain paused when resume evidence cannot commit.',
+      kind: 'codebase-edit',
+      status: 'paused',
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      createdAt: 100,
+      updatedAt: 100,
+    })
+
+    await expect(db.resumeTaskThread({
+      threadId: paused.id,
+      expectedUpdatedAt: paused.updatedAt,
+      expectedStatus: 'paused',
+      expectedChannel: 'codex',
+      selectedChannel: 'codex',
+      metadata: paused.metadata,
+      updatedAt: 150,
+      event: {
+        id: 'shared-resume-event-id',
+        threadId: paused.id,
+        channel: 'codex',
+        kind: 'resume',
+        threadStatus: 'planned',
+        createdAt: 150,
+      },
+    })).rejects.toBeInstanceOf(Error)
+
+    expect(await db.getTaskThread(paused.id)).toEqual(expect.objectContaining({
+      status: 'paused',
+      updatedAt: paused.updatedAt,
+      lastEventAt: paused.lastEventAt,
+    }))
+    expect(await db.listExecutionEvents({
+      threadId: paused.id,
+      limit: 10,
+    })).toEqual([])
     await db.close()
   })
 

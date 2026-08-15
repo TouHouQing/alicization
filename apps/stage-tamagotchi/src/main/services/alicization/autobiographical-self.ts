@@ -106,13 +106,20 @@ function blend(previous: number, target: number, rate = 0.18) {
 }
 
 function latestReflection(ledger?: AlicizationReflectionLedgerSnapshot | null) {
+  const isFormal = (entry: AlicizationReflectionLedgerSnapshot['entries'][number]) => {
+    const reviewStatus = (entry as typeof entry & {
+      reviewStatus?: AlicizationMemoryReflectionRecord['status'] | null
+    }).reviewStatus
+    if (reviewStatus != null)
+      return reviewStatus === 'confirmed' && entry.outcome !== 'released'
+
+    return entry.outcome !== 'unknown' && entry.outcome !== 'released'
+  }
   const latest = ledger?.entries.find(entry => entry.id === ledger.latestEntryId)
-  if (latest && latest.outcome !== 'released')
+  if (latest && isFormal(latest))
     return latest
 
-  return ledger?.entries.find(entry => entry.outcome !== 'released')
-    ?? ledger?.entries[0]
-    ?? null
+  return ledger?.entries.find(isFormal) ?? null
 }
 
 function strongestDesire(desireMemory?: AlicizationDesireMemorySnapshot | null) {
@@ -204,26 +211,19 @@ function summarizeRelationshipOutcomeHistory(input: AlicizationAutobiographicalS
 }
 
 function reflectionStatusWeight(status: AlicizationMemoryReflectionRecord['status']) {
-  if (status === 'confirmed')
-    return 1
-  if (status === 'pending')
-    return 0.82
-  if (status === 'superseded')
-    return 0.36
-  return -0.52
+  return status === 'confirmed' ? 1 : 0
 }
 
 function sortRecentReflectionsByRecency(reflections: AlicizationMemoryReflectionRecord[] | null | undefined) {
   return (reflections ?? [])
+    .filter(reflection => reflection.status === 'confirmed')
     .slice()
     .sort((left, right) => (right.updatedAt ?? right.createdAt) - (left.updatedAt ?? left.createdAt))
 }
 
 function latestNarrativelyActiveReflection(reflections: AlicizationMemoryReflectionRecord[] | null | undefined) {
   const ordered = sortRecentReflectionsByRecency(reflections)
-  return ordered.find(reflection => reflection.status !== 'superseded')
-    ?? ordered[0]
-    ?? null
+  return ordered[0] ?? null
 }
 
 function summarizeReflectionHistory(input: AlicizationAutobiographicalSelfInput) {

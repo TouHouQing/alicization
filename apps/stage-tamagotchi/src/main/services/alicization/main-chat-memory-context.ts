@@ -1,8 +1,13 @@
 import type { WorkingMemorySnapshot } from './life-core/working-memory'
 import type { WorkingMemoryOwnerContext } from './life-core/working-memory-owner-context'
-import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
+import type {
+  LongTermMemoryEvidenceBundle,
+  LongTermMemoryEvidenceScope,
+} from './long-term-memory-recall'
 
 import { sanitizeAlicizationMemoryEvidenceText } from '@proj-alicization/stage-shared'
+
+import { longTermMemoryEvidenceVersion } from './long-term-memory-recall'
 
 export interface AlicizationWorkingMemoryProviderContext {
   version: 'working-memory-owner-context-v1'
@@ -45,6 +50,8 @@ export interface AlicizationLongTermMemoryRecallProviderEvidence {
   kind: LongTermMemoryEvidenceBundle['evidence'][number]['candidate']['kind']
   summary: string
   source: string
+  scope: LongTermMemoryEvidenceScope
+  provenance: NonNullable<LongTermMemoryEvidenceBundle['evidence'][number]['provenance']>
   confidence: number
   salience: number | null
   updatedAt: number | null
@@ -55,6 +62,10 @@ export interface AlicizationLongTermMemoryRecallProviderEvidence {
   entities: string[]
   sensitivity: LongTermMemoryEvidenceBundle['evidence'][number]['candidate']['sensitivity']
   retrievalScore: number
+  queryMatches: string[]
+  rankReasons: string[]
+  evidenceVersion: string
+  version: string
 }
 
 export interface AlicizationLongTermMemoryRecallProviderContext {
@@ -206,6 +217,43 @@ function clamp01(raw: unknown) {
   return Math.max(0, Math.min(1, value))
 }
 
+function normalizeEvidenceScope(raw: unknown): LongTermMemoryEvidenceScope {
+  const scope = raw && typeof raw === 'object' ? raw as Partial<LongTermMemoryEvidenceScope> : {}
+  const userId = typeof scope.userId === 'string' ? scope.userId.trim().slice(0, 160) : ''
+  const cardId = typeof scope.cardId === 'string' ? scope.cardId.trim().slice(0, 160) : ''
+  return {
+    userId: userId || 'unknown',
+    cardId: cardId || null,
+  }
+}
+
+function normalizeEvidenceProvenance(
+  raw: unknown,
+  candidate: LongTermMemoryEvidenceBundle['evidence'][number]['candidate'],
+) {
+  if (
+    raw === 'observed'
+    || raw === 'remembered'
+    || raw === 'dreamt'
+    || raw === 'inferred'
+    || raw === 'reconstructed'
+    || raw === 'shadow'
+  ) {
+    return raw
+  }
+  if (candidate.origin === 'user-turn' || candidate.source === 'user-turn' || candidate.source === 'episodic_events')
+    return 'observed' as const
+  if (candidate.source === 'memory_reflections' || candidate.source === 'memory_consolidations')
+    return 'inferred' as const
+  return 'remembered' as const
+}
+
+function normalizeEvidenceVersion(raw: unknown) {
+  return typeof raw === 'string' && raw.trim()
+    ? raw.trim().slice(0, 80)
+    : longTermMemoryEvidenceVersion
+}
+
 function sanitizeLongTermRecallEvidence(
   item: LongTermMemoryEvidenceBundle['evidence'][number],
 ) {
@@ -238,6 +286,8 @@ function sanitizeLongTermRecallEvidence(
     kind: item.candidate.kind,
     summary,
     source: sanitizeAlicizationMemoryEvidenceText(item.candidate.source, 120, sanitizerContext) || 'memory',
+    scope: normalizeEvidenceScope(item.scope ?? item.candidate.scope),
+    provenance: normalizeEvidenceProvenance(item.provenance, item.candidate),
     confidence: clamp01(item.candidate.confidence),
     salience: finiteNumberOrNull(item.candidate.salience),
     updatedAt: finiteNumberOrNull(item.candidate.updatedAt),
@@ -248,6 +298,10 @@ function sanitizeLongTermRecallEvidence(
     entities: sanitizeList(item.candidate.entities, 12, 120),
     sensitivity: item.candidate.sensitivity ?? null,
     retrievalScore: clamp01(item.score),
+    queryMatches: sanitizeList(item.queryMatches, 8, 120),
+    rankReasons: sanitizeList(item.rankReasons, 10, 120),
+    evidenceVersion: normalizeEvidenceVersion(item.evidenceVersion ?? item.candidate.evidenceVersion),
+    version: normalizeEvidenceVersion(item.version ?? item.evidenceVersion ?? item.candidate.version ?? item.candidate.evidenceVersion),
   } satisfies AlicizationLongTermMemoryRecallProviderEvidence
 }
 

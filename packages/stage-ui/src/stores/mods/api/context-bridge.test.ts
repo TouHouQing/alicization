@@ -195,7 +195,7 @@ describe('context bridge store', () => {
       role: 'tool',
       content: '读取桌面执行状态',
       tool_call_id: 'tool-call-1',
-      toolName: 'executor_run_codex',
+      toolName: 'codex',
     }
 
     await toolCallHook?.(toolCall, context)
@@ -244,7 +244,7 @@ describe('context bridge store', () => {
 
     const toolCall = {
       toolCallId: 'tool-broadcast-1',
-      toolName: 'executor_run_cli',
+      toolName: 'cli',
       arguments: {
         command: 'ls',
         args: ['~/Desktop'],

@@ -154,6 +154,34 @@ describe('autobiographical self', () => {
     expectTemplateFree(snapshot)
   })
 
+  it('does not let a legacy unknown reflection ledger entry shape formal autobiographical self', () => {
+    const input = createBaseInput(25_000)
+    const baseline = buildAutobiographicalSelf(input)
+    const snapshot = buildAutobiographicalSelf({
+      ...input,
+      reflectionLedger: {
+        latestEntryId: 'reflection::legacy-pending',
+        entries: [{
+          id: 'reflection::legacy-pending',
+          outcome: 'unknown',
+          summary: 'legacy-pending-reflection-must-not-shape-self',
+          revision: 'legacy-pending-reflection-must-not-shape-persona',
+          confidenceShift: 0,
+          createdAt: 24_000,
+          updatedAt: 24_500,
+        }],
+        revisionPressure: 1,
+        narrative: [],
+        updatedAt: 24_500,
+      },
+    } as any)
+
+    expect(snapshot.latestInflection).toBe(baseline.latestInflection)
+    expect(snapshot.identityNarrative).toBe(baseline.identityNarrative)
+    expect(snapshot.relationshipDoctrine).toBe(baseline.relationshipDoctrine)
+    expect(JSON.stringify(snapshot)).not.toContain('legacy-pending-reflection')
+  })
+
   it('uses cleaned autobiographical consolidation text as memory evidence', () => {
     const input = createBaseInput(30_000)
     const snapshot = buildAutobiographicalSelf({
@@ -264,7 +292,7 @@ describe('autobiographical self', () => {
         {
           id: 'reflection::current',
           targetScope: 'truth',
-          status: 'accepted',
+          status: 'confirmed',
           summary: 'The correction established a stronger fact.',
           lesson: 'Prefer the corrected evidence over the earlier guess.',
           confidence: 0.9,
@@ -278,6 +306,34 @@ describe('autobiographical self', () => {
     expect(snapshot.latestInflection).not.toContain('temporary')
     expectTemplateFree(snapshot)
   })
+
+  it.each(['pending', 'denied', 'superseded'] as const)(
+    'keeps %s reflection candidates out of formal autobiographical self',
+    (status) => {
+      const input = createBaseInput(65_000)
+      const baseline = buildAutobiographicalSelf(input)
+      const snapshot = buildAutobiographicalSelf({
+        ...input,
+        recentMemoryReflections: [{
+          id: `reflection::${status}`,
+          targetScope: 'relationship',
+          status,
+          summary: `${status}-reflection-must-not-shape-self`,
+          lesson: `${status}-reflection-must-not-shape-persona`,
+          confidence: 1,
+          createdAt: 64_000,
+          updatedAt: 64_500,
+        }],
+      } as any)
+
+      expect(snapshot.personaDrift).toEqual(baseline.personaDrift)
+      expect(snapshot.preferenceEvolution).toEqual(baseline.preferenceEvolution)
+      expect(snapshot.identityNarrative).toBe(baseline.identityNarrative)
+      expect(snapshot.relationshipDoctrine).toBe(baseline.relationshipDoctrine)
+      expect(snapshot.latestInflection).toBe(baseline.latestInflection)
+      expect(JSON.stringify(snapshot)).not.toContain('must-not-shape')
+    },
+  )
 
   it('keeps an ordinary continuity reflection when it is evidence rather than an instruction template', () => {
     const input = createBaseInput(70_000)

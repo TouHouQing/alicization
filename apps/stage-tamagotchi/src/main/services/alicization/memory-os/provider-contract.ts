@@ -62,7 +62,6 @@ export const alicizationMemoryRecollectionIntentJsonSchema = {
     'mode',
     'temporalFocus',
     'searchEpisodes',
-    'searchConversations',
     'searchProceduralExperience',
     'queryHints',
     'rationale',
@@ -74,7 +73,6 @@ export const alicizationMemoryRecollectionIntentJsonSchema = {
       type: 'string',
       enum: [
         'none',
-        'conversation-history',
         'autobiographical-history',
         'relationship-history',
         'execution-procedure',
@@ -86,7 +84,6 @@ export const alicizationMemoryRecollectionIntentJsonSchema = {
       enum: ['recent', 'recent-or-mid', 'cross-session', 'experience-matched', 'distant'],
     },
     searchEpisodes: { type: 'boolean' },
-    searchConversations: { type: 'boolean' },
     searchProceduralExperience: { type: 'boolean' },
     queryHints: textArraySchema(8, 120),
     rationale: textSchema(220),
@@ -147,7 +144,7 @@ const recollectionFirstHopSchema = {
   properties: {
     focus: {
       type: 'string',
-      enum: ['era', 'procedure', 'relationship-line', 'conversation-turn', 'episode'],
+      enum: ['era', 'procedure', 'relationship-line', 'episode'],
     },
     summary: textSchema(220),
     targetIds: textArraySchema(6, 120),
@@ -166,7 +163,6 @@ const recollectionSecondHopSchema = {
         'expand-era',
         'expand-procedure',
         'expand-relationship-line',
-        'expand-conversation',
         'narrow-to-stable-core',
       ],
     },
@@ -178,7 +174,6 @@ const recollectionSecondHopSchema = {
         'need-episode-detail',
         'need-procedure-detail',
         'need-relationship-meaning',
-        'need-conversation-evidence',
         'need-disambiguation',
       ],
     },
@@ -208,7 +203,6 @@ export const alicizationMemoryRecollectionPlanJsonSchema = {
     'selectedWindowIds',
     'selectedProceduralIds',
     'selectedEpisodeIds',
-    'selectedConversationTurnIds',
     'selectedRelationshipLines',
     'searchTrace',
     'certainty',
@@ -220,7 +214,6 @@ export const alicizationMemoryRecollectionPlanJsonSchema = {
     selectedWindowIds: textArraySchema(8, 120),
     selectedProceduralIds: textArraySchema(8, 120),
     selectedEpisodeIds: textArraySchema(8, 120),
-    selectedConversationTurnIds: textArraySchema(8, 120),
     selectedRelationshipLines: textArraySchema(3, 220),
     searchTrace: {
       type: 'object',
@@ -308,7 +301,6 @@ const selectedBundleSchema = {
     'periodId',
     'episodeId',
     'procedureId',
-    'conversationTurnId',
     'relationshipLine',
   ],
   properties: {
@@ -319,7 +311,6 @@ const selectedBundleSchema = {
     periodId: nullableTextSchema(120),
     episodeId: nullableTextSchema(120),
     procedureId: nullableTextSchema(120),
-    conversationTurnId: nullableTextSchema(120),
     relationshipLine: nullableTextSchema(220),
   },
 } as const
@@ -372,7 +363,6 @@ export const alicizationMemoryDeliberationJsonSchema = {
     'selectedWindowIds',
     'selectedProcedureIds',
     'selectedEpisodeIds',
-    'selectedConversationTurnIds',
     'selectedRelationshipLines',
     'selectedBundles',
     'selectedChains',
@@ -391,7 +381,6 @@ export const alicizationMemoryDeliberationJsonSchema = {
     selectedWindowIds: textArraySchema(8, 120),
     selectedProcedureIds: textArraySchema(8, 120),
     selectedEpisodeIds: textArraySchema(8, 120),
-    selectedConversationTurnIds: textArraySchema(8, 120),
     selectedRelationshipLines: textArraySchema(6, 220),
     selectedBundles: {
       type: 'array',

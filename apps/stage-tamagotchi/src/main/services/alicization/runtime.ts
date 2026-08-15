@@ -14,7 +14,7 @@ import type {
   AlicizationChatAbortResult,
   AlicizationChatStartPayload,
   AlicizationChatStartResult,
-  AlicizationChatToolProgressEvent,
+  AlicizationChatToolProgressInput,
   AlicizationClawTaskIntent,
   AlicizationConversationStateSnapshot,
   AlicizationConversationTurnInput,
@@ -139,7 +139,6 @@ import { createAlicizationBodyKernel } from './body-kernel'
 import { setupAlicizationDb } from './db'
 import { createDesktopCaptureAccessRuntime } from './desktop-capture-runtime'
 import { buildDialogueIngressGovernor } from './dialogue-ingress-governor'
-import { buildDialogueTurnMemoryFragment } from './dialogue-memory'
 import { createAlicizationDialogueSessionManager } from './dialogue-session-manager'
 import {
   buildDialogueTurnSemantics,
@@ -214,7 +213,6 @@ import {
   buildExecutionProposalFeedbackOutcomeClosure,
   buildExecutionResultFeedbackOutcomeClosure,
   buildProactiveFeedbackOutcomeClosure,
-  buildReplyOutcomeClosure,
   deriveDialogueReplyFeedbackKind,
   deriveExecutionProposalFeedbackKind,
   deriveExecutionResultFeedbackKind,
@@ -284,7 +282,6 @@ import { buildOrganicMemoryProviderFactBlocks } from './runtime-organic-memory-p
 import {
   normalizeOrganicRecallText,
   selectPromptActiveThoughts,
-  shouldExtendContextualRecall,
 } from './runtime-organic-recall'
 import {
   buildInspectionSceneResidue,
@@ -591,6 +588,11 @@ export const runtimeTestInternals = {
     peekSurfacedCursor?: (sessionId: string) => number
   } | null,
   currentDesktopInspectScene: null as ((input: AlicizationLocalDesktopInspectSceneInput) => Promise<unknown>) | null,
+  currentProactiveLoopStateByCard: null as Map<string, unknown> | null,
+  currentEnsureProactiveLoopState: null as ((
+    cardId: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<unknown>) | null,
 }
 
 function normalizePersistedConversationTurnStructure(input: {
@@ -600,6 +602,7 @@ function normalizePersistedConversationTurnStructure(input: {
     return input.structured ?? null
 
   const structured = { ...input.structured }
+  delete structured.memoryEvidence
 
   if (!Object.prototype.hasOwnProperty.call(input.structured, 'visibleReplyRealization'))
     return structured
@@ -674,6 +677,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const activeSessionIdByCard = new Map<string, string>()
   const subconsciousStateByCard = new Map<string, SubconsciousCardState>()
   const proactiveLoopStateByCard = new Map<string, AlicizationProactiveLoopState>()
+  runtimeTestInternals.currentProactiveLoopStateByCard = proactiveLoopStateByCard
   const perceptionStateByCard = new Map<string, AlicizationPerceptionState>()
   const visualPresenceStateByCard = new Map<string, AlicizationVisualPresenceStateSnapshot>()
   const visualPresenceCapturePersistMetaByCard = new Map<string, {
@@ -1122,7 +1126,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       })),
       readMindHead: async <T>(cardId: string, key: 'person-state-update-surface') => await alicizationDb.readMindHead<T>(cardId, key).catch((): T | null => null),
       searchEpisodicEvents: async input => await alicizationDb.searchEpisodicEvents(input),
-      searchConversationTurnsForRecall: async input => await alicizationDb.searchConversationTurnsForRecall(input),
       searchMemoryConsolidations: async input => await alicizationDb.searchMemoryConsolidations?.(input) ?? [],
       listConversationTurnsBySession: async (sessionId, options) => await alicizationDb.listConversationTurnsBySession(sessionId, options),
       getLatestLearningExecutionState: async cardId => await alicizationDb.getLatestLearningExecutionState(cardId).catch(() => null),
@@ -1185,7 +1188,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     setPerformanceManifest,
     searchOrganicSubconsciousFragments,
     buildHostPersonModel,
-    resolveRecentContextualTurns,
     buildProactiveRecallSeed,
     tuneOrganicMemoryPromptContextForExecutiveTurn,
     resolveOrganicMemoryPromptContext: resolveBaseOrganicMemoryPromptContext,
@@ -1210,7 +1212,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         applyMemoryFactCorrections: corrections => alicizationDb.applyMemoryFactCorrections(corrections),
         upsertMemoryFacts: (facts, source) => alicizationDb.upsertMemoryFacts(facts, source),
         appendMindTurnEvents: events => alicizationDb.appendMindTurnEvents(events),
-        insertLearningTask: input => alicizationDb.insertLearningTask(input),
+        insertLearningTask: (input, writeOptions) => alicizationDb.insertLearningTask(input, writeOptions),
         claimDueLearningTasks: (cardId, nowMs, limit) => alicizationDb.claimDueLearningTasks(cardId, nowMs, limit),
         startLearningTask: (taskId, startedAt) => alicizationDb.startLearningTask(taskId, startedAt),
         blockLearningTask: (taskId, input, updatedAt) => alicizationDb.blockLearningTask(taskId, input, updatedAt),
@@ -1275,8 +1277,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       withCardScope,
       alicizationDb: {
         getMetaValue: key => alicizationDb.getMetaValue(key),
-        setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
-        upsertMindHead: (cardId, key, value) => alicizationDb.upsertMindHead(cardId, key, value),
+        setMetaValue: (key, value, writeOptions) => alicizationDb.setMetaValue(key, value, writeOptions),
+        upsertMindHead: (cardId, key, value, writeOptions) =>
+          alicizationDb.upsertMindHead(cardId, key, value, writeOptions),
       },
       perceptionStateByCard,
       visualPresenceStateByCard,
@@ -1453,8 +1456,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       ensureActiveOrLatestSessionId,
       buildPendingExecutionCallbackContext: input => executionCallbackRuntime.buildPendingExecutionCallbackContext(input),
       buildExecutionLedgerContext: input => memoryLedgerRuntime.buildExecutionLedgerContext(input),
-      resolveRecentContextualTurns,
-      shouldExtendContextualRecall,
       detectInvitedInspectionIntent,
     },
     inspection: {
@@ -1959,6 +1960,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     persistAutobiographicalEpisodesFromPreparedMirror: persistPreparedMirrorAutobiographicalEpisodes,
     enqueueWorkingMemoryLongTermQueue: async input => await alicizationDb.enqueueWorkingMemoryLongTermQueueItems(input),
     drainWorkingMemoryLongTermQueue: async limit => await alicizationDb.drainWorkingMemoryLongTermQueue(limit),
+    drainWorkingMemoryLongTermQueueScoped: async input =>
+      await alicizationDb.drainWorkingMemoryLongTermQueueScoped(input),
     listConversationTurnsBySession: async (sessionId, options) =>
       await alicizationDb.listConversationTurnsBySession(sessionId, options),
     getWorkingMemoryCheckpoint: async (cardId, sessionId) =>
@@ -2557,31 +2560,69 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return await restoreSubconsciousState(normalizedCardId)
   }
 
-  async function persistProactiveLoopState(cardIdRaw: unknown, state: AlicizationProactiveLoopState) {
-    const cardId = normalizeCardId(cardIdRaw)
-    proactiveLoopStateByCard.set(cardId, state)
-    if (cardId === activeCardId) {
-      await alicizationDb.setMetaValue(alicizationProactiveLoopStateMetaKey, JSON.stringify(state)).catch(() => {})
-      return
+  async function persistProactiveLoopState(
+    cardIdRaw: unknown,
+    state: AlicizationProactiveLoopState,
+    persistOptions: { signal?: AbortSignal } = {},
+  ) {
+    const assertNotAborted = () => {
+      if (!persistOptions.signal?.aborted)
+        return
+      throw persistOptions.signal.reason ?? createAbortError('proactive-loop-state-persistence')
     }
-    await withCardScope(cardId, async () => {
-      await alicizationDb.setMetaValue(alicizationProactiveLoopStateMetaKey, JSON.stringify(state)).catch(() => {})
-    }, {
-      label: `proactive-loop.persist:${cardId}`,
-    })
+    const persistMeta = async () => {
+      try {
+        await alicizationDb.setMetaValue(
+          alicizationProactiveLoopStateMetaKey,
+          JSON.stringify(state),
+          { signal: persistOptions.signal },
+        )
+      }
+      catch (error) {
+        if (persistOptions.signal?.aborted || isAbortError(error))
+          throw persistOptions.signal?.reason ?? error
+      }
+    }
+
+    assertNotAborted()
+    const cardId = normalizeCardId(cardIdRaw)
+    if (cardId === activeCardId) {
+      await persistMeta()
+    }
+    else {
+      await withCardScope(cardId, async () => {
+        assertNotAborted()
+        await persistMeta()
+      }, {
+        label: `proactive-loop.persist:${cardId}`,
+      })
+    }
+    assertNotAborted()
+    proactiveLoopStateByCard.set(cardId, state)
   }
 
-  async function restoreProactiveLoopState(cardIdRaw: unknown) {
+  async function restoreProactiveLoopState(
+    cardIdRaw: unknown,
+    restoreOptions: { signal?: AbortSignal } = {},
+  ) {
+    const assertNotAborted = () => {
+      if (!restoreOptions.signal?.aborted)
+        return
+      throw restoreOptions.signal.reason ?? createAbortError('proactive-loop-state-restore')
+    }
     const cardId = normalizeCardId(cardIdRaw)
     const now = Date.now()
     const setState = (state: AlicizationProactiveLoopState) => {
+      assertNotAborted()
       proactiveLoopStateByCard.set(cardId, state)
       return state
     }
 
+    assertNotAborted()
     if (cardId !== activeCardId) {
       await withCardScope(cardId, async () => {
         const raw = await alicizationDb.getMetaValue(alicizationProactiveLoopStateMetaKey).catch(() => undefined)
+        assertNotAborted()
         if (!raw) {
           setState(createDefaultProactiveLoopState(now))
           return
@@ -2595,10 +2636,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       }, {
         label: `proactive-loop.restore:${cardId}`,
       })
+      assertNotAborted()
       return proactiveLoopStateByCard.get(cardId) ?? createDefaultProactiveLoopState(now)
     }
 
     const raw = await alicizationDb.getMetaValue(alicizationProactiveLoopStateMetaKey).catch(() => undefined)
+    assertNotAborted()
     if (!raw)
       return setState(createDefaultProactiveLoopState(now))
     try {
@@ -2609,13 +2652,19 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
   }
 
-  async function ensureProactiveLoopState(cardIdRaw: unknown) {
+  async function ensureProactiveLoopState(
+    cardIdRaw: unknown,
+    ensureOptions: { signal?: AbortSignal } = {},
+  ) {
+    if (ensureOptions.signal?.aborted)
+      throw ensureOptions.signal.reason ?? createAbortError('proactive-loop-state-ensure')
     const cardId = normalizeCardId(cardIdRaw)
     const current = proactiveLoopStateByCard.get(cardId)
     if (current)
       return current
-    return await restoreProactiveLoopState(cardId)
+    return await restoreProactiveLoopState(cardId, ensureOptions)
   }
+  runtimeTestInternals.currentEnsureProactiveLoopState = ensureProactiveLoopState
 
   const persistExecutionDeliveryState = runtimeExecutionDelivery.persistExecutionDeliveryState
 
@@ -3633,10 +3682,14 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   }
 
   async function suspendKillSwitch(reason?: string) {
-    const snapshot = await persistScopedKillSwitch(activeCardId, 'SUSPENDED', reason)
+    const normalizedReason = reason ?? 'manual'
+    const abortPromise = abortAllTurnWrites(normalizedReason)
     sensoryBus.stop('kill-switch')
     clearReminderDueTimer()
-    await abortAllTurnWrites(reason ?? 'manual')
+    const [snapshot] = await Promise.all([
+      persistScopedKillSwitch(activeCardId, 'SUSPENDED', reason),
+      abortPromise,
+    ])
     emitKillSwitchChanged()
     await appendAuditLog({
       level: 'notice',
@@ -3644,7 +3697,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       action: 'suspend',
       message: 'Kill switch set to SUSPENDED.',
       payload: {
-        reason: reason ?? 'manual',
+        reason: normalizedReason,
       },
     })
     return snapshot
@@ -3845,9 +3898,16 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return false
     }
 
+    const areTurnSideEffectsAborted = () =>
+      signal?.aborted === true
+      || isAlicizationKillSwitchSuspended()
+      || getAlicizationCardKillSwitchSnapshot(activeCardId).state === 'SUSPENDED'
+    const dropTurnSideEffectsIfAborted = () => areTurnSideEffectsAborted()
     const appendMindTurnTraceEvents = async (
       dialoguePayload?: AlicizationNormalizedDialogueRespondedPayload | null,
     ) => {
+      if (areTurnSideEffectsAborted())
+        return []
       const events = buildMindTurnTraceEvents({
         payload: normalizedPayload,
         governedTurn,
@@ -3858,7 +3918,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       if (events.length === 0)
         return [] as typeof events
       try {
+        if (areTurnSideEffectsAborted())
+          return [] as typeof events
         await alicizationDb.appendMindTurnEvents(events, { signal })
+        if (areTurnSideEffectsAborted())
+          return [] as typeof events
         const participation = events.find(event => event.kind === 'governance-normalized')?.payload?.participation
         if (participation && typeof participation === 'object') {
           await memoryRetrievalTelemetryRuntime.recordParticipation({
@@ -3871,6 +3935,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         }
       }
       catch (error) {
+        if (areTurnSideEffectsAborted() || isAbortError(error))
+          return [] as typeof events
         await appendAuditLog({
           level: 'warning',
           category: 'alicization.dialogue',
@@ -3910,6 +3976,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                 && stage !== 'working-memory-checkpoint-load'
                 && stage !== 'working-memory-checkpoint-save'
                 && stage !== 'working-memory-long-term-queue'
+                && stage !== 'working-memory-long-term-drain'
+                && stage !== 'dialogue-session-mirror-commit'
+                && stage !== 'autobiographical-memory-write'
+                && stage !== 'persona-learning-schedule'
+                && stage !== 'runtime-event-store'
+                && stage !== 'memory-turn-settlement'
               )
             ) {
               return []
@@ -3924,7 +3996,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           })
         : []
       await alicizationDb.appendConversationTurn(normalizedPayload, { signal })
+      if (dropTurnSideEffectsIfAborted())
+        return true
+
       for (const memorySideFailure of memorySideFailures) {
+        if (dropTurnSideEffectsIfAborted())
+          return true
         const parentTurnId = sanitizeText(normalizedPayload.turnId, '')
         if (!parentTurnId)
           continue
@@ -3961,6 +4038,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           }, { signal })
         }
         catch (error) {
+          if (dropTurnSideEffectsIfAborted())
+            return true
           await appendAuditLog({
             level: 'warning',
             category: 'alicization.dialogue',
@@ -3975,8 +4054,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             },
           })
         }
+        if (dropTurnSideEffectsIfAborted())
+          return true
       }
       await payload.onPersisted?.()
+      if (dropTurnSideEffectsIfAborted())
+        return true
+
       const structuredFailureSurface = structured?.failureSurface && typeof structured.failureSurface === 'object'
         ? structured.failureSurface as Record<string, unknown>
         : null
@@ -4067,6 +4151,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         && derivedBundleForLearning?.selfEvolution
         && normalizedPayload.origin === 'user-turn'
       ) {
+        if (dropTurnSideEffectsIfAborted())
+          return true
         const retrievedFactsForLearning = Array.isArray(structured?.retrievedFacts)
           ? (structured.retrievedFacts as unknown[]).filter(item => item && typeof item === 'object')
           : []
@@ -4082,7 +4168,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             sessionId: normalizedPayload.sessionId ?? null,
           },
           turnId: normalizedPayload.turnId ?? null,
+          signal,
         }).catch(() => {})
+        if (dropTurnSideEffectsIfAborted())
+          return true
       }
       if (
         shouldTrackDialogueContinuity
@@ -4090,7 +4179,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         && sanitizeText(normalizedPayload.assistantText).length > 0
       ) {
         try {
-          visualPresenceState = await ensureVisualPresenceState(activeCardId)
+          if (dropTurnSideEffectsIfAborted())
+            return true
+          visualPresenceState = await ensureVisualPresenceState(activeCardId, { signal })
+          if (dropTurnSideEffectsIfAborted())
+            return true
           const dialogueWorldThread = registerDialogueWorldThreadAssistantTurn({
             now: normalizedCreatedAt,
             previous: visualPresenceState.dialogueWorldThread ?? null,
@@ -4199,7 +4292,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
               },
               activeConversation: true,
             })
-            await persistVisualPresenceState(activeCardId, nextVisualPresenceStateWithBodyAuthority)
+            if (dropTurnSideEffectsIfAborted())
+              return true
+            await persistVisualPresenceState(activeCardId, nextVisualPresenceStateWithBodyAuthority, { signal })
+            if (dropTurnSideEffectsIfAborted())
+              return true
             persistedDialogueState = nextVisualPresenceStateWithBodyAuthority
           }
           else {
@@ -4207,6 +4304,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           }
         }
         catch (error) {
+          if (dropTurnSideEffectsIfAborted())
+            return true
           await appendAuditLog({
             level: 'warning',
             category: 'alicization.dialogue',
@@ -4221,78 +4320,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         }
       }
 
-      const dialogueTurnMemoryText = learningEligibility.allowLongTermCondensation
-        ? normalizeOrganicMemoryText(
-            buildDialogueTurnMemoryFragment({
-              payload: normalizedPayload,
-              governance: governedTurn.governance ?? null,
-              state: persistedDialogueState ?? null,
-              runtimeSurface: persistedDialogueState
-                ? buildAlicizationDigitalLifeRuntimeSurface(persistedDialogueState)
-                : null,
-            }),
-            320,
-          )
-        : ''
-      if (dialogueTurnMemoryText) {
-        await alicizationDb.appendSubconsciousFragments([{
-          text: dialogueTurnMemoryText,
-          sourceKind: 'dialogue-turn',
-        }]).catch(async (error) => {
-          await appendAuditLog({
-            level: 'warning',
-            category: 'alicization.dialogue',
-            action: 'dialogue-memory-write-failed',
-            message: 'Failed to append dialogue-turn memory fragment after governed turn persistence.',
-            payload: {
-              turnId: normalizedPayload.turnId,
-              sessionId: normalizedPayload.sessionId,
-              reason: errorMessageFrom(error) ?? 'unknown-error',
-              fragment: dialogueTurnMemoryText,
-            },
-          })
-        })
-      }
-
-      const runtimeSurfaceForOutcome = persistedDialogueState
-        ? buildAlicizationDigitalLifeRuntimeSurface(persistedDialogueState)
-        : visualPresenceState
-          ? buildAlicizationDigitalLifeRuntimeSurface(visualPresenceState)
-          : null
-      if (
-        learningEligibility.allowPersonaLearning
-        && normalizedPayload.origin === 'user-turn'
-        && sanitizeText(normalizedPayload.assistantText).length > 0
-      ) {
-        await persistOutcomeClosure(activeCardId, buildReplyOutcomeClosure({
-          now: normalizedCreatedAt,
-          cardId: activeCardId,
-          turnId: normalizedPayload.turnId,
-          sessionId: normalizedPayload.sessionId,
-          decisionTraceId: governedTurn.governance?.decisionTraceId ?? null,
-          runtimeSurface: runtimeSurfaceForOutcome,
-          userText: normalizedPayload.userText,
-          assistantText: normalizedPayload.assistantText,
-        }))
-      }
-
-      if (signal?.aborted || isAlicizationKillSwitchSuspended() || getAlicizationCardKillSwitchSnapshot(activeCardId).state === 'SUSPENDED') {
-        await appendMindTurnTraceEvents(null)
-        await appendAuditLog({
-          level: 'notice',
-          category: 'kill-switch',
-          action: 'turn-abort-dropped',
-          message: 'Dropped dialogue responded event because the turn was aborted after persistence.',
-          payload: {
-            sessionId: normalizedPayload.sessionId,
-            turnId: normalizedPayload.turnId,
-          },
-        })
+      if (dropTurnSideEffectsIfAborted())
         return true
-      }
 
       let emittedDialoguePayload: AlicizationNormalizedDialogueRespondedPayload | null = null
       const performanceManifest = await getPerformanceManifest()
+      if (dropTurnSideEffectsIfAborted())
+        return true
       const dialoguePayload = normalizeDialogueRespondedPayload(
         normalizedPayload,
         performanceManifest,
@@ -4362,7 +4396,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
               || readStringValue(enrichedDialoguePayload.structured.reply).trim()
               || null
           const learningAction = proactiveReasonCodes.find(code =>
-            /^learning:(record|reflect|verify|revise|internalize|hold)$/u.test(code),
+            /^learning:(?:record|reflect|verify|revise|internalize|hold)$/u.test(code),
           )?.slice('learning:'.length) as
           | 'record'
           | 'reflect'
@@ -4376,7 +4410,9 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             .map(code => code.slice('learning-focus:'.length).trim())
             .filter(Boolean)
             .slice(0, 6)
-          const proactiveState = await ensureProactiveLoopState(activeCardId)
+          const proactiveState = await ensureProactiveLoopState(activeCardId, { signal })
+          if (dropTurnSideEffectsIfAborted())
+            return true
           const nextProactiveState = registerProactiveDelivery(proactiveState, {
             turnId: enrichedDialoguePayload.turnId,
             scenario: enrichedDialoguePayload.structured.proactive.scenario,
@@ -4388,7 +4424,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             emotionalTransitionLedger: derivedBundleForLearning?.emotionalTransitionLedger ?? null,
             affectiveResidue: derivedBundleForLearning?.affectiveResidue ?? null,
           })
-          await persistProactiveLoopState(activeCardId, nextProactiveState)
+          if (dropTurnSideEffectsIfAborted())
+            return true
+          await persistProactiveLoopState(activeCardId, nextProactiveState, { signal })
+          if (dropTurnSideEffectsIfAborted())
+            return true
           const currentPresenceState = visualPresenceStateByCard.get(activeCardId)
           if (currentPresenceState) {
             visualPresenceStateByCard.set(activeCardId, {
@@ -4397,6 +4437,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             })
           }
         }
+        if (dropTurnSideEffectsIfAborted())
+          return true
         emittedDialoguePayload = enrichedDialoguePayload
         emitDialogueRespondedWithDelivery({
           cardId: activeCardId,
@@ -4409,6 +4451,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           origin: enrichedDialoguePayload.origin,
           emotion: enrichedDialoguePayload.structured.emotion,
         })
+        if (dropTurnSideEffectsIfAborted())
+          return true
         await appendAuditLog({
           level: 'notice',
           category: 'alicization.dialogue',
@@ -4425,8 +4469,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             proactive: enrichedDialoguePayload.structured.proactive ?? null,
           },
         })
+        if (dropTurnSideEffectsIfAborted())
+          return true
       }
       const appendedMindTurnTraceEvents = await appendMindTurnTraceEvents(emittedDialoguePayload)
+      if (dropTurnSideEffectsIfAborted())
+        return true
       const replaySamplingUserText = normalizedPayload.origin === 'user-turn'
         ? sanitizeText(normalizedPayload.userText, '')
         : sanitizeText(normalizedPayload.userText, '')
@@ -4547,7 +4595,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
               createdAt: event.createdAt ?? normalizedCreatedAt,
             })),
           ),
+          signal,
         }).catch(async (error) => {
+          if (signal?.aborted || isAbortError(error))
+            return
           await appendAuditLog({
             level: 'warning',
             category: 'alicization.memory-benchmark',
@@ -4565,19 +4616,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       return true
     }
     catch (error) {
-      if (isAbortError(error) || signal?.aborted) {
-        await appendAuditLog({
-          level: 'notice',
-          category: 'kill-switch',
-          action: 'turn-write-skipped-aborted',
-          message: 'Dropped conversation turn persistence due to abort before SQL execution.',
-          payload: {
-            sessionId: normalizedPayload.sessionId,
-            turnId: normalizedPayload.turnId,
-          },
-        })
+      if (isAbortError(error) || signal?.aborted)
         return
-      }
 
       throw error
     }
@@ -6063,6 +6103,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const { prepareMainChatPrelude, prepareMainChatExecution } = mainChatRuntime.createPreludeRuntime({
     senderWebContentsIdFromInvokeOptions,
     resolveChatMessages,
+    hydrateWorkingMemory: async input => await mainChatSessionRuntime.hydrateWorkingMemory(input),
     augmentMainChatMessagesWithPerception,
     prepareMainChatSessionExecution: async input => await mainChatSessionRuntime.prepareExecution(input),
   })
@@ -6212,8 +6253,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       resolvePreparation = resolve
       rejectPreparation = reject
     })
-    const emitToolProgress = (event: Omit<AlicizationChatToolProgressEvent, 'cardId' | 'turnId'>) => {
-      const state = chatRuns.get(key)
+    const emitToolProgress = (event: Omit<AlicizationChatToolProgressInput, 'cardId' | 'turnId'>) => {
+      const state = mainChatRunState.getRun(key)
       for (const listener of state?.toolProgressListeners ?? []) {
         try {
           listener(event)
@@ -6222,11 +6263,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           // Tool progress observers are lifecycle sidecars and must not break execution.
         }
       }
-      emitChatStreamEventForState(state, 'tool-progress', {
-        cardId: normalizedPayload.cardId,
-        turnId: normalizedPayload.turnId,
-        ...event,
-      })
     }
     void preparationPromise.then(clearPreparationDeadline, clearPreparationDeadline)
 
@@ -6241,6 +6277,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           const prelude = await foregroundWork.run(
             async () => await prepareMainChatPrelude(normalizedPayload, mainGateway, invokeOptions, {
               abortSignal,
+              agentTurn,
             }),
           )
           resolvePrelude(prelude)
@@ -6253,6 +6290,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
                 agentTurn,
                 emitToolProgress,
                 abortSignal,
+                userId: localRuntimeUserId,
               },
             ),
           )
@@ -6268,11 +6306,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       headers: mainGateway.headers,
       isRunActive,
       runStateController: mainChatRunState,
-      emitMeta: meta => emitChatStreamEventForState(chatRuns.get(key), 'meta', meta),
-      emitChunk: event => emitChatStreamEventForState(chatRuns.get(key), 'chunk', event),
-      emitToolCall: event => emitChatStreamEventForState(chatRuns.get(key), 'tool-call', event),
-      emitToolResult: event => emitChatStreamEventForState(chatRuns.get(key), 'tool-result', event),
-      emitError: event => emitChatStreamEventForState(chatRuns.get(key), 'error', event),
+      emitMeta: meta => emitChatStreamEventForState(mainChatRunState.getRun(key), 'meta', meta),
+      emitChunk: event => emitChatStreamEventForState(mainChatRunState.getRun(key), 'chunk', event),
+      emitToolCall: event => emitChatStreamEventForState(mainChatRunState.getRun(key), 'tool-call', event),
+      emitToolProgress: event => emitChatStreamEventForState(mainChatRunState.getRun(key), 'tool-progress', event),
+      emitToolResult: event => emitChatStreamEventForState(mainChatRunState.getRun(key), 'tool-result', event),
+      emitError: event => emitChatStreamEventForState(mainChatRunState.getRun(key), 'error', event),
       incrementChunkStats: (rawDelta) => {
         const currentRun = chatRuns.get(key)
         if (currentRun) {
@@ -6486,6 +6525,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     sanitizeText,
     appendRuntimeDebugLine,
     getActiveCardId: () => activeCardId,
+    localRuntimeUserId,
     persistActiveSessionId,
     appendConversationTurnWithGuards,
     getDialogueAckCursor,

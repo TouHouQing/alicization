@@ -1076,6 +1076,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
 
     const result = await runtime.buildDigitalLifeMindState({
       cardId: 'card-answer-compiler-measured-return-carry',
+      turnId: 'turn-answer-compiler-measured-return-carry',
       now: 80_000,
       context: {
         localTime: { hour: 22, minute: 18, isLateNight: false },
@@ -1213,7 +1214,7 @@ describe('runtime-mind-state emotional kernel regression', () => {
     expect(result.answerCompiler?.openingDirective).not.toContain('Thin runtime shell line')
     expect(result.answerCompiler?.mustDo).not.toContain('Thin runtime shell line')
     expect(result.answerCompiler?.mustNotDo).not.toContain('Thin runtime shell line')
-    expect(generateMainGatewayText).not.toHaveBeenCalled()
+    expect(generateMainGatewayText).toHaveBeenCalledTimes(1)
   })
 
   it('lets cautious embodiment recollection authority retune runtime emotional carry into measured-return instead of leaving body memory inert', async () => {
@@ -1397,7 +1398,6 @@ describe('runtime-mind-state emotional kernel regression', () => {
           mode: 'relationship-history',
           temporalFocus: 'experience-matched',
           searchEpisodes: true,
-          searchConversations: false,
           searchProceduralExperience: false,
           queryHints: [
             'embodiment_recall_strength=cautious-avoidance',

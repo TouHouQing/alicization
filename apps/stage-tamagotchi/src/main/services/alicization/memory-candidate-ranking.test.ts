@@ -126,7 +126,6 @@ function rankEpisodes(input: {
           rationale: '',
           queryHints: [],
           searchEpisodes: true,
-          searchConversations: false,
           searchProceduralExperience: false,
           recollectionAgenda: null,
         } as any
@@ -140,7 +139,6 @@ function rankEpisodes(input: {
     recollectedWindows: [],
     proceduralMemories: [],
     recalledEpisodes: input.episodes as any,
-    recalledConversationHistory: [],
   }).agendaRankedEpisodes.map(item => item.id)
 }
 
@@ -175,7 +173,6 @@ describe('memory candidate ranking', () => {
         recollectedWindows: [],
         proceduralMemories: [],
         recalledEpisodes: episodes,
-        recalledConversationHistory: [],
       })
       return {
         observedRecallSeeds,
@@ -213,7 +210,6 @@ describe('memory candidate ranking', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [createEpisode({ id: 'atlas-note', text: 'Atlas migration violet observatory' })] as any,
-      recalledConversationHistory: [],
     })
 
     expect(new Set(observedRecallSeeds)).toEqual(new Set([recallSeed]))
@@ -244,7 +240,6 @@ describe('memory candidate ranking', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [createEpisode({ id: 'atlas-note', text: 'Atlas notes direct comparison' })] as any,
-      recalledConversationHistory: [],
     })
 
     expect(new Set(observedRecallSeeds)).toEqual(new Set([expectedSemanticSeed]))

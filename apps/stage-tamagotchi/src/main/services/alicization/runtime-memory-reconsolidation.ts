@@ -2,15 +2,22 @@ import type { AlicizationExecutionRuntimeMemoryClosureExecution } from '@proj-al
 
 import type { AlicizationAuditLogInput, AlicizationMindTurnEventInput } from '../../../shared/eventa'
 import type { AlicizationMemoryRecollectionIntentLite } from './memory-episodic-retrieval'
+import type {
+  AlicizationDialogueReplyFeedbackKind,
+  AlicizationExecutionResultFeedbackKind,
+  AlicizationOutcomeClosureResult,
+} from './outcome-reinforcement'
 
-type AlicizationDialogueReplyFeedbackKind = 'robotic' | 'missed' | 'intrusive' | 'interrupted' | 'received'
-type AlicizationExecutionResultFeedbackKind = 'valued' | 'doubted' | 'intrusive' | 'interrupted'
-
-export interface AlicizationFeedbackMemoryExperience {
-  felt?: string | null
-  relationshipMeaning?: string | null
-  lesson?: string | null
-  tags?: string[] | null
+export interface AlicizationTrustedExecutionResultEvidence {
+  provenance: 'execution-ledger'
+  status: 'completed'
+  cardId: string
+  threadId: string
+  decisionTraceId: string
+  turnId: string
+  sessionId: string
+  goal: string
+  outcome: string | null
 }
 
 interface AlicizationReplyMemoryCoherenceState {
@@ -33,6 +40,13 @@ interface AlicizationRecallSituationTelemetry {
   affectiveResidue: string | null
   executionCarry: string | null
   embodimentCarry: string | null
+}
+
+interface AlicizationFeedbackMemoryExperienceOwner {
+  cardId: string
+  decisionTraceId: string
+  sessionId: string
+  turnId?: string
 }
 
 interface CreateAlicizationRuntimeMemoryReconsolidationOptions {
@@ -130,20 +144,62 @@ function uniqueReconsolidationTexts(values: Array<string | null | undefined>, ma
   return result
 }
 
+function sanitizeFeedbackMemoryExperienceOwner(
+  input: {
+    cardId: string | null | undefined
+    decisionTraceId: string | null | undefined
+    sessionId: string | null | undefined
+    turnId?: string | null | undefined
+  },
+  sanitizeText: CreateAlicizationRuntimeMemoryReconsolidationOptions['sanitizeText'],
+): AlicizationFeedbackMemoryExperienceOwner | null {
+  const cardId = sanitizeText(input.cardId, '').slice(0, 120)
+  const decisionTraceId = sanitizeText(input.decisionTraceId, '').slice(0, 180)
+  const sessionId = sanitizeText(input.sessionId, '').slice(0, 180)
+  const expectsTurnId = Object.prototype.hasOwnProperty.call(input, 'turnId')
+  const turnId = expectsTurnId
+    ? sanitizeText(input.turnId, '').slice(0, 180)
+    : ''
+  if (!cardId || !decisionTraceId || !sessionId || (expectsTurnId && !turnId))
+    return null
+
+  return {
+    cardId,
+    decisionTraceId,
+    sessionId,
+    ...(expectsTurnId ? { turnId } : {}),
+  }
+}
+
 function sanitizeFeedbackMemoryExperience(
-  input: AlicizationFeedbackMemoryExperience | null | undefined,
+  outcomeClosure: AlicizationOutcomeClosureResult | null | undefined,
+  expectedSourceKind: 'dialogue-feedback' | 'execution-result',
+  expectedOwner: AlicizationFeedbackMemoryExperienceOwner,
   sanitizeText: CreateAlicizationRuntimeMemoryReconsolidationOptions['sanitizeText'],
 ) {
-  const tags = Array.isArray(input?.tags)
-    ? input!.tags!
+  const event = outcomeClosure?.episodicEvents?.find((item) => {
+    return sanitizeText(item?.sourceKind, '') === expectedSourceKind
+      && sanitizeText(item?.cardId, '').slice(0, 120) === expectedOwner.cardId
+      && sanitizeText(item?.decisionTraceId, '').slice(0, 180) === expectedOwner.decisionTraceId
+      && sanitizeText(item?.sessionId, '').slice(0, 180) === expectedOwner.sessionId
+      && (
+        expectedOwner.turnId === undefined
+        || sanitizeText(item?.turnId, '').slice(0, 180) === expectedOwner.turnId
+      )
+  })
+  if (!event)
+    return null
+
+  const tags = Array.isArray(event.tags)
+    ? event.tags
         .map(tag => sanitizeText(tag, '').slice(0, 64))
         .filter(Boolean)
         .slice(0, 16)
     : []
   const embodimentTags = tags.filter(tag => /^(?:body-|continuity-|residue-)/u.test(tag)).slice(0, 8)
-  const felt = sanitizeText(input?.felt, '').slice(0, 220) || null
-  const relationshipMeaning = sanitizeText(input?.relationshipMeaning, '').slice(0, 240) || null
-  const lesson = sanitizeText(input?.lesson, '').slice(0, 240) || null
+  const felt = sanitizeText(event.felt, '').slice(0, 220) || null
+  const relationshipMeaning = sanitizeText(event.relationshipMeaning, '').slice(0, 240) || null
+  const lesson = sanitizeText(event.lesson, '').slice(0, 240) || null
   if (!felt && !relationshipMeaning && !lesson && tags.length === 0)
     return null
 
@@ -164,6 +220,35 @@ function collectFeedbackExperienceTexts(
     input?.relationshipMeaning ?? null,
     input?.lesson ?? null,
   ], 6)
+}
+
+function sanitizeTrustedExecutionResultEvidence(
+  input: AlicizationTrustedExecutionResultEvidence | null | undefined,
+  sanitizeText: CreateAlicizationRuntimeMemoryReconsolidationOptions['sanitizeText'],
+) {
+  if (!input || input.provenance !== 'execution-ledger' || input.status !== 'completed')
+    return null
+
+  const cardId = sanitizeText(input.cardId, '').slice(0, 120)
+  const threadId = sanitizeText(input.threadId, '').slice(0, 180)
+  const decisionTraceId = sanitizeText(input.decisionTraceId, '').slice(0, 180)
+  const turnId = sanitizeText(input.turnId, '').slice(0, 180)
+  const sessionId = sanitizeText(input.sessionId, '').slice(0, 180)
+  const goal = sanitizeText(input.goal, '').slice(0, 180)
+  if (!cardId || !threadId || !decisionTraceId || !turnId || !sessionId || !goal)
+    return null
+
+  return {
+    provenance: 'execution-ledger' as const,
+    status: 'completed' as const,
+    cardId,
+    threadId,
+    decisionTraceId,
+    turnId,
+    sessionId,
+    goal,
+    outcome: sanitizeText(input.outcome, '').slice(0, 180) || null,
+  }
 }
 
 function sanitizeMemoryClosureExecution(
@@ -321,15 +406,31 @@ export function createAlicizationRuntimeMemoryReconsolidation(
     cardId: string
     decisionTraceId: string | null
     feedback: AlicizationDialogueReplyFeedbackKind | null
-    previousAssistantText: string
-    userText: string
     sessionId: string | null
     turnId: string | null
     at: number
-    feedbackExperience?: AlicizationFeedbackMemoryExperience | null
+    outcomeClosure?: AlicizationOutcomeClosureResult | null
   }) => {
     const decisionTraceId = options.sanitizeMindGovernanceDecisionTraceId(input.decisionTraceId)
     if (!decisionTraceId || !input.feedback || input.feedback === 'received')
+      return
+
+    const expectedOwner = sanitizeFeedbackMemoryExperienceOwner({
+      cardId: input.cardId,
+      decisionTraceId,
+      sessionId: input.sessionId,
+      turnId: input.turnId,
+    }, options.sanitizeText)
+    if (!expectedOwner?.turnId)
+      return
+
+    const feedbackExperience = sanitizeFeedbackMemoryExperience(
+      input.outcomeClosure,
+      'dialogue-feedback',
+      expectedOwner,
+      options.sanitizeText,
+    )
+    if (!feedbackExperience)
       return
 
     const events = await options.alicizationDb.listMindTurnEvents({
@@ -341,7 +442,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
       return
 
     const coherenceEvent = events.find(event => event.kind === 'reply-memory-coherence') ?? null
-    const feedbackExperience = sanitizeFeedbackMemoryExperience(input.feedbackExperience, options.sanitizeText)
     const feedbackExperienceTexts = collectFeedbackExperienceTexts(feedbackExperience)
     const selectedSituations = collectRecallSituations(recallEvent.payload, options.sanitizeText)
     const recallTexts = uniqueReconsolidationTexts([
@@ -353,8 +453,7 @@ export function createAlicizationRuntimeMemoryReconsolidation(
 
     const coherence = collectReplyMemoryCoherenceState(coherenceEvent?.payload ?? null, options.sanitizeText)
     const feedbackSeed = [
-      input.userText,
-      input.previousAssistantText,
+      `feedback:${input.feedback}`,
       ...recallTexts,
       coherence.coherenceState ? `coherence:${coherence.coherenceState}` : '',
     ].filter(Boolean).join(' | ')
@@ -362,8 +461,8 @@ export function createAlicizationRuntimeMemoryReconsolidation(
     const reconsolidated = await options.alicizationDb.searchEpisodicEvents({
       recallSeed: feedbackSeed,
       limit: 4,
-      sessionId: input.sessionId,
-      turnId: input.turnId,
+      sessionId: expectedOwner.sessionId,
+      turnId: expectedOwner.turnId,
       affectAnchors: [
         `feedback:${input.feedback}`,
         input.feedback === 'missed' ? 'missed answer repair pressure' : '',
@@ -378,8 +477,7 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         ...(feedbackExperience?.tags ?? []).map(tag => `experience-tag:${tag}`),
       ].filter(Boolean),
       relationshipAnchors: [
-        'host correction',
-        input.userText,
+        `dialogue-feedback:${input.feedback}`,
         feedbackExperience?.relationshipMeaning ?? '',
         ...selectedSituations.flatMap(item => ([
           item.relationshipContext ?? '',
@@ -392,7 +490,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         mode: 'relationship-history',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: true,
         searchProceduralExperience: true,
         queryHints: recallTexts.slice(0, 10),
         rationale: buildDialogueFeedbackReconsolidationRationale(input.feedback),
@@ -440,8 +537,8 @@ export function createAlicizationRuntimeMemoryReconsolidation(
 
     await options.alicizationDb.appendMindTurnEvents([{
       decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
+      turnId: expectedOwner.turnId,
+      sessionId: expectedOwner.sessionId,
       origin: 'user-turn',
       kind: 'memory-reconsolidated',
       payload: {
@@ -473,39 +570,54 @@ export function createAlicizationRuntimeMemoryReconsolidation(
 
   const reconsolidateExecutionResultFeedbackMemoryTrace = async (input: {
     cardId: string
-    decisionTraceId: string | null
     feedback: AlicizationExecutionResultFeedbackKind | null
-    previousAssistantText: string
-    userText: string
-    sessionId: string | null
-    turnId: string | null
     at: number
-    goal: string
-    outcome?: string | null
-    feedbackExperience?: AlicizationFeedbackMemoryExperience | null
+    executionResult: AlicizationTrustedExecutionResultEvidence
+    outcomeClosure: AlicizationOutcomeClosureResult
     memoryClosureExecution?: AlicizationExecutionRuntimeMemoryClosureExecution | null
     safetyGateSummary?: string | null
     resumeConfirmationSummary?: string | null
   }) => {
-    const decisionTraceId = options.sanitizeMindGovernanceDecisionTraceId(input.decisionTraceId)
-    if (!decisionTraceId || !input.feedback)
+    const executionResult = sanitizeTrustedExecutionResultEvidence(input.executionResult, options.sanitizeText)
+    if (
+      !executionResult
+      || executionResult.cardId !== options.sanitizeText(input.cardId, '').slice(0, 120)
+      || !input.feedback
+    ) {
+      return
+    }
+    const decisionTraceId = options.sanitizeMindGovernanceDecisionTraceId(executionResult.decisionTraceId)
+    if (!decisionTraceId)
+      return
+
+    const expectedOwner = sanitizeFeedbackMemoryExperienceOwner({
+      cardId: executionResult.cardId,
+      decisionTraceId,
+      sessionId: executionResult.sessionId,
+    }, options.sanitizeText)
+    if (!expectedOwner)
       return
 
     const safetyGateSummary = options.sanitizeText(input.safetyGateSummary, '').slice(0, 240) || null
     const resumeConfirmationSummary = options.sanitizeText(input.resumeConfirmationSummary, '').slice(0, 360) || null
-    const feedbackExperience = sanitizeFeedbackMemoryExperience(input.feedbackExperience, options.sanitizeText)
+    const feedbackExperience = sanitizeFeedbackMemoryExperience(
+      input.outcomeClosure,
+      'execution-result',
+      expectedOwner,
+      options.sanitizeText,
+    )
+    if (!feedbackExperience)
+      return
     const feedbackExperienceTexts = collectFeedbackExperienceTexts(feedbackExperience)
     const memoryClosureExecution = sanitizeMemoryClosureExecution(input.memoryClosureExecution, options.sanitizeText)
     const memoryClosureExecutionTexts = collectMemoryClosureExecutionTexts(memoryClosureExecution)
     const recallTexts = uniqueReconsolidationTexts([
       ...memoryClosureExecutionTexts,
       ...feedbackExperienceTexts,
-      options.sanitizeText(input.goal, '').slice(0, 180),
-      options.sanitizeText(input.outcome, '').slice(0, 180),
+      executionResult.goal,
+      executionResult.outcome,
       safetyGateSummary,
       resumeConfirmationSummary,
-      options.sanitizeText(input.previousAssistantText, '').slice(0, 180),
-      options.sanitizeText(input.userText, '').slice(0, 180),
     ], 12)
     if (recallTexts.length === 0)
       return
@@ -514,11 +626,11 @@ export function createAlicizationRuntimeMemoryReconsolidation(
     const reconsolidated = await options.alicizationDb.searchEpisodicEvents({
       recallSeed: feedbackSeed,
       limit: 4,
-      sessionId: input.sessionId,
-      turnId: input.turnId,
+      sessionId: executionResult.sessionId,
+      turnId: executionResult.turnId,
       affectAnchors: [
         `execution-feedback:${input.feedback}`,
-        `goal:${options.sanitizeText(input.goal, '').slice(0, 120)}`,
+        `goal:${executionResult.goal.slice(0, 120)}`,
         memoryClosureExecution?.nextLearningAction ? `memory-os-learning:${memoryClosureExecution.nextLearningAction}` : '',
         memoryClosureExecution?.shouldVerify ? 'memory-os-verify' : '',
         memoryClosureExecution?.shouldReflect ? 'memory-os-reflect' : '',
@@ -528,7 +640,7 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         ...(feedbackExperience?.tags ?? []).map(tag => `experience-tag:${tag}`),
       ].filter((value): value is string => Boolean(value)),
       relationshipAnchors: [
-        'execution callback return',
+        `execution-feedback:${input.feedback}`,
         memoryClosureExecution ? 'Memory OS execution carry' : '',
         ...(memoryClosureExecution?.activeLearningFocuses ?? []),
         safetyGateSummary ? 'execution safety restraint' : '',
@@ -536,7 +648,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         resumeConfirmationSummary ? 'execution resume confirmation' : '',
         resumeConfirmationSummary ? options.sanitizeText(resumeConfirmationSummary.match(/\bapproval=\S+/u)?.[0], '').replace(/^approval=/u, '').slice(0, 80) : '',
         resumeConfirmationSummary ? options.sanitizeText(resumeConfirmationSummary.match(/\baudit=\S+/u)?.[0], '').slice(0, 80) : '',
-        input.userText,
         feedbackExperience?.relationshipMeaning ?? '',
       ].filter((value): value is string => Boolean(value)),
       carryAsMemory: true,
@@ -544,7 +655,6 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         mode: 'relationship-history',
         temporalFocus: 'experience-matched',
         searchEpisodes: true,
-        searchConversations: true,
         searchProceduralExperience: true,
         queryHints: recallTexts,
         rationale: [
@@ -557,7 +667,7 @@ export function createAlicizationRuntimeMemoryReconsolidation(
         ].filter(Boolean).join(' '),
         confidence: 0.8,
         recollectionAgenda: {
-          whyRecallNow: `source=execution-feedback | target=goal | goal=${options.sanitizeText(input.goal, 'execution').slice(0, 120)}`,
+          whyRecallNow: `source=execution-feedback | target=goal | goal=${executionResult.goal.slice(0, 120)}`,
           goalSimilarity: 0.84,
           relationshipNeed: 0.74,
           affectivePull: 0.42,
@@ -601,15 +711,16 @@ export function createAlicizationRuntimeMemoryReconsolidation(
 
     await options.alicizationDb.appendMindTurnEvents([{
       decisionTraceId,
-      turnId: input.turnId,
-      sessionId: input.sessionId,
+      turnId: executionResult.turnId,
+      sessionId: executionResult.sessionId,
       origin: 'user-turn',
       kind: 'memory-reconsolidated',
       payload: {
         source: 'execution-result-feedback',
         feedback: input.feedback,
-        goal: options.sanitizeText(input.goal, '').slice(0, 180),
-        outcome: options.sanitizeText(input.outcome, '').slice(0, 180) || null,
+        executionResult,
+        goal: executionResult.goal,
+        outcome: executionResult.outcome,
         feedbackExperience,
         memoryClosureExecution,
         safetyGateSummary,

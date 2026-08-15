@@ -523,6 +523,108 @@ describe('task-thread dispatcher', () => {
     })
   })
 
+  it('pauses a mutating task when an adapter rejection leaves side effects unknown', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-edit',
+      goal: 'Apply the repository change exactly once.',
+    }))
+    executeCodexTaskThreadMock.mockRejectedValueOnce(
+      new Error('Codex process exited after mutation dispatch.'),
+    )
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Apply the repository change exactly once.',
+        sandbox: 'workspace-write',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      workspaceRoot: process.cwd(),
+      now: () => 235,
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'paused',
+      errorCode: 'TASK_THREAD_ADAPTER_REJECTED',
+      thread: {
+        status: 'paused',
+        completedAt: null,
+      },
+    })
+    expect(port.appendExecutionEvents.mock.calls.flatMap(([events]) => events)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'result',
+          threadStatus: 'paused',
+          payload: expect.objectContaining({
+            sideEffectState: 'unknown',
+            failureDisposition: {
+              kind: 'recover',
+              reasonCode: 'SIDE_EFFECT_RECONCILIATION_REQUIRED',
+            },
+          }),
+        }),
+      ]),
+    )
+  })
+
+  it('keeps an observing task failed when its adapter rejects before any mutation', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+      goal: 'Inspect the repository.',
+      metadata: {
+        task: {
+          permissionMode: 'implicit',
+          effect: 'observe',
+        },
+      },
+    }))
+    executeCodexTaskThreadMock.mockRejectedValueOnce(
+      new Error('Codex inspection process exited.'),
+    )
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Inspect the repository.',
+        sandbox: 'read-only',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      workspaceRoot: process.cwd(),
+      now: () => 236,
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'failed',
+      errorCode: 'TASK_THREAD_ADAPTER_REJECTED',
+      thread: {
+        status: 'failed',
+      },
+    })
+    expect(port.appendExecutionEvents.mock.calls.flatMap(([events]) => events)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'result',
+          threadStatus: 'failed',
+          payload: expect.objectContaining({
+            sideEffectState: 'none',
+            failureDisposition: {
+              kind: 'terminal',
+              finalStatus: 'failed',
+              reasonCode: 'ADAPTER_EXECUTION_FAILED',
+            },
+          }),
+        }),
+      ]),
+    )
+  })
+
   it('preserves an unrecoverable adapter dead-letter settlement as its own terminal state', async () => {
     const port = createPort(createThread({
       selectedChannel: 'codex',
@@ -595,6 +697,12 @@ describe('task-thread dispatcher', () => {
       proposedChannel: 'codex',
       kind: 'codebase-investigation',
       goal: 'Inspect the repository.',
+      metadata: {
+        task: {
+          permissionMode: 'implicit',
+          effect: 'observe',
+        },
+      },
     }))
     const controller = new AbortController()
     executeCodexTaskThreadMock.mockImplementationOnce(async () => {
@@ -642,6 +750,12 @@ describe('task-thread dispatcher', () => {
       proposedChannel: 'codex',
       kind: 'codebase-investigation',
       goal: 'Inspect the repository.',
+      metadata: {
+        task: {
+          permissionMode: 'implicit',
+          effect: 'observe',
+        },
+      },
     }))
     const controller = new AbortController()
     executeCodexTaskThreadMock.mockImplementationOnce(async () => {
@@ -1311,6 +1425,12 @@ describe('task-thread dispatcher', () => {
       proposedChannel: 'codex',
       kind: 'codebase-investigation',
       goal: 'Inspect the repository.',
+      metadata: {
+        task: {
+          permissionMode: 'implicit',
+          effect: 'observe',
+        },
+      },
     }))
     executeCodexTaskThreadMock.mockRejectedValueOnce(Object.assign(
       new Error('Codex produced no semantic progress for 180000ms.'),

@@ -123,8 +123,8 @@ describe('runtime soul persona kernel seeding', () => {
         alicizationName: '小艾',
         relationship: '女仆',
       },
-      customDirectives: '先接住主人情绪，再给建议。',
     })
+    expect(JSON.parse(frontmatter.core_incarnation)).not.toHaveProperty('customDirectives')
     expect(frontmatter.core_incarnation).not.toContain('Respond from')
   })
 

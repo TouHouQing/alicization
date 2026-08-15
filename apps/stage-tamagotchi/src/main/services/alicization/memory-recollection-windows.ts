@@ -52,12 +52,10 @@ const pickDominantProvenance = pickDominantAlicizationMemoryProvenance
 export function buildMemoryRecollectionWindows(input: {
   intent: AlicizationMemoryRecollectionIntentSnapshot | null | undefined
   episodes?: AlicizationEpisodicEventRecord[] | null
-  conversationHistory?: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']> | null
 }): AlicizationMemoryRecollectionWindow[] {
   const intent = input.intent ?? null
   const episodes = input.episodes ?? []
-  const conversations = input.conversationHistory ?? []
-  if (!intent || (episodes.length === 0 && conversations.length === 0))
+  if (!intent || episodes.length === 0)
     return []
 
   const buckets = new Map<string, {
@@ -65,7 +63,6 @@ export function buildMemoryRecollectionWindows(input: {
     endedAt: number
     labelHint: string
     episodeCount: number
-    conversationCount: number
     score: number
     provenances: AlicizationMemoryProvenance[]
     cues: string[]
@@ -80,7 +77,6 @@ export function buildMemoryRecollectionWindows(input: {
       endedAt: event.occurredAt,
       labelHint: sanitizeText(event.threadAnchor || event.whereSummary || '', 120),
       episodeCount: 0,
-      conversationCount: 0,
       score: 0,
       provenances: [],
       cues: [],
@@ -106,36 +102,6 @@ export function buildMemoryRecollectionWindows(input: {
     buckets.set(keyBase, bucket)
   }
 
-  for (const turn of conversations) {
-    const keyBase = intent.temporalFocus === 'experience-matched'
-      ? sanitizeText(turn.sessionId, 80) || buildDayKey(turn.createdAt)
-      : buildDayKey(turn.createdAt)
-    const bucket = buckets.get(keyBase) ?? {
-      startedAt: turn.createdAt,
-      endedAt: turn.createdAt,
-      labelHint: '',
-      episodeCount: 0,
-      conversationCount: 0,
-      score: 0,
-      provenances: [],
-      cues: [],
-    }
-    bucket.startedAt = Math.min(bucket.startedAt, turn.createdAt)
-    bucket.endedAt = Math.max(bucket.endedAt, turn.createdAt)
-    bucket.conversationCount += 1
-    bucket.score += 0.16
-    if (intent.mode === 'conversation-history')
-      bucket.score += 0.1
-    bucket.provenances.push('reconstructed')
-    bucket.cues.push(...uniqueList([
-      turn.userText,
-      turn.assistantText,
-    ], 2))
-    if (!bucket.labelHint)
-      bucket.labelHint = sanitizeText(turn.userText || turn.assistantText, 120)
-    buckets.set(keyBase, bucket)
-  }
-
   return [...buckets.entries()]
     .map(([id, bucket]) => {
       const labelBase = bucket.labelHint || buildDayKey(bucket.startedAt)
@@ -152,7 +118,7 @@ export function buildMemoryRecollectionWindows(input: {
         ),
         startedAt: bucket.startedAt,
         endedAt: bucket.endedAt,
-        confidence: clamp01(Math.min(1, bucket.score / Math.max(1, bucket.episodeCount + bucket.conversationCount))),
+        confidence: clamp01(Math.min(1, bucket.score / Math.max(1, bucket.episodeCount))),
         dominantProvenance: pickDominantProvenance(bucket.provenances),
         cues: uniqueList(bucket.cues, 5),
       } satisfies AlicizationMemoryRecollectionWindow

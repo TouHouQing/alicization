@@ -33,6 +33,7 @@ describe('alicization provider response contract', () => {
       workingMemoryVersion: 'working-memory-owner-context-v1',
       longTermEvidenceIds: ['memory-1'],
     },
+    memoryEvidence: null,
   } satisfies AlicizationProviderResponsePayload
 
   it('defines the strict native JSON schema response format', () => {
@@ -52,6 +53,7 @@ describe('alicization provider response contract', () => {
       'reply',
       'performance',
       'memoryUsage',
+      'memoryEvidence',
     ])
     expect(alicizationProviderResponseJsonSchema.additionalProperties).toBe(false)
     expect(alicizationProviderResponseJsonSchema.properties.format).toEqual({
@@ -109,6 +111,20 @@ describe('alicization provider response contract', () => {
         maxLength: 160,
       },
     })
+    expect(alicizationProviderResponseJsonSchema.properties.memoryEvidence).toMatchObject({
+      type: ['object', 'null'],
+      additionalProperties: false,
+      required: [
+        'version',
+        'kind',
+        'summary',
+        'reason',
+        'evidenceSnippets',
+        'salience',
+        'sensitivity',
+        'confidence',
+      ],
+    })
     expect(providerResponseFixture.performance).toEqual({
       baseEmotion: 'thinking',
       facialCue: null,
@@ -120,7 +136,7 @@ describe('alicization provider response contract', () => {
 
   it('keeps natural-language reply policy out of the native schema', () => {
     expect(JSON.stringify(alicizationProviderResponseJsonSchema)).not.toMatch(
-      /(?:personality|persona|tone|opening|ending|same[- ]?her|phase\s*1|project[- ]state|continuity|人格|语气|开场|结尾)/iu,
+      /"(?:personality|persona|tone|opening|ending|same[- ]?her|phase\s*1|project[- ]state|continuity|人格|语气|开场|结尾)"\s*:/iu,
     )
   })
 

@@ -539,7 +539,7 @@ describe('buildDiscourseState', () => {
     })
 
     expect(state?.ruptureRepair).toBe('Keep the continuity repair line active instead of reopening from temporary noise.')
-    expect(state?.narrative).toContain('repair:Keep the continuity repair line active instead of reopening from temporary')
+    expect(state?.narrative.join(' | ')).not.toContain('temporary wobble')
     expect(state?.ruptureRepair).not.toContain('temporary wobble')
   })
 })

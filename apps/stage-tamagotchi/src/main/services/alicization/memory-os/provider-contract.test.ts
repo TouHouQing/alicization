@@ -53,7 +53,6 @@ describe('memory-os Provider contracts', () => {
         'mode',
         'temporalFocus',
         'searchEpisodes',
-        'searchConversations',
         'searchProceduralExperience',
         'queryHints',
         'rationale',
@@ -108,5 +107,22 @@ describe('memory-os Provider contracts', () => {
     })
     expect(schema.properties).not.toHaveProperty('inwardLine')
     expect(schema.properties).not.toHaveProperty('visibleLine')
+  })
+
+  it('does not expose raw conversation transcript selection in any Provider contract', () => {
+    const serializedContracts = JSON.stringify([
+      alicizationMemoryRecollectionIntentResponseFormat,
+      alicizationMemoryRecollectionPlanResponseFormat,
+      alicizationMemoryRecollectionSpeechPlanResponseFormat,
+      alicizationMemoryDeliberationResponseFormat,
+    ])
+
+    expect(serializedContracts).not.toContain('searchConversations')
+    expect(serializedContracts).not.toContain('conversation-history')
+    expect(serializedContracts).not.toContain('selectedConversationTurnIds')
+    expect(serializedContracts).not.toContain('conversationTurnId')
+    expect(serializedContracts).not.toContain('conversation-turn')
+    expect(serializedContracts).not.toContain('expand-conversation')
+    expect(serializedContracts).not.toContain('need-conversation-evidence')
   })
 })

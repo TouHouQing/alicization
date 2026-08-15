@@ -24,13 +24,6 @@ interface DialogueFeedbackConversationRow {
   createdAt: number
 }
 
-interface AlicizationFeedbackMemoryExperience {
-  felt?: string | null
-  relationshipMeaning?: string | null
-  lesson?: string | null
-  tags?: string[] | null
-}
-
 function extractStructuredAffectiveResidue(
   structured: Record<string, unknown> | null,
 ): AlicizationAffectiveResidueMemorySnapshot | null {
@@ -42,41 +35,6 @@ function extractStructuredAffectiveResidue(
 
   const derivedMindStateBundle = normalizeAlicizationDerivedMindStateBundle(structured?.derivedMindStateBundle ?? null)
   return readAffectiveResidueFromDerivedMindStateBundle(derivedMindStateBundle)
-}
-
-function extractDialogueFeedbackExperienceFromClosure(
-  closure: {
-    episodicEvents?: Array<{
-      sourceKind?: unknown
-      felt?: unknown
-      relationshipMeaning?: unknown
-      lesson?: unknown
-      tags?: unknown
-    }>
-  } | null | undefined,
-  sanitizeText: CreateAlicizationRuntimeDialogueFeedbackOptions['sanitizeText'],
-): AlicizationFeedbackMemoryExperience | null {
-  const event = closure?.episodicEvents?.find(item => sanitizeText(item?.sourceKind, '') === 'dialogue-feedback')
-    ?? closure?.episodicEvents?.[0]
-  if (!event)
-    return null
-
-  const tags = Array.isArray(event.tags)
-    ? event.tags.map(tag => sanitizeText(tag, '').slice(0, 64)).filter(Boolean).slice(0, 12)
-    : []
-  const felt = sanitizeText(event.felt, '').slice(0, 220) || null
-  const relationshipMeaning = sanitizeText(event.relationshipMeaning, '').slice(0, 240) || null
-  const lesson = sanitizeText(event.lesson, '').slice(0, 240) || null
-
-  if (!felt && !relationshipMeaning && !lesson && tags.length === 0)
-    return null
-
-  return {
-    felt,
-    relationshipMeaning,
-    lesson,
-    tags,
-  }
 }
 
 interface CreateAlicizationRuntimeDialogueFeedbackOptions {
@@ -101,12 +59,10 @@ interface CreateAlicizationRuntimeDialogueFeedbackOptions {
       cardId: string
       decisionTraceId: string | null
       feedback: AlicizationDialogueReplyFeedbackKind | null
-      previousAssistantText: string
-      userText: string
       sessionId: string | null
       turnId: string | null
       at: number
-      feedbackExperience?: AlicizationFeedbackMemoryExperience | null
+      outcomeClosure: ReturnType<typeof attachSynthesizedReflections>
     }) => Promise<void>
   }
   alicizationDb: {
@@ -220,18 +176,15 @@ export function createAlicizationRuntimeDialogueFeedback(
       previousAssistantText: latest.assistantText ?? '',
       affectiveResidue,
     }))
-    const feedbackExperience = extractDialogueFeedbackExperienceFromClosure(closure, options.sanitizeText)
     await options.persistOutcomeClosure(cardId, closure)
     await options.memoryReconsolidationRuntime.reconsolidateDialogueFeedbackMemoryTrace({
       cardId,
       decisionTraceId,
       feedback,
-      previousAssistantText: latest.assistantText ?? '',
-      userText,
       sessionId,
       turnId: options.sanitizeText(latest.turnId, '') || null,
       at,
-      feedbackExperience,
+      outcomeClosure: closure,
     })
     const previousDynamics = await options.alicizationDb.getLatestRelationshipDynamics().catch(() => null)
     const hostAttitude = `dialogue_feedback=${feedback}`

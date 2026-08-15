@@ -11,7 +11,6 @@ import { normalizeAlicizationMemorySituationCandidateSet } from '@proj-alicizati
 const validSituationSourceKinds = [
   'event-graph',
   'episodic-event',
-  'conversation-turn',
   'fact',
   'consolidation',
   'procedure',
@@ -313,7 +312,6 @@ export function buildMemorySituationCompetition(input: {
   eventGraphCandidates?: AlicizationMemorySituationCandidateSet | null
   retrievedFacts?: OrganicMemoryPromptContext['retrievedFacts']
   recalledEpisodes?: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-  recalledConversationHistory?: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   consolidatedMemories?: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
   proceduralMemories?: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
   hostAttitude?: OrganicMemoryPromptContext['hostAttitude']
@@ -393,22 +391,6 @@ export function buildMemorySituationCompetition(input: {
       procedureKey: episode.threadAnchor ?? null,
       baseConfidence: episode.confidence ?? 0.48,
       latencyCost: 0.28,
-    }))
-  }
-
-  for (const turn of input.recalledConversationHistory ?? []) {
-    const id = turn.turnId ?? `${turn.sessionId}:${turn.createdAt}`
-    candidates.push(createCandidate({
-      candidateId: `conversation:${id}`,
-      sourceKinds: ['conversation-turn'],
-      situationKind: 'mixed',
-      selectedEvidenceIds: [id],
-      queryTexts,
-      candidateTexts: [turn.userText, turn.assistantText],
-      summary: uniqueList([turn.userText, turn.assistantText], 2).join(' | '),
-      evidenceSummary: `session=${turn.sessionId}`,
-      baseConfidence: 0.42,
-      latencyCost: 0.22,
     }))
   }
 

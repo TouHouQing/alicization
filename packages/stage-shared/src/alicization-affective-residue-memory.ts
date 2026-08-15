@@ -97,13 +97,10 @@ function summarizeOutcomePressure(outcomes: AlicizationRelationshipOutcomeRecord
 
 function summarizeReflectionPressure(reflections: AlicizationMemoryReflectionRecord[]) {
   return reflections.reduce<AlicizationAffectivePressureVector>((acc, reflection) => {
-    const weight = reflection.status === 'confirmed'
-      ? 1
-      : reflection.status === 'pending'
-        ? 0.72
-        : reflection.status === 'superseded'
-          ? 0.32
-          : 0.18
+    if (reflection.status !== 'confirmed')
+      return acc
+
+    const weight = 1
     if (reflection.targetScope === 'relationship') {
       acc.afterglow += 0.08 * weight
       acc.trust += 0.18 * weight
@@ -271,7 +268,9 @@ export function buildAlicizationAffectiveResidueMemory(input: {
   relationshipDynamics?: AlicizationAffectiveResidueRelationshipDynamicsInput | null
 }) {
   const outcomes = input.recentRelationshipOutcomes?.slice(0, 8) ?? []
-  const reflections = input.recentMemoryReflections?.slice(0, 8) ?? []
+  const reflections = (input.recentMemoryReflections ?? [])
+    .filter(reflection => reflection.status === 'confirmed')
+    .slice(0, 8)
   const continuity = input.personalityContinuityState ?? null
   const personStateSummary = input.personStateEvolutionSummary ?? null
   const hostPersonModel = input.hostPersonModel ?? null

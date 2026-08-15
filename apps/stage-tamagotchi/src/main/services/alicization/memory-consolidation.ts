@@ -385,7 +385,6 @@ export function buildMemoryConsolidationRecords(input: {
       mode: 'execution-procedure',
       temporalFocus: 'experience-matched',
       searchEpisodes: true,
-      searchConversations: false,
       searchProceduralExperience: true,
       queryHints: [],
       rationale: 'consolidation:procedural-abstraction',
@@ -441,7 +440,6 @@ export function searchMemoryConsolidationRecords(input: {
     mode: 'none' | 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
     temporalFocus: 'recent' | 'recent-or-mid' | 'cross-session' | 'experience-matched' | 'distant'
     searchEpisodes: boolean
-    searchConversations: boolean
     searchProceduralExperience: boolean
     queryHints: string[]
     rationale: string

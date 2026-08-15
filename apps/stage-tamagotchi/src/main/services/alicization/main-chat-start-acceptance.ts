@@ -10,6 +10,8 @@ import type {
   MainGatewayResolvedConfig,
 } from './runtime-soul'
 
+import { createAlicizationRuntimeToolProjectionReducer } from '@proj-alicization/stage-shared'
+
 import { readTransportContentAsText } from './runtime-transport-content'
 
 interface AlicizationMainChatRunStateReadFacade {
@@ -149,6 +151,7 @@ export async function acceptAlicizationMainChatStart(
     rawChunkChars: 0,
     state: 'running',
     toolProgressListeners: new Set(),
+    toolProjection: createAlicizationRuntimeToolProjectionReducer(),
   }
   input.registerRun(key, runState)
 

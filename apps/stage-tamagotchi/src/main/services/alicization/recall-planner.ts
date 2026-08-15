@@ -41,7 +41,6 @@ export interface AlicizationRecallPlannerDecision {
   selectedWindowIds: string[]
   selectedProcedureIds: string[]
   selectedEpisodeIds: string[]
-  selectedConversationTurnIds: string[]
   selectedEraIds: string[]
   selectedRelationshipLines: string[]
   whyThisMemory: string | null
@@ -70,7 +69,6 @@ export interface AlicizationRecallPlannerInput {
   recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
   proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
   recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-  recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   retrievalHealth?: AlicizationMemoryRetrievalHealth | null
   clusterContext?: AlicizationRecallPlannerClusterContext | null
   reconstructionContext?: AlicizationRecallPlannerReconstructionContext | null
@@ -196,11 +194,9 @@ function deriveRelationshipLines(input: {
   recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
   selectedConsolidationIds: Set<string>
   selectedEpisodeIds: Set<string>
-  selectedConversationTurnIds: Set<string>
 }) {
   const selectedConsolidationIds = new Set([...input.selectedConsolidationIds].map(normalizeMemoryPlanningId))
   const selectedEpisodeIds = new Set([...input.selectedEpisodeIds].map(normalizeMemoryPlanningId))
-  const selectedConversationTurnIds = new Set([...input.selectedConversationTurnIds].map(normalizeMemoryPlanningId))
   return uniqueList([
     ...input.relationshipLineCandidates
       .filter((item) => {
@@ -209,7 +205,7 @@ function deriveRelationshipLines(input: {
           return selectedConsolidationIds.has(sourceId)
         if (item.sourceKind === 'episode')
           return selectedEpisodeIds.has(sourceId)
-        return selectedConversationTurnIds.has(sourceId)
+        return false
       })
       .map(item => item.line),
     ...input.recalledEpisodes
@@ -371,7 +367,6 @@ function buildNormalizedRecollectionPlan(input: {
   selectedWindowIds: string[]
   selectedProcedureIds: string[]
   selectedEpisodeIds: string[]
-  selectedConversationTurnIds: string[]
   selectedRelationshipLines: string[]
   certainty: RecollectionPlanSnapshot['certainty']
   confidence: number
@@ -413,7 +408,6 @@ function buildNormalizedRecollectionPlan(input: {
     selectedWindowIds: input.selectedWindowIds,
     selectedProceduralIds: input.selectedProcedureIds,
     selectedEpisodeIds: input.selectedEpisodeIds,
-    selectedConversationTurnIds: input.selectedConversationTurnIds,
     selectedRelationshipLines: input.selectedRelationshipLines,
     searchTrace,
     opening: '',
@@ -457,10 +451,6 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
     input.recalledEpisodes,
     item => item.id,
   )
-  const conversationTurnIdIndex = buildUniqueMemoryPlanningOwnerIdIndex(
-    input.recalledConversationHistory,
-    item => item.turnId,
-  )
   const eraIdIndex = buildUniqueMemoryPlanningOwnerIdIndex([
     ...input.consolidatedMemories.map(item => ({ id: item.id })),
     ...input.recollectedWindows.map(item => ({ id: item.id })),
@@ -470,7 +460,6 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
     ...input.recollectedWindows.map(item => ({ id: item.id })),
     ...input.proceduralMemories.map(item => ({ id: item.id })),
     ...input.recalledEpisodes.map(item => ({ id: item.id })),
-    ...input.recalledConversationHistory.map(item => ({ id: item.turnId })),
   ], item => item.id)
 
   const resolvedConsolidationIds = recallRequested
@@ -509,15 +498,6 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
         episodeIdIndex,
       )
     : []
-  const resolvedConversationTurnIds = recallRequested
-    ? resolveMemoryPlanningOwnerIds(
-        mergeSelectedIds({
-          primary: candidateDeliberation?.selectedConversationTurnIds,
-          secondary: candidatePlan?.selectedConversationTurnIds,
-        }),
-        conversationTurnIdIndex,
-      )
-    : []
   const resolvedEraIds = recallRequested
     ? resolveMemoryPlanningOwnerIds(
         mergeSelectedIds({
@@ -533,7 +513,6 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
     || resolvedWindowIds.length > 0
     || resolvedProcedureIds.length > 0
     || resolvedEpisodeIds.length > 0
-    || resolvedConversationTurnIds.length > 0
     || resolvedEraIds.length > 0
   const baseShouldRecall = recallRequested && hasSelectedOwner
   const weakRecallCandidate = !candidateDeliberation
@@ -546,12 +525,10 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
   const selectedWindowIds = shouldRecall ? resolvedWindowIds : []
   const selectedProcedureIds = shouldRecall ? resolvedProcedureIds : []
   const selectedEpisodeIds = shouldRecall ? resolvedEpisodeIds : []
-  const selectedConversationTurnIds = shouldRecall ? resolvedConversationTurnIds : []
   const selectedEraIds = shouldRecall ? resolvedEraIds : []
 
   const selectedEpisodeIdSet = new Set(selectedEpisodeIds)
   const selectedConsolidationIdSet = new Set(selectedConsolidationIds)
-  const selectedConversationTurnIdSet = new Set(selectedConversationTurnIds)
   const selectedEpisodes = input.recalledEpisodes.filter(item => selectedEpisodeIdSet.has(item.id))
   const selectedPeriods = [
     ...input.recollectedWindows
@@ -575,7 +552,6 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
         recalledEpisodes: input.recalledEpisodes,
         selectedConsolidationIds: selectedConsolidationIdSet,
         selectedEpisodeIds: selectedEpisodeIdSet,
-        selectedConversationTurnIds: selectedConversationTurnIdSet,
       })
     : []
   const suppressionReasons = deriveSuppressionReasons({
@@ -685,7 +661,6 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
     selectedWindowIds,
     selectedProcedureIds,
     selectedEpisodeIds,
-    selectedConversationTurnIds,
     selectedRelationshipLines,
     certainty,
     confidence,
@@ -703,7 +678,6 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
         selectedWindowIds,
         selectedProcedureIds,
         selectedEpisodeIds,
-        selectedConversationTurnIds,
         selectedRelationshipLines,
         ambiguityPosture,
         searchTrace: recollectionPlan?.searchTrace ?? null,
@@ -738,7 +712,6 @@ export function planAlicizationRecall(input: AlicizationRecallPlannerInput): Ali
     selectedWindowIds,
     selectedProcedureIds,
     selectedEpisodeIds,
-    selectedConversationTurnIds,
     selectedEraIds,
     selectedRelationshipLines,
     whyThisMemory,

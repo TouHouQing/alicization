@@ -10,6 +10,12 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { cac } from 'cac'
 import { x } from 'tinyexec'
 
+import {
+  assertBuiltAppIsFresh,
+  readLocalMacAppCandidate,
+  selectLatestBuiltApp,
+} from './local-mac-app-source'
+
 const defaultIdentityName = 'Alicization Local Development'
 const defaultBundleIdentifier = 'com.tohoqing.alicization'
 const defaultDestination = join(homedir(), 'Applications', 'Alicization Local.app')
@@ -281,7 +287,12 @@ async function findBuiltApp(explicitPath?: string) {
   if (candidates.length === 0)
     throw new Error(`No built macOS app found under ${distRoot}. Run pnpm -F @proj-alicization/stage-tamagotchi build:unpack first.`)
 
-  return candidates[0]
+  const candidateMetadata = await Promise.all(candidates.map(readLocalMacAppCandidate))
+  const selected = selectLatestBuiltApp(candidateMetadata)
+  if (!selected)
+    throw new Error(`No usable built macOS app found under ${distRoot}.`)
+
+  return selected
 }
 
 async function readLocalSigningMetadata() {
@@ -611,6 +622,13 @@ async function main() {
   }
 
   const sourceAppPath = await findBuiltApp(options.source)
+  const currentMainBundlePath = resolve(import.meta.dirname, '..', 'out', 'main', 'index.js')
+  if (existsSync(currentMainBundlePath)) {
+    await assertBuiltAppIsFresh({
+      appPath: sourceAppPath,
+      mainBundlePath: currentMainBundlePath,
+    })
+  }
   const identity = await resolveSigningIdentity(options.identity)
 
   console.info(`Using source app: ${sourceAppPath}`)

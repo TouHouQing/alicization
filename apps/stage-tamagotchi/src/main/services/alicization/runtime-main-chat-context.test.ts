@@ -1,10 +1,12 @@
 import type { AlicizationChatStartPayload } from '../../../shared/eventa'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { createAlicizationMainChatContextRuntime } from './runtime-main-chat-context'
 
-function createRuntime() {
+function createRuntime(
+  overrides: Partial<Parameters<typeof createAlicizationMainChatContextRuntime>[0]> = {},
+) {
   return createAlicizationMainChatContextRuntime({
     getActiveCardId: () => 'default',
     normalizeOrganicRecallText: raw => raw.trim(),
@@ -14,16 +16,38 @@ function createRuntime() {
     ensureActiveOrLatestSessionId: async () => 'session-1',
     buildPendingExecutionCallbackContext: async () => ({} as never),
     buildExecutionLedgerContext: async () => ({} as never),
-    resolveRecentContextualTurns: async () => [],
-    shouldExtendContextualRecall: () => false,
     resolveInspectionIntentFromMessageHistory: () => true,
     detectInvitedInspectionIntent: message => ({
       active: message.includes('inspect'),
     }),
+    ...overrides,
   })
 }
 
 describe('runtime main chat context', () => {
+  it('builds contextual recall seed only from the current user input without querying old DB turns', async () => {
+    const ensureActiveOrLatestSessionId = vi.fn(async () => 'session-with-old-db-turns')
+    const runtime = createRuntime({
+      ensureActiveOrLatestSessionId,
+      resolveInspectionIntentFromMessageHistory: () => false,
+    })
+
+    const contextual = await runtime.buildMainChatContextualString({
+      cardId: 'default',
+      turnId: 'turn-current-seed',
+      providerId: 'openai',
+      model: 'gpt-test',
+      providerConfig: {},
+      messages: [
+        { role: 'assistant', content: 'transport 中的旧回复' },
+        { role: 'user', content: '  只用当前输入召回  ' },
+      ],
+    } as AlicizationChatStartPayload)
+
+    expect(contextual).toBe('U: 只用当前输入召回')
+    expect(ensureActiveOrLatestSessionId).not.toHaveBeenCalled()
+  })
+
   it('removes stale inspection replies without inserting replacement history', () => {
     const hostFact = { role: 'system', content: '{"type":"host"}' } as const
     const staleInspectionRequest = { role: 'user', content: 'inspect the earlier screenshot' } as const

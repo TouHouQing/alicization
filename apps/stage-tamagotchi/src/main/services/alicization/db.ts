@@ -687,6 +687,7 @@ const taskThreadStatuses = new Set<AlicizationTaskThreadStatus>([
   'completed',
   'failed',
   'cancelled',
+  'dead-lettered',
 ])
 
 const terminalTaskThreadStatuses = new Set<AlicizationTaskThreadStatus>([
@@ -694,6 +695,7 @@ const terminalTaskThreadStatuses = new Set<AlicizationTaskThreadStatus>([
   'completed',
   'failed',
   'cancelled',
+  'dead-lettered',
 ])
 
 const executionEventKinds = new Set<AlicizationExecutionEventKind>([
@@ -1081,6 +1083,29 @@ function normalizeTaskThreadStatus(value: unknown): AlicizationTaskThreadStatus 
   return typeof value === 'string' && taskThreadStatuses.has(value as AlicizationTaskThreadStatus)
     ? value as AlicizationTaskThreadStatus
     : 'planned'
+}
+
+function shouldReplaceTaskThreadProjection(input: {
+  existingStatus: AlicizationTaskThreadStatus | null
+  existingCreatedAt: number
+  nextStatus: AlicizationTaskThreadStatus | null
+  nextCreatedAt: number
+}) {
+  const existingIsTerminal = input.existingStatus !== null
+    && terminalTaskThreadStatuses.has(input.existingStatus)
+  const nextIsTerminal = input.nextStatus !== null
+    && terminalTaskThreadStatuses.has(input.nextStatus)
+  if (existingIsTerminal && !nextIsTerminal)
+    return false
+
+  const existingIsDeadLettered = input.existingStatus === 'dead-lettered'
+  const nextIsDeadLettered = input.nextStatus === 'dead-lettered'
+  if (nextIsDeadLettered && !existingIsDeadLettered)
+    return true
+  if (existingIsTerminal && nextIsTerminal && existingIsDeadLettered && !nextIsDeadLettered)
+    return false
+
+  return input.existingCreatedAt <= input.nextCreatedAt
 }
 
 function normalizeExecutionEventKind(value: unknown) {
@@ -1550,6 +1575,7 @@ export interface AlicizationDbService {
   }) => Promise<AlicizationMindTurnEventRecord[]>
   getTaskThread: (id: string) => Promise<AlicizationTaskThreadRecord | undefined>
   upsertTaskThread: (input: AlicizationTaskThreadUpsertInput, options?: DbWriteOptions) => Promise<AlicizationTaskThreadRecord>
+  resumeTaskThread: (input: AlicizationTaskThreadResumeInput, options?: DbWriteOptions) => Promise<AlicizationTaskThreadRecord>
   listTaskThreads: (input?: AlicizationListTaskThreadsInput) => Promise<AlicizationTaskThreadRecord[]>
   upsertChannelCapabilityManifest: (input: AlicizationChannelCapabilityManifestUpsertInput, options?: DbWriteOptions) => Promise<AlicizationChannelCapabilityManifestRecord>
   listChannelCapabilityManifests: (input?: AlicizationListChannelCapabilityManifestsInput) => Promise<AlicizationChannelCapabilityManifestRecord[]>
@@ -1840,6 +1866,17 @@ export interface AlicizationDbService {
   }) => Promise<AlicizationLearningTaskRecord[]>
   getLatestLearningExecutionState: (cardId: string) => Promise<AlicizationLearningExecutionStateSnapshot | null>
   getJournalMode: () => Promise<string>
+}
+
+export interface AlicizationTaskThreadResumeInput {
+  event: AlicizationExecutionEventInput
+  expectedChannel: AlicizationExecutionChannel
+  expectedStatus: 'needs-affirmation' | 'paused'
+  expectedUpdatedAt: number
+  metadata: Record<string, unknown> | null
+  selectedChannel: AlicizationExecutionChannel
+  threadId: string
+  updatedAt: number
 }
 
 export async function setupAlicizationDb(
@@ -3973,7 +4010,8 @@ export async function setupAlicizationDb(
 ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_threads.updated_at + 1),
           last_event_at = excluded.last_event_at,
           completed_at = excluded.completed_at
-        WHERE ? IS NULL OR task_threads.updated_at = ?`}
+        WHERE (? IS NULL OR task_threads.updated_at = ?)
+          AND (task_threads.status != 'dead-lettered' OR excluded.status = 'dead-lettered')`}
         `,
         [
           id,
@@ -4019,6 +4057,161 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     const persistedThread = await getTaskThread(id)
     if (!persistedThread)
       throw new Error(`Task thread "${id}" disappeared after persistence.`)
+    return persistedThread
+  }
+
+  async function resumeTaskThread(input: AlicizationTaskThreadResumeInput, options?: DbWriteOptions) {
+    const threadId = input.threadId.trim()
+    const expectedChannel = normalizeExecutionChannel(input.expectedChannel)
+    const selectedChannel = normalizeExecutionChannel(input.selectedChannel)
+    const expectedStatus = input.expectedStatus
+    const expectedUpdatedAt = Number.isFinite(input.expectedUpdatedAt)
+      ? Math.max(0, Math.floor(input.expectedUpdatedAt))
+      : null
+    const eventThreadId = typeof input.event.threadId === 'string'
+      ? input.event.threadId.trim()
+      : ''
+    const eventKind = normalizeExecutionEventKind(input.event.kind)
+    const eventStatus = input.event.threadStatus
+      ? normalizeTaskThreadStatus(input.event.threadStatus)
+      : null
+    const eventChannel = normalizeExecutionChannel(input.event.channel)
+    if (
+      !threadId
+      || !expectedChannel
+      || !selectedChannel
+      || expectedUpdatedAt === null
+      || (expectedStatus !== 'needs-affirmation' && expectedStatus !== 'paused')
+      || eventThreadId !== threadId
+      || eventKind !== 'resume'
+      || eventStatus !== 'planned'
+      || eventChannel !== selectedChannel
+    ) {
+      throw new Error('resumeTaskThread requires one matching planned resume event.')
+    }
+
+    const updatedAt = Number.isFinite(input.updatedAt)
+      ? Math.max(0, Math.floor(input.updatedAt))
+      : now()
+    const eventCreatedAt = Number.isFinite(input.event.createdAt)
+      ? Math.max(0, Math.floor(Number(input.event.createdAt)))
+      : updatedAt
+    const eventId = typeof input.event.id === 'string' && input.event.id.trim()
+      ? input.event.id.trim().slice(0, 240)
+      : randomUUID()
+    const eventDecisionTraceId = typeof input.event.decisionTraceId === 'string' && input.event.decisionTraceId.trim()
+      ? input.event.decisionTraceId.trim()
+      : null
+    const eventTurnId = typeof input.event.turnId === 'string' && input.event.turnId.trim()
+      ? input.event.turnId.trim()
+      : null
+    const eventSessionId = typeof input.event.sessionId === 'string' && input.event.sessionId.trim()
+      ? input.event.sessionId.trim()
+      : null
+    const eventOrigin = normalizeExecutionOrigin({
+      origin: input.event.origin,
+      turnId: eventTurnId,
+    })
+    const eventPayloadJson = input.event.payload && typeof input.event.payload === 'object'
+      ? JSON.stringify(input.event.payload)
+      : null
+    const metadataJson = input.metadata && typeof input.metadata === 'object'
+      ? JSON.stringify(input.metadata)
+      : null
+    const eventPayload = input.event.payload && typeof input.event.payload === 'object' && !Array.isArray(input.event.payload)
+      ? input.event.payload as Record<string, unknown>
+      : null
+    const taskMetadata = input.metadata?.task && typeof input.metadata.task === 'object' && !Array.isArray(input.metadata.task)
+      ? input.metadata.task as Record<string, unknown>
+      : null
+    if (
+      expectedStatus === 'paused'
+      && (
+        eventPayload?.resumeMode !== 'recovery'
+        || taskMetadata?.effect !== 'observe'
+        || Object.hasOwn(eventPayload, 'approval')
+      )
+    ) {
+      throw new Error('paused recovery must be read-only and cannot carry confirmation semantics.')
+    }
+
+    assertWriteNotAborted(options)
+    await enqueueWrite(async () => {
+      assertWriteNotAborted(options)
+      await runInTransaction(database, async () => {
+        const update = await run(
+          database,
+          `
+          UPDATE task_threads
+          SET status = 'planned',
+              selected_channel = ?,
+              metadata_json = ?,
+              updated_at = MAX(?, updated_at + 1),
+              last_event_at = ?,
+              completed_at = NULL
+          WHERE id = ?
+            AND updated_at = ?
+            AND status = ?
+            AND COALESCE(selected_channel, proposed_channel) = ?
+          `,
+          [
+            selectedChannel,
+            metadataJson,
+            Math.max(updatedAt, eventCreatedAt),
+            eventCreatedAt,
+            threadId,
+            expectedUpdatedAt,
+            expectedStatus,
+            expectedChannel,
+          ],
+        )
+        if (update.changes === 0) {
+          const error = new Error(`Task thread ${threadId} changed before resume could be applied.`)
+          Object.assign(error, {
+            code: 'TASK_THREAD_VERSION_CONFLICT',
+            threadId,
+            expectedUpdatedAt,
+          })
+          throw error
+        }
+
+        await run(
+          database,
+          `
+          INSERT INTO executor_events (
+            id,
+            thread_id,
+            decision_trace_id,
+            turn_id,
+            session_id,
+            origin,
+            channel,
+            kind,
+            thread_status,
+            payload_json,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `,
+          [
+            eventId,
+            threadId,
+            eventDecisionTraceId,
+            eventTurnId,
+            eventSessionId,
+            eventOrigin,
+            eventChannel,
+            eventKind,
+            eventStatus,
+            eventPayloadJson,
+            eventCreatedAt,
+          ],
+        )
+      })
+    }, options)
+
+    const persistedThread = await getTaskThread(threadId)
+    if (!persistedThread)
+      throw new Error(`Task thread "${threadId}" disappeared after resume persistence.`)
     return persistedThread
   }
 
@@ -4598,14 +4791,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           }
 
           current.activityAt = Math.max(current.activityAt, event.createdAt)
-          const currentTerminal = current.statusEvent.threadStatus !== null
-            && terminalTaskThreadStatuses.has(current.statusEvent.threadStatus)
-          const candidateTerminal = event.threadStatus !== null
-            && terminalTaskThreadStatuses.has(event.threadStatus)
-          if (
-            (candidateTerminal && !currentTerminal)
-            || (candidateTerminal === currentTerminal && current.statusEvent.createdAt <= event.createdAt)
-          ) {
+          if (shouldReplaceTaskThreadProjection({
+            existingStatus: current.statusEvent.threadStatus,
+            existingCreatedAt: current.statusEvent.createdAt,
+            nextStatus: event.threadStatus,
+            nextCreatedAt: event.createdAt,
+          })) {
             current.statusEvent = event
           }
         }
@@ -4616,6 +4807,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             || statusEvent.threadStatus === 'failed'
             || statusEvent.threadStatus === 'cancelled'
             || statusEvent.threadStatus === 'blocked'
+            || statusEvent.threadStatus === 'dead-lettered'
             ? statusEvent.createdAt
             : null
           await run(
@@ -4630,9 +4822,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
                 status = COALESCE(?, status),
                 completed_at = COALESCE(?, completed_at)
             WHERE id = ?
-              AND status NOT IN ('blocked', 'completed', 'failed', 'cancelled')
+              AND status NOT IN ('blocked', 'completed', 'failed', 'cancelled', 'dead-lettered')
               AND (
-                ? IN ('blocked', 'completed', 'failed', 'cancelled')
+                ? IN ('blocked', 'completed', 'failed', 'cancelled', 'dead-lettered')
                 OR last_event_at IS NULL
                 OR last_event_at <= ?
               )
@@ -8323,6 +8515,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     listMindTurnEvents,
     getTaskThread,
     upsertTaskThread,
+    resumeTaskThread,
     listTaskThreads,
     upsertChannelCapabilityManifest,
     listChannelCapabilityManifests,

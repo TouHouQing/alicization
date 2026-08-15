@@ -12,6 +12,7 @@ import type {
 import {
   clampWorkingMemoryScore,
   createEmptyWorkingMemorySnapshot,
+  normalizeWorkingMemoryLongTermEvidence,
   normalizeWorkingMemoryText,
   normalizeWorkingMemoryTurn,
   uniqueWorkingMemoryTexts,
@@ -159,33 +160,21 @@ function normalizeEpisodelet(raw: unknown): WorkingMemoryEpisodelet | null {
 function normalizeLongTermCandidate(raw: unknown): WorkingMemoryLongTermCandidate | null {
   if (!isRecord(raw))
     return null
-  const summary = normalizeWorkingMemoryText(raw.summary, 260)
-  if (!summary)
+  const memoryEvidence = normalizeWorkingMemoryLongTermEvidence(raw.memoryEvidence)
+  if (!memoryEvidence)
     return null
-
-  const kind = raw.kind === 'episode'
-    || raw.kind === 'preference'
-    || raw.kind === 'relationship'
-    || raw.kind === 'procedure'
-    || raw.kind === 'correction'
-    ? raw.kind
-    : 'episode'
-  const sensitivity = raw.sensitivity === 'private'
-    || raw.sensitivity === 'secret'
-    || raw.sensitivity === 'personal'
-    || raw.sensitivity === 'public'
-    ? raw.sensitivity
-    : 'personal'
 
   return {
     sourceTurnIds: uniqueWorkingMemoryTexts(asArray(raw.sourceTurnIds).map(String), 12, 120),
-    kind,
-    summary,
-    reason: normalizeWorkingMemoryText(raw.reason, 260),
-    salience: clampWorkingMemoryScore(raw.salience),
-    sensitivity,
-    confidence: clampWorkingMemoryScore(raw.confidence),
-    allowTraining: raw.allowTraining === true,
+    kind: memoryEvidence.kind,
+    summary: memoryEvidence.summary,
+    reason: memoryEvidence.reason,
+    salience: memoryEvidence.salience,
+    sensitivity: memoryEvidence.sensitivity,
+    confidence: memoryEvidence.confidence,
+    allowTraining: false,
+    evidenceSnippets: memoryEvidence.evidenceSnippets,
+    memoryEvidence,
   }
 }
 
@@ -242,6 +231,7 @@ export function normalizeWorkingMemoryCheckpointSnapshot(
               }
             : null,
           failureSurface: null,
+          memoryEvidence: normalizeWorkingMemoryLongTermEvidence(turn.memoryEvidence),
           contaminated: turn.contaminated === true,
           importance: finiteNumber(turn.importance),
         })

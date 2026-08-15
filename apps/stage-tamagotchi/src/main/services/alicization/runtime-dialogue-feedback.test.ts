@@ -104,12 +104,14 @@ describe('runtime dialogue feedback', () => {
       cardId: 'card-1',
       decisionTraceId: 'trace-1',
       feedback: 'robotic',
-      feedbackExperience: {
-        felt: null,
-        relationshipMeaning: null,
-        lesson: null,
-        tags: ['dialogue-feedback', 'feedback:robotic', 'feedback-source:typed-ui'],
-      },
+      outcomeClosure: expect.objectContaining({
+        episodicEvents: expect.arrayContaining([
+          expect.objectContaining({
+            sourceKind: 'dialogue-feedback',
+            tags: ['dialogue-feedback', 'feedback:robotic', 'feedback-source:typed-ui'],
+          }),
+        ]),
+      }),
     }))
     expect(appendRelationshipDynamics).toHaveBeenCalledWith(expect.objectContaining({
       hostAttitude: 'dialogue_feedback=robotic',

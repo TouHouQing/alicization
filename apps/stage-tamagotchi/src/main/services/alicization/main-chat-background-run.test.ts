@@ -1089,6 +1089,97 @@ describe('main chat background run', () => {
     ))).not.toContain('用户希望失败时不要污染长期记忆。')
   })
 
+  it('passes Provider memory evidence through the durable reply into WorkingMemory settlement', async () => {
+    const events: any[] = []
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+    }
+    const memoryEvidence = {
+      version: 'provider-memory-evidence-v1',
+      kind: 'preference',
+      summary: '用户更喜欢先说结论。',
+      reason: '用户明确提出了稳定的表达偏好。',
+      evidenceSnippets: ['请记住我更喜欢先说结论。'],
+      salience: 0.86,
+      sensitivity: 'personal',
+      confidence: 0.92,
+    } as const
+    const resolvedIntent = {
+      version: 'memory-write-intent-v1' as const,
+      workingMemorySnapshot: {
+        version: 'working-memory-v1' as const,
+        updatedAt: 100,
+        compressedTimeline: [],
+        compression: {
+          level: 'none' as const,
+          sourceTurnIds: [],
+          lastCompressedAt: null,
+        },
+      },
+      memoryWriteItems: [createMemoryWriteItem()],
+    }
+    const resolveMemoryWriteIntent = vi.fn(() => resolvedIntent)
+    const commitMemoryWriteIntent = vi.fn(async () => ({
+      ...resolvedIntent,
+      ownerSettlements: [],
+    }))
+    const input = createInput('请记住我的表达偏好', {
+      prepareTurn: vi.fn(async () => createPrepared({
+        resolveMemoryWriteIntent,
+        commitMemoryWriteIntent,
+        memoryWriteItems: [createMemoryWriteItem()],
+      })),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
+      kind: 'reply',
+      finishReason: 'stop',
+      fullText: JSON.stringify({
+        format: 'mind-turn-v1',
+        thought: 'answer',
+        emotion: 'neutral',
+        reply: '我会记住你更喜欢先说结论。',
+        performance: {
+          baseEmotion: 'neutral',
+          facialCue: null,
+          actionCue: null,
+          delivery: 'calm',
+          emphasis: 0,
+        },
+        memoryUsage: {
+          workingMemoryVersion: null,
+          longTermEvidenceIds: [],
+        },
+        memoryEvidence,
+      }),
+      text: '我会记住你更喜欢先说结论。',
+    })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(resolveMemoryWriteIntent).toHaveBeenCalledWith({
+      assistantText: '我会记住你更喜欢先说结论。',
+      memoryEvidence,
+    })
+    expect(commitMemoryWriteIntent).toHaveBeenCalledWith({
+      assistantText: '我会记住你更喜欢先说结论。',
+      intent: resolvedIntent,
+    })
+    expect(events.map(event => event.eventType)).toContain('memory.write.proposed')
+  })
+
   it('does not complete or commit memory when the visible reply is no longer deliverable', async () => {
     const events: any[] = []
     const persistence = {

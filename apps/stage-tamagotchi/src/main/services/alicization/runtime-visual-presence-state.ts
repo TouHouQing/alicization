@@ -12,8 +12,8 @@ interface CreateAlicizationRuntimeVisualPresenceStateOptions {
   withCardScope: <T>(nextCardIdRaw: unknown, task: () => Promise<T>, options?: CardScopeOptions) => Promise<T>
   alicizationDb: {
     getMetaValue: (key: string) => Promise<string | undefined>
-    setMetaValue: (key: string, value: string) => Promise<void>
-    upsertMindHead: (cardId: string, key: AlicizationMindHeadKey, value: unknown) => Promise<void>
+    setMetaValue: (key: string, value: string, options?: { signal?: AbortSignal }) => Promise<void>
+    upsertMindHead: (cardId: string, key: AlicizationMindHeadKey, value: unknown, options?: { signal?: AbortSignal }) => Promise<void>
   }
   perceptionStateByCard: Map<string, AlicizationPerceptionState>
   visualPresenceStateByCard: Map<string, AlicizationVisualPresenceStateSnapshot>
@@ -29,6 +29,22 @@ interface CreateAlicizationRuntimeVisualPresenceStateOptions {
   emitVisualPresenceState: (cardIdRaw: unknown, state: AlicizationVisualPresenceStateSnapshot | null) => void
   perceptionMetaKey: string
   visualPresenceMetaKey: string
+}
+
+interface AlicizationVisualPresencePersistenceOptions {
+  debounceWindowMs?: number
+  fingerprint?: string
+  signal?: AbortSignal
+}
+
+function assertVisualPresencePersistenceNotAborted(signal?: AbortSignal) {
+  if (!signal?.aborted)
+    return
+  throw signal.reason ?? new DOMException('Visual presence persistence was aborted', 'AbortError')
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === 'AbortError'
 }
 
 function toComparableJsonValue(value: unknown): unknown {
@@ -170,22 +186,47 @@ export function createAlicizationRuntimeVisualPresenceState(
     return current
   }
 
-  async function persistMindHeadsFromVisualState(cardIdRaw: unknown, state: AlicizationVisualPresenceStateSnapshot) {
+  async function persistMindHeadsFromVisualState(
+    cardIdRaw: unknown,
+    state: AlicizationVisualPresenceStateSnapshot,
+    persistOptions: { signal?: AbortSignal } = {},
+  ) {
     const cardId = normalizeCardId(cardIdRaw)
     const task = async () => {
-      await alicizationDb.upsertMindHead(cardId, 'autobiographical-self', state.autobiographicalSelf ?? null)
-      await alicizationDb.upsertMindHead(cardId, 'reflection-ledger', state.reflectionLedger ?? null)
-      await alicizationDb.upsertMindHead(cardId, 'motive-engine', state.motiveEngine ?? null)
-      await alicizationDb.upsertMindHead(cardId, 'habit-policy', state.habitPolicy ?? null)
+      const mindHeads: Array<[AlicizationMindHeadKey, unknown]> = [
+        ['autobiographical-self', state.autobiographicalSelf ?? null],
+        ['reflection-ledger', state.reflectionLedger ?? null],
+        ['motive-engine', state.motiveEngine ?? null],
+        ['habit-policy', state.habitPolicy ?? null],
+      ]
+      for (const [key, value] of mindHeads) {
+        assertVisualPresencePersistenceNotAborted(persistOptions.signal)
+        await alicizationDb.upsertMindHead(cardId, key, value, {
+          signal: persistOptions.signal,
+        })
+        assertVisualPresencePersistenceNotAborted(persistOptions.signal)
+      }
     }
 
     if (cardId === getActiveCardId()) {
-      await task().catch(() => {})
+      try {
+        await task()
+      }
+      catch (error) {
+        if (persistOptions.signal?.aborted || isAbortError(error))
+          throw persistOptions.signal?.reason ?? error
+      }
       return
     }
 
     await withCardScope(cardId, async () => {
-      await task().catch(() => {})
+      try {
+        await task()
+      }
+      catch (error) {
+        if (persistOptions.signal?.aborted || isAbortError(error))
+          throw persistOptions.signal?.reason ?? error
+      }
     }, {
       label: `mind-heads.persist:${cardId}`,
     })
@@ -194,11 +235,9 @@ export function createAlicizationRuntimeVisualPresenceState(
   async function persistVisualPresenceState(
     cardIdRaw: unknown,
     state: AlicizationVisualPresenceStateSnapshot,
-    persistOptions: {
-      debounceWindowMs?: number
-      fingerprint?: string
-    } = {},
+    persistOptions: AlicizationVisualPresencePersistenceOptions = {},
   ) {
+    assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     const cardId = normalizeCardId(cardIdRaw)
     const previousState = visualPresenceStateByCard.get(cardId)
     const canonicalState = normalizeVisualPresenceState(
@@ -210,7 +249,6 @@ export function createAlicizationRuntimeVisualPresenceState(
     if (previousState && serializeComparableJson(previousState) === nextComparableSerialized) {
       return
     }
-    visualPresenceStateByCard.set(cardId, canonicalState)
     const fingerprint = persistOptions.fingerprint ?? buildVisualPresenceCapturePersistFingerprint(canonicalState)
     const debounceWindowMs = Number.isFinite(persistOptions.debounceWindowMs) ? Math.max(0, Math.floor(persistOptions.debounceWindowMs!)) : 0
     const previousPersistMeta = visualPresenceCapturePersistMetaByCard.get(cardId)
@@ -220,36 +258,66 @@ export function createAlicizationRuntimeVisualPresenceState(
       && previousPersistMeta?.fingerprint === fingerprint
       && currentTs - previousPersistMeta.persistedAt < debounceWindowMs
     ) {
+      assertVisualPresencePersistenceNotAborted(persistOptions.signal)
+      visualPresenceStateByCard.set(cardId, canonicalState)
       return
     }
 
-    rememberVisualPresencePersistMeta(cardId, canonicalState, currentTs)
-    await persistMindHeadsFromVisualState(cardId, canonicalState)
-    if (cardId === getActiveCardId()) {
-      await alicizationDb.setMetaValue(visualPresenceMetaKey, nextSerialized).catch(() => {})
-      emitVisualPresenceState(cardId, canonicalState)
-      return
-    }
-    await withCardScope(cardId, async () => {
-      await alicizationDb.setMetaValue(visualPresenceMetaKey, nextSerialized).catch(() => {})
-    }, {
-      label: `visual-presence.persist:${cardId}`,
+    await persistMindHeadsFromVisualState(cardId, canonicalState, {
+      signal: persistOptions.signal,
     })
+    assertVisualPresencePersistenceNotAborted(persistOptions.signal)
+    if (cardId === getActiveCardId()) {
+      try {
+        await alicizationDb.setMetaValue(visualPresenceMetaKey, nextSerialized, {
+          signal: persistOptions.signal,
+        })
+      }
+      catch (error) {
+        if (persistOptions.signal?.aborted || isAbortError(error))
+          throw persistOptions.signal?.reason ?? error
+      }
+    }
+    else {
+      await withCardScope(cardId, async () => {
+        assertVisualPresencePersistenceNotAborted(persistOptions.signal)
+        try {
+          await alicizationDb.setMetaValue(visualPresenceMetaKey, nextSerialized, {
+            signal: persistOptions.signal,
+          })
+        }
+        catch (error) {
+          if (persistOptions.signal?.aborted || isAbortError(error))
+            throw persistOptions.signal?.reason ?? error
+        }
+      }, {
+        label: `visual-presence.persist:${cardId}`,
+      })
+    }
+    assertVisualPresencePersistenceNotAborted(persistOptions.signal)
+    visualPresenceStateByCard.set(cardId, canonicalState)
+    rememberVisualPresencePersistMeta(cardId, canonicalState, currentTs)
     emitVisualPresenceState(cardId, canonicalState)
   }
 
-  async function restoreVisualPresenceState(cardIdRaw: unknown) {
+  async function restoreVisualPresenceState(
+    cardIdRaw: unknown,
+    persistOptions: { signal?: AbortSignal } = {},
+  ) {
     const cardId = normalizeCardId(cardIdRaw)
     const currentTs = now()
     const setState = (state: AlicizationVisualPresenceStateSnapshot) => {
+      assertVisualPresencePersistenceNotAborted(persistOptions.signal)
       visualPresenceStateByCard.set(cardId, state)
       rememberVisualPresencePersistMeta(cardId, state, state.updatedAt)
       return state
     }
 
+    assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     if (cardId !== getActiveCardId()) {
       await withCardScope(cardId, async () => {
         const raw = await alicizationDb.getMetaValue(visualPresenceMetaKey).catch(() => undefined)
+        assertVisualPresencePersistenceNotAborted(persistOptions.signal)
         if (!raw) {
           setState(createDefaultVisualPresenceState(currentTs))
           return
@@ -263,10 +331,12 @@ export function createAlicizationRuntimeVisualPresenceState(
       }, {
         label: `visual-presence.restore:${cardId}`,
       })
+      assertVisualPresencePersistenceNotAborted(persistOptions.signal)
       return visualPresenceStateByCard.get(cardId) ?? createDefaultVisualPresenceState(currentTs)
     }
 
     const raw = await alicizationDb.getMetaValue(visualPresenceMetaKey).catch(() => undefined)
+    assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     if (!raw)
       return setState(createDefaultVisualPresenceState(currentTs))
     try {
@@ -277,12 +347,18 @@ export function createAlicizationRuntimeVisualPresenceState(
     }
   }
 
-  async function ensureVisualPresenceState(cardIdRaw: unknown) {
+  async function ensureVisualPresenceState(
+    cardIdRaw: unknown,
+    persistOptions: { signal?: AbortSignal } = {},
+  ) {
     const cardId = normalizeCardId(cardIdRaw)
-    const current = visualPresenceStateByCard.get(cardId) ?? await restoreVisualPresenceState(cardId)
+    assertVisualPresencePersistenceNotAborted(persistOptions.signal)
+    const current = visualPresenceStateByCard.get(cardId)
+      ?? await restoreVisualPresenceState(cardId, persistOptions)
+    assertVisualPresencePersistenceNotAborted(persistOptions.signal)
     const normalized = normalizeVisualPresenceState(current, now())
     if (serializeComparableJson(normalized) !== serializeComparableJson(current)) {
-      await persistVisualPresenceState(cardId, normalized)
+      await persistVisualPresenceState(cardId, normalized, persistOptions)
       return normalized
     }
     return current

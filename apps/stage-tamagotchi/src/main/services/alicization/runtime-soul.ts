@@ -10,7 +10,7 @@ import type {
   AlicizationAutobiographicalSelfSnapshot,
   AlicizationChatStartResult,
   AlicizationChatStreamDispatchPayload,
-  AlicizationChatToolProgressEvent,
+  AlicizationChatToolProgressInput,
   AlicizationDerivedMindStateBundle,
   AlicizationDialogueRespondedPayload,
   AlicizationEpisodicEventRecord,
@@ -167,12 +167,12 @@ export interface ChatRunState {
   emittedToolCallIds?: Set<string>
   emittedToolResultIds?: Set<string>
   emittedToolProgressKeys?: Set<string>
-  terminalToolCallIds?: Set<string>
+  toolProjection?: import('@proj-alicization/stage-shared').AlicizationRuntimeToolProjectionReducer
   chunkCount: number
   rawChunkChars: number
   state: 'running' | 'aborted' | 'finished'
   toolProgressListeners?: Set<
-    (event: Omit<AlicizationChatToolProgressEvent, 'cardId' | 'turnId'>) => void
+    (event: Omit<AlicizationChatToolProgressInput, 'cardId' | 'turnId'>) => void
   >
 }
 
@@ -227,14 +227,6 @@ export interface OrganicMemoryPromptContext {
   recentRelationshipOutcomes?: AlicizationRelationshipOutcomeRecord[]
   recalledFragments: AlicizationSubconsciousFragment[]
   recalledEpisodes?: AlicizationEpisodicEventRecord[]
-  recalledConversationHistory?: Array<{
-    turnId: string | null
-    sessionId: string
-    userText: string
-    assistantText: string
-    createdAt: number
-    provenance: 'reconstructed'
-  }>
   recollectedWindows?: Array<{
     id: string
     label: string

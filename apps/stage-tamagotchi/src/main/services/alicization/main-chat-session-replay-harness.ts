@@ -108,7 +108,6 @@ function createEmptyLongTermMemoryEvidenceBundle(
       procedureHints: [],
       threadHints: [],
       negativeCues: [],
-      confidencePolicy: 'direct',
       riskFlags: [],
       targetKinds: [],
     },
@@ -907,7 +906,6 @@ function mergeReplaySampleOrganicMemoryContext(input: {
     recentMemoryReflections: primary.recentMemoryReflections ?? fallback.recentMemoryReflections,
     recentRelationshipOutcomes: primary.recentRelationshipOutcomes ?? fallback.recentRelationshipOutcomes,
     recalledEpisodes: primary.recalledEpisodes ?? fallback.recalledEpisodes,
-    recalledConversationHistory: primary.recalledConversationHistory ?? fallback.recalledConversationHistory,
     recollectedWindows: primary.recollectedWindows ?? fallback.recollectedWindows,
     consolidatedMemories: primary.consolidatedMemories ?? fallback.consolidatedMemories,
     recollectionNarratives: primary.recollectionNarratives ?? fallback.recollectionNarratives,
@@ -2242,7 +2240,6 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
       mode: normalizeRecollectionMode(recall?.recollectionIntentMode),
       temporalFocus: normalizeTemporalFocus(recall?.recollectionIntentTemporalFocus),
       searchEpisodes: selectedEpisodes.length > 0,
-      searchConversations: readStringArray(recall?.selectedConversationTurnIds, 6, 120).length > 0,
       searchProceduralExperience: readObjectArray(recall?.selectedProcedures).length > 0,
       queryHints: readStringArray([
         input.row.userText,
@@ -2282,7 +2279,6 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
         .filter(Boolean),
       selectedProcedureIds: readObjectArray(recall?.selectedProcedures).map(item => readString(item.id, 120)).filter(Boolean),
       selectedEpisodeIds: selectedEpisodes.map(item => item.id),
-      selectedConversationTurnIds: [],
       selectedRelationshipLines: readStringArray(recall?.selectedRelationshipLines),
       ambiguityPosture,
       searchTrace: searchTraceRecord
@@ -2290,7 +2286,7 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
             firstHop: {
               focus: (() => {
                 const value = readString(firstHop?.focus, 64)
-                return value === 'era' || value === 'procedure' || value === 'relationship-line' || value === 'conversation-turn' || value === 'episode'
+                return value === 'era' || value === 'procedure' || value === 'relationship-line' || value === 'episode'
                   ? value
                   : 'episode'
               })(),
@@ -2300,13 +2296,13 @@ export function buildOrganicMemoryPromptContextFromTrace(input: {
             secondHop: {
               action: (() => {
                 const value = readString(secondHop?.action, 64)
-                return value === 'hold' || value === 'expand-era' || value === 'expand-procedure' || value === 'expand-relationship-line' || value === 'expand-conversation' || value === 'narrow-to-stable-core'
+                return value === 'hold' || value === 'expand-era' || value === 'expand-procedure' || value === 'expand-relationship-line' || value === 'narrow-to-stable-core'
                   ? value
                   : 'hold'
               })(),
               evidenceGap: (() => {
                 const value = readString(secondHop?.evidenceGap, 64)
-                return value === 'none' || value === 'need-period-anchor' || value === 'need-episode-detail' || value === 'need-procedure-detail' || value === 'need-relationship-meaning' || value === 'need-conversation-evidence' || value === 'need-disambiguation'
+                return value === 'none' || value === 'need-period-anchor' || value === 'need-episode-detail' || value === 'need-procedure-detail' || value === 'need-relationship-meaning' || value === 'need-disambiguation'
                   ? value
                   : 'none'
               })(),
@@ -2784,7 +2780,7 @@ export function evaluateReplayMemoryQuality(input: {
     bundleCoherence: !bundle && !chain
       ? 'not-applicable'
       : (
-          (bundle && [bundle.periodId, bundle.episodeId, bundle.procedureId, bundle.conversationTurnId, bundle.relationshipLine]
+          (bundle && [bundle.periodId, bundle.episodeId, bundle.procedureId, bundle.relationshipLine]
             .filter(Boolean)
             .length >= 2)
           || (chain && (

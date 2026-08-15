@@ -1,3 +1,5 @@
+import type { AlicizationMemoryProvenance } from '@proj-alicization/stage-shared'
+
 import {
   buildAlicizationProviderFactBlock,
   containsAlicizationFixedTemplateResidue,
@@ -48,7 +50,6 @@ export interface LongTermMemoryQueryPlan {
   procedureHints: string[]
   threadHints: string[]
   negativeCues: string[]
-  confidencePolicy: 'direct' | 'tentative' | 'inward-only'
   riskFlags: string[]
   targetKinds: LongTermMemoryEvidenceKind[]
 }
@@ -59,12 +60,23 @@ export type LongTermMemoryEvidenceKind
     | 'episode'
     | 'consolidation'
 
+export const longTermMemoryEvidenceVersion = 'long-term-memory-evidence-v1' as const
+
+export interface LongTermMemoryEvidenceScope {
+  userId: string
+  cardId: string | null
+}
+
 export interface LongTermMemoryEvidenceCandidate {
   id: string
   kind: LongTermMemoryEvidenceKind
   summary: string
   source: string
   origin?: string | null
+  scope?: LongTermMemoryEvidenceScope | null
+  provenance?: AlicizationMemoryProvenance | null
+  evidenceVersion?: string | null
+  version?: string | null
   confidence: number
   reviewStatus?: 'confirmed' | 'candidate' | 'review-needed' | 'rejected' | 'pending' | string | null
   salience?: number | null
@@ -82,7 +94,10 @@ export interface RankedLongTermMemoryEvidence {
   score: number
   queryMatches: string[]
   rankReasons: string[]
-  visibleMode: 'explicit' | 'inward-only' | 'tentative'
+  scope: LongTermMemoryEvidenceScope
+  provenance: AlicizationMemoryProvenance
+  evidenceVersion: string
+  version: string
 }
 
 export interface LongTermMemoryEvidenceBundle {
@@ -104,6 +119,49 @@ function clamp01(raw: unknown) {
   if (!Number.isFinite(value))
     return 0
   return Math.max(0, Math.min(1, value))
+}
+
+function normalizeEvidenceScope(
+  raw: LongTermMemoryEvidenceScope | null | undefined,
+  fallback?: LongTermMemoryEvidenceScope,
+): LongTermMemoryEvidenceScope {
+  const userId = normalizeText(raw?.userId, 160) || normalizeText(fallback?.userId, 160) || 'unknown'
+  const cardId = normalizeText(raw?.cardId, 160) || normalizeText(fallback?.cardId, 160) || null
+  return {
+    userId,
+    cardId,
+  }
+}
+
+function inferEvidenceProvenance(candidate: LongTermMemoryEvidenceCandidate): AlicizationMemoryProvenance {
+  if (candidate.provenance)
+    return candidate.provenance
+  if (candidate.origin === 'user-turn' || candidate.source === 'user-turn' || candidate.source === 'episodic_events')
+    return 'observed'
+  if (candidate.source === 'memory_reflections' || candidate.source === 'memory_consolidations')
+    return 'inferred'
+  return 'remembered'
+}
+
+function normalizeEvidenceVersion(candidate: LongTermMemoryEvidenceCandidate) {
+  const requestedVersion = normalizeText(candidate.evidenceVersion ?? candidate.version, 80)
+  return requestedVersion || longTermMemoryEvidenceVersion
+}
+
+function withEvidenceContract(
+  item: RankedLongTermMemoryEvidence,
+  fallbackScope?: LongTermMemoryEvidenceScope,
+): RankedLongTermMemoryEvidence {
+  const scope = normalizeEvidenceScope(fallbackScope ?? item.scope ?? item.candidate.scope)
+  const provenance = item.provenance ?? inferEvidenceProvenance(item.candidate)
+  const version = normalizeEvidenceVersion(item.candidate)
+  return {
+    ...item,
+    scope,
+    provenance,
+    evidenceVersion: item.evidenceVersion ?? version,
+    version: item.version ?? version,
+  }
 }
 
 function uniqueTexts(values: Array<string | null | undefined>, maxItems = 10, maxChars = 120) {
@@ -293,12 +351,10 @@ export function buildLongTermMemoryQueryPlan(input: {
     procedureHints,
     threadHints,
     negativeCues: expansion.negativeCues,
-    confidencePolicy: expansion.confidencePolicy,
     riskFlags: uniqueTexts([
       ...input.intent.riskFlags,
       ...expansion.negativeCues.map(cue => `negative:${cue}`),
-      expansion.confidencePolicy === 'tentative' ? 'tentative-query' : '',
-      expansion.confidencePolicy === 'inward-only' ? 'inward-only-query' : '',
+      ...expansion.riskFlags,
     ], 10, 120),
     targetKinds: input.intent.targetKinds,
   }
@@ -311,6 +367,7 @@ export function buildLongTermMemoryEvidenceBundle(input: {
   now: number
   limit?: number
   semanticScores?: Record<string, number>
+  scope?: LongTermMemoryEvidenceScope
 }): LongTermMemoryEvidenceBundle {
   if (!input.intent.shouldRecall) {
     return {
@@ -338,7 +395,7 @@ export function buildLongTermMemoryEvidenceBundle(input: {
     now: input.now,
     limit,
     semanticScores: input.semanticScores,
-  })
+  }).map(item => withEvidenceContract(item, input.scope))
 
   const confidence = ranked.length === 0
     ? input.intent.confidence * 0.4
@@ -371,11 +428,15 @@ export function buildLongTermMemoryRecallBlock(input: {
         kind: item.candidate.kind,
         summary,
         source: item.candidate.source,
+        scope: item.scope,
+        provenance: item.provenance,
         confidence: item.candidate.confidence,
+        sensitivity: item.candidate.sensitivity,
         score: item.score,
-        visibility: item.visibleMode,
         queryMatches: item.queryMatches,
         rankReasons: item.rankReasons,
+        evidenceVersion: item.evidenceVersion,
+        version: item.version,
       }
     })
     .filter(item => item !== null)

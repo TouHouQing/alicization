@@ -45,7 +45,6 @@ function projectMemorySelection(context: OrganicMemoryPromptContext) {
           selectedWindowIds: deliberation.selectedWindowIds.slice(0, 8),
           selectedProcedureIds: deliberation.selectedProcedureIds.slice(0, 8),
           selectedEpisodeIds: deliberation.selectedEpisodeIds.slice(0, 8),
-          selectedConversationTurnIds: deliberation.selectedConversationTurnIds.slice(0, 8),
           selectedEras: deliberation.selectedEras.slice(0, 6).map(item => ({
             id: item.id,
             facet: item.facet,
@@ -74,7 +73,6 @@ function projectMemorySelection(context: OrganicMemoryPromptContext) {
             periodId: item.periodId ?? null,
             episodeId: item.episodeId ?? null,
             procedureId: item.procedureId ?? null,
-            conversationTurnId: item.conversationTurnId ?? null,
           })),
           selectedChains: deliberation.selectedChains.slice(0, 4).map(item => ({
             id: item.id,
@@ -108,7 +106,6 @@ function projectMemorySelection(context: OrganicMemoryPromptContext) {
           selectedWindowIds: plan.selectedWindowIds.slice(0, 8),
           selectedProceduralIds: plan.selectedProceduralIds.slice(0, 8),
           selectedEpisodeIds: plan.selectedEpisodeIds.slice(0, 8),
-          selectedConversationTurnIds: plan.selectedConversationTurnIds.slice(0, 8),
           certainty: plan.certainty,
           confidence: plan.confidence,
         }
@@ -212,7 +209,6 @@ export function buildOrganicMemoryProviderFactBlocks(
         mode: context.recollectionIntent.mode,
         temporalFocus: context.recollectionIntent.temporalFocus,
         searchEpisodes: context.recollectionIntent.searchEpisodes,
-        searchConversations: context.recollectionIntent.searchConversations,
         searchProceduralExperience: context.recollectionIntent.searchProceduralExperience,
         confidence: context.recollectionIntent.confidence,
         agenda: context.recollectionIntent.recollectionAgenda

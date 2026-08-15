@@ -238,7 +238,6 @@ export interface OrganicMemoryCandidateRankingStageInput {
   recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
   proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
   recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-  recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
 }
 
 export function rankOrganicMemoryCandidatesStage(input: OrganicMemoryCandidateRankingStageInput) {
@@ -443,36 +442,6 @@ export function rankOrganicMemoryCandidatesStage(input: OrganicMemoryCandidateRa
     getProvenance: item => item.latestReconsolidation?.provenance ?? item.provenance,
   })
 
-  const carryRankedConversationHistory = input.helpers.rankBySceneMoodEmbodiedCarry({
-    items: input.recalledConversationHistory,
-    toText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-    recallGovernor: input.recallGovernor ?? null,
-  })
-  const agendaRankedConversationHistoryBase = input.helpers.rankByBenchmarkTuningBias({
-    items: rankByNegativeRecallSuppression({
-      items: input.helpers.rankByRecollectionAgendaAffinity({
-        items: rankByLongHorizonMemoryAffinity({
-          items: carryRankedConversationHistory,
-          recollectionIntent: input.activeRecollectionIntent,
-          hostPersonModel: input.hostPersonModel,
-          toText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-        }),
-        recollectionIntent: input.activeRecollectionIntent,
-        toText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-        getAgeDays: item => Math.max(0, (Date.now() - item.createdAt) / (24 * 60 * 60 * 1000)),
-      }),
-      recollectionIntent: input.activeRecollectionIntent,
-      tuningAdvice: input.memoryTuningAdvice,
-      mode: 'conversation',
-      toText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-      getProvenance: item => item.provenance,
-    }),
-    tuningAdvice: input.memoryTuningAdvice,
-    mode: 'conversation',
-    toText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-    getProvenance: item => item.provenance,
-  })
-
   const clusterProbes = [
     ...agendaRankedConsolidatedMemories.slice(0, 4).map(item => ({
       id: item.id,
@@ -514,13 +483,6 @@ export function rankOrganicMemoryCandidatesStage(input: OrganicMemoryCandidateRa
         item.sourceSummary,
         ...(item.tags ?? []),
       ].filter(Boolean).join(' '),
-    })),
-    ...agendaRankedConversationHistoryBase.slice(0, 4).map(item => ({
-      id: item.turnId ?? `${item.sessionId}:${item.createdAt}`,
-      kind: 'conversation' as const,
-      clusterKey: input.helpers.deriveMemoryClusterKey([item.userText, item.assistantText].filter(Boolean).join(' ')),
-      clusterSummary: [item.userText, item.assistantText].filter(Boolean).join(' | '),
-      text: [item.userText, item.assistantText].filter(Boolean).join(' '),
     })),
   ].filter((item): item is MemoryClusterProbe => Boolean(item.clusterKey))
   const analyzedClusterState = input.helpers.analyzeMemoryClusters({
@@ -584,18 +546,6 @@ export function rankOrganicMemoryCandidatesStage(input: OrganicMemoryCandidateRa
         ...(item.tags ?? []),
       ].filter(Boolean).join(' '),
       getProvenance: item => item.latestReconsolidation?.provenance ?? item.provenance,
-    }),
-    agendaRankedConversationHistory: rankByNegativeRecallSuppression({
-      items: input.helpers.rankByClusterDominance({
-        items: agendaRankedConversationHistoryBase,
-        clusterState,
-        toClusterText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-      }),
-      recollectionIntent: input.activeRecollectionIntent,
-      tuningAdvice: input.memoryTuningAdvice,
-      mode: 'conversation',
-      toText: item => [item.userText, item.assistantText].filter(Boolean).join(' '),
-      getProvenance: item => item.provenance,
     }),
   }
 }

@@ -80,7 +80,6 @@ export function buildBrowserRecollectionIntent(input: {
     mode: foreground.mode,
     temporalFocus,
     searchEpisodes: true,
-    searchConversations: foreground.mode !== 'execution-procedure',
     searchProceduralExperience: foreground.mode === 'execution-procedure' || foreground.mode === 'experience-pattern',
     queryHints: input.consolidations.slice(0, 3).flatMap(item => [
       item.periodKey,
@@ -105,7 +104,6 @@ export function buildBrowserRecollectionPlan(input: {
     selectedWindowIds: [],
     selectedProceduralIds: selected?.kind === 'procedural' ? [selected.id] : [],
     selectedEpisodeIds: [],
-    selectedConversationTurnIds: [],
     opening: foreground.summary,
     certainty: foreground.certainty,
     rationale: `source=browser-memory | selected=${selected?.kind === 'procedural' ? 'procedural' : 'phase'}`,

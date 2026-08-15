@@ -4,6 +4,7 @@ import type {
 } from '@proj-alicization/stage-shared'
 
 import type {
+  AlicizationDerivedMemoryReference,
   AlicizationEmotionalTransitionLedgerSnapshot,
   AlicizationEpisodicEventInput,
   AlicizationMemoryFactInput,
@@ -32,42 +33,6 @@ function sanitizeText(raw: unknown, maxChars = 220) {
   if (typeof raw !== 'string')
     return ''
   return raw.trim().replace(/\s+/g, ' ').slice(0, maxChars)
-}
-
-function normalizeClosureTagValue(raw: unknown) {
-  if (typeof raw !== 'string')
-    return ''
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]+/g, '-')
-    .replace(/-{2,}/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 40)
-}
-
-function readReplyRuntimeEmbodiment(surface: AlicizationDigitalLifeRuntimeSurface | null) {
-  const residentPerformance = surface?.raw?.residentPerformance ?? null
-  return {
-    currentBodyState: sanitizeText(surface?.perception?.currentBodyState, 64),
-    continuityMode: sanitizeText(surface?.perception?.continuityMode, 64),
-    dominantResidueKind: sanitizeText(surface?.memory?.affectiveResidue?.dominantResidueKind, 64),
-    residentFacialCue: sanitizeText(
-      residentPerformance?.performance?.facialCue,
-      64,
-    ),
-    residentActionCue: sanitizeText(
-      residentPerformance?.performance?.actionCue,
-      64,
-    ),
-    residentMode: sanitizeText(
-      residentPerformance?.performance?.residentMode
-      ?? residentPerformance?.performance?.face?.residentMode
-      ?? residentPerformance?.performance?.action?.residentMode,
-      64,
-    ),
-  }
 }
 
 function inferExecutionProcedureContextTags(input: {
@@ -100,6 +65,23 @@ export interface AlicizationOutcomeClosureResult {
 export type AlicizationDialogueReplyFeedbackKind = AlicizationDialogueReplyFeedbackFact['kind']
 export type AlicizationExecutionProposalFeedbackKind = 'affirmed' | 'denied' | 'interrupted'
 export type AlicizationExecutionResultFeedbackKind = 'valued' | 'doubted' | 'intrusive' | 'interrupted'
+export const alicizationReplyOutcomeMemoryEvidenceVersion = 'reply-outcome-memory-evidence-v1' as const
+
+export interface AlicizationReplyOutcomeMemoryEvidence {
+  version: typeof alicizationReplyOutcomeMemoryEvidenceVersion
+  source: 'explicit-structured-memory-evidence'
+  summary: string
+  sourceRefs: Array<Pick<AlicizationDerivedMemoryReference, 'kind' | 'id'>>
+  whereSummary?: string | null
+  withWhom?: string[] | null
+  threadAnchor?: string | null
+  emotionTags?: string[] | null
+  tags?: string[] | null
+  confidence?: number | null
+  salience?: number | null
+  sceneAttachment?: number | null
+  consolidationPriority?: number | null
+}
 
 export interface AlicizationExecutionProposalFeedbackThread {
   affirmationReasonCodes?: string[] | null
@@ -134,6 +116,77 @@ function baseResult(): AlicizationOutcomeClosureResult {
     episodicEvents: [],
     affectiveResidue: null,
     embodimentContinuityLedger: null,
+  }
+}
+
+export function normalizeAlicizationReplyOutcomeMemoryEvidence(
+  raw: unknown,
+): AlicizationReplyOutcomeMemoryEvidence | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+  const record = raw as Record<string, unknown>
+  if (
+    record.version !== alicizationReplyOutcomeMemoryEvidenceVersion
+    || record.source !== 'explicit-structured-memory-evidence'
+  ) {
+    return null
+  }
+
+  const summary = sanitizeAlicizationMemoryEvidenceText(record.summary, 640)
+  const sourceRefs = Array.isArray(record.sourceRefs)
+    ? record.sourceRefs.flatMap((rawRef) => {
+        if (!rawRef || typeof rawRef !== 'object' || Array.isArray(rawRef))
+          return []
+        const ref = rawRef as Record<string, unknown>
+        const kind = ref.kind
+        if (
+          kind !== 'turn'
+          && kind !== 'mind-turn-event'
+          && kind !== 'relationship-outcome'
+          && kind !== 'reinforcement-event'
+          && kind !== 'memory-fact'
+          && kind !== 'reflection'
+          && kind !== 'dream'
+          && kind !== 'episodic-event'
+          && kind !== 'task-thread'
+          && kind !== 'execution-event'
+          && kind !== 'scene'
+        ) {
+          return []
+        }
+        const id = sanitizeText(ref.id, 180)
+        return id
+          ? [{
+              kind: kind as AlicizationDerivedMemoryReference['kind'],
+              id,
+            }]
+          : []
+      }).slice(0, 8)
+    : []
+  if (!summary || sourceRefs.length === 0)
+    return null
+
+  const score = (value: unknown) =>
+    Number.isFinite(value) ? Math.max(0, Math.min(1, Number(value))) : null
+  const textList = (value: unknown, maxItems: number, maxChars: number) =>
+    Array.isArray(value)
+      ? value.map(item => sanitizeText(item, maxChars)).filter(Boolean).slice(0, maxItems)
+      : []
+
+  return {
+    version: alicizationReplyOutcomeMemoryEvidenceVersion,
+    source: 'explicit-structured-memory-evidence',
+    summary,
+    sourceRefs,
+    whereSummary: sanitizeAlicizationMemoryEvidenceText(record.whereSummary, 180) || null,
+    withWhom: textList(record.withWhom, 6, 64),
+    threadAnchor: sanitizeAlicizationMemoryEvidenceText(record.threadAnchor, 160) || null,
+    emotionTags: textList(record.emotionTags, 8, 48),
+    tags: textList(record.tags, 12, 48),
+    confidence: score(record.confidence),
+    salience: score(record.salience),
+    sceneAttachment: score(record.sceneAttachment),
+    consolidationPriority: score(record.consolidationPriority),
   }
 }
 
@@ -219,47 +272,24 @@ export function buildReplyOutcomeClosure(input: {
   sessionId?: string | null
   decisionTraceId?: string | null
   runtimeSurface: AlicizationDigitalLifeRuntimeSurface | null
-  userText?: string | null
-  assistantText?: string | null
+  memoryEvidence?: AlicizationReplyOutcomeMemoryEvidence | null
 }): AlicizationOutcomeClosureResult {
   const result = baseResult()
-  const surface = input.runtimeSurface
-  if (!surface)
+  const memoryEvidence = normalizeAlicizationReplyOutcomeMemoryEvidence(input.memoryEvidence)
+  if (!memoryEvidence)
     return result
 
-  result.affectiveResidue = surface.memory?.affectiveResidue ?? null
-  result.emotionalTransitionLedger = surface.memory?.derivedMindStateBundle?.emotionalTransitionLedger ?? null
+  const surface = input.runtimeSurface
+  result.affectiveResidue = surface?.memory?.affectiveResidue ?? null
+  result.emotionalTransitionLedger = surface?.memory?.derivedMindStateBundle?.emotionalTransitionLedger ?? null
 
-  const hostAvailability = surface.world?.worldModel?.hostState.availability ?? 'open'
-  const selectedAction = sanitizeText(surface.agency?.initiative?.selectedAction, 48)
-  const preferredStyle = sanitizeText(surface.agency?.initiative?.preferredStyle, 48)
-  const answerAct = sanitizeText(surface.dialogue?.answerPlanner?.act, 48)
-  const answerEvidenceMode = sanitizeText(surface.dialogue?.answerPlanner?.evidenceMode, 48)
-  const actionMode = sanitizeText(surface.agency?.actionEcology?.mode, 64)
-  const repairFirst = selectedAction === 'recheck'
-    || actionMode === 'repair-before-speaking'
-    || answerAct === 'ask-reground'
-    || answerAct === 'correct-stale-anchor'
-    || answerEvidenceMode === 'repair-first'
-  const observeFirst = selectedAction === 'hover'
-    || selectedAction === 'wait'
-    || preferredStyle === 'silent-observe'
-  const hostBusy = hostAvailability === 'focused' || hostAvailability === 'immersed'
-  const threadUnresolved = surface.world?.worldModel?.activeThread?.unresolved === true
-  const runtimeEmbodiment = readReplyRuntimeEmbodiment(surface)
-  const actionSummary = sanitizeText([
-    selectedAction ? `action=${selectedAction}` : 'action=reply',
-    preferredStyle ? `style=${preferredStyle}` : '',
-    answerAct ? `act=${answerAct}` : '',
-    answerEvidenceMode ? `evidence=${answerEvidenceMode}` : '',
-  ].filter(Boolean).join('; '), 220)
   const episodeRelationshipOutcome: AlicizationRelationshipOutcomeInput = {
     cardId: input.cardId,
     decisionTraceId: input.decisionTraceId,
     turnId: input.turnId,
     sessionId: input.sessionId,
     sourceKind: 'reply',
-    actionSummary,
+    actionSummary: `reply_memory_evidence=${memoryEvidence.version}`,
     closenessDelta: 0,
     trustDelta: 0,
     burdenDelta: 0,
@@ -267,29 +297,9 @@ export function buildReplyOutcomeClosure(input: {
     misreadDelta: 0,
     repairDelta: 0,
     openLoopDelta: 0,
-    summary: sanitizeText([
-      'reply_outcome=unrated',
-      `host_availability=${hostAvailability}`,
-      `repair_first=${repairFirst}`,
-      `observe_first=${observeFirst}`,
-      threadUnresolved ? 'thread=open' : 'thread=closed',
-    ].join('; '), 180),
+    summary: `reply_memory_evidence=${memoryEvidence.version}`,
     createdAt: input.now,
   }
-
-  const dialogueEvidence = [
-    input.userText ? `user=${sanitizeText(input.userText, 220)}` : '',
-    input.assistantText ? `assistant=${sanitizeText(input.assistantText, 280)}` : '',
-  ].filter(Boolean)
-  const runtimeEvidence = [
-    `host_availability=${hostAvailability}`,
-    runtimeEmbodiment.currentBodyState ? `body=${runtimeEmbodiment.currentBodyState}` : '',
-    runtimeEmbodiment.continuityMode ? `continuity_mode=${runtimeEmbodiment.continuityMode}` : '',
-    runtimeEmbodiment.dominantResidueKind ? `residue=${runtimeEmbodiment.dominantResidueKind}` : '',
-    runtimeEmbodiment.residentFacialCue ? `resident_face=${runtimeEmbodiment.residentFacialCue}` : '',
-    runtimeEmbodiment.residentActionCue ? `resident_action=${runtimeEmbodiment.residentActionCue}` : '',
-    runtimeEmbodiment.residentMode ? `resident_mode=${runtimeEmbodiment.residentMode}` : '',
-  ].filter(Boolean)
 
   appendOutcomeEpisode({
     result,
@@ -299,53 +309,26 @@ export function buildReplyOutcomeClosure(input: {
     decisionTraceId: input.decisionTraceId,
     turnId: input.turnId,
     sessionId: input.sessionId,
-    whereSummary: sanitizeText([
-      `host:${hostAvailability}`,
-      surface.world?.worldModel?.activeThread?.title ? `thread:${surface.world.worldModel.activeThread.title}` : '',
-    ].filter(Boolean).join(' | '), 180),
-    withWhom: ['host'],
-    threadAnchor: sanitizeText(
-      surface.world?.worldModel?.activeThread?.title
-      ?? surface.dialogue?.dialogueWorldThread?.activeThread
-      ?? surface.dialogue?.conversationState?.jointThread
-      ?? '',
-      160,
-    ),
-    whatHappened: [...dialogueEvidence, ...runtimeEvidence, actionSummary].join(' | '),
-    emotionTags: [
-      repairFirst ? 'repair' : 'presence',
-      observeFirst ? 'restraint' : 'direct',
-      hostBusy ? 'respect-space' : 'open-window',
-      runtimeEmbodiment.dominantResidueKind ? `residue-${runtimeEmbodiment.dominantResidueKind}` : '',
-    ].filter(Boolean),
-    sourceSummary: 'reply-outcome',
-    confidence: repairFirst ? 0.82 : observeFirst ? 0.78 : 0.74,
-    sceneAttachment: hostBusy ? 0.52 : 0.34,
-    consolidationPriority: threadUnresolved ? 0.58 : 0.42,
+    whereSummary: memoryEvidence.whereSummary ?? null,
+    withWhom: memoryEvidence.withWhom ?? [],
+    threadAnchor: memoryEvidence.threadAnchor ?? null,
+    whatHappened: memoryEvidence.summary,
+    emotionTags: memoryEvidence.emotionTags ?? [],
+    sourceSummary: 'reply-outcome-structured-evidence',
+    confidence: memoryEvidence.confidence ?? 0.76,
+    salience: memoryEvidence.salience ?? 0.64,
+    sceneAttachment: memoryEvidence.sceneAttachment ?? 0.3,
+    consolidationPriority: memoryEvidence.consolidationPriority ?? 0.48,
     relationshipOutcome: episodeRelationshipOutcome,
     derivedFrom: [
-      input.userText
-        ? { kind: 'turn', id: input.turnId ?? input.sessionId ?? 'reply-turn', label: `host feedback dialogue: ${sanitizeText(input.userText, 220)}` }
-        : null,
-      input.assistantText
-        ? { kind: 'turn', id: input.turnId ?? input.sessionId ?? 'reply-turn', label: `assistant feedback dialogue: ${sanitizeText(input.assistantText, 220)}` }
-        : null,
+      ...memoryEvidence.sourceRefs.map(ref => ({
+        ...ref,
+        label: 'explicit structured memory evidence',
+      })),
       input.turnId ? { kind: 'turn', id: input.turnId, label: 'reply turn' } : null,
       input.decisionTraceId ? { kind: 'mind-turn-event', id: input.decisionTraceId, label: 'governed reply trace' } : null,
     ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
-    tags: [
-      'dialogue',
-      selectedAction || 'reply',
-      preferredStyle || 'default-style',
-      hostBusy ? 'focused-window' : 'open-window',
-      threadUnresolved ? 'open-loop' : 'resolved-loop',
-      runtimeEmbodiment.currentBodyState ? `body-${normalizeClosureTagValue(runtimeEmbodiment.currentBodyState)}` : '',
-      runtimeEmbodiment.continuityMode ? `continuity-${normalizeClosureTagValue(runtimeEmbodiment.continuityMode)}` : '',
-      runtimeEmbodiment.dominantResidueKind ? `residue-${normalizeClosureTagValue(runtimeEmbodiment.dominantResidueKind)}` : '',
-      runtimeEmbodiment.residentFacialCue ? `facial-${normalizeClosureTagValue(runtimeEmbodiment.residentFacialCue)}` : '',
-      runtimeEmbodiment.residentActionCue ? `action-${normalizeClosureTagValue(runtimeEmbodiment.residentActionCue)}` : '',
-      runtimeEmbodiment.residentMode ? `resident-mode-${normalizeClosureTagValue(runtimeEmbodiment.residentMode)}` : '',
-    ],
+    tags: memoryEvidence.tags ?? [],
   })
 
   return result
@@ -597,12 +580,10 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
     sessionId: input.sessionId,
     whereSummary: 'dialogue-feedback',
     withWhom: ['host'],
-    threadAnchor: sanitizeText(input.previousAssistantText, 160) || null,
+    threadAnchor: null,
     whatHappened: [
       `feedback=${input.feedback}`,
       input.feedbackSource ? `source=${input.feedbackSource}` : '',
-      input.userText ? `user=${sanitizeText(input.userText, 240)}` : '',
-      input.previousAssistantText ? `assistant=${sanitizeText(input.previousAssistantText, 280)}` : '',
     ].filter(Boolean).join(' | '),
     emotionTags: [input.feedback],
     sourceSummary: 'dialogue-feedback',
@@ -611,12 +592,6 @@ export function buildDialogueReplyFeedbackOutcomeClosure(input: {
     consolidationPriority: input.feedback === 'robotic' || input.feedback === 'missed' || input.feedback === 'intrusive' ? 0.72 : 0.48,
     relationshipOutcome,
     derivedFrom: [
-      input.userText
-        ? { kind: 'turn', id: input.turnId ?? input.sessionId ?? 'feedback-turn', label: `host feedback dialogue: ${sanitizeText(input.userText, 240)}` }
-        : null,
-      input.previousAssistantText
-        ? { kind: 'turn', id: input.turnId ?? input.sessionId ?? 'feedback-turn', label: `assistant feedback dialogue: ${sanitizeText(input.previousAssistantText, 280)}` }
-        : null,
       input.turnId ? { kind: 'turn', id: input.turnId, label: 'feedback turn' } : null,
       input.decisionTraceId ? { kind: 'mind-turn-event', id: input.decisionTraceId, label: 'feedback trace' } : null,
     ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
@@ -719,7 +694,6 @@ export function buildExecutionProposalFeedbackOutcomeClosure(input: {
       `channel=${channel}`,
       `goal=${goal}`,
       summary ? `summary=${summary}` : '',
-      input.thread.userText ? `user=${sanitizeText(input.thread.userText, 240)}` : '',
     ].filter(Boolean).join(' | '),
     emotionTags: ['execution', input.feedback],
     sourceSummary: 'execution-proposal-feedback',
@@ -729,9 +703,6 @@ export function buildExecutionProposalFeedbackOutcomeClosure(input: {
     relationshipOutcome,
     derivedFrom: [
       input.turnId ? { kind: 'turn', id: input.turnId, label: 'execution proposal feedback turn' } : null,
-      input.thread.userText
-        ? { kind: 'turn', id: input.turnId ?? input.thread.threadId, label: `host feedback dialogue: ${sanitizeText(input.thread.userText, 240)}` }
-        : null,
       { kind: 'task-thread', id: input.thread.threadId, label: goal },
     ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
     tags: ['execution-proposal', channel, `feedback:${input.feedback}`, ...procedureContextTags],
@@ -856,8 +827,6 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
       `channel=${channel}`,
       `goal=${goal}`,
       outcome ? `outcome=${outcome}` : '',
-      input.thread.userText ? `user=${sanitizeText(input.thread.userText, 240)}` : '',
-      input.thread.previousAssistantText ? `assistant=${sanitizeText(input.thread.previousAssistantText, 280)}` : '',
       safetyGateSummary ? `safety_gate=${safetyGateSummary}` : '',
       resumeConfirmationSummary ? `resume_confirmation=${resumeConfirmationSummary}` : '',
     ].filter(Boolean).join(' | '),
@@ -869,12 +838,6 @@ export function buildExecutionResultFeedbackOutcomeClosure(input: {
     relationshipOutcome,
     derivedFrom: [
       input.turnId ? { kind: 'turn', id: input.turnId, label: 'execution result feedback turn' } : null,
-      input.thread.userText
-        ? { kind: 'turn', id: input.turnId ?? input.thread.threadId, label: `host feedback dialogue: ${sanitizeText(input.thread.userText, 240)}` }
-        : null,
-      input.thread.previousAssistantText
-        ? { kind: 'turn', id: input.turnId ?? input.thread.threadId, label: `assistant feedback dialogue: ${sanitizeText(input.thread.previousAssistantText, 280)}` }
-        : null,
       outcome ? { kind: 'task-thread', id: `${input.thread.threadId}:outcome`, label: `tool outcome: ${outcome}` } : null,
       safetyGateSummary ? { kind: 'task-thread', id: `${input.thread.threadId}:safety`, label: `safety gate: ${safetyGateSummary}` } : null,
       resumeConfirmationSummary ? { kind: 'task-thread', id: `${input.thread.threadId}:resume`, label: `resume confirmation: ${resumeConfirmationSummary}` } : null,
@@ -979,8 +942,6 @@ export function buildProactiveFeedbackOutcomeClosure(input: {
       whatHappened: [
         `outcome=${outcome.outcome}`,
         `scenario=${label}`,
-        outcome.userText ? `user=${sanitizeText(outcome.userText, 240)}` : '',
-        outcome.assistantText ? `assistant=${sanitizeText(outcome.assistantText, 280)}` : '',
       ].filter(Boolean).join(' | '),
       emotionTags: ['proactive', label, outcome.outcome],
       sourceSummary: 'proactive-outcome',
@@ -990,12 +951,6 @@ export function buildProactiveFeedbackOutcomeClosure(input: {
       relationshipOutcome,
       derivedFrom: [
         outcome.turnId ? { kind: 'turn', id: outcome.turnId, label: `${label} proactive turn` } : null,
-        outcome.userText
-          ? { kind: 'turn', id: outcome.turnId, label: `host feedback dialogue: ${sanitizeText(outcome.userText, 240)}` }
-          : null,
-        outcome.assistantText
-          ? { kind: 'turn', id: outcome.turnId, label: `assistant feedback dialogue: ${sanitizeText(outcome.assistantText, 280)}` }
-          : null,
       ].filter(Boolean) as AlicizationEpisodicEventInput['derivedFrom'],
       tags: ['proactive', label.replace(/\s+/g, '-'), `settlement:${outcome.outcome}`],
     })

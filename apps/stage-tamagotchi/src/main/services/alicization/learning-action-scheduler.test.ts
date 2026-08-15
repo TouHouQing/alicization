@@ -3,6 +3,7 @@ import type { AlicizationLearningTaskRecord } from '../../../shared/eventa'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  buildAlicizationLearningTaskId,
   computeAlicizationLearningTaskBackoffMs,
   createAlicizationLearningActionScheduler,
   deriveAlicizationLearningTaskRetryPlan,
@@ -56,7 +57,124 @@ function buildLearningTaskRecord(input: Partial<AlicizationLearningTaskRecord> =
   }
 }
 
+function buildSchedulableLearningContext() {
+  return {
+    hostAttitude: '',
+    coreIncarnation: '',
+    activeThoughts: [],
+    retrievedFacts: [],
+    recalledFragments: [],
+    decisionTraceId: 'trace-abort-learning',
+    sessionId: 'session-abort-learning',
+    selfEvolution: {
+      version: 'self-evolution-kernel-v1',
+      updatedAt: 1_000,
+      evolutionMomentum: 0.4,
+      learningReadiness: 0.7,
+      contradictionPressure: 0.1,
+      revisionPressure: 0.1,
+      autobiographicalStability: 0.8,
+      dominantTrajectory: 'Keep only durable validated learning.',
+      relationshipDoctrine: null,
+      latestInflection: null,
+      burdenLine: null,
+      trustMeaning: null,
+      nextLearningAction: 'internalize',
+      nextLearningReason: 'Validated learning is ready for durable use.',
+      shouldRecord: false,
+      shouldReflect: false,
+      shouldVerify: false,
+      shouldRevise: false,
+      shouldInternalize: true,
+      activeLearningFocuses: ['validated-learning'],
+      sourceSignals: ['validated-outcome'],
+      summary: 'Validated learning is ready for durable use.',
+    },
+  } as any
+}
+
 describe('learning action scheduler', () => {
+  it('derives one stable task identity for the same source turn across replay', () => {
+    const first = buildAlicizationLearningTaskId({
+      action: 'internalize',
+      cardId: 'default',
+      decisionTraceId: 'trace-stable-learning',
+      randomUUID: 'random-first',
+      sourceTurnId: 'turn-stable-learning',
+    })
+    const replay = buildAlicizationLearningTaskId({
+      action: 'internalize',
+      cardId: 'default',
+      decisionTraceId: 'trace-stable-learning',
+      randomUUID: 'random-second',
+      sourceTurnId: 'turn-stable-learning',
+    })
+
+    expect(replay).toBe(first)
+    expect(first).toMatch(/^learning:default:internalize:[a-f0-9]{24}$/u)
+  })
+
+  it('forwards the turn abort signal and skips audit when scheduling is aborted during insert', async () => {
+    const controller = new AbortController()
+    const insertGate = (() => {
+      let release = () => {}
+      const wait = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      return { release, wait }
+    })()
+    const insertLearningTask = vi.fn(async (input: any): Promise<AlicizationLearningTaskRecord> => {
+      await insertGate.wait
+      return buildLearningTaskRecord({
+        id: `row:${input.taskId}`,
+        taskId: input.taskId,
+        status: 'scheduled',
+        action: input.action,
+        payload: input.payload,
+        sourceTurnId: input.payload.sourceTurnId,
+      })
+    })
+    const appendAuditLog = vi.fn(async () => {})
+    const scheduler = createAlicizationLearningActionScheduler({
+      now: () => 1_000,
+      insertLearningTask,
+      claimDueLearningTasks: async () => [],
+      startLearningTask: async () => {},
+      blockLearningTask: async () => {},
+      completeLearningTask: async () => {},
+      failLearningTask: async () => {},
+      reopenLearningTask: async () => {},
+      downgradeLearningTask: async () => {},
+      cancelLearningTask: async () => {},
+      listLearningTasks: async () => [],
+      appendAuditLog,
+      executeLearningTask: async () => ({
+        status: 'completed',
+        resultSummary: 'done',
+      }),
+      randomUUID: () => 'uuid-abort-learning',
+      getActiveCardId: () => 'default',
+    })
+
+    const pending = scheduler.scheduleLearningTask({
+      turnId: 'turn-abort-learning',
+      context: buildSchedulableLearningContext(),
+      signal: controller.signal,
+    })
+
+    await vi.waitFor(() => {
+      expect(insertLearningTask).toHaveBeenCalledTimes(1)
+    })
+    controller.abort(new DOMException('Turn was suspended', 'AbortError'))
+    insertGate.release()
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect((insertLearningTask.mock.calls as any[][])[0]?.[1]).toEqual({
+      signal: controller.signal,
+    })
+    expect(appendAuditLog).not.toHaveBeenCalled()
+  })
+
   it('schedules a non-hold learning action from self-evolution', async () => {
     const insertLearningTask = vi.fn(async (input: any): Promise<AlicizationLearningTaskRecord> => ({
       id: `row:${input.taskId}`,

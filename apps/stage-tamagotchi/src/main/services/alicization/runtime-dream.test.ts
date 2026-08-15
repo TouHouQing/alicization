@@ -13,6 +13,15 @@ describe('runtime dream', () => {
     const queueSoulMutation = vi.fn(async () => undefined)
     const persistSubconsciousState = vi.fn(async () => undefined)
     const persistProactiveLoopState = vi.fn(async () => undefined)
+    const listConversationTurnsSince = vi.fn(async () => [{
+      turnId: 'turn-provider-unavailable',
+      sessionId: 'session-provider-unavailable',
+      userText: '闭嘴，别再问了。',
+      assistantText: 'Provider request failed.',
+      structuredJson: JSON.stringify({ emotion: 'angry' }),
+      createdAt: 1_700_000_000_000,
+    }])
+    const generateDreamMetabolismWithGateway = vi.fn(async () => null)
     const runtime = createAlicizationDreamRuntime({
       ensureSubconsciousState: vi.fn(async () => ({
         boredom: 10,
@@ -26,18 +35,24 @@ describe('runtime dream', () => {
       })),
       ensureProactiveLoopState: vi.fn(async () => createDefaultProactiveLoopState(0)),
       getAlicizationDb: () => ({
-        listConversationTurnsSince: vi.fn(async () => [{
-          turnId: 'turn-provider-unavailable',
-          sessionId: 'session-provider-unavailable',
-          userText: '闭嘴，别再问了。',
-          assistantText: 'Provider request failed.',
-          structuredJson: JSON.stringify({ emotion: 'angry' }),
-          createdAt: 1_700_000_000_000,
-        }]),
+        listConversationTurnsSince,
         listActiveThoughts: vi.fn(async () => [{ text: '保留已有活跃思绪' }]),
         appendRelationshipDynamics,
         appendEpisodicEvents,
-        listMemoryConsolidations: vi.fn(async () => []),
+        listMemoryConsolidations: vi.fn(async () => [{
+          id: 'consolidation-provider-unavailable',
+          kind: 'daily',
+          periodKey: 'accepted-memory-period',
+          periodStartedAt: 1_700_000_000_000,
+          periodEndedAt: 1_700_000_000_000,
+          summary: '已清洗并准入的长期记忆摘要。',
+          lesson: '只允许长期记忆证据参与 Dream。',
+          cues: ['长期记忆', '准入'],
+          confidence: 0.9,
+          dominantProvenance: 'remembered',
+          derivedEventIds: ['event-accepted-memory'],
+          updatedAt: 1_700_000_000_000,
+        }]),
         replaceActiveThoughts,
         appendSubconsciousFragments,
       }),
@@ -65,7 +80,7 @@ describe('runtime dream', () => {
           continuitySignals: [],
         }),
       }) as any),
-      generateDreamMetabolismWithGateway: vi.fn(async () => null),
+      generateDreamMetabolismWithGateway,
       generateCoreIncarnationReforgeWithGateway: vi.fn(async () => {
         throw new Error('reforge should not run')
       }),
@@ -106,6 +121,14 @@ describe('runtime dream', () => {
       processed: false,
       skippedReason: 'provider-unavailable',
     })
+    expect(listConversationTurnsSince).not.toBeCalled()
+    expect(generateDreamMetabolismWithGateway).toBeCalledWith(expect.objectContaining({
+      serializedTurns: expect.arrayContaining([
+        expect.stringContaining('已清洗并准入的长期记忆摘要。'),
+      ]),
+    }))
+    expect(JSON.stringify(generateDreamMetabolismWithGateway.mock.calls)).not.toContain('闭嘴，别再问了。')
+    expect(JSON.stringify(generateDreamMetabolismWithGateway.mock.calls)).not.toContain('Provider request failed.')
     expect(appendAuditLog).toBeCalledWith(expect.objectContaining({
       category: 'alicization.dream',
       action: 'metabolism-provider-unavailable',
@@ -122,6 +145,31 @@ describe('runtime dream', () => {
   it('feeds refined consolidation summaries into autobiographical synthesis', async () => {
     const refinedSummary = '她记住了今晚一起整理书桌的约定。'
     const autobiographicalGateway = vi.fn(async () => [])
+    const listConversationTurnsSince = vi.fn(async () => [{
+      turnId: 'turn-dream-runtime-1',
+      sessionId: 'session-dream-runtime',
+      userText: '这段原始用户对话绝不能进入 Dream。',
+      assistantText: 'Provider request failed.',
+      structuredJson: JSON.stringify({ emotion: 'thinking' }),
+      createdAt: 1_700_000_000_000,
+    }])
+    const appendRelationshipDynamics = vi.fn(async () => undefined)
+    const appendEpisodicEvents = vi.fn(async () => undefined)
+    const replaceActiveThoughts = vi.fn(async () => undefined)
+    const appendSubconsciousFragments = vi.fn(async () => undefined)
+    const queueSoulMutation = vi.fn(async () => undefined)
+    const generateDreamMetabolismWithGateway = vi.fn(async () => ({
+      host_attitude: '继续沿着这轮约定慢慢收口。',
+      soul_shift: {
+        obedience_delta: 0,
+        liveliness_delta: 0,
+        sensibility_delta: 0,
+      },
+      next_active_thoughts: [{ text: 'Keep remembered evidence explicit across dream memory.' }],
+      explicit_demoted_thoughts: [],
+      new_sediment_fragments: [],
+      shattering_event: null,
+    }))
     const runtime = createAlicizationDreamRuntime({
       ensureSubconsciousState: vi.fn(async () => ({
         boredom: 10,
@@ -135,18 +183,11 @@ describe('runtime dream', () => {
       })),
       ensureProactiveLoopState: vi.fn(async () => createDefaultProactiveLoopState(0)),
       getAlicizationDb: () => ({
-        listConversationTurnsSince: vi.fn(async () => [{
-          turnId: 'turn-dream-runtime-1',
-          sessionId: 'session-dream-runtime',
-          userText: '继续把这轮书桌约定记稳一点。',
-          assistantText: '我会把这轮约定继续记住。',
-          structuredJson: JSON.stringify({ emotion: 'thinking' }),
-          createdAt: 1_700_000_000_000,
-        }]),
+        listConversationTurnsSince,
         listActiveThoughts: vi.fn(async () => []),
         appendAuditLog: vi.fn(async () => undefined),
-        appendRelationshipDynamics: vi.fn(async () => undefined),
-        appendEpisodicEvents: vi.fn(async () => undefined),
+        appendRelationshipDynamics,
+        appendEpisodicEvents,
         listMemoryConsolidations: vi.fn(async () => [{
           id: 'consolidation-phase1-1',
           kind: 'autobiographical',
@@ -163,8 +204,8 @@ describe('runtime dream', () => {
           updatedAt: 1_700_000_000_000,
         }]),
         upsertMemoryConsolidations: vi.fn(async () => undefined),
-        replaceActiveThoughts: vi.fn(async () => undefined),
-        appendSubconsciousFragments: vi.fn(async () => undefined),
+        replaceActiveThoughts,
+        appendSubconsciousFragments,
       }),
       getSoulSnapshot: () => ({
         content: '',
@@ -199,18 +240,7 @@ describe('runtime dream', () => {
           continuitySignals: [],
         }),
       }) as any),
-      generateDreamMetabolismWithGateway: vi.fn(async () => ({
-        host_attitude: '继续沿着这轮约定慢慢收口。',
-        soul_shift: {
-          obedience_delta: 0,
-          liveliness_delta: 0,
-          sensibility_delta: 0,
-        },
-        next_active_thoughts: [{ text: 'Keep remembered evidence explicit across dream memory.' }],
-        explicit_demoted_thoughts: [],
-        new_sediment_fragments: [],
-        shattering_event: null,
-      })),
+      generateDreamMetabolismWithGateway,
       generateCoreIncarnationReforgeWithGateway: vi.fn(async () => null),
       generateMemoryConsolidationRefinementWithGateway: vi.fn(async () => [{
         id: 'consolidation-phase1-1',
@@ -232,7 +262,7 @@ describe('runtime dream', () => {
             .filter(item => item.text)
         : [],
       sanitizeBriefText: (raw: string) => raw,
-      queueSoulMutation: vi.fn(async () => undefined),
+      queueSoulMutation,
       snapshotFromContent: vi.fn((content: string) => ({ content }) as any),
       persistSubconsciousState: vi.fn(async () => undefined),
       persistProactiveLoopState: vi.fn(async () => undefined),
@@ -248,6 +278,12 @@ describe('runtime dream', () => {
     const result = await runtime.runDreamForCurrentCard('unit-runtime-dream-refinement-carry')
 
     expect(result).toEqual({ processed: true })
+    expect(listConversationTurnsSince).not.toBeCalled()
+    expect(generateDreamMetabolismWithGateway).toBeCalledWith(expect.objectContaining({
+      serializedTurns: expect.arrayContaining([
+        expect.stringContaining('Old deterministic summary.'),
+      ]),
+    }))
     expect(autobiographicalGateway).toBeCalledWith(expect.objectContaining({
       consolidations: expect.arrayContaining([
         expect.objectContaining({
@@ -256,5 +292,16 @@ describe('runtime dream', () => {
         }),
       ]),
     }))
+    const persistedDreamState = JSON.stringify([
+      appendRelationshipDynamics.mock.calls,
+      appendEpisodicEvents.mock.calls,
+      replaceActiveThoughts.mock.calls,
+      appendSubconsciousFragments.mock.calls,
+      queueSoulMutation.mock.calls,
+    ])
+    expect(JSON.stringify(generateDreamMetabolismWithGateway.mock.calls)).not.toContain('这段原始用户对话绝不能进入 Dream。')
+    expect(JSON.stringify(generateDreamMetabolismWithGateway.mock.calls)).not.toContain('Provider request failed.')
+    expect(persistedDreamState).not.toContain('这段原始用户对话绝不能进入 Dream。')
+    expect(persistedDreamState).not.toContain('Provider request failed.')
   })
 })

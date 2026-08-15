@@ -50,6 +50,12 @@ export type AlicizationChatMemoryFailureStage
     | 'working-memory-checkpoint-load'
     | 'working-memory-checkpoint-save'
     | 'working-memory-long-term-queue'
+    | 'working-memory-long-term-drain'
+    | 'dialogue-session-mirror-commit'
+    | 'autobiographical-memory-write'
+    | 'persona-learning-schedule'
+    | 'runtime-event-store'
+    | 'memory-turn-settlement'
 
 export interface AlicizationChatMemoryFailureSurface extends AlicizationChatFailureSurface {
   stage: AlicizationChatMemoryFailureStage

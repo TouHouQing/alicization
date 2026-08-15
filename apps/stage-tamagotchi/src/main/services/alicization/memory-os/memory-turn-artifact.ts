@@ -23,7 +23,6 @@ export interface AlicizationMemoryTurnArtifact {
     retrievedFacts: number
     recalledFragments: number
     recalledEpisodes: number
-    recalledConversationHistory: number
     recollectedWindows: number
     consolidatedMemories: number
     proceduralMemories: number
@@ -110,7 +109,6 @@ export function buildAlicizationMemoryTurnArtifact(input: {
 }): AlicizationMemoryTurnArtifact {
   const { context } = input
   const recalledEpisodes = context.recalledEpisodes?.length ?? 0
-  const recalledConversationHistory = context.recalledConversationHistory?.length ?? 0
   const recollectedWindows = context.recollectedWindows?.length ?? 0
   const consolidatedMemories = context.consolidatedMemories?.length ?? 0
   const proceduralMemories = context.proceduralMemories?.length ?? 0
@@ -161,7 +159,6 @@ export function buildAlicizationMemoryTurnArtifact(input: {
       retrievedFacts: context.retrievedFacts.length,
       recalledFragments: context.recalledFragments.length,
       recalledEpisodes,
-      recalledConversationHistory,
       recollectedWindows,
       consolidatedMemories,
       proceduralMemories,

@@ -399,7 +399,6 @@ function replayDialogueSession(turns: ReplayTurn[]) {
         turnId: turn.id,
         sessionId: 'session-replay',
         decisionTraceId: `trace:${turn.id}:reply`,
-        assistantText: turn.assistantText,
         runtimeSurface: createReplyRuntimeSurface(turn, worldModel) as any,
       })),
     )

@@ -13,6 +13,7 @@ import type {
   WorkingMemoryFailureKind,
   WorkingMemoryFailureSurface,
   WorkingMemoryLongTermCandidate,
+  WorkingMemoryLongTermEvidence,
   WorkingMemoryQuestion,
   WorkingMemorySnapshot,
   WorkingMemoryTask,
@@ -26,6 +27,7 @@ import {
 
 import {
   createEmptyWorkingMemorySnapshot,
+  normalizeWorkingMemoryLongTermEvidence,
   normalizeWorkingMemoryText,
   normalizeWorkingMemoryTurn,
   uniqueWorkingMemoryTexts,
@@ -44,6 +46,7 @@ export interface WorkingMemoryRecentTurnInput {
   origin?: AlicizationVisibleArtifactOrigin | null
   learningPolicy?: AlicizationVisibleArtifactLearningPolicy | null
   failureSurface?: WorkingMemoryFailureSurface | null
+  memoryEvidence?: WorkingMemoryLongTermEvidence | null
   contaminated?: boolean
 }
 
@@ -52,6 +55,13 @@ export interface BuildWorkingMemorySnapshotInput {
   sessionId: string
   now: number
   currentUserText: string
+  currentTurnId?: string | null
+  currentAssistantText?: string | null
+  currentOrigin?: AlicizationVisibleArtifactOrigin | null
+  currentLearningPolicy?: AlicizationVisibleArtifactLearningPolicy | null
+  currentFailureSurface?: WorkingMemoryFailureSurface | null
+  currentMemoryEvidence?: WorkingMemoryLongTermEvidence | null
+  currentContaminated?: boolean
   recentTurns?: WorkingMemoryRecentTurnInput[]
   conversationState?: AlicizationConversationStateSnapshot | null
   dialogueWorldThread?: AlicizationDialogueWorldThreadSnapshot | null
@@ -159,10 +169,11 @@ function mergeLongTermCandidates(
     ...(previous ?? []).map(candidate => ({ candidate, current: false })),
   ]) {
     const candidate = entry.candidate
-    const summary = entry.current
-      ? normalizeWorkingMemoryText(candidate.summary, 260)
-      : sanitizeWorkingMemoryStoredText(candidate.summary, 260)
-    const reason = sanitizeWorkingMemoryStoredText(candidate.reason, 260)
+    const memoryEvidence = normalizeWorkingMemoryLongTermEvidence(candidate.memoryEvidence)
+    if (!memoryEvidence)
+      continue
+    const summary = memoryEvidence.summary
+    const reason = memoryEvidence.reason
     const sourceTurnIds = uniqueWorkingMemoryTexts(candidate.sourceTurnIds, 12, 120)
     const key = [
       candidate.kind,
@@ -175,25 +186,21 @@ function mergeLongTermCandidates(
     seen.add(key)
     result.push({
       ...candidate,
+      kind: memoryEvidence.kind,
       summary,
       reason,
+      evidenceSnippets: memoryEvidence.evidenceSnippets,
+      salience: memoryEvidence.salience,
+      sensitivity: memoryEvidence.sensitivity,
+      confidence: memoryEvidence.confidence,
+      allowTraining: false,
+      memoryEvidence,
       sourceTurnIds,
     })
     if (result.length >= 6)
       break
   }
   return result
-}
-
-function recoverLongTermCandidateSummary(
-  candidate: WorkingMemoryLongTermCandidate,
-  recentRawTurns: WorkingMemoryTurn[],
-) {
-  const sourceText = candidate.sourceTurnIds
-    .map(sourceTurnId => recentRawTurns.find(turn => turn.turnId === sourceTurnId)?.text ?? '')
-    .map(text => normalizeWorkingMemoryText(text, 260))
-    .find(Boolean)
-  return sourceText || candidate.summary
 }
 
 function mergeAudit(current: WorkingMemoryAuditState, previous: WorkingMemoryAuditState | null | undefined): WorkingMemoryAuditState {
@@ -235,6 +242,36 @@ function detectFailureKindFromSurface(
   return 'provider-error'
 }
 
+function mergePreviousWorkingMemoryTurns(
+  currentTurns: WorkingMemoryTurn[],
+  previousSnapshot: WorkingMemorySnapshot | null,
+) {
+  if (!previousSnapshot)
+    return currentTurns
+
+  const compressedTurnIds = new Set([
+    ...previousSnapshot.compression.sourceTurnIds,
+    ...previousSnapshot.compressedTimeline.flatMap(item => item.sourceTurnIds),
+  ])
+  const merged = new Map<string, WorkingMemoryTurn>()
+  for (const turn of previousSnapshot.recentRawTurns) {
+    if (
+      compressedTurnIds.has(turn.turnId)
+      || turn.failureKind
+      || turn.origin === 'failure-surface'
+      || turn.failureSurface
+    ) {
+      continue
+    }
+    merged.set(turn.turnId, normalizeWorkingMemoryTurn(turn))
+  }
+  for (const turn of currentTurns)
+    merged.set(turn.turnId, turn)
+
+  return [...merged.values()]
+    .sort((left, right) => left.createdAt - right.createdAt)
+}
+
 function mapRecentTurns(input: BuildWorkingMemorySnapshotInput): WorkingMemoryTurn[] {
   const turns: WorkingMemoryTurn[] = []
   for (const [index, turn] of (input.recentTurns ?? []).entries()) {
@@ -261,6 +298,7 @@ function mapRecentTurns(input: BuildWorkingMemorySnapshotInput): WorkingMemoryTu
         origin,
         learningPolicy,
         failureSurface: turn.failureSurface ?? null,
+        memoryEvidence: turn.memoryEvidence ?? null,
         contaminated: turn.contaminated === true,
         importance: 0.66,
       }))
@@ -279,6 +317,7 @@ function mapRecentTurns(input: BuildWorkingMemorySnapshotInput): WorkingMemoryTu
         origin,
         learningPolicy,
         failureSurface: turn.failureSurface ?? null,
+        memoryEvidence: turn.memoryEvidence ?? null,
         contaminated: turn.contaminated === true,
         importance: 0.52,
       }))
@@ -286,15 +325,58 @@ function mapRecentTurns(input: BuildWorkingMemorySnapshotInput): WorkingMemoryTu
   }
 
   const currentText = normalizeWorkingMemoryText(input.currentUserText, 1200)
+  const currentAssistantText = sanitizeWorkingMemoryStoredText(
+    input.currentAssistantText,
+    1200,
+  )
+  const currentTurnId = normalizeWorkingMemoryText(
+    input.currentTurnId,
+    120,
+  ) || `turn-at-${Math.max(0, Math.floor(input.now))}`
+  const currentOrigin = input.currentFailureSurface?.origin
+    ?? input.currentOrigin
+    ?? null
+  const currentLearningPolicy = input.currentLearningPolicy
+    ?? (input.currentFailureSurface
+      ? {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        }
+      : null)
   if (currentText) {
     turns.push(normalizeWorkingMemoryTurn({
-      turnId: 'current-user',
+      turnId: `${currentTurnId}:user`,
       role: 'user',
       text: currentText,
       createdAt: input.now,
       source: 'conversation-turn',
       visibility: 'user-visible',
+      origin: currentOrigin,
+      learningPolicy: currentLearningPolicy,
+      failureSurface: input.currentFailureSurface ?? null,
+      memoryEvidence: input.currentMemoryEvidence ?? null,
+      contaminated: input.currentContaminated === true,
       importance: 1,
+    }))
+  }
+  if (currentAssistantText) {
+    turns.push(normalizeWorkingMemoryTurn({
+      turnId: `${currentTurnId}:alice`,
+      role: 'alice',
+      text: currentAssistantText,
+      createdAt: input.now + 1,
+      source: 'conversation-turn',
+      visibility: 'user-visible',
+      failureKind:
+        detectFailureKindFromSurface(input.currentFailureSurface)
+        ?? detectFailureKindFromVisibleText(currentAssistantText),
+      origin: currentOrigin,
+      learningPolicy: currentLearningPolicy,
+      failureSurface: input.currentFailureSurface ?? null,
+      memoryEvidence: input.currentMemoryEvidence ?? null,
+      contaminated: input.currentContaminated === true,
+      importance: 0.72,
     }))
   }
   return turns
@@ -338,7 +420,10 @@ export function buildWorkingMemorySnapshot(input: BuildWorkingMemorySnapshotInpu
     now: input.now,
   })
   const previousSnapshot = input.previousSnapshot ?? null
-  const recentRawTurns = mapRecentTurns(input)
+  const recentRawTurns = mergePreviousWorkingMemoryTurns(
+    mapRecentTurns(input),
+    previousSnapshot,
+  )
   const firstTurn = recentRawTurns[0] ?? null
   const lastTurn = recentRawTurns.at(-1) ?? null
   const currentUserTextIsThinContinuation = looksLikeThinContinuationCue(input.currentUserText)
@@ -448,10 +533,6 @@ export function buildWorkingMemorySnapshot(input: BuildWorkingMemorySnapshotInpu
     ...(input.dialogueWorldThread?.recallKeys ?? []),
   ], previousSnapshot?.memoryQueryHints, 8, 120)
   const currentLongTermCandidates = createLongTermCandidatesFromWorkingTurns(recentRawTurns)
-    .map(candidate => ({
-      ...candidate,
-      summary: recoverLongTermCandidateSummary(candidate, recentRawTurns),
-    }))
   const mergedLongTermCandidates = mergeLongTermCandidates(
     currentLongTermCandidates,
     previousSnapshot?.longTermCandidates,
@@ -462,12 +543,16 @@ export function buildWorkingMemorySnapshot(input: BuildWorkingMemorySnapshotInpu
   const excludedLongTermCandidateTurnIds = recentRawTurns
     .filter(shouldExcludeTurnFromLongTermCandidate)
     .map(turn => turn.turnId)
+  const missingStructuredMemoryEvidenceTurnIds = recentRawTurns
+    .filter(turn => !turn.memoryEvidence)
+    .map(turn => turn.turnId)
   const mergedAudit = mergeAudit({
     failureTurnIds,
     excludedLongTermCandidateTurnIds,
     notes: [
       failureTurnIds.length > 0 ? 'failure turns are audit-only and excluded from long-term candidates' : '',
-      excludedLongTermCandidateTurnIds.length > 0 ? 'non-learning turns are excluded from long-term candidates' : '',
+      missingStructuredMemoryEvidenceTurnIds.length > 0 ? 'missing-structured-memory-evidence' : '',
+      excludedLongTermCandidateTurnIds.length > 0 ? 'ineligible turns are excluded from long-term candidates' : '',
     ].filter(Boolean),
   }, previousSnapshot?.audit)
   const mergedSnapshot: WorkingMemorySnapshot = {

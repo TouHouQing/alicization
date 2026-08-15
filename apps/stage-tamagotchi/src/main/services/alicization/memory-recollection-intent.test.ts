@@ -80,7 +80,6 @@ describe('memory recollection intent', () => {
     })
 
     expect(intent?.mode).toBe('relationship-history')
-    expect(intent?.searchConversations).toBe(true)
     expect(intent?.searchEpisodes).toBe(true)
   })
 

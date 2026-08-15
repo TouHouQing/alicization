@@ -1,3 +1,5 @@
+import type { AlicizationExecutionEventRecord } from '../../../shared/eventa'
+
 import {
   normalizeAlicizationExecutionRuntimeContext,
 } from '@proj-alicization/stage-shared'
@@ -22,6 +24,32 @@ function withProactiveTaskOwnershipMetadata(
       ...normalizedTask,
       origin: 'proactive',
     },
+  }
+}
+
+function completedExecutionResultEvent(input: {
+  threadId?: string
+  decisionTraceId?: string | null
+  turnId?: string | null
+  sessionId?: string | null
+  channel?: AlicizationExecutionEventRecord['channel']
+  summary?: string
+  createdAt?: number
+} = {}): AlicizationExecutionEventRecord {
+  return {
+    id: `${input.threadId ?? 'thread-1'}:result`,
+    threadId: input.threadId ?? 'thread-1',
+    decisionTraceId: input.decisionTraceId === undefined ? 'trace-1' : input.decisionTraceId,
+    turnId: input.turnId === undefined ? 'turn-1' : input.turnId,
+    sessionId: input.sessionId === undefined ? 'session-1' : input.sessionId,
+    origin: 'subconscious-proactive',
+    channel: input.channel ?? 'codex',
+    kind: 'result',
+    threadStatus: 'completed',
+    payload: {
+      summary: input.summary ?? 'patch applied',
+    },
+    createdAt: input.createdAt ?? 2,
   }
 }
 
@@ -84,7 +112,7 @@ describe('runtime execution feedback', () => {
     } as any, 10, 'test')
 
     expect(feedback).toBe('denied')
-    expect(persistOutcomeClosure).toHaveBeenCalled()
+    expect(persistOutcomeClosure).not.toHaveBeenCalled()
     expect(upsertTaskThread).toHaveBeenCalledWith(expect.objectContaining({
       status: 'cancelled',
       summary: 'execution-proposal-feedback:denied',
@@ -94,7 +122,7 @@ describe('runtime execution feedback', () => {
     }), 'card-1')
   })
 
-  it('passes structured affective residue from stored execution runtime context into proposal feedback closure instead of dropping the pending execution feeling to consent prose only', async () => {
+  it('keeps pending proposal feedback out of long-term outcome closure until execution completes', async () => {
     const buildExecutionProposalFeedbackOutcomeClosure = vi.fn(input => input as any)
     const emotionalTransitionLedger = {
       version: 'emotional-transition-ledger-v1',
@@ -236,26 +264,7 @@ describe('runtime execution feedback', () => {
       messages: [],
     } as any, 10, 'test')
 
-    expect(buildExecutionProposalFeedbackOutcomeClosure).toHaveBeenCalledWith(expect.objectContaining({
-      affectiveResidue: expect.objectContaining({
-        dominantResidueKind: 'repair',
-        relationshipCadence: expect.objectContaining({
-          cadenceMode: 'repair',
-        }),
-      }),
-      emotionalTransitionLedger: expect.objectContaining({
-        transitionKind: 'repair-shift',
-        memoryWriteback: expect.objectContaining({
-          lane: 'relationship-repair',
-        }),
-        initiativeSuppression: expect.objectContaining({
-          mode: 'repair-first',
-        }),
-        embodimentDrive: expect.objectContaining({
-          tone: 'repair-before-closeness',
-        }),
-      }),
-    }))
+    expect(buildExecutionProposalFeedbackOutcomeClosure).not.toHaveBeenCalled()
   })
 
   it('ignores non-needs-affirmation threads when settling pending execution proposal feedback', async () => {
@@ -346,6 +355,7 @@ describe('runtime execution feedback', () => {
           hostAttitude: '之前还在观察她到底是不是只会机械报结果。',
         }),
         appendRelationshipDynamics,
+        listExecutionEvents: async () => [completedExecutionResultEvent()],
         listTaskThreads: async () => [{
           id: 'thread-1',
           decisionTraceId: 'trace-1',
@@ -398,6 +408,172 @@ describe('runtime execution feedback', () => {
     }), 'card-1')
   })
 
+  it('does not internalize a completed task thread without a trusted completed result event', async () => {
+    const persistOutcomeClosure = vi.fn(async () => {})
+    const appendRelationshipDynamics = vi.fn(async () => {})
+    const upsertTaskThread = vi.fn(async () => ({}))
+    const appendAuditLog = vi.fn(async () => {})
+    const runtime = createAlicizationRuntimeExecutionFeedback({
+      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      readLatestUserMessageText: () => '这次结果有用',
+      readLatestAssistantMessageText: () => '结果已经回来',
+      ensureActiveOrLatestSessionId: async () => 'session-1',
+      withCardScope: async (_cardId, task) => await task(),
+      readTaskThreadActivityAt: thread => Number(thread.updatedAt ?? thread.createdAt ?? 0),
+      attachSynthesizedReflections: input => input,
+      buildExecutionProposalFeedbackOutcomeClosure: input => input as any,
+      buildExecutionResultFeedbackOutcomeClosure: input => input as any,
+      deriveExecutionProposalFeedbackKind: () => null,
+      deriveExecutionResultFeedbackKind: () => 'valued',
+      persistOutcomeClosure,
+      appendAuditLog,
+      alicizationDb: {
+        getLatestRelationshipDynamics: async () => null,
+        appendRelationshipDynamics,
+        listExecutionEvents: async () => [{
+          ...completedExecutionResultEvent(),
+          threadStatus: 'failed',
+        }],
+        listTaskThreads: async () => [{
+          id: 'thread-1',
+          decisionTraceId: 'trace-1',
+          turnId: 'turn-1',
+          sessionId: 'session-1',
+          origin: 'subconscious-proactive',
+          goal: 'run the patch',
+          kind: 'task',
+          status: 'completed',
+          selectedChannel: 'codex',
+          proposedChannel: 'codex',
+          summary: 'patch applied',
+          metadata: withProactiveTaskOwnershipMetadata(),
+          createdAt: 1,
+          updatedAt: 2,
+          lastEventAt: 2,
+          completedAt: 2,
+        } as any],
+        upsertTaskThread,
+      },
+    })
+
+    const feedback = await runtime.settleRecentExecutionResultFeedbackFromUserTurn({
+      cardId: 'card-1',
+      turnId: 'turn-user',
+      providerId: 'openai',
+      model: 'gpt-test',
+      providerConfig: {},
+      messages: [],
+    } as any, 10, 'test')
+
+    expect(feedback).toBeNull()
+    expect(persistOutcomeClosure).not.toHaveBeenCalled()
+    expect(appendRelationshipDynamics).not.toHaveBeenCalled()
+    expect(upsertTaskThread).not.toHaveBeenCalled()
+    expect(appendAuditLog).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: 'missing decision trace',
+      eventPatch: { decisionTraceId: null },
+    },
+    {
+      name: 'mismatched decision trace',
+      eventPatch: { decisionTraceId: 'trace-other' },
+    },
+    {
+      name: 'missing turn id',
+      eventPatch: { turnId: null },
+    },
+    {
+      name: 'mismatched turn id',
+      eventPatch: { turnId: 'subconscious:thread-other' },
+    },
+    {
+      name: 'missing session id',
+      eventPatch: { sessionId: null },
+    },
+    {
+      name: 'mismatched session id',
+      eventPatch: { sessionId: 'session-other' },
+    },
+    {
+      name: 'thread outside the active session',
+      activeSessionId: 'session-current',
+      threadSessionId: 'session-other',
+      eventPatch: { sessionId: 'session-other' },
+    },
+  ])('rejects completed result evidence with $name', async ({
+    activeSessionId = 'session-1',
+    threadSessionId = 'session-1',
+    eventPatch,
+  }) => {
+    const persistOutcomeClosure = vi.fn(async () => {})
+    const appendRelationshipDynamics = vi.fn(async () => {})
+    const upsertTaskThread = vi.fn(async () => ({}))
+    const appendAuditLog = vi.fn(async () => {})
+    const listExecutionEvents = vi.fn(async () => [completedExecutionResultEvent({
+      turnId: 'subconscious:thread-1',
+      ...eventPatch,
+    })])
+    const runtime = createAlicizationRuntimeExecutionFeedback({
+      normalizeCardId: raw => typeof raw === 'string' ? raw.trim() : 'default',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      readLatestUserMessageText: () => '这次结果有用',
+      readLatestAssistantMessageText: () => '结果已经回来',
+      ensureActiveOrLatestSessionId: async () => activeSessionId,
+      withCardScope: async (_cardId, task) => await task(),
+      readTaskThreadActivityAt: thread => Number(thread.updatedAt ?? thread.createdAt ?? 0),
+      attachSynthesizedReflections: input => input,
+      buildExecutionProposalFeedbackOutcomeClosure: input => input as any,
+      buildExecutionResultFeedbackOutcomeClosure: input => input as any,
+      deriveExecutionProposalFeedbackKind: () => null,
+      deriveExecutionResultFeedbackKind: () => 'valued',
+      persistOutcomeClosure,
+      appendAuditLog,
+      alicizationDb: {
+        getLatestRelationshipDynamics: async () => null,
+        appendRelationshipDynamics,
+        listExecutionEvents,
+        listTaskThreads: async () => [{
+          id: 'thread-1',
+          decisionTraceId: 'trace-1',
+          turnId: 'subconscious:thread-1',
+          sessionId: threadSessionId,
+          origin: 'subconscious-proactive',
+          goal: 'run the patch',
+          kind: 'task',
+          status: 'completed',
+          selectedChannel: 'codex',
+          proposedChannel: 'codex',
+          summary: 'patch applied',
+          metadata: withProactiveTaskOwnershipMetadata(),
+          createdAt: 1,
+          updatedAt: 2,
+          lastEventAt: 2,
+          completedAt: 2,
+        } as any],
+        upsertTaskThread,
+      },
+    })
+
+    const feedback = await runtime.settleRecentExecutionResultFeedbackFromUserTurn({
+      cardId: 'card-1',
+      turnId: 'turn-user',
+      providerId: 'openai',
+      model: 'gpt-test',
+      providerConfig: {},
+      messages: [],
+    } as any, 10, 'test')
+
+    expect(feedback).toBeNull()
+    expect(persistOutcomeClosure).not.toHaveBeenCalled()
+    expect(appendRelationshipDynamics).not.toHaveBeenCalled()
+    expect(upsertTaskThread).not.toHaveBeenCalled()
+    expect(appendAuditLog).not.toHaveBeenCalled()
+  })
+
   it('reconsolidates execution result feedback from structured execution evidence', async () => {
     const upsertTaskThread = vi.fn(async () => ({}))
     const persistOutcomeClosure = vi.fn(async () => {})
@@ -425,6 +601,10 @@ describe('runtime execution feedback', () => {
       alicizationDb: {
         getLatestRelationshipDynamics: async () => null,
         appendRelationshipDynamics,
+        listExecutionEvents: async () => [completedExecutionResultEvent({
+          turnId: 'subconscious:thread-1',
+          summary: 'trusted event outcome',
+        })],
         listTaskThreads: async () => [{
           id: 'thread-1',
           decisionTraceId: 'trace-1',
@@ -436,7 +616,7 @@ describe('runtime execution feedback', () => {
           status: 'completed',
           selectedChannel: 'codex',
           proposedChannel: 'codex',
-          summary: 'done',
+          summary: 'stale thread summary',
           metadata: withProactiveTaskOwnershipMetadata(),
           createdAt: 1,
           updatedAt: 2,
@@ -459,29 +639,38 @@ describe('runtime execution feedback', () => {
     const reconsolidationInput = reconsolidateExecutionResultFeedbackMemoryTrace.mock.calls[0]?.[0] as any
     expect(reconsolidationInput).toEqual(expect.objectContaining({
       cardId: 'card-1',
-      decisionTraceId: 'trace-1',
       feedback: 'valued',
-      previousAssistantText: '结果已经回来',
-      userText: '这个结果接得住',
-      sessionId: 'session-1',
-      turnId: 'subconscious:thread-1',
       at: 10,
-      goal: 'keep callback continuity alive',
-      outcome: 'done',
+      executionResult: {
+        provenance: 'execution-ledger',
+        status: 'completed',
+        cardId: 'card-1',
+        threadId: 'thread-1',
+        decisionTraceId: 'trace-1',
+        turnId: 'subconscious:thread-1',
+        sessionId: 'session-1',
+        goal: 'keep callback continuity alive',
+        outcome: 'trusted event outcome',
+      },
     }))
-    expect(reconsolidationInput?.feedbackExperience).toEqual(expect.objectContaining({
-      tags: expect.arrayContaining([
-        'execution-result',
-        'codex',
-        'feedback:valued',
-        'procedure-learning',
+    expect(reconsolidationInput?.outcomeClosure).toEqual(expect.objectContaining({
+      episodicEvents: expect.arrayContaining([
+        expect.objectContaining({
+          sourceKind: 'execution-result',
+          tags: expect.arrayContaining([
+            'execution-result',
+            'codex',
+            'feedback:valued',
+            'procedure-learning',
+          ]),
+        }),
       ]),
     }))
     expect(upsertTaskThread).toHaveBeenCalled()
     expect(appendRelationshipDynamics).toHaveBeenCalled()
   })
 
-  it('passes blocked-dispatch safety gate evidence from execution events into result feedback memory reconsolidation', async () => {
+  it('keeps blocked dispatch evidence in the execution ledger without internalizing it as a completed result', async () => {
     const upsertTaskThread = vi.fn(async () => ({}))
     const persistOutcomeClosure = vi.fn(async () => {})
     const appendAuditLog = vi.fn(async () => {})
@@ -553,7 +742,7 @@ describe('runtime execution feedback', () => {
       },
     } as any)
 
-    await runtime.settleRecentExecutionResultFeedbackFromUserTurn({
+    const feedback = await runtime.settleRecentExecutionResultFeedbackFromUserTurn({
       cardId: 'card-1',
       turnId: 'turn-user',
       providerId: 'openai',
@@ -562,21 +751,13 @@ describe('runtime execution feedback', () => {
       messages: [],
     } as any, 10, 'test')
 
-    expect(listExecutionEvents).toHaveBeenCalledWith({
-      threadId: 'thread-blocked-1',
-      limit: 6,
-    })
-    expect(persistOutcomeClosure).toHaveBeenCalledWith('card-1', expect.objectContaining({
-      thread: expect.objectContaining({
-        safetyGateSummary: 'effect=mutate permission=none confirmation=required risk=implicit-or-explicit-confirmation-required audit=blocked-before-dispatch interrupt=no-process-started',
-      }),
-    }))
-    expect(reconsolidateExecutionResultFeedbackMemoryTrace).toHaveBeenCalledWith(expect.objectContaining({
-      cardId: 'card-1',
-      decisionTraceId: 'trace-blocked-1',
-      feedback: 'valued',
-      safetyGateSummary: 'effect=mutate permission=none confirmation=required risk=implicit-or-explicit-confirmation-required audit=blocked-before-dispatch interrupt=no-process-started',
-    }))
+    expect(feedback).toBeNull()
+    expect(listExecutionEvents).not.toHaveBeenCalled()
+    expect(persistOutcomeClosure).not.toHaveBeenCalled()
+    expect(reconsolidateExecutionResultFeedbackMemoryTrace).not.toHaveBeenCalled()
+    expect(appendRelationshipDynamics).not.toHaveBeenCalled()
+    expect(upsertTaskThread).not.toHaveBeenCalled()
+    expect(appendAuditLog).not.toHaveBeenCalled()
   })
 
   it('passes host-confirmed resume evidence from execution events into result feedback memory reconsolidation', async () => {
@@ -612,6 +793,38 @@ describe('runtime execution feedback', () => {
         createdAt: 8,
       },
       {
+        id: 'event-resume-model-inferred',
+        threadId: 'thread-resume-1',
+        decisionTraceId: 'trace-resume-1',
+        turnId: 'subconscious:thread-resume-1',
+        sessionId: 'session-1',
+        origin: 'subconscious-proactive',
+        channel: 'codex',
+        kind: 'resume',
+        threadStatus: 'planned',
+        payload: {
+          approval: 'model-inferred',
+          auditability: 'resume-without-host-confirmation',
+        },
+        createdAt: 9,
+      },
+      {
+        id: 'event-resume-wrong-owner',
+        threadId: 'thread-resume-1',
+        decisionTraceId: 'trace-other',
+        turnId: 'subconscious:thread-resume-1',
+        sessionId: 'session-1',
+        origin: 'subconscious-proactive',
+        channel: 'codex',
+        kind: 'resume',
+        threadStatus: 'planned',
+        payload: {
+          approval: 'host-confirmed',
+          auditability: 'resume-wrong-owner',
+        },
+        createdAt: 11,
+      },
+      {
         id: 'event-result-1',
         threadId: 'thread-resume-1',
         decisionTraceId: 'trace-resume-1',
@@ -625,6 +838,22 @@ describe('runtime execution feedback', () => {
           summary: 'resumed execution completed after host confirmation',
         },
         createdAt: 12,
+      },
+      {
+        id: 'event-resume-after-result',
+        threadId: 'thread-resume-1',
+        decisionTraceId: 'trace-resume-1',
+        turnId: 'subconscious:thread-resume-1',
+        sessionId: 'session-1',
+        origin: 'subconscious-proactive',
+        channel: 'codex',
+        kind: 'resume',
+        threadStatus: 'planned',
+        payload: {
+          approval: 'host-confirmed',
+          auditability: 'resume-after-completion',
+        },
+        createdAt: 14,
       },
     ])
     const runtime = createAlicizationRuntimeExecutionFeedback({
@@ -687,8 +916,16 @@ describe('runtime execution feedback', () => {
     }))
     expect(reconsolidateExecutionResultFeedbackMemoryTrace).toHaveBeenCalledWith(expect.objectContaining({
       cardId: 'card-1',
-      decisionTraceId: 'trace-resume-1',
       feedback: 'valued',
+      executionResult: expect.objectContaining({
+        provenance: 'execution-ledger',
+        status: 'completed',
+        decisionTraceId: 'trace-resume-1',
+        threadId: 'thread-resume-1',
+        turnId: 'subconscious:thread-resume-1',
+        sessionId: 'session-1',
+      }),
+      outcomeClosure: expect.any(Object),
       resumeConfirmationSummary: 'approval=host-confirmed previous=needs-affirmation resumed=planned previousPermission=none permission=explicit effect=mutate risk=medium confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted affirmation=medium-risk-proactive-action-requires-affirmation',
     }))
   })
@@ -718,6 +955,9 @@ describe('runtime execution feedback', () => {
           hostAttitude: '之前还在观察她到底是不是只会机械报结果。',
         }),
         appendRelationshipDynamics,
+        listExecutionEvents: async () => [completedExecutionResultEvent({
+          turnId: 'subconscious:thread-1',
+        })],
         listTaskThreads: async () => [{
           id: 'thread-1',
           decisionTraceId: 'trace-1',
@@ -852,6 +1092,12 @@ describe('runtime execution feedback', () => {
       alicizationDb: {
         getLatestRelationshipDynamics: async () => null,
         appendRelationshipDynamics,
+        listExecutionEvents: async () => [completedExecutionResultEvent({
+          threadId: 'thread-proactive-metadata-1',
+          decisionTraceId: 'trace-proactive-metadata-1',
+          turnId: 'autonomy-task:callback-1',
+          summary: 'done',
+        })],
         listTaskThreads: async () => [{
           id: 'thread-proactive-metadata-1',
           decisionTraceId: 'trace-proactive-metadata-1',
@@ -961,6 +1207,9 @@ describe('runtime execution feedback', () => {
       persistOutcomeClosure: vi.fn(async () => {}),
       appendAuditLog: vi.fn(async () => {}),
       alicizationDb: {
+        listExecutionEvents: async () => [completedExecutionResultEvent({
+          summary: 'done',
+        })],
         listTaskThreads: async () => [{
           id: 'thread-1',
           decisionTraceId: 'trace-1',
@@ -1079,6 +1328,9 @@ describe('runtime execution feedback', () => {
       persistOutcomeClosure: vi.fn(async () => {}),
       appendAuditLog: vi.fn(async () => {}),
       alicizationDb: {
+        listExecutionEvents: async () => [completedExecutionResultEvent({
+          summary: 'done',
+        })],
         listTaskThreads: async () => [{
           id: 'thread-1',
           decisionTraceId: 'trace-1',
@@ -1148,6 +1400,9 @@ describe('runtime execution feedback', () => {
       persistOutcomeClosure: vi.fn(async () => {}),
       appendAuditLog: vi.fn(async () => {}),
       alicizationDb: {
+        listExecutionEvents: async () => [completedExecutionResultEvent({
+          summary: 'done',
+        })],
         listTaskThreads: async () => [{
           id: 'thread-1',
           decisionTraceId: 'trace-1',
@@ -1277,6 +1532,12 @@ describe('runtime execution feedback', () => {
         reconsolidateExecutionResultFeedbackMemoryTrace,
       },
       alicizationDb: {
+        listExecutionEvents: async () => [completedExecutionResultEvent({
+          threadId: 'thread-memory-os-execution',
+          decisionTraceId: 'trace-memory-os-execution',
+          turnId: 'turn-memory-os-execution',
+          summary: 'callback result returned',
+        })],
         listTaskThreads: async () => [{
           id: 'thread-memory-os-execution',
           decisionTraceId: 'trace-memory-os-execution',

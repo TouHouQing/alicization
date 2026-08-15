@@ -348,19 +348,13 @@ describe('runtime-governance digital-life authority', () => {
       replyText: '我先沿着这条线轻一点接住。',
       state: expect.objectContaining({
         residentMode: 'idle-recovering',
-        rendererHints: expect.objectContaining({
-          residentMode: 'measured-return',
-          preferredBlinkCadence: 'linger',
-          preferredGazeMode: 'soften',
-        }),
+        rendererHints: null,
       }),
       speechPlan: expect.objectContaining({
         segments: expect.arrayContaining([
           expect.objectContaining({
             text: '我先沿着这条线轻一点接住。',
-            rendererHints: expect.objectContaining({
-              residentMode: 'measured-return',
-            }),
+            rendererHints: null,
           }),
         ]),
       }),

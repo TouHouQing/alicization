@@ -88,6 +88,7 @@ const settledTaskThreadStatuses: AlicizationTaskThreadStatus[] = [
   'completed',
   'failed',
   'cancelled',
+  'dead-lettered',
 ]
 
 const dispatchableTaskThreadStatuses = new Set<AlicizationTaskThreadStatus>([
@@ -189,7 +190,7 @@ function addChannelOutcome(
   if (status === 'completed') {
     current.completed = (current.completed ?? 0) + 1
   }
-  else if (status === 'failed') {
+  else if (status === 'failed' || status === 'dead-lettered') {
     current.failed = (current.failed ?? 0) + 1
   }
   else if (status === 'cancelled') {

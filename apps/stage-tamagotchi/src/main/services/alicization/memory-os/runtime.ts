@@ -40,6 +40,91 @@ export interface AlicizationMemoryOsTurnRuntimeArtifact {
   }
 }
 
+const deletedRawTranscriptProtocolKeys = new Set([
+  'conversationHistory',
+  'conversationTurnId',
+  'conversationTurns',
+  'rawConversationHistory',
+  'rawConversationTurns',
+  'rawTranscript',
+  'rawTranscripts',
+  'recalledConversationHistory',
+  'recalledConversationTurns',
+  'searchConversations',
+  'selectedConversationTurnIds',
+])
+
+const deletedRawTranscriptProtocolValues = new Set([
+  'conversation-history',
+  'conversation-turn',
+  'expand-conversation',
+  'need-conversation-evidence',
+])
+
+const removedMemoryOsContextValue = Symbol('removed-memory-os-context-value')
+
+function isDeletedRawTranscriptCandidate(raw: Record<string, unknown>) {
+  const directDiscriminators = [
+    raw.kind,
+    raw.type,
+    raw.candidateKind,
+    raw.sourceKind,
+  ]
+  if (directDiscriminators.some(value => value === 'conversation' || value === 'conversation-turn'))
+    return true
+
+  return Array.isArray(raw.sourceKinds)
+    && raw.sourceKinds.some(value => value === 'conversation' || value === 'conversation-turn')
+}
+
+function sanitizeMemoryOsContextValue(raw: unknown): unknown | typeof removedMemoryOsContextValue {
+  if (typeof raw === 'string' && deletedRawTranscriptProtocolValues.has(raw))
+    return removedMemoryOsContextValue
+
+  if (Array.isArray(raw)) {
+    let changed = false
+    const sanitized = raw.flatMap((item) => {
+      const next = sanitizeMemoryOsContextValue(item)
+      if (next === removedMemoryOsContextValue) {
+        changed = true
+        return []
+      }
+      if (next !== item)
+        changed = true
+      return [next]
+    })
+    return changed ? sanitized : raw
+  }
+
+  if (!raw || typeof raw !== 'object')
+    return raw
+
+  if (isDeletedRawTranscriptCandidate(raw as Record<string, unknown>))
+    return removedMemoryOsContextValue
+
+  let changed = false
+  const sanitized: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (deletedRawTranscriptProtocolKeys.has(key)) {
+      changed = true
+      continue
+    }
+    const next = sanitizeMemoryOsContextValue(value)
+    if (next === removedMemoryOsContextValue) {
+      changed = true
+      continue
+    }
+    if (next !== value)
+      changed = true
+    sanitized[key] = next
+  }
+  return changed ? sanitized : raw
+}
+
+function sanitizeMemoryOsContext(context: OrganicMemoryPromptContext) {
+  return sanitizeMemoryOsContextValue(context) as OrganicMemoryPromptContext
+}
+
 function compact(values: Array<string | null | undefined>, limit = 6) {
   const result: string[] = []
   for (const value of values) {
@@ -88,7 +173,6 @@ function buildMemoryOsStageSettlements(artifact: AlicizationMemoryTurnArtifact):
         `facts=${artifact.candidates.retrievedFacts}`,
         `fragments=${artifact.candidates.recalledFragments}`,
         `episodes=${artifact.candidates.recalledEpisodes}`,
-        `conversation=${artifact.candidates.recalledConversationHistory}`,
       ],
     }),
     stage({
@@ -170,13 +254,17 @@ export function runAlicizationMemoryOsTurn(input: {
   nowMs?: number | null
   adapterSource?: AlicizationMemoryOsTurnRuntimeArtifact['adapterSource']
 }): AlicizationMemoryOsTurnRuntimeArtifact {
-  const artifact = buildAlicizationMemoryTurnArtifact(input)
+  const context = sanitizeMemoryOsContext(input.context)
+  const artifact = buildAlicizationMemoryTurnArtifact({
+    ...input,
+    context,
+  })
   const stageSettlements = buildMemoryOsStageSettlements(artifact)
   return {
     version: 'memory-os-turn-runtime-v1',
     authority: 'memory-os',
     adapterSource: input.adapterSource ?? 'organic-memory-prompt-context',
-    context: input.context,
+    context,
     artifact,
     stageSettlements,
     closure: buildMemoryOsClosure(stageSettlements),

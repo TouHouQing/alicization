@@ -188,7 +188,6 @@ function emptyFailurePlan(query: string): LongTermMemoryQueryPlan {
     procedureHints: [],
     threadHints: [],
     negativeCues: [],
-    confidencePolicy: 'direct',
     riskFlags: ['quality-harness-recall-failed'],
     targetKinds: [],
   }

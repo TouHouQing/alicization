@@ -180,7 +180,7 @@ describe('local visual task-thread adapter', () => {
       now: () => 3_000,
     })
 
-    expect(result.finalStatus).toBe('failed')
+    expect(result.finalStatus).toBe('paused')
     expect(result.errorCode).toBe('LOCAL_VISUAL_HOST_FAILED')
     expect(JSON.parse(result.output ?? '{}')).toMatchObject({
       sideEffectState: 'unknown',
@@ -188,7 +188,7 @@ describe('local visual task-thread adapter', () => {
     })
     expect(result.events.at(-1)).toMatchObject({
       kind: 'result',
-      threadStatus: 'failed',
+      threadStatus: 'paused',
       payload: {
         errorCode: 'LOCAL_VISUAL_HOST_FAILED',
         sideEffectState: 'unknown',

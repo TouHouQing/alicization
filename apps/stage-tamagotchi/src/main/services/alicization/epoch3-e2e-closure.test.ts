@@ -30,6 +30,7 @@ const dbStub = {
   close: vi.fn().mockResolvedValue(undefined),
   appendAuditLog: vi.fn().mockResolvedValue(undefined),
   appendConversationTurn: vi.fn().mockResolvedValue(undefined),
+  resumePendingMemoryEmbeddingReindexJobs: vi.fn().mockResolvedValue([]),
   getMemoryStats: vi.fn().mockResolvedValue({
     total: 0,
     active: 0,

@@ -62,6 +62,12 @@ describe('writeAlicizationAtomicContent', () => {
     const root = await createTempRoot()
     const target = join(root, 'SOUL.md')
     const appendAuditLog = vi.fn()
+    const fsyncPath = vi.fn(async (path: string) => {
+      if (path === root) {
+        const error = Object.assign(new Error('EPERM: operation not permitted, fsync'), { code: 'EPERM' })
+        throw error
+      }
+    })
 
     await writeAlicizationAtomicContent({
       path: target,
@@ -72,6 +78,7 @@ describe('writeAlicizationAtomicContent', () => {
       now: () => 456,
       randomId: () => 'fixed',
       appendAuditLog,
+      fsyncPath,
       sleep: async () => {},
     })
 

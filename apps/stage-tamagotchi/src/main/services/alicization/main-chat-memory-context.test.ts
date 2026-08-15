@@ -104,6 +104,11 @@ function createEvidence(
       kind: 'fact',
       summary: `Confirmed long-term memory evidence ${index + 1}.`,
       source: 'memory_facts',
+      scope: {
+        userId: 'user-1',
+        cardId: 'card-1',
+      },
+      provenance: 'remembered',
       confidence: 0.93,
       reviewStatus: 'confirmed',
       salience: 0.82,
@@ -121,7 +126,13 @@ function createEvidence(
       'confirmed evidence',
       'ranked by query match',
     ],
-    visibleMode: 'explicit',
+    scope: {
+      userId: 'user-1',
+      cardId: 'card-1',
+    },
+    provenance: 'remembered',
+    evidenceVersion: 'long-term-memory-evidence-v1',
+    version: 'long-term-memory-evidence-v1',
   }
 }
 
@@ -149,7 +160,6 @@ const longTermRecallFixture: LongTermMemoryEvidenceBundle = {
     procedureHints: ['continue current task'],
     threadHints: ['typed memory context foundation'],
     negativeCues: [],
-    confidencePolicy: 'direct',
     riskFlags: ['query-needs-confirmed-evidence'],
     targetKinds: ['fact'],
   },
@@ -413,9 +423,26 @@ describe('main chat memory context', () => {
     expect(providerData.workingMemory).not.toHaveProperty('audit')
     expect(providerData.longTermRecall).not.toHaveProperty('intent')
     expect(providerData.longTermRecall).not.toHaveProperty('plan')
-    expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('queryMatches')
-    expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('rankReasons')
+    expect(providerData.longTermRecall.evidence[0]).toMatchObject({
+      scope: {
+        userId: 'user-1',
+        cardId: 'card-1',
+      },
+      provenance: 'remembered',
+      confidence: 0.93,
+      queryMatches: ['typed memory context'],
+      rankReasons: [
+        'confirmed evidence',
+        'ranked by query match',
+      ],
+      evidenceVersion: 'long-term-memory-evidence-v1',
+      version: 'long-term-memory-evidence-v1',
+    })
     expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('visibleMode')
+    expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('visibility')
+    expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('speechPlan')
+    expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('surfaceMode')
+    expect(providerData.longTermRecall.evidence[0]).not.toHaveProperty('mustDisplay')
     expect(JSON.stringify(providerData.longTermRecall)).not.toContain('mode=internal; visibility=hidden')
   })
 
@@ -477,6 +504,18 @@ describe('main chat memory context', () => {
         id: 'memory-1',
         summary: 'Confirmed long-term memory evidence 1.',
         source: 'memory_facts',
+        scope: {
+          userId: 'user-1',
+          cardId: 'card-1',
+        },
+        provenance: 'remembered',
+        confidence: 0.93,
+        rankReasons: [
+          'confirmed evidence',
+          'ranked by query match',
+        ],
+        evidenceVersion: 'long-term-memory-evidence-v1',
+        version: 'long-term-memory-evidence-v1',
         retrievalScore: 0.91,
       }],
     })

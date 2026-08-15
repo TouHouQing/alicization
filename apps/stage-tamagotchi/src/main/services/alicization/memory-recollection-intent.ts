@@ -633,7 +633,6 @@ export function buildMemoryRecollectionIntent(input: {
       mode: boostedProceduralWeight >= 0.54 ? 'execution-procedure' : 'experience-pattern',
       temporalFocus: 'experience-matched',
       searchEpisodes: true,
-      searchConversations: false,
       searchProceduralExperience: true,
       queryHints: uniqueList([
         input.conversationState?.activeProject,
@@ -655,7 +654,6 @@ export function buildMemoryRecollectionIntent(input: {
       mode: 'relationship-history',
       temporalFocus: 'cross-session',
       searchEpisodes: true,
-      searchConversations: true,
       searchProceduralExperience: false,
       queryHints: uniqueList([
         input.dialogueWorldThread?.activeThread,
@@ -681,7 +679,6 @@ export function buildMemoryRecollectionIntent(input: {
       mode: 'autobiographical-history',
       temporalFocus: 'cross-session',
       searchEpisodes: true,
-      searchConversations: true,
       searchProceduralExperience: false,
       queryHints: uniqueList([
         input.dialogueWorldThread?.activeThread,
@@ -707,7 +704,6 @@ export function buildMemoryRecollectionIntent(input: {
     mode: 'conversation-history',
     temporalFocus: 'cross-session',
     searchEpisodes: true,
-    searchConversations: true,
     searchProceduralExperience: false,
     queryHints: uniqueList([
       input.conversationState?.jointThread,

@@ -79,6 +79,15 @@ describe('alicization performance manifest clamp', () => {
     expect(source).not.toContain('pending.visibleReplyClosure = payload.visibleReplyClosure ?? null')
   })
 
+  it('forwards executor heartbeat events through both desktop renderer transport paths', () => {
+    const source = readFileSync(new URL('../../../../apps/stage-tamagotchi/src/renderer/App.vue', import.meta.url), 'utf8')
+
+    expect(source).toContain('function handleAlicizationChatStreamToolProgress')
+    expect(source).toContain('case \'tool-progress\':')
+    expect(source).toContain('type: \'tool-progress\'')
+    expect(source).toContain('context.value.on(alicizationChatStreamToolProgress')
+  })
+
   it('drops unsupported cues and downgrades unsupported base emotions', () => {
     const result = clampAlicizationPerformancePayloadToManifest({
       baseEmotion: 'angry',

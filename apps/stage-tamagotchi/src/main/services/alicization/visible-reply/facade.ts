@@ -25,6 +25,8 @@ export {
 export type {
   AlicizationResolvedVisibleReply,
   AlicizationVisibleReplyClosureArtifact,
+  AlicizationVisibleReplyPublicClosureSummary,
+  AlicizationVisibleReplyPublicCriticSummary,
   AlicizationVisibleReplyRealizationArtifact,
   AlicizationVisibleReplyValidationStatus,
 } from './realization-engine'

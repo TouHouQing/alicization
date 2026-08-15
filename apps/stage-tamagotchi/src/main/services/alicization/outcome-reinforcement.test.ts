@@ -51,15 +51,17 @@ describe('outcome reinforcement closure', () => {
     expect(source).not.toMatch(/structuredFixedTemplateMemoryFact/u)
   })
 
-  it('does not turn unrelated runtime prose into reflection or persona-upstream facts', () => {
+  it('does not turn raw reply transcripts into long-term closure evidence', () => {
+    const rawUserText = '请继续看这个真实问题。'
+    const rawAssistantText = 'The response stayed grounded in the current issue.'
     const closure = buildReplyOutcomeClosure({
       now: 12_000,
       cardId: 'card-1',
       turnId: 'turn-body-evidence',
       sessionId: 'session-body-evidence',
       decisionTraceId: 'trace-body-evidence',
-      userText: '请继续看这个真实问题。',
-      assistantText: 'The response stayed grounded in the current issue.',
+      userText: rawUserText,
+      assistantText: rawAssistantText,
       runtimeSurface: {
         perception: {
           currentBodyState: 'accompanying',
@@ -85,19 +87,15 @@ describe('outcome reinforcement closure', () => {
       },
     } as any)
 
-    expectEvidenceOnlyClosure(closure)
-    expect(derivedEvidenceLabels(closure)).toEqual(expect.arrayContaining([
-      'host feedback dialogue: 请继续看这个真实问题。',
-      'assistant feedback dialogue: The response stayed grounded in the current issue.',
-    ]))
-    expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
-      'body-accompanying',
-      'continuity-quiet-accompaniment',
-      'residue-rest-protective',
-    ]))
+    expect(closure.episodicEvents).toEqual([])
+    expect(closure.reflections).toEqual([])
+    expect(closure.reinforcementEvents).toEqual([])
+    expect(closure.memoryFacts).toEqual([])
+    expect(JSON.stringify(closure)).not.toContain(rawUserText)
+    expect(JSON.stringify(closure)).not.toContain(rawAssistantText)
   })
 
-  it('keeps a real Provider failure as dynamic evidence without wrapping it in fixed prose', () => {
+  it('rejects Provider failure or review prose when no structured memory evidence exists', () => {
     const providerFailure = 'Embedding provider failed with HTTP 400: invalid parameter.'
     const closure = buildReplyOutcomeClosure({
       now: 12_100,
@@ -122,8 +120,54 @@ describe('outcome reinforcement closure', () => {
       },
     } as any)
 
-    expect(JSON.stringify(closure)).toContain(providerFailure)
+    expect(closure.episodicEvents).toEqual([])
+    expect(closure.reflections).toEqual([])
+    expect(closure.reinforcementEvents).toEqual([])
+    expect(JSON.stringify(closure)).not.toContain(providerFailure)
+  })
+
+  it('builds a reply episode only from explicit structured non-transcript evidence', () => {
+    const rawTranscript = 'RAW_REPLY_TRANSCRIPT must stay in WorkingMemory only'
+    const evidenceSummary = 'The host-approved memory note records a resolved task checkpoint.'
+    const closure = buildReplyOutcomeClosure({
+      now: 12_125,
+      cardId: 'card-1',
+      turnId: 'turn-structured-evidence',
+      sessionId: 'session-structured-evidence',
+      decisionTraceId: 'trace-structured-evidence',
+      userText: rawTranscript,
+      assistantText: rawTranscript,
+      memoryEvidence: {
+        version: 'reply-outcome-memory-evidence-v1',
+        source: 'explicit-structured-memory-evidence',
+        summary: evidenceSummary,
+        sourceRefs: [{
+          kind: 'turn',
+          id: 'reviewed-memory-evidence-1',
+        }],
+        tags: ['task-checkpoint'],
+        confidence: 0.86,
+        salience: 0.78,
+      },
+      runtimeSurface: {
+        world: {
+          worldModel: {
+            hostState: {
+              availability: 'open',
+            },
+          },
+        },
+      },
+    } as any)
+
     expectEvidenceOnlyClosure(closure)
+    expect(closure.episodicEvents).toEqual([
+      expect.objectContaining({
+        whatHappened: evidenceSummary,
+        tags: expect.arrayContaining(['task-checkpoint']),
+      }),
+    ])
+    expect(JSON.stringify(closure)).not.toContain(rawTranscript)
   })
 
   it('does not persist answer planning prose into reply outcome memory', () => {
@@ -135,6 +179,20 @@ describe('outcome reinforcement closure', () => {
       decisionTraceId: 'trace-no-answer-plan-memory',
       userText: '继续验证真实记忆。',
       assistantText: '我们继续验证昨天的约定。',
+      memoryEvidence: {
+        version: 'reply-outcome-memory-evidence-v1',
+        source: 'explicit-structured-memory-evidence',
+        summary: 'A reviewed memory note records continuation of the prior agreement.',
+        threadAnchor: '验证昨天的约定。',
+        emotionTags: ['presence'],
+        sourceRefs: [{
+          kind: 'turn',
+          id: 'reviewed-memory-evidence-2',
+        }],
+        tags: ['agreement'],
+        confidence: 0.82,
+        salience: 0.74,
+      },
       runtimeSurface: {
         world: {
           worldModel: {
@@ -194,7 +252,7 @@ describe('outcome reinforcement closure', () => {
 
     expect(closure.relationshipOutcomes).toEqual([])
     expect(closure.reinforcementEvents).toEqual([])
-    expect(closure.episodicEvents).toHaveLength(1)
+    expect(closure.episodicEvents).toEqual([])
   })
 
   it('does not classify dialogue reply feedback from free-text user signals', () => {
@@ -237,7 +295,9 @@ describe('outcome reinforcement closure', () => {
     } as any)).toBe('doubted')
   })
 
-  it('writes dialogue feedback from real user and assistant evidence only', () => {
+  it('writes dialogue feedback from typed feedback evidence without raw transcript', () => {
+    const rawUserText = '这段回复太模板，像客服。'
+    const rawAssistantText = 'The previous reply sounded generic.'
     const closure = buildDialogueReplyFeedbackOutcomeClosure({
       now: 13_000,
       cardId: 'card-1',
@@ -245,16 +305,23 @@ describe('outcome reinforcement closure', () => {
       turnId: 'turn-dialogue-feedback',
       decisionTraceId: 'trace-dialogue-feedback',
       feedback: 'robotic',
-      userText: '这段回复太模板，像客服。',
-      previousAssistantText: 'The previous reply sounded generic.',
+      userText: rawUserText,
+      previousAssistantText: rawAssistantText,
     })
 
     expectEvidenceOnlyClosure(closure)
     expect(closure.memoryFacts).toEqual([])
-    expect(derivedEvidenceLabels(closure)).toEqual(expect.arrayContaining([
-      'host feedback dialogue: 这段回复太模板，像客服。',
-      'assistant feedback dialogue: The previous reply sounded generic.',
-    ]))
+    expect(derivedEvidenceLabels(closure)).toEqual([
+      'feedback turn',
+      'feedback trace',
+    ])
+    expect(closure.episodicEvents).toEqual([
+      expect.objectContaining({
+        whatHappened: 'feedback=robotic',
+      }),
+    ])
+    expect(JSON.stringify(closure)).not.toContain(rawUserText)
+    expect(JSON.stringify(closure)).not.toContain(rawAssistantText)
     expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
       'dialogue-feedback',
       'feedback:robotic',
@@ -314,7 +381,11 @@ describe('outcome reinforcement closure', () => {
 
     expectEvidenceOnlyClosure(closure)
     expect(closure.memoryFacts).toEqual([])
-    expect(derivedEvidenceLabels(closure)).toContain('host feedback dialogue: 先别执行这个命令。')
+    expect(derivedEvidenceLabels(closure)).toEqual(expect.arrayContaining([
+      'execution proposal feedback turn',
+      'Run the requested command',
+    ]))
+    expect(JSON.stringify(closure)).not.toContain('先别执行这个命令。')
     expect(closure.episodicEvents[0]?.tags).toEqual(expect.arrayContaining([
       'execution-proposal',
       'feedback:denied',
@@ -349,8 +420,8 @@ describe('outcome reinforcement closure', () => {
 
     const serialized = JSON.stringify(closure)
     expect(serialized).toContain(providerFailure)
-    expect(serialized).toContain('这个结果不对，请先停下。')
-    expect(serialized).toContain('命令执行失败，我需要重新核对。')
+    expect(serialized).not.toContain('这个结果不对，请先停下。')
+    expect(serialized).not.toContain('命令执行失败，我需要重新核对。')
     expect(serialized).toContain('blocked-before-dispatch')
     expect(serialized).toContain('host-confirmed-before-redispatch')
     expectEvidenceOnlyClosure(closure)
@@ -386,9 +457,8 @@ describe('outcome reinforcement closure', () => {
     expect(reflected.reflections.length).toBeGreaterThanOrEqual(0)
     expectEvidenceOnlyClosure(reflected)
     expect(reflected.memoryFacts).toEqual([])
-    expect(derivedEvidenceLabels(reflected)).toEqual(expect.arrayContaining([
-      'host feedback dialogue: 这个提醒有用。',
-      'assistant feedback dialogue: A grounded proactive observation.',
-    ]))
+    expect(derivedEvidenceLabels(reflected)).toEqual(['coding proactive turn'])
+    expect(JSON.stringify(reflected)).not.toContain('这个提醒有用。')
+    expect(JSON.stringify(reflected)).not.toContain('A grounded proactive observation.')
   })
 })

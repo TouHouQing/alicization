@@ -23,7 +23,6 @@ function createDeliberation() {
     selectedWindowIds: [],
     selectedProcedureIds: ['procedure-1'],
     selectedEpisodeIds: [],
-    selectedConversationTurnIds: [],
     selectedRelationshipLines: [],
     selectedEras: [],
     selectedPeriods: [],

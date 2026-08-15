@@ -204,7 +204,6 @@ export function resolveRecollectionPlanSearch(input: {
   recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
   proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
   recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-  recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   clusterState?: MemoryClusterState | null
 }) {
   const plan = input.recollectionPlan ?? null
@@ -227,16 +226,11 @@ export function resolveRecollectionPlanSearch(input: {
     input.recalledEpisodes,
     item => item.id,
   )
-  const conversationTurnIdIndex = buildUniqueMemoryPlanningOwnerIdIndex(
-    input.recalledConversationHistory,
-    item => item.turnId,
-  )
   const targetIdIndex = buildUniqueMemoryPlanningOwnerIdIndex([
     ...input.consolidatedMemories.map(item => ({ id: item.id })),
     ...input.recollectedWindows.map(item => ({ id: item.id })),
     ...input.proceduralMemories.map(item => ({ id: item.id })),
     ...input.recalledEpisodes.map(item => ({ id: item.id })),
-    ...input.recalledConversationHistory.map(item => ({ id: item.turnId })),
   ], item => item.id)
   const selectedConsolidationIds = resolveMemoryPlanningOwnerIds(
     plan.selectedConsolidationIds,
@@ -254,13 +248,8 @@ export function resolveRecollectionPlanSearch(input: {
     plan.selectedEpisodeIds,
     episodeIdIndex,
   )
-  const selectedConversationTurnIds = resolveMemoryPlanningOwnerIds(
-    plan.selectedConversationTurnIds,
-    conversationTurnIdIndex,
-  )
   const selectedConsolidationIdSet = new Set(selectedConsolidationIds.map(normalizeMemoryPlanningId))
   const selectedEpisodeIdSet = new Set(selectedEpisodeIds.map(normalizeMemoryPlanningId))
-  const selectedConversationTurnIdSet = new Set(selectedConversationTurnIds.map(normalizeMemoryPlanningId))
   const selectedRelationshipLines = uniqueList([
     ...input.relationshipLineCandidates
       .filter((item) => {
@@ -269,7 +258,7 @@ export function resolveRecollectionPlanSearch(input: {
           return selectedConsolidationIdSet.has(sourceId)
         if (item.sourceKind === 'episode')
           return selectedEpisodeIdSet.has(sourceId)
-        return selectedConversationTurnIdSet.has(sourceId)
+        return false
       })
       .map(item => item.line),
     ...input.recalledEpisodes
@@ -305,7 +294,6 @@ export function resolveRecollectionPlanSearch(input: {
     selectedWindowIds,
     selectedProceduralIds,
     selectedEpisodeIds,
-    selectedConversationTurnIds,
     selectedRelationshipLines,
     searchTrace,
     opening: '',

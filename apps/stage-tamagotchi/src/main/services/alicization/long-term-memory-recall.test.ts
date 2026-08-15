@@ -9,6 +9,21 @@ import {
 
 const now = Date.parse('2026-07-02T12:00:00.000Z')
 
+function requireRankedEvidenceContract(
+  evidence: ReturnType<typeof buildLongTermMemoryEvidenceBundle>['evidence'][number],
+) {
+  const contract: {
+    scope: {
+      userId: string
+      cardId: string | null
+    }
+    provenance: string
+    evidenceVersion: string
+    version: string
+  } = evidence
+  return contract
+}
+
 function parseRecallFact(block: string | null) {
   expect(block).not.toBeNull()
   return JSON.parse(block!) as {
@@ -32,9 +47,15 @@ function parseRecallFact(block: string | null) {
         kind: string
         summary: string
         source: string
+        scope: {
+          userId: string
+          cardId: string | null
+        }
+        provenance: string
         confidence: number
         score: number
-        visibility: string
+        evidenceVersion: string
+        version: string
         queryMatches: string[]
         rankReasons: string[]
       }>
@@ -43,6 +64,56 @@ function parseRecallFact(block: string | null) {
 }
 
 describe('long-term memory recall owner', () => {
+  it('exports observation-only query and evidence contracts', () => {
+    const currentUserText = '也许你还记得我之前说过的秘密偏好吗？'
+    const intent = deriveLongTermMemoryRecallIntent({
+      currentUserText,
+    })
+    const plan = buildLongTermMemoryQueryPlan({
+      intent,
+      currentUserText,
+    })
+    const bundle = buildLongTermMemoryEvidenceBundle({
+      intent,
+      plan,
+      now,
+      scope: {
+        userId: 'user-observation-contract',
+        cardId: 'card-observation-contract',
+      },
+      candidates: [{
+        id: 'private-observation',
+        kind: 'fact',
+        summary: '用户有一个需要谨慎检索的私人偏好。',
+        source: 'memory_facts',
+        confidence: 0.86,
+        sensitivity: 'private',
+      }],
+    })
+
+    expect(plan).not.toHaveProperty('confidencePolicy')
+    expect(plan.riskFlags).toEqual(expect.arrayContaining([
+      'query-uncertain',
+      'query-sensitive',
+    ]))
+    expect(JSON.stringify(plan)).not.toMatch(/confidencePolicy|direct|tentative|inward-only/u)
+    expect(bundle.evidence[0]).not.toHaveProperty('visibleMode')
+    expect(bundle.evidence[0]).not.toHaveProperty('speechPlan')
+    expect(bundle.evidence[0]).not.toHaveProperty('surfaceMode')
+    expect(bundle.evidence[0]).not.toHaveProperty('visibleMode')
+
+    const contract = requireRankedEvidenceContract(bundle.evidence[0]!)
+    expect(contract).toMatchObject({
+      scope: {
+        userId: 'user-observation-contract',
+        cardId: 'card-observation-contract',
+      },
+      provenance: 'remembered',
+      evidenceVersion: 'long-term-memory-evidence-v1',
+      version: 'long-term-memory-evidence-v1',
+    })
+  })
+
   it('plans episodic recall for gaming continuity and ranks matching shared experience', () => {
     const intent = deriveLongTermMemoryRecallIntent({
       currentUserText: '我们去打游戏吧',
@@ -63,6 +134,11 @@ describe('long-term memory recall owner', () => {
           kind: 'episode',
           summary: '上周你们一起玩过 Minecraft，用户说下次还想继续联机探索。',
           source: 'episodic_events',
+          scope: {
+            userId: 'user-1',
+            cardId: 'card-1',
+          },
+          provenance: 'remembered',
           confidence: 0.82,
           salience: 0.8,
           occurredAt: now - 7 * 24 * 60 * 60 * 1000,
@@ -103,9 +179,15 @@ describe('long-term memory recall owner', () => {
           kind: 'episode',
           summary: expect.stringContaining('Minecraft'),
           source: 'episodic_events',
+          scope: {
+            userId: 'user-1',
+            cardId: 'card-1',
+          },
+          provenance: 'remembered',
           confidence: 0.82,
           score: expect.any(Number),
-          visibility: 'explicit',
+          evidenceVersion: 'long-term-memory-evidence-v1',
+          version: 'long-term-memory-evidence-v1',
           queryMatches: expect.any(Array),
           rankReasons: expect.any(Array),
         }]),
@@ -213,7 +295,7 @@ describe('long-term memory recall owner', () => {
     expect(buildLongTermMemoryRecallBlock({ bundle })).toBeNull()
   })
 
-  it('keeps private memory inward-only even when it matches the query', () => {
+  it('keeps private memory sensitivity as evidence metadata without deciding presentation', () => {
     const intent = deriveLongTermMemoryRecallIntent({
       currentUserText: '你还记得我之前说过的偏好吗？',
     })
@@ -239,8 +321,12 @@ describe('long-term memory recall owner', () => {
     const block = buildLongTermMemoryRecallBlock({ bundle })
     const fact = parseRecallFact(block)
 
-    expect(bundle.evidence[0]?.visibleMode).toBe('inward-only')
-    expect(fact.data.evidence[0]?.visibility).toBe('inward-only')
+    expect(bundle.evidence[0]?.candidate.sensitivity).toBe('private')
+    expect(fact.data.evidence[0]).toMatchObject({
+      sensitivity: 'private',
+    })
+    expect(bundle.evidence[0]).not.toHaveProperty('visibleMode')
+    expect(fact.data.evidence[0]).not.toHaveProperty('visibility')
   })
 
   it('drops structured internal facts before recall ranking can boost them', () => {

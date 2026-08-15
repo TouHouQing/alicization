@@ -7,7 +7,6 @@ import type {
 import type {
   AlicizationExecutionLedgerContext,
 } from './memory-ledger-runtime'
-import type { ContextualConversationTurn } from './runtime-soul'
 
 interface AlicizationInspectionIntentFromHistoryInput {
   messages: AlicizationChatStartPayload['messages']
@@ -30,8 +29,6 @@ interface CreateAlicizationMainChatContextRuntimeOptions {
   buildExecutionLedgerContext: (input: {
     sessionId: string
   }) => Promise<AlicizationExecutionLedgerContext>
-  resolveRecentContextualTurns: (sessionId: string, limit: number) => Promise<ContextualConversationTurn[]>
-  shouldExtendContextualRecall: (userText: string) => boolean
   resolveInspectionIntentFromMessageHistory: (input: AlicizationInspectionIntentFromHistoryInput) => boolean
   detectInvitedInspectionIntent: (message: string) => {
     active: boolean
@@ -48,8 +45,6 @@ export function createAlicizationMainChatContextRuntime(options: CreateAlicizati
     ensureActiveOrLatestSessionId,
     buildPendingExecutionCallbackContext,
     buildExecutionLedgerContext,
-    resolveRecentContextualTurns,
-    shouldExtendContextualRecall,
     resolveInspectionIntentFromMessageHistory,
     detectInvitedInspectionIntent,
   } = options
@@ -96,23 +91,7 @@ export function createAlicizationMainChatContextRuntime(options: CreateAlicizati
     const currentUserText = readMainChatCurrentUserText(payload)
     if (!currentUserText)
       return ''
-    if (resolveInspectionIntentFromMessageHistory({
-      userText: currentUserText,
-      messages: payload.messages,
-    })) {
-      return `U: ${currentUserText}`
-    }
-
-    const recentTurnCount = shouldExtendContextualRecall(currentUserText) ? 3 : 2
-    const sessionId = await ensureActiveOrLatestSessionId(getActiveCardId()).catch(() => '')
-    const recentTurns = await resolveRecentContextualTurns(sessionId, recentTurnCount)
-    return [
-      ...recentTurns.map(turn => [
-        turn.userText ? `U: ${turn.userText}` : '',
-        turn.assistantText ? `A: ${turn.assistantText}` : '',
-      ].filter(Boolean).join('\n')),
-      `U: ${currentUserText}`,
-    ].filter(Boolean).join('\n\n')
+    return `U: ${currentUserText}`
   }
 
   function readLatestUserMessageText(messages: AlicizationLooseTransportMessages) {

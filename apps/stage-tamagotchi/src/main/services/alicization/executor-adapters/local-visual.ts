@@ -1847,9 +1847,9 @@ export async function executeLocalVisualTaskThread(
       sideEffectState,
       thread,
     })
-    const terminalStatus = failureDisposition.kind === 'terminal'
+    const settledStatus = failureDisposition.kind === 'terminal'
       ? failureDisposition.finalStatus
-      : 'failed'
+      : 'paused'
     const normalizedOutput = safeJsonStringify(finalRecord) || null
     const resultEvent: AlicizationExecutionEventInput = {
       threadId: thread.id,
@@ -1859,7 +1859,7 @@ export async function executeLocalVisualTaskThread(
       origin: thread.origin,
       channel: input.channel,
       kind: 'result',
-      threadStatus: terminalStatus,
+      threadStatus: settledStatus,
       payload: compactRecord({
         instruction: spec.instructionPreview,
         transportChannel: 'local-visual',
@@ -1877,7 +1877,7 @@ export async function executeLocalVisualTaskThread(
       errorCode,
       errorMessage,
       ...(sideEffectState ? { sideEffectState } : {}),
-      finalStatus: terminalStatus,
+      finalStatus: settledStatus,
       events: [dispatchEvent, resultEvent],
     }
   }

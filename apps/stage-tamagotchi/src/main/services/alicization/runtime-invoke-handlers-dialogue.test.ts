@@ -1,5 +1,8 @@
 import type { AlicizationMindTurnEventRecord } from '../../../shared/eventa'
 
+import {
+  createAlicizationRuntimeEvent,
+} from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -106,6 +109,7 @@ describe('runtime invoke handlers dialogue', () => {
       sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
       appendRuntimeDebugLine: vi.fn(async () => {}),
       getActiveCardId: () => 'card-humanlike-audit',
+      localRuntimeUserId: 'local-user',
       persistActiveSessionId: vi.fn(async () => {}),
       appendConversationTurnWithGuards: vi.fn(async () => true),
       getDialogueAckCursor: vi.fn(() => 0),
@@ -120,6 +124,9 @@ describe('runtime invoke handlers dialogue', () => {
       getAlicizationDb: () => ({
         listConversationTurnsSince: vi.fn(async () => []),
         listConversationTurnsBySession: vi.fn(async () => []),
+        listRuntimeEventScopes: vi.fn(async () => []),
+        loadRuntimeCheckpoint: vi.fn(async () => null),
+        listRuntimeEvents: vi.fn(async () => []),
         getMemoryStats: vi.fn(async () => ({})),
         listMindTurnEvents,
         overrideMemoryStats: vi.fn(async () => ({})),
@@ -210,6 +217,7 @@ describe('runtime invoke handlers dialogue', () => {
       sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
       appendRuntimeDebugLine: vi.fn(async () => {}),
       getActiveCardId: () => 'card-humanlike-audit',
+      localRuntimeUserId: 'local-user',
       persistActiveSessionId: vi.fn(async () => {}),
       appendConversationTurnWithGuards: vi.fn(async () => true),
       getDialogueAckCursor: vi.fn(() => 0),
@@ -311,6 +319,7 @@ describe('runtime invoke handlers dialogue', () => {
       sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
       appendRuntimeDebugLine: vi.fn(async () => {}),
       getActiveCardId: () => 'card-proactive-feedback',
+      localRuntimeUserId: 'local-user',
       persistActiveSessionId: vi.fn(async () => {}),
       appendConversationTurnWithGuards: vi.fn(async () => true),
       getDialogueAckCursor: vi.fn(() => 0),
@@ -325,6 +334,9 @@ describe('runtime invoke handlers dialogue', () => {
       getAlicizationDb: () => ({
         listConversationTurnsSince: vi.fn(async () => []),
         listConversationTurnsBySession: vi.fn(async () => []),
+        listRuntimeEventScopes: vi.fn(async () => []),
+        loadRuntimeCheckpoint: vi.fn(async () => null),
+        listRuntimeEvents: vi.fn(async () => []),
         getMemoryStats: vi.fn(async () => ({})),
         listMindTurnEvents: vi.fn(async () => []),
         overrideMemoryStats: vi.fn(async () => ({})),
@@ -403,6 +415,7 @@ describe('runtime invoke handlers dialogue', () => {
       sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
       appendRuntimeDebugLine: vi.fn(async () => {}),
       getActiveCardId: () => 'card-fast-dialogue',
+      localRuntimeUserId: 'local-user',
       persistActiveSessionId: vi.fn(async () => {}),
       appendConversationTurnWithGuards: vi.fn(async () => true),
       getDialogueAckCursor: vi.fn(() => 0),
@@ -417,6 +430,9 @@ describe('runtime invoke handlers dialogue', () => {
       getAlicizationDb: () => ({
         listConversationTurnsSince: vi.fn(async () => []),
         listConversationTurnsBySession,
+        listRuntimeEventScopes: vi.fn(async () => []),
+        loadRuntimeCheckpoint: vi.fn(async () => null),
+        listRuntimeEvents: vi.fn(async () => []),
         getMemoryStats: vi.fn(async () => ({})),
         listMindTurnEvents: vi.fn(async () => []),
         overrideMemoryStats: vi.fn(async () => ({})),
@@ -472,5 +488,397 @@ describe('runtime invoke handlers dialogue', () => {
     ]))
     expect(ackDialogueDelivery).toHaveBeenCalled()
     expect(listConversationTurnsBySession).toHaveBeenCalled()
+  })
+
+  it('replays canonical tool projections for one card, user, and conversation without re-executing actions', async () => {
+    const registerInvokeHandler = vi.fn()
+    const withCardScope = async <T>(_nextCardIdRaw: unknown, task: () => Promise<T>): Promise<T> => await task()
+    const scope = {
+      turnId: 'turn-tool-replay',
+      cardId: 'card-tool-replay',
+      userId: 'local-user',
+      conversationId: 'session-tool-replay',
+    }
+    const listRuntimeEventScopes = vi.fn(async () => [{
+      ...scope,
+      startedAt: 1_000,
+      updatedAt: 1_300,
+    }])
+    const loadRuntimeCheckpoint = vi.fn(async () => null)
+    const listRuntimeEvents = vi.fn(async () => [
+      createAlicizationRuntimeEvent({
+        ...scope,
+        eventId: 'evt-tool-replay-1',
+        eventType: 'turn.accepted',
+        sequence: 1,
+        source: 'runtime',
+        occurredAt: 1_000,
+        payload: {
+          deliveryOwner: 'inline',
+        },
+      }),
+      createAlicizationRuntimeEvent({
+        ...scope,
+        eventId: 'evt-tool-replay-2',
+        eventType: 'model.tool_call.proposed',
+        sequence: 2,
+        source: 'runtime',
+        occurredAt: 1_100,
+        payload: {
+          actionId: 'action-tool-replay',
+          toolCallId: 'tool-call-replay',
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'coding_agent',
+          selectedChannel: 'codex',
+        },
+      }),
+      createAlicizationRuntimeEvent({
+        ...scope,
+        eventId: 'evt-tool-replay-3',
+        eventType: 'action.observation',
+        sequence: 3,
+        source: 'runtime',
+        occurredAt: 1_300,
+        payload: {
+          actionId: 'action-tool-replay',
+          observationId: 'observation-tool-replay',
+          toolCallId: 'tool-call-replay',
+          terminal: true,
+          outcome: 'success',
+          output: {
+            status: 'completed',
+            summary: '检查完成',
+          },
+        },
+      }),
+    ])
+    const executeAction = vi.fn()
+
+    registerAlicizationDialogueInvokeHandlers({
+      registerInvokeHandler,
+      withCardScope,
+      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      appendRuntimeDebugLine: vi.fn(async () => {}),
+      getActiveCardId: () => 'card-tool-replay',
+      localRuntimeUserId: 'local-user',
+      persistActiveSessionId: vi.fn(async () => {}),
+      appendConversationTurnWithGuards: vi.fn(async () => true),
+      getDialogueAckCursor: vi.fn(() => 0),
+      ackDialogueDelivery: vi.fn(async () => {}),
+      ensureProactiveLoopState: vi.fn(async () => ({ pendingOutcomes: [] }) as any),
+      reportExplicitProactiveFeedback: vi.fn(() => ({ appliedOutcomes: [], state: { outcomes: [] } }) as any),
+      persistProactiveLoopState: vi.fn(async () => {}),
+      persistProactiveFeedbackOutcomeClosure: vi.fn(async () => {}),
+      syncSessionMirrorFromCurrentCardState: vi.fn(async () => {}),
+      appendAuditLog: vi.fn(async () => {}),
+      queueSubconsciousWake: vi.fn(),
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => []),
+        listConversationTurnsBySession: vi.fn(async () => []),
+        listRuntimeEventScopes,
+        loadRuntimeCheckpoint,
+        listRuntimeEvents,
+        getMemoryStats: vi.fn(async () => ({})),
+        listMindTurnEvents: vi.fn(async () => []),
+        overrideMemoryStats: vi.fn(async () => ({})),
+        getMetaValue: vi.fn(async () => undefined),
+        setMetaValue: vi.fn(async () => {}),
+        executeAction,
+      }) as any,
+      getPerformanceManifest: vi.fn(async () => null),
+      getSelfEvolutionState: vi.fn(async () => ({}) as any),
+      toReplayDialogueRespondedPayload: vi.fn(() => null),
+      clearAllConversationData: vi.fn(async () => {}),
+      parseStructuredHint: () => ({}),
+    })
+
+    const replayRegistration = registerInvokeHandler.mock.calls.find((call) => {
+      const channel = call[0] as { sendEvent?: { id?: string } } | undefined
+      return channel?.sendEvent?.id === 'eventa:invoke:electron:alicization:conversation:list-tool-projections-send'
+    })
+    expect(replayRegistration).toBeTruthy()
+
+    const handler = replayRegistration?.[1] as (payload: {
+      cardId: string
+      sessionId: string
+      limit?: number
+    }) => Promise<unknown>
+    const result = await handler({
+      cardId: 'card-tool-replay',
+      sessionId: ' session-tool-replay ',
+      limit: 20,
+    })
+
+    expect(listRuntimeEventScopes).toHaveBeenCalledWith({
+      cardId: 'card-tool-replay',
+      userId: 'local-user',
+      conversationId: 'session-tool-replay',
+      eventTypes: [
+        'model.tool_call.proposed',
+        'action.started',
+        'action.progress',
+        'action.output.delta',
+        'action.observation',
+        'action.failed',
+        'action.cancelled',
+        'action.dead_lettered',
+      ],
+      limit: 20,
+    })
+    expect(loadRuntimeCheckpoint).toHaveBeenCalledWith(scope)
+    expect(listRuntimeEvents).toHaveBeenCalledWith(scope, {
+      afterSequence: 0,
+    })
+    expect(executeAction).not.toHaveBeenCalled()
+    expect(result).toEqual([{
+      cardId: 'card-tool-replay',
+      turnId: 'turn-tool-replay',
+      sessionId: 'session-tool-replay',
+      startedAt: 1_000,
+      updatedAt: 1_300,
+      cards: [
+        expect.objectContaining({
+          toolCallId: 'tool-call-replay',
+          selectedChannel: 'codex',
+          phase: 'completed',
+          terminal: true,
+          result: {
+            status: 'completed',
+            summary: '检查完成',
+          },
+        }),
+      ],
+      recoveryRequired: true,
+      reasonCodes: ['runtime-replay:turn-started-without-terminal'],
+      failure: null,
+    }])
+  })
+
+  it('keeps healthy tool projections when one persisted turn cannot be replayed', async () => {
+    const registerInvokeHandler = vi.fn()
+    const withCardScope = async <T>(_nextCardIdRaw: unknown, task: () => Promise<T>): Promise<T> => await task()
+    const healthyScope = {
+      turnId: 'turn-replay-healthy',
+      cardId: 'card-replay-partial',
+      userId: 'local-user',
+      conversationId: 'session-replay-partial',
+    }
+    const brokenScope = {
+      ...healthyScope,
+      turnId: 'turn-replay-broken',
+    }
+    const runtimeEventsByTurn = new Map([
+      [healthyScope.turnId, [
+        createAlicizationRuntimeEvent({
+          ...healthyScope,
+          eventId: 'evt-replay-healthy-1',
+          eventType: 'turn.accepted',
+          sequence: 1,
+          source: 'runtime',
+          occurredAt: 2_000,
+          payload: {
+            deliveryOwner: 'callback',
+          },
+        }),
+        createAlicizationRuntimeEvent({
+          ...healthyScope,
+          eventId: 'evt-replay-healthy-2',
+          eventType: 'model.tool_call.proposed',
+          sequence: 2,
+          source: 'model',
+          occurredAt: 2_100,
+          payload: {
+            actionId: 'action-replay-healthy',
+            toolCallId: 'tool-replay-healthy',
+            capabilityId: 'coding_agent.cli',
+            providerToolName: 'coding_agent',
+            selectedChannel: 'cli',
+          },
+        }),
+      ]],
+      [brokenScope.turnId, [
+        createAlicizationRuntimeEvent({
+          ...brokenScope,
+          eventId: 'evt-replay-broken-1',
+          eventType: 'model.tool_call.proposed',
+          sequence: 1,
+          source: 'model',
+          occurredAt: 3_000,
+          payload: {
+            actionId: 'action-replay-broken',
+            toolCallId: 'tool-replay-broken',
+            capabilityId: 'coding_agent.codex',
+          },
+        }),
+      ]],
+    ])
+
+    registerAlicizationDialogueInvokeHandlers({
+      registerInvokeHandler,
+      withCardScope,
+      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      appendRuntimeDebugLine: vi.fn(async () => {}),
+      getActiveCardId: () => 'card-replay-partial',
+      localRuntimeUserId: 'local-user',
+      persistActiveSessionId: vi.fn(async () => {}),
+      appendConversationTurnWithGuards: vi.fn(async () => true),
+      getDialogueAckCursor: vi.fn(() => 0),
+      ackDialogueDelivery: vi.fn(async () => {}),
+      ensureProactiveLoopState: vi.fn(async () => ({ pendingOutcomes: [] }) as any),
+      reportExplicitProactiveFeedback: vi.fn(() => ({ appliedOutcomes: [], state: { outcomes: [] } }) as any),
+      persistProactiveLoopState: vi.fn(async () => {}),
+      persistProactiveFeedbackOutcomeClosure: vi.fn(async () => {}),
+      syncSessionMirrorFromCurrentCardState: vi.fn(async () => {}),
+      appendAuditLog: vi.fn(async () => {}),
+      queueSubconsciousWake: vi.fn(),
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => []),
+        listConversationTurnsBySession: vi.fn(async () => []),
+        listRuntimeEventScopes: vi.fn(async () => [
+          {
+            ...healthyScope,
+            startedAt: 2_000,
+            updatedAt: 2_100,
+          },
+          {
+            ...brokenScope,
+            startedAt: 3_000,
+            updatedAt: 3_000,
+          },
+        ]),
+        loadRuntimeCheckpoint: vi.fn(async () => null),
+        listRuntimeEvents: vi.fn(async (scope: { turnId: string }) =>
+          runtimeEventsByTurn.get(scope.turnId) ?? []),
+        getMemoryStats: vi.fn(async () => ({})),
+        listMindTurnEvents: vi.fn(async () => []),
+        overrideMemoryStats: vi.fn(async () => ({})),
+        getMetaValue: vi.fn(async () => undefined),
+        setMetaValue: vi.fn(async () => {}),
+      }) as any,
+      getPerformanceManifest: vi.fn(async () => null),
+      getSelfEvolutionState: vi.fn(async () => ({}) as any),
+      toReplayDialogueRespondedPayload: vi.fn(() => null),
+      clearAllConversationData: vi.fn(async () => {}),
+      parseStructuredHint: () => ({}),
+    })
+
+    const replayRegistration = registerInvokeHandler.mock.calls.find((call) => {
+      const channel = call[0] as { sendEvent?: { id?: string } } | undefined
+      return channel?.sendEvent?.id === 'eventa:invoke:electron:alicization:conversation:list-tool-projections-send'
+    })
+    const handler = replayRegistration?.[1] as (payload: {
+      cardId: string
+      sessionId: string
+    }) => Promise<any[]>
+    const result = await handler({
+      cardId: 'card-replay-partial',
+      sessionId: 'session-replay-partial',
+    })
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        turnId: 'turn-replay-healthy',
+        cards: [
+          expect.objectContaining({
+            toolCallId: 'tool-replay-healthy',
+            selectedChannel: 'cli',
+          }),
+        ],
+        failure: null,
+      }),
+      expect.objectContaining({
+        turnId: 'turn-replay-broken',
+        cards: [],
+        failure: {
+          code: 'RUNTIME_REPLAY_FAILED',
+          message: 'runtime replay delivery owner is missing from persisted facts',
+        },
+      }),
+    ])
+  })
+
+  it('bounds concurrent persisted turn replay during session recovery', async () => {
+    const registerInvokeHandler = vi.fn()
+    const withCardScope = async <T>(_nextCardIdRaw: unknown, task: () => Promise<T>): Promise<T> => await task()
+    const scopes = Array.from({ length: 24 }, (_, index) => ({
+      turnId: `turn-replay-bounded-${index}`,
+      cardId: 'card-replay-bounded',
+      userId: 'local-user',
+      conversationId: 'session-replay-bounded',
+      startedAt: 1_000 + index,
+      updatedAt: 2_000 + index,
+    }))
+    let activeCheckpointLoads = 0
+    let peakCheckpointLoads = 0
+    const loadRuntimeCheckpoint = vi.fn(async () => {
+      activeCheckpointLoads += 1
+      peakCheckpointLoads = Math.max(peakCheckpointLoads, activeCheckpointLoads)
+      try {
+        await new Promise(resolve => setTimeout(resolve, 5))
+        return null
+      }
+      finally {
+        activeCheckpointLoads -= 1
+      }
+    })
+
+    registerAlicizationDialogueInvokeHandlers({
+      registerInvokeHandler,
+      withCardScope,
+      normalizeSessionId: raw => typeof raw === 'string' ? raw.trim() : '',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      appendRuntimeDebugLine: vi.fn(async () => {}),
+      getActiveCardId: () => 'card-replay-bounded',
+      localRuntimeUserId: 'local-user',
+      persistActiveSessionId: vi.fn(async () => {}),
+      appendConversationTurnWithGuards: vi.fn(async () => true),
+      getDialogueAckCursor: vi.fn(() => 0),
+      ackDialogueDelivery: vi.fn(async () => {}),
+      ensureProactiveLoopState: vi.fn(async () => ({ pendingOutcomes: [] }) as any),
+      reportExplicitProactiveFeedback: vi.fn(() => ({ appliedOutcomes: [], state: { outcomes: [] } }) as any),
+      persistProactiveLoopState: vi.fn(async () => {}),
+      persistProactiveFeedbackOutcomeClosure: vi.fn(async () => {}),
+      syncSessionMirrorFromCurrentCardState: vi.fn(async () => {}),
+      appendAuditLog: vi.fn(async () => {}),
+      queueSubconsciousWake: vi.fn(),
+      getAlicizationDb: () => ({
+        listConversationTurnsSince: vi.fn(async () => []),
+        listConversationTurnsBySession: vi.fn(async () => []),
+        listRuntimeEventScopes: vi.fn(async () => scopes),
+        loadRuntimeCheckpoint,
+        listRuntimeEvents: vi.fn(async () => []),
+        getMemoryStats: vi.fn(async () => ({})),
+        listMindTurnEvents: vi.fn(async () => []),
+        overrideMemoryStats: vi.fn(async () => ({})),
+        getMetaValue: vi.fn(async () => undefined),
+        setMetaValue: vi.fn(async () => {}),
+      }) as any,
+      getPerformanceManifest: vi.fn(async () => null),
+      getSelfEvolutionState: vi.fn(async () => ({}) as any),
+      toReplayDialogueRespondedPayload: vi.fn(() => null),
+      clearAllConversationData: vi.fn(async () => {}),
+      parseStructuredHint: () => ({}),
+    })
+
+    const replayRegistration = registerInvokeHandler.mock.calls.find((call) => {
+      const channel = call[0] as { sendEvent?: { id?: string } } | undefined
+      return channel?.sendEvent?.id === 'eventa:invoke:electron:alicization:conversation:list-tool-projections-send'
+    })
+    const handler = replayRegistration?.[1] as (payload: {
+      cardId: string
+      sessionId: string
+      limit?: number
+    }) => Promise<any[]>
+    const result = await handler({
+      cardId: 'card-replay-bounded',
+      sessionId: 'session-replay-bounded',
+      limit: scopes.length,
+    })
+
+    expect(result).toHaveLength(scopes.length)
+    expect(peakCheckpointLoads).toBeGreaterThan(1)
+    expect(peakCheckpointLoads).toBeLessThanOrEqual(8)
   })
 })

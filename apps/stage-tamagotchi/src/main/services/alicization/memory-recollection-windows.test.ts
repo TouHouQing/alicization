@@ -3,16 +3,15 @@ import { describe, expect, it } from 'vitest'
 import { buildMemoryRecollectionWindows } from './memory-recollection-windows'
 
 describe('memory recollection windows', () => {
-  it('clusters recalled episodes and conversation snippets into period-style windows', () => {
+  it('clusters recalled episodes into period-style windows without transcript input', () => {
     const windows = buildMemoryRecollectionWindows({
       intent: {
-        mode: 'conversation-history',
+        mode: 'relationship-history',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
-        searchConversations: true,
         searchProceduralExperience: false,
         queryHints: ['runtime continuity', 'proactive feedback'],
-        rationale: 'Need to remember what we talked about before.',
+        rationale: 'Need to recover the admitted long-term episode behind the current relationship thread.',
         confidence: 0.82,
       },
       episodes: [{
@@ -55,14 +54,6 @@ describe('memory recollection windows', () => {
         recallCount: 0,
         reconsolidationCount: 0,
         latestReconsolidation: null,
-      }],
-      conversationHistory: [{
-        turnId: 'turn-1',
-        sessionId: 'session-1',
-        userText: '前几天 runtime continuity 那个问题后来怎么收口的',
-        assistantText: '我们当时先把 proactive closure 和 continuity 接回同一条线。',
-        createdAt: new Date('2026-04-17T09:05:00Z').getTime(),
-        provenance: 'reconstructed',
       }],
     })
 

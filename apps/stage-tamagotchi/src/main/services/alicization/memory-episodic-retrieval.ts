@@ -18,7 +18,6 @@ export interface AlicizationMemoryRecollectionIntentLite {
   mode: 'none' | 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
   temporalFocus: 'recent' | 'recent-or-mid' | 'cross-session' | 'experience-matched' | 'distant'
   searchEpisodes: boolean
-  searchConversations: boolean
   searchProceduralExperience: boolean
   queryHints: string[]
   rationale: string

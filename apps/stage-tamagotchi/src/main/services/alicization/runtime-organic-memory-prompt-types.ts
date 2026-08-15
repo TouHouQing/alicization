@@ -66,19 +66,6 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     limit?: number
     turnId?: string
   }) => Promise<OrganicMemoryPromptContext['recentMemoryReflections']>
-  recallConversationHistory: (input: {
-    query: string
-    limit?: number
-    recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
-    budgetClass?: AlicizationMemoryRetrievalBudgetClass
-    retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
-  }) => Promise<Array<{
-    turnId: string | null
-    sessionId: string
-    userText: string
-    assistantText: string
-    createdAt: number
-  }>>
   recallMemoryConsolidations: (input: {
     query: string
     limit?: number
@@ -108,7 +95,6 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
     proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
     recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
     digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<NonNullable<OrganicMemoryPromptContext['recollectionPlan']> | null>
   planRecollectionSpeech?: (input: {
@@ -119,7 +105,6 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
     proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
     recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
     digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']> | null>
   planMemoryDeliberation?: (input: {
@@ -131,7 +116,6 @@ export interface CreateAlicizationOrganicMemoryPromptRuntimeOptions {
     recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
     proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
     recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
     digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']> | null>
   isPersonaResidueMemoryText: (text: string) => boolean
@@ -154,7 +138,7 @@ export type MemoryDeliberationSnapshot = NonNullable<OrganicMemoryPromptContext[
 
 export interface MemoryClusterProbe {
   id: string
-  kind: 'consolidation' | 'window' | 'procedure' | 'episode' | 'conversation'
+  kind: 'consolidation' | 'window' | 'procedure' | 'episode'
   clusterKey: string
   clusterSummary: string
   text: string
@@ -207,7 +191,6 @@ export interface AlicizationOrganicMemoryCandidateResolution {
     candidateGeneration: number
     candidateRanking: number
   }
-  recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
   recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
   proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
@@ -217,5 +200,4 @@ export interface AlicizationOrganicMemoryCandidateResolution {
   agendaRankedWindowsClustered: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
   agendaRankedProceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
   agendaRankedEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-  agendaRankedConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
 }

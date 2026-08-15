@@ -67,7 +67,11 @@ interface ReplayBenchmarkDbAccess {
   getMemoryStats: () => Promise<any>
   overrideMemoryStats: (next: any) => Promise<any>
   getMetaValue: (key: string) => Promise<string | undefined>
-  setMetaValue: (key: string, value: string) => Promise<void>
+  setMetaValue: (
+    key: string,
+    value: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<void>
 }
 
 interface CreateAlicizationReplayBenchmarkRuntimeOptions {
@@ -2765,7 +2769,6 @@ function mergeRuntimeSamplingOrganicMemoryContext(input: {
     recentMemoryReflections: primary.recentMemoryReflections ?? fallback.recentMemoryReflections,
     recentRelationshipOutcomes: primary.recentRelationshipOutcomes ?? fallback.recentRelationshipOutcomes,
     recalledEpisodes: primary.recalledEpisodes ?? fallback.recalledEpisodes,
-    recalledConversationHistory: primary.recalledConversationHistory ?? fallback.recalledConversationHistory,
     recollectedWindows: primary.recollectedWindows ?? fallback.recollectedWindows,
     consolidatedMemories: primary.consolidatedMemories ?? fallback.consolidatedMemories,
     recollectionNarratives: primary.recollectionNarratives ?? fallback.recollectionNarratives,
@@ -3170,7 +3173,17 @@ export function createAlicizationReplayBenchmarkRuntime(
     row: ReplayConversationTurnRow
     traceRecords: AlicizationMemoryDecisionTraceRecord[]
     visibleReplyRealization?: AlicizationReplayTurn['visibleReplyRealization']
+    signal?: AbortSignal
   }) {
+    const assertNotAborted = () => {
+      if (!input.signal?.aborted)
+        return
+      throw input.signal.reason ?? Object.assign(
+        new Error('Replay runtime sampling was aborted.'),
+        { name: 'AbortError' },
+      )
+    }
+    assertNotAborted()
     const db = options.getAlicizationDb()
     const turns = buildSampledHumanlikeMemoryBenchmarkPack({
       conversationTurns: [input.row],
@@ -3278,6 +3291,7 @@ export function createAlicizationReplayBenchmarkRuntime(
     const existing = parseReplayBenchmarkDatasetBacklog(
       await db.getMetaValue(replayBenchmarkRuntimeSamplingBacklogKey),
     )
+    assertNotAborted()
     const nextEntries = new Map<string, Record<string, unknown>>(
       existing.map(item => [String(item.id ?? ''), item]),
     )
@@ -3295,10 +3309,20 @@ export function createAlicizationReplayBenchmarkRuntime(
     const merged = [...nextEntries.values()]
       .sort((left, right) => Number(right.createdAt ?? 0) - Number(left.createdAt ?? 0))
       .slice(0, 240)
-    await db.setMetaValue(
-      replayBenchmarkRuntimeSamplingBacklogKey,
-      JSON.stringify(merged),
-    )
+    if (input.signal) {
+      await db.setMetaValue(
+        replayBenchmarkRuntimeSamplingBacklogKey,
+        JSON.stringify(merged),
+        { signal: input.signal },
+      )
+    }
+    else {
+      await db.setMetaValue(
+        replayBenchmarkRuntimeSamplingBacklogKey,
+        JSON.stringify(merged),
+      )
+    }
+    assertNotAborted()
     return {
       sampledTurn: anonymizedTurn,
       totalCount: merged.length,

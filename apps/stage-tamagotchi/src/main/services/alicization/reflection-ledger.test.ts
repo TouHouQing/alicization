@@ -279,4 +279,52 @@ describe('buildReflectionLedger', () => {
     expect(ledger.entries.find(entry => entry.id === 'reflection::temporary-noise')?.outcome).toBe('released')
     expect(ledger.entries.find(entry => entry.id === ledger.latestEntryId)?.revision).toContain('continuity repair lesson')
   })
+
+  it('does not admit reviewed non-confirmed persisted reflections into the governing ledger', () => {
+    const ledger = buildReflectionLedger({
+      now: 90_000,
+      persistedEntries: [
+        {
+          id: 'reflection::pending',
+          summary: 'Pending review must not shape the living reflection ledger.',
+          expectation: 'Wait for confirmation.',
+          observedOutcome: 'Review is still open.',
+          outcome: 'unknown',
+          revision: 'pending-reflection-must-not-govern',
+          confidenceShift: 0,
+          createdAt: 89_000,
+          reviewStatus: 'pending',
+        },
+        {
+          id: 'reflection::denied',
+          summary: 'Denied review must remain audit-only.',
+          expectation: 'Do not internalize denied evidence.',
+          observedOutcome: 'The candidate was rejected.',
+          outcome: 'unknown',
+          revision: 'denied-reflection-must-not-govern',
+          confidenceShift: 0,
+          createdAt: 88_000,
+          reviewStatus: 'denied',
+        },
+        {
+          id: 'reflection::superseded',
+          summary: 'Superseded review must not return as a fallback.',
+          expectation: 'Keep it outside the governing ledger.',
+          observedOutcome: 'A newer reviewed record replaced it.',
+          outcome: 'released',
+          revision: 'superseded-reflection-must-not-govern',
+          confidenceShift: 0,
+          createdAt: 87_000,
+          reviewStatus: 'superseded',
+        },
+      ] as any,
+      previous: null,
+    })
+
+    expect(ledger.latestEntryId).toBeNull()
+    expect(ledger.entries).toEqual([])
+    expect(ledger.narrative).not.toEqual(expect.arrayContaining([
+      expect.stringContaining('must-not-govern'),
+    ]))
+  })
 })

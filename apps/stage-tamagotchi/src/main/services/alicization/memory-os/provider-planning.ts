@@ -14,9 +14,13 @@ import {
   normalizeMemoryPlanningId,
 } from './planning-identifiers'
 import {
+  alicizationMemoryDeliberationJsonSchema,
   alicizationMemoryDeliberationResponseFormat,
+  alicizationMemoryRecollectionIntentJsonSchema,
   alicizationMemoryRecollectionIntentResponseFormat,
+  alicizationMemoryRecollectionPlanJsonSchema,
   alicizationMemoryRecollectionPlanResponseFormat,
+  alicizationMemoryRecollectionSpeechPlanJsonSchema,
   alicizationMemoryRecollectionSpeechPlanResponseFormat,
 } from './provider-contract'
 
@@ -74,10 +78,30 @@ function readNullableBriefText(
   return { value: sanitizeBriefText(raw, maxChars) || null }
 }
 
+function hasOnlyProperties(
+  candidate: Record<string, unknown>,
+  properties: Record<string, unknown>,
+) {
+  return Object.keys(candidate).every(key => Object.prototype.hasOwnProperty.call(properties, key))
+}
+
+function objectArrayHasOnlyProperties(
+  raw: unknown,
+  properties: Record<string, unknown>,
+) {
+  if (!Array.isArray(raw))
+    return true
+  return raw.every((item) => {
+    const candidate = item && typeof item === 'object' && !Array.isArray(item)
+      ? item as Record<string, unknown>
+      : null
+    return !candidate || hasOnlyProperties(candidate, properties)
+  })
+}
+
 export interface AlicizationMemoryPlanningCandidateIdSet {
   allIds: ReadonlySet<string>
   consolidationIds: ReadonlySet<string>
-  conversationTurnIds: ReadonlySet<string>
   episodeIds: ReadonlySet<string>
   eraIds: ReadonlySet<string>
   procedureIds: ReadonlySet<string>
@@ -114,18 +138,15 @@ function buildMemoryPlanningCandidateIdSet(input: {
   recollectedWindows: Array<{ id: string }>
   proceduralMemories: Array<{ id: string }>
   recalledEpisodes: Array<{ id: string }>
-  recalledConversationHistory: Array<{ turnId: string | null }>
 }): AlicizationMemoryPlanningCandidateIdSet {
   const consolidationValues = input.consolidatedMemories.map(item => item.id)
   const windowValues = input.recollectedWindows.map(item => item.id)
   const procedureValues = input.proceduralMemories.map(item => item.id)
   const episodeValues = input.recalledEpisodes.map(item => item.id)
-  const conversationTurnValues = input.recalledConversationHistory.map(item => item.turnId)
   const consolidationIds = buildCandidateIdSet(consolidationValues)
   const windowIds = buildCandidateIdSet(windowValues)
   const procedureIds = buildCandidateIdSet(procedureValues)
   const episodeIds = buildCandidateIdSet(episodeValues)
-  const conversationTurnIds = buildCandidateIdSet(conversationTurnValues)
   const eraIds = buildCandidateIdSet([...consolidationValues, ...windowValues])
   return {
     allIds: buildCandidateIdSet([
@@ -133,10 +154,8 @@ function buildMemoryPlanningCandidateIdSet(input: {
       ...windowValues,
       ...procedureValues,
       ...episodeValues,
-      ...conversationTurnValues,
     ]),
     consolidationIds,
-    conversationTurnIds,
     episodeIds,
     eraIds,
     procedureIds,
@@ -163,6 +182,8 @@ export function parseMemoryRecollectionPlanPayload(
   const parsed = parseJsonObjectFromText(raw)
   if (!parsed)
     return null
+  if (!hasOnlyProperties(parsed, alicizationMemoryRecollectionPlanJsonSchema.properties))
+    return null
 
   const selectedConsolidationIds = readBriefTextArray(
     parsed.selectedConsolidationIds,
@@ -188,12 +209,6 @@ export function parseMemoryRecollectionPlanPayload(
     120,
     candidateIds.episodeIds,
   )
-  const selectedConversationTurnIds = readBriefTextArray(
-    parsed.selectedConversationTurnIds,
-    8,
-    120,
-    candidateIds.conversationTurnIds,
-  )
   const providerRelationshipLines = readBriefTextArray(
     parsed.selectedRelationshipLines,
     3,
@@ -211,10 +226,21 @@ export function parseMemoryRecollectionPlanPayload(
   const thirdHopCandidate = searchTraceCandidate?.thirdHop && typeof searchTraceCandidate.thirdHop === 'object'
     ? searchTraceCandidate.thirdHop as Record<string, unknown>
     : null
+  if (
+    !searchTraceCandidate
+    || !firstHopCandidate
+    || !secondHopCandidate
+    || !thirdHopCandidate
+    || !hasOnlyProperties(searchTraceCandidate, alicizationMemoryRecollectionPlanJsonSchema.properties.searchTrace.properties)
+    || !hasOnlyProperties(firstHopCandidate, alicizationMemoryRecollectionPlanJsonSchema.properties.searchTrace.properties.firstHop.properties)
+    || !hasOnlyProperties(secondHopCandidate, alicizationMemoryRecollectionPlanJsonSchema.properties.searchTrace.properties.secondHop.properties)
+    || !hasOnlyProperties(thirdHopCandidate, alicizationMemoryRecollectionPlanJsonSchema.properties.searchTrace.properties.thirdHop.properties)
+  ) {
+    return null
+  }
   const firstHopFocus = firstHopCandidate?.focus === 'era'
     || firstHopCandidate?.focus === 'procedure'
     || firstHopCandidate?.focus === 'relationship-line'
-    || firstHopCandidate?.focus === 'conversation-turn'
     || firstHopCandidate?.focus === 'episode'
     ? firstHopCandidate.focus
     : null
@@ -222,7 +248,6 @@ export function parseMemoryRecollectionPlanPayload(
     || secondHopCandidate?.action === 'expand-era'
     || secondHopCandidate?.action === 'expand-procedure'
     || secondHopCandidate?.action === 'expand-relationship-line'
-    || secondHopCandidate?.action === 'expand-conversation'
     || secondHopCandidate?.action === 'narrow-to-stable-core'
     ? secondHopCandidate.action
     : null
@@ -231,7 +256,6 @@ export function parseMemoryRecollectionPlanPayload(
     || secondHopCandidate?.evidenceGap === 'need-episode-detail'
     || secondHopCandidate?.evidenceGap === 'need-procedure-detail'
     || secondHopCandidate?.evidenceGap === 'need-relationship-meaning'
-    || secondHopCandidate?.evidenceGap === 'need-conversation-evidence'
     || secondHopCandidate?.evidenceGap === 'need-disambiguation'
     ? secondHopCandidate.evidenceGap
     : null
@@ -265,7 +289,6 @@ export function parseMemoryRecollectionPlanPayload(
     || !selectedWindowIds
     || !selectedProceduralIds
     || !selectedEpisodeIds
-    || !selectedConversationTurnIds
     || !providerRelationshipLines
     || !firstHopFocus
     || !secondHopAction
@@ -288,7 +311,6 @@ export function parseMemoryRecollectionPlanPayload(
     selectedWindowIds,
     selectedProceduralIds,
     selectedEpisodeIds,
-    selectedConversationTurnIds,
     selectedRelationshipLines: [],
     searchTrace: {
       firstHop: {
@@ -318,19 +340,38 @@ export function parseMemoryRecollectionIntentPayload(raw: string) {
   const parsed = parseJsonObjectFromText(raw)
   if (!parsed)
     return null
+  if (!hasOnlyProperties(parsed, alicizationMemoryRecollectionIntentJsonSchema.properties))
+    return null
 
   const parseRecollectionAgenda = () => {
     const rawAgenda = parsed.recollectionAgenda
     if (!rawAgenda || typeof rawAgenda !== 'object')
       return null
     const candidate = rawAgenda as Record<string, unknown>
-    if (!Array.isArray(candidate.candidateTimeScopes) || !Array.isArray(candidate.candidateEraFacets))
+    if (!hasOnlyProperties(candidate, alicizationMemoryRecollectionIntentJsonSchema.properties.recollectionAgenda.properties))
       return null
+    if (
+      !Array.isArray(candidate.candidateTimeScopes)
+      || candidate.candidateTimeScopes.length > 4
+      || !Array.isArray(candidate.candidateEraFacets)
+      || candidate.candidateEraFacets.length > 4
+      || !Array.isArray(candidate.candidateProcedureLines)
+      || candidate.candidateProcedureLines.length > 4
+      || candidate.candidateProcedureLines.some(item => !readRequiredBriefText(item, 180))
+    ) {
+      return null
+    }
     const candidateTimeScopes: NonNullable<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>['recollectionAgenda']>['candidateTimeScopes'] = []
-    for (const item of candidate.candidateTimeScopes.slice(0, 4)) {
+    for (const item of candidate.candidateTimeScopes) {
       if (!item || typeof item !== 'object')
         return null
       const scopeCandidate = item as Record<string, unknown>
+      if (!hasOnlyProperties(
+        scopeCandidate,
+        alicizationMemoryRecollectionIntentJsonSchema.properties.recollectionAgenda.properties.candidateTimeScopes.items.properties,
+      )) {
+        return null
+      }
       const scope = scopeCandidate.scope === 'recent'
         || scopeCandidate.scope === 'recent-or-mid'
         || scopeCandidate.scope === 'cross-session'
@@ -349,10 +390,16 @@ export function parseMemoryRecollectionIntentPayload(raw: string) {
       })
     }
     const candidateEraFacets: NonNullable<NonNullable<OrganicMemoryPromptContext['recollectionIntent']>['recollectionAgenda']>['candidateEraFacets'] = []
-    for (const item of candidate.candidateEraFacets.slice(0, 4)) {
+    for (const item of candidate.candidateEraFacets) {
       if (!item || typeof item !== 'object')
         return null
       const facetCandidate = item as Record<string, unknown>
+      if (!hasOnlyProperties(
+        facetCandidate,
+        alicizationMemoryRecollectionIntentJsonSchema.properties.recollectionAgenda.properties.candidateEraFacets.items.properties,
+      )) {
+        return null
+      }
       const facet = facetCandidate.facet === 'phase'
         || facetCandidate.facet === 'relationship-era'
         || facetCandidate.facet === 'task-era'
@@ -410,7 +457,6 @@ export function parseMemoryRecollectionIntentPayload(raw: string) {
   }
 
   const mode = parsed.mode === 'none'
-    || parsed.mode === 'conversation-history'
     || parsed.mode === 'autobiographical-history'
     || parsed.mode === 'relationship-history'
     || parsed.mode === 'execution-procedure'
@@ -437,20 +483,18 @@ export function parseMemoryRecollectionIntentPayload(raw: string) {
     || !queryHints
     || !recollectionAgenda
     || typeof parsed.searchEpisodes !== 'boolean'
-    || typeof parsed.searchConversations !== 'boolean'
     || typeof parsed.searchProceduralExperience !== 'boolean'
   ) {
     return null
   }
 
   if (mode === 'none') {
-    if (parsed.searchEpisodes || parsed.searchConversations || parsed.searchProceduralExperience)
+    if (parsed.searchEpisodes || parsed.searchProceduralExperience)
       return null
     return {
       mode,
       temporalFocus,
       searchEpisodes: false,
-      searchConversations: false,
       searchProceduralExperience: false,
       queryHints,
       rationale,
@@ -463,7 +507,6 @@ export function parseMemoryRecollectionIntentPayload(raw: string) {
     mode,
     temporalFocus,
     searchEpisodes: parsed.searchEpisodes === true,
-    searchConversations: parsed.searchConversations === true,
     searchProceduralExperience: parsed.searchProceduralExperience === true,
     queryHints,
     rationale,
@@ -475,6 +518,8 @@ export function parseMemoryRecollectionIntentPayload(raw: string) {
 export function parseMemoryRecollectionSpeechPlanPayload(raw: string) {
   const parsed = parseJsonObjectFromText(raw)
   if (!parsed)
+    return null
+  if (!hasOnlyProperties(parsed, alicizationMemoryRecollectionSpeechPlanJsonSchema.properties))
     return null
 
   const surfaceMode = parsed.surfaceMode === 'internal-only'
@@ -530,6 +575,23 @@ export function parseMemoryDeliberationPayload(
   const parsed = parseJsonObjectFromText(raw)
   if (!parsed)
     return null
+  if (
+    !hasOnlyProperties(parsed, alicizationMemoryDeliberationJsonSchema.properties)
+    || !objectArrayHasOnlyProperties(
+      parsed.conflictVariants,
+      alicizationMemoryDeliberationJsonSchema.properties.conflictVariants.items.properties,
+    )
+    || !objectArrayHasOnlyProperties(
+      parsed.selectedBundles,
+      alicizationMemoryDeliberationJsonSchema.properties.selectedBundles.items.properties,
+    )
+    || !objectArrayHasOnlyProperties(
+      parsed.selectedChains,
+      alicizationMemoryDeliberationJsonSchema.properties.selectedChains.items.properties,
+    )
+  ) {
+    return null
+  }
 
   const readConflictVariants = () => {
     const value = parsed.conflictVariants
@@ -577,12 +639,6 @@ export function parseMemoryDeliberationPayload(
     120,
     candidateIds.episodeIds,
   )
-  const selectedConversationTurnIds = readBriefTextArray(
-    parsed.selectedConversationTurnIds,
-    8,
-    120,
-    candidateIds.conversationTurnIds,
-  )
   const providerRelationshipLines = readBriefTextArray(parsed.selectedRelationshipLines, 6, 220)
   const conflictVariants = readConflictVariants()
   const providerStableCore = readBriefTextArray(parsed.stableCore, 6, 220)
@@ -614,7 +670,6 @@ export function parseMemoryDeliberationPayload(
     || !selectedWindowIds
     || !selectedProcedureIds
     || !selectedEpisodeIds
-    || !selectedConversationTurnIds
     || !providerRelationshipLines
     || !selectedBundles
     || !selectedChains
@@ -638,7 +693,6 @@ export function parseMemoryDeliberationPayload(
     selectedWindowIds,
     selectedProcedureIds,
     selectedEpisodeIds,
-    selectedConversationTurnIds,
     selectedRelationshipLines: [],
     selectedEras: [],
     selectedPeriods: [],
@@ -667,7 +721,6 @@ export async function generateMemoryRecollectionSpeechPlanWithGateway(input: {
   recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
   proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
   recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-  recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   generateMainGatewayText: AlicizationMemoryGatewayTextProvider
   cardId: string
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
@@ -676,7 +729,6 @@ export async function generateMemoryRecollectionSpeechPlanWithGateway(input: {
     || input.recollectedWindows.length > 0
     || input.proceduralMemories.length > 0
     || input.recalledEpisodes.length > 0
-    || input.recalledConversationHistory.length > 0
   if (!hasCandidates && !input.recollectionPlan)
     return null
   const consolidatedMemorySlice = selectMemoryPlanningCandidateSlice(
@@ -699,12 +751,6 @@ export async function generateMemoryRecollectionSpeechPlanWithGateway(input: {
     item => item.id,
     4,
   )
-  const recalledConversationHistorySlice = selectMemoryPlanningCandidateSlice(
-    input.recalledConversationHistory,
-    item => item.turnId,
-    4,
-  )
-
   const system = buildAlicizationProviderFactBlock('alicization-memory-recollection-speech-plan-context', {
     version: 'alicization-memory-recollection-speech-plan-context-v1',
     recallSeed: sanitizeBriefText(input.recallSeed, 220),
@@ -743,18 +789,10 @@ export async function generateMemoryRecollectionSpeechPlanWithGateway(input: {
       confidence: item.confidence,
       provenance: item.latestReconsolidation?.provenance ?? item.provenance,
     })),
-    recalledConversationHistory: recalledConversationHistorySlice.map(item => ({
-      turnId: normalizeMemoryPlanningId(item.turnId) || null,
-      userText: sanitizeBriefText(item.userText, 160),
-      assistantText: sanitizeBriefText(item.assistantText, 160),
-      createdAt: item.createdAt,
-      provenance: item.provenance,
-    })),
     sourcePolicy: {
       visibleReplyDraftsAllowed: false,
       currentTurnPayoffAuthoritative: true,
       reviewCandidatesConfirmedLongTermMemory: false,
-      rawTranscriptPersonaTrainingEligible: false,
     },
   })
   const user = buildAlicizationProviderFactBlock('alicization-memory-recollection-speech-plan-request', {
@@ -786,7 +824,6 @@ export async function generateMemoryRecollectionPlanWithGateway(input: {
   recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
   proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
   recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-  recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   generateMainGatewayText: AlicizationMemoryGatewayTextProvider
   cardId: string
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
@@ -809,11 +846,6 @@ export async function generateMemoryRecollectionPlanWithGateway(input: {
   const recalledEpisodeSlice = selectMemoryPlanningCandidateSlice(
     input.recalledEpisodes,
     item => item.id,
-    5,
-  )
-  const recalledConversationHistorySlice = selectMemoryPlanningCandidateSlice(
-    input.recalledConversationHistory,
-    item => item.turnId,
     5,
   )
   const system = buildAlicizationProviderFactBlock('alicization-memory-recollection-plan-context', {
@@ -852,18 +884,11 @@ export async function generateMemoryRecollectionPlanWithGateway(input: {
       lesson: sanitizeBriefText(item.lesson ?? '', 160) || null,
       confidence: item.confidence,
     })),
-    recalledConversationHistory: recalledConversationHistorySlice.map(item => ({
-      turnId: normalizeMemoryPlanningId(item.turnId) || null,
-      userText: sanitizeBriefText(item.userText, 160),
-      assistantText: sanitizeBriefText(item.assistantText, 160),
-      createdAt: item.createdAt,
-    })),
     sourcePolicy: {
       candidateIdsAuthoritative: true,
       visibleReplyDraftsAllowed: false,
       continuationSeedWordingEligible: false,
       reviewCandidatesConfirmedLongTermMemory: false,
-      rawConversationPersonaTrainingEligible: false,
     },
   })
   const user = buildAlicizationProviderFactBlock('alicization-memory-recollection-plan-request', {
@@ -890,7 +915,6 @@ export async function generateMemoryRecollectionPlanWithGateway(input: {
     recollectedWindows: recollectedWindowSlice,
     proceduralMemories: proceduralMemorySlice,
     recalledEpisodes: recalledEpisodeSlice,
-    recalledConversationHistory: recalledConversationHistorySlice,
   }))
 }
 
@@ -952,7 +976,6 @@ export async function generateMemoryRecollectionIntentWithGateway(input: {
       presentFacingAllowed: true,
       timeLanguageExactDayConstraint: false,
       reviewCandidatesConfirmedLongTermMemory: false,
-      rawTranscriptPersonaTrainingEligible: false,
     },
   })
   const user = buildAlicizationProviderFactBlock('alicization-memory-recollection-intent-request', {
@@ -986,7 +1009,6 @@ export async function generateMemoryDeliberationWithGateway(input: {
   recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
   proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
   recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-  recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   generateMainGatewayText: AlicizationMemoryGatewayTextProvider
   cardId: string
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
@@ -995,7 +1017,6 @@ export async function generateMemoryDeliberationWithGateway(input: {
     || input.recollectedWindows.length > 0
     || input.proceduralMemories.length > 0
     || input.recalledEpisodes.length > 0
-    || input.recalledConversationHistory.length > 0
   if (!hasCandidates && !input.recollectionPlan)
     return null
   const consolidatedMemorySlice = selectMemoryPlanningCandidateSlice(
@@ -1018,12 +1039,6 @@ export async function generateMemoryDeliberationWithGateway(input: {
     item => item.id,
     6,
   )
-  const recalledConversationHistorySlice = selectMemoryPlanningCandidateSlice(
-    input.recalledConversationHistory,
-    item => item.turnId,
-    6,
-  )
-
   const system = buildAlicizationProviderFactBlock('alicization-memory-deliberation-context', {
     version: 'alicization-memory-deliberation-context-v1',
     recallSeed: sanitizeBriefText(input.recallSeed, 220),
@@ -1065,20 +1080,12 @@ export async function generateMemoryDeliberationWithGateway(input: {
       confidence: item.confidence,
       provenance: item.latestReconsolidation?.provenance ?? item.provenance,
     })),
-    recalledConversationHistory: recalledConversationHistorySlice.map(item => ({
-      turnId: normalizeMemoryPlanningId(item.turnId) || null,
-      userText: sanitizeBriefText(item.userText, 160),
-      assistantText: sanitizeBriefText(item.assistantText, 160),
-      createdAt: item.createdAt,
-      provenance: item.provenance,
-    })),
     sourcePolicy: {
       candidateIdsAuthoritative: true,
       candidatePresenceForcesRecall: false,
       visibleReplyDraftsAllowed: false,
       continuationSeedWordingEligible: false,
       reviewCandidatesConfirmedLongTermMemory: false,
-      rawConversationPersonaTrainingEligible: false,
     },
   })
   const user = buildAlicizationProviderFactBlock('alicization-memory-deliberation-request', {
@@ -1105,6 +1112,5 @@ export async function generateMemoryDeliberationWithGateway(input: {
     recollectedWindows: recollectedWindowSlice,
     proceduralMemories: proceduralMemorySlice,
     recalledEpisodes: recalledEpisodeSlice,
-    recalledConversationHistory: recalledConversationHistorySlice,
   }))
 }

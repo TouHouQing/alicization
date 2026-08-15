@@ -12,6 +12,10 @@ import type {
 const reflectionLimit = 6
 const reflectionTtlMs = 45 * 60_000
 
+type AlicizationReviewAwareReflectionEntry = AlicizationReflectionEntrySnapshot & {
+  reviewStatus?: 'pending' | 'confirmed' | 'denied' | 'superseded' | null
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value))
 }
@@ -40,14 +44,34 @@ function governingRepair(ledger?: AlicizationRepairLedgerSnapshot | null) {
     ?? null
 }
 
+function isFormalReflectionEntry(entry: AlicizationReviewAwareReflectionEntry) {
+  if (entry.reviewStatus != null)
+    return entry.reviewStatus === 'confirmed'
+
+  // Older memory-reflection projections used `unknown` without retaining review
+  // status. Local runtime reflections never use that outcome, so keep them out.
+  return entry.outcome !== 'unknown'
+}
+
+function isGoverningReflectionEntry(entry: AlicizationReviewAwareReflectionEntry) {
+  return isFormalReflectionEntry(entry) && entry.outcome !== 'released'
+}
+
+function stripReflectionReviewStatus(
+  entry: AlicizationReviewAwareReflectionEntry,
+): AlicizationReflectionEntrySnapshot {
+  const snapshot = { ...entry }
+  delete snapshot.reviewStatus
+  return snapshot
+}
+
 function latestEntry(ledger?: AlicizationReflectionLedgerSnapshot | null) {
-  const latest = ledger?.entries.find(entry => entry.id === ledger.latestEntryId)
-  if (latest && latest.outcome !== 'released')
+  const entries = (ledger?.entries ?? []) as AlicizationReviewAwareReflectionEntry[]
+  const latest = entries.find(entry => entry.id === ledger?.latestEntryId)
+  if (latest && isGoverningReflectionEntry(latest))
     return latest
 
-  return ledger?.entries.find(entry => entry.outcome !== 'released')
-    ?? ledger?.entries[0]
-    ?? null
+  return entries.find(isGoverningReflectionEntry) ?? null
 }
 
 function stableEntryId(input: {
@@ -269,10 +293,14 @@ export function buildReflectionLedger(input: {
   intentionStream?: AlicizationIntentionStreamSnapshot | null
   previousIntentionStream?: AlicizationIntentionStreamSnapshot | null
   previousAnswerPlanner?: AlicizationAnswerPlannerSnapshot | null
-  persistedEntries?: AlicizationReflectionEntrySnapshot[] | null
+  persistedEntries?: AlicizationReviewAwareReflectionEntry[] | null
   previous?: AlicizationReflectionLedgerSnapshot | null
 }): AlicizationReflectionLedgerSnapshot {
-  const previousEntries = [...(input.persistedEntries ?? []), ...(input.previous?.entries ?? [])]
+  const previousEntries = [
+    ...(input.persistedEntries ?? []),
+    ...((input.previous?.entries ?? []) as AlicizationReviewAwareReflectionEntry[]),
+  ]
+    .filter(isFormalReflectionEntry)
     .filter(entry => input.now - entry.createdAt <= reflectionTtlMs)
     .filter((entry, index, entries) => entries.findIndex(candidate => candidate.id === entry.id) === index)
     .sort((left, right) => right.createdAt - left.createdAt)
@@ -307,10 +335,9 @@ export function buildReflectionLedger(input: {
   if (nextEntry && !dedupedEntries.some(entry => entry.id === nextEntry.id))
     dedupedEntries.unshift(nextEntry)
 
-  const entries = dedupedEntries.slice(0, reflectionLimit)
-  const latest = entries.find(entry => entry.outcome !== 'released')
-    ?? entries[0]
-    ?? null
+  const reviewAwareEntries = dedupedEntries.slice(0, reflectionLimit)
+  const latest = reviewAwareEntries.find(isGoverningReflectionEntry) ?? null
+  const entries = reviewAwareEntries.map(stripReflectionReviewStatus)
 
   return {
     latestEntryId: latest?.id ?? null,

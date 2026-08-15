@@ -45,7 +45,6 @@ export function createAlicizationRuntimeMemoryRuntime(
     buildHostPersonModel,
     getMemoryTuningAdvice,
     listRecentMemoryReflections,
-    recallConversationHistory,
     recallMemoryConsolidations,
     prewarmAccessibilityLine,
     resolveTurnRetrievalPolicySnapshot,
@@ -67,7 +66,6 @@ export function createAlicizationRuntimeMemoryRuntime(
         limit: input.limit,
         turnId: input.turnId,
       }),
-      recallConversationHistory,
       recallMemoryConsolidations,
     },
   })

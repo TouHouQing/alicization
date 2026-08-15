@@ -105,12 +105,10 @@ function sanitizeNaturalRecallSeedLineForMemorySearch(raw: string) {
     : ''
 }
 
-const relationshipCuePattern = /relationship|bond|trust|care|boundary|space|repair|tone|distance|靠近|关系|信任|边界|空间|修复|语气|距离/u
-
 export interface AlicizationRelationshipLineCandidate {
   id: string
   line: string
-  sourceKind: 'episode' | 'consolidation' | 'conversation'
+  sourceKind: 'episode' | 'consolidation'
   sourceId: string
   provenance: AlicizationMemoryProvenance
   confidence: number
@@ -121,7 +119,7 @@ export interface AlicizationReconstructionCandidate {
   id: string
   summary: string
   provenance: AlicizationMemoryProvenance
-  sourceKind: 'episode' | 'conversation' | 'cluster'
+  sourceKind: 'episode' | 'cluster'
   sourceId: string
   confidence: number
   reason?: string | null
@@ -331,19 +329,6 @@ export async function resolveMemorySearchPrelude(
 }
 
 export interface AlicizationMemorySearchCandidateAccess {
-  recallConversationHistory: (input: {
-    query: string
-    limit?: number
-    recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
-    budgetClass?: AlicizationMemoryRetrievalBudgetClass
-    retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
-  }) => Promise<Array<{
-    turnId: string | null
-    sessionId: string
-    userText: string
-    assistantText: string
-    createdAt: number
-  }>>
   recallMemoryConsolidations: (input: {
     query: string
     limit?: number
@@ -364,7 +349,6 @@ export interface AlicizationMemorySearchCandidateInput {
 
 export interface AlicizationMemorySearchCandidateResult {
   retrospectiveRecall: boolean
-  recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
   recollectedWindows: AlicizationMemoryRecollectionWindow[]
   proceduralMemories: AlicizationProceduralMemoryAbstraction[]
@@ -374,21 +358,8 @@ export interface AlicizationMemorySearchCandidateResult {
 export async function retrieveMemorySearchCandidates(
   input: AlicizationMemorySearchCandidateInput,
 ): Promise<AlicizationMemorySearchCandidateResult> {
-  const retrospectiveRecall = Boolean(input.recollectionIntent?.searchConversations === true)
-  const recalledConversationHistory = retrospectiveRecall
-    ? (
-        await input.access.recallConversationHistory({
-          query: input.recallSeed,
-          limit: input.recollectionIntent?.temporalFocus === 'cross-session' ? 8 : 6,
-          recollectionIntent: input.recollectionIntent,
-          budgetClass: input.budgetClass,
-          retrievalPolicySnapshot: input.retrievalPolicySnapshot ?? null,
-        })
-      ).map(item => ({
-        ...item,
-        provenance: 'reconstructed' as const,
-      }))
-    : []
+  const retrospectiveRecall = input.recollectionIntent?.temporalFocus === 'cross-session'
+    || input.recollectionIntent?.temporalFocus === 'distant'
   const consolidatedMemories = input.recollectionIntent
     ? await input.access.recallMemoryConsolidations({
         query: input.recallSeed,
@@ -401,7 +372,6 @@ export async function retrieveMemorySearchCandidates(
   const recollectedWindows = buildMemoryRecollectionWindows({
     intent: input.recollectionIntent,
     episodes: input.recalledEpisodes,
-    conversationHistory: recalledConversationHistory,
   })
   const proceduralMemories = buildProceduralMemoryAbstractions({
     intent: input.recollectionIntent,
@@ -410,7 +380,6 @@ export async function retrieveMemorySearchCandidates(
 
   return {
     retrospectiveRecall,
-    recalledConversationHistory,
     consolidatedMemories,
     recollectedWindows,
     proceduralMemories,
@@ -418,7 +387,6 @@ export async function retrieveMemorySearchCandidates(
       recollectionIntent: input.recollectionIntent,
       recalledEpisodes: input.recalledEpisodes,
       consolidatedMemories,
-      recalledConversationHistory,
     }),
   }
 }
@@ -427,7 +395,6 @@ export function retrieveRelationshipLineCandidates(input: {
   recollectionIntent: NonNullable<OrganicMemoryPromptContext['recollectionIntent']> | null
   recalledEpisodes: AlicizationEpisodicEventRecord[]
   consolidatedMemories: NonNullable<OrganicMemoryPromptContext['consolidatedMemories']>
-  recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
 }): AlicizationRelationshipLineCandidate[] {
   const candidates: AlicizationRelationshipLineCandidate[] = []
 
@@ -468,26 +435,6 @@ export function retrieveRelationshipLineCandidates(input: {
     }
   }
 
-  if (input.recollectionIntent?.mode === 'relationship-history') {
-    for (const turn of input.recalledConversationHistory.slice(0, 4)) {
-      const text = [turn.userText, turn.assistantText].filter(Boolean).join(' ')
-      if (!relationshipCuePattern.test(text))
-        continue
-      const line = sanitizeText(turn.assistantText || turn.userText, 180)
-      if (!line)
-        continue
-      candidates.push({
-        id: `conversation:${turn.turnId ?? `${turn.sessionId}:${turn.createdAt}`}`,
-        line,
-        sourceKind: 'conversation',
-        sourceId: turn.turnId ?? `${turn.sessionId}:${turn.createdAt}`,
-        provenance: turn.provenance,
-        confidence: 0.52,
-        cues: uniqueList([turn.userText, turn.assistantText], 3),
-      })
-    }
-  }
-
   const deduped = new Map<string, AlicizationRelationshipLineCandidate>()
   for (const candidate of candidates) {
     const key = candidate.line.toLowerCase()
@@ -514,7 +461,6 @@ export function retrieveRelationshipLineCandidates(input: {
 
 export function runReconstructionAmbiguityRetrievalPass(input: {
   episodes: AlicizationEpisodicEventRecord[]
-  recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   competingVariants?: Array<{ id: string, summary: string, reason: string }>
 }): AlicizationReconstructionAmbiguityPass {
   const candidates: AlicizationReconstructionCandidate[] = []
@@ -531,18 +477,6 @@ export function runReconstructionAmbiguityRetrievalPass(input: {
       sourceId: episode.id,
       confidence: clamp01(episode.confidence * 0.74 + episode.salience * 0.12),
       reason: episode.latestReconsolidation?.reason ?? null,
-    })
-  }
-
-  for (const turn of input.recalledConversationHistory.slice(0, 4)) {
-    candidates.push({
-      id: `conversation:${turn.turnId ?? `${turn.sessionId}:${turn.createdAt}`}`,
-      summary: sanitizeText([turn.userText, turn.assistantText].filter(Boolean).join(' | '), 220),
-      provenance: turn.provenance,
-      sourceKind: 'conversation',
-      sourceId: turn.turnId ?? `${turn.sessionId}:${turn.createdAt}`,
-      confidence: 0.42,
-      reason: 'reconstruction:conversation-history',
     })
   }
 

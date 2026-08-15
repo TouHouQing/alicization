@@ -272,9 +272,7 @@ export type AlicizationMemoryWorkbenchTrainingState = 'allowed' | 'blocked'
 export type AlicizationMemoryWorkbenchReviewDecision = 'approve' | 'reject' | 'tombstone' | 'inward-only' | 'no-training'
 export type AlicizationMemoryRecallProbeMode = 'none' | 'episodic' | 'relationship' | 'preference' | 'procedure' | 'task' | 'mixed'
 export type AlicizationMemoryRecallProbeTemporalFocus = 'current' | 'recent' | 'recent-or-mid' | 'cross-session' | 'distant' | 'unspecified'
-export type AlicizationMemoryRecallProbeConfidencePolicy = 'direct' | 'tentative' | 'inward-only'
 export type AlicizationMemoryRecallProbeEvidenceKind = 'fact' | 'reflection' | 'episode' | 'consolidation'
-export type AlicizationMemoryRecallProbeEvidenceVisibility = 'explicit' | 'inward-only' | 'tentative'
 
 export interface AlicizationWorkingMemoryWorkbenchSnapshot {
   cardId: string
@@ -787,7 +785,7 @@ export interface AlicizationMemoryRecallProbeResult {
     episodicQueries: string[]
     threadHints: string[]
     negativeCues: string[]
-    confidencePolicy: AlicizationMemoryRecallProbeConfidencePolicy
+    riskFlags: string[]
   }
   evidence: Array<{
     id: string
@@ -795,7 +793,15 @@ export interface AlicizationMemoryRecallProbeResult {
     summary: string
     source: string
     score: number
-    visibleMode: AlicizationMemoryRecallProbeEvidenceVisibility
+    confidence: number
+    sensitivity: AlicizationMemoryWorkbenchSensitivity | null
+    scope: {
+      userId: string
+      cardId: string | null
+    }
+    provenance: SharedAlicizationMemoryProvenance
+    evidenceVersion: string
+    version: string
     queryMatches: string[]
     rankReasons: string[]
   }>
@@ -853,7 +859,6 @@ export interface AlicizationOrganicMemorySnapshot {
     mode: 'none' | 'conversation-history' | 'autobiographical-history' | 'relationship-history' | 'execution-procedure' | 'experience-pattern'
     temporalFocus: 'recent' | 'recent-or-mid' | 'cross-session' | 'experience-matched' | 'distant'
     searchEpisodes: boolean
-    searchConversations: boolean
     searchProceduralExperience: boolean
     queryHints: string[]
     rationale: string
@@ -864,7 +869,6 @@ export interface AlicizationOrganicMemorySnapshot {
     selectedWindowIds: string[]
     selectedProceduralIds: string[]
     selectedEpisodeIds: string[]
-    selectedConversationTurnIds: string[]
     opening: string
     certainty: 'firm' | 'approximate' | 'fragmentary'
     rationale: string
@@ -2511,7 +2515,8 @@ export interface AlicizationChatStartResult {
   runtimeDigest?: AlicizationRuntimeDigest | null
 }
 
-export interface AlicizationChatAbortPayload extends AlicizationCardScope {
+export interface AlicizationChatAbortPayload {
+  cardId?: string
   turnId: string
   reason?: string
 }
@@ -2555,6 +2560,12 @@ export interface AlicizationSafetyPermissionRequest {
 }
 
 interface AlicizationBridge {
+  /**
+   * Electron main owns the real provider/tool deadline. Renderer should only
+   * await the explicit finish/error event instead of aborting a live task due
+   * to a local idle timer.
+   */
+  streamLifecycleOwner?: 'main' | 'renderer'
   bootstrap: () => Promise<AlicizationSoulSnapshot>
   getSoul: () => Promise<AlicizationSoulSnapshot>
   initializeGenesis: (payload: AlicizationGenesisInput) => Promise<AlicizationInitializeGenesisResult>
@@ -2625,7 +2636,7 @@ interface AlicizationBridge {
   syncLlmConfig?: (payload: AlicizationLlmConfigPayload) => Promise<void>
   getLlmConfig?: () => Promise<AlicizationLlmConfigPayload>
   chatStart?: (payload: Omit<AlicizationChatStartPayload, 'cardId'>) => Promise<AlicizationChatStartResult>
-  chatAbort?: (payload: { turnId: string, reason?: string }) => Promise<AlicizationChatAbortResult>
+  chatAbort?: (payload: AlicizationChatAbortPayload) => Promise<AlicizationChatAbortResult>
   reminderSchedule?: (payload: { minutes: number, message: string, sourceTurnId?: string }) => Promise<AlicizationReminderScheduleResult>
   clearAllConversations?: () => Promise<void>
   streamChat?: (

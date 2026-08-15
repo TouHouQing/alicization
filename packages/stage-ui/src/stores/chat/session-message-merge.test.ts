@@ -395,6 +395,157 @@ describe('mergeLoadedSessionMessages', () => {
     }])
   })
 
+  it.each([
+    {
+      name: 'completed replaces an older failure',
+      storedPhase: 'tool-failed',
+      storedResultStatus: 'failed',
+      currentPhase: 'completed',
+      currentResultStatus: 'completed',
+      expectedPhase: 'completed',
+      expectedResultStatus: 'completed',
+      expectedSummary: 'newer terminal result',
+    },
+    {
+      name: 'dead-letter replaces an older failure',
+      storedPhase: 'tool-failed',
+      storedResultStatus: 'failed',
+      currentPhase: 'tool-dead-lettered',
+      currentResultStatus: 'dead-lettered',
+      expectedPhase: 'tool-dead-lettered',
+      expectedResultStatus: 'dead-lettered',
+      expectedSummary: 'newer terminal result',
+    },
+    {
+      name: 'dead-letter is not hidden by a later ordinary failure',
+      storedPhase: 'tool-dead-lettered',
+      storedResultStatus: 'dead-lettered',
+      currentPhase: 'tool-failed',
+      currentResultStatus: 'failed',
+      expectedPhase: 'tool-dead-lettered',
+      expectedResultStatus: 'dead-lettered',
+      expectedSummary: 'stored terminal result',
+    },
+  ] as const)('$name', ({
+    storedPhase,
+    storedResultStatus,
+    currentPhase,
+    currentResultStatus,
+    expectedPhase,
+    expectedResultStatus,
+    expectedSummary,
+  }) => {
+    const toolCallId = 'tool-terminal-conflict'
+    const canonical = canonicalizeSessionMessages([
+      {
+        role: 'assistant',
+        content: '工具已经结算。',
+        createdAt: 28_000,
+        id: 'chat:session-1:turn-terminal-conflict',
+        slices: [{
+          type: 'execution-status',
+          phase: storedPhase,
+          toolCallId,
+          toolName: 'coding_agent',
+          label: 'stored terminal',
+        }],
+        tool_results: [{
+          id: toolCallId,
+          result: {
+            status: storedResultStatus,
+            summary: 'stored terminal result',
+          },
+        }],
+      },
+      {
+        role: 'assistant',
+        content: '工具已经结算。',
+        createdAt: 28_100,
+        id: 'chat:session-1:turn-terminal-conflict',
+        slices: [{
+          type: 'execution-status',
+          phase: currentPhase,
+          toolCallId,
+          toolName: 'coding_agent',
+          label: 'current terminal',
+        }],
+        tool_results: [{
+          id: toolCallId,
+          result: {
+            status: currentResultStatus,
+            summary: 'newer terminal result',
+          },
+        }],
+      },
+    ])
+
+    const assistant = canonical.find(message => message.role === 'assistant') as Extract<
+      ChatHistoryItem,
+      { role: 'assistant' }
+    >
+    const status = assistant.slices.find(slice => (
+      slice.type === 'execution-status'
+      && slice.toolCallId === toolCallId
+    ))
+
+    assert.equal(status?.type, 'execution-status')
+    if (status?.type !== 'execution-status')
+      throw new Error('expected execution status')
+    assert.equal(status.phase, expectedPhase)
+    assert.deepEqual(assistant.tool_results, [{
+      id: toolCallId,
+      result: {
+        status: expectedResultStatus,
+        summary: expectedSummary,
+      },
+    }])
+  })
+
+  it('recognizes finalStatus when preserving a dead-lettered tool result', () => {
+    const toolCallId = 'tool-final-status-dead-letter'
+    const canonical = canonicalizeSessionMessages([
+      {
+        role: 'assistant',
+        content: '工具需要人工核对。',
+        createdAt: 29_000,
+        id: 'chat:session-1:turn-final-status-dead-letter',
+        slices: [],
+        tool_results: [{
+          id: toolCallId,
+          result: {
+            finalStatus: 'dead-lettered',
+            summary: '需要人工核对。',
+          },
+        }],
+      },
+      {
+        role: 'assistant',
+        content: '工具需要人工核对。',
+        createdAt: 29_100,
+        id: 'chat:session-1:turn-final-status-dead-letter',
+        slices: [],
+        tool_results: [{
+          id: toolCallId,
+          result: {
+            status: 'running',
+          },
+        }],
+      },
+    ])
+
+    const assistant = canonical.find(message => message.role === 'assistant') as Extract<
+      ChatHistoryItem,
+      { role: 'assistant' }
+    >
+    assert.deepEqual(assistant.tool_results, [{
+      id: toolCallId,
+      result: {
+        finalStatus: 'dead-lettered',
+        summary: '需要人工核对。',
+      },
+    }])
+  })
+
   it('preserves memory and runtime facts during canonicalization', () => {
     const canonical = canonicalizeSessionMessages([
       {

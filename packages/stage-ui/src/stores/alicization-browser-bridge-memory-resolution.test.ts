@@ -112,7 +112,6 @@ describe('browser bridge memory resolution', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         opening: '用户正在检查记忆链路',
         certainty: 'firm',
         rationale: 'source=browser-memory | selected=phase',

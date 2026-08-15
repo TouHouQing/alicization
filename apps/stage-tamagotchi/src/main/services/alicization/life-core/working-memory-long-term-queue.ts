@@ -1,7 +1,10 @@
 import type {
   WorkingMemoryLongTermCandidate,
+  WorkingMemoryLongTermEvidence,
   WorkingMemorySnapshot,
 } from './working-memory'
+
+import { createHash } from 'node:crypto'
 
 import {
   containsAlicizationFixedTemplateResidue,
@@ -10,6 +13,7 @@ import {
 
 import {
   clampWorkingMemoryScore,
+  normalizeWorkingMemoryLongTermEvidence,
   normalizeWorkingMemoryText,
   uniqueWorkingMemoryTexts,
 } from './working-memory'
@@ -20,6 +24,7 @@ export type WorkingMemoryLongTermQueueStatus = 'pending-cleaning' | 'rejected' |
 export interface WorkingMemoryLongTermQueueItem {
   id: string
   source: 'working-memory-owner'
+  memoryEvidence?: WorkingMemoryLongTermEvidence | null
   kind: WorkingMemoryLongTermCandidate['kind']
   summary: string
   reason: string
@@ -34,9 +39,6 @@ export interface WorkingMemoryLongTermQueueItem {
   contaminationFlags: string[]
   createdAt: number
 }
-
-const fixedTemplateEvidenceReplacement
-  = 'content_withheld; reason=structured-internal-residue'
 
 const internalStructuredFactContext = {
   provenance: 'internal-structured-fact' as const,
@@ -57,17 +59,16 @@ function stableQueueId(input: {
   sourceTurnIds: string[]
   summary: string
 }) {
-  const compactSummary = normalizeWorkingMemoryText(input.summary, 48)
-    .replace(/[^\p{Letter}\p{Number}]+/gu, '-')
-    .replace(/^-+|-+$/gu, '')
-    .toLowerCase()
-  return [
-    'working-memory-long-term',
-    normalizeWorkingMemoryText(input.sessionId, 80) || 'detached',
+  const canonicalIdentity = JSON.stringify([
+    input.sessionId.trim() || 'detached',
     input.kind,
-    input.sourceTurnIds.join('+') || 'no-source',
-    compactSummary || 'candidate',
-  ].join(':')
+    input.sourceTurnIds,
+    input.summary,
+  ])
+  const digest = createHash('sha256')
+    .update(canonicalIdentity, 'utf8')
+    .digest('hex')
+  return `working-memory-long-term:v1:sha256:${digest}`
 }
 
 function candidateText(candidate: WorkingMemoryLongTermCandidate) {
@@ -128,33 +129,33 @@ function collectContaminationFlags(input: {
   return uniqueWorkingMemoryTexts(flags, 6, 80)
 }
 
-function evidenceForCandidate(snapshot: WorkingMemorySnapshot, sourceTurnIds: string[]) {
-  const byTurnId = new Map(snapshot.recentRawTurns.map(turn => [turn.turnId, turn.text]))
-  return uniqueWorkingMemoryTexts(
-    sourceTurnIds.map(turnId => sanitizeQueueText(
-      byTurnId.get(turnId) ?? '',
-      260,
-      fixedTemplateEvidenceReplacement,
-    )),
-    6,
-    260,
-  )
-}
-
 export function buildWorkingMemoryLongTermCandidateQueue(snapshot: WorkingMemorySnapshot): WorkingMemoryLongTermQueueItem[] {
   const failureTurnIds = new Set(snapshot.audit.failureTurnIds)
   const excludedTurnIds = new Set(snapshot.audit.excludedLongTermCandidateTurnIds)
   const queue: WorkingMemoryLongTermQueueItem[] = []
 
   for (const candidate of snapshot.longTermCandidates) {
-    const summary = sanitizeQueueText(candidate.summary, 260, '')
-    const reason = sanitizeQueueText(candidate.reason, 260, '')
+    const memoryEvidence = normalizeWorkingMemoryLongTermEvidence(candidate.memoryEvidence)
+    if (!memoryEvidence)
+      continue
+    const summary = sanitizeQueueText(memoryEvidence.summary, 260, '')
+    const reason = sanitizeQueueText(memoryEvidence.reason, 260, '')
+    const evidenceSnippets = uniqueWorkingMemoryTexts(
+      memoryEvidence.evidenceSnippets.map(snippet => sanitizeQueueText(snippet, 260, '')),
+      6,
+      260,
+    )
     const sourceTurnIds = uniqueWorkingMemoryTexts(candidate.sourceTurnIds, 12, 120)
-    if (!summary || !reason || sourceTurnIds.length === 0)
+    if (!summary || !reason || evidenceSnippets.length === 0 || sourceTurnIds.length === 0)
       continue
 
     const contaminationFlags = collectContaminationFlags({
-      candidate,
+      candidate: {
+        ...candidate,
+        kind: memoryEvidence.kind,
+        summary,
+        reason,
+      },
       excludedTurnIds,
       failureTurnIds,
       snapshot,
@@ -166,19 +167,20 @@ export function buildWorkingMemoryLongTermCandidateQueue(snapshot: WorkingMemory
     queue.push({
       id: stableQueueId({
         sessionId: snapshot.sessionId,
-        kind: candidate.kind,
+        kind: memoryEvidence.kind,
         sourceTurnIds,
         summary,
       }),
       source: 'working-memory-owner',
-      kind: candidate.kind,
+      memoryEvidence,
+      kind: memoryEvidence.kind,
       summary,
       reason,
       sourceTurnIds,
-      evidenceSnippets: evidenceForCandidate(snapshot, sourceTurnIds),
-      salience: clampWorkingMemoryScore(candidate.salience),
-      confidence: clampWorkingMemoryScore(candidate.confidence),
-      sensitivity: candidate.sensitivity,
+      evidenceSnippets,
+      salience: clampWorkingMemoryScore(memoryEvidence.salience),
+      confidence: clampWorkingMemoryScore(memoryEvidence.confidence),
+      sensitivity: memoryEvidence.sensitivity,
       allowTraining: false,
       status: 'pending-cleaning',
       rejectionReasons: [],

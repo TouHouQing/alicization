@@ -1,5 +1,8 @@
+import type { Message } from '@xsai/shared-chat'
+
 import { describe, expect, it, vi } from 'vitest'
 
+import { createEmptyWorkingMemorySnapshot } from './life-core/working-memory'
 import { createAlicizationMainChatPreludeRuntime } from './runtime-main-chat-prelude'
 
 function createVisibleBrowserContinuationRuntimeSurface() {
@@ -111,6 +114,180 @@ const mainGateway = {
 } as any
 
 describe('runtime main chat prelude', () => {
+  it('hydrates the WorkingMemory checkpoint before perception and carries the owner snapshot forward', async () => {
+    const events: string[] = []
+    const checkpoint = createEmptyWorkingMemorySnapshot({
+      cardId: 'card-prelude-checkpoint-order',
+      sessionId: 'session-prelude-checkpoint-order',
+      now: 100,
+    })
+    checkpoint.currentThread = {
+      title: 'WorkingMemory owns the current thread',
+      currentUserMove: 'Continue from the checkpoint.',
+      currentAliceMove: 'Keep the owner boundary explicit.',
+      primaryAnchor: 'checkpoint-owner-boundary',
+      mode: 'task',
+      shouldHold: true,
+      confidence: 0.9,
+    }
+    const augmentMainChatMessagesWithPerception = vi.fn(async (input) => {
+      events.push('perception')
+      return {
+        messages: input.messages,
+        systemBlocks: [],
+        promptSystemBlocks: [],
+        digitalLifeRuntimeSurface: null,
+        memoryRecallSeed: '',
+        recallGovernor: null,
+        capture: {
+          inspectionRequested: false,
+          groundedThisTurn: false,
+          snapshot: null,
+          fallbackReason: null,
+        },
+        chatGovernance: {
+          turnMode: 'answer' as const,
+          personaKernelMode: 'full' as const,
+          mindTurnGovernance: null,
+        },
+      }
+    })
+    const runtime = createAlicizationMainChatPreludeRuntime({
+      readLatestUserMessageText: messages => String(messages.at(-1)?.content ?? ''),
+      senderWebContentsIdFromInvokeOptions: () => null,
+      resolveChatMessages: payload => payload.messages as any,
+      buildMainChatContextualString: vi.fn(async () => ''),
+      buildMainChatExecutionCallbackContext: vi.fn(async () => ({
+        actions: [],
+        callbacks: [],
+        continuitySignals: [],
+        recallText: '',
+        systemBlock: '',
+      })),
+      buildMainChatExecutionLedgerContext: vi.fn(async () => ({
+        systemBlock: '',
+        entries: [],
+        recallText: '',
+      })) as any,
+      hydrateWorkingMemory: vi.fn(async () => {
+        events.push('checkpoint')
+        return {
+          version: 'working-memory-hydration-v1' as const,
+          cardId: 'card-prelude-checkpoint-order',
+          turnId: 'turn-prelude-checkpoint-order',
+          sessionId: 'session-prelude-checkpoint-order',
+          snapshot: checkpoint,
+          recentTurns: [],
+          failures: [],
+        }
+      }),
+      augmentMainChatMessagesWithPerception,
+      prepareMainChatSessionExecution: vi.fn(),
+    })
+
+    const prelude = await runtime.prepareMainChatPrelude({
+      cardId: 'card-prelude-checkpoint-order',
+      turnId: 'turn-prelude-checkpoint-order',
+      providerId: 'openai',
+      model: 'gpt-test',
+      providerConfig: {},
+      messages: [{ role: 'user', content: '继续当前线程。' }],
+    } as any, mainGateway, undefined, {
+      agentTurn: {
+        conversationSessionId: 'session-prelude-checkpoint-order',
+      } as any,
+    })
+
+    expect(events).toEqual(['checkpoint', 'perception'])
+    expect(prelude.workingMemoryHydration).toMatchObject({
+      sessionId: 'session-prelude-checkpoint-order',
+      snapshot: checkpoint,
+    })
+    expect(augmentMainChatMessagesWithPerception).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workingMemorySnapshot: checkpoint,
+      }),
+    )
+  })
+
+  it('keeps full transport history for session preparation but scopes perception to the current turn', async () => {
+    const systemMessage = { role: 'system', content: 'system context' } as const
+    const oldUserMessage = { role: 'user', content: '旧 transport 用户轮次' } as const
+    const oldAssistantMessage = { role: 'assistant', content: '旧 transport 助手轮次' } as const
+    const currentUserMessage = { role: 'user', content: '当前用户轮次' } as const
+    const perceptionMessages = vi.fn()
+    const runtime = createAlicizationMainChatPreludeRuntime({
+      readLatestUserMessageText: messages => String(messages.at(-1)?.content ?? ''),
+      senderWebContentsIdFromInvokeOptions: () => null,
+      resolveChatMessages: payload => payload.messages as any,
+      buildMainChatContextualString: vi.fn(async () => 'U: 当前用户轮次'),
+      buildMainChatExecutionCallbackContext: vi.fn(async () => ({
+        actions: [],
+        callbacks: [],
+        continuitySignals: [],
+        recallText: '',
+        systemBlock: '',
+      })),
+      buildMainChatExecutionLedgerContext: vi.fn(async () => ({
+        systemBlock: '',
+        entries: [],
+        recallText: '',
+      })) as any,
+      augmentMainChatMessagesWithPerception: vi.fn(async (input: { messages: Message[] }) => {
+        perceptionMessages(input.messages)
+        return {
+          messages: input.messages.map(message =>
+            message === currentUserMessage
+              ? { ...message, content: '当前用户轮次（perception 改写）' }
+              : message,
+          ),
+          systemBlocks: [],
+          promptSystemBlocks: [],
+          digitalLifeRuntimeSurface: null,
+          memoryRecallSeed: '',
+          recallGovernor: null,
+          capture: {
+            inspectionRequested: false,
+            groundedThisTurn: false,
+            snapshot: null,
+            fallbackReason: null,
+          },
+          chatGovernance: {
+            turnMode: 'answer' as const,
+            personaKernelMode: 'full' as const,
+            mindTurnGovernance: null,
+          },
+        }
+      }),
+      prepareMainChatSessionExecution: vi.fn(),
+    })
+
+    const prelude = await runtime.prepareMainChatPrelude({
+      cardId: 'card-prelude-owner-boundary',
+      turnId: 'turn-prelude-owner-boundary',
+      providerId: 'openai',
+      model: 'gpt-test',
+      providerConfig: {},
+      messages: [
+        systemMessage,
+        oldUserMessage,
+        oldAssistantMessage,
+        currentUserMessage,
+      ],
+    } as any, mainGateway)
+
+    expect(perceptionMessages).toHaveBeenCalledWith([
+      systemMessage,
+      currentUserMessage,
+    ])
+    expect(prelude.messages).toEqual([
+      systemMessage,
+      oldUserMessage,
+      oldAssistantMessage,
+      { ...currentUserMessage, content: '当前用户轮次（perception 改写）' },
+    ])
+  })
+
   it('passes the current turn id into perception augmentation', async () => {
     const augmentMainChatMessagesWithPerception = vi.fn(async input => ({
       messages: input.messages,

@@ -9,7 +9,6 @@ export type AlicizationMemoryCandidateKind
   = 'fact'
     | 'fragment'
     | 'episode'
-    | 'conversation'
     | 'window'
     | 'consolidation'
     | 'procedure'
@@ -81,7 +80,6 @@ function itemId(raw: unknown, fallback: string) {
   const record = asRecord(raw)
   return normalizeText(record?.id, 120)
     ?? normalizeText(record?.candidateId, 120)
-    ?? normalizeText(record?.turnId, 120)
     ?? fallback
 }
 
@@ -94,10 +92,6 @@ function itemSummary(raw: unknown) {
     ?? normalizeText(record?.text)
     ?? normalizeText(record?.label)
     ?? normalizeText(record?.approach)
-    ?? normalizeText([
-      normalizeText(record?.userText, 110),
-      normalizeText(record?.assistantText, 110),
-    ].filter(Boolean).join(' / '))
 }
 
 function itemProvenance(raw: unknown) {
@@ -118,6 +112,15 @@ function itemStringList(raw: unknown, maxItems = 8) {
     .map(item => normalizeText(item, 120))
     .filter((item): item is string => Boolean(item))
     .slice(0, maxItems)
+}
+
+function boundedCandidateStringList(raw: unknown, maxItems: number) {
+  if (!Array.isArray(raw) || raw.length > maxItems)
+    return null
+  const values = raw.map(item => normalizeText(item, 120))
+  return values.every((item): item is string => Boolean(item))
+    ? values
+    : null
 }
 
 function itemMetadata(raw: unknown) {
@@ -191,7 +194,6 @@ function collectCandidateReferenceNow(context: OrganicMemoryPromptContext, expli
     ...context.retrievedFacts.map(itemUpdatedAt),
     ...context.recalledFragments.map(itemUpdatedAt),
     ...(context.recalledEpisodes ?? []).map(itemUpdatedAt),
-    ...(context.recalledConversationHistory ?? []).map(itemUpdatedAt),
     ...(context.recollectedWindows ?? []).map(itemUpdatedAt),
     ...(context.consolidatedMemories ?? []).map(itemUpdatedAt),
     ...(context.proceduralMemories ?? []).map(itemUpdatedAt),
@@ -312,12 +314,82 @@ function buildSituationCandidateSummary(input: {
   ].filter((item): item is string => Boolean(item)).join(' | ')
 }
 
+function collectLongTermEvidenceOwnerIds(context: OrganicMemoryPromptContext) {
+  const ownerIds = new Set<string>()
+  const add = (raw: unknown) => {
+    const id = normalizeText(raw, 180)
+    if (id)
+      ownerIds.add(id)
+  }
+
+  for (const fact of context.retrievedFacts)
+    add(fact.id)
+  for (const episode of context.recalledEpisodes ?? [])
+    add(episode.id)
+  for (const window of context.recollectedWindows ?? [])
+    add(window.id)
+  for (const consolidation of context.consolidatedMemories ?? []) {
+    add(consolidation.id)
+    for (const eventId of consolidation.derivedEventIds ?? [])
+      add(eventId)
+  }
+  for (const procedure of context.proceduralMemories ?? [])
+    add(procedure.id)
+  for (const reflection of context.recentMemoryReflections ?? [])
+    add(reflection.id)
+  for (const outcome of context.recentRelationshipOutcomes ?? [])
+    add(outcome.id)
+  for (const graph of context.claimEvidenceGraphs ?? []) {
+    add(graph.claimId)
+    for (const evidence of [...graph.supportingEvidence, ...graph.contradictingEvidence]) {
+      const sourceKind = normalizeText(evidence.sourceKind, 64)
+      const evidenceId = normalizeText(evidence.evidenceId, 180)
+      const sourceId = normalizeText(evidence.sourceId, 180)
+      if (
+        !evidenceId
+        || sourceKind === 'conversation'
+        || sourceKind === 'conversation-turn'
+        || (sourceId != null && evidenceId === sourceId)
+      ) {
+        continue
+      }
+      ownerIds.add(evidenceId)
+    }
+  }
+
+  return ownerIds
+}
+
 function buildMemorySituationCandidateItems(context: OrganicMemoryPromptContext) {
   const producedAt = Number.isFinite(context.memorySituationCandidates?.producedAt)
     ? Number(context.memorySituationCandidates?.producedAt)
     : null
-  return (context.memorySituationCandidates?.candidates ?? []).map((candidate) => {
+  const longTermEvidenceOwnerIds = collectLongTermEvidenceOwnerIds(context)
+  return (context.memorySituationCandidates?.candidates ?? []).flatMap((candidate) => {
     const raw = asRecord(candidate) ?? {}
+    const rawSourceKinds = boundedCandidateStringList(raw.sourceKinds, 10)
+    if (!rawSourceKinds)
+      return []
+    const sourceKinds = rawSourceKinds.filter(kind => [
+      'event-graph',
+      'episodic-event',
+      'fact',
+      'consolidation',
+      'procedure',
+      'relationship',
+      'self-model',
+      'world-model',
+    ].includes(kind))
+    if (sourceKinds.length === 0 || sourceKinds.length !== rawSourceKinds.length)
+      return []
+    const selectedEvidenceIds = boundedCandidateStringList(raw.selectedEvidenceIds, 24)
+    if (
+      !selectedEvidenceIds
+      || selectedEvidenceIds.length === 0
+      || selectedEvidenceIds.some(id => !longTermEvidenceOwnerIds.has(id))
+    ) {
+      return []
+    }
     const confidence = clamp01(raw.confidence, 0.55)
     const competingCandidateIds = itemStringList(raw.competingCandidateIds, 12)
     const suppressionReasons = itemStringList(raw.suppressionReasons, 12)
@@ -326,7 +398,7 @@ function buildMemorySituationCandidateItems(context: OrganicMemoryPromptContext)
     const procedureKey = normalizeText(raw.procedureKey, 160)
     const eraKey = normalizeText(raw.eraKey, 160)
 
-    return {
+    return [{
       ...raw,
       id: normalizeText(raw.candidateId, 180) ?? null,
       summary: buildSituationCandidateSummary({
@@ -347,9 +419,9 @@ function buildMemorySituationCandidateItems(context: OrganicMemoryPromptContext)
       threadId: relationshipArcKey ?? procedureKey ?? eraKey ?? null,
       eraId: eraKey,
       status: normalizeText(raw.status, 32) ?? null,
-      selectedEvidenceIds: itemStringList(raw.selectedEvidenceIds, 24),
-      sourceKinds: itemStringList(raw.sourceKinds, 10),
-    }
+      selectedEvidenceIds,
+      sourceKinds,
+    }]
   })
 }
 
@@ -361,13 +433,11 @@ function selectedIds(context: OrganicMemoryPromptContext) {
     ...(deliberation?.selectedWindowIds ?? []),
     ...(deliberation?.selectedProcedureIds ?? []),
     ...(deliberation?.selectedEpisodeIds ?? []),
-    ...(deliberation?.selectedConversationTurnIds ?? []),
     ...(deliberation?.selectedBundles ?? []).flatMap(item => [
       item.id,
       item.periodId,
       item.episodeId,
       item.procedureId,
-      item.conversationTurnId,
     ]),
   ].filter((item): item is string => typeof item === 'string' && item.trim().length > 0))
 }
@@ -434,13 +504,6 @@ export function deriveAlicizationMemoryCandidateRetrieval(input: {
   })
   appendCandidates({
     result: candidates,
-    kind: 'conversation',
-    items: input.context.recalledConversationHistory ?? [],
-    selected,
-    referenceNow,
-  })
-  appendCandidates({
-    result: candidates,
     kind: 'window',
     items: input.context.recollectedWindows ?? [],
     selected,
@@ -475,7 +538,6 @@ export function deriveAlicizationMemoryCandidateRetrieval(input: {
     fact: 0,
     fragment: 0,
     episode: 0,
-    conversation: 0,
     window: 0,
     consolidation: 0,
     procedure: 0,

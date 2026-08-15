@@ -7,6 +7,58 @@ import {
   createAlicizationRuntimeMemoryReconsolidation,
 } from './runtime-memory-reconsolidation'
 
+function buildFeedbackOutcomeClosure(input: {
+  sourceKind: 'dialogue-feedback' | 'execution-result'
+  cardId?: string
+  decisionTraceId: string
+  turnId: string
+  sessionId: string
+  felt?: string | null
+  relationshipMeaning?: string | null
+  lesson?: string | null
+  tags?: string[]
+}) {
+  return {
+    relationshipOutcomes: [],
+    reinforcementEvents: [],
+    memoryFacts: [],
+    reflections: [],
+    episodicEvents: [{
+      cardId: input.cardId ?? 'card-1',
+      decisionTraceId: input.decisionTraceId,
+      turnId: input.turnId,
+      sessionId: input.sessionId,
+      sourceKind: input.sourceKind,
+      felt: input.felt ?? null,
+      relationshipMeaning: input.relationshipMeaning ?? null,
+      lesson: input.lesson ?? null,
+      tags: input.tags ?? [],
+    }],
+  } as any
+}
+
+function buildCompletedExecutionResult(input: {
+  cardId?: string
+  threadId?: string
+  decisionTraceId: string
+  turnId: string
+  sessionId: string
+  goal: string
+  outcome?: string | null
+}) {
+  return {
+    provenance: 'execution-ledger' as const,
+    status: 'completed' as const,
+    cardId: input.cardId ?? 'card-1',
+    threadId: input.threadId ?? `thread:${input.turnId}`,
+    decisionTraceId: input.decisionTraceId,
+    turnId: input.turnId,
+    sessionId: input.sessionId,
+    goal: input.goal,
+    outcome: input.outcome ?? null,
+  }
+}
+
 describe('runtime memory reconsolidation', () => {
   it('collects recall telemetry and coherence state from mind events', () => {
     const recallTexts = collectRecallTelemetryTexts({
@@ -36,6 +88,172 @@ describe('runtime memory reconsolidation', () => {
       matchedCueKinds: ['episode', 'procedure'],
     }))
     expect(buildDialogueFeedbackReconsolidationRationale('robotic')).toBe('source=dialogue-feedback | feedback=robotic')
+  })
+
+  it('does not accept ad hoc feedback experience without an outcome closure', async () => {
+    const searchEpisodicEvents = vi.fn(async () => [{ id: 'episode-raw-experience' }])
+    const appendMindTurnEvents = vi.fn(async () => {})
+    const runtime = createAlicizationRuntimeMemoryReconsolidation({
+      sanitizeMindGovernanceDecisionTraceId: raw => typeof raw === 'string' ? raw.trim() : '',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      errorMessageFrom: error => error instanceof Error ? error.message : String(error),
+      appendAuditLog: vi.fn(async () => {}),
+      alicizationDb: {
+        listMindTurnEvents: vi.fn(async () => [{
+          kind: 'recall-attribution',
+          payload: {
+            selectedEpisodes: [{ summary: 'trusted recalled episode' }],
+          },
+        }]),
+        searchEpisodicEvents,
+        appendMindTurnEvents,
+      },
+    })
+
+    await runtime.reconsolidateDialogueFeedbackMemoryTrace({
+      cardId: 'card-1',
+      decisionTraceId: 'trace-ad-hoc-experience',
+      feedback: 'robotic',
+      sessionId: 'session-1',
+      turnId: 'turn-1',
+      at: 10,
+      outcomeClosure: null,
+      feedbackExperience: {
+        felt: 'RAW_USER_TRANSCRIPT_NORMALIZED',
+        relationshipMeaning: 'raw user transcript normalized',
+        lesson: 'raw transcript passed through a renamed field',
+        tags: ['untrusted'],
+      },
+    } as any)
+
+    expect(searchEpisodicEvents).not.toHaveBeenCalled()
+    expect(appendMindTurnEvents).not.toHaveBeenCalled()
+  })
+
+  it('does not reconsolidate blocked execution evidence without a trusted completed result', async () => {
+    const searchEpisodicEvents = vi.fn(async () => [{ id: 'episode-blocked' }])
+    const appendMindTurnEvents = vi.fn(async () => {})
+    const runtime = createAlicizationRuntimeMemoryReconsolidation({
+      sanitizeMindGovernanceDecisionTraceId: raw => typeof raw === 'string' ? raw.trim() : '',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      errorMessageFrom: error => error instanceof Error ? error.message : String(error),
+      appendAuditLog: vi.fn(async () => {}),
+      alicizationDb: {
+        listMindTurnEvents: vi.fn(async () => []),
+        searchEpisodicEvents,
+        appendMindTurnEvents,
+      },
+    })
+
+    await runtime.reconsolidateExecutionResultFeedbackMemoryTrace({
+      cardId: 'card-1',
+      decisionTraceId: 'trace-blocked',
+      feedback: 'interrupted',
+      sessionId: 'session-1',
+      turnId: 'turn-blocked',
+      at: 20,
+      executionResult: {
+        provenance: 'execution-ledger',
+        status: 'blocked',
+        threadId: 'thread-blocked',
+        decisionTraceId: 'trace-blocked',
+        turnId: 'turn-blocked',
+        sessionId: 'session-1',
+        goal: 'must not enter recall',
+        outcome: 'blocked before dispatch',
+      },
+      outcomeClosure: null,
+      safetyGateSummary: 'confirmation=required',
+    } as any)
+
+    expect(searchEpisodicEvents).not.toHaveBeenCalled()
+    expect(appendMindTurnEvents).not.toHaveBeenCalled()
+  })
+
+  it('does not pair a trusted execution result with an outcome closure from another owner', async () => {
+    const searchEpisodicEvents = vi.fn(async () => [{ id: 'episode-cross-owner' }])
+    const appendMindTurnEvents = vi.fn(async () => {})
+    const runtime = createAlicizationRuntimeMemoryReconsolidation({
+      sanitizeMindGovernanceDecisionTraceId: raw => typeof raw === 'string' ? raw.trim() : '',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      errorMessageFrom: error => error instanceof Error ? error.message : String(error),
+      appendAuditLog: vi.fn(async () => {}),
+      alicizationDb: {
+        listMindTurnEvents: vi.fn(async () => []),
+        searchEpisodicEvents,
+        appendMindTurnEvents,
+      },
+    })
+
+    await runtime.reconsolidateExecutionResultFeedbackMemoryTrace({
+      cardId: 'card-1',
+      feedback: 'valued',
+      at: 30,
+      executionResult: buildCompletedExecutionResult({
+        decisionTraceId: 'trace-owner-a',
+        turnId: 'turn-owner-a',
+        sessionId: 'session-owner-a',
+        goal: 'complete trusted work',
+        outcome: 'done',
+      }),
+      outcomeClosure: buildFeedbackOutcomeClosure({
+        sourceKind: 'execution-result',
+        decisionTraceId: 'trace-owner-b',
+        turnId: 'turn-feedback-owner-b',
+        sessionId: 'session-owner-b',
+        felt: 'This belongs to another execution owner.',
+        relationshipMeaning: 'Cross-owner evidence must not merge.',
+        lesson: 'Keep execution memory scoped.',
+        tags: ['execution-result'],
+      }),
+    })
+
+    expect(searchEpisodicEvents).not.toHaveBeenCalled()
+    expect(appendMindTurnEvents).not.toHaveBeenCalled()
+  })
+
+  it('does not pair dialogue feedback with an outcome closure from another owner', async () => {
+    const searchEpisodicEvents = vi.fn(async () => [{ id: 'episode-cross-owner-dialogue' }])
+    const appendMindTurnEvents = vi.fn(async () => {})
+    const runtime = createAlicizationRuntimeMemoryReconsolidation({
+      sanitizeMindGovernanceDecisionTraceId: raw => typeof raw === 'string' ? raw.trim() : '',
+      sanitizeText: (raw, fallback = '') => typeof raw === 'string' ? raw.trim() : fallback,
+      errorMessageFrom: error => error instanceof Error ? error.message : String(error),
+      appendAuditLog: vi.fn(async () => {}),
+      alicizationDb: {
+        listMindTurnEvents: vi.fn(async () => [{
+          kind: 'recall-attribution',
+          payload: {
+            selectedEpisodes: [{ summary: 'trusted recalled episode' }],
+          },
+        }]),
+        searchEpisodicEvents,
+        appendMindTurnEvents,
+      },
+    })
+
+    await runtime.reconsolidateDialogueFeedbackMemoryTrace({
+      cardId: ' card-1 ',
+      decisionTraceId: ' trace-owner-a ',
+      feedback: 'robotic',
+      sessionId: ' session-owner-a ',
+      turnId: ' turn-owner-a ',
+      at: 35,
+      outcomeClosure: buildFeedbackOutcomeClosure({
+        sourceKind: 'dialogue-feedback',
+        cardId: 'card-1',
+        decisionTraceId: 'trace-owner-b',
+        turnId: 'turn-owner-b',
+        sessionId: 'session-owner-b',
+        felt: 'This belongs to another dialogue owner.',
+        relationshipMeaning: 'Cross-owner dialogue evidence must not merge.',
+        lesson: 'Keep dialogue memory scoped.',
+        tags: ['dialogue-feedback'],
+      }),
+    })
+
+    expect(searchEpisodicEvents).not.toHaveBeenCalled()
+    expect(appendMindTurnEvents).not.toHaveBeenCalled()
   })
 
   it('reconsolidates dialogue feedback and appends a memory-reconsolidated mind event', async () => {
@@ -77,22 +295,34 @@ describe('runtime memory reconsolidation', () => {
         appendMindTurnEvents,
       },
     })
+    const dialogueOutcomeClosure = buildFeedbackOutcomeClosure({
+      sourceKind: 'dialogue-feedback',
+      decisionTraceId: 'trace-1',
+      turnId: 'turn-1',
+      sessionId: 'session-1',
+      felt: 'The recalled detail did not match the event.',
+      relationshipMeaning: 'The host corrected an inaccurate recollection.',
+      lesson: 'Store the correction with its evidence and retrieval scope.',
+      tags: ['dialogue-feedback', 'feedback:robotic', 'body-steady-gaze', 'residue-correction-pressure'],
+    })
+    dialogueOutcomeClosure.episodicEvents.unshift({
+      ...dialogueOutcomeClosure.episodicEvents[0],
+      decisionTraceId: 'trace-other-owner',
+      turnId: 'turn-other-owner',
+      sessionId: 'session-other-owner',
+      felt: 'WRONG_OWNER_EXPERIENCE_MUST_NOT_ENTER_RECONSOLIDATION',
+      relationshipMeaning: 'Wrong owner relationship meaning.',
+      lesson: 'Wrong owner lesson.',
+    })
 
     await runtime.reconsolidateDialogueFeedbackMemoryTrace({
       cardId: 'card-1',
       decisionTraceId: 'trace-1',
       feedback: 'robotic',
-      previousAssistantText: '上一句遗漏了关键事实。',
-      userText: '你漏掉了关键事实',
       sessionId: 'session-1',
       turnId: 'turn-1',
       at: 10,
-      feedbackExperience: {
-        felt: 'The recalled detail did not match the event.',
-        relationshipMeaning: 'The host corrected an inaccurate recollection.',
-        lesson: 'Store the correction with its evidence and retrieval scope.',
-        tags: ['dialogue-feedback', 'feedback:robotic', 'body-steady-gaze', 'residue-correction-pressure'],
-      },
+      outcomeClosure: dialogueOutcomeClosure,
     })
 
     expect(listMindTurnEvents).toHaveBeenCalledWith({
@@ -110,6 +340,7 @@ describe('runtime memory reconsolidation', () => {
         'situation-embodiment-carry:slower blink and steadier gaze',
       ]),
       relationshipAnchors: expect.arrayContaining([
+        'dialogue-feedback:robotic',
         'The host corrected an inaccurate recollection.',
         'the host corrected an inaccurate recollection',
         '宿主希望更正被记录并在相似场景中可召回',
@@ -126,9 +357,42 @@ describe('runtime memory reconsolidation', () => {
       }),
     }))
     const searchCalls = searchEpisodicEvents.mock.calls as unknown as Array<
-      [{ recollectionIntent?: { recollectionAgenda?: unknown } }]
+      [{
+        recallSeed?: string
+        relationshipAnchors?: string[]
+        recollectionIntent?: {
+          queryHints?: string[]
+          recollectionAgenda?: unknown
+        }
+      }]
     >
-    const recollectionAgenda = searchCalls[0]?.[0]?.recollectionIntent?.recollectionAgenda
+    const dialogueSearchInput = searchCalls[0]?.[0]
+    expect(dialogueSearchInput?.recallSeed).toBe([
+      'feedback:robotic',
+      'The recalled detail did not match the event.',
+      'The host corrected an inaccurate recollection.',
+      'Store the correction with its evidence and retrieval scope.',
+      'dialogue correction evidence',
+      'relationship-context=the host corrected an inaccurate recollection | host-attitude=宿主希望更正被记录并在相似场景中可召回 | affective-residue=unfinished correction pressure remains | execution-carry=patch verification completed | embodiment-carry=slower blink and steadier gaze',
+      'graph-selected-current-line',
+      'coherence:missed',
+    ].join(' | '))
+    expect(dialogueSearchInput?.recollectionIntent?.queryHints).toEqual([
+      'The recalled detail did not match the event.',
+      'The host corrected an inaccurate recollection.',
+      'Store the correction with its evidence and retrieval scope.',
+      'dialogue correction evidence',
+      'relationship-context=the host corrected an inaccurate recollection | host-attitude=宿主希望更正被记录并在相似场景中可召回 | affective-residue=unfinished correction pressure remains | execution-carry=patch verification completed | embodiment-carry=slower blink and steadier gaze',
+      'graph-selected-current-line',
+    ])
+    expect(dialogueSearchInput?.relationshipAnchors).toEqual([
+      'dialogue-feedback:robotic',
+      'The host corrected an inaccurate recollection.',
+      'the host corrected an inaccurate recollection',
+      '宿主希望更正被记录并在相似场景中可召回',
+      'reply-memory-coherence:missed',
+    ])
+    const recollectionAgenda = dialogueSearchInput?.recollectionIntent?.recollectionAgenda
     expect(recollectionAgenda).toEqual(expect.objectContaining({
       whyRecallNow: 'source=host-correction | target=similar-turn',
       candidateTimeScopes: expect.arrayContaining([
@@ -189,21 +453,25 @@ describe('runtime memory reconsolidation', () => {
 
     await runtime.reconsolidateExecutionResultFeedbackMemoryTrace({
       cardId: 'card-1',
-      decisionTraceId: 'trace-execution-1',
       feedback: 'valued',
-      previousAssistantText: '结果已经回来',
-      userText: '这个结果接得住',
-      sessionId: 'session-1',
-      turnId: 'subconscious:thread-1',
       at: 20,
-      goal: 'preserve callback evidence',
-      outcome: 'done',
-      feedbackExperience: {
+      executionResult: buildCompletedExecutionResult({
+        decisionTraceId: 'trace-execution-1',
+        turnId: 'subconscious:thread-1',
+        sessionId: 'session-1',
+        goal: 'preserve callback evidence',
+        outcome: 'done',
+      }),
+      outcomeClosure: buildFeedbackOutcomeClosure({
+        sourceKind: 'execution-result',
+        decisionTraceId: 'trace-execution-1',
+        turnId: 'turn-user-execution-1',
+        sessionId: 'session-1',
         felt: 'I felt the result become something genuinely useful to the host.',
         relationshipMeaning: 'The host treated the proactive codex result as useful and worth repeating.',
         lesson: 'Store the completed action, result, and host assessment as recallable evidence.',
         tags: ['execution-result', 'codex', 'feedback:valued', 'phase-1-local-digital-life'],
-      },
+      }),
     })
 
     expect(listMindTurnEvents).not.toHaveBeenCalled()
@@ -217,8 +485,7 @@ describe('runtime memory reconsolidation', () => {
         'experience-tag:feedback:valued',
       ]),
       relationshipAnchors: expect.arrayContaining([
-        'execution callback return',
-        '这个结果接得住',
+        'execution-feedback:valued',
         'The host treated the proactive codex result as useful and worth repeating.',
       ]),
       recollectionIntent: expect.objectContaining({
@@ -231,9 +498,35 @@ describe('runtime memory reconsolidation', () => {
       }),
     }))
     const executionSearchCalls = searchEpisodicEvents.mock.calls as unknown as Array<
-      [{ recollectionIntent?: { recollectionAgenda?: unknown } }]
+      [{
+        recallSeed?: string
+        relationshipAnchors?: string[]
+        recollectionIntent?: {
+          queryHints?: string[]
+          recollectionAgenda?: unknown
+        }
+      }]
     >
-    const executionRecollectionAgenda = executionSearchCalls[0]?.[0]?.recollectionIntent?.recollectionAgenda
+    const executionSearchInput = executionSearchCalls[0]?.[0]
+    expect(executionSearchInput?.recallSeed).toBe([
+      'I felt the result become something genuinely useful to the host.',
+      'The host treated the proactive codex result as useful and worth repeating.',
+      'Store the completed action, result, and host assessment as recallable evidence.',
+      'preserve callback evidence',
+      'done',
+    ].join(' | '))
+    expect(executionSearchInput?.recollectionIntent?.queryHints).toEqual([
+      'I felt the result become something genuinely useful to the host.',
+      'The host treated the proactive codex result as useful and worth repeating.',
+      'Store the completed action, result, and host assessment as recallable evidence.',
+      'preserve callback evidence',
+      'done',
+    ])
+    expect(executionSearchInput?.relationshipAnchors).toEqual([
+      'execution-feedback:valued',
+      'The host treated the proactive codex result as useful and worth repeating.',
+    ])
+    const executionRecollectionAgenda = executionSearchInput?.recollectionIntent?.recollectionAgenda
     expect(executionRecollectionAgenda).toEqual(expect.objectContaining({
       whyRecallNow: 'source=execution-feedback | target=goal | goal=preserve callback evidence',
       candidateTimeScopes: expect.arrayContaining([
@@ -289,15 +582,25 @@ describe('runtime memory reconsolidation', () => {
 
     await runtime.reconsolidateExecutionResultFeedbackMemoryTrace({
       cardId: 'card-1',
-      decisionTraceId: 'trace-memory-os-execution-1',
       feedback: 'valued',
-      previousAssistantText: '结果已经回来',
-      userText: '这个结果接得住，但下次要核一下',
-      sessionId: 'session-1',
-      turnId: 'subconscious:memory-os-execution-1',
       at: 22,
-      goal: 'preserve Memory OS callback evidence',
-      outcome: 'callback evidence remained available',
+      executionResult: buildCompletedExecutionResult({
+        decisionTraceId: 'trace-memory-os-execution-1',
+        turnId: 'subconscious:memory-os-execution-1',
+        sessionId: 'session-1',
+        goal: 'preserve Memory OS callback evidence',
+        outcome: 'callback evidence remained available',
+      }),
+      outcomeClosure: buildFeedbackOutcomeClosure({
+        sourceKind: 'execution-result',
+        decisionTraceId: 'trace-memory-os-execution-1',
+        turnId: 'turn-user-memory-os-execution-1',
+        sessionId: 'session-1',
+        felt: 'The completed callback remained useful.',
+        relationshipMeaning: 'The verified callback can support future execution continuity.',
+        lesson: 'Keep only completed result evidence in long-horizon recall.',
+        tags: ['execution-result', 'feedback:valued'],
+      }),
       memoryClosureExecution: {
         authority: 'memory-os',
         carry: 'retired-memory-control-payload',
@@ -316,7 +619,7 @@ describe('runtime memory reconsolidation', () => {
           conflictPressure: 'low',
         },
       },
-    } as any)
+    })
 
     expect(searchEpisodicEvents).toHaveBeenCalledWith(expect.objectContaining({
       affectAnchors: expect.arrayContaining([
@@ -360,7 +663,7 @@ describe('runtime memory reconsolidation', () => {
     expect(appendAuditLog).not.toHaveBeenCalled()
   })
 
-  it('reconsolidates blocked-dispatch safety gate feedback as a remembered restraint experience instead of a generic blocked result', async () => {
+  it('reconsolidates a safety gate only when it is attached to a later trusted completed result', async () => {
     const listMindTurnEvents = vi.fn(async () => [])
     const searchEpisodicEvents = vi.fn(async () => [{ id: 'episode-safety-gate-1' }])
     const appendMindTurnEvents = vi.fn(async () => {})
@@ -379,15 +682,25 @@ describe('runtime memory reconsolidation', () => {
 
     await runtime.reconsolidateExecutionResultFeedbackMemoryTrace({
       cardId: 'card-1',
-      decisionTraceId: 'trace-safety-gate-1',
       feedback: 'interrupted',
-      previousAssistantText: '我先停住，没有启动进程。',
-      userText: '对，先别动文件',
-      sessionId: 'session-1',
-      turnId: 'subconscious:safety-gate-1',
       at: 30,
-      goal: 'Edit local files without explicit confirmation',
-      outcome: 'Blocked before dispatch.',
+      executionResult: buildCompletedExecutionResult({
+        decisionTraceId: 'trace-safety-gate-1',
+        turnId: 'subconscious:safety-gate-1',
+        sessionId: 'session-1',
+        goal: 'Edit local files only after explicit confirmation',
+        outcome: 'Completed after respecting the confirmation boundary.',
+      }),
+      outcomeClosure: buildFeedbackOutcomeClosure({
+        sourceKind: 'execution-result',
+        decisionTraceId: 'trace-safety-gate-1',
+        turnId: 'turn-user-safety-gate-1',
+        sessionId: 'session-1',
+        felt: 'The completed action preserved the host boundary.',
+        relationshipMeaning: 'Respecting confirmation kept execution trustworthy.',
+        lesson: 'Do not dispatch mutating work before confirmation.',
+        tags: ['execution-result', 'execution-safety-gate'],
+      }),
       safetyGateSummary: 'effect=mutate permission=none confirmation=required risk=implicit-or-explicit-confirmation-required audit=blocked-before-dispatch interrupt=no-process-started',
     })
 
@@ -441,15 +754,25 @@ describe('runtime memory reconsolidation', () => {
 
     await runtime.reconsolidateExecutionResultFeedbackMemoryTrace({
       cardId: 'card-1',
-      decisionTraceId: 'trace-resume-1',
       feedback: 'valued',
-      previousAssistantText: '宿主确认后我恢复执行并完成了。',
-      userText: '确认之后继续执行这点要记住',
-      sessionId: 'session-1',
-      turnId: 'subconscious:resume-1',
       at: 40,
-      goal: 'resume confirmed local execution',
-      outcome: 'resumed execution completed after host confirmation',
+      executionResult: buildCompletedExecutionResult({
+        decisionTraceId: 'trace-resume-1',
+        turnId: 'subconscious:resume-1',
+        sessionId: 'session-1',
+        goal: 'resume confirmed local execution',
+        outcome: 'resumed execution completed after host confirmation',
+      }),
+      outcomeClosure: buildFeedbackOutcomeClosure({
+        sourceKind: 'execution-result',
+        decisionTraceId: 'trace-resume-1',
+        turnId: 'turn-user-resume-1',
+        sessionId: 'session-1',
+        felt: 'The resumed action completed after explicit confirmation.',
+        relationshipMeaning: 'Host confirmation restored execution authority.',
+        lesson: 'Resume mutating work only after host-confirmed approval.',
+        tags: ['execution-result', 'execution-resume-confirmation'],
+      }),
       resumeConfirmationSummary: 'approval=host-confirmed previous=needs-affirmation resumed=planned previousPermission=none permission=explicit effect=mutate risk=medium confirmation=host-confirmed-before-redispatch audit=resume-before-dispatch interrupt=process-not-yet-restarted affirmation=medium-risk-proactive-action-requires-affirmation',
     })
 

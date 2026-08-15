@@ -70,7 +70,6 @@ describe('memory workbench dialogue loop acceptance', () => {
           procedureHints: [],
           threadHints: [],
           negativeCues: [],
-          confidencePolicy: 'direct',
           riskFlags: [],
           targetKinds: ['episode'],
         },
@@ -93,7 +92,13 @@ describe('memory workbench dialogue loop acceptance', () => {
           score: 0.91,
           queryMatches: ['打游戏'],
           rankReasons: ['episodic-match', 'shared-activity'],
-          visibleMode: 'explicit',
+          scope: {
+            userId: 'user-1',
+            cardId: 'default',
+          },
+          provenance: 'remembered',
+          evidenceVersion: 'long-term-memory-evidence-v1',
+          version: 'long-term-memory-evidence-v1',
         }],
         confidence: 0.86,
         budgetClass: 'normal',
@@ -109,7 +114,7 @@ describe('memory workbench dialogue loop acceptance', () => {
           id: string
           summary: string
           source: string
-          visibility: string
+          [key: string]: unknown
         }>
       }
     }
@@ -122,10 +127,13 @@ describe('memory workbench dialogue loop acceptance', () => {
           id: 'episode-game-last-week',
           summary: '上周我们一起玩了 Minecraft。',
           source: 'episodic_events',
-          visibility: 'explicit',
         }],
       },
     })
+    expect(fact.data.evidence[0]).not.toHaveProperty('visibleMode')
+    expect(fact.data.evidence[0]).not.toHaveProperty('visibility')
+    expect(fact.data.evidence[0]).not.toHaveProperty('speechPlan')
+    expect(fact.data.evidence[0]).not.toHaveProperty('surfaceMode')
     expect(block).not.toBeNull()
     expect(block!.trim().startsWith('{')).toBe(true)
   })
@@ -156,7 +164,6 @@ describe('memory workbench dialogue loop acceptance', () => {
           procedureHints: [],
           threadHints: [],
           negativeCues: [],
-          confidencePolicy: 'direct',
           riskFlags: ['recall-failed'],
           targetKinds: [],
         },
@@ -187,6 +194,17 @@ describe('memory workbench dialogue loop acceptance', () => {
         items: [{
           id: 'queue-weak-correction',
           source: 'working-memory-owner',
+          memoryEvidence: {
+            version: 'working-memory-long-term-evidence-v1',
+            source: 'explicit-structured-memory-evidence',
+            kind: 'correction',
+            summary: '用户希望以后对话节奏安静一点。',
+            reason: 'User gave a gentle conversation style note.',
+            evidenceSnippets: ['以后节奏安静一点。'],
+            salience: 0.82,
+            sensitivity: 'personal',
+            confidence: 0.68,
+          },
           kind: 'correction',
           summary: '用户希望以后对话节奏安静一点。',
           reason: 'User gave a gentle conversation style note.',
@@ -241,6 +259,17 @@ describe('memory workbench dialogue loop acceptance', () => {
         items: [{
           id: 'queue-fixed-template-correction',
           source: 'working-memory-owner',
+          memoryEvidence: {
+            version: 'working-memory-long-term-evidence-v1',
+            source: 'explicit-structured-memory-evidence',
+            kind: 'correction',
+            summary: '用户不要固定模板回复。',
+            reason: 'User corrected Alicization reply behavior.',
+            evidenceSnippets: ['不要固定模板回复。'],
+            salience: 0.86,
+            sensitivity: 'personal',
+            confidence: 0.68,
+          },
           kind: 'correction',
           summary: '用户不要固定模板回复。',
           reason: 'User corrected Alicization reply behavior.',
@@ -297,6 +326,17 @@ describe('memory workbench dialogue loop acceptance', () => {
         items: [{
           id: 'queue-tombstone-correction',
           source: 'working-memory-owner',
+          memoryEvidence: {
+            version: 'working-memory-long-term-evidence-v1',
+            source: 'explicit-structured-memory-evidence',
+            kind: 'correction',
+            summary: '这条候选不应该进入长期记忆。',
+            reason: 'User rejected this candidate before admission.',
+            evidenceSnippets: ['不要记这条。'],
+            salience: 0.86,
+            sensitivity: 'personal',
+            confidence: 0.68,
+          },
           kind: 'correction',
           summary: '这条候选不应该进入长期记忆。',
           reason: 'User rejected this candidate before admission.',

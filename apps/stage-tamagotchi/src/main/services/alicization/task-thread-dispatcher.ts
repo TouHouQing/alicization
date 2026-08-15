@@ -20,6 +20,7 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import { resolveExecutionTransportChannel } from './executor-adapters/embodied-channel'
+import { resolveAdapterFailureDisposition } from './executor-adapters/failure-settlement'
 import {
   prepareTaskThreadDispatch,
   validateTaskThreadDispatchPayload,
@@ -305,6 +306,31 @@ function isCancelledExecutionFailure(error: unknown, signal?: AbortSignal) {
   return name === 'AbortError'
     || code.includes('ABORT')
     || code.includes('CANCEL')
+}
+
+function readTaskThreadEffect(thread: AlicizationTaskThreadRecord) {
+  const task = thread.metadata?.task
+  if (!task || typeof task !== 'object' || Array.isArray(task))
+    return 'mutate' as const
+
+  const effect = (task as { effect?: unknown }).effect
+  return effect === 'observe' || effect === 'mutate' || effect === 'high-impact'
+    ? effect
+    : 'mutate'
+}
+
+function readAdapterSideEffectState(error: unknown) {
+  if (!error || typeof error !== 'object' || Array.isArray(error))
+    return undefined
+
+  const sideEffectState = (error as { sideEffectState?: unknown }).sideEffectState
+  return sideEffectState === 'none'
+    || sideEffectState === 'not-applied'
+    || sideEffectState === 'unknown'
+    || sideEffectState === 'applied-unverified'
+    || sideEffectState === 'applied'
+    ? sideEffectState
+    : undefined
 }
 
 async function persistCancelledBeforeDispatch(input: {
@@ -1156,20 +1182,50 @@ export async function dispatchTaskThread(
     const rawErrorCode = readExecutionErrorCode(error)
     const timedOut = isTimeoutExecutionFailure(error, input.abortSignal)
     const cancelled = !timedOut && isCancelledExecutionFailure(error, input.abortSignal)
+    const effect = readTaskThreadEffect(thread)
+    const sideEffectState = readAdapterSideEffectState(error)
+      ?? (effect === 'observe' ? 'none' : 'unknown')
+    const failureDisposition = resolveAdapterFailureDisposition({
+      effect,
+      failureKind: timedOut
+        ? 'timeout'
+        : rawErrorCode.toUpperCase().includes('PROVIDER')
+          ? 'provider'
+          : 'process',
+      cancelled,
+      sideEffectState,
+      replaySafety: effect === 'observe' || sideEffectState === 'not-applied'
+        ? 'safe'
+        : sideEffectState === 'unknown' || sideEffectState === 'applied-unverified'
+          ? 'unsafe'
+          : 'unknown',
+      retry: {
+        attempted: 0,
+        exhausted: false,
+      },
+      recovery: {
+        attempted: false,
+        outcome: 'pending',
+      },
+    })
     const timeoutErrorCode = `${preparedDispatch.channel.replace(/[^a-z0-9]+/giu, '_').toUpperCase()}_TIMEOUT`
     const errorCode = timedOut
       ? /TIMEOUT/u.test(rawErrorCode.toUpperCase())
         ? rawErrorCode
         : timeoutErrorCode
       : rawErrorCode || 'TASK_THREAD_ADAPTER_REJECTED'
-    const finalStatus = cancelled ? 'cancelled' : 'failed'
+    const finalStatus = failureDisposition.kind === 'recover'
+      ? 'paused'
+      : failureDisposition.finalStatus
     const failedAt = now()
     result = {
       ok: false,
       finalStatus,
       summary: cancelled
         ? `${preparedDispatch.channel} dispatch was cancelled: ${errorMessage}`
-        : `${preparedDispatch.channel} dispatch failed: ${errorMessage}`,
+        : finalStatus === 'paused'
+          ? `${preparedDispatch.channel} dispatch paused for side-effect reconciliation: ${errorMessage}`
+          : `${preparedDispatch.channel} dispatch failed: ${errorMessage}`,
       output: null,
       errorCode,
       errorMessage,
@@ -1190,6 +1246,9 @@ export async function dispatchTaskThread(
           rejected: true,
           cancelled,
           timedOut,
+          effect,
+          sideEffectState,
+          failureDisposition,
           hasRuntimeContext: runtimeContext !== null,
           runtimeContext,
         },

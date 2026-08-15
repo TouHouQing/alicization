@@ -16,7 +16,6 @@ export interface OrganicMemoryRecollectionPlanningStageInput {
   recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
   proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
   recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-  recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
   clusterState?: MemoryClusterState | null
   digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   planMemoryRecollection?: ((input: {
@@ -26,7 +25,6 @@ export interface OrganicMemoryRecollectionPlanningStageInput {
     recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
     proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
     recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
     digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<NonNullable<OrganicMemoryPromptContext['recollectionPlan']> | null>) | undefined
   planRecollectionSpeech?: ((input: {
@@ -37,7 +35,6 @@ export interface OrganicMemoryRecollectionPlanningStageInput {
     recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
     proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
     recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
     digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<NonNullable<OrganicMemoryPromptContext['recollectionSpeechPlan']> | null>) | undefined
   planMemoryDeliberation?: ((input: {
@@ -49,7 +46,6 @@ export interface OrganicMemoryRecollectionPlanningStageInput {
     recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
     proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
     recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
     digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
   }) => Promise<NonNullable<OrganicMemoryPromptContext['memoryDeliberation']> | null>) | undefined
   resolveRecollectionPlanSearch: (input: {
@@ -60,7 +56,6 @@ export interface OrganicMemoryRecollectionPlanningStageInput {
     recollectedWindows: NonNullable<OrganicMemoryPromptContext['recollectedWindows']>
     proceduralMemories: NonNullable<OrganicMemoryPromptContext['proceduralMemories']>
     recalledEpisodes: NonNullable<OrganicMemoryPromptContext['recalledEpisodes']>
-    recalledConversationHistory: NonNullable<OrganicMemoryPromptContext['recalledConversationHistory']>
     clusterState?: MemoryClusterState | null
   }) => RecollectionPlanSnapshot | null
   recordMemoryPlannerLatency?: ((latencyMs: number) => Promise<void>) | undefined
@@ -110,7 +105,6 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
     || input.recollectedWindows.length > 0
     || input.proceduralMemories.length > 0
     || input.recalledEpisodes.length > 0
-    || input.recalledConversationHistory.length > 0
   )
     ? await runWithinPlanningBudget({
         deadlineMs: planningDeadlineMs,
@@ -121,7 +115,6 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
           recollectedWindows: input.recollectedWindows,
           proceduralMemories: input.proceduralMemories,
           recalledEpisodes: input.recalledEpisodes,
-          recalledConversationHistory: input.recalledConversationHistory,
           digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
         }),
       })
@@ -134,7 +127,6 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
     recollectedWindows: input.recollectedWindows,
     proceduralMemories: input.proceduralMemories,
     recalledEpisodes: input.recalledEpisodes,
-    recalledConversationHistory: input.recalledConversationHistory,
     clusterState: input.clusterState,
   })
 
@@ -142,7 +134,6 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
   const selectedWindowIds = new Set(recollectionPlan?.selectedWindowIds ?? [])
   const selectedProceduralIds = new Set(recollectionPlan?.selectedProceduralIds ?? [])
   const selectedEpisodeIds = new Set(recollectionPlan?.selectedEpisodeIds ?? [])
-  const selectedConversationTurnIds = new Set(recollectionPlan?.selectedConversationTurnIds ?? [])
   const hasRecollectionPlan = recollectionPlan !== null
 
   const plannedConsolidatedMemories = hasRecollectionPlan
@@ -157,10 +148,6 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
   const plannedEpisodes = hasRecollectionPlan
     ? input.recalledEpisodes.filter(item => selectedEpisodeIds.has(item.id))
     : input.recalledEpisodes
-  const plannedConversationHistory = hasRecollectionPlan
-    ? input.recalledConversationHistory.filter(item => item.turnId && selectedConversationTurnIds.has(item.turnId))
-    : input.recalledConversationHistory
-
   void input.recordMemoryPlannerLatency?.(Date.now() - plannerStartedAt).catch(() => {})
 
   const speechPlanStartedAt = Date.now()
@@ -169,7 +156,6 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
     || plannedWindows.length > 0
     || plannedProceduralMemories.length > 0
     || plannedEpisodes.length > 0
-    || plannedConversationHistory.length > 0
     || Boolean(recollectionPlan)
   )
     ? await runWithinPlanningBudget({
@@ -182,7 +168,6 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
           recollectedWindows: plannedWindows,
           proceduralMemories: plannedProceduralMemories,
           recalledEpisodes: plannedEpisodes,
-          recalledConversationHistory: plannedConversationHistory,
           digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
         }),
       })
@@ -194,7 +179,6 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
     || plannedWindows.length > 0
     || plannedProceduralMemories.length > 0
     || plannedEpisodes.length > 0
-    || plannedConversationHistory.length > 0
     || Boolean(recollectionPlan)
   )
     ? await runWithinPlanningBudget({
@@ -208,7 +192,6 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
           recollectedWindows: plannedWindows,
           proceduralMemories: plannedProceduralMemories,
           recalledEpisodes: plannedEpisodes,
-          recalledConversationHistory: plannedConversationHistory,
           digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface ?? null,
         }),
       })
@@ -228,9 +211,6 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
   )
   const finalEpisodeIds = new Set(
     (rawMemoryDeliberation?.selectedEpisodeIds ?? []).map(normalizeMemoryPlanningId),
-  )
-  const finalConversationTurnIds = new Set(
-    (rawMemoryDeliberation?.selectedConversationTurnIds ?? []).map(normalizeMemoryPlanningId),
   )
   const hasFinalDeliberation = rawMemoryDeliberation !== null
   const finalDeliberationAllowsRecall = rawMemoryDeliberation?.shouldRecall !== false
@@ -260,13 +240,6 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
       ? plannedEpisodes.filter(item => finalEpisodeIds.has(normalizeMemoryPlanningId(item.id)))
       : []
     : plannedEpisodes
-  const finalPlannedConversationHistory = hasFinalDeliberation
-    ? finalDeliberationAllowsRecall
-      ? plannedConversationHistory.filter(item =>
-          finalConversationTurnIds.has(normalizeMemoryPlanningId(item.turnId)),
-        )
-      : []
-    : plannedConversationHistory
   const shouldBuildRecollectionNarratives = rawMemoryDeliberation
     ? rawMemoryDeliberation.shouldRecall
     : recollectionPlan !== null
@@ -283,7 +256,6 @@ export async function resolveOrganicMemoryRecollectionPlanningStage(input: Organ
     plannedWindows: finalPlannedWindows,
     plannedProceduralMemories: finalPlannedProceduralMemories,
     plannedEpisodes: finalPlannedEpisodes,
-    plannedConversationHistory: finalPlannedConversationHistory,
     recollectionNarratives,
     recollectionSpeechPlan,
     rawMemoryDeliberation,

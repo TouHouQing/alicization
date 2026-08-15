@@ -29,7 +29,6 @@ describe('runtime-organic-memory-policy-recollection', () => {
       recallSubconsciousFragmentsWithGovernor: async () => [],
       recallEpisodicEventsWithGovernor: async () => [],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [],
       isPersonaResidueMemoryText: () => false,
       resolveTurnRetrievalPolicySnapshot,

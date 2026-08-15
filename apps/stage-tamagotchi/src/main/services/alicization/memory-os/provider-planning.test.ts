@@ -28,7 +28,6 @@ function validRecollectionIntentPayload() {
     mode: 'relationship-history',
     temporalFocus: 'cross-session',
     searchEpisodes: true,
-    searchConversations: true,
     searchProceduralExperience: false,
     queryHints: ['remembered relationship line'],
     rationale: 'The current turn is connected to an established relationship memory.',
@@ -53,7 +52,6 @@ function validRecollectionPlanPayload() {
     selectedWindowIds: [],
     selectedProceduralIds: [],
     selectedEpisodeIds: [],
-    selectedConversationTurnIds: [],
     selectedRelationshipLines: ['A remembered relationship concern remains relevant.'],
     searchTrace: {
       firstHop: {
@@ -97,7 +95,6 @@ function validMemoryDeliberationPayload() {
     selectedWindowIds: [],
     selectedProcedureIds: [],
     selectedEpisodeIds: [],
-    selectedConversationTurnIds: [],
     selectedRelationshipLines: ['A remembered relationship concern remains relevant.'],
     selectedBundles: [],
     selectedChains: [],
@@ -116,17 +113,14 @@ function testCandidateIds(): AlicizationMemoryPlanningCandidateIdSet {
   const windowIds = new Set(['window-1'])
   const procedureIds = new Set(['procedure-1'])
   const episodeIds = new Set(['episode-1'])
-  const conversationTurnIds = new Set(['turn-1'])
   const eraIds = new Set([...consolidationIds, ...windowIds])
   return {
     allIds: new Set([
       ...eraIds,
       ...procedureIds,
       ...episodeIds,
-      ...conversationTurnIds,
     ]),
     consolidationIds,
-    conversationTurnIds,
     episodeIds,
     eraIds,
     procedureIds,
@@ -164,7 +158,6 @@ describe('memory provider planning', () => {
           mode: 'relationship-history',
           temporalFocus: 'cross-session',
           searchEpisodes: true,
-          searchConversations: true,
           searchProceduralExperience: false,
           queryHints: ['continuity state'],
           rationale: 'The emotional kernel asks memory to reopen the relationship line.',
@@ -188,7 +181,6 @@ describe('memory provider planning', () => {
           selectedWindowIds: [],
           selectedProceduralIds: [],
           selectedEpisodeIds: [],
-          selectedConversationTurnIds: [],
           selectedRelationshipLines: ['Return through the same emotional line.'],
           searchTrace: {
             firstHop: { focus: 'relationship-line', summary: 'Start from the same emotional line.', targetIds: ['con-1'] },
@@ -217,7 +209,6 @@ describe('memory provider planning', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['The same emotional line should shape the reply.'],
         selectedBundles: [],
         selectedChains: [],
@@ -250,7 +241,6 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
       digitalLifeRuntimeSurface,
@@ -263,7 +253,6 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
       digitalLifeRuntimeSurface,
@@ -277,7 +266,6 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
       digitalLifeRuntimeSurface,
@@ -314,7 +302,6 @@ describe('memory provider planning', () => {
           mode: 'autobiographical-history',
           temporalFocus: 'cross-session',
           searchEpisodes: true,
-          searchConversations: false,
           searchProceduralExperience: false,
           queryHints: ['continuity'],
           rationale: 'Need continuity-bearing recall for this turn.',
@@ -338,7 +325,6 @@ describe('memory provider planning', () => {
           selectedWindowIds: [],
           selectedProceduralIds: [],
           selectedEpisodeIds: [],
-          selectedConversationTurnIds: [],
           selectedRelationshipLines: ['We tend to return gently to unfinished seams.'],
           searchTrace: {
             firstHop: { focus: 'relationship-line', summary: 'Start from bond continuity.', targetIds: ['con-1'] },
@@ -367,7 +353,6 @@ describe('memory provider planning', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['Keep unfinished returns part of the bond line.'],
         selectedBundles: [],
         selectedChains: [],
@@ -392,6 +377,13 @@ describe('memory provider planning', () => {
       generateMainGatewayText,
       cardId: 'default',
     })
+    const legacyRawTranscriptInput = {
+      recalledConversationHistory: [{
+        turnId: 'turn-raw-sentinel',
+        userText: 'provider raw user transcript sentinel',
+        assistantText: 'provider raw assistant transcript sentinel',
+      }],
+    }
     const recollectionPlan = await generateMemoryRecollectionPlanWithGateway({
       recallSeed: 'unfinished seam between us',
       recollectionIntent: recollectionIntent!,
@@ -399,9 +391,9 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
+      ...legacyRawTranscriptInput,
     })
     await generateMemoryRecollectionSpeechPlanWithGateway({
       recallSeed: 'unfinished seam between us',
@@ -411,9 +403,9 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
+      ...legacyRawTranscriptInput,
     })
     await generateMemoryDeliberationWithGateway({
       recallSeed: 'unfinished seam between us',
@@ -431,13 +423,15 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
+      ...legacyRawTranscriptInput,
     })
 
     expect(systems).toHaveLength(4)
     expect(systems.every(system => providerFactType(system).endsWith('-context'))).toBe(true)
+    expect(systems.join('\n')).not.toMatch(/provider raw (?:user|assistant) transcript sentinel/)
+    expect(systems.join('\n')).not.toMatch(/recalledConversationHistory|userText|assistantText|rawTranscript/)
   })
 
   it('keeps continuation seed inside typed recollection and deliberation context', async () => {
@@ -450,7 +444,6 @@ describe('memory provider planning', () => {
           selectedWindowIds: [],
           selectedProceduralIds: [],
           selectedEpisodeIds: [],
-          selectedConversationTurnIds: [],
           selectedRelationshipLines: ['Stay on the same line gently.'],
           searchTrace: {
             firstHop: { focus: 'relationship-line', summary: 'Return to the same line.', targetIds: ['con-1'] },
@@ -469,7 +462,6 @@ describe('memory provider planning', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['The return should stay gentle.'],
         selectedBundles: [],
         selectedChains: [],
@@ -489,7 +481,6 @@ describe('memory provider planning', () => {
         mode: 'relationship-history',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
-        searchConversations: true,
         searchProceduralExperience: false,
         queryHints: ['gentle-reopen'],
         rationale: 'Return to the same line gently.',
@@ -499,7 +490,6 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
     })
@@ -510,7 +500,6 @@ describe('memory provider planning', () => {
         mode: 'relationship-history',
         temporalFocus: 'cross-session',
         searchEpisodes: true,
-        searchConversations: true,
         searchProceduralExperience: false,
         queryHints: ['gentle-reopen'],
         rationale: 'Return to the same line gently.',
@@ -521,7 +510,6 @@ describe('memory provider planning', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['Stay on the same line gently.'],
         searchTrace: {
           firstHop: { focus: 'relationship-line', summary: 'Return to the same line.', targetIds: ['con-1'] },
@@ -538,7 +526,6 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
     })
@@ -577,7 +564,6 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
     })
@@ -608,7 +594,6 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
     })
@@ -653,11 +638,230 @@ describe('memory provider planning', () => {
     expect(parse()).toBeNull()
   })
 
+  it.each([
+    [
+      'recollection intent searchConversations',
+      () => {
+        const payload: any = validRecollectionIntentPayload()
+        payload.searchConversations = true
+        return parseMemoryRecollectionIntentPayload(JSON.stringify(payload))
+      },
+    ],
+    [
+      'recollection plan selectedConversationTurnIds',
+      () => {
+        const payload: any = validRecollectionPlanPayload()
+        payload.selectedConversationTurnIds = ['turn-raw']
+        return parseMemoryRecollectionPlanPayload(JSON.stringify(payload), testCandidateIds())
+      },
+    ],
+    [
+      'memory deliberation selectedConversationTurnIds',
+      () => {
+        const payload: any = validMemoryDeliberationPayload()
+        payload.selectedConversationTurnIds = ['turn-raw']
+        return parseMemoryDeliberationPayload(JSON.stringify(payload), testCandidateIds())
+      },
+    ],
+    [
+      'memory deliberation bundle conversationTurnId',
+      () => {
+        const payload: any = validMemoryDeliberationPayload()
+        payload.selectedBundles = [{
+          id: 'bundle-legacy-turn',
+          summary: 'Legacy transcript bundle.',
+          rationale: 'This field was removed with raw transcript planning.',
+          confidence: 0.8,
+          periodId: null,
+          episodeId: null,
+          procedureId: null,
+          relationshipLine: null,
+          conversationTurnId: 'turn-raw',
+        }]
+        return parseMemoryDeliberationPayload(JSON.stringify(payload), testCandidateIds())
+      },
+    ],
+    [
+      'recollection speech plan searchConversations',
+      () => {
+        const payload: any = validRecollectionSpeechPlanPayload()
+        payload.searchConversations = true
+        return parseMemoryRecollectionSpeechPlanPayload(JSON.stringify(payload))
+      },
+    ],
+  ])('rejects deleted transcript field in %s', (_name, parse) => {
+    expect(parse()).toBeNull()
+  })
+
+  it.each([
+    [
+      'recollection intent',
+      () => {
+        const payload: any = validRecollectionIntentPayload()
+        payload.unexpectedField = true
+        return parseMemoryRecollectionIntentPayload(JSON.stringify(payload))
+      },
+    ],
+    [
+      'recollection plan',
+      () => {
+        const payload: any = validRecollectionPlanPayload()
+        payload.unexpectedField = true
+        return parseMemoryRecollectionPlanPayload(JSON.stringify(payload), testCandidateIds())
+      },
+    ],
+    [
+      'memory deliberation',
+      () => {
+        const payload: any = validMemoryDeliberationPayload()
+        payload.unexpectedField = true
+        return parseMemoryDeliberationPayload(JSON.stringify(payload), testCandidateIds())
+      },
+    ],
+    [
+      'recollection speech plan',
+      () => {
+        const payload: any = validRecollectionSpeechPlanPayload()
+        payload.unexpectedField = true
+        return parseMemoryRecollectionSpeechPlanPayload(JSON.stringify(payload))
+      },
+    ],
+  ])('rejects unknown additional properties in %s', (_name, parse) => {
+    expect(parse()).toBeNull()
+  })
+
+  it.each([
+    [
+      'conversation-history intent mode',
+      () => {
+        const payload: any = validRecollectionIntentPayload()
+        payload.mode = 'conversation-history'
+        return parseMemoryRecollectionIntentPayload(JSON.stringify(payload))
+      },
+    ],
+    [
+      'conversation-turn plan focus',
+      () => {
+        const payload: any = validRecollectionPlanPayload()
+        payload.searchTrace.firstHop.focus = 'conversation-turn'
+        return parseMemoryRecollectionPlanPayload(JSON.stringify(payload), testCandidateIds())
+      },
+    ],
+    [
+      'expand-conversation plan action',
+      () => {
+        const payload: any = validRecollectionPlanPayload()
+        payload.searchTrace.secondHop.action = 'expand-conversation'
+        return parseMemoryRecollectionPlanPayload(JSON.stringify(payload), testCandidateIds())
+      },
+    ],
+    [
+      'need-conversation-evidence plan evidence gap',
+      () => {
+        const payload: any = validRecollectionPlanPayload()
+        payload.searchTrace.secondHop.evidenceGap = 'need-conversation-evidence'
+        return parseMemoryRecollectionPlanPayload(JSON.stringify(payload), testCandidateIds())
+      },
+    ],
+  ])('rejects deleted transcript enum in %s', (_name, parse) => {
+    expect(parse()).toBeNull()
+  })
+
+  it('rejects unknown additional properties in nested planning objects', () => {
+    const intentPayload: any = validRecollectionIntentPayload()
+    intentPayload.recollectionAgenda.unexpectedField = true
+    const planPayload: any = validRecollectionPlanPayload()
+    planPayload.searchTrace.firstHop.unexpectedField = true
+
+    expect(parseMemoryRecollectionIntentPayload(JSON.stringify(intentPayload))).toBeNull()
+    expect(parseMemoryRecollectionPlanPayload(JSON.stringify(planPayload), testCandidateIds())).toBeNull()
+  })
+
+  it.each([
+    [
+      'candidateTimeScopes',
+      () => ({
+        scope: 'cross-session',
+        weight: 0.5,
+        rationale: 'The hidden fifth item must still be validated.',
+        unexpectedField: true,
+      }),
+    ],
+    [
+      'candidateEraFacets',
+      () => ({
+        facet: 'relationship-era',
+        weight: 0.5,
+        rationale: 'The hidden fifth item must still be validated.',
+        unexpectedField: true,
+      }),
+    ],
+  ])('rejects an unknown property in the fifth recollection agenda %s item', (key, fifthItem) => {
+    const payload: any = validRecollectionIntentPayload()
+    const validItem = key === 'candidateTimeScopes'
+      ? {
+          scope: 'cross-session',
+          weight: 0.5,
+          rationale: 'A valid time scope.',
+        }
+      : {
+          facet: 'relationship-era',
+          weight: 0.5,
+          rationale: 'A valid era facet.',
+        }
+    payload.recollectionAgenda[key] = [
+      ...Array.from({ length: 4 }, () => ({ ...validItem })),
+      fifthItem(),
+    ]
+
+    expect(parseMemoryRecollectionIntentPayload(JSON.stringify(payload))).toBeNull()
+  })
+
+  it.each([
+    [
+      'five otherwise valid strings',
+      [
+        'procedure line 1',
+        'procedure line 2',
+        'procedure line 3',
+        'procedure line 4',
+        'procedure line 5',
+      ],
+    ],
+    [
+      'a legacy transcript object in the fifth position',
+      [
+        'procedure line 1',
+        'procedure line 2',
+        'procedure line 3',
+        'procedure line 4',
+        {
+          kind: 'conversation-turn',
+          userText: 'raw transcript must not hide after the procedure line budget',
+        },
+      ],
+    ],
+    [
+      'an invalid item inside the procedure line budget',
+      [
+        'procedure line 1',
+        {
+          kind: 'conversation',
+          assistantText: 'raw transcript objects are never valid procedure lines',
+        },
+      ],
+    ],
+  ])('rejects candidateProcedureLines containing %s', (_name, candidateProcedureLines) => {
+    const payload: any = validRecollectionIntentPayload()
+    payload.recollectionAgenda.candidateProcedureLines = candidateProcedureLines
+
+    expect(parseMemoryRecollectionIntentPayload(JSON.stringify(payload))).toBeNull()
+  })
+
   it('rejects internally contradictory intent and deliberation policies', () => {
     const intentPayload = validRecollectionIntentPayload()
     intentPayload.mode = 'none'
     intentPayload.searchEpisodes = true
-    intentPayload.searchConversations = false
     intentPayload.searchProceduralExperience = false
 
     const deliberationPayload = validMemoryDeliberationPayload()
@@ -706,7 +910,6 @@ describe('memory provider planning', () => {
       periodId: null,
       episodeId: null,
       procedureId: null,
-      conversationTurnId: null,
       relationshipLine: null,
     }]
     payload.selectedChains = [{
@@ -729,9 +932,8 @@ describe('memory provider planning', () => {
         payload.selectedWindowIds = ['window-1', 'invented-window']
         payload.selectedProceduralIds = ['procedure-1', 'invented-procedure']
         payload.selectedEpisodeIds = ['episode-1', 'invented-episode']
-        payload.selectedConversationTurnIds = ['turn-1', 'invented-turn']
         payload.searchTrace.firstHop.targetIds = ['con-1', 'invented-consolidation', 'episode-1']
-        payload.searchTrace.secondHop.targetIds = ['procedure-1', 'invented-procedure', 'turn-1']
+        payload.searchTrace.secondHop.targetIds = ['procedure-1', 'invented-procedure']
         return JSON.stringify(payload)
       }
 
@@ -741,7 +943,6 @@ describe('memory provider planning', () => {
       payload.selectedWindowIds = ['window-1', 'invented-window']
       payload.selectedProcedureIds = ['procedure-1', 'invented-procedure']
       payload.selectedEpisodeIds = ['episode-1', 'invented-episode']
-      payload.selectedConversationTurnIds = ['turn-1', 'invented-turn']
       payload.conflictVariants = [{
         id: 'episode-1',
         summary: 'Provider-authored conflict summary.',
@@ -756,7 +957,6 @@ describe('memory provider planning', () => {
         periodId: 'con-1',
         episodeId: 'episode-1',
         procedureId: 'procedure-1',
-        conversationTurnId: 'turn-1',
         relationshipLine: 'Provider-authored relationship line.',
       }, {
         id: 'bundle-invented-reference',
@@ -766,7 +966,6 @@ describe('memory provider planning', () => {
         periodId: null,
         episodeId: 'invented-episode',
         procedureId: null,
-        conversationTurnId: null,
         relationshipLine: null,
       }]
       payload.selectedChains = [{
@@ -820,15 +1019,6 @@ describe('memory provider planning', () => {
       confidence: 0.76,
       provenance: 'remembered',
     }] as any
-    const recalledConversationHistory = [{
-      turnId: 'turn-1',
-      sessionId: 'session-1',
-      userText: 'A confirmed user turn.',
-      assistantText: 'A confirmed assistant turn.',
-      createdAt: 1,
-      provenance: 'reconstructed',
-    }] as any
-
     const plan = await generateMemoryRecollectionPlanWithGateway({
       recallSeed: 'relationship concern',
       recollectionIntent: validRecollectionIntentPayload() as any,
@@ -836,7 +1026,6 @@ describe('memory provider planning', () => {
       recollectedWindows,
       proceduralMemories,
       recalledEpisodes,
-      recalledConversationHistory,
       generateMainGatewayText,
       cardId: 'default',
     })
@@ -849,7 +1038,6 @@ describe('memory provider planning', () => {
       recollectedWindows,
       proceduralMemories,
       recalledEpisodes,
-      recalledConversationHistory,
       generateMainGatewayText,
       cardId: 'default',
     })
@@ -859,14 +1047,13 @@ describe('memory provider planning', () => {
       selectedWindowIds: ['window-1'],
       selectedProceduralIds: ['procedure-1'],
       selectedEpisodeIds: ['episode-1'],
-      selectedConversationTurnIds: ['turn-1'],
       selectedRelationshipLines: [],
       searchTrace: {
         firstHop: {
           targetIds: ['con-1', 'episode-1'],
         },
         secondHop: {
-          targetIds: ['procedure-1', 'turn-1'],
+          targetIds: ['procedure-1'],
         },
       },
     })
@@ -876,7 +1063,6 @@ describe('memory provider planning', () => {
       selectedWindowIds: ['window-1'],
       selectedProcedureIds: ['procedure-1'],
       selectedEpisodeIds: ['episode-1'],
-      selectedConversationTurnIds: ['turn-1'],
       selectedRelationshipLines: [],
       conflictVariants: [],
       stableCore: [],
@@ -934,7 +1120,6 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
     })
@@ -1009,7 +1194,6 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
     })
@@ -1035,7 +1219,6 @@ describe('memory provider planning', () => {
       payload.selectedWindowIds = []
       payload.selectedProceduralIds = []
       payload.selectedEpisodeIds = []
-      payload.selectedConversationTurnIds = []
       payload.searchTrace.firstHop.focus = 'era'
       payload.searchTrace.firstHop.targetIds = []
       payload.searchTrace.secondHop.targetIds = []
@@ -1059,7 +1242,6 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
     })
@@ -1071,7 +1253,6 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
     })
 
     expect(plan?.selectedConsolidationIds).toEqual([])
@@ -1079,7 +1260,6 @@ describe('memory provider planning', () => {
     expect(resolved?.selectedWindowIds).toEqual([])
     expect(resolved?.selectedProceduralIds).toEqual([])
     expect(resolved?.selectedEpisodeIds).toEqual([])
-    expect(resolved?.selectedConversationTurnIds).toEqual([])
     expect(resolved?.searchTrace?.firstHop.targetIds).toEqual([])
     expect(resolved?.searchTrace?.secondHop.targetIds).toEqual([])
   })
@@ -1135,7 +1315,6 @@ describe('memory provider planning', () => {
         confidence: 0.77,
         provenance: 'remembered',
       }] as any,
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
     })
@@ -1156,7 +1335,6 @@ describe('memory provider planning', () => {
           selectedWindowIds: [],
           selectedProceduralIds: [],
           selectedEpisodeIds: [],
-          selectedConversationTurnIds: [],
           selectedRelationshipLines: ['Return through the same line.'],
           searchTrace: {
             firstHop: { focus: 'relationship-line', summary: 'Start from the same line.', targetIds: ['con-1'] },
@@ -1185,7 +1363,6 @@ describe('memory provider planning', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['The same line should shape the reply.'],
         selectedBundles: [],
         selectedChains: [],
@@ -1203,7 +1380,6 @@ describe('memory provider planning', () => {
       mode: 'relationship-history',
       temporalFocus: 'cross-session',
       searchEpisodes: true,
-      searchConversations: true,
       searchProceduralExperience: false,
       queryHints: ['relationship'],
       rationale: 'relationship recall',
@@ -1217,7 +1393,6 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
     })
@@ -1229,7 +1404,6 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
     })
@@ -1242,7 +1416,6 @@ describe('memory provider planning', () => {
       recollectedWindows: [],
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [],
       generateMainGatewayText,
       cardId: 'default',
     })

@@ -7,6 +7,8 @@ import type {
   StreamingAssistantMessage,
 } from '../types/chat'
 
+import { shouldReplaceToolSettlement } from './chat/tool-settlement-arbitration'
+
 export interface ChatExecutorToolReplyEvidence {
   channel: string
   errorCode: string
@@ -62,6 +64,24 @@ const terminalExecutionPhases = new Set<ChatSlicesExecutionStatus['phase']>([
   'tool-failed',
   'tool-recovery-required',
   'tool-timeout',
+])
+const deadLetteredExecutionPhases = new Set<ChatSlicesExecutionStatus['phase']>([
+  'tool-dead-lettered',
+])
+const settledToolResultStatuses = new Set([
+  'cancelled',
+  'completed',
+  'dead-lettered',
+  'failed',
+  'timeout',
+  'tool-cancelled',
+  'tool-dead-lettered',
+  'tool-failed',
+  'tool-timeout',
+])
+const deadLetteredToolResultStatuses = new Set([
+  'dead-lettered',
+  'tool-dead-lettered',
 ])
 
 export function isChatExecutionProjectionToolName(toolName: string) {
@@ -397,8 +417,12 @@ export function upsertChatExecutionStatusSlice(
     const existing = slices[existingIndex]
     if (
       existing?.type === 'execution-status'
-      && terminalExecutionPhases.has(existing.phase)
-      && !terminalExecutionPhases.has(next.phase)
+      && !shouldReplaceToolSettlement({
+        existingStatus: existing.phase,
+        nextStatus: next.phase,
+        terminalStatuses: terminalExecutionPhases,
+        deadLetteredStatuses: deadLetteredExecutionPhases,
+      })
     ) {
       return
     }
@@ -509,6 +533,25 @@ function upsertToolResult(
 ) {
   const existingIndex = toolResults.findIndex(result => result.id === next.id)
   if (existingIndex >= 0) {
+    const existingResult = toolResults[existingIndex]?.result
+    const nextResult = next.result
+    const readStatus = (result: unknown) => {
+      if (!result || typeof result !== 'object' || Array.isArray(result))
+        return ''
+      const record = result as Record<string, unknown>
+      const status = typeof record.status === 'string'
+        ? record.status
+        : record.finalStatus
+      return typeof status === 'string' ? status.trim().toLowerCase() : ''
+    }
+    if (!shouldReplaceToolSettlement({
+      existingStatus: readStatus(existingResult),
+      nextStatus: readStatus(nextResult),
+      terminalStatuses: settledToolResultStatuses,
+      deadLetteredStatuses: deadLetteredToolResultStatuses,
+    })) {
+      return
+    }
     toolResults.splice(existingIndex, 1, next)
     return
   }

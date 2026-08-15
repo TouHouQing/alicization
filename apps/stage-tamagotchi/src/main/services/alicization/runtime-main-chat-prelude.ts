@@ -9,6 +9,7 @@ import type { MainGatewayToolExecutionProgress } from './main-chat-execution-sur
 import type {
   AlicizationPreparedMainChatExecutionResult,
   AlicizationPreparedMainChatPrelude,
+  AlicizationWorkingMemoryHydration,
 } from './main-chat-session-runtime'
 import type { MainGatewayResolvedConfig } from './runtime-soul'
 
@@ -29,11 +30,17 @@ interface CreateAlicizationMainChatPreludeRuntimeOptions {
   buildMainChatContextualString: (payload: AlicizationChatStartPayload) => Promise<string>
   buildMainChatExecutionCallbackContext: (payload: AlicizationChatStartPayload) => Promise<any>
   buildMainChatExecutionLedgerContext: (payload: AlicizationChatStartPayload) => Promise<any>
+  hydrateWorkingMemory?: (input: {
+    cardId: string
+    turnId: string
+    sessionId: string
+  }) => Promise<AlicizationWorkingMemoryHydration>
   augmentMainChatMessagesWithPerception: (input: {
     cardId: string
     turnId: string
     userText: string
     messages: Message[]
+    workingMemorySnapshot?: AlicizationWorkingMemoryHydration['snapshot']
     senderWebContentsId?: number | null
     abortSignal?: AbortSignal
   }) => Promise<any>
@@ -54,6 +61,7 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     buildMainChatContextualString,
     buildMainChatExecutionCallbackContext,
     buildMainChatExecutionLedgerContext,
+    hydrateWorkingMemory,
     augmentMainChatMessagesWithPerception,
     prepareMainChatSessionExecution,
   } = options
@@ -64,12 +72,21 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     invokeOptions?: { raw?: { ipcMainEvent?: IpcMainEvent, event?: unknown } },
     options?: {
       abortSignal?: AbortSignal
+      agentTurn?: AlicizationAgentTurnRuntime
     },
   ): Promise<AlicizationPreparedMainChatPrelude> {
     const normalizedPayload = payload
     const chatConfig = mainGateway.provider.chat(mainGateway.model)
     const latestUserText = readLatestUserMessageText(normalizedPayload.messages)
     const senderWebContentsId = senderWebContentsIdFromInvokeOptions(invokeOptions)
+    const workingMemorySessionId = options?.agentTurn?.conversationSessionId ?? null
+    const workingMemoryHydration = workingMemorySessionId && hydrateWorkingMemory
+      ? await awaitAlicizationPromiseWithAbort(hydrateWorkingMemory({
+          cardId: normalizedPayload.cardId,
+          turnId: normalizedPayload.turnId,
+          sessionId: workingMemorySessionId,
+        }), options?.abortSignal)
+      : null
     let messages = resolveChatMessages(normalizedPayload, {
       redactStaleInspectionHistoryForUserText: latestUserText,
     })
@@ -77,6 +94,7 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
       originalMessages: normalizedPayload.messages,
       resolvedMessages: messages,
     })
+    const perceptionMessages = scopeMessagesForCurrentTurn(messages)
 
     const contextualStringPromise = buildMainChatContextualString(normalizedPayload)
     const executionCallbackContextPromise = buildMainChatExecutionCallbackContext(normalizedPayload)
@@ -86,7 +104,8 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
           cardId: normalizedPayload.cardId,
           turnId: normalizedPayload.turnId,
           userText: latestUserText,
-          messages,
+          messages: perceptionMessages,
+          workingMemorySnapshot: workingMemoryHydration?.snapshot ?? null,
           senderWebContentsId,
           abortSignal: options?.abortSignal,
         }), options?.abortSignal)
@@ -109,7 +128,10 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
             mindTurnGovernance: null,
           },
         }
-    messages = perceptionAugmentation.messages
+    messages = mergePerceptionMessagesIntoTransportMessages(
+      messages,
+      perceptionAugmentation.messages,
+    )
     const actionObligation = deriveMainChatActionObligation({
       userText: latestUserText || '',
       runtimeSurface: perceptionAugmentation.digitalLifeRuntimeSurface,
@@ -124,6 +146,7 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
       executionCallbackContextPromise,
       executionLedgerContextPromise,
       perceptionAugmentation,
+      workingMemoryHydration,
     }
   }
 
@@ -135,11 +158,13 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
       agentTurn?: AlicizationAgentTurnRuntime
       emitToolProgress?: (input: MainGatewayToolExecutionProgress) => void
       abortSignal?: AbortSignal
+      userId?: string
     },
   ): Promise<AlicizationPreparedMainChatExecutionResult> {
     const normalizedPayload = payload
     const prelude = await (preludePromise ?? prepareMainChatPrelude(normalizedPayload, mainGateway, undefined, {
       abortSignal: options?.abortSignal,
+      agentTurn: options?.agentTurn,
     }))
     return await prepareMainChatSessionExecution({
       payload: normalizedPayload,
@@ -152,6 +177,51 @@ export function createAlicizationMainChatPreludeRuntime(options: CreateAlicizati
     prepareMainChatPrelude,
     prepareMainChatExecution,
   }
+}
+
+function scopeMessagesForCurrentTurn(messages: Message[]) {
+  let currentTurnStart = -1
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === 'user') {
+      currentTurnStart = index
+      break
+    }
+  }
+
+  if (currentTurnStart < 0)
+    return messages.filter(message => message?.role === 'system')
+
+  return messages.filter((message, index) =>
+    message?.role === 'system'
+    || index >= currentTurnStart,
+  )
+}
+
+function mergePerceptionMessagesIntoTransportMessages(
+  transportMessages: Message[],
+  perceptionMessages: Message[],
+) {
+  const scopedIndexes: number[] = []
+  let currentTurnStart = -1
+  for (let index = transportMessages.length - 1; index >= 0; index -= 1) {
+    if (transportMessages[index]?.role === 'user') {
+      currentTurnStart = index
+      break
+    }
+  }
+
+  if (currentTurnStart < 0)
+    return transportMessages
+
+  transportMessages.forEach((message, index) => {
+    if (message?.role === 'system' || index >= currentTurnStart)
+      scopedIndexes.push(index)
+  })
+
+  return transportMessages.map((message, index) => {
+    const perceptionIndex = scopedIndexes.indexOf(index)
+    return perceptionMessages[perceptionIndex] ?? message
+  })
 }
 
 function awaitAlicizationPromiseWithAbort<T>(

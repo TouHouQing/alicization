@@ -11,7 +11,6 @@ describe('runtime-execution-callback-carry-reducer', () => {
       selectedWindowIds: [],
       selectedProcedureIds: [],
       selectedEpisodeIds: [],
-      selectedConversationTurnIds: [],
       selectedRelationshipLines: [],
       selectedEras: [],
       selectedPeriods: [],

@@ -179,7 +179,7 @@ describe('buildGoalStack', () => {
     expect(goalStack.hostGoals[0]?.status).toBe('blocked')
     expect(goalStack.alicizationGoals[0]?.kind).toBe('clarify-scene')
     expect(goalStack.alicizationGoals[0]?.label).toBe('TypeScript error')
-    expect(goalStack.unresolvedSummary).toContain('没')
+    expect(goalStack.unresolvedSummary).toContain('world-question:thread-not-regrounded')
   })
 
   it('prefers a stay-near goal during media co-vision', () => {

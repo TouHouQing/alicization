@@ -1,4 +1,4 @@
-import type { AlicizationTaskThreadRecord } from '../../../shared/eventa'
+import type { AlicizationTaskThreadRecord, AlicizationTaskThreadUpsertInput } from '../../../shared/eventa'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -50,6 +50,27 @@ function createNeedsAffirmationThread(): AlicizationTaskThreadRecord {
   }
 }
 
+function createPausedThread(): AlicizationTaskThreadRecord {
+  return {
+    ...createNeedsAffirmationThread(),
+    id: 'thread-resume-paused-1',
+    decisionTraceId: 'mind:trace:resume-paused-1',
+    turnId: 'subconscious:resume-paused-1',
+    sessionId: 'session-resume-paused-1',
+    status: 'paused',
+    selectedChannel: 'codex',
+    summary: 'Execution paused until side effects can be reconciled.',
+    metadata: {
+      task: {
+        permissionMode: 'implicit',
+        effect: 'mutate',
+        riskBudget: 'medium',
+        justification: 'grounded',
+      },
+    },
+  }
+}
+
 function createCapabilityManifest(overrides: Record<string, unknown> = {}) {
   return {
     channel: 'codex',
@@ -76,12 +97,45 @@ function createDbState(
   const capabilityManifests = [...initialCapabilityManifests]
   const appendExecutionEvents = vi.fn(async (_events: unknown[]) => {})
   const getTaskThread = vi.fn(async (id: string) => id === currentThread.id ? { ...currentThread } : undefined)
-  const upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadRecord) => {
+  const upsertTaskThread = vi.fn(async (input: AlicizationTaskThreadUpsertInput) => {
     currentThread = {
       ...currentThread,
       ...input,
+      id: input.id ?? currentThread.id,
       metadata: input.metadata ?? currentThread.metadata,
     }
+    return { ...currentThread }
+  })
+  const resumeTaskThread = vi.fn(async (input: {
+    event: Record<string, unknown>
+    expectedChannel: string
+    expectedStatus: string
+    expectedUpdatedAt: number
+    metadata: Record<string, unknown> | null
+    selectedChannel: string
+    threadId: string
+    updatedAt: number
+  }) => {
+    if (
+      input.threadId !== currentThread.id
+      || input.expectedUpdatedAt !== currentThread.updatedAt
+      || input.expectedStatus !== currentThread.status
+      || input.expectedChannel !== (currentThread.selectedChannel ?? currentThread.proposedChannel)
+    ) {
+      throw Object.assign(new Error('Task thread changed before resume.'), {
+        code: 'TASK_THREAD_VERSION_CONFLICT',
+      })
+    }
+    await upsertTaskThread({
+      ...currentThread,
+      status: 'planned',
+      selectedChannel: input.selectedChannel as AlicizationTaskThreadRecord['selectedChannel'],
+      metadata: input.metadata,
+      updatedAt: input.updatedAt,
+      completedAt: null,
+      expectedUpdatedAt: currentThread.updatedAt,
+    })
+    await appendExecutionEvents([input.event])
     return { ...currentThread }
   })
   const listChannelCapabilityManifests = vi.fn(async () => capabilityManifests.map(manifest => ({ ...manifest })))
@@ -112,6 +166,7 @@ function createDbState(
     capabilityManifests,
     getCurrentThread: () => currentThread,
     listChannelCapabilityManifests,
+    resumeTaskThread,
     upsertChannelCapabilityManifest,
     upsertTaskThread,
     db: {
@@ -123,6 +178,7 @@ function createDbState(
       listRecentEpisodicEvents: vi.fn(async () => []),
       listExecutorSessions: vi.fn(async () => []),
       listTaskThreads: vi.fn(async () => []),
+      resumeTaskThread,
       searchMemoryConsolidations: vi.fn(async () => []),
       upsertChannelCapabilityManifest,
       upsertExecutorSession: vi.fn(async () => {}),
@@ -837,6 +893,83 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     expect(dispatchTaskThread).not.toHaveBeenCalled()
     expect(dbState.upsertTaskThread).not.toHaveBeenCalled()
     expect(dbState.appendExecutionEvents).not.toHaveBeenCalled()
+  })
+
+  it('atomically resumes a paused recovery thread before redispatch', async () => {
+    const pausedThread = createPausedThread()
+    const dbState = createDbState(pausedThread)
+    const dispatchTaskThread = vi.fn(async () => ({
+      ok: true,
+      summary: 'Recovered Codex task completed.',
+      thread: {
+        ...dbState.getCurrentThread(),
+        status: 'completed',
+        completedAt: 300,
+      },
+      createdEventKinds: ['resume', 'result'],
+      finalStatus: 'completed',
+      output: 'completed',
+    }))
+    const runtime = createRuntime({ dbState, dispatchTaskThread })
+
+    const result = await runtime.resumeMainGatewayTaskThread({
+      context: { cardId: 'default' } as any,
+      threadId: pausedThread.id,
+      expectedChannel: 'codex',
+    })
+
+    expect(dbState.resumeTaskThread).toHaveBeenCalledWith(expect.objectContaining({
+      threadId: pausedThread.id,
+      expectedStatus: 'paused',
+      expectedChannel: 'codex',
+      expectedUpdatedAt: pausedThread.updatedAt,
+      selectedChannel: 'codex',
+      metadata: expect.objectContaining({
+        task: expect.objectContaining({
+          effect: 'observe',
+          permissionMode: 'implicit',
+        }),
+        execution: expect.objectContaining({
+          recovery: expect.objectContaining({
+            mode: 'reconcile-before-replay',
+            originalEffect: 'mutate',
+            state: 'reconciling',
+          }),
+        }),
+      }),
+    }))
+    expect(dbState.appendExecutionEvents).toHaveBeenCalledWith([
+      expect.objectContaining({
+        threadId: pausedThread.id,
+        kind: 'resume',
+        threadStatus: 'planned',
+        payload: expect.objectContaining({
+          previousStatus: 'paused',
+          resumedStatus: 'planned',
+          resumeMode: 'recovery',
+          effect: 'observe',
+          previousEffect: 'mutate',
+        }),
+      }),
+    ])
+    const resumeEvent = dbState.appendExecutionEvents.mock.calls[0]?.[0]?.[0] as any
+    expect(resumeEvent.payload).not.toHaveProperty('approval')
+    expect(dispatchTaskThread).toHaveBeenCalledTimes(1)
+    expect(dispatchTaskThread).toHaveBeenCalledWith(expect.objectContaining({
+      input: expect.objectContaining({
+        codex: expect.objectContaining({
+          sandbox: 'read-only',
+          prompt: expect.stringContaining('Reconcile the paused task without repeating its mutation.'),
+        }),
+      }),
+    }))
+    const dispatchedPrompt = ((dispatchTaskThread.mock.calls as any[][])[0]?.[0] as any)?.input?.codex?.prompt ?? ''
+    expect(dispatchedPrompt).not.toContain('already-confirmed')
+    expect(dispatchedPrompt).not.toContain('Make the code change now')
+    expect(result).toMatchObject({
+      ok: true,
+      finalStatus: 'completed',
+    })
   })
 
   it.each(['blocked', 'completed', 'failed', 'cancelled', 'dead-lettered'] as const)(

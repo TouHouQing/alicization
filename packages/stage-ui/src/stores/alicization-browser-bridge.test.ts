@@ -927,6 +927,62 @@ describe('browser alicization bridge visual presence listeners', () => {
     vi.unstubAllGlobals()
   })
 
+  it('keeps a Provider error ahead of an earlier renderer projection callback failure', async () => {
+    const providerError = 'Provider failed after the renderer rejected a canonical tool projection.'
+    const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
+      {
+        type: 'tool-call',
+        toolCallId: 'tool-browser-callback-provider-priority-1',
+        toolName: 'coding_agent',
+        selectedChannel: 'codex',
+        projection: {
+          factType: 'tool-call',
+          accepted: true,
+          traceOnly: false,
+          card: {
+            toolCallId: 'tool-browser-callback-provider-priority-1',
+            toolName: 'coding_agent',
+            selectedChannel: 'codex',
+            phase: 'started',
+            terminal: false,
+            revision: 1,
+            elapsedMs: null,
+            timeoutMs: null,
+            errorCode: null,
+            errorMessage: null,
+            step: null,
+          },
+        },
+        args: '{}',
+        toolCallType: 'function',
+      },
+      {
+        type: 'error',
+        error: providerError,
+      },
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    disposeBridge = installBrowserAlicizationBridge({ runtime: 'web' })
+    const bridge = getAlicizationBridge()
+
+    await expect(bridge.streamChat?.({
+      turnId: 'turn-browser-callback-provider-error-priority',
+      messages: [],
+    } as any, {
+      abortSignal: new AbortController().signal,
+      onStreamEvent: (event) => {
+        if (event.type === 'tool-call')
+          throw new Error('renderer rejected the canonical tool projection')
+      },
+    })).rejects.toEqual(expect.objectContaining({
+      name: 'Error',
+      message: providerError,
+    }))
+
+    vi.unstubAllGlobals()
+  })
+
   it('continues provider text but rejects settlement when canonical tool projection delivery fails', async () => {
     const fetchMock = vi.fn().mockResolvedValue(createStreamResponse([
       {

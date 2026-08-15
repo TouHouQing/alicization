@@ -10,6 +10,8 @@ import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { AlicizationSelfRevisionEvent } from './self-evolution/self-revision-ledger'
 import type { AlicizationSelfRevisionStatePatch } from './self-evolution/state-revision-bus'
 
+import { createHash } from 'node:crypto'
+
 export interface AlicizationLearningScheduledTask {
   cardId: string
   taskId: string
@@ -48,6 +50,10 @@ interface AlicizationLearningTaskExecutionResult {
   selfRevisionStatePatch?: AlicizationSelfRevisionStatePatch | null
 }
 
+interface AlicizationLearningTaskWriteOptions {
+  signal?: AbortSignal
+}
+
 interface CreateAlicizationLearningActionSchedulerOptions {
   now: () => number
   insertLearningTask: (input: {
@@ -58,7 +64,7 @@ interface CreateAlicizationLearningActionSchedulerOptions {
     message: string
     payload: AlicizationLearningTaskPayload
     maxAttempts?: number
-  }) => Promise<AlicizationLearningTaskRecord>
+  }, writeOptions?: AlicizationLearningTaskWriteOptions) => Promise<AlicizationLearningTaskRecord>
   claimDueLearningTasks: (cardId: string, nowMs: number, limit: number) => Promise<AlicizationLearningTaskRecord[]>
   startLearningTask: (taskId: string, startedAt?: number) => Promise<void>
   blockLearningTask: (taskId: string, input: {
@@ -95,6 +101,12 @@ interface CreateAlicizationLearningActionSchedulerOptions {
   executeLearningTask: (task: AlicizationLearningTaskRecord) => Promise<AlicizationLearningTaskExecutionResult>
   randomUUID: () => string
   getActiveCardId: () => string
+}
+
+function assertLearningTaskWriteNotAborted(signal?: AbortSignal) {
+  if (!signal?.aborted)
+    return
+  throw signal.reason ?? new DOMException('Learning task scheduling was aborted', 'AbortError')
 }
 
 export interface AlicizationLearningTaskRetryPlan {
@@ -272,6 +284,29 @@ function deriveTaskPayload(input: {
   }
 }
 
+export function buildAlicizationLearningTaskId(input: {
+  cardId: string
+  action: AlicizationLearningAction
+  sourceTurnId?: string | null
+  decisionTraceId?: string | null
+  randomUUID: string
+}) {
+  const stableSource = [
+    input.sourceTurnId?.trim() ?? '',
+    input.decisionTraceId?.trim() ?? '',
+  ].filter(Boolean).join(':')
+  const identitySeed = stableSource || input.randomUUID
+  const digest = createHash('sha256')
+    .update(JSON.stringify([
+      input.cardId.trim(),
+      input.action,
+      identitySeed,
+    ]))
+    .digest('hex')
+    .slice(0, 24)
+  return `learning:${input.cardId.trim()}:${input.action}:${digest}`
+}
+
 export function createAlicizationLearningActionScheduler(options: CreateAlicizationLearningActionSchedulerOptions) {
   function deriveLearningTask(input: {
     context: OrganicMemoryPromptContext
@@ -283,7 +318,14 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
       return null
 
     const nowMs = options.now()
-    const taskId = `learning:${options.getActiveCardId()}:${evolution.nextLearningAction}:${options.randomUUID().slice(0, 8)}`
+    const cardId = options.getActiveCardId()
+    const taskId = buildAlicizationLearningTaskId({
+      cardId,
+      action: evolution.nextLearningAction as AlicizationLearningAction,
+      sourceTurnId: payload.sourceTurnId,
+      decisionTraceId: payload.decisionTraceId,
+      randomUUID: options.randomUUID(),
+    })
     const delayMs = evolution.nextLearningAction === 'record'
       ? 30_000
       : evolution.nextLearningAction === 'reflect'
@@ -295,7 +337,7 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
             : 150_000
 
     return {
-      cardId: options.getActiveCardId(),
+      cardId,
       taskId,
       triggerAt: nowMs + delayMs,
       action: evolution.nextLearningAction as AlicizationLearningAction,
@@ -312,11 +354,13 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
   async function scheduleLearningTask(input: {
     context: OrganicMemoryPromptContext
     turnId?: string | null
+    signal?: AbortSignal
   }) {
     const task = deriveLearningTask(input)
     const evolution = input.context.selfEvolution ?? null
     if (!task || !evolution)
       return null
+    assertLearningTaskWriteNotAborted(input.signal)
     const auditPayload = buildAuditPayload({
       task,
       evolution,
@@ -329,7 +373,10 @@ export function createAlicizationLearningActionScheduler(options: CreateAlicizat
       action: task.action,
       message: task.message,
       payload: task.payload,
+    }, {
+      signal: input.signal,
     })
+    assertLearningTaskWriteNotAborted(input.signal)
     await options.appendAuditLog({
       level: 'notice',
       category: 'alicization.learning',

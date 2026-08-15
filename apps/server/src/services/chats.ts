@@ -58,6 +58,12 @@ interface StreamChatPayload {
 
 type StreamChatEvent
   = | { type: 'text-delta', text: string }
+    | {
+      type: 'provider-progress'
+      phase: 'reasoning' | 'tool-input'
+      toolCallId?: string
+      toolName?: string
+    }
     | { type: 'tool-call', toolCallId: string, toolName: string, args: string, toolCallType: 'function' }
     | { type: 'tool-result', toolCallId: string, result?: unknown }
     | ({ type: 'finish' } & Record<string, unknown>)
@@ -128,6 +134,47 @@ function resolveStreamMessages(messages: StreamChatMessagePayload[]): Normalized
       content: normalizeStreamMessageContent(message.content),
     }
   })
+}
+
+interface ProviderStreamReader {
+  read: () => Promise<{ done: boolean, value?: unknown }>
+  cancel?: (reason?: unknown) => Promise<void>
+  releaseLock?: () => void
+}
+
+function readProviderFullStream(result: unknown) {
+  if (!result || typeof result !== 'object')
+    return null
+
+  const fullStream = (result as Record<string, unknown>).fullStream
+  if (!fullStream || typeof fullStream !== 'object')
+    return null
+
+  const getReader = (fullStream as { getReader?: unknown }).getReader
+  return typeof getReader === 'function'
+    ? fullStream as { getReader: () => ProviderStreamReader }
+    : null
+}
+
+function normalizeStreamError(error: unknown) {
+  return error instanceof Error
+    ? error
+    : new Error(errorMessageFrom(error) ?? String(error))
+}
+
+function observeProviderResultErrors(
+  result: unknown,
+  onError: (error: unknown) => void,
+) {
+  if (!result || typeof result !== 'object')
+    return
+
+  const streamResult = result as Record<string, unknown>
+  for (const key of ['messages', 'steps', 'totalUsage', 'usage'] as const) {
+    const pending = streamResult[key]
+    if (pending && typeof (pending as PromiseLike<unknown>).then === 'function')
+      void Promise.resolve(pending).catch(onError)
+  }
 }
 
 export function createChatService(db: Database) {
@@ -270,17 +317,23 @@ export function createChatService(db: Database) {
 
       return await new Promise<void>((resolve, reject) => {
         let settled = false
+        let finishEmitted = false
+        let reader: ProviderStreamReader | null = null
+        let abortHandler: () => void = () => {}
+
         const finish = () => {
           if (settled)
             return
           settled = true
+          options.signal?.removeEventListener('abort', abortHandler)
           resolve()
         }
         const fail = (error: unknown) => {
           if (settled)
             return
           settled = true
-          reject(error)
+          options.signal?.removeEventListener('abort', abortHandler)
+          reject(normalizeStreamError(error))
         }
 
         if (options.signal?.aborted) {
@@ -288,68 +341,129 @@ export function createChatService(db: Database) {
           return
         }
 
-        const abortHandler = () => {
-          fail(options.signal?.reason ?? new DOMException('Aborted', 'AbortError'))
+        abortHandler = () => {
+          const reason = options.signal?.reason ?? new DOMException('Aborted', 'AbortError')
+          if (reader?.cancel)
+            void reader.cancel(reason).catch(() => {})
+          fail(reason)
         }
 
         options.signal?.addEventListener('abort', abortHandler, { once: true })
 
-        void Promise.resolve(streamText({
-          ...chatConfig,
-          maxSteps: 10,
-          messages: resolveStreamMessages(payload.messages),
-          headers: requestHeaders,
-          abortSignal: options.signal,
-          onEvent: async (event: any) => {
+        const handleEvent = async (rawEvent: unknown) => {
+          if (settled || !rawEvent || typeof rawEvent !== 'object')
+            return
+
+          const event = rawEvent as Record<string, unknown>
+          switch (event.type) {
+            case 'text-delta':
+              await options.onEvent({
+                type: 'text-delta',
+                text: String(event.text ?? ''),
+              })
+              break
+            case 'reasoning-delta':
+              await options.onEvent({
+                type: 'provider-progress',
+                phase: 'reasoning',
+              })
+              break
+            case 'tool-call-streaming-start':
+            case 'tool-call-delta':
+              await options.onEvent({
+                type: 'provider-progress',
+                phase: 'tool-input',
+                toolCallId: sanitizeText(event.toolCallId),
+                toolName: sanitizeText(event.toolName ?? event.name),
+              })
+              break
+            case 'tool-call':
+              await options.onEvent({
+                type: 'tool-call',
+                toolCallId: sanitizeText(event.toolCallId),
+                toolName: sanitizeText(event.toolName ?? event.name),
+                args: typeof event.args === 'string'
+                  ? event.args
+                  : JSON.stringify(event.args ?? event.arguments ?? {}),
+                toolCallType: 'function',
+              })
+              break
+            case 'tool-result':
+              await options.onEvent({
+                type: 'tool-result',
+                toolCallId: sanitizeText(event.toolCallId),
+                result: event.result,
+              })
+              break
+            case 'finish': {
+              const finishReason = sanitizeText(event.finishReason)
+              if (finishReason === 'tool_calls' && payload.waitForTools)
+                break
+              if (finishEmitted)
+                break
+
+              finishEmitted = true
+              await options.onEvent({
+                type: 'finish',
+                finishReason,
+                usage: event.usage ?? undefined,
+              })
+              finish()
+              break
+            }
+            case 'error':
+              fail(event.error ?? new Error('Stream error'))
+              break
+            default:
+              break
+          }
+        }
+
+        try {
+          const result = streamText({
+            ...chatConfig,
+            maxSteps: 10,
+            messages: resolveStreamMessages(payload.messages),
+            headers: requestHeaders,
+            abortSignal: options.signal,
+          })
+          const fullStream = readProviderFullStream(result)
+          if (!fullStream) {
+            fail(new Error('Provider stream did not expose a readable fullStream.'))
+            return
+          }
+
+          observeProviderResultErrors(result, fail)
+          reader = fullStream.getReader()
+
+          void (async () => {
             try {
-              switch (event?.type) {
-                case 'text-delta':
-                  await options.onEvent({ type: 'text-delta', text: String(event.text ?? '') })
+              while (!settled) {
+                const next = await reader!.read()
+                if (next.done)
                   break
-                case 'tool-call':
-                  await options.onEvent({
-                    type: 'tool-call',
-                    toolCallId: sanitizeText(event.toolCallId),
-                    toolName: sanitizeText(event.toolName ?? event.name),
-                    args: typeof event.args === 'string'
-                      ? event.args
-                      : JSON.stringify(event.args ?? event.arguments ?? {}),
-                    toolCallType: 'function',
-                  })
-                  break
-                case 'tool-result':
-                  await options.onEvent({
-                    type: 'tool-result',
-                    toolCallId: sanitizeText(event.toolCallId),
-                    result: event.result,
-                  })
-                  break
-                case 'finish':
-                  await options.onEvent({
-                    type: 'finish',
-                    finishReason: sanitizeText(event.finishReason),
-                    usage: event.usage ?? undefined,
-                  })
-                  finish()
-                  break
-                case 'error':
-                  fail(event.error ?? new Error('Stream error'))
-                  break
-                default:
-                  break
+                await handleEvent(next.value)
+              }
+
+              if (!settled) {
+                fail(new Error(
+                  finishEmitted
+                    ? 'Provider stream closed before lifecycle settlement.'
+                    : 'Provider stream closed before a finish event.',
+                ))
               }
             }
             catch (error) {
               fail(error)
             }
-          },
-        }))
-          .catch((error) => {
-            fail(new Error(errorMessageFrom(error) ?? String(error)))
-          })
-          .finally(() => {
-            options.signal?.removeEventListener('abort', abortHandler)
-          })
+            finally {
+              reader?.releaseLock?.()
+            }
+          })()
+        }
+        catch (error) {
+          fail(error)
+        }
       })
     },
   }

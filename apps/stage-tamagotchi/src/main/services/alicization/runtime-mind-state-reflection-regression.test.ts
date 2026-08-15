@@ -4,7 +4,7 @@ import { createAlicizationMindStateRuntime } from './runtime-mind-state'
 import { createDefaultVisualPresenceState } from './visual-episodic-memory'
 
 describe('runtime-mind-state reflection regression', () => {
-  it('does not let a superseded temporary-noise reflection become the latest carried reflection after persisted runtime recall', async () => {
+  it('keeps every non-confirmed memory reflection out of formal runtime mind state', async () => {
     const previousVisualPresenceState = createDefaultVisualPresenceState(50_000) as any
 
     const runtime = createAlicizationMindStateRuntime({
@@ -97,6 +97,44 @@ describe('runtime-mind-state reflection regression', () => {
       listRelationshipOutcomes: async () => [],
       listPersonaReinforcementEvents: async () => [],
       listMemoryReflections: async () => [
+        {
+          id: 'reflection::pending-noise',
+          cardId: 'default',
+          decisionTraceId: 'trace::pending-noise',
+          turnId: 'turn::pending-noise',
+          sessionId: 'session::pending-noise',
+          sourceKind: 'maintenance',
+          targetScope: 'relationship',
+          summary: 'pending-reflection-must-not-shape-runtime',
+          lesson: 'pending-reflection-must-not-reach-working-memory',
+          status: 'pending',
+          confidence: 1,
+          supportingFactIds: [],
+          supportingOutcomeIds: [],
+          createdAt: 89_500,
+          updatedAt: 89_500,
+          confirmedAt: null,
+          deniedAt: null,
+        },
+        {
+          id: 'reflection::denied-noise',
+          cardId: 'default',
+          decisionTraceId: 'trace::denied-noise',
+          turnId: 'turn::denied-noise',
+          sessionId: 'session::denied-noise',
+          sourceKind: 'maintenance',
+          targetScope: 'boundary',
+          summary: 'denied-reflection-must-not-shape-runtime',
+          lesson: 'denied-reflection-must-not-reach-provider',
+          status: 'denied',
+          confidence: 1,
+          supportingFactIds: [],
+          supportingOutcomeIds: [],
+          createdAt: 89_250,
+          updatedAt: 89_250,
+          confirmedAt: null,
+          deniedAt: 89_250,
+        },
         {
           id: 'reflection::temporary-noise',
           cardId: 'default',
@@ -203,7 +241,12 @@ describe('runtime-mind-state reflection regression', () => {
     })
 
     expect(result.reflectionLedger?.latestEntryId).toBe('reflection::continuity-repair')
-    expect(result.reflectionLedger?.entries.find(entry => entry.id === 'reflection::temporary-noise')?.outcome).toBe('released')
+    expect(result.reflectionLedger?.entries.map(entry => entry.id)).not.toEqual(expect.arrayContaining([
+      'reflection::pending-noise',
+      'reflection::denied-noise',
+      'reflection::temporary-noise',
+    ]))
     expect(result.reflectionLedger?.entries.find(entry => entry.id === result.reflectionLedger?.latestEntryId)?.revision).toContain('continuity repair lesson')
+    expect(JSON.stringify(result)).not.toContain('must-not-')
   })
 })

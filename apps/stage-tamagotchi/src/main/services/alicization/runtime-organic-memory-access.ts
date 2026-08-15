@@ -107,17 +107,6 @@ export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
     recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
     reconsolidationDecisionTraceId?: string | null
   }) => Promise<AlicizationEpisodicEventRecord[]>
-  searchConversationTurnsForRecall: (input: {
-    query: string
-    limit?: number
-    recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
-  }) => Promise<Array<{
-    turnId: string | null
-    sessionId: string
-    userText: string
-    assistantText: string
-    createdAt: number
-  }>>
   searchMemoryConsolidations: (input: {
     query: string
     limit?: number
@@ -140,6 +129,7 @@ export interface CreateAlicizationOrganicMemoryAccessRuntimeOptions {
   listConversationTurnsBySession: (sessionId: string, options: { limit: number }) => Promise<Array<{
     userText?: string | null
     assistantText?: string | null
+    structuredJson?: string | null
   }>>
   getLatestLearningExecutionState?: (cardId: string) => Promise<AlicizationLearningExecutionStateSnapshot | null>
   recordMemoryCacheAccess?: (hit: boolean) => Promise<void>
@@ -249,13 +239,6 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
       sessionId: input.sessionId ?? null,
       turnId: input.turnId ?? null,
       recallGovernor: input.recallGovernor ?? null,
-      budgetClass: snapshot.plan.budgetClass,
-      retrievalPolicySnapshot: snapshot,
-    }).catch(() => [])
-    void recallConversationHistory({
-      query: recallSeed,
-      limit: plan.conversationLimit,
-      recollectionIntent: input.recallGovernor?.recollectionIntent ?? null,
       budgetClass: snapshot.plan.budgetClass,
       retrievalPolicySnapshot: snapshot,
     }).catch(() => [])
@@ -642,66 +625,6 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     return parseMemoryTuningAdvice(raw)
   }
 
-  async function recallConversationHistory(input: {
-    query: string
-    limit?: number
-    recollectionIntent?: AlicizationRecallGovernorSnapshot['recollectionIntent'] | null
-    budgetClass?: AlicizationMemoryRetrievalBudgetClass
-    retrievalPolicySnapshot?: AlicizationTurnRetrievalPolicySnapshot | null
-  }) {
-    const snapshot = input.retrievalPolicySnapshot ?? await resolveTurnRetrievalPolicySnapshot({
-      recallSeed: input.query,
-      recallGovernor: input.recollectionIntent ? { recollectionIntent: input.recollectionIntent } as AlicizationRecallGovernorSnapshot : null,
-      budgetClass: input.budgetClass,
-    })
-    const plan = buildAlicizationMemoryAccessibilityPlan({
-      recallSeed: input.query,
-      recallGovernor: input.recollectionIntent ? { recollectionIntent: input.recollectionIntent } as AlicizationRecallGovernorSnapshot : null,
-      budgetClass: input.budgetClass,
-      policy: snapshot.policy,
-    })
-    void options.recordMemoryBudgetClass?.(plan.budgetClass).catch(() => {})
-    const cacheKey = buildAlicizationMemoryAccessCacheKey({
-      namespace: 'conversation',
-      recallSeed: input.query,
-      plan,
-    })
-    const cached = readTransientRecallCache<Array<{
-      turnId: string | null
-      sessionId: string
-      userText: string
-      assistantText: string
-      createdAt: number
-    }>>(cacheKey)
-    if (cached) {
-      void options.recordMemoryCacheAccess?.(true).catch(() => {})
-      if (plan.prewarmKey)
-        void options.recordMemoryPrewarmAccess?.(true).catch(() => {})
-      void options.recordMemoryHotKeyOutcome?.({
-        key: plan.prewarmKey ?? cacheKey,
-        hit: true,
-        won: true,
-      }).catch(() => {})
-      return cached
-    }
-    void options.recordMemoryCacheAccess?.(false).catch(() => {})
-    if (plan.prewarmKey)
-      void options.recordMemoryPrewarmAccess?.(false).catch(() => {})
-    void options.recordMemoryHotKeyOutcome?.({
-      key: plan.prewarmKey ?? cacheKey,
-      hit: false,
-      won: false,
-    }).catch(() => {})
-
-    const rows = await options.searchConversationTurnsForRecall({
-      query: input.query,
-      limit: Math.max(input.limit ?? 0, plan.conversationLimit),
-      recollectionIntent: input.recollectionIntent ?? null,
-    }).catch(() => [])
-    writeTransientRecallCache(cacheKey, rows, plan.cacheTtlMs)
-    return rows
-  }
-
   async function recallMemoryConsolidations(input: {
     query: string
     limit?: number
@@ -765,6 +688,24 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
 
     const rows = await options.listConversationTurnsBySession(sessionId, { limit: 12 }).catch(() => [])
     return rows
+      .filter((row) => {
+        if (!row.structuredJson)
+          return true
+        try {
+          const structured = JSON.parse(row.structuredJson) as Record<string, unknown>
+          const failureSurface = structured.failureSurface
+            && typeof structured.failureSurface === 'object'
+            && !Array.isArray(structured.failureSurface)
+            ? structured.failureSurface as Record<string, unknown>
+            : null
+          return structured.origin !== 'failure-surface'
+            && structured.artifactRole !== 'memory-side-failure'
+            && failureSurface?.origin !== 'failure-surface'
+        }
+        catch {
+          return false
+        }
+      })
       .filter(row => normalizeOrganicRecallText(row.userText ?? '') || normalizeOrganicRecallText(row.assistantText ?? ''))
       .slice(-turnCount)
       .map((row): ContextualConversationTurn => ({
@@ -783,7 +724,6 @@ export function createAlicizationOrganicMemoryAccessRuntime(options: CreateAlici
     buildHostPersonModel,
     listRecentMemoryReflections,
     getMemoryTuningAdvice,
-    recallConversationHistory,
     recallMemoryConsolidations,
     prewarmAccessibilityLine,
     resolveTurnRetrievalPolicySnapshot,

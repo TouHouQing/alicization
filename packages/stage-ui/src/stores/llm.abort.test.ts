@@ -67,6 +67,35 @@ describe('llm stream abort handling', () => {
     }))
   })
 
+  it('consumes ordered provider events from fullStream when onEvent is unused', async () => {
+    const events: unknown[] = []
+    streamTextMock.mockImplementation(() => ({
+      fullStream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: 'text-delta', text: '你好。' })
+          controller.enqueue({ type: 'finish', finishReason: 'stop' })
+          controller.close()
+        },
+      }),
+    }))
+
+    const { useLLM } = await import('./llm')
+    const store = useLLM()
+
+    await store.stream('mock-model', createChatProviderStub(), [
+      { role: 'user', content: 'hello' },
+    ], {
+      onStreamEvent: (event) => {
+        events.push(event)
+      },
+    })
+
+    expect(events).toEqual([
+      { type: 'text-delta', text: '你好。' },
+      { type: 'finish', finishReason: 'stop' },
+    ])
+  })
+
   it('rejects errors surfaced by the xsAI fullStream result', async () => {
     const { useLLM } = await import('./llm')
     const store = useLLM()
@@ -90,5 +119,23 @@ describe('llm stream abort handling', () => {
     ], {
       responseFormat: alicizationProviderResponseFormat,
     })).rejects.toBe(schemaError)
+  })
+
+  it('rejects a fullStream that reaches EOF without a terminal finish event', async () => {
+    streamTextMock.mockImplementation(() => ({
+      fullStream: new ReadableStream({
+        start(controller) {
+          controller.enqueue({ type: 'text-delta', text: '截断的回复' })
+          controller.close()
+        },
+      }),
+    }))
+
+    const { useLLM } = await import('./llm')
+    const store = useLLM()
+
+    await expect(store.stream('mock-model', createChatProviderStub(), [
+      { role: 'user', content: 'hello' },
+    ])).rejects.toThrow('Provider stream closed before a finish event.')
   })
 })

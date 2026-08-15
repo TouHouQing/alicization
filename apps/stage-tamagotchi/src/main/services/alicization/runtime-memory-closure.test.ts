@@ -141,7 +141,7 @@ function expectNoValue(value: unknown, text: string) {
 }
 
 describe('runtime memory closure', () => {
-  it('把真实对话与主人反馈写成可审计记忆和状态更新，不再生成本地人格候选', async () => {
+  it('只持久化显式反馈闭环，不把原始 reply transcript 写进长期记忆', async () => {
     const fixture = createRuntimeFixture()
     const userText = '我刚才是在说这个具体问题。'
     const assistantText = '我先回应你真正指出的部分。'
@@ -156,7 +156,7 @@ describe('runtime memory closure', () => {
       userText,
       assistantText,
       runtimeSurface: createReplySurface(),
-    }))
+    } as any))
 
     await fixture.runtime.persistOutcomeClosure('default', buildDialogueReplyFeedbackOutcomeClosure({
       now: 49_950,
@@ -174,9 +174,10 @@ describe('runtime memory closure', () => {
       fixture.upsertMemoryReflections.mock.calls,
       fixture.upsertMindHead.mock.calls,
     ])
-    expect(memoryWrites).toContain(userText)
-    expect(memoryWrites).toContain(assistantText)
-    expect(memoryWrites).toContain(feedbackText)
+    expect(memoryWrites).not.toContain(userText)
+    expect(memoryWrites).not.toContain(assistantText)
+    expect(memoryWrites).not.toContain(feedbackText)
+    expect(memoryWrites).toContain('feedback=received')
     expect(latestMindTurnPayloads(fixture.appendMindTurnEvents)).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -263,7 +264,7 @@ describe('runtime memory closure', () => {
       userText: '请处理当前输入。',
       assistantText: '我只根据当前输入回应。',
       runtimeSurface: createReplySurface(legacySurface),
-    }))
+    } as any))
 
     for (const writes of allWrittenValues(fixture))
       expectNoValue(writes, marker)
@@ -279,7 +280,7 @@ describe('runtime memory closure', () => {
     ]))
   })
 
-  it('不把失败回退文本或原始转录复制进人格强化写入', async () => {
+  it('不把失败回退文本或原始转录写入 episodic reflection persona 或 person-state', async () => {
     const fixture = createRuntimeFixture()
     const failureText = 'provider timeout after 15000ms'
     const rawTranscript = 'raw transcript: user asked for a direct answer; no summary was approved'
@@ -299,13 +300,18 @@ describe('runtime memory closure', () => {
           },
         },
       }),
-    }))
+    } as any))
 
-    const reinforcementWrites = fixture.appendPersonaReinforcementEvents.mock.calls
-    expect(reinforcementWrites).toEqual([])
-    expect(JSON.stringify(reinforcementWrites)).not.toContain(failureText)
-    expect(JSON.stringify(reinforcementWrites)).not.toContain(rawTranscript)
-    expect(JSON.stringify(fixture.appendEpisodicEvents.mock.calls)).toContain(failureText)
+    expect(fixture.appendEpisodicEvents).not.toHaveBeenCalled()
+    expect(fixture.upsertMemoryReflections).not.toHaveBeenCalled()
+    expect(fixture.appendPersonaReinforcementEvents).not.toHaveBeenCalled()
+    expect(fixture.appendPersonStateEvolutionEntries).not.toHaveBeenCalled()
+    expect(fixture.upsertMindHead).not.toHaveBeenCalled()
+    expect(fixture.appendMindTurnEvents).not.toHaveBeenCalled()
+    for (const writes of allWrittenValues(fixture)) {
+      expectNoValue(writes, failureText)
+      expectNoValue(writes, rawTranscript)
+    }
   })
 
   it('不把情绪或具身 ledger 自动包装成长期事件和确认反思', async () => {

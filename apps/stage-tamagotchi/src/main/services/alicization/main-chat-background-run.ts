@@ -668,6 +668,7 @@ export async function runAlicizationMainChatBackground(
           fullText: providerStep.fullText,
           visibleReplyExecution: settled.visibleReplyExecution,
           realization: settled.realization,
+          memoryEvidence: settled.memoryEvidence,
         })
         currentVisibleReplyExecution = settled.visibleReplyExecution
         return {
@@ -787,9 +788,11 @@ export async function runAlicizationMainChatBackground(
         try {
           const visibleReplyCommitted = status === 'completed' && runtime.replyCommitted
           const assistantText = runtime.committedDelivery?.artifact.visibleText ?? ''
+          const memoryEvidence = runtime.committedDelivery?.artifact.memoryEvidence ?? null
           const settledIntent = visibleReplyCommitted
             ? context?.prepared.resolveMemoryWriteIntent?.({
                 assistantText,
+                ...(memoryEvidence ? { memoryEvidence } : {}),
               })
             : undefined
           if (settledIntent)

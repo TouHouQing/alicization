@@ -328,6 +328,66 @@ describe('runtime visual presence state', () => {
     expect(emitVisualPresenceState).toHaveBeenCalledWith('default', state)
   })
 
+  it('stops visual and mind-head persistence without caching or emitting after abort', async () => {
+    const controller = new AbortController()
+    const mindHeadGate = (() => {
+      let release = () => {}
+      const wait = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      return { release, wait }
+    })()
+    const upsertMindHead = vi.fn(async () => {
+      await mindHeadGate.wait
+    })
+    const setMetaValue = vi.fn(async () => {})
+    const emitVisualPresenceState = vi.fn()
+    const visualPresenceStateByCard = new Map<string, AlicizationVisualPresenceStateSnapshot>()
+    const runtime = createAlicizationRuntimeVisualPresenceState({
+      now: () => 5_000,
+      normalizeCardId: raw => String(raw ?? '').trim() || 'default',
+      getActiveCardId: () => 'default',
+      withCardScope: async (_cardId, task) => await task(),
+      alicizationDb: {
+        getMetaValue: async () => undefined,
+        setMetaValue,
+        upsertMindHead,
+      },
+      perceptionStateByCard: new Map(),
+      visualPresenceStateByCard,
+      visualPresenceCapturePersistMetaByCard: new Map(),
+      createDefaultPerceptionState: now => ({ lastObservedAt: now } as any),
+      normalizePerceptionState: raw => raw as any,
+      createDefaultVisualPresenceState: createVisualPresenceState,
+      normalizeVisualPresenceState: raw => raw as AlicizationVisualPresenceStateSnapshot,
+      buildVisualPresenceCapturePersistFingerprint: state => `fp:${state.updatedAt}`,
+      emitVisualPresenceState,
+      perceptionMetaKey: 'perception_state_v1',
+      visualPresenceMetaKey: 'visual_presence_state_v1',
+    })
+
+    const pending = runtime.persistVisualPresenceState(
+      'default',
+      createVisualPresenceState(4_800),
+      { signal: controller.signal },
+    )
+    await vi.waitFor(() => {
+      expect(upsertMindHead).toHaveBeenCalledTimes(1)
+    })
+
+    controller.abort(new DOMException('Turn was suspended', 'AbortError'))
+    mindHeadGate.release()
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
+    expect(upsertMindHead).toHaveBeenCalledTimes(1)
+    expect((upsertMindHead.mock.calls as any[][])[0]?.[3]).toEqual({
+      signal: controller.signal,
+    })
+    expect(setMetaValue).not.toHaveBeenCalled()
+    expect(emitVisualPresenceState).not.toHaveBeenCalled()
+    expect(visualPresenceStateByCard.has('default')).toBe(false)
+  })
+
   it('persists body-authorized measured-return presence when emotional-kernel continuity is the strongest surviving authority', async () => {
     const meta = new Map<string, string>()
     const upsertMindHead = vi.fn(async (cardId: string, key: string, value: unknown) => {
@@ -556,6 +616,51 @@ describe('runtime visual presence state', () => {
     expect(ensured).toEqual(state)
     expect(setMetaValue).not.toHaveBeenCalled()
     expect(emitVisualPresenceState).not.toHaveBeenCalled()
+  })
+
+  it('does not update visual presence caches when restore is aborted while storage is pending', async () => {
+    let releaseRead = () => {}
+    const pendingRead = new Promise<void>((resolve) => {
+      releaseRead = resolve
+    })
+    const visualPresenceStateByCard = new Map()
+    const visualPresenceCapturePersistMetaByCard = new Map()
+    const abortController = new AbortController()
+    const runtime = createAlicizationRuntimeVisualPresenceState({
+      now: () => 9_000,
+      normalizeCardId: raw => String(raw ?? '').trim() || 'default',
+      getActiveCardId: () => 'default',
+      withCardScope: async (_cardId, task) => await task(),
+      alicizationDb: {
+        getMetaValue: async () => {
+          await pendingRead
+          return JSON.stringify(createVisualPresenceState(8_000))
+        },
+        setMetaValue: async () => {},
+        upsertMindHead: async () => {},
+      },
+      perceptionStateByCard: new Map(),
+      visualPresenceStateByCard,
+      visualPresenceCapturePersistMetaByCard,
+      createDefaultPerceptionState: now => ({ lastObservedAt: now } as any),
+      normalizePerceptionState: raw => raw as any,
+      createDefaultVisualPresenceState: createVisualPresenceState,
+      normalizeVisualPresenceState: raw => raw as AlicizationVisualPresenceStateSnapshot,
+      buildVisualPresenceCapturePersistFingerprint: state => `fp:${state.updatedAt}`,
+      emitVisualPresenceState: () => {},
+      perceptionMetaKey: 'perception_state_v1',
+      visualPresenceMetaKey: 'visual_presence_state_v1',
+    })
+
+    const pendingRestore = runtime.ensureVisualPresenceState('default', {
+      signal: abortController.signal,
+    })
+    abortController.abort(new Error('visual restore aborted'))
+    releaseRead()
+
+    await expect(pendingRestore).rejects.toThrow('visual restore aborted')
+    expect(visualPresenceStateByCard.size).toBe(0)
+    expect(visualPresenceCapturePersistMetaByCard.size).toBe(0)
   })
 
   it('restores cross-card perception and visual presence through scoped reads', async () => {

@@ -35,6 +35,7 @@ export const alicizationRuntimeEventTypes = [
   'memory.write.proposed',
   'memory.write.accepted',
   'memory.write.rejected',
+  'memory.owner.settled',
   'memory.tombstoned',
   'provider.failed',
   'provider.retry.scheduled',

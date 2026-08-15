@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { buildMemorySituationCompetition } from './memory-situation-competition'
 
 describe('memory-situation-competition', () => {
-  it('merges event graph, facts, procedure, conversation, and consolidation surfaces into one candidate competition', () => {
+  it('merges event graph, facts, procedure, episodes, and consolidations into one candidate competition', () => {
     const result = buildMemorySituationCompetition({
       queryTexts: ['继续按之前 patch verify 的 runtime repair 流程做完'],
       eventGraphCandidates: {
@@ -77,14 +77,6 @@ describe('memory-situation-competition', () => {
         tags: ['runtime', 'repair'],
         confidence: 0.72,
       }] as any,
-      recalledConversationHistory: [{
-        turnId: 'turn-1',
-        sessionId: 'session-1',
-        userText: '继续按之前那样做完',
-        assistantText: '我还是先 patch 再 verify。',
-        createdAt: Date.now(),
-        provenance: 'reconstructed',
-      }],
       consolidatedMemories: [{
         id: 'cons-1',
         kind: 'procedural',
@@ -111,8 +103,19 @@ describe('memory-situation-competition', () => {
       status: 'selected',
     }))
     expect(result.rejected.some(item => item.sourceKinds.includes('fact'))).toBe(true)
-    expect(result.rejected.some(item => item.sourceKinds.includes('conversation-turn'))).toBe(true)
+    expect(result.rejected.some(item => item.sourceKinds.includes('procedure'))).toBe(true)
+    expect(result.rejected.some(item => item.sourceKinds.includes('episodic-event'))).toBe(true)
     expect(result.rejected.every(item => item.suppressionReasons.some(reason => reason.startsWith('lost-to:')))).toBe(true)
+    expect(result.suppressed).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        candidateId: 'consolidation:cons-1',
+        sourceKinds: expect.arrayContaining(['consolidation', 'procedure']),
+        suppressionReasons: expect.arrayContaining([
+          'wrong-era:memory-situation:graph-1',
+          'lost-to:memory-situation:graph-1',
+        ]),
+      }),
+    ]))
   })
 
   it('marks plausible high-latency memories as delayed and weak memories as unresolved', () => {
@@ -160,7 +163,7 @@ describe('memory-situation-competition', () => {
           evidenceSummary: null,
         }, {
           candidateId: 'memory-situation:weak',
-          sourceKinds: ['conversation-turn'],
+          sourceKinds: ['episodic-event'],
           situationKind: 'mixed',
           eraKey: null,
           relationshipArcKey: null,
@@ -419,7 +422,7 @@ describe('memory-situation-competition', () => {
           evidenceSummary: 'source=execution-result | provenance=observed',
         }, {
           candidateId: 'memory-situation:template-wording',
-          sourceKinds: ['event-graph', 'conversation-turn'],
+          sourceKinds: ['event-graph', 'episodic-event'],
           situationKind: 'mixed',
           eraKey: null,
           relationshipArcKey: null,
@@ -434,7 +437,7 @@ describe('memory-situation-competition', () => {
           status: 'unresolved',
           statusReason: null,
           summary: 'legacy prose marker',
-          evidenceSummary: 'unverified conversation wording',
+          evidenceSummary: 'unverified candidate wording',
         }],
         selected: [],
         rejected: [],

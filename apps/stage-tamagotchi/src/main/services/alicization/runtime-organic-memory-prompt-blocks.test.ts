@@ -87,7 +87,6 @@ describe('runtime-organic-memory-prompt-blocks', () => {
         selectedWindowIds: [],
         selectedProcedureIds: ['procedure-1'],
         selectedEpisodeIds: ['episode-1'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['先给对方一点空间。'],
         selectedEras: [{
           id: 'era-1',
@@ -122,7 +121,6 @@ describe('runtime-organic-memory-prompt-blocks', () => {
         selectedWindowIds: [],
         selectedProceduralIds: ['procedure-1'],
         selectedEpisodeIds: ['episode-1'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['先给对方一点空间。'],
         opening: 'drafted opening candidate',
         certainty: 'approximate',

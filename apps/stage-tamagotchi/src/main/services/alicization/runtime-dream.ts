@@ -116,7 +116,6 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     appendAuditLog,
     buildAgentRuntimeAuditSnapshot,
     hydrateAgentTurnFromCurrentCardState,
-    truncateForDream,
     clampSoulDelta,
     normalizeOrganicMemoryItemText,
     normalizeOrganicMemoryItemArray,
@@ -129,54 +128,91 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
     recoverProactiveRhythmAfterDream,
     clampNeed,
     dreamMaxTurns,
-    dreamMaxCharsPerAssistantTurn,
-    dreamMaxCharsPerUserTurn,
     dreamMaxTotalChars,
   } = options
 
   async function runDreamForCurrentCard(reason = 'manual'): Promise<{ processed: boolean, skippedReason?: string }> {
     const cardId = getActiveCardId()
     const state = await ensureSubconsciousState(cardId)
-    const rawTurns = await getAlicizationDb().listConversationTurnsSince(state.lastDreamedAt, { limit: 2_000 })
-    if (!rawTurns.length) {
+    const listedConsolidations = await getAlicizationDb().listMemoryConsolidations?.(100).catch(() => [])
+    const newConsolidations = (Array.isArray(listedConsolidations) ? listedConsolidations : [])
+      .filter((record: AlicizationMemoryConsolidationRecord) => (
+        Number.isFinite(record.updatedAt)
+        && record.updatedAt > state.lastDreamedAt
+        && Boolean(sanitizeHumanlikeMemoryText(record.summary, 320))
+      ))
+    if (newConsolidations.length === 0) {
       return {
         processed: false,
-        skippedReason: 'no-new-turns',
+        skippedReason: 'no-new-consolidations',
       }
     }
 
-    const sampledDescending = rawTurns.slice(0, dreamMaxTurns)
-    const sampledAscending = [...sampledDescending].reverse()
+    const sampledAscending = [...newConsolidations]
+      .slice(0, Math.max(1, dreamMaxTurns))
+      .sort((left, right) => (
+        left.periodEndedAt - right.periodEndedAt
+        || left.updatedAt - right.updatedAt
+        || left.id.localeCompare(right.id)
+      ))
 
     let totalChars = 0
     let sampledCount = 0
     let truncatedByChars = false
-    const serializedTurns: string[] = []
+    const serializedConsolidationEvidence: string[] = []
     let firstSampledAt: number | null = null
     let lastSampledAt: number | null = null
+    const sourceConsolidations: AlicizationMemoryConsolidationRecord[] = []
 
-    for (const row of sampledAscending) {
-      const userText = truncateForDream(row.userText, dreamMaxCharsPerUserTurn)
-      const assistantText = truncateForDream(row.assistantText, dreamMaxCharsPerAssistantTurn)
-      const rowSerialized = [
-        `[${new Date(row.createdAt).toISOString()}]`,
-        userText ? `U: ${userText}` : '',
-        assistantText ? `A: ${assistantText}` : '',
-      ].filter(Boolean).join('\n')
+    for (const record of sampledAscending) {
+      const recordSerialized = JSON.stringify({
+        version: 'alicization-dream-consolidation-evidence-v1',
+        id: sanitizeHumanlikeMemoryText(record.id, 160),
+        kind: record.kind,
+        facet: record.facet ?? null,
+        periodKey: sanitizeHumanlikeMemoryText(record.periodKey, 96),
+        periodStartedAt: record.periodStartedAt,
+        periodEndedAt: record.periodEndedAt,
+        summary: sanitizeHumanlikeMemoryText(record.summary, 320),
+        lesson: sanitizeHumanlikeMemoryText(record.lesson, 220) || null,
+        cues: record.cues
+          .slice(0, 8)
+          .map((cue: string) => sanitizeHumanlikeMemoryText(cue, 120))
+          .filter(Boolean),
+        confidence: record.confidence,
+        dominantProvenance: record.dominantProvenance,
+        derivedEventIds: record.derivedEventIds
+          .slice(0, 16)
+          .map((eventId: string) => sanitizeHumanlikeMemoryText(eventId, 160))
+          .filter(Boolean),
+        updatedAt: record.updatedAt,
+      })
 
-      if (totalChars + rowSerialized.length > dreamMaxTotalChars) {
+      if (totalChars + recordSerialized.length > dreamMaxTotalChars) {
         truncatedByChars = true
         break
       }
 
-      totalChars += rowSerialized.length
-      serializedTurns.push(rowSerialized)
+      totalChars += recordSerialized.length
+      serializedConsolidationEvidence.push(recordSerialized)
+      sourceConsolidations.push(record)
       sampledCount += 1
-      firstSampledAt = firstSampledAt == null ? row.createdAt : Math.min(firstSampledAt, row.createdAt)
-      lastSampledAt = lastSampledAt == null ? row.createdAt : Math.max(lastSampledAt, row.createdAt)
+      firstSampledAt = firstSampledAt == null
+        ? record.periodStartedAt
+        : Math.min(firstSampledAt, record.periodStartedAt)
+      lastSampledAt = lastSampledAt == null
+        ? record.periodEndedAt
+        : Math.max(lastSampledAt, record.periodEndedAt)
     }
 
-    if (rawTurns.length > sampledCount || truncatedByChars) {
+    if (sourceConsolidations.length === 0) {
+      return {
+        processed: false,
+        skippedReason: 'no-usable-consolidations',
+      }
+    }
+
+    if (newConsolidations.length > sampledCount || truncatedByChars) {
       await appendAuditLog({
         level: 'notice',
         category: 'alicization.dream',
@@ -184,10 +220,10 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
         message: 'Dream context was truncated to hard safety caps.',
         payload: {
           reason,
-          rawTurnCount: rawTurns.length,
-          sampledTurnCount: sampledCount,
-          discardedTurnCount: Math.max(0, rawTurns.length - sampledCount),
-          maxTurns: dreamMaxTurns,
+          sourceConsolidationCount: newConsolidations.length,
+          sampledConsolidationCount: sampledCount,
+          discardedConsolidationCount: Math.max(0, newConsolidations.length - sampledCount),
+          maxConsolidations: dreamMaxTurns,
           maxTotalChars: dreamMaxTotalChars,
           totalChars,
           truncatedByChars,
@@ -208,7 +244,7 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
       cardId: dreamCardId,
     })
     const llmMetabolism = await generateDreamMetabolismWithGateway({
-      serializedTurns,
+      serializedTurns: serializedConsolidationEvidence,
       personality: dreamSoul.frontmatter.personality,
       hostAttitude: dreamSoul.frontmatter.host_attitude,
       coreIncarnation: dreamSoul.frontmatter.core_incarnation,
@@ -226,7 +262,7 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
         message: 'Dream metabolism was skipped because the Provider returned no valid structured result.',
         payload: {
           reason,
-          sampledTurns: sampledCount,
+          sampledConsolidations: sampledCount,
           agentRuntime: buildAgentRuntimeAuditSnapshot(dreamAgentTurn),
         },
       })
@@ -275,12 +311,12 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
       }
     }
 
-    if (serializedTurns.length > 0) {
+    if (serializedConsolidationEvidence.length > 0) {
       await appendAuditLog({
         level: 'notice',
         category: 'alicization.dream',
         action: 'metabolism-generated',
-        message: 'Dream metabolism generated from bounded context.',
+        message: 'Dream metabolism generated from bounded long-term consolidation context.',
         payload: {
           reason,
           source: 'llm',
@@ -292,7 +328,7 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
           explicitDemotionCount: explicitDemotedThoughts.length,
           newSedimentCount: newSedimentFragments.length,
           shatteringEvent: shatteringEventText || null,
-          sampledTurns: sampledCount,
+          sampledConsolidations: sampledCount,
           agentRuntime: buildAgentRuntimeAuditSnapshot(dreamAgentTurn),
           dreamHydrationSnapshot: (() => {
             const snapshot = dreamAgentTurn.getSessionSnapshot()
@@ -419,12 +455,11 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
         },
       })
     })
-    const latestConsolidations = await getAlicizationDb().listMemoryConsolidations?.(8).catch(() => [])
-    if (Array.isArray(latestConsolidations) && latestConsolidations.length > 0) {
-      let autobiographicalSourceConsolidations = latestConsolidations
+    if (sourceConsolidations.length > 0) {
+      let autobiographicalSourceConsolidations = sourceConsolidations
       const refinedConsolidations = await generateMemoryConsolidationRefinementWithGateway({
-        serializedTurns,
-        consolidations: latestConsolidations,
+        serializedTurns: serializedConsolidationEvidence,
+        consolidations: sourceConsolidations,
         hostAttitude,
         coreIncarnation: nextCoreIncarnation,
         agentTurn: dreamAgentTurn,
@@ -433,7 +468,7 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
         },
       }).catch(() => null)
       if (refinedConsolidations && refinedConsolidations.length > 0) {
-        autobiographicalSourceConsolidations = latestConsolidations.map((record: AlicizationMemoryConsolidationRecord) => {
+        autobiographicalSourceConsolidations = sourceConsolidations.map((record: AlicizationMemoryConsolidationRecord) => {
           const refined = refinedConsolidations.find(item => item.id === record.id)
           if (!refined)
             return record
@@ -454,7 +489,7 @@ export function createAlicizationDreamRuntime(options: CreateAlicizationDreamRun
       }
       if (firstSampledAt != null && lastSampledAt != null) {
         const autobiographicalSummaries = await generateDreamAutobiographicalSummariesWithGateway({
-          serializedTurns,
+          serializedTurns: serializedConsolidationEvidence,
           consolidations: autobiographicalSourceConsolidations,
           hostAttitude,
           coreIncarnation: nextCoreIncarnation,

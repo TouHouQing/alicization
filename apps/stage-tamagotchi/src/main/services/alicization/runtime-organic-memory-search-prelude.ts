@@ -66,6 +66,7 @@ export function deriveSessionMirrorRecollectionIntent(
     sanitizePromptText(recollection?.foreground, 160),
     160,
     '',
+    { origin: 'internal-structured-fact' },
   )
   if (recollection?.afterthoughtState !== 'ripe' || !foreground)
     return null
@@ -75,7 +76,6 @@ export function deriveSessionMirrorRecollectionIntent(
   const mode = recollection.mode ?? 'experience-pattern'
   const procedural = mode === 'execution-procedure' || mode === 'experience-pattern'
   const relationship = mode === 'relationship-history'
-  const conversational = mode === 'conversation-history'
   const confidence = recollection.confidence ?? 0.8
   const primaryFacet = relationship
     ? 'relationship-era' as const
@@ -87,7 +87,6 @@ export function deriveSessionMirrorRecollectionIntent(
     mode,
     temporalFocus: 'experience-matched',
     searchEpisodes: true,
-    searchConversations: relationship || conversational,
     searchProceduralExperience: procedural,
     queryHints: [foreground],
     rationale: 'session-mirror-afterthought',
@@ -173,7 +172,6 @@ export function deriveSceneTriggeredRecollectionIntent(input: {
     mode,
     temporalFocus: 'experience-matched',
     searchEpisodes: true,
-    searchConversations: false,
     searchProceduralExperience: procedureTriggered,
     queryHints,
     rationale: evidence,

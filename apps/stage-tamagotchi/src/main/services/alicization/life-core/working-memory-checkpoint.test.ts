@@ -69,10 +69,22 @@ describe('working memory checkpoint', () => {
       kind: 'correction',
       summary: '不要让固定模板干扰人格回复',
       reason: 'candidate:correction',
+      evidenceSnippets: ['不要让固定模板干扰人格回复'],
       salience: 0.9,
       sensitivity: 'personal',
       confidence: 0.86,
       allowTraining: false,
+      memoryEvidence: {
+        version: 'working-memory-long-term-evidence-v1',
+        source: 'explicit-structured-memory-evidence',
+        kind: 'correction',
+        summary: '不要让固定模板干扰人格回复',
+        reason: 'candidate:correction',
+        evidenceSnippets: ['不要让固定模板干扰人格回复'],
+        salience: 0.9,
+        sensitivity: 'personal',
+        confidence: 0.86,
+      },
     }]
 
     const parsed = parseWorkingMemoryCheckpoint(

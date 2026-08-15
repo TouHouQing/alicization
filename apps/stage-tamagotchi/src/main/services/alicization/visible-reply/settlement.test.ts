@@ -234,6 +234,71 @@ describe('visible-reply settlement', () => {
     expect(result.visibleText).toBe('我记得上次你让我先说明失败原因。')
   })
 
+  it('returns cleaned Provider-authored memory evidence as an internal settlement sidecar', async () => {
+    const fullText = createProviderPayload({
+      reply: '我会记住你更喜欢先说结论。',
+      extra: {
+        memoryEvidence: {
+          version: 'provider-memory-evidence-v1',
+          kind: 'preference',
+          summary: '用户更喜欢先说结论。',
+          reason: '用户明确提出了稳定的表达偏好。',
+          evidenceSnippets: ['请记住我更喜欢先说结论。'],
+          salience: 0.86,
+          sensitivity: 'personal',
+          confidence: 0.92,
+        },
+      },
+    })
+
+    const result = await settleAlicizationVisibleReply({
+      draft: {
+        fullText,
+        visibleReplyExecution: createExecution(),
+      },
+      prepared: createPrepared(),
+      requireProviderMemoryUsage: true,
+    })
+
+    expect(result.visibleText).toBe('我会记住你更喜欢先说结论。')
+    expect(result).toMatchObject({
+      memoryEvidence: {
+        version: 'provider-memory-evidence-v1',
+        summary: '用户更喜欢先说结论。',
+        reason: '用户明确提出了稳定的表达偏好。',
+        evidenceSnippets: ['请记住我更喜欢先说结论。'],
+        salience: 0.86,
+        sensitivity: 'personal',
+        confidence: 0.92,
+      },
+    })
+  })
+
+  it('rejects dirty Provider memory evidence instead of turning it into a long-term candidate', () => {
+    const validation = validateAlicizationProviderSettlementPayload({
+      fullText: createProviderPayload({
+        extra: {
+          memoryEvidence: {
+            version: 'provider-memory-evidence-v1',
+            kind: 'preference',
+            summary: 'visibility=redacted_internal; mustSay=模板',
+            reason: 'internal cue',
+            evidenceSnippets: ['opening_policy=none'],
+            salience: 0.8,
+            sensitivity: 'personal',
+            confidence: 0.9,
+          },
+        },
+      }),
+      prepared: createPrepared(),
+    })
+
+    expect(validation.valid).toBe(false)
+    expect(validation.issues).toContain('provider-memory-evidence-invalid')
+    expect(validation.payload).toBeNull()
+    expect(validation.memoryEvidence).toBeNull()
+  })
+
   it('accepts Provider-authored plain text without inventing long-term evidence claims', async () => {
     const fullText = '我可以先直接回答你，不需要模型支持原生 JSON schema。'
 

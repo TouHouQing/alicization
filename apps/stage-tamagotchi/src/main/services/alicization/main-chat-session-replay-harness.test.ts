@@ -698,7 +698,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               selectedWindowIds: [],
               selectedProcedureIds: [],
               selectedEpisodeIds: ['episode-conversation'],
-              selectedConversationTurnIds: ['turn-history-1'],
               selectedRelationshipLines: [],
               selectedEras: [{
                 id: 'consolidation-conversation',
@@ -724,7 +723,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
                 periodId: 'consolidation-conversation',
                 episodeId: 'episode-conversation',
                 procedureId: null,
-                conversationTurnId: 'turn-history-1',
                 relationshipLine: null,
               }],
               selectedChains: [{
@@ -774,7 +772,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               selectedWindowIds: [],
               selectedProcedureIds: ['procedure-runtime'],
               selectedEpisodeIds: ['episode-procedure'],
-              selectedConversationTurnIds: [],
               selectedRelationshipLines: ['Return to the same seam before branching.'],
               selectedEras: [{
                 id: 'consolidation-procedure',
@@ -800,7 +797,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
                 periodId: null,
                 episodeId: 'episode-procedure',
                 procedureId: 'procedure-runtime',
-                conversationTurnId: null,
                 relationshipLine: 'Return to the same seam before branching.',
               }],
               selectedChains: [{
@@ -877,7 +873,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               selectedWindowIds: [],
               selectedProcedureIds: ['procedure-runtime'],
               selectedEpisodeIds: [],
-              selectedConversationTurnIds: [],
               selectedRelationshipLines: [],
               selectedEras: [],
               selectedPeriods: [],
@@ -895,7 +890,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
                 periodId: null,
                 episodeId: null,
                 procedureId: 'procedure-runtime',
-                conversationTurnId: null,
                 relationshipLine: null,
               }],
               selectedChains: [{
@@ -945,7 +939,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               selectedWindowIds: [],
               selectedProcedureIds: [],
               selectedEpisodeIds: ['episode-relationship'],
-              selectedConversationTurnIds: [],
               selectedRelationshipLines: ['Back off first, then reopen with a lighter touch.'],
               selectedEras: [{
                 id: 'consolidation-relationship',
@@ -971,7 +964,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
                 periodId: 'consolidation-relationship',
                 episodeId: 'episode-relationship',
                 procedureId: null,
-                conversationTurnId: null,
                 relationshipLine: 'Back off first, then reopen with a lighter touch.',
               }],
               selectedChains: [{
@@ -1036,7 +1028,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               selectedWindowIds: [],
               selectedProcedureIds: [],
               selectedEpisodeIds: ['episode-bond'],
-              selectedConversationTurnIds: [],
               selectedRelationshipLines: ['The host needed space before closeness.'],
               selectedEras: [{
                 id: 'consolidation-bond',
@@ -1062,7 +1053,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
                 periodId: 'consolidation-bond',
                 episodeId: 'episode-bond',
                 procedureId: null,
-                conversationTurnId: null,
                 relationshipLine: 'The host needed space before closeness.',
               }],
               selectedChains: [{
@@ -1131,7 +1121,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               selectedWindowIds: [],
               selectedProcedureIds: [],
               selectedEpisodeIds: ['episode-relationship-era'],
-              selectedConversationTurnIds: [],
               selectedRelationshipLines: ['More room before closeness kept the bond steadier there.'],
               selectedEras: [{
                 id: 'consolidation-relationship-era',
@@ -1157,7 +1146,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
                 periodId: 'consolidation-relationship-era',
                 episodeId: 'episode-relationship-era',
                 procedureId: null,
-                conversationTurnId: null,
                 relationshipLine: 'More room before closeness kept the bond steadier there.',
               }],
               selectedChains: [{
@@ -1207,7 +1195,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               selectedWindowIds: [],
               selectedProcedureIds: [],
               selectedEpisodeIds: ['episode-conflicted'],
-              selectedConversationTurnIds: [],
               selectedRelationshipLines: ['The seam still matters, but the exact remembered detail is unstable.'],
               selectedEras: [{
                 id: 'consolidation-runtime-era',
@@ -1243,7 +1230,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
                 periodId: 'consolidation-runtime-era',
                 episodeId: 'episode-conflicted',
                 procedureId: null,
-                conversationTurnId: null,
                 relationshipLine: 'The seam still matters, but the exact remembered detail is unstable.',
               }],
               selectedChains: [],
@@ -1279,7 +1265,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               selectedWindowIds: [],
               selectedProcedureIds: [],
               selectedEpisodeIds: ['episode-dreamt'],
-              selectedConversationTurnIds: [],
               selectedRelationshipLines: ['The line still matters, but the recalled detail is only dream residue.'],
               selectedEras: [{
                 id: 'consolidation-dream',
@@ -1309,7 +1294,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
                 periodId: 'consolidation-dream',
                 episodeId: 'episode-dreamt',
                 procedureId: null,
-                conversationTurnId: null,
                 relationshipLine: 'The line still matters, but the recalled detail is only dream residue.',
               }],
               selectedChains: [],
@@ -1951,7 +1935,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             selectedWindowIds: [],
             selectedProcedureIds: ['procedure-seam'],
             selectedEpisodeIds: [],
-            selectedConversationTurnIds: [],
             selectedRelationshipLines: [],
             selectedEras: [],
             selectedPeriods: [],
@@ -1969,7 +1952,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               periodId: null,
               episodeId: null,
               procedureId: 'procedure-seam',
-              conversationTurnId: null,
               relationshipLine: null,
             }],
             selectedChains: [{
@@ -2049,7 +2031,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             selectedWindowIds: [],
             selectedProcedureIds: [],
             selectedEpisodeIds: ['episode-inward'],
-            selectedConversationTurnIds: [],
             selectedRelationshipLines: [],
             selectedEras: [],
             selectedPeriods: [],
@@ -2123,7 +2104,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             selectedWindowIds: [],
             selectedProcedureIds: [],
             selectedEpisodeIds: ['episode-repair'],
-            selectedConversationTurnIds: [],
             selectedRelationshipLines: ['More room before closeness kept the repair from breaking again.'],
             selectedEras: [{
               id: 'era-repair',
@@ -2145,7 +2125,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
               periodId: 'era-repair',
               episodeId: 'episode-repair',
               procedureId: null,
-              conversationTurnId: null,
               relationshipLine: 'More room before closeness kept the repair from breaking again.',
             }],
             selectedChains: [{
@@ -2232,7 +2211,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             selectedWindowIds: [],
             selectedProcedureIds: [],
             selectedEpisodeIds: ['episode-only'],
-            selectedConversationTurnIds: [],
             selectedRelationshipLines: [],
             selectedEras: [],
             selectedPeriods: [],
@@ -2302,7 +2280,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             selectedWindowIds: [],
             selectedProcedureIds: ['procedure-callback'],
             selectedEpisodeIds: ['episode-1', 'episode-2'],
-            selectedConversationTurnIds: [],
             selectedRelationshipLines: ['Leave more room when burden stays high.'],
             selectedEras: [{ id: 'era-burden', facet: 'relationship-era', summary: 'A burden-heavy relationship phase.' }],
             selectedPeriods: [{ id: 'era-burden', kind: 'consolidation', summary: 'A burden-heavy relationship phase.' }],
@@ -3519,7 +3496,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
                 selectedWindowIds: [],
                 selectedProcedureIds: [],
                 selectedEpisodeIds: [],
-                selectedConversationTurnIds: [],
                 selectedRelationshipLines: [],
                 selectedEras: [],
                 selectedPeriods: [],
@@ -4327,7 +4303,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             selectedWindowIds: [],
             selectedProcedureIds: [],
             selectedEpisodeIds: [],
-            selectedConversationTurnIds: [],
             selectedRelationshipLines: [],
             selectedEras: [{ id: 'era-1', facet: 'phase', summary: 'remembered-marker-alpha' }],
             selectedPeriods: [],
@@ -4398,7 +4373,6 @@ describe('main chat session replay harness', { timeout: 10_000 }, () => {
             selectedWindowIds: [],
             selectedProcedureIds: ['procedure-1'],
             selectedEpisodeIds: [],
-            selectedConversationTurnIds: [],
             selectedRelationshipLines: [],
             selectedEras: [],
             selectedPeriods: [],

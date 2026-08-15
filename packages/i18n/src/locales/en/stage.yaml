@@ -11,12 +11,15 @@ chat:
     epoch1-strict: Live external data is unavailable in the current restricted mode.
     structured-contract: 'Model output format was invalid, so this turn was blocked.'
     stream-failure: Reply stream failed before completion.
+    provider-continuation-timeout: The tool completed, but the Provider timed out while producing the final reply ({provider} / {model}).
+    provider-continuation-incomplete: The tool completed, but the Provider did not return a final reply.
     local-runtime-unavailable: The local model runtime is unavailable this turn (for example Ollama on `11434` or LM Studio on `1234`).
-    stream-timeout: 'Timeout: this turn waited too long for the model response.'
+    stream-timeout: 'Provider timed out before the first response ({provider} / {model}).'
     provider-auth: Provider authentication failed (the API key or model permission is invalid).
     provider-network: The connection to the model service is unstable right now.
     provider-config: 'Provider or model configuration is incomplete: for example `provider`, `model`, or `baseUrl` is missing.'
     provider-request: 'Provider request failed ({provider} / {model}, HTTP {status}). Upstream returned {code}: {message}. Check whether the selected model supports this provider, or switch models.'
+    tool-execution: 'Tool execution failed ({tool}, {code}): {message}.'
     unsupported-tools: The current model doesn't support the tool calls needed for this turn.
     low-obedience-host-denied: Permission was not granted, so the action was not executed.
     low-obedience-system-denied: The system blocked it.

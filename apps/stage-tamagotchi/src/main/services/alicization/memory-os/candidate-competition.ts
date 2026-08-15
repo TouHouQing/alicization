@@ -20,7 +20,6 @@ function countSelectedMemoryItems(context: OrganicMemoryPromptContext) {
     ...(deliberation.selectedWindowIds ?? []),
     ...(deliberation.selectedProcedureIds ?? []),
     ...(deliberation.selectedEpisodeIds ?? []),
-    ...(deliberation.selectedConversationTurnIds ?? []),
     ...(deliberation.selectedBundles ?? []).map(item => item.id),
   ].filter(Boolean).length
 }
@@ -80,7 +79,6 @@ export function deriveAlicizationMemoryCandidateCompetition(input: {
     ?? input.context.retrievedFacts.length
     + input.context.recalledFragments.length
     + (input.context.recalledEpisodes?.length ?? 0)
-    + (input.context.recalledConversationHistory?.length ?? 0)
     + (input.context.recollectedWindows?.length ?? 0)
     + (input.context.consolidatedMemories?.length ?? 0)
     + (input.context.proceduralMemories?.length ?? 0)

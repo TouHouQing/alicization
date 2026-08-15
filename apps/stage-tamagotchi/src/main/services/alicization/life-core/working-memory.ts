@@ -19,6 +19,20 @@ export interface WorkingMemoryFailureSurface {
   allowTraining: false
 }
 
+export const workingMemoryLongTermEvidenceVersion = 'working-memory-long-term-evidence-v1' as const
+
+export interface WorkingMemoryLongTermEvidence {
+  version: typeof workingMemoryLongTermEvidenceVersion
+  source: 'explicit-structured-memory-evidence'
+  kind: WorkingMemoryLongTermCandidate['kind']
+  summary: string
+  reason: string
+  evidenceSnippets: string[]
+  salience: number
+  sensitivity: WorkingMemoryLongTermCandidate['sensitivity']
+  confidence: number
+}
+
 export interface WorkingMemoryTurn {
   turnId: string
   role: WorkingMemoryTurnRole
@@ -30,6 +44,7 @@ export interface WorkingMemoryTurn {
   origin?: AlicizationVisibleArtifactOrigin | null
   learningPolicy?: AlicizationVisibleArtifactLearningPolicy | null
   failureSurface?: WorkingMemoryFailureSurface | null
+  memoryEvidence?: WorkingMemoryLongTermEvidence | null
   contaminated?: boolean
   importance: number
 }
@@ -107,6 +122,8 @@ export interface WorkingMemoryLongTermCandidate {
   sensitivity: 'public' | 'personal' | 'private' | 'secret'
   confidence: number
   allowTraining: boolean
+  evidenceSnippets?: string[]
+  memoryEvidence?: WorkingMemoryLongTermEvidence | null
 }
 
 export interface WorkingMemoryCompressionState {
@@ -159,6 +176,52 @@ export function clampWorkingMemoryScore(value: unknown) {
   return Math.max(0, Math.min(1, numeric))
 }
 
+export function normalizeWorkingMemoryLongTermEvidence(
+  raw: unknown,
+): WorkingMemoryLongTermEvidence | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+    return null
+  const record = raw as Record<string, unknown>
+  if (
+    record.version !== workingMemoryLongTermEvidenceVersion
+    || record.source !== 'explicit-structured-memory-evidence'
+  ) {
+    return null
+  }
+  const kind = record.kind === 'episode'
+    || record.kind === 'preference'
+    || record.kind === 'relationship'
+    || record.kind === 'procedure'
+    || record.kind === 'correction'
+    ? record.kind
+    : null
+  const sensitivity = record.sensitivity === 'public'
+    || record.sensitivity === 'personal'
+    || record.sensitivity === 'private'
+    || record.sensitivity === 'secret'
+    ? record.sensitivity
+    : null
+  const summary = normalizeWorkingMemoryText(record.summary, 260)
+  const reason = normalizeWorkingMemoryText(record.reason, 260)
+  const evidenceSnippets = Array.isArray(record.evidenceSnippets)
+    ? uniqueWorkingMemoryTexts(record.evidenceSnippets.map(String), 8, 260)
+    : []
+  if (!kind || !sensitivity || !summary || !reason || evidenceSnippets.length === 0)
+    return null
+
+  return {
+    version: workingMemoryLongTermEvidenceVersion,
+    source: 'explicit-structured-memory-evidence',
+    kind,
+    summary,
+    reason,
+    evidenceSnippets,
+    salience: clampWorkingMemoryScore(record.salience),
+    sensitivity,
+    confidence: clampWorkingMemoryScore(record.confidence),
+  }
+}
+
 export function normalizeWorkingMemoryTurn(input: Omit<WorkingMemoryTurn, 'failureKind'> & {
   failureKind?: WorkingMemoryFailureKind | null
 }): WorkingMemoryTurn {
@@ -196,6 +259,7 @@ export function normalizeWorkingMemoryTurn(input: Omit<WorkingMemoryTurn, 'failu
     origin: input.origin ?? failureSurface?.origin ?? null,
     learningPolicy,
     failureSurface,
+    memoryEvidence: normalizeWorkingMemoryLongTermEvidence(input.memoryEvidence),
     contaminated: input.contaminated === true,
     importance: clampWorkingMemoryScore(input.importance),
   }

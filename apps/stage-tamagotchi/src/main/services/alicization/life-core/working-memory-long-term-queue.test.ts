@@ -36,6 +36,17 @@ describe('working memory long-term candidate queue', () => {
       sensitivity: 'personal',
       confidence: 0.78,
       allowTraining: true,
+      memoryEvidence: {
+        version: 'working-memory-long-term-evidence-v1',
+        source: 'explicit-structured-memory-evidence',
+        kind: 'correction',
+        summary: '不要固定模板回复，要数字生命自身人格。',
+        reason: 'candidate:correction',
+        evidenceSnippets: ['不要固定模板回复，要数字生命自身人格。'],
+        salience: 0.82,
+        sensitivity: 'personal',
+        confidence: 0.78,
+      },
     }]
 
     const queue = buildWorkingMemoryLongTermCandidateQueue(snapshot)
@@ -53,11 +64,89 @@ describe('working memory long-term candidate queue', () => {
       status: 'pending-cleaning',
       summary: '不要固定模板回复，要数字生命自身人格。',
     }))
-    expect(queue[0]?.id).toContain('session-1')
+    expect(queue[0]?.id).toMatch(/^working-memory-long-term:v1:sha256:[0-9a-f]{64}$/)
     expect(queue[0]?.evidenceSnippets).toEqual(['不要固定模板回复，要数字生命自身人格。'])
     expect(queue[0]?.contaminationFlags).toEqual([])
     expect(queue[0]?.rejectionReasons).toEqual([])
     expect(queue[0]?.createdAt).toBe(2000)
+  })
+
+  it('builds fixed-length canonical queue ids without leaking long candidate text', () => {
+    const longSessionId = `session-private-${'s'.repeat(180)}`
+    const sourceTurnIds = Array.from(
+      { length: 12 },
+      (_, index) => `turn-private-source-${index}-${'t'.repeat(72)}`,
+    )
+    const sharedSummaryPrefix = `long-summary-marker-${'a'.repeat(96)}`
+    const summaryA = `${sharedSummaryPrefix}-candidate-a-${'x'.repeat(180)}`
+    const summaryB = `${sharedSummaryPrefix}-candidate-b-${'x'.repeat(180)}`
+    const snapshot = createEmptyWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: longSessionId,
+      now: 4000,
+    })
+    snapshot.longTermCandidates = [
+      {
+        sourceTurnIds,
+        kind: 'correction',
+        summary: summaryA,
+        reason: 'candidate:correction',
+        salience: 0.82,
+        sensitivity: 'personal',
+        confidence: 0.78,
+        allowTraining: false,
+        memoryEvidence: {
+          version: 'working-memory-long-term-evidence-v1',
+          source: 'explicit-structured-memory-evidence',
+          kind: 'correction',
+          summary: summaryA,
+          reason: 'candidate:correction',
+          evidenceSnippets: [summaryA],
+          salience: 0.82,
+          sensitivity: 'personal',
+          confidence: 0.78,
+        },
+      },
+      {
+        sourceTurnIds,
+        kind: 'correction',
+        summary: summaryB,
+        reason: 'candidate:correction',
+        salience: 0.82,
+        sensitivity: 'personal',
+        confidence: 0.78,
+        allowTraining: false,
+        memoryEvidence: {
+          version: 'working-memory-long-term-evidence-v1',
+          source: 'explicit-structured-memory-evidence',
+          kind: 'correction',
+          summary: summaryB,
+          reason: 'candidate:correction',
+          evidenceSnippets: [summaryB],
+          salience: 0.82,
+          sensitivity: 'personal',
+          confidence: 0.78,
+        },
+      },
+    ]
+
+    const firstBuild = buildWorkingMemoryLongTermCandidateQueue(snapshot)
+    const secondBuild = buildWorkingMemoryLongTermCandidateQueue(snapshot)
+    const firstId = firstBuild[0]?.id ?? ''
+    const secondCandidateId = firstBuild[1]?.id ?? ''
+
+    expect(longSessionId.length).toBeGreaterThan(160)
+    expect(sourceTurnIds.join('+').length).toBeGreaterThan(240)
+    expect(summaryA.length).toBeGreaterThan(240)
+    expect(summaryB.length).toBeGreaterThan(240)
+    expect(firstBuild).toHaveLength(2)
+    expect(firstId).toMatch(/^working-memory-long-term:v1:sha256:[0-9a-f]{64}$/)
+    expect(firstId.length).toBeLessThan(240)
+    expect(secondCandidateId.length).toBe(firstId.length)
+    expect(secondBuild.map(item => item.id)).toEqual(firstBuild.map(item => item.id))
+    expect(secondCandidateId).not.toBe(firstId)
+    expect(firstId).not.toContain('long-summary-marker')
+    expect(firstId).not.toContain(sourceTurnIds[0]!)
   })
 
   it('excludes failure and fixed-template candidates from the long-term cleaning queue', () => {
@@ -159,12 +248,23 @@ describe('working memory long-term candidate queue', () => {
     snapshot.longTermCandidates = [{
       sourceTurnIds: ['turn-template-rejection:user'],
       kind: 'correction',
-      summary: '不要使用固定模板；用户反对模板化人格回复。',
+      summary: '用户要求回复保持自然，并遵循当前对话内容。',
       reason: 'candidate:correction',
       salience: 0.82,
       sensitivity: 'personal',
       confidence: 0.78,
       allowTraining: false,
+      memoryEvidence: {
+        version: 'working-memory-long-term-evidence-v1',
+        source: 'explicit-structured-memory-evidence',
+        kind: 'correction',
+        summary: '用户要求回复保持自然，并遵循当前对话内容。',
+        reason: 'candidate:correction',
+        evidenceSnippets: ['用户要求回复保持自然，并遵循当前对话内容。'],
+        salience: 0.82,
+        sensitivity: 'personal',
+        confidence: 0.78,
+      },
     }]
 
     const queue = buildWorkingMemoryLongTermCandidateQueue(snapshot)
@@ -173,7 +273,7 @@ describe('working memory long-term candidate queue', () => {
     const serialized = JSON.stringify(queue[0])
     expect(serialized).not.toContain('retired_policy=observe_first')
     expect(queue[0]?.evidenceSnippets).toEqual([
-      'content_withheld; reason=structured-internal-residue',
+      '用户要求回复保持自然，并遵循当前对话内容。',
     ])
   })
 })

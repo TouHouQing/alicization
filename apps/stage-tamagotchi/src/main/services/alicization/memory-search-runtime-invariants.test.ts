@@ -16,7 +16,6 @@ describe('memory-search-runtime invariants', () => {
       selectedWindowIds: [],
       selectedProceduralIds: ['procedure-runtime'],
       selectedEpisodeIds: ['episode-runtime'],
-      selectedConversationTurnIds: [],
       selectedRelationshipLines: ['Return to the same seam before branching.'],
       searchTrace: {
         firstHop: {
@@ -55,7 +54,6 @@ describe('memory-search-runtime invariants', () => {
       selectedWindowIds: [],
       selectedProcedureIds: ['procedure-runtime'],
       selectedEpisodeIds: ['episode-runtime'],
-      selectedConversationTurnIds: [],
       selectedRelationshipLines: ['Return to the same seam before branching.'],
       ambiguityPosture: 'approximate',
       searchTrace: recollectionPlan.searchTrace,
@@ -169,7 +167,6 @@ describe('memory-search-runtime invariants', () => {
           latestReconsolidation: null,
         } as any],
         buildHostPersonModel: async () => null,
-        recallConversationHistory: async () => [],
         recallMemoryConsolidations: async () => [{
           id: 'consolidation-runtime',
           kind: 'autobiographical' as const,
@@ -189,7 +186,6 @@ describe('memory-search-runtime invariants', () => {
           mode: 'execution-procedure' as const,
           temporalFocus: 'experience-matched' as const,
           searchEpisodes: true,
-          searchConversations: false,
           searchProceduralExperience: true,
           queryHints: ['runtime seam'],
           rationale: 'The current task resembles a remembered procedure.',
@@ -200,7 +196,6 @@ describe('memory-search-runtime invariants', () => {
           selectedWindowIds: [],
           selectedProceduralIds: ['runtime seam'],
           selectedEpisodeIds: ['episode-runtime'],
-          selectedConversationTurnIds: [],
           selectedRelationshipLines: ['Return to the seam before branching.'],
           searchTrace: {
             firstHop: {

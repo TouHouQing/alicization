@@ -2924,7 +2924,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                       toolName: error.toolName,
                     },
                   }).catch(() => {})
-                  return
+                  throw error
                 }
               }
               throw error

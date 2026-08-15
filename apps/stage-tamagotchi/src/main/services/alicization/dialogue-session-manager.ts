@@ -46,6 +46,9 @@ export type AlicizationDialogueSessionRecollectionState = OrganicMemoryRecollect
 
 export interface AlicizationDialogueSessionManager {
   clear: (cardId?: string) => void
+  commitPreparedExecution: (
+    mirror: AlicizationDialogueSessionMirror,
+  ) => AlicizationDialogueSessionMirror
   getSessionMirror: (cardId: string, sessionId: string) => AlicizationDialogueSessionMirror | null
   ingestAgentSessionSnapshot: (input: {
     agentSession: AlicizationAgentSessionSnapshot
@@ -56,6 +59,14 @@ export interface AlicizationDialogueSessionManager {
     source: string
   }) => AlicizationDialogueSessionMirror
   ingestPreparedExecution: (input: {
+    agentSession: AlicizationAgentSessionSnapshot
+    cardId: string
+    digitalLifeSpine?: AlicizationDigitalLifeSpineSnapshot | null
+    organicMemoryContext?: OrganicMemoryPromptContext | null
+    runtimeSurface: AlicizationMainChatRuntimeSurface
+    sessionId: string
+  }) => AlicizationDialogueSessionMirror
+  previewPreparedExecution: (input: {
     agentSession: AlicizationAgentSessionSnapshot
     cardId: string
     digitalLifeSpine?: AlicizationDigitalLifeSpineSnapshot | null
@@ -595,7 +606,7 @@ export function createAlicizationDialogueSessionManager(
     return cloneMirror(mirror)
   }
 
-  function ingestPreparedExecution(input: {
+  function previewPreparedExecution(input: {
     agentSession: AlicizationAgentSessionSnapshot
     cardId: string
     digitalLifeSpine?: AlicizationDigitalLifeSpineSnapshot | null
@@ -617,7 +628,7 @@ export function createAlicizationDialogueSessionManager(
       runtimeSurfaceSpine: input.digitalLifeSpine ?? input.runtimeSurface.digitalLifeSpine ?? null,
     })
 
-    return storeMirror(buildMirrorBase({
+    return buildMirrorBase({
       agentSession: input.agentSession,
       cardId,
       decisionTraceId: input.runtimeSurface.trace.decisionTraceId,
@@ -630,7 +641,27 @@ export function createAlicizationDialogueSessionManager(
       runtimeSurface: input.runtimeSurface,
       sessionId,
       sessionPhases: input.runtimeSurface.trace.sessionPhases,
-    }))
+    })
+  }
+
+  function commitPreparedExecution(mirror: AlicizationDialogueSessionMirror) {
+    pruneExpiredMirrors()
+    const key = buildMirrorKey(mirror.cardId, mirror.sessionId)
+    const current = mirrors.get(key)
+    if (current && current.updatedAt > mirror.updatedAt)
+      return cloneMirror(current)
+    return storeMirror(cloneMirror(mirror))
+  }
+
+  function ingestPreparedExecution(input: {
+    agentSession: AlicizationAgentSessionSnapshot
+    cardId: string
+    digitalLifeSpine?: AlicizationDigitalLifeSpineSnapshot | null
+    organicMemoryContext?: OrganicMemoryPromptContext | null
+    runtimeSurface: AlicizationMainChatRuntimeSurface
+    sessionId: string
+  }) {
+    return commitPreparedExecution(previewPreparedExecution(input))
   }
 
   function ingestAgentSessionSnapshot(input: {
@@ -669,8 +700,10 @@ export function createAlicizationDialogueSessionManager(
 
   return {
     clear,
+    commitPreparedExecution,
     getSessionMirror,
     ingestAgentSessionSnapshot,
     ingestPreparedExecution,
+    previewPreparedExecution,
   }
 }

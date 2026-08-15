@@ -47,10 +47,55 @@ function stableFingerprint(value: unknown, seen = new WeakSet<object>()): string
   return result
 }
 
+const streamEventIdentityKeys = [
+  'cardId',
+  'turnId',
+  'toolCallId',
+  'threadId',
+] as const
+
+function streamEventIdentityFingerprint(record: Record<string, unknown>) {
+  return streamEventIdentityKeys
+    .map((key) => {
+      const value = record[key]
+      return `${key}:${typeof value === 'string' ? value.trim() : stableFingerprint(value)}`
+    })
+    .join('|')
+}
+
 export interface AlicizationChatStreamIngressDeduplicatorOptions {
   getNow?: () => number
   windowMs?: number
   maxEntries?: number
+}
+
+export interface AlicizationLateToolEventDisposalHandle {
+  cancel: () => void
+}
+
+/**
+ * Keep the renderer stream addressable for a bounded period after the
+ * user-facing finish settles. Main-owned tool facts can be delivered slightly
+ * later than the Provider finish event.
+ */
+export function scheduleAlicizationLateToolEventDisposal(input: {
+  delayMs: number
+  onDispose: () => void
+}): AlicizationLateToolEventDisposalHandle {
+  let cancelled = false
+  const timer = setTimeout(() => {
+    if (!cancelled)
+      input.onDispose()
+  }, Math.max(1, Math.floor(input.delayMs)))
+
+  return {
+    cancel() {
+      if (cancelled)
+        return
+      cancelled = true
+      clearTimeout(timer)
+    },
+  }
 }
 
 /**
@@ -95,7 +140,7 @@ export function createAlicizationChatStreamIngressDeduplicator(
 
     const now = getNow()
     const key = eventId
-      ? `${eventType}:event:${eventId}`
+      ? `${eventType}:event:${eventId}:identity:${streamEventIdentityFingerprint(record)}`
       : `${eventType}:fingerprint:${stableFingerprint(body)}`
     const previous = recent.get(key)
     if (!previous || now - previous.firstSeenAt > windowMs) {

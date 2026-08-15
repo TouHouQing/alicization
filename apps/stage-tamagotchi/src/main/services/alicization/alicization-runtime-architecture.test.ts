@@ -188,7 +188,6 @@ describe('alicization runtime architecture', () => {
       selectedWindowIds: [],
       selectedProceduralIds: [],
       selectedEpisodeIds: [],
-      selectedConversationTurnIds: [],
       opening: 'A reviewed reflection matched the current question.',
       certainty: 'firm',
       rationale: 'The reflection matches.',

@@ -19,6 +19,7 @@ export const alicizationTerminalTaskThreadStatuses = new Set<AlicizationTaskThre
   'failed',
   'cancelled',
   'blocked',
+  'dead-lettered',
 ])
 
 export interface AlicizationExecutionFailureDetails {

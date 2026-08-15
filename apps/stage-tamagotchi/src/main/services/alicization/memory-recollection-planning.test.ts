@@ -9,7 +9,6 @@ function createRecollectionIntent() {
     mode: 'relationship-history',
     temporalFocus: 'recent-or-mid',
     searchEpisodes: false,
-    searchConversations: true,
     searchProceduralExperience: false,
     queryHints: ['你好'],
     rationale: 'A greeting may carry relationship presence.',
@@ -35,7 +34,6 @@ describe('memory recollection planning stage', () => {
       selectedWindowIds: ['window-greeting'],
       selectedProceduralIds: [],
       selectedEpisodeIds: [],
-      selectedConversationTurnIds: ['turn-1'],
       selectedRelationshipLines: [],
       searchTrace: null,
       opening: '',
@@ -61,15 +59,6 @@ describe('memory recollection planning stage', () => {
       }] as any,
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [
-        {
-          turnId: 'turn-1',
-          userText: '你好',
-          assistantText: '在。',
-          createdAt: 1,
-          provenance: 'conversation-history',
-        } as any,
-      ],
       skipProviderPlanning: true,
       planMemoryRecollection,
       planRecollectionSpeech,
@@ -84,12 +73,10 @@ describe('memory recollection planning stage', () => {
     expect(planMemoryDeliberation).toHaveBeenCalledOnce()
     expect(result.recollectionPlan).toEqual(expect.objectContaining({
       selectedWindowIds: ['window-greeting'],
-      selectedConversationTurnIds: ['turn-1'],
     }))
     expect(result.recollectionSpeechPlan).toBeNull()
     expect(result.rawMemoryDeliberation).toBeNull()
     expect(result.plannedWindows).toHaveLength(1)
-    expect(result.plannedConversationHistory).toHaveLength(1)
     expect(result.recollectionNarratives).toHaveLength(1)
   })
 
@@ -99,7 +86,6 @@ describe('memory recollection planning stage', () => {
       selectedWindowIds: ['window-unselected'],
       selectedProceduralIds: ['procedure-unselected'],
       selectedEpisodeIds: ['episode-unselected'],
-      selectedConversationTurnIds: ['turn-unselected'],
       selectedRelationshipLines: [],
       searchTrace: null,
       opening: '',
@@ -115,7 +101,6 @@ describe('memory recollection planning stage', () => {
       selectedWindowIds: [],
       selectedProcedureIds: [],
       selectedEpisodeIds: [],
-      selectedConversationTurnIds: [],
       selectedRelationshipLines: [],
       selectedEras: [],
       selectedPeriods: [],
@@ -155,11 +140,6 @@ describe('memory recollection planning stage', () => {
         id: 'episode-unselected',
         whatHappened: 'An unselected episode.',
       }] as any,
-      recalledConversationHistory: [{
-        turnId: 'turn-unselected',
-        userText: 'An unselected user turn.',
-        assistantText: 'An unselected assistant turn.',
-      }] as any,
       planMemoryRecollection,
       planRecollectionSpeech,
       planMemoryDeliberation,
@@ -170,21 +150,18 @@ describe('memory recollection planning stage', () => {
     expect(result.plannedWindows).toEqual([])
     expect(result.plannedProceduralMemories).toEqual([])
     expect(result.plannedEpisodes).toEqual([])
-    expect(result.plannedConversationHistory).toEqual([])
     expect(result.recollectionNarratives).toEqual([])
     expect(planRecollectionSpeech).toHaveBeenCalledWith(expect.objectContaining({
       consolidatedMemories: [expect.objectContaining({ id: 'consolidation-unselected' })],
       recollectedWindows: [expect.objectContaining({ id: 'window-unselected' })],
       proceduralMemories: [expect.objectContaining({ id: 'procedure-unselected' })],
       recalledEpisodes: [expect.objectContaining({ id: 'episode-unselected' })],
-      recalledConversationHistory: [expect.objectContaining({ turnId: 'turn-unselected' })],
     }))
     expect(planMemoryDeliberation).toHaveBeenCalledWith(expect.objectContaining({
       consolidatedMemories: [expect.objectContaining({ id: 'consolidation-unselected' })],
       recollectedWindows: [expect.objectContaining({ id: 'window-unselected' })],
       proceduralMemories: [expect.objectContaining({ id: 'procedure-unselected' })],
       recalledEpisodes: [expect.objectContaining({ id: 'episode-unselected' })],
-      recalledConversationHistory: [expect.objectContaining({ turnId: 'turn-unselected' })],
     }))
   })
 
@@ -209,13 +186,6 @@ describe('memory recollection planning stage', () => {
       }] as any,
       proceduralMemories: [],
       recalledEpisodes: [],
-      recalledConversationHistory: [{
-        turnId: 'turn-1',
-        userText: '你好',
-        assistantText: '我在。',
-        createdAt: 1,
-        provenance: 'conversation-history',
-      }] as any,
       plannerBudgetMs: 1,
       planMemoryRecollection,
       planRecollectionSpeech,
@@ -225,7 +195,6 @@ describe('memory recollection planning stage', () => {
         selectedWindowIds: ['window-greeting'],
         selectedProceduralIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: ['turn-1'],
         selectedRelationshipLines: [],
         searchTrace: null,
         opening: '',
@@ -241,9 +210,7 @@ describe('memory recollection planning stage', () => {
     expect(planMemoryDeliberation).not.toHaveBeenCalled()
     expect(result.recollectionPlan).toMatchObject({
       selectedWindowIds: ['window-greeting'],
-      selectedConversationTurnIds: ['turn-1'],
     })
     expect(result.plannedWindows).toEqual([expect.objectContaining({ id: 'window-greeting' })])
-    expect(result.plannedConversationHistory).toEqual([expect.objectContaining({ turnId: 'turn-1' })])
   })
 })

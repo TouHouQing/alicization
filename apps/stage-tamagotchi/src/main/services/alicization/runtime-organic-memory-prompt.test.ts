@@ -38,6 +38,63 @@ function readOrganicMemoryProviderFact<T = Record<string, any>>(blocks: string[]
 }
 
 describe('runtime-organic-memory-prompt', () => {
+  it('queries and carries only confirmed memory reflections into organic runtime state', async () => {
+    const listMemoryReflections = vi.fn(async () => [
+      {
+        id: 'reflection-confirmed',
+        targetScope: 'relationship',
+        status: 'confirmed',
+        summary: 'confirmed-reflection-can-shape-runtime',
+        lesson: 'confirmed-reflection-can-shape-affect',
+        confidence: 0.9,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      ...(['pending', 'denied', 'superseded'] as const).map(status => ({
+        id: `reflection-${status}`,
+        targetScope: 'boundary',
+        status,
+        summary: `${status}-reflection-must-not-shape-runtime`,
+        lesson: `${status}-reflection-must-not-shape-affect`,
+        confidence: 1,
+        createdAt: 2,
+        updatedAt: 2,
+      })),
+    ] as any)
+    const runtime = createAlicizationOrganicMemoryPromptRuntime({
+      normalizeOrganicRecallText,
+      selectPromptActiveThoughts,
+      getOrganicMemorySnapshot: async () => ({
+        hostAttitude: 'focused',
+        coreIncarnation: '',
+        activeThoughts: [],
+      }),
+      getLatestRelationshipDynamics: async () => null,
+      retrieveMemoryFacts: async () => [],
+      recallSubconsciousFragmentsWithGovernor: async () => [],
+      recallEpisodicEventsWithGovernor: async () => [],
+      buildHostPersonModel: async () => null,
+      listMemoryReflections,
+      recallMemoryConsolidations: async () => [],
+      planRecollectionIntent: async () => null,
+      planMemoryRecollection: async () => null,
+      planRecollectionSpeech: async () => null,
+      planMemoryDeliberation: async () => null,
+      isPersonaResidueMemoryText: () => false,
+    })
+
+    const context = await runtime.resolveOrganicMemoryPromptContext({
+      recallSeed: 'reflection review boundary',
+      turnId: 'turn-reflection-review',
+    })
+
+    expect(listMemoryReflections).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'confirmed',
+    }))
+    expect(JSON.stringify(context.affectiveResidue)).toContain('confirmed-reflection-can-shape-runtime')
+    expect(JSON.stringify(context)).not.toContain('must-not-shape')
+  })
+
   it('keeps working-memory active thoughts when long-term recall uses a different seed', async () => {
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
       normalizeOrganicRecallText,
@@ -56,7 +113,6 @@ describe('runtime-organic-memory-prompt', () => {
       recallSubconsciousFragmentsWithGovernor: async () => [],
       recallEpisodicEventsWithGovernor: async () => [],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [],
       planRecollectionIntent: async () => null,
       planMemoryRecollection: async () => null,
@@ -95,7 +151,6 @@ describe('runtime-organic-memory-prompt', () => {
       recallSubconsciousFragmentsWithGovernor: async () => [],
       recallEpisodicEventsWithGovernor: async () => [],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [],
       planRecollectionIntent,
       planMemoryRecollection,
@@ -140,7 +195,6 @@ describe('runtime-organic-memory-prompt', () => {
         confidence: 0.8,
       } as any],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [],
       planRecollectionIntent: async () => null,
       planMemoryRecollection: async () => null,
@@ -353,7 +407,6 @@ describe('runtime-organic-memory-prompt', () => {
       mode: 'self-continuity' as const,
       temporalFocus: 'experience-matched' as const,
       searchEpisodes: false,
-      searchConversations: false,
       searchProceduralExperience: false,
       queryHints: ['active runtime surface'],
       rationale: 'Planner should stay attached to the active runtime surface.',
@@ -407,7 +460,6 @@ describe('runtime-organic-memory-prompt', () => {
         reconsolidationCount: 0,
       } as any],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [{
         id: 'consolidation-runtime-surface',
         kind: 'autobiographical',
@@ -442,19 +494,8 @@ describe('runtime-organic-memory-prompt', () => {
     expect(planMemoryDeliberation.mock.calls[0]?.[0]?.digitalLifeRuntimeSurface).toBe(runtimeSurface)
   })
 
-  it('keeps ordinary greetings on the same provider-side recollection planning path', async () => {
-    const planMemoryRecollection = vi.fn(async () => ({
-      selectedConsolidationIds: [],
-      selectedWindowIds: [],
-      selectedProceduralIds: [],
-      selectedEpisodeIds: [],
-      selectedConversationTurnIds: ['turn-greeting'],
-      selectedRelationshipLines: [],
-      opening: 'provider planning should not be awaited for a light greeting',
-      certainty: 'approximate' as const,
-      rationale: 'provider',
-      confidence: 0.6,
-    }))
+  it('abstains from provider recollection planning when an ordinary greeting has no long-term evidence', async () => {
+    const planMemoryRecollection = vi.fn(async () => null)
     const planRecollectionSpeech = vi.fn(async () => null)
     const planMemoryDeliberation = vi.fn(async () => null)
     const runtime = createAlicizationOrganicMemoryPromptRuntime({
@@ -470,19 +511,11 @@ describe('runtime-organic-memory-prompt', () => {
       recallSubconsciousFragmentsWithGovernor: async () => [],
       recallEpisodicEventsWithGovernor: async () => [],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [{
-        turnId: 'turn-greeting',
-        sessionId: 'session-greeting',
-        userText: '你好',
-        assistantText: '我在。',
-        createdAt: Date.UTC(2026, 5, 28, 8, 0, 0),
-      }],
       recallMemoryConsolidations: async () => [],
       planRecollectionIntent: vi.fn(async () => ({
         mode: 'relationship-history' as const,
         temporalFocus: 'recent-or-mid' as const,
         searchEpisodes: false,
-        searchConversations: true,
         searchProceduralExperience: false,
         queryHints: ['你好'],
         rationale: 'A greeting may carry relationship presence.',
@@ -510,9 +543,12 @@ describe('runtime-organic-memory-prompt', () => {
       recallGovernor: null,
     })
 
-    expect(planMemoryRecollection).toHaveBeenCalledOnce()
-    expect(planRecollectionSpeech).toHaveBeenCalledOnce()
-    expect(planMemoryDeliberation).toHaveBeenCalledOnce()
+    expect(planMemoryRecollection).not.toHaveBeenCalled()
+    expect(planRecollectionSpeech).not.toHaveBeenCalled()
+    expect(planMemoryDeliberation).not.toHaveBeenCalled()
+    expect(context.recollectionPlan).toBeNull()
+    expect(context.recollectionSpeechPlan).toBeNull()
+    expect(context.memoryDeliberation).toBeNull()
     expect(context.recollectionIntent).toEqual(expect.objectContaining({
       mode: 'relationship-history',
     }))
@@ -569,7 +605,6 @@ describe('runtime-organic-memory-prompt', () => {
           'Runtime embodiment repair should make voice, face, motion, lipsync, and body derive from the same recalled state so expression remains one body-line rather than a skin-layer recap.',
         ],
       }),
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [],
       isPersonaResidueMemoryText: () => false,
     })
@@ -655,7 +690,6 @@ describe('runtime-organic-memory-prompt', () => {
           'Runtime embodiment repair should make voice, face, motion, lipsync, and body derive from the same recalled state so expression remains one body-line rather than a skin-layer recap.',
         ],
       }),
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [],
       isPersonaResidueMemoryText: () => false,
     })
@@ -673,13 +707,6 @@ describe('runtime-organic-memory-prompt', () => {
   })
 
   it('lets gateway recollection intent suppress heuristic long-range recall when memory should stay present-facing', async () => {
-    const recallConversationHistory = vi.fn(async () => [{
-      turnId: 'turn-old',
-      sessionId: 'session-old',
-      userText: '几天前我们聊过修 runtime',
-      assistantText: '我记得那条线。',
-      createdAt: Date.UTC(2026, 3, 12, 8, 0, 0),
-    }])
     const recallMemoryConsolidations = vi.fn(async () => [{
       id: 'consolidation-old',
       kind: 'autobiographical' as const,
@@ -698,7 +725,6 @@ describe('runtime-organic-memory-prompt', () => {
       mode: 'none' as const,
       temporalFocus: 'recent' as const,
       searchEpisodes: false,
-      searchConversations: false,
       searchProceduralExperience: false,
       queryHints: ['stay present-facing'],
       rationale: 'The turn should stay with the live payoff instead of opening long-range recall.',
@@ -717,7 +743,6 @@ describe('runtime-organic-memory-prompt', () => {
       recallSubconsciousFragmentsWithGovernor: async () => [],
       recallEpisodicEventsWithGovernor: async () => [],
       buildHostPersonModel: async () => null,
-      recallConversationHistory,
       recallMemoryConsolidations,
       planRecollectionIntent,
       isPersonaResidueMemoryText: () => false,
@@ -730,7 +755,6 @@ describe('runtime-organic-memory-prompt', () => {
           mode: 'conversation-history',
           temporalFocus: 'cross-session',
           searchEpisodes: true,
-          searchConversations: true,
           searchProceduralExperience: false,
           queryHints: ['runtime fix', 'before'],
           rationale: 'Heuristic cue says to search long-range history.',
@@ -767,20 +791,11 @@ describe('runtime-organic-memory-prompt', () => {
         whyRecallNow: 'The wording suggests an older dialogue thread, but the planner may still decide memory should stay closed.',
       }),
     }))
-    expect(recallConversationHistory).not.toHaveBeenCalled()
     expect(recallMemoryConsolidations).not.toHaveBeenCalled()
-    expect(context.recalledConversationHistory).toEqual([])
     expect(context.consolidatedMemories).toEqual([])
   })
 
   it('uses recollection agenda to keep retrospective wording in candidate space and foreground task-era memory', async () => {
-    const recallConversationHistory = vi.fn(async () => [{
-      turnId: 'turn-older',
-      sessionId: 'session-older',
-      userText: '前几天我们聊过关系语气',
-      assistantText: '那时候我们在谈关系距离。',
-      createdAt: Date.UTC(2026, 3, 7, 8, 0, 0),
-    }])
     let plannedInput: any = null
     const planMemoryRecollection = vi.fn(async (input) => {
       plannedInput = input
@@ -789,7 +804,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProceduralIds: ['procedure-runtime'],
         selectedEpisodeIds: ['episode-runtime'],
-        selectedConversationTurnIds: [],
         opening: 'What comes back first is the runtime seam and the way we kept returning to it.',
         certainty: 'approximate' as const,
         rationale: 'The recollection agenda says this should reopen the remembered task way, not earlier chat phrasing.',
@@ -841,7 +855,6 @@ describe('runtime-organic-memory-prompt', () => {
         reconsolidationCount: 0,
       } as any],
       buildHostPersonModel: async () => null,
-      recallConversationHistory,
       recallMemoryConsolidations: async () => [
         {
           id: 'relationship-era-warmth',
@@ -878,7 +891,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'execution-procedure' as const,
         temporalFocus: 'experience-matched' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime seam', 'repair rhythm'],
         rationale: 'The host is really asking for the remembered way of handling this work, not literal chat history.',
@@ -911,7 +923,6 @@ describe('runtime-organic-memory-prompt', () => {
       } as any,
     })
 
-    expect(recallConversationHistory).not.toHaveBeenCalled()
     expect(planMemoryRecollection).toHaveBeenCalled()
     expect(plannedInput?.consolidatedMemories[0]?.id).toBe('task-era-runtime')
     expect([
@@ -1026,7 +1037,6 @@ describe('runtime-organic-memory-prompt', () => {
         narrative: [],
         updatedAt: Date.UTC(2026, 3, 20, 8, 0, 0),
       } as any),
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [
         {
           id: 'task-era-unrelated',
@@ -1063,7 +1073,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'execution-procedure' as const,
         temporalFocus: 'experience-matched' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime seam', 'grounded repair'],
         rationale: 'The turn should reopen the lived repair style, not a generic fast patch memory.',
@@ -1091,7 +1100,6 @@ describe('runtime-organic-memory-prompt', () => {
           selectedWindowIds: [],
           selectedProceduralIds: [],
           selectedEpisodeIds: [input.recalledEpisodes[0]?.id].filter(Boolean),
-          selectedConversationTurnIds: [],
           opening: 'The grounded repair style comes back first.',
           certainty: 'approximate' as const,
           rationale: 'Room-first grounded repair is the memory line that best matches the present seam.',
@@ -1182,14 +1190,12 @@ describe('runtime-organic-memory-prompt', () => {
       recallSubconsciousFragmentsWithGovernor: async () => [],
       recallEpisodicEventsWithGovernor: async () => [],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [],
       listMindTurnEvents,
       planRecollectionIntent: async () => ({
         mode: 'execution-procedure' as const,
         temporalFocus: 'same-session' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['execution callback carry'],
         rationale: 'The next turn should consume the latest execution-feedback reconsolidation.',
@@ -1289,7 +1295,6 @@ describe('runtime-organic-memory-prompt', () => {
         reconsolidationCount: 0,
       } as any],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [{
         id: 'task-era-runtime',
         kind: 'autobiographical' as const,
@@ -1309,7 +1314,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'execution-procedure' as const,
         temporalFocus: 'experience-matched' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime seam', 'repair rhythm'],
         rationale: 'The task resembles an earlier repair way, so procedure memory should open first.',
@@ -1335,7 +1339,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProceduralIds: ['runtime seam'],
         selectedEpisodeIds: ['episode-runtime'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         searchTrace: {
           firstHop: {
@@ -1390,7 +1393,6 @@ describe('runtime-organic-memory-prompt', () => {
       selectedWindowIds: [],
       selectedProceduralIds: [],
       selectedEpisodeIds: [],
-      selectedConversationTurnIds: [],
       opening: 'What comes back first is the runtime seam we kept returning to.',
       certainty: 'approximate' as const,
       rationale: 'The turn is asking for remembered continuity rather than a fresh screen read.',
@@ -1449,7 +1451,6 @@ describe('runtime-organic-memory-prompt', () => {
         reconsolidationCount: 0,
       } as any],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [{
         id: 'consolidation-runtime',
         kind: 'autobiographical',
@@ -1468,7 +1469,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'execution-procedure' as const,
         temporalFocus: 'experience-matched' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime seam', 'repair rhythm'],
         rationale: 'The turn is asking for remembered way of handling the runtime thread.',
@@ -1486,7 +1486,6 @@ describe('runtime-organic-memory-prompt', () => {
           mode: 'execution-procedure',
           temporalFocus: 'experience-matched',
           searchEpisodes: true,
-          searchConversations: false,
           searchProceduralExperience: true,
           queryHints: ['runtime seam', 'repair rhythm'],
           rationale: 'The host is asking for remembered way of handling the runtime thread.',
@@ -1531,7 +1530,6 @@ describe('runtime-organic-memory-prompt', () => {
       selectedWindowIds: [],
       selectedProcedureIds: ['procedure-runtime'],
       selectedEpisodeIds: ['episode-runtime'],
-      selectedConversationTurnIds: [],
       selectedRelationshipLines: ['Carry the same runtime seam before branching.'],
       selectedEras: [],
       selectedPeriods: [],
@@ -1545,7 +1543,6 @@ describe('runtime-organic-memory-prompt', () => {
         periodId: 'consolidation-runtime',
         episodeId: 'episode-runtime',
         procedureId: 'procedure-runtime',
-        conversationTurnId: null,
         relationshipLine: 'Carry the same runtime seam before branching.',
       }],
       selectedChains: [{
@@ -1614,7 +1611,6 @@ describe('runtime-organic-memory-prompt', () => {
         reconsolidationCount: 0,
       } as any],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [
         {
           id: 'consolidation-runtime',
@@ -1649,7 +1645,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'execution-procedure' as const,
         temporalFocus: 'experience-matched' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime seam', 'repair rhythm'],
         rationale: 'The turn is asking for remembered way of handling the runtime thread.',
@@ -1661,7 +1656,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         opening: 'A weaker unrelated memory showed up first.',
         certainty: 'fragmentary' as const,
         rationale: 'Candidate plan before final deliberation.',
@@ -1686,7 +1680,6 @@ describe('runtime-organic-memory-prompt', () => {
           mode: 'execution-procedure',
           temporalFocus: 'experience-matched',
           searchEpisodes: true,
-          searchConversations: false,
           searchProceduralExperience: true,
           queryHints: ['runtime seam', 'repair rhythm'],
           rationale: 'The host is asking for remembered way of handling the runtime thread.',
@@ -1751,7 +1744,6 @@ describe('runtime-organic-memory-prompt', () => {
           selectedWindowIds: [],
           selectedProcedureIds: ['procedure-runtime'],
           selectedEpisodeIds: ['episode-runtime'],
-          selectedConversationTurnIds: [],
           selectedRelationshipLines: [],
           selectedEras: [],
           selectedPeriods: [],
@@ -1774,7 +1766,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: ['episode-relationship'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['Back off first, then reopen with a lighter touch.'],
         selectedEras: [],
         selectedPeriods: [],
@@ -1878,7 +1869,6 @@ describe('runtime-organic-memory-prompt', () => {
         } as any,
       ],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [
         {
           id: 'consolidation-relationship',
@@ -1910,7 +1900,6 @@ describe('runtime-organic-memory-prompt', () => {
           mode: 'execution-procedure',
           temporalFocus: 'experience-matched',
           searchEpisodes: true,
-          searchConversations: false,
           searchProceduralExperience: true,
           queryHints: ['runtime seam', 'cli patch'],
           rationale: 'Same phrase, but the live context is task-thread reuse.',
@@ -1925,7 +1914,6 @@ describe('runtime-organic-memory-prompt', () => {
           mode: 'relationship-history',
           temporalFocus: 'cross-session',
           searchEpisodes: true,
-          searchConversations: true,
           searchProceduralExperience: false,
           queryHints: ['focused work', 'intrusive', 'give space'],
           rationale: 'Same phrase, but the live context is relationship repair.',
@@ -2027,7 +2015,6 @@ describe('runtime-organic-memory-prompt', () => {
         },
       ] as any,
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [
         {
           id: 'consolidation-callback',
@@ -2064,7 +2051,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'execution-procedure' as const,
         temporalFocus: 'experience-matched' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime continuity', 'callback receipt'],
         rationale: 'The host is continuing the callback-shaped task line, not the nearby screen mirror line.',
@@ -2077,7 +2063,6 @@ describe('runtime-organic-memory-prompt', () => {
           selectedWindowIds: [],
           selectedProceduralIds: input.proceduralMemories[0] ? [input.proceduralMemories[0].id] : [],
           selectedEpisodeIds: input.recalledEpisodes[0] ? [input.recalledEpisodes[0].id] : [],
-          selectedConversationTurnIds: [],
           opening: 'What comes back first is the callback continuity line.',
           certainty: 'approximate' as const,
           rationale: 'The callback-shaped thread should lead before the neighboring screen thread.',
@@ -2179,7 +2164,6 @@ describe('runtime-organic-memory-prompt', () => {
         },
       ] as any,
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [
         {
           id: 'consolidation-codex',
@@ -2216,7 +2200,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'execution-procedure' as const,
         temporalFocus: 'experience-matched' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime continuity seam'],
         rationale: 'The host is referring to a runtime seam, but not enough is pinned down yet.',
@@ -2227,7 +2210,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: input.recalledEpisodes[0] ? [input.recalledEpisodes[0].id] : [],
-        selectedConversationTurnIds: [],
         opening: 'What comes back first is a runtime seam, but not one I can cleanly disambiguate yet.',
         certainty: 'approximate' as const,
         rationale: 'The seam is real, but the exact thread cluster is still competing.',
@@ -2240,7 +2222,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: input.recalledEpisodes[0] ? [input.recalledEpisodes[0].id] : [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         selectedEras: [],
         selectedPeriods: [],
@@ -2356,7 +2337,6 @@ describe('runtime-organic-memory-prompt', () => {
         },
       ],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [
         {
           id: 'consolidation-runtime',
@@ -2393,7 +2373,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'relationship-history' as const,
         temporalFocus: 'cross-session' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: false,
         queryHints: ['focused work', 'lighter touch'],
         rationale: 'The host is asking about a longer relationship period, not a single recent turn.',
@@ -2405,7 +2384,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: ['episode-relationship'],
-        selectedConversationTurnIds: [],
         opening: 'The first thing that comes back is that period where closeness had to back off.',
         certainty: 'approximate' as const,
         rationale: 'Start from the relationship era before pulling event detail.',
@@ -2426,7 +2404,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['Back off first, then reopen with a lighter touch.'],
         selectedEras: [],
         selectedPeriods: [],
@@ -2450,7 +2427,6 @@ describe('runtime-organic-memory-prompt', () => {
           mode: 'relationship-history',
           temporalFocus: 'cross-session',
           searchEpisodes: true,
-          searchConversations: false,
           searchProceduralExperience: false,
           queryHints: ['focused work', 'lighter touch'],
           rationale: 'Relationship history should start from the right era first.',
@@ -2472,7 +2448,6 @@ describe('runtime-organic-memory-prompt', () => {
       selectedWindowIds: [],
       selectedProcedureIds: [],
       selectedEpisodeIds: [],
-      selectedConversationTurnIds: [],
       selectedRelationshipLines: [],
       selectedEras: [],
       selectedPeriods: [],
@@ -2484,7 +2459,6 @@ describe('runtime-organic-memory-prompt', () => {
     expect(context.recollectedWindows).toEqual([])
     expect(context.proceduralMemories).toEqual([])
     expect(context.recalledEpisodes).toEqual([])
-    expect(context.recalledConversationHistory).toEqual([])
     expect(context.recollectionNarratives).toEqual([])
     expect(
       context.memoryStageReplay?.stages.find(stage => stage.stage === 'search-prelude')?.diagnostics,
@@ -2558,7 +2532,6 @@ describe('runtime-organic-memory-prompt', () => {
       } as any],
       buildHostPersonModel: async () => null,
       getMemoryStats,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [{
         id: 'era-runtime',
         kind: 'autobiographical',
@@ -2578,7 +2551,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'experience-pattern' as const,
         temporalFocus: 'experience-matched' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime seam'],
         rationale: 'The task still resembles the old seam.',
@@ -2589,7 +2561,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: ['runtime seam'],
         selectedProceduralIds: [],
         selectedEpisodeIds: ['episode-runtime'],
-        selectedConversationTurnIds: [],
         opening: 'The same runtime seam comes back first.',
         certainty: 'approximate' as const,
         rationale: 'The remembered procedure should organize the current answer.',
@@ -2633,7 +2604,6 @@ describe('runtime-organic-memory-prompt', () => {
       recallSubconsciousFragmentsWithGovernor: async () => [],
       recallEpisodicEventsWithGovernor: async () => [],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [
         {
           id: 'consolidation-repair',
@@ -2670,7 +2640,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'relationship-history' as const,
         temporalFocus: 'cross-session' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: false,
         queryHints: ['relationship tone'],
         rationale: 'The host is asking about remembered relationship tone.',
@@ -2685,7 +2654,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: input.consolidatedMemories[0]?.lesson ? [input.consolidatedMemories[0].lesson] : [],
         selectedEras: [],
         selectedPeriods: [],
@@ -2709,7 +2677,6 @@ describe('runtime-organic-memory-prompt', () => {
           mode: 'relationship-history',
           temporalFocus: 'cross-session',
           searchEpisodes: true,
-          searchConversations: false,
           searchProceduralExperience: false,
           queryHints: ['relationship tone'],
           rationale: 'The doctrine should shape which relationship era comes forward first.',
@@ -2791,7 +2758,6 @@ describe('runtime-organic-memory-prompt', () => {
         },
         notes: ['Surface restraint failed, so ambiguous recollection should stay inward more aggressively.'],
       }),
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [{
         id: 'consolidation-runtime',
         kind: 'autobiographical',
@@ -2811,7 +2777,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'execution-procedure' as const,
         temporalFocus: 'experience-matched' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime seam'],
         rationale: 'The host is asking for a remembered runtime way of handling this.',
@@ -2832,7 +2797,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: ['episode-ambiguous'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['Keep the line bounded.'],
         ambiguityPosture: 'ambiguous' as const,
         selectedEras: [{
@@ -2878,7 +2842,6 @@ describe('runtime-organic-memory-prompt', () => {
           mode: 'execution-procedure',
           temporalFocus: 'experience-matched',
           searchEpisodes: true,
-          searchConversations: false,
           searchProceduralExperience: true,
           queryHints: ['runtime seam'],
           rationale: 'The host is asking for a remembered runtime way of handling this.',
@@ -2939,7 +2902,6 @@ describe('runtime-organic-memory-prompt', () => {
         latestReconsolidation: null,
       }],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [{
         id: 'consolidation-runtime',
         kind: 'autobiographical',
@@ -2961,7 +2923,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: input.recalledEpisodes[0] ? [input.recalledEpisodes[0].id] : [],
-        selectedConversationTurnIds: [],
         opening: 'What comes back first is the familiar runtime seam.',
         certainty: 'approximate' as const,
         rationale: 'The current scene naturally tugs on the old runtime handling pattern.',
@@ -2982,7 +2943,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: input.recalledEpisodes[0] ? [input.recalledEpisodes[0].id] : [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['Stay on the same seam before branching.'],
         selectedEras: [],
         selectedPeriods: [],
@@ -3095,7 +3055,6 @@ describe('runtime-organic-memory-prompt', () => {
         },
       ] as any,
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [
         {
           id: 'consolidation-late-night',
@@ -3132,7 +3091,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'experience-pattern' as const,
         temporalFocus: 'experience-matched' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime seam'],
         rationale: 'The seam is reactivating through familiar scene and mood carry.',
@@ -3143,7 +3101,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: input.recalledEpisodes[0] ? [input.recalledEpisodes[0].id] : [],
-        selectedConversationTurnIds: [],
         opening: 'What comes back first is the late-night seam.',
         certainty: 'approximate' as const,
         rationale: 'Scene familiarity and mood carry are pulling the late-night seam forward first.',
@@ -3232,7 +3189,6 @@ describe('runtime-organic-memory-prompt', () => {
         },
       }],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [{
         id: 'consolidation-runtime',
         kind: 'autobiographical',
@@ -3252,7 +3208,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'experience-pattern' as const,
         temporalFocus: 'experience-matched' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['runtime seam'],
         rationale: 'The host is asking how this used to be handled.',
@@ -3264,7 +3219,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: ['episode-conflicted'],
-        selectedConversationTurnIds: [],
         opening: 'What comes back first is the old runtime seam.',
         certainty: 'approximate' as const,
         rationale: 'The memory is useful, but not exact in detail.',
@@ -3285,7 +3239,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: ['episode-conflicted'],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: ['Stay on the same seam, but do not over-claim the old wording.'],
         selectedEras: [],
         selectedPeriods: [],
@@ -3309,7 +3262,6 @@ describe('runtime-organic-memory-prompt', () => {
           mode: 'experience-pattern',
           temporalFocus: 'experience-matched',
           searchEpisodes: true,
-          searchConversations: false,
           searchProceduralExperience: true,
           queryHints: ['runtime seam'],
           rationale: 'The answer should keep the stable core and drop unsafe detail.',
@@ -3368,13 +3320,11 @@ describe('runtime-organic-memory-prompt', () => {
       recallSubconsciousFragmentsWithGovernor: async () => [],
       recallEpisodicEventsWithGovernor: async () => [],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [],
       planRecollectionIntent: vi.fn(async () => ({
         mode: 'execution-procedure' as const,
         temporalFocus: 'experience-matched' as const,
         searchEpisodes: false,
-        searchConversations: false,
         searchProceduralExperience: true,
         queryHints: ['report immediately'],
         rationale: 'A remembered procedure is present.',
@@ -3385,7 +3335,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         opening: 'A remembered procedure is present.',
         certainty: 'approximate' as const,
         rationale: 'A remembered procedure is present.',
@@ -3406,7 +3355,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         selectedEras: [],
         selectedPeriods: [],
@@ -3454,7 +3402,6 @@ describe('runtime-organic-memory-prompt', () => {
       getMemoryStats: async () => null,
       getMemoryTuningAdvice: async () => null,
       getPersonStateEvolutionSummary: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [],
       planRecollectionIntent: async () => null,
       planMemoryRecollection: async () => null,
@@ -3584,7 +3531,6 @@ describe('runtime-organic-memory-prompt', () => {
           rationale: 'Respect boundaries, leave room, and land specific grounded repair before widening the bond line.',
         },
       } as any),
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [{
         id: 'relationship-room-repair',
         kind: 'autobiographical' as const,
@@ -3604,7 +3550,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'relationship-history' as const,
         temporalFocus: 'experience-matched' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: false,
         queryHints: ['room first', 'repair first', 'boundary'],
         rationale: 'The current wording resembles a familiar relationship repair posture.',
@@ -3630,7 +3575,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: ['episode-room-repair'],
-        selectedConversationTurnIds: [],
         opening: 'What returns first is the room-first repair rhythm.',
         certainty: 'approximate' as const,
         rationale: 'The remembered bond line says to leave room before widening.',
@@ -3725,7 +3669,6 @@ describe('runtime-organic-memory-prompt', () => {
       selectedWindowIds: [],
       selectedProcedureIds: [],
       selectedEpisodeIds: ['episode-embodiment-correction'],
-      selectedConversationTurnIds: [],
       selectedRelationshipLines: [],
       ambiguityPosture: 'approximate' as const,
       selectedEras: [],
@@ -3800,13 +3743,11 @@ describe('runtime-organic-memory-prompt', () => {
         reconsolidationCount: 0,
       } as any],
       buildHostPersonModel: async () => null,
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [],
       planRecollectionIntent: vi.fn(async () => ({
         mode: 'relationship-history' as const,
         temporalFocus: 'experience-matched' as const,
         searchEpisodes: true,
-        searchConversations: false,
         searchProceduralExperience: false,
         queryHints: ['delivery correction', 'steady gaze', 'slower voice'],
         rationale: 'The host is referring to a remembered delivery correction.',
@@ -3817,7 +3758,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProceduralIds: [],
         selectedEpisodeIds: ['episode-embodiment-correction'],
-        selectedConversationTurnIds: [],
         opening: 'The remembered delivery correction returns approximately.',
         certainty: 'approximate' as const,
         rationale: 'The episode is relevant but should not be quoted as exact.',
@@ -3894,7 +3834,6 @@ describe('runtime-organic-memory-prompt', () => {
         },
         notes: ['Stale self-model clusters should demote earlier.'],
       }),
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [
         {
           id: 'consolidation-self-old',
@@ -3931,7 +3870,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'autobiographical-history' as const,
         temporalFocus: 'cross-session' as const,
         searchEpisodes: false,
-        searchConversations: false,
         searchProceduralExperience: false,
         queryHints: ['older self-story', 'identity revision'],
         rationale: 'The host is asking about self revision continuity.',
@@ -3946,7 +3884,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: [],
         ambiguityPosture: 'approximate' as const,
         selectedEras: [],
@@ -4023,7 +3960,6 @@ describe('runtime-organic-memory-prompt', () => {
         },
         notes: ['Competing relationship repair phases should separate earlier.'],
       }),
-      recallConversationHistory: async () => [],
       recallMemoryConsolidations: async () => [
         {
           id: 'consolidation-relationship-old',
@@ -4060,7 +3996,6 @@ describe('runtime-organic-memory-prompt', () => {
         mode: 'relationship-history' as const,
         temporalFocus: 'cross-session' as const,
         searchEpisodes: false,
-        searchConversations: false,
         searchProceduralExperience: false,
         queryHints: ['repair window', 'relationship phase'],
         rationale: 'The host is asking about relationship timing continuity.',
@@ -4075,7 +4010,6 @@ describe('runtime-organic-memory-prompt', () => {
         selectedWindowIds: [],
         selectedProcedureIds: [],
         selectedEpisodeIds: [],
-        selectedConversationTurnIds: [],
         selectedRelationshipLines: input.consolidatedMemories[0]?.lesson ? [input.consolidatedMemories[0].lesson] : [],
         ambiguityPosture: 'approximate' as const,
         selectedEras: [],

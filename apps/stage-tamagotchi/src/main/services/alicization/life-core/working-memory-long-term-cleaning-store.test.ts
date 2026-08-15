@@ -126,4 +126,84 @@ describe('working memory long-term cleaning store', () => {
       queueItemId: 'queue-1',
     }))
   })
+
+  it('lists only transactions in the requested card session and queue item scope', async () => {
+    const queries: Array<{ sql: string, params: unknown[] }> = []
+    const current = transaction({
+      id: 'wm-lt-clean:current',
+      queueItemId: 'queue-current',
+      cardId: 'card-current',
+      sessionId: 'session-current',
+    })
+    const runtime = createWorkingMemoryLongTermCleaningStoreRuntime({
+      database: {} as any,
+      now: () => 3_000,
+      run: async () => undefined,
+      get: async () => undefined,
+      all: async (_database, sql, params = []) => {
+        queries.push({
+          sql: normalizeSql(sql),
+          params,
+        })
+        return [{
+          id: current.id,
+          idempotency_key: current.idempotencyKey,
+          queue_item_id: current.queueItemId,
+          card_id: current.cardId,
+          session_id: current.sessionId,
+          status: current.status,
+          decision: current.decision,
+          queue_item_json: JSON.stringify(current.item),
+          cleaned_candidate_json: null,
+          projections_json: null,
+          allow_training: 0,
+          rejection_reasons_json: '[]',
+          review_reasons_json: '[]',
+          contamination_flags_json: '[]',
+          attempt_count: 0,
+          last_error: null,
+          created_at: current.createdAt,
+          updated_at: current.updatedAt,
+          next_attempt_at: current.nextAttemptAt,
+          applied_at: null,
+        }] as any
+      },
+      runInTransaction: async (_database, task) => await task(),
+    })
+
+    const scope = {
+      cardId: 'card-current',
+      sessionId: 'session-current',
+      queueItemIds: ['queue-current', 'queue-second', 'queue-current'],
+    }
+    const dueRows = await runtime.listDueTransactionsByScope({
+      ...scope,
+      dueAt: 2_500,
+    })
+    const rows = await runtime.listTransactionsByScope(scope)
+
+    expect(dueRows.map(row => row.queueItemId)).toEqual(['queue-current'])
+    expect(rows.map(row => row.queueItemId)).toEqual(['queue-current'])
+    expect(queries).toEqual([
+      {
+        sql: expect.stringContaining('WHERE card_id = ? AND session_id = ? AND queue_item_id IN (?, ?) AND status IN'),
+        params: [
+          'card-current',
+          'session-current',
+          'queue-current',
+          'queue-second',
+          2_500,
+        ],
+      },
+      {
+        sql: expect.stringContaining('WHERE card_id = ? AND session_id = ? AND queue_item_id IN (?, ?)'),
+        params: [
+          'card-current',
+          'session-current',
+          'queue-current',
+          'queue-second',
+        ],
+      },
+    ])
+  })
 })

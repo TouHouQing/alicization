@@ -3,6 +3,7 @@ import type { AlicizationRuntimeEventEnvelope } from '@proj-alicization/stage-sh
 import type {
   AlicizationConversationTurnInput,
 } from '../../../shared/eventa'
+import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationRuntimeEventScope } from './turn-os/event-store'
 
 import { existsSync } from 'node:fs'
@@ -107,6 +108,34 @@ const getScreenCaptureDiagnosticsForWebContentsIdMock = vi.fn((webContentsId: nu
 const appBeforeQuitHandlers: Array<() => Promise<void> | void> = []
 let sensoryCpuUsage = 12
 let foregroundWindowSample: { appName?: string, processName?: string, title?: string } | undefined
+
+function buildDreamConsolidation(input: {
+  id: string
+  summary: string
+  updatedAt?: number
+  periodStartedAt?: number
+  periodEndedAt?: number
+  lesson?: string | null
+  cues?: string[]
+  derivedEventIds?: string[]
+}): AlicizationMemoryConsolidationRecord {
+  const updatedAt = input.updatedAt ?? Date.now()
+  return {
+    id: input.id,
+    kind: 'daily',
+    facet: 'phase',
+    periodKey: 'runtime-test',
+    periodStartedAt: input.periodStartedAt ?? updatedAt - 60_000,
+    periodEndedAt: input.periodEndedAt ?? updatedAt,
+    summary: input.summary,
+    lesson: input.lesson ?? null,
+    cues: input.cues ?? [],
+    confidence: 0.84,
+    dominantProvenance: 'reconstructed',
+    derivedEventIds: input.derivedEventIds ?? [],
+    updatedAt,
+  }
+}
 
 function findAlicizationProviderFact(systemTexts: string[], type: string) {
   return systemTexts
@@ -823,6 +852,7 @@ describe('alicization runtime audit helpers', () => {
     systemPreferencesGetMediaAccessStatusMock.mockReset().mockReturnValue('granted')
     dbStub.getTaskThread.mockReset().mockResolvedValue(undefined)
     dbStub.listTaskThreads.mockReset().mockResolvedValue([])
+    dbStub.listMemoryConsolidations.mockReset().mockResolvedValue([])
     dbStub.upsertTaskThread.mockReset().mockImplementation(async (input: any) => ({
       id: input.id ?? 'thread-test-1',
       decisionTraceId: input.decisionTraceId ?? null,
@@ -2566,7 +2596,6 @@ describe('alicization runtime audit helpers', () => {
               selectedWindowIds: [],
               selectedProcedureIds: [],
               selectedEpisodeIds: [],
-              selectedConversationTurnIds: [],
               selectedRelationshipLines: [],
               ambiguityPosture: 'ambiguous',
               selectedEras: [],
@@ -3539,15 +3568,15 @@ describe('alicization runtime audit helpers', () => {
     })
 
     expect(planningResult.thread.status).toBe('planned')
-    dbStub.listConversationTurnsSince.mockResolvedValue([
-      {
-        turnId: 'turn-task-planning-dream-source',
-        sessionId: 'session-task-planning-dream',
-        userText: '继续沿着刚才那条执行线做下去。',
-        assistantText: '我先把这条执行线记住。',
-        structuredJson: JSON.stringify({ emotion: 'thinking' }),
-        createdAt: Date.now() - 10_000,
-      },
+    dbStub.listMemoryConsolidations.mockResolvedValue([
+      buildDreamConsolidation({
+        id: 'consolidation-task-planning-dream-source',
+        summary: '执行路线已经规划完成，后续继续沿这条线推进。',
+        lesson: '保留已规划任务的连续性。',
+        cues: ['task-planning', 'codex'],
+        derivedEventIds: ['turn-task-planning-dream-source'],
+        updatedAt: Date.now() - 10_000,
+      }),
     ])
 
     await forceDream!({
@@ -5172,6 +5201,10 @@ describe('alicization runtime audit helpers', () => {
 
     dbStub.appendConversationTurn.mockClear()
     dbStub.appendSubconsciousFragments.mockClear()
+    dbStub.appendEpisodicEvents.mockClear()
+    dbStub.appendPersonaReinforcementEvents.mockClear()
+    dbStub.appendPersonStateEvolutionEntries.mockClear()
+    dbStub.upsertMemoryReflections.mockClear()
     dbStub.appendRelationshipOutcomes.mockClear()
     dbStub.appendEpisodicEvents.mockClear()
     dbStub.appendPersonaReinforcementEvents.mockClear()
@@ -5282,6 +5315,157 @@ describe('alicization runtime audit helpers', () => {
     expect(dbStub.insertLearningTask).not.toBeCalled()
   })
 
+  it('keeps raw provider transcripts out of subconscious memory regardless of failure or review wording', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    dbStub.appendConversationTurn.mockClear()
+    dbStub.appendSubconsciousFragments.mockClear()
+
+    const rawTranscripts = [
+      {
+        turnId: 'turn-raw-dialogue-ordinary',
+        userText: 'RAW_USER_ORDINARY keep this only in recent conversation context',
+        assistantText: 'RAW_ASSISTANT_ORDINARY recent context reply',
+      },
+      {
+        turnId: 'turn-raw-dialogue-failure-like',
+        userText: 'RAW_USER_FAILURE timeout review this provider failure',
+        assistantText: 'RAW_ASSISTANT_FAILURE the request failed and needs review',
+      },
+      {
+        turnId: 'turn-raw-dialogue-review-like',
+        userText: 'RAW_USER_REVIEW inspect this code review transcript',
+        assistantText: 'RAW_ASSISTANT_REVIEW here is the review prose',
+      },
+    ]
+
+    for (const [index, transcript] of rawTranscripts.entries()) {
+      await appendConversationTurn!({
+        cardId: 'default',
+        turnId: transcript.turnId,
+        sessionId: 'session-raw-dialogue-boundary',
+        userText: transcript.userText,
+        assistantText: transcript.assistantText,
+        governance: {
+          turnMode: 'answer',
+          truthState: 'dialogue-grounded',
+          personaKernelMode: 'backgrounded',
+          openingStyle: 'direct-answer',
+          relationshipPosture: 'warm',
+          answerSubject: 'general',
+          screenReferenceMode: 'avoid',
+          answerAct: 'answer',
+          evidenceMode: 'dialogue-grounded',
+          repairState: 'none',
+          labelCarryAsMemory: false,
+          shouldAskForGrounding: false,
+          shouldAcknowledgeRepair: false,
+          maxSentences: 4,
+          mustDo: [],
+          mustNotDo: [],
+        },
+        structured: {
+          format: 'mind-turn-v1',
+          thought: '',
+          emotion: 'neutral',
+          reply: transcript.assistantText,
+          parsePath: 'json',
+          origin: 'provider',
+          learningPolicy: {
+            allowLongTermCondensation: true,
+            allowPersonaLearning: true,
+            allowTraining: false,
+          },
+        },
+        createdAt: 26_000 + index,
+      })
+    }
+
+    expect(dbStub.appendConversationTurn).toBeCalledTimes(rawTranscripts.length)
+    expect(dbStub.appendConversationTurn.mock.calls.map(([turn]) => ({
+      turnId: turn.turnId,
+      userText: turn.userText,
+      assistantText: turn.assistantText,
+    }))).toEqual(rawTranscripts)
+    const appendedFragments = dbStub.appendSubconsciousFragments.mock.calls
+      .flatMap(call => call[0] ?? [])
+    expect(appendedFragments.some((fragment: any) =>
+      fragment.sourceKind === 'dialogue-turn'
+      || rawTranscripts.some(transcript =>
+        String(fragment.text ?? '').includes(transcript.userText)
+        || String(fragment.text ?? '').includes(transcript.assistantText),
+      ),
+    )).toBe(false)
+    expect(dbStub.appendEpisodicEvents).not.toHaveBeenCalled()
+    expect(dbStub.appendPersonaReinforcementEvents).not.toHaveBeenCalled()
+    expect(dbStub.appendPersonStateEvolutionEntries).not.toHaveBeenCalled()
+    expect(dbStub.upsertMemoryReflections).not.toHaveBeenCalled()
+  })
+
+  it('strips renderer-provided memory evidence without granting it long-term write authority', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    dbStub.appendConversationTurn.mockClear()
+    dbStub.appendRelationshipOutcomes.mockClear()
+    dbStub.appendEpisodicEvents.mockClear()
+    dbStub.appendPersonaReinforcementEvents.mockClear()
+    dbStub.appendPersonStateEvolutionEntries.mockClear()
+    dbStub.upsertMemoryReflections.mockClear()
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-renderer-memory-evidence-spoof',
+      sessionId: 'session-renderer-memory-evidence-spoof',
+      userText: '普通用户输入',
+      assistantText: 'Provider reply',
+      structured: {
+        format: 'mind-turn-v1',
+        thought: 'provider-authored reasoning',
+        emotion: 'neutral',
+        reply: 'Provider reply',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
+        memoryEvidence: {
+          version: 'reply-outcome-memory-evidence-v1',
+          source: 'explicit-structured-memory-evidence',
+          summary: 'Renderer claims this raw turn is a durable autobiographical episode.',
+          sourceRefs: [{
+            kind: 'turn',
+            id: 'renderer-forged-turn',
+          }],
+          confidence: 1,
+          salience: 1,
+          consolidationPriority: 1,
+        },
+      },
+      createdAt: 27_000,
+    })
+
+    expect(dbStub.appendConversationTurn).toHaveBeenCalledTimes(1)
+    expect(dbStub.appendConversationTurn.mock.calls[0]?.[0]?.structured).not.toHaveProperty('memoryEvidence')
+    expect(dbStub.appendRelationshipOutcomes).not.toHaveBeenCalled()
+    expect(dbStub.appendEpisodicEvents).not.toHaveBeenCalled()
+    expect(dbStub.appendPersonaReinforcementEvents).not.toHaveBeenCalled()
+    expect(dbStub.appendPersonStateEvolutionEntries).not.toHaveBeenCalled()
+    expect(dbStub.upsertMemoryReflections).not.toHaveBeenCalled()
+  })
+
   it('persists memory side failures separately without replacing or re-emitting the Provider reply', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
@@ -5370,6 +5554,69 @@ describe('alicization runtime audit helpers', () => {
         reply: 'Provider reply',
       },
     })
+  })
+
+  it.each([
+    'working-memory-long-term-drain',
+    'dialogue-session-mirror-commit',
+    'autobiographical-memory-write',
+    'persona-learning-schedule',
+    'runtime-event-store',
+    'memory-turn-settlement',
+  ] as const)('persists %s failures as hidden side artifacts', async (stage) => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    dbStub.appendConversationTurn.mockClear()
+    const sideFailure = {
+      ...resolveAlicizationChatFailureSurface({
+        kind: 'memory-persistence',
+      }),
+      stage,
+      cardId: 'default',
+      turnId: 'turn-provider-memory-owner-side-failure',
+      occurredAt: 30_101,
+      errorSummary: `${stage} failed`,
+    }
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-provider-memory-owner-side-failure',
+      sessionId: 'session-provider-memory-owner-side-failure',
+      userText: '继续当前对话',
+      assistantText: 'Provider reply survives',
+      structured: {
+        format: 'mind-turn-v1',
+        thought: '',
+        emotion: 'neutral',
+        reply: 'Provider reply survives',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
+        memoryFailures: [sideFailure],
+      },
+      createdAt: 30_100,
+    })
+
+    expect(dbStub.appendConversationTurn).toBeCalledTimes(2)
+    expect(dbStub.appendConversationTurn.mock.calls[1]?.[0]).toMatchObject({
+      turnId: `turn-provider-memory-owner-side-failure:memory-failure:${stage}:0`,
+      structured: {
+        artifactRole: 'memory-side-failure',
+        parentTurnId: 'turn-provider-memory-owner-side-failure',
+        stage,
+      },
+    })
+    expect(dbStub.appendConversationTurn.mock.calls[1]?.[0]?.assistantText).toBeUndefined()
+    expect(getDialogueRespondedEvents()).toHaveLength(1)
   })
 
   it('keeps the Provider reply when memory side failure persistence fails and records an audit', async () => {
@@ -5479,6 +5726,395 @@ describe('alicization runtime audit helpers', () => {
     expect(getDialogueRespondedEvents()).toHaveLength(0)
   })
 
+  it('aborts active turn controllers before waiting for scoped kill-switch persistence', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    const suspend = invokeHandlers.get(electronAlicizationKillSwitchSuspend)
+    expect(appendConversationTurn).toBeTypeOf('function')
+    expect(suspend).toBeTypeOf('function')
+
+    const primaryWriteGate = createDeferredGate()
+    const killSwitchMetaGate = createDeferredGate()
+    let turnWriteSignal: AbortSignal | undefined
+    dbStub.appendConversationTurn.mockImplementationOnce(async (_input: unknown, options?: { signal?: AbortSignal }) => {
+      turnWriteSignal = options?.signal
+      await primaryWriteGate.wait
+    })
+    dbStub.setMetaValue.mockImplementation(async (key: string, value: string) => {
+      if (key === 'kill_switch_state_v1')
+        await killSwitchMetaGate.wait
+      metaStore.set(key, value)
+    })
+
+    const pendingAppend = appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-suspend-before-meta',
+      sessionId: 'session-suspend-before-meta',
+      userText: '暂停时必须先中止正在写入的轮次',
+      assistantText: 'Provider reply',
+      structured: {
+        format: 'mind-turn-v1',
+        thought: '',
+        emotion: 'neutral',
+        reply: 'Provider reply',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+      },
+      createdAt: 40_050,
+    })
+    await vi.waitFor(() => {
+      expect(turnWriteSignal).toBeDefined()
+    })
+
+    const pendingSuspend = suspend!({
+      cardId: 'default',
+      reason: 'suspend-before-meta-test',
+    })
+    await vi.waitFor(() => {
+      expect(dbStub.setMetaValue).toHaveBeenCalledWith(
+        'kill_switch_state_v1',
+        expect.any(String),
+      )
+    })
+
+    expect(turnWriteSignal?.aborted).toBe(true)
+
+    killSwitchMetaGate.release()
+    primaryWriteGate.release()
+    await Promise.all([pendingAppend, pendingSuspend])
+    expect(getDialogueRespondedEvents()).toHaveLength(0)
+    expect(dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .filter(entry =>
+        entry?.payload?.turnId === 'turn-suspend-before-meta'
+        && (
+          entry.action === 'turn-abort-dropped'
+          || entry.action === 'turn-write-skipped-aborted'
+          || entry.action === 'mind-turn-events-append-failed'
+          || entry.action === 'runtime-sampling-backlog-ingest-failed'
+        ),
+      )).toEqual([])
+  })
+
+  it('passes the turn abort signal through a pending learning task insert', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    const suspend = invokeHandlers.get(electronAlicizationKillSwitchSuspend)
+    expect(appendConversationTurn).toBeTypeOf('function')
+    expect(suspend).toBeTypeOf('function')
+
+    const learningInsertGate = createDeferredGate()
+    let learningWriteSignal: AbortSignal | undefined
+    dbStub.insertLearningTask.mockImplementationOnce(async (input: any, options?: { signal?: AbortSignal }) => {
+      learningWriteSignal = options?.signal
+      await learningInsertGate.wait
+      return {
+        id: `learning-row:${input.taskId}`,
+        cardId: input.cardId,
+        taskId: input.taskId,
+        status: 'scheduled',
+        triggerAt: input.triggerAt,
+        action: input.action,
+        message: input.message,
+        payload: input.payload,
+        attemptCount: 0,
+        maxAttempts: input.maxAttempts ?? 3,
+        createdAt: 40_060,
+        updatedAt: 40_060,
+        claimedAt: null,
+        startedAt: null,
+        completedAt: null,
+        blockedAt: null,
+        cancelledAt: null,
+        downgradedAt: null,
+        reopenedAt: null,
+        nextRetryAt: null,
+        sourceTurnId: input.payload?.sourceTurnId ?? null,
+        resultSummary: null,
+        failureKind: null,
+        lastError: null,
+        firedTurnId: null,
+      }
+    })
+
+    const pendingAppend = appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-learning-insert-abort',
+      sessionId: 'session-learning-insert-abort',
+      userText: '这轮学习写入等待时暂停',
+      assistantText: 'Provider reply',
+      structured: {
+        format: 'mind-turn-v1',
+        thought: '',
+        emotion: 'neutral',
+        reply: 'Provider reply',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
+        derivedMindStateBundle: {
+          version: 'derived-mind-state-bundle-v1',
+          source: 'main-runtime',
+          producedAt: 40_060,
+          selfEvolution: {
+            version: 'self-evolution-kernel-v1',
+            updatedAt: 40_060,
+            evolutionMomentum: 0.5,
+            learningReadiness: 0.8,
+            contradictionPressure: 0.1,
+            revisionPressure: 0.1,
+            autobiographicalStability: 0.9,
+            dominantTrajectory: 'Keep only validated learning.',
+            relationshipDoctrine: null,
+            latestInflection: null,
+            burdenLine: null,
+            trustMeaning: null,
+            nextLearningAction: 'internalize',
+            nextLearningReason: 'Validated learning is ready.',
+            shouldRecord: false,
+            shouldReflect: false,
+            shouldVerify: false,
+            shouldRevise: false,
+            shouldInternalize: true,
+            activeLearningFocuses: ['validated-learning'],
+            sourceSignals: ['validated-outcome'],
+            summary: 'Validated learning is ready.',
+          },
+        },
+      },
+      createdAt: 40_060,
+    })
+    await vi.waitFor(() => {
+      expect(dbStub.insertLearningTask).toHaveBeenCalledTimes(1)
+    })
+
+    await suspend!({
+      cardId: 'default',
+      reason: 'learning-insert-abort-test',
+    })
+    expect(learningWriteSignal).toBeDefined()
+    expect(learningWriteSignal?.aborted).toBe(true)
+
+    learningInsertGate.release()
+    await pendingAppend
+
+    expect(dbStub.appendAuditLog).not.toHaveBeenCalledWith(expect.objectContaining({
+      action: 'alicization.learning.task.scheduled',
+    }), expect.anything())
+    expect(getDialogueRespondedEvents()).toHaveLength(0)
+  })
+
+  it('passes the turn abort signal through pending visual mind-head persistence', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    const suspend = invokeHandlers.get(electronAlicizationKillSwitchSuspend)
+    expect(appendConversationTurn).toBeTypeOf('function')
+    expect(suspend).toBeTypeOf('function')
+
+    const mindHeadGate = createDeferredGate()
+    let mindHeadWriteSignal: AbortSignal | undefined
+    dbStub.upsertMindHead.mockImplementation(async (
+      _cardId: string,
+      _key: string,
+      _value: unknown,
+      options?: { signal?: AbortSignal },
+    ) => {
+      mindHeadWriteSignal = options?.signal
+      await mindHeadGate.wait
+    })
+    dbStub.setMetaValue.mockClear()
+
+    const pendingAppend = appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-visual-mind-head-abort',
+      sessionId: 'session-visual-mind-head-abort',
+      userText: '视觉人格状态写入等待时暂停',
+      assistantText: 'Provider reply',
+      structured: {
+        format: 'mind-turn-v1',
+        thought: '',
+        emotion: 'neutral',
+        reply: 'Provider reply',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+      },
+      createdAt: 40_070,
+    })
+    await vi.waitFor(() => {
+      expect(dbStub.upsertMindHead).toHaveBeenCalledTimes(1)
+    })
+
+    await suspend!({
+      cardId: 'default',
+      reason: 'visual-mind-head-abort-test',
+    })
+    expect(mindHeadWriteSignal).toBeDefined()
+    expect(mindHeadWriteSignal?.aborted).toBe(true)
+
+    mindHeadGate.release()
+    await pendingAppend
+
+    expect(dbStub.upsertMindHead).toHaveBeenCalledTimes(1)
+    expect(dbStub.setMetaValue.mock.calls.some(([key]) => key === 'visual_presence_state_v1')).toBe(false)
+    expect(getDialogueRespondedEvents()).toHaveLength(0)
+  })
+
+  it('passes the turn abort signal through pending proactive state persistence', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    const suspend = invokeHandlers.get(electronAlicizationKillSwitchSuspend)
+    expect(appendConversationTurn).toBeTypeOf('function')
+    expect(suspend).toBeTypeOf('function')
+
+    const proactiveStateGate = createDeferredGate()
+    let proactiveWriteSignal: AbortSignal | undefined
+    dbStub.setMetaValue.mockImplementation(async (
+      key: string,
+      value: string,
+      options?: { signal?: AbortSignal },
+    ) => {
+      if (key === 'proactive_loop_state_v1') {
+        proactiveWriteSignal = options?.signal
+        await proactiveStateGate.wait
+        if (options?.signal?.aborted)
+          throw options.signal.reason
+      }
+      metaStore.set(key, value)
+    })
+
+    const pendingAppend = appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'execution-callback:default:state-write-abort:1',
+      sessionId: 'session-proactive-state-write-abort',
+      assistantText: 'Provider proactive reply',
+      structured: {
+        format: 'subconscious-proactive-v1',
+        thought: 'Provider-authored proactive context',
+        emotion: 'neutral',
+        reply: 'Provider proactive reply',
+        origin: 'subconscious-proactive',
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+        proactive: {
+          scenario: 'coding',
+          urgency: 'medium',
+          style: 'silent-observe',
+          shouldInterrupt: true,
+          confidence: 0.82,
+          reasonCodes: ['runtime-dialogue-ready'],
+          cooldownMs: 120_000,
+          feedbackWindowMs: 120_000,
+          policyVersion: 'proactive-policy-v1',
+        },
+      },
+      createdAt: 40_080,
+    })
+    await vi.waitFor(() => {
+      expect(dbStub.appendConversationTurn).toHaveBeenCalledTimes(1)
+    })
+    expect(dbStub.appendConversationTurn.mock.calls[0]?.[0]?.structured).toEqual(expect.objectContaining({
+      proactive: expect.objectContaining({
+        scenario: 'coding',
+      }),
+    }))
+    const proactiveWriteStart = vi.waitFor(() => {
+      expect(dbStub.setMetaValue.mock.calls.some(([key]) => key === 'proactive_loop_state_v1')).toBe(true)
+    }).then(() => 'proactive-write-started' as const)
+    const appendOutcome = pendingAppend.then(
+      () => 'append-completed-before-proactive-write' as const,
+      error => ({ error }),
+    )
+    expect(await Promise.race([proactiveWriteStart, appendOutcome]))
+      .toBe('proactive-write-started')
+
+    await suspend!({
+      cardId: 'default',
+      reason: 'proactive-state-abort-test',
+    })
+    expect(proactiveWriteSignal).toBeDefined()
+    expect(proactiveWriteSignal?.aborted).toBe(true)
+
+    proactiveStateGate.release()
+    await pendingAppend
+
+    const persistedProactiveState = String(metaStore.get('proactive_loop_state_v1') ?? '')
+    expect(persistedProactiveState).not.toContain('execution-callback:default:state-write-abort:1')
+    expect(getDialogueRespondedEvents()).toHaveLength(0)
+  })
+
+  it('does not populate proactive state cache when restore finishes after the turn aborts', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const proactiveStateCache = (runtimeTestInternals as any).currentProactiveLoopStateByCard
+    const ensureProactiveLoopState = (runtimeTestInternals as any).currentEnsureProactiveLoopState
+    expect(proactiveStateCache).toBeInstanceOf(Map)
+    expect(ensureProactiveLoopState).toBeTypeOf('function')
+    proactiveStateCache.clear()
+
+    const proactiveRestoreGate = createDeferredGate()
+    dbStub.getMetaValue.mockImplementation(async (key: string) => {
+      if (key === 'proactive_loop_state_v1') {
+        await proactiveRestoreGate.wait
+        return JSON.stringify({
+          version: 'proactive-loop-v1',
+          pendingDeliveries: [],
+          recentOutcomes: [],
+          cooldowns: {},
+          updatedAt: 40_090,
+        })
+      }
+      return metaStore.get(key)
+    })
+
+    const abortController = new AbortController()
+    const pendingRestore = ensureProactiveLoopState('default', {
+      signal: abortController.signal,
+    })
+    await vi.waitFor(() => {
+      expect(dbStub.getMetaValue.mock.calls
+        .some(([key]) => key === 'proactive_loop_state_v1'))
+        .toBe(true)
+    })
+
+    abortController.abort(new Error('proactive restore aborted'))
+    proactiveRestoreGate.release()
+
+    await expect(pendingRestore).rejects.toThrow('proactive restore aborted')
+    expect(proactiveStateCache.has('default')).toBe(false)
+  })
+
   it('drops dialogue event when kill switch aborts between persistence and emit', async () => {
     const sandboxPath = await createSandboxPath()
     await setupAlicizationRuntime({
@@ -5488,26 +6124,415 @@ describe('alicization runtime audit helpers', () => {
     const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
     expect(appendConversationTurn).toBeTypeOf('function')
 
+    dbStub.appendConversationTurn.mockClear()
+    dbStub.appendEpisodicEvents.mockClear()
     dbStub.appendConversationTurn.mockImplementationOnce(async () => {
       setAlicizationKillSwitchState('SUSPENDED', 'race-test')
     })
+
+    const sideFailure = {
+      ...resolveAlicizationChatFailureSurface({
+        kind: 'memory-persistence',
+      }),
+      stage: 'working-memory-long-term-queue',
+      cardId: 'default',
+      turnId: 'turn-test-race',
+      occurredAt: 40_001,
+      errorSummary: 'queue write must not continue after abort',
+    }
 
     await appendConversationTurn!({
       cardId: 'default',
       turnId: 'turn-test-race',
       sessionId: 'session-test',
+      userText: '请在中断后停止所有长期副作用',
       assistantText: '竞态中断',
       structured: {
-        thought: '',
+        thought: 'provider-authored reasoning',
         emotion: 'happy',
         reply: '竞态中断',
-        parsePath: 'json',
+        format: 'mind-turn-v1',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: true,
+          allowPersonaLearning: true,
+          allowTraining: false,
+        },
+        memoryFailures: [sideFailure],
+        memoryEvidence: {
+          version: 'reply-outcome-memory-evidence-v1',
+          source: 'explicit-structured-memory-evidence',
+          summary: 'This evidence must not survive an aborted turn.',
+          sourceRefs: [{
+            kind: 'turn',
+            id: 'turn-test-race',
+          }],
+        },
       },
       createdAt: Date.now(),
     })
 
+    expect(dbStub.appendConversationTurn).toHaveBeenCalledTimes(1)
+    expect(dbStub.appendEpisodicEvents).not.toHaveBeenCalled()
     expect(getDialogueRespondedEvents()).toHaveLength(0)
     setAlicizationKillSwitchState('ACTIVE', 'race-test-cleanup')
+  })
+
+  it('does not persist mind trace events after onPersisted aborts the turn', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    dbStub.appendConversationTurn.mockClear()
+    dbStub.appendMindTurnEvents.mockClear()
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-abort-after-on-persisted',
+      sessionId: 'session-abort-after-on-persisted',
+      userText: '这轮持久化后立刻中止',
+      assistantText: 'Provider reply',
+      governance: {
+        turnMode: 'answer',
+        truthState: 'dialogue-grounded',
+        personaKernelMode: 'backgrounded',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'general',
+        screenReferenceMode: 'avoid',
+        answerAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      structured: {
+        format: 'mind-turn-v1',
+        thought: '',
+        emotion: 'neutral',
+        reply: 'Provider reply',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+      },
+      onPersisted: async () => {
+        setAlicizationKillSwitchState('SUSPENDED', 'on-persisted-abort')
+      },
+      createdAt: 40_100,
+    })
+
+    expect(dbStub.appendConversationTurn).toHaveBeenCalledTimes(1)
+    expect(dbStub.appendMindTurnEvents).not.toHaveBeenCalled()
+    expect(getDialogueRespondedEvents()).toHaveLength(0)
+    setAlicizationKillSwitchState('ACTIVE', 'on-persisted-abort-cleanup')
+  })
+
+  it('does not persist mind trace, replay sampling, or turn audit after aborting post-emit work', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    const suspend = invokeHandlers.get(electronAlicizationKillSwitchSuspend)
+    expect(appendConversationTurn).toBeTypeOf('function')
+    expect(suspend).toBeTypeOf('function')
+
+    const emittedAuditGate = createDeferredGate()
+    dbStub.appendMindTurnEvents.mockClear()
+    dbStub.setMetaValue.mockClear()
+    dbStub.appendAuditLog.mockImplementation(async (entry: any) => {
+      if (entry?.action === 'alicization.dialogue.responded.emitted')
+        await emittedAuditGate.wait
+    })
+
+    const pendingAppend = appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-abort-after-emit',
+      sessionId: 'session-abort-after-emit',
+      userText: '发送后中止时不要继续写回放与记忆 trace',
+      assistantText: 'Provider reply',
+      governance: {
+        decisionTraceId: 'trace-abort-after-emit',
+        turnMode: 'answer',
+        truthState: 'dialogue-grounded',
+        personaKernelMode: 'backgrounded',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'general',
+        screenReferenceMode: 'avoid',
+        answerAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      structured: {
+        format: 'mind-turn-v1',
+        thought: '',
+        emotion: 'neutral',
+        reply: 'Provider reply',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+      },
+      createdAt: 40_150,
+    })
+
+    await vi.waitFor(() => {
+      expect(getDialogueRespondedEvents()
+        .some(event => event.turnId === 'turn-abort-after-emit'))
+        .toBe(true)
+      expect(dbStub.appendAuditLog.mock.calls
+        .some(([entry]) => entry?.action === 'alicization.dialogue.responded.emitted'))
+        .toBe(true)
+    })
+
+    const pendingSuspend = suspend!({
+      cardId: 'default',
+      reason: 'abort-after-emit-test',
+    })
+    await vi.waitFor(() => {
+      expect(dbStub.setMetaValue).toHaveBeenCalledWith(
+        'kill_switch_state_v1',
+        expect.any(String),
+      )
+    })
+    emittedAuditGate.release()
+    await Promise.all([pendingAppend, pendingSuspend])
+
+    expect(dbStub.appendMindTurnEvents).not.toHaveBeenCalled()
+    expect(dbStub.setMetaValue.mock.calls
+      .some(([key]) => key === 'replay_benchmark_runtime_sampling_backlog_v1'))
+      .toBe(false)
+    expect(dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .filter(entry =>
+        entry?.payload?.turnId === 'turn-abort-after-emit'
+        && (
+          entry.action === 'turn-abort-dropped'
+          || entry.action === 'turn-write-skipped-aborted'
+          || entry.action === 'mind-turn-events-append-failed'
+          || entry.action === 'runtime-sampling-backlog-ingest-failed'
+        ),
+      )).toEqual([])
+  })
+
+  it('does not commit replay sampling when abort happens during backlog restore', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    const suspend = invokeHandlers.get(electronAlicizationKillSwitchSuspend)
+    expect(appendConversationTurn).toBeTypeOf('function')
+    expect(suspend).toBeTypeOf('function')
+
+    const replayBacklogReadGate = createDeferredGate()
+    dbStub.setMetaValue.mockClear()
+    dbStub.appendAuditLog.mockClear()
+    dbStub.getMetaValue.mockImplementation(async (key: string) => {
+      if (key === 'replay_benchmark_runtime_sampling_backlog_v1') {
+        await replayBacklogReadGate.wait
+        return undefined
+      }
+      return metaStore.get(key)
+    })
+
+    const pendingAppend = appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-abort-during-replay-sampling',
+      sessionId: 'session-abort-during-replay-sampling',
+      userText: '回放采样读取期间中止时不能再提交 backlog',
+      assistantText: 'Provider reply',
+      governance: {
+        decisionTraceId: 'trace-abort-during-replay-sampling',
+        turnMode: 'answer',
+        truthState: 'dialogue-grounded',
+        personaKernelMode: 'backgrounded',
+        openingStyle: 'direct-answer',
+        relationshipPosture: 'warm',
+        answerSubject: 'general',
+        screenReferenceMode: 'avoid',
+        answerAct: 'answer',
+        evidenceMode: 'dialogue-grounded',
+        repairState: 'none',
+        labelCarryAsMemory: false,
+        shouldAskForGrounding: false,
+        shouldAcknowledgeRepair: false,
+        maxSentences: 4,
+        mustDo: [],
+        mustNotDo: [],
+      },
+      structured: {
+        format: 'mind-turn-v1',
+        thought: '',
+        emotion: 'neutral',
+        reply: 'Provider reply',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+      },
+      createdAt: 40_175,
+    })
+    await vi.waitFor(() => {
+      expect(dbStub.getMetaValue.mock.calls
+        .some(([key]) => key === 'replay_benchmark_runtime_sampling_backlog_v1'))
+        .toBe(true)
+    })
+
+    const pendingSuspend = suspend!({
+      cardId: 'default',
+      reason: 'abort-during-replay-sampling-test',
+    })
+    await vi.waitFor(() => {
+      expect(dbStub.setMetaValue).toHaveBeenCalledWith(
+        'kill_switch_state_v1',
+        expect.any(String),
+      )
+    })
+    replayBacklogReadGate.release()
+    await Promise.all([pendingAppend, pendingSuspend])
+
+    expect(dbStub.setMetaValue.mock.calls
+      .some(([key]) => key === 'replay_benchmark_runtime_sampling_backlog_v1'))
+      .toBe(false)
+    expect(dbStub.appendAuditLog.mock.calls
+      .map(([entry]) => entry)
+      .filter(entry =>
+        entry?.payload?.turnId === 'turn-abort-during-replay-sampling'
+        && entry.action === 'runtime-sampling-backlog-ingest-failed',
+      )).toEqual([])
+  })
+
+  it('stops persisting memory side failures when abort happens between artifacts', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    dbStub.appendConversationTurn.mockClear()
+    dbStub.appendConversationTurn
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(async () => {
+        setAlicizationKillSwitchState('SUSPENDED', 'memory-side-loop-abort')
+      })
+
+    const memoryFailures = ['working-memory-long-term-queue', 'runtime-event-store'].map((stage, index) => ({
+      ...resolveAlicizationChatFailureSurface({
+        kind: 'memory-persistence',
+      }),
+      stage,
+      cardId: 'default',
+      turnId: 'turn-memory-side-loop-abort',
+      occurredAt: 40_201 + index,
+      errorSummary: `${stage} failed`,
+    }))
+
+    await appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-memory-side-loop-abort',
+      sessionId: 'session-memory-side-loop-abort',
+      userText: '中止后不要继续写下一条失败工件',
+      assistantText: 'Provider reply',
+      structured: {
+        format: 'mind-turn-v1',
+        thought: '',
+        emotion: 'neutral',
+        reply: 'Provider reply',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+        memoryFailures,
+      },
+      createdAt: 40_200,
+    })
+
+    expect(dbStub.appendConversationTurn).toHaveBeenCalledTimes(2)
+    expect(dbStub.appendConversationTurn.mock.calls[1]?.[0]?.turnId)
+      .toContain(':memory-failure:working-memory-long-term-queue:0')
+    expect(getDialogueRespondedEvents()).toHaveLength(0)
+    setAlicizationKillSwitchState('ACTIVE', 'memory-side-loop-abort-cleanup')
+  })
+
+  it('does not emit when kill switch aborts during final performance manifest load', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    const appendConversationTurn = invokeHandlers.get(electronAlicizationAppendConversationTurn)
+    expect(appendConversationTurn).toBeTypeOf('function')
+
+    let performanceManifestReads = 0
+    const finalManifestGate = createDeferredGate()
+    dbStub.getMetaValue.mockImplementation(async (key: string) => {
+      if (key === 'performance_manifest_v1') {
+        performanceManifestReads += 1
+        if (performanceManifestReads === 2)
+          await finalManifestGate.wait
+      }
+      return metaStore.get(key)
+    })
+
+    const pendingAppend = appendConversationTurn!({
+      cardId: 'default',
+      turnId: 'turn-final-manifest-abort',
+      sessionId: 'session-final-manifest-abort',
+      userText: '最终发送前中止',
+      assistantText: 'Provider reply',
+      structured: {
+        format: 'mind-turn-v1',
+        thought: '',
+        emotion: 'neutral',
+        reply: 'Provider reply',
+        origin: 'provider',
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+      },
+      createdAt: 40_300,
+    })
+
+    await vi.waitFor(() => {
+      expect(performanceManifestReads).toBe(2)
+    })
+    setAlicizationKillSwitchState('SUSPENDED', 'final-manifest-abort')
+    finalManifestGate.release()
+    await pendingAppend
+
+    expect(getDialogueRespondedEvents()).toHaveLength(0)
+    setAlicizationKillSwitchState('ACTIVE', 'final-manifest-abort-cleanup')
   })
 
   it('uses active session binding when appending turn without sessionId', async () => {
@@ -5622,19 +6647,20 @@ describe('alicization runtime audit helpers', () => {
     })
 
     await new Promise(resolve => setTimeout(resolve, 40))
-    dbStub.listConversationTurnsSince.mockReset()
 
     const forceDream = invokeHandlers.get(electronAlicizationSubconsciousForceDream)
     expect(forceDream).toBeTypeOf('function')
 
-    dbStub.listConversationTurnsSince.mockResolvedValue(
+    dbStub.listMemoryConsolidations.mockResolvedValue(
       Array.from({ length: 300 }).map((_, index) => ({
-        turnId: `turn-${index}`,
-        sessionId: 'session-dream',
-        userText: `用户消息 ${index} ${'x'.repeat(400)}`,
-        assistantText: `助手消息 ${index} ${'y'.repeat(500)}`,
-        structuredJson: null,
-        createdAt: Date.now() - (300 - index) * 1000,
+        ...buildDreamConsolidation({
+          id: `consolidation-${index}`,
+          summary: `清洗后的长期记忆 ${index} ${'x'.repeat(400)}`,
+          lesson: `凝练出的经验 ${index} ${'y'.repeat(240)}`,
+          cues: [`cue-${index}`, 'runtime-test'],
+          derivedEventIds: [`event-${index}`],
+          updatedAt: Date.now() - (300 - index) * 1000,
+        }),
       })),
     )
 
@@ -5649,8 +6675,8 @@ describe('alicization runtime audit helpers', () => {
       .find((item: any) => item.action === 'alicization.dream.context.truncated')
     expect(truncationAudit).toBeTruthy()
     expect(truncationAudit?.payload).toEqual(expect.objectContaining({
-      rawTurnCount: 300,
-      maxTurns: 100,
+      sourceConsolidationCount: 300,
+      maxConsolidations: 100,
     }))
   })
 
@@ -5815,16 +6841,38 @@ describe('alicization runtime audit helpers', () => {
 
     const appendCalls = dbStub.appendRuntimeEvent.mock.calls
       .filter(([scope]) => scope.turnId === turnId)
-    expect(appendCalls.map(([, event]) => event.eventType)).toEqual([
+    const eventTypes = appendCalls.map(([, event]) => event.eventType)
+    expect(eventTypes).toEqual([
       'turn.accepted',
       'context.assembly.started',
+      'long_term_memory.recall.started',
+      'long_term_memory.recall.abstained',
+      'long_term_memory.recall.completed',
       'context.assembly.completed',
       'model.step.started',
       'model.text.delta',
       'model.step.completed',
       'assistant.reply.committed',
       'turn.completed',
+      'memory.write.proposed',
+      'memory.owner.settled',
+      'memory.owner.settled',
+      'memory.owner.settled',
+      'memory.owner.settled',
+      'memory.owner.settled',
+      'memory.owner.settled',
+      'memory.owner.settled',
+      'memory.write.accepted',
+      'working_memory.snapshot.created',
     ])
+    expect(eventTypes.indexOf('turn.completed'))
+      .toBeLessThan(eventTypes.indexOf('memory.write.proposed'))
+    expect(eventTypes.indexOf('memory.write.proposed'))
+      .toBeLessThan(eventTypes.indexOf('memory.owner.settled'))
+    expect(eventTypes.lastIndexOf('memory.owner.settled'))
+      .toBeLessThan(eventTypes.indexOf('memory.write.accepted'))
+    expect(eventTypes.indexOf('memory.write.accepted'))
+      .toBeLessThan(eventTypes.indexOf('working_memory.snapshot.created'))
 
     const localUserId = metaStore.get('alicization.runtime.local-user-id.v1')
     expect(localUserId).toEqual(expect.any(String))
@@ -7828,7 +8876,6 @@ describe('alicization runtime audit helpers', () => {
     })
 
     await new Promise(resolve => setTimeout(resolve, 40))
-    dbStub.listConversationTurnsSince.mockReset()
     streamTextMock.mockReset()
     mockGenerateTextFromStreamText()
 
@@ -7860,15 +8907,13 @@ describe('alicization runtime audit helpers', () => {
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
 
-    dbStub.listConversationTurnsSince.mockResolvedValueOnce([
-      {
-        turnId: 'turn-dream-blocking-1',
-        sessionId: 'session-dream-blocking',
-        userText: '你还在吗？',
-        assistantText: '在。',
-        structuredJson: JSON.stringify({ emotion: 'neutral' }),
-        createdAt: Date.now() - 30_000,
-      },
+    dbStub.listMemoryConsolidations.mockResolvedValueOnce([
+      buildDreamConsolidation({
+        id: 'consolidation-dream-blocking-1',
+        summary: '一条清洗后的连续性记忆等待夜间代谢。',
+        derivedEventIds: ['turn-dream-blocking-1'],
+        updatedAt: Date.now() - 30_000,
+      }),
     ])
 
     const forceDream = invokeHandlers.get(electronAlicizationSubconsciousForceDream)
@@ -10261,15 +11306,13 @@ describe('alicization runtime audit helpers', () => {
       },
     })
 
-    dbStub.listConversationTurnsSince.mockResolvedValue([
-      {
-        turnId: 'turn-dream-custom-directives',
-        sessionId: 'session-dream',
-        userText: '今天状态一般。',
-        assistantText: '继续。',
-        structuredJson: JSON.stringify({ emotion: 'neutral' }),
-        createdAt: Date.now() - 30_000,
-      },
+    dbStub.listMemoryConsolidations.mockResolvedValue([
+      buildDreamConsolidation({
+        id: 'consolidation-dream-custom-directives',
+        summary: '宿主今天状态一般，需要保留克制的陪伴节奏。',
+        derivedEventIds: ['turn-dream-custom-directives'],
+        updatedAt: Date.now() - 30_000,
+      }),
     ])
 
     await forceTick!({ cardId: 'default' })
@@ -10405,16 +11448,24 @@ describe('alicization runtime audit helpers', () => {
       sessionId: 'session-dream-loop',
     })
 
-    dbStub.listConversationTurnsSince.mockResolvedValue([
-      {
-        turnId: 'turn-dream-loop-source',
-        sessionId: 'session-dream-loop',
-        userText: '今天继续整理这条线。',
-        assistantText: '好，我们继续。',
-        structuredJson: JSON.stringify({ emotion: 'neutral' }),
-        createdAt: Date.now() - 15_000,
-      },
-    ])
+    const firstDreamUpdatedAt = Date.now() - 15_000
+    dbStub.listMemoryConsolidations
+      .mockResolvedValueOnce([
+        buildDreamConsolidation({
+          id: 'consolidation-dream-loop-source-1',
+          summary: '第一段清洗后的连续性证据已经形成。',
+          derivedEventIds: ['turn-dream-loop-source-1'],
+          updatedAt: firstDreamUpdatedAt,
+        }),
+      ])
+      .mockResolvedValueOnce([
+        buildDreamConsolidation({
+          id: 'consolidation-dream-loop-source-2',
+          summary: '第二段新的清洗证据继续同一条梦境连续线。',
+          derivedEventIds: ['turn-dream-loop-source-2'],
+          updatedAt: firstDreamUpdatedAt + 60_000,
+        }),
+      ])
 
     await forceDream!({
       cardId: 'default',
@@ -10464,7 +11515,6 @@ describe('alicization runtime audit helpers', () => {
     })
 
     await new Promise(resolve => setTimeout(resolve, 40))
-    dbStub.listConversationTurnsSince.mockReset()
     dbStub.listActiveThoughts.mockResolvedValueOnce([
       {
         id: 'thought-keep',
@@ -10556,23 +11606,15 @@ describe('alicization runtime audit helpers', () => {
       allowOverwrite: true,
     })
 
-    dbStub.listConversationTurnsSince.mockResolvedValueOnce([
-      {
-        turnId: 'turn-hostile-1',
-        sessionId: 'session-dream',
-        userText: '闭嘴，别烦我。',
-        assistantText: '收到。',
-        structuredJson: JSON.stringify({ emotion: 'angry' }),
-        createdAt: Date.now() - 60_000,
-      },
-      {
-        turnId: 'turn-hostile-2',
-        sessionId: 'session-dream',
-        userText: '不给你权限，别再问。',
-        assistantText: 'The Host explicitly intercepted and denied tool permission.',
-        structuredJson: JSON.stringify({ emotion: 'tired' }),
-        createdAt: Date.now() - 30_000,
-      },
+    dbStub.listMemoryConsolidations.mockResolvedValueOnce([
+      buildDreamConsolidation({
+        id: 'consolidation-host-boundary',
+        summary: '宿主明确拒绝打扰和未经授权的执行，需要降低压力并尊重边界。',
+        lesson: '没有权限时停止执行，不把拒绝转化成持续追问。',
+        cues: ['host-boundary', 'permission-denied'],
+        derivedEventIds: ['turn-hostile-1', 'turn-hostile-2'],
+        updatedAt: Date.now() - 30_000,
+      }),
     ])
 
     const beforeSoul = await getSoul!({ cardId: 'default' })
@@ -10716,7 +11758,6 @@ describe('alicization runtime audit helpers', () => {
               selectedWindowIds: [],
               selectedProcedureIds: [],
               selectedEpisodeIds: [],
-              selectedConversationTurnIds: [],
               selectedRelationshipLines: [],
               ambiguityPosture: 'ambiguous',
               selectedEras: [],
@@ -10745,35 +11786,31 @@ describe('alicization runtime audit helpers', () => {
         createdAt: Date.now() - 30_000,
       },
     ]))
+    dbStub.listMemoryConsolidations.mockResolvedValueOnce([
+      buildDreamConsolidation({
+        id: 'consolidation-nightly-dream-source',
+        summary: '夜间清洗结果要求保留不确定性，不把尚未确认的线索说死。',
+        lesson: '先保留稳定核心，再处理相邻错线程竞争。',
+        cues: ['nightly', 'uncertainty', 'wrong-thread'],
+        derivedEventIds: ['turn-nightly-dream-source'],
+        updatedAt: Date.now() - 20_000,
+      }),
+    ])
     dbStub.listConversationTurnsSince.mockReset()
-    dbStub.listConversationTurnsSince.mockImplementation(async (_sinceExclusive: number, options?: { limit?: number }) => {
-      if (options?.limit === 2000) {
-        return [
-          {
-            turnId: 'turn-nightly-dream-source',
-            sessionId: 'session-nightly-dream',
-            userText: '今晚先别把那条线说死。',
-            assistantText: '我先把那条线轻轻压住。',
-            structuredJson: JSON.stringify({ emotion: 'thinking' }),
-            createdAt: Date.now() - 20_000,
+    dbStub.listConversationTurnsSince.mockResolvedValue([
+      {
+        turnId: 'turn-nightly-sampled-1',
+        sessionId: 'session-nightly-sampled',
+        userText: '继续按你以前那套接法把这个收回来',
+        assistantText: '我会先沿旧 procedure 接住它。',
+        structuredJson: JSON.stringify({
+          governance: {
+            decisionTraceId: 'mind:nightly:sampled:1',
           },
-        ]
-      }
-      return [
-        {
-          turnId: 'turn-nightly-sampled-1',
-          sessionId: 'session-nightly-sampled',
-          userText: '继续按你以前那套接法把这个收回来',
-          assistantText: '我会先沿旧 procedure 接住它。',
-          structuredJson: JSON.stringify({
-            governance: {
-              decisionTraceId: 'mind:nightly:sampled:1',
-            },
-          }),
-          createdAt: Date.now() - 10_000,
-        },
-      ]
-    })
+        }),
+        createdAt: Date.now() - 10_000,
+      },
+    ])
     dbStub.listMindTurnEvents.mockReset()
     dbStub.listMindTurnEvents.mockImplementation(async (input?: { turnId?: string }) => {
       if (input?.turnId !== 'turn-nightly-sampled-1')
@@ -10888,7 +11925,6 @@ describe('alicization runtime audit helpers', () => {
     })
 
     await new Promise(resolve => setTimeout(resolve, 40))
-    dbStub.listConversationTurnsSince.mockReset()
 
     const initializeGenesis = invokeHandlers.get(electronAlicizationInitializeGenesis)
     const syncLlmConfig = invokeHandlers.get(electronAlicizationLlmSyncConfig)
@@ -10990,15 +12026,15 @@ describe('alicization runtime audit helpers', () => {
       }
     })
 
-    dbStub.listConversationTurnsSince.mockResolvedValueOnce([
-      {
-        turnId: 'turn-shatter-1',
-        sessionId: 'session-dream',
-        userText: '其实我真的撑不住了。',
-        assistantText: '我听到了，你不用再一个人扛。',
-        structuredJson: JSON.stringify({ emotion: 'concerned' }),
-        createdAt: Date.now() - 30_000,
-      },
+    dbStub.listMemoryConsolidations.mockResolvedValueOnce([
+      buildDreamConsolidation({
+        id: 'consolidation-shatter-1',
+        summary: '宿主在最糟糕的时候第一次承认自己真的需要陪伴留下。',
+        lesson: '重要关系事件可能改变长期自我叙事，但必须经过清洗后的反思证据。',
+        cues: ['relationship-shift', 'stay'],
+        derivedEventIds: ['turn-shatter-1'],
+        updatedAt: Date.now() - 30_000,
+      }),
     ])
 
     await forceDream!({
@@ -11043,7 +12079,6 @@ describe('alicization runtime audit helpers', () => {
     })
 
     await new Promise(resolve => setTimeout(resolve, 40))
-    dbStub.listConversationTurnsSince.mockReset()
 
     const initializeGenesis = invokeHandlers.get(electronAlicizationInitializeGenesis)
     const syncLlmConfig = invokeHandlers.get(electronAlicizationLlmSyncConfig)
@@ -11121,15 +12156,15 @@ describe('alicization runtime audit helpers', () => {
       await onEvent?.({ type: 'finish', finishReason: 'stop' })
     })
 
-    dbStub.listConversationTurnsSince.mockResolvedValueOnce([
-      {
-        turnId: 'turn-shatter-fail',
-        sessionId: 'session-dream',
-        userText: '别走。',
-        assistantText: '我还在。',
-        structuredJson: JSON.stringify({ emotion: 'concerned' }),
-        createdAt: Date.now() - 30_000,
-      },
+    dbStub.listMemoryConsolidations.mockResolvedValueOnce([
+      buildDreamConsolidation({
+        id: 'consolidation-shatter-fail',
+        summary: '宿主第一次明确表达希望陪伴不要离开。',
+        lesson: '人格重铸失败时仍需保存待审计的重要关系事件。',
+        cues: ['relationship-shift', 'unforged'],
+        derivedEventIds: ['turn-shatter-fail'],
+        updatedAt: Date.now() - 30_000,
+      }),
     ])
 
     await forceDream!({
@@ -11168,6 +12203,8 @@ describe('alicization runtime audit helpers', () => {
         },
       },
     })
+    const localRuntimeUserId = metaStore.get('alicization.runtime.local-user-id.v1')
+    expect(localRuntimeUserId).toEqual(expect.any(String))
 
     dbStub.listConversationTurnsBySession.mockResolvedValueOnce([
       {
@@ -11206,12 +12243,18 @@ describe('alicization runtime audit helpers', () => {
           threadAnchor: 'ProjectAtlas dev server',
           cues: ['ProjectAtlas', '5173'],
           entities: ['ProjectAtlas'],
-          sensitivity: 'normal',
+          sensitivity: 'personal',
         },
         score: 0.94,
         queryMatches: ['ProjectAtlas'],
         rankReasons: ['entity-match'],
-        visibleMode: 'tentative',
+        scope: {
+          userId: localRuntimeUserId,
+          cardId: 'default',
+        },
+        provenance: 'remembered',
+        evidenceVersion: 'long-term-memory-evidence-v1',
+        version: 'long-term-memory-evidence-v1',
       }],
       confidence: 0.94,
       budgetClass: 'normal',
@@ -13260,15 +14303,15 @@ describe('alicization runtime audit helpers', () => {
           },
         },
       })
-      dbStub.listConversationTurnsSince.mockResolvedValue([
-        {
-          turnId: 'turn-dream-proactive-ignored-source',
-          sessionId: 'session-proactive-ignored-dream',
-          userText: '刚才没看到提醒',
-          assistantText: '我记下这次是超时未回复。',
-          structuredJson: JSON.stringify({ emotion: 'thinking' }),
-          createdAt: Date.now() - 10_000,
-        },
+      dbStub.listMemoryConsolidations.mockResolvedValue([
+        buildDreamConsolidation({
+          id: 'consolidation-proactive-ignored-source',
+          summary: '主动提醒在反馈窗口结束后未被回应，应降低同场景打扰频率。',
+          lesson: 'ignored 是节奏反馈，不应被解释成关系拒绝。',
+          cues: ['proactive-feedback', 'ignored', 'coding'],
+          derivedEventIds: ['turn-dream-proactive-ignored-source'],
+          updatedAt: Date.now() - 10_000,
+        }),
       ])
 
       await forceDream!({

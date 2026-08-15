@@ -40,6 +40,12 @@ export interface WorkingMemoryLongTermCleaningStoreRuntimeOptions {
   runInTransaction: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
 }
 
+export interface WorkingMemoryLongTermCleaningScope {
+  cardId: string
+  sessionId: string
+  queueItemIds: string[]
+}
+
 function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw)
     return fallback
@@ -55,6 +61,19 @@ function normalizeDecision(raw: string): WorkingMemoryLongTermAdmissionDecision 
   if (raw === 'admit' || raw === 'reject' || raw === 'review')
     return raw
   return 'pending'
+}
+
+function normalizeScope(input: WorkingMemoryLongTermCleaningScope) {
+  const queueItemIds = [...new Set(
+    input.queueItemIds
+      .map(queueItemId => queueItemId.trim())
+      .filter(Boolean),
+  )]
+  return {
+    cardId: input.cardId.trim(),
+    sessionId: input.sessionId.trim(),
+    queueItemIds,
+  }
 }
 
 export function mapWorkingMemoryLongTermCleaningRow(row: WorkingMemoryLongTermCleaningRow): WorkingMemoryLongTermCleaningTransaction {
@@ -156,6 +175,61 @@ export function createWorkingMemoryLongTermCleaningStoreRuntime(options: Working
     return rows.map(mapWorkingMemoryLongTermCleaningRow)
   }
 
+  async function listTransactionsByScope(input: WorkingMemoryLongTermCleaningScope) {
+    const scope = normalizeScope(input)
+    if (!scope.cardId || !scope.sessionId || scope.queueItemIds.length === 0)
+      return []
+
+    const placeholders = scope.queueItemIds.map(() => '?').join(', ')
+    const rows = await options.all<WorkingMemoryLongTermCleaningRow>(
+      options.database,
+      `
+      SELECT *
+      FROM working_memory_long_term_transactions
+      WHERE card_id = ?
+        AND session_id = ?
+        AND queue_item_id IN (${placeholders})
+      ORDER BY updated_at DESC, created_at DESC
+      `,
+      [
+        scope.cardId,
+        scope.sessionId,
+        ...scope.queueItemIds,
+      ],
+    )
+    return rows.map(mapWorkingMemoryLongTermCleaningRow)
+  }
+
+  async function listDueTransactionsByScope(input: WorkingMemoryLongTermCleaningScope & {
+    dueAt?: number
+  }) {
+    const scope = normalizeScope(input)
+    if (!scope.cardId || !scope.sessionId || scope.queueItemIds.length === 0)
+      return []
+
+    const placeholders = scope.queueItemIds.map(() => '?').join(', ')
+    const rows = await options.all<WorkingMemoryLongTermCleaningRow>(
+      options.database,
+      `
+      SELECT *
+      FROM working_memory_long_term_transactions
+      WHERE card_id = ?
+        AND session_id = ?
+        AND queue_item_id IN (${placeholders})
+        AND status IN ('pending-cleaning', 'admitted')
+        AND COALESCE(next_attempt_at, created_at) <= ?
+      ORDER BY created_at ASC
+      `,
+      [
+        scope.cardId,
+        scope.sessionId,
+        ...scope.queueItemIds,
+        input.dueAt ?? options.now(),
+      ],
+    )
+    return rows.map(mapWorkingMemoryLongTermCleaningRow)
+  }
+
   async function listReviewTransactions(input: {
     cardId: string
     limit?: number
@@ -223,7 +297,9 @@ export function createWorkingMemoryLongTermCleaningStoreRuntime(options: Working
   return {
     enqueueTransactions,
     listDueTransactions,
+    listDueTransactionsByScope,
     listReviewTransactions,
+    listTransactionsByScope,
     updateTransaction,
   }
 }

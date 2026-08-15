@@ -219,7 +219,6 @@ function asRecollectionPlan(raw: unknown): AlicizationRecollectionPlan | null {
     || !isStringArray(raw.selectedWindowIds)
     || !isStringArray(raw.selectedProceduralIds)
     || !isStringArray(raw.selectedEpisodeIds)
-    || !isStringArray(raw.selectedConversationTurnIds)
     || typeof raw.opening !== 'string'
     || !isRecollectionCertainty(raw.certainty)
     || typeof raw.rationale !== 'string'
@@ -296,16 +295,26 @@ function readPreviousEmbodimentContinuityLanes(
   return lanes as Partial<Record<AlicizationEmbodimentContinuityLane, AlicizationEmbodimentContinuityLaneSnapshot>>
 }
 
-function mapPersistedReflectionRecordToEntry(record: AlicizationMemoryReflectionRecord): NonNullable<AlicizationVisualPresenceStateSnapshot['reflectionLedger']>['entries'][number] {
+type AlicizationRuntimePersistedReflectionEntry
+  = NonNullable<AlicizationVisualPresenceStateSnapshot['reflectionLedger']>['entries'][number]
+    & { reviewStatus: 'confirmed' }
+
+function mapPersistedReflectionRecordToEntry(
+  record: AlicizationMemoryReflectionRecord,
+): AlicizationRuntimePersistedReflectionEntry | null {
+  if (record.status !== 'confirmed')
+    return null
+
   return {
     id: record.id,
     summary: record.summary,
     expectation: record.summary,
     observedOutcome: record.summary,
-    outcome: record.status === 'superseded' ? 'released' : 'unknown',
+    outcome: 'unknown',
     revision: record.lesson,
     confidenceShift: 0,
     createdAt: record.createdAt,
+    reviewStatus: 'confirmed',
   }
 }
 
@@ -1378,7 +1387,13 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       input.previousVisualPresenceState.personStateUpdateSurface,
     ) ?? persistedPersonStateUpdateSurface
     const personStateUpdateSurface = previousPersonStateUpdateSurface
-    const persistedReflectionEntries = recentMemoryReflections.map(mapPersistedReflectionRecordToEntry)
+    const confirmedMemoryReflections = recentMemoryReflections.filter(
+      reflection => reflection.status === 'confirmed',
+    )
+    const persistedReflectionEntries = confirmedMemoryReflections.flatMap((reflection) => {
+      const entry = mapPersistedReflectionRecordToEntry(reflection)
+      return entry ? [entry] : []
+    })
     const previousLongHorizonMemory = input.previousVisualPresenceState.longHorizonMemory ?? null
     const shouldRefreshLongHorizonMemory
       = input.cognitionMode === 'interactive'
@@ -1788,7 +1803,7 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       goalStack,
       reflectionLedger,
       recentRelationshipOutcomes,
-      recentMemoryReflections,
+      recentMemoryReflections: confirmedMemoryReflections,
       desireMemory: input.previousVisualPresenceState.desireMemory ?? null,
       recentReinforcementEvents,
       personStateUpdateSurface: previousPersonStateUpdateSurface,

@@ -10,6 +10,7 @@ import type {
   LongTermMemoryRetrievalChannel,
 } from './long-term-memory-rrf'
 
+import { longTermMemoryEvidenceVersion } from './long-term-memory-recall'
 import { reciprocalRankFusion } from './long-term-memory-rrf'
 
 const dayMs = 24 * 60 * 60 * 1000
@@ -166,12 +167,14 @@ function scoreThreadFit(input: {
   }
 }
 
-function visibleModeFor(candidate: LongTermMemoryEvidenceCandidate, score: number): RankedLongTermMemoryEvidence['visibleMode'] {
-  if (candidate.sensitivity === 'private' || candidate.sensitivity === 'secret')
-    return 'inward-only'
-  if (candidate.confidence < 0.62 || score < 0.42)
-    return 'tentative'
-  return 'explicit'
+function inferEvidenceProvenance(candidate: LongTermMemoryEvidenceCandidate): RankedLongTermMemoryEvidence['provenance'] {
+  if (candidate.provenance)
+    return candidate.provenance
+  if (candidate.origin === 'user-turn' || candidate.source === 'user-turn' || candidate.source === 'episodic_events')
+    return 'observed'
+  if (candidate.source === 'memory_reflections' || candidate.source === 'memory_consolidations')
+    return 'inferred'
+  return 'remembered'
 }
 
 function rankPositiveScores(input: {
@@ -325,7 +328,13 @@ export function rankLongTermMemoryHybridEvidence(input: {
           ...threadFit.matches,
         ], 8, 80),
         rankReasons,
-        visibleMode: visibleModeFor(candidate, score),
+        scope: candidate.scope ?? {
+          userId: 'unknown',
+          cardId: null,
+        },
+        provenance: inferEvidenceProvenance(candidate),
+        evidenceVersion: candidate.evidenceVersion ?? candidate.version ?? longTermMemoryEvidenceVersion,
+        version: candidate.version ?? candidate.evidenceVersion ?? longTermMemoryEvidenceVersion,
       }
     })
     .filter((item): item is RankedLongTermMemoryEvidence => item !== null && item.score >= 0.18)

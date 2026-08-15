@@ -5,6 +5,7 @@ import type {
 } from '../../types/chat'
 
 import { normalizeDialogueStructuredArtifact } from '../../composables/alicization-structured-output'
+import { shouldReplaceToolSettlement } from './tool-settlement-arbitration'
 
 type ChatAssistantMessage = Extract<ChatHistoryItem, { role: 'assistant' }>
 type ChatToolResult = ChatAssistantMessage['tool_results'][number]
@@ -15,6 +16,9 @@ const settledExecutionPhases = new Set<ChatSlicesExecutionStatus['phase']>([
   'tool-dead-lettered',
   'tool-failed',
   'tool-timeout',
+])
+const deadLetteredExecutionPhases = new Set<ChatSlicesExecutionStatus['phase']>([
+  'tool-dead-lettered',
 ])
 
 const settledToolResultStatuses = new Set([
@@ -27,6 +31,10 @@ const settledToolResultStatuses = new Set([
   'tool-dead-lettered',
   'tool-failed',
   'tool-timeout',
+])
+const deadLetteredToolResultStatuses = new Set([
+  'dead-lettered',
+  'tool-dead-lettered',
 ])
 
 function extractMessageContent(message: ChatHistoryItem) {
@@ -142,8 +150,14 @@ function mergeExecutionStatus(
   existing: ChatSlicesExecutionStatus,
   next: ChatSlicesExecutionStatus,
 ) {
-  if (settledExecutionPhases.has(existing.phase))
+  if (!shouldReplaceToolSettlement({
+    existingStatus: existing.phase,
+    nextStatus: next.phase,
+    terminalStatuses: settledExecutionPhases,
+    deadLetteredStatuses: deadLetteredExecutionPhases,
+  })) {
     return existing
+  }
 
   return {
     ...existing,
@@ -170,7 +184,10 @@ function extractToolResultStatus(result: unknown) {
   if (!result || typeof result !== 'object' || Array.isArray(result))
     return ''
 
-  const status = (result as Record<string, unknown>).status
+  const record = result as Record<string, unknown>
+  const status = typeof record.status === 'string'
+    ? record.status
+    : record.finalStatus
   return typeof status === 'string' ? status.trim().toLowerCase() : ''
 }
 
@@ -192,9 +209,16 @@ function mergeToolResultValue(existing: unknown, next: unknown) {
   if (!hasMeaningfulToolResult(existing))
     return next
 
-  const existingIsSettled = settledToolResultStatuses.has(extractToolResultStatus(existing))
-  if (existingIsSettled)
+  const existingStatus = extractToolResultStatus(existing)
+  const nextStatus = extractToolResultStatus(next)
+  if (!shouldReplaceToolSettlement({
+    existingStatus,
+    nextStatus,
+    terminalStatuses: settledToolResultStatuses,
+    deadLetteredStatuses: deadLetteredToolResultStatuses,
+  })) {
     return existing
+  }
 
   if (
     existing

@@ -160,4 +160,28 @@ describe('dialogue session manager', () => {
       visibility: 'visible',
     }))
   })
+
+  it('previews a prepared execution without exposing it as committed session continuity', () => {
+    const manager = createAlicizationDialogueSessionManager({
+      getNow: () => 100,
+    })
+    const input = {
+      agentSession: createAgentSession(),
+      cardId: 'default',
+      organicMemoryContext: null,
+      runtimeSurface: createRuntimeSurface(),
+      sessionId: 'session-preview',
+    }
+
+    const preview = manager.previewPreparedExecution(input)
+
+    expect(preview).toMatchObject({
+      cardId: 'default',
+      sessionId: 'session-preview',
+    })
+    expect(manager.getSessionMirror('default', 'session-preview')).toBeNull()
+
+    const committed = manager.ingestPreparedExecution(input)
+    expect(manager.getSessionMirror('default', 'session-preview')).toEqual(committed)
+  })
 })

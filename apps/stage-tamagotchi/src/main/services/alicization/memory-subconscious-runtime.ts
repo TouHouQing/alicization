@@ -6,6 +6,8 @@ import type {
   AlicizationSubconsciousFragmentSourceKind,
 } from '../../../shared/eventa'
 
+import { isRawDialogueTranscriptSubconsciousSource } from './dialogue-memory'
+
 interface DbActiveThoughtRow {
   id: string
   text: string
@@ -108,6 +110,7 @@ export function createAlicizationMemorySubconsciousRuntime(
 
   async function appendSubconsciousFragments(fragments: Array<{ text: string, sourceKind: AlicizationSubconsciousFragmentSourceKind }>) {
     const normalized = fragments
+      .filter(item => !isRawDialogueTranscriptSubconsciousSource(item.sourceKind))
       .map(item => ({
         sourceKind: item.sourceKind,
         text: options.normalizeOrganicMemoryText(item.text, 160),
@@ -198,6 +201,7 @@ export function createAlicizationMemorySubconsciousRuntime(
       JOIN subconscious_fragments sf
         ON sf.id = subconscious_fragments_fts.fragment_id
       WHERE subconscious_fragments_fts MATCH ?
+        AND sf.source_kind <> 'dialogue-turn'
       ORDER BY bm25(subconscious_fragments_fts), sf.created_at DESC
       LIMIT ?
       `,
@@ -245,6 +249,7 @@ export function createAlicizationMemorySubconsciousRuntime(
         last_recalled_at,
         recall_count
       FROM subconscious_fragments
+      WHERE source_kind <> 'dialogue-turn'
       ORDER BY created_at DESC
       LIMIT ?
       `,
