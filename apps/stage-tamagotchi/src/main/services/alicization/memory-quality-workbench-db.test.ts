@@ -43,6 +43,19 @@ function createSemanticScaleReport(corpusSize: number, id: string) {
   })
 }
 
+function createFailedSemanticScaleReport(corpusSize: number, id: string) {
+  const report = createSemanticScaleReport(corpusSize, id)
+  return {
+    ...report,
+    passed: false,
+    summary: {
+      ...report.summary,
+      failingChecks: ['recall-at-k'],
+    },
+    recommendedNextActions: ['inspect semantic scale recall misses'],
+  }
+}
+
 async function waitFor<T>(
   read: () => Promise<T>,
   predicate: (value: T) => boolean,
@@ -219,6 +232,51 @@ describe('memory quality workbench DB loop', () => {
       expect(report.summary.notRunStageIds).not.toContain('semantic-scale-soak')
       expect(report.semanticScaleSoak?.id).toBe('semantic-scale-production-report')
       expect(longTerm.items).toEqual([])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('feeds the latest failed semantic scale report into production trial transparently', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      semanticScaleJobOptions: {
+        maxAttempts: 1,
+        executeJob: async ({ corpusSize }) =>
+          createFailedSemanticScaleReport(corpusSize, 'semantic-scale-production-failure'),
+      },
+    })
+    try {
+      const started = await db.manageMemoryWorkbenchSemanticScaleJobs({
+        cardId: 'default',
+        action: 'start',
+        tier: '10k',
+      })
+      await waitFor(
+        async () => await db.manageMemoryWorkbenchSemanticScaleJobs({
+          cardId: 'default',
+          action: 'status',
+          jobId: started.job!.jobId,
+        }),
+        result => result.job?.deadLettered === true,
+      )
+
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        month: '2026-08',
+      })
+
+      expect(report.summary.semanticScaleSoakRunCount).toBe(1)
+      expect(report.summary.notRunStageIds).not.toContain('semantic-scale-soak')
+      expect(report.semanticScaleSoak).toMatchObject({
+        id: 'semantic-scale-production-failure',
+        passed: false,
+        summary: {
+          failingChecks: ['recall-at-k'],
+        },
+        recommendedNextActions: ['inspect semantic scale recall misses'],
+      })
+      expect(report.passed).toBe(false)
     }
     finally {
       await db.close()

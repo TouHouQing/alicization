@@ -8698,7 +8698,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       cardId,
       checkpoints: workingMemoryCheckpoints,
     })
-    const semanticScaleJobReport = await memorySemanticScaleJobRuntime.getLatestCompletedReport(cardId)
+    const semanticScaleJobReport = await memorySemanticScaleJobRuntime.getLatestAvailableReport(cardId)
     const [queueResult, recallResult, embeddingResult] = await Promise.allSettled([
       getMemoryWorkbenchQueueHealth({ cardId }),
       getMemoryWorkbenchRecallHealth({ cardId }),

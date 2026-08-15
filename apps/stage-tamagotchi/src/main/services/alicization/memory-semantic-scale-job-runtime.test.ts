@@ -137,6 +137,7 @@ function attachRuntime(
       tempRootDir: string
     }) => Promise<string>
     run?: (sql: string, params?: unknown[]) => Promise<unknown>
+    get?: <T>(sql: string, params?: unknown[]) => Promise<T | undefined>
     writeQueue?: WriteQueue
   },
 ) {
@@ -149,7 +150,9 @@ function attachRuntime(
     run: async (_database, sql, params = []) => input.run
       ? await input.run(sql, params)
       : await harness.run(sql, params),
-    get: async <T>(_database: sqlite3.Database, sql: string, params: unknown[] = []) => await harness.get<T>(sql, params),
+    get: async <T>(_database: sqlite3.Database, sql: string, params: unknown[] = []) => input.get
+      ? await input.get<T>(sql, params)
+      : await harness.get<T>(sql, params),
     all: async <T>(_database: sqlite3.Database, sql: string, params: unknown[] = []) => await harness.all<T>(sql, params),
     enqueueWrite: writeQueue.enqueueWrite,
     runInTransaction: async <T>(_database: sqlite3.Database, task: () => Promise<T>) => {
@@ -430,8 +433,110 @@ describe('memory semantic scale job runtime', () => {
     expect(observedSignal?.aborted).toBe(true)
     expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
       status: 'queued',
-      attemptCount: 1,
+      attemptCount: 0,
       deadLettered: false,
+    })
+  })
+
+  it('does not consume failure attempts across repeated stop and resume cycles', async () => {
+    let firstExecutionStarted: (() => void) | undefined
+    const firstExecutionStartedPromise = new Promise<void>((resolve) => {
+      firstExecutionStarted = resolve
+    })
+    const { harness, runtime, tempRootDir, writeQueue } = await createRuntimeHarness({
+      maxAttempts: 2,
+      executeJob: async ({ signal }) => {
+        firstExecutionStarted?.()
+        await new Promise<void>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+        return createReport(10_000)
+      },
+    })
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    const firstWorker = runtime.runJob(job.jobId)
+    await firstExecutionStartedPromise
+    await runtime.stop()
+    await firstWorker
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'queued',
+      attemptCount: 0,
+      maxAttempts: 2,
+    })
+
+    let secondExecutionStarted: (() => void) | undefined
+    const secondExecutionStartedPromise = new Promise<void>((resolve) => {
+      secondExecutionStarted = resolve
+    })
+    const restarted = attachRuntime(harness, {
+      maxAttempts: 2,
+      tempRootDir,
+      writeQueue,
+      executeJob: async ({ signal }) => {
+        secondExecutionStarted?.()
+        await new Promise<void>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+        })
+        return createReport(10_000)
+      },
+    })
+    await restarted.runtime.initializeSchema()
+    expect(await restarted.runtime.resumePendingJobs('card-a')).toEqual([job.jobId])
+    await secondExecutionStartedPromise
+    await restarted.runtime.stop()
+    expect(await restarted.runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'queued',
+      attemptCount: 0,
+      maxAttempts: 2,
+    })
+
+    const resumed = attachRuntime(harness, {
+      maxAttempts: 2,
+      tempRootDir,
+      writeQueue,
+      executeJob: async ({ corpusSize }) =>
+        createReport(corpusSize, 'completed-after-stop-resume'),
+    })
+    await resumed.runtime.initializeSchema()
+    expect(await resumed.runtime.resumePendingJobs('card-a')).toEqual([job.jobId])
+    await waitFor(() => {
+      expect(resumed.runtime.activeJobIds()).toEqual([])
+    })
+    expect(await resumed.runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'completed',
+      attemptCount: 1,
+      maxAttempts: 2,
+      report: {
+        id: 'completed-after-stop-resume',
+      },
+    })
+  })
+
+  it('dead-letters an exhausted queued job without claiming beyond maxAttempts', async () => {
+    let executions = 0
+    const { harness, runtime } = await createRuntimeHarness({
+      maxAttempts: 2,
+      executeJob: async ({ corpusSize }) => {
+        executions += 1
+        return createReport(corpusSize)
+      },
+    })
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    await harness.run(`
+      UPDATE memory_semantic_scale_jobs
+      SET status = 'queued', attempt_count = max_attempts
+      WHERE id = ?
+    `, [job.jobId])
+
+    await runtime.runJob(job.jobId)
+
+    expect(executions).toBe(0)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'failed',
+      deadLettered: true,
+      attemptCount: 2,
+      maxAttempts: 2,
+      lastError: expect.stringContaining('max attempts'),
     })
   })
 
@@ -800,6 +905,123 @@ describe('memory semantic scale job runtime', () => {
     expect(result.nextRetryAt).not.toBeNull()
   })
 
+  it('keeps the worker scheduled after a transient getJob read failure', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let failNextJobRead = false
+    let executions = 0
+    const { runtime } = attachRuntime(harness, {
+      tempRootDir,
+      get: async <T>(sql: string, params: unknown[] = []) => {
+        if (
+          failNextJobRead
+          && sql.trim() === 'SELECT * FROM memory_semantic_scale_jobs WHERE id = ?'
+        ) {
+          failNextJobRead = false
+          throw new Error('transient worker job read failure')
+        }
+        return await harness.get<T>(sql, params)
+      },
+      executeJob: async ({ corpusSize }) => {
+        executions += 1
+        return createReport(corpusSize, 'worker-read-recovered')
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    failNextJobRead = true
+
+    await expect(runtime.runJob(job.jobId)).resolves.toBeUndefined()
+
+    expect(executions).toBe(1)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'completed',
+      attemptCount: 1,
+      report: {
+        id: 'worker-read-recovered',
+      },
+    })
+  })
+
+  it('keeps the worker scheduled after a transient claim read failure', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let armed = false
+    let jobReadCount = 0
+    let executions = 0
+    const { runtime } = attachRuntime(harness, {
+      tempRootDir,
+      get: async <T>(sql: string, params: unknown[] = []) => {
+        if (
+          armed
+          && sql.trim() === 'SELECT * FROM memory_semantic_scale_jobs WHERE id = ?'
+        ) {
+          jobReadCount += 1
+          if (jobReadCount === 2)
+            throw new Error('transient claim read failure')
+        }
+        return await harness.get<T>(sql, params)
+      },
+      executeJob: async ({ corpusSize }) => {
+        executions += 1
+        return createReport(corpusSize, 'claim-read-recovered')
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    armed = true
+
+    await expect(runtime.runJob(job.jobId)).resolves.toBeUndefined()
+
+    expect(executions).toBe(1)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'completed',
+      attemptCount: 1,
+      report: {
+        id: 'claim-read-recovered',
+      },
+    })
+  })
+
+  it('retries settlement with the in-memory report after a transient SQLite write failure', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let failCompletionWrite = true
+    let executions = 0
+    const { runtime } = attachRuntime(harness, {
+      tempRootDir,
+      run: async (sql, params = []) => {
+        if (
+          failCompletionWrite
+          && sql.includes(`SET status = 'completed'`)
+        ) {
+          failCompletionWrite = false
+          throw new Error('transient completion persistence failure')
+        }
+        return await harness.run(sql, params)
+      },
+      executeJob: async ({ corpusSize }) => {
+        executions += 1
+        return createReport(corpusSize, 'settlement-report-preserved')
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+
+    await expect(runtime.runJob(job.jobId)).resolves.toBeUndefined()
+
+    expect(failCompletionWrite).toBe(false)
+    expect(executions).toBe(1)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'completed',
+      attemptCount: 1,
+      lastError: null,
+      report: {
+        id: 'settlement-report-preserved',
+      },
+    })
+  })
+
   it('runs only one active worker for the same job', async () => {
     let executions = 0
     let releaseExecution: (() => void) | undefined
@@ -891,25 +1113,54 @@ describe('memory semantic scale job runtime', () => {
     await expect(runtime.listJobs('card-b')).resolves.toEqual([])
   })
 
-  it('lists card-scoped history and returns only the latest completed report', async () => {
+  it('lists card-scoped history and returns the latest available retryable or terminal report', async () => {
+    let now = 1_000
     const { runtime } = await createRuntimeHarness({
-      executeJob: async execution => createReport(
-        execution.corpusSize,
-        `${execution.cardId}:${execution.tier}:${execution.jobId}`,
-      ),
+      now: () => now,
+      maxAttempts: 2,
+      retryBaseMs: 10,
+      executeJob: async execution => execution.tier === '10k'
+        ? createReport(
+            execution.corpusSize,
+            `${execution.cardId}:${execution.tier}:${execution.jobId}`,
+          )
+        : createFailedReport(execution.corpusSize),
     })
     const first = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
     await runtime.runJob(first.jobId)
+    now = 1_001
     const second = await runtime.startJob({ cardId: 'card-a', tier: '100k' })
-    await runtime.runJob(second.jobId)
+    const retryable = await runtime.runNextAttempt(second.jobId)
     await runtime.startJob({ cardId: 'card-b', tier: '10k' })
 
     const history = await runtime.listJobs('card-a')
-    const latest = await runtime.getLatestCompletedReport('card-a')
+    const latestRetryable = await runtime.getLatestAvailableReport('card-a')
 
     expect(history.map(job => job.jobId)).toEqual([second.jobId, first.jobId])
     expect(history.every(job => job.cardId === 'card-a')).toBe(true)
-    expect(latest?.jobId).toBe(second.jobId)
-    expect(latest?.report.id).toContain('card-a:100k')
+    expect(retryable.status).toBe('queued')
+    expect(latestRetryable).toMatchObject({
+      jobId: second.jobId,
+      report: {
+        passed: false,
+      },
+    })
+
+    now = retryable.nextRetryAt!
+    const deadLettered = await runtime.runNextAttempt(second.jobId)
+    const latestTerminal = await runtime.getLatestAvailableReport('card-a')
+    expect(deadLettered).toMatchObject({
+      status: 'failed',
+      deadLettered: true,
+    })
+    expect(latestTerminal).toMatchObject({
+      jobId: second.jobId,
+      report: {
+        passed: false,
+        summary: {
+          failingChecks: ['recall-at-k', 'p95-latency'],
+        },
+      },
+    })
   })
 })

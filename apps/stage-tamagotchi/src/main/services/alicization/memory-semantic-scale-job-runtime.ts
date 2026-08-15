@@ -420,6 +420,27 @@ export function createMemorySemanticScaleJobRuntime(input: {
     return row
   }
 
+  function workerRetryDelay(failureCount: number) {
+    return calculateBackoff(failureCount, 25, 250)
+  }
+
+  async function persistWorkerErrorBestEffort(jobId: string, error: unknown) {
+    const message = errorText(error, 'semantic scale worker database operation failed')
+    const now = input.now()
+    try {
+      await input.enqueueWrite(async () => {
+        await input.run(input.database, `
+          UPDATE memory_semantic_scale_jobs
+          SET last_error = ?, updated_at = ?
+          WHERE id = ? AND status IN ('queued', 'running', 'cancel_requested')
+        `, [message, now, jobId])
+      })
+    }
+    catch {
+      // The worker retry loop remains authoritative when diagnostic persistence also fails.
+    }
+  }
+
   async function initializeSchema() {
     await input.run(input.database, `
       CREATE TABLE IF NOT EXISTS memory_semantic_scale_jobs (
@@ -513,7 +534,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
     return rows.map(mapJobRow)
   }
 
-  async function getLatestCompletedReport(cardId: string) {
+  async function getLatestAvailableReport(cardId: string) {
     const normalizedCardId = normalizeText(cardId, 120)
     if (!normalizedCardId)
       return null
@@ -521,8 +542,8 @@ export function createMemorySemanticScaleJobRuntime(input: {
       input.database,
       `SELECT *
        FROM memory_semantic_scale_jobs
-       WHERE card_id = ? AND status = 'completed' AND report_json IS NOT NULL
-       ORDER BY completed_at DESC, created_at DESC, id DESC
+       WHERE card_id = ? AND report_json IS NOT NULL
+       ORDER BY updated_at DESC, completed_at DESC, created_at DESC, id DESC
        LIMIT 1`,
       [normalizedCardId],
     )
@@ -603,6 +624,22 @@ export function createMemorySemanticScaleJobRuntime(input: {
         ) {
           return null
         }
+        if (Number(row.attempt_count) >= Number(row.max_attempts)) {
+          await input.run(input.database, `
+            UPDATE memory_semantic_scale_jobs
+            SET status = 'failed', dead_lettered = 1,
+                next_retry_at = NULL, lease_token = NULL, lease_expires_at = NULL,
+                last_error = COALESCE(last_error, ?),
+                completed_at = COALESCE(completed_at, ?), updated_at = ?
+            WHERE id = ? AND status = 'queued' AND attempt_count >= max_attempts
+          `, [
+            'semantic scale job exhausted max attempts before claim',
+            now,
+            now,
+            row.id,
+          ])
+          return null
+        }
         const leaseToken = input.randomUUID()
         await input.run(input.database, `
           UPDATE memory_semantic_scale_jobs
@@ -611,6 +648,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
               started_at = COALESCE(started_at, ?), updated_at = ?
           WHERE id = ? AND status = 'queued'
             AND (next_retry_at IS NULL OR next_retry_at <= ?)
+            AND attempt_count < max_attempts
         `, [leaseToken, now + leaseMs, now, now, row.id, now])
         const claimed = await input.get<MemorySemanticScaleJobRow>(
           input.database,
@@ -732,6 +770,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
           await input.run(input.database, `
             UPDATE memory_semantic_scale_jobs
             SET status = 'queued', dead_lettered = 0,
+                attempt_count = MAX(0, attempt_count - 1),
                 next_retry_at = ?, lease_token = NULL, lease_expires_at = NULL,
                 completed_at = NULL, updated_at = ?
             WHERE id = ? AND lease_token = ?
@@ -804,59 +843,75 @@ export function createMemorySemanticScaleJobRuntime(input: {
     let executionError: unknown = null
     let stopLeaseHeartbeat: (() => Promise<unknown>) | null = null
     try {
-      claimed = await claimNextAttempt(jobId)
+      try {
+        claimed = await claimNextAttempt(jobId)
+        if (!claimed)
+          return await getJob(jobId)
+        const activeClaim = claimed
+        stopLeaseHeartbeat = startLeaseHeartbeat(activeClaim, controller)
+        tempDir = await createTempDir({
+          jobId: activeClaim.row.id,
+          tempRootDir,
+        })
+        const current = await readJobRow(activeClaim.row.id)
+        if (stopping && !controller.signal.aborted)
+          controller.abort(new Error('semantic scale runtime stopping'))
+        else if (current.status === 'cancel_requested' && !controller.signal.aborted)
+          controller.abort(new Error(current.last_error ?? 'semantic scale job cancelled'))
+        report = await executeJob({
+          jobId: activeClaim.row.id,
+          cardId: activeClaim.row.card_id,
+          tier: activeClaim.row.tier,
+          corpusSize: Number(activeClaim.row.corpus_size),
+          createdAt: Number(activeClaim.row.created_at),
+          tempDir,
+          signal: controller.signal,
+          onProgress: async progress => await persistProgress(activeClaim, progress),
+        })
+      }
+      catch (error) {
+        if (!claimed)
+          throw error
+        executionError = error
+      }
+      finally {
+        if (tempDir) {
+          try {
+            await rm(tempDir, { recursive: true, force: true })
+          }
+          catch (error) {
+            executionError ??= error
+          }
+        }
+      }
+
       if (!claimed)
         return await getJob(jobId)
-      const activeClaim = claimed
-      stopLeaseHeartbeat = startLeaseHeartbeat(activeClaim, controller)
-      tempDir = await createTempDir({
-        jobId: activeClaim.row.id,
-        tempRootDir,
-      })
-      const current = await readJobRow(activeClaim.row.id)
-      if (stopping && !controller.signal.aborted)
-        controller.abort(new Error('semantic scale runtime stopping'))
-      else if (current.status === 'cancel_requested' && !controller.signal.aborted)
-        controller.abort(new Error(current.last_error ?? 'semantic scale job cancelled'))
-      report = await executeJob({
-        jobId: activeClaim.row.id,
-        cardId: activeClaim.row.card_id,
-        tier: activeClaim.row.tier,
-        corpusSize: Number(activeClaim.row.corpus_size),
-        createdAt: Number(activeClaim.row.created_at),
-        tempDir,
-        signal: controller.signal,
-        onProgress: async progress => await persistProgress(activeClaim, progress),
-      })
-    }
-    catch (error) {
-      if (!claimed)
-        throw error
-      executionError = error
+      let settlementFailureCount = 0
+      while (true) {
+        try {
+          await settleExecution({
+            claimed,
+            report,
+            error: executionError,
+            signal: controller.signal,
+          })
+          break
+        }
+        catch (error) {
+          settlementFailureCount += 1
+          await persistWorkerErrorBestEffort(jobId, error)
+          await wait(workerRetryDelay(settlementFailureCount))
+        }
+      }
+      return await getJob(jobId)
     }
     finally {
       if (stopLeaseHeartbeat)
-        executionError ??= await stopLeaseHeartbeat()
+        await stopLeaseHeartbeat()
       if (activeControllers.get(jobId) === controller)
         activeControllers.delete(jobId)
-      if (tempDir) {
-        try {
-          await rm(tempDir, { recursive: true, force: true })
-        }
-        catch (error) {
-          executionError ??= error
-        }
-      }
     }
-    if (!claimed)
-      return await getJob(jobId)
-    await settleExecution({
-      claimed,
-      report,
-      error: executionError,
-      signal: controller.signal,
-    })
-    return await getJob(jobId)
   }
 
   function runJob(jobId: string) {
@@ -868,29 +923,43 @@ export function createMemorySemanticScaleJobRuntime(input: {
       return Promise.resolve()
 
     const worker = workerTail.then(async () => {
+      let workerFailureCount = 0
       try {
         while (true) {
           if (stopping)
             break
-          const current = await getJob(normalizedJobId)
-          if (['completed', 'cancelled', 'failed'].includes(current.status))
-            break
-          if (current.status === 'running' || current.status === 'cancel_requested') {
-            const now = input.now()
-            if (current.leaseExpiresAt !== null && current.leaseExpiresAt > now) {
-              await wait(Math.min(250, Math.max(5, current.leaseExpiresAt - now)))
+          try {
+            const current = await getJob(normalizedJobId)
+            if (['completed', 'cancelled', 'failed'].includes(current.status))
+              break
+            if (current.status === 'running' || current.status === 'cancel_requested') {
+              const now = input.now()
+              if (current.leaseExpiresAt !== null && current.leaseExpiresAt > now) {
+                workerFailureCount = 0
+                await wait(Math.min(250, Math.max(5, current.leaseExpiresAt - now)))
+                continue
+              }
+              await recoverExpiredLeases()
+              workerFailureCount = 0
               continue
             }
-            await recoverExpiredLeases()
-            continue
+            if (current.nextRetryAt !== null && current.nextRetryAt > input.now()) {
+              workerFailureCount = 0
+              await wait(Math.min(250, Math.max(5, current.nextRetryAt - input.now())))
+              continue
+            }
+            const next = await runNextAttempt(normalizedJobId)
+            workerFailureCount = 0
+            if (['completed', 'cancelled', 'failed'].includes(next.status))
+              break
           }
-          if (current.nextRetryAt !== null && current.nextRetryAt > input.now()) {
-            await wait(Math.min(250, Math.max(5, current.nextRetryAt - input.now())))
-            continue
+          catch (error) {
+            if (stopping)
+              break
+            workerFailureCount += 1
+            await persistWorkerErrorBestEffort(normalizedJobId, error)
+            await wait(workerRetryDelay(workerFailureCount))
           }
-          const next = await runNextAttempt(normalizedJobId)
-          if (['completed', 'cancelled', 'failed'].includes(next.status))
-            break
         }
       }
       finally {
@@ -992,7 +1061,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
     startJob,
     getJob,
     listJobs,
-    getLatestCompletedReport,
+    getLatestAvailableReport,
     runNextAttempt,
     runJob,
     requestCancel,
