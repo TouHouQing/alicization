@@ -48,6 +48,7 @@ interface AlicizationDispatchAdapter<Channel extends AlicizationDispatchExecutab
     errorCode: string
     errorMessage: string
   }
+  validateCommand: (command: unknown) => boolean
   pickCommand: (input: AlicizationDispatchCommandInput) => unknown
   execute: (input: {
     thread: AlicizationTaskThreadRecord
@@ -71,6 +72,7 @@ const dispatchAdapterRegistry = {
       errorCode: 'TASK_THREAD_CLI_INPUT_REQUIRED',
       errorMessage: 'Missing CLI command payload for dispatch.',
     },
+    validateCommand: command => hasNonEmptyStringField(command, 'command'),
     pickCommand: input => input.cli,
     execute: async input => await executeCliTaskThread({
       thread: input.thread,
@@ -87,6 +89,7 @@ const dispatchAdapterRegistry = {
       errorCode: 'TASK_THREAD_CODEX_INPUT_REQUIRED',
       errorMessage: 'Missing Codex prompt payload for dispatch.',
     },
+    validateCommand: command => hasNonEmptyStringField(command, 'prompt'),
     pickCommand: input => input.codex,
     execute: async input => await executeCodexTaskThread({
       thread: input.thread,
@@ -104,6 +107,7 @@ const dispatchAdapterRegistry = {
       errorCode: 'TASK_THREAD_CLAUDE_CODE_INPUT_REQUIRED',
       errorMessage: 'Missing Claude Code prompt payload for dispatch.',
     },
+    validateCommand: command => hasNonEmptyStringField(command, 'prompt'),
     pickCommand: input => input.claudeCode,
     execute: async input => await executeClaudeCodeTaskThread({
       thread: input.thread,
@@ -120,6 +124,7 @@ const dispatchAdapterRegistry = {
       errorCode: 'TASK_THREAD_OPENCLAW_INPUT_REQUIRED',
       errorMessage: 'Missing OpenClaw instruction payload for dispatch.',
     },
+    validateCommand: command => hasNonEmptyStringField(command, 'instruction'),
     pickCommand: input => input.openclaw,
     execute: async input => await executeOpenClawTaskThread({
       thread: input.thread,
@@ -134,6 +139,81 @@ function isExecutableDispatchChannel(
   channel: AlicizationExecutionChannel | null | undefined,
 ): channel is AlicizationRegisteredDispatchExecutableChannel {
   return channel === 'cli' || channel === 'codex' || channel === 'claude-code' || channel === 'openclaw'
+}
+
+function hasNonEmptyStringField(
+  value: unknown,
+  field: string,
+) {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return false
+  const fieldValue = (value as Record<string, unknown>)[field]
+  return typeof fieldValue === 'string' && fieldValue.trim().length > 0
+}
+
+export type AlicizationTaskThreadDispatchValidation
+  = | { ok: true }
+    | {
+      ok: false
+      summary: string
+      errorCode: string
+      errorMessage: string
+    }
+
+function missingPayloadValidation(
+  missingPayload: AlicizationDispatchAdapter<'cli'>['missingPayload'],
+): AlicizationTaskThreadDispatchValidation {
+  return {
+    ok: false,
+    ...missingPayload,
+  }
+}
+
+export function validateTaskThreadDispatchPayload(input: {
+  thread: AlicizationTaskThreadRecord
+  dispatchInput: AlicizationDispatchCommandInput
+  localVisualSurface?: AlicizationLocalVisualDispatchSurface
+}): AlicizationTaskThreadDispatchValidation {
+  const selectedChannel = input.thread.selectedChannel
+  const semanticGuiChannel = selectedChannel === 'browser' || selectedChannel === 'software' || selectedChannel === 'desktop'
+    ? selectedChannel
+    : null
+  if (semanticGuiChannel && input.localVisualSurface?.desktopInspectScene) {
+    return resolveLocalVisualCommand(input.dispatchInput)
+      ? { ok: true }
+      : {
+          ok: false,
+          summary: `Task thread is assigned to ${semanticGuiChannel}, but no embodied continuation payload was provided for local GUI dispatch.`,
+          errorCode: 'TASK_THREAD_LOCAL_VISUAL_INPUT_REQUIRED',
+          errorMessage: 'Missing local GUI continuation payload for dispatch.',
+        }
+  }
+
+  if (semanticGuiChannel) {
+    const openclawAdapter = dispatchAdapterRegistry.openclaw
+    return openclawAdapter.validateCommand(input.dispatchInput.openclaw)
+      ? { ok: true }
+      : missingPayloadValidation({
+          ...openclawAdapter.missingPayload,
+          summary: 'OpenClaw fallback dispatch requires a concrete embodied instruction contract.',
+          errorMessage: 'Missing OpenClaw instruction payload for fallback GUI dispatch.',
+        })
+  }
+
+  const transportChannel = resolveExecutionTransportChannel(selectedChannel)
+  if (!isExecutableDispatchChannel(transportChannel)) {
+    return {
+      ok: false,
+      summary: `Task thread is assigned to ${selectedChannel ?? 'no channel'}, which has no dispatcher yet.`,
+      errorCode: 'TASK_THREAD_CHANNEL_UNSUPPORTED',
+      errorMessage: 'Dispatch adapter is not implemented for this channel yet.',
+    }
+  }
+
+  const adapter = dispatchAdapterRegistry[transportChannel]
+  return adapter.validateCommand(adapter.pickCommand(input.dispatchInput))
+    ? { ok: true }
+    : missingPayloadValidation(adapter.missingPayload)
 }
 
 export type AlicizationPreparedTaskThreadDispatch
@@ -155,6 +235,10 @@ export function prepareTaskThreadDispatch(input: {
   dispatchInput: AlicizationDispatchCommandInput
   localVisualSurface?: AlicizationLocalVisualDispatchSurface
 }): AlicizationPreparedTaskThreadDispatch {
+  const validation = validateTaskThreadDispatchPayload(input)
+  if (!validation.ok)
+    return validation
+
   const selectedChannel = input.thread.selectedChannel
   const semanticGuiChannel = selectedChannel === 'browser' || selectedChannel === 'software' || selectedChannel === 'desktop'
     ? selectedChannel
@@ -225,7 +309,7 @@ export function prepareTaskThreadDispatch(input: {
 
   const adapter = dispatchAdapterRegistry[transportChannel]
   const command = adapter.pickCommand(input.dispatchInput)
-  if (!command) {
+  if (!adapter.validateCommand(command)) {
     return {
       ok: false,
       summary: adapter.missingPayload.summary,

@@ -20,7 +20,10 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import { resolveExecutionTransportChannel } from './executor-adapters/embodied-channel'
-import { prepareTaskThreadDispatch } from './executor-adapters/registry'
+import {
+  prepareTaskThreadDispatch,
+  validateTaskThreadDispatchPayload,
+} from './executor-adapters/registry'
 
 type TaskThreadDispatchPort = Pick<{
   getTaskThread: (id: string) => Promise<AlicizationTaskThreadRecord | undefined>
@@ -48,6 +51,7 @@ const terminalTaskThreadStatuses = new Set<AlicizationTaskThreadRecord['status']
   'completed',
   'failed',
   'cancelled',
+  'dead-lettered',
 ])
 
 function normalizePersistenceTimeoutMs(value: number | undefined) {
@@ -610,6 +614,22 @@ export async function dispatchTaskThread(
       summary: `Task thread is not dispatchable while status is ${thread.status}.`,
       errorCode: 'TASK_THREAD_NOT_DISPATCHABLE',
       errorMessage: `Expected planned status but received ${thread.status}.`,
+    }
+  }
+
+  const payloadValidation = validateTaskThreadDispatchPayload({
+    thread,
+    dispatchInput: input,
+    localVisualSurface: port.localVisualSurface,
+  })
+  if (!payloadValidation.ok) {
+    return {
+      thread,
+      createdEventKinds: [],
+      ok: false,
+      summary: payloadValidation.summary,
+      errorCode: payloadValidation.errorCode,
+      errorMessage: payloadValidation.errorMessage,
     }
   }
 
@@ -1184,6 +1204,7 @@ export async function dispatchTaskThread(
     || finalThreadStatus === 'failed'
     || finalThreadStatus === 'cancelled'
     || finalThreadStatus === 'blocked'
+    || finalThreadStatus === 'dead-lettered'
     ? finalizedAt
     : thread.completedAt
   terminalThreadSnapshot = {
@@ -1255,6 +1276,7 @@ export async function dispatchTaskThread(
       || effectiveFinalStatus === 'failed'
       || effectiveFinalStatus === 'cancelled'
       || effectiveFinalStatus === 'blocked'
+      || effectiveFinalStatus === 'dead-lettered'
       ? finalizedAt
       : terminalBaseThread.completedAt
   const effectiveLastEventAt = preserveNewerTerminal

@@ -223,6 +223,102 @@ describe('executor runtime inferPreferredProcedureChannel', () => {
   })
 })
 
+describe('executor runtime remembered execution procedures', () => {
+  beforeEach(() => {
+    resetCapabilityProbeMocks()
+  })
+
+  it('admits only completed execution threads into reusable planning memory', async () => {
+    const dbState = createDbState(createNeedsAffirmationThread())
+    const statuses = ['completed', 'failed', 'cancelled', 'blocked', 'running', 'paused'] as const
+    const executionThreads = statuses.map((status, index): AlicizationTaskThreadRecord => ({
+      id: `thread-procedure-${status}`,
+      decisionTraceId: `mind:trace:procedure-${status}`,
+      turnId: `turn-procedure-${status}`,
+      sessionId: `session-procedure-${status}`,
+      origin: 'user-turn',
+      goal: 'Inspect repository memory planner regression.',
+      kind: 'codebase-investigation',
+      status,
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      summary: `${status} repository memory planner inspection`,
+      metadata: null,
+      createdAt: 100 + index,
+      updatedAt: 200 + index,
+      lastEventAt: 200 + index,
+      completedAt: status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'blocked'
+        ? 200 + index
+        : null,
+    }))
+    dbState.db.listTaskThreads = vi.fn(async (input?: { status?: unknown }) => (
+      input?.status ? [] : executionThreads
+    )) as any
+    dbState.db.listExecutionEvents = vi.fn(async (input?: { threadId?: string }) => {
+      const thread = executionThreads.find(candidate => candidate.id === input?.threadId)
+      if (!thread)
+        return []
+      return [{
+        id: `event-${thread.id}`,
+        threadId: thread.id,
+        decisionTraceId: thread.decisionTraceId,
+        turnId: thread.turnId,
+        sessionId: thread.sessionId,
+        origin: thread.origin,
+        channel: thread.selectedChannel,
+        kind: thread.status === 'cancelled' ? 'cancel' : 'result',
+        threadStatus: thread.status,
+        payload: {
+          summary: thread.summary,
+        },
+        createdAt: thread.updatedAt,
+      }]
+    }) as any
+    const runtime = createRuntime({
+      dbState,
+      dispatchTaskThread: vi.fn(),
+    })
+
+    const planning = await runtime.planTaskThread({
+      threadId: 'thread-current-planning',
+      trace: {
+        decisionTraceId: 'mind:trace:current-planning',
+        turnId: 'turn-current-planning',
+        sessionId: 'session-current-planning',
+        origin: 'user-turn',
+      },
+      task: {
+        kind: 'codebase-investigation',
+        goal: 'Inspect repository memory planner regression.',
+        origin: 'user',
+        effect: 'observe',
+        requestedChannel: 'codex',
+      },
+      capabilities: [{
+        channel: 'codex',
+        available: true,
+        enabled: true,
+        ready: true,
+        sessionAffinity: true,
+      }],
+      now: 1_710_000_000_000,
+    })
+
+    const metadata = planning.thread.metadata as {
+      fabric?: {
+        experience?: {
+          rememberedProcedures?: Array<{ id?: string }>
+        }
+      }
+    } | null
+    const rememberedIds = metadata?.fabric?.experience?.rememberedProcedures
+      ?.map(item => item.id)
+      ?? []
+
+    expect(rememberedIds).toEqual(['execution-trace:thread-procedure-completed'])
+  })
+})
+
 describe('executor runtime capability resolution', () => {
   beforeEach(() => {
     vi.useRealTimers()
@@ -742,6 +838,43 @@ describe('executor runtime resumeMainGatewayTaskThread', () => {
     expect(dbState.upsertTaskThread).not.toHaveBeenCalled()
     expect(dbState.appendExecutionEvents).not.toHaveBeenCalled()
   })
+
+  it.each(['blocked', 'completed', 'failed', 'cancelled', 'dead-lettered'] as const)(
+    'rejects background resume for an already %s task thread before dispatch',
+    async (status) => {
+      const terminalThread: AlicizationTaskThreadRecord = {
+        ...createNeedsAffirmationThread(),
+        status,
+        summary: `Task thread is already ${status}.`,
+        updatedAt: 240,
+        lastEventAt: 240,
+        completedAt: 240,
+      }
+      const dbState = createDbState(terminalThread)
+      const dispatchTaskThread = vi.fn()
+      const runtime = createRuntime({ dbState, dispatchTaskThread })
+
+      const result = await runtime.resumeMainGatewayTaskThread({
+        context: { cardId: 'default' } as any,
+        threadId: terminalThread.id,
+        expectedChannel: 'codex',
+        dispatchMode: 'background',
+      })
+
+      expect(result).toMatchObject({
+        ok: false,
+        finalStatus: status,
+        errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+        thread: {
+          id: terminalThread.id,
+          status,
+        },
+      })
+      expect(dispatchTaskThread).not.toHaveBeenCalled()
+      expect(dbState.upsertTaskThread).not.toHaveBeenCalled()
+      expect(dbState.appendExecutionEvents).not.toHaveBeenCalled()
+    },
+  )
 
   it('rejects an unsupported resume channel without recording host approval', async () => {
     const unsupportedThread: AlicizationTaskThreadRecord = {

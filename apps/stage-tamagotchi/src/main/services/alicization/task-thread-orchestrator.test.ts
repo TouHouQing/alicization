@@ -1,4 +1,5 @@
 import type {
+  AlicizationDispatchTaskThreadInput,
   AlicizationDispatchTaskThreadResult,
   AlicizationExecutionEventInput,
   AlicizationTaskThreadRecord,
@@ -37,6 +38,43 @@ function createThread(
     updatedAt: 100,
     lastEventAt: null,
     completedAt: null,
+  }
+}
+
+function createValidDispatchInput(
+  thread: AlicizationTaskThreadRecord,
+): AlicizationDispatchTaskThreadInput {
+  if (thread.selectedChannel === 'cli') {
+    return {
+      threadId: thread.id,
+      cli: {
+        command: 'node',
+        args: ['-e', 'process.exit(0)'],
+      },
+    }
+  }
+  if (thread.selectedChannel === 'codex') {
+    return {
+      threadId: thread.id,
+      codex: {
+        prompt: `Execute ${thread.goal}`,
+      },
+    }
+  }
+  if (thread.selectedChannel === 'claude-code') {
+    return {
+      threadId: thread.id,
+      claudeCode: {
+        prompt: `Execute ${thread.goal}`,
+      },
+    }
+  }
+
+  return {
+    threadId: thread.id,
+    openclaw: {
+      instruction: `Execute ${thread.goal}`,
+    },
   }
 }
 
@@ -92,6 +130,102 @@ function waitForAbort(signal: AbortSignal | undefined) {
 }
 
 describe('task-thread orchestrator', () => {
+  it.each([
+    {
+      channel: 'cli' as const,
+      dispatch: { cli: { command: '' } },
+      errorCode: 'TASK_THREAD_CLI_INPUT_REQUIRED',
+    },
+    {
+      channel: 'codex' as const,
+      dispatch: { codex: { prompt: '   ' } },
+      errorCode: 'TASK_THREAD_CODEX_INPUT_REQUIRED',
+    },
+    {
+      channel: 'claude-code' as const,
+      dispatch: { claudeCode: { prompt: '\n\t' } },
+      errorCode: 'TASK_THREAD_CLAUDE_CODE_INPUT_REQUIRED',
+    },
+  ])('rejects blank $channel payloads before claiming dispatch ownership', async ({
+    channel,
+    dispatch,
+    errorCode,
+  }) => {
+    const thread = createThread(`thread-${channel}-blank-payload`, channel)
+    const port = createPort([thread])
+    const runDispatch = vi.fn(async () => buildDispatchResult(thread))
+    const orchestrator = createTaskThreadOrchestrator({ runDispatch })
+
+    const result = await orchestrator.dispatch({
+      port,
+      input: {
+        threadId: thread.id,
+        ...dispatch,
+      },
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      errorCode,
+      createdEventKinds: [],
+      thread: {
+        id: thread.id,
+        status: 'planned',
+      },
+    })
+    expect(runDispatch).not.toBeCalled()
+    expect(port.upsertTaskThread).not.toBeCalled()
+    expect(port.appendExecutionEvents).not.toBeCalled()
+    expect(orchestrator.snapshot()).toEqual({
+      disposed: false,
+      queued: {
+        'codex': [],
+        'claude-code': [],
+      },
+      running: {},
+      inFlightThreadIds: [],
+    })
+  })
+
+  it('allows a valid dispatch after an invalid request for the same thread', async () => {
+    const thread = createThread('thread-codex-invalid-then-valid', 'codex')
+    const port = createPort([thread])
+    const runDispatch = vi.fn(async () => buildDispatchResult(thread))
+    const orchestrator = createTaskThreadOrchestrator({ runDispatch })
+
+    const invalidResult = await orchestrator.dispatch({
+      port,
+      input: {
+        threadId: thread.id,
+        codex: {
+          prompt: '   ',
+        },
+      },
+    })
+    const validResult = await orchestrator.dispatch({
+      port,
+      input: createValidDispatchInput(thread),
+    })
+
+    expect(invalidResult).toMatchObject({
+      ok: false,
+      errorCode: 'TASK_THREAD_CODEX_INPUT_REQUIRED',
+      thread: {
+        id: thread.id,
+        status: 'planned',
+      },
+    })
+    expect(validResult).toMatchObject({
+      ok: true,
+      thread: {
+        id: thread.id,
+        status: 'completed',
+      },
+    })
+    expect(runDispatch).toHaveBeenCalledTimes(1)
+    expect(orchestrator.snapshot().inFlightThreadIds).toEqual([])
+  })
+
   it('serializes codex and claude-code dispatches by channel', async () => {
     const threadA = createThread('thread-codex-1', 'codex')
     const threadB = createThread('thread-codex-2', 'codex')
@@ -121,11 +255,11 @@ describe('task-thread orchestrator', () => {
 
     const promiseA = orchestrator.dispatch({
       port,
-      input: { threadId: threadA.id },
+      input: createValidDispatchInput(threadA),
     })
     const promiseB = orchestrator.dispatch({
       port,
-      input: { threadId: threadB.id },
+      input: createValidDispatchInput(threadB),
     })
 
     await vi.waitFor(() => {
@@ -160,11 +294,11 @@ describe('task-thread orchestrator', () => {
 
     const dispatchA = orchestrator.dispatch({
       port,
-      input: { threadId: thread.id },
+      input: createValidDispatchInput(thread),
     })
     const dispatchB = orchestrator.dispatch({
       port,
-      input: { threadId: thread.id },
+      input: createValidDispatchInput(thread),
     })
 
     await vi.waitFor(() => {
@@ -194,7 +328,7 @@ describe('task-thread orchestrator', () => {
 
     const sharedDispatch = orchestrator.dispatch({
       port,
-      input: { threadId: thread.id },
+      input: createValidDispatchInput(thread),
     })
     await vi.waitFor(() => {
       expect(runCount).toBe(1)
@@ -203,7 +337,7 @@ describe('task-thread orchestrator', () => {
     const duplicateWait = orchestrator.dispatch({
       port,
       input: {
-        threadId: thread.id,
+        ...createValidDispatchInput(thread),
         abortSignal: duplicateAbortController.signal,
       },
     })
@@ -256,11 +390,11 @@ describe('task-thread orchestrator', () => {
 
     const promiseA = orchestrator.dispatch({
       port,
-      input: { threadId: threadA.id },
+      input: createValidDispatchInput(threadA),
     })
     const promiseB = orchestrator.dispatch({
       port,
-      input: { threadId: threadB.id },
+      input: createValidDispatchInput(threadB),
     })
 
     await vi.waitFor(() => {
@@ -293,7 +427,7 @@ describe('task-thread orchestrator', () => {
     const dispatchPromise = orchestrator.dispatch({
       port,
       input: {
-        threadId: thread.id,
+        ...createValidDispatchInput(thread),
         abortSignal: externalAbortController.signal,
       },
     })
@@ -351,7 +485,7 @@ describe('task-thread orchestrator', () => {
 
     const dispatches = threads.map(thread => orchestrator.dispatch({
       port,
-      input: { threadId: thread.id },
+      input: createValidDispatchInput(thread),
     }))
 
     await vi.waitFor(() => {
@@ -414,7 +548,7 @@ describe('task-thread orchestrator', () => {
 
     const runningPromise = orchestrator.dispatch({
       port,
-      input: { threadId: threadA.id },
+      input: createValidDispatchInput(threadA),
     })
     await vi.waitFor(() => {
       expect(started).toEqual([threadA.id])
@@ -425,7 +559,7 @@ describe('task-thread orchestrator', () => {
     const queuedPromise = orchestrator.dispatch({
       port,
       input: {
-        threadId: threadB.id,
+        ...createValidDispatchInput(threadB),
         abortSignal: queuedAbortController.signal,
       },
     }).then((result) => {
@@ -517,7 +651,7 @@ describe('task-thread orchestrator', () => {
 
     const runningPromise = orchestrator.dispatch({
       port,
-      input: { threadId: runningThread.id },
+      input: createValidDispatchInput(runningThread),
     })
     await vi.waitFor(() => {
       expect(orchestrator.snapshot().running.codex).toBe(runningThread.id)
@@ -525,7 +659,7 @@ describe('task-thread orchestrator', () => {
     const queuedPromise = orchestrator.dispatch({
       port,
       input: {
-        threadId: queuedThread.id,
+        ...createValidDispatchInput(queuedThread),
         abortSignal: abortController.signal,
       },
     })
@@ -590,7 +724,7 @@ describe('task-thread orchestrator', () => {
 
     const runningPromise = orchestrator.dispatch({
       port,
-      input: { threadId: runningThread.id },
+      input: createValidDispatchInput(runningThread),
     })
     await vi.waitFor(() => {
       expect(orchestrator.snapshot().running.codex).toBe(runningThread.id)
@@ -598,7 +732,7 @@ describe('task-thread orchestrator', () => {
     const queuedPromise = orchestrator.dispatch({
       port,
       input: {
-        threadId: queuedThread.id,
+        ...createValidDispatchInput(queuedThread),
         abortSignal: abortController.signal,
       },
     })
@@ -671,7 +805,7 @@ describe('task-thread orchestrator', () => {
 
     const runningPromise = orchestrator.dispatch({
       port,
-      input: { threadId: runningThread.id },
+      input: createValidDispatchInput(runningThread),
     })
     await vi.waitFor(() => {
       expect(orchestrator.snapshot().running.codex).toBe(runningThread.id)
@@ -679,7 +813,7 @@ describe('task-thread orchestrator', () => {
     const queuedPromise = orchestrator.dispatch({
       port,
       input: {
-        threadId: queuedThread.id,
+        ...createValidDispatchInput(queuedThread),
         abortSignal: abortController.signal,
       },
     })
@@ -714,7 +848,7 @@ describe('task-thread orchestrator', () => {
     await runningPromise
   })
 
-  it.each(['completed', 'failed', 'cancelled', 'blocked'] as const)('does not append a cancellation event when queued cancellation loses the terminal CAS to %s', async (status) => {
+  it.each(['completed', 'failed', 'cancelled', 'blocked', 'dead-lettered'] as const)('does not append a cancellation event when queued cancellation loses the terminal CAS to %s', async (status) => {
     const runningThread = createThread('thread-codex-running-for-cancel-cas', 'codex')
     const queuedThread = createThread('thread-codex-queued-cancel-cas', 'codex')
     const completedQueuedThread: AlicizationTaskThreadRecord = {
@@ -762,7 +896,7 @@ describe('task-thread orchestrator', () => {
 
     const runningPromise = orchestrator.dispatch({
       port,
-      input: { threadId: runningThread.id },
+      input: createValidDispatchInput(runningThread),
     })
     await vi.waitFor(() => {
       expect(orchestrator.snapshot().running.codex).toBe(runningThread.id)
@@ -770,7 +904,7 @@ describe('task-thread orchestrator', () => {
     const queuedPromise = orchestrator.dispatch({
       port,
       input: {
-        threadId: queuedThread.id,
+        ...createValidDispatchInput(queuedThread),
         abortSignal: abortController.signal,
       },
     })
@@ -822,7 +956,7 @@ describe('task-thread orchestrator', () => {
     const dispatchPromise = orchestrator.dispatch({
       port,
       input: {
-        threadId: thread.id,
+        ...createValidDispatchInput(thread),
         abortSignal: externalAbortController.signal,
       },
     })
@@ -867,7 +1001,7 @@ describe('task-thread orchestrator', () => {
     const dispatchPromise = orchestrator.dispatch({
       port,
       input: {
-        threadId: thread.id,
+        ...createValidDispatchInput(thread),
         abortSignal: externalAbortController.signal,
       },
     })
@@ -916,7 +1050,7 @@ describe('task-thread orchestrator', () => {
     let queuedSettled = false
     const runningPromise = orchestrator.dispatch({
       port,
-      input: { threadId: threadA.id },
+      input: createValidDispatchInput(threadA),
     }).then((result) => {
       runningSettled = true
       return result
@@ -928,7 +1062,7 @@ describe('task-thread orchestrator', () => {
 
     const queuedPromise = orchestrator.dispatch({
       port,
-      input: { threadId: threadB.id },
+      input: createValidDispatchInput(threadB),
     }).then((result) => {
       queuedSettled = true
       return result
@@ -972,7 +1106,7 @@ describe('task-thread orchestrator', () => {
 
     void orchestrator.dispatch({
       port,
-      input: { threadId: thread.id },
+      input: createValidDispatchInput(thread),
     })
     await vi.waitFor(() => {
       expect(orchestrator.snapshot().running.codex).toBe(thread.id)
@@ -987,7 +1121,7 @@ describe('task-thread orchestrator', () => {
     expect(orchestrator.snapshot().disposed).toBe(true)
     await expect(orchestrator.dispatch({
       port,
-      input: { threadId: thread.id },
+      input: createValidDispatchInput(thread),
     })).rejects.toMatchObject({
       code: 'TASK_THREAD_ORCHESTRATOR_DISPOSED',
     })
@@ -1031,7 +1165,7 @@ describe('task-thread orchestrator', () => {
     const dispatchPromise = orchestrator.dispatch({
       port,
       input: {
-        threadId: thread.id,
+        ...createValidDispatchInput(thread),
         abortSignal: externalAbortController.signal,
       },
     }).then((result) => {

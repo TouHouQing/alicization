@@ -2874,6 +2874,60 @@ describe('main chat execution surface', () => {
     ])
   })
 
+  it('preserves a dead-lettered dispatch as a distinct terminal progress phase', async () => {
+    const emitToolExecutionProgress = vi.fn()
+    const tools = await buildMainGatewayTools({
+      buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),
+      context: {
+        cardId: 'default',
+        turnId: 'turn-tool-dead-lettered-result',
+        decisionTraceId: 'trace-tool-dead-lettered-result',
+        sessionId: 'session-1',
+      },
+      executionCapabilityChannels: executionChannels,
+      executeTaskThread: vi.fn(async () => ({
+        ok: false,
+        finalStatus: 'dead-lettered',
+        stage: 'dispatch',
+        thread: {
+          id: 'thread-tool-dead-lettered-result',
+          selectedChannel: 'codex',
+          status: 'dead-lettered',
+        },
+        plan: {
+          state: 'routed',
+        },
+        summary: 'Codex side effects require manual reconciliation.',
+        output: null,
+        errorCode: 'SIDE_EFFECT_RECONCILIATION_EXHAUSTED',
+        errorMessage: 'The applied side effect could not be verified safely.',
+      })) as any,
+      emitToolExecutionProgress,
+      getSensorySnapshot: () => sensorySnapshot,
+      resolveTaskPlanningCapabilities: vi.fn(async () => []),
+      scheduleReminderTask: vi.fn(async () => ({ ok: true })),
+      invokeMcpListTools: vi.fn(async () => ({ tools: [] })),
+      invokeMcpCallTool: vi.fn(async () => ({ ok: true })),
+    })
+    const codexTool = tools.find((entry: any) => entry.function?.name === 'codex') as any
+
+    const result = await codexTool.execute({
+      prompt: 'inspect an uncertain local mutation',
+    }, {
+      toolCallId: 'codex-dead-lettered-result-1',
+    })
+
+    expect(result).toMatchObject({
+      status: 'dead-lettered',
+      finalStatus: 'dead-lettered',
+      threadStatus: 'dead-lettered',
+    })
+    expect(emitToolExecutionProgress.mock.calls.map(([event]) => event.phase)).toEqual([
+      'started',
+      'dead-lettered',
+    ])
+  })
+
   it('marks every failed executor result as terminal for Provider continuation', async () => {
     const tools = await buildMainGatewayTools({
       buildExecutionRuntimeContext: createBuildExecutionRuntimeContext(),

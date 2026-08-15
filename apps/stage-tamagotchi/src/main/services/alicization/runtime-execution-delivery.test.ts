@@ -527,38 +527,46 @@ describe('runtime execution delivery', () => {
       buildHostPersonModel: async () => null,
     })
 
+    const thread = {
+      id: 'thread-1',
+      decisionTraceId: 'trace-1',
+      turnId: 'turn-1',
+      sessionId: 'session-1',
+      origin: 'user-turn',
+      goal: 'run the command',
+      kind: 'task',
+      status: 'completed',
+      selectedChannel: 'cli',
+      proposedChannel: 'cli',
+      summary: 'summary',
+      metadata: null,
+      createdAt: 9_000,
+      updatedAt: 9_500,
+      lastEventAt: 9_500,
+      completedAt: 9_500,
+    } as any
     const queued = await runtime.queueExecutionDeliveryCandidate({
       cardId: 'default',
-      thread: {
-        id: 'thread-1',
-        decisionTraceId: 'trace-1',
-        turnId: 'turn-1',
-        sessionId: 'session-1',
-        origin: 'user-turn',
-        goal: 'run the command',
-        kind: 'task',
-        status: 'completed',
-        selectedChannel: 'cli',
-        proposedChannel: 'cli',
-        summary: 'summary',
-        metadata: null,
-        createdAt: 9_000,
-        updatedAt: 9_500,
-        lastEventAt: 9_500,
-        completedAt: 9_500,
-      } as any,
+      thread,
+    })
+    const duplicate = await runtime.queueExecutionDeliveryCandidate({
+      cardId: 'default',
+      thread,
     })
 
     expect(queued?.threadId).toBe('thread-1')
+    expect(duplicate).toBeNull()
     expect(syncSessionMirrorFromCurrentCardState).toHaveBeenCalledWith(expect.objectContaining({
       source: 'execution-delivery-queued',
     }))
+    expect(syncSessionMirrorFromCurrentCardState).toHaveBeenCalledTimes(1)
     expect(appendAuditLog).toHaveBeenCalledWith(expect.objectContaining({
       action: 'queued',
     }), 'default')
     const queuedAudit = ((appendAuditLog.mock.calls as unknown[][]).at(0)?.[0]) as any
     expect(queuedAudit?.payload).not.toHaveProperty('projectContinuity')
     expect(queueSubconsciousWake).toHaveBeenCalledWith('default', 'execution-delivery:thread-1', 240)
+    expect(queueSubconsciousWake).toHaveBeenCalledTimes(1)
   })
 
   it('marks an inline Provider-owned execution as surfaced instead of queuing a second callback', async () => {

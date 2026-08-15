@@ -78,6 +78,41 @@ describe('task-thread dispatch adapter registry', () => {
     expect(prepared.errorCode).toBe('TASK_THREAD_CODEX_INPUT_REQUIRED')
   })
 
+  it.each([
+    {
+      channel: 'cli' as const,
+      dispatchInput: { cli: { command: '' } },
+      errorCode: 'TASK_THREAD_CLI_INPUT_REQUIRED',
+    },
+    {
+      channel: 'codex' as const,
+      dispatchInput: { codex: { prompt: '   ' } },
+      errorCode: 'TASK_THREAD_CODEX_INPUT_REQUIRED',
+    },
+    {
+      channel: 'claude-code' as const,
+      dispatchInput: { claudeCode: { prompt: '\n\t' } },
+      errorCode: 'TASK_THREAD_CLAUDE_CODE_INPUT_REQUIRED',
+    },
+  ])('rejects blank $channel command payloads before adapter execution', ({
+    channel,
+    dispatchInput,
+    errorCode,
+  }) => {
+    const prepared = prepareTaskThreadDispatch({
+      thread: createThread({
+        selectedChannel: channel,
+        proposedChannel: channel,
+      }),
+      dispatchInput,
+    })
+
+    expect(prepared.ok).toBe(false)
+    if (prepared.ok)
+      return
+    expect(prepared.errorCode).toBe(errorCode)
+  })
+
   it('prepares executable dispatch and runs cli adapter', async () => {
     const prepared = prepareTaskThreadDispatch({
       thread: createThread(),

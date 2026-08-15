@@ -66,7 +66,10 @@ function createPort(initialThread: AlicizationTaskThreadRecord) {
       status: latest.threadStatus ?? currentThread.status,
       lastEventAt: latest.createdAt ?? currentThread.lastEventAt,
       updatedAt: latest.createdAt ?? currentThread.updatedAt,
-      completedAt: latest.threadStatus === 'completed' || latest.threadStatus === 'failed' || latest.threadStatus === 'cancelled'
+      completedAt: latest.threadStatus === 'completed'
+        || latest.threadStatus === 'failed'
+        || latest.threadStatus === 'cancelled'
+        || latest.threadStatus === 'dead-lettered'
         ? (latest.createdAt ?? currentThread.completedAt ?? currentThread.updatedAt)
         : currentThread.completedAt,
     }
@@ -518,6 +521,72 @@ describe('task-thread dispatcher', () => {
         errorCode: 'TOOL_EXECUTION_CANCELLED',
       }),
     })
+  })
+
+  it('preserves an unrecoverable adapter dead-letter settlement as its own terminal state', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-edit',
+      goal: 'Apply the repository change exactly once.',
+    }))
+    executeCodexTaskThreadMock.mockResolvedValueOnce({
+      ok: false,
+      finalStatus: 'dead-lettered',
+      summary: 'Codex side effects could not be reconciled safely after retry exhaustion.',
+      output: null,
+      errorCode: 'CODEX_RETRY_EXHAUSTED_SIDE_EFFECT_UNKNOWN',
+      errorMessage: 'The action cannot be resumed or replayed safely.',
+      events: [{
+        threadId: 'thread-dispatch-1',
+        decisionTraceId: 'mind:trace:dispatch-1',
+        turnId: 'turn-dispatch-1',
+        sessionId: 'session-dispatch-1',
+        origin: 'user-turn',
+        channel: 'codex',
+        kind: 'result',
+        threadStatus: 'dead-lettered',
+        payload: {
+          failureKind: 'tool-execution',
+          errorCode: 'CODEX_RETRY_EXHAUSTED_SIDE_EFFECT_UNKNOWN',
+          errorMessage: 'The action cannot be resumed or replayed safely.',
+          retryExhausted: true,
+          sideEffectState: 'unknown',
+        },
+        createdAt: 240,
+      }],
+    })
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: 'Apply the repository change exactly once.',
+        sandbox: 'workspace-write',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      workspaceRoot: process.cwd(),
+      now: () => 240,
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'dead-lettered',
+      errorCode: 'CODEX_RETRY_EXHAUSTED_SIDE_EFFECT_UNKNOWN',
+      thread: {
+        status: 'dead-lettered',
+        completedAt: 240,
+      },
+    })
+    expect(port.appendExecutionEvents).toHaveBeenCalledWith([
+      expect.objectContaining({
+        kind: 'result',
+        threadStatus: 'dead-lettered',
+      }),
+    ])
+    expect(port.upsertTaskThread).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'dead-lettered',
+      completedAt: 240,
+    }))
   })
 
   it('keeps timeout semantics when the abort reason is a string', async () => {
@@ -1787,6 +1856,10 @@ describe('task-thread dispatcher', () => {
 
     const result = await dispatchTaskThread(port, {
       threadId: plannedThread.id,
+      cli: {
+        command: 'node',
+        args: ['-e', 'process.exit(0)'],
+      },
       killSwitchSuspended: true,
       workspaceRoot: process.cwd(),
     })
@@ -1832,6 +1905,10 @@ describe('task-thread dispatcher', () => {
 
     const result = await dispatchTaskThread(port, {
       threadId: plannedThread.id,
+      cli: {
+        command: 'node',
+        args: ['-e', 'process.exit(0)'],
+      },
       killSwitchSuspended: true,
       workspaceRoot: process.cwd(),
     })
@@ -1875,6 +1952,10 @@ describe('task-thread dispatcher', () => {
 
     const result = await dispatchTaskThread(port, {
       threadId: plannedThread.id,
+      cli: {
+        command: 'node',
+        args: ['-e', 'process.exit(0)'],
+      },
       killSwitchSuspended: true,
       workspaceRoot: process.cwd(),
     })
@@ -1914,6 +1995,10 @@ describe('task-thread dispatcher', () => {
 
     const result = await dispatchTaskThread(port, {
       threadId: plannedThread.id,
+      cli: {
+        command: 'node',
+        args: ['-e', 'process.exit(0)'],
+      },
       killSwitchSuspended: true,
       workspaceRoot: process.cwd(),
     })
@@ -2030,6 +2115,100 @@ describe('task-thread dispatcher', () => {
     expect(result.errorCode).toBe('TASK_THREAD_CLAUDE_CODE_INPUT_REQUIRED')
     expect(result.createdEventKinds).toEqual([])
     expect(port.appendExecutionEvents).not.toBeCalled()
+  })
+
+  it.each([
+    {
+      channel: 'cli' as const,
+      dispatch: {
+        cli: {
+          command: '',
+          runtimeContext: createExecutionRuntimeContext(),
+        },
+      },
+      errorCode: 'TASK_THREAD_CLI_INPUT_REQUIRED',
+    },
+    {
+      channel: 'codex' as const,
+      dispatch: {
+        codex: {
+          prompt: '   ',
+          runtimeContext: createExecutionRuntimeContext(),
+        },
+      },
+      errorCode: 'TASK_THREAD_CODEX_INPUT_REQUIRED',
+    },
+    {
+      channel: 'claude-code' as const,
+      dispatch: {
+        claudeCode: {
+          prompt: '\n\t',
+          runtimeContext: createExecutionRuntimeContext(),
+        },
+      },
+      errorCode: 'TASK_THREAD_CLAUDE_CODE_INPUT_REQUIRED',
+    },
+  ])('rejects blank $channel payloads before any dispatcher persistence', async ({
+    channel,
+    dispatch,
+    errorCode,
+  }) => {
+    const port = createPort(createThread({
+      selectedChannel: channel,
+      proposedChannel: channel,
+    }))
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      ...dispatch,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      errorCode,
+      createdEventKinds: [],
+      thread: {
+        status: 'planned',
+      },
+    })
+    expect(port.upsertTaskThread).not.toBeCalled()
+    expect(port.upsertExecutorSession).not.toBeCalled()
+    expect(port.appendExecutionEvents).not.toBeCalled()
+    expect(port.readThread().status).toBe('planned')
+  })
+
+  it('prioritizes invalid payload rejection over kill-switch and abort settlement', async () => {
+    const port = createPort(createThread({
+      selectedChannel: 'codex',
+      proposedChannel: 'codex',
+      kind: 'codebase-investigation',
+    }))
+    const abortController = new AbortController()
+    abortController.abort('caller-cancelled-invalid-dispatch')
+
+    const result = await dispatchTaskThread(port, {
+      threadId: 'thread-dispatch-1',
+      codex: {
+        prompt: '   ',
+        runtimeContext: createExecutionRuntimeContext(),
+      },
+      killSwitchSuspended: true,
+      abortSignal: abortController.signal,
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      errorCode: 'TASK_THREAD_CODEX_INPUT_REQUIRED',
+      createdEventKinds: [],
+      thread: {
+        status: 'planned',
+      },
+    })
+    expect(port.upsertTaskThread).not.toBeCalled()
+    expect(port.appendExecutionEvents).not.toBeCalled()
+    expect(port.readThread().status).toBe('planned')
   })
 
   it('dispatches openclaw payloads through the embodied executor channel', async () => {

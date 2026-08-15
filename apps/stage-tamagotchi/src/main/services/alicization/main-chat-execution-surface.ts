@@ -109,7 +109,7 @@ export interface MainGatewayToolExecutionProgress {
   toolName: string
   selectedChannel?: AlicizationExecutionChannel | null
   signal: 'liveness' | 'semantic-progress' | 'terminal'
-  phase: 'started' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout'
+  phase: 'started' | 'running' | 'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'
   elapsedMs: number
   timeoutMs?: number
   errorCode?: string
@@ -1023,11 +1023,13 @@ function toMainGatewayExecutorToolResult(result: MainGatewayExecutionTaskThreadR
       ? 'accepted'
       : result.finalStatus === 'cancelled'
         ? 'cancelled'
-        : result.ok
-          ? 'completed'
-          : result.stage === 'plan'
-            ? 'not-routed'
-            : 'failed',
+        : result.finalStatus === 'dead-lettered'
+          ? 'dead-lettered'
+          : result.ok
+            ? 'completed'
+            : result.stage === 'plan'
+              ? 'not-routed'
+              : 'failed',
     stage: result.stage,
     threadId: result.thread.id,
     threadStatus: sanitizeText(result.thread.status) || 'unknown',
@@ -1053,7 +1055,7 @@ function toMainGatewayExecutorToolResult(result: MainGatewayExecutionTaskThreadR
   }
 
   if (
-    toolResult.status === 'failed'
+    (toolResult.status === 'failed' || toolResult.status === 'dead-lettered')
     && isAlicizationToolExecutionFailureResult(toolResult)
   ) {
     toolResult.failureKind = 'tool-execution'
@@ -1163,6 +1165,8 @@ function resolveMainGatewayToolProgressPhase(
     return 'cancelled'
   if (status === 'timeout' || finalStatus === 'timeout' || /(?:^|_)timeout$/u.test(errorCode))
     return 'timeout'
+  if (status === 'dead-lettered' || finalStatus === 'dead-lettered')
+    return 'dead-lettered'
   if (status === 'accepted')
     return 'running'
   if (status === 'completed')
@@ -1870,13 +1874,14 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
         ? Math.max(0, Math.floor(Number((input as Record<string, unknown>).timeoutMs)))
         : undefined
       const emitProgress = (
-        phase: 'started' | 'running' | 'completed' | 'failed' | 'cancelled' | 'timeout',
+        phase: 'started' | 'running' | 'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout',
         progress?: Partial<Omit<MainGatewayToolExecutionProgress, 'toolCallId' | 'toolName' | 'phase' | 'elapsedMs' | 'occurredAt'>>,
       ) => {
         if (!toolCallId || !options.emitToolExecutionProgress)
           return
         const terminal = phase === 'completed'
           || phase === 'failed'
+          || phase === 'dead-lettered'
           || phase === 'cancelled'
           || phase === 'timeout'
         if (terminalProgressEmitted)

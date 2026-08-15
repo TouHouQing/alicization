@@ -145,7 +145,7 @@ describe('local visual task-thread adapter', () => {
     })
   })
 
-  it('returns a failed structured result with unknown side effects when a mutating host action throws', async () => {
+  it('keeps a mutating host action recoverable when its side effects are unknown', async () => {
     const desktopInspectScene = vi.fn(async () => ({
       status: 'completed',
       summary: 'A desktop control is ready.',
@@ -192,11 +192,15 @@ describe('local visual task-thread adapter', () => {
       payload: {
         errorCode: 'LOCAL_VISUAL_HOST_FAILED',
         sideEffectState: 'unknown',
+        failureDisposition: {
+          kind: 'recover',
+          reasonCode: 'SIDE_EFFECT_RECONCILIATION_REQUIRED',
+        },
       },
     })
   })
 
-  it('fails with applied-unverified side effects when post-action inspection throws', async () => {
+  it('dead-letters applied but unverified side effects when post-action inspection throws', async () => {
     const desktopInspectScene = vi.fn()
       .mockResolvedValueOnce({
         status: 'completed',
@@ -241,7 +245,7 @@ describe('local visual task-thread adapter', () => {
 
     expect(desktopClickElement).toHaveBeenCalledOnce()
     expect(desktopInspectScene).toHaveBeenCalledTimes(2)
-    expect(result.finalStatus).toBe('failed')
+    expect(result.finalStatus).toBe('dead-lettered')
     expect(result.errorCode).toBe('LOCAL_VISUAL_HOST_FAILED')
     expect(result.errorMessage).toBe('post-action inspection host unavailable')
     expect(JSON.parse(result.output ?? '{}')).toMatchObject({
@@ -262,7 +266,7 @@ describe('local visual task-thread adapter', () => {
     })
     expect(result.events.at(-1)).toMatchObject({
       kind: 'result',
-      threadStatus: 'failed',
+      threadStatus: 'dead-lettered',
       payload: {
         errorCode: 'LOCAL_VISUAL_HOST_FAILED',
         errorMessage: 'post-action inspection host unavailable',
@@ -271,7 +275,7 @@ describe('local visual task-thread adapter', () => {
     })
   })
 
-  it('fails with applied-unverified side effects when auto-wait fails after a browser mutation', async () => {
+  it('dead-letters applied but unverified side effects when auto-wait fails after a browser mutation', async () => {
     const desktopInspectScene = vi.fn(async () => ({
       status: 'completed',
       summary: 'A browser control is ready.',
@@ -316,7 +320,7 @@ describe('local visual task-thread adapter', () => {
     expect(browserClickElement).toHaveBeenCalledOnce()
     expect(browserWait).toHaveBeenCalledOnce()
     expect(desktopInspectScene).toHaveBeenCalledOnce()
-    expect(result.finalStatus).toBe('failed')
+    expect(result.finalStatus).toBe('dead-lettered')
     expect(result.errorCode).toBe('LOCAL_VISUAL_HOST_FAILED')
     expect(result.errorMessage).toBe('browser wait host unavailable')
     expect(JSON.parse(result.output ?? '{}')).toMatchObject({
@@ -338,7 +342,7 @@ describe('local visual task-thread adapter', () => {
     })
     expect(result.events.at(-1)).toMatchObject({
       kind: 'result',
-      threadStatus: 'failed',
+      threadStatus: 'dead-lettered',
       payload: {
         errorCode: 'LOCAL_VISUAL_HOST_FAILED',
         errorMessage: 'browser wait host unavailable',
@@ -347,7 +351,7 @@ describe('local visual task-thread adapter', () => {
     })
   })
 
-  it('cancels after an action aborts without reinspection or executing later actions', async () => {
+  it('keeps an aborted action cancelled even when its side effects are unknown', async () => {
     const abortController = new AbortController()
     const desktopInspectScene = vi.fn()
       .mockResolvedValueOnce({
@@ -420,6 +424,11 @@ describe('local visual task-thread adapter', () => {
       threadStatus: 'cancelled',
       payload: {
         sideEffectState: 'unknown',
+        failureDisposition: {
+          kind: 'terminal',
+          finalStatus: 'cancelled',
+          reasonCode: 'EXPLICIT_CANCELLATION',
+        },
       },
     })
   })

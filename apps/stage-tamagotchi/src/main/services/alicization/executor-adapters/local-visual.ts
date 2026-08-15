@@ -25,6 +25,7 @@ import type { AlicizationLocalDesktopInspectSceneInput } from '../local-desktop-
 
 import { normalizeAlicizationExecutionRuntimeContext } from '@proj-alicization/stage-shared'
 
+import { resolveAdapterFailureDisposition } from './failure-settlement'
 import { resolveThreadPermissionMode } from './thread-permission'
 
 type LocalVisualToolName
@@ -76,7 +77,7 @@ export interface AlicizationLocalVisualAdapterResult {
   output: string | null
   errorCode?: string
   errorMessage?: string
-  sideEffectState?: 'unknown'
+  sideEffectState?: LocalVisualSideEffectState
   finalStatus: AlicizationTaskThreadStatus
   events: AlicizationExecutionEventInput[]
 }
@@ -87,6 +88,7 @@ interface LocalVisualActionExecutionResult {
 }
 
 type AlicizationTaskEffect = 'observe' | 'mutate' | 'high-impact'
+type LocalVisualSideEffectState = 'unknown' | 'applied-unverified'
 
 const supportedToolNames = new Set<LocalVisualToolName>([
   'browser_open_url',
@@ -140,6 +142,33 @@ class LocalVisualAbortError extends Error {
     this.name = 'AbortError'
     this.sideEffectState = sideEffectState
   }
+}
+
+function resolveLocalVisualFailureDisposition(input: {
+  cancelled: boolean
+  sideEffectState: LocalVisualSideEffectState | undefined
+  thread: AlicizationTaskThreadRecord
+}) {
+  return resolveAdapterFailureDisposition({
+    effect: resolveThreadEffect(input.thread),
+    failureKind: 'remote',
+    cancelled: input.cancelled,
+    sideEffectState: input.sideEffectState ?? 'none',
+    replaySafety: input.sideEffectState ? 'unsafe' : 'unknown',
+    retry: {
+      attempted: 0,
+      exhausted: false,
+    },
+    recovery: input.sideEffectState === 'applied-unverified'
+      ? {
+          attempted: true,
+          outcome: 'exhausted',
+        }
+      : {
+          attempted: false,
+          outcome: 'pending',
+        },
+  })
 }
 
 function isAbortLikeError(error: unknown) {
@@ -1763,6 +1792,14 @@ export async function executeLocalVisualTaskThread(
     const sideEffectState = error instanceof LocalVisualAbortError
       ? error.sideEffectState
       : undefined
+    const failureDisposition = resolveLocalVisualFailureDisposition({
+      cancelled: true,
+      sideEffectState,
+      thread,
+    })
+    const finalStatus = failureDisposition.kind === 'terminal'
+      ? failureDisposition.finalStatus
+      : 'cancelled'
     return {
       ok: false,
       summary: 'Local visual execution was cancelled while applying a host action.',
@@ -1770,7 +1807,7 @@ export async function executeLocalVisualTaskThread(
       errorCode: 'LOCAL_VISUAL_ABORTED',
       errorMessage: errorMessageFromLocalVisualHost(error),
       ...(sideEffectState ? { sideEffectState } : {}),
-      finalStatus: 'cancelled',
+      finalStatus,
       events: [dispatchEvent, {
         threadId: thread.id,
         decisionTraceId: thread.decisionTraceId,
@@ -1779,13 +1816,14 @@ export async function executeLocalVisualTaskThread(
         origin: thread.origin,
         channel: input.channel,
         kind: 'cancel',
-        threadStatus: 'cancelled',
+        threadStatus: finalStatus,
         payload: {
           adapter: 'local-visual',
           transportChannel: 'local-visual',
           errorCode: 'LOCAL_VISUAL_ABORTED',
           errorMessage: errorMessageFromLocalVisualHost(error),
           ...(sideEffectState ? { sideEffectState } : {}),
+          failureDisposition,
         },
         createdAt,
       }],
@@ -1799,7 +1837,19 @@ export async function executeLocalVisualTaskThread(
     const errorMessage = sanitizeText(finalRecord.errorMessage, 220)
       || sanitizeText(finalRecord.summary, 220)
       || 'Local visual host execution failed.'
-    const sideEffectState = sanitizeText(finalRecord.sideEffectState, 40) || undefined
+    const sideEffectStateRaw = sanitizeText(finalRecord.sideEffectState, 40)
+    const sideEffectState: LocalVisualSideEffectState | undefined
+      = sideEffectStateRaw === 'unknown' || sideEffectStateRaw === 'applied-unverified'
+        ? sideEffectStateRaw
+        : undefined
+    const failureDisposition = resolveLocalVisualFailureDisposition({
+      cancelled: false,
+      sideEffectState,
+      thread,
+    })
+    const terminalStatus = failureDisposition.kind === 'terminal'
+      ? failureDisposition.finalStatus
+      : 'failed'
     const normalizedOutput = safeJsonStringify(finalRecord) || null
     const resultEvent: AlicizationExecutionEventInput = {
       threadId: thread.id,
@@ -1809,13 +1859,14 @@ export async function executeLocalVisualTaskThread(
       origin: thread.origin,
       channel: input.channel,
       kind: 'result',
-      threadStatus: 'failed',
+      threadStatus: terminalStatus,
       payload: compactRecord({
         instruction: spec.instructionPreview,
         transportChannel: 'local-visual',
         errorCode,
         errorMessage,
         sideEffectState,
+        failureDisposition,
       }),
       createdAt: dispatchCreatedAt + 1,
     }
@@ -1825,7 +1876,8 @@ export async function executeLocalVisualTaskThread(
       output: normalizedOutput,
       errorCode,
       errorMessage,
-      finalStatus: 'failed',
+      ...(sideEffectState ? { sideEffectState } : {}),
+      finalStatus: terminalStatus,
       events: [dispatchEvent, resultEvent],
     }
   }

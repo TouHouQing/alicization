@@ -10,6 +10,7 @@ import type { AlicizationDispatchTaskThreadRuntimeInput, AlicizationTaskThreadDi
 
 import { errorMessageFrom } from '@moeru/std'
 
+import { validateTaskThreadDispatchPayload } from './executor-adapters/registry'
 import { dispatchTaskThread } from './task-thread-dispatcher'
 
 type AlicizationSerializedDispatchChannel = 'codex' | 'claude-code'
@@ -60,6 +61,7 @@ const terminalTaskThreadStatuses = new Set<AlicizationTaskThreadRecord['status']
   'completed',
   'failed',
   'cancelled',
+  'dead-lettered',
 ])
 
 function isSerializedDispatchChannel(
@@ -615,6 +617,22 @@ export function createTaskThreadOrchestrator(options?: AlicizationTaskThreadOrch
       const error = new Error('Task-thread orchestrator is disposed.') as Error & { code: string }
       error.code = 'TASK_THREAD_ORCHESTRATOR_DISPOSED'
       throw error
+    }
+
+    const payloadValidation = validateTaskThreadDispatchPayload({
+      thread: existingThread,
+      dispatchInput: invocation.input,
+      localVisualSurface: invocation.port.localVisualSurface,
+    })
+    if (!payloadValidation.ok) {
+      return {
+        thread: existingThread,
+        createdEventKinds: [],
+        ok: false,
+        summary: payloadValidation.summary,
+        errorCode: payloadValidation.errorCode,
+        errorMessage: payloadValidation.errorMessage,
+      }
     }
 
     const inFlight = inFlightThreadDispatches.get(existingThread.id)

@@ -390,7 +390,7 @@ async function buildRememberedProcedureTracesFromExecution(input: {
     limit: 24,
   }).catch(() => [] as AlicizationTaskThreadRecord[])
   const candidateThreads = recentThreads
-    .filter(thread => ['completed', 'failed', 'cancelled', 'blocked', 'running', 'paused'].includes(thread.status))
+    .filter(thread => thread.status === 'completed')
     .map(thread => ({
       thread,
       similarity: computeTokenOverlapScore(goalTokens, tokenizeGoalText(thread.goal)),
@@ -412,6 +412,8 @@ async function buildRememberedProcedureTracesFromExecution(input: {
       .slice(0, 5)
     const result = sanitizeExecutionLedgerText(readExecutionOutcome(orderedEvents), 220)
       || normalizeHintText(thread.summary, 220)
+    if (!result && orderedEvents.length === 0)
+      return null
     const latestEvent = readLatestExecutionEvent(orderedEvents)
     const failurePoints = [
       ...orderedEvents
@@ -490,7 +492,7 @@ async function buildRememberedProcedureTracesFromExecution(input: {
           ? 'remembered-thread-channel'
           : null,
     }
-  }))
+  })).then(traces => traces.filter((trace): trace is NonNullable<typeof trace> => Boolean(trace)))
 
   return traces
     .filter(item => item.label && item.approach)
@@ -623,6 +625,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
     'cancelled',
     'completed',
     'failed',
+    'dead-lettered',
   ])
 
   async function persistBackgroundDispatchFailure(input: {
@@ -1401,6 +1404,24 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
       }
     }
 
+    if (terminalTaskThreadStatuses.has(originalThread.status)) {
+      return {
+        ok: false,
+        finalStatus: originalThread.status,
+        stage: 'dispatch',
+        thread: originalThread,
+        plan: {
+          state: 'blocked',
+          proposedChannel: resumeChannel,
+        },
+        summary: originalThread.summary
+          ?? `Task thread is already terminal with status ${originalThread.status}.`,
+        errorCode: 'TASK_THREAD_ALREADY_TERMINAL',
+        errorMessage: `Task thread is already terminal with status ${originalThread.status}.`,
+        createdEventKinds: [],
+      }
+    }
+
     const resumeDispatch = buildResumeDispatchPayload({
       thread: originalThread,
     })
@@ -1458,7 +1479,7 @@ export function createAlicizationExecutorRuntime(options: AlicizationExecutorRun
           throw error
         const latestThread = await db.getTaskThread(originalThread.id).catch(() => undefined)
           ?? originalThread
-        const latestIsTerminal = ['blocked', 'completed', 'failed', 'cancelled'].includes(latestThread.status)
+        const latestIsTerminal = ['blocked', 'completed', 'failed', 'cancelled', 'dead-lettered'].includes(latestThread.status)
         return {
           ok: false,
           stage: 'dispatch',

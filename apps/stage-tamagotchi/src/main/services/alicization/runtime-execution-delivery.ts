@@ -680,9 +680,11 @@ export function createAlicizationRuntimeExecutionDelivery(
 
     return deriveExecutionResultDeliveryPolicy({
       digitalLifeSpine: spine,
-      status: input.status === 'completed' || input.status === 'failed' || input.status === 'blocked' || input.status === 'cancelled'
-        ? input.status
-        : 'completed',
+      status: input.status === 'dead-lettered'
+        ? 'failed'
+        : input.status === 'completed' || input.status === 'failed' || input.status === 'blocked' || input.status === 'cancelled'
+          ? input.status
+          : 'completed',
     })
   }
 
