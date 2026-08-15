@@ -143,6 +143,70 @@ describe('runtime main gateway one-shot', () => {
     )
   })
 
+  it('reports coordinator deferral as the real live memory trial failure', async () => {
+    const acquireOneShot = vi.fn(() => ({
+      accepted: false as const,
+      lane: 'background' as const,
+      reason: 'foreground-active' as const,
+      retryAfterMs: 250,
+    }))
+    const onFailure = vi.fn()
+    const { runtime } = createOneShotRuntimeHarness({
+      providerWorkCoordinator: {
+        acquireOneShot,
+      },
+    } as any)
+
+    await expect(runtime.generateMainGatewayText({
+      system: '',
+      user: '运行真实记忆试用',
+      source: 'memory-quality-trial',
+      onFailure,
+    })).resolves.toBeNull()
+
+    expect(generateText).not.toHaveBeenCalled()
+    expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'memory-quality-trial',
+      reason: expect.stringContaining('foreground-active'),
+    }))
+  })
+
+  it('reports foreground preemption as the real live memory trial failure', async () => {
+    const providerWorkCoordinator = createAlicizationMainGatewayWorkCoordinator()
+    const onFailure = vi.fn()
+    const { runtime } = createOneShotRuntimeHarness({
+      providerWorkCoordinator,
+    })
+    let providerAbortSignal: AbortSignal | undefined
+    vi.mocked(generateText).mockImplementationOnce(async (input: any) => {
+      providerAbortSignal = input.abortSignal
+      return await new Promise((_resolve, reject) => {
+        input.abortSignal.addEventListener('abort', () => reject(input.abortSignal.reason), {
+          once: true,
+        })
+      })
+    })
+
+    const trial = runtime.generateMainGatewayText({
+      system: '',
+      user: '运行真实记忆试用',
+      source: 'memory-quality-trial',
+      onFailure,
+    })
+    await vi.waitFor(() => expect(providerAbortSignal).toBeDefined())
+
+    const foreground = providerWorkCoordinator.openForeground({
+      turnId: 'turn-user-chat',
+    })
+    await expect(trial).resolves.toBeNull()
+    foreground.release()
+
+    expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({
+      source: 'memory-quality-trial',
+      reason: 'main-gateway-preempted-by-foreground-chat',
+    }))
+  })
+
   it('preempts an in-flight background one-shot without reporting a Provider failure', async () => {
     const providerWorkCoordinator = createAlicizationMainGatewayWorkCoordinator()
     const onFailure = vi.fn()
@@ -880,6 +944,46 @@ describe('runtime main gateway one-shot', () => {
       .map(message => typeof message.content === 'string' ? message.content : '')
 
     expect(systemTexts).toEqual([memoryFact])
+  })
+
+  it('delivers live memory trial context and reports the resolved Provider route', async () => {
+    const { runtime } = createOneShotRuntimeHarness()
+    const onProviderResult = vi.fn()
+    const memoryFact = JSON.stringify({
+      type: 'alicization-turn-memory-context',
+      data: {
+        workingMemoryVersion: 'working-memory-owner-context-v1',
+        longTermEvidenceIds: ['memory-live-1'],
+      },
+    })
+    vi.mocked(generateText).mockResolvedValueOnce({
+      finishReason: 'stop',
+      text: '我记得。',
+    } as any)
+
+    const text = await runtime.generateMainGatewayText({
+      system: '',
+      user: '你还记得吗？',
+      source: 'memory-quality-trial',
+      cardId: 'card-memory-live',
+      extraSystemBlocks: [memoryFact],
+      injectCustomDirectives: false,
+      injectPerformanceManifest: false,
+      onProviderResult,
+    })
+
+    expect(text).toBe('我记得。')
+    const messages = vi.mocked(generateText).mock.calls[0]?.[0]?.messages ?? []
+    expect(messages).toContainEqual({
+      role: 'system',
+      content: memoryFact,
+    })
+    expect(onProviderResult).toHaveBeenCalledWith(expect.objectContaining({
+      providerId: 'provider-test',
+      modelId: 'model-test',
+      finishReason: 'stop',
+      retryCount: 0,
+    }))
   })
 
   it('returns cached screen semantic grounding with its focus target', async () => {

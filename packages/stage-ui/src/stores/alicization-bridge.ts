@@ -487,6 +487,7 @@ export interface AlicizationMemoryQualityMonthlyGoldRegressionPayload extends Al
 }
 
 export interface AlicizationMemoryQualityTrialPayload extends AlicizationCardScope {
+  mode?: 'historical-replay' | 'live-provider'
   month?: string | null
   replayPackId?: string | null
 }
@@ -528,6 +529,34 @@ export interface AlicizationMemoryDialogueReplayReport {
   }>
 }
 
+export interface AlicizationMemoryLiveProviderTrialReport {
+  version: 'memory-live-provider-trial-v1'
+  id: string
+  cardId: string
+  sessionId: string
+  createdAt: number
+  passed: boolean
+  summary: {
+    turnCount: number
+    succeededTurnCount: number
+    failedTurnCount: number
+    recalledEvidenceCount: number
+    providerCallCount: number
+    lastError: string | null
+  }
+  turns: Array<AlicizationMemoryDialogueReplayReport['turns'][number] & {
+    providerTrace: {
+      providerId: string
+      modelId: string
+      finishReason: string | null
+      retryCount: number
+      latencyMs: number
+      outputLength: number
+    } | null
+  }>
+  productionWrites: []
+}
+
 export interface AlicizationMemoryQualityTrialReport {
   version: 'memory-production-trial-runner-v1'
   id: string
@@ -558,6 +587,7 @@ export interface AlicizationMemoryQualityTrialReport {
     error: string | null
   }>
   dialogueReplay: AlicizationMemoryDialogueReplayReport | null
+  liveProviderTrial: AlicizationMemoryLiveProviderTrialReport | null
   runtimeHealth: {
     queue: {
       pending: number

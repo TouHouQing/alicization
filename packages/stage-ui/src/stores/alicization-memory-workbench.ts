@@ -689,13 +689,18 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
   }
 
-  async function runQualityTrial(month?: string | null, replayPackId?: string | null) {
+  async function runQualityTrial(
+    month?: string | null,
+    replayPackId?: string | null,
+    mode: 'historical-replay' | 'live-provider' = 'historical-replay',
+  ) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRunQualityTrial)
       return null
     const resolvedMonth = normalizeGoldLabelMonth(month)
     qualityTrialLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchRunQualityTrial!({
+        mode,
         month: resolvedMonth,
         ...(replayPackId ? { replayPackId } : {}),
       })

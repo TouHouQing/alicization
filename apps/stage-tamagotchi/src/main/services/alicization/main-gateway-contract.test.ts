@@ -12,6 +12,7 @@ describe('main-gateway-contract', () => {
     expect(resolveAlicizationMainGatewayAuditFamilyForSource('reminder')).toBe('background-life')
     expect(resolveAlicizationMainGatewayAuditFamilyForSource('proactive')).toBe('background-life')
     expect(resolveAlicizationMainGatewayAuditFamilyForSource('counterfactual-deliberation')).toBe('memory-planning')
+    expect(resolveAlicizationMainGatewayAuditFamilyForSource('memory-quality-trial')).toBe('memory-planning')
     expect(resolveAlicizationMainGatewayAuditFamilyForSource('dialogue-turn-semantics')).toBe('mind-state')
     expect(resolveAlicizationMainGatewayAuditFamilyForSource('subjective-inference')).toBe('mind-state')
     expect(resolveAlicizationMainGatewayAuditFamilyForSource('execution-callback')).toBe('execution-callback')

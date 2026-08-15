@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { setupAlicizationDb } from './db'
 import {
@@ -295,8 +295,133 @@ describe('memory quality workbench DB loop', () => {
     }
   })
 
-  it('defaults to the latest WorkingMemory session for the current card', async () => {
-    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+  it('runs a configured live provider trial with read-only recall and no production writes', async () => {
+    const provider = {
+      generate: vi.fn(async (input: {
+        messages: Array<{ role: string, content: string }>
+      }) => ({
+        text: `Provider 收到 ${input.messages.length} 条消息。`,
+        providerId: 'provider-live',
+        modelId: 'model-live',
+        finishReason: 'stop',
+        retryCount: 1,
+        latencyMs: 12,
+      })),
+    }
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      memoryTrialProvider: provider,
+    })
+    try {
+      const sessionId = 'session-live-provider-trial'
+      const createdAt = Date.parse('2026-08-04T08:35:00.000Z')
+      await db.upsertWorkingMemoryCheckpoint(createEmptyWorkingMemorySnapshot({
+        cardId: 'default',
+        sessionId,
+        now: createdAt,
+      }))
+      await db.appendConversationTurn({
+        turnId: 'turn-live-provider',
+        sessionId,
+        userText: '你还记得白樱线吗？',
+        assistantText: '历史回复不应作为本次真实 Provider 输出。',
+        createdAt,
+      })
+      await db.appendEpisodicEvents([{
+        cardId: 'default',
+        turnId: 'turn-live-provider-memory',
+        sessionId: 'session-memory-source',
+        sourceKind: 'reply',
+        provenance: 'observed',
+        occurredAt: createdAt - 10_000,
+        whereSummary: '桌面对话',
+        withWhom: ['host'],
+        threadAnchor: '白樱线',
+        whatHappened: '用户要求白樱线保持在同一段真实桌面对话里。',
+        felt: '认真',
+        emotionTags: ['continuity'],
+        whatChanged: '形成长期连续性约束。',
+        relationshipMeaning: '应当记住用户在意的连续性。',
+        lesson: '长期回想要尊重真实会话边界。',
+        sourceSummary: '对白樱线的明确要求',
+        confidence: 0.96,
+        salience: 0.92,
+        sceneAttachment: 0.7,
+        consolidationPriority: 0.8,
+        relationshipShift: {
+          closenessDelta: 0,
+          trustDelta: 0.02,
+          burdenDelta: 0,
+          boundaryDelta: 0.02,
+          misreadDelta: 0,
+          repairDelta: 0,
+          openLoopDelta: 0,
+        },
+        tags: ['白樱线', 'continuity'],
+      }])
+      const episodicMemory = (await db.listRecentEpisodicEvents(10))
+        .find(item => item.turnId === 'turn-live-provider-memory')
+      expect(episodicMemory).toBeDefined()
+      await db.recordMemoryQualityGoldLabel({
+        cardId: 'default',
+        month: '2026-08',
+        label: 'right',
+        query: '你还记得白樱线吗？',
+        expectedMemoryIds: [episodicMemory!.id],
+        surfacedMemoryIds: [episodicMemory!.id],
+        createdAt,
+      })
+      const checkpointBefore = await db.getWorkingMemoryCheckpoint('default', sessionId)
+      const recallHealthBefore = await db.getMemoryWorkbenchRecallHealth({ cardId: 'default' })
+      const episodicBefore = episodicMemory
+
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        mode: 'live-provider',
+        replayPackId: sessionId,
+        month: '2026-08',
+      })
+
+      expect(provider.generate).toHaveBeenCalledOnce()
+      expect(provider.generate.mock.calls[0]?.[0].messages[0]?.content).toContain('alicization-turn-memory-context')
+      expect(report.liveProviderTrial).toMatchObject({
+        version: 'memory-live-provider-trial-v1',
+        passed: true,
+        productionWrites: [],
+        summary: {
+          providerCallCount: 1,
+        },
+      })
+      expect(report.dialogueReplay?.turns[0]?.providerOutput).toBe('Provider 收到 2 条消息。')
+      expect(await db.getWorkingMemoryCheckpoint('default', sessionId)).toEqual(checkpointBefore)
+      expect(await db.getMemoryWorkbenchRecallHealth({ cardId: 'default' })).toEqual(recallHealthBefore)
+      expect((await db.listRecentEpisodicEvents(10))
+        .find(item => item.turnId === 'turn-live-provider-memory'))
+        .toMatchObject({
+          recallCount: episodicBefore?.recallCount,
+          reconsolidationCount: episodicBefore?.reconsolidationCount,
+          lastRecalledAt: episodicBefore?.lastRecalledAt,
+          latestReconsolidation: episodicBefore?.latestReconsolidation,
+        })
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('defaults to historical replay without calling a configured live Provider', async () => {
+    const provider = {
+      generate: vi.fn(async () => ({
+        text: '不应调用真实 Provider。',
+        providerId: 'provider-live',
+        modelId: 'model-live',
+        finishReason: 'stop',
+        retryCount: 0,
+        latencyMs: 1,
+      })),
+    }
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      memoryTrialProvider: provider,
+    })
     try {
       const sessionId = 'session-default-replay'
       const createdAt = Date.parse('2026-08-04T08:40:00.000Z')
@@ -321,6 +446,8 @@ describe('memory quality workbench DB loop', () => {
       expect(report.summary.dialogueReplayCount).toBe(1)
       expect(report.dialogueReplay?.id).toContain(sessionId)
       expect(report.dialogueReplay?.summary.turnCount).toBe(1)
+      expect(report.liveProviderTrial).toBeNull()
+      expect(provider.generate).not.toHaveBeenCalled()
     }
     finally {
       await db.close()

@@ -47,6 +47,7 @@ import type { AlicizationLocalDesktopInspectionInteractable, AlicizationLocalDes
 import type { MainGatewayExecutionToolContext } from './main-chat-execution-surface'
 import type { AlicizationPreparedMainChatExecutionResult } from './main-chat-session-runtime'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
+import type { AlicizationMemoryTrialProvider } from './memory-live-provider-trial'
 import type { AlicizationMemoryGatewayTextProvider } from './memory-os/provider-planning'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
 import type {
@@ -643,6 +644,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   let activeProviderId = ''
   let activeModelId = ''
   let providerCredentials: Record<string, Record<string, unknown>> = {}
+  let memoryTrialProvider: AlicizationMemoryTrialProvider | null = null
   const resolveLongTermMemoryEmbeddingProvider = () => resolveOpenAICompatibleLongTermMemoryEmbeddingProvider({
     activeProviderId,
     providerCredentials,
@@ -650,6 +652,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   let alicizationDb = await setupAlicizationDb(userDataPath, {
     cardId: activeCardId,
     resolveEmbeddingProvider: resolveLongTermMemoryEmbeddingProvider,
+    resolveMemoryTrialProvider: () => memoryTrialProvider,
   })
   const runtimeToolRegistry = createCanonicalToolRegistry()
   const runtimeSkillRegistry = createAlicizationSkillRegistry()
@@ -1480,6 +1483,54 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveProactiveScreenSemanticSummary,
   } = mainGatewayOneShotRuntime
   const mainGatewayTextProvider: AlicizationMainGatewayTextProvider = generateMainGatewayText
+  memoryTrialProvider = {
+    generate: async (input) => {
+      const startedAt = Date.now()
+      let failureReason: string | null = null
+      let providerResult: {
+        providerId: string
+        modelId: string
+        finishReason: string | null
+        retryCount: number
+        latencyMs: number
+      } | null = null
+      const resolvedRoute = resolveMainGatewayConfig({
+        cardId: input.cardId,
+      })
+      const userMessage = [...input.messages].reverse().find(message => message.role === 'user')
+      const text = await mainGatewayTextProvider({
+        cardId: input.cardId,
+        source: 'memory-quality-trial',
+        system: '',
+        extraSystemBlocks: [input.memoryContext.providerSystemBlock],
+        user: userMessage?.content ?? '',
+        timeoutMs: input.timeoutMs,
+        abortSignal: input.signal,
+        injectCustomDirectives: false,
+        injectPerformanceManifest: false,
+        captureAgentSensorySnapshot: false,
+        onFailure: (failure) => {
+          failureReason = failure.reason
+        },
+        onProviderResult: (result) => {
+          providerResult = result
+        },
+      })
+      if (!text)
+        throw new Error(failureReason ?? 'memory quality trial Provider returned no reply')
+      const trace = providerResult ?? {
+        providerId: resolvedRoute?.providerId ?? 'unknown-provider',
+        modelId: resolvedRoute?.model ?? 'unknown-model',
+        finishReason: null,
+        retryCount: 0,
+        latencyMs: Date.now() - startedAt,
+      }
+      return {
+        text,
+        ...trace,
+      }
+    },
+  }
   async function resolveMemoryGatewayDigitalLifeRuntimeSurface(cardIdRaw: unknown) {
     const cardId = normalizeCardId(cardIdRaw)
     const readRuntimeSurface = async () => {
@@ -3134,6 +3185,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     alicizationDb = await setupAlicizationDb(userDataPath, {
       cardId: activeCardId,
       resolveEmbeddingProvider: resolveLongTermMemoryEmbeddingProvider,
+      resolveMemoryTrialProvider: () => memoryTrialProvider,
     })
     await restoreScopedKillSwitch(activeCardId)
     await restoreActiveSessionId(activeCardId)
@@ -3253,6 +3305,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       alicizationDb = await setupAlicizationDb(userDataPath, {
         cardId: activeCardId,
         resolveEmbeddingProvider: resolveLongTermMemoryEmbeddingProvider,
+        resolveMemoryTrialProvider: () => memoryTrialProvider,
       })
       await restoreScopedKillSwitch(activeCardId)
       await restoreActiveSessionId(activeCardId)

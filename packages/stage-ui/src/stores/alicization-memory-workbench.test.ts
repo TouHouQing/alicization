@@ -623,6 +623,9 @@ describe('alicization memory workbench store', () => {
       query: '你还记得 SiliconFlow baseUrl 吗？',
       note: expect.stringContaining('expired'),
     }))
-    expect(memoryWorkbenchRunQualityTrial).toHaveBeenCalledWith({ month: '2026-08' })
+    expect(memoryWorkbenchRunQualityTrial).toHaveBeenCalledWith({
+      mode: 'historical-replay',
+      month: '2026-08',
+    })
   })
 })

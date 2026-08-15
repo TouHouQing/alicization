@@ -91,10 +91,38 @@ export interface AlicizationMainGatewayTextProviderOptions extends AlicizationMa
     model: string
     source: AlicizationMainGatewaySource
   }) => void
+  onProviderResult?: (result: {
+    providerId: string
+    modelId: string
+    finishReason: string | null
+    retryCount: number
+    latencyMs: number
+  }) => void
 }
 
 export interface AlicizationMainGatewayTextProvider {
   (input: AlicizationMainGatewayTextProviderOptions): Promise<string | null>
+}
+
+function sanitizeOneShotProviderError(
+  error: unknown,
+  sensitiveValues: string[] = [],
+) {
+  const raw = sensitiveValues
+    .map(value => value.trim())
+    .filter(value => value.length > 0)
+    .sort((left, right) => right.length - left.length)
+    .reduce(
+      (text, value) => text.split(value).join('[redacted-input]'),
+      errorMessageFrom(error) ?? String(error ?? 'main-gateway-failed'),
+    )
+  return raw
+    .replace(/Authorization\s*:\s*Bearer\s+[\w.~+/=-]+/giu, 'Authorization: Bearer [redacted]')
+    .replace(/(["']?(?:authorization|api[_ -]?key|token|secret|password)["']?\s*[:=]\s*["']?)(?:Bearer\s+)?[^"'\s,;}]+/giu, '$1[redacted]')
+    .replace(/(["']?user[_ -]?input["']?\s*[:=]\s*["']?)[^"',;}]+/giu, '$1[redacted-input]')
+    .replace(/\s+/gu, ' ')
+    .trim()
+    .slice(0, 480)
 }
 
 interface MainGatewayOneShotGenerateTextOptions extends AlicizationMainGatewayTextProviderOptions {}
@@ -867,6 +895,18 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       release: () => {},
     }
     if (!workLease.accepted) {
+      if (generateOptions.source === 'memory-quality-trial') {
+        generateOptions.onFailure?.({
+          reason: [
+            'Main gateway Provider work was deferred',
+            workLease.reason,
+            workLease.retryAfterMs ? `retry after ${workLease.retryAfterMs}ms` : null,
+          ].filter(Boolean).join(': '),
+          model: config.model,
+          providerId: config.providerId,
+          source: generateOptions.source,
+        })
+      }
       await options.appendRuntimeDebugLine('main-gateway.one-shot-deferred', {
         cardId: oneShotCardId,
         source: generateOptions.source,
@@ -903,7 +943,10 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
 
     try {
       const runGeneration = async () => {
+        const generationStartedAt = Date.now()
+        let retryCount = 0
         const result = await runWithAlicizationProviderRetry<{
+          finishReason?: string | null
           text?: string | null
         }>({
           operation: 'main-gateway-one-shot',
@@ -939,6 +982,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
             })
           },
           onRetryStarted: async (retry) => {
+            retryCount = Math.max(retryCount, retry.nextAttempt)
             await options.appendRuntimeDebugLine('main-gateway.provider-retry-started', {
               cardId: oneShotCardId,
               source: generateOptions.source ?? 'unknown',
@@ -968,6 +1012,7 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
           throw controller.signal.reason ?? createAbortError('main-gateway-aborted')
         const rawText = (result.text ?? '').trim()
         const fullText = rawText
+        const finishReason = sanitizeBriefText(result.finishReason ?? 'stop', 80) || null
         await options.appendRuntimeDebugLine('main-gateway.one-shot-finished', {
           cardId: oneShotCardId,
           source: generateOptions.source ?? 'unknown',
@@ -984,6 +1029,15 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
             model: config.model,
             providerId: config.providerId,
             source: generateOptions.source ?? 'unknown',
+          })
+        }
+        else {
+          generateOptions.onProviderResult?.({
+            providerId: config.providerId,
+            modelId: config.model,
+            finishReason,
+            retryCount,
+            latencyMs: Math.max(0, Date.now() - generationStartedAt),
           })
         }
         return fullText || null
@@ -1008,7 +1062,12 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
             summarizeSuccess: value => value
               ? `one-shot completed with ${value.length} chars`
               : 'one-shot completed with empty response',
-            summarizeError: error => sanitizeBriefText(errorMessageFrom(error) ?? 'main-gateway-failed', 160),
+            summarizeError: error => sanitizeBriefText(sanitizeOneShotProviderError(
+              error,
+              generationMessages.flatMap(message =>
+                typeof message.content === 'string' ? [message.content] : [],
+              ),
+            ), 160),
           })
         : await runGeneration()
       if (fullText) {
@@ -1027,7 +1086,12 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       return fullText
     }
     catch (error) {
-      const reason = errorMessageFrom(error) ?? String(error)
+      const reason = sanitizeOneShotProviderError(
+        error,
+        generationMessages.flatMap(message =>
+          typeof message.content === 'string' ? [message.content] : [],
+        ),
+      )
       if (generateOptions.abortSignal?.aborted) {
         await options.appendRuntimeDebugLine('main-gateway.one-shot-aborted', {
           cardId: oneShotCardId,
@@ -1043,6 +1107,14 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
         isMainGatewayForegroundPreemption(error)
         || isMainGatewayForegroundPreemption(controller.signal.reason)
       ) {
+        if (generateOptions.source === 'memory-quality-trial') {
+          generateOptions.onFailure?.({
+            reason: mainGatewayForegroundPreemptionReason,
+            model: config.model,
+            providerId: config.providerId,
+            source: generateOptions.source,
+          })
+        }
         await options.appendRuntimeDebugLine('main-gateway.one-shot-preempted', {
           cardId: oneShotCardId,
           source: generateOptions.source,

@@ -95,6 +95,7 @@ import type {
 } from './memory-embedding-reindex-runtime'
 import type { AlicizationEventGraphNeighborhood } from './memory-event-graph-runtime'
 import type { MemoryExperienceQualityFixture } from './memory-experience-quality-harness'
+import type { AlicizationMemoryTrialProvider } from './memory-live-provider-trial'
 import type {
   SimpleRecallGoldBenchmarkDimension,
   SimpleRecallGoldEvaluationClass,
@@ -191,6 +192,10 @@ import { rankAlicizationEpisodicEvents } from './memory-episodic-retrieval'
 import { createAlicizationMemoryEventGraphRuntime } from './memory-event-graph-runtime'
 import { rankAlicizationMemoryFacts } from './memory-fact-retrieval'
 import { createAlicizationMemoryIngestJournalRuntime } from './memory-ingest-journal'
+import {
+  projectMemoryLiveProviderTrialToDialogueReplay,
+  runMemoryLiveProviderTrial,
+} from './memory-live-provider-trial'
 import { createAlicizationMemoryMindStateRuntime } from './memory-mind-state-runtime'
 import {
   resolveSimpleRecallGoldLabelOption,
@@ -1643,6 +1648,15 @@ export interface AlicizationDbService {
     activeTask?: string | null
     limit?: number
   }) => Promise<LongTermMemoryEvidenceBundle>
+  retrieveLongTermMemoryEvidenceReadOnly: (input: {
+    cardId: string
+    userId?: string
+    currentUserText: string
+    workingMemoryQueryHints?: string[]
+    currentThreadTitle?: string | null
+    activeTask?: string | null
+    limit?: number
+  }) => Promise<LongTermMemoryEvidenceBundle>
   listMemoryWorkbenchLongTermItems: (input: {
     cardId: string
     kind?: AlicizationMemoryWorkbenchKind | 'all'
@@ -1685,6 +1699,7 @@ export interface AlicizationDbService {
   }) => Promise<AlicizationMemoryQualityMonthlyGoldRegressionPack>
   runMemoryWorkbenchProductionTrial: (input: {
     cardId: string
+    mode?: 'historical-replay' | 'live-provider'
     month?: string | null
     replayPackId?: string | null
   }) => Promise<MemoryProductionTrialReport>
@@ -1831,6 +1846,7 @@ export interface AlicizationDbService {
     allowDream?: boolean
     recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
     reconsolidationDecisionTraceId?: string | null
+    readOnly?: boolean
   }) => Promise<AlicizationEpisodicEventRecord[]>
   appendPersonaReinforcementEvents: (events: AlicizationPersonaReinforcementEventInput[]) => Promise<AlicizationPersonaReinforcementEventRecord[]>
   listPersonaReinforcementEvents: (input: {
@@ -1935,6 +1951,8 @@ export async function setupAlicizationDb(
     sqliteDriver?: SqliteDriver
     embeddingProvider?: LongTermMemoryEmbeddingProvider | null
     resolveEmbeddingProvider?: () => LongTermMemoryEmbeddingProvider | null
+    memoryTrialProvider?: AlicizationMemoryTrialProvider | null
+    resolveMemoryTrialProvider?: () => AlicizationMemoryTrialProvider | null
     personaTrainingExecutor?: (input: PersonaTrainingExecutorInput) => Promise<PersonaTrainingExecutorOutput>
   },
 ): Promise<AlicizationDbService> {
@@ -7227,6 +7245,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     allowDream?: boolean
     recollectionIntent?: AlicizationMemoryRecollectionIntentLike | null
     reconsolidationDecisionTraceId?: string | null
+    readOnly?: boolean
   }) {
     const recallSeed = input.recallSeed.trim()
     if (!recallSeed)
@@ -7295,9 +7314,13 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     })
 
     if (selected.length === 0) {
-      await recordMemoryGraphRetrievalLatency(now() - retrievalStartedAt)
+      if (!input.readOnly)
+        await recordMemoryGraphRetrievalLatency(now() - retrievalStartedAt)
       return []
     }
+
+    if (input.readOnly)
+      return selected.map(item => item.event)
 
     const returned = await memoryEpisodicReconsolidationRuntime.reconcileSelectedEvents({
       selected,
@@ -7360,6 +7383,22 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     }
   }
 
+  async function retrieveLongTermMemoryEvidenceReadOnly(input: {
+    cardId: string
+    userId?: string
+    currentUserText: string
+    workingMemoryQueryHints?: string[]
+    currentThreadTitle?: string | null
+    activeTask?: string | null
+    limit?: number
+  }): Promise<LongTermMemoryEvidenceBundle> {
+    resolveMemoryCardId(input.cardId, 'read-only long-term memory recall')
+    return (await retrieveLongTermMemoryEvidenceInternal({
+      ...input,
+      readOnly: true,
+    })).bundle
+  }
+
   async function retrieveLongTermMemoryEvidenceInternal(input: {
     cardId: string
     userId?: string
@@ -7368,6 +7407,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     currentThreadTitle?: string | null
     activeTask?: string | null
     limit?: number
+    readOnly?: boolean
   }): Promise<LongTermMemoryEvidenceRetrievalDiagnostics> {
     const intent = deriveLongTermMemoryRecallIntent({
       currentUserText: input.currentUserText,
@@ -7418,6 +7458,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       searchEpisodicEvents({
         recallSeed,
         limit: sourceLimit,
+        readOnly: input.readOnly,
       }).catch(() => []),
     ])
 
@@ -8190,7 +8231,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       if (!nextUserText || !hasRecallContext)
         continue
 
-      const recalled = await retrieveLongTermMemoryEvidence({
+      const recalled = await retrieveLongTermMemoryEvidenceReadOnly({
         cardId: input.cardId,
         currentUserText: nextUserText,
         workingMemoryQueryHints: snapshot.memoryQueryHints,
@@ -8241,7 +8282,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         || snapshot.userCorrections.length > 0
 
       const recalled = shouldRecall
-        ? await retrieveLongTermMemoryEvidence({
+        ? await retrieveLongTermMemoryEvidenceReadOnly({
             cardId: input.cardId,
             currentUserText: userText,
             workingMemoryQueryHints: snapshot.memoryQueryHints,
@@ -8274,6 +8315,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
 
   async function runMemoryWorkbenchProductionTrial(input: {
     cardId: string
+    mode?: 'historical-replay' | 'live-provider'
     month?: string | null
     replayPackId?: string | null
   }): Promise<MemoryProductionTrialReport> {
@@ -8420,7 +8462,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           cardId: string
           currentUserText: string
           limit: number
-        }) => await retrieveLongTermMemoryEvidence({
+        }) => await retrieveLongTermMemoryEvidenceReadOnly({
           cardId: recallInput.cardId,
           currentUserText: recallInput.currentUserText,
           limit: recallInput.limit,
@@ -8480,6 +8522,53 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         }
       }
 
+      const trialMode = input.mode ?? 'historical-replay'
+      const memoryTrialProvider = trialMode === 'live-provider'
+        ? options?.resolveMemoryTrialProvider?.() ?? options?.memoryTrialProvider ?? null
+        : null
+      if (trialMode === 'live-provider' && !memoryTrialProvider) {
+        return {
+          id: `memory-live-provider-trial:${cardId}:${replaySessionId}:${createdAt}`,
+          passed: false,
+          turnCount: 0,
+          error: '真实模型试用无法运行：当前 Provider 未配置或不可用。',
+          recommendedNextActions: [
+            '先配置当前对话 Provider 和模型，再显式选择“真实模型试用”。',
+          ],
+        }
+      }
+      if (memoryTrialProvider) {
+        const liveProviderTrial = await runMemoryLiveProviderTrial({
+          id: `memory-live-provider-trial:${cardId}:${replaySessionId}:${createdAt}`,
+          cardId,
+          sessionId: replaySessionId,
+          userId: 'local-user',
+          turns: replayTurns.map(item => item.turn),
+          db: {
+            getWorkingMemoryCheckpoint,
+            retrieveLongTermMemoryEvidenceReadOnly,
+          },
+          provider: memoryTrialProvider.generate,
+          maxTurns: 8,
+          maxRawTurns: 6,
+          recallLimit: 5,
+          perTurnTimeoutMs: 45_000,
+          totalTimeoutMs: 180_000,
+        })
+        const replayReport = projectMemoryLiveProviderTrialToDialogueReplay(liveProviderTrial)
+        return {
+          id: liveProviderTrial.id,
+          passed: liveProviderTrial.passed,
+          turnCount: liveProviderTrial.summary.turnCount,
+          report: replayReport,
+          liveProviderTrial,
+          error: liveProviderTrial.summary.lastError,
+          recommendedNextActions: liveProviderTrial.passed
+            ? []
+            : ['检查真实 Provider 配置、超时或 memory context 输入后再运行试用。'],
+        }
+      }
+
       const assistantTextByTurnId = new Map(
         replayTurns.map(({ row, turn }) => [
           turn.turnId,
@@ -8511,7 +8600,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             replayCheckpoint = structuredClone(snapshot)
           },
           retrieveLongTermMemoryEvidence: async recallInput =>
-            await retrieveLongTermMemoryEvidence(recallInput),
+            await retrieveLongTermMemoryEvidenceReadOnly(recallInput),
         },
         provider: {
           generate: async ({ turnId }) => ({
@@ -9093,6 +9182,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     listMemoryFacts,
     retrieveMemoryFacts,
     retrieveLongTermMemoryEvidence,
+    retrieveLongTermMemoryEvidenceReadOnly,
     listMemoryWorkbenchLongTermItems,
     rebuildLongTermMemorySearchIndex,
     listMemoryWorkbenchReviewItems,

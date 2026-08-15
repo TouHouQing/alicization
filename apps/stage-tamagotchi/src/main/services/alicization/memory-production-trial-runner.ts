@@ -9,6 +9,7 @@ import type {
   MemoryExperienceQualityFixture,
   MemoryExperienceQualityReport,
 } from './memory-experience-quality-harness'
+import type { MemoryLiveProviderTrialReport } from './memory-live-provider-trial'
 import type {
   DbBackedLongTermMemoryQualityInput,
   MemoryQualityHarnessReport,
@@ -54,6 +55,7 @@ export interface MemoryProductionTrialDialogueReplayResult {
   userTrials?: MemoryUserTrialHarnessInput[]
   error?: string | null
   recommendedNextActions?: string[]
+  liveProviderTrial?: MemoryLiveProviderTrialReport | null
 }
 
 export interface MemoryProductionTrialStageResult {
@@ -142,6 +144,7 @@ export interface MemoryProductionTrialReport {
   }
   stages: MemoryProductionTrialStageResult[]
   dialogueReplay: MemoryDialogueReplayReport | null
+  liveProviderTrial: MemoryLiveProviderTrialReport | null
   runtimeHealth: MemoryProductionTrialRuntimeHealth | null
   quality: MemoryQualityHarnessReport
   compressedContextBehavior: WorkingMemoryCompressionBehaviorReport | null
@@ -187,6 +190,7 @@ export async function runMemoryProductionTrialRunner(
 ): Promise<MemoryProductionTrialReport> {
   const stages: MemoryProductionTrialStageResult[] = []
   let dialogueReplay: MemoryDialogueReplayReport | null = null
+  let liveProviderTrial: MemoryLiveProviderTrialReport | null = null
   const runtimeHealth = input.runtimeHealth ?? null
   const workingMemory: WorkingMemoryQualityFixture[] = [...(input.workingMemory ?? [])]
   const userTrials: MemoryUserTrialHarnessInput[] = [...(input.userTrials ?? [])]
@@ -222,6 +226,7 @@ export async function runMemoryProductionTrialRunner(
     try {
       const replay = await input.dialogueReplay()
       dialogueReplay = replay.report ?? null
+      liveProviderTrial = replay.liveProviderTrial ?? null
       workingMemory.push(...(replay.workingMemory ?? []))
       userTrials.push(...(replay.userTrials ?? []))
       recommendedNextActions.push(...(replay.recommendedNextActions ?? []))
@@ -410,6 +415,7 @@ export async function runMemoryProductionTrialRunner(
     },
     stages,
     dialogueReplay,
+    liveProviderTrial,
     runtimeHealth,
     quality,
     compressedContextBehavior,

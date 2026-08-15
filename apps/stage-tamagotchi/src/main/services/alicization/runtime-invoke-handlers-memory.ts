@@ -139,6 +139,7 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchRunQualityTrial, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().runMemoryWorkbenchProductionTrial({
     cardId: cardIdFrom(payload),
+    mode: payload.mode === 'live-provider' ? 'live-provider' : 'historical-replay',
     month: sanitizeText(payload.month, '') || null,
     replayPackId: sanitizeText(payload.replayPackId, '') || null,
   })))
