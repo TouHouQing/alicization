@@ -2970,6 +2970,60 @@ describe('alicization sqlite dao', () => {
     await db.close()
   })
 
+  it('clears only the bound card conversation turns in a shared database', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const sharedRootDir = join(userDataPath, 'shared-conversation-clear-db')
+    const cardA = await setupAlicizationDb(userDataPath, {
+      cardId: 'card-a',
+      rootDir: sharedRootDir,
+      sqliteDriver: actualSqliteDriver,
+    })
+    const cardB = await setupAlicizationDb(userDataPath, {
+      cardId: 'card-b',
+      rootDir: sharedRootDir,
+      sqliteDriver: actualSqliteDriver,
+    })
+    try {
+      await cardA.appendConversationTurn({
+        cardId: 'card-a',
+        turnId: 'turn-card-a',
+        sessionId: 'session-shared',
+        userText: 'CARD_A_CLEAR_ME',
+        assistantText: 'CARD_A_REPLY',
+        createdAt: 100,
+      })
+      await cardB.appendConversationTurn({
+        cardId: 'card-b',
+        turnId: 'turn-card-b',
+        sessionId: 'session-shared',
+        userText: 'CARD_B_KEEP_ME',
+        assistantText: 'CARD_B_REPLY',
+        createdAt: 200,
+      })
+
+      await cardA.clearConversationData()
+
+      await expect(cardA.listConversationTurnsBySession('session-shared', {
+        cardId: 'card-a',
+      })).resolves.toEqual([])
+      await expect(cardB.listConversationTurnsBySession('session-shared', {
+        cardId: 'card-b',
+      })).resolves.toEqual([
+        expect.objectContaining({
+          turnId: 'turn-card-b',
+          userText: 'CARD_B_KEEP_ME',
+          assistantText: 'CARD_B_REPLY',
+        }),
+      ])
+    }
+    finally {
+      await Promise.all([
+        cardA.close(),
+        cardB.close(),
+      ])
+    }
+  })
+
   it('persists working-memory checkpoints by card and session', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     const older = createEmptyWorkingMemorySnapshot({
@@ -5298,13 +5352,14 @@ describe('alicization sqlite dao', () => {
     const migratedDatabase = await openActualSqlite(dbPath)
     const turns = await allActualSqlite<{
       id: string
+      card_id: string
       turn_id: string | null
       user_text: string | null
       created_at: number
     }>(
       migratedDatabase,
       `
-      SELECT id, turn_id, user_text, created_at
+      SELECT id, card_id, turn_id, user_text, created_at
       FROM conversation_turns
       WHERE session_id = ?
       ORDER BY created_at ASC
@@ -5323,25 +5378,28 @@ describe('alicization sqlite dao', () => {
       FROM sqlite_master
       WHERE type = 'index' AND name = ?
       `,
-      ['idx_conversation_turns_session_turn_id'],
+      ['idx_conversation_turns_card_session_turn_id'],
     )
     await closeActualSqlite(migratedDatabase)
 
     expect(turns).toEqual([
       {
         id: 'conversation-new',
+        card_id: 'card-a',
         turn_id: 'turn-history-1',
         user_text: 'new user',
         created_at: 200,
       },
       {
         id: 'conversation-anonymous-1',
+        card_id: 'card-a',
         turn_id: '',
         user_text: 'anonymous one',
         created_at: 300,
       },
       {
         id: 'conversation-anonymous-2',
+        card_id: 'card-a',
         turn_id: null,
         user_text: 'anonymous two',
         created_at: 400,
@@ -5349,11 +5407,12 @@ describe('alicization sqlite dao', () => {
     ])
     expect(indexes).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        name: 'idx_conversation_turns_session_turn_id',
+        name: 'idx_conversation_turns_card_session_turn_id',
         unique: 1,
         partial: 1,
       }),
     ]))
+    expect(indexSql[0]?.sql).toContain('TRIM(card_id) != \'\'')
     expect(indexSql[0]?.sql).toContain('TRIM(session_id) != \'\'')
     expect(indexSql[0]?.sql).toContain('TRIM(turn_id) != \'\'')
   })

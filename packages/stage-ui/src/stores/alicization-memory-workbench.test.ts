@@ -585,6 +585,31 @@ describe('alicization memory workbench store', () => {
       scopeFuzz: null,
       recommendedNextActions: ['补充当前 baseUrl 记忆。'],
     } as const
+    const memoryWorkbenchListReplaySessions = vi.fn()
+      .mockResolvedValueOnce({
+        items: [{
+          sessionId: 'session-new',
+          title: '新的记忆会话',
+          firstTurnAt: 10,
+          lastTurnAt: 20,
+          userTurnCount: 2,
+          assistantTurnCount: 2,
+          checkpointUpdatedAt: 30,
+        }],
+        nextCursor: 'next-session-page',
+      })
+      .mockResolvedValueOnce({
+        items: [{
+          sessionId: 'session-old',
+          title: '旧的记忆会话',
+          firstTurnAt: 1,
+          lastTurnAt: 5,
+          userTurnCount: 1,
+          assistantTurnCount: 1,
+          checkpointUpdatedAt: 6,
+        }],
+        nextCursor: null,
+      })
     const memoryWorkbenchListQualityGoldLabels = vi.fn(async () => ({ items: [label], nextCursor: null }))
     const memoryWorkbenchRecordQualityGoldLabel = vi.fn(async () => label)
     const memoryWorkbenchRunQualityTrial = vi.fn(async () => report)
@@ -596,6 +621,7 @@ describe('alicization memory workbench store', () => {
       items: [label],
     }))
     setAlicizationBridge({
+      memoryWorkbenchListReplaySessions,
       memoryWorkbenchListQualityGoldLabels,
       memoryWorkbenchRecordQualityGoldLabel,
       memoryWorkbenchRunQualityTrial,
@@ -612,12 +638,28 @@ describe('alicization memory workbench store', () => {
       expectedMemoryIds: ['reflection-siliconflow-baseurl'],
       note: '她应该想起这条明确纠正。',
     })
+    await store.loadQualityReplaySessions()
+    await store.loadMoreQualityReplaySessions()
+    store.selectQualityTrialSession('session-new')
+    store.setQualityTrialMode('live-provider')
     await store.runQualityTrial('2026-08')
     await store.buildMonthlyGoldRegression('2026-08')
 
     expect(store.monthlyGoldLabels).toEqual([label])
     expect(store.qualityTrialReport?.summary.longTermFixtureCount).toBe(1)
+    expect(store.qualityReplaySessions.map(item => item.sessionId)).toEqual([
+      'session-new',
+      'session-old',
+    ])
+    expect(store.selectedQualitySessionId).toBe('session-new')
     expect(store.monthlyGoldRegressionPack?.itemCount).toBe(1)
+    expect(memoryWorkbenchListReplaySessions).toHaveBeenNthCalledWith(1, {
+      limit: 20,
+    })
+    expect(memoryWorkbenchListReplaySessions).toHaveBeenNthCalledWith(2, {
+      cursor: 'next-session-page',
+      limit: 20,
+    })
     expect(memoryWorkbenchRecordQualityGoldLabel).toHaveBeenCalledWith(expect.objectContaining({
       label: 'missing',
       reason: 'expired',
@@ -625,8 +667,125 @@ describe('alicization memory workbench store', () => {
       note: expect.stringContaining('expired'),
     }))
     expect(memoryWorkbenchRunQualityTrial).toHaveBeenCalledWith({
-      mode: 'historical-replay',
+      mode: 'live-provider',
       month: '2026-08',
+      sessionId: 'session-new',
     })
+  })
+
+  it('keeps quality trials explicit and clears stale results when the session context changes', async () => {
+    const report = {
+      version: 'memory-production-trial-runner-v1',
+      id: 'quality-report-session-a',
+      cardId: 'default',
+      createdAt: 1,
+      passed: true,
+      stages: [],
+      summary: {
+        stageCount: 0,
+        passedStageCount: 0,
+        failedStageIds: [],
+        failingStageIds: [],
+        notRunStageIds: [],
+        workingMemoryFixtureCount: 0,
+        compressedContextBehaviorFixtureCount: 0,
+        longTermFixtureCount: 0,
+        temporalConflictFixtureCount: 0,
+        scopeFuzzCaseCount: 0,
+        personaTrainingExampleCount: 0,
+        dialogueReplayCount: 0,
+        liveProviderTrialCount: 0,
+        runtimeHealthProbeCount: 0,
+        semanticScaleSoakRunCount: 0,
+        experienceQualityFixtureCount: 0,
+        averageScore: 1,
+      },
+      quality: {
+        workingMemory: null,
+        compressedContextBehavior: null,
+        longTerm: [],
+        temporalConflict: null,
+        scopeFuzz: null,
+        personaTraining: null,
+        experienceQuality: null,
+      },
+      dialogueReplay: null,
+      liveProviderTrial: null,
+      runtimeHealth: null,
+      semanticScaleSoak: null,
+      recommendedNextActions: [],
+    } as const
+    const memoryWorkbenchRunQualityTrial = vi.fn(async () => report)
+    setAlicizationBridge({
+      memoryWorkbenchRunQualityTrial,
+      memoryWorkbenchListReplaySessions: vi.fn(async () => ({
+        items: [{
+          sessionId: 'session-a',
+          title: '会话 A',
+          firstTurnAt: 1,
+          lastTurnAt: 2,
+          userTurnCount: 1,
+          assistantTurnCount: 1,
+          checkpointUpdatedAt: 3,
+        }],
+        nextCursor: null,
+      })),
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.loadQualityReplaySessions()
+
+    expect(store.selectedQualitySessionId).toBe('')
+    await expect(store.runQualityTrial('2026-08')).resolves.toBeNull()
+    expect(memoryWorkbenchRunQualityTrial).not.toHaveBeenCalled()
+
+    store.selectQualityTrialSession('session-a')
+    await store.runQualityTrial('2026-08')
+    expect(store.qualityTrialReport?.id).toBe('quality-report-session-a')
+
+    store.setQualityTrialMode('live-provider')
+    expect(store.qualityTrialReport).toBeNull()
+
+    store.resetQualityTrialContext()
+    expect(store.qualityReplaySessions).toEqual([])
+    expect(store.selectedQualitySessionId).toBe('')
+    expect(store.qualityTrialMode).toBe('historical-replay')
+  })
+
+  it('releases quality trial loading when an in-flight result is invalidated by context changes', async () => {
+    let resolveTrial: ((value: any) => void) | undefined
+    const memoryWorkbenchRunQualityTrial = vi.fn(() => new Promise((resolve) => {
+      resolveTrial = resolve
+    }))
+    setAlicizationBridge({
+      memoryWorkbenchRunQualityTrial,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    store.selectQualityTrialSession('session-a')
+    const pending = store.runQualityTrial('2026-08')
+
+    expect(store.qualityTrialLoading).toBe(true)
+    store.setQualityTrialMode('live-provider')
+    expect(store.qualityTrialLoading).toBe(false)
+
+    resolveTrial?.({
+      id: 'stale-report',
+    })
+    await expect(pending).resolves.toBeNull()
+    expect(store.qualityTrialReport).toBeNull()
+  })
+
+  it('does not start a quality trial without an explicitly selected replay session', async () => {
+    const memoryWorkbenchRunQualityTrial = vi.fn()
+    setAlicizationBridge({
+      memoryWorkbenchRunQualityTrial,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const result = await store.runQualityTrial('2026-08')
+
+    expect(result).toBeNull()
+    expect(memoryWorkbenchRunQualityTrial).not.toHaveBeenCalled()
   })
 })

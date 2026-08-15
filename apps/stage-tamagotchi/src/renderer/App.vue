@@ -108,6 +108,7 @@ import {
   electronAlicizationMemoryWorkbenchListPersonaCandidates,
   electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements,
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
+  electronAlicizationMemoryWorkbenchListReplaySessions,
   electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationMemoryWorkbenchRecordQualityGoldLabel,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
@@ -280,6 +281,7 @@ const skillWorkbenchRevoke = useElectronEventaInvoke(electronAlicizationSkillWor
 const memoryWorkbenchReindexEmbeddings = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchReindexEmbeddings)
 const memoryWorkbenchListEmbeddingModels = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListEmbeddingModels)
 const memoryWorkbenchTestEmbeddingConnection = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchTestEmbeddingConnection)
+const memoryWorkbenchListReplaySessions = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListReplaySessions)
 const memoryWorkbenchRunQualityTrial = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRunQualityTrial)
 const memoryWorkbenchRecordQualityGoldLabel = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRecordQualityGoldLabel)
 const memoryWorkbenchListQualityGoldLabels = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListQualityGoldLabels)
@@ -1341,6 +1343,7 @@ setAlicizationBridge({
   memoryWorkbenchReindexEmbeddings: async payload => await memoryWorkbenchReindexEmbeddings({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListEmbeddingModels: async payload => await memoryWorkbenchListEmbeddingModels({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchTestEmbeddingConnection: async payload => await memoryWorkbenchTestEmbeddingConnection({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchListReplaySessions: async payload => await memoryWorkbenchListReplaySessions({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchRunQualityTrial: async payload => await memoryWorkbenchRunQualityTrial({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchRecordQualityGoldLabel: async payload => await memoryWorkbenchRecordQualityGoldLabel({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListQualityGoldLabels: async payload => await memoryWorkbenchListQualityGoldLabels({ ...resolveAlicizationScope(), ...payload }),

@@ -898,10 +898,30 @@ export interface AlicizationMemoryQualityMonthlyGoldRegressionPayload extends Al
   month?: string | null
 }
 
+export interface AlicizationMemoryReplaySessionSummary {
+  sessionId: string
+  title: string
+  firstTurnAt: number | null
+  lastTurnAt: number | null
+  userTurnCount: number
+  assistantTurnCount: number
+  checkpointUpdatedAt: number
+}
+
+export interface AlicizationMemoryReplaySessionListPayload extends AlicizationCardScope {
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationMemoryReplaySessionListResult {
+  items: AlicizationMemoryReplaySessionSummary[]
+  nextCursor: string | null
+}
+
 export interface AlicizationMemoryQualityTrialPayload extends AlicizationCardScope {
   mode?: 'historical-replay' | 'live-provider'
   month?: string | null
-  replayPackId?: string | null
+  sessionId: string
 }
 
 export interface AlicizationMemoryDialogueReplayReport {
@@ -4203,6 +4223,7 @@ export const electronAlicizationSkillWorkbenchRevoke = defineInvokeEventa<Aliciz
 export const electronAlicizationMemoryWorkbenchReindexEmbeddings = defineInvokeEventa<AlicizationMemoryEmbeddingReindexResult, AlicizationMemoryEmbeddingReindexPayload>('eventa:invoke:electron:alicization:memory-workbench:reindex-embeddings')
 export const electronAlicizationMemoryWorkbenchListEmbeddingModels = defineInvokeEventa<AlicizationMemoryEmbeddingModelListResult, AlicizationMemoryEmbeddingModelListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-embedding-models')
 export const electronAlicizationMemoryWorkbenchTestEmbeddingConnection = defineInvokeEventa<AlicizationMemoryEmbeddingConnectionTestResult, AlicizationMemoryEmbeddingConnectionTestPayload>('eventa:invoke:electron:alicization:memory-workbench:test-embedding-connection')
+export const electronAlicizationMemoryWorkbenchListReplaySessions = defineInvokeEventa<AlicizationMemoryReplaySessionListResult, AlicizationMemoryReplaySessionListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-replay-sessions')
 export const electronAlicizationMemoryWorkbenchRunQualityTrial = defineInvokeEventa<AlicizationMemoryQualityTrialReport, AlicizationMemoryQualityTrialPayload>('eventa:invoke:electron:alicization:memory-workbench:run-quality-trial')
 export const electronAlicizationMemoryWorkbenchRecordQualityGoldLabel = defineInvokeEventa<AlicizationMemoryQualityGoldLabelItem, AlicizationMemoryQualityGoldLabelPayload>('eventa:invoke:electron:alicization:memory-workbench:record-quality-gold-label')
 export const electronAlicizationMemoryWorkbenchListQualityGoldLabels = defineInvokeEventa<AlicizationMemoryQualityGoldLabelListResult, AlicizationMemoryQualityGoldLabelListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-quality-gold-labels')

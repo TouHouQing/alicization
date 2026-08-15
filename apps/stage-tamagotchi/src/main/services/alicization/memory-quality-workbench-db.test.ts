@@ -321,7 +321,7 @@ describe('memory quality workbench DB loop', () => {
 
       const report = await db.runMemoryWorkbenchProductionTrial({
         cardId: 'default',
-        replayPackId: sessionId,
+        sessionId,
         month: '2026-08',
       })
 
@@ -442,7 +442,7 @@ describe('memory quality workbench DB loop', () => {
       const report = await db.runMemoryWorkbenchProductionTrial({
         cardId: 'default',
         mode: 'live-provider',
-        replayPackId: sessionId,
+        sessionId,
         month: '2026-08',
       })
 
@@ -505,6 +505,7 @@ describe('memory quality workbench DB loop', () => {
 
       const report = await db.runMemoryWorkbenchProductionTrial({
         cardId: 'default',
+        sessionId,
         month: '2026-08',
       })
 
@@ -512,6 +513,58 @@ describe('memory quality workbench DB loop', () => {
       expect(report.dialogueReplay?.id).toContain(sessionId)
       expect(report.dialogueReplay?.summary.turnCount).toBe(1)
       expect(report.liveProviderTrial).toBeNull()
+      expect(provider.generate).not.toHaveBeenCalled()
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('does not infer the latest session or call the live Provider when sessionId is omitted', async () => {
+    const provider = {
+      generate: vi.fn(async () => ({
+        text: '不应隐式调用真实 Provider。',
+        providerId: 'provider-live',
+        modelId: 'model-live',
+        finishReason: 'stop',
+        retryCount: 0,
+        latencyMs: 1,
+      })),
+    }
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      memoryTrialProvider: provider,
+    })
+    try {
+      const sessionId = 'session-explicit-only'
+      await db.upsertWorkingMemoryCheckpoint(createEmptyWorkingMemorySnapshot({
+        cardId: 'default',
+        sessionId,
+        now: Date.parse('2026-08-04T08:45:00.000Z'),
+      }))
+      await db.appendConversationTurn({
+        turnId: 'turn-explicit-only',
+        sessionId,
+        userText: '只有显式选择后才能回放。',
+        assistantText: '不会自动使用最近会话。',
+        createdAt: Date.parse('2026-08-04T08:45:00.000Z'),
+      })
+
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        mode: 'live-provider',
+        month: '2026-08',
+      })
+
+      expect(report.summary.dialogueReplayCount).toBe(1)
+      expect(report.dialogueReplay).toBeNull()
+      expect(report.liveProviderTrial).toBeNull()
+      expect(report.stages).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          stage: 'dialogue-replay',
+          passed: false,
+          error: expect.stringContaining('显式选择'),
+        }),
+      ]))
       expect(provider.generate).not.toHaveBeenCalled()
     }
     finally {
@@ -533,7 +586,7 @@ describe('memory quality workbench DB loop', () => {
 
       const report = await db.runMemoryWorkbenchProductionTrial({
         cardId: 'default',
-        replayPackId: foreignSessionId,
+        sessionId: foreignSessionId,
         month: '2026-08',
       })
 
@@ -547,6 +600,136 @@ describe('memory quality workbench DB loop', () => {
     }
     finally {
       await db.close()
+    }
+  })
+
+  it('lists replay sessions with keyset pagination and keeps foreign card sessions out', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const sharedRootDir = join(userDataPath, 'shared-card-db')
+    const db = await setupAlicizationDb(userDataPath, {
+      cardId: 'card-a',
+      rootDir: sharedRootDir,
+    })
+    const foreignDb = await setupAlicizationDb(userDataPath, {
+      cardId: 'card-b',
+      rootDir: sharedRootDir,
+    })
+    try {
+      for (const [sessionId, updatedAt, title] of [
+        ['session-a-new', 300, '新的记忆会话'],
+        ['session-a-tie-z', 200, '同时间较新会话'],
+        ['session-a-tie-a', 200, '同时间较旧会话'],
+      ] as const) {
+        const checkpoint = createEmptyWorkingMemorySnapshot({
+          cardId: 'card-a',
+          sessionId,
+          now: updatedAt,
+        })
+        checkpoint.currentThread = {
+          title,
+          currentUserMove: `${title}用户消息`,
+          currentAliceMove: `${title}助手回复`,
+          primaryAnchor: sessionId,
+          mode: 'casual',
+          shouldHold: true,
+          confidence: 0.9,
+        }
+        await db.upsertWorkingMemoryCheckpoint(checkpoint)
+        await db.appendConversationTurn({
+          cardId: 'card-a',
+          turnId: `${sessionId}-turn`,
+          sessionId,
+          userText: `${title}用户消息`,
+          assistantText: `${title}助手回复`,
+          createdAt: updatedAt - 10,
+        })
+      }
+      const sharedSessionId = 'session-shared-across-cards'
+      const cardASharedCheckpoint = createEmptyWorkingMemorySnapshot({
+        cardId: 'card-a',
+        sessionId: sharedSessionId,
+        now: 180,
+      })
+      cardASharedCheckpoint.currentThread = {
+        title: '',
+        currentUserMove: 'CARD_A_VISIBLE',
+        currentAliceMove: 'CARD_A_REPLY',
+        primaryAnchor: sharedSessionId,
+        mode: 'casual',
+        shouldHold: true,
+        confidence: 0.9,
+      }
+      await db.upsertWorkingMemoryCheckpoint(cardASharedCheckpoint)
+      await db.appendConversationTurn({
+        cardId: 'card-a',
+        turnId: 'shared-turn-card-a',
+        sessionId: sharedSessionId,
+        userText: 'CARD_A_VISIBLE',
+        assistantText: 'CARD_A_REPLY',
+        createdAt: 170,
+      })
+      await foreignDb.upsertWorkingMemoryCheckpoint(createEmptyWorkingMemorySnapshot({
+        cardId: 'card-b',
+        sessionId: sharedSessionId,
+        now: 400,
+      }))
+      await foreignDb.appendConversationTurn({
+        cardId: 'card-b',
+        turnId: 'shared-turn-card-b',
+        sessionId: sharedSessionId,
+        userText: 'CARD_B_SECRET',
+        assistantText: 'CARD_B_SECRET_REPLY',
+        createdAt: 390,
+      })
+
+      const first = await db.listMemoryWorkbenchReplaySessions({
+        cardId: 'card-a',
+        limit: 2,
+      })
+      const second = await db.listMemoryWorkbenchReplaySessions({
+        cardId: 'card-a',
+        limit: 2,
+        cursor: first.nextCursor,
+      })
+      const scopedTurns = await db.listConversationTurnsBySession(sharedSessionId, {
+        cardId: 'card-a',
+      })
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'card-a',
+        sessionId: sharedSessionId,
+        month: '2026-08',
+      })
+
+      expect(first.items.map(item => item.sessionId)).toEqual([
+        'session-a-new',
+        'session-a-tie-z',
+      ])
+      expect(first.nextCursor).toBeTruthy()
+      expect(second.items.map(item => item.sessionId)).toEqual([
+        'session-a-tie-a',
+        sharedSessionId,
+      ])
+      expect(second.nextCursor).toBeNull()
+      expect(second.items.at(-1)).toMatchObject({
+        sessionId: sharedSessionId,
+        title: 'CARD_A_VISIBLE',
+        userTurnCount: 1,
+        assistantTurnCount: 1,
+      })
+      expect(scopedTurns).toHaveLength(1)
+      expect(scopedTurns[0]).toMatchObject({
+        userText: 'CARD_A_VISIBLE',
+        assistantText: 'CARD_A_REPLY',
+      })
+      expect(JSON.stringify(scopedTurns)).not.toContain('CARD_B_SECRET')
+      expect(report.dialogueReplay?.summary.turnCount).toBe(1)
+      expect(JSON.stringify(report.dialogueReplay)).not.toContain('CARD_B_SECRET')
+    }
+    finally {
+      await Promise.all([
+        db.close(),
+        foreignDb.close(),
+      ])
     }
   })
 })

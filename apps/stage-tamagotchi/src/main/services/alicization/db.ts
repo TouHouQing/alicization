@@ -44,6 +44,7 @@ import type {
   AlicizationMemoryReflectionInput,
   AlicizationMemoryReflectionRecord,
   AlicizationMemoryReflectionStatus,
+  AlicizationMemoryReplaySessionListResult,
   AlicizationMemorySource,
   AlicizationMemoryStats,
   AlicizationMemoryWorkbenchHealth,
@@ -258,6 +259,17 @@ interface DbWorkingMemoryCheckpointRow {
   version: string
   snapshot_json: string
   updated_at: number
+}
+
+interface DbMemoryReplaySessionSummaryRow {
+  session_id: string
+  snapshot_json: string
+  checkpoint_updated_at: number
+  first_turn_at: number | null
+  last_turn_at: number | null
+  user_turn_count: number
+  assistant_turn_count: number
+  first_user_text: string | null
 }
 
 interface DbMemoryFactRow {
@@ -512,6 +524,7 @@ interface DbMemoryConsolidationRow {
 }
 
 interface DbConversationTurnRow {
+  card_id: string
   turn_id: string | null
   session_id: string
   user_text: string | null
@@ -674,6 +687,10 @@ interface DbLearningTaskRow {
 
 interface DbWriteOptions {
   signal?: AbortSignal
+}
+
+interface AlicizationDbConversationTurnInput extends AlicizationConversationTurnInput {
+  cardId?: string
 }
 
 const executionChannels = new Set<AlicizationExecutionChannel>([
@@ -1592,12 +1609,17 @@ export interface AlicizationDbService {
   ) => Promise<AlicizationRuntimeCheckpoint | null>
   getMetaValue: (key: string) => Promise<string | undefined>
   setMetaValue: (key: string, value: string, options?: DbWriteOptions) => Promise<void>
-  getLatestConversationSessionId: () => Promise<string | undefined>
+  getLatestConversationSessionId: (cardId?: string) => Promise<string | undefined>
   getWorkingMemoryCheckpoint: (cardId: string, sessionId: string) => Promise<WorkingMemorySnapshot | null>
   listWorkingMemoryCheckpoints: (cardId: string, options?: { limit?: number }) => Promise<WorkingMemorySnapshot[]>
+  listMemoryWorkbenchReplaySessions: (input: {
+    cardId: string
+    limit?: number
+    cursor?: string | null
+  }) => Promise<AlicizationMemoryReplaySessionListResult>
   upsertWorkingMemoryCheckpoint: (snapshot: WorkingMemorySnapshot) => Promise<void>
   clearWorkingMemoryCheckpoints: (cardId?: string, sessionId?: string) => Promise<void>
-  listConversationTurnsSince: (sinceExclusive: number, options?: { limit?: number }) => Promise<Array<{
+  listConversationTurnsSince: (sinceExclusive: number, options?: { cardId?: string, limit?: number }) => Promise<Array<{
     turnId: string | null
     sessionId: string
     userText: string | null
@@ -1605,7 +1627,7 @@ export interface AlicizationDbService {
     structuredJson: string | null
     createdAt: number
   }>>
-  listConversationTurnsBySession: (sessionId: string, options?: { sinceCreatedAt?: number, limit?: number }) => Promise<Array<{
+  listConversationTurnsBySession: (sessionId: string, options?: { cardId?: string, sinceCreatedAt?: number, limit?: number }) => Promise<Array<{
     turnId: string | null
     sessionId: string
     userText: string | null
@@ -1636,7 +1658,7 @@ export interface AlicizationDbService {
   listExecutionEvents: (input?: AlicizationListExecutionEventsInput) => Promise<AlicizationExecutionEventRecord[]>
   clearConversationData: () => Promise<void>
   appendAuditLog: (input: AlicizationAuditLogInput) => Promise<void>
-  appendConversationTurn: (input: AlicizationConversationTurnInput, options?: DbWriteOptions) => Promise<void>
+  appendConversationTurn: (input: AlicizationDbConversationTurnInput, options?: DbWriteOptions) => Promise<void>
   getMemoryStats: () => Promise<AlicizationMemoryStats>
   upsertMemoryFacts: (facts: AlicizationMemoryFactInput[], source: AlicizationMemorySource) => Promise<void>
   applyMemoryFactCorrections: (corrections: AlicizationKnowledgeAssimilationCorrection[]) => Promise<void>
@@ -1704,7 +1726,7 @@ export interface AlicizationDbService {
     cardId: string
     mode?: 'historical-replay' | 'live-provider'
     month?: string | null
-    replayPackId?: string | null
+    sessionId?: string | null
   }) => Promise<MemoryProductionTrialReport>
   reindexMemoryWorkbenchEmbeddings: (input: {
     cardId: string
@@ -2812,6 +2834,7 @@ export async function setupAlicizationDb(
     await run(database, `
       CREATE TABLE IF NOT EXISTS conversation_turns (
         id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
         turn_id TEXT,
         session_id TEXT NOT NULL,
         user_text TEXT,
@@ -2821,20 +2844,29 @@ export async function setupAlicizationDb(
       )
     `)
 
+    await run(database, `ALTER TABLE conversation_turns ADD COLUMN card_id TEXT NOT NULL DEFAULT ''`).catch(() => {})
     await run(database, 'ALTER TABLE conversation_turns ADD COLUMN turn_id TEXT').catch(() => {})
-    await run(database, 'CREATE INDEX IF NOT EXISTS idx_conversation_turns_turn_id ON conversation_turns(turn_id)')
-    await run(database, 'CREATE INDEX IF NOT EXISTS idx_conversation_turns_session_created_at ON conversation_turns(session_id, created_at DESC)')
+    await run(database, `UPDATE conversation_turns SET card_id = ? WHERE card_id IS NULL OR TRIM(card_id) = ''`, [boundCardId])
+    await run(database, 'DROP INDEX IF EXISTS idx_conversation_turns_session_turn_id')
+    await run(database, 'DROP INDEX IF EXISTS idx_conversation_turns_turn_id')
+    await run(database, 'DROP INDEX IF EXISTS idx_conversation_turns_session_created_at')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_conversation_turns_card_turn_id ON conversation_turns(card_id, turn_id)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_conversation_turns_card_session_created_at ON conversation_turns(card_id, session_id, created_at DESC)')
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_conversation_turns_card_created_at ON conversation_turns(card_id, created_at DESC)')
     await runInTransaction(database, async () => {
       await run(database, `
         DELETE FROM conversation_turns
-        WHERE session_id IS NOT NULL
+        WHERE card_id IS NOT NULL
+          AND TRIM(card_id) != ''
+          AND session_id IS NOT NULL
           AND TRIM(session_id) != ''
           AND turn_id IS NOT NULL
           AND TRIM(turn_id) != ''
           AND EXISTS (
             SELECT 1
             FROM conversation_turns AS newer
-            WHERE newer.session_id = conversation_turns.session_id
+            WHERE newer.card_id = conversation_turns.card_id
+              AND newer.session_id = conversation_turns.session_id
               AND newer.turn_id = conversation_turns.turn_id
               AND (
                 newer.created_at > conversation_turns.created_at
@@ -2846,9 +2878,11 @@ export async function setupAlicizationDb(
           )
       `)
       await run(database, `
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_turns_session_turn_id
-        ON conversation_turns(session_id, turn_id)
-        WHERE session_id IS NOT NULL
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_turns_card_session_turn_id
+        ON conversation_turns(card_id, session_id, turn_id)
+        WHERE card_id IS NOT NULL
+          AND TRIM(card_id) != ''
+          AND session_id IS NOT NULL
           AND TRIM(session_id) != ''
           AND turn_id IS NOT NULL
           AND TRIM(turn_id) != ''
@@ -3382,7 +3416,15 @@ export async function setupAlicizationDb(
     })
   }
 
-  async function appendConversationTurn(input: AlicizationConversationTurnInput, options?: DbWriteOptions) {
+  function resolveConversationTurnCardId(cardIdRaw: unknown, operation: string) {
+    const requestedCardId = normalizeOrganicMemoryText(cardIdRaw, 120)
+    if (hasBoundCardScope)
+      return resolveMemoryCardId(requestedCardId || boundCardId, operation)
+    return requestedCardId || boundCardId
+  }
+
+  async function appendConversationTurn(input: AlicizationDbConversationTurnInput, options?: DbWriteOptions) {
+    const cardId = resolveConversationTurnCardId(input.cardId, 'conversation turn append')
     const sessionId = typeof input.sessionId === 'string' ? input.sessionId.trim() : ''
     if (!sessionId)
       throw new Error('sessionId is required')
@@ -3403,15 +3445,18 @@ export async function setupAlicizationDb(
         `
         INSERT INTO conversation_turns (
           id,
+          card_id,
           turn_id,
           session_id,
           user_text,
           assistant_text,
           structured_json,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(session_id, turn_id)
-        WHERE session_id IS NOT NULL
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(card_id, session_id, turn_id)
+        WHERE card_id IS NOT NULL
+          AND TRIM(card_id) != ''
+          AND session_id IS NOT NULL
           AND TRIM(session_id) != ''
           AND turn_id IS NOT NULL
           AND TRIM(turn_id) != ''
@@ -3423,6 +3468,7 @@ export async function setupAlicizationDb(
         `,
         [
           randomUUID(),
+          cardId,
           turnId,
           sessionId,
           userText,
@@ -3434,16 +3480,20 @@ export async function setupAlicizationDb(
     }, options)
   }
 
-  async function getLatestConversationSessionId() {
+  async function getLatestConversationSessionId(cardIdRaw?: string) {
+    const cardId = resolveConversationTurnCardId(cardIdRaw, 'latest conversation session')
     const row = await get<{ session_id?: string | null }>(
       database,
       `
       SELECT session_id
       FROM conversation_turns
-      WHERE session_id IS NOT NULL AND TRIM(session_id) != ''
+      WHERE card_id = ?
+        AND session_id IS NOT NULL
+        AND TRIM(session_id) != ''
       ORDER BY created_at DESC
       LIMIT 1
       `,
+      [cardId],
     )
     if (typeof row?.session_id !== 'string')
       return undefined
@@ -3506,6 +3556,118 @@ export async function setupAlicizationDb(
       .filter((snapshot): snapshot is WorkingMemorySnapshot => snapshot !== null)
   }
 
+  function memoryReplaySessionCursor(updatedAt: number, sessionId: string) {
+    return `${Math.max(0, Math.floor(updatedAt))}:${encodeURIComponent(sessionId)}`
+  }
+
+  function parseMemoryReplaySessionCursor(raw: unknown) {
+    const cursor = normalizeOrganicMemoryText(raw, 360)
+    const match = /^(\d+):(.+)$/u.exec(cursor)
+    if (!match)
+      return null
+    try {
+      return {
+        checkpointUpdatedAt: Number(match[1]),
+        sessionId: decodeURIComponent(match[2]),
+      }
+    }
+    catch {
+      return null
+    }
+  }
+
+  async function listMemoryWorkbenchReplaySessions(input: {
+    cardId: string
+    limit?: number
+    cursor?: string | null
+  }): Promise<AlicizationMemoryReplaySessionListResult> {
+    const cardId = resolveMemoryCardId(input.cardId, 'memory replay session list')
+    const limit = Math.max(1, Math.min(50, Math.floor(input.limit ?? 20)))
+    const cursor = parseMemoryReplaySessionCursor(input.cursor)
+    const cursorClause = cursor
+      ? `
+        AND (
+          checkpoint.updated_at < ?
+          OR (
+            checkpoint.updated_at = ?
+            AND checkpoint.session_id < ?
+          )
+        )
+      `
+      : ''
+    const params: unknown[] = [cardId]
+    if (cursor) {
+      params.push(
+        cursor.checkpointUpdatedAt,
+        cursor.checkpointUpdatedAt,
+        cursor.sessionId,
+      )
+    }
+    params.push(limit + 1)
+    const rows = await all<DbMemoryReplaySessionSummaryRow>(
+      database,
+      `
+      SELECT
+        checkpoint.session_id,
+        checkpoint.snapshot_json,
+        checkpoint.updated_at AS checkpoint_updated_at,
+        MIN(turn.created_at) AS first_turn_at,
+        MAX(turn.created_at) AS last_turn_at,
+        SUM(CASE WHEN TRIM(COALESCE(turn.user_text, '')) != '' THEN 1 ELSE 0 END) AS user_turn_count,
+        SUM(CASE WHEN TRIM(COALESCE(turn.assistant_text, '')) != '' THEN 1 ELSE 0 END) AS assistant_turn_count,
+        (
+          SELECT first_turn.user_text
+          FROM conversation_turns AS first_turn
+          WHERE first_turn.card_id = checkpoint.card_id
+            AND first_turn.session_id = checkpoint.session_id
+            AND TRIM(COALESCE(first_turn.user_text, '')) != ''
+          ORDER BY first_turn.created_at ASC, first_turn.rowid ASC
+          LIMIT 1
+        ) AS first_user_text
+      FROM working_memory_checkpoints AS checkpoint
+      LEFT JOIN conversation_turns AS turn
+        ON turn.card_id = checkpoint.card_id
+        AND turn.session_id = checkpoint.session_id
+      WHERE checkpoint.card_id = ?
+      ${cursorClause}
+      GROUP BY
+        checkpoint.session_id,
+        checkpoint.snapshot_json,
+        checkpoint.updated_at
+      ORDER BY checkpoint.updated_at DESC, checkpoint.session_id DESC
+      LIMIT ?
+      `,
+      params,
+    )
+    const hasMore = rows.length > limit
+    const pageRows = rows.slice(0, limit)
+    const items = pageRows.map((row) => {
+      const snapshot = parseWorkingMemoryCheckpoint(row.snapshot_json, {
+        cardId,
+        sessionId: row.session_id,
+      })
+      const title = normalizeOrganicMemoryText(snapshot?.currentThread?.title, 120)
+        || normalizeOrganicMemoryText(row.first_user_text, 120)
+        || row.session_id
+      return {
+        sessionId: row.session_id,
+        title,
+        firstTurnAt: typeof row.first_turn_at === 'number' ? row.first_turn_at : null,
+        lastTurnAt: typeof row.last_turn_at === 'number' ? row.last_turn_at : null,
+        userTurnCount: Math.max(0, Math.floor(Number(row.user_turn_count) || 0)),
+        assistantTurnCount: Math.max(0, Math.floor(Number(row.assistant_turn_count) || 0)),
+        checkpointUpdatedAt: Math.max(0, Math.floor(row.checkpoint_updated_at)),
+      }
+    })
+    const last = items.at(-1)
+    return {
+      items,
+      nextCursor: hasMore && last
+        ? memoryReplaySessionCursor(last.checkpointUpdatedAt, last.sessionId)
+        : null,
+    }
+  }
+
   async function upsertWorkingMemoryCheckpoint(snapshot: WorkingMemorySnapshot) {
     const cardId = normalizeWorkingMemoryCheckpointKey(snapshot.cardId, 120)
     const sessionId = normalizeWorkingMemoryCheckpointKey(snapshot.sessionId, 160)
@@ -3561,12 +3723,14 @@ export async function setupAlicizationDb(
     })
   }
 
-  async function listConversationTurnsSince(sinceExclusive: number, options?: { limit?: number }) {
+  async function listConversationTurnsSince(sinceExclusive: number, options?: { cardId?: string, limit?: number }) {
+    const cardId = resolveConversationTurnCardId(options?.cardId, 'conversation turn list since')
     const limit = Math.max(1, Math.min(10_000, Math.floor(options?.limit ?? 2_000)))
     const rows = await all<DbConversationTurnRow>(
       database,
       `
       SELECT
+        card_id,
         turn_id,
         session_id,
         user_text,
@@ -3574,11 +3738,12 @@ export async function setupAlicizationDb(
         structured_json,
         created_at
       FROM conversation_turns
-      WHERE created_at > ?
+      WHERE card_id = ?
+        AND created_at > ?
       ORDER BY created_at DESC
       LIMIT ?
       `,
-      [sinceExclusive, limit],
+      [cardId, sinceExclusive, limit],
     )
 
     return rows.map(row => ({
@@ -3591,7 +3756,8 @@ export async function setupAlicizationDb(
     }))
   }
 
-  async function listConversationTurnsBySession(sessionIdRaw: string, options?: { sinceCreatedAt?: number, limit?: number }) {
+  async function listConversationTurnsBySession(sessionIdRaw: string, options?: { cardId?: string, sinceCreatedAt?: number, limit?: number }) {
+    const cardId = resolveConversationTurnCardId(options?.cardId, 'conversation turn list by session')
     const sessionId = sessionIdRaw.trim()
     if (!sessionId)
       return []
@@ -3604,6 +3770,7 @@ export async function setupAlicizationDb(
       database,
       `
       SELECT
+        card_id,
         turn_id,
         session_id,
         user_text,
@@ -3613,6 +3780,7 @@ export async function setupAlicizationDb(
       FROM (
         SELECT
           rowid AS sort_rowid,
+          card_id,
           turn_id,
           session_id,
           user_text,
@@ -3620,14 +3788,15 @@ export async function setupAlicizationDb(
           structured_json,
           created_at
         FROM conversation_turns
-        WHERE session_id = ?
+        WHERE card_id = ?
+          AND session_id = ?
           AND created_at >= ?
         ORDER BY created_at DESC, rowid DESC
         LIMIT ?
       )
       ORDER BY created_at ASC, sort_rowid ASC
       `,
-      [sessionId, sinceCreatedAt, limit],
+      [cardId, sessionId, sinceCreatedAt, limit],
     )
 
     return rows.map(row => ({
@@ -5037,7 +5206,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       await deleteCardScoped('long_term_memory_search_documents_fts')
 
       await run(database, 'DELETE FROM episodic_reconsolidation_overlays WHERE event_id NOT IN (SELECT id FROM episodic_events)')
-      await run(database, 'DELETE FROM conversation_turns')
+      await deleteCardScoped('conversation_turns')
       await run(database, 'DELETE FROM mind_turn_events')
       await run(database, 'DELETE FROM task_threads')
       await run(database, 'DELETE FROM executor_sessions')
@@ -8446,17 +8615,17 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     cardId: string
     mode?: 'historical-replay' | 'live-provider'
     month?: string | null
-    replayPackId?: string | null
+    sessionId?: string | null
   }): Promise<MemoryProductionTrialReport> {
     const cardId = resolveMemoryCardId(input.cardId, 'memory workbench production trial')
     const createdAt = now()
     const month = normalizeMemoryQualityMonth(input.month, createdAt)
-    const requestedReplaySessionId = typeof input.replayPackId === 'string'
-      ? input.replayPackId.trim().replace(/^session:/u, '')
+    const requestedReplaySessionId = typeof input.sessionId === 'string'
+      ? input.sessionId.trim()
       : ''
     const selectedWorkingMemoryCheckpoint = requestedReplaySessionId
       ? await getWorkingMemoryCheckpoint(cardId, requestedReplaySessionId)
-      : (await listWorkingMemoryCheckpoints(cardId, { limit: 1 }))[0] ?? null
+      : null
     const replaySessionId = selectedWorkingMemoryCheckpoint?.sessionId ?? null
     const labels = await listAllMemoryQualityGoldLabels({ cardId, month })
     const temporalConflict = await buildLongTermTemporalConflictFixtures({
@@ -8624,16 +8793,17 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           turnCount: 0,
           error: requestedReplaySessionId
             ? `会话 ${requestedReplaySessionId} 不属于当前机体的 WorkingMemory 范围，无法运行真实对话回放。`
-            : '没有找到当前机体可用的 WorkingMemory 会话，无法运行真实对话回放。',
+            : '必须显式选择当前机体的 WorkingMemory 会话后，才能运行真实对话回放。',
           recommendedNextActions: [
             requestedReplaySessionId
               ? '选择当前机体已有的 WorkingMemory 会话后再运行质量试用。'
-              : '先完成至少一轮本地对话，让 WorkingMemory checkpoint 持久化后再运行质量试用。',
+              : '从会话选择器中明确选择一段本地会话后再运行质量试用。',
           ],
         }
       }
 
       const persistedTurns = await listConversationTurnsBySession(replaySessionId, {
+        cardId,
         limit: 500,
       })
       const replayTurns = persistedTurns
@@ -9311,6 +9481,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     getLatestConversationSessionId,
     getWorkingMemoryCheckpoint,
     listWorkingMemoryCheckpoints,
+    listMemoryWorkbenchReplaySessions,
     upsertWorkingMemoryCheckpoint,
     clearWorkingMemoryCheckpoints,
     listConversationTurnsSince,

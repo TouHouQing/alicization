@@ -3,15 +3,19 @@ import type { AlicizationSimpleRecallGoldLabel } from '@proj-alicization/stage-u
 import type { AlicizationMemoryQualityGoldLabelReason } from '@proj-alicization/stage-ui/stores/alicization-memory-workbench'
 
 import { useAlicizationMemoryWorkbenchStore } from '@proj-alicization/stage-ui/stores/alicization-memory-workbench'
+import { useAiriCardStore } from '@proj-alicization/stage-ui/stores/modules/airi-card'
 import { Button } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import MemoryEmbeddingConfig from './components/memory-embedding-config.vue'
+import MemoryQualitySessionPicker from './components/memory-quality-session-picker.vue'
 
 const store = useAlicizationMemoryWorkbenchStore()
+const cardStore = useAiriCardStore()
 const { t } = useI18n()
+const { activeCardId } = storeToRefs(cardStore)
 const {
   activeTab,
   longTermItems,
@@ -32,6 +36,11 @@ const {
   reindexDeadLetterItems,
   qualityTrialLoading,
   qualityTrialReport,
+  qualityReplaySessions,
+  qualityReplaySessionsLoading,
+  qualityReplaySessionsNextCursor,
+  selectedQualitySessionId,
+  qualityTrialMode,
   goldLabelLoading,
   goldLabelMonth,
   monthlyGoldLabels,
@@ -54,7 +63,6 @@ const personaTrainingConsentGranted = ref(false)
 const personaTrainingPolicyVersion = ref('persona-training-consent-v1')
 const personaTrainingScope = ref('persona-dataset')
 const selectedGoldLabelReason = ref<AlicizationMemoryQualityGoldLabelReason | null>(null)
-const qualityReplayPackId = ref('')
 
 const tabs = computed(() => [
   { id: 'working' as const, icon: 'i-solar:clipboard-list-bold-duotone', label: t('settings.pages.memory.workbench.tabs.working') },
@@ -399,7 +407,7 @@ function loadQualityGoldLabels() {
 }
 
 function runQualityTrial() {
-  void store.runQualityTrial(goldLabelMonth.value, qualityReplayPackId.value.trim() || null)
+  void store.runQualityTrial(goldLabelMonth.value)
 }
 
 function buildGoldRegression() {
@@ -427,6 +435,11 @@ function applyProbeGoldLabel(label: AlicizationSimpleRecallGoldLabel) {
   })
 }
 
+function reloadQualityTrialContext() {
+  store.resetQualityTrialContext()
+  void store.loadQualityReplaySessions()
+}
+
 onMounted(() => {
   void store.refreshSnapshot()
   void store.refreshPersonaCandidates()
@@ -434,6 +447,11 @@ onMounted(() => {
   void store.refreshPersonaTrainingIncrements()
   void store.refreshSkills(false)
   void store.loadMonthlyGoldLabels(goldLabelMonth.value)
+  reloadQualityTrialContext()
+})
+
+watch(activeCardId, () => {
+  reloadQualityTrialContext()
 })
 </script>
 
@@ -912,14 +930,16 @@ onMounted(() => {
               @keydown.enter.prevent="loadQualityGoldLabels()"
             >
           </label>
-          <label :class="['mt-3', 'grid', 'gap-1']">
-            <span :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.replay_pack_id') }}</span>
-            <input
-              v-model="qualityReplayPackId"
-              :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
-              :placeholder="t('settings.pages.memory.workbench.placeholders.replay_pack_id')"
-            >
-          </label>
+          <MemoryQualitySessionPicker
+            :selected-session-id="selectedQualitySessionId"
+            :mode="qualityTrialMode"
+            :sessions="qualityReplaySessions"
+            :loading="qualityReplaySessionsLoading"
+            :has-more="Boolean(qualityReplaySessionsNextCursor)"
+            @update:selected-session-id="store.selectQualityTrialSession"
+            @update:mode="store.setQualityTrialMode"
+            @load-more="store.loadMoreQualityReplaySessions()"
+          />
           <div :class="['mt-3', 'flex', 'flex-wrap', 'gap-2']">
             <Button
               :label="t('settings.pages.memory.workbench.actions.load_gold_labels')"
@@ -934,6 +954,7 @@ onMounted(() => {
               icon="i-solar:play-circle-bold-duotone"
               size="sm"
               :loading="qualityTrialLoading"
+              :disabled="qualityReplaySessionsLoading || !selectedQualitySessionId"
               @click="runQualityTrial()"
             />
             <Button

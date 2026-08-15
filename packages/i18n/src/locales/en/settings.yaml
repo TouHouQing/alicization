@@ -712,7 +712,6 @@ pages:
         coverage_ratio: Vector Coverage
         debug_details: Debug Details
         month: Month
-        replay_pack_id: Replay Session ID
         query: Query
         count: Count
         trace: Trace
@@ -757,6 +756,15 @@ pages:
         feedback_description: Run a recall probe first, then mark how memory behaved.
         report_title: Trial Report
         gold_labels_title: Monthly Labels
+        trial_mode: Trial Mode
+        historical_replay: Historical Replay
+        live_provider: Live Provider
+        session_title: Replay Session
+        empty_sessions: No local sessions are available for replay
+        session_user_turns: '{count} user turns'
+        session_assistant_turns: '{count} replies'
+        session_recent: Most Recent Turn
+        live_provider_notice: Live Provider mode calls the currently configured dialogue model and may incur API charges, but it does not write WorkingMemory, long-term memory, or persona training data.
         labels:
           right: Correct Recall
           missing: Missed It
@@ -789,7 +797,6 @@ pages:
           allowed: Training Allowed
           blocked: No Training
       placeholders:
-        replay_pack_id: Leave empty to use the latest WorkingMemory session
         long_term_search: Search summaries, evidence, or source IDs...
         long_term_source: Filter by source, for example memory_reflections
         embedding_provider: openai-compatible

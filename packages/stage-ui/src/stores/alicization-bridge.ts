@@ -486,10 +486,30 @@ export interface AlicizationMemoryQualityMonthlyGoldRegressionPayload extends Al
   month?: string | null
 }
 
+export interface AlicizationMemoryReplaySessionSummary {
+  sessionId: string
+  title: string
+  firstTurnAt: number | null
+  lastTurnAt: number | null
+  userTurnCount: number
+  assistantTurnCount: number
+  checkpointUpdatedAt: number
+}
+
+export interface AlicizationMemoryReplaySessionListPayload extends AlicizationCardScope {
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationMemoryReplaySessionListResult {
+  items: AlicizationMemoryReplaySessionSummary[]
+  nextCursor: string | null
+}
+
 export interface AlicizationMemoryQualityTrialPayload extends AlicizationCardScope {
   mode?: 'historical-replay' | 'live-provider'
   month?: string | null
-  replayPackId?: string | null
+  sessionId: string
 }
 
 export interface AlicizationMemoryDialogueReplayReport {
@@ -2757,6 +2777,7 @@ interface AlicizationBridge {
   importLegacyMemory: (payload: AlicizationMemoryLegacySnapshot) => Promise<AlicizationMemoryMigrationResult>
   memoryWorkbenchGetSnapshot?: (payload?: { sessionId?: string | null }) => Promise<AlicizationMemoryWorkbenchSnapshot>
   memoryWorkbenchListLongTerm?: (payload: Omit<AlicizationMemoryWorkbenchListPayload, 'cardId'>) => Promise<AlicizationMemoryWorkbenchListResult>
+  memoryWorkbenchListReplaySessions?: (payload: Omit<AlicizationMemoryReplaySessionListPayload, 'cardId'>) => Promise<AlicizationMemoryReplaySessionListResult>
   memoryWorkbenchApplyReviewAction?: (payload: Omit<AlicizationMemoryReviewActionPayload, 'cardId'>) => Promise<AlicizationLongTermMemoryReviewItem | null>
   memoryWorkbenchRecallProbe?: (payload: Omit<AlicizationMemoryRecallProbePayload, 'cardId'>) => Promise<AlicizationMemoryRecallProbeResult>
   memoryWorkbenchListPersonaCandidates?: (payload: Omit<AlicizationPersonaCandidateListPayload, 'cardId'>) => Promise<AlicizationPersonaCandidateListResult>
