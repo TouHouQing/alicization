@@ -205,11 +205,6 @@ function errorText(error: unknown, fallback: string) {
   return normalizeText(errorMessageFrom(error) ?? error, 500) || fallback
 }
 
-function isAbortError(error: unknown, signal: AbortSignal) {
-  return signal.aborted
-    || (error instanceof Error && error.name === 'AbortError')
-}
-
 function throwIfAborted(signal: AbortSignal) {
   if (!signal.aborted)
     return
@@ -760,19 +755,6 @@ export function createMemorySemanticScaleJobRuntime(input: {
             row.id,
             inputData.claimed.leaseToken,
           ])
-          return
-        }
-
-        if (isAbortError(inputData.error, inputData.signal)) {
-          const reason = row.last_error
-            ?? errorText(inputData.signal.reason, 'semantic scale job cancelled')
-          await input.run(input.database, `
-            UPDATE memory_semantic_scale_jobs
-            SET status = 'cancelled', dead_lettered = 0,
-                next_retry_at = NULL, lease_token = NULL, lease_expires_at = NULL,
-                last_error = ?, completed_at = ?, updated_at = ?
-            WHERE id = ? AND lease_token = ?
-          `, [reason, now, now, row.id, inputData.claimed.leaseToken])
           return
         }
 

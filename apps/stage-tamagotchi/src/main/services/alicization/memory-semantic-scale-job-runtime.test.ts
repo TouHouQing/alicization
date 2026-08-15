@@ -136,6 +136,7 @@ function attachRuntime(
       jobId: string
       tempRootDir: string
     }) => Promise<string>
+    run?: (sql: string, params?: unknown[]) => Promise<unknown>
     writeQueue?: WriteQueue
   },
 ) {
@@ -145,7 +146,9 @@ function attachRuntime(
     database: harness.database,
     now: input.now ?? (() => Date.now()),
     randomUUID: () => `semantic-job-uuid-${++uuid}`,
-    run: async (_database, sql, params = []) => await harness.run(sql, params),
+    run: async (_database, sql, params = []) => input.run
+      ? await input.run(sql, params)
+      : await harness.run(sql, params),
     get: async <T>(_database: sqlite3.Database, sql: string, params: unknown[] = []) => await harness.get<T>(sql, params),
     all: async <T>(_database: sqlite3.Database, sql: string, params: unknown[] = []) => await harness.all<T>(sql, params),
     enqueueWrite: writeQueue.enqueueWrite,
@@ -184,6 +187,7 @@ async function createRuntimeHarness(input?: {
     jobId: string
     tempRootDir: string
   }) => Promise<string>
+  run?: (sql: string, params?: unknown[]) => Promise<unknown>
 }) {
   const harness = await createSqliteHarness()
   const tempRootDir = input?.tempRootDir ?? await createTempRoot()
@@ -756,6 +760,44 @@ describe('memory semantic scale job runtime', () => {
         id: 'heartbeat-runtime-a',
       },
     })
+  })
+
+  it('retries a lease heartbeat failure instead of reporting a user cancellation', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let heartbeatWriteFailed = false
+    const { runtime } = attachRuntime(harness, {
+      leaseMs: 15,
+      maxAttempts: 2,
+      retryBaseMs: 1,
+      tempRootDir,
+      run: async (sql, params = []) => {
+        if (
+          !heartbeatWriteFailed
+          && sql.includes('SET lease_expires_at = ?, updated_at = ?')
+        ) {
+          heartbeatWriteFailed = true
+          throw new Error('lease heartbeat persistence failed')
+        }
+        return await harness.run(sql, params)
+      },
+      executeJob: async ({ signal }) => await new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      }),
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+
+    const result = await runtime.runNextAttempt(job.jobId)
+
+    expect(heartbeatWriteFailed).toBe(true)
+    expect(result).toMatchObject({
+      status: 'queued',
+      deadLettered: false,
+      attemptCount: 1,
+      lastError: 'lease heartbeat persistence failed',
+    })
+    expect(result.nextRetryAt).not.toBeNull()
   })
 
   it('runs only one active worker for the same job', async () => {
