@@ -62,6 +62,7 @@ export interface MemoryProductionTrialStageResult {
   stage: MemoryProductionTrialStageKind
   id: string
   passed: boolean
+  status?: 'not-run'
   itemCount: number
   error: string | null
 }
@@ -77,10 +78,17 @@ export interface MemoryProductionTrialRunnerInput {
   compressedContextBehavior?: WorkingMemoryCompressionBehaviorFixture[]
   temporalConflict?: LongTermMemoryTemporalConflictFixture[]
   semanticScaleSoak?: Parameters<typeof runMemorySemanticScaleSoakHarness>[0]
+  semanticScaleSoakReport?: MemorySemanticScaleSoakReport | null
   experienceQuality?: MemoryExperienceQualityFixture[]
   scopeFuzz?: Parameters<typeof runMemoryScopeFuzzHarness>[0]
+  scopeFuzzReport?: MemoryScopeFuzzReport | null
   personaTraining?: PersonaTrainingDatasetQualityFixture[]
   runtimeHealth?: MemoryProductionTrialRuntimeHealth | null
+  requireProductionStages?: boolean
+  productionStageErrors?: Partial<Record<
+    Extract<MemoryProductionTrialStageKind, 'semantic-scale-soak' | 'scope-fuzz' | 'temporal-conflict'>,
+    string
+  >>
 }
 
 export interface MemoryProductionTrialRuntimeHealth {
@@ -138,6 +146,7 @@ export interface MemoryProductionTrialReport {
     userTrialCount: number
     personaTrainingFixtureCount: number
     failingStageIds: string[]
+    notRunStageIds: string[]
     optimizationFindingCount: number
     recommendedActionCount: number
     lastError: string | null
@@ -185,6 +194,20 @@ function stageFromQuality(input: {
   }
 }
 
+function notRunStage(
+  stage: Extract<MemoryProductionTrialStageKind, 'semantic-scale-soak' | 'scope-fuzz' | 'temporal-conflict'>,
+  error: string,
+): MemoryProductionTrialStageResult {
+  return {
+    stage,
+    id: stage,
+    passed: false,
+    status: 'not-run',
+    itemCount: 0,
+    error,
+  }
+}
+
 export async function runMemoryProductionTrialRunner(
   input: MemoryProductionTrialRunnerInput,
 ): Promise<MemoryProductionTrialReport> {
@@ -207,9 +230,10 @@ export async function runMemoryProductionTrialRunner(
         now: input.createdAt,
       })
     : null
-  const semanticScaleSoak = input.semanticScaleSoak
-    ? runMemorySemanticScaleSoakHarness(input.semanticScaleSoak)
-    : null
+  const semanticScaleSoak = input.semanticScaleSoakReport
+    ?? (input.semanticScaleSoak
+      ? runMemorySemanticScaleSoakHarness(input.semanticScaleSoak)
+      : null)
   const experienceQuality = input.experienceQuality?.length
     ? runMemoryExperienceQualityHarness({
         id: `${input.id}:experience-quality`,
@@ -218,9 +242,10 @@ export async function runMemoryProductionTrialRunner(
         fixtures: input.experienceQuality,
       })
     : null
-  const scopeFuzz = input.scopeFuzz
-    ? await runMemoryScopeFuzzHarness(input.scopeFuzz)
-    : null
+  const scopeFuzz = input.scopeFuzzReport
+    ?? (input.scopeFuzz
+      ? await runMemoryScopeFuzzHarness(input.scopeFuzz)
+      : null)
 
   if (input.dialogueReplay) {
     try {
@@ -324,7 +349,13 @@ export async function runMemoryProductionTrialRunner(
             error: temporalConflict.traces.find(trace => trace.error)?.error ?? null,
           }),
         ]
-      : []),
+      : input.requireProductionStages
+        ? [notRunStage(
+            'temporal-conflict',
+            input.productionStageErrors?.['temporal-conflict']
+            ?? 'not-run: no expired, superseding, or tombstoned memory fixtures were available',
+          )]
+        : []),
     ...(semanticScaleSoak
       ? [
           stageFromQuality({
@@ -335,7 +366,13 @@ export async function runMemoryProductionTrialRunner(
             error: semanticScaleSoak.summary.failingChecks[0] ?? null,
           }),
         ]
-      : []),
+      : input.requireProductionStages
+        ? [notRunStage(
+            'semantic-scale-soak',
+            input.productionStageErrors?.['semantic-scale-soak']
+            ?? 'not-run: no completed semantic scale report is available',
+          )]
+        : []),
     ...(experienceQuality
       ? [
           stageFromQuality({
@@ -357,7 +394,13 @@ export async function runMemoryProductionTrialRunner(
             error: scopeFuzz.violations[0]?.error ?? scopeFuzz.violations[0]?.reasons.join(', ') ?? null,
           }),
         ]
-      : []),
+      : input.requireProductionStages
+        ? [notRunStage(
+            'scope-fuzz',
+            input.productionStageErrors?.['scope-fuzz']
+            ?? 'not-run: isolated DB scope fuzz did not produce a report',
+          )]
+        : []),
     stageFromQuality({
       stage: 'persona-dataset-hygiene',
       id: 'persona-dataset-hygiene',
@@ -368,8 +411,14 @@ export async function runMemoryProductionTrialRunner(
   )
 
   const failingStageIds = stages
-    .filter(stage => !stage.passed)
+    .filter(stage => !stage.passed && stage.status !== 'not-run')
     .map(stage => stage.id)
+  const notRunStageIds = stages
+    .filter(stage => stage.status === 'not-run')
+    .map(stage => stage.id)
+  recommendedNextActions.push(...stages
+    .filter(stage => stage.status === 'not-run' && stage.error)
+    .map(stage => `补齐生产质量阶段 ${stage.id}：${stage.error}。`))
   const mergedRecommendedActions = uniqueStrings([
     ...recommendedNextActions,
     ...quality.recommendedNextActions,
@@ -391,6 +440,7 @@ export async function runMemoryProductionTrialRunner(
     cardId: input.cardId,
     createdAt: input.createdAt,
     passed: failingStageIds.length === 0
+      && notRunStageIds.length === 0
       && quality.passed
       && (compressedContextBehavior?.passed ?? true)
       && (temporalConflict?.passed ?? true)
@@ -409,6 +459,7 @@ export async function runMemoryProductionTrialRunner(
       userTrialCount: quality.summary.userTrialCount,
       personaTrainingFixtureCount: quality.summary.personaTrainingFixtureCount,
       failingStageIds,
+      notRunStageIds,
       optimizationFindingCount: quality.summary.optimizationFindingCount,
       recommendedActionCount: mergedRecommendedActions.length,
       lastError: quality.summary.lastError ?? lastRuntimeHealthError ?? lastStageError,

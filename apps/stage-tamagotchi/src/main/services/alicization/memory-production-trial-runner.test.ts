@@ -559,4 +559,39 @@ describe('memory production trial runner', () => {
     expect(report.recommendedNextActions).toContain('修复 dialogue replay/provider 失败后再相信本次生产试用结果。')
     expect(report.quality.summary.workingMemoryFixtureCount).toBe(1)
   })
+
+  it('marks missing production quality stages as not-run instead of treating them as passed', async () => {
+    const report = await runMemoryProductionTrialRunner({
+      id: 'production-trial-not-run',
+      cardId: 'alice-main',
+      createdAt: now,
+      requireProductionStages: true,
+    })
+
+    expect(report.passed).toBe(false)
+    expect(report.summary.failingStageIds).toEqual([])
+    expect(report.summary.notRunStageIds).toEqual([
+      'temporal-conflict',
+      'semantic-scale-soak',
+      'scope-fuzz',
+    ])
+    expect(report.stages).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'temporal-conflict',
+        passed: false,
+        status: 'not-run',
+        error: expect.stringContaining('not-run'),
+      }),
+      expect.objectContaining({
+        id: 'semantic-scale-soak',
+        passed: false,
+        status: 'not-run',
+      }),
+      expect.objectContaining({
+        id: 'scope-fuzz',
+        passed: false,
+        status: 'not-run',
+      }),
+    ]))
+  })
 })

@@ -3,6 +3,7 @@ import { errorMessageFrom } from '@moeru/std'
 export const MEMORY_SCOPE_FUZZ_SURFACES = [
   'memory_facts',
   'memory_consolidations',
+  'search_documents',
   'vectors',
   'review_queue',
   'persona_dataset',

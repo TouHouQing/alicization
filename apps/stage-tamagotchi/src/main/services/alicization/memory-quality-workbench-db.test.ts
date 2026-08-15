@@ -126,11 +126,76 @@ describe('memory quality workbench DB loop', () => {
       expect(report.quality.longTerm[0]?.fixtureId).toContain('reflection-siliconflow-baseurl')
       expect(report.quality.longTerm[0]?.topIds).toContain('reflection-siliconflow-baseurl')
       expect(report.stages.map(stage => stage.stage)).toContain('long-term-recall')
+      expect(report.summary.scopeFuzzCaseCount).toBeGreaterThan(0)
+      expect(report.scopeFuzz?.passed, JSON.stringify(report.scopeFuzz?.violations)).toBe(true)
+      expect(report.summary.notRunStageIds).toContain('semantic-scale-soak')
     }
     finally {
       await db.close()
     }
   })
+
+  it('builds temporal conflict fixtures from expired labels and superseding facts', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryFacts([{
+        subject: 'SiliconFlow embedding baseUrl',
+        predicate: '填写方式',
+        object: 'https://api.siliconflow.cn/v1/embeddings',
+        confidence: 0.8,
+        validationStatus: 'superseded',
+      }], 'rule')
+      const oldFact = (await db.listMemoryFacts())
+        .find(item => item.object.includes('/v1/embeddings'))
+      expect(oldFact).toBeDefined()
+      await db.upsertMemoryFacts([{
+        subject: 'SiliconFlow embedding baseUrl',
+        predicate: '填写方式',
+        object: 'https://api.siliconflow.cn',
+        confidence: 0.98,
+        validationStatus: 'validated',
+        supersedes: [oldFact!.id],
+      }], 'rule')
+      const currentFact = (await db.listMemoryFacts())
+        .find(item => item.object === 'https://api.siliconflow.cn')
+      expect(currentFact).toBeDefined()
+      await db.tombstoneLongTermMemorySources({
+        sourceIds: [oldFact!.id],
+        source: 'memory_facts',
+        reason: '旧 baseUrl 已被用户纠正',
+      })
+      await db.recordMemoryQualityGoldLabel({
+        cardId: 'default',
+        month: '2026-08',
+        label: 'wrong',
+        reason: 'expired',
+        query: '现在 SiliconFlow embedding baseUrl 应该怎么填？',
+        expectedMemoryIds: [currentFact!.id],
+        retrievedCandidateIds: [currentFact!.id, oldFact!.id],
+        surfacedMemoryIds: [oldFact!.id],
+        createdAt: Date.parse('2026-08-04T08:12:00.000Z'),
+      })
+
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        month: '2026-08',
+      })
+
+      expect(report.summary.temporalConflictFixtureCount).toBeGreaterThan(0)
+      expect(report.temporalConflict?.results.some(result =>
+        result.trace.scenario === 'knowledge-update'
+        && result.trace.forbiddenIds.includes(oldFact!.id),
+      )).toBe(true)
+      expect(report.temporalConflict?.results.some(result =>
+        result.trace.scenario === 'tombstone'
+        && result.trace.blockedIds.includes(oldFact!.id),
+      )).toBe(true)
+      expect(report.summary.notRunStageIds).not.toContain('temporal-conflict')
+    }
+    finally {
+      await db.close()
+    }
+  }, 60_000)
 
   it('builds compression and next-turn recall fixtures from persisted WorkingMemory checkpoints', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())

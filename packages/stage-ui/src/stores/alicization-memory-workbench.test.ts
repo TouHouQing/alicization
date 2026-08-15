@@ -554,6 +554,7 @@ describe('alicization memory workbench store', () => {
         userTrialCount: 0,
         personaTrainingFixtureCount: 0,
         failingStageIds: ['long-term-recall'],
+        notRunStageIds: [],
         optimizationFindingCount: 0,
         recommendedActionCount: 1,
         lastError: null,

@@ -44,7 +44,7 @@ describe('memory scope fuzz harness', () => {
       violations: [],
       recommendedActions: [],
     })
-    expect(first.surfaceSummaries).toHaveLength(5)
+    expect(first.surfaceSummaries).toHaveLength(MEMORY_SCOPE_FUZZ_SURFACES.length)
     expect(first.surfaceSummaries.map(summary => summary.surface)).toEqual(MEMORY_SCOPE_FUZZ_SURFACES)
     expect(first.surfaceSummaries.every(summary =>
       summary.caseCount === 64
@@ -59,6 +59,11 @@ describe('memory scope fuzz harness', () => {
       memory_facts: ({ query, records }) =>
         records.filter(record => record.sourceId === query.sourceId),
       memory_consolidations: ({ query, records }) =>
+        records.filter(record =>
+          record.cardId === query.cardId
+          && record.sourceId === query.sourceId,
+        ),
+      search_documents: ({ query, records }) =>
         records.filter(record =>
           record.cardId === query.cardId
           && record.sourceId === query.sourceId,
@@ -81,7 +86,7 @@ describe('memory scope fuzz harness', () => {
     })
 
     expect(report.passed).toBe(false)
-    expect(report.violations.length).toBe(12 * 11)
+    expect(report.violations.length).toBe(12 * 12)
     expect(new Set(report.violations.map(violation => violation.surface))).toEqual(
       new Set(MEMORY_SCOPE_FUZZ_SURFACES),
     )
@@ -97,6 +102,13 @@ describe('memory scope fuzz harness', () => {
       }),
       expect.objectContaining({
         surface: 'memory_consolidations',
+        violationCount: 12,
+        crossCardViolationCount: 0,
+        crossUserViolationCount: 12,
+        passed: false,
+      }),
+      expect.objectContaining({
+        surface: 'search_documents',
         violationCount: 12,
         crossCardViolationCount: 0,
         crossUserViolationCount: 12,

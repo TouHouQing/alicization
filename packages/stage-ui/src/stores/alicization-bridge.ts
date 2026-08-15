@@ -575,6 +575,7 @@ export interface AlicizationMemoryQualityTrialReport {
     userTrialCount: number
     personaTrainingFixtureCount: number
     failingStageIds: string[]
+    notRunStageIds: string[]
     optimizationFindingCount: number
     recommendedActionCount: number
     lastError: string | null
@@ -583,6 +584,7 @@ export interface AlicizationMemoryQualityTrialReport {
     stage: string
     id: string
     passed: boolean
+    status?: 'not-run'
     itemCount: number
     error: string | null
   }>

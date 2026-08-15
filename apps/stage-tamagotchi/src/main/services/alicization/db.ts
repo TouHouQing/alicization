@@ -88,6 +88,7 @@ import type {
   LongTermMemoryQueryPlan,
 } from './long-term-memory-recall'
 import type { LongTermMemoryReviewDecision, LongTermMemoryReviewItem } from './long-term-memory-review-queue'
+import type { LongTermMemoryTemporalConflictFixture } from './long-term-memory-temporal-conflict-harness'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type {
   MemoryEmbeddingReindexDeadLetterItem,
@@ -164,6 +165,7 @@ import {
 } from './long-term-memory-embedding-provider'
 import {
   episodicEventToLongTermEvidenceCandidate,
+  memoryFactToLongTermEvidenceCandidate,
 } from './long-term-memory-evidence'
 import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'
 import {
@@ -204,6 +206,7 @@ import {
 import { runMemoryProductionTrialRunner } from './memory-production-trial-runner'
 import { createAlicizationMemoryRelationshipRuntime } from './memory-relationship-runtime'
 import { createAlicizationMemoryRetrievalTelemetryRuntime } from './memory-retrieval-telemetry'
+import { runMemoryScopeFuzzDbTrial } from './memory-scope-fuzz-db-trial'
 import { buildAlicizationMemoryStatsProjection } from './memory-stats-projection'
 import { createAlicizationMemorySubconsciousRuntime } from './memory-subconscious-runtime'
 import {
@@ -8313,6 +8316,132 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     return fixtures
   }
 
+  function temporalFixtureFocus(input: {
+    currentUserText: string
+    workingMemoryQueryHints?: string[]
+  }) {
+    return deriveLongTermMemoryRecallIntent(input).temporalFocus
+  }
+
+  async function buildLongTermTemporalConflictFixtures(input: {
+    cardId: string
+    labels: AlicizationMemoryQualityGoldLabelItem[]
+  }): Promise<LongTermMemoryTemporalConflictFixture[]> {
+    const facts = await listMemoryFacts()
+    const factById = new Map(facts.map(fact => [fact.id, fact]))
+    const fixtures: LongTermMemoryTemporalConflictFixture[] = []
+
+    for (const fact of facts) {
+      const supersededFacts = (fact.supersedes ?? [])
+        .map(id => factById.get(id))
+        .filter((item): item is NonNullable<typeof item> => Boolean(item))
+      if (supersededFacts.length === 0)
+        continue
+      const currentUserText = `现在 ${fact.subject} ${fact.predicate} 是什么？`
+      fixtures.push({
+        id: `runtime-temporal-supersedes:${fact.id}`,
+        scenario: 'knowledge-update',
+        currentUserText,
+        candidates: [
+          memoryFactToLongTermEvidenceCandidate(fact),
+          ...supersededFacts.map(memoryFactToLongTermEvidenceCandidate),
+        ],
+        expectedTopIds: [fact.id],
+        forbiddenTopIds: supersededFacts.map(item => item.id),
+        expectedTemporalFocus: temporalFixtureFocus({ currentUserText }),
+        limit: Math.max(1, supersededFacts.length + 1),
+      })
+    }
+
+    for (const label of input.labels.filter(item => item.reason === 'expired')) {
+      const expectedIds = label.expectedMemoryIds
+      const forbiddenIds = [...new Set([
+        ...label.surfacedMemoryIds,
+        ...label.retrievedCandidateIds,
+        ...label.wrongThreadIds,
+      ])].filter(id => !expectedIds.includes(id))
+      const candidateIds = [...new Set([...expectedIds, ...forbiddenIds])]
+      const candidates = candidateIds.map((id) => {
+        const fact = factById.get(id)
+        if (fact)
+          return memoryFactToLongTermEvidenceCandidate(fact)
+        return {
+          id,
+          kind: 'fact' as const,
+          summary: `Gold label memory ${id}`,
+          source: 'memory-quality-gold-label',
+          confidence: expectedIds.includes(id) ? 0.95 : 0.72,
+          salience: expectedIds.includes(id) ? 0.9 : 0.5,
+          cues: [label.query],
+          sensitivity: 'personal' as const,
+        }
+      })
+      if (candidates.length === 0)
+        continue
+      fixtures.push({
+        id: `runtime-temporal-expired:${label.id}`,
+        scenario: expectedIds.length > 0 ? 'knowledge-update' : 'relative-time',
+        currentUserText: label.query,
+        candidates,
+        expectedTopIds: expectedIds,
+        forbiddenTopIds: forbiddenIds,
+        expectedTemporalFocus: temporalFixtureFocus({
+          currentUserText: label.query,
+        }),
+        limit: Math.max(1, Math.min(8, candidates.length)),
+      })
+    }
+
+    const tombstones = await all<{
+      source_id: string
+      source: string
+    }>(
+      database,
+      `
+      SELECT source_id, source
+      FROM long_term_memory_tombstones
+      WHERE card_id = ?
+      ORDER BY created_at DESC
+      LIMIT 32
+      `,
+      [input.cardId],
+    )
+    for (const tombstone of tombstones) {
+      const fact = tombstone.source === 'memory_facts'
+        ? factById.get(tombstone.source_id)
+        : null
+      const candidate = fact
+        ? memoryFactToLongTermEvidenceCandidate(fact)
+        : {
+            id: tombstone.source_id,
+            kind: 'fact' as const,
+            summary: `Tombstoned ${tombstone.source} memory ${tombstone.source_id}`,
+            source: tombstone.source,
+            confidence: 0.8,
+            salience: 0.5,
+            cues: [tombstone.source_id],
+            sensitivity: 'personal' as const,
+          }
+      const currentUserText = `你还记得 ${tombstone.source_id} 吗？`
+      fixtures.push({
+        id: `runtime-temporal-tombstone:${tombstone.source}:${tombstone.source_id}`,
+        scenario: 'tombstone',
+        currentUserText,
+        candidates: [candidate],
+        expectedTopIds: [],
+        forbiddenTopIds: [tombstone.source_id],
+        blockedIds: [tombstone.source_id],
+        blockedPolicy: 'pre-filter',
+        expectedTemporalFocus: temporalFixtureFocus({ currentUserText }),
+        limit: 1,
+      })
+    }
+
+    return fixtures.filter((fixture, index, values) =>
+      values.findIndex(other => other.id === fixture.id) === index,
+    )
+  }
+
   async function runMemoryWorkbenchProductionTrial(input: {
     cardId: string
     mode?: 'historical-replay' | 'live-provider'
@@ -8330,6 +8459,23 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       : (await listWorkingMemoryCheckpoints(cardId, { limit: 1 }))[0] ?? null
     const replaySessionId = selectedWorkingMemoryCheckpoint?.sessionId ?? null
     const labels = await listAllMemoryQualityGoldLabels({ cardId, month })
+    const temporalConflict = await buildLongTermTemporalConflictFixtures({
+      cardId,
+      labels,
+    })
+    let scopeFuzzError: string | null = null
+    const scopeFuzzReport = await runMemoryScopeFuzzDbTrial({
+      cardId,
+      userId: 'local-user',
+      caseCount: 4,
+      createDb: async (sandboxUserDataPath, sandboxCardId) =>
+        await setupAlicizationDb(sandboxUserDataPath, {
+          cardId: sandboxCardId,
+        }),
+    }).catch((error) => {
+      scopeFuzzError = errorMessageFrom(error) ?? String(error)
+      return null
+    })
     const semantic = await getMemoryWorkbenchRecallProbeSemantic({ cardId })
     const personaSnapshot = await getPersonaTrainingDataset({ cardId }).catch(() => null)
     const workingMemoryCheckpoints = await listWorkingMemoryCheckpoints(cardId, { limit: 8 })
@@ -8632,7 +8778,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         createdAt,
       }),
       compressedContextBehavior,
+      temporalConflict,
       experienceQuality,
+      scopeFuzzReport,
       runtimeHealth,
       longTerm,
       personaTraining: personaSnapshot
@@ -8642,6 +8790,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             createdAt,
           })
         : [],
+      requireProductionStages: true,
+      productionStageErrors: (scopeFuzzError
+        ? {
+            'scope-fuzz': `not-run: isolated DB scope fuzz failed: ${scopeFuzzError}`,
+          }
+        : {}),
     })
     if (labels.length === 0) {
       return {

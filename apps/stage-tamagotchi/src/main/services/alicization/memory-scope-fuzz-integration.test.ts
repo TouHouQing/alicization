@@ -200,6 +200,21 @@ describe('memory scope fuzz production integration', () => {
                 sourceId: query.sourceId,
               }))
           },
+          search_documents: async ({ query }) => {
+            const listed = await db.listMemoryWorkbenchLongTermItems({
+              cardId: query.cardId,
+              query: query.sourceId,
+              limit: 8,
+            })
+            return listed.items
+              .filter(item => item.summary.includes(query.sourceId) || item.evidenceSnippets.some(snippet => snippet.includes(query.sourceId)))
+              .map(item => scopeRecord({
+                id: item.id,
+                cardId: query.cardId,
+                userId: query.userId,
+                sourceId: query.sourceId,
+              }))
+          },
           vectors: async ({ query }) => {
             const source = 'memory_reflections'
             const text = `vector target ${query.sourceId}`
