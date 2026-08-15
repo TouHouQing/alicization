@@ -35,6 +35,7 @@ describe('memory quality workbench DB loop', () => {
         cardId: 'default',
         month: '2026-08',
         label: 'wrong',
+        reason: 'wrong-thread',
         query: '你还记得我现在的 embedding baseUrl 怎么填吗？',
         expectedMemoryIds: ['memory-current-baseurl'],
         retrievedCandidateIds: ['memory-current-baseurl', 'memory-old-baseurl'],
@@ -51,6 +52,7 @@ describe('memory quality workbench DB loop', () => {
         month: '2026-08',
         label: 'wrong',
         labelText: '记错了',
+        reason: 'wrong-thread',
         evaluationClass: 'false-recall',
         benchmarkDimensions: ['multi-session-reasoning', 'knowledge-update'],
         expectedMemoryIds: ['memory-current-baseurl'],
@@ -78,6 +80,7 @@ describe('memory quality workbench DB loop', () => {
       expect(pack.items[0]).toMatchObject({
         label: 'wrong',
         labelText: '记错了',
+        reason: 'wrong-thread',
         query: '你还记得我现在的 embedding baseUrl 怎么填吗？',
         wrongThreadIds: ['memory-old-baseurl'],
       })

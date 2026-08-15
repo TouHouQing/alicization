@@ -817,6 +817,7 @@ export interface AlicizationMemoryReviewActionPayload extends AlicizationCardSco
 }
 
 export type AlicizationSimpleRecallGoldLabel = 'right' | 'missing' | 'wrong' | 'unwanted'
+export type AlicizationSimpleRecallGoldReason = 'wrong-thread' | 'expired' | 'not-needed' | 'should-abstain'
 export type AlicizationSimpleRecallGoldEvaluationClass
   = | 'correct-recall'
     | 'missed-recall'
@@ -841,6 +842,7 @@ export interface AlicizationSimpleRecallGoldLabelOption {
 export interface AlicizationMemoryQualityGoldLabelPayload extends AlicizationCardScope {
   month?: string | null
   label: AlicizationSimpleRecallGoldLabel
+  reason?: AlicizationSimpleRecallGoldReason | null
   query: string
   expectedMemoryIds?: string[]
   retrievedCandidateIds?: string[]
@@ -857,6 +859,7 @@ export interface AlicizationMemoryQualityGoldLabelItem {
   cardId: string
   month: string
   label: AlicizationSimpleRecallGoldLabel
+  reason: AlicizationSimpleRecallGoldReason | null
   labelText: string
   description: string
   evaluationClass: AlicizationSimpleRecallGoldEvaluationClass

@@ -3,6 +3,8 @@ import type { AlicizationMemoryRecallFeedbackSample } from './recall-feedback-ru
 import { buildAlicizationMemoryRecallFeedbackSample } from './recall-feedback-runtime'
 
 export type SimpleRecallGoldLabel = 'right' | 'missing' | 'wrong' | 'unwanted'
+export const SIMPLE_RECALL_GOLD_REASONS = ['wrong-thread', 'expired', 'not-needed', 'should-abstain'] as const
+export type SimpleRecallGoldReason = typeof SIMPLE_RECALL_GOLD_REASONS[number]
 export type SimpleRecallGoldEvaluationClass
   = | 'correct-recall'
     | 'missed-recall'
@@ -27,6 +29,7 @@ export interface SimpleRecallGoldLabelOption {
 
 export interface SimpleRecallGoldSample {
   version: 'simple-recall-gold-sample-v1'
+  reason: SimpleRecallGoldReason | null
   feedback: SimpleRecallGoldLabelOption
   sample: AlicizationMemoryRecallFeedbackSample
 }
@@ -35,6 +38,7 @@ export interface SimpleRecallGoldMonthlyRegressionItem {
   version: 'simple-recall-gold-monthly-regression-v1'
   month: string
   label: string
+  reason: SimpleRecallGoldReason | null
   evaluationClass: SimpleRecallGoldEvaluationClass
   benchmarkDimensions: SimpleRecallGoldBenchmarkDimension[]
   query: string
@@ -63,6 +67,12 @@ function normalizeIds(values: unknown[] | null | undefined, maxItems = 32) {
       break
   }
   return result
+}
+
+export function resolveSimpleRecallGoldReason(raw: unknown): SimpleRecallGoldReason | null {
+  return typeof raw === 'string' && (SIMPLE_RECALL_GOLD_REASONS as readonly string[]).includes(raw)
+    ? raw as SimpleRecallGoldReason
+    : null
 }
 
 export function buildSimpleRecallGoldLabelOptions(): SimpleRecallGoldLabelOption[] {
@@ -109,6 +119,7 @@ export function resolveSimpleRecallGoldLabelOption(label: SimpleRecallGoldLabel)
 
 export function buildSimpleRecallGoldSample(input: {
   label: SimpleRecallGoldLabel
+  reason?: unknown
   turnId?: string | null
   decisionTraceId?: string | null
   expectedMemoryIds?: unknown[] | null
@@ -132,6 +143,7 @@ export function buildSimpleRecallGoldSample(input: {
 
   return {
     version: 'simple-recall-gold-sample-v1',
+    reason: resolveSimpleRecallGoldReason(input.reason),
     feedback,
     sample,
   }
@@ -140,6 +152,7 @@ export function buildSimpleRecallGoldSample(input: {
 export function buildSimpleRecallGoldMonthlyRegressionItem(input: {
   month: string
   label: SimpleRecallGoldLabel
+  reason?: unknown
   query: string
   expectedMemoryIds?: unknown[] | null
   turnId?: string | null
@@ -153,6 +166,7 @@ export function buildSimpleRecallGoldMonthlyRegressionItem(input: {
     version: 'simple-recall-gold-monthly-regression-v1',
     month: normalizeText(input.month, 24),
     label: feedback.label,
+    reason: resolveSimpleRecallGoldReason(input.reason),
     evaluationClass: feedback.evaluationClass,
     benchmarkDimensions: feedback.benchmarkDimensions,
     query: normalizeText(input.query, 720),

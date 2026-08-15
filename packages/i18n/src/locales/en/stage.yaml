@@ -157,3 +157,20 @@ profile-switcher:
   save-as-new: Save as New Profile
   manage: Manage Profiles
 waiting: Waiting
+memory-workbench:
+  quality:
+    reason_label: Fine-grained reason (optional)
+    reason_none: No additional reason
+    reasons:
+      wrong-thread:
+        label: Wrong thread
+        description: This memory belongs to another conversation or task thread.
+      expired:
+        label: Expired
+        description: This memory was updated or is no longer applicable.
+      not-needed:
+        label: Not needed
+        description: This turn did not need this memory.
+      should-abstain:
+        label: Should abstain
+        description: It would be better to say less or be explicit about uncertainty.

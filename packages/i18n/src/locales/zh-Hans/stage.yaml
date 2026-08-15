@@ -157,3 +157,20 @@ profile-switcher:
   save-as-new: Save as New Profile
   manage: Manage Profiles
 waiting: 等待中
+memory-workbench:
+  quality:
+    reason_label: 细分原因（可选）
+    reason_none: 不补充原因
+    reasons:
+      wrong-thread:
+        label: 错线程
+        description: 这条记忆属于别的对话或任务线程。
+      expired:
+        label: 已过期
+        description: 这条记忆已经被更新或不再适用。
+      not-needed:
+        label: 其实不需要
+        description: 这次对话不需要调用这条记忆。
+      should-abstain:
+        label: 应该克制
+        description: 更合适的做法是少提记忆或明确说不确定。

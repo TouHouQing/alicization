@@ -28,6 +28,7 @@ describe('simple recall gold labels', () => {
   it('turns a beginner label into a recall feedback sample without exposing benchmark jargon', () => {
     const sample = buildSimpleRecallGoldSample({
       label: 'wrong',
+      reason: 'wrong-thread',
       turnId: 'turn-1',
       decisionTraceId: 'trace-1',
       expectedMemoryIds: ['memory-current'],
@@ -52,12 +53,14 @@ describe('simple recall gold labels', () => {
       precisionAt3: 0,
       judgeReason: '这条像是别的会话里的记忆。',
     })
+    expect(sample.reason).toBe('wrong-thread')
   })
 
   it('builds a monthly regression item with plain-language review text', () => {
     const item = buildSimpleRecallGoldMonthlyRegressionItem({
       month: '2026-08',
       label: 'missing',
+      reason: 'expired',
       query: '你还记得我上次说的 embedding baseUrl 吗？',
       expectedMemoryIds: ['memory-siliconflow-baseurl'],
       turnId: 'turn-2',
@@ -71,6 +74,7 @@ describe('simple recall gold labels', () => {
       month: '2026-08',
       label: '没想起来',
       evaluationClass: 'missed-recall',
+      reason: 'expired',
       query: '你还记得我上次说的 embedding baseUrl 吗？',
       expectedMemoryIds: ['memory-siliconflow-baseurl'],
       userFacingReview: '这次应该想起，但没有想起。',

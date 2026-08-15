@@ -8,9 +8,6 @@ import type {
   AlicizationMemoryEmbeddingReindexDeadLetterItem,
   AlicizationMemoryEmbeddingReindexPayload,
   AlicizationMemoryEmbeddingReindexResult,
-  AlicizationMemoryQualityGoldLabelItem,
-  AlicizationMemoryQualityGoldLabelPayload,
-  AlicizationMemoryQualityMonthlyGoldRegressionPack,
   AlicizationMemoryQualityTrialReport,
   AlicizationMemoryRecallProbeResult,
   AlicizationMemoryReviewActionPayload,
@@ -24,6 +21,9 @@ import type {
   AlicizationPersonaTrainingDatasetExportResult,
   AlicizationPersonaTrainingDatasetSnapshot,
   AlicizationPersonaTrainingDatasetStagePayload,
+  AlicizationMemoryQualityGoldLabelItem as BridgeMemoryQualityGoldLabelItem,
+  AlicizationMemoryQualityGoldLabelPayload as BridgeMemoryQualityGoldLabelPayload,
+  AlicizationMemoryQualityMonthlyGoldRegressionPack as BridgeMemoryQualityMonthlyGoldRegressionPack,
 } from './alicization-bridge'
 
 import { errorMessageFrom } from '@moeru/std'
@@ -34,6 +34,16 @@ import { computed, ref } from 'vue'
 import { getAlicizationBridge, hasAlicizationBridge } from './alicization-bridge'
 
 export type AlicizationMemoryWorkbenchTab = 'working' | 'long-term' | 'review' | 'probe' | 'persona' | 'quality' | 'health'
+export type AlicizationMemoryQualityGoldLabelReason = 'wrong-thread' | 'expired' | 'not-needed' | 'should-abstain'
+export type AlicizationMemoryQualityGoldLabelPayload = Omit<BridgeMemoryQualityGoldLabelPayload, 'cardId'> & {
+  reason?: AlicizationMemoryQualityGoldLabelReason | null
+}
+export type AlicizationMemoryQualityGoldLabelItem = BridgeMemoryQualityGoldLabelItem & {
+  reason: AlicizationMemoryQualityGoldLabelReason | null
+}
+export type AlicizationMemoryQualityMonthlyGoldRegressionPack = Omit<BridgeMemoryQualityMonthlyGoldRegressionPack, 'items'> & {
+  items: AlicizationMemoryQualityGoldLabelItem[]
+}
 
 type LongTermFilters = Omit<Required<Pick<
   AlicizationMemoryWorkbenchListPayload,
@@ -468,6 +478,15 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       : goldLabelMonth.value
   }
 
+  const memoryQualityGoldReasonNotePrefix = '[[alicization-memory-quality-reason:'
+
+  function encodeMemoryQualityGoldReasonNote(reason: AlicizationMemoryQualityGoldLabelReason | null | undefined, note: string | null | undefined) {
+    const normalizedNote = typeof note === 'string' ? note.trim() : ''
+    return reason
+      ? `${memoryQualityGoldReasonNotePrefix}${reason}]]${normalizedNote ? `\n${normalizedNote}` : ''}`
+      : note
+  }
+
   async function loadMonthlyGoldLabels(month?: string | null) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListQualityGoldLabels)
       return []
@@ -479,7 +498,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
         limit: 200,
       })
       goldLabelMonth.value = resolvedMonth
-      monthlyGoldLabels.value = result.items
+      monthlyGoldLabels.value = result.items as AlicizationMemoryQualityGoldLabelItem[]
       lastError.value = null
       return result.items
     }
@@ -500,15 +519,17 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       const result = await getAlicizationBridge().memoryWorkbenchRecordQualityGoldLabel!({
         ...payload,
         month: normalizeGoldLabelMonth(payload.month),
+        note: encodeMemoryQualityGoldReasonNote(payload.reason, payload.note),
       })
       goldLabelMonth.value = result.month
-      const index = monthlyGoldLabels.value.findIndex(item => item.id === result.id)
+      const typedResult = result as AlicizationMemoryQualityGoldLabelItem
+      const index = monthlyGoldLabels.value.findIndex(item => item.id === typedResult.id)
       if (index >= 0)
-        monthlyGoldLabels.value.splice(index, 1, result)
+        monthlyGoldLabels.value.splice(index, 1, typedResult)
       else
-        monthlyGoldLabels.value = [result, ...monthlyGoldLabels.value]
+        monthlyGoldLabels.value = [typedResult, ...monthlyGoldLabels.value]
       lastError.value = null
-      return result
+      return typedResult
     }
     catch (error) {
       lastError.value = errorMessageFrom(error) ?? 'unknown-error'
@@ -529,8 +550,8 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
         month: resolvedMonth,
       })
       goldLabelMonth.value = result.month
-      monthlyGoldRegressionPack.value = result
-      monthlyGoldLabels.value = result.items
+      monthlyGoldRegressionPack.value = result as AlicizationMemoryQualityMonthlyGoldRegressionPack
+      monthlyGoldLabels.value = result.items as AlicizationMemoryQualityGoldLabelItem[]
       lastError.value = null
       return result
     }

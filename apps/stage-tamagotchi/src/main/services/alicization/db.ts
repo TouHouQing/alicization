@@ -99,6 +99,7 @@ import type {
   SimpleRecallGoldBenchmarkDimension,
   SimpleRecallGoldEvaluationClass,
   SimpleRecallGoldLabel,
+  SimpleRecallGoldReason,
 } from './memory-os/simple-recall-gold-labels'
 import type { MemoryProductionTrialReport } from './memory-production-trial-runner'
 import type { PersonaTrainingDatasetQualityFixture } from './persona-training-dataset-quality-harness'
@@ -179,7 +180,10 @@ import { createAlicizationMemoryEventGraphRuntime } from './memory-event-graph-r
 import { rankAlicizationMemoryFacts } from './memory-fact-retrieval'
 import { createAlicizationMemoryIngestJournalRuntime } from './memory-ingest-journal'
 import { createAlicizationMemoryMindStateRuntime } from './memory-mind-state-runtime'
-import { resolveSimpleRecallGoldLabelOption } from './memory-os/simple-recall-gold-labels'
+import {
+  resolveSimpleRecallGoldLabelOption,
+  resolveSimpleRecallGoldReason,
+} from './memory-os/simple-recall-gold-labels'
 import { runMemoryProductionTrialRunner } from './memory-production-trial-runner'
 import { createAlicizationMemoryRelationshipRuntime } from './memory-relationship-runtime'
 import { createAlicizationMemoryRetrievalTelemetryRuntime } from './memory-retrieval-telemetry'
@@ -270,6 +274,7 @@ export interface AlicizationMemoryQualityGoldLabelPayload {
   cardId: string
   month?: string | null
   label: SimpleRecallGoldLabel
+  reason?: SimpleRecallGoldReason | null
   query: string
   expectedMemoryIds?: unknown[] | null
   retrievedCandidateIds?: unknown[] | null
@@ -286,6 +291,7 @@ export interface AlicizationMemoryQualityGoldLabelItem {
   cardId: string
   month: string
   label: SimpleRecallGoldLabel
+  reason: SimpleRecallGoldReason | null
   labelText: string
   description: string
   evaluationClass: SimpleRecallGoldEvaluationClass
@@ -319,6 +325,7 @@ interface DbMemoryQualityGoldLabelRow {
   card_id: string
   month: string
   label: SimpleRecallGoldLabel
+  reason: SimpleRecallGoldReason | null
   evaluation_class: SimpleRecallGoldEvaluationClass
   benchmark_dimensions_json: string
   query: string
@@ -2299,6 +2306,7 @@ export async function setupAlicizationDb(
         card_id TEXT NOT NULL,
         month TEXT NOT NULL,
         label TEXT NOT NULL,
+        reason TEXT,
         evaluation_class TEXT NOT NULL,
         benchmark_dimensions_json TEXT NOT NULL,
         query TEXT NOT NULL,
@@ -2312,6 +2320,7 @@ export async function setupAlicizationDb(
         created_at INTEGER NOT NULL
       )
     `)
+    await run(database, 'ALTER TABLE memory_quality_gold_labels ADD COLUMN reason TEXT').catch(() => {})
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_quality_gold_labels_card_month_created ON memory_quality_gold_labels(card_id, month, created_at DESC, id DESC)')
 
     await run(database, `
@@ -7654,6 +7663,21 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     return result
   }
 
+  function decodeMemoryQualityGoldReasonNote(raw: unknown) {
+    const note = normalizeOrganicMemoryText(raw, 720)
+    const match = /^\[\[alicization-memory-quality-reason:(wrong-thread|expired|not-needed|should-abstain)\]\](?:\n([\s\S]*))?$/u.exec(note)
+    if (!match) {
+      return {
+        reason: null,
+        note: normalizeOrganicMemoryText(note, 360),
+      }
+    }
+    return {
+      reason: resolveSimpleRecallGoldReason(match[1]),
+      note: normalizeOrganicMemoryText(match[2], 360),
+    }
+  }
+
   function mapMemoryQualityGoldLabelRow(row: DbMemoryQualityGoldLabelRow): AlicizationMemoryQualityGoldLabelItem {
     const label = resolveSimpleRecallGoldLabelOption(row.label)
     return {
@@ -7661,6 +7685,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       cardId: row.card_id,
       month: row.month,
       label: label.value,
+      reason: resolveSimpleRecallGoldReason(row.reason),
       labelText: label.label,
       description: label.description,
       evaluationClass: row.evaluation_class,
@@ -7708,6 +7733,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
 
     const label = resolveSimpleRecallGoldLabelOption(input.label)
     const id = `memory-quality-gold:${cardId}:${createdAt}:${randomUUID()}`
+    const decodedNote = decodeMemoryQualityGoldReasonNote(input.note)
+    const reason = resolveSimpleRecallGoldReason(input.reason) ?? decodedNote.reason
     const expectedMemoryIds = normalizeMemoryQualityIds(input.expectedMemoryIds)
     const retrievedCandidateIds = normalizeMemoryQualityIds(input.retrievedCandidateIds)
     const surfacedMemoryIds = normalizeMemoryQualityIds(input.surfacedMemoryIds)
@@ -7721,6 +7748,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           card_id,
           month,
           label,
+          reason,
           evaluation_class,
           benchmark_dimensions_json,
           query,
@@ -7732,13 +7760,14 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           decision_trace_id,
           note,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           id,
           cardId,
           normalizeMemoryQualityMonth(input.month, createdAt),
           label.value,
+          reason,
           label.evaluationClass,
           JSON.stringify(label.benchmarkDimensions),
           query,
@@ -7748,7 +7777,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           JSON.stringify(wrongThreadIds),
           normalizeOrganicMemoryText(input.turnId, 180) || null,
           normalizeOrganicMemoryText(input.decisionTraceId, 180) || null,
-          normalizeOrganicMemoryText(input.note, 360) || null,
+          decodedNote.note || null,
           createdAt,
         ],
       )

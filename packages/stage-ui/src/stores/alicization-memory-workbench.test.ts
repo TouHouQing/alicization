@@ -521,6 +521,7 @@ describe('alicization memory workbench store', () => {
       cardId: 'default',
       month: '2026-08',
       label: 'missing',
+      reason: 'expired',
       labelText: '没想起来',
       description: '这次应该想起某段记忆，但她没有想起。',
       evaluationClass: 'missed-recall',
@@ -605,8 +606,10 @@ describe('alicization memory workbench store', () => {
     await store.applyGoldLabel({
       month: '2026-08',
       label: 'missing',
+      reason: 'expired',
       query: '你还记得 SiliconFlow baseUrl 吗？',
       expectedMemoryIds: ['reflection-siliconflow-baseurl'],
+      note: '她应该想起这条明确纠正。',
     })
     await store.runQualityTrial('2026-08')
     await store.buildMonthlyGoldRegression('2026-08')
@@ -616,7 +619,9 @@ describe('alicization memory workbench store', () => {
     expect(store.monthlyGoldRegressionPack?.itemCount).toBe(1)
     expect(memoryWorkbenchRecordQualityGoldLabel).toHaveBeenCalledWith(expect.objectContaining({
       label: 'missing',
+      reason: 'expired',
       query: '你还记得 SiliconFlow baseUrl 吗？',
+      note: expect.stringContaining('expired'),
     }))
     expect(memoryWorkbenchRunQualityTrial).toHaveBeenCalledWith({ month: '2026-08' })
   })
