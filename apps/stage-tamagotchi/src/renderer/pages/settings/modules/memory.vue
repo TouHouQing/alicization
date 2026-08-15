@@ -1029,7 +1029,6 @@ watch(activeCardId, () => {
               icon="i-solar:play-circle-bold-duotone"
               size="sm"
               :loading="semanticScaleLoading"
-              :disabled="Boolean(semanticScaleJob && ['queued', 'running', 'cancel_requested'].includes(semanticScaleJob.status))"
               @click="store.startSemanticScaleJob(semanticScaleTier)"
             />
             <Button
@@ -1077,10 +1076,48 @@ watch(activeCardId, () => {
               {{ semanticScaleJob.lastError }}
             </div>
             <div v-if="semanticScaleJob.report" :class="['mt-3', 'grid', 'grid-cols-2', 'gap-2', 'text-sm']">
+              <div
+                :class="[
+                  'col-span-2', 'font-semibold',
+                  semanticScaleJob.report.passed
+                    ? 'text-emerald-600 dark:text-emerald-300'
+                    : 'text-rose-600 dark:text-rose-300',
+                ]"
+              >
+                {{ t(semanticScaleJob.report.passed
+                  ? 'settings.pages.memory.workbench.states.semantic_scale_quality_passed'
+                  : 'settings.pages.memory.workbench.states.semantic_scale_quality_failed') }}
+              </div>
               <div>Recall@K: {{ formatQualityScore(semanticScaleJob.report.summary.recallAtK) }}</div>
               <div>P95: {{ semanticScaleJob.report.summary.p95LatencyMs.toFixed(1) }} ms</div>
               <div>P99: {{ semanticScaleJob.report.summary.p99LatencyMs.toFixed(1) }} ms</div>
               <div>{{ t('settings.pages.memory.workbench.fields.coverage_ratio') }}: {{ formatCoverageRatio(semanticScaleJob.report.summary.coverageRatio) }}</div>
+              <div
+                v-if="semanticScaleJob.report.summary.failingChecks.length > 0"
+                :class="['col-span-2', 'border-t', 'border-rose-200', 'pt-2', 'dark:border-rose-900']"
+              >
+                <div :class="['text-xs', 'font-semibold', 'text-rose-600', 'dark:text-rose-300']">
+                  {{ t('settings.pages.memory.workbench.fields.semantic_scale_failing_checks') }}
+                </div>
+                <ul :class="['mt-1', 'list-disc', 'space-y-1', 'pl-5', 'text-xs']">
+                  <li v-for="check in semanticScaleJob.report.summary.failingChecks" :key="check">
+                    {{ check }}
+                  </li>
+                </ul>
+              </div>
+              <div
+                v-if="semanticScaleJob.report.recommendedNextActions.length > 0"
+                :class="['col-span-2', 'border-t', 'border-neutral-200', 'pt-2', 'dark:border-neutral-800']"
+              >
+                <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                  {{ t('settings.pages.memory.workbench.fields.semantic_scale_recommended_actions') }}
+                </div>
+                <ul :class="['mt-1', 'list-disc', 'space-y-1', 'pl-5', 'text-xs']">
+                  <li v-for="action in semanticScaleJob.report.recommendedNextActions" :key="action">
+                    {{ action }}
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
 
@@ -1094,12 +1131,21 @@ watch(activeCardId, () => {
             <article
               v-for="job in semanticScaleJobs"
               :key="job.jobId"
-              :class="['mt-3', 'border-t', 'border-neutral-200', 'pt-3', 'text-sm', 'dark:border-neutral-800']"
+              :class="[
+                'mt-3', 'border', 'p-3', 'text-sm',
+                semanticScaleJob?.jobId === job.jobId
+                  ? 'border-neutral-950 dark:border-neutral-100'
+                  : 'border-neutral-200 dark:border-neutral-800',
+              ]"
             >
-              <div :class="['flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
+              <button
+                type="button"
+                :class="['flex', 'w-full', 'flex-wrap', 'items-center', 'justify-between', 'gap-2', 'text-left']"
+                @click="store.selectSemanticScaleJob(job.jobId)"
+              >
                 <span>{{ job.tier }} · {{ formatSemanticScaleStatus(job.status) }}</span>
                 <span :class="['text-xs', 'text-neutral-500']">{{ formatTimestamp(job.completedAt ?? job.updatedAt) }}</span>
-              </div>
+              </button>
               <div v-if="job.report" :class="['mt-1', 'text-xs', 'text-neutral-500']">
                 Recall@K {{ formatQualityScore(job.report.summary.recallAtK) }}
                 · P95 {{ job.report.summary.p95LatencyMs.toFixed(1) }} ms
@@ -1107,6 +1153,34 @@ watch(activeCardId, () => {
               </div>
               <div v-if="job.deadLettered" :class="['mt-1', 'text-xs', 'text-rose-600', 'dark:text-rose-300']">
                 dead-letter · {{ job.lastError ?? '-' }}
+              </div>
+              <div :class="['mt-2', 'flex', 'flex-wrap', 'gap-2']">
+                <Button
+                  :label="t('settings.pages.memory.workbench.actions.refresh_semantic_scale')"
+                  icon="i-solar:refresh-bold-duotone"
+                  size="sm"
+                  variant="secondary"
+                  :loading="semanticScaleLoading"
+                  @click.stop="store.refreshSemanticScaleJob(job.jobId)"
+                />
+                <Button
+                  v-if="['queued', 'running', 'cancel_requested'].includes(job.status)"
+                  :label="t('settings.pages.memory.workbench.actions.cancel_semantic_scale')"
+                  icon="i-solar:close-circle-bold-duotone"
+                  size="sm"
+                  variant="secondary"
+                  :loading="semanticScaleLoading"
+                  @click.stop="store.cancelSemanticScaleJob(job.jobId, t('settings.pages.memory.workbench.states.semantic_scale_cancelled_by_user'))"
+                />
+                <Button
+                  v-if="job.deadLettered"
+                  :label="t('settings.pages.memory.workbench.actions.retry_semantic_scale')"
+                  icon="i-solar:restart-bold-duotone"
+                  size="sm"
+                  variant="secondary"
+                  :loading="semanticScaleLoading"
+                  @click.stop="store.retrySemanticScaleJob(job.jobId)"
+                />
               </div>
             </article>
           </div>

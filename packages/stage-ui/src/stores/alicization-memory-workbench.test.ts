@@ -467,6 +467,214 @@ describe('alicization memory workbench store', () => {
     expect(memoryWorkbenchManageSemanticScaleJobs).toHaveBeenCalledTimes(2)
   })
 
+  it('preserves failed semantic quality diagnostics and stops polling at dead-letter', async () => {
+    vi.useFakeTimers()
+    const queued = {
+      jobId: 'semantic-job-quality-failure',
+      cardId: 'default',
+      tier: '10k',
+      corpusSize: 10_000,
+      status: 'queued',
+      deadLettered: false,
+      attemptCount: 0,
+      maxAttempts: 1,
+      nextRetryAt: null,
+      leaseExpiresAt: null,
+      progress: {
+        phase: 'queued',
+        completed: 0,
+        total: 0,
+        ratio: 0,
+        indexedCount: 0,
+        queryCount: 0,
+        corpusSize: 10_000,
+      },
+      report: null,
+      lastError: null,
+      createdAt: 1,
+      updatedAt: 1,
+      startedAt: null,
+      completedAt: null,
+    } as const
+    const qualityFailure = {
+      ...queued,
+      status: 'failed',
+      deadLettered: true,
+      attemptCount: 1,
+      report: {
+        id: 'semantic-scale-quality-failure',
+        passed: false,
+        summary: {
+          corpusSize: 10_000,
+          queryCount: 24,
+          p95LatencyMs: 2_500,
+          p99LatencyMs: 4_500,
+          recallAtK: 0.8,
+          falseRecallRate: 0.1,
+          coverageRatio: 0.9,
+          failingChecks: ['recall-at-k', 'p95-latency'],
+        },
+        recommendedNextActions: ['inspect recall misses'],
+      },
+      lastError: 'semantic scale quality checks failed: recall-at-k, p95-latency',
+      completedAt: 2,
+    } as const
+    const memoryWorkbenchManageSemanticScaleJobs = vi.fn()
+      .mockResolvedValueOnce({ job: queued, jobs: [queued] })
+      .mockResolvedValueOnce({ job: qualityFailure, jobs: [qualityFailure] })
+    setAlicizationBridge({ memoryWorkbenchManageSemanticScaleJobs } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.startSemanticScaleJob('10k')
+    await vi.advanceTimersByTimeAsync(2_000)
+
+    expect(store.semanticScaleJob).toMatchObject({
+      status: 'failed',
+      deadLettered: true,
+      report: {
+        passed: false,
+        summary: {
+          failingChecks: ['recall-at-k', 'p95-latency'],
+        },
+        recommendedNextActions: ['inspect recall misses'],
+      },
+    })
+
+    await vi.advanceTimersByTimeAsync(4_000)
+    expect(memoryWorkbenchManageSemanticScaleJobs).toHaveBeenCalledTimes(2)
+  })
+
+  it('selects an active semantic history job and polls only that job', async () => {
+    vi.useFakeTimers()
+    const baseJob = {
+      cardId: 'default',
+      tier: '10k',
+      corpusSize: 10_000,
+      deadLettered: false,
+      attemptCount: 1,
+      maxAttempts: 3,
+      nextRetryAt: null,
+      leaseExpiresAt: 10_000,
+      progress: {
+        phase: 'indexing',
+        completed: 1,
+        total: 20,
+        ratio: 0.05,
+        indexedCount: 500,
+        queryCount: 0,
+        corpusSize: 10_000,
+      },
+      report: null,
+      lastError: null,
+      createdAt: 1,
+      updatedAt: 1,
+      startedAt: 1,
+      completedAt: null,
+    } as const
+    const activeJob = {
+      ...baseJob,
+      jobId: 'semantic-job-active-history',
+      status: 'running',
+    } as const
+    const latestDeadLetter = {
+      ...baseJob,
+      jobId: 'semantic-job-latest-dead-letter',
+      status: 'failed',
+      deadLettered: true,
+      createdAt: 2,
+      updatedAt: 2,
+      completedAt: 2,
+    } as const
+    const completedActiveJob = {
+      ...activeJob,
+      status: 'completed',
+      leaseExpiresAt: null,
+      progress: {
+        ...activeJob.progress,
+        phase: 'completed',
+        completed: 20,
+        ratio: 1,
+        indexedCount: 10_000,
+      },
+      completedAt: 3,
+    } as const
+    const memoryWorkbenchManageSemanticScaleJobs = vi.fn()
+      .mockResolvedValueOnce({
+        job: latestDeadLetter,
+        jobs: [latestDeadLetter, activeJob],
+      })
+      .mockResolvedValueOnce({
+        job: completedActiveJob,
+        jobs: [completedActiveJob],
+      })
+    setAlicizationBridge({ memoryWorkbenchManageSemanticScaleJobs } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.loadSemanticScaleJobs()
+    expect(store.semanticScaleJob?.jobId).toBe(latestDeadLetter.jobId)
+
+    store.selectSemanticScaleJob(activeJob.jobId)
+    expect(store.semanticScaleJob?.jobId).toBe(activeJob.jobId)
+
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(memoryWorkbenchManageSemanticScaleJobs).toHaveBeenLastCalledWith({
+      action: 'status',
+      jobId: activeJob.jobId,
+    })
+    expect(store.semanticScaleJob).toMatchObject({
+      jobId: activeJob.jobId,
+      status: 'completed',
+    })
+    expect(store.semanticScaleJobs.find(job => job.jobId === activeJob.jobId)?.status).toBe('completed')
+  })
+
+  it('allows multiple semantic scale jobs to be queued and selects the newest one', async () => {
+    const createQueuedJob = (jobId: string, createdAt: number) => ({
+      jobId,
+      cardId: 'default',
+      tier: '10k',
+      corpusSize: 10_000,
+      status: 'queued',
+      deadLettered: false,
+      attemptCount: 0,
+      maxAttempts: 3,
+      nextRetryAt: null,
+      leaseExpiresAt: null,
+      progress: {
+        phase: 'queued',
+        completed: 0,
+        total: 0,
+        ratio: 0,
+        indexedCount: 0,
+        queryCount: 0,
+        corpusSize: 10_000,
+      },
+      report: null,
+      lastError: null,
+      createdAt,
+      updatedAt: createdAt,
+      startedAt: null,
+      completedAt: null,
+    } as const)
+    const first = createQueuedJob('semantic-job-first', 1)
+    const second = createQueuedJob('semantic-job-second', 2)
+    const memoryWorkbenchManageSemanticScaleJobs = vi.fn()
+      .mockResolvedValueOnce({ job: first, jobs: [first] })
+      .mockResolvedValueOnce({ job: second, jobs: [second] })
+    setAlicizationBridge({ memoryWorkbenchManageSemanticScaleJobs } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.startSemanticScaleJob('10k')
+    await store.startSemanticScaleJob('10k')
+
+    expect(memoryWorkbenchManageSemanticScaleJobs).toHaveBeenCalledTimes(2)
+    expect(store.semanticScaleJob?.jobId).toBe(second.jobId)
+    expect(store.semanticScaleJobs.map(job => job.jobId)).toEqual([
+      second.jobId,
+      first.jobId,
+    ])
+  })
+
   it('clears semantic scale state and ignores stale async results after a card switch', async () => {
     let resolveList: ((value: any) => void) | undefined
     const memoryWorkbenchManageSemanticScaleJobs = vi.fn(() => new Promise((resolve) => {

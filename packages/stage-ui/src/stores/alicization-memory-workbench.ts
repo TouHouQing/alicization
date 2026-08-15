@@ -136,7 +136,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       return
     }
     if (!semanticScaleLoading.value)
-      await refreshSemanticScaleJob(job.jobId)
+      await refreshSemanticScaleJob(job.jobId, { select: false })
   }, 2_000, { immediate: false })
 
   function updateReindexResult(result: AlicizationMemoryEmbeddingReindexResult) {
@@ -167,26 +167,46 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     })
   }
 
-  function updateSemanticScaleResult(result: {
-    job: AlicizationMemorySemanticScaleJob | null
-    jobs: AlicizationMemorySemanticScaleJob[]
-  }) {
-    if (result.job)
-      semanticScaleJob.value = result.job
-    if (result.jobs.length > 0) {
-      const byId = new Map(semanticScaleJobs.value.map(job => [job.jobId, job]))
-      for (const job of result.jobs)
-        byId.set(job.jobId, job)
-      if (result.job)
-        byId.set(result.job.jobId, result.job)
-      semanticScaleJobs.value = [...byId.values()]
-        .sort((left, right) => right.createdAt - left.createdAt || right.jobId.localeCompare(left.jobId))
-    }
-    lastError.value = result.job?.lastError ?? null
+  function syncSemanticScalePolling() {
     if (semanticScaleJob.value && activeSemanticScaleStatuses.has(semanticScaleJob.value.status))
       resumeSemanticScalePolling()
     else
       pauseSemanticScalePolling()
+  }
+
+  function updateSemanticScaleResult(
+    result: {
+      job: AlicizationMemorySemanticScaleJob | null
+      jobs: AlicizationMemorySemanticScaleJob[]
+    },
+    options?: {
+      selectJob?: boolean
+    },
+  ) {
+    const selectedJobId = semanticScaleJob.value?.jobId ?? null
+    if (result.job && options?.selectJob !== false)
+      semanticScaleJob.value = result.job
+    const byId = new Map(semanticScaleJobs.value.map(job => [job.jobId, job]))
+    for (const job of result.jobs)
+      byId.set(job.jobId, job)
+    if (result.job)
+      byId.set(result.job.jobId, result.job)
+    semanticScaleJobs.value = [...byId.values()]
+      .sort((left, right) => right.createdAt - left.createdAt || right.jobId.localeCompare(left.jobId))
+    if (options?.selectJob === false && selectedJobId)
+      semanticScaleJob.value = byId.get(selectedJobId) ?? semanticScaleJob.value
+    lastError.value = semanticScaleJob.value?.lastError ?? null
+    syncSemanticScalePolling()
+  }
+
+  function selectSemanticScaleJob(jobId: string) {
+    const job = semanticScaleJobs.value.find(item => item.jobId === jobId) ?? null
+    if (!job)
+      return null
+    semanticScaleJob.value = job
+    lastError.value = job.lastError
+    syncSemanticScalePolling()
+    return job
   }
 
   async function loadSemanticScaleJobs() {
@@ -202,8 +222,11 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       if (revision !== semanticScaleContextRevision)
         return []
       semanticScaleJobs.value = result.jobs
-      semanticScaleJob.value = result.job
-      updateSemanticScaleResult(result)
+      semanticScaleJob.value = semanticScaleJob.value
+        ? result.jobs.find(job => job.jobId === semanticScaleJob.value?.jobId) ?? result.job
+        : result.job
+      lastError.value = semanticScaleJob.value?.lastError ?? null
+      syncSemanticScalePolling()
       return result.jobs
     }
     catch (error) {
@@ -244,7 +267,12 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
   }
 
-  async function refreshSemanticScaleJob(jobId: string) {
+  async function refreshSemanticScaleJob(
+    jobId: string,
+    options?: {
+      select?: boolean
+    },
+  ) {
     if (!jobId.trim() || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchManageSemanticScaleJobs)
       return null
     const revision = semanticScaleContextRevision
@@ -256,7 +284,9 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       })
       if (revision !== semanticScaleContextRevision)
         return null
-      updateSemanticScaleResult(result)
+      updateSemanticScaleResult(result, {
+        selectJob: options?.select ?? true,
+      })
       return result.job
     }
     catch (error) {
@@ -1225,6 +1255,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     loadSemanticScaleJobs,
     startSemanticScaleJob,
     refreshSemanticScaleJob,
+    selectSemanticScaleJob,
     cancelSemanticScaleJob,
     retrySemanticScaleJob,
     resetSemanticScaleJobContext,

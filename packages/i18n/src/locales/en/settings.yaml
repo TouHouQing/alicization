@@ -629,6 +629,8 @@ pages:
         semantic_scale_completed: Completed
         semantic_scale_cancelled: Cancelled
         semantic_scale_failed: Failed
+        semantic_scale_quality_passed: Quality Checks Passed
+        semantic_scale_quality_failed: Quality Checks Failed
         semantic_scale_cancelled_by_user: Semantic scale soak cancelled by user
         empty_semantic_scale_history: No semantic scale soak history for this card yet.
       fields:
@@ -738,6 +740,8 @@ pages:
         semantic_scale_progress: Soak Progress
         semantic_scale_queries: Query Rounds
         semantic_scale_history: Report History
+        semantic_scale_failing_checks: Failing Checks
+        semantic_scale_recommended_actions: Recommended Actions
         corpus_size: Corpus Size
         next_retry_at: Next Retry
         lease_expires_at: Lease Expires

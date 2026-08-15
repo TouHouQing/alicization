@@ -2,7 +2,7 @@ import type sqlite3 from 'sqlite3'
 
 import type { MemorySemanticScaleJobExecutionInput } from './memory-semantic-scale-job-runtime'
 
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -100,6 +100,22 @@ function createReport(corpusSize: number, id = `semantic-scale-report-${corpusSi
   })
 }
 
+function createFailedReport(corpusSize: number) {
+  const report = createReport(corpusSize, 'semantic-scale-quality-failure')
+  return {
+    ...report,
+    passed: false,
+    summary: {
+      ...report.summary,
+      failingChecks: ['recall-at-k', 'p95-latency'],
+    },
+    recommendedNextActions: [
+      'inspect sqlite-vec recall misses',
+      'profile slow semantic queries',
+    ],
+  }
+}
+
 async function createTempRoot() {
   const dir = await mkdtemp(join(tmpdir(), 'alicization-semantic-scale-job-test-'))
   sandboxDirs.push(dir)
@@ -116,6 +132,10 @@ function attachRuntime(
     retryBaseMs?: number
     retryMaxMs?: number
     tempRootDir: string
+    createTempDir?: (input: {
+      jobId: string
+      tempRootDir: string
+    }) => Promise<string>
     writeQueue?: WriteQueue
   },
 ) {
@@ -147,6 +167,7 @@ function attachRuntime(
     retryBaseMs: input.retryBaseMs,
     retryMaxMs: input.retryMaxMs,
     tempRootDir: input.tempRootDir,
+    createTempDir: input.createTempDir,
   })
   return { runtime, writeQueue }
 }
@@ -158,9 +179,14 @@ async function createRuntimeHarness(input?: {
   leaseMs?: number
   retryBaseMs?: number
   retryMaxMs?: number
+  tempRootDir?: string
+  createTempDir?: (input: {
+    jobId: string
+    tempRootDir: string
+  }) => Promise<string>
 }) {
   const harness = await createSqliteHarness()
-  const tempRootDir = await createTempRoot()
+  const tempRootDir = input?.tempRootDir ?? await createTempRoot()
   const attached = attachRuntime(harness, {
     ...input,
     tempRootDir,
@@ -259,6 +285,39 @@ describe('memory semantic scale job runtime', () => {
     expect(await readdir(tempRootDir)).toEqual([])
   })
 
+  it('retries and dead-letters a job when its temporary directory cannot be created', async () => {
+    let now = 1_000
+    const sandboxDir = await createTempRoot()
+    const blockedTempRoot = join(sandboxDir, 'not-a-directory')
+    await writeFile(blockedTempRoot, 'blocks mkdir')
+    const { runtime } = await createRuntimeHarness({
+      now: () => now,
+      maxAttempts: 2,
+      retryBaseMs: 10,
+      tempRootDir: blockedTempRoot,
+    })
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+
+    const retryable = await runtime.runNextAttempt(job.jobId)
+    expect(retryable).toMatchObject({
+      status: 'queued',
+      attemptCount: 1,
+      deadLettered: false,
+      nextRetryAt: 1_010,
+      lastError: expect.stringContaining('EEXIST'),
+    })
+
+    now = 1_010
+    const deadLettered = await runtime.runNextAttempt(job.jobId)
+    expect(deadLettered).toMatchObject({
+      status: 'failed',
+      attemptCount: 2,
+      deadLettered: true,
+      nextRetryAt: null,
+      lastError: expect.stringContaining('EEXIST'),
+    })
+  })
+
   it('propagates cancellation through AbortSignal and settles the running job as cancelled', async () => {
     let observedSignal: AbortSignal | undefined
     let executionStarted: (() => void) | undefined
@@ -291,6 +350,85 @@ describe('memory semantic scale job runtime', () => {
     expect(cancelled.lastError).toBe('用户取消语义规模压测')
     expect(cancelled.completedAt).not.toBeNull()
     expect(await readdir(tempRootDir)).toEqual([])
+  })
+
+  it('preserves cancellation requested after claim but before the executor starts', async () => {
+    let releaseTempCreation: (() => void) | undefined
+    let tempCreationStarted: (() => void) | undefined
+    let observedSignal: AbortSignal | undefined
+    const releaseTempCreationPromise = new Promise<void>((resolve) => {
+      releaseTempCreation = resolve
+    })
+    const tempCreationStartedPromise = new Promise<void>((resolve) => {
+      tempCreationStarted = resolve
+    })
+    const { runtime } = await createRuntimeHarness({
+      createTempDir: async ({ tempRootDir }) => {
+        tempCreationStarted?.()
+        await releaseTempCreationPromise
+        return await mkdtemp(join(tempRootDir, 'cancel-race-'))
+      },
+      executeJob: async ({ corpusSize, signal }) => {
+        observedSignal = signal
+        if (signal.aborted)
+          throw signal.reason
+        return createReport(corpusSize)
+      },
+    })
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+
+    const attempt = runtime.runNextAttempt(job.jobId)
+    await tempCreationStartedPromise
+    const requested = await runtime.requestCancel(job.jobId, 'cancel during temp setup', 'card-a')
+    expect(requested.status).toBe('cancel_requested')
+
+    releaseTempCreation?.()
+    await attempt
+
+    expect(observedSignal?.aborted).toBe(true)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'cancelled',
+      lastError: 'cancel during temp setup',
+    })
+  })
+
+  it('preserves stop requested after claim but before the executor starts', async () => {
+    let releaseTempCreation: (() => void) | undefined
+    let tempCreationStarted: (() => void) | undefined
+    let observedSignal: AbortSignal | undefined
+    const releaseTempCreationPromise = new Promise<void>((resolve) => {
+      releaseTempCreation = resolve
+    })
+    const tempCreationStartedPromise = new Promise<void>((resolve) => {
+      tempCreationStarted = resolve
+    })
+    const { runtime } = await createRuntimeHarness({
+      createTempDir: async ({ tempRootDir }) => {
+        tempCreationStarted?.()
+        await releaseTempCreationPromise
+        return await mkdtemp(join(tempRootDir, 'stop-race-'))
+      },
+      executeJob: async ({ corpusSize, signal }) => {
+        observedSignal = signal
+        if (signal.aborted)
+          throw signal.reason
+        return createReport(corpusSize)
+      },
+    })
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+
+    const worker = runtime.runJob(job.jobId)
+    await tempCreationStartedPromise
+    const stopping = runtime.stop()
+    releaseTempCreation?.()
+    await Promise.all([worker, stopping])
+
+    expect(observedSignal?.aborted).toBe(true)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'queued',
+      attemptCount: 1,
+      deadLettered: false,
+    })
   })
 
   it('applies exponential retry backoff and dead-letters the job at maxAttempts', async () => {
@@ -335,6 +473,88 @@ describe('memory semantic scale job runtime', () => {
     })
     expect(failed.completedAt).toBe(1_030)
     expect(await readdir(tempRootDir)).toEqual([])
+  })
+
+  it('retries a failed quality report and preserves its diagnostics through dead-letter', async () => {
+    let now = 1_000
+    const qualityFailure = createFailedReport(10_000)
+    const { runtime } = await createRuntimeHarness({
+      now: () => now,
+      maxAttempts: 2,
+      retryBaseMs: 10,
+      executeJob: async () => qualityFailure,
+    })
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+
+    const retryable = await runtime.runNextAttempt(job.jobId)
+    expect(retryable).toMatchObject({
+      status: 'queued',
+      attemptCount: 1,
+      deadLettered: false,
+      nextRetryAt: 1_010,
+      report: {
+        passed: false,
+        summary: {
+          failingChecks: ['recall-at-k', 'p95-latency'],
+        },
+        recommendedNextActions: [
+          'inspect sqlite-vec recall misses',
+          'profile slow semantic queries',
+        ],
+      },
+      lastError: expect.stringContaining('recall-at-k'),
+    })
+
+    now = 1_010
+    const deadLettered = await runtime.runNextAttempt(job.jobId)
+    expect(deadLettered).toMatchObject({
+      status: 'failed',
+      attemptCount: 2,
+      deadLettered: true,
+      nextRetryAt: null,
+      report: {
+        passed: false,
+        summary: {
+          failingChecks: ['recall-at-k', 'p95-latency'],
+        },
+      },
+      lastError: expect.stringContaining('p95-latency'),
+    })
+  })
+
+  it('keeps the latest failed quality report when a later retry throws operationally', async () => {
+    let now = 1_000
+    let executions = 0
+    const qualityFailure = createFailedReport(10_000)
+    const { runtime } = await createRuntimeHarness({
+      now: () => now,
+      maxAttempts: 2,
+      retryBaseMs: 10,
+      executeJob: async () => {
+        executions += 1
+        if (executions === 1)
+          return qualityFailure
+        throw new Error('temporary sqlite write failure')
+      },
+    })
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+
+    await runtime.runNextAttempt(job.jobId)
+    now = 1_010
+    const deadLettered = await runtime.runNextAttempt(job.jobId)
+
+    expect(deadLettered).toMatchObject({
+      status: 'failed',
+      deadLettered: true,
+      lastError: 'temporary sqlite write failure',
+      report: {
+        id: qualityFailure.id,
+        passed: false,
+        summary: {
+          failingChecks: ['recall-at-k', 'p95-latency'],
+        },
+      },
+    })
   })
 
   it('automatically retries a transient failure after its backoff', async () => {
@@ -476,6 +696,64 @@ describe('memory semantic scale job runtime', () => {
       attemptCount: 2,
       report: {
         id: 'delayed-recovery-report',
+      },
+    })
+  })
+
+  it('renews the lease without progress so a second runtime cannot execute the same job', async () => {
+    let releaseExecution: (() => void) | undefined
+    let executionStarted: (() => void) | undefined
+    const executionStartedPromise = new Promise<void>((resolve) => {
+      executionStarted = resolve
+    })
+    const executionReleasedPromise = new Promise<void>((resolve) => {
+      releaseExecution = resolve
+    })
+    const executions: string[] = []
+    const { harness, runtime, tempRootDir, writeQueue } = await createRuntimeHarness({
+      leaseMs: 30,
+      retryBaseMs: 1,
+      executeJob: async ({ corpusSize }) => {
+        executions.push('runtime-a')
+        executionStarted?.()
+        await executionReleasedPromise
+        return createReport(corpusSize, 'heartbeat-runtime-a')
+      },
+    })
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    const firstWorker = runtime.runJob(job.jobId)
+    await executionStartedPromise
+
+    await new Promise(resolve => setTimeout(resolve, 80))
+    const restarted = attachRuntime(harness, {
+      leaseMs: 30,
+      retryBaseMs: 1,
+      tempRootDir,
+      writeQueue,
+      executeJob: async ({ corpusSize }) => {
+        executions.push('runtime-b')
+        return createReport(corpusSize, 'heartbeat-runtime-b')
+      },
+    })
+    await restarted.runtime.initializeSchema()
+    const resumed = await restarted.runtime.resumePendingJobs('card-a')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const executionsBeforeRelease = [...executions]
+
+    releaseExecution?.()
+    await firstWorker
+    await waitFor(() => {
+      expect(restarted.runtime.activeJobIds()).toEqual([])
+    })
+
+    expect(resumed).toEqual([job.jobId])
+    expect(executionsBeforeRelease).toEqual(['runtime-a'])
+    expect(executions).toEqual(['runtime-a'])
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'completed',
+      attemptCount: 1,
+      report: {
+        id: 'heartbeat-runtime-a',
       },
     })
   })

@@ -620,6 +620,8 @@ pages:
         semantic_scale_completed: 压测完成
         semantic_scale_cancelled: 已取消
         semantic_scale_failed: 压测失败
+        semantic_scale_quality_passed: 质量检查通过
+        semantic_scale_quality_failed: 质量检查未通过
         semantic_scale_cancelled_by_user: 用户取消语义规模压测
         empty_semantic_scale_history: 当前机体还没有语义规模压测记录。
       fields:
@@ -729,6 +731,8 @@ pages:
         semantic_scale_progress: 压测进度
         semantic_scale_queries: 查询轮数
         semantic_scale_history: 历史报告
+        semantic_scale_failing_checks: 未通过检查
+        semantic_scale_recommended_actions: 建议动作
         corpus_size: 语料规模
         next_retry_at: 下次重试
         lease_expires_at: 租约到期

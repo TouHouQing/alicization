@@ -123,6 +123,24 @@ function wait(milliseconds: number) {
   return new Promise<void>(resolve => setTimeout(resolve, Math.max(0, milliseconds)))
 }
 
+function waitUntilAborted(milliseconds: number, signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    if (signal.aborted) {
+      resolve()
+      return
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, Math.max(0, milliseconds))
+    function onAbort() {
+      clearTimeout(timer)
+      resolve()
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
 function queuedProgress(corpusSize: number): MemorySemanticScaleJobProgress {
   return {
     phase: 'queued',
@@ -192,6 +210,17 @@ function isAbortError(error: unknown, signal: AbortSignal) {
     || (error instanceof Error && error.name === 'AbortError')
 }
 
+function throwIfAborted(signal: AbortSignal) {
+  if (!signal.aborted)
+    return
+  if (signal.reason instanceof Error)
+    throw signal.reason
+  throw new DOMException(
+    normalizeText(signal.reason, 500) || 'semantic scale job aborted',
+    'AbortError',
+  )
+}
+
 function mapJobRow(row: MemorySemanticScaleJobRow): MemorySemanticScaleJob {
   const corpusSize = Number(row.corpus_size)
   return {
@@ -255,6 +284,7 @@ function closeDatabase(database: sqlite3.Database) {
 }
 
 export const executeMemorySemanticScaleJob: MemorySemanticScaleJobExecutor = async (input) => {
+  throwIfAborted(input.signal)
   const database = await openDatabase(join(input.tempDir, 'semantic-scale.sqlite'))
   let writeQueue = Promise.resolve<unknown>(undefined)
   const enqueueWrite = async <T>(task: () => Promise<T>) => {
@@ -359,13 +389,22 @@ export function createMemorySemanticScaleJobRuntime(input: {
   retryBaseMs?: number
   retryMaxMs?: number
   tempRootDir?: string
+  createTempDir?: (input: {
+    jobId: string
+    tempRootDir: string
+  }) => Promise<string>
 }) {
   const executeJob = input.executeJob ?? executeMemorySemanticScaleJob
   const maxAttempts = normalizePositiveInteger(input.maxAttempts, 3, 20)
   const leaseMs = normalizePositiveInteger(input.leaseMs, 60_000)
   const retryBaseMs = normalizePositiveInteger(input.retryBaseMs, 5_000)
   const retryMaxMs = Math.max(retryBaseMs, normalizePositiveInteger(input.retryMaxMs, 15 * 60_000))
+  const leaseHeartbeatMs = Math.max(1, Math.floor(leaseMs / 3))
   const tempRootDir = input.tempRootDir ?? tmpdir()
+  const createTempDir = input.createTempDir ?? (async () => {
+    await mkdir(tempRootDir, { recursive: true })
+    return await mkdtemp(join(tempRootDir, 'alicization-memory-semantic-scale-'))
+  })
   const activeWorkers = new Map<string, Promise<void>>()
   const activeControllers = new Map<string, AbortController>()
   let workerTail = Promise.resolve()
@@ -614,6 +653,58 @@ export function createMemorySemanticScaleJobRuntime(input: {
     })
   }
 
+  function startLeaseHeartbeat(
+    claimed: ClaimedMemorySemanticScaleJob,
+    executionController: AbortController,
+  ) {
+    const stopController = new AbortController()
+    let heartbeatError: unknown = null
+    const stopOnExecutionAbort = () => stopController.abort()
+    executionController.signal.addEventListener('abort', stopOnExecutionAbort, { once: true })
+    const completed = (async () => {
+      while (!stopController.signal.aborted) {
+        await waitUntilAborted(leaseHeartbeatMs, stopController.signal)
+        if (stopController.signal.aborted)
+          break
+        try {
+          const now = input.now()
+          await input.enqueueWrite(async () => {
+            await input.run(input.database, `
+              UPDATE memory_semantic_scale_jobs
+              SET lease_expires_at = ?, updated_at = ?
+              WHERE id = ? AND status = 'running' AND lease_token = ?
+            `, [
+              now + leaseMs,
+              now,
+              claimed.row.id,
+              claimed.leaseToken,
+            ])
+            const row = await input.get<Pick<MemorySemanticScaleJobRow, 'status' | 'lease_token'>>(
+              input.database,
+              'SELECT status, lease_token FROM memory_semantic_scale_jobs WHERE id = ?',
+              [claimed.row.id],
+            )
+            if (row?.status !== 'running' || row.lease_token !== claimed.leaseToken)
+              throw new Error('semantic scale job lease is no longer active')
+          })
+        }
+        catch (error) {
+          heartbeatError = error
+          if (!executionController.signal.aborted)
+            executionController.abort(error)
+          break
+        }
+      }
+    })()
+
+    return async () => {
+      stopController.abort()
+      executionController.signal.removeEventListener('abort', stopOnExecutionAbort)
+      await completed
+      return heartbeatError
+    }
+  }
+
   async function settleExecution(inputData: {
     claimed: ClaimedMemorySemanticScaleJob
     report: MemorySemanticScaleSoakReport | null
@@ -653,7 +744,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
           return
         }
 
-        if (!inputData.error && inputData.report) {
+        if (!inputData.error && inputData.report?.passed) {
           await input.run(input.database, `
             UPDATE memory_semantic_scale_jobs
             SET status = 'completed', dead_lettered = 0,
@@ -685,7 +776,14 @@ export function createMemorySemanticScaleJobRuntime(input: {
           return
         }
 
-        const message = errorText(inputData.error, 'semantic scale job failed')
+        const qualityFailureChecks = inputData.report && !inputData.report.passed
+          ? inputData.report.summary.failingChecks
+              .map(check => normalizeText(check, 120))
+              .filter(Boolean)
+          : []
+        const message = qualityFailureChecks.length > 0
+          ? `semantic scale quality checks failed: ${qualityFailureChecks.join(', ')}`
+          : errorText(inputData.error, 'semantic scale job failed')
         const deadLettered = Number(row.attempt_count) >= Number(row.max_attempts)
         const nextRetryAt = deadLettered
           ? null
@@ -694,12 +792,14 @@ export function createMemorySemanticScaleJobRuntime(input: {
           UPDATE memory_semantic_scale_jobs
           SET status = ?, dead_lettered = ?,
               next_retry_at = ?, lease_token = NULL, lease_expires_at = NULL,
-              report_json = NULL, last_error = ?, completed_at = ?, updated_at = ?
+              report_json = COALESCE(?, report_json),
+              last_error = ?, completed_at = ?, updated_at = ?
           WHERE id = ? AND lease_token = ?
         `, [
           deadLettered ? 'failed' : 'queued',
           deadLettered ? 1 : 0,
           nextRetryAt,
+          inputData.report ? JSON.stringify(inputData.report) : null,
           message,
           deadLettered ? now : null,
           now,
@@ -713,40 +813,61 @@ export function createMemorySemanticScaleJobRuntime(input: {
   async function runNextAttempt(jobId: string) {
     if (stopping)
       return await getJob(jobId)
-    const claimed = await claimNextAttempt(jobId)
-    if (!claimed)
-      return await getJob(jobId)
 
-    await mkdir(tempRootDir, { recursive: true })
-    const tempDir = await mkdtemp(join(tempRootDir, 'alicization-memory-semantic-scale-'))
     const controller = new AbortController()
     activeControllers.set(jobId, controller)
+    let claimed: ClaimedMemorySemanticScaleJob | null = null
+    let tempDir: string | null = null
     let report: MemorySemanticScaleSoakReport | null = null
     let executionError: unknown = null
+    let stopLeaseHeartbeat: (() => Promise<unknown>) | null = null
     try {
+      claimed = await claimNextAttempt(jobId)
+      if (!claimed)
+        return await getJob(jobId)
+      const activeClaim = claimed
+      stopLeaseHeartbeat = startLeaseHeartbeat(activeClaim, controller)
+      tempDir = await createTempDir({
+        jobId: activeClaim.row.id,
+        tempRootDir,
+      })
+      const current = await readJobRow(activeClaim.row.id)
+      if (stopping && !controller.signal.aborted)
+        controller.abort(new Error('semantic scale runtime stopping'))
+      else if (current.status === 'cancel_requested' && !controller.signal.aborted)
+        controller.abort(new Error(current.last_error ?? 'semantic scale job cancelled'))
       report = await executeJob({
-        jobId: claimed.row.id,
-        cardId: claimed.row.card_id,
-        tier: claimed.row.tier,
-        corpusSize: Number(claimed.row.corpus_size),
-        createdAt: Number(claimed.row.created_at),
+        jobId: activeClaim.row.id,
+        cardId: activeClaim.row.card_id,
+        tier: activeClaim.row.tier,
+        corpusSize: Number(activeClaim.row.corpus_size),
+        createdAt: Number(activeClaim.row.created_at),
         tempDir,
         signal: controller.signal,
-        onProgress: async progress => await persistProgress(claimed, progress),
+        onProgress: async progress => await persistProgress(activeClaim, progress),
       })
     }
     catch (error) {
+      if (!claimed)
+        throw error
       executionError = error
     }
     finally {
-      activeControllers.delete(jobId)
-      try {
-        await rm(tempDir, { recursive: true, force: true })
-      }
-      catch (error) {
-        executionError ??= error
+      if (stopLeaseHeartbeat)
+        executionError ??= await stopLeaseHeartbeat()
+      if (activeControllers.get(jobId) === controller)
+        activeControllers.delete(jobId)
+      if (tempDir) {
+        try {
+          await rm(tempDir, { recursive: true, force: true })
+        }
+        catch (error) {
+          executionError ??= error
+        }
       }
     }
+    if (!claimed)
+      return await getJob(jobId)
     await settleExecution({
       claimed,
       report,
