@@ -20,11 +20,11 @@
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/runtime.ts`
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/db.ts`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 覆盖真实 provider adapter 收到 `alicization-turn-memory-context`、Provider 失败透明、取消、最大轮数，以及 trial 前后生产 checkpoint/Persona 不变。
 
-- [ ] **Step 2: 运行失败测试**
+- [x] **Step 2: 运行失败测试**
 
 Run:
 
@@ -34,7 +34,7 @@ pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/memory-
 
 Expected: FAIL，因为 runtime 和 provider dependency 尚不存在。
 
-- [ ] **Step 3: 实现隔离 trial**
+- [x] **Step 3: 实现隔离 trial**
 
 新增 `AlicizationMemoryTrialProvider`：
 
@@ -60,11 +60,11 @@ export interface AlicizationMemoryTrialProvider {
 
 Provider trial 使用内存 checkpoint，并禁止 Persona writeback。
 
-- [ ] **Step 4: 注入真实 main gateway Provider**
+- [x] **Step 4: 注入真实 main gateway Provider**
 
 注册 `memory-quality-trial` source；runtime 通过当前 active provider/model 构建 adapter。缺少配置、超时和请求错误保留原错误。
 
-- [ ] **Step 5: 验证并提交**
+- [x] **Step 5: 验证并提交**
 
 ```bash
 pnpm exec vitest run \
@@ -82,21 +82,21 @@ git commit -m "feat(memory-quality): add isolated live provider trial"
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/memory-production-trial-runner.test.ts`
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/memory-quality-workbench-db.test.ts`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 断言 DB Workbench report 不再让 `temporalConflictFixtureCount`、`scopeFuzzCaseCount` 和已有 scale report 恒为零。
 
-- [ ] **Step 2: 运行失败测试**
+- [x] **Step 2: 运行失败测试**
 
 ```bash
 pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/memory-quality-workbench-db.test.ts
 ```
 
-- [ ] **Step 3: 构建真实输入**
+- [x] **Step 3: 构建真实输入**
 
 从 `expired` gold labels、tombstone/supersedes 数据构建 temporal fixtures；scope fuzz 直接查询真实 card/user/source scoped repository；scale stage 使用最近完成报告。没有样本时返回明确 not-run finding。
 
-- [ ] **Step 4: 验证并提交**
+- [x] **Step 4: 验证并提交**
 
 ```bash
 pnpm exec vitest run \
@@ -117,19 +117,19 @@ git commit -m "feat(memory-quality): wire production quality stages"
 - Modify: `packages/i18n/src/locales/zh-Hans/settings.yaml`
 - Modify: `packages/i18n/src/locales/en/settings.yaml`
 
-- [ ] **Step 1: 写 Eventa/store/UI 失败测试**
+- [x] **Step 1: 写 Eventa/store/UI 失败测试**
 
 要求分页会话摘要、当前选择和 trial payload 的 `sessionId`。
 
-- [ ] **Step 2: 实现 DB keyset 会话摘要**
+- [x] **Step 2: 实现 DB keyset 会话摘要**
 
 查询 conversation turns 与 WorkingMemory checkpoint，返回标题、轮数和时间，不跨 card scope。
 
-- [ ] **Step 3: 实现中文下拉选择**
+- [x] **Step 3: 实现中文下拉选择**
 
 质量面板显示会话标题、最近时间和轮数；删除手工 `replayPackId` 文案。
 
-- [ ] **Step 4: 验证并提交**
+- [x] **Step 4: 验证并提交**
 
 ```bash
 pnpm exec vitest run \
@@ -150,19 +150,19 @@ git commit -m "feat(memory-workbench): add replay session picker"
 - Modify: `packages/stage-ui/src/stores/alicization-memory-workbench.ts`
 - Modify: `apps/stage-tamagotchi/src/renderer/pages/settings/modules/memory.vue`
 
-- [ ] **Step 1: 写状态机失败测试**
+- [x] **Step 1: 写状态机失败测试**
 
 覆盖 queued/running/completed、取消、失败重试、重启恢复和单 worker lease。
 
-- [ ] **Step 2: 实现 job 表和 worker**
+- [x] **Step 2: 实现 job 表和 worker**
 
 worker 在临时目录创建 SQLite，调用 `runMemorySemanticScaleVectorAdapterSoak()`；进度和最终 JSON report 持久化到主 DB。
 
-- [ ] **Step 3: 接 Eventa 和 UI**
+- [x] **Step 3: 接 Eventa 和 UI**
 
 提供 10k/100k、开始、取消、重试、轮询状态和历史报告。
 
-- [ ] **Step 4: 验证并提交**
+- [x] **Step 4: 验证并提交**
 
 ```bash
 pnpm exec vitest run \
@@ -185,23 +185,23 @@ git commit -m "feat(memory-quality): add durable semantic scale jobs"
 - Modify: `apps/stage-tamagotchi/src/renderer/pages/settings/modules/memory.vue`
 - Modify: `apps/stage-tamagotchi/electron-builder.config.ts`
 
-- [ ] **Step 1: 写 executor 失败测试**
+- [x] **Step 1: 写 executor 失败测试**
 
 使用临时 fake executable 验证 JSONL 输入、manifest、stdout progress、取消、超时、非零退出码、artifact hash 和 source revoke。
 
-- [ ] **Step 2: 实现安全进程协议**
+- [x] **Step 2: 实现安全进程协议**
 
 使用 `spawn` 参数数组，不通过 shell；只允许配置的 executable；输出目录位于 card scope；artifact manifest 必须通过 schema 和文件存在性校验。
 
-- [ ] **Step 3: 注入 pipeline gate**
+- [x] **Step 3: 注入 pipeline gate**
 
 runtime 从用户配置构建 executor。未配置时保持透明失败。训练完成后记录 artifact compatibility；不支持加载的 Provider 不得显示已激活。
 
-- [ ] **Step 4: UI 与打包**
+- [x] **Step 4: UI 与打包**
 
 Persona 面板增加训练器状态、命令路径、base model、测试连通和产物兼容性。把资源说明打包，但不静默安装第三方训练依赖。
 
-- [ ] **Step 5: 验证并提交**
+- [x] **Step 5: 验证并提交**
 
 ```bash
 pnpm exec vitest run \
@@ -218,15 +218,15 @@ git commit -m "feat(persona): connect local training executor"
 - Modify: `apps/stage-tamagotchi/src/shared/eventa.type-spec.ts`
 - Modify: `packages/stage-ui/src/stores/alicization-bridge.ts`
 
-- [ ] **Step 1: 写双向可赋值 type spec**
+- [x] **Step 1: 写双向可赋值 type spec**
 
 使用 `satisfies` 和泛型 `Assert<Equal<...>>` 检查 trial、session、scale job、training artifact。
 
-- [ ] **Step 2: 修复所有漂移**
+- [x] **Step 2: 修复所有漂移**
 
 Eventa 类型为传输合同来源，bridge 必须保持字段和 union 一致。
 
-- [ ] **Step 3: 验证并提交**
+- [x] **Step 3: 验证并提交**
 
 ```bash
 pnpm -F @proj-alicization/stage-tamagotchi typecheck:node
@@ -241,7 +241,7 @@ git commit -m "test(alicization): enforce memory workbench dto parity"
 - Modify: `docs/superpowers/plans/2026-07-04-alicization-memory-workbench-productization-implementation-plan.md`
 - Modify: `docs/superpowers/plans/2026-08-15-alicization-production-life-loop-closure-implementation-plan.md`
 
-- [ ] **Step 1: 逐项按代码和测试校准勾选状态**
+- [x] **Step 1: 逐项按代码和测试校准勾选状态**
 
 不以文件存在代替验收；只有实际生产接线和测试都存在才能勾选。
 
@@ -270,9 +270,10 @@ pnpm -F @proj-alicization/stage-tamagotchi build:mac:local
 - 未配置 trainer 时显示真实配置错误
 - Live Provider Trial 可运行或明确显示 Provider 配置错误
 
-- [ ] **Step 4: 最终提交**
+- [x] **Step 4: 最终提交**
 
 ```bash
 git commit -m "docs(alicization): close production life loop plan"
 ```
 
+> 当前证据：final gate、两个 typecheck、定向 ESLint 和 unpacked macOS `.app` 构建已通过；根级 `pnpm lint` 仍受 `.agents`/既有文档扫描噪声影响，`build:mac:local` 的最后安装步骤受本机 keychain 授权失败影响。因此 Step 2/3/4 保持未完成，不能把打包成功等同于安装验收完成。

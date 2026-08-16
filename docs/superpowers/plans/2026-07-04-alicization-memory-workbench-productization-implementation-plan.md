@@ -21,54 +21,54 @@
 
 ### 新增文件
 
-- `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-policy-store.ts`  
+- `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-policy-store.ts`
   管理 `long_term_memory_policy_overrides`，提供 source policy upsert/list/merge、pre-admission policy inherit。
 
-- `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-policy-store.test.ts`  
+- `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-policy-store.test.ts`
   覆盖 inward-only/no-training 持久化、candidate policy 继承、tombstone 优先级。
 
-- `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-health.ts`  
+- `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-health.ts`
   从 transaction、recall metrics、vector index 状态构建 health DTO。
 
-- `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-health.test.ts`  
+- `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-health.test.ts`
   覆盖 queue count、recall p95、embedding health 降级。
 
-- `apps/stage-tamagotchi/src/main/services/alicization/long-term-memory-persistent-vector-store.ts`  
+- `apps/stage-tamagotchi/src/main/services/alicization/long-term-memory-persistent-vector-store.ts`
   SQLite 持久向量 store，实现 upsert/search/delete/reindex/health。
 
-- `apps/stage-tamagotchi/src/main/services/alicization/long-term-memory-persistent-vector-store.test.ts`  
+- `apps/stage-tamagotchi/src/main/services/alicization/long-term-memory-persistent-vector-store.test.ts`
   覆盖持久化、model/dimensions 隔离、stale/failed 状态、重启后可查。
 
-- `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-persona-candidates.ts`  
+- `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-persona-candidates.ts`
   从 cleaned long-term reflection/reinforcement 构建 Workbench persona candidates，并合并 candidate review 状态。
 
-- `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-persona-candidates.test.ts`  
+- `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-persona-candidates.test.ts`
   覆盖 candidate 来源、tombstone/no-training 过滤、approve/reject/no-training 持久状态。
 
 ### 修改文件
 
-- `apps/stage-tamagotchi/src/shared/eventa.ts`  
+- `apps/stage-tamagotchi/src/shared/eventa.ts`
   增加 persona candidate 和 embedding reindex DTO/Eventa 合同，扩展 health/list DTO。
 
-- `packages/stage-ui/src/stores/alicization-bridge.ts`  
+- `packages/stage-ui/src/stores/alicization-bridge.ts`
   同步 renderer bridge 类型。
 
-- `apps/stage-tamagotchi/src/main/services/alicization/db.ts`  
+- `apps/stage-tamagotchi/src/main/services/alicization/db.ts`
   创建新表；组合 policy、health、persistent vector、persona candidate 模块；修正长期记忆分页/筛选；review 动作真实写回。
 
-- `apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-memory.ts`  
+- `apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-memory.ts`
   注册新增 reindex/persona handlers，传递 card scope。
 
-- `packages/stage-ui/src/stores/alicization-memory-workbench.ts`  
+- `packages/stage-ui/src/stores/alicization-memory-workbench.ts`
   增加筛选、cursor、load more、persona candidate、reindex 状态。
 
-- `apps/stage-tamagotchi/src/renderer/pages/settings/memory/index.vue`  
+- `apps/stage-tamagotchi/src/renderer/pages/settings/memory/index.vue`
   增加长期记忆筛选 UI、分页、health 分区、persona 面板、probe semantic 信息。
 
-- `packages/i18n/src/locales/zh-Hans/settings.yaml`  
+- `packages/i18n/src/locales/zh-Hans/settings.yaml`
   中文文案优先补齐。
 
-- `packages/i18n/src/locales/en/settings.yaml`  
+- `packages/i18n/src/locales/en/settings.yaml`
   英文 fallback 补齐，避免 key 缺失。
 
 - 现有测试：
@@ -95,7 +95,7 @@
 - Modify: `packages/stage-ui/src/stores/alicization-bridge.ts`
 - Test: `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench.test.ts`
 
-- [ ] **Step 1: 写失败测试，锁定新增 DTO 名称**
+- [x] **Step 1: 写失败测试，锁定新增 DTO 名称**
 
 在 `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench.test.ts` 增加一条轻量合同测试：
 
@@ -133,7 +133,7 @@ it('exposes productized memory workbench DTO contracts', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -143,7 +143,7 @@ pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/memory-
 
 Expected: FAIL，提示新增类型不存在。
 
-- [ ] **Step 3: 修改 `eventa.ts` 增加 DTO 和 Eventa 合同**
+- [x] **Step 3: 修改 `eventa.ts` 增加 DTO 和 Eventa 合同**
 
 在 Memory Workbench 类型附近增加：
 
@@ -207,7 +207,7 @@ export const electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction = def
 export const electronAlicizationMemoryWorkbenchReindexEmbeddings = defineInvokeEventa<AlicizationMemoryEmbeddingReindexResult, AlicizationMemoryEmbeddingReindexPayload>('eventa:invoke:electron:alicization:memory-workbench:reindex-embeddings')
 ```
 
-- [ ] **Step 4: 同步 `alicization-bridge.ts` 类型和 bridge 方法**
+- [x] **Step 4: 同步 `alicization-bridge.ts` 类型和 bridge 方法**
 
 复制同名 DTO 类型到 `packages/stage-ui/src/stores/alicization-bridge.ts`，并在 bridge interface 增加：
 
@@ -217,7 +217,7 @@ memoryWorkbenchApplyPersonaCandidateAction?: (payload: Omit<AlicizationPersonaCa
 memoryWorkbenchReindexEmbeddings?: (payload: Omit<AlicizationMemoryEmbeddingReindexPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingReindexResult>
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run:
 
@@ -228,7 +228,7 @@ pnpm -F @proj-alicization/stage-ui typecheck
 
 Expected: PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/stage-tamagotchi/src/shared/eventa.ts packages/stage-ui/src/stores/alicization-bridge.ts apps/stage-tamagotchi/src/main/services/alicization/memory-workbench.test.ts
@@ -244,12 +244,13 @@ git commit -m "feat(alicization): extend memory workbench contracts"
 - Create: `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-policy-store.test.ts`
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/db.ts`
 
-- [ ] **Step 1: 写 policy store 单测**
+- [x] **Step 1: 写 policy store 单测**
 
 创建 `memory-workbench-policy-store.test.ts`：
 
 ```ts
 import { describe, expect, it } from 'vitest'
+
 import {
   deriveMemoryWorkbenchPolicyForSource,
   inheritPreAdmissionMemoryWorkbenchPolicies,
@@ -342,7 +343,7 @@ describe('memory workbench policy store helpers', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -352,7 +353,7 @@ pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/memory-
 
 Expected: FAIL，文件不存在。
 
-- [ ] **Step 3: 实现 policy helper 和 runtime 接口**
+- [x] **Step 3: 实现 policy helper 和 runtime 接口**
 
 创建 `memory-workbench-policy-store.ts`：
 
@@ -492,7 +493,7 @@ Implementation requirements:
 - `listPolicyOverrides` 允许按 cardId 和 sourceIds 读取。
 - `inheritCandidatePolicies` 读取 `source='working_memory_long_term_candidate'` 的 candidate policy 并写入 projected source。
 
-- [ ] **Step 4: 在 `db.ts` 初始化表和 runtime**
+- [x] **Step 4: 在 `db.ts` 初始化表和 runtime**
 
 在 `initialize` 的 tombstone 表之后创建：
 
@@ -516,7 +517,7 @@ CREATE TABLE IF NOT EXISTS long_term_memory_policy_overrides (
 
 在 runtime 创建区域实例化 `memoryWorkbenchPolicyStore`。
 
-- [ ] **Step 5: 运行测试**
+- [x] **Step 5: 运行测试**
 
 Run:
 
@@ -527,7 +528,7 @@ pnpm -F @proj-alicization/stage-tamagotchi typecheck
 
 Expected: PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-policy-store.ts apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-policy-store.test.ts apps/stage-tamagotchi/src/main/services/alicization/db.ts
@@ -543,7 +544,7 @@ git commit -m "feat(alicization): persist memory workbench policy overrides"
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/long-term-memory-review-queue.test.ts`
 - Test: `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-dialogue-loop.test.ts`
 
-- [ ] **Step 1: 写 failing regression**
+- [x] **Step 1: 写 failing regression**
 
 在 `memory-workbench-dialogue-loop.test.ts` 增加测试：
 
@@ -591,7 +592,7 @@ it('persists inward-only and no-training review actions instead of returning a t
 
 如果 test helper 名称不同，使用现有测试文件里的 DB 创建 helper。
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -601,7 +602,7 @@ pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/memory-
 
 Expected: FAIL，当前 `inward-only` / `no-training` 没有持久效果。
 
-- [ ] **Step 3: 修改 `applyMemoryWorkbenchReviewAction`**
+- [x] **Step 3: 修改 `applyMemoryWorkbenchReviewAction`**
 
 实现规则：
 
@@ -636,11 +637,11 @@ if (input.decision === 'inward-only' || input.decision === 'no-training') {
 
 同时让 `listLongTermMemoryReviewItems` 或 projection 阶段合并 candidate policy override。
 
-- [ ] **Step 4: tombstone review item 写 candidate source tombstone**
+- [x] **Step 4: tombstone review item 写 candidate source tombstone**
 
 在 tombstone 决策后，对 review item 的 `sourceMemoryIds` 调用 `tombstoneLongTermMemorySources`，reason 使用 `input.reason ?? 'user-tombstoned-review-item'`。
 
-- [ ] **Step 5: approve 后继承 pre-admission policy**
+- [x] **Step 5: approve 后继承 pre-admission policy**
 
 在 `drainWorkingMemoryLongTermQueue` 投影成功并持久化 facts/reflections/episodes/reinforcements 后，收集 projections source：
 
@@ -660,7 +661,7 @@ await memoryWorkbenchPolicyStore.inheritCandidatePolicies({
 })
 ```
 
-- [ ] **Step 6: 运行测试**
+- [x] **Step 6: 运行测试**
 
 Run:
 
@@ -671,7 +672,7 @@ pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/long-te
 
 Expected: PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/stage-tamagotchi/src/main/services/alicization/db.ts apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-dialogue-loop.test.ts apps/stage-tamagotchi/src/main/services/alicization/long-term-memory-review-queue.test.ts
@@ -687,12 +688,13 @@ git commit -m "feat(alicization): persist memory review policy actions"
 - Create: `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-health.test.ts`
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/db.ts`
 
-- [ ] **Step 1: 写 health helper 测试**
+- [x] **Step 1: 写 health helper 测试**
 
 创建 `memory-workbench-health.test.ts`：
 
 ```ts
 import { describe, expect, it } from 'vitest'
+
 import {
   calculateMemoryWorkbenchP95Latency,
   deriveMemoryWorkbenchStatus,
@@ -735,7 +737,7 @@ describe('memory workbench health', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -745,21 +747,25 @@ pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/memory-
 
 Expected: FAIL，文件不存在。
 
-- [ ] **Step 3: 实现 health helpers 和 runtime interface**
+- [x] **Step 3: 实现 health helpers 和 runtime interface**
 
 创建 `memory-workbench-health.ts`，至少导出：
 
 ```ts
 export function summarizeMemoryWorkbenchQueueRows(rows: Array<{ status: string }>) {
   return rows.reduce((summary, row) => {
-    if (row.status === 'pending' || row.status === 'admitted')
+    if (row.status === 'pending' || row.status === 'admitted') {
       summary.pending += 1
-    else if (row.status === 'needs-user-review')
+    }
+    else if (row.status === 'needs-user-review') {
       summary.review += 1
-    else if (row.status === 'applied')
+    }
+    else if (row.status === 'applied') {
       summary.applied += 1
-    else if (row.status === 'failed')
+    }
+    else if (row.status === 'failed') {
       summary.failed += 1
+    }
     else if (row.status === 'dead-lettered' || row.status === 'rejected') {
       summary.failed += 1
       summary.deadLettered += row.status === 'dead-lettered' ? 1 : 0
@@ -792,7 +798,7 @@ export function deriveMemoryWorkbenchStatus(input: {
 - `appendRecallMetric(...)` 写 `memory_workbench_recall_metrics`。
 - `getRecallHealth(cardId)` 读取最近 50 条计算 last/p95。
 
-- [ ] **Step 4: 在 `db.ts` 创建 metrics 表并替换占位 health**
+- [x] **Step 4: 在 `db.ts` 创建 metrics 表并替换占位 health**
 
 创建 `memory_workbench_recall_metrics` 表和索引：
 
@@ -808,7 +814,7 @@ ON memory_workbench_recall_metrics(card_id, created_at DESC)
 
 在 `runMemoryWorkbenchRecallProbe` 成功和 catch 分支都写 metric。
 
-- [ ] **Step 5: 运行测试**
+- [x] **Step 5: 运行测试**
 
 Run:
 
@@ -820,7 +826,7 @@ pnpm -F @proj-alicization/stage-tamagotchi typecheck
 
 Expected: PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-health.ts apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-health.test.ts apps/stage-tamagotchi/src/main/services/alicization/db.ts
@@ -835,7 +841,7 @@ git commit -m "feat(alicization): report real memory workbench health"
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/db.ts`
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench.test.ts`
 
-- [ ] **Step 1: 写 list pagination regression**
+- [x] **Step 1: 写 list pagination regression**
 
 在 `memory-workbench.test.ts` 增加 helper-level 测试，若 DB helper 已存在则使用真实 DB；否则先测 cursor helper：
 
@@ -859,7 +865,7 @@ it('returns a stable next cursor for long-term memory workbench list results', a
 
 调整 fact shape 以匹配现有 `upsertMemoryFacts` 类型。
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -869,7 +875,7 @@ pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/memory-
 
 Expected: FAIL，`nextCursor` 当前为 null。
 
-- [ ] **Step 3: 实现 cursor helpers**
+- [x] **Step 3: 实现 cursor helpers**
 
 在 `db.ts` 或拆出的本地 helper 中实现：
 
@@ -893,7 +899,7 @@ function decodeMemoryWorkbenchCursor(raw: string | null | undefined) {
 }
 ```
 
-- [ ] **Step 4: 修改 `listMemoryWorkbenchLongTermItems`**
+- [x] **Step 4: 修改 `listMemoryWorkbenchLongTermItems`**
 
 实现方式：
 
@@ -917,7 +923,7 @@ const next = afterCursor.length > safeLimit ? page[page.length - 1] : null
 
 Note: 这一版仍是多源内存合并，但必须实现真实 cursor 和 filters；后续可再优化 SQL UNION。
 
-- [ ] **Step 5: 搜索和筛选合并 policy**
+- [x] **Step 5: 搜索和筛选合并 policy**
 
 确保：
 
@@ -926,7 +932,7 @@ Note: 这一版仍是多源内存合并，但必须实现真实 cursor 和 filte
 - training 来自 policy merge。
 - tombstoned 默认过滤。
 
-- [ ] **Step 6: 运行测试**
+- [x] **Step 6: 运行测试**
 
 Run:
 
@@ -937,7 +943,7 @@ pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/memory-
 
 Expected: PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/stage-tamagotchi/src/main/services/alicization/db.ts apps/stage-tamagotchi/src/main/services/alicization/memory-workbench.test.ts
@@ -952,7 +958,7 @@ git commit -m "feat(alicization): paginate memory workbench long-term list"
 - Modify: `packages/stage-ui/src/stores/alicization-memory-workbench.ts`
 - Modify: `packages/stage-ui/src/stores/alicization-memory-workbench.test.ts`
 
-- [ ] **Step 1: 写 store 测试**
+- [x] **Step 1: 写 store 测试**
 
 在 store test 增加：
 
@@ -974,7 +980,7 @@ it('resets long-term cursor when filters change and appends when loading more', 
 
 调整 mock item 到完整 `AlicizationMemoryWorkbenchItem` shape。
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -984,7 +990,7 @@ pnpm exec vitest run packages/stage-ui/src/stores/alicization-memory-workbench.t
 
 Expected: FAIL，store 无 cursor/filter。
 
-- [ ] **Step 3: 修改 store state**
+- [x] **Step 3: 修改 store state**
 
 增加：
 
@@ -1005,7 +1011,7 @@ const reindexLoading = ref(false)
 const reindexResult = ref<AlicizationMemoryEmbeddingReindexResult | null>(null)
 ```
 
-- [ ] **Step 4: 修改 actions**
+- [x] **Step 4: 修改 actions**
 
 实现：
 
@@ -1017,11 +1023,11 @@ const reindexResult = ref<AlicizationMemoryEmbeddingReindexResult | null>(null)
 
 所有 action catch 使用 `errorMessageFrom(error)`。
 
-- [ ] **Step 5: 导出新 state/actions**
+- [x] **Step 5: 导出新 state/actions**
 
 return 中导出新增字段。
 
-- [ ] **Step 6: 运行测试**
+- [x] **Step 6: 运行测试**
 
 Run:
 
@@ -1032,7 +1038,7 @@ pnpm -F @proj-alicization/stage-ui typecheck
 
 Expected: PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/stage-ui/src/stores/alicization-memory-workbench.ts packages/stage-ui/src/stores/alicization-memory-workbench.test.ts
@@ -1049,7 +1055,7 @@ git commit -m "feat(alicization): add memory workbench renderer pagination state
 - Modify: `packages/i18n/src/locales/zh-Hans/settings.yaml`
 - Modify: `packages/i18n/src/locales/en/settings.yaml`
 
-- [ ] **Step 1: 写页面静态测试**
+- [x] **Step 1: 写页面静态测试**
 
 在 page test 增加：
 
@@ -1064,7 +1070,7 @@ it('renders productized long-term filters and health sections', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -1074,33 +1080,33 @@ pnpm exec vitest run apps/stage-tamagotchi/src/renderer/pages/settings/memory/in
 
 Expected: FAIL。
 
-- [ ] **Step 3: 更新 i18n**
+- [x] **Step 3: 更新 i18n**
 
 `zh-Hans/settings.yaml` 在 workbench actions 增加：
 
 ```yaml
-        load_more: 加载更多
-        reindex_embeddings: 重建向量索引
-        search: 搜索
+load_more: 加载更多
+reindex_embeddings: 重建向量索引
+search: 搜索
 ```
 
 fields 增加：
 
 ```yaml
-        semantic_channel: 语义召回
-        queue_health: 队列健康
-        recall_health: 召回健康
-        embedding_health: 向量健康
-        policy: 策略
-        source: 来源
-        updated_at: 更新时间
-        confidence: 置信度
-        salience: 重要度
+semantic_channel: 语义召回
+queue_health: 队列健康
+recall_health: 召回健康
+embedding_health: 向量健康
+policy: 策略
+source: 来源
+updated_at: 更新时间
+confidence: 置信度
+salience: 重要度
 ```
 
 `en/settings.yaml` 加对应英文。
 
-- [ ] **Step 4: 更新 long-term tab UI**
+- [x] **Step 4: 更新 long-term tab UI**
 
 在 tab 顶部增加：
 
@@ -1113,7 +1119,7 @@ fields 增加：
 
 不要让控件挤爆移动端：用 `grid grid-cols-1 gap-2 md:grid-cols-3 xl:grid-cols-6`。
 
-- [ ] **Step 5: 更新 health tab**
+- [x] **Step 5: 更新 health tab**
 
 替换 raw JSON 主视图为四个 section：
 
@@ -1124,7 +1130,7 @@ fields 增加：
 
 保留 `<details>` raw JSON。
 
-- [ ] **Step 6: 运行测试**
+- [x] **Step 6: 运行测试**
 
 Run:
 
@@ -1135,7 +1141,7 @@ pnpm -F @proj-alicization/stage-tamagotchi typecheck
 
 Expected: PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/stage-tamagotchi/src/renderer/pages/settings/memory/index.vue apps/stage-tamagotchi/src/renderer/pages/settings/memory/index.memory-workbench-page.test.ts packages/i18n/src/locales/zh-Hans/settings.yaml packages/i18n/src/locales/en/settings.yaml
@@ -1151,14 +1157,15 @@ git commit -m "feat(alicization): add memory workbench filters and health UI"
 - Create: `apps/stage-tamagotchi/src/main/services/alicization/long-term-memory-persistent-vector-store.test.ts`
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/db.ts`
 
-- [ ] **Step 1: 写 persistent vector store 测试**
+- [x] **Step 1: 写 persistent vector store 测试**
 
 创建测试：
 
 ```ts
 import { describe, expect, it } from 'vitest'
-import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'
+
 import { setupAlicizationDb } from './db'
+import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'
 
 describe('persistent long-term memory vector store', () => {
   it('keeps vector spaces isolated by model id and dimensions', async () => {
@@ -1195,7 +1202,7 @@ describe('persistent long-term memory vector store', () => {
 
 使用现有 DB tests 里的 `setupAlicizationDb + createSandboxUserDataPath` 风格；不要引入真实 Electron runtime。
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -1205,7 +1212,7 @@ pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/long-te
 
 Expected: FAIL。
 
-- [ ] **Step 3: 实现 persistent vector store**
+- [x] **Step 3: 实现 persistent vector store**
 
 接口兼容现有 `LongTermMemoryVectorStore`，但 record 增加 `cardId`。实现：
 
@@ -1231,7 +1238,7 @@ function decodeVector(blob: Buffer, dimensions: number) {
 
 SQLite 不可用 Buffer 时，使用 `Uint8Array`。
 
-- [ ] **Step 4: 在 `db.ts` 创建 vector 表并实例化 store**
+- [x] **Step 4: 在 `db.ts` 创建 vector 表并实例化 store**
 
 创建 spec 中的 `long_term_memory_vectors` 表和索引。
 
@@ -1244,7 +1251,7 @@ SQLite 不可用 Buffer 时，使用 `Uint8Array`。
 
 第一版 provider 为空时返回 configured false，但不报错。
 
-- [ ] **Step 5: 运行测试**
+- [x] **Step 5: 运行测试**
 
 Run:
 
@@ -1256,7 +1263,7 @@ pnpm -F @proj-alicization/stage-tamagotchi typecheck
 
 Expected: PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/stage-tamagotchi/src/main/services/alicization/long-term-memory-persistent-vector-store.ts apps/stage-tamagotchi/src/main/services/alicization/long-term-memory-persistent-vector-store.test.ts apps/stage-tamagotchi/src/main/services/alicization/db.ts
@@ -1272,7 +1279,7 @@ git commit -m "feat(alicization): persist long-term memory vectors"
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-memory.ts`
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-dialogue-loop.test.ts`
 
-- [ ] **Step 1: 写 reindex unavailable 测试**
+- [x] **Step 1: 写 reindex unavailable 测试**
 
 增加测试：
 
@@ -1294,7 +1301,7 @@ it('reports embedding reindex as unavailable when no provider is configured', as
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -1304,7 +1311,7 @@ pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/memory-
 
 Expected: FAIL，方法不存在。
 
-- [ ] **Step 3: DB facade 增加 `reindexMemoryWorkbenchEmbeddings`**
+- [x] **Step 3: DB facade 增加 `reindexMemoryWorkbenchEmbeddings`**
 
 实现：
 
@@ -1314,7 +1321,7 @@ Expected: FAIL，方法不存在。
 - upsert 到 persistent vector store。
 - 失败写 errors。
 
-- [ ] **Step 4: 注册 Eventa handler**
+- [x] **Step 4: 注册 Eventa handler**
 
 在 `runtime-invoke-handlers-memory.ts` import 新 Eventa：
 
@@ -1334,7 +1341,7 @@ registerInvokeHandler(electronAlicizationMemoryWorkbenchReindexEmbeddings, async
 })))
 ```
 
-- [ ] **Step 5: Recall probe 写 semantic availability**
+- [x] **Step 5: Recall probe 写 semantic availability**
 
 扩展 `AlicizationMemoryRecallProbeResult` DTO，增加：
 
@@ -1349,7 +1356,7 @@ semantic: {
 
 在 `runMemoryWorkbenchRecallProbe` 中填充当前 embedding health。
 
-- [ ] **Step 6: 运行测试**
+- [x] **Step 6: 运行测试**
 
 Run:
 
@@ -1360,7 +1367,7 @@ pnpm -F @proj-alicization/stage-tamagotchi typecheck
 
 Expected: PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/stage-tamagotchi/src/shared/eventa.ts packages/stage-ui/src/stores/alicization-bridge.ts apps/stage-tamagotchi/src/main/services/alicization/db.ts apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-memory.ts apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-dialogue-loop.test.ts
@@ -1377,12 +1384,13 @@ git commit -m "feat(alicization): expose embedding reindex for memory workbench"
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/db.ts`
 - Modify: `apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-memory.ts`
 
-- [ ] **Step 1: 写 persona candidate 测试**
+- [x] **Step 1: 写 persona candidate 测试**
 
 创建：
 
 ```ts
 import { describe, expect, it } from 'vitest'
+
 import { mergePersonaCandidateReviewState } from './memory-workbench-persona-candidates'
 
 describe('memory workbench persona candidates', () => {
@@ -1433,7 +1441,7 @@ describe('memory workbench persona candidates', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -1443,7 +1451,7 @@ pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/memory-
 
 Expected: FAIL。
 
-- [ ] **Step 3: 实现 persona candidate runtime**
+- [x] **Step 3: 实现 persona candidate runtime**
 
 创建 `memory-workbench-persona-candidates.ts`：
 
@@ -1461,7 +1469,7 @@ DB 来源：
 - policy overrides no-training。
 - `persona_training_candidate_reviews` review rows。
 
-- [ ] **Step 4: 在 `db.ts` 创建 candidate review 表**
+- [x] **Step 4: 在 `db.ts` 创建 candidate review 表**
 
 创建 spec 中的 `persona_training_candidate_reviews` 表和索引。
 
@@ -1472,14 +1480,14 @@ listMemoryWorkbenchPersonaCandidates
 applyMemoryWorkbenchPersonaCandidateAction
 ```
 
-- [ ] **Step 5: 注册 Eventa handlers**
+- [x] **Step 5: 注册 Eventa handlers**
 
 在 `runtime-invoke-handlers-memory.ts` 注册：
 
 - `electronAlicizationMemoryWorkbenchListPersonaCandidates`
 - `electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction`
 
-- [ ] **Step 6: 运行测试**
+- [x] **Step 6: 运行测试**
 
 Run:
 
@@ -1491,7 +1499,7 @@ pnpm -F @proj-alicization/stage-tamagotchi typecheck
 
 Expected: PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-persona-candidates.ts apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-persona-candidates.test.ts apps/stage-tamagotchi/src/main/services/alicization/db.ts apps/stage-tamagotchi/src/main/services/alicization/runtime-invoke-handlers-memory.ts
@@ -1508,7 +1516,7 @@ git commit -m "feat(alicization): expose persona memory candidates"
 - Modify: `packages/i18n/src/locales/zh-Hans/settings.yaml`
 - Modify: `packages/i18n/src/locales/en/settings.yaml`
 
-- [ ] **Step 1: 写页面测试**
+- [x] **Step 1: 写页面测试**
 
 在 page test 增加：
 
@@ -1523,7 +1531,7 @@ it('renders persona candidate panel and embedding reindex action', () => {
 })
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 
@@ -1533,29 +1541,29 @@ pnpm exec vitest run apps/stage-tamagotchi/src/renderer/pages/settings/memory/in
 
 Expected: FAIL。
 
-- [ ] **Step 3: i18n 增加 persona 字段**
+- [x] **Step 3: i18n 增加 persona 字段**
 
 `zh-Hans/settings.yaml`:
 
 ```yaml
-        behavior_lesson: 行为规则
-        positive_example: 正例
-        negative_example: 反例
-        privacy_class: 隐私类别
-        source_ids: 来源 ID
-        candidate_status: 候选状态
+behavior_lesson: 行为规则
+positive_example: 正例
+negative_example: 反例
+privacy_class: 隐私类别
+source_ids: 来源 ID
+candidate_status: 候选状态
 ```
 
 actions:
 
 ```yaml
-        approve_candidate: 批准候选
-        reject_candidate: 拒绝候选
+approve_candidate: 批准候选
+reject_candidate: 拒绝候选
 ```
 
 英文补同名 key。
 
-- [ ] **Step 4: persona tab UI**
+- [x] **Step 4: persona tab UI**
 
 替换占位 section：
 
@@ -1568,7 +1576,7 @@ actions:
 
 onMounted 时调用 `store.refreshPersonaCandidates()`，或在切换到 persona tab 时懒加载。
 
-- [ ] **Step 5: health tab 加 reindex 按钮**
+- [x] **Step 5: health tab 加 reindex 按钮**
 
 Embedding health section 中加入：
 
@@ -1584,7 +1592,7 @@ Embedding health section 中加入：
 
 显示 `reindexResult`。
 
-- [ ] **Step 6: 运行测试**
+- [x] **Step 6: 运行测试**
 
 Run:
 
@@ -1595,7 +1603,7 @@ pnpm -F @proj-alicization/stage-tamagotchi typecheck
 
 Expected: PASS。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/stage-tamagotchi/src/renderer/pages/settings/memory/index.vue apps/stage-tamagotchi/src/renderer/pages/settings/memory/index.memory-workbench-page.test.ts packages/i18n/src/locales/zh-Hans/settings.yaml packages/i18n/src/locales/en/settings.yaml
@@ -1611,7 +1619,7 @@ git commit -m "feat(alicization): add persona candidates to memory workbench"
 - Modify: `packages/stage-ui/src/stores/alicization-memory-workbench.test.ts`
 - Modify: `apps/stage-tamagotchi/src/renderer/pages/settings/memory/index.memory-workbench-page.test.ts`
 
-- [ ] **Step 1: 增加端到端测试用例**
+- [x] **Step 1: 增加端到端测试用例**
 
 在 `memory-workbench-dialogue-loop.test.ts` 增加：
 
@@ -1651,7 +1659,7 @@ it('keeps memory workbench product loop visible from review policy to recall and
 
 调整 `upsertMemoryReflections` shape 到现有 runtime 类型。
 
-- [ ] **Step 2: 运行 focused tests**
+- [x] **Step 2: 运行 focused tests**
 
 Run:
 
@@ -1664,7 +1672,7 @@ pnpm exec vitest run apps/stage-tamagotchi/src/renderer/pages/settings/memory/in
 
 Expected: PASS。
 
-- [ ] **Step 3: 运行类型检查**
+- [x] **Step 3: 运行类型检查**
 
 Run:
 
@@ -1685,7 +1693,9 @@ pnpm lint:fix
 
 Expected: PASS 或只出现与本任务无关的既有问题。若 lint 修改无关文件，仔细检查并只提交相关变更。
 
-- [ ] **Step 5: Commit**
+> 已完成本任务相关文件的定向 ESLint（0 errors，保留既有 warnings）；根级 `pnpm lint:fix` 未执行，因为它会扫描 `.agents` 技能文档和其他无关生成文件。
+
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/stage-tamagotchi/src/main/services/alicization/memory-workbench-dialogue-loop.test.ts packages/stage-ui/src/stores/alicization-memory-workbench.test.ts apps/stage-tamagotchi/src/renderer/pages/settings/memory/index.memory-workbench-page.test.ts
@@ -1696,7 +1706,7 @@ git commit -m "test(alicization): cover memory workbench product loop"
 
 ## Final Verification
 
-- [ ] **Step 1: 检查工作区**
+- [x] **Step 1: 检查工作区**
 
 Run:
 
@@ -1706,7 +1716,7 @@ git status --short
 
 Expected: 只剩用户已有的无关改动，或工作区干净。
 
-- [ ] **Step 2: 全量目标验证**
+- [x] **Step 2: 全量目标验证**
 
 Run:
 
@@ -1724,7 +1734,7 @@ pnpm -F @proj-alicization/stage-ui typecheck
 
 Expected: PASS。
 
-- [ ] **Step 3: 最终提交或汇报**
+- [x] **Step 3: 最终提交或汇报**
 
 如果最后还有未提交的相关修改：
 
