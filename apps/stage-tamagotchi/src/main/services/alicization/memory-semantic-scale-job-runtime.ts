@@ -689,6 +689,28 @@ export function createMemorySemanticScaleJobRuntime(input: {
     })
   }
 
+  async function renewClaimedLease(claimed: ClaimedMemorySemanticScaleJob) {
+    const now = input.now()
+    return await input.enqueueWrite(async () => {
+      await input.run(input.database, `
+        UPDATE memory_semantic_scale_jobs
+        SET lease_expires_at = ?, updated_at = ?
+        WHERE id = ? AND status = 'running' AND lease_token = ?
+      `, [
+        now + leaseMs,
+        now,
+        claimed.row.id,
+        claimed.leaseToken,
+      ])
+      const row = await input.get<Pick<MemorySemanticScaleJobRow, 'status' | 'lease_token'>>(
+        input.database,
+        'SELECT status, lease_token FROM memory_semantic_scale_jobs WHERE id = ?',
+        [claimed.row.id],
+      )
+      return row?.status === 'running' && row.lease_token === claimed.leaseToken
+    })
+  }
+
   function startLeaseHeartbeat(
     claimed: ClaimedMemorySemanticScaleJob,
     executionController: AbortController,
@@ -896,11 +918,10 @@ export function createMemorySemanticScaleJobRuntime(input: {
         stopLeaseHeartbeat = null
       }
       let settlementFailureCount = 0
-      const settlementRetryLimit = 3
+      let stoppingSettlementFailureCount = 0
+      const stoppingSettlementRetryLimit = 3
       let settled = false
-      while (settlementFailureCount < settlementRetryLimit) {
-        if (settlementFailureCount > 0 && stopping)
-          break
+      while (true) {
         try {
           await settleExecution({
             claimed,
@@ -913,16 +934,27 @@ export function createMemorySemanticScaleJobRuntime(input: {
         }
         catch (error) {
           settlementFailureCount += 1
+          if (stopping)
+            stoppingSettlementFailureCount += 1
           await persistWorkerErrorBestEffort(jobId, error)
-          if (stopping || settlementFailureCount >= settlementRetryLimit)
+          if (
+            stopping
+            && stoppingSettlementFailureCount >= stoppingSettlementRetryLimit
+          ) {
             break
-          const retryDelayBudget = Math.floor(
-            Math.max(0, leaseMs - 1) / Math.max(1, settlementRetryLimit - 1),
-          )
-          await waitUntilAborted(
-            Math.min(workerRetryDelay(settlementFailureCount), retryDelayBudget),
-            controller.signal,
-          )
+          }
+          if (!stopping) {
+            let leaseStillOwned: boolean | null = null
+            try {
+              leaseStillOwned = await renewClaimedLease(claimed)
+            }
+            catch (leaseError) {
+              await persistWorkerErrorBestEffort(jobId, leaseError)
+            }
+            if (leaseStillOwned === false)
+              break
+            await wait(workerRetryDelay(settlementFailureCount))
+          }
         }
       }
       if (!settled)

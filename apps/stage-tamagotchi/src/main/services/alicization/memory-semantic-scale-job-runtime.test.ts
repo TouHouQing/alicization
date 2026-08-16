@@ -1077,6 +1077,135 @@ describe('memory semantic scale job runtime', () => {
     })
   })
 
+  it('keeps the in-memory report beyond a fixed retry count without rerunning the executor', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let remainingCompletionFailures = 5
+    let executions = 0
+    const { runtime } = attachRuntime(harness, {
+      tempRootDir,
+      run: async (sql, params = []) => {
+        if (
+          remainingCompletionFailures > 0
+          && sql.includes(`SET status = 'completed'`)
+        ) {
+          remainingCompletionFailures -= 1
+          throw new Error('transient completion persistence failure')
+        }
+        return await harness.run(sql, params)
+      },
+      executeJob: async ({ corpusSize }) => {
+        executions += 1
+        return createReport(corpusSize, 'settlement-report-survives-retries')
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+
+    await expect(runtime.runJob(job.jobId)).resolves.toBeUndefined()
+
+    expect(remainingCompletionFailures).toBe(0)
+    expect(executions).toBe(1)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'completed',
+      attemptCount: 1,
+      lastError: null,
+      report: {
+        id: 'settlement-report-survives-retries',
+      },
+    })
+  })
+
+  it('renews the claimed lease while retrying settlement with an in-memory report', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let remainingCompletionFailures = 2
+    let settlementLeaseRenewals = 0
+    const { runtime } = attachRuntime(harness, {
+      leaseMs: 60,
+      tempRootDir,
+      run: async (sql, params = []) => {
+        if (
+          remainingCompletionFailures > 0
+          && sql.includes(`SET status = 'completed'`)
+        ) {
+          remainingCompletionFailures -= 1
+          throw new Error('transient completion persistence failure')
+        }
+        if (
+          sql.includes('SET lease_expires_at = ?, updated_at = ?')
+          && sql.includes(`status = 'running' AND lease_token = ?`)
+        ) {
+          settlementLeaseRenewals += 1
+        }
+        return await harness.run(sql, params)
+      },
+      executeJob: async ({ corpusSize }) =>
+        createReport(corpusSize, 'settlement-lease-renewal'),
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+
+    await runtime.runJob(job.jobId)
+
+    expect(remainingCompletionFailures).toBe(0)
+    expect(settlementLeaseRenewals).toBeGreaterThan(0)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'completed',
+      report: {
+        id: 'settlement-lease-renewal',
+      },
+    })
+  })
+
+  it('retries stop requeue settlement without consuming the claimed attempt', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let failCompletionWrites = true
+    let failNextStopRequeue = true
+    let completionSettlementAttempts = 0
+    let executions = 0
+    const { runtime } = attachRuntime(harness, {
+      tempRootDir,
+      run: async (sql, params = []) => {
+        if (failCompletionWrites && sql.includes(`SET status = 'completed'`)) {
+          completionSettlementAttempts += 1
+          throw new Error('completion persistence unavailable before stop')
+        }
+        if (
+          failNextStopRequeue
+          && sql.includes(`SET status = 'queued', dead_lettered = 0`)
+        ) {
+          failNextStopRequeue = false
+          throw new Error('transient stop requeue persistence failure')
+        }
+        return await harness.run(sql, params)
+      },
+      executeJob: async ({ corpusSize }) => {
+        executions += 1
+        return createReport(corpusSize, 'stop-requeue-report')
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    const worker = runtime.runJob(job.jobId)
+    await waitFor(() => {
+      expect(completionSettlementAttempts).toBeGreaterThan(0)
+    })
+
+    failCompletionWrites = false
+    await runtime.stop()
+    await worker
+
+    expect(failNextStopRequeue).toBe(false)
+    expect(executions).toBe(1)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'queued',
+      attemptCount: 0,
+      deadLettered: false,
+    })
+  })
+
   it('bounds persistent settlement failures so stop resolves and leaves the lease recoverable', async () => {
     const harness = await createSqliteHarness()
     const tempRootDir = await createTempRoot()
@@ -1109,6 +1238,7 @@ describe('memory semantic scale job runtime', () => {
     await waitFor(() => {
       expect(settlementAttempts).toBeGreaterThanOrEqual(2)
     })
+    const attemptsBeforeStop = settlementAttempts
 
     const stopPromise = runtime.stop().then(() => 'stopped' as const)
     const stopResult = await Promise.race([
@@ -1120,7 +1250,7 @@ describe('memory semantic scale job runtime', () => {
 
     expect(stopResult).toBe('stopped')
     expect(executions).toBe(1)
-    expect(settlementAttempts).toBeLessThanOrEqual(3)
+    expect(settlementAttempts - attemptsBeforeStop).toBeLessThanOrEqual(3)
     expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
       status: 'running',
       attemptCount: 1,
