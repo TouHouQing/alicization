@@ -349,6 +349,61 @@ describe('memory semantic scale file recovery journal', () => {
     await worker
   })
 
+  it('rejects close before writing a stop marker above the UTF-8 reader limit', async () => {
+    const rootDir = await createSandboxDir()
+    const databasePath = join(rootDir, 'alicization.sqlite')
+    const recoveryJournalDir = join(dirname(databasePath), '.alicization-memory-semantic-scale-stop-recovery')
+    const harness = await openFileSqliteHarness(databasePath)
+    let failCompletion = true
+    let failAllJobUpdates = false
+    let completionStarted: (() => void) | undefined
+    const completionStartedPromise = new Promise<void>((resolve) => {
+      completionStarted = resolve
+    })
+    const oversizedRecommendation = '界'.repeat(Math.floor((512 * 1024) / 3) + 1)
+    const { runtime } = attachRuntime(harness, {
+      maxAttempts: 1,
+      stopTimeoutMs: 100,
+      tempRootDir: rootDir,
+      run: async (sql, params = []) => {
+        if (
+          failAllJobUpdates
+          && /^\s*UPDATE memory_semantic_scale_jobs\b/.test(sql)
+        ) {
+          throw new Error('SQLITE_IOERR: every semantic scale UPDATE failed')
+        }
+        if (failCompletion && sql.includes(`SET status = 'completed'`)) {
+          completionStarted?.()
+          throw new Error('completion settlement unavailable before close')
+        }
+        return await harness.run(sql, params)
+      },
+      executeJob: async ({ corpusSize }) => ({
+        ...createReport(corpusSize, 'oversized-stop-marker'),
+        recommendedNextActions: [oversizedRecommendation],
+      }),
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-file', tier: '10k' })
+    const worker = runtime.runJob(job.jobId)
+    await completionStartedPromise
+
+    failCompletion = false
+    failAllJobUpdates = true
+    const closeRuntime = async () => {
+      await runtime.stop()
+      await harness.close()
+    }
+
+    await expect(closeRuntime()).rejects.toThrow(
+      'semantic scale stop recovery marker exceeds 524288 UTF-8 bytes',
+    )
+    expect(harness.closed).toBe(false)
+    expect((await readdir(recoveryJournalDir).catch(() => []))
+      .filter(name => /^[a-f0-9]{64}\.json$/.test(name))).toEqual([])
+    await worker
+  })
+
   it('atomically quarantines corrupt, hash-mismatched, and identity-mismatched markers during concurrent initialize', async () => {
     const rootDir = await createSandboxDir()
     const databasePath = join(rootDir, 'alicization.sqlite')

@@ -1,12 +1,15 @@
 import type sqlite3 from 'sqlite3'
 
 import type { MemorySemanticScaleSoakReport } from './memory-semantic-scale-soak-harness'
+import type { AlicizationAtomicWriteOptions } from './runtime-atomic-write'
 
 import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
-import { chmod, mkdir, mkdtemp, open as openFile, readdir, rename, rm, stat } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, open as openFile, readdir, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
+import { performance } from 'node:perf_hooks'
+import { platform as processPlatform } from 'node:process'
 
 import sqlite from 'sqlite3'
 
@@ -17,6 +20,11 @@ import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-pe
 import { createSqliteVecLongTermMemoryVectorBackend } from './long-term-memory-sqlite-vec-backend'
 import { createLongTermMemoryVectorIndexAdapter } from './long-term-memory-vector-index-adapter'
 import { runMemorySemanticScaleVectorAdapterSoak } from './memory-semantic-scale-soak-runtime'
+import {
+
+  renameAlicizationAtomicPath,
+  writeAlicizationAtomicContent,
+} from './runtime-atomic-write'
 
 export type MemorySemanticScaleJobTier = '10k' | '100k'
 export type MemorySemanticScaleJobStatus = 'queued' | 'running' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
@@ -66,6 +74,11 @@ export interface MemorySemanticScaleJobExecutionInput {
 export type MemorySemanticScaleJobExecutor = (
   input: MemorySemanticScaleJobExecutionInput,
 ) => Promise<MemorySemanticScaleSoakReport>
+
+type MemorySemanticScaleRecoveryAtomicWriteOptions = Pick<
+  AlicizationAtomicWriteOptions,
+  'appendAuditLog' | 'fsyncPath' | 'platform' | 'renamePath' | 'renameRetryDelaysMs' | 'sleep'
+>
 
 interface MemorySemanticScaleJobRow {
   id: string
@@ -121,7 +134,8 @@ interface ActiveMemorySemanticScaleAttempt {
   executorSettled: boolean
   report: MemorySemanticScaleSoakReport | null
   executionError: unknown
-  stopRequested: boolean
+  abortedByStop: boolean
+  stopAbortReason: Error | null
   stopInterrupted: boolean
   detached: boolean
   settlementCompleted: boolean
@@ -136,6 +150,44 @@ const stopRecoveryMarkerMaxBytes = 512 * 1024
 const stopRecoveryMarkerFilePattern = /^[a-f0-9]{64}\.json$/
 
 class InvalidStopRecoveryMarkerError extends Error {}
+class StopDeadlineExceededError extends Error {}
+
+interface StopDeadline {
+  expiresAt: number
+}
+
+function stopDeadlineError(stage: string) {
+  return new StopDeadlineExceededError(
+    `semantic scale runtime stop deadline reached during ${stage}`,
+  )
+}
+
+function assertStopDeadline(deadline: StopDeadline, stage: string) {
+  if (performance.now() >= deadline.expiresAt)
+    throw stopDeadlineError(stage)
+}
+
+async function withinStopDeadline<T>(
+  deadline: StopDeadline,
+  stage: string,
+  task: () => Promise<T>,
+) {
+  assertStopDeadline(deadline, stage)
+  const remainingMs = Math.max(0, deadline.expiresAt - performance.now())
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      task(),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(stopDeadlineError(stage)), remainingMs)
+      }),
+    ])
+  }
+  finally {
+    if (timer)
+      clearTimeout(timer)
+  }
+}
 
 function normalizeText(raw: unknown, maxLength: number) {
   return typeof raw === 'string'
@@ -470,13 +522,29 @@ async function syncDirectory(path: string) {
   }
 }
 
-async function secureDirectory(path: string, create: boolean) {
-  if (create)
-    await mkdir(path, { recursive: true, mode: 0o700 })
-  await chmod(path, 0o700)
+async function secureDirectory(
+  path: string,
+  create: boolean,
+  platform: NodeJS.Platform,
+) {
+  if (create) {
+    await mkdir(path, {
+      recursive: true,
+      mode: platform === 'win32' ? undefined : 0o700,
+    })
+  }
+  if (platform !== 'win32')
+    await chmod(path, 0o700)
   const metadata = await stat(path)
-  if (!metadata.isDirectory() || (metadata.mode & 0o777) !== 0o700)
+  if (
+    !metadata.isDirectory()
+    || (
+      platform !== 'win32'
+      && (metadata.mode & 0o777) !== 0o700
+    )
+  ) {
     throw new Error(`semantic scale recovery path is not a secure directory: ${path}`)
+  }
 }
 
 function defaultStopRecoveryJournalDir(database: sqlite3.Database) {
@@ -692,6 +760,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
     tempRootDir: string
   }) => Promise<string>
   removeTempDir?: (path: string) => Promise<void>
+  recoveryAtomicWriteOptions?: MemorySemanticScaleRecoveryAtomicWriteOptions
 }) {
   const executeJob = input.executeJob ?? executeMemorySemanticScaleJob
   const maxAttempts = normalizePositiveInteger(input.maxAttempts, 3, 20)
@@ -702,6 +771,10 @@ export function createMemorySemanticScaleJobRuntime(input: {
   const leaseHeartbeatMs = Math.max(1, Math.floor(leaseMs / 3))
   const recoveryJournalDir = input.recoveryJournalDir
     ?? defaultStopRecoveryJournalDir(input.database)
+  const recoveryPlatform = input.recoveryAtomicWriteOptions?.platform
+    ?? processPlatform
+  const appendRecoveryAuditLog = input.recoveryAtomicWriteOptions?.appendAuditLog
+    ?? (async () => {})
   const tempRootDir = input.tempRootDir ?? tmpdir()
   const createTempDir = input.createTempDir ?? (async () => {
     await mkdir(tempRootDir, { recursive: true })
@@ -716,13 +789,27 @@ export function createMemorySemanticScaleJobRuntime(input: {
   let stopping = false
   let stopPromise: Promise<void> | null = null
 
-  async function readJobRow(jobId: string, expectedCardId?: string) {
+  async function readJobRow(
+    jobId: string,
+    expectedCardId?: string,
+    stopDeadline?: StopDeadline,
+  ) {
     const normalizedJobId = normalizeText(jobId, 240)
-    const row = await input.get<MemorySemanticScaleJobRow>(
-      input.database,
-      'SELECT * FROM memory_semantic_scale_jobs WHERE id = ?',
-      [normalizedJobId],
-    )
+    const row = stopDeadline
+      ? await withinStopDeadline(
+          stopDeadline,
+          `job read for ${normalizedJobId}`,
+          async () => await input.get<MemorySemanticScaleJobRow>(
+            input.database,
+            'SELECT * FROM memory_semantic_scale_jobs WHERE id = ?',
+            [normalizedJobId],
+          ),
+        )
+      : await input.get<MemorySemanticScaleJobRow>(
+          input.database,
+          'SELECT * FROM memory_semantic_scale_jobs WHERE id = ?',
+          [normalizedJobId],
+        )
     if (!row)
       throw new Error(`semantic scale job not found: ${normalizedJobId}`)
     const normalizedExpectedCardId = normalizeText(expectedCardId, 120)
@@ -754,37 +841,83 @@ export function createMemorySemanticScaleJobRuntime(input: {
 
   async function writeStopRecoveryMarker(
     marker: MemorySemanticScaleStopRecoveryMarker,
+    stopDeadline?: StopDeadline,
   ) {
-    await secureDirectory(recoveryJournalDir, true)
     const fileName = stopRecoveryMarkerFileName(marker)
     const path = join(recoveryJournalDir, fileName)
-    const nonce = createHash('sha256')
-      .update(input.randomUUID())
-      .digest('hex')
-      .slice(0, 16)
-    const tempPath = join(recoveryJournalDir, `.${fileName}.${nonce}.tmp`)
-    let file: Awaited<ReturnType<typeof openFile>> | null = null
-    try {
-      file = await openFile(tempPath, 'wx', 0o600)
-      await file.writeFile(JSON.stringify(marker), 'utf8')
-      await file.sync()
-      await file.close()
-      file = null
-      await rename(tempPath, path)
-      await chmod(path, 0o600)
-      await syncDirectory(recoveryJournalDir)
+    const content = JSON.stringify(marker)
+    const markerBytes = Buffer.byteLength(content, 'utf8')
+    if (markerBytes > stopRecoveryMarkerMaxBytes) {
+      throw new Error(
+        `semantic scale stop recovery marker exceeds ${stopRecoveryMarkerMaxBytes} UTF-8 bytes: ${markerBytes}`,
+      )
     }
-    finally {
-      await file?.close().catch(() => {})
-      await rm(tempPath, { force: true }).catch(() => {})
-    }
+    await writeAlicizationAtomicContent({
+      ...input.recoveryAtomicWriteOptions,
+      path,
+      category: 'semantic-scale-stop-recovery',
+      content,
+      directoryMode: 0o700,
+      fileMode: 0o600,
+      randomId: input.randomUUID,
+      now: input.now,
+      runStep: async <T>(stage: string, task: () => Promise<T>) =>
+        stopDeadline
+          ? await withinStopDeadline(
+              stopDeadline,
+              `recovery marker ${stage}`,
+              task,
+            )
+          : await task(),
+    })
     return path
   }
 
-  async function removeRecoveryFile(path: string) {
+  async function syncRecoveryDirectory(
+    path: string,
+    stopDeadline?: StopDeadline,
+  ) {
+    const runStep = async <T>(stage: string, task: () => Promise<T>) =>
+      stopDeadline
+        ? await withinStopDeadline(stopDeadline, stage, task)
+        : await task()
     try {
-      await rm(path)
-      await syncDirectory(dirname(path))
+      await runStep('recovery directory sync', async () =>
+        await syncDirectory(path))
+    }
+    catch (error) {
+      if (
+        recoveryPlatform !== 'win32'
+        || !['EPERM', 'EBADF', 'EINVAL', 'ENOTSUP'].includes(
+          String((error as NodeJS.ErrnoException | null)?.code),
+        )
+      ) {
+        throw error
+      }
+      await runStep('recovery directory fsync degradation audit', async () =>
+        await appendRecoveryAuditLog({
+          level: 'notice',
+          category: 'semantic-scale-stop-recovery',
+          action: 'directory-fsync-degraded',
+          message: 'Directory fsync is not supported for this recovery journal operation.',
+          payload: {
+            code: (error as NodeJS.ErrnoException).code,
+            path,
+            platform: recoveryPlatform,
+          },
+        }))
+    }
+  }
+
+  async function removeRecoveryFile(path: string, stopDeadline?: StopDeadline) {
+    const runStep = async <T>(stage: string, task: () => Promise<T>) =>
+      stopDeadline
+        ? await withinStopDeadline(stopDeadline, stage, task)
+        : await task()
+    try {
+      await runStep('reconciled recovery marker removal', async () =>
+        await rm(path))
+      await syncRecoveryDirectory(dirname(path), stopDeadline)
     }
     catch (error) {
       if (!hasErrorCode(error, 'ENOENT'))
@@ -797,7 +930,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
     reason: string,
   ) {
     const quarantineDir = join(recoveryJournalDir, 'quarantine')
-    await secureDirectory(quarantineDir, true)
+    await secureDirectory(quarantineDir, true, recoveryPlatform)
     const nonce = createHash('sha256')
       .update(input.randomUUID())
       .digest('hex')
@@ -807,45 +940,67 @@ export function createMemorySemanticScaleJobRuntime(input: {
       `${basename(path)}.${nonce}.invalid`,
     )
     try {
-      await rename(path, quarantinedPath)
+      await renameAlicizationAtomicPath({
+        ...input.recoveryAtomicWriteOptions,
+        sourcePath: path,
+        targetPath: quarantinedPath,
+        category: 'semantic-scale-stop-recovery',
+      })
     }
     catch (error) {
       if (hasErrorCode(error, 'ENOENT'))
         return
       throw error
     }
-    await chmod(quarantinedPath, 0o600)
+    if (recoveryPlatform !== 'win32') {
+      await chmod(quarantinedPath, 0o600)
+      const quarantinedMode = (await stat(quarantinedPath)).mode & 0o777
+      if (quarantinedMode !== 0o600) {
+        throw new Error(
+          `semantic scale quarantined marker permissions are not secure: ${quarantinedPath}`,
+        )
+      }
+    }
+    await syncRecoveryDirectory(quarantineDir)
+    await syncRecoveryDirectory(recoveryJournalDir)
     const auditPath = `${quarantinedPath}.error.json`
-    let auditFile: Awaited<ReturnType<typeof openFile>> | null = null
-    try {
-      auditFile = await openFile(auditPath, 'wx', 0o600)
-      await auditFile.writeFile(JSON.stringify({
+    await writeAlicizationAtomicContent({
+      ...input.recoveryAtomicWriteOptions,
+      path: auditPath,
+      category: 'semantic-scale-stop-recovery',
+      content: JSON.stringify({
         version: 1,
         originalFileName: basename(path),
         quarantinedFileName: basename(quarantinedPath),
         reason,
         quarantinedAt: input.now(),
-      }), 'utf8')
-      await auditFile.sync()
-      await auditFile.close()
-      auditFile = null
-      await chmod(auditPath, 0o600)
-      await syncDirectory(quarantineDir)
-      await syncDirectory(recoveryJournalDir)
-    }
-    finally {
-      await auditFile?.close().catch(() => {})
-    }
+      }),
+      directoryMode: 0o700,
+      fileMode: 0o600,
+      randomId: input.randomUUID,
+      now: input.now,
+    })
   }
 
   async function reconcileStopRecoveryMarker(
     marker: MemorySemanticScaleStopRecoveryMarker,
+    stopDeadline?: StopDeadline,
   ) {
-    const row = await input.get<MemorySemanticScaleJobRow>(
-      input.database,
-      'SELECT * FROM memory_semantic_scale_jobs WHERE id = ?',
-      [marker.jobId],
-    )
+    const row = stopDeadline
+      ? await withinStopDeadline(
+          stopDeadline,
+          `recovery reconciliation read for ${marker.jobId}`,
+          async () => await input.get<MemorySemanticScaleJobRow>(
+            input.database,
+            'SELECT * FROM memory_semantic_scale_jobs WHERE id = ?',
+            [marker.jobId],
+          ),
+        )
+      : await input.get<MemorySemanticScaleJobRow>(
+          input.database,
+          'SELECT * FROM memory_semantic_scale_jobs WHERE id = ?',
+          [marker.jobId],
+        )
     if (
       !row
       || row.card_id !== marker.cardId
@@ -873,12 +1028,13 @@ export function createMemorySemanticScaleJobRuntime(input: {
         ? marker.resolution.reason
         : null,
       requireIdentity: true,
+      stopDeadline,
     })
   }
 
   async function replayStopRecoveryJournal() {
     try {
-      await secureDirectory(recoveryJournalDir, false)
+      await secureDirectory(recoveryJournalDir, false, recoveryPlatform)
     }
     catch (error) {
       if (hasErrorCode(error, 'ENOENT'))
@@ -891,7 +1047,8 @@ export function createMemorySemanticScaleJobRuntime(input: {
         continue
       const path = join(recoveryJournalDir, entry.name)
       try {
-        await chmod(path, 0o600)
+        if (recoveryPlatform !== 'win32')
+          await chmod(path, 0o600)
         const marker = await readStopRecoveryMarker(path)
         if (stopRecoveryMarkerFileName(marker) !== entry.name)
           throw invalidStopRecoveryMarker(path, 'file name hash mismatch')
@@ -1195,8 +1352,12 @@ export function createMemorySemanticScaleJobRuntime(input: {
     const claimed = attempt.claimed
     if (!claimed)
       throw new Error(`semantic scale stop recovery requires a claimed attempt: ${attempt.jobId}`)
-    const interrupted = !attempt.executorSettled
+    const interrupted = (attempt.abortedByStop && !attempt.executorSettled)
       || (attempt.stopInterrupted && !attempt.report)
+    const unsettledAbortReason = !attempt.executorSettled
+      && attempt.controller.signal.aborted
+      ? attempt.controller.signal.reason
+      : null
     const marker: MemorySemanticScaleStopRecoveryMarker = {
       version: 2,
       jobId: claimed.row.id,
@@ -1212,8 +1373,11 @@ export function createMemorySemanticScaleJobRuntime(input: {
         : {
             kind: 'settled',
             report: attempt.report,
-            error: attempt.executionError
-              ? errorText(attempt.executionError, 'semantic scale job failed')
+            error: attempt.executionError || unsettledAbortReason
+              ? errorText(
+                  attempt.executionError ?? unsettledAbortReason,
+                  'semantic scale job failed',
+                )
               : null,
           },
     }
@@ -1222,17 +1386,23 @@ export function createMemorySemanticScaleJobRuntime(input: {
 
   async function preserveAttemptForRecovery(
     attempt: ActiveMemorySemanticScaleAttempt,
+    stopDeadline: StopDeadline,
   ) {
     const marker = stopRecoveryMarkerForAttempt(attempt)
-    const markerPath = await writeStopRecoveryMarker(marker)
+    const markerPath = await writeStopRecoveryMarker(marker, stopDeadline)
     try {
-      await reconcileStopRecoveryMarker(marker)
-      await removeRecoveryFile(markerPath)
+      await reconcileStopRecoveryMarker(marker, stopDeadline)
       attempt.settlementCompleted = true
     }
-    catch {
+    catch (error) {
+      if (error instanceof StopDeadlineExceededError)
+        throw error
       // The synced marker is authoritative when the live database cannot settle.
+      return
     }
+    await removeRecoveryFile(markerPath, stopDeadline).catch(() => {
+      // A settled database row remains authoritative if marker cleanup cannot finish.
+    })
   }
 
   function startLeaseHeartbeat(
@@ -1295,137 +1465,152 @@ export function createMemorySemanticScaleJobRuntime(input: {
     interrupted: boolean
     interruptionReason: string | null
     requireIdentity?: boolean
+    stopDeadline?: StopDeadline
   }) {
     const now = input.now()
-    return await input.enqueueWrite(async () => {
-      return await input.runInTransaction(input.database, async () => {
-        const row = await readJobRow(inputData.claimed.row.id)
-        if (
-          row.card_id !== inputData.claimed.row.card_id
-          || row.lease_token !== inputData.claimed.leaseToken
-          || (row.status !== 'running' && row.status !== 'cancel_requested')
-        ) {
-          if (inputData.requireIdentity) {
-            throw invalidStopRecoveryMarker(
-              inputData.claimed.row.id,
-              'identity mismatch',
-            )
-          }
-          return false
-        }
-        const progress = normalizeProgress(
-          safeParseJson<unknown>(row.progress_json, null),
-          Number(row.corpus_size),
-        )
-
-        if (row.status === 'cancel_requested') {
-          await input.run(input.database, `
-            UPDATE memory_semantic_scale_jobs
-            SET status = 'cancelled', dead_lettered = 0,
-                next_retry_at = NULL, lease_token = NULL, lease_expires_at = NULL,
-                completed_at = COALESCE(completed_at, ?), updated_at = ?
-            WHERE id = ? AND lease_token = ?
-          `, [now, now, row.id, inputData.claimed.leaseToken])
-          return true
-        }
-
-        if (inputData.interrupted) {
-          const attemptCountBeforeClaim = Math.max(
-            0,
-            Number(inputData.claimed.row.attempt_count) - 1,
+    const runStep = async <T>(stage: string, task: () => Promise<T>) =>
+      inputData.stopDeadline
+        ? await withinStopDeadline(inputData.stopDeadline, stage, task)
+        : await task()
+    return await runStep('recovery settlement queue', async () =>
+      await input.enqueueWrite(async () => {
+        if (inputData.stopDeadline)
+          assertStopDeadline(inputData.stopDeadline, 'recovery settlement queue')
+        return await input.runInTransaction(input.database, async () => {
+          if (inputData.stopDeadline)
+            assertStopDeadline(inputData.stopDeadline, 'recovery settlement transaction')
+          const row = await readJobRow(
+            inputData.claimed.row.id,
+            undefined,
+            inputData.stopDeadline,
           )
-          await input.run(input.database, `
+          if (
+            row.card_id !== inputData.claimed.row.card_id
+            || row.lease_token !== inputData.claimed.leaseToken
+            || (row.status !== 'running' && row.status !== 'cancel_requested')
+          ) {
+            if (inputData.requireIdentity) {
+              throw invalidStopRecoveryMarker(
+                inputData.claimed.row.id,
+                'identity mismatch',
+              )
+            }
+            return false
+          }
+          const progress = normalizeProgress(
+            safeParseJson<unknown>(row.progress_json, null),
+            Number(row.corpus_size),
+          )
+
+          if (row.status === 'cancel_requested') {
+            await runStep('recovery cancellation settlement', async () =>
+              await input.run(input.database, `
+              UPDATE memory_semantic_scale_jobs
+              SET status = 'cancelled', dead_lettered = 0,
+                  next_retry_at = NULL, lease_token = NULL, lease_expires_at = NULL,
+                  completed_at = COALESCE(completed_at, ?), updated_at = ?
+              WHERE id = ? AND lease_token = ?
+            `, [now, now, row.id, inputData.claimed.leaseToken]))
+            return true
+          }
+
+          if (inputData.interrupted) {
+            const attemptCountBeforeClaim = Math.max(
+              0,
+              Number(inputData.claimed.row.attempt_count) - 1,
+            )
+            await runStep('recovery interruption settlement', async () =>
+              await input.run(input.database, `
+              UPDATE memory_semantic_scale_jobs
+              SET status = 'queued', dead_lettered = 0,
+                  attempt_count = MIN(attempt_count, ?),
+                  next_retry_at = ?, lease_token = NULL, lease_expires_at = NULL,
+                  last_error = ?, completed_at = NULL, updated_at = ?
+              WHERE id = ? AND lease_token = ?
+            `, [
+                attemptCountBeforeClaim,
+                now,
+                inputData.interruptionReason
+                ?? 'semantic scale runtime stopped before execution produced a result',
+                now,
+                row.id,
+                inputData.claimed.leaseToken,
+              ]))
+            return true
+          }
+
+          if (!inputData.error && inputData.report?.passed) {
+            await runStep('recovery success settlement', async () =>
+              await input.run(input.database, `
+              UPDATE memory_semantic_scale_jobs
+              SET status = 'completed', dead_lettered = 0,
+                  next_retry_at = NULL, lease_token = NULL, lease_expires_at = NULL,
+                  progress_json = ?, report_json = ?, last_error = NULL,
+                  completed_at = ?, updated_at = ?
+              WHERE id = ? AND lease_token = ?
+            `, [
+                JSON.stringify(completedProgress(progress, Number(row.corpus_size))),
+                JSON.stringify(inputData.report),
+                now,
+                now,
+                row.id,
+                inputData.claimed.leaseToken,
+              ]))
+            return true
+          }
+
+          const qualityFailureChecks = inputData.report && !inputData.report.passed
+            ? inputData.report.summary.failingChecks
+                .map(check => normalizeText(check, 120))
+                .filter(Boolean)
+            : []
+          const message = qualityFailureChecks.length > 0
+            ? `semantic scale quality checks failed: ${qualityFailureChecks.join(', ')}`
+            : errorText(inputData.error, 'semantic scale job failed')
+          const deadLettered = Number(row.attempt_count) >= Number(row.max_attempts)
+          const nextRetryAt = deadLettered
+            ? null
+            : now + calculateBackoff(Number(row.attempt_count), retryBaseMs, retryMaxMs)
+          await runStep('recovery failure settlement', async () =>
+            await input.run(input.database, `
             UPDATE memory_semantic_scale_jobs
-            SET status = 'queued', dead_lettered = 0,
-                attempt_count = MIN(attempt_count, ?),
+            SET status = ?, dead_lettered = ?,
                 next_retry_at = ?, lease_token = NULL, lease_expires_at = NULL,
-                last_error = ?, completed_at = NULL, updated_at = ?
+                report_json = COALESCE(?, report_json),
+                last_error = ?, completed_at = ?, updated_at = ?
             WHERE id = ? AND lease_token = ?
           `, [
-            attemptCountBeforeClaim,
-            now,
-            inputData.interruptionReason
-            ?? 'semantic scale runtime stopped before execution produced a result',
-            now,
-            row.id,
-            inputData.claimed.leaseToken,
-          ])
+              deadLettered ? 'failed' : 'queued',
+              deadLettered ? 1 : 0,
+              nextRetryAt,
+              inputData.report ? JSON.stringify(inputData.report) : null,
+              message,
+              deadLettered ? now : null,
+              now,
+              row.id,
+              inputData.claimed.leaseToken,
+            ]))
           return true
-        }
-
-        if (!inputData.error && inputData.report?.passed) {
-          await input.run(input.database, `
-            UPDATE memory_semantic_scale_jobs
-            SET status = 'completed', dead_lettered = 0,
-                next_retry_at = NULL, lease_token = NULL, lease_expires_at = NULL,
-                progress_json = ?, report_json = ?, last_error = NULL,
-                completed_at = ?, updated_at = ?
-            WHERE id = ? AND lease_token = ?
-          `, [
-            JSON.stringify(completedProgress(progress, Number(row.corpus_size))),
-            JSON.stringify(inputData.report),
-            now,
-            now,
-            row.id,
-            inputData.claimed.leaseToken,
-          ])
-          return true
-        }
-
-        const qualityFailureChecks = inputData.report && !inputData.report.passed
-          ? inputData.report.summary.failingChecks
-              .map(check => normalizeText(check, 120))
-              .filter(Boolean)
-          : []
-        const message = qualityFailureChecks.length > 0
-          ? `semantic scale quality checks failed: ${qualityFailureChecks.join(', ')}`
-          : errorText(inputData.error, 'semantic scale job failed')
-        const deadLettered = Number(row.attempt_count) >= Number(row.max_attempts)
-        const nextRetryAt = deadLettered
-          ? null
-          : now + calculateBackoff(Number(row.attempt_count), retryBaseMs, retryMaxMs)
-        await input.run(input.database, `
-          UPDATE memory_semantic_scale_jobs
-          SET status = ?, dead_lettered = ?,
-              next_retry_at = ?, lease_token = NULL, lease_expires_at = NULL,
-              report_json = COALESCE(?, report_json),
-              last_error = ?, completed_at = ?, updated_at = ?
-          WHERE id = ? AND lease_token = ?
-        `, [
-          deadLettered ? 'failed' : 'queued',
-          deadLettered ? 1 : 0,
-          nextRetryAt,
-          inputData.report ? JSON.stringify(inputData.report) : null,
-          message,
-          deadLettered ? now : null,
-          now,
-          row.id,
-          inputData.claimed.leaseToken,
-        ])
-        return true
-      })
-    })
+        })
+      }))
   }
 
   function isStopInterruption(
     attempt: ActiveMemorySemanticScaleAttempt,
     error: unknown,
   ) {
-    if (!attempt.stopRequested || attempt.report)
+    if (!attempt.abortedByStop || !attempt.stopAbortReason || attempt.report)
       return false
-    const reason = attempt.controller.signal.reason
-    return (
-      error === reason
-      || (
-        error instanceof DOMException
-        && error.name === 'AbortError'
-      )
-      || (
-        error instanceof Error
-        && reason instanceof Error
-        && error.message === reason.message
-      )
-    )
+    return error === attempt.stopAbortReason
+  }
+
+  function abortAttemptForStop(attempt: ActiveMemorySemanticScaleAttempt) {
+    if (attempt.controller.signal.aborted)
+      return
+    const reason = new Error('semantic scale runtime stopping')
+    attempt.abortedByStop = true
+    attempt.stopAbortReason = reason
+    attempt.controller.abort(reason)
   }
 
   async function executeTrackedAttempt(
@@ -1451,8 +1636,8 @@ export function createMemorySemanticScaleJobRuntime(input: {
         if (attempt.detached)
           return mapJobRow(activeClaim.row)
         const current = await readJobRow(activeClaim.row.id)
-        if (stopping && !controller.signal.aborted)
-          controller.abort(new Error('semantic scale runtime stopping'))
+        if (stopping)
+          abortAttemptForStop(attempt)
         else if (current.status === 'cancel_requested' && !controller.signal.aborted)
           controller.abort(new Error(current.last_error ?? 'semantic scale job cancelled'))
         attempt.report = await executeJob({
@@ -1565,7 +1750,8 @@ export function createMemorySemanticScaleJobRuntime(input: {
       executorSettled: false,
       report: null,
       executionError: null,
-      stopRequested: false,
+      abortedByStop: false,
+      stopAbortReason: null,
       stopInterrupted: false,
       detached: false,
       settlementCompleted: false,
@@ -1729,14 +1915,18 @@ export function createMemorySemanticScaleJobRuntime(input: {
   }
 
   async function stopWithDeadline() {
+    const stopStartedAt = performance.now()
+    const stopDeadline: StopDeadline = {
+      expiresAt: stopStartedAt + stopTimeoutMs,
+    }
+    const attemptDeadline: StopDeadline = {
+      expiresAt: stopStartedAt + Math.max(1, Math.floor(stopTimeoutMs / 4)),
+    }
     stopping = true
     runtimeStopController.abort()
     const attempts = [...activeAttempts.values()]
-    for (const attempt of attempts) {
-      attempt.stopRequested = true
-      if (!attempt.controller.signal.aborted)
-        attempt.controller.abort(new Error('semantic scale runtime stopping'))
-    }
+    for (const attempt of attempts)
+      abortAttemptForStop(attempt)
 
     const trackedPromises = [
       ...attempts
@@ -1744,15 +1934,18 @@ export function createMemorySemanticScaleJobRuntime(input: {
         .filter((promise): promise is Promise<MemorySemanticScaleJob> => promise !== null),
       ...activeWorkers.values(),
     ]
-    let deadlineTimer: ReturnType<typeof setTimeout> | undefined
-    const settledBeforeDeadline = await Promise.race([
-      Promise.allSettled(trackedPromises),
-      new Promise<null>((resolve) => {
-        deadlineTimer = setTimeout(() => resolve(null), stopTimeoutMs)
-      }),
-    ])
-    if (deadlineTimer)
-      clearTimeout(deadlineTimer)
+    let settledBeforeDeadline: PromiseSettledResult<unknown>[] | null = null
+    try {
+      settledBeforeDeadline = await withinStopDeadline(
+        attemptDeadline,
+        'active attempt settlement',
+        async () => await Promise.allSettled(trackedPromises),
+      )
+    }
+    catch (error) {
+      if (!(error instanceof StopDeadlineExceededError))
+        throw error
+    }
 
     const stopErrors: unknown[] = []
     if (settledBeforeDeadline) {
@@ -1780,16 +1973,19 @@ export function createMemorySemanticScaleJobRuntime(input: {
         .filter(attempt =>
           !attempt.settlementCompleted
           && attempt.claimed !== null)
-        .map(async attempt => await preserveAttemptForRecovery(attempt)),
+        .map(async attempt => await preserveAttemptForRecovery(attempt, stopDeadline)),
     )
     for (const result of recoveryResults) {
       if (result.status === 'rejected')
         stopErrors.push(result.reason)
     }
     if (stopErrors.length > 0) {
+      const details = stopErrors
+        .map(error => errorText(error, 'unknown stop failure'))
+        .join('; ')
       throw new AggregateError(
         stopErrors,
-        'semantic scale runtime stop could not establish a safe recovery boundary',
+        `semantic scale runtime stop could not establish a safe recovery boundary: ${details}`,
       )
     }
   }

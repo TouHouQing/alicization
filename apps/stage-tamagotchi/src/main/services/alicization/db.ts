@@ -7162,6 +7162,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     retryBaseMs: options?.semanticScaleJobOptions?.retryBaseMs,
     retryMaxMs: options?.semanticScaleJobOptions?.retryMaxMs,
     tempRootDir: options?.semanticScaleJobOptions?.tempRootDir,
+    recoveryAtomicWriteOptions: {
+      appendAuditLog,
+    },
   })
   const memoryWorkbenchPersonaCandidateRuntime = createMemoryWorkbenchPersonaCandidateRuntime({
     database,
