@@ -11,6 +11,8 @@ import { useI18n } from 'vue-i18n'
 
 import MemoryEmbeddingConfig from './components/memory-embedding-config.vue'
 import MemoryQualitySessionPicker from './components/memory-quality-session-picker.vue'
+import PersonaTrainingExecutorConfig from './components/persona-training-executor-config.vue'
+import PersonaTrainingRuns from './components/persona-training-runs.vue'
 
 const store = useAlicizationMemoryWorkbenchStore()
 const cardStore = useAiriCardStore()
@@ -26,9 +28,6 @@ const {
   personaTrainingDataset,
   personaTrainingDatasetExport,
   personaTrainingDatasetLoading,
-  personaTrainingIncrements,
-  personaTrainingRun,
-  personaTrainingRunLoading,
   skills,
   skillLoading,
   reindexLoading,
@@ -463,14 +462,17 @@ onMounted(() => {
   void store.refreshSnapshot()
   void store.refreshPersonaCandidates()
   void store.refreshPersonaTrainingDataset()
-  void store.refreshPersonaTrainingIncrements()
   void store.refreshSkills(false)
   void store.loadMonthlyGoldLabels(goldLabelMonth.value)
   reloadQualityTrialContext()
 })
 
 watch(activeCardId, () => {
+  store.resetPersonaTrainingScope()
   reloadQualityTrialContext()
+  void store.refreshPersonaTrainingDataset()
+  void store.refreshPersonaTrainingRuns()
+  void store.refreshPersonaTrainingIncrements()
 })
 </script>
 
@@ -1397,6 +1399,8 @@ watch(activeCardId, () => {
     </section>
 
     <section v-else-if="activeTab === 'persona'" :class="['flex', 'flex-col', 'gap-3']">
+      <PersonaTrainingExecutorConfig />
+      <PersonaTrainingRuns :dataset-id="personaTrainingDataset?.activeVersionId" />
       <div :class="['flex', 'flex-wrap', 'gap-2']">
         <Button
           :label="t('settings.pages.memory.workbench.actions.refresh')"
@@ -1405,65 +1409,6 @@ watch(activeCardId, () => {
           :loading="personaLoading"
           @click="store.refreshPersonaCandidates()"
         />
-        <Button
-          :label="t('settings.pages.memory.workbench.actions.run_persona_training')"
-          icon="i-solar:play-bold-duotone"
-          size="sm"
-          variant="secondary"
-          :loading="personaTrainingRunLoading"
-          :disabled="!personaTrainingDataset?.activeVersionId"
-          @click="store.runPersonaTraining(personaTrainingDataset?.activeVersionId)"
-        />
-        <Button
-          :label="t('settings.pages.memory.workbench.actions.refresh_persona_training')"
-          icon="i-solar:refresh-bold-duotone"
-          size="sm"
-          variant="secondary"
-          :loading="personaTrainingRunLoading"
-          @click="store.refreshPersonaTrainingIncrements()"
-        />
-      </div>
-      <div v-if="personaTrainingRun" :class="['border', personaTrainingRun.status === 'failed' ? 'border-rose-200 dark:border-rose-900' : 'border-emerald-200 dark:border-emerald-900', 'p-4']">
-        <div :class="['text-sm', 'font-semibold']">
-          {{ t('settings.pages.memory.workbench.fields.persona_training_last_run') }}
-        </div>
-        <div :class="['mt-2', 'text-sm']">
-          {{ personaTrainingRun.status === 'succeeded'
-            ? t('settings.pages.memory.workbench.states.persona_training_succeeded')
-            : t('settings.pages.memory.workbench.states.persona_training_failed') }}
-          · {{ personaTrainingRun.runId }}
-        </div>
-        <div v-if="personaTrainingRun.status === 'failed'" :class="['mt-1', 'text-sm', 'text-rose-600', 'dark:text-rose-300']">
-          {{ personaTrainingRun.error }}
-        </div>
-      </div>
-      <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
-        <div :class="['text-sm', 'font-semibold']">
-          {{ t('settings.pages.memory.workbench.fields.persona_training_increments') }}
-        </div>
-        <div v-if="personaTrainingIncrements.length === 0" :class="['mt-2', 'text-sm', 'text-neutral-500']">
-          {{ t('settings.pages.memory.workbench.states.empty_persona_training_increments') }}
-        </div>
-        <article v-for="increment in personaTrainingIncrements" :key="increment.id" :class="['mt-3', 'border', 'border-neutral-200', 'p-3', 'dark:border-neutral-800']">
-          <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
-            <span>{{ increment.id }}</span>
-            <span>{{ increment.state }}</span>
-            <span>{{ formatTimestamp(increment.createdAt) }}</span>
-          </div>
-          <div :class="['mt-1', 'text-xs', 'text-neutral-500']">
-            {{ t('settings.pages.memory.workbench.fields.dataset_manifest') }}: {{ increment.manifestHash }}
-          </div>
-          <Button
-            v-if="increment.state === 'available'"
-            :class="['mt-2']"
-            :label="t('settings.pages.memory.workbench.actions.rollback_persona_increment')"
-            icon="i-solar:restart-bold-duotone"
-            size="sm"
-            variant="secondary"
-            :loading="personaTrainingRunLoading"
-            @click="store.rollbackPersonaTrainingIncrement(increment.id)"
-          />
-        </article>
       </div>
       <div v-if="personaCandidates.length === 0" :class="['border', 'border-dashed', 'border-neutral-300', 'p-5', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
         {{ t('settings.pages.memory.workbench.states.empty_persona') }}

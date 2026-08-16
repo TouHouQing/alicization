@@ -130,6 +130,7 @@ import type {
   PersonaTrainingPipelineIncrement,
   PersonaTrainingPipelinePersistence,
   PersonaTrainingPipelineResult,
+  PersonaTrainingPipelineRunRecord,
 } from './persona-training-pipeline-gate'
 import type { AlicizationRelationshipDynamicsState } from './relationship-dynamics-state'
 import type {
@@ -1792,7 +1793,10 @@ export interface AlicizationDbService {
   }) => Promise<PersonaTrainingDatasetExample | null>
   revokePersonaTrainingDatasetSource: (input: { cardId: string, sourceId: string }) => Promise<{ affected: number }>
   runPersonaTraining: (input: { cardId: string, datasetId?: string | null }) => Promise<PersonaTrainingPipelineResult>
-  cancelPersonaTraining: (input: { cardId: string, runId: string, reason?: string | null }) => Promise<boolean>
+  startPersonaTraining: (input: { cardId: string, datasetId?: string | null }) => Promise<{ run: PersonaTrainingPipelineRunRecord }>
+  getPersonaTrainingRun: (input: { cardId: string, runId: string }) => Promise<PersonaTrainingPipelineRunRecord | null>
+  listPersonaTrainingRuns: (input: { cardId: string, limit?: number }) => Promise<PersonaTrainingPipelineRunRecord[]>
+  cancelPersonaTraining: (input: { cardId: string, runId: string, reason?: string | null }) => Promise<PersonaTrainingPipelineRunRecord | null>
   rollbackPersonaTrainingIncrement: (input: { cardId: string, incrementId: string }) => Promise<PersonaTrainingPipelineIncrement | null>
   listPersonaTrainingIncrements: (input: { cardId: string }) => Promise<PersonaTrainingPipelineIncrement[]>
   enqueueWorkingMemoryLongTermQueueItems: (input: {
@@ -1996,6 +2000,7 @@ export async function setupAlicizationDb(
     memoryTrialProvider?: AlicizationMemoryTrialProvider | null
     resolveMemoryTrialProvider?: () => AlicizationMemoryTrialProvider | null
     personaTrainingExecutor?: (input: PersonaTrainingExecutorInput) => Promise<PersonaTrainingExecutorOutput>
+    resolvePersonaTrainingExecutorConfig?: () => PersonaTrainingExecutorInput['configSnapshot'] | Promise<PersonaTrainingExecutorInput['configSnapshot']>
     semanticScaleJobOptions?: {
       executeJob?: MemorySemanticScaleJobExecutor
       maxAttempts?: number
@@ -2549,10 +2554,37 @@ export async function setupAlicizationDb(
         source_ids_json TEXT NOT NULL,
         base_persona_revision TEXT NOT NULL,
         status TEXT NOT NULL,
+        stage TEXT NOT NULL DEFAULT 'writing-input',
+        progress REAL NOT NULL DEFAULT 0,
+        progress_message TEXT,
+        failure_reason TEXT,
+        config_snapshot_json TEXT,
+        artifact_json TEXT,
         error TEXT,
+        queued_at INTEGER NOT NULL DEFAULT 0,
         started_at INTEGER NOT NULL,
-        finished_at INTEGER
+        updated_at INTEGER NOT NULL DEFAULT 0,
+        finished_at INTEGER,
+        cancellation_requested_at INTEGER
       )
+    `)
+    await run(database, `ALTER TABLE persona_training_runs ADD COLUMN stage TEXT NOT NULL DEFAULT 'writing-input'`).catch(() => {})
+    await run(database, 'ALTER TABLE persona_training_runs ADD COLUMN progress REAL NOT NULL DEFAULT 0').catch(() => {})
+    await run(database, 'ALTER TABLE persona_training_runs ADD COLUMN progress_message TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE persona_training_runs ADD COLUMN failure_reason TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE persona_training_runs ADD COLUMN config_snapshot_json TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE persona_training_runs ADD COLUMN artifact_json TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE persona_training_runs ADD COLUMN queued_at INTEGER NOT NULL DEFAULT 0').catch(() => {})
+    await run(database, 'ALTER TABLE persona_training_runs ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0').catch(() => {})
+    await run(database, 'ALTER TABLE persona_training_runs ADD COLUMN cancellation_requested_at INTEGER').catch(() => {})
+    await run(database, `
+      UPDATE persona_training_runs
+      SET
+        queued_at = CASE WHEN queued_at = 0 THEN started_at ELSE queued_at END,
+        updated_at = CASE
+          WHEN updated_at = 0 THEN COALESCE(finished_at, started_at)
+          ELSE updated_at
+        END
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_training_runs_card_started ON persona_training_runs(card_id, started_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_training_runs_dataset_status ON persona_training_runs(dataset_id, status, started_at DESC)')
@@ -6628,6 +6660,55 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       return row ? mapPersonaTrainingDatasetExampleRow(row) : null
     },
   }
+  interface PersonaTrainingRunRow {
+    run_id: string
+    card_id: string
+    dataset_id: string
+    manifest_hash: string
+    source_ids_json: string
+    base_persona_revision: string
+    status: PersonaTrainingPipelineRunRecord['status']
+    stage: PersonaTrainingPipelineRunRecord['stage']
+    progress: number
+    progress_message: string | null
+    failure_reason: PersonaTrainingPipelineRunRecord['failureReason']
+    config_snapshot_json: string | null
+    artifact_json: string | null
+    error: string | null
+    queued_at: number
+    started_at: number
+    updated_at: number
+    finished_at: number | null
+    cancellation_requested_at: number | null
+  }
+  const mapPersonaTrainingRunRow = (row: PersonaTrainingRunRow): PersonaTrainingPipelineRunRecord => {
+    const configSnapshot = parseJsonUnknown(row.config_snapshot_json)
+    return {
+      runId: row.run_id,
+      cardId: row.card_id,
+      datasetId: row.dataset_id,
+      manifestHash: row.manifest_hash,
+      sourceIds: parseJsonStringArray(row.source_ids_json),
+      basePersonaRevision: row.base_persona_revision,
+      status: row.status,
+      stage: row.stage,
+      progress: Number(row.progress) || 0,
+      progressMessage: row.progress_message,
+      failureReason: row.failure_reason,
+      configSnapshot: configSnapshot && typeof configSnapshot === 'object'
+        ? configSnapshot as PersonaTrainingPipelineRunRecord['configSnapshot']
+        : null,
+      artifact: parseJsonUnknown(row.artifact_json),
+      error: row.error,
+      queuedAt: Number(row.queued_at),
+      startedAt: row.started_at == null ? null : Number(row.started_at),
+      updatedAt: Number(row.updated_at),
+      finishedAt: row.finished_at == null ? null : Number(row.finished_at),
+      cancellationRequestedAt: row.cancellation_requested_at == null
+        ? null
+        : Number(row.cancellation_requested_at),
+    }
+  }
   const personaTrainingPipelinePersistence: PersonaTrainingPipelinePersistence = {
     createRun: async (runRecord) => {
       await enqueueWrite(async () => {
@@ -6636,8 +6717,10 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           `
           INSERT INTO persona_training_runs (
             run_id, card_id, dataset_id, manifest_hash, source_ids_json,
-            base_persona_revision, status, error, started_at, finished_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            base_persona_revision, status, stage, progress, progress_message,
+            failure_reason, config_snapshot_json, artifact_json, error,
+            queued_at, started_at, updated_at, finished_at, cancellation_requested_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
           [
             runRecord.runId,
@@ -6647,9 +6730,18 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             JSON.stringify(runRecord.sourceIds),
             runRecord.basePersonaRevision,
             runRecord.status,
+            runRecord.stage,
+            runRecord.progress,
+            runRecord.progressMessage,
+            runRecord.failureReason,
+            runRecord.configSnapshot ? JSON.stringify(runRecord.configSnapshot) : null,
+            serializePersonaTrainingArtifact(runRecord.artifact),
             runRecord.error,
-            runRecord.startedAt,
+            runRecord.queuedAt,
+            runRecord.startedAt ?? runRecord.queuedAt,
+            runRecord.updatedAt,
             runRecord.finishedAt,
+            runRecord.cancellationRequestedAt,
           ],
         )
       })
@@ -6681,17 +6773,53 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         updates.push('status = ?')
         values.push(runUpdate.status)
       }
+      if (runUpdate.stage !== undefined) {
+        updates.push('stage = ?')
+        values.push(runUpdate.stage)
+      }
+      if (runUpdate.progress !== undefined) {
+        updates.push('progress = ?')
+        values.push(runUpdate.progress)
+      }
+      if (runUpdate.progressMessage !== undefined) {
+        updates.push('progress_message = ?')
+        values.push(runUpdate.progressMessage)
+      }
+      if (runUpdate.failureReason !== undefined) {
+        updates.push('failure_reason = ?')
+        values.push(runUpdate.failureReason)
+      }
+      if (runUpdate.configSnapshot !== undefined) {
+        updates.push('config_snapshot_json = ?')
+        values.push(runUpdate.configSnapshot ? JSON.stringify(runUpdate.configSnapshot) : null)
+      }
+      if (runUpdate.artifact !== undefined) {
+        updates.push('artifact_json = ?')
+        values.push(serializePersonaTrainingArtifact(runUpdate.artifact))
+      }
       if (runUpdate.error !== undefined) {
         updates.push('error = ?')
         values.push(runUpdate.error)
       }
+      if (runUpdate.queuedAt !== undefined) {
+        updates.push('queued_at = ?')
+        values.push(runUpdate.queuedAt)
+      }
       if (runUpdate.startedAt !== undefined) {
         updates.push('started_at = ?')
-        values.push(runUpdate.startedAt)
+        values.push(runUpdate.startedAt ?? runUpdate.queuedAt ?? 0)
+      }
+      if (runUpdate.updatedAt !== undefined) {
+        updates.push('updated_at = ?')
+        values.push(runUpdate.updatedAt)
       }
       if (runUpdate.finishedAt !== undefined) {
         updates.push('finished_at = ?')
         values.push(runUpdate.finishedAt)
+      }
+      if (runUpdate.cancellationRequestedAt !== undefined) {
+        updates.push('cancellation_requested_at = ?')
+        values.push(runUpdate.cancellationRequestedAt)
       }
       if (updates.length === 0)
         return
@@ -6784,6 +6912,54 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         state: row.state,
         createdAt: row.created_at,
       }))
+    },
+    getRun: async (runId) => {
+      const row = await get<PersonaTrainingRunRow>(
+        database,
+        'SELECT * FROM persona_training_runs WHERE run_id = ?',
+        [runId],
+      )
+      return row ? mapPersonaTrainingRunRow(row) : null
+    },
+    listRuns: async (listInput) => {
+      const limit = Math.max(1, Math.min(100, Math.floor(listInput.limit ?? 20)))
+      const rows = await all<PersonaTrainingRunRow>(
+        database,
+        `
+        SELECT *
+        FROM persona_training_runs
+        WHERE card_id = ?
+        ORDER BY queued_at DESC, run_id DESC
+        LIMIT ?
+        `,
+        [listInput.cardId, limit],
+      )
+      return rows.map(mapPersonaTrainingRunRow)
+    },
+    interruptNonTerminalRuns: async (interruptInput) => {
+      const cardClause = interruptInput.cardId ? 'AND card_id = ?' : ''
+      const result = await enqueueWrite(async () => await run(
+        database,
+        `
+        UPDATE persona_training_runs
+        SET
+          status = 'interrupted',
+          stage = 'finalizing',
+          failure_reason = 'interrupted',
+          error = ?,
+          updated_at = ?,
+          finished_at = ?
+        WHERE status IN ('queued', 'running', 'cancel_requested')
+          ${cardClause}
+        `,
+        [
+          interruptInput.reason,
+          interruptInput.at,
+          interruptInput.at,
+          ...(interruptInput.cardId ? [interruptInput.cardId] : []),
+        ],
+      ))
+      return Number(result?.changes ?? 0)
     },
   }
   async function recordPersonaTrainingSourceProvenance(input: {
@@ -6905,6 +7081,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     trainingExecutor: options?.personaTrainingExecutor ?? (async () => {
       throw new Error('persona training executor is not configured')
     }),
+    resolveExecutorConfig: options?.resolvePersonaTrainingExecutorConfig,
     persistence: personaTrainingPipelinePersistence,
     now,
     randomUUID,
@@ -9322,6 +9499,30 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     })
   }
 
+  async function startPersonaTraining(input: { cardId: string, datasetId?: string | null }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'persona training start')
+    return await personaTrainingPipelineGate.start({
+      cardId,
+      datasetId: input.datasetId,
+    })
+  }
+
+  async function getPersonaTrainingRun(input: { cardId: string, runId: string }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'persona training run lookup')
+    return await personaTrainingPipelineGate.getRun({
+      cardId,
+      runId: input.runId,
+    })
+  }
+
+  async function listPersonaTrainingRuns(input: { cardId: string, limit?: number }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'persona training run list')
+    return await personaTrainingPipelineGate.listRuns({
+      cardId,
+      limit: input.limit,
+    })
+  }
+
   async function cancelPersonaTraining(input: { cardId: string, runId: string, reason?: string | null }) {
     const cardId = resolveMemoryCardId(input.cardId, 'persona training cancellation')
     return await personaTrainingPipelineGate.cancel({
@@ -9557,10 +9758,16 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
   await rebuildLongTermMemorySearchIndexForCard(boundCardId, 'initial long-term memory search index rebuild')
   await memoryEmbeddingReindexRuntime.resumePendingJobs(8, boundCardId)
   await memorySemanticScaleJobRuntime.resumePendingJobs(boundCardId)
+  await personaTrainingPipelinePersistence.interruptNonTerminalRuns?.({
+    cardId: hasBoundCardScope ? boundCardId : null,
+    reason: 'application-restarted-before-training-completed',
+    at: now(),
+  })
 
   return {
     dbPath,
     close: async () => {
+      await personaTrainingPipelineGate.stop('database-close')
       await memoryEmbeddingReindexRuntime.stop()
       await memorySemanticScaleJobRuntime.stop()
       await close(database)
@@ -9631,6 +9838,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     setPersonaTrainingDatasetExamplePolicy,
     revokePersonaTrainingDatasetSource,
     runPersonaTraining,
+    startPersonaTraining,
+    getPersonaTrainingRun,
+    listPersonaTrainingRuns,
     cancelPersonaTraining,
     rollbackPersonaTrainingIncrement,
     listPersonaTrainingIncrements,

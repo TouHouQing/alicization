@@ -24,8 +24,11 @@ import type {
   AlicizationPersonaTrainingDatasetExportResult,
   AlicizationPersonaTrainingDatasetSnapshot,
   AlicizationPersonaTrainingDatasetStagePayload,
+  AlicizationPersonaTrainingExecutorConfig,
+  AlicizationPersonaTrainingExecutorConfigState,
+  AlicizationPersonaTrainingExecutorConnectionResult,
   AlicizationPersonaTrainingPipelineIncrement,
-  AlicizationPersonaTrainingPipelineResult,
+  AlicizationPersonaTrainingPipelineRunRecord,
   AlicizationSkillWorkbenchItem,
   AlicizationMemoryQualityGoldLabelItem as BridgeMemoryQualityGoldLabelItem,
   AlicizationMemoryQualityGoldLabelPayload as BridgeMemoryQualityGoldLabelPayload,
@@ -77,7 +80,15 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   const personaTrainingDatasetExport = ref<AlicizationPersonaTrainingDatasetExportResult | null>(null)
   const personaTrainingIncrements = ref<AlicizationPersonaTrainingPipelineIncrement[]>([])
   const personaTrainingRunLoading = ref(false)
-  const personaTrainingRun = ref<AlicizationPersonaTrainingPipelineResult | null>(null)
+  const personaTrainingRun = ref<AlicizationPersonaTrainingPipelineRunRecord | null>(null)
+  const personaTrainingRuns = ref<AlicizationPersonaTrainingPipelineRunRecord[]>([])
+  const personaTrainingExecutorConfigState = ref<AlicizationPersonaTrainingExecutorConfigState>({
+    configured: false,
+    config: null,
+    error: null,
+  })
+  const personaTrainingExecutorConnection = ref<AlicizationPersonaTrainingExecutorConnectionResult | null>(null)
+  const personaTrainingExecutorLoading = ref(false)
   const skills = ref<AlicizationSkillWorkbenchItem[]>([])
   const skillLoading = ref(false)
   const reindexLoading = ref(false)
@@ -102,6 +113,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   let qualityReplaySessionsRevision = 0
   let qualityTrialContextRevision = 0
   let semanticScaleContextRevision = 0
+  let personaTrainingContextRevision = 0
   const goldLabelLoading = ref(false)
   const goldLabelMonth = ref(new Date().toISOString().slice(0, 7))
   const monthlyGoldLabels = ref<AlicizationMemoryQualityGoldLabelItem[]>([])
@@ -137,6 +149,16 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
     if (!semanticScaleLoading.value)
       await refreshSemanticScaleJob(job.jobId, { select: false })
+  }, 2_000, { immediate: false })
+  const activePersonaTrainingStatuses = new Set(['queued', 'running', 'cancel_requested'])
+  const { pause: pausePersonaTrainingPolling, resume: resumePersonaTrainingPolling } = useIntervalFn(async () => {
+    const run = personaTrainingRun.value
+    if (!run || !activePersonaTrainingStatuses.has(run.status)) {
+      pausePersonaTrainingPolling()
+      return
+    }
+    if (!personaTrainingRunLoading.value)
+      await refreshPersonaTrainingRun(run.runId)
   }, 2_000, { immediate: false })
 
   function updateReindexResult(result: AlicizationMemoryEmbeddingReindexResult) {
@@ -702,31 +724,207 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   async function refreshPersonaTrainingIncrements() {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListPersonaTrainingIncrements)
       return []
+    const revision = personaTrainingContextRevision
     personaTrainingRunLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchListPersonaTrainingIncrements!()
+      if (revision !== personaTrainingContextRevision)
+        return []
       personaTrainingIncrements.value = result.items
       lastError.value = null
       return result.items
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      if (revision === personaTrainingContextRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
       return []
     }
     finally {
-      personaTrainingRunLoading.value = false
+      if (revision === personaTrainingContextRevision)
+        personaTrainingRunLoading.value = false
+    }
+  }
+
+  function updatePersonaTrainingRun(run: AlicizationPersonaTrainingPipelineRunRecord | null) {
+    if (!run)
+      return
+    personaTrainingRun.value = run
+    const byId = new Map(personaTrainingRuns.value.map(item => [item.runId, item]))
+    byId.set(run.runId, run)
+    personaTrainingRuns.value = [...byId.values()]
+      .sort((left, right) => right.queuedAt - left.queuedAt || right.runId.localeCompare(left.runId))
+    lastError.value = run.error
+    if (activePersonaTrainingStatuses.has(run.status))
+      resumePersonaTrainingPolling()
+    else
+      pausePersonaTrainingPolling()
+  }
+
+  async function refreshPersonaTrainingRuns(limit = 30) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListPersonaTrainingRuns)
+      return []
+    const revision = personaTrainingContextRevision
+    personaTrainingRunLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListPersonaTrainingRuns!({ limit })
+      if (revision !== personaTrainingContextRevision)
+        return []
+      personaTrainingRuns.value = result.items
+      const currentRunId = personaTrainingRun.value?.runId
+      personaTrainingRun.value = currentRunId
+        ? result.items.find(run => run.runId === currentRunId) ?? result.items[0] ?? null
+        : result.items[0] ?? null
+      if (personaTrainingRun.value && activePersonaTrainingStatuses.has(personaTrainingRun.value.status))
+        resumePersonaTrainingPolling()
+      else
+        pausePersonaTrainingPolling()
+      lastError.value = personaTrainingRun.value?.error ?? null
+      return result.items
+    }
+    catch (error) {
+      if (revision === personaTrainingContextRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return []
+    }
+    finally {
+      if (revision === personaTrainingContextRevision)
+        personaTrainingRunLoading.value = false
+    }
+  }
+
+  async function refreshPersonaTrainingRun(runId: string) {
+    if (!runId.trim() || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchGetPersonaTrainingRun)
+      return null
+    const revision = personaTrainingContextRevision
+    personaTrainingRunLoading.value = true
+    try {
+      const run = await getAlicizationBridge().memoryWorkbenchGetPersonaTrainingRun!({ runId })
+      if (revision !== personaTrainingContextRevision)
+        return null
+      updatePersonaTrainingRun(run)
+      if (run && !activePersonaTrainingStatuses.has(run.status)) {
+        await Promise.all([
+          refreshPersonaTrainingRuns(),
+          refreshPersonaTrainingIncrements(),
+        ])
+      }
+      return run
+    }
+    catch (error) {
+      if (revision === personaTrainingContextRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      if (revision === personaTrainingContextRevision)
+        personaTrainingRunLoading.value = false
     }
   }
 
   async function runPersonaTraining(datasetId?: string | null) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRunPersonaTraining)
       return null
+    const revision = personaTrainingContextRevision
     personaTrainingRunLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchRunPersonaTraining!({ datasetId })
-      personaTrainingRun.value = result
-      await refreshPersonaTrainingIncrements()
-      lastError.value = result.status === 'failed' ? result.error : null
+      if (revision !== personaTrainingContextRevision)
+        return null
+      updatePersonaTrainingRun(result.run)
+      return result.run
+    }
+    catch (error) {
+      if (revision === personaTrainingContextRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      if (revision === personaTrainingContextRevision)
+        personaTrainingRunLoading.value = false
+    }
+  }
+
+  async function cancelPersonaTraining(runId: string, reason?: string | null) {
+    if (!runId.trim() || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchCancelPersonaTraining)
+      return null
+    const revision = personaTrainingContextRevision
+    personaTrainingRunLoading.value = true
+    try {
+      const run = await getAlicizationBridge().memoryWorkbenchCancelPersonaTraining!({
+        runId,
+        reason,
+      })
+      if (revision !== personaTrainingContextRevision)
+        return null
+      updatePersonaTrainingRun(run)
+      return run
+    }
+    catch (error) {
+      if (revision === personaTrainingContextRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      if (revision === personaTrainingContextRevision)
+        personaTrainingRunLoading.value = false
+    }
+  }
+
+  function resetPersonaTrainingScope() {
+    personaTrainingContextRevision += 1
+    pausePersonaTrainingPolling()
+    personaTrainingRun.value = null
+    personaTrainingRuns.value = []
+    personaTrainingIncrements.value = []
+    personaTrainingRunLoading.value = false
+  }
+
+  async function loadPersonaTrainingExecutorConfig() {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchGetPersonaTrainingExecutorConfig)
+      return null
+    personaTrainingExecutorLoading.value = true
+    try {
+      const state = await getAlicizationBridge().memoryWorkbenchGetPersonaTrainingExecutorConfig!()
+      personaTrainingExecutorConfigState.value = state
+      lastError.value = state.error
+      return state
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaTrainingExecutorLoading.value = false
+    }
+  }
+
+  async function savePersonaTrainingExecutorConfig(config: AlicizationPersonaTrainingExecutorConfig | null) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchSetPersonaTrainingExecutorConfig)
+      return null
+    personaTrainingExecutorLoading.value = true
+    try {
+      const state = await getAlicizationBridge().memoryWorkbenchSetPersonaTrainingExecutorConfig!({ config })
+      personaTrainingExecutorConfigState.value = state
+      lastError.value = state.error
+      return state
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaTrainingExecutorLoading.value = false
+    }
+  }
+
+  async function testPersonaTrainingExecutor(config: AlicizationPersonaTrainingExecutorConfig | null) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchTestPersonaTrainingExecutor)
+      return null
+    personaTrainingExecutorLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchTestPersonaTrainingExecutor!({ config })
+      personaTrainingExecutorConnection.value = result
+      lastError.value = result.error
       return result
     }
     catch (error) {
@@ -734,7 +932,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       return null
     }
     finally {
-      personaTrainingRunLoading.value = false
+      personaTrainingExecutorLoading.value = false
     }
   }
 
@@ -1182,6 +1380,10 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     personaTrainingIncrements,
     personaTrainingRunLoading,
     personaTrainingRun,
+    personaTrainingRuns,
+    personaTrainingExecutorConfigState,
+    personaTrainingExecutorConnection,
+    personaTrainingExecutorLoading,
     skills,
     skillLoading,
     reindexLoading,
@@ -1233,7 +1435,14 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     setPersonaTrainingDatasetExamplePolicy,
     revokePersonaTrainingDatasetSource,
     refreshPersonaTrainingIncrements,
+    refreshPersonaTrainingRuns,
+    refreshPersonaTrainingRun,
     runPersonaTraining,
+    cancelPersonaTraining,
+    resetPersonaTrainingScope,
+    loadPersonaTrainingExecutorConfig,
+    savePersonaTrainingExecutorConfig,
+    testPersonaTrainingExecutor,
     rollbackPersonaTrainingIncrement,
     refreshSkills,
     activateSkill,

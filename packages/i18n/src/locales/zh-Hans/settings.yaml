@@ -561,8 +561,12 @@ pages:
         retry_semantic_scale: 重试语义规模压测
         refresh_semantic_scale: 刷新压测状态
         run_persona_training: 运行人格训练
+        cancel_persona_training: 取消人格训练
         refresh_persona_training: 刷新人格训练状态
         rollback_persona_increment: 回滚人格增量
+        test_persona_training_executor: 测试训练器
+        save_persona_training_executor: 保存训练器配置
+        clear_persona_training_executor: 清除训练器配置
       states:
         empty_working: 还没有可显示的短期记忆快照。发送一轮对话后再刷新。
         empty_long_term: 还没有匹配的长期记忆。
@@ -577,6 +581,30 @@ pages:
         persona_training_succeeded: 训练执行完成，生成了可回滚增量。
         persona_training_failed: 训练执行失败，未改变人格核心。
         empty_persona_training_increments: 还没有可回滚的人格训练增量。
+        empty_persona_training_runs: 当前机体还没有人格训练记录。
+        persona_training_executor_configured: 本地训练器已配置。每次训练会保存独立配置快照。
+        persona_training_executor_not_configured: 尚未配置本地训练器，启动训练会明确失败。
+        persona_training_executor_connected: 训练器协议测试通过。
+        persona_training_executor_connection_failed: 训练器协议测试失败。
+        persona_training_queued: 等待训练
+        persona_training_running: 正在训练
+        persona_training_cancel_requested: 正在取消
+        persona_training_completed: 训练完成
+        persona_training_cancelled: 已取消
+        persona_training_interrupted: 已中断
+        persona_training_stage_writing_input: 正在写入清洗后的数据
+        persona_training_stage_spawning: 正在启动本地训练器
+        persona_training_stage_training: 本地训练中
+        persona_training_stage_validating_artifact: 正在校验产物
+        persona_training_stage_finalizing: 正在完成记录
+        persona_training_activation_inactive: 未激活
+        persona_training_activation_unsupported: 产物已保存但未激活（尚无真实加载回执）
+        persona_training_compatibility_compatible: 兼容
+        persona_training_compatibility_incompatible: 不兼容
+        persona_training_compatibility_unknown: 未知
+        persona_training_increment_available: 可用
+        persona_training_increment_rolled_back: 已回滚
+        persona_training_increment_revoked: 已撤回
         dataset_staged: 待训练
         dataset_quarantined: 已隔离
         dataset_revoked: 已撤回
@@ -722,6 +750,20 @@ pages:
         trace: Trace
         persona_training_last_run: 最近一次训练运行
         persona_training_increments: 人格训练增量
+        persona_training_executor: 本地 Persona/LoRA 训练器
+        persona_training_executor_description: 配置你已安装的本地训练 wrapper。Alicization 只按固定 JSONL 协议调用，不会静默安装训练依赖，也不会把 Provider API Key 传给子进程。
+        persona_training_executable: 可执行文件绝对路径
+        persona_training_fixed_arguments: 固定参数（每行一个）
+        persona_training_base_model: 基础模型
+        persona_training_timeout: 超时时间（秒）
+        persona_training_runs: 人格训练运行
+        persona_training_runs_description: 训练异步运行，状态、进度、取消和错误都以本地数据库为准。
+        persona_training_stage: 阶段
+        persona_training_progress: 进度
+        persona_training_history: 运行历史
+        persona_training_artifact: 训练产物
+        persona_training_compatibility: 兼容性
+        persona_training_activation: 激活状态
         long_term_fixtures: 长期召回样本
         working_memory_fixtures: 短期压缩样本
         compressed_context_fixtures: 压缩后行为样本
@@ -821,6 +863,9 @@ pages:
         embedding_model_search: 输入 embedding / bge / text-embedding 搜索
         embedding_model: text-embedding-3-small
         embedding_dimensions: 可先留空，测试连通后自动识别
+        persona_training_executable: /绝对路径/persona-training-wrapper
+        persona_training_base_model: 本地基础模型名称或路径
+        persona_training_fixed_arguments: 可选 wrapper 脚本路径或固定参数，每行一个
   data:
     title: Data
     description: 管理存储 Alicization 数据、导出和重置

@@ -1222,7 +1222,98 @@ export interface AlicizationPersonaTrainingPipelineIncrement {
   createdAt: number
 }
 
-export type AlicizationPersonaTrainingPipelineRunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
+export type AlicizationPersonaTrainingPipelineRunStatus
+  = 'queued'
+    | 'running'
+    | 'cancel_requested'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+    | 'interrupted'
+
+export type AlicizationPersonaTrainingPipelineRunStage
+  = 'writing-input'
+    | 'spawning'
+    | 'training'
+    | 'validating-artifact'
+    | 'finalizing'
+
+export interface AlicizationPersonaTrainingExecutorConfig {
+  executable: string
+  fixedArguments: string[]
+  baseModel: string
+  timeoutMs: number
+}
+
+export interface AlicizationPersonaTrainingArtifact {
+  schemaVersion: 'alicization-persona-training-artifact-v1'
+  artifactId: string
+  runId: string
+  kind: 'lora-adapter'
+  path: string
+  sha256: string
+  sizeBytes: number
+  baseModel: string
+  compatibility: {
+    status: 'compatible' | 'incompatible' | 'unknown'
+    baseModel: string
+    reason?: string | null
+  }
+  activation: {
+    status: 'inactive' | 'unsupported'
+    reason: string
+  }
+}
+
+export interface AlicizationPersonaTrainingPipelineRunRecord {
+  runId: string
+  cardId: string
+  datasetId: string
+  manifestHash: string
+  sourceIds: string[]
+  basePersonaRevision: string
+  status: AlicizationPersonaTrainingPipelineRunStatus
+  stage: AlicizationPersonaTrainingPipelineRunStage
+  progress: number
+  progressMessage: string | null
+  failureReason: 'executor-failed' | 'source-revoked' | 'dataset-rolled-back' | 'dataset-not-active' | 'manifest-no-longer-usable' | 'cancelled' | 'interrupted' | null
+  configSnapshot: AlicizationPersonaTrainingExecutorConfig | null
+  artifact: AlicizationPersonaTrainingArtifact | null
+  error: string | null
+  queuedAt: number
+  startedAt: number | null
+  updatedAt: number
+  finishedAt: number | null
+  cancellationRequestedAt: number | null
+}
+
+export interface AlicizationPersonaTrainingStartResult {
+  run: AlicizationPersonaTrainingPipelineRunRecord
+}
+
+export interface AlicizationPersonaTrainingRunsResult {
+  items: AlicizationPersonaTrainingPipelineRunRecord[]
+}
+
+export interface AlicizationPersonaTrainingRunLookupPayload extends AlicizationCardScope {
+  runId: string
+}
+
+export interface AlicizationPersonaTrainingExecutorConfigState {
+  configured: boolean
+  config: AlicizationPersonaTrainingExecutorConfig | null
+  error: string | null
+}
+
+export interface AlicizationPersonaTrainingExecutorConfigPayload extends AlicizationCardScope {
+  config: AlicizationPersonaTrainingExecutorConfig | null
+}
+
+export interface AlicizationPersonaTrainingExecutorConnectionResult {
+  ok: boolean
+  executable: string
+  error: string | null
+}
 
 export interface AlicizationPersonaTrainingPipelineRunResult {
   status: 'succeeded'
@@ -4279,8 +4370,13 @@ export const electronAlicizationMemoryWorkbenchActivatePersonaTrainingDataset = 
 export const electronAlicizationMemoryWorkbenchRollbackPersonaTrainingDataset = defineInvokeEventa<AlicizationPersonaTrainingDatasetVersion | null, Required<AlicizationPersonaTrainingDatasetVersionPayload>>('eventa:invoke:electron:alicization:memory-workbench:rollback-persona-training-dataset')
 export const electronAlicizationMemoryWorkbenchSetPersonaTrainingDatasetExamplePolicy = defineInvokeEventa<AlicizationPersonaTrainingDatasetExample | null, AlicizationPersonaTrainingDatasetExamplePolicyPayload>('eventa:invoke:electron:alicization:memory-workbench:set-persona-training-dataset-example-policy')
 export const electronAlicizationMemoryWorkbenchRevokePersonaTrainingDatasetSource = defineInvokeEventa<{ affected: number }, AlicizationPersonaTrainingDatasetRevokePayload>('eventa:invoke:electron:alicization:memory-workbench:revoke-persona-training-dataset-source')
-export const electronAlicizationMemoryWorkbenchRunPersonaTraining = defineInvokeEventa<AlicizationPersonaTrainingPipelineResult, AlicizationPersonaTrainingRunPayload>('eventa:invoke:electron:alicization:memory-workbench:run-persona-training')
-export const electronAlicizationMemoryWorkbenchCancelPersonaTraining = defineInvokeEventa<boolean, AlicizationPersonaTrainingCancelPayload>('eventa:invoke:electron:alicization:memory-workbench:cancel-persona-training')
+export const electronAlicizationMemoryWorkbenchRunPersonaTraining = defineInvokeEventa<AlicizationPersonaTrainingStartResult, AlicizationPersonaTrainingRunPayload>('eventa:invoke:electron:alicization:memory-workbench:run-persona-training')
+export const electronAlicizationMemoryWorkbenchGetPersonaTrainingRun = defineInvokeEventa<AlicizationPersonaTrainingPipelineRunRecord | null, AlicizationPersonaTrainingRunLookupPayload>('eventa:invoke:electron:alicization:memory-workbench:get-persona-training-run')
+export const electronAlicizationMemoryWorkbenchListPersonaTrainingRuns = defineInvokeEventa<AlicizationPersonaTrainingRunsResult, AlicizationCardScope & { limit?: number }>('eventa:invoke:electron:alicization:memory-workbench:list-persona-training-runs')
+export const electronAlicizationMemoryWorkbenchCancelPersonaTraining = defineInvokeEventa<AlicizationPersonaTrainingPipelineRunRecord | null, AlicizationPersonaTrainingCancelPayload>('eventa:invoke:electron:alicization:memory-workbench:cancel-persona-training')
+export const electronAlicizationMemoryWorkbenchGetPersonaTrainingExecutorConfig = defineInvokeEventa<AlicizationPersonaTrainingExecutorConfigState, AlicizationCardScope>('eventa:invoke:electron:alicization:memory-workbench:get-persona-training-executor-config')
+export const electronAlicizationMemoryWorkbenchSetPersonaTrainingExecutorConfig = defineInvokeEventa<AlicizationPersonaTrainingExecutorConfigState, AlicizationPersonaTrainingExecutorConfigPayload>('eventa:invoke:electron:alicization:memory-workbench:set-persona-training-executor-config')
+export const electronAlicizationMemoryWorkbenchTestPersonaTrainingExecutor = defineInvokeEventa<AlicizationPersonaTrainingExecutorConnectionResult, AlicizationPersonaTrainingExecutorConfigPayload>('eventa:invoke:electron:alicization:memory-workbench:test-persona-training-executor')
 export const electronAlicizationMemoryWorkbenchRollbackPersonaTrainingIncrement = defineInvokeEventa<AlicizationPersonaTrainingPipelineIncrement | null, AlicizationPersonaTrainingIncrementPayload>('eventa:invoke:electron:alicization:memory-workbench:rollback-persona-training-increment')
 export const electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements = defineInvokeEventa<AlicizationPersonaTrainingIncrementsResult, AlicizationCardScope>('eventa:invoke:electron:alicization:memory-workbench:list-persona-training-increments')
 export const electronAlicizationSkillWorkbenchList = defineInvokeEventa<AlicizationSkillWorkbenchListResult, AlicizationSkillWorkbenchListPayload>('eventa:invoke:electron:alicization:skill-workbench:list')

@@ -813,6 +813,92 @@ export type AlicizationPersonaTrainingPipelineFailureReason
     | 'dataset-not-active'
     | 'manifest-no-longer-usable'
     | 'cancelled'
+    | 'interrupted'
+
+export type AlicizationPersonaTrainingPipelineRunStatus
+  = 'queued'
+    | 'running'
+    | 'cancel_requested'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+    | 'interrupted'
+
+export type AlicizationPersonaTrainingPipelineRunStage
+  = 'writing-input'
+    | 'spawning'
+    | 'training'
+    | 'validating-artifact'
+    | 'finalizing'
+
+export interface AlicizationPersonaTrainingExecutorConfig {
+  executable: string
+  fixedArguments: string[]
+  baseModel: string
+  timeoutMs: number
+}
+
+export interface AlicizationPersonaTrainingArtifact {
+  schemaVersion: 'alicization-persona-training-artifact-v1'
+  artifactId: string
+  runId: string
+  kind: 'lora-adapter'
+  path: string
+  sha256: string
+  sizeBytes: number
+  baseModel: string
+  compatibility: {
+    status: 'compatible' | 'incompatible' | 'unknown'
+    baseModel: string
+    reason?: string | null
+  }
+  activation: {
+    status: 'inactive' | 'unsupported'
+    reason: string
+  }
+}
+
+export interface AlicizationPersonaTrainingPipelineRunRecord {
+  runId: string
+  cardId: string
+  datasetId: string
+  manifestHash: string
+  sourceIds: string[]
+  basePersonaRevision: string
+  status: AlicizationPersonaTrainingPipelineRunStatus
+  stage: AlicizationPersonaTrainingPipelineRunStage
+  progress: number
+  progressMessage: string | null
+  failureReason: AlicizationPersonaTrainingPipelineFailureReason | null
+  configSnapshot: AlicizationPersonaTrainingExecutorConfig | null
+  artifact: AlicizationPersonaTrainingArtifact | null
+  error: string | null
+  queuedAt: number
+  startedAt: number | null
+  updatedAt: number
+  finishedAt: number | null
+  cancellationRequestedAt: number | null
+}
+
+export interface AlicizationPersonaTrainingStartResult {
+  run: AlicizationPersonaTrainingPipelineRunRecord
+}
+
+export interface AlicizationPersonaTrainingRunsResult {
+  items: AlicizationPersonaTrainingPipelineRunRecord[]
+}
+
+export interface AlicizationPersonaTrainingExecutorConfigState {
+  configured: boolean
+  config: AlicizationPersonaTrainingExecutorConfig | null
+  error: string | null
+}
+
+export interface AlicizationPersonaTrainingExecutorConnectionResult {
+  ok: boolean
+  executable: string
+  error: string | null
+}
 
 export type AlicizationPersonaTrainingPipelineResult
   = {
@@ -2856,8 +2942,13 @@ interface AlicizationBridge {
   memoryWorkbenchRollbackPersonaTrainingDataset?: (payload: Omit<Required<AlicizationPersonaTrainingDatasetVersionPayload>, 'cardId'>) => Promise<AlicizationPersonaTrainingDatasetVersion | null>
   memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy?: (payload: Omit<AlicizationPersonaTrainingDatasetExamplePolicyPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingDatasetExample | null>
   memoryWorkbenchRevokePersonaTrainingDatasetSource?: (payload: { sourceId: string }) => Promise<{ affected: number }>
-  memoryWorkbenchRunPersonaTraining?: (payload: Omit<AlicizationPersonaTrainingRunPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingPipelineResult>
-  memoryWorkbenchCancelPersonaTraining?: (payload: Omit<AlicizationPersonaTrainingCancelPayload, 'cardId'>) => Promise<boolean>
+  memoryWorkbenchRunPersonaTraining?: (payload: Omit<AlicizationPersonaTrainingRunPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingStartResult>
+  memoryWorkbenchGetPersonaTrainingRun?: (payload: { runId: string }) => Promise<AlicizationPersonaTrainingPipelineRunRecord | null>
+  memoryWorkbenchListPersonaTrainingRuns?: (payload?: { limit?: number }) => Promise<AlicizationPersonaTrainingRunsResult>
+  memoryWorkbenchCancelPersonaTraining?: (payload: Omit<AlicizationPersonaTrainingCancelPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingPipelineRunRecord | null>
+  memoryWorkbenchGetPersonaTrainingExecutorConfig?: () => Promise<AlicizationPersonaTrainingExecutorConfigState>
+  memoryWorkbenchSetPersonaTrainingExecutorConfig?: (payload: { config: AlicizationPersonaTrainingExecutorConfig | null }) => Promise<AlicizationPersonaTrainingExecutorConfigState>
+  memoryWorkbenchTestPersonaTrainingExecutor?: (payload: { config: AlicizationPersonaTrainingExecutorConfig | null }) => Promise<AlicizationPersonaTrainingExecutorConnectionResult>
   memoryWorkbenchRollbackPersonaTrainingIncrement?: (payload: Omit<AlicizationPersonaTrainingIncrementPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingPipelineIncrement | null>
   memoryWorkbenchListPersonaTrainingIncrements?: () => Promise<AlicizationPersonaTrainingIncrementsResult>
   skillWorkbenchList?: (payload: { productionOnly?: boolean }) => Promise<{ items: AlicizationSkillWorkbenchItem[] }>

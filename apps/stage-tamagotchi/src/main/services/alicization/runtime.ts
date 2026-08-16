@@ -28,6 +28,7 @@ import type {
   AlicizationGenesisInput,
   AlicizationMindHeadKey,
   AlicizationPersonalityState,
+  AlicizationPersonaTrainingExecutorConfig,
   AlicizationPresencePulsePayload,
   AlicizationProactiveMetadata,
   AlicizationProactiveReasonCode,
@@ -220,6 +221,11 @@ import {
   deriveExecutionResultFeedbackKind,
 } from './outcome-reinforcement'
 import { buildAlicizationPersonStateProjection } from './person-state-projection'
+import {
+  createPersonaTrainingProcessExecutor,
+  normalizePersonaTrainingProcessConfig,
+  testPersonaTrainingProcessConnection,
+} from './persona-training-process-executor'
 import { progressProactiveCadenceState } from './proactive-cadence'
 import {
   createDefaultProactiveLoopState,
@@ -645,6 +651,56 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   let activeModelId = ''
   let providerCredentials: Record<string, Record<string, unknown>> = {}
   let memoryTrialProvider: AlicizationMemoryTrialProvider | null = null
+  const personaTrainingConfigPath = join(userDataPath, 'alicizations', 'persona-training-config.json')
+  let personaTrainingExecutorConfig: AlicizationPersonaTrainingExecutorConfig | null = null
+  let personaTrainingExecutorConfigError: string | null = null
+  const clonePersonaTrainingExecutorConfig = (config: AlicizationPersonaTrainingExecutorConfig | null) => config
+    ? { ...config, fixedArguments: [...config.fixedArguments] }
+    : null
+  const personaTrainingExecutorConfigState = () => ({
+    configured: personaTrainingExecutorConfig != null,
+    config: clonePersonaTrainingExecutorConfig(personaTrainingExecutorConfig),
+    error: personaTrainingExecutorConfigError,
+  })
+  const restorePersonaTrainingExecutorConfig = async () => {
+    try {
+      const raw = await readFile(personaTrainingConfigPath, 'utf8')
+      personaTrainingExecutorConfig = normalizePersonaTrainingProcessConfig(JSON.parse(raw))
+      personaTrainingExecutorConfigError = null
+    }
+    catch (error) {
+      personaTrainingExecutorConfig = null
+      personaTrainingExecutorConfigError = (error as NodeJS.ErrnoException)?.code === 'ENOENT'
+        ? null
+        : errorMessageFrom(error) ?? String(error)
+    }
+  }
+  const persistPersonaTrainingExecutorConfig = async (rawConfig: AlicizationPersonaTrainingExecutorConfig | null) => {
+    if (!rawConfig) {
+      personaTrainingExecutorConfig = null
+      personaTrainingExecutorConfigError = null
+      await unlink(personaTrainingConfigPath).catch(() => {})
+      return personaTrainingExecutorConfigState()
+    }
+    const normalized = normalizePersonaTrainingProcessConfig(rawConfig)
+    await mkdir(join(userDataPath, 'alicizations'), { recursive: true })
+    await writeFile(personaTrainingConfigPath, JSON.stringify(normalized, null, 2), {
+      encoding: 'utf8',
+      mode: 0o600,
+    })
+    personaTrainingExecutorConfig = normalized
+    personaTrainingExecutorConfigError = null
+    return personaTrainingExecutorConfigState()
+  }
+  const createLocalPersonaTrainingExecutor = (cardRootDir: string) => {
+    const executor = createPersonaTrainingProcessExecutor({ cardRootDir })
+    return async (input: Parameters<typeof executor.execute>[0]) => {
+      if (!input.configSnapshot)
+        throw new Error('persona training executor is not configured')
+      return await executor.execute(input, input.configSnapshot)
+    }
+  }
+  await restorePersonaTrainingExecutorConfig()
   const resolveLongTermMemoryEmbeddingProvider = () => resolveOpenAICompatibleLongTermMemoryEmbeddingProvider({
     activeProviderId,
     providerCredentials,
@@ -653,6 +709,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     cardId: activeCardId,
     resolveEmbeddingProvider: resolveLongTermMemoryEmbeddingProvider,
     resolveMemoryTrialProvider: () => memoryTrialProvider,
+    personaTrainingExecutor: createLocalPersonaTrainingExecutor(soulRoot),
+    resolvePersonaTrainingExecutorConfig: () => clonePersonaTrainingExecutorConfig(personaTrainingExecutorConfig),
   })
   const runtimeToolRegistry = createCanonicalToolRegistry()
   const runtimeSkillRegistry = createAlicizationSkillRegistry()
@@ -3186,6 +3244,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       cardId: activeCardId,
       resolveEmbeddingProvider: resolveLongTermMemoryEmbeddingProvider,
       resolveMemoryTrialProvider: () => memoryTrialProvider,
+      personaTrainingExecutor: createLocalPersonaTrainingExecutor(soulRoot),
+      resolvePersonaTrainingExecutorConfig: () => clonePersonaTrainingExecutorConfig(personaTrainingExecutorConfig),
     })
     await restoreScopedKillSwitch(activeCardId)
     await restoreActiveSessionId(activeCardId)
@@ -3289,6 +3349,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     },
     removeAlicizationsRoot: async () => {
       await rm(join(userDataPath, 'alicizations'), { recursive: true, force: true })
+      personaTrainingExecutorConfig = null
+      personaTrainingExecutorConfigError = null
     },
     resetProviderConfig: () => {
       activeProviderId = ''
@@ -3306,6 +3368,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         cardId: activeCardId,
         resolveEmbeddingProvider: resolveLongTermMemoryEmbeddingProvider,
         resolveMemoryTrialProvider: () => memoryTrialProvider,
+        personaTrainingExecutor: createLocalPersonaTrainingExecutor(soulRoot),
+        resolvePersonaTrainingExecutorConfig: () => clonePersonaTrainingExecutorConfig(personaTrainingExecutorConfig),
       })
       await restoreScopedKillSwitch(activeCardId)
       await restoreActiveSessionId(activeCardId)
@@ -6629,6 +6693,18 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     normalizeSessionId,
     errorMessageFrom,
     workingMemoryStore,
+    getPersonaTrainingExecutorConfig: personaTrainingExecutorConfigState,
+    setPersonaTrainingExecutorConfig: persistPersonaTrainingExecutorConfig,
+    testPersonaTrainingExecutor: async (config) => {
+      if (!config) {
+        return {
+          ok: false,
+          executable: '',
+          error: 'persona training executor is not configured',
+        }
+      }
+      return await testPersonaTrainingProcessConnection(config)
+    },
   })
   registerAlicizationSkillInvokeHandlers({
     registerInvokeHandler: (channel, handler) => defineInvokeHandler(context, channel as never, handler as never),

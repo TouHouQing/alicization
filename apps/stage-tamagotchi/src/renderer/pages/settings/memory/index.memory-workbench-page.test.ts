@@ -73,6 +73,26 @@ describe('memory workbench settings page', () => {
     expect(source).toContain('settings.pages.memory.workbench.actions.reindex_embeddings')
   })
 
+  it('renders the local persona trainer configuration and durable run controls', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+    const configSource = readFileSync(new URL('../modules/components/persona-training-executor-config.vue', import.meta.url), 'utf8')
+    const runsSource = readFileSync(new URL('../modules/components/persona-training-runs.vue', import.meta.url), 'utf8')
+
+    expect(source).toContain('<PersonaTrainingExecutorConfig />')
+    expect(source).toContain('<PersonaTrainingRuns')
+    expect(configSource).toContain('loadPersonaTrainingExecutorConfig')
+    expect(configSource).toContain('savePersonaTrainingExecutorConfig')
+    expect(configSource).toContain('testPersonaTrainingExecutor')
+    expect(configSource).toContain('persona_training_executor_description')
+    expect(runsSource).toContain('refreshPersonaTrainingRuns')
+    expect(runsSource).toContain('cancelPersonaTraining')
+    expect(runsSource).toContain('personaTrainingRun.artifact.activation.status')
+    expect(runsSource).toContain('persona_training_increment_')
+    expect(runsSource).not.toContain('{{ increment.state }}')
+    expect(runsSource).not.toContain('已激活')
+    expect(source).toContain('resetPersonaTrainingScope')
+  })
+
   it('renders dataset governance controls and truthful vector index health', () => {
     const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
 

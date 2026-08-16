@@ -24,12 +24,25 @@ export interface PersonaTrainingExecutorInput {
   datasetId: string
   manifest: PersonaTrainingDatasetManifest
   basePersonaRevision: string
+  configSnapshot: PersonaTrainingExecutorConfigSnapshot | null
   signal: AbortSignal
   assertCurrent: () => Promise<void>
+  onProgress?: (progress: {
+    stage: PersonaTrainingPipelineRunStage
+    progress: number
+    message?: string | null
+  }) => Promise<void>
 }
 
 export interface PersonaTrainingExecutorOutput {
   artifact: unknown
+}
+
+export interface PersonaTrainingExecutorConfigSnapshot {
+  executable: string
+  fixedArguments: string[]
+  baseModel: string
+  timeoutMs: number
 }
 
 export interface PersonaTrainingPipelineIncrement {
@@ -46,10 +59,20 @@ export interface PersonaTrainingPipelineIncrement {
 }
 
 export type PersonaTrainingPipelineRunStatus
-  = 'running'
+  = 'queued'
+    | 'running'
+    | 'cancel_requested'
     | 'completed'
     | 'failed'
     | 'cancelled'
+    | 'interrupted'
+
+export type PersonaTrainingPipelineRunStage
+  = 'writing-input'
+    | 'spawning'
+    | 'training'
+    | 'validating-artifact'
+    | 'finalizing'
 
 export interface PersonaTrainingPipelineRunRecord {
   runId: string
@@ -59,16 +82,27 @@ export interface PersonaTrainingPipelineRunRecord {
   sourceIds: string[]
   basePersonaRevision: string
   status: PersonaTrainingPipelineRunStatus
+  stage: PersonaTrainingPipelineRunStage
+  progress: number
+  progressMessage: string | null
+  failureReason: PersonaTrainingPipelineFailureReason | null
+  configSnapshot: PersonaTrainingExecutorConfigSnapshot | null
+  artifact: unknown | null
   error: string | null
-  startedAt: number
+  queuedAt: number
+  startedAt: number | null
+  updatedAt: number
   finishedAt: number | null
+  cancellationRequestedAt: number | null
 }
 
 export type PersonaTrainingPipelineAuditAction
-  = 'training-started'
+  = 'training-queued'
+    | 'training-started'
     | 'training-completed'
     | 'training-failed'
     | 'training-cancelled'
+    | 'training-interrupted'
     | 'training-increment-rolled-back'
     | 'training-increment-revoked'
 
@@ -94,6 +128,9 @@ export interface PersonaTrainingPipelinePersistence {
   }) => Promise<void>
   appendEvent: (event: PersonaTrainingPipelineAuditEvent) => Promise<void>
   listIncrements: () => Promise<PersonaTrainingPipelineIncrement[]>
+  getRun?: (runId: string) => Promise<PersonaTrainingPipelineRunRecord | null>
+  listRuns?: (input: { cardId: string, limit?: number }) => Promise<PersonaTrainingPipelineRunRecord[]>
+  interruptNonTerminalRuns?: (input: { cardId?: string | null, reason: string, at: number }) => Promise<number>
 }
 
 export type PersonaTrainingPipelineFailureReason
@@ -103,6 +140,7 @@ export type PersonaTrainingPipelineFailureReason
     | 'dataset-not-active'
     | 'manifest-no-longer-usable'
     | 'cancelled'
+    | 'interrupted'
 
 export type PersonaTrainingPipelineResult
   = {
@@ -118,8 +156,12 @@ export type PersonaTrainingPipelineResult
   }
 
 export interface PersonaTrainingPipelineGate {
+  start: (input: { cardId: string, datasetId?: string | null }) => Promise<{ run: PersonaTrainingPipelineRunRecord }>
+  getRun: (input: { cardId: string, runId: string }) => Promise<PersonaTrainingPipelineRunRecord | null>
+  listRuns: (input: { cardId: string, limit?: number }) => Promise<PersonaTrainingPipelineRunRecord[]>
   train: (input: { cardId: string, datasetId?: string | null }) => Promise<PersonaTrainingPipelineResult>
-  cancel: (input: { runId: string, cardId?: string, reason?: string | null }) => Promise<boolean>
+  cancel: (input: { runId: string, cardId?: string, reason?: string | null }) => Promise<PersonaTrainingPipelineRunRecord | null>
+  stop: (reason: string) => Promise<void>
   activateVersion: (input: { cardId: string, datasetId: string }) => Promise<PersonaTrainingDatasetVersion | null>
   rollbackVersion: (input: { cardId: string, datasetId: string }) => Promise<PersonaTrainingDatasetVersion | null>
   revokeSource: (input: { cardId: string, sourceId: string }) => Promise<{ affected: number }>
@@ -139,6 +181,8 @@ interface ActiveTrainingRun {
   invalidatedReason: PersonaTrainingPipelineFailureReason | null
   cancellationReason: string | null
   terminalEventRecorded: boolean
+  record: PersonaTrainingPipelineRunRecord
+  completion: Promise<PersonaTrainingPipelineResult>
 }
 
 class PersonaTrainingPipelineGateError extends Error {
@@ -198,9 +242,16 @@ function findCurrentExample(
   return examples.find(example => example.id === manifestExample.id)
 }
 
+function isNonTerminalRunStatus(status: PersonaTrainingPipelineRunStatus) {
+  return status === 'queued'
+    || status === 'running'
+    || status === 'cancel_requested'
+}
+
 export function createPersonaTrainingPipelineGate(input: {
   datasetRuntime: PersonaTrainingDatasetRuntime
   trainingExecutor: (input: PersonaTrainingExecutorInput) => Promise<PersonaTrainingExecutorOutput>
+  resolveExecutorConfig?: () => PersonaTrainingExecutorConfigSnapshot | null | Promise<PersonaTrainingExecutorConfigSnapshot | null>
   persistence?: PersonaTrainingPipelinePersistence
   now: () => number
   randomUUID: () => string
@@ -231,6 +282,17 @@ export function createPersonaTrainingPipelineGate(input: {
     })
   }
 
+  async function persistRunUpdate(
+    run: ActiveTrainingRun,
+    update: Partial<PersonaTrainingPipelineRunRecord>,
+  ) {
+    Object.assign(run.record, update)
+    await persistence.updateRun({
+      runId: run.runId,
+      ...update,
+    })
+  }
+
   async function hydratePersistedIncrements() {
     const persisted = await persistence.listIncrements()
     for (const increment of persisted) {
@@ -251,11 +313,17 @@ export function createPersonaTrainingPipelineGate(input: {
     reason: string | null
     finishedAt: number
     incrementId?: string | null
+    failureReason?: PersonaTrainingPipelineFailureReason | null
+    artifact?: unknown | null
   }) {
-    await persistence.updateRun({
-      runId: input.run.runId,
+    await persistRunUpdate(input.run, {
       status: input.status,
       error: input.error,
+      failureReason: input.failureReason ?? null,
+      artifact: input.artifact,
+      progress: input.status === 'completed' ? 1 : input.run.record.progress,
+      stage: 'finalizing',
+      updatedAt: input.finishedAt,
       finishedAt: input.finishedAt,
     })
     if (!input.run.terminalEventRecorded) {
@@ -438,51 +506,37 @@ export function createPersonaTrainingPipelineGate(input: {
     return exported
   }
 
-  async function train(trainInput: { cardId: string, datasetId?: string | null }): Promise<PersonaTrainingPipelineResult> {
-    const cardId = normalizeCardId(trainInput.cardId)
-    const runId = input.randomUUID()
-    const controller = new AbortController()
-    const run: ActiveTrainingRun = {
-      runId,
-      cardId,
-      datasetId: '',
-      manifestHash: null,
-      sourceIds: new Set(),
-      controller,
-      invalidatedReason: null,
-      cancellationReason: null,
-      terminalEventRecorded: false,
+  async function executeTrainingRun(inputScope: {
+    run: ActiveTrainingRun
+    approved: Awaited<ReturnType<typeof resolveApprovedManifest>>
+    basePersonaRevision: string
+  }): Promise<PersonaTrainingPipelineResult> {
+    const { approved, basePersonaRevision, run } = inputScope
+    const assertCurrent = async () => {
+      if (run.invalidatedReason)
+        throw new PersonaTrainingPipelineGateError(run.invalidatedReason, `persona training run was invalidated: ${run.invalidatedReason}`)
+      await assertDatasetIsActive({
+        cardId: run.cardId,
+        dataset: approved.dataset,
+        manifest: approved.manifest,
+      })
+      if (run.invalidatedReason)
+        throw new PersonaTrainingPipelineGateError(run.invalidatedReason, `persona training run was invalidated: ${run.invalidatedReason}`)
     }
-    activeRuns.set(runId, run)
+    const startedAt = input.now()
 
     try {
-      const approved = await resolveApprovedManifest({
-        cardId,
-        datasetId: trainInput.datasetId,
-      })
-      run.datasetId = approved.dataset.id
-      for (const example of approved.manifest.examples)
-        run.sourceIds.add(example.sourceId)
-      const basePersonaRevision = await input.basePersonaRevision()
-      run.manifestHash = approved.manifest.manifestHash
-      const startedAt = input.now()
-      await persistence.createRun({
-        runId,
-        cardId,
-        datasetId: approved.dataset.id,
-        manifestHash: approved.manifest.manifestHash,
-        sourceIds: [...run.sourceIds],
-        basePersonaRevision,
+      await persistRunUpdate(run, {
         status: 'running',
-        error: null,
+        stage: 'writing-input',
         startedAt,
-        finishedAt: null,
+        updatedAt: startedAt,
       })
       await appendAuditEvent({
         action: 'training-started',
-        runId,
+        runId: run.runId,
         incrementId: null,
-        cardId,
+        cardId: run.cardId,
         datasetId: approved.dataset.id,
         manifestHash: approved.manifest.manifestHash,
         sourceIds: [...run.sourceIds],
@@ -490,74 +544,45 @@ export function createPersonaTrainingPipelineGate(input: {
         createdAt: startedAt,
       })
 
-      const assertCurrent = async () => {
-        if (run.invalidatedReason)
-          throw new PersonaTrainingPipelineGateError(run.invalidatedReason, `persona training run was invalidated: ${run.invalidatedReason}`)
-        await assertDatasetIsActive({
-          cardId,
-          dataset: approved.dataset,
-          manifest: approved.manifest,
-        })
-      }
+      const trained = await input.trainingExecutor({
+        runId: run.runId,
+        cardId: run.cardId,
+        datasetId: approved.dataset.id,
+        manifest: approved.manifest,
+        basePersonaRevision,
+        configSnapshot: run.record.configSnapshot
+          ? {
+              ...run.record.configSnapshot,
+              fixedArguments: [...run.record.configSnapshot.fixedArguments],
+            }
+          : null,
+        signal: run.controller.signal,
+        assertCurrent,
+        onProgress: async (progress) => {
+          if (run.terminalEventRecorded)
+            return
+          const normalizedProgress = Math.max(0, Math.min(0.99, Number(progress.progress) || 0))
+          await persistRunUpdate(run, {
+            stage: progress.stage,
+            progress: Math.max(run.record.progress, normalizedProgress),
+            progressMessage: progress.message?.trim() || null,
+            updatedAt: input.now(),
+          })
+        },
+      })
 
-      let trained: PersonaTrainingExecutorOutput
-      try {
-        trained = await input.trainingExecutor({
-          runId,
-          cardId,
-          datasetId: approved.dataset.id,
-          manifest: approved.manifest,
-          basePersonaRevision,
-          signal: controller.signal,
-          assertCurrent,
-        })
-      }
-      catch (error) {
-        const reason = run.invalidatedReason
-          ?? (error instanceof PersonaTrainingPipelineGateError ? error.reason : 'executor-failed')
-        const message = errorMessageFrom(error) ?? String(error)
-        await updateRunTerminalState({
-          run,
-          status: reason === 'cancelled' ? 'cancelled' : 'failed',
-          error: reason === 'cancelled' ? (run.cancellationReason ?? message) : message,
-          action: reason === 'cancelled' ? 'training-cancelled' : 'training-failed',
-          reason,
-          finishedAt: input.now(),
-        })
-        return {
-          status: 'failed',
-          runId,
-          reason,
-          error: message,
-        }
-      }
-
-      try {
-        await assertCurrent()
-      }
-      catch (error) {
-        const reason = error instanceof PersonaTrainingPipelineGateError ? error.reason : 'manifest-no-longer-usable'
-        const message = errorMessageFrom(error) ?? String(error)
-        await updateRunTerminalState({
-          run,
-          status: reason === 'cancelled' ? 'cancelled' : 'failed',
-          error: reason === 'cancelled' ? (run.cancellationReason ?? message) : message,
-          action: reason === 'cancelled' ? 'training-cancelled' : 'training-failed',
-          reason,
-          finishedAt: input.now(),
-        })
-        return {
-          status: 'failed',
-          runId,
-          reason,
-          error: message,
-        }
-      }
-
+      await assertCurrent()
+      await persistRunUpdate(run, {
+        stage: 'finalizing',
+        progress: Math.max(run.record.progress, 0.99),
+        progressMessage: null,
+        updatedAt: input.now(),
+      })
+      await assertCurrent()
       const increment: PersonaTrainingPipelineIncrement = {
-        id: `persona-training-increment:${runId}`,
+        id: `persona-training-increment:${run.runId}`,
         kind: 'persona-lora-increment',
-        cardId,
+        cardId: run.cardId,
         datasetId: approved.dataset.id,
         manifestHash: approved.manifest.manifestHash,
         sourceIds: approved.manifest.examples.map(example => example.sourceId),
@@ -568,6 +593,19 @@ export function createPersonaTrainingPipelineGate(input: {
       }
       increments.set(increment.id, increment)
       await persistence.createIncrement(increment)
+      try {
+        await assertCurrent()
+      }
+      catch (error) {
+        increment.state = run.invalidatedReason === 'source-revoked'
+          ? 'revoked'
+          : 'rolled-back'
+        await persistence.updateIncrementState({
+          incrementId: increment.id,
+          state: increment.state,
+        })
+        throw error
+      }
       await updateRunTerminalState({
         run,
         status: 'completed',
@@ -575,40 +613,232 @@ export function createPersonaTrainingPipelineGate(input: {
         action: 'training-completed',
         reason: null,
         incrementId: increment.id,
+        artifact: trained.artifact,
         finishedAt: input.now(),
       })
       return {
         status: 'succeeded',
-        runId,
+        runId: run.runId,
         increment,
       }
     }
-    finally {
-      activeRuns.delete(runId)
+    catch (error) {
+      const reason = run.invalidatedReason
+        ?? (error instanceof PersonaTrainingPipelineGateError ? error.reason : 'executor-failed')
+      const message = errorMessageFrom(error) ?? String(error)
+      const status: PersonaTrainingPipelineRunStatus = reason === 'cancelled'
+        ? 'cancelled'
+        : reason === 'interrupted'
+          ? 'interrupted'
+          : 'failed'
+      if (!run.terminalEventRecorded) {
+        await updateRunTerminalState({
+          run,
+          status,
+          error: reason === 'cancelled' || reason === 'interrupted'
+            ? (run.cancellationReason ?? message)
+            : message,
+          action: reason === 'cancelled'
+            ? 'training-cancelled'
+            : reason === 'interrupted'
+              ? 'training-interrupted'
+              : 'training-failed',
+          reason: reason === 'cancelled' || reason === 'interrupted'
+            ? (run.cancellationReason ?? reason)
+            : reason,
+          failureReason: reason,
+          finishedAt: input.now(),
+        })
+      }
+      return {
+        status: 'failed',
+        runId: run.runId,
+        reason,
+        error: message,
+      }
     }
+    finally {
+      activeRuns.delete(run.runId)
+    }
+  }
+
+  async function start(startInput: { cardId: string, datasetId?: string | null }) {
+    const cardId = normalizeCardId(startInput.cardId)
+    const approved = await resolveApprovedManifest({
+      cardId,
+      datasetId: startInput.datasetId,
+    })
+    const runId = input.randomUUID()
+    const basePersonaRevision = await input.basePersonaRevision()
+    const rawConfig = await input.resolveExecutorConfig?.() ?? null
+    const configSnapshot = rawConfig
+      ? {
+          ...rawConfig,
+          fixedArguments: [...rawConfig.fixedArguments],
+        }
+      : null
+    const queuedAt = input.now()
+    const record: PersonaTrainingPipelineRunRecord = {
+      runId,
+      cardId,
+      datasetId: approved.dataset.id,
+      manifestHash: approved.manifest.manifestHash,
+      sourceIds: approved.manifest.examples.map(example => example.sourceId),
+      basePersonaRevision,
+      status: 'queued',
+      stage: 'writing-input',
+      progress: 0,
+      progressMessage: null,
+      failureReason: null,
+      configSnapshot,
+      artifact: null,
+      error: null,
+      queuedAt,
+      startedAt: null,
+      updatedAt: queuedAt,
+      finishedAt: null,
+      cancellationRequestedAt: null,
+    }
+    await persistence.createRun(record)
+    const run: ActiveTrainingRun = {
+      runId,
+      cardId,
+      datasetId: approved.dataset.id,
+      manifestHash: approved.manifest.manifestHash,
+      sourceIds: new Set(record.sourceIds),
+      controller: new AbortController(),
+      invalidatedReason: null,
+      cancellationReason: null,
+      terminalEventRecorded: false,
+      record: {
+        ...record,
+        sourceIds: [...record.sourceIds],
+        configSnapshot: record.configSnapshot
+          ? { ...record.configSnapshot, fixedArguments: [...record.configSnapshot.fixedArguments] }
+          : null,
+      },
+      completion: Promise.resolve({
+        status: 'failed',
+        runId,
+        reason: 'executor-failed',
+        error: 'persona training has not started',
+      }),
+    }
+    activeRuns.set(runId, run)
+    run.completion = executeTrainingRun({
+      run,
+      approved,
+      basePersonaRevision,
+    })
+    void run.completion.catch(() => {})
+    return {
+      run: {
+        ...record,
+        sourceIds: [...record.sourceIds],
+        configSnapshot: record.configSnapshot
+          ? { ...record.configSnapshot, fixedArguments: [...record.configSnapshot.fixedArguments] }
+          : null,
+      },
+    }
+  }
+
+  async function getRun(getInput: { cardId: string, runId: string }) {
+    const cardId = normalizeCardId(getInput.cardId)
+    const active = activeRuns.get(getInput.runId)?.record ?? null
+    const persisted = persistence.getRun
+      ? await persistence.getRun(getInput.runId)
+      : active
+    if (!persisted || persisted.cardId !== cardId)
+      return null
+    return {
+      ...persisted,
+      sourceIds: [...persisted.sourceIds],
+      configSnapshot: persisted.configSnapshot
+        ? { ...persisted.configSnapshot, fixedArguments: [...persisted.configSnapshot.fixedArguments] }
+        : null,
+    }
+  }
+
+  async function listRuns(listInput: { cardId: string, limit?: number }) {
+    const cardId = normalizeCardId(listInput.cardId)
+    const persisted = persistence.listRuns
+      ? await persistence.listRuns({ cardId, limit: listInput.limit })
+      : [...activeRuns.values()].map(run => run.record)
+    return persisted
+      .filter(run => run.cardId === cardId)
+      .slice(0, Math.max(1, Math.min(100, Math.floor(listInput.limit ?? 20))))
+      .map(run => ({
+        ...run,
+        sourceIds: [...run.sourceIds],
+        configSnapshot: run.configSnapshot
+          ? { ...run.configSnapshot, fixedArguments: [...run.configSnapshot.fixedArguments] }
+          : null,
+      }))
+  }
+
+  async function train(trainInput: { cardId: string, datasetId?: string | null }): Promise<PersonaTrainingPipelineResult> {
+    const started = await start(trainInput)
+    const active = activeRuns.get(started.run.runId)
+    if (!active)
+      throw new Error('persona training run completed before its result could be observed')
+    return await active.completion
   }
 
   async function cancel(cancelInput: { runId: string, cardId?: string, reason?: string | null }) {
     const run = activeRuns.get(cancelInput.runId)
     if (!run)
-      return false
+      return null
     if (cancelInput.cardId && run.cardId !== normalizeCardId(cancelInput.cardId))
-      return false
+      return null
+    if (!isNonTerminalRunStatus(run.record.status)) {
+      return {
+        ...run.record,
+        sourceIds: [...run.record.sourceIds],
+        configSnapshot: run.record.configSnapshot
+          ? { ...run.record.configSnapshot, fixedArguments: [...run.record.configSnapshot.fixedArguments] }
+          : null,
+      }
+    }
     const reason = cancelInput.reason?.trim() || 'cancelled'
     run.invalidatedReason = 'cancelled'
     run.cancellationReason = reason
+    const requestedAt = input.now()
+    await persistRunUpdate(run, {
+      status: 'cancel_requested',
+      error: reason,
+      failureReason: 'cancelled',
+      cancellationRequestedAt: requestedAt,
+      updatedAt: requestedAt,
+    })
     run.controller.abort(reason)
-    if (run.datasetId && !run.terminalEventRecorded) {
-      await updateRunTerminalState({
-        run,
-        status: 'cancelled',
-        error: reason,
-        action: 'training-cancelled',
-        reason,
-        finishedAt: input.now(),
-      })
+    return { ...run.record, sourceIds: [...run.record.sourceIds] }
+  }
+
+  async function stop(reasonRaw: string) {
+    const reason = reasonRaw.trim() || 'runtime-stopped'
+    const completions: Promise<PersonaTrainingPipelineResult>[] = []
+    for (const run of activeRuns.values()) {
+      if (!isNonTerminalRunStatus(run.record.status)) {
+        completions.push(run.completion)
+        continue
+      }
+      run.invalidatedReason = 'interrupted'
+      run.cancellationReason = reason
+      if (!run.terminalEventRecorded) {
+        await updateRunTerminalState({
+          run,
+          status: 'interrupted',
+          error: reason,
+          action: 'training-interrupted',
+          reason,
+          failureReason: 'interrupted',
+          finishedAt: input.now(),
+        })
+      }
+      run.controller.abort(reason)
+      completions.push(run.completion)
     }
-    return true
+    await Promise.allSettled(completions)
   }
 
   async function activateVersion(activationInput: { cardId: string, datasetId: string }) {
@@ -721,8 +951,12 @@ export function createPersonaTrainingPipelineGate(input: {
   }
 
   return {
+    start,
+    getRun,
+    listRuns,
     train,
     cancel,
+    stop,
     activateVersion,
     rollbackVersion,
     revokeSource,

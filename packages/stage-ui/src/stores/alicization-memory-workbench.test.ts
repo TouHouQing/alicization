@@ -833,6 +833,172 @@ describe('alicization memory workbench store', () => {
     expect(store.personaTrainingDatasetExport?.manifest.manifestHash).toBe('hash')
   })
 
+  it('starts persona training without blocking and polls the persisted run to completion', async () => {
+    vi.useFakeTimers()
+    const queuedRun = {
+      runId: 'run-1',
+      cardId: 'default',
+      datasetId: 'dataset-1',
+      manifestHash: 'manifest-1',
+      sourceIds: ['reflection-1'],
+      basePersonaRevision: 'persona-core-v1',
+      status: 'queued',
+      stage: 'writing-input',
+      progress: 0,
+      progressMessage: null,
+      failureReason: null,
+      configSnapshot: {
+        executable: '/usr/local/bin/persona-trainer',
+        fixedArguments: [],
+        baseModel: 'base-model-v1',
+        timeoutMs: 60_000,
+      },
+      artifact: null,
+      error: null,
+      queuedAt: 1,
+      startedAt: null,
+      updatedAt: 1,
+      finishedAt: null,
+      cancellationRequestedAt: null,
+    } as const
+    const completedRun = {
+      ...queuedRun,
+      status: 'completed',
+      stage: 'finalizing',
+      progress: 1,
+      artifact: {
+        schemaVersion: 'alicization-persona-training-artifact-v1',
+        artifactId: 'artifact-1',
+        runId: 'run-1',
+        kind: 'lora-adapter',
+        path: '/tmp/artifact-1/adapter.bin',
+        sha256: 'hash',
+        sizeBytes: 12,
+        baseModel: 'base-model-v1',
+        compatibility: {
+          status: 'compatible',
+          baseModel: 'base-model-v1',
+        },
+        activation: {
+          status: 'unsupported',
+          reason: 'No loader receipt.',
+        },
+        finishedAt: 2,
+      },
+      updatedAt: 2,
+      finishedAt: 2,
+    } as const
+    const memoryWorkbenchRunPersonaTraining = vi.fn(async () => ({ run: queuedRun }))
+    const memoryWorkbenchGetPersonaTrainingRun = vi.fn(async () => completedRun)
+    const memoryWorkbenchListPersonaTrainingRuns = vi.fn(async () => ({ items: [completedRun] }))
+    const memoryWorkbenchListPersonaTrainingIncrements = vi.fn(async () => ({ items: [] }))
+    setAlicizationBridge({
+      memoryWorkbenchRunPersonaTraining,
+      memoryWorkbenchGetPersonaTrainingRun,
+      memoryWorkbenchListPersonaTrainingRuns,
+      memoryWorkbenchListPersonaTrainingIncrements,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.runPersonaTraining('dataset-1')
+
+    expect(store.personaTrainingRun).toMatchObject({
+      runId: 'run-1',
+      status: 'queued',
+    })
+    await vi.advanceTimersByTimeAsync(2_000)
+    expect(memoryWorkbenchGetPersonaTrainingRun).toHaveBeenCalledWith({ runId: 'run-1' })
+    expect(store.personaTrainingRun).toMatchObject({
+      status: 'completed',
+      progress: 1,
+    })
+    expect(store.personaTrainingRuns).toEqual([completedRun])
+  })
+
+  it('clears card-scoped persona training state and stops polling before a card switch', async () => {
+    vi.useFakeTimers()
+    const queuedRun = {
+      runId: 'run-old-card',
+      cardId: 'old-card',
+      datasetId: 'dataset-old',
+      manifestHash: 'manifest-old',
+      sourceIds: ['reflection-old'],
+      basePersonaRevision: 'persona-core-v1',
+      status: 'queued',
+      stage: 'writing-input',
+      progress: 0,
+      progressMessage: null,
+      failureReason: null,
+      configSnapshot: null,
+      artifact: null,
+      error: null,
+      queuedAt: 1,
+      startedAt: null,
+      updatedAt: 1,
+      finishedAt: null,
+      cancellationRequestedAt: null,
+    } as const
+    const memoryWorkbenchRunPersonaTraining = vi.fn(async () => ({ run: queuedRun }))
+    const memoryWorkbenchGetPersonaTrainingRun = vi.fn(async () => queuedRun)
+    setAlicizationBridge({
+      memoryWorkbenchRunPersonaTraining,
+      memoryWorkbenchGetPersonaTrainingRun,
+    } as any)
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.runPersonaTraining('dataset-old')
+
+    store.resetPersonaTrainingScope()
+    await vi.advanceTimersByTimeAsync(2_000)
+
+    expect(memoryWorkbenchGetPersonaTrainingRun).not.toHaveBeenCalled()
+    expect(store.personaTrainingRun).toBeNull()
+    expect(store.personaTrainingRuns).toEqual([])
+    expect(store.personaTrainingIncrements).toEqual([])
+  })
+
+  it('persists and tests the local persona trainer configuration through the bridge', async () => {
+    const config = {
+      executable: '/usr/local/bin/persona-trainer',
+      fixedArguments: ['wrapper.js'],
+      baseModel: 'base-model-v1',
+      timeoutMs: 60_000,
+    }
+    const memoryWorkbenchGetPersonaTrainingExecutorConfig = vi.fn(async () => ({
+      configured: true,
+      config,
+      error: null,
+    }))
+    const memoryWorkbenchSetPersonaTrainingExecutorConfig = vi.fn(async () => ({
+      configured: true,
+      config,
+      error: null,
+    }))
+    const memoryWorkbenchTestPersonaTrainingExecutor = vi.fn(async () => ({
+      ok: true,
+      executable: config.executable,
+      error: null,
+    }))
+    setAlicizationBridge({
+      memoryWorkbenchGetPersonaTrainingExecutorConfig,
+      memoryWorkbenchSetPersonaTrainingExecutorConfig,
+      memoryWorkbenchTestPersonaTrainingExecutor,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.loadPersonaTrainingExecutorConfig()
+    await store.savePersonaTrainingExecutorConfig(config)
+    await store.testPersonaTrainingExecutor(config)
+
+    expect(store.personaTrainingExecutorConfigState).toMatchObject({
+      configured: true,
+      config,
+    })
+    expect(store.personaTrainingExecutorConnection).toMatchObject({
+      ok: true,
+      executable: config.executable,
+    })
+  })
+
   it('runs quality trials and records beginner recall gold labels through the bridge', async () => {
     const label = {
       id: 'gold-1',

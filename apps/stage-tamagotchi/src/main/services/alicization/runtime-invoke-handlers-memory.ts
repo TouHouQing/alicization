@@ -3,6 +3,7 @@ import type {
   AlicizationCardScope,
   AlicizationMemoryUpsertFactsPayload,
   AlicizationMindTurnEventInput,
+  AlicizationPersonaTrainingExecutorConfig,
   AlicizationReminderSchedulePayload,
 } from '../../../shared/eventa'
 import type { AlicizationKnowledgeAssimilationRuntime } from './knowledge-assimilation-runtime'
@@ -22,11 +23,14 @@ import {
   electronAlicizationMemoryWorkbenchCancelPersonaTraining,
   electronAlicizationMemoryWorkbenchExportPersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingDataset,
+  electronAlicizationMemoryWorkbenchGetPersonaTrainingExecutorConfig,
+  electronAlicizationMemoryWorkbenchGetPersonaTrainingRun,
   electronAlicizationMemoryWorkbenchGetSnapshot,
   electronAlicizationMemoryWorkbenchListEmbeddingModels,
   electronAlicizationMemoryWorkbenchListLongTerm,
   electronAlicizationMemoryWorkbenchListPersonaCandidates,
   electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements,
+  electronAlicizationMemoryWorkbenchListPersonaTrainingRuns,
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
   electronAlicizationMemoryWorkbenchListReplaySessions,
   electronAlicizationMemoryWorkbenchManageSemanticScaleJobs,
@@ -39,8 +43,10 @@ import {
   electronAlicizationMemoryWorkbenchRunPersonaTraining,
   electronAlicizationMemoryWorkbenchRunQualityTrial,
   electronAlicizationMemoryWorkbenchSetPersonaTrainingDatasetExamplePolicy,
+  electronAlicizationMemoryWorkbenchSetPersonaTrainingExecutorConfig,
   electronAlicizationMemoryWorkbenchStagePersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchTestEmbeddingConnection,
+  electronAlicizationMemoryWorkbenchTestPersonaTrainingExecutor,
   electronAlicizationReminderSchedule,
   electronAlicizationRunMemoryPrune,
   electronAlicizationSearchOrganicSubconsciousFragments,
@@ -85,6 +91,21 @@ interface RegisterAlicizationMemoryInvokeHandlersOptions {
   normalizeSessionId: (raw: unknown) => string
   errorMessageFrom: (error: unknown) => string | undefined
   workingMemoryStore: WorkingMemoryStore
+  getPersonaTrainingExecutorConfig: () => {
+    configured: boolean
+    config: AlicizationPersonaTrainingExecutorConfig | null
+    error: string | null
+  }
+  setPersonaTrainingExecutorConfig: (config: AlicizationPersonaTrainingExecutorConfig | null) => Promise<{
+    configured: boolean
+    config: AlicizationPersonaTrainingExecutorConfig | null
+    error: string | null
+  }>
+  testPersonaTrainingExecutor: (config: AlicizationPersonaTrainingExecutorConfig | null) => Promise<{
+    ok: boolean
+    executable: string
+    error: string | null
+  }>
 }
 
 export function registerAlicizationMemoryInvokeHandlers(options: RegisterAlicizationMemoryInvokeHandlersOptions) {
@@ -106,6 +127,9 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     normalizeSessionId,
     errorMessageFrom,
     workingMemoryStore,
+    getPersonaTrainingExecutorConfig,
+    setPersonaTrainingExecutorConfig,
+    testPersonaTrainingExecutor,
   } = options
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchGetSnapshot, async payload => await withCardScope(payload.cardId, async () => {
@@ -302,9 +326,21 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     sourceId: sanitizeText(payload.sourceId),
   })))
 
-  registerInvokeHandler(electronAlicizationMemoryWorkbenchRunPersonaTraining, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().runPersonaTraining({
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchRunPersonaTraining, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().startPersonaTraining({
     cardId: cardIdFrom(payload),
     datasetId: sanitizeText(payload.datasetId, '') || null,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchGetPersonaTrainingRun, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().getPersonaTrainingRun({
+    cardId: cardIdFrom(payload),
+    runId: sanitizeText(payload.runId),
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchListPersonaTrainingRuns, async payload => await withCardScope(payload.cardId, async () => ({
+    items: await getAlicizationDb().listPersonaTrainingRuns({
+      cardId: cardIdFrom(payload),
+      limit: payload.limit,
+    }),
   })))
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchCancelPersonaTraining, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().cancelPersonaTraining({
@@ -323,6 +359,12 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
       cardId: cardIdFrom(payload),
     }),
   })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchGetPersonaTrainingExecutorConfig, async payload => await withCardScope(payload.cardId, async () => getPersonaTrainingExecutorConfig()))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchSetPersonaTrainingExecutorConfig, async payload => await withCardScope(payload.cardId, async () => await setPersonaTrainingExecutorConfig(payload.config)))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchTestPersonaTrainingExecutor, async payload => await withCardScope(payload.cardId, async () => await testPersonaTrainingExecutor(payload.config)))
 
   registerInvokeHandler(electronAlicizationGetMemoryStats, async scope => await withCardScope(cardIdFrom(scope), async () => await getAlicizationDb().getMemoryStats()))
   registerInvokeHandler(electronAlicizationGetOrganicMemorySnapshot, async scope => await withCardScope(cardIdFrom(scope), async () => await getOrganicMemorySnapshot()))

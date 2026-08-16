@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import sqlite3 from 'sqlite3'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { setupAlicizationDb } from './db'
 
@@ -28,6 +28,17 @@ function queryRawRows<T>(database: sqlite3.Database, sql: string, params: unknow
         reject(error)
       else
         resolve(rows as T[])
+    })
+  })
+}
+
+function runRaw(database: sqlite3.Database, sql: string, params: unknown[] = []) {
+  return new Promise<void>((resolve, reject) => {
+    database.run(sql, params, (error) => {
+      if (error)
+        reject(error)
+      else
+        resolve()
     })
   })
 }
@@ -382,7 +393,11 @@ describe('persona training dataset database provenance', () => {
         cardId: 'card-a',
         runId,
         reason: 'user-requested',
-      })).resolves.toBe(true)
+      })).resolves.toMatchObject({
+        runId,
+        status: 'cancel_requested',
+        error: 'user-requested',
+      })
       resolveTraining({ artifact: 'must-not-be-used' })
       await expect(training).resolves.toMatchObject({
         status: 'failed',
@@ -615,6 +630,188 @@ describe('persona training dataset database provenance', () => {
     }
     finally {
       await db.close()
+    }
+  })
+
+  it('starts persona training asynchronously and exposes DB-backed progress and history', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    let finish!: () => void
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async (input) => {
+        await input.onProgress?.({
+          stage: 'training',
+          progress: 0.45,
+          message: 'local trainer running',
+        })
+        await new Promise<void>((resolve) => {
+          finish = resolve
+        })
+        return { artifact: { artifactId: 'artifact-async-db' } }
+      },
+    })
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'async-db',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+
+      const started = await db.startPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+
+      expect(started.run).toMatchObject({
+        status: 'queued',
+        progress: 0,
+      })
+      await vi.waitFor(async () => {
+        await expect(db.getPersonaTrainingRun({
+          cardId: 'card-a',
+          runId: started.run.runId,
+        })).resolves.toMatchObject({
+          status: 'running',
+          stage: 'training',
+          progress: 0.45,
+        })
+      })
+      finish()
+      await vi.waitFor(async () => {
+        await expect(db.getPersonaTrainingRun({
+          cardId: 'card-a',
+          runId: started.run.runId,
+        })).resolves.toMatchObject({
+          status: 'completed',
+          artifact: { artifactId: 'artifact-async-db' },
+        })
+      })
+      await expect(db.listPersonaTrainingRuns({
+        cardId: 'card-a',
+      })).resolves.toEqual([
+        expect.objectContaining({
+          runId: started.run.runId,
+          status: 'completed',
+        }),
+      ])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('stops and awaits active persona training before closing the card database', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    let processExited = false
+    let startedResolve!: () => void
+    const processStarted = new Promise<void>((resolve) => {
+      startedResolve = resolve
+    })
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => await new Promise((_, reject) => {
+        startedResolve()
+        const abort = () => {
+          setTimeout(() => {
+            processExited = true
+            reject(input.signal.reason)
+          }, 10)
+        }
+        if (input.signal.aborted)
+          abort()
+        else
+          input.signal.addEventListener('abort', abort, { once: true })
+      }),
+    })
+    const dataset = await stageActivatablePersonaDataset(db, {
+      cardId: 'card-a',
+      sourceSuffix: 'close-active',
+    })
+    await db.activatePersonaTrainingDataset({
+      cardId: 'card-a',
+      datasetId: dataset.id,
+    })
+    const { run } = await db.startPersonaTraining({
+      cardId: 'card-a',
+      datasetId: dataset.id,
+    })
+    await processStarted
+
+    await db.close()
+
+    expect(processExited).toBe(true)
+    const reopened = await setupAlicizationDb(userDataPath)
+    try {
+      await expect(reopened.getPersonaTrainingRun({
+        cardId: 'card-a',
+        runId: run.runId,
+      })).resolves.toMatchObject({
+        status: 'interrupted',
+        error: 'database-close',
+      })
+    }
+    finally {
+      await reopened.close()
+    }
+  })
+
+  it('recovers stale queued and running persona jobs as interrupted after a crash', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const initialized = await setupAlicizationDb(userDataPath)
+    await initialized.close()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      await runRaw(
+        rawDatabase,
+        `
+        INSERT INTO persona_training_runs (
+          run_id, card_id, dataset_id, manifest_hash, source_ids_json,
+          base_persona_revision, status, stage, progress, progress_message,
+          failure_reason, config_snapshot_json, artifact_json, error,
+          queued_at, started_at, updated_at, finished_at, cancellation_requested_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          'run-stale',
+          'card-a',
+          'dataset-stale',
+          'manifest-stale',
+          '[]',
+          'persona-core-v1',
+          'running',
+          'training',
+          0.5,
+          null,
+          null,
+          null,
+          null,
+          null,
+          100,
+          110,
+          120,
+          null,
+          null,
+        ],
+      )
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+
+    const recovered = await setupAlicizationDb(userDataPath)
+    try {
+      await expect(recovered.getPersonaTrainingRun({
+        cardId: 'card-a',
+        runId: 'run-stale',
+      })).resolves.toMatchObject({
+        status: 'interrupted',
+        failureReason: 'interrupted',
+      })
+    }
+    finally {
+      await recovered.close()
     }
   })
 })

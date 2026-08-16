@@ -570,8 +570,12 @@ pages:
         retry_semantic_scale: Retry Semantic Scale Soak
         refresh_semantic_scale: Refresh Soak Status
         run_persona_training: Run Persona Training
+        cancel_persona_training: Cancel Persona Training
         refresh_persona_training: Refresh Training State
         rollback_persona_increment: Roll Back Persona Increment
+        test_persona_training_executor: Test Trainer
+        save_persona_training_executor: Save Trainer Config
+        clear_persona_training_executor: Clear Trainer Config
       states:
         empty_working: No working memory snapshot yet. Send one dialogue turn and refresh.
         empty_long_term: No matching long-term memory yet.
@@ -586,6 +590,30 @@ pages:
         persona_training_succeeded: Training completed and produced a rollbackable increment.
         persona_training_failed: Training failed. The persona core was not changed.
         empty_persona_training_increments: No rollbackable persona training increments yet.
+        empty_persona_training_runs: No persona training runs exist for this card yet.
+        persona_training_executor_configured: Local trainer configured. Each run stores an independent configuration snapshot.
+        persona_training_executor_not_configured: No local trainer is configured. Training attempts will fail transparently.
+        persona_training_executor_connected: Trainer protocol test passed.
+        persona_training_executor_connection_failed: Trainer protocol test failed.
+        persona_training_queued: Queued
+        persona_training_running: Training
+        persona_training_cancel_requested: Cancelling
+        persona_training_completed: Completed
+        persona_training_cancelled: Cancelled
+        persona_training_interrupted: Interrupted
+        persona_training_stage_writing_input: Writing cleaned input
+        persona_training_stage_spawning: Starting local trainer
+        persona_training_stage_training: Training locally
+        persona_training_stage_validating_artifact: Validating artifact
+        persona_training_stage_finalizing: Finalizing records
+        persona_training_activation_inactive: Inactive
+        persona_training_activation_unsupported: Artifact stored but inactive (no loader receipt)
+        persona_training_compatibility_compatible: Compatible
+        persona_training_compatibility_incompatible: Incompatible
+        persona_training_compatibility_unknown: Unknown
+        persona_training_increment_available: Available
+        persona_training_increment_rolled_back: Rolled back
+        persona_training_increment_revoked: Revoked
         dataset_staged: Staged
         dataset_quarantined: Quarantined
         dataset_revoked: Revoked
@@ -731,6 +759,20 @@ pages:
         trace: Trace
         persona_training_last_run: Last Training Run
         persona_training_increments: Persona Training Increments
+        persona_training_executor: Local Persona/LoRA Trainer
+        persona_training_executor_description: Configure a local training wrapper you installed. Alicization only invokes the fixed JSONL protocol, never installs training dependencies silently, and never passes Provider API keys to the child process.
+        persona_training_executable: Executable Absolute Path
+        persona_training_fixed_arguments: Fixed Arguments (One Per Line)
+        persona_training_base_model: Base Model
+        persona_training_timeout: Timeout (Seconds)
+        persona_training_runs: Persona Training Runs
+        persona_training_runs_description: Training runs asynchronously. Status, progress, cancellation, and errors come from the local database.
+        persona_training_stage: Stage
+        persona_training_progress: Progress
+        persona_training_history: Run History
+        persona_training_artifact: Training Artifact
+        persona_training_compatibility: Compatibility
+        persona_training_activation: Activation
         long_term_fixtures: Long-Term Fixtures
         working_memory_fixtures: Working Memory Fixtures
         compressed_context_fixtures: Compressed-Context Fixtures
@@ -830,6 +872,9 @@ pages:
         embedding_model_search: Type embedding / bge / text-embedding to search
         embedding_model: text-embedding-3-small
         embedding_dimensions: Leave blank first; connection test can detect it
+        persona_training_executable: /absolute/path/persona-training-wrapper
+        persona_training_base_model: Local base model name or path
+        persona_training_fixed_arguments: Optional wrapper script path or fixed arguments, one per line
   data:
     title: Data
     description: Manage stored Alicization data, exports, and resets
