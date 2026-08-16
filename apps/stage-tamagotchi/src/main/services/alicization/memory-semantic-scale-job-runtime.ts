@@ -77,7 +77,7 @@ export type MemorySemanticScaleJobExecutor = (
 
 type MemorySemanticScaleRecoveryAtomicWriteOptions = Pick<
   AlicizationAtomicWriteOptions,
-  'appendAuditLog' | 'fsyncPath' | 'platform' | 'renamePath' | 'renameRetryDelaysMs' | 'sleep'
+  'appendAuditLog' | 'fsyncPath' | 'openPath' | 'platform' | 'renamePath' | 'renameRetryDelaysMs' | 'sleep' | 'unlinkPath'
 >
 
 interface MemorySemanticScaleJobRow {

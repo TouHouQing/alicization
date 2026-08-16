@@ -178,25 +178,19 @@ export async function writeAlicizationAtomicContent(options: AlicizationAtomicWr
   const tempPath = `${options.path}.${processId}.${now()}.${randomId()}.tmp`
   let handle: AlicizationAtomicFileHandle | null = null
   let activeStep: Promise<unknown> | null = null
-  let activeStepPending = false
   let cleanupPromise: Promise<void> | null = null
 
   const runTrackedStep = async <T>(stage: string, task: () => Promise<T>) => {
     const operation = Promise.resolve().then(task)
     activeStep = operation
-    activeStepPending = true
     void operation.then(
       () => {
-        if (activeStep === operation) {
+        if (activeStep === operation)
           activeStep = null
-          activeStepPending = false
-        }
       },
       () => {
-        if (activeStep === operation) {
+        if (activeStep === operation)
           activeStep = null
-          activeStepPending = false
-        }
       },
     )
     return await runStep(stage, () => operation)
@@ -313,10 +307,7 @@ export async function writeAlicizationAtomicContent(options: AlicizationAtomicWr
   }
   catch (error) {
     const cleanup = scheduleCleanup()
-    if (activeStepPending)
-      void cleanup.catch(() => {})
-    else
-      await cleanup.catch(() => {})
+    void cleanup.catch(() => {})
     throw error
   }
 

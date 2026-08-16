@@ -3,7 +3,7 @@ import type sqlite3 from 'sqlite3'
 import type { MemorySemanticScaleJobExecutionInput } from './memory-semantic-scale-job-runtime'
 import type { AlicizationAtomicWriteOptions } from './runtime-atomic-write'
 
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, open, readdir, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -145,7 +145,7 @@ function attachRuntime(
     writeQueue?: WriteQueue
     recoveryAtomicWriteOptions?: Pick<
       AlicizationAtomicWriteOptions,
-      'appendAuditLog' | 'fsyncPath' | 'platform' | 'renamePath' | 'renameRetryDelaysMs' | 'sleep'
+      'appendAuditLog' | 'fsyncPath' | 'openPath' | 'platform' | 'renamePath' | 'renameRetryDelaysMs' | 'sleep' | 'unlinkPath'
     >
   },
 ) {
@@ -209,7 +209,7 @@ async function createRuntimeHarness(input?: {
   run?: (sql: string, params?: unknown[]) => Promise<unknown>
   recoveryAtomicWriteOptions?: Pick<
     AlicizationAtomicWriteOptions,
-    'appendAuditLog' | 'fsyncPath' | 'platform' | 'renamePath' | 'renameRetryDelaysMs' | 'sleep'
+    'appendAuditLog' | 'fsyncPath' | 'openPath' | 'platform' | 'renamePath' | 'renameRetryDelaysMs' | 'sleep' | 'unlinkPath'
   >
 }) {
   const harness = await createSqliteHarness()
@@ -541,6 +541,94 @@ describe('memory semantic scale job runtime', () => {
       status: 'queued',
       attemptCount: 0,
     })
+  })
+
+  it('bounds stop when a failed recovery write has a late file cleanup', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    const recoveryJournalDir = join(tempRootDir, 'stop-recovery-journal')
+    let executionStarted: (() => void) | undefined
+    let cleanupCloseStarted: (() => void) | undefined
+    let releaseCleanupClose: (() => void) | undefined
+    let recoveryTempPath: string | null = null
+    const executionStartedPromise = new Promise<void>((resolve) => {
+      executionStarted = resolve
+    })
+    const cleanupCloseStartedPromise = new Promise<void>((resolve) => {
+      cleanupCloseStarted = resolve
+    })
+    const releaseCleanupClosePromise = new Promise<void>((resolve) => {
+      releaseCleanupClose = resolve
+    })
+    const unlinkPath = vi.fn(async (path: string) => await unlink(path))
+    const { runtime } = attachRuntime(harness, {
+      stopTimeoutMs: 80,
+      tempRootDir,
+      recoveryJournalDir,
+      recoveryAtomicWriteOptions: {
+        openPath: async (...args) => {
+          recoveryTempPath = args[0]
+          const handle = await open(...args)
+          return {
+            writeFile: async () => {
+              throw Object.assign(new Error('ENOSPC: recovery marker disk full'), {
+                code: 'ENOSPC',
+              })
+            },
+            sync: handle.sync.bind(handle),
+            close: async () => {
+              cleanupCloseStarted?.()
+              await releaseCleanupClosePromise
+              await handle.close()
+            },
+          }
+        },
+        unlinkPath,
+      },
+      executeJob: async () => {
+        executionStarted?.()
+        return await new Promise<ReturnType<typeof createReport>>(() => {})
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    void runtime.runJob(job.jobId)
+    await executionStartedPromise
+
+    const startedAt = Date.now()
+    const stopping = runtime.stop()
+    await cleanupCloseStartedPromise
+    const boundedResult = await Promise.race([
+      stopping.then(
+        () => ({ status: 'resolved' as const, error: null }),
+        error => ({ status: 'rejected' as const, error }),
+      ),
+      new Promise<{ status: 'timed-out', error: null }>(resolve =>
+        setTimeout(() => resolve({ status: 'timed-out', error: null }), 250)),
+    ])
+    const elapsedMs = Date.now() - startedAt
+
+    expect(recoveryTempPath).not.toBeNull()
+    expect(unlinkPath).not.toHaveBeenCalled()
+    releaseCleanupClose?.()
+    const finalResult = boundedResult.status === 'timed-out'
+      ? await stopping.then(
+          () => ({ status: 'resolved' as const, error: null }),
+          error => ({ status: 'rejected' as const, error }),
+        )
+      : boundedResult
+    await vi.waitFor(async () => {
+      expect(unlinkPath).toHaveBeenCalledWith(recoveryTempPath)
+      await expect(stat(recoveryTempPath!)).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+
+    expect(boundedResult.status).toBe('rejected')
+    expect(finalResult.error).toBeInstanceOf(AggregateError)
+    expect((finalResult.error as Error).message).toContain(
+      'semantic scale runtime stop could not establish a safe recovery boundary',
+    )
+    expect((finalResult.error as Error).message).toContain('ENOSPC')
+    expect(elapsedMs).toBeLessThan(250)
   })
 
   it('rejects within the absolute stop deadline when recovery reconciliation never returns', async () => {
