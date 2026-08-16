@@ -7,8 +7,11 @@ import type {
 import type { LongTermMemoryVectorIndexNativeBackend } from './long-term-memory-vector-index-adapter'
 import type { LongTermMemoryVectorSearchResult } from './long-term-memory-vector-store'
 
+import process from 'node:process'
+
 import { Buffer } from 'node:buffer'
 import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { getLoadablePath } from 'sqlite-vec'
 
@@ -99,6 +102,23 @@ function packagedExtensionPath(path: string) {
   return existsSync(unpacked) ? unpacked : path
 }
 
+function sqliteVecExtensionFilename() {
+  if (process.platform === 'win32')
+    return 'vec0.dll'
+  if (process.platform === 'darwin')
+    return 'vec0.dylib'
+  return 'vec0.so'
+}
+
+function resolveSqliteVecExtensionPath() {
+  if (process.resourcesPath) {
+    const resourcePath = join(process.resourcesPath, 'sqlite-vec', sqliteVecExtensionFilename())
+    if (existsSync(resourcePath))
+      return resourcePath
+  }
+  return packagedExtensionPath(getLoadablePath())
+}
+
 function loadExtension(database: sqlite3.Database, path: string) {
   return new Promise<void>((resolve, reject) => {
     database.loadExtension(path, error => error ? reject(error) : resolve())
@@ -153,7 +173,7 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
 
   async function initialize() {
     try {
-      await loadExtension(input.database, packagedExtensionPath(getLoadablePath()))
+      await loadExtension(input.database, resolveSqliteVecExtensionPath())
       await input.get<{ version: string }>(input.database, 'SELECT vec_version() AS version')
       const existingMappingColumns = await input.all<{ name: string }>(
         input.database,

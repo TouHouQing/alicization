@@ -2,7 +2,12 @@
 
 import type { Configuration } from 'electron-builder'
 
+import { basename, join } from 'node:path'
 import { env } from 'node:process'
+
+import { getLoadablePath as getSqliteVecLoadablePath } from 'sqlite-vec'
+
+const sqliteVecExtensionPath = getSqliteVecLoadablePath()
 
 export default {
   appId: 'com.tohoqing.alicization',
@@ -55,6 +60,12 @@ export default {
   asar: true,
   asarUnpack: [
     '**/*.node',
+  ],
+  extraResources: [
+    {
+      from: sqliteVecExtensionPath,
+      to: join('sqlite-vec', basename(sqliteVecExtensionPath)),
+    },
   ],
   extraMetadata: {
     name: 'com.tohoqing.alicization',

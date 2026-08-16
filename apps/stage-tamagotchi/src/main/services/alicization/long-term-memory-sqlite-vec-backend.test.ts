@@ -1,6 +1,12 @@
+import { Buffer } from 'node:buffer'
+import { existsSync } from 'node:fs'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import sqlite3 from 'sqlite3'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { hashLongTermMemoryEmbeddingText } from './long-term-memory-embedding-text'
 import { createSqliteVecLongTermMemoryVectorBackend } from './long-term-memory-sqlite-vec-backend'
@@ -14,6 +20,8 @@ interface SqliteHarness {
 }
 
 const harnesses: SqliteHarness[] = []
+const temporaryDirectories: string[] = []
+const originalResourcesPath = process.resourcesPath
 
 function createSqliteHarness(): Promise<SqliteHarness> {
   return new Promise((resolve, reject) => {
@@ -154,9 +162,54 @@ async function createBackendHarness() {
 
 afterEach(async () => {
   await Promise.all(harnesses.splice(0).map(harness => harness.close()))
+  await Promise.all(temporaryDirectories.splice(0).map(directory => rm(directory, { recursive: true, force: true })))
+  if (originalResourcesPath === undefined) {
+    Object.defineProperty(process, 'resourcesPath', {
+      configurable: true,
+      value: undefined,
+    })
+  }
+  else {
+    Object.defineProperty(process, 'resourcesPath', {
+      configurable: true,
+      value: originalResourcesPath,
+    })
+  }
 })
 
 describe('sqlite-vec long-term memory vector backend', () => {
+  it('loads the packaged sqlite-vec extension from Electron resources before the bundled module path', async () => {
+    const resourcesPath = await mkdtemp(join(tmpdir(), 'alicization-sqlite-vec-resources-'))
+    temporaryDirectories.push(resourcesPath)
+    const extensionName = process.platform === 'win32'
+      ? 'vec0.dll'
+      : process.platform === 'darwin'
+        ? 'vec0.dylib'
+        : 'vec0.so'
+    const extensionPath = join(resourcesPath, 'sqlite-vec', extensionName)
+    await mkdir(join(resourcesPath, 'sqlite-vec'), { recursive: true })
+    await writeFile(extensionPath, '')
+    expect(existsSync(extensionPath)).toBe(true)
+    Object.defineProperty(process, 'resourcesPath', {
+      configurable: true,
+      value: resourcesPath,
+    })
+
+    const loadExtension = vi.fn((_path: string, callback: (error: Error | null) => void) => callback(null))
+    const backend = createSqliteVecLongTermMemoryVectorBackend({
+      database: { loadExtension } as unknown as sqlite3.Database,
+      now: () => 100,
+      run: async () => undefined,
+      get: async <T>() => ({ version: '0.1.6' }) as T,
+      all: async () => [],
+      enqueueWrite: async task => await task(),
+    })
+
+    await backend.initialize()
+
+    expect(loadExtension).toHaveBeenCalledWith(extensionPath, expect.any(Function))
+  })
+
   it('isolates native search by card, model, dimensions, and source', async () => {
     const { backend, upsertCanonical } = await createBackendHarness()
     const records = [
