@@ -16,6 +16,7 @@ import type {
   AlicizationMemoryRecallProbeResult,
   AlicizationMemoryRecallProbeTemporalFocus,
   AlicizationMemoryWorkbenchSnapshot,
+  AlicizationPersonaTrainingPipelineFailureReason,
   AlicizationVisualPresenceStateSnapshot,
 } from './eventa'
 
@@ -82,6 +83,10 @@ const bridgeDeadLetteredTerminalPhase: Expect<Extends<
   'dead-lettered',
   BridgeToolProgressEvent['phase']
 >> = true
+const personaTrainingInterruptedFailure: Expect<Extends<
+  'interrupted',
+  AlicizationPersonaTrainingPipelineFailureReason
+>> = true
 
 const authorityFields: AlicizationPersistentPresenceAuthoritySnapshot = {} as AlicizationVisualPresenceStateSnapshot
 
@@ -100,6 +105,7 @@ void bridgeToolCallProjectionRequired
 void bridgeToolResultProjectionRequired
 void bridgeToolProgressProjectionRequired
 void bridgeDeadLetteredTerminalPhase
+void personaTrainingInterruptedFailure
 void authorityFields
 
 const memoryWorkbenchSnapshot: AlicizationMemoryWorkbenchSnapshot = {

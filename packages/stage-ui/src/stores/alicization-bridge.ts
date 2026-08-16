@@ -760,6 +760,10 @@ export interface AlicizationPersonaTrainingDatasetExamplePolicyPayload extends A
   consent: Omit<AlicizationPersonaTrainingDatasetConsentSnapshot, 'capturedAt'> & { capturedAt?: number }
 }
 
+export interface AlicizationPersonaTrainingDatasetRevokePayload extends AlicizationCardScope {
+  sourceId: string
+}
+
 export interface AlicizationPersonaCandidateWorkbenchItem {
   id: string
   sourceMemoryIds: string[]
@@ -888,10 +892,18 @@ export interface AlicizationPersonaTrainingRunsResult {
   items: AlicizationPersonaTrainingPipelineRunRecord[]
 }
 
+export interface AlicizationPersonaTrainingRunLookupPayload extends AlicizationCardScope {
+  runId: string
+}
+
 export interface AlicizationPersonaTrainingExecutorConfigState {
   configured: boolean
   config: AlicizationPersonaTrainingExecutorConfig | null
   error: string | null
+}
+
+export interface AlicizationPersonaTrainingExecutorConfigPayload extends AlicizationCardScope {
+  config: AlicizationPersonaTrainingExecutorConfig | null
 }
 
 export interface AlicizationPersonaTrainingExecutorConnectionResult {
@@ -2941,14 +2953,14 @@ interface AlicizationBridge {
   memoryWorkbenchActivatePersonaTrainingDataset?: (payload: Omit<Required<AlicizationPersonaTrainingDatasetVersionPayload>, 'cardId'>) => Promise<AlicizationPersonaTrainingDatasetVersion | null>
   memoryWorkbenchRollbackPersonaTrainingDataset?: (payload: Omit<Required<AlicizationPersonaTrainingDatasetVersionPayload>, 'cardId'>) => Promise<AlicizationPersonaTrainingDatasetVersion | null>
   memoryWorkbenchSetPersonaTrainingDatasetExamplePolicy?: (payload: Omit<AlicizationPersonaTrainingDatasetExamplePolicyPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingDatasetExample | null>
-  memoryWorkbenchRevokePersonaTrainingDatasetSource?: (payload: { sourceId: string }) => Promise<{ affected: number }>
+  memoryWorkbenchRevokePersonaTrainingDatasetSource?: (payload: Omit<AlicizationPersonaTrainingDatasetRevokePayload, 'cardId'>) => Promise<{ affected: number }>
   memoryWorkbenchRunPersonaTraining?: (payload: Omit<AlicizationPersonaTrainingRunPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingStartResult>
-  memoryWorkbenchGetPersonaTrainingRun?: (payload: { runId: string }) => Promise<AlicizationPersonaTrainingPipelineRunRecord | null>
+  memoryWorkbenchGetPersonaTrainingRun?: (payload: Omit<AlicizationPersonaTrainingRunLookupPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingPipelineRunRecord | null>
   memoryWorkbenchListPersonaTrainingRuns?: (payload?: { limit?: number }) => Promise<AlicizationPersonaTrainingRunsResult>
   memoryWorkbenchCancelPersonaTraining?: (payload: Omit<AlicizationPersonaTrainingCancelPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingPipelineRunRecord | null>
   memoryWorkbenchGetPersonaTrainingExecutorConfig?: () => Promise<AlicizationPersonaTrainingExecutorConfigState>
-  memoryWorkbenchSetPersonaTrainingExecutorConfig?: (payload: { config: AlicizationPersonaTrainingExecutorConfig | null }) => Promise<AlicizationPersonaTrainingExecutorConfigState>
-  memoryWorkbenchTestPersonaTrainingExecutor?: (payload: { config: AlicizationPersonaTrainingExecutorConfig | null }) => Promise<AlicizationPersonaTrainingExecutorConnectionResult>
+  memoryWorkbenchSetPersonaTrainingExecutorConfig?: (payload: Omit<AlicizationPersonaTrainingExecutorConfigPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingExecutorConfigState>
+  memoryWorkbenchTestPersonaTrainingExecutor?: (payload: Omit<AlicizationPersonaTrainingExecutorConfigPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingExecutorConnectionResult>
   memoryWorkbenchRollbackPersonaTrainingIncrement?: (payload: Omit<AlicizationPersonaTrainingIncrementPayload, 'cardId'>) => Promise<AlicizationPersonaTrainingPipelineIncrement | null>
   memoryWorkbenchListPersonaTrainingIncrements?: () => Promise<AlicizationPersonaTrainingIncrementsResult>
   skillWorkbenchList?: (payload: { productionOnly?: boolean }) => Promise<{ items: AlicizationSkillWorkbenchItem[] }>

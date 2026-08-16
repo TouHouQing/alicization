@@ -1222,6 +1222,15 @@ export interface AlicizationPersonaTrainingPipelineIncrement {
   createdAt: number
 }
 
+export type AlicizationPersonaTrainingPipelineFailureReason
+  = 'executor-failed'
+    | 'source-revoked'
+    | 'dataset-rolled-back'
+    | 'dataset-not-active'
+    | 'manifest-no-longer-usable'
+    | 'cancelled'
+    | 'interrupted'
+
 export type AlicizationPersonaTrainingPipelineRunStatus
   = 'queued'
     | 'running'
@@ -1276,7 +1285,7 @@ export interface AlicizationPersonaTrainingPipelineRunRecord {
   stage: AlicizationPersonaTrainingPipelineRunStage
   progress: number
   progressMessage: string | null
-  failureReason: 'executor-failed' | 'source-revoked' | 'dataset-rolled-back' | 'dataset-not-active' | 'manifest-no-longer-usable' | 'cancelled' | 'interrupted' | null
+  failureReason: AlicizationPersonaTrainingPipelineFailureReason | null
   configSnapshot: AlicizationPersonaTrainingExecutorConfig | null
   artifact: AlicizationPersonaTrainingArtifact | null
   error: string | null
@@ -1324,7 +1333,7 @@ export interface AlicizationPersonaTrainingPipelineRunResult {
 export interface AlicizationPersonaTrainingPipelineFailureResult {
   status: 'failed'
   runId: string
-  reason: 'executor-failed' | 'source-revoked' | 'dataset-rolled-back' | 'dataset-not-active' | 'manifest-no-longer-usable' | 'cancelled'
+  reason: AlicizationPersonaTrainingPipelineFailureReason
   error: string
 }
 
