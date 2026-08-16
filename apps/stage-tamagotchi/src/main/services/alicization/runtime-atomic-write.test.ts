@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, rename, rm, stat } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, open, readFile, rename, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -24,6 +24,17 @@ async function createTempRoot() {
 
 function permissions(mode: number) {
   return mode & 0o777
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return {
+    promise,
+    resolve,
+  }
 }
 
 describe('writeAlicizationAtomicContent', () => {
@@ -173,5 +184,97 @@ describe('writeAlicizationAtomicContent', () => {
         platform: 'win32',
       }),
     }))
+  })
+
+  it('cleans a late-opened temporary file after the deadline rejects file creation', async () => {
+    const root = await createTempRoot()
+    const target = join(root, 'marker.json')
+    const tempPath = `${target}.123.456.fixed.tmp`
+    const releaseOpen = deferred<void>()
+    const close = vi.fn(async () => {})
+
+    await expect(writeAlicizationAtomicContent({
+      path: target,
+      category: 'semantic-scale-recovery',
+      content: '{"version":2}',
+      platform: 'linux',
+      processId: 123,
+      now: () => 456,
+      randomId: () => 'fixed',
+      openPath: async (...args) => {
+        await releaseOpen.promise
+        const handle = await open(...args)
+        return {
+          writeFile: handle.writeFile.bind(handle),
+          sync: handle.sync.bind(handle),
+          close: async () => {
+            close()
+            await handle.close()
+          },
+        }
+      },
+      runStep: async (stage, task) => {
+        if (stage === 'atomic temporary file creation') {
+          void task()
+          throw new Error('stop deadline exceeded')
+        }
+        return await task()
+      },
+    })).rejects.toThrow('stop deadline exceeded')
+
+    releaseOpen.resolve()
+    await vi.waitFor(async () => {
+      await expect(stat(tempPath)).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(close).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('waits for a late write before closing and cleaning the temporary file outside the expired deadline', async () => {
+    const root = await createTempRoot()
+    const target = join(root, 'marker.json')
+    const tempPath = `${target}.123.456.fixed.tmp`
+    const releaseWrite = deferred<void>()
+    const writeStarted = deferred<void>()
+    const close = vi.fn(async () => {})
+
+    await expect(writeAlicizationAtomicContent({
+      path: target,
+      category: 'semantic-scale-recovery',
+      content: '{"version":2}',
+      platform: 'linux',
+      processId: 123,
+      now: () => 456,
+      randomId: () => 'fixed',
+      openPath: async (...args) => {
+        const handle = await open(...args)
+        return {
+          writeFile: async (...writeArgs: Parameters<typeof handle.writeFile>) => {
+            writeStarted.resolve()
+            await releaseWrite.promise
+            await handle.writeFile(...writeArgs)
+          },
+          sync: handle.sync.bind(handle),
+          close: async () => {
+            close()
+            await handle.close()
+          },
+        }
+      },
+      runStep: async (stage, task) => {
+        if (stage === 'atomic temporary file write') {
+          void task()
+          await writeStarted.promise
+          throw new Error('stop deadline exceeded')
+        }
+        return await task()
+      },
+    })).rejects.toThrow('stop deadline exceeded')
+
+    expect(close).not.toHaveBeenCalled()
+    releaseWrite.resolve()
+    await vi.waitFor(async () => {
+      await expect(stat(tempPath)).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(close).toHaveBeenCalledTimes(1)
+    })
   })
 })

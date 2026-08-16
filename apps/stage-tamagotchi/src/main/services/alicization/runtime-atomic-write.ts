@@ -26,8 +26,20 @@ export interface AlicizationAtomicWriteOptions {
   sleep?: (ms: number) => Promise<void>
   renameRetryDelaysMs?: readonly number[]
   fsyncPath?: (path: string) => Promise<void>
+  openPath?: (
+    path: string,
+    flags: string,
+    mode?: number,
+  ) => Promise<AlicizationAtomicFileHandle>
   renamePath?: (source: string, destination: string) => Promise<void>
+  unlinkPath?: (path: string) => Promise<void>
   runStep?: <T>(stage: string, task: () => Promise<T>) => Promise<T>
+}
+
+export interface AlicizationAtomicFileHandle {
+  writeFile: (content: string, encoding: BufferEncoding) => Promise<void>
+  sync: () => Promise<void>
+  close: () => Promise<void>
 }
 
 export interface AlicizationAtomicRenameOptions {
@@ -150,7 +162,13 @@ export async function writeAlicizationAtomicContent(options: AlicizationAtomicWr
   const sleep = options.sleep ?? (async ms => await new Promise<void>(resolve => setTimeout(resolve, ms)))
   const retryDelaysMs = options.renameRetryDelaysMs ?? [5, 10, 20, 40, 80]
   const syncPath = options.fsyncPath ?? fsyncPath
+  const openPath = options.openPath ?? (async (
+    path: string,
+    flags: string,
+    mode?: number,
+  ) => await openFile(path, flags, mode))
   const renamePath = options.renamePath ?? rename
+  const unlinkPath = options.unlinkPath ?? unlink
   const runStep = options.runStep ?? (async <T>(_stage: string, task: () => Promise<T>) =>
     await task())
   const randomId = options.randomId ?? randomUUID
@@ -158,7 +176,51 @@ export async function writeAlicizationAtomicContent(options: AlicizationAtomicWr
   const now = options.now ?? Date.now
   const directoryFsyncPath = options.directoryFsyncPath ?? dirname(options.path)
   const tempPath = `${options.path}.${processId}.${now()}.${randomId()}.tmp`
-  let handle: Awaited<ReturnType<typeof openFile>> | null = null
+  let handle: AlicizationAtomicFileHandle | null = null
+  let activeStep: Promise<unknown> | null = null
+  let activeStepPending = false
+  let cleanupPromise: Promise<void> | null = null
+
+  const runTrackedStep = async <T>(stage: string, task: () => Promise<T>) => {
+    const operation = Promise.resolve().then(task)
+    activeStep = operation
+    activeStepPending = true
+    void operation.then(
+      () => {
+        if (activeStep === operation) {
+          activeStep = null
+          activeStepPending = false
+        }
+      },
+      () => {
+        if (activeStep === operation) {
+          activeStep = null
+          activeStepPending = false
+        }
+      },
+    )
+    return await runStep(stage, () => operation)
+  }
+
+  const scheduleCleanup = () => {
+    if (cleanupPromise)
+      return cleanupPromise
+    const pendingStep = activeStep
+    cleanupPromise = (async () => {
+      await pendingStep?.catch(() => {})
+      const currentHandle = handle
+      handle = null
+      await currentHandle?.close().catch(() => {})
+      await unlinkPath(tempPath).catch(() => {})
+    })()
+    return cleanupPromise
+  }
+  const requireHandle = () => {
+    const currentHandle = handle as AlicizationAtomicFileHandle | null
+    if (!currentHandle)
+      throw new Error('Alicization atomic temporary file handle is unavailable.')
+    return currentHandle
+  }
 
   await runStep('atomic write directory creation', async () =>
     await mkdir(dirname(options.path), {
@@ -172,32 +234,33 @@ export async function writeAlicizationAtomicContent(options: AlicizationAtomicWr
       await verifyMode(dirname(options.path), options.directoryMode!))
   }
   try {
-    handle = await runStep('atomic temporary file creation', async () =>
-      await openFile(
+    await runTrackedStep('atomic temporary file creation', async () => {
+      handle = await openPath(
         tempPath,
         'wx',
         posix ? options.fileMode : undefined,
-      ))
-    await runStep('atomic temporary file write', async () =>
-      await handle!.writeFile(options.content, 'utf8'))
+      )
+    })
+    await runTrackedStep('atomic temporary file write', async () =>
+      await requireHandle().writeFile(options.content, 'utf8'))
     if (posix && options.fileMode !== undefined) {
-      await runStep('atomic temporary file permission tightening', async () =>
+      await runTrackedStep('atomic temporary file permission tightening', async () =>
         await chmod(tempPath, options.fileMode!))
-      await runStep('atomic temporary file permission verification', async () =>
+      await runTrackedStep('atomic temporary file permission verification', async () =>
         await verifyMode(tempPath, options.fileMode!))
     }
     try {
-      await runStep('atomic temporary file sync', async () => {
+      await runTrackedStep('atomic temporary file sync', async () => {
         if (options.fsyncPath)
           await syncPath(tempPath)
         else
-          await handle!.sync()
+          await requireHandle().sync()
       })
     }
     catch (error) {
       if (platform !== 'win32' || !isUnsupportedFsyncError(error))
         throw error
-      await runStep('atomic file fsync degradation audit', async () =>
+      await runTrackedStep('atomic file fsync degradation audit', async () =>
         await appendAuditLog({
           level: 'notice',
           category: options.category,
@@ -209,9 +272,12 @@ export async function writeAlicizationAtomicContent(options: AlicizationAtomicWr
           },
         }))
     }
-    await runStep('atomic temporary file close', async () =>
-      await handle!.close())
-    handle = null
+    const closingHandle = requireHandle()
+    await runTrackedStep('atomic temporary file close', async () => {
+      await closingHandle.close()
+      if (handle === closingHandle)
+        handle = null
+    })
 
     await renameAlicizationAtomicPath({
       sourcePath: tempPath,
@@ -220,19 +286,19 @@ export async function writeAlicizationAtomicContent(options: AlicizationAtomicWr
       platform,
       appendAuditLog,
       renamePath,
-      runStep,
+      runStep: runTrackedStep,
       sleep,
       renameRetryDelaysMs: retryDelaysMs,
     })
 
     try {
-      await runStep('atomic parent directory sync', async () =>
+      await runTrackedStep('atomic parent directory sync', async () =>
         await syncPath(directoryFsyncPath))
     }
     catch (error) {
       if (platform !== 'win32' || !isUnsupportedFsyncError(error))
         throw error
-      await runStep('atomic directory fsync degradation audit', async () =>
+      await runTrackedStep('atomic directory fsync degradation audit', async () =>
         await appendAuditLog({
           level: 'notice',
           category: options.category,
@@ -246,14 +312,13 @@ export async function writeAlicizationAtomicContent(options: AlicizationAtomicWr
     }
   }
   catch (error) {
-    await runStep('atomic temporary file close after failure', async () =>
-      await handle?.close()).catch(() => {})
-    handle = null
-    await runStep('atomic temporary file cleanup after failure', async () =>
-      await unlink(tempPath)).catch(() => {})
+    const cleanup = scheduleCleanup()
+    if (activeStepPending)
+      void cleanup.catch(() => {})
+    else
+      await cleanup.catch(() => {})
     throw error
   }
 
-  await runStep('atomic temporary file cleanup', async () =>
-    await unlink(tempPath)).catch(() => {})
+  await unlinkPath(tempPath).catch(() => {})
 }
