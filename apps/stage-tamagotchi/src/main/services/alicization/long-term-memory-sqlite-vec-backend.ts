@@ -7,6 +7,7 @@ import type {
 import type { LongTermMemoryVectorIndexNativeBackend } from './long-term-memory-vector-index-adapter'
 import type { LongTermMemoryVectorSearchResult } from './long-term-memory-vector-store'
 
+import { Buffer } from 'node:buffer'
 import { existsSync } from 'node:fs'
 
 import { getLoadablePath } from 'sqlite-vec'
@@ -43,6 +44,8 @@ interface SqliteVecCanonicalRow {
   updated_at: number
   metadata_json: string | null
 }
+
+const sqliteVecUpsertBatchSize = 500
 
 function normalizeText(raw: unknown, maxChars = 360) {
   return typeof raw === 'string'
@@ -205,90 +208,96 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
   }
 
   async function upsertPrepared(records: PersistentLongTermMemoryVectorRecord[]) {
-    for (const record of records) {
-      const dimensions = normalizeDimensions(record.dimensions)
-      if (!dimensions)
-        continue
-      await ensureVectorTable(dimensions)
+    for (let offset = 0; offset < records.length; offset += sqliteVecUpsertBatchSize) {
+      const batch = records.slice(offset, offset + sqliteVecUpsertBatchSize)
+      const recordsByDimensions = new Map<number, PersistentLongTermMemoryVectorRecord[]>()
+      for (const record of batch) {
+        const dimensions = normalizeDimensions(record.dimensions)
+        if (!dimensions)
+          continue
+        const grouped = recordsByDimensions.get(dimensions) ?? []
+        grouped.push(record)
+        recordsByDimensions.set(dimensions, grouped)
+      }
+      for (const dimensions of recordsByDimensions.keys())
+        await ensureVectorTable(dimensions)
+
+      const previousMappings = await input.all<SqliteVecMappingRow>(
+        input.database,
+        `SELECT *
+         FROM long_term_memory_sqlite_vec_rows
+         WHERE record_id IN (${batch.map(() => '?').join(', ')})`,
+        batch.map(record => record.id),
+      )
+      const nextRecordById = new Map(batch.map(record => [record.id, record]))
+      const staleRowIdsByDimensions = new Map<number, number[]>()
+      for (const previous of previousMappings) {
+        const next = nextRecordById.get(previous.record_id)
+        if (!next || previous.dimensions === next.dimensions)
+          continue
+        const rowIds = staleRowIdsByDimensions.get(previous.dimensions) ?? []
+        rowIds.push(previous.native_rowid)
+        staleRowIdsByDimensions.set(previous.dimensions, rowIds)
+      }
+      for (const [dimensions, rowIds] of staleRowIdsByDimensions) {
+        await input.run(
+          input.database,
+          `DELETE FROM ${tableName(dimensions)}
+           WHERE rowid IN (${rowIds.map(() => '?').join(', ')})`,
+          rowIds,
+        )
+      }
+
       const now = input.now()
-      let mapping = await input.get<SqliteVecMappingRow>(input.database, `
+      const mappings = await input.all<SqliteVecMappingRow>(input.database, `
         INSERT INTO long_term_memory_sqlite_vec_rows (
           record_id, card_id, source_id, source, model_id, dimensions,
           vector_space_id, canonical_text_hash, canonical_updated_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(record_id) DO NOTHING
+        ) VALUES ${batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
+        ON CONFLICT(record_id) DO UPDATE SET
+          card_id = excluded.card_id,
+          source_id = excluded.source_id,
+          source = excluded.source,
+          model_id = excluded.model_id,
+          dimensions = excluded.dimensions,
+          vector_space_id = excluded.vector_space_id,
+          canonical_text_hash = excluded.canonical_text_hash,
+          canonical_updated_at = excluded.canonical_updated_at,
+          updated_at = excluded.updated_at
         RETURNING *
-      `, [
+      `, batch.flatMap(record => [
         record.id,
         record.cardId,
         record.sourceId,
         record.source,
         record.modelId,
-        dimensions,
+        record.dimensions,
         record.vectorSpaceId,
         record.textHash,
         record.updatedAt,
         now,
         now,
-      ])
-      if (!mapping) {
-        const previous = await input.get<SqliteVecMappingRow>(
-          input.database,
-          'SELECT * FROM long_term_memory_sqlite_vec_rows WHERE record_id = ?',
-          [record.id],
-        )
-        if (previous && previous.dimensions !== dimensions) {
-          await input.run(
-            input.database,
-            `DELETE FROM ${tableName(previous.dimensions)} WHERE rowid = ?`,
-            [previous.native_rowid],
-          )
-        }
+      ]))
+      const mappingByRecordId = new Map(mappings.map(mapping => [mapping.record_id, mapping]))
+      for (const [dimensions, dimensionRecords] of recordsByDimensions) {
         await input.run(input.database, `
-          UPDATE long_term_memory_sqlite_vec_rows
-          SET
-            card_id = ?,
-            source_id = ?,
-            source = ?,
-            model_id = ?,
-            dimensions = ?,
-            vector_space_id = ?,
-            canonical_text_hash = ?,
-            canonical_updated_at = ?,
-            updated_at = ?
-          WHERE record_id = ?
-        `, [
-          record.cardId,
-          record.sourceId,
-          record.source,
-          record.modelId,
-          dimensions,
-          record.vectorSpaceId,
-          record.textHash,
-          record.updatedAt,
-          now,
-          record.id,
-        ])
-        mapping = await input.get<SqliteVecMappingRow>(
-          input.database,
-          'SELECT * FROM long_term_memory_sqlite_vec_rows WHERE record_id = ?',
-          [record.id],
-        )
+          INSERT OR REPLACE INTO ${tableName(dimensions)} (
+            rowid, embedding, card_id, model_id, vector_space_id, source
+          ) VALUES ${dimensionRecords.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')}
+        `, dimensionRecords.flatMap((record) => {
+          const mapping = mappingByRecordId.get(record.id)
+          if (!mapping)
+            throw new Error(`sqlite-vec mapping was not created for vector: ${record.id}`)
+          return [
+            mapping.native_rowid,
+            encodeVector(record.vector),
+            record.cardId,
+            record.modelId,
+            record.vectorSpaceId,
+            record.source,
+          ]
+        }))
       }
-      if (!mapping)
-        throw new Error(`sqlite-vec mapping was not created for vector: ${record.id}`)
-      await input.run(input.database, `
-        INSERT OR REPLACE INTO ${tableName(dimensions)} (
-          rowid, embedding, card_id, model_id, vector_space_id, source
-        ) VALUES (?, ?, ?, ?, ?, ?)
-      `, [
-        mapping.native_rowid,
-        encodeVector(record.vector),
-        record.cardId,
-        record.modelId,
-        record.vectorSpaceId,
-        record.source,
-      ])
     }
   }
 

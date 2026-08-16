@@ -115,6 +115,7 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
   createdAt: number
   adapter: LongTermMemoryVectorIndexAdapter
   prepareCanonical: (records: MemorySemanticScaleCanonicalRecord[]) => Promise<void>
+  withBatchWrite?: (task: () => Promise<void>) => Promise<void>
   cardId: string
   foreignCardId: string
   modelId: string
@@ -159,9 +160,15 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
           index: offset + relativeIndex,
           updatedAt: input.createdAt + offset + relativeIndex,
         }))
-      await input.prepareCanonical(records.map(canonicalRecord))
-      throwIfAborted(input.signal)
-      await input.adapter.upsert(records)
+      const persistBatch = async () => {
+        await input.prepareCanonical(records.map(canonicalRecord))
+        throwIfAborted(input.signal)
+        await input.adapter.upsert(records)
+      }
+      if (input.withBatchWrite)
+        await input.withBatchWrite(persistBatch)
+      else
+        await persistBatch()
       completedWork += 1
       await input.onProgress?.({
         phase: 'indexing',
@@ -188,9 +195,15 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
         updatedAt: input.createdAt + corpusSize + index,
         foreign: true,
       }))
-    await input.prepareCanonical(foreignRecords.map(canonicalRecord))
-    throwIfAborted(input.signal)
-    await input.adapter.upsert(foreignRecords)
+    const persistForeignBatch = async () => {
+      await input.prepareCanonical(foreignRecords.map(canonicalRecord))
+      throwIfAborted(input.signal)
+      await input.adapter.upsert(foreignRecords)
+    }
+    if (input.withBatchWrite)
+      await input.withBatchWrite(persistForeignBatch)
+    else
+      await persistForeignBatch()
     throwIfAborted(input.signal)
 
     const health = await input.adapter.getHealth({

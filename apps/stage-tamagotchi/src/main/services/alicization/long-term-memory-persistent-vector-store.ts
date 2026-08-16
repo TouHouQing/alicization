@@ -6,6 +6,8 @@ import type {
   LongTermMemoryVectorSearchResult,
 } from './long-term-memory-vector-store'
 
+import { Buffer } from 'node:buffer'
+
 import { resolveLongTermMemoryVectorSpaceId } from './long-term-memory-embedding-provider'
 import { hashLongTermMemoryEmbeddingText } from './long-term-memory-embedding-text'
 
@@ -51,6 +53,8 @@ interface PersistentLongTermMemoryVectorRow {
   updated_at: number
   metadata_json: string | null
 }
+
+const vectorUpsertBatchSize = 500
 
 function normalizeText(raw: unknown, maxChars = 360) {
   return typeof raw === 'string'
@@ -263,7 +267,8 @@ export function createPersistentLongTermMemoryVectorStore(input: {
       return
 
     await input.enqueueWrite(async () => {
-      for (const record of prepared) {
+      for (let offset = 0; offset < prepared.length; offset += vectorUpsertBatchSize) {
+        const batch = prepared.slice(offset, offset + vectorUpsertBatchSize)
         await input.run(input.database, `
           INSERT INTO long_term_memory_vectors (
             id,
@@ -281,7 +286,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
             metadata_json,
             created_at,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES ${batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
           ON CONFLICT(card_id, source_id, source, vector_space_id) DO UPDATE SET
             id = excluded.id,
             text_hash = excluded.text_hash,
@@ -293,7 +298,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
             last_error = excluded.last_error,
             metadata_json = excluded.metadata_json,
             updated_at = excluded.updated_at
-        `, [
+        `, batch.flatMap(record => [
           record.id,
           record.cardId,
           record.sourceId,
@@ -309,7 +314,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
           record.metadataJson,
           record.updatedAt,
           record.updatedAt,
-        ])
+        ]))
       }
     })
   }
@@ -488,75 +493,69 @@ export function createPersistentLongTermMemoryVectorStore(input: {
               AND tomb.source_id = doc.source_id
               AND (tomb.source = doc.source OR tomb.source = 'long_term_memory')
           )
-      ),
-      active_vectors AS (
-        SELECT vector.*
-        FROM long_term_memory_vectors vector
-        WHERE vector.card_id = ?
-          AND vector.model_id = ?
-          AND vector.dimensions = ?
-          AND vector.vector_space_id = ?
       )
       SELECT
-        (SELECT COUNT(*) FROM canonical) AS canonicalCount,
-        (
-          SELECT COUNT(*)
-          FROM canonical doc
-          WHERE EXISTS (
-            SELECT 1
-            FROM active_vectors vector
-            WHERE vector.source = doc.source
-              AND vector.source_id = doc.source_id
+        COUNT(*) AS canonicalCount,
+        COALESCE(SUM(
+          CASE
+            WHEN vector.id IS NOT NULL
               AND vector.text_hash = doc.text_hash
               AND vector.status = 'indexed'
-          )
-        ) AS indexedCount,
-        (
-          SELECT COUNT(*)
-          FROM canonical doc
-          WHERE NOT EXISTS (
-            SELECT 1
-            FROM active_vectors vector
-            WHERE vector.source = doc.source
-              AND vector.source_id = doc.source_id
-          )
-        ) AS missingCount,
-        (
-          SELECT COUNT(*)
-          FROM canonical doc
-          WHERE EXISTS (
-            SELECT 1
-            FROM active_vectors vector
-            WHERE vector.source = doc.source
-              AND vector.source_id = doc.source_id
-              AND vector.text_hash != doc.text_hash
-          )
-        ) AS textHashMismatchCount,
-        (
-          SELECT COUNT(*)
-          FROM canonical doc
-          WHERE EXISTS (
-            SELECT 1
-            FROM active_vectors vector
-            WHERE vector.source = doc.source
-              AND vector.source_id = doc.source_id
+            THEN 1
+            ELSE 0
+          END
+        ), 0) AS indexedCount,
+        COALESCE(SUM(CASE WHEN vector.id IS NULL THEN 1 ELSE 0 END), 0) AS missingCount,
+        COALESCE(SUM(
+          CASE
+            WHEN vector.id IS NOT NULL AND vector.text_hash != doc.text_hash
+            THEN 1
+            ELSE 0
+          END
+        ), 0) AS textHashMismatchCount,
+        COALESCE(SUM(
+          CASE
+            WHEN vector.id IS NOT NULL
               AND vector.text_hash = doc.text_hash
               AND vector.status != 'indexed'
-          )
-        ) AS staleOrFailedCount,
+            THEN 1
+            ELSE 0
+          END
+        ), 0) AS staleOrFailedCount,
         (
           SELECT COUNT(*)
-          FROM active_vectors vector
+          FROM long_term_memory_vectors orphan
           WHERE NOT EXISTS (
             SELECT 1
             FROM canonical doc
-            WHERE doc.source = vector.source
-              AND doc.source_id = vector.source_id
+            WHERE doc.source = orphan.source
+              AND doc.source_id = orphan.source_id
           )
+            AND orphan.card_id = ?
+            AND orphan.model_id = ?
+            AND orphan.dimensions = ?
+            AND orphan.vector_space_id = ?
         ) AS orphanedCount,
         NULL AS coverageRatio
+      FROM canonical doc
+      LEFT JOIN long_term_memory_vectors vector
+        ON vector.card_id = doc.card_id
+        AND vector.source = doc.source
+        AND vector.source_id = doc.source_id
+        AND vector.model_id = ?
+        AND vector.dimensions = ?
+        AND vector.vector_space_id = ?
       `,
-      [cardId, cardId, activeModelId, dimensions, vectorSpaceId],
+      [
+        cardId,
+        cardId,
+        activeModelId,
+        dimensions,
+        vectorSpaceId,
+        activeModelId,
+        dimensions,
+        vectorSpaceId,
+      ],
     )
     const row = coverage[0]
     const canonicalCount = Number(row?.canonicalCount ?? 0)

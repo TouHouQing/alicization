@@ -131,6 +131,7 @@ function attachRuntime(
     leaseMs?: number
     retryBaseMs?: number
     retryMaxMs?: number
+    stopTimeoutMs?: number
     recoveryJournalDir?: string
     tempRootDir: string
     createTempDir?: (input: {
@@ -174,6 +175,7 @@ function attachRuntime(
     leaseMs: input.leaseMs,
     retryBaseMs: input.retryBaseMs,
     retryMaxMs: input.retryMaxMs,
+    stopTimeoutMs: input.stopTimeoutMs,
     recoveryJournalDir: input.recoveryJournalDir
       ?? join(input.tempRootDir, 'stop-recovery-journal'),
     tempRootDir: input.tempRootDir,
@@ -190,6 +192,7 @@ async function createRuntimeHarness(input?: {
   leaseMs?: number
   retryBaseMs?: number
   retryMaxMs?: number
+  stopTimeoutMs?: number
   recoveryJournalDir?: string
   tempRootDir?: string
   createTempDir?: (input: {
@@ -446,6 +449,130 @@ describe('memory semantic scale job runtime', () => {
       attemptCount: 0,
       deadLettered: false,
     })
+  })
+
+  it('tracks a public runNextAttempt and prevents settlement writes after the stop deadline', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let releaseExecution: (() => void) | undefined
+    let executionStarted: (() => void) | undefined
+    let stopReturned = false
+    let postStopJobUpdates = 0
+    const executionStartedPromise = new Promise<void>((resolve) => {
+      executionStarted = resolve
+    })
+    const { runtime } = attachRuntime(harness, {
+      stopTimeoutMs: 30,
+      tempRootDir,
+      run: async (sql, params = []) => {
+        if (
+          stopReturned
+          && /^\s*UPDATE memory_semantic_scale_jobs\b/.test(sql)
+        ) {
+          postStopJobUpdates += 1
+        }
+        return await harness.run(sql, params)
+      },
+      executeJob: async ({ corpusSize }) => {
+        executionStarted?.()
+        await new Promise<void>((resolve) => {
+          releaseExecution = resolve
+        })
+        return createReport(corpusSize, 'late-public-attempt-report')
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    const attempt = runtime.runNextAttempt(job.jobId)
+    await executionStartedPromise
+
+    const startedAt = Date.now()
+    await runtime.stop()
+    const elapsedMs = Date.now() - startedAt
+    stopReturned = true
+
+    expect(elapsedMs).toBeGreaterThanOrEqual(20)
+    expect(elapsedMs).toBeLessThan(250)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'queued',
+      attemptCount: 0,
+    })
+
+    releaseExecution?.()
+    await attempt
+
+    expect(postStopJobUpdates).toBe(0)
+  })
+
+  it('bounds stop when a runJob executor ignores abort', async () => {
+    let executionStarted: (() => void) | undefined
+    const executionStartedPromise = new Promise<void>((resolve) => {
+      executionStarted = resolve
+    })
+    const { runtime } = await createRuntimeHarness({
+      stopTimeoutMs: 30,
+      executeJob: async () => {
+        executionStarted?.()
+        return await new Promise<ReturnType<typeof createReport>>(() => {})
+      },
+    })
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    void runtime.runJob(job.jobId)
+    await executionStartedPromise
+
+    const stopResult = await Promise.race([
+      runtime.stop().then(() => 'stopped' as const),
+      new Promise<'timed-out'>(resolve =>
+        setTimeout(() => resolve('timed-out'), 250)),
+    ])
+
+    expect(stopResult).toBe('stopped')
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'queued',
+      attemptCount: 0,
+    })
+  })
+
+  it('rejects stop when a tracked public attempt rejects before a claim is established', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let claimReadStarted: (() => void) | undefined
+    let releaseClaimRead: (() => void) | undefined
+    const claimReadStartedPromise = new Promise<void>((resolve) => {
+      claimReadStarted = resolve
+    })
+    const releaseClaimReadPromise = new Promise<void>((resolve) => {
+      releaseClaimRead = resolve
+    })
+    let failClaimRead = false
+    const { runtime } = attachRuntime(harness, {
+      stopTimeoutMs: 100,
+      tempRootDir,
+      get: async <T>(sql: string, params: unknown[] = []) => {
+        if (
+          failClaimRead
+          && sql.trim() === 'SELECT * FROM memory_semantic_scale_jobs WHERE id = ?'
+        ) {
+          claimReadStarted?.()
+          await releaseClaimReadPromise
+          throw new Error('tracked public attempt claim read failed')
+        }
+        return await harness.get<T>(sql, params)
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    failClaimRead = true
+    const attempt = runtime.runNextAttempt(job.jobId)
+    await claimReadStartedPromise
+
+    const stopping = runtime.stop()
+    releaseClaimRead?.()
+
+    await expect(attempt).rejects.toThrow('tracked public attempt claim read failed')
+    await expect(stopping).rejects.toThrow(
+      'semantic scale runtime stop could not establish a safe recovery boundary',
+    )
   })
 
   it('does not consume failure attempts across repeated stop and resume cycles', async () => {
@@ -1165,7 +1292,7 @@ describe('memory semantic scale job runtime', () => {
     })
   })
 
-  it('retries stop requeue settlement without consuming the claimed attempt', async () => {
+  it('settles a successful report normally when stop races with completion persistence', async () => {
     const harness = await createSqliteHarness()
     const tempRootDir = await createTempRoot()
     let failCompletionWrites = true
@@ -1204,16 +1331,72 @@ describe('memory semantic scale job runtime', () => {
     await runtime.stop()
     await worker
 
-    expect(failNextStopRequeue).toBe(false)
+    expect(failNextStopRequeue).toBe(true)
     expect(executions).toBe(1)
     expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
-      status: 'queued',
-      attemptCount: 0,
+      status: 'completed',
+      attemptCount: 1,
       deadLettered: false,
+      report: {
+        id: 'stop-requeue-report',
+      },
     })
   })
 
-  it('preserves the stop attempt budget through recovery after requeue retries are exhausted', async () => {
+  it('consumes a determinate failure attempt when stop races with retry settlement', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let releaseFailureSettlement: (() => void) | undefined
+    let failureSettlementStarted: (() => void) | undefined
+    let failFailureWrite = true
+    let executions = 0
+    const failureSettlementStartedPromise = new Promise<void>((resolve) => {
+      failureSettlementStarted = resolve
+    })
+    const releaseFailureSettlementPromise = new Promise<void>((resolve) => {
+      releaseFailureSettlement = resolve
+    })
+    const { runtime } = attachRuntime(harness, {
+      maxAttempts: 1,
+      stopTimeoutMs: 100,
+      tempRootDir,
+      run: async (sql, params = []) => {
+        if (
+          failFailureWrite
+          && sql.includes(`SET status = ?, dead_lettered = ?`)
+        ) {
+          failFailureWrite = false
+          failureSettlementStarted?.()
+          await releaseFailureSettlementPromise
+          throw new Error('failure settlement unavailable before stop')
+        }
+        return await harness.run(sql, params)
+      },
+      executeJob: async () => {
+        executions += 1
+        throw new Error('determinate sqlite-vec execution failure')
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    const worker = runtime.runJob(job.jobId)
+    await failureSettlementStartedPromise
+
+    const stopping = runtime.stop()
+    releaseFailureSettlement?.()
+    await Promise.all([stopping, worker])
+
+    expect(executions).toBe(1)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'failed',
+      attemptCount: 1,
+      maxAttempts: 1,
+      deadLettered: true,
+      lastError: 'determinate sqlite-vec execution failure',
+    })
+  })
+
+  it('does not use the stop requeue path after the executor has produced a successful report', async () => {
     const harness = await createSqliteHarness()
     const tempRootDir = await createTempRoot()
     const writeQueue = createWriteQueue()
@@ -1258,7 +1441,7 @@ describe('memory semantic scale job runtime', () => {
     failCompletionWrites = false
     await runtime.stop()
     await worker
-    expect(remainingStopRequeueFailures).toBe(0)
+    expect(remainingStopRequeueFailures).toBe(3)
     expect(executions).toBe(1)
 
     now = 2_000
@@ -1275,25 +1458,16 @@ describe('memory semantic scale job runtime', () => {
     await restarted.runtime.initializeSchema()
 
     expect(await restarted.runtime.getJob(job.jobId, 'card-a')).toMatchObject({
-      status: 'queued',
-      attemptCount: 0,
-      maxAttempts: 1,
-      deadLettered: false,
-    })
-    now = 2_001
-    expect(await restarted.runtime.resumePendingJobs('card-a')).toEqual([job.jobId])
-    await waitFor(() => {
-      expect(restarted.runtime.activeJobIds()).toEqual([])
-    })
-    expect(await restarted.runtime.getJob(job.jobId, 'card-a')).toMatchObject({
       status: 'completed',
       attemptCount: 1,
       maxAttempts: 1,
       deadLettered: false,
       report: {
-        id: 'completed-after-stop-recovery',
+        id: 'stop-recovery-attempt-budget',
       },
     })
+    expect(await restarted.runtime.resumePendingJobs('card-a')).toEqual([])
+    expect(executions).toBe(1)
   })
 
   it('replays a durable stop journal when every job update fails during bounded shutdown', async () => {
@@ -1363,33 +1537,23 @@ describe('memory semantic scale job runtime', () => {
     await restarted.runtime.initializeSchema()
 
     expect(await restarted.runtime.getJob(job.jobId, 'card-a')).toMatchObject({
-      status: 'queued',
-      attemptCount: 0,
-      maxAttempts: 1,
-      deadLettered: false,
-    })
-    expect(markerFilesBeforeRecovery).toHaveLength(1)
-    expect(markerFilesBeforeRecovery[0]).toMatch(/^[a-f0-9]{64}\.json$/)
-
-    now = 2_001
-    expect(await restarted.runtime.resumePendingJobs('card-a')).toEqual([job.jobId])
-    await waitFor(() => {
-      expect(restarted.runtime.activeJobIds()).toEqual([])
-    })
-    expect(executions).toBe(2)
-    expect(await restarted.runtime.getJob(job.jobId, 'card-a')).toMatchObject({
       status: 'completed',
       attemptCount: 1,
       maxAttempts: 1,
       deadLettered: false,
       report: {
-        id: 'completed-after-stop-journal-recovery',
+        id: 'stop-journal-attempt-budget',
       },
     })
+    expect(markerFilesBeforeRecovery).toHaveLength(1)
+    expect(markerFilesBeforeRecovery[0]).toMatch(/^[a-f0-9]{64}\.json$/)
+
+    expect(await restarted.runtime.resumePendingJobs('card-a')).toEqual([])
+    expect(executions).toBe(1)
     expect(await readdir(recoveryJournalDir)).toEqual([])
   })
 
-  it('rejects a corrupt stop recovery journal marker without updating jobs', async () => {
+  it('quarantines a corrupt stop recovery journal marker without updating jobs', async () => {
     const harness = await createSqliteHarness()
     const tempRootDir = await createTempRoot()
     const recoveryJournalDir = join(tempRootDir, 'stop-recovery-journal')
@@ -1404,9 +1568,10 @@ describe('memory semantic scale job runtime', () => {
       tempRootDir,
     })
 
-    await expect(runtime.initializeSchema()).rejects.toThrow(
-      'invalid semantic scale stop recovery marker',
-    )
+    await expect(runtime.initializeSchema()).resolves.toBeUndefined()
+    expect(await readdir(recoveryJournalDir)).toEqual(['quarantine'])
+    expect((await readdir(join(recoveryJournalDir, 'quarantine')))
+      .some(name => name.endsWith('.error.json'))).toBe(true)
   })
 
   it('settles cancellation requested while completion settlement is failing', async () => {
@@ -1467,7 +1632,7 @@ describe('memory semantic scale job runtime', () => {
     let settlementFailureEnabled = true
     let settlementAttempts = 0
     let executions = 0
-    const { runtime } = attachRuntime(harness, {
+    const { runtime, writeQueue } = attachRuntime(harness, {
       tempRootDir,
       run: async (sql, params = []) => {
         if (
@@ -1506,10 +1671,17 @@ describe('memory semantic scale job runtime', () => {
     expect(stopResult).toBe('stopped')
     expect(executions).toBe(1)
     expect(settlementAttempts - attemptsBeforeStop).toBeLessThanOrEqual(3)
-    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
-      status: 'running',
-      attemptCount: 0,
-      report: null,
+    const restarted = attachRuntime(harness, {
+      tempRootDir,
+      writeQueue,
+    })
+    await restarted.runtime.initializeSchema()
+    expect(await restarted.runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'completed',
+      attemptCount: 1,
+      report: {
+        id: 'persistent-settlement-report',
+      },
     })
   })
 

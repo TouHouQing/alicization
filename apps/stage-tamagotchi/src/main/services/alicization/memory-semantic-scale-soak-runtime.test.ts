@@ -42,6 +42,8 @@ async function createSoakDatabase() {
   const dir = await mkdtemp(join(tmpdir(), 'alicization-memory-vector-soak-'))
   sandboxDirs.push(dir)
   const database = new sqlite3.Database(join(dir, 'soak.sqlite'))
+  await run(database, 'PRAGMA journal_mode = WAL')
+  await run(database, 'PRAGMA synchronous = NORMAL')
   await run(database, `
     CREATE TABLE long_term_memory_search_documents (
       id TEXT PRIMARY KEY,
@@ -52,10 +54,19 @@ async function createSoakDatabase() {
       tombstoned INTEGER NOT NULL DEFAULT 0
     )
   `)
+  await run(
+    database,
+    `CREATE INDEX idx_semantic_scale_search_docs_identity
+     ON long_term_memory_search_documents(card_id, source, source_id, text_hash, tombstoned)`,
+  )
   let writeQueue = Promise.resolve<unknown>(undefined)
+  let writeTransactionActive = false
   const enqueueWrite = async <T>(task: () => Promise<T>) => {
+    if (writeTransactionActive)
+      return await task()
     const next = writeQueue.then(async () => {
       await run(database, 'BEGIN IMMEDIATE')
+      writeTransactionActive = true
       try {
         const result = await task()
         await run(database, 'COMMIT')
@@ -64,6 +75,9 @@ async function createSoakDatabase() {
       catch (error) {
         await run(database, 'ROLLBACK').catch(() => {})
         throw error
+      }
+      finally {
+        writeTransactionActive = false
       }
     })
     writeQueue = next.then(() => undefined, () => undefined)
@@ -91,33 +105,26 @@ async function createSoakDatabase() {
   return {
     adapter,
     close: async () => await close(database),
+    withBatchWrite: async (task: () => Promise<void>) => await enqueueWrite(task),
     prepareCanonical: async (records: Array<{
       cardId: string
       source: string
       sourceId: string
       text: string
     }>) => {
-      await run(database, 'BEGIN IMMEDIATE')
-      try {
-        for (const record of records) {
-          await run(database, `
-            INSERT OR REPLACE INTO long_term_memory_search_documents (
-              id, card_id, source, source_id, text_hash, tombstoned
-            ) VALUES (?, ?, ?, ?, ?, 0)
-          `, [
-            `doc:${record.cardId}:${record.source}:${record.sourceId}`,
-            record.cardId,
-            record.source,
-            record.sourceId,
-            hashLongTermMemoryEmbeddingText(record.text),
-          ])
-        }
-        await run(database, 'COMMIT')
-      }
-      catch (error) {
-        await run(database, 'ROLLBACK').catch(() => {})
-        throw error
-      }
+      await enqueueWrite(async () => {
+        await run(database, `
+          INSERT OR REPLACE INTO long_term_memory_search_documents (
+            id, card_id, source, source_id, text_hash, tombstoned
+          ) VALUES ${records.map(() => '(?, ?, ?, ?, ?, 0)').join(', ')}
+        `, records.flatMap(record => [
+          `doc:${record.cardId}:${record.source}:${record.sourceId}`,
+          record.cardId,
+          record.source,
+          record.sourceId,
+          hashLongTermMemoryEmbeddingText(record.text),
+        ]))
+      })
     },
   }
 }
@@ -148,6 +155,7 @@ describe('memory semantic scale soak runtime', () => {
         createdAt: Date.parse('2026-08-15T00:00:00.000Z'),
         adapter: database.adapter,
         prepareCanonical: database.prepareCanonical,
+        withBatchWrite: database.withBatchWrite,
         cardId: 'card-progress',
         foreignCardId: 'card-progress-foreign',
         modelId: 'deterministic-soak-v1',
@@ -187,6 +195,7 @@ describe('memory semantic scale soak runtime', () => {
         createdAt: Date.parse('2026-08-15T00:00:00.000Z'),
         adapter: database.adapter,
         prepareCanonical: database.prepareCanonical,
+        withBatchWrite: database.withBatchWrite,
         cardId: 'card-cancelled',
         foreignCardId: 'card-cancelled-foreign',
         modelId: 'deterministic-soak-v1',
@@ -224,6 +233,7 @@ describe('memory semantic scale soak runtime', () => {
         createdAt: Date.parse('2026-08-04T16:00:00.000Z'),
         adapter: database.adapter,
         prepareCanonical: database.prepareCanonical,
+        withBatchWrite: database.withBatchWrite,
         cardId: 'card-soak',
         foreignCardId: 'card-soak-foreign',
         modelId: 'deterministic-soak-v1',
