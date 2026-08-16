@@ -1,3 +1,5 @@
+import type { AlicizationMemoryDialogueReplayStageDetails } from '@proj-alicization/stage-shared'
+
 import type { WorkingMemoryLongTermEvidence, WorkingMemorySnapshot } from './life-core/working-memory'
 import type { WorkingMemoryRecentTurnInput } from './life-core/working-memory-builder'
 import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
@@ -90,7 +92,7 @@ export type MemoryDialogueReplayStageName
 export interface MemoryDialogueReplayStage {
   name: MemoryDialogueReplayStageName
   status: 'succeeded' | 'failed'
-  details: Record<string, unknown>
+  details: AlicizationMemoryDialogueReplayStageDetails
   error: string | null
 }
 
@@ -139,7 +141,7 @@ function errorText(error: unknown) {
 
 function createStage(
   name: MemoryDialogueReplayStageName,
-  details: Record<string, unknown>,
+  details: AlicizationMemoryDialogueReplayStageDetails,
 ): MemoryDialogueReplayStage {
   return {
     name,
@@ -152,7 +154,7 @@ function createStage(
 function createFailedStage(
   name: MemoryDialogueReplayStageName,
   error: unknown,
-  details: Record<string, unknown> = {},
+  details: AlicizationMemoryDialogueReplayStageDetails = {},
 ): MemoryDialogueReplayStage {
   return {
     name,

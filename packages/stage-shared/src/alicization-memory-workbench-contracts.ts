@@ -1,3 +1,10 @@
+import type { AlicizationChatFailureKind } from './alicization-chat-failure-surface'
+import type {
+  AlicizationVisibleArtifactLearningPolicy,
+  AlicizationVisibleArtifactOrigin,
+} from './alicization-provider-response'
+import type { AlicizationMemoryProvenance } from './alicization-transport-contracts'
+
 export type AlicizationMemoryRecallMode
   = | 'none'
     | 'episodic'
@@ -45,6 +52,7 @@ export interface AlicizationMemoryQualityTrialPayload {
 
 export interface AlicizationMemoryDialogueReplayStageDetails {
   changed?: boolean
+  found?: boolean
   level?: string
   sourceTurnIds?: string[]
   compressedEpisodeletCount?: number
@@ -62,6 +70,7 @@ export interface AlicizationMemoryDialogueReplayStageDetails {
   query?: string
   providerOutputLength?: number
   recalledEvidenceCount?: number
+  updatedAt?: number | null
   checkpointUpdatedAt?: number
   persistedPersona?: boolean
   committedRawTurnCount?: number
@@ -139,6 +148,349 @@ export interface AlicizationMemoryLiveProviderTrialReport {
   productionWrites: []
 }
 
+export type AlicizationLongTermMemoryEvidenceKind
+  = | 'fact'
+    | 'reflection'
+    | 'episode'
+    | 'consolidation'
+
+export interface AlicizationLongTermMemoryRecallIntent {
+  mode: AlicizationMemoryRecallMode
+  shouldRecall: boolean
+  confidence: number
+  rationale: string
+  temporalFocus: AlicizationMemoryTemporalFocus
+  targetKinds: AlicizationLongTermMemoryEvidenceKind[]
+  queryHints: string[]
+  riskFlags: string[]
+}
+
+export interface AlicizationLongTermMemoryQueryPlan {
+  rawQuery: string
+  normalizedQuery: string
+  keywordQueries: string[]
+  phraseQueries: string[]
+  charGramQueries: string[]
+  semanticQueries: string[]
+  episodicQueries: string[]
+  temporalHints: string[]
+  entityHints: string[]
+  procedureHints: string[]
+  threadHints: string[]
+  negativeCues: string[]
+  riskFlags: string[]
+  targetKinds: AlicizationLongTermMemoryEvidenceKind[]
+}
+
+export interface AlicizationLongTermMemoryEvidenceScope {
+  userId: string
+  cardId: string | null
+}
+
+export interface AlicizationLongTermMemoryEvidenceCandidate {
+  id: string
+  kind: AlicizationLongTermMemoryEvidenceKind
+  summary: string
+  source: string
+  origin?: string | null
+  scope?: AlicizationLongTermMemoryEvidenceScope | null
+  provenance?: AlicizationMemoryProvenance | null
+  evidenceVersion?: string | null
+  version?: string | null
+  confidence: number
+  reviewStatus?: string | null
+  salience?: number | null
+  updatedAt?: number | null
+  occurredAt?: number | null
+  threadId?: string | null
+  threadAnchor?: string | null
+  cues?: string[] | null
+  entities?: string[] | null
+  sensitivity?: 'public' | 'personal' | 'private' | 'secret' | null
+}
+
+export interface AlicizationRankedLongTermMemoryEvidence {
+  candidate: AlicizationLongTermMemoryEvidenceCandidate
+  score: number
+  queryMatches: string[]
+  rankReasons: string[]
+  scope: AlicizationLongTermMemoryEvidenceScope
+  provenance: AlicizationMemoryProvenance
+  evidenceVersion: string
+  version: string
+}
+
+export interface AlicizationLongTermMemoryEvidenceBundle {
+  intent: AlicizationLongTermMemoryRecallIntent
+  plan: AlicizationLongTermMemoryQueryPlan
+  evidence: AlicizationRankedLongTermMemoryEvidence[]
+  confidence: number
+  budgetClass: 'none' | 'light' | 'normal' | 'wide'
+}
+
+export interface AlicizationWorkingMemoryFailureSurface {
+  kind: AlicizationChatFailureKind
+  origin: 'failure-surface'
+  allowLongTermCondensation: false
+  allowPersonaLearning: false
+  allowTraining: false
+}
+
+export interface AlicizationWorkingMemoryLongTermEvidence {
+  version: 'working-memory-long-term-evidence-v1'
+  source: 'explicit-structured-memory-evidence'
+  kind: AlicizationWorkingMemoryLongTermCandidate['kind']
+  summary: string
+  reason: string
+  evidenceSnippets: string[]
+  salience: number
+  sensitivity: AlicizationWorkingMemoryLongTermCandidate['sensitivity']
+  confidence: number
+}
+
+export interface AlicizationWorkingMemoryTurn {
+  turnId: string
+  role: 'user' | 'alice' | 'tool' | 'system'
+  text: string
+  createdAt: number
+  source: 'conversation-turn' | 'tool-result' | 'runtime-event'
+  visibility: 'user-visible' | 'internal'
+  failureKind: 'timeout' | 'provider-error' | 'tool-error' | 'abort' | null
+  origin?: AlicizationVisibleArtifactOrigin | null
+  learningPolicy?: AlicizationVisibleArtifactLearningPolicy | null
+  failureSurface?: AlicizationWorkingMemoryFailureSurface | null
+  memoryEvidence?: AlicizationWorkingMemoryLongTermEvidence | null
+  contaminated?: boolean
+  importance: number
+}
+
+export interface AlicizationWorkingMemoryEpisodelet {
+  id: string
+  sourceTurnIds: string[]
+  summary: string
+  thread: string | null
+  unresolvedQuestions: string[]
+  commitments: string[]
+  corrections: string[]
+  relationshipPosture: string | null
+  emotionalPosture: string | null
+  executionCarry: string | null
+  importance: number
+  createdAt: number
+}
+
+export interface AlicizationWorkingMemoryThread {
+  title: string
+  currentUserMove: string
+  currentAliceMove: string | null
+  primaryAnchor: string | null
+  mode: 'casual' | 'task' | 'repair' | 'execution' | 'reflection' | 'recollection'
+  shouldHold: boolean
+  confidence: number
+}
+
+export interface AlicizationWorkingMemoryTask {
+  summary: string
+  status: 'active' | 'waiting-user' | 'waiting-tool' | 'blocked' | 'settled'
+  evidenceTurnIds: string[]
+}
+
+export interface AlicizationWorkingMemoryQuestion {
+  text: string
+  sourceTurnId: string | null
+}
+
+export interface AlicizationWorkingMemoryCommitment {
+  text: string
+  sourceTurnId: string | null
+}
+
+export interface AlicizationWorkingMemoryCorrection {
+  text: string
+  sourceTurnId: string | null
+  scope: 'reply' | 'memory' | 'persona' | 'task' | 'unknown'
+}
+
+export interface AlicizationWorkingMemoryRelationshipPosture {
+  summary: string
+  source: 'conversation-state' | 'conscious-frame' | 'runtime'
+}
+
+export interface AlicizationWorkingMemoryEmotionalPosture {
+  summary: string
+  source: 'conscious-frame' | 'runtime'
+}
+
+export interface AlicizationWorkingMemoryExecutionState {
+  summary: string
+  source: 'execution-callback' | 'execution-ledger' | 'tool-result'
+  status?: 'active' | 'terminal'
+  observedAt?: number
+}
+
+export interface AlicizationWorkingMemoryLongTermCandidate {
+  sourceTurnIds: string[]
+  kind: 'episode' | 'preference' | 'relationship' | 'procedure' | 'correction'
+  summary: string
+  reason: string
+  salience: number
+  sensitivity: 'public' | 'personal' | 'private' | 'secret'
+  confidence: number
+  allowTraining: boolean
+  evidenceSnippets?: string[]
+  memoryEvidence?: AlicizationWorkingMemoryLongTermEvidence | null
+}
+
+export interface AlicizationWorkingMemoryCompressionState {
+  level: 'none' | 'light' | 'heavy'
+  sourceTurnIds: string[]
+  lastCompressedAt: number | null
+}
+
+export interface AlicizationWorkingMemoryAuditState {
+  failureTurnIds: string[]
+  excludedLongTermCandidateTurnIds: string[]
+  notes: string[]
+}
+
+export interface AlicizationWorkingMemorySnapshot {
+  version: 'working-memory-v1'
+  cardId: string
+  sessionId: string
+  updatedAt: number
+  turnRange: {
+    fromTurnId: string | null
+    toTurnId: string | null
+  }
+  recentRawTurns: AlicizationWorkingMemoryTurn[]
+  compressedTimeline: AlicizationWorkingMemoryEpisodelet[]
+  currentThread: AlicizationWorkingMemoryThread | null
+  activeTask: AlicizationWorkingMemoryTask | null
+  unresolvedQuestions: AlicizationWorkingMemoryQuestion[]
+  commitments: AlicizationWorkingMemoryCommitment[]
+  userCorrections: AlicizationWorkingMemoryCorrection[]
+  relationshipPosture: AlicizationWorkingMemoryRelationshipPosture | null
+  emotionalPosture: AlicizationWorkingMemoryEmotionalPosture | null
+  executionState: AlicizationWorkingMemoryExecutionState | null
+  memoryQueryHints: string[]
+  longTermCandidates: AlicizationWorkingMemoryLongTermCandidate[]
+  compression: AlicizationWorkingMemoryCompressionState
+  audit: AlicizationWorkingMemoryAuditState
+}
+
+export interface AlicizationWorkingMemoryQualityView {
+  version: 'working-memory-quality-view-v1'
+  scope: {
+    cardId: string
+    sessionId: string
+    updatedAt: number
+    turnRange: AlicizationWorkingMemorySnapshot['turnRange']
+  }
+  modules: {
+    thread: {
+      title: string | null
+      currentUserMove: string | null
+      currentAliceMove: string | null
+      primaryAnchor: string | null
+      mode: AlicizationWorkingMemoryThread['mode'] | null
+      shouldHold: boolean | null
+      confidence: number | null
+    }
+    task: {
+      summary: string | null
+      status: AlicizationWorkingMemoryTask['status'] | null
+      evidenceTurnIds: string[]
+    }
+    compressedTimeline: Array<{
+      summary: string
+      thread: string | null
+      sourceTurnIds: string[]
+    }>
+    unresolvedQuestions: string[]
+    memoryQueryHints: string[]
+    commitments: string[]
+    corrections: Array<{
+      text: string
+      scope: AlicizationWorkingMemoryCorrection['scope']
+    }>
+    relationshipPosture: AlicizationWorkingMemoryRelationshipPosture | null
+    emotionalPosture: AlicizationWorkingMemoryEmotionalPosture | null
+    executionState: AlicizationWorkingMemoryExecutionState | null
+    compression: AlicizationWorkingMemoryCompressionState
+    audit: AlicizationWorkingMemoryAuditState
+    longTermCandidates: AlicizationWorkingMemoryLongTermCandidate[]
+  }
+}
+
+export interface AlicizationPersonaTrainingDatasetConsentSnapshot {
+  granted: boolean
+  policyVersion: string
+  scope: string
+  capturedAt?: number
+}
+
+export interface AlicizationPersonaTrainingDatasetCleaningProvenance {
+  kind: 'working-memory-cleaning'
+  cleaningTransactionId: string
+  cleanedAt: number
+}
+
+export interface AlicizationPersonaTrainingDatasetExample {
+  id: string
+  datasetId: string
+  cardId: string
+  schemaVersion: string
+  sourceId: string
+  sourceKind: 'cleaned-long-term-reflection' | 'persona-reinforcement'
+  contentHash: string
+  behaviorLesson: string
+  positiveExample: string
+  negativeExample: string | null
+  sensitivity: string
+  piiStatus: 'clear' | 'detected' | 'not-checked'
+  piiReason: string | null
+  consentSnapshot: AlicizationPersonaTrainingDatasetConsentSnapshot
+  provenance?: AlicizationPersonaTrainingDatasetCleaningProvenance | null
+  allowTraining: boolean
+  state: 'staged' | 'quarantined' | 'revoked'
+  createdAt: number
+  revokedAt?: number | null
+}
+
+export interface AlicizationPersonaTrainingDatasetVersion {
+  id: string
+  cardId: string
+  version: number
+  schemaVersion: string
+  consentSnapshot: AlicizationPersonaTrainingDatasetConsentSnapshot
+  createdAt: number
+  exportedAt: number | null
+  activeAt: number | null
+  rolledBackAt: number | null
+}
+
+export interface AlicizationPersonaTrainingDatasetManifest {
+  datasetId: string
+  cardId: string
+  version: number
+  schemaVersion: string
+  exportedAt: number
+  consentSnapshot: AlicizationPersonaTrainingDatasetConsentSnapshot
+  exampleCount: number
+  examples: Array<{
+    id: string
+    sourceId: string
+    sourceKind: AlicizationPersonaTrainingDatasetExample['sourceKind']
+    schemaVersion: string
+    contentHash: string
+    provenance: AlicizationPersonaTrainingDatasetCleaningProvenance
+    behaviorLesson: string
+    positiveExample: string
+    negativeExample: string | null
+  }>
+  manifestHash: string
+}
+
 export interface AlicizationMemoryQualityLongTermMetrics {
   recallAtK: number
   precisionAtK: number
@@ -182,10 +534,19 @@ export interface AlicizationMemoryQualityLongTermTrace {
 
 export interface AlicizationMemoryQualityLongTermResult {
   fixtureId: string
+  bundle: AlicizationLongTermMemoryEvidenceBundle
   topIds: string[]
   metrics: AlicizationMemoryQualityLongTermMetrics
   trace: AlicizationMemoryQualityLongTermTrace
   passed: boolean
+}
+
+export interface AlicizationLongTermMemoryHarnessResult extends AlicizationMemoryQualityLongTermResult {
+  hitRate: number
+  precisionAtK: number
+  mrr: number
+  falseRecallCount: number
+  sourceTraceRate: number
 }
 
 export interface AlicizationWorkingMemoryQualityMetrics {
@@ -227,6 +588,8 @@ export interface AlicizationWorkingMemoryQualityTrace {
 
 export interface AlicizationWorkingMemoryQualityResult {
   fixtureId: string
+  compressedSnapshot: AlicizationWorkingMemorySnapshot
+  view: AlicizationWorkingMemoryQualityView
   metrics: AlicizationWorkingMemoryQualityMetrics
   trace: AlicizationWorkingMemoryQualityTrace
   passed: boolean
@@ -279,7 +642,7 @@ export interface AlicizationMemoryUserTrialResult {
   findings: AlicizationMemoryUserTrialFinding[]
   recommendedNextActions: string[]
   workingMemory: AlicizationWorkingMemoryQualityResult[]
-  longTerm: AlicizationMemoryQualityLongTermResult[]
+  longTerm: AlicizationLongTermMemoryHarnessResult[]
   timeline: Array<{
     kind: 'working-memory-check' | 'review-decision' | 'long-term-recall-check'
     fixtureId: string
@@ -353,6 +716,9 @@ export interface AlicizationPersonaTrainingDatasetQualityTrace {
 
 export interface AlicizationPersonaTrainingDatasetQualityResult {
   fixtureId: string
+  dataset: AlicizationPersonaTrainingDatasetVersion
+  manifest: AlicizationPersonaTrainingDatasetManifest
+  examples: AlicizationPersonaTrainingDatasetExample[]
   metrics: AlicizationPersonaTrainingDatasetQualityMetrics
   findings: AlicizationPersonaTrainingDatasetQualityFinding[]
   recommendedNextActions: string[]
@@ -414,8 +780,9 @@ export interface AlicizationWorkingMemoryCompressionBehaviorReport {
   }
   results: Array<{
     fixtureId: string
-    baseline: AlicizationMemoryQualityLongTermResult
-    compressed: AlicizationMemoryQualityLongTermResult
+    compressedSnapshot: AlicizationWorkingMemorySnapshot
+    baseline: AlicizationLongTermMemoryHarnessResult
+    compressed: AlicizationLongTermMemoryHarnessResult
     metrics: AlicizationWorkingMemoryCompressionBehaviorMetrics
     trace: AlicizationWorkingMemoryCompressionBehaviorTrace
     passed: boolean
@@ -467,7 +834,7 @@ export interface AlicizationLongTermMemoryTemporalConflictReport {
   }
   results: Array<{
     fixtureId: string
-    result: AlicizationMemoryQualityLongTermResult
+    result: AlicizationLongTermMemoryHarnessResult
     metrics: AlicizationLongTermMemoryTemporalConflictMetrics
     trace: AlicizationLongTermMemoryTemporalConflictTrace
     passed: boolean
@@ -730,7 +1097,17 @@ export interface AlicizationMemoryQualityTrialReport {
     lastError: string | null
   }
   stages: Array<{
-    stage: string
+    stage:
+      | 'dialogue-replay'
+      | 'runtime-health'
+      | 'working-memory-compression'
+      | 'compressed-context-behavior'
+      | 'long-term-recall'
+      | 'temporal-conflict'
+      | 'semantic-scale-soak'
+      | 'experience-quality'
+      | 'scope-fuzz'
+      | 'persona-dataset-hygiene'
     id: string
     passed: boolean
     status?: 'not-run'
@@ -776,8 +1153,14 @@ export interface AlicizationMemoryQualityTrialReport {
     errors: string[]
   } | null
   quality: {
+    version: 'memory-quality-harness-v1'
     passed: boolean
+    createdAt: number
     summary: {
+      longTermFixtureCount: number
+      workingMemoryFixtureCount: number
+      userTrialCount: number
+      personaTrainingFixtureCount: number
       failingFixtureIds: string[]
       recallAtK: number
       compressionLossCount: number
