@@ -435,7 +435,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
         await input.run(input.database, `
           UPDATE memory_semantic_scale_jobs
           SET last_error = ?, updated_at = ?
-          WHERE id = ? AND status IN ('queued', 'running', 'cancel_requested')
+          WHERE id = ? AND status IN ('queued', 'running')
         `, [message, now, jobId])
       })
     }
@@ -707,8 +707,52 @@ export function createMemorySemanticScaleJobRuntime(input: {
         'SELECT status, lease_token FROM memory_semantic_scale_jobs WHERE id = ?',
         [claimed.row.id],
       )
-      return row?.status === 'running' && row.lease_token === claimed.leaseToken
+      if (row?.lease_token !== claimed.leaseToken)
+        return 'lost' as const
+      if (row.status === 'running' || row.status === 'cancel_requested')
+        return row.status
+      return 'lost' as const
     })
+  }
+
+  async function preserveStoppedClaimForRecovery(
+    claimed: ClaimedMemorySemanticScaleJob,
+  ) {
+    const attemptCountBeforeClaim = Math.max(0, Number(claimed.row.attempt_count) - 1)
+    const retryLimit = 3
+    for (let failureCount = 0; failureCount < retryLimit; failureCount += 1) {
+      const now = input.now()
+      try {
+        await input.enqueueWrite(async () => {
+          await input.run(input.database, `
+            UPDATE memory_semantic_scale_jobs
+            SET attempt_count = MIN(attempt_count, ?),
+                lease_expires_at = ?,
+                last_error = CASE
+                  WHEN status = 'cancel_requested' THEN last_error
+                  ELSE ?
+                END,
+                updated_at = ?
+            WHERE id = ?
+              AND status IN ('running', 'cancel_requested')
+              AND lease_token = ?
+          `, [
+            attemptCountBeforeClaim,
+            now,
+            'semantic scale runtime stopped before settlement recovery',
+            now,
+            claimed.row.id,
+            claimed.leaseToken,
+          ])
+        })
+        return
+      }
+      catch (error) {
+        await persistWorkerErrorBestEffort(claimed.row.id, error)
+        if (failureCount + 1 < retryLimit)
+          await wait(workerRetryDelay(failureCount + 1))
+      }
+    }
   }
 
   function startLeaseHeartbeat(
@@ -792,14 +836,24 @@ export function createMemorySemanticScaleJobRuntime(input: {
         }
 
         if (stopping) {
+          const attemptCountBeforeClaim = Math.max(
+            0,
+            Number(inputData.claimed.row.attempt_count) - 1,
+          )
           await input.run(input.database, `
             UPDATE memory_semantic_scale_jobs
             SET status = 'queued', dead_lettered = 0,
-                attempt_count = MAX(0, attempt_count - 1),
+                attempt_count = MIN(attempt_count, ?),
                 next_retry_at = ?, lease_token = NULL, lease_expires_at = NULL,
                 completed_at = NULL, updated_at = ?
             WHERE id = ? AND lease_token = ?
-          `, [now, now, row.id, inputData.claimed.leaseToken])
+          `, [
+            attemptCountBeforeClaim,
+            now,
+            now,
+            row.id,
+            inputData.claimed.leaseToken,
+          ])
           return
         }
 
@@ -941,17 +995,18 @@ export function createMemorySemanticScaleJobRuntime(input: {
             stopping
             && stoppingSettlementFailureCount >= stoppingSettlementRetryLimit
           ) {
+            await preserveStoppedClaimForRecovery(claimed)
             break
           }
           if (!stopping) {
-            let leaseStillOwned: boolean | null = null
+            let claimedState: 'cancel_requested' | 'lost' | 'running' | null = null
             try {
-              leaseStillOwned = await renewClaimedLease(claimed)
+              claimedState = await renewClaimedLease(claimed)
             }
             catch (leaseError) {
               await persistWorkerErrorBestEffort(jobId, leaseError)
             }
-            if (leaseStillOwned === false)
+            if (claimedState === 'lost')
               break
             await wait(workerRetryDelay(settlementFailureCount))
           }

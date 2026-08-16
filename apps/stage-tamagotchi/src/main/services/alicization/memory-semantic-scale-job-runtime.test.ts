@@ -1206,6 +1206,141 @@ describe('memory semantic scale job runtime', () => {
     })
   })
 
+  it('preserves the stop attempt budget through recovery after requeue retries are exhausted', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    const writeQueue = createWriteQueue()
+    let now = 1_000
+    let failCompletionWrites = true
+    let remainingStopRequeueFailures = 3
+    let completionSettlementAttempts = 0
+    let executions = 0
+    const { runtime } = attachRuntime(harness, {
+      now: () => now,
+      maxAttempts: 1,
+      leaseMs: 50,
+      retryBaseMs: 1,
+      tempRootDir,
+      writeQueue,
+      run: async (sql, params = []) => {
+        if (failCompletionWrites && sql.includes(`SET status = 'completed'`)) {
+          completionSettlementAttempts += 1
+          throw new Error('completion persistence unavailable before stop')
+        }
+        if (
+          remainingStopRequeueFailures > 0
+          && sql.includes(`SET status = 'queued', dead_lettered = 0`)
+        ) {
+          remainingStopRequeueFailures -= 1
+          throw new Error('transient stop requeue persistence failure')
+        }
+        return await harness.run(sql, params)
+      },
+      executeJob: async ({ corpusSize }) => {
+        executions += 1
+        return createReport(corpusSize, 'stop-recovery-attempt-budget')
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    const worker = runtime.runJob(job.jobId)
+    await waitFor(() => {
+      expect(completionSettlementAttempts).toBeGreaterThan(0)
+    })
+
+    failCompletionWrites = false
+    await runtime.stop()
+    await worker
+    expect(remainingStopRequeueFailures).toBe(0)
+    expect(executions).toBe(1)
+
+    now = 2_000
+    const restarted = attachRuntime(harness, {
+      now: () => now,
+      maxAttempts: 1,
+      leaseMs: 50,
+      retryBaseMs: 1,
+      tempRootDir,
+      writeQueue,
+      executeJob: async ({ corpusSize }) =>
+        createReport(corpusSize, 'completed-after-stop-recovery'),
+    })
+    await restarted.runtime.initializeSchema()
+
+    expect(await restarted.runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'queued',
+      attemptCount: 0,
+      maxAttempts: 1,
+      deadLettered: false,
+    })
+    now = 2_001
+    expect(await restarted.runtime.resumePendingJobs('card-a')).toEqual([job.jobId])
+    await waitFor(() => {
+      expect(restarted.runtime.activeJobIds()).toEqual([])
+    })
+    expect(await restarted.runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'completed',
+      attemptCount: 1,
+      maxAttempts: 1,
+      deadLettered: false,
+      report: {
+        id: 'completed-after-stop-recovery',
+      },
+    })
+  })
+
+  it('settles cancellation requested while completion settlement is failing', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let releaseCompletionFailure: (() => void) | undefined
+    let completionSettlementStarted: (() => void) | undefined
+    let failCompletionWrite = true
+    let executions = 0
+    const completionSettlementStartedPromise = new Promise<void>((resolve) => {
+      completionSettlementStarted = resolve
+    })
+    const releaseCompletionFailurePromise = new Promise<void>((resolve) => {
+      releaseCompletionFailure = resolve
+    })
+    const { runtime } = attachRuntime(harness, {
+      tempRootDir,
+      run: async (sql, params = []) => {
+        if (failCompletionWrite && sql.includes(`SET status = 'completed'`)) {
+          failCompletionWrite = false
+          completionSettlementStarted?.()
+          await releaseCompletionFailurePromise
+          throw new Error('completion persistence failed during cancellation')
+        }
+        return await harness.run(sql, params)
+      },
+      executeJob: async ({ corpusSize }) => {
+        executions += 1
+        return createReport(corpusSize, 'cancel-during-settlement')
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    const worker = runtime.runJob(job.jobId)
+    await completionSettlementStartedPromise
+
+    const cancellation = runtime.requestCancel(
+      job.jobId,
+      'cancel while completion settlement retries',
+      'card-a',
+    )
+    releaseCompletionFailure?.()
+    await Promise.all([cancellation, worker])
+
+    expect(executions).toBe(1)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'cancelled',
+      attemptCount: 1,
+      deadLettered: false,
+      leaseExpiresAt: null,
+      lastError: 'cancel while completion settlement retries',
+    })
+  })
+
   it('bounds persistent settlement failures so stop resolves and leaves the lease recoverable', async () => {
     const harness = await createSqliteHarness()
     const tempRootDir = await createTempRoot()
@@ -1253,7 +1388,7 @@ describe('memory semantic scale job runtime', () => {
     expect(settlementAttempts - attemptsBeforeStop).toBeLessThanOrEqual(3)
     expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
       status: 'running',
-      attemptCount: 1,
+      attemptCount: 0,
       report: null,
     })
   })
