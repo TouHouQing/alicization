@@ -221,6 +221,7 @@ import type {
   CharacterPerformanceCapabilitiesManifest as SharedCharacterPerformanceCapabilitiesManifest,
   CharacterPerformanceEmbodimentHints as SharedCharacterPerformanceEmbodimentHints,
 } from '@proj-alicization/stage-shared'
+import type * as SharedMemoryWorkbench from '@proj-alicization/stage-shared'
 import type {
   ThreeHitTestReadTracePayload,
   ThreeSceneRenderInfoTracePayload,
@@ -898,191 +899,13 @@ export interface AlicizationMemoryQualityMonthlyGoldRegressionPayload extends Al
   month?: string | null
 }
 
-export interface AlicizationMemoryReplaySessionSummary {
-  sessionId: string
-  title: string
-  firstTurnAt: number | null
-  lastTurnAt: number | null
-  userTurnCount: number
-  assistantTurnCount: number
-  checkpointUpdatedAt: number
-}
-
-export interface AlicizationMemoryReplaySessionListPayload extends AlicizationCardScope {
-  limit?: number
-  cursor?: string | null
-}
-
-export interface AlicizationMemoryReplaySessionListResult {
-  items: AlicizationMemoryReplaySessionSummary[]
-  nextCursor: string | null
-}
-
-export interface AlicizationMemoryQualityTrialPayload extends AlicizationCardScope {
-  mode?: 'historical-replay' | 'live-provider'
-  month?: string | null
-  sessionId: string
-}
-
-export interface AlicizationMemoryDialogueReplayReport {
-  version: 'memory-db-dialogue-replay-report-v1'
-  id: string
-  passed: boolean
-  createdAt: number
-  summary: {
-    turnCount: number
-    succeededTurnCount: number
-    failedTurnCount: number
-    checkpointWriteCount: number
-    personaWriteCount: number
-    recalledEvidenceCount: number
-    lastError: string | null
-  }
-  turns: Array<{
-    turnId: string
-    status: 'succeeded' | 'failed'
-    providerOutput: string | null
-    providerMessages: Array<{
-      role: 'system' | 'user' | 'assistant'
-      content: string
-    }>
-    recalledEvidenceIds: string[]
-    stages: Array<{
-      name: 'hydration' | 'compression' | 'context-assembly' | 'recall' | 'provider-adapter' | 'commit'
-      status: 'succeeded' | 'failed'
-      details: Record<string, unknown>
-      error: string | null
-    }>
-    writeback: {
-      checkpoint: 'written' | 'skipped'
-      persona: 'written' | 'skipped'
-    }
-    error: string | null
-  }>
-}
-
-export interface AlicizationMemoryLiveProviderTrialReport {
-  version: 'memory-live-provider-trial-v1'
-  id: string
-  cardId: string
-  sessionId: string
-  createdAt: number
-  passed: boolean
-  summary: {
-    turnCount: number
-    succeededTurnCount: number
-    failedTurnCount: number
-    recalledEvidenceCount: number
-    providerCallCount: number
-    lastError: string | null
-  }
-  turns: Array<AlicizationMemoryDialogueReplayReport['turns'][number] & {
-    providerTrace: {
-      providerId: string
-      modelId: string
-      finishReason: string | null
-      retryCount: number
-      latencyMs: number
-      outputLength: number
-    } | null
-  }>
-  productionWrites: []
-}
-
-export interface AlicizationMemoryQualityTrialReport {
-  version: 'memory-production-trial-runner-v1'
-  id: string
-  cardId: string
-  createdAt: number
-  passed: boolean
-  summary: {
-    dialogueReplayCount: number
-    workingMemoryFixtureCount: number
-    compressedContextBehaviorFixtureCount: number
-    temporalConflictFixtureCount: number
-    semanticScaleSoakRunCount: number
-    experienceQualityFixtureCount: number
-    scopeFuzzCaseCount: number
-    longTermFixtureCount: number
-    userTrialCount: number
-    personaTrainingFixtureCount: number
-    failingStageIds: string[]
-    notRunStageIds: string[]
-    optimizationFindingCount: number
-    recommendedActionCount: number
-    lastError: string | null
-  }
-  stages: Array<{
-    stage: string
-    id: string
-    passed: boolean
-    status?: 'not-run'
-    itemCount: number
-    error: string | null
-  }>
-  dialogueReplay: AlicizationMemoryDialogueReplayReport | null
-  liveProviderTrial: AlicizationMemoryLiveProviderTrialReport | null
-  runtimeHealth: {
-    queue: {
-      pending: number
-      review: number
-      applied: number
-      failed: number
-      deadLettered: number
-    }
-    recall: {
-      lastLatencyMs: number | null
-      p95LatencyMs: number | null
-      lastError: string | null
-    }
-    embedding: {
-      providerConfigured: boolean
-      modelId: string | null
-      dimensions: number | null
-      vectorSpaceId: string | null
-      reindexRequired: boolean
-      indexMode: 'sqlite-vec' | 'hnsw' | 'ann' | 'brute-force'
-      approximate: boolean
-      degraded: boolean
-      nativeIndexReady: boolean
-      searchReady: boolean
-      lastError: string | null
-      canonicalCount: number
-      indexedCount: number
-      missingCount: number
-      textHashMismatchCount: number
-      staleOrFailedCount: number
-      orphanedCount: number
-      coverageRatio: number | null
-      reindexJob: AlicizationMemoryEmbeddingReindexProgress | null
-    }
-    errors: string[]
-  } | null
-  quality: {
-    passed: boolean
-    summary: {
-      failingFixtureIds: string[]
-      recallAtK: number
-      compressionLossCount: number
-      blockedLeakCount: number
-      optimizationFindingCount: number
-      lastError: string | null
-    }
-    traces: Array<Record<string, unknown>>
-    longTerm: Array<Record<string, unknown>>
-    workingMemory: Array<Record<string, unknown>>
-    userTrials: Array<Record<string, unknown>>
-    personaTraining: Array<Record<string, unknown>>
-    optimizationFindings: Array<Record<string, unknown>>
-    recommendedNextActions: string[]
-  }
-  compressedContextBehavior: Record<string, unknown> | null
-  temporalConflict: Record<string, unknown> | null
-  semanticScaleSoak: Record<string, unknown> | null
-  experienceQuality: Record<string, unknown> | null
-  scopeFuzz: Record<string, unknown> | null
-  recommendedNextActions: string[]
-}
+export type AlicizationMemoryReplaySessionSummary = SharedMemoryWorkbench.AlicizationMemoryReplaySessionSummary
+export type AlicizationMemoryReplaySessionListPayload = SharedMemoryWorkbench.AlicizationMemoryReplaySessionListPayload
+export type AlicizationMemoryReplaySessionListResult = SharedMemoryWorkbench.AlicizationMemoryReplaySessionListResult
+export type AlicizationMemoryQualityTrialPayload = SharedMemoryWorkbench.AlicizationMemoryQualityTrialPayload
+export type AlicizationMemoryDialogueReplayReport = SharedMemoryWorkbench.AlicizationMemoryDialogueReplayReport
+export type AlicizationMemoryLiveProviderTrialReport = SharedMemoryWorkbench.AlicizationMemoryLiveProviderTrialReport
+export type AlicizationMemoryQualityTrialReport = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReport
 
 export type AlicizationPersonaCandidateWorkbenchStatus = 'candidate' | 'approved' | 'rejected' | 'no-training'
 export type AlicizationPersonaCandidateWorkbenchDecision = 'approve' | 'reject' | 'no-training'
@@ -1203,160 +1026,26 @@ export interface AlicizationPersonaTrainingDatasetExamplePolicyPayload extends A
   consent: Omit<AlicizationPersonaTrainingDatasetConsentSnapshot, 'capturedAt'> & { capturedAt?: number }
 }
 
-export interface AlicizationPersonaTrainingDatasetRevokePayload extends AlicizationCardScope {
-  sourceId: string
-}
-
-export type AlicizationPersonaTrainingPipelineIncrementState = 'available' | 'rolled-back' | 'revoked'
-
-export interface AlicizationPersonaTrainingPipelineIncrement {
-  id: string
-  kind: 'persona-lora-increment'
-  cardId: string
-  datasetId: string
-  manifestHash: string
-  sourceIds: string[]
-  basePersonaRevision: string
-  artifact: unknown
-  state: AlicizationPersonaTrainingPipelineIncrementState
-  createdAt: number
-}
-
-export type AlicizationPersonaTrainingPipelineFailureReason
-  = 'executor-failed'
-    | 'source-revoked'
-    | 'dataset-rolled-back'
-    | 'dataset-not-active'
-    | 'manifest-no-longer-usable'
-    | 'cancelled'
-    | 'interrupted'
-
-export type AlicizationPersonaTrainingPipelineRunStatus
-  = 'queued'
-    | 'running'
-    | 'cancel_requested'
-    | 'completed'
-    | 'failed'
-    | 'cancelled'
-    | 'interrupted'
-
-export type AlicizationPersonaTrainingPipelineRunStage
-  = 'writing-input'
-    | 'spawning'
-    | 'training'
-    | 'validating-artifact'
-    | 'finalizing'
-
-export interface AlicizationPersonaTrainingExecutorConfig {
-  executable: string
-  fixedArguments: string[]
-  baseModel: string
-  timeoutMs: number
-}
-
-export interface AlicizationPersonaTrainingArtifact {
-  schemaVersion: 'alicization-persona-training-artifact-v1'
-  artifactId: string
-  runId: string
-  kind: 'lora-adapter'
-  path: string
-  sha256: string
-  sizeBytes: number
-  baseModel: string
-  compatibility: {
-    status: 'compatible' | 'incompatible' | 'unknown'
-    baseModel: string
-    reason?: string | null
-  }
-  activation: {
-    status: 'inactive' | 'unsupported'
-    reason: string
-  }
-}
-
-export interface AlicizationPersonaTrainingPipelineRunRecord {
-  runId: string
-  cardId: string
-  datasetId: string
-  manifestHash: string
-  sourceIds: string[]
-  basePersonaRevision: string
-  status: AlicizationPersonaTrainingPipelineRunStatus
-  stage: AlicizationPersonaTrainingPipelineRunStage
-  progress: number
-  progressMessage: string | null
-  failureReason: AlicizationPersonaTrainingPipelineFailureReason | null
-  configSnapshot: AlicizationPersonaTrainingExecutorConfig | null
-  artifact: AlicizationPersonaTrainingArtifact | null
-  error: string | null
-  queuedAt: number
-  startedAt: number | null
-  updatedAt: number
-  finishedAt: number | null
-  cancellationRequestedAt: number | null
-}
-
-export interface AlicizationPersonaTrainingStartResult {
-  run: AlicizationPersonaTrainingPipelineRunRecord
-}
-
-export interface AlicizationPersonaTrainingRunsResult {
-  items: AlicizationPersonaTrainingPipelineRunRecord[]
-}
-
-export interface AlicizationPersonaTrainingRunLookupPayload extends AlicizationCardScope {
-  runId: string
-}
-
-export interface AlicizationPersonaTrainingExecutorConfigState {
-  configured: boolean
-  config: AlicizationPersonaTrainingExecutorConfig | null
-  error: string | null
-}
-
-export interface AlicizationPersonaTrainingExecutorConfigPayload extends AlicizationCardScope {
-  config: AlicizationPersonaTrainingExecutorConfig | null
-}
-
-export interface AlicizationPersonaTrainingExecutorConnectionResult {
-  ok: boolean
-  executable: string
-  error: string | null
-}
-
-export interface AlicizationPersonaTrainingPipelineRunResult {
-  status: 'succeeded'
-  runId: string
-  increment: AlicizationPersonaTrainingPipelineIncrement
-}
-
-export interface AlicizationPersonaTrainingPipelineFailureResult {
-  status: 'failed'
-  runId: string
-  reason: AlicizationPersonaTrainingPipelineFailureReason
-  error: string
-}
-
-export type AlicizationPersonaTrainingPipelineResult
-  = AlicizationPersonaTrainingPipelineRunResult
-    | AlicizationPersonaTrainingPipelineFailureResult
-
-export interface AlicizationPersonaTrainingRunPayload extends AlicizationCardScope {
-  datasetId?: string | null
-}
-
-export interface AlicizationPersonaTrainingCancelPayload extends AlicizationCardScope {
-  runId: string
-  reason?: string | null
-}
-
-export interface AlicizationPersonaTrainingIncrementPayload extends AlicizationCardScope {
-  incrementId: string
-}
-
-export interface AlicizationPersonaTrainingIncrementsResult {
-  items: AlicizationPersonaTrainingPipelineIncrement[]
-}
+export type AlicizationPersonaTrainingDatasetRevokePayload = SharedMemoryWorkbench.AlicizationPersonaTrainingDatasetRevokePayload
+export type AlicizationPersonaTrainingPipelineIncrementState = SharedMemoryWorkbench.AlicizationPersonaTrainingPipelineIncrementState
+export type AlicizationPersonaTrainingPipelineIncrement = SharedMemoryWorkbench.AlicizationPersonaTrainingPipelineIncrement
+export type AlicizationPersonaTrainingPipelineFailureReason = SharedMemoryWorkbench.AlicizationPersonaTrainingPipelineFailureReason
+export type AlicizationPersonaTrainingPipelineRunStatus = SharedMemoryWorkbench.AlicizationPersonaTrainingPipelineRunStatus
+export type AlicizationPersonaTrainingPipelineRunStage = SharedMemoryWorkbench.AlicizationPersonaTrainingPipelineRunStage
+export type AlicizationPersonaTrainingExecutorConfig = SharedMemoryWorkbench.AlicizationPersonaTrainingExecutorConfig
+export type AlicizationPersonaTrainingArtifact = SharedMemoryWorkbench.AlicizationPersonaTrainingArtifact
+export type AlicizationPersonaTrainingPipelineRunRecord = SharedMemoryWorkbench.AlicizationPersonaTrainingPipelineRunRecord
+export type AlicizationPersonaTrainingStartResult = SharedMemoryWorkbench.AlicizationPersonaTrainingStartResult
+export type AlicizationPersonaTrainingRunsResult = SharedMemoryWorkbench.AlicizationPersonaTrainingRunsResult
+export type AlicizationPersonaTrainingRunLookupPayload = SharedMemoryWorkbench.AlicizationPersonaTrainingRunLookupPayload
+export type AlicizationPersonaTrainingExecutorConfigState = SharedMemoryWorkbench.AlicizationPersonaTrainingExecutorConfigState
+export type AlicizationPersonaTrainingExecutorConfigPayload = SharedMemoryWorkbench.AlicizationPersonaTrainingExecutorConfigPayload
+export type AlicizationPersonaTrainingExecutorConnectionResult = SharedMemoryWorkbench.AlicizationPersonaTrainingExecutorConnectionResult
+export type AlicizationPersonaTrainingPipelineResult = SharedMemoryWorkbench.AlicizationPersonaTrainingPipelineResult
+export type AlicizationPersonaTrainingRunPayload = SharedMemoryWorkbench.AlicizationPersonaTrainingRunPayload
+export type AlicizationPersonaTrainingCancelPayload = SharedMemoryWorkbench.AlicizationPersonaTrainingCancelPayload
+export type AlicizationPersonaTrainingIncrementPayload = SharedMemoryWorkbench.AlicizationPersonaTrainingIncrementPayload
+export type AlicizationPersonaTrainingIncrementsResult = SharedMemoryWorkbench.AlicizationPersonaTrainingIncrementsResult
 
 export interface AlicizationSkillWorkbenchItem {
   id: string
@@ -1383,72 +1072,13 @@ export interface AlicizationSkillWorkbenchLifecyclePayload extends AlicizationCa
   version: string
 }
 
-export type AlicizationMemorySemanticScaleJobTier = '10k' | '100k'
-export type AlicizationMemorySemanticScaleJobStatus = 'queued' | 'running' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
-
-export interface AlicizationMemorySemanticScaleJobProgress {
-  phase: 'queued' | 'indexing' | 'querying' | 'completed'
-  completed: number
-  total: number
-  ratio: number
-  indexedCount: number
-  queryCount: number
-  corpusSize: number
-}
-
-export interface AlicizationMemorySemanticScaleSoakReport {
-  version: 'memory-semantic-scale-soak-harness-v1'
-  id: string
-  createdAt: number
-  passed: boolean
-  summary: {
-    corpusSize: number
-    queryCount: number
-    p95LatencyMs: number
-    p99LatencyMs: number
-    recallAtK: number
-    falseRecallRate: number
-    coverageRatio: number
-    failingChecks: string[]
-  }
-  searchMetrics: Array<Record<string, unknown>>
-  providerDegradation: Record<string, unknown> | null
-  reindex: Record<string, unknown> | null
-  recommendedNextActions: string[]
-}
-
-export interface AlicizationMemorySemanticScaleJob {
-  jobId: string
-  cardId: string
-  tier: AlicizationMemorySemanticScaleJobTier
-  corpusSize: number
-  status: AlicizationMemorySemanticScaleJobStatus
-  deadLettered: boolean
-  attemptCount: number
-  maxAttempts: number
-  nextRetryAt: number | null
-  leaseExpiresAt: number | null
-  progress: AlicizationMemorySemanticScaleJobProgress
-  report: AlicizationMemorySemanticScaleSoakReport | null
-  lastError: string | null
-  createdAt: number
-  updatedAt: number
-  startedAt: number | null
-  completedAt: number | null
-}
-
-export interface AlicizationMemorySemanticScaleJobPayload extends AlicizationCardScope {
-  action?: 'start' | 'status' | 'list' | 'cancel' | 'retry'
-  jobId?: string
-  tier?: AlicizationMemorySemanticScaleJobTier
-  reason?: string | null
-  limit?: number
-}
-
-export interface AlicizationMemorySemanticScaleJobResult {
-  job: AlicizationMemorySemanticScaleJob | null
-  jobs: AlicizationMemorySemanticScaleJob[]
-}
+export type AlicizationMemorySemanticScaleJobTier = SharedMemoryWorkbench.AlicizationMemorySemanticScaleJobTier
+export type AlicizationMemorySemanticScaleJobStatus = SharedMemoryWorkbench.AlicizationMemorySemanticScaleJobStatus
+export type AlicizationMemorySemanticScaleJobProgress = SharedMemoryWorkbench.AlicizationMemorySemanticScaleJobProgress
+export type AlicizationMemorySemanticScaleSoakReport = SharedMemoryWorkbench.AlicizationMemorySemanticScaleSoakReport
+export type AlicizationMemorySemanticScaleJob = SharedMemoryWorkbench.AlicizationMemorySemanticScaleJob
+export type AlicizationMemorySemanticScaleJobPayload = SharedMemoryWorkbench.AlicizationMemorySemanticScaleJobPayload
+export type AlicizationMemorySemanticScaleJobResult = SharedMemoryWorkbench.AlicizationMemorySemanticScaleJobResult
 
 export interface AlicizationMemoryEmbeddingReindexPayload extends AlicizationCardScope {
   action?: 'start' | 'status' | 'cancel' | 'retry-dead-letter'
