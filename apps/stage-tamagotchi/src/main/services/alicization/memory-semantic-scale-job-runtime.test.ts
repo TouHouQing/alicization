@@ -3,7 +3,7 @@ import type sqlite3 from 'sqlite3'
 import type { MemorySemanticScaleJobExecutionInput } from './memory-semantic-scale-job-runtime'
 import type { AlicizationAtomicWriteOptions } from './runtime-atomic-write'
 
-import { mkdir, mkdtemp, open, readdir, rm, stat, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, open, readdir, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -629,6 +629,78 @@ describe('memory semantic scale job runtime', () => {
     )
     expect((finalResult.error as Error).message).toContain('ENOSPC')
     expect(elapsedMs).toBeLessThan(250)
+  })
+
+  it('bounds stop after recovery marker rename when obsolete temp cleanup never settles', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    const recoveryJournalDir = join(tempRootDir, 'stop-recovery-journal')
+    let executionStarted: (() => void) | undefined
+    let recoveryMarkerRenamed: (() => void) | undefined
+    let releaseTailUnlink: (() => void) | undefined
+    const executionStartedPromise = new Promise<void>((resolve) => {
+      executionStarted = resolve
+    })
+    const recoveryMarkerRenamedPromise = new Promise<void>((resolve) => {
+      recoveryMarkerRenamed = resolve
+    })
+    const releaseTailUnlinkPromise = new Promise<void>((resolve) => {
+      releaseTailUnlink = resolve
+    })
+    const unlinkPath = vi.fn(async () => await releaseTailUnlinkPromise)
+    const renamePath = vi.fn(async (source: string, destination: string) => {
+      await rename(source, destination)
+      recoveryMarkerRenamed?.()
+    })
+    const { runtime } = attachRuntime(harness, {
+      stopTimeoutMs: 80,
+      tempRootDir,
+      recoveryJournalDir,
+      recoveryAtomicWriteOptions: {
+        fsyncPath: async () => {},
+        renamePath,
+        unlinkPath,
+      },
+      executeJob: async () => {
+        executionStarted?.()
+        return await new Promise<ReturnType<typeof createReport>>(() => {})
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    void runtime.runJob(job.jobId)
+    await executionStartedPromise
+
+    const startedAt = Date.now()
+    const stopping = runtime.stop()
+    await recoveryMarkerRenamedPromise
+    const boundedResult = await Promise.race([
+      stopping.then(
+        () => 'resolved' as const,
+        () => 'rejected' as const,
+      ),
+      new Promise<'timed-out'>(resolve =>
+        setTimeout(() => resolve('timed-out'), 250)),
+    ])
+    const elapsedMs = Date.now() - startedAt
+
+    releaseTailUnlink?.()
+    const finalResult = boundedResult === 'timed-out'
+      ? await stopping.then(
+          () => 'resolved' as const,
+          () => 'rejected' as const,
+        )
+      : boundedResult
+
+    expect(boundedResult).toBe('resolved')
+    expect(finalResult).toBe('resolved')
+    expect(renamePath).toHaveBeenCalledTimes(1)
+    expect(unlinkPath).not.toHaveBeenCalled()
+    expect(elapsedMs).toBeLessThan(250)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'queued',
+      attemptCount: 0,
+    })
   })
 
   it('rejects within the absolute stop deadline when recovery reconciliation never returns', async () => {

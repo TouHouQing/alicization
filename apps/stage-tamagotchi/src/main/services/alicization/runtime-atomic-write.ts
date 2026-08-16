@@ -310,6 +310,4 @@ export async function writeAlicizationAtomicContent(options: AlicizationAtomicWr
     void cleanup.catch(() => {})
     throw error
   }
-
-  await unlinkPath(tempPath).catch(() => {})
 }
