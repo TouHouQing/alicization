@@ -7,7 +7,7 @@ import type { AlicizationMemoryConsolidationRecord } from './memory-consolidatio
 import type { AlicizationRuntimeEventScope } from './turn-os/event-store'
 
 import { existsSync } from 'node:fs'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -53,6 +53,8 @@ import {
   electronAlicizationListPersonStateUpdates,
   electronAlicizationLlmSyncConfig,
   electronAlicizationMemoryUpsertFacts,
+  electronAlicizationMemoryWorkbenchGetPersonaTrainingExecutorConfig,
+  electronAlicizationMemoryWorkbenchSetPersonaTrainingExecutorConfig,
   electronAlicizationPlanTaskThread,
   electronAlicizationReminderSchedule,
   electronAlicizationReportProactiveFeedback,
@@ -935,6 +937,77 @@ describe('alicization runtime audit helpers', () => {
     expect(afterGenesis.watching).toBe(true)
   })
 
+  it('keeps the trainer config in memory when clearing its persisted file fails outside ENOENT', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+    const setConfig = invokeHandlers.get(electronAlicizationMemoryWorkbenchSetPersonaTrainingExecutorConfig)
+    const getConfig = invokeHandlers.get(electronAlicizationMemoryWorkbenchGetPersonaTrainingExecutorConfig)
+    expect(setConfig).toBeTypeOf('function')
+    expect(getConfig).toBeTypeOf('function')
+    const config = {
+      executable: '/usr/bin/env',
+      baseModel: 'base-model-v1',
+      timeoutMs: 60_000,
+    }
+    await setConfig!({
+      cardId: 'default',
+      config,
+    })
+    const configPath = join(sandboxPath, 'alicizations', 'persona-training-config.json')
+    await rm(configPath)
+    await mkdir(configPath)
+
+    await expect(setConfig!({
+      cardId: 'default',
+      config: null,
+    })).rejects.toThrow()
+    await expect(getConfig!({
+      cardId: 'default',
+    })).resolves.toMatchObject({
+      configured: true,
+      config,
+      error: null,
+    })
+  })
+
+  it('treats an already missing trainer config as a successful clear', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+    const setConfig = invokeHandlers.get(electronAlicizationMemoryWorkbenchSetPersonaTrainingExecutorConfig)
+    const getConfig = invokeHandlers.get(electronAlicizationMemoryWorkbenchGetPersonaTrainingExecutorConfig)
+    expect(setConfig).toBeTypeOf('function')
+    expect(getConfig).toBeTypeOf('function')
+    await setConfig!({
+      cardId: 'default',
+      config: {
+        executable: '/usr/bin/env',
+        baseModel: 'base-model-v1',
+        timeoutMs: 60_000,
+      },
+    })
+    await rm(join(sandboxPath, 'alicizations', 'persona-training-config.json'))
+
+    await expect(setConfig!({
+      cardId: 'default',
+      config: null,
+    })).resolves.toEqual({
+      configured: false,
+      config: null,
+      error: null,
+    })
+    await expect(getConfig!({
+      cardId: 'default',
+    })).resolves.toEqual({
+      configured: false,
+      config: null,
+      error: null,
+    })
+  })
+
   it('waits for the task-thread shutdown drain before closing sqlite', async () => {
     const sandboxPath = await createSandboxPath()
     const order: string[] = []
@@ -970,6 +1043,16 @@ describe('alicization runtime audit helpers', () => {
       'drain-finished',
       'db-closed',
     ])
+  })
+
+  it('surfaces sqlite close failures from the app-before-quit lifecycle hook', async () => {
+    const sandboxPath = await createSandboxPath()
+    dbStub.close.mockRejectedValueOnce(new Error('sqlite close unavailable'))
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    await expect(runAppBeforeQuitHandlers()).rejects.toThrow('sqlite close unavailable')
   })
 
   it('stops and resumes sensory polling with kill switch state', async () => {

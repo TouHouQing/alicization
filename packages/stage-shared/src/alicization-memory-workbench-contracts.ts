@@ -1300,8 +1300,12 @@ export function parseAlicizationPersonaTrainingArtifact(
   if (!compatibilityRaw || typeof compatibilityRaw !== 'object' || Array.isArray(compatibilityRaw))
     invalidPersonaTrainingArtifact('compatibility must be an object')
   const compatibility = compatibilityRaw as Record<string, unknown>
-  if (!['compatible', 'incompatible', 'unknown'].includes(String(compatibility.status)))
+  if (
+    typeof compatibility.status !== 'string'
+    || !['compatible', 'incompatible', 'unknown'].includes(compatibility.status)
+  ) {
     invalidPersonaTrainingArtifact('compatibility.status is unsupported')
+  }
   const compatibilityBaseModel = requirePersonaTrainingArtifactText(
     compatibility.baseModel,
     'compatibility.baseModel',

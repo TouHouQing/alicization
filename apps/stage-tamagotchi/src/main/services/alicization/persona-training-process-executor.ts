@@ -1,13 +1,14 @@
 import type { AlicizationPersonaTrainingArtifact } from '@proj-alicization/stage-shared'
 
 import type {
+  PersonaTrainingArtifactReconciliationInput,
   PersonaTrainingExecutorInput,
   PersonaTrainingExecutorOutput,
 } from './persona-training-pipeline-gate'
 
 import { Buffer } from 'node:buffer'
 import { spawn } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { constants, createReadStream } from 'node:fs'
 import {
   access,
@@ -15,6 +16,7 @@ import {
   mkdir,
   mkdtemp,
   open,
+  readdir,
   readFile,
   realpath,
   rename,
@@ -23,11 +25,15 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import { isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { env as processEnv } from 'node:process'
+import { kill as killProcess, env as processEnv, platform as processPlatform } from 'node:process'
 
 import { errorMessageFrom } from '@moeru/std'
 
+import { PersonaTrainingExecutorArtifactError } from './persona-training-pipeline-gate'
+
 const artifactSchemaVersion = 'alicization-persona-training-artifact-v1'
+const artifactPublicationSchemaVersion = 'alicization-persona-training-publication-v1'
+const artifactPublicationReceiptFile = '.alicization-publication.json'
 const defaultTerminationGraceMs = 3_000
 const maxProtocolBytes = 256 * 1024
 const maxProtocolLineBytes = 64 * 1024
@@ -75,8 +81,25 @@ interface ProtocolState {
 }
 
 interface FileIdentity {
-  dev: number | bigint
-  ino: number | bigint
+  dev: number | bigint | string
+  ino: number | bigint | string
+}
+
+interface PersistedFileIdentity {
+  dev: string
+  ino: string
+}
+
+interface ArtifactPublicationReceipt {
+  schemaVersion: typeof artifactPublicationSchemaVersion
+  artifactId: string
+  runId: string
+  relativeArtifactPath: string
+  sha256: string
+  sizeBytes: number
+  baseModel: string
+  artifactIdentity: PersistedFileIdentity
+  publicationDirectoryIdentity: PersistedFileIdentity
 }
 
 interface RunChildProcessOptions {
@@ -86,6 +109,20 @@ interface RunChildProcessOptions {
   terminationGraceMs: number
   signal?: AbortSignal
   onEvent?: (event: Record<string, unknown>) => void | Promise<void>
+}
+
+function signalTrainerProcess(child: ReturnType<typeof spawn>, signal: NodeJS.Signals) {
+  if (processPlatform !== 'win32' && child.pid) {
+    try {
+      killProcess(-child.pid, signal)
+      return
+    }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== 'ESRCH')
+        throw error
+    }
+  }
+  child.kill(signal)
 }
 
 function normalizeNonEmptyText(value: unknown, label: string, maxLength: number) {
@@ -172,6 +209,7 @@ async function runChildProcess(options: RunChildProcessOptions) {
     artifact: false,
   }
   const child = spawn(options.executable, options.argv, {
+    detached: processPlatform !== 'win32',
     shell: false,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: createSafeChildEnvironment(),
@@ -189,11 +227,11 @@ async function runChildProcess(options: RunChildProcessOptions) {
       terminalError = error
     if (child.exitCode != null || child.signalCode != null)
       return
-    child.kill('SIGTERM')
+    signalTrainerProcess(child, 'SIGTERM')
     if (!terminationTimer) {
       terminationTimer = setTimeout(() => {
         if (child.exitCode == null && child.signalCode == null)
-          child.kill('SIGKILL')
+          signalTrainerProcess(child, 'SIGKILL')
       }, options.terminationGraceMs)
       terminationTimer.unref?.()
     }
@@ -350,9 +388,24 @@ async function writeBoundedDatasetJsonl(
     }
   }
   catch (error) {
-    await file.close().catch(() => {})
-    await rm(datasetPath, { force: true }).catch(() => {})
-    throw error
+    const cleanupErrors: unknown[] = []
+    try {
+      await file.close()
+    }
+    catch (cleanupError) {
+      cleanupErrors.push(cleanupError)
+    }
+    try {
+      await rm(datasetPath, { force: true })
+    }
+    catch (cleanupError) {
+      cleanupErrors.push(cleanupError)
+    }
+    throw errorWithCleanupFailures(
+      error,
+      cleanupErrors,
+      'persona training dataset input cleanup failed',
+    )
   }
   await file.close()
 }
@@ -407,15 +460,76 @@ function fileIdentity(stat: Awaited<ReturnType<typeof lstat>>): FileIdentity {
 }
 
 function sameFileIdentity(left: FileIdentity, right: FileIdentity) {
-  return left.dev === right.dev && left.ino === right.ino
+  return String(left.dev) === String(right.dev) && String(left.ino) === String(right.ino)
 }
 
-async function removeOwnedDirectory(path: string, identity: FileIdentity | null) {
-  if (!identity)
-    return
-  const current = await lstat(path).catch(() => null)
-  if (current && sameFileIdentity(fileIdentity(current), identity))
-    await rm(path, { recursive: true, force: true }).catch(() => {})
+function errorWithCleanupFailures(
+  operationError: unknown,
+  cleanupErrors: unknown[],
+  context: string,
+) {
+  const operationMessage = errorMessageFrom(operationError) ?? String(operationError)
+  if (cleanupErrors.length === 0)
+    return operationError instanceof Error ? operationError : new Error(operationMessage)
+  const cleanupMessage = cleanupErrors
+    .map(error => errorMessageFrom(error) ?? String(error))
+    .join('; ')
+  return new Error(`${operationMessage}; ${context}: ${cleanupMessage}`, {
+    cause: operationError,
+  })
+}
+
+function persistFileIdentity(identity: FileIdentity): PersistedFileIdentity {
+  return {
+    dev: String(identity.dev),
+    ino: String(identity.ino),
+  }
+}
+
+function parsePersistedFileIdentity(value: unknown, label: string): PersistedFileIdentity {
+  if (!value || typeof value !== 'object')
+    throw new Error(`${label} is missing`)
+  const identity = value as Partial<PersistedFileIdentity>
+  const dev = normalizeNonEmptyText(identity.dev, `${label}.dev`, 80)
+  const ino = normalizeNonEmptyText(identity.ino, `${label}.ino`, 80)
+  if (!/^\d+$/.test(dev) || !/^\d+$/.test(ino))
+    throw new Error(`${label} is invalid`)
+  return { dev, ino }
+}
+
+function parseArtifactPublicationReceipt(raw: string): ArtifactPublicationReceipt {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  }
+  catch {
+    throw new Error('persona training artifact publication receipt is malformed JSON')
+  }
+  if (!parsed || typeof parsed !== 'object')
+    throw new Error('persona training artifact publication receipt must be an object')
+  const value = parsed as Partial<ArtifactPublicationReceipt>
+  if (value.schemaVersion !== artifactPublicationSchemaVersion)
+    throw new Error('persona training artifact publication receipt schema is unsupported')
+  const sizeBytes = Number(value.sizeBytes)
+  if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 0)
+    throw new Error('persona training artifact publication receipt size is invalid')
+  const sha256 = normalizeNonEmptyText(value.sha256, 'persona training publication hash', 64).toLowerCase()
+  if (!/^[a-f0-9]{64}$/.test(sha256))
+    throw new Error('persona training artifact publication receipt hash is invalid')
+  return {
+    schemaVersion: value.schemaVersion,
+    artifactId: normalizeNonEmptyText(value.artifactId, 'persona training publication artifact id', 160),
+    runId: normalizeNonEmptyText(value.runId, 'persona training publication run id', 160),
+    relativeArtifactPath: normalizeNonEmptyText(value.relativeArtifactPath, 'persona training publication relative path', 4_096),
+    sha256,
+    sizeBytes,
+    baseModel: normalizeNonEmptyText(value.baseModel, 'persona training publication base model', 1_024),
+    artifactIdentity: parsePersistedFileIdentity(value.artifactIdentity, 'persona training publication artifact identity'),
+    publicationDirectoryIdentity: parsePersistedFileIdentity(
+      value.publicationDirectoryIdentity,
+      'persona training publication directory identity',
+    ),
+  }
 }
 
 async function ensureTrustedCardRoot(input: {
@@ -475,8 +589,7 @@ async function ensureRealChildDirectory(input: {
   return directoryRealPath
 }
 
-async function createRunDirectories(cardsRootDir: string, cardRootDir: string, runId: string) {
-  assertSafeArtifactId(runId)
+async function resolvePersonaTrainingStorageRoots(cardsRootDir: string, cardRootDir: string) {
   const cardRootRealPath = await ensureTrustedCardRoot({
     cardsRootDir,
     cardRootDir,
@@ -496,25 +609,64 @@ async function createRunDirectories(cardsRootDir: string, cardRootDir: string, r
     name: 'artifacts',
     label: 'persona training artifact root',
   })
-  const runDir = join(runsRoot, runId)
-  await mkdir(runDir, { mode: 0o700 }).catch((error) => {
-    throw new Error(`persona training run directory cannot be created: ${errorMessageFrom(error) ?? String(error)}`)
-  })
-  const runDirLstat = await lstat(runDir)
-  if (runDirLstat.isSymbolicLink() || !runDirLstat.isDirectory())
-    throw new Error('persona training run directory must be a real directory')
-  const runDirRealPath = await realpath(runDir)
-  if (runDirRealPath !== runDir)
-    throw new Error('persona training run directory resolves outside the runs root')
-  const outputDir = await ensureRealChildDirectory({
-    parentRealPath: runDirRealPath,
-    name: 'output',
-    label: 'persona training output directory',
-  })
   return {
     artifactRoot,
-    outputDir,
-    runDir: runDirRealPath,
+    runsRoot,
+  }
+}
+
+async function createRunDirectories(cardsRootDir: string, cardRootDir: string, runId: string) {
+  assertSafeArtifactId(runId)
+  const {
+    artifactRoot,
+    runsRoot,
+  } = await resolvePersonaTrainingStorageRoots(cardsRootDir, cardRootDir)
+  const runDir = join(runsRoot, runId)
+  let runDirIdentity: FileIdentity | null = null
+  try {
+    await mkdir(runDir, { mode: 0o700 }).catch((error) => {
+      throw new Error(`persona training run directory cannot be created: ${errorMessageFrom(error) ?? String(error)}`)
+    })
+    const runDirLstat = await lstat(runDir)
+    if (runDirLstat.isSymbolicLink() || !runDirLstat.isDirectory())
+      throw new Error('persona training run directory must be a real directory')
+    runDirIdentity = fileIdentity(runDirLstat)
+    const runDirRealPath = await realpath(runDir)
+    if (runDirRealPath !== runDir)
+      throw new Error('persona training run directory resolves outside the runs root')
+    const outputDir = await ensureRealChildDirectory({
+      parentRealPath: runDirRealPath,
+      name: 'output',
+      label: 'persona training output directory',
+    })
+    return {
+      artifactRoot,
+      outputDir,
+      runDir: runDirRealPath,
+      runDirIdentity,
+      runsRoot,
+    }
+  }
+  catch (error) {
+    const cleanupErrors: unknown[] = []
+    if (runDirIdentity) {
+      try {
+        await quarantineAndRemoveDirectory({
+          rootDir: runsRoot,
+          directoryName: runId,
+          expectedIdentity: runDirIdentity,
+          label: 'persona training run directory',
+        })
+      }
+      catch (cleanupError) {
+        cleanupErrors.push(cleanupError)
+      }
+    }
+    throw errorWithCleanupFailures(
+      error,
+      cleanupErrors,
+      'persona training partial run-directory cleanup failed',
+    )
   }
 }
 
@@ -554,6 +706,7 @@ async function validatePublishedArtifact(input: {
     throw new Error('persona training published artifact hash changed during publication')
   return {
     artifactPath: artifactRealPath,
+    artifactIdentity: fileIdentity(artifactStat),
     sizeBytes: artifactStat.size,
   }
 }
@@ -663,10 +816,35 @@ async function validateAndAcceptArtifact(input: {
       expectedHash: actualHash,
       expectedIdentity: candidateIdentity,
     })
-    await removeOwnedDirectory(stagingDir, stagingIdentity)
+    const publicationReceipt: ArtifactPublicationReceipt = {
+      schemaVersion: artifactPublicationSchemaVersion,
+      artifactId: manifest.artifactId,
+      runId: input.runId,
+      relativeArtifactPath,
+      sha256: actualHash,
+      sizeBytes: published.sizeBytes,
+      baseModel: manifest.baseModel,
+      artifactIdentity: persistFileIdentity(published.artifactIdentity),
+      publicationDirectoryIdentity: persistFileIdentity(acceptedIdentity),
+    }
+    await writeFile(
+      join(acceptedDir, artifactPublicationReceiptFile),
+      JSON.stringify(publicationReceipt, null, 2),
+      {
+        encoding: 'utf8',
+        flag: 'wx',
+        mode: 0o600,
+      },
+    )
+    await quarantineAndRemoveDirectory({
+      rootDir: artifactRootRealPath,
+      directoryName: relative(artifactRootRealPath, stagingDir),
+      expectedIdentity: stagingIdentity,
+    })
 
     return {
       acceptedDir,
+      acceptedIdentity,
       artifact: {
         schemaVersion: artifactSchemaVersion,
         artifactId: manifest.artifactId,
@@ -688,9 +866,323 @@ async function validateAndAcceptArtifact(input: {
     }
   }
   catch (error) {
-    await removeOwnedDirectory(acceptedDir, acceptedIdentity)
-    await removeOwnedDirectory(stagingDir, stagingIdentity)
+    const cleanupErrors: unknown[] = []
+    if (acceptedIdentity) {
+      try {
+        await quarantineAndRemoveDirectory({
+          rootDir: artifactRootRealPath,
+          directoryName: manifest.artifactId,
+          expectedIdentity: acceptedIdentity,
+        })
+      }
+      catch (cleanupError) {
+        cleanupErrors.push(cleanupError)
+      }
+    }
+    try {
+      await quarantineAndRemoveDirectory({
+        rootDir: artifactRootRealPath,
+        directoryName: relative(artifactRootRealPath, stagingDir),
+        expectedIdentity: stagingIdentity,
+      })
+    }
+    catch (cleanupError) {
+      cleanupErrors.push(cleanupError)
+    }
+    throw errorWithCleanupFailures(
+      error,
+      cleanupErrors,
+      'persona training artifact publication cleanup failed',
+    )
+  }
+}
+
+async function quarantineAndRemoveDirectory(input: {
+  rootDir: string
+  directoryName: string
+  expectedIdentity?: FileIdentity
+  label?: string
+}) {
+  const label = input.label ?? 'persona training artifact publication directory'
+  const directoryPath = join(input.rootDir, input.directoryName)
+  const current = await lstat(directoryPath).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT')
+      return null
     throw error
+  })
+  if (!current)
+    return
+  if (current.isSymbolicLink()) {
+    await rm(directoryPath, { force: true })
+    return
+  }
+  if (!current.isDirectory())
+    throw new Error(`${label} entry is not a directory`)
+  const currentIdentity = fileIdentity(current)
+  if (input.expectedIdentity && !sameFileIdentity(currentIdentity, input.expectedIdentity))
+    throw new Error(`${label} inode changed before cleanup`)
+
+  const quarantineName = `.discard-${randomUUID()}`
+  const quarantinePath = join(input.rootDir, quarantineName)
+  await rename(directoryPath, quarantinePath)
+  const quarantined = await lstat(quarantinePath)
+  if (!sameFileIdentity(fileIdentity(quarantined), currentIdentity)) {
+    try {
+      await rename(quarantinePath, directoryPath)
+    }
+    catch (rollbackError) {
+      throw new Error(
+        `persona training artifact cleanup lost its owned directory identity; `
+        + `cleanup rollback failed: ${errorMessageFrom(rollbackError) ?? String(rollbackError)}`,
+        { cause: rollbackError },
+      )
+    }
+    throw new Error('persona training artifact cleanup lost its owned directory identity')
+  }
+  await rm(quarantinePath, { recursive: true, force: true })
+}
+
+async function validateStoredArtifact(input: {
+  cardsRootDir: string
+  cardRootDir: string
+  artifact: AlicizationPersonaTrainingArtifact
+}) {
+  assertSafeArtifactId(input.artifact.artifactId)
+  const { artifactRoot } = await resolvePersonaTrainingStorageRoots(
+    input.cardsRootDir,
+    input.cardRootDir,
+  )
+  const acceptedDir = join(artifactRoot, input.artifact.artifactId)
+  const acceptedLstat = await lstat(acceptedDir).catch((error) => {
+    throw new Error(`persona training artifact publication is missing: ${errorMessageFrom(error) ?? String(error)}`)
+  })
+  if (acceptedLstat.isSymbolicLink() || !acceptedLstat.isDirectory())
+    throw new Error('persona training artifact publication must be a real directory')
+  const acceptedRealPath = await realpath(acceptedDir)
+  if (acceptedRealPath !== acceptedDir)
+    throw new Error('persona training artifact publication resolves outside its card scope')
+
+  const receipt = parseArtifactPublicationReceipt(
+    await readFile(join(acceptedDir, artifactPublicationReceiptFile), 'utf8').catch((error) => {
+      throw new Error(`persona training artifact publication receipt is missing: ${errorMessageFrom(error) ?? String(error)}`)
+    }),
+  )
+  if (receipt.artifactId !== input.artifact.artifactId || receipt.runId !== input.artifact.runId)
+    throw new Error('persona training artifact publication receipt owner does not match the artifact')
+  if (receipt.sha256 !== input.artifact.sha256 || receipt.sizeBytes !== input.artifact.sizeBytes)
+    throw new Error('persona training artifact publication receipt does not match persisted metadata')
+  if (!sameFileIdentity(fileIdentity(acceptedLstat), receipt.publicationDirectoryIdentity))
+    throw new Error('persona training artifact publication directory inode changed after publication')
+  if (
+    isAbsolute(receipt.relativeArtifactPath)
+    || receipt.relativeArtifactPath.split(/[\\/]+/).includes('..')
+  ) {
+    throw new Error('persona training artifact publication receipt path escapes its card scope')
+  }
+
+  const outputDir = join(acceptedRealPath, 'output')
+  const outputLstat = await lstat(outputDir)
+  if (outputLstat.isSymbolicLink() || !outputLstat.isDirectory())
+    throw new Error('persona training artifact output root must be a real directory')
+  const outputRealPath = await realpath(outputDir)
+  if (outputRealPath !== outputDir)
+    throw new Error('persona training artifact output root resolves outside its publication directory')
+  const configuredArtifactPath = resolve(input.artifact.path)
+  if (
+    configuredArtifactPath !== outputRealPath
+    && !configuredArtifactPath.startsWith(`${outputRealPath}${sep}`)
+  ) {
+    throw new Error('persona training artifact path is outside its card-scoped publication root')
+  }
+  const relativeArtifactPath = relative(outputRealPath, configuredArtifactPath)
+  if (relativeArtifactPath !== receipt.relativeArtifactPath)
+    throw new Error('persona training artifact path no longer matches its publication receipt')
+
+  const published = await validatePublishedArtifact({
+    rootDir: outputRealPath,
+    relativeArtifactPath,
+    expectedHash: receipt.sha256,
+    expectedIdentity: receipt.artifactIdentity,
+  })
+  if (published.artifactPath !== configuredArtifactPath)
+    throw new Error('persona training artifact real path no longer matches persisted metadata')
+  if (published.sizeBytes !== receipt.sizeBytes)
+    throw new Error('persona training artifact size changed after publication')
+}
+
+async function discardStoredArtifact(input: {
+  cardsRootDir: string
+  cardRootDir: string
+  artifact: AlicizationPersonaTrainingArtifact
+}) {
+  assertSafeArtifactId(input.artifact.artifactId)
+  const { artifactRoot } = await resolvePersonaTrainingStorageRoots(
+    input.cardsRootDir,
+    input.cardRootDir,
+  )
+  const acceptedDir = join(artifactRoot, input.artifact.artifactId)
+  const acceptedLstat = await lstat(acceptedDir).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT')
+      return null
+    throw error
+  })
+  if (!acceptedLstat)
+    return
+  if (acceptedLstat.isSymbolicLink() || !acceptedLstat.isDirectory())
+    throw new Error('persona training artifact publication cannot be safely discarded')
+
+  const receipt = parseArtifactPublicationReceipt(
+    await readFile(join(acceptedDir, artifactPublicationReceiptFile), 'utf8').catch((error) => {
+      throw new Error(`persona training artifact cleanup receipt is missing: ${errorMessageFrom(error) ?? String(error)}`)
+    }),
+  )
+  if (receipt.artifactId !== input.artifact.artifactId || receipt.runId !== input.artifact.runId)
+    throw new Error('persona training artifact cleanup receipt owner does not match the artifact')
+  if (receipt.sha256 !== input.artifact.sha256 || receipt.sizeBytes !== input.artifact.sizeBytes)
+    throw new Error('persona training artifact cleanup receipt does not match persisted metadata')
+  if (!sameFileIdentity(fileIdentity(acceptedLstat), receipt.publicationDirectoryIdentity))
+    throw new Error('persona training artifact publication directory inode changed before cleanup')
+  await quarantineAndRemoveDirectory({
+    rootDir: artifactRoot,
+    directoryName: input.artifact.artifactId,
+    expectedIdentity: fileIdentity(acceptedLstat),
+  })
+}
+
+async function reconcileStoredArtifacts(input: {
+  cardsRootDir: string
+  cardRootDir: string
+  reconciliation: PersonaTrainingArtifactReconciliationInput
+}) {
+  const {
+    artifactRoot,
+    runsRoot,
+  } = await resolvePersonaTrainingStorageRoots(input.cardsRootDir, input.cardRootDir)
+  const availableArtifacts = new Map(
+    input.reconciliation.availableArtifacts.map(artifact => [artifact.artifactId, artifact]),
+  )
+  const cleanupErrors: unknown[] = []
+  for (const artifact of availableArtifacts.values()) {
+    try {
+      await validateStoredArtifact({
+        cardsRootDir: input.cardsRootDir,
+        cardRootDir: input.cardRootDir,
+        artifact,
+      })
+    }
+    catch (error) {
+      cleanupErrors.push(new Error(
+        `persona training available artifact ${artifact.artifactId} failed final reconciliation validation: `
+        + `${errorMessageFrom(error) ?? String(error)}`,
+        { cause: error },
+      ))
+    }
+  }
+  const artifactEntries = await readdir(artifactRoot, { withFileTypes: true })
+  for (const entry of artifactEntries) {
+    const availableArtifact = availableArtifacts.get(entry.name)
+    if (availableArtifact)
+      continue
+    const entryPath = join(artifactRoot, entry.name)
+    let orphanArtifact: AlicizationPersonaTrainingArtifact | null = null
+    try {
+      if (!entry.isDirectory())
+        throw new Error(`persona training artifact recovery entry is not a directory: ${entry.name}`)
+      const entryLstat = await lstat(entryPath)
+      if (!entry.name.startsWith('.staging-') && !entry.name.startsWith('.discard-')) {
+        const receipt = parseArtifactPublicationReceipt(
+          await readFile(join(entryPath, artifactPublicationReceiptFile), 'utf8').catch((error) => {
+            throw new Error(
+              `persona training orphan artifact cleanup receipt is missing: ${errorMessageFrom(error) ?? String(error)}`,
+            )
+          }),
+        )
+        if (receipt.artifactId !== entry.name)
+          throw new Error('persona training orphan artifact cleanup receipt owner does not match its directory')
+        assertSafeArtifactId(receipt.artifactId)
+        const outputRoot = join(entryPath, 'output')
+        const artifactPath = resolve(outputRoot, receipt.relativeArtifactPath)
+        if (
+          artifactPath !== outputRoot
+          && !artifactPath.startsWith(`${outputRoot}${sep}`)
+        ) {
+          throw new Error('persona training orphan artifact cleanup receipt path escapes its publication directory')
+        }
+        orphanArtifact = {
+          schemaVersion: artifactSchemaVersion,
+          artifactId: receipt.artifactId,
+          runId: receipt.runId,
+          kind: 'lora-adapter',
+          path: artifactPath,
+          sha256: receipt.sha256,
+          sizeBytes: receipt.sizeBytes,
+          baseModel: receipt.baseModel,
+          compatibility: {
+            status: 'compatible',
+            baseModel: receipt.baseModel,
+          },
+          activation: {
+            status: 'unsupported',
+            reason: 'No PersonaAdapterLoader receipt is available; the artifact is stored but inactive.',
+          },
+        }
+        if (!sameFileIdentity(fileIdentity(entryLstat), receipt.publicationDirectoryIdentity))
+          throw new Error('persona training orphan artifact publication directory inode changed before cleanup')
+      }
+      await quarantineAndRemoveDirectory({
+        rootDir: artifactRoot,
+        directoryName: entry.name,
+        expectedIdentity: fileIdentity(entryLstat),
+      })
+    }
+    catch (error) {
+      if (orphanArtifact) {
+        try {
+          await input.reconciliation.onOrphanCleanupFailure({
+            artifact: orphanArtifact,
+            error,
+          })
+        }
+        catch (recoveryError) {
+          cleanupErrors.push(errorWithCleanupFailures(
+            error,
+            [recoveryError],
+            'persona training orphan artifact recovery intent persistence failed',
+          ))
+          continue
+        }
+      }
+      cleanupErrors.push(error)
+    }
+  }
+
+  const runEntries = await readdir(runsRoot, { withFileTypes: true })
+  for (const entry of runEntries) {
+    const entryPath = join(runsRoot, entry.name)
+    try {
+      if (entry.isDirectory()) {
+        const entryLstat = await lstat(entryPath)
+        await quarantineAndRemoveDirectory({
+          rootDir: runsRoot,
+          directoryName: entry.name,
+          expectedIdentity: fileIdentity(entryLstat),
+        })
+      }
+      else {
+        await rm(entryPath, { force: true })
+      }
+    }
+    catch (error) {
+      cleanupErrors.push(error)
+    }
+  }
+  if (cleanupErrors.length > 0) {
+    throw new AggregateError(
+      cleanupErrors,
+      `persona training artifact reconciliation failed: ${
+        cleanupErrors.map(error => errorMessageFrom(error) ?? String(error)).join('; ')
+      }`,
+    )
   }
 }
 
@@ -701,6 +1193,7 @@ export function createPersonaTrainingProcessExecutor(options: {
   onProgress?: (progress: PersonaTrainingProcessProgress) => void | Promise<void>
 }) {
   const activeProcesses = new Set<string>()
+  const cardsRootDir = options.cardsRootDir ?? resolve(options.cardRootDir, '..')
   const terminationGraceMs = Math.max(10, Math.floor(options.terminationGraceMs ?? defaultTerminationGraceMs))
 
   async function execute(
@@ -715,124 +1208,208 @@ export function createPersonaTrainingProcessExecutor(options: {
       artifactRoot,
       outputDir,
       runDir,
+      runDirIdentity,
+      runsRoot,
     } = await createRunDirectories(
-      options.cardsRootDir ?? resolve(options.cardRootDir, '..'),
+      cardsRootDir,
       options.cardRootDir,
       input.runId,
     )
-    const manifestPath = join(runDir, 'manifest.json')
-    const datasetPath = join(runDir, 'dataset.jsonl')
-    const artifactManifestPath = join(runDir, 'artifact-manifest.json')
-    await input.onProgress?.({
-      stage: 'writing-input',
-      progress: 0.02,
-      message: null,
-    })
-    const expectedOutputRealPath = await realpath(outputDir)
-    await writeFile(manifestPath, JSON.stringify({
-      ...input.manifest,
-      runId: input.runId,
-      basePersonaRevision: input.basePersonaRevision,
-    }, null, 2), {
-      encoding: 'utf8',
-      flag: 'wx',
-      mode: 0o600,
-    })
-    await writeBoundedDatasetJsonl(datasetPath, input.manifest.examples)
-
-    const argv = [
-      '--manifest',
-      manifestPath,
-      '--dataset',
-      datasetPath,
-      '--output-dir',
-      outputDir,
-      '--artifact-manifest',
-      artifactManifestPath,
-      '--base-model',
-      config.baseModel,
-    ]
-    await input.onProgress?.({
-      stage: 'spawning',
-      progress: 0.05,
-      message: null,
-    })
-    activeProcesses.add(input.runId)
+    let publishedArtifact: AlicizationPersonaTrainingArtifact | null = null
+    let result: PersonaTrainingExecutorOutput | null = null
+    let executionError: unknown = null
     try {
-      const protocol = await runChildProcess({
-        executable,
-        argv,
-        timeoutMs: config.timeoutMs,
-        terminationGraceMs,
-        signal: input.signal,
-        onEvent: async (event) => {
-          if (event.type === 'ready') {
+      const manifestPath = join(runDir, 'manifest.json')
+      const datasetPath = join(runDir, 'dataset.jsonl')
+      const artifactManifestPath = join(runDir, 'artifact-manifest.json')
+      await input.onProgress?.({
+        stage: 'writing-input',
+        progress: 0.02,
+        message: null,
+      })
+      const expectedOutputRealPath = await realpath(outputDir)
+      await writeFile(manifestPath, JSON.stringify({
+        ...input.manifest,
+        runId: input.runId,
+        basePersonaRevision: input.basePersonaRevision,
+      }, null, 2), {
+        encoding: 'utf8',
+        flag: 'wx',
+        mode: 0o600,
+      })
+      await writeBoundedDatasetJsonl(datasetPath, input.manifest.examples)
+
+      const argv = [
+        '--manifest',
+        manifestPath,
+        '--dataset',
+        datasetPath,
+        '--output-dir',
+        outputDir,
+        '--artifact-manifest',
+        artifactManifestPath,
+        '--base-model',
+        config.baseModel,
+      ]
+      await input.onProgress?.({
+        stage: 'spawning',
+        progress: 0.05,
+        message: null,
+      })
+      activeProcesses.add(input.runId)
+      try {
+        const protocol = await runChildProcess({
+          executable,
+          argv,
+          timeoutMs: config.timeoutMs,
+          terminationGraceMs,
+          signal: input.signal,
+          onEvent: async (event) => {
+            if (event.type === 'ready') {
+              await input.onProgress?.({
+                stage: 'training',
+                progress: 0.1,
+                message: null,
+              })
+              return
+            }
+            if (event.type !== 'progress')
+              return
+            const progress = Number(event.progress)
+            const message = typeof event.message === 'string'
+              ? event.message.trim().slice(0, 1_000) || null
+              : null
+            await options.onProgress?.({
+              runId: input.runId,
+              progress,
+              message,
+            })
             await input.onProgress?.({
               stage: 'training',
-              progress: 0.1,
-              message: null,
+              progress: 0.1 + progress * 0.8,
+              message,
             })
-            return
-          }
-          if (event.type !== 'progress')
-            return
-          const progress = Number(event.progress)
-          const message = typeof event.message === 'string'
-            ? event.message.trim().slice(0, 1_000) || null
-            : null
-          await options.onProgress?.({
-            runId: input.runId,
-            progress,
-            message,
-          })
-          await input.onProgress?.({
-            stage: 'training',
-            progress: 0.1 + progress * 0.8,
-            message,
-          })
-        },
-      })
-      if (!protocol.ready)
-        throw new Error('persona training process exited before the ready protocol event')
-      if (!protocol.artifact)
-        throw new Error('persona training process exited before the artifact protocol event')
-      await input.assertCurrent()
-      await input.onProgress?.({
-        stage: 'validating-artifact',
-        progress: 0.92,
-        message: null,
-      })
-      const accepted = await validateAndAcceptArtifact({
-        artifactRoot,
-        runId: input.runId,
-        outputDir,
-        expectedOutputRealPath,
-        artifactManifestPath,
-        expectedBaseModel: config.baseModel,
-      })
-      try {
+          },
+        })
+        if (!protocol.ready)
+          throw new Error('persona training process exited before the ready protocol event')
+        if (!protocol.artifact)
+          throw new Error('persona training process exited before the artifact protocol event')
         await input.assertCurrent()
+        await input.onProgress?.({
+          stage: 'validating-artifact',
+          progress: 0.92,
+          message: null,
+        })
+        const accepted = await validateAndAcceptArtifact({
+          artifactRoot,
+          runId: input.runId,
+          outputDir,
+          expectedOutputRealPath,
+          artifactManifestPath,
+          expectedBaseModel: config.baseModel,
+        })
+        publishedArtifact = accepted.artifact
+        try {
+          await input.assertCurrent()
+        }
+        catch (error) {
+          try {
+            await quarantineAndRemoveDirectory({
+              rootDir: artifactRoot,
+              directoryName: accepted.artifact.artifactId,
+              expectedIdentity: accepted.acceptedIdentity,
+            })
+            publishedArtifact = null
+          }
+          catch (cleanupError) {
+            throw errorWithCleanupFailures(
+              error,
+              [cleanupError],
+              'persona training invalidated artifact cleanup failed',
+            )
+          }
+          throw error
+        }
+        await input.onProgress?.({
+          stage: 'finalizing',
+          progress: 0.98,
+          message: null,
+        })
+        result = {
+          artifact: accepted.artifact,
+        }
       }
-      catch (error) {
-        await rm(accepted.acceptedDir, { recursive: true, force: true }).catch(() => {})
-        throw error
+      finally {
+        activeProcesses.delete(input.runId)
       }
-      await input.onProgress?.({
-        stage: 'finalizing',
-        progress: 0.98,
-        message: null,
+    }
+    catch (error) {
+      executionError = error
+    }
+
+    let cleanupError: unknown = null
+    try {
+      await quarantineAndRemoveDirectory({
+        rootDir: runsRoot,
+        directoryName: input.runId,
+        expectedIdentity: runDirIdentity,
+        label: 'persona training run directory',
       })
-      return {
-        artifact: accepted.artifact,
+    }
+    catch (error) {
+      cleanupError = error
+    }
+
+    if (cleanupError) {
+      const combined = executionError
+        ? errorWithCleanupFailures(
+            executionError,
+            [cleanupError],
+            'persona training run-directory cleanup failed',
+          )
+        : cleanupError
+      if (publishedArtifact) {
+        throw new PersonaTrainingExecutorArtifactError(
+          errorMessageFrom(combined) ?? String(combined),
+          publishedArtifact,
+          { cause: combined },
+        )
       }
+      throw combined
     }
-    finally {
-      activeProcesses.delete(input.runId)
+    if (executionError) {
+      if (publishedArtifact) {
+        throw new PersonaTrainingExecutorArtifactError(
+          errorMessageFrom(executionError) ?? String(executionError),
+          publishedArtifact,
+          { cause: executionError },
+        )
+      }
+      throw executionError
     }
+    if (!result)
+      throw new Error('persona training executor completed without a result')
+    return result
   }
 
   return {
     execute,
+    validateArtifact: async (artifact: AlicizationPersonaTrainingArtifact) => await validateStoredArtifact({
+      cardsRootDir,
+      cardRootDir: options.cardRootDir,
+      artifact,
+    }),
+    discardArtifact: async (artifact: AlicizationPersonaTrainingArtifact) => await discardStoredArtifact({
+      cardsRootDir,
+      cardRootDir: options.cardRootDir,
+      artifact,
+    }),
+    reconcileArtifacts: async (reconciliation: PersonaTrainingArtifactReconciliationInput) => await reconcileStoredArtifacts({
+      cardsRootDir,
+      cardRootDir: options.cardRootDir,
+      reconciliation,
+    }),
     activeProcessCount: () => activeProcesses.size,
   }
 }

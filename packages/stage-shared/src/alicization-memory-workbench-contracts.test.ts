@@ -50,6 +50,44 @@ describe('alicization persona training artifact contract', () => {
         reason: '',
       },
     },
+    {
+      schemaVersion: 'alicization-persona-training-artifact-v1',
+      artifactId: 'artifact-array-status',
+      runId: 'run-array-status',
+      kind: 'lora-adapter',
+      path: '/tmp/adapter-array-status.safetensors',
+      sha256: 'a'.repeat(64),
+      sizeBytes: 1024,
+      baseModel: 'base-model-v1',
+      compatibility: {
+        status: ['compatible'],
+        baseModel: 'base-model-v1',
+      },
+      activation: {
+        status: 'unsupported',
+        reason: 'No loader receipt is available.',
+      },
+    },
+    {
+      schemaVersion: 'alicization-persona-training-artifact-v1',
+      artifactId: 'artifact-object-status',
+      runId: 'run-object-status',
+      kind: 'lora-adapter',
+      path: '/tmp/adapter-object-status.safetensors',
+      sha256: 'a'.repeat(64),
+      sizeBytes: 1024,
+      baseModel: 'base-model-v1',
+      compatibility: {
+        status: {
+          toString: () => 'compatible',
+        },
+        baseModel: 'base-model-v1',
+      },
+      activation: {
+        status: 'unsupported',
+        reason: 'No loader receipt is available.',
+      },
+    },
   ])('rejects an invalid persisted artifact %#', (artifact) => {
     expect(() => parseAlicizationPersonaTrainingArtifact(artifact))
       .toThrow('invalid Alicization persona training artifact')

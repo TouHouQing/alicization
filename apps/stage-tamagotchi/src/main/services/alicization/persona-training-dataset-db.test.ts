@@ -1,6 +1,8 @@
 import type { AlicizationPersonaTrainingArtifact } from '@proj-alicization/stage-shared'
 
-import { mkdtemp, rm } from 'node:fs/promises'
+import type { PersonaTrainingExecutorInput } from './persona-training-pipeline-gate'
+
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -9,6 +11,7 @@ import sqlite3 from 'sqlite3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { setupAlicizationDb } from './db'
+import { createPersonaTrainingProcessExecutor } from './persona-training-process-executor'
 
 const sandboxDirs: string[] = []
 
@@ -186,6 +189,13 @@ async function createSandboxUserDataPath() {
   const dir = await mkdtemp(join(tmpdir(), 'alicization-persona-dataset-'))
   sandboxDirs.push(dir)
   return dir
+}
+
+async function createPersonaTrainingExecutable(root: string, body: string) {
+  const path = join(root, 'fake-persona-trainer')
+  await writeFile(path, `#!/usr/bin/env node\n${body}`, 'utf8')
+  await chmod(path, 0o755)
+  return path
 }
 
 afterEach(async () => {
@@ -661,6 +671,172 @@ describe('persona training dataset database provenance', () => {
     }
     finally {
       await db.close()
+    }
+  })
+
+  it('persists and retries artifact cleanup after source revoke cleanup fails', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    let cleanupAvailable = false
+    const discardArtifact = vi.fn(async () => {
+      if (!cleanupAvailable)
+        throw new Error('artifact cleanup unavailable')
+    })
+    const artifactLifecycle = {
+      validateArtifact: vi.fn(async () => {}),
+      discardArtifact,
+      reconcileArtifacts: vi.fn(async () => {}),
+    }
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, 'artifact-cleanup-retry'),
+      }),
+      personaTrainingArtifactLifecycle: artifactLifecycle,
+    })
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'cleanup-retry',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      await expect(db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })).resolves.toMatchObject({ status: 'succeeded' })
+      const sourceId = (await db.getPersonaTrainingDataset({ cardId: 'card-a' }))
+        .examples
+        .find(example => example.datasetId === dataset.id)
+        ?.sourceId
+      expect(sourceId).toBeTruthy()
+
+      await expect(db.revokePersonaTrainingDatasetSource({
+        cardId: 'card-a',
+        sourceId: sourceId!,
+      })).rejects.toThrow('artifact cleanup unavailable')
+    }
+    finally {
+      await db.close()
+    }
+
+    const failedDatabase = await openRawDatabase(databasePath)
+    try {
+      await expect(queryRawRows<{
+        status: string
+        attempts: number
+        last_error: string | null
+      }>(
+        failedDatabase,
+        `
+        SELECT status, attempts, last_error
+        FROM persona_training_artifact_cleanup_intents
+        `,
+      )).resolves.toEqual([
+        {
+          status: 'pending',
+          attempts: 1,
+          last_error: 'artifact cleanup unavailable',
+        },
+      ])
+    }
+    finally {
+      await closeRawDatabase(failedDatabase)
+    }
+
+    cleanupAvailable = true
+    const recovered = await setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLifecycle: artifactLifecycle,
+    })
+    await recovered.close()
+
+    const recoveredDatabase = await openRawDatabase(databasePath)
+    try {
+      await expect(queryRawRows<{
+        status: string
+        attempts: number
+        last_error: string | null
+      }>(
+        recoveredDatabase,
+        `
+        SELECT status, attempts, last_error
+        FROM persona_training_artifact_cleanup_intents
+        `,
+      )).resolves.toEqual([
+        {
+          status: 'completed',
+          attempts: 2,
+          last_error: null,
+        },
+      ])
+      const auditEvents = await queryRawRows<{ action: string }>(
+        recoveredDatabase,
+        `
+        SELECT action
+        FROM audit_logs
+        WHERE category = 'persona-training'
+          AND action LIKE 'training-artifact-cleanup-%'
+        ORDER BY created_at ASC, id ASC
+        `,
+      )
+      expect(auditEvents.map(event => event.action)).toEqual([
+        'training-artifact-cleanup-requested',
+        'training-artifact-cleanup-completed',
+      ])
+    }
+    finally {
+      await closeRawDatabase(recoveredDatabase)
+    }
+    expect(discardArtifact).toHaveBeenCalledTimes(2)
+  })
+
+  it('persists orphan artifact recovery metadata reported by startup reconciliation', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const artifact = createPersonaTrainingArtifact('run-orphan-cleanup', 'artifact-orphan-cleanup')
+    const reconcileArtifacts = vi.fn(async (input: any) => {
+      await input.onOrphanCleanupFailure({
+        artifact,
+        error: new Error('orphan cleanup unavailable'),
+      })
+    })
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: vi.fn(async () => {}),
+        discardArtifact: vi.fn(async () => {}),
+        reconcileArtifacts,
+      },
+    } as any)
+    await db.close()
+
+    const database = await openRawDatabase(join(userDataPath, 'alicizations', 'alicization.db'))
+    try {
+      await expect(queryRawRows<{
+        card_id: string
+        run_id: string
+        artifact_id: string
+        reason: string
+        status: string
+        last_error: string | null
+      }>(
+        database,
+        `
+        SELECT card_id, run_id, artifact_id, reason, status, last_error
+        FROM persona_training_artifact_cleanup_intents
+        `,
+      )).resolves.toEqual([
+        {
+          card_id: 'default',
+          run_id: 'run-orphan-cleanup',
+          artifact_id: 'artifact-orphan-cleanup',
+          reason: 'startup-orphan-artifact',
+          status: 'pending',
+          last_error: 'orphan cleanup unavailable',
+        },
+      ])
+    }
+    finally {
+      await closeRawDatabase(database)
     }
   })
 
@@ -1271,6 +1447,159 @@ describe('persona training dataset database provenance', () => {
     }
     finally {
       await recovered.close()
+    }
+  })
+
+  it('revalidates persisted artifact integrity and rolls back a replaced inode on restart', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const artifact = createPersonaTrainingArtifact('run-replaced-inode', 'artifact-replaced-inode')
+    const validateArtifact = vi.fn(async () => {
+      throw new Error('persona training published artifact inode changed after publication')
+    })
+    const discardArtifact = vi.fn(async () => {})
+    const initialized = await setupAlicizationDb(userDataPath)
+    await initialized.close()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      await insertRawPersonaTrainingRun(rawDatabase, {
+        runId: 'run-replaced-inode',
+        status: 'completed',
+        artifact,
+      })
+      await insertRawPersonaTrainingIncrement(rawDatabase, {
+        runId: 'run-replaced-inode',
+        artifact,
+      })
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+
+    const recovered = await setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLifecycle: {
+        validateArtifact,
+        discardArtifact,
+        reconcileArtifacts: vi.fn(async () => {}),
+      },
+    } as any)
+    try {
+      expect(validateArtifact).toHaveBeenCalledWith(artifact)
+      expect(discardArtifact).toHaveBeenCalledWith(artifact)
+      await expect(recovered.getPersonaTrainingRun({
+        cardId: 'card-a',
+        runId: 'run-replaced-inode',
+      })).resolves.toMatchObject({
+        status: 'interrupted',
+        failureReason: 'interrupted',
+        artifact: null,
+      })
+      await expect(recovered.listPersonaTrainingIncrements({
+        cardId: 'card-a',
+      })).resolves.toEqual([
+        expect.objectContaining({
+          id: 'persona-training-increment:run-replaced-inode',
+          state: 'rolled-back',
+        }),
+      ])
+    }
+    finally {
+      await recovered.close()
+    }
+  })
+
+  it('aborts and force-terminates a real trainer when its source is revoked', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const cardRoot = join(userDataPath, 'alicizations', 'cards', 'card-a')
+    const termMarker = join(userDataPath, 'trainer-sigterm')
+    const readyMarker = join(userDataPath, 'trainer-ready')
+    const pidMarker = join(userDataPath, 'trainer-pid')
+    await mkdir(cardRoot, { recursive: true })
+    const executable = await createPersonaTrainingExecutable(userDataPath, `
+const fs = require('node:fs')
+fs.writeFileSync(${JSON.stringify(pidMarker)}, String(process.pid))
+process.on('SIGTERM', () => {
+  fs.writeFileSync(${JSON.stringify(termMarker)}, 'SIGTERM')
+})
+process.stdout.write(JSON.stringify({ type: 'ready' }) + '\\n')
+fs.writeFileSync(${JSON.stringify(readyMarker)}, 'READY')
+process.stdout.write(JSON.stringify({ type: 'progress', progress: 0.25, message: 'training' }) + '\\n')
+setInterval(() => {}, 1000)
+`)
+    const executor = createPersonaTrainingProcessExecutor({
+      cardsRootDir: join(userDataPath, 'alicizations', 'cards'),
+      cardRootDir: cardRoot,
+      terminationGraceMs: 20,
+    })
+    const config = {
+      executable,
+      baseModel: 'base-model-v1',
+      timeoutMs: 5_000,
+    }
+    const db = await setupAlicizationDb(userDataPath, {
+      cardId: 'card-a',
+      personaTrainingExecutor: async (input: PersonaTrainingExecutorInput) => await executor.execute(input, config),
+      resolvePersonaTrainingExecutorConfig: () => config,
+      personaTrainingArtifactLifecycle: executor,
+    } as any)
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'real-source-revoke',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const sourceId = (await db.getPersonaTrainingDataset({ cardId: 'card-a' }))
+        .examples
+        .find(example => example.datasetId === dataset.id)
+        ?.sourceId
+      expect(sourceId).toBeTruthy()
+      const { run } = await db.startPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      await vi.waitFor(() => expect(executor.activeProcessCount()).toBe(1))
+      await vi.waitFor(async () => {
+        await expect(readFile(readyMarker, 'utf8')).resolves.toBe('READY')
+      }, { timeout: 5_000 })
+      await vi.waitFor(async () => {
+        await expect(db.getPersonaTrainingRun({
+          cardId: 'card-a',
+          runId: run.runId,
+        })).resolves.toMatchObject({
+          status: 'running',
+          stage: 'training',
+        })
+      })
+
+      await db.revokePersonaTrainingDatasetSource({
+        cardId: 'card-a',
+        sourceId: sourceId!,
+      })
+
+      await vi.waitFor(async () => {
+        await expect(db.getPersonaTrainingRun({
+          cardId: 'card-a',
+          runId: run.runId,
+        })).resolves.toMatchObject({
+          status: 'failed',
+          failureReason: 'source-revoked',
+          artifact: null,
+        })
+      })
+      await expect(readFile(termMarker, 'utf8')).resolves.toBe('SIGTERM')
+      const childPid = Number(await readFile(pidMarker, 'utf8'))
+      expect(() => process.kill(childPid, 0)).toThrow()
+      expect(executor.activeProcessCount()).toBe(0)
+      await expect(db.listPersonaTrainingIncrements({
+        cardId: 'card-a',
+      })).resolves.toEqual([])
+      await expect(readFile(join(cardRoot, 'persona-training', 'runs', run.runId, 'dataset.jsonl'), 'utf8')).rejects.toThrow()
+    }
+    finally {
+      await db.close()
     }
   })
 

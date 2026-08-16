@@ -157,7 +157,7 @@ export function createAlicizationRuntimeCardScopeLifecycle(
     options.resetSubconsciousTickInFlight()
     options.resetSoulLifecycleState()
 
-    await options.alicizationDb.close().catch(() => {})
+    await options.alicizationDb.close()
     await options.removeAlicizationsRoot()
 
     options.resetProviderConfig()

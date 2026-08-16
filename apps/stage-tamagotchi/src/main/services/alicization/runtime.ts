@@ -677,9 +677,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   }
   const persistPersonaTrainingExecutorConfig = async (rawConfig: AlicizationPersonaTrainingExecutorConfig | null) => {
     if (!rawConfig) {
+      try {
+        await unlink(personaTrainingConfigPath)
+      }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT')
+          throw error
+      }
       personaTrainingExecutorConfig = null
       personaTrainingExecutorConfigError = null
-      await unlink(personaTrainingConfigPath).catch(() => {})
       return personaTrainingExecutorConfigState()
     }
     const normalized = normalizePersonaTrainingProcessConfig(rawConfig)
@@ -692,15 +698,20 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     personaTrainingExecutorConfigError = null
     return personaTrainingExecutorConfigState()
   }
-  const createLocalPersonaTrainingExecutor = (cardRootDir: string) => {
+  const createLocalPersonaTrainingRuntime = (cardRootDir: string) => {
     const executor = createPersonaTrainingProcessExecutor({
       cardsRootDir: join(userDataPath, 'alicizations', 'cards'),
       cardRootDir,
     })
-    return async (input: Parameters<typeof executor.execute>[0]) => {
-      if (!input.configSnapshot)
-        throw new Error('persona training executor is not configured')
-      return await executor.execute(input, input.configSnapshot)
+    return {
+      execute: async (input: Parameters<typeof executor.execute>[0]) => {
+        if (!input.configSnapshot)
+          throw new Error('persona training executor is not configured')
+        return await executor.execute(input, input.configSnapshot)
+      },
+      validateArtifact: executor.validateArtifact,
+      discardArtifact: executor.discardArtifact,
+      reconcileArtifacts: executor.reconcileArtifacts,
     }
   }
   await restorePersonaTrainingExecutorConfig()
@@ -708,11 +719,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     activeProviderId,
     providerCredentials,
   })
+  let localPersonaTrainingRuntime = createLocalPersonaTrainingRuntime(soulRoot)
   let alicizationDb = await setupAlicizationDb(userDataPath, {
     cardId: activeCardId,
     resolveEmbeddingProvider: resolveLongTermMemoryEmbeddingProvider,
     resolveMemoryTrialProvider: () => memoryTrialProvider,
-    personaTrainingExecutor: createLocalPersonaTrainingExecutor(soulRoot),
+    personaTrainingExecutor: localPersonaTrainingRuntime.execute,
+    personaTrainingArtifactLifecycle: localPersonaTrainingRuntime,
     resolvePersonaTrainingExecutorConfig: () => clonePersonaTrainingExecutorConfig(personaTrainingExecutorConfig),
   })
   const runtimeToolRegistry = createCanonicalToolRegistry()
@@ -3239,15 +3252,17 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     soulLifecycleState.muteWatchUntil = 0
     soulLifecycleState.revision = 0
 
-    await alicizationDb.close().catch(() => {})
+    await alicizationDb.close()
 
     activeCardId = nextCardId
     ;({ soulRoot, soulPath, legacyPromptProfilePath, legacySparkProfilePath } = resolveCardPaths(activeCardId))
+    localPersonaTrainingRuntime = createLocalPersonaTrainingRuntime(soulRoot)
     alicizationDb = await setupAlicizationDb(userDataPath, {
       cardId: activeCardId,
       resolveEmbeddingProvider: resolveLongTermMemoryEmbeddingProvider,
       resolveMemoryTrialProvider: () => memoryTrialProvider,
-      personaTrainingExecutor: createLocalPersonaTrainingExecutor(soulRoot),
+      personaTrainingExecutor: localPersonaTrainingRuntime.execute,
+      personaTrainingArtifactLifecycle: localPersonaTrainingRuntime,
       resolvePersonaTrainingExecutorConfig: () => clonePersonaTrainingExecutorConfig(personaTrainingExecutorConfig),
     })
     await restoreScopedKillSwitch(activeCardId)
@@ -3367,11 +3382,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     reinitializeDefaultScope: async () => {
       activeCardId = defaultAlicizationCardId
       ;({ soulRoot, soulPath, legacyPromptProfilePath, legacySparkProfilePath } = resolveCardPaths(activeCardId))
+      localPersonaTrainingRuntime = createLocalPersonaTrainingRuntime(soulRoot)
       alicizationDb = await setupAlicizationDb(userDataPath, {
         cardId: activeCardId,
         resolveEmbeddingProvider: resolveLongTermMemoryEmbeddingProvider,
         resolveMemoryTrialProvider: () => memoryTrialProvider,
-        personaTrainingExecutor: createLocalPersonaTrainingExecutor(soulRoot),
+        personaTrainingExecutor: localPersonaTrainingRuntime.execute,
+        personaTrainingArtifactLifecycle: localPersonaTrainingRuntime,
         resolvePersonaTrainingExecutorConfig: () => clonePersonaTrainingExecutorConfig(personaTrainingExecutorConfig),
       })
       await restoreScopedKillSwitch(activeCardId)
@@ -6910,9 +6927,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
     clearReminderDueTimer()
     clearQueuedSubconsciousWake()
-    await alicizationDb.close().catch((error) => {
-      console.warn('[alicization-runtime] failed to close sqlite database:', error)
-    })
+    await alicizationDb.close()
     if (globalShortcut.isRegistered(killSwitchShortcut)) {
       globalShortcut.unregister(killSwitchShortcut)
     }

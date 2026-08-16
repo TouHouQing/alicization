@@ -127,6 +127,8 @@ import type {
   PersonaTrainingDatasetVersion,
 } from './persona-training-dataset-runtime'
 import type {
+  PersonaTrainingArtifactCleanupIntent,
+  PersonaTrainingArtifactLifecycle,
   PersonaTrainingExecutorInput,
   PersonaTrainingExecutorOutput,
   PersonaTrainingPipelineAuditEvent,
@@ -2062,6 +2064,7 @@ export async function setupAlicizationDb(
     memoryTrialProvider?: AlicizationMemoryTrialProvider | null
     resolveMemoryTrialProvider?: () => AlicizationMemoryTrialProvider | null
     personaTrainingExecutor?: (input: PersonaTrainingExecutorInput) => Promise<PersonaTrainingExecutorOutput>
+    personaTrainingArtifactLifecycle?: PersonaTrainingArtifactLifecycle
     resolvePersonaTrainingExecutorConfig?: () => PersonaTrainingExecutorInput['configSnapshot'] | Promise<PersonaTrainingExecutorInput['configSnapshot']>
     semanticScaleJobOptions?: {
       executeJob?: MemorySemanticScaleJobExecutor
@@ -2666,6 +2669,27 @@ export async function setupAlicizationDb(
     `)
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_training_increments_card_created ON persona_training_increments(card_id, created_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_persona_training_increments_dataset_state ON persona_training_increments(dataset_id, state, created_at DESC)')
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS persona_training_artifact_cleanup_intents (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        run_id TEXT NOT NULL,
+        increment_id TEXT,
+        artifact_id TEXT NOT NULL,
+        artifact_json TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        status TEXT NOT NULL,
+        attempts INTEGER NOT NULL,
+        last_error TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        completed_at INTEGER
+      )
+    `)
+    await run(database, `
+      CREATE INDEX IF NOT EXISTS idx_persona_training_artifact_cleanup_status
+      ON persona_training_artifact_cleanup_intents(card_id, status, updated_at ASC)
+    `)
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS memory_reflections (
@@ -6531,6 +6555,39 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       createdAt: event.createdAt,
     })
   }
+  async function insertPersonaTrainingArtifactCleanupAudit(input: {
+    action:
+      | 'training-artifact-cleanup-requested'
+      | 'training-artifact-cleanup-completed'
+      | 'training-artifact-cleanup-failed'
+    intentId: string
+    cardId: string
+    runId: string
+    incrementId: string | null
+    artifactId: string
+    reason: string
+    error: string | null
+    attempts: number
+    createdAt: number
+  }) {
+    await insertAuditLog({
+      level: input.action === 'training-artifact-cleanup-failed' ? 'warning' : 'notice',
+      category: 'persona-training',
+      action: input.action,
+      message: `Persona training artifact cleanup lifecycle event: ${input.action}.`,
+      payload: {
+        intentId: input.intentId,
+        cardId: input.cardId,
+        runId: input.runId,
+        incrementId: input.incrementId,
+        artifactId: input.artifactId,
+        reason: input.reason,
+        error: input.error,
+        attempts: input.attempts,
+      },
+      createdAt: input.createdAt,
+    })
+  }
   interface PersonaTrainingIncrementRow {
     id: string
     run_id: string
@@ -6542,6 +6599,21 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     artifact_json: string | null
     state: PersonaTrainingPipelineIncrement['state']
     created_at: number
+  }
+  interface PersonaTrainingArtifactCleanupIntentRow {
+    id: string
+    card_id: string
+    run_id: string
+    increment_id: string | null
+    artifact_id: string
+    artifact_json: string
+    reason: string
+    status: 'pending' | 'completed'
+    attempts: number
+    last_error: string | null
+    created_at: number
+    updated_at: number
+    completed_at: number | null
   }
   async function transitionPersonaTrainingIncrements(input: {
     cardId: string
@@ -7315,6 +7387,67 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         return true
       }))
     },
+    recordArtifactCleanupIntent: async (intent: PersonaTrainingArtifactCleanupIntent) => {
+      if (intent.artifact.runId !== intent.runId)
+        throw new Error('persona training artifact cleanup intent owner does not match the artifact')
+      const artifactJson = serializePersonaTrainingArtifact(intent.artifact)
+      if (!artifactJson)
+        throw new Error('persona training artifact cleanup intent requires an artifact')
+      await enqueueWrite(async () => await runInTransaction(database, async () => {
+        const existing = await get<PersonaTrainingArtifactCleanupIntentRow>(
+          database,
+          'SELECT * FROM persona_training_artifact_cleanup_intents WHERE id = ?',
+          [intent.id],
+        )
+        const attempts = existing ? existing.attempts + 1 : Math.max(1, intent.attempts)
+        await run(
+          database,
+          `
+          INSERT INTO persona_training_artifact_cleanup_intents (
+            id, card_id, run_id, increment_id, artifact_id, artifact_json,
+            reason, status, attempts, last_error, created_at, updated_at, completed_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, NULL)
+          ON CONFLICT(id) DO UPDATE SET
+            card_id = excluded.card_id,
+            run_id = excluded.run_id,
+            increment_id = excluded.increment_id,
+            artifact_id = excluded.artifact_id,
+            artifact_json = excluded.artifact_json,
+            reason = excluded.reason,
+            status = 'pending',
+            attempts = excluded.attempts,
+            last_error = excluded.last_error,
+            updated_at = excluded.updated_at,
+            completed_at = NULL
+          `,
+          [
+            intent.id,
+            intent.cardId,
+            intent.runId,
+            intent.incrementId,
+            intent.artifact.artifactId,
+            artifactJson,
+            intent.reason,
+            attempts,
+            intent.lastError,
+            existing?.created_at ?? intent.createdAt,
+            intent.updatedAt,
+          ],
+        )
+        await insertPersonaTrainingArtifactCleanupAudit({
+          action: 'training-artifact-cleanup-requested',
+          intentId: intent.id,
+          cardId: intent.cardId,
+          runId: intent.runId,
+          incrementId: intent.incrementId,
+          artifactId: intent.artifact.artifactId,
+          reason: intent.reason,
+          error: intent.lastError,
+          attempts,
+          createdAt: intent.updatedAt,
+        })
+      }))
+    },
     appendEvent: async (event) => {
       await enqueueWrite(async () => {
         await insertPersonaTrainingAuditEvent(event)
@@ -7366,7 +7499,68 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       return rows.map(mapPersonaTrainingRunRow)
     },
     reconcileAfterRestart: async (reconcileInput) => {
-      return await enqueueWrite(async () => await runInTransaction(database, async () => {
+      const artifactValidationFailures = new Map<string, {
+        artifact: AlicizationPersonaTrainingArtifact | null
+        cardId: string
+        incrementId: string
+        error: string
+      }>()
+      if (options?.personaTrainingArtifactLifecycle) {
+        const validationScopeClause = reconcileInput.cardId
+          ? 'AND persona_training_runs.card_id = ?'
+          : ''
+        const validationScopeParams = reconcileInput.cardId
+          ? [reconcileInput.cardId]
+          : []
+        const candidates = await all<PersonaTrainingRunRow & {
+          increment_id: string
+          increment_artifact_json: string | null
+        }>(
+          database,
+          `
+          SELECT
+            persona_training_runs.*,
+            persona_training_increments.id AS increment_id,
+            persona_training_increments.artifact_json AS increment_artifact_json
+          FROM persona_training_runs
+          INNER JOIN persona_training_increments
+            ON persona_training_increments.run_id = persona_training_runs.run_id
+          WHERE persona_training_runs.status = 'completed'
+            AND persona_training_increments.state = 'available'
+            ${validationScopeClause}
+          ORDER BY persona_training_runs.queued_at ASC, persona_training_runs.run_id ASC
+          `,
+          validationScopeParams,
+        )
+        for (const candidate of candidates) {
+          let artifact: AlicizationPersonaTrainingArtifact | null = null
+          try {
+            artifact = requirePersistedPersonaTrainingArtifact(
+              candidate.artifact_json,
+              `run ${candidate.run_id}`,
+              candidate.run_id,
+            )
+            const incrementArtifact = requirePersistedPersonaTrainingArtifact(
+              candidate.increment_artifact_json,
+              `increment for run ${candidate.run_id}`,
+              candidate.run_id,
+            )
+            if (serializePersonaTrainingArtifact(artifact) !== serializePersonaTrainingArtifact(incrementArtifact))
+              throw new Error('persisted run and increment artifacts do not match')
+            await options.personaTrainingArtifactLifecycle.validateArtifact(artifact)
+          }
+          catch (error) {
+            artifactValidationFailures.set(candidate.run_id, {
+              artifact,
+              cardId: candidate.card_id,
+              incrementId: candidate.increment_id,
+              error: errorMessageFrom(error) ?? String(error),
+            })
+          }
+        }
+      }
+
+      const reconciliation = await enqueueWrite(async () => await runInTransaction(database, async () => {
         const runScopeClause = reconcileInput.cardId ? 'AND card_id = ?' : ''
         const runScopeParams = reconcileInput.cardId ? [reconcileInput.cardId] : []
         const staleRuns = await all<PersonaTrainingRunRow>(
@@ -7451,6 +7645,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           runScopeParams,
         )
         for (const completedRun of completedRuns) {
+          const artifactValidationFailure = artifactValidationFailures.get(completedRun.run_id)
           const consistent = completedRun.increment_id != null
             && completedRun.increment_card_id === completedRun.card_id
             && completedRun.increment_dataset_id === completedRun.dataset_id
@@ -7459,9 +7654,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             && completedRun.increment_base_persona_revision === completedRun.base_persona_revision
             && completedRun.increment_artifact_json === completedRun.artifact_json
             && completedRun.artifact_json != null
+            && !artifactValidationFailure
           if (consistent)
             continue
-          const reason = 'application-restarted-with-inconsistent-training-completion'
+          const reason = artifactValidationFailure
+            ? `application-restarted-with-invalid-training-artifact: ${artifactValidationFailure.error}`
+            : 'application-restarted-with-inconsistent-training-completion'
           const updated = await run(
             database,
             `
@@ -7549,6 +7747,151 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           rolledBackIncrements,
         }
       }))
+
+      if (options?.personaTrainingArtifactLifecycle) {
+        const cleanupScopeClause = reconcileInput.cardId ? 'AND card_id = ?' : ''
+        const cleanupScopeParams = reconcileInput.cardId ? [reconcileInput.cardId] : []
+        const pendingCleanupIntents = await all<PersonaTrainingArtifactCleanupIntentRow>(
+          database,
+          `
+          SELECT *
+          FROM persona_training_artifact_cleanup_intents
+          WHERE status = 'pending'
+            ${cleanupScopeClause}
+          ORDER BY updated_at ASC, id ASC
+          `,
+          cleanupScopeParams,
+        )
+        for (const cleanupIntent of pendingCleanupIntents) {
+          const attempts = cleanupIntent.attempts + 1
+          let artifact: AlicizationPersonaTrainingArtifact | null = null
+          let cleanupError: string | null = null
+          try {
+            artifact = requirePersistedPersonaTrainingArtifact(
+              cleanupIntent.artifact_json,
+              `cleanup intent ${cleanupIntent.id}`,
+              cleanupIntent.run_id,
+            )
+            if (artifact.artifactId !== cleanupIntent.artifact_id)
+              throw new Error('cleanup intent artifactId does not match persisted owner')
+            await options.personaTrainingArtifactLifecycle.discardArtifact(artifact)
+          }
+          catch (error) {
+            cleanupError = errorMessageFrom(error) ?? String(error)
+          }
+          await enqueueWrite(async () => await runInTransaction(database, async () => {
+            if (cleanupError) {
+              await run(
+                database,
+                `
+                UPDATE persona_training_artifact_cleanup_intents
+                SET attempts = ?, last_error = ?, updated_at = ?
+                WHERE id = ? AND status = 'pending'
+                `,
+                [attempts, cleanupError, reconcileInput.at, cleanupIntent.id],
+              )
+              await insertPersonaTrainingArtifactCleanupAudit({
+                action: 'training-artifact-cleanup-failed',
+                intentId: cleanupIntent.id,
+                cardId: cleanupIntent.card_id,
+                runId: cleanupIntent.run_id,
+                incrementId: cleanupIntent.increment_id,
+                artifactId: cleanupIntent.artifact_id,
+                reason: cleanupIntent.reason,
+                error: cleanupError,
+                attempts,
+                createdAt: reconcileInput.at,
+              })
+              return
+            }
+            await run(
+              database,
+              `
+              UPDATE persona_training_artifact_cleanup_intents
+              SET
+                status = 'completed',
+                attempts = ?,
+                last_error = NULL,
+                updated_at = ?,
+                completed_at = ?
+              WHERE id = ? AND status = 'pending'
+              `,
+              [attempts, reconcileInput.at, reconcileInput.at, cleanupIntent.id],
+            )
+            await insertPersonaTrainingArtifactCleanupAudit({
+              action: 'training-artifact-cleanup-completed',
+              intentId: cleanupIntent.id,
+              cardId: cleanupIntent.card_id,
+              runId: cleanupIntent.run_id,
+              incrementId: cleanupIntent.increment_id,
+              artifactId: cleanupIntent.artifact_id,
+              reason: cleanupIntent.reason,
+              error: null,
+              attempts,
+              createdAt: reconcileInput.at,
+            })
+          }))
+        }
+        for (const [runId, failure] of artifactValidationFailures) {
+          if (!failure.artifact)
+            continue
+          try {
+            await options.personaTrainingArtifactLifecycle.discardArtifact(failure.artifact)
+          }
+          catch (cleanupError) {
+            const cleanupMessage = errorMessageFrom(cleanupError) ?? String(cleanupError)
+            await personaTrainingPipelinePersistence.recordArtifactCleanupIntent?.({
+              id: `persona-training-artifact-cleanup:${failure.cardId}:${failure.artifact.artifactId}`,
+              cardId: failure.cardId,
+              runId,
+              incrementId: failure.incrementId,
+              artifact: failure.artifact,
+              reason: 'startup-invalid-artifact',
+              status: 'pending',
+              attempts: 1,
+              lastError: cleanupMessage,
+              createdAt: reconcileInput.at,
+              updatedAt: reconcileInput.at,
+            })
+          }
+        }
+        const availableRows = await all<PersonaTrainingIncrementRow>(
+          database,
+          `
+          SELECT *
+          FROM persona_training_increments
+          WHERE state = 'available'
+            ${reconcileInput.cardId ? 'AND card_id = ?' : ''}
+          ORDER BY created_at ASC, id ASC
+          `,
+          reconcileInput.cardId ? [reconcileInput.cardId] : [],
+        )
+        const availableArtifacts = availableRows.map(row => requirePersistedPersonaTrainingArtifact(
+          row.artifact_json,
+          `increment ${row.id}`,
+          row.run_id,
+        ))
+        await options.personaTrainingArtifactLifecycle.reconcileArtifacts?.({
+          availableArtifacts,
+          onOrphanCleanupFailure: async ({ artifact, error }) => {
+            const cleanupMessage = errorMessageFrom(error) ?? String(error)
+            await personaTrainingPipelinePersistence.recordArtifactCleanupIntent?.({
+              id: `persona-training-artifact-cleanup:${boundCardId}:${artifact.artifactId}`,
+              cardId: boundCardId,
+              runId: artifact.runId,
+              incrementId: null,
+              artifact,
+              reason: 'startup-orphan-artifact',
+              status: 'pending',
+              attempts: 1,
+              lastError: cleanupMessage,
+              createdAt: reconcileInput.at,
+              updatedAt: reconcileInput.at,
+            })
+          },
+        })
+      }
+      return reconciliation
     },
   }
   async function recordPersonaTrainingSourceProvenance(input: {
@@ -7670,6 +8013,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     trainingExecutor: options?.personaTrainingExecutor ?? (async () => {
       throw new Error('persona training executor is not configured')
     }),
+    artifactLifecycle: options?.personaTrainingArtifactLifecycle,
     resolveExecutorConfig: options?.resolvePersonaTrainingExecutorConfig,
     persistence: personaTrainingPipelinePersistence,
     now,

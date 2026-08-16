@@ -14,7 +14,10 @@ import type {
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { createPersonaTrainingPipelineGate } from './persona-training-pipeline-gate'
+import {
+  createPersonaTrainingPipelineGate,
+  PersonaTrainingExecutorArtifactError,
+} from './persona-training-pipeline-gate'
 
 const consent = {
   granted: true,
@@ -280,6 +283,211 @@ describe('persona training pipeline asynchronous lifecycle', () => {
     })
   })
 
+  it('aborts every active run before waiting for any terminalization', async () => {
+    const storage = createPersistence()
+    const baseUpdateRun = storage.persistence.updateRun
+    let terminalizingStartedResolve!: () => void
+    const terminalizingStarted = new Promise<void>((resolve) => {
+      terminalizingStartedResolve = resolve
+    })
+    let releaseTerminalizing!: () => void
+    const terminalizingReleased = new Promise<void>((resolve) => {
+      releaseTerminalizing = resolve
+    })
+    const signals = new Map<string, AbortSignal>()
+    storage.persistence.updateRun = async (update) => {
+      if (update.status === 'terminalizing' && update.runId === 'run-stop-first') {
+        terminalizingStartedResolve()
+        await terminalizingReleased
+      }
+      return await baseUpdateRun(update)
+    }
+    let runSequence = 0
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async (input: PersonaTrainingExecutorInput) => {
+        signals.set(input.runId, input.signal)
+        await new Promise<void>((resolve) => {
+          if (input.signal.aborted) {
+            resolve()
+            return
+          }
+          input.signal.addEventListener('abort', () => resolve(), { once: true })
+        })
+        throw input.signal.reason
+      },
+      persistence: storage.persistence,
+      now: () => 200,
+      randomUUID: () => `run-stop-${runSequence++ === 0 ? 'first' : 'second'}`,
+      basePersonaRevision: () => 'persona-core-v1',
+    } as any)
+
+    await gate.start({ cardId: 'card-a' })
+    await gate.start({ cardId: 'card-a' })
+    await vi.waitFor(() => {
+      expect(signals.has('run-stop-first')).toBe(true)
+      expect(signals.has('run-stop-second')).toBe(true)
+    })
+
+    const stopping = gate.stop('database-close')
+    await terminalizingStarted
+    expect(signals.get('run-stop-first')?.aborted).toBe(true)
+    expect(signals.get('run-stop-second')?.aborted).toBe(true)
+
+    releaseTerminalizing()
+    await stopping
+  })
+
+  it('aborts a run even when shutdown finds its completion transaction already terminalizing', async () => {
+    const storage = createPersistence()
+    const baseCompleteRunWithIncrement = storage.persistence.completeRunWithIncrement
+    let releaseCompletion!: () => void
+    const completionReleased = new Promise<void>((resolve) => {
+      releaseCompletion = resolve
+    })
+    let completionStartedResolve!: () => void
+    const completionStarted = new Promise<void>((resolve) => {
+      completionStartedResolve = resolve
+    })
+    storage.persistence.completeRunWithIncrement = async (input) => {
+      completionStartedResolve()
+      await completionReleased
+      return await baseCompleteRunWithIncrement(input)
+    }
+    let executorSignal!: AbortSignal
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async (input: PersonaTrainingExecutorInput) => {
+        executorSignal = input.signal
+        return { artifact: createArtifact(input.runId, 'artifact-terminalizing-stop') }
+      },
+      persistence: storage.persistence,
+      now: () => 200,
+      randomUUID: () => 'run-terminalizing-stop',
+      basePersonaRevision: () => 'persona-core-v1',
+    } as any)
+
+    await gate.start({ cardId: 'card-a' })
+    await completionStarted
+    const stopping = gate.stop('database-close')
+    try {
+      expect(executorSignal.aborted).toBe(true)
+    }
+    finally {
+      releaseCompletion()
+      await stopping
+    }
+  })
+
+  it('waits for the trainer to exit after terminalizing persistence rejects during shutdown', async () => {
+    const storage = createPersistence()
+    const baseUpdateRun = storage.persistence.updateRun
+    storage.persistence.updateRun = async (update) => {
+      if (update.status === 'terminalizing')
+        throw new Error('terminalizing persistence unavailable')
+      return await baseUpdateRun(update)
+    }
+    let abortObservedResolve!: () => void
+    const abortObserved = new Promise<void>((resolve) => {
+      abortObservedResolve = resolve
+    })
+    let releaseExecutorExit!: () => void
+    const executorExitReleased = new Promise<void>((resolve) => {
+      releaseExecutorExit = resolve
+    })
+    let executorReadyResolve!: () => void
+    const executorReady = new Promise<void>((resolve) => {
+      executorReadyResolve = resolve
+    })
+    let executorExited = false
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async (input: PersonaTrainingExecutorInput) => await new Promise((_, reject) => {
+        const handleAbort = () => {
+          abortObservedResolve()
+          void executorExitReleased.then(() => {
+            executorExited = true
+            reject(input.signal.reason)
+          })
+        }
+        input.signal.addEventListener('abort', handleAbort, { once: true })
+        executorReadyResolve()
+        if (input.signal.aborted)
+          handleAbort()
+      }),
+      persistence: storage.persistence,
+      now: () => 200,
+      randomUUID: () => 'run-stop-persistence-failure',
+      basePersonaRevision: () => 'persona-core-v1',
+    } as any)
+
+    await gate.start({ cardId: 'card-a' })
+    await vi.waitFor(() => expect(storage.runs.get('run-stop-persistence-failure')?.status).toBe('running'))
+    await executorReady
+    const stopping = gate.stop('card-switch')
+    await abortObserved
+    const settledBeforeExit = await Promise.race([
+      stopping.then(() => true, () => true),
+      new Promise<boolean>(resolve => setTimeout(() => resolve(false), 20)),
+    ])
+    expect(settledBeforeExit).toBe(false)
+
+    releaseExecutorExit()
+    await expect(stopping).rejects.toThrow('terminalizing persistence unavailable')
+    expect(executorExited).toBe(true)
+  })
+
+  it('discards a late artifact even when shutdown persisted the terminal event first', async () => {
+    const storage = createPersistence()
+    const artifact = createArtifact('run-late-artifact-after-stop', 'artifact-late-after-stop')
+    const discardArtifact = vi.fn(async () => {})
+    const baseFinishRun = storage.persistence.finishRun
+    let terminalEventPersistedResolve!: () => void
+    const terminalEventPersisted = new Promise<void>((resolve) => {
+      terminalEventPersistedResolve = resolve
+    })
+    let executorReadyResolve!: () => void
+    const executorReady = new Promise<void>((resolve) => {
+      executorReadyResolve = resolve
+    })
+    storage.persistence.finishRun = async (input) => {
+      const finished = await baseFinishRun(input)
+      if (finished && input.run.status === 'interrupted')
+        terminalEventPersistedResolve()
+      return finished
+    }
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async (input: PersonaTrainingExecutorInput) => await new Promise((resolve) => {
+        const handleAbort = () => {
+          void terminalEventPersisted.then(() => resolve({ artifact }))
+        }
+        input.signal.addEventListener('abort', handleAbort, { once: true })
+        executorReadyResolve()
+        if (input.signal.aborted)
+          handleAbort()
+      }),
+      artifactLifecycle: {
+        discardArtifact,
+      },
+      persistence: storage.persistence,
+      now: () => 200,
+      randomUUID: () => 'run-late-artifact-after-stop',
+      basePersonaRevision: () => 'persona-core-v1',
+    } as any)
+
+    await gate.start({ cardId: 'card-a' })
+    await vi.waitFor(() => expect(storage.runs.get('run-late-artifact-after-stop')?.status).toBe('running'))
+    await executorReady
+    await gate.stop('database-close')
+
+    expect(discardArtifact).toHaveBeenCalledWith(artifact)
+    expect(storage.runs.get('run-late-artifact-after-stop')).toMatchObject({
+      status: 'interrupted',
+      artifact: null,
+    })
+  })
+
   it('does not let cancellation overwrite a run while its completion transaction is in flight', async () => {
     const storage = createPersistence()
     const baseCompleteRunWithIncrement = storage.persistence.completeRunWithIncrement
@@ -405,18 +613,18 @@ describe('persona training pipeline asynchronous lifecycle', () => {
       progress: 0.2,
       message: 'late-progress',
     })
-    const cancellation = await gate.cancel({
+    const cancellation = gate.cancel({
       cardId: 'card-a',
       runId: 'run-terminalizing',
       reason: 'too-late',
     })
     const stopping = gate.stop('database-close')
 
-    expect(cancellation).toMatchObject({
-      status: 'terminalizing',
-    })
     releaseTerminalizing()
-    await Promise.all([lateProgressResult, stopping])
+    const [cancelledRecord] = await Promise.all([cancellation, lateProgressResult, stopping])
+    expect(cancelledRecord).toMatchObject({
+      status: 'completed',
+    })
 
     await vi.waitFor(() => expect(storage.runs.get('run-terminalizing')).toMatchObject({
       status: 'completed',
@@ -437,6 +645,278 @@ describe('persona training pipeline asynchronous lifecycle', () => {
         status: 'interrupted',
       }),
     ]))
+  })
+
+  it.each([
+    ['a false compare-and-set', 'false'],
+    ['a rejected compare-and-set', 'reject'],
+  ])('keeps a run cancellable when terminalizing persistence reports %s', async (_, failureMode) => {
+    const storage = createPersistence()
+    const baseUpdateRun = storage.persistence.updateRun
+    let terminalizingAttempts = 0
+    let releaseFirstTerminalizing!: () => void
+    const firstTerminalizingReleased = new Promise<void>((resolve) => {
+      releaseFirstTerminalizing = resolve
+    })
+    let firstTerminalizingStartedResolve!: () => void
+    const firstTerminalizingStarted = new Promise<void>((resolve) => {
+      firstTerminalizingStartedResolve = resolve
+    })
+    storage.persistence.updateRun = async (update) => {
+      if (update.status !== 'terminalizing')
+        return await baseUpdateRun(update)
+      terminalizingAttempts += 1
+      if (terminalizingAttempts === 1) {
+        firstTerminalizingStartedResolve()
+        await firstTerminalizingReleased
+        if (failureMode === 'reject')
+          throw new Error('terminalizing persistence unavailable')
+        return false
+      }
+      return await baseUpdateRun(update)
+    }
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async (input: PersonaTrainingExecutorInput) => ({ artifact: createArtifact(input.runId, 'artifact-terminalizing-retry') }),
+      persistence: storage.persistence,
+      now: () => 200,
+      randomUUID: () => `run-terminalizing-${failureMode}`,
+      basePersonaRevision: () => 'persona-core-v1',
+    } as any)
+    const runId = `run-terminalizing-${failureMode}`
+
+    await gate.start({ cardId: 'card-a' })
+    await firstTerminalizingStarted
+    const cancellation = gate.cancel({
+      cardId: 'card-a',
+      runId,
+      reason: 'cancel-after-terminalizing-cas-failure',
+    })
+    releaseFirstTerminalizing()
+
+    await expect(cancellation).resolves.toMatchObject({
+      status: 'cancel_requested',
+      failureReason: 'cancelled',
+    })
+    await vi.waitFor(() => expect(storage.runs.get(runId)).toMatchObject({
+      status: 'cancelled',
+      failureReason: 'cancelled',
+    }))
+    expect(terminalizingAttempts).toBeGreaterThanOrEqual(2)
+    expect(storage.increments).toEqual([])
+  })
+
+  it('discards a published artifact when the completion transaction cannot commit', async () => {
+    const storage = createPersistence()
+    const artifact = createArtifact('run-completion-compensation', 'artifact-completion-compensation')
+    const discardArtifact = vi.fn(async () => {})
+    storage.persistence.completeRunWithIncrement = async () => {
+      throw new Error('forced completion audit failure')
+    }
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async () => ({ artifact }),
+      artifactLifecycle: {
+        discardArtifact,
+      },
+      persistence: storage.persistence,
+      now: () => 200,
+      randomUUID: () => 'run-completion-compensation',
+      basePersonaRevision: () => 'persona-core-v1',
+    } as any)
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'failed',
+      reason: 'executor-failed',
+      error: 'forced completion audit failure',
+    })
+    expect(discardArtifact).toHaveBeenCalledWith(artifact)
+    expect(storage.increments).toEqual([])
+    expect(storage.runs.get('run-completion-compensation')).toMatchObject({
+      status: 'failed',
+      artifact: null,
+    })
+  })
+
+  it('persists a retryable cleanup intent when artifact compensation fails', async () => {
+    const storage = createPersistence()
+    const artifact = createArtifact('run-cleanup-intent', 'artifact-cleanup-intent')
+    const recordArtifactCleanupIntent = vi.fn(async () => {})
+    ;(storage.persistence as any).recordArtifactCleanupIntent = recordArtifactCleanupIntent
+    storage.persistence.completeRunWithIncrement = async () => {
+      throw new Error('forced completion failure')
+    }
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async () => ({ artifact }),
+      artifactLifecycle: {
+        discardArtifact: async () => {
+          throw new Error('artifact cleanup unavailable')
+        },
+      },
+      persistence: storage.persistence,
+      now: () => 200,
+      randomUUID: () => 'run-cleanup-intent',
+      basePersonaRevision: () => 'persona-core-v1',
+    } as any)
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('artifact cleanup unavailable'),
+    })
+    expect(recordArtifactCleanupIntent).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'card-a',
+      runId: 'run-cleanup-intent',
+      incrementId: null,
+      artifact,
+      reason: 'training-failed',
+      lastError: 'artifact cleanup unavailable',
+    }))
+  })
+
+  it('compensates a published artifact exposed through a structured executor failure', async () => {
+    const storage = createPersistence()
+    const artifact = createArtifact('run-structured-cleanup', 'artifact-structured-cleanup')
+    const discardArtifact = vi.fn(async () => {
+      throw new Error('artifact cleanup unavailable')
+    })
+    const recordArtifactCleanupIntent = vi.fn(async () => {})
+    ;(storage.persistence as any).recordArtifactCleanupIntent = recordArtifactCleanupIntent
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async () => {
+        throw new PersonaTrainingExecutorArtifactError(
+          'run directory cleanup unavailable',
+          artifact,
+        )
+      },
+      artifactLifecycle: {
+        discardArtifact,
+      },
+      persistence: storage.persistence,
+      now: () => 200,
+      randomUUID: () => 'run-structured-cleanup',
+      basePersonaRevision: () => 'persona-core-v1',
+    } as any)
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('run directory cleanup unavailable'),
+    })
+    expect(discardArtifact).toHaveBeenCalledWith(artifact)
+    expect(recordArtifactCleanupIntent).toHaveBeenCalledWith(expect.objectContaining({
+      artifact,
+      runId: 'run-structured-cleanup',
+      reason: 'training-failed',
+    }))
+  })
+
+  it('summarizes every cleanup reason when multiple artifact compensations fail', async () => {
+    const storage = createPersistence()
+    ;(storage.persistence as any).recordArtifactCleanupIntent = vi.fn(async () => {})
+    let runSequence = 0
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async (input: PersonaTrainingExecutorInput) => ({
+        artifact: createArtifact(input.runId, `artifact-${input.runId}`),
+      }),
+      artifactLifecycle: {
+        discardArtifact: async (artifact: AlicizationPersonaTrainingArtifact) => {
+          throw new Error(`cleanup unavailable for ${artifact.artifactId}`)
+        },
+      },
+      persistence: storage.persistence,
+      now: () => 200,
+      randomUUID: () => `run-cleanup-${++runSequence}`,
+      basePersonaRevision: () => 'persona-core-v1',
+    } as any)
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'succeeded',
+    })
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'succeeded',
+    })
+
+    let cleanupFailure: unknown
+    try {
+      await gate.revokeSource({
+        cardId: 'card-a',
+        sourceId: 'reflection-1',
+      })
+    }
+    catch (error) {
+      cleanupFailure = error
+    }
+
+    expect(cleanupFailure).toBeInstanceOf(AggregateError)
+    expect((cleanupFailure as Error).message).toContain('cleanup unavailable for artifact-run-cleanup-1')
+    expect((cleanupFailure as Error).message).toContain('cleanup unavailable for artifact-run-cleanup-2')
+  })
+
+  it('discards a completed artifact only after source revoke governance commits', async () => {
+    const storage = createPersistence()
+    const artifact = createArtifact('run-completed-source-revoke', 'artifact-completed-source-revoke')
+    const discardArtifact = vi.fn(async () => {})
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async () => ({ artifact }),
+      artifactLifecycle: {
+        discardArtifact,
+      },
+      persistence: storage.persistence,
+      now: () => 200,
+      randomUUID: () => 'run-completed-source-revoke',
+      basePersonaRevision: () => 'persona-core-v1',
+    } as any)
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'succeeded',
+    })
+    await gate.revokeSource({
+      cardId: 'card-a',
+      sourceId: 'reflection-1',
+    })
+
+    expect(discardArtifact).toHaveBeenCalledWith(artifact)
+    expect(gate.listUsableIncrements()).toEqual([])
+  })
+
+  it('keeps a completed artifact available when source revoke governance rolls back', async () => {
+    const storage = createPersistence()
+    const artifact = createArtifact('run-source-revoke-rollback', 'artifact-source-revoke-rollback')
+    const discardArtifact = vi.fn(async () => {})
+    const datasetRuntime = createDatasetRuntime()
+    datasetRuntime.revokeSource = async () => {
+      throw new Error('forced source revoke audit failure')
+    }
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime,
+      trainingExecutor: async () => ({ artifact }),
+      artifactLifecycle: {
+        discardArtifact,
+      },
+      persistence: storage.persistence,
+      now: () => 200,
+      randomUUID: () => 'run-source-revoke-rollback',
+      basePersonaRevision: () => 'persona-core-v1',
+    } as any)
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'succeeded',
+    })
+    await expect(gate.revokeSource({
+      cardId: 'card-a',
+      sourceId: 'reflection-1',
+    })).rejects.toThrow('forced source revoke audit failure')
+
+    expect(discardArtifact).not.toHaveBeenCalled()
+    expect(gate.listUsableIncrements()).toEqual([
+      expect.objectContaining({
+        artifact,
+        state: 'available',
+      }),
+    ])
   })
 
   it('aborts an active run when one of its cleaned sources is revoked', async () => {
