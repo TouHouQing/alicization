@@ -35,6 +35,7 @@
     "skipTemplateCodegen": false
   },
   "include": [
+    "../../apps/stage-tamagotchi/src/shared/alicization-memory-workbench-parity.type-spec.ts",
     "env.d.ts",
     "src/**/*.ts",
     "src/**/*.d.ts",
