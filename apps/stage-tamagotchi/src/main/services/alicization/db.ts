@@ -1,4 +1,7 @@
-import type { AlicizationRuntimeEventEnvelope } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationPersonaTrainingArtifact,
+  AlicizationRuntimeEventEnvelope,
+} from '@proj-alicization/stage-shared'
 
 import type {
   AlicizationActiveThought,
@@ -126,6 +129,7 @@ import type {
 import type {
   PersonaTrainingExecutorInput,
   PersonaTrainingExecutorOutput,
+  PersonaTrainingPipelineAuditEvent,
   PersonaTrainingPipelineGate,
   PersonaTrainingPipelineIncrement,
   PersonaTrainingPipelinePersistence,
@@ -154,7 +158,11 @@ import { join } from 'node:path'
 import sqlite3 from 'sqlite3'
 
 import { errorMessageFrom } from '@moeru/std'
-import { normalizeAlicizationMemoryProvenance, sanitizeAlicizationProviderFacingText } from '@proj-alicization/stage-shared'
+import {
+  normalizeAlicizationMemoryProvenance,
+  parseAlicizationPersonaTrainingArtifact,
+  sanitizeAlicizationProviderFacingText,
+} from '@proj-alicization/stage-shared'
 
 import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
 import { normalizeWorkingMemoryLongTermEvidence } from './life-core/working-memory'
@@ -231,6 +239,7 @@ import { createPersonaTrainingDatasetRuntime } from './persona-training-dataset-
 import {
   createPersonaTrainingPipelineGate,
 } from './persona-training-pipeline-gate'
+import { normalizePersonaTrainingProcessConfig } from './persona-training-process-executor'
 import {
   resolveAlicizationAutonomousDialogueFamilyClassification,
   resolveAlicizationAutonomousDialogueOrigin,
@@ -831,24 +840,77 @@ function parseJsonObject(raw: string | null) {
   }
 }
 
-function parseJsonUnknown(raw: string | null): unknown {
+function parsePersistedPersonaTrainingArtifact(
+  raw: string | null,
+  context: string,
+): AlicizationPersonaTrainingArtifact | null {
   if (!raw)
     return null
+  let parsed: unknown
   try {
-    return JSON.parse(raw) as unknown
+    parsed = JSON.parse(raw) as unknown
   }
-  catch {
-    return null
+  catch (error) {
+    throw new Error(`invalid persisted persona training artifact (${context}): malformed JSON`, {
+      cause: error,
+    })
+  }
+  try {
+    return parseAlicizationPersonaTrainingArtifact(parsed)
+  }
+  catch (error) {
+    throw new Error(`invalid persisted persona training artifact (${context}): ${errorMessageFrom(error) ?? String(error)}`, {
+      cause: error,
+    })
   }
 }
 
-function serializePersonaTrainingArtifact(artifact: unknown) {
-  try {
-    const serialized = JSON.stringify(artifact)
-    return serialized === undefined ? null : serialized
-  }
-  catch {
+function serializePersonaTrainingArtifact(
+  artifact: AlicizationPersonaTrainingArtifact | null,
+) {
+  if (artifact == null)
     return null
+  return JSON.stringify(parseAlicizationPersonaTrainingArtifact(artifact))
+}
+
+function requirePersistedPersonaTrainingArtifact(
+  raw: string | null,
+  context: string,
+  expectedRunId: string,
+) {
+  const artifact = parsePersistedPersonaTrainingArtifact(raw, context)
+  if (!artifact)
+    throw new Error(`invalid persisted persona training artifact (${context}): value is missing`)
+  if (artifact.runId !== expectedRunId) {
+    throw new Error(
+      `invalid persisted persona training artifact (${context}): runId does not match persisted owner`,
+    )
+  }
+  return artifact
+}
+
+function parsePersistedPersonaTrainingExecutorConfig(
+  raw: string | null,
+  context: string,
+) {
+  if (!raw)
+    return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw) as unknown
+  }
+  catch (error) {
+    throw new Error(`invalid persisted persona training executor config (${context}): malformed JSON`, {
+      cause: error,
+    })
+  }
+  try {
+    return normalizePersonaTrainingProcessConfig(parsed)
+  }
+  catch (error) {
+    throw new Error(`invalid persisted persona training executor config (${context}): ${errorMessageFrom(error) ?? String(error)}`, {
+      cause: error,
+    })
   }
 }
 
@@ -3449,28 +3511,32 @@ export async function setupAlicizationDb(
     }) satisfies AlicizationMemoryStats
   }
 
-  async function appendAuditLog(input: AlicizationAuditLogInput) {
+  async function insertAuditLog(input: AlicizationAuditLogInput) {
     const createdAt = Number.isFinite(input.createdAt) ? Number(input.createdAt) : now()
     const level = input.level ?? 'info'
     const payloadJson = input.payload ? JSON.stringify(input.payload) : null
 
+    await run(
+      database,
+      `
+      INSERT INTO audit_logs (id, level, category, action, message, payload_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        randomUUID(),
+        level,
+        input.category,
+        input.action,
+        input.message,
+        payloadJson,
+        createdAt,
+      ],
+    )
+  }
+
+  async function appendAuditLog(input: AlicizationAuditLogInput) {
     await enqueueWrite(async () => {
-      await run(
-        database,
-        `
-        INSERT INTO audit_logs (id, level, category, action, message, payload_json, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-          randomUUID(),
-          level,
-          input.category,
-          input.action,
-          input.message,
-          payloadJson,
-          createdAt,
-        ],
-      )
+      await insertAuditLog(input)
     })
   }
 
@@ -6447,7 +6513,105 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       revokedAt: row.revoked_at,
     }
   }
+  async function insertPersonaTrainingAuditEvent(event: PersonaTrainingPipelineAuditEvent) {
+    await insertAuditLog({
+      level: event.action === 'training-failed' ? 'warning' : 'notice',
+      category: 'persona-training',
+      action: event.action,
+      message: `Persona training lifecycle event: ${event.action}.`,
+      payload: {
+        runId: event.runId,
+        incrementId: event.incrementId,
+        cardId: event.cardId,
+        datasetId: event.datasetId,
+        manifestHash: event.manifestHash,
+        sourceIds: event.sourceIds,
+        reason: event.reason,
+      },
+      createdAt: event.createdAt,
+    })
+  }
+  interface PersonaTrainingIncrementRow {
+    id: string
+    run_id: string
+    card_id: string
+    dataset_id: string
+    manifest_hash: string
+    source_ids_json: string
+    base_persona_revision: string
+    artifact_json: string | null
+    state: PersonaTrainingPipelineIncrement['state']
+    created_at: number
+  }
+  async function transitionPersonaTrainingIncrements(input: {
+    cardId: string
+    state: Extract<PersonaTrainingPipelineIncrement['state'], 'rolled-back' | 'revoked'>
+    reason: string
+    at: number
+    excludeDatasetId?: string
+    sourceId?: string
+  }) {
+    const eligibleStateClause = input.state === 'revoked'
+      ? `state != 'revoked'`
+      : `state = 'available'`
+    const filters = ['card_id = ?', eligibleStateClause]
+    const params: unknown[] = [input.cardId]
+    if (input.excludeDatasetId) {
+      filters.push('dataset_id != ?')
+      params.push(input.excludeDatasetId)
+    }
+    if (input.sourceId) {
+      filters.push(`
+        EXISTS (
+          SELECT 1
+          FROM json_each(persona_training_increments.source_ids_json)
+          WHERE json_each.value = ?
+        )
+      `)
+      params.push(input.sourceId)
+    }
+    const rows = await all<PersonaTrainingIncrementRow>(
+      database,
+      `
+      SELECT *
+      FROM persona_training_increments
+      WHERE ${filters.join(' AND ')}
+      ORDER BY created_at ASC, id ASC
+      `,
+      params,
+    )
+    let affected = 0
+    for (const row of rows) {
+      const result = await run(
+        database,
+        `
+        UPDATE persona_training_increments
+        SET state = ?
+        WHERE id = ? AND ${eligibleStateClause}
+        `,
+        [input.state, row.id],
+      )
+      if (Number(result?.changes ?? 0) === 0)
+        continue
+      affected += 1
+      await insertPersonaTrainingAuditEvent({
+        action: input.state === 'revoked'
+          ? 'training-increment-revoked'
+          : 'training-increment-rolled-back',
+        runId: null,
+        incrementId: row.id,
+        cardId: row.card_id,
+        datasetId: row.dataset_id,
+        manifestHash: row.manifest_hash,
+        sourceIds: parseJsonStringArray(row.source_ids_json),
+        reason: input.reason,
+        createdAt: input.at,
+      })
+    }
+    return affected
+  }
   const personaTrainingDatasetRepository: PersonaTrainingDatasetRepository = {
+    atomicTrainingGovernance: true,
     listVersions: async (cardId) => {
       const rows = await all<{
         id: string
@@ -6584,6 +6748,13 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         await runInTransaction(database, async () => {
           await run(database, 'UPDATE persona_training_datasets SET active_at = NULL WHERE card_id = ?', [cardId])
           await run(database, 'UPDATE persona_training_datasets SET active_at = ? WHERE card_id = ? AND id = ?', [at, cardId, datasetId])
+          await transitionPersonaTrainingIncrements({
+            cardId,
+            state: 'rolled-back',
+            reason: 'dataset-activated',
+            at,
+            excludeDatasetId: datasetId,
+          })
         })
       })
       const row = await get<Parameters<typeof mapPersonaTrainingDatasetVersionRow>[0]>(
@@ -6614,6 +6785,13 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             'UPDATE persona_training_datasets SET active_at = ?, rolled_back_at = NULL WHERE card_id = ? AND id = ?',
             [at, cardId, datasetId],
           )
+          await transitionPersonaTrainingIncrements({
+            cardId,
+            state: 'rolled-back',
+            reason: 'dataset-rolled-back',
+            at,
+            excludeDatasetId: datasetId,
+          })
         })
       })
       const row = await get<Parameters<typeof mapPersonaTrainingDatasetVersionRow>[0]>(
@@ -6624,16 +6802,25 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       return row ? mapPersonaTrainingDatasetVersionRow(row) : null
     },
     revokeSource: async (cardId, sourceId, at) => {
-      const result = await enqueueWrite(async () => await run(
-        database,
-        `
-        UPDATE persona_training_dataset_examples
-        SET state = 'revoked', allow_training = 0, revoked_at = ?
-        WHERE card_id = ? AND source_id = ? AND state != 'revoked'
-        `,
-        [at, cardId, sourceId],
-      )) as { changes?: number } | undefined
-      return Number(result?.changes ?? 0)
+      return await enqueueWrite(async () => await runInTransaction(database, async () => {
+        const result = await run(
+          database,
+          `
+          UPDATE persona_training_dataset_examples
+          SET state = 'revoked', allow_training = 0, revoked_at = ?
+          WHERE card_id = ? AND source_id = ? AND state != 'revoked'
+          `,
+          [at, cardId, sourceId],
+        )
+        await transitionPersonaTrainingIncrements({
+          cardId,
+          state: 'revoked',
+          reason: 'source-revoked',
+          at,
+          sourceId,
+        })
+        return Number(result?.changes ?? 0)
+      }))
     },
     updateExamplePolicy: async (policyInput) => {
       await enqueueWrite(async () => {
@@ -6682,7 +6869,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     cancellation_requested_at: number | null
   }
   const mapPersonaTrainingRunRow = (row: PersonaTrainingRunRow): PersonaTrainingPipelineRunRecord => {
-    const configSnapshot = parseJsonUnknown(row.config_snapshot_json)
+    const artifact = parsePersistedPersonaTrainingArtifact(row.artifact_json, `run ${row.run_id}`)
+    if (artifact && artifact.runId !== row.run_id) {
+      throw new Error(
+        `invalid persisted persona training artifact (run ${row.run_id}): runId does not match persisted owner`,
+      )
+    }
     return {
       runId: row.run_id,
       cardId: row.card_id,
@@ -6695,10 +6887,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       progress: Number(row.progress) || 0,
       progressMessage: row.progress_message,
       failureReason: row.failure_reason,
-      configSnapshot: configSnapshot && typeof configSnapshot === 'object'
-        ? configSnapshot as PersonaTrainingPipelineRunRecord['configSnapshot']
-        : null,
-      artifact: parseJsonUnknown(row.artifact_json),
+      configSnapshot: parsePersistedPersonaTrainingExecutorConfig(
+        row.config_snapshot_json,
+        `run ${row.run_id}`,
+      ),
+      artifact,
       error: row.error,
       queuedAt: Number(row.queued_at),
       startedAt: row.started_at == null ? null : Number(row.started_at),
@@ -6822,18 +7015,167 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         values.push(runUpdate.cancellationRequestedAt)
       }
       if (updates.length === 0)
-        return
+        return false
       values.push(runUpdate.runId)
-      await enqueueWrite(async () => {
-        await run(
+      return await enqueueWrite(async () => {
+        const result = await run(
           database,
-          `UPDATE persona_training_runs SET ${updates.join(', ')} WHERE run_id = ?`,
+          `
+          UPDATE persona_training_runs
+          SET ${updates.join(', ')}
+          WHERE run_id = ?
+            AND status IN ('queued', 'running', 'cancel_requested')
+          `,
           values,
         )
+        return Number(result?.changes ?? 0) > 0
       })
     },
-    createIncrement: async (increment) => {
-      await enqueueWrite(async () => {
+    completeRunWithIncrement: async (completionInput) => {
+      return await enqueueWrite(async () => await runInTransaction(database, async () => {
+        const { increment, run: completedRun } = completionInput
+        if (
+          completedRun.status !== 'completed'
+          || increment.state !== 'available'
+          || increment.id !== `persona-training-increment:${completedRun.runId}`
+          || increment.cardId !== completedRun.cardId
+          || increment.datasetId !== completedRun.datasetId
+          || increment.manifestHash !== completedRun.manifestHash
+          || increment.basePersonaRevision !== completedRun.basePersonaRevision
+          || increment.artifact.runId !== completedRun.runId
+          || serializePersonaTrainingArtifact(increment.artifact) !== serializePersonaTrainingArtifact(completedRun.artifact)
+          || [...increment.sourceIds].sort().join('\0') !== [...completedRun.sourceIds].sort().join('\0')
+        ) {
+          return {
+            completed: false,
+            reason: 'manifest-no-longer-usable' as const,
+            error: 'persona training completion payload is internally inconsistent',
+          }
+        }
+        const currentRun = await get<PersonaTrainingRunRow>(
+          database,
+          `
+          SELECT *
+          FROM persona_training_runs
+          WHERE run_id = ?
+          `,
+          [completedRun.runId],
+        )
+        if (!currentRun || currentRun.status !== 'terminalizing') {
+          return {
+            completed: false,
+            reason: 'manifest-no-longer-usable' as const,
+            error: 'persona training run is no longer terminalizing',
+          }
+        }
+        const persistedSourceIds = parseJsonStringArray(currentRun.source_ids_json)
+        if (
+          currentRun.card_id !== completedRun.cardId
+          || currentRun.dataset_id !== completedRun.datasetId
+          || currentRun.manifest_hash !== completedRun.manifestHash
+          || currentRun.base_persona_revision !== completedRun.basePersonaRevision
+          || [...persistedSourceIds].sort().join('\0') !== [...completedRun.sourceIds].sort().join('\0')
+        ) {
+          return {
+            completed: false,
+            reason: 'manifest-no-longer-usable' as const,
+            error: 'persisted persona training run scope no longer matches the completion payload',
+          }
+        }
+        const dataset = await get<{
+          consent_snapshot_json: string
+        }>(
+          database,
+          `
+          SELECT consent_snapshot_json
+          FROM persona_training_datasets
+          WHERE id = ?
+            AND card_id = ?
+            AND active_at IS NOT NULL
+            AND rolled_back_at IS NULL
+          `,
+          [completedRun.datasetId, completedRun.cardId],
+        )
+        if (!dataset || !parsePersonaTrainingDatasetConsent(dataset.consent_snapshot_json).granted) {
+          return {
+            completed: false,
+            reason: 'dataset-not-active' as const,
+            error: 'persona training dataset is no longer active or consented',
+          }
+        }
+        const exported = await get<{ id: string }>(
+          database,
+          `
+          SELECT id
+          FROM persona_training_dataset_exports
+          WHERE dataset_id = ?
+            AND card_id = ?
+            AND manifest_hash = ?
+          LIMIT 1
+          `,
+          [completedRun.datasetId, completedRun.cardId, completedRun.manifestHash],
+        )
+        if (!exported) {
+          return {
+            completed: false,
+            reason: 'manifest-no-longer-usable' as const,
+            error: 'persona training manifest export is no longer available',
+          }
+        }
+        const sourceIds = [...new Set(completedRun.sourceIds)]
+        if (sourceIds.length === 0) {
+          return {
+            completed: false,
+            reason: 'manifest-no-longer-usable' as const,
+            error: 'persona training completion has no source examples',
+          }
+        }
+        const exampleRows = await all<{
+          source_id: string
+          state: PersonaTrainingDatasetExample['state']
+          allow_training: number
+          pii_status: PersonaTrainingDatasetExample['piiStatus']
+          consent_snapshot_json: string
+          provenance_json: string | null
+        }>(
+          database,
+          `
+          SELECT
+            source_id,
+            state,
+            allow_training,
+            pii_status,
+            consent_snapshot_json,
+            provenance_json
+          FROM persona_training_dataset_examples
+          WHERE card_id = ?
+            AND dataset_id = ?
+            AND source_id IN (${sourceIds.map(() => '?').join(', ')})
+          `,
+          [completedRun.cardId, completedRun.datasetId, ...sourceIds],
+        )
+        const usableSourceIds = new Set(
+          exampleRows
+            .filter(row =>
+              row.state === 'staged'
+              && row.allow_training === 1
+              && row.pii_status === 'clear'
+              && parsePersonaTrainingDatasetConsent(row.consent_snapshot_json).granted
+              && parsePersonaTrainingDatasetProvenance(row.provenance_json) != null,
+            )
+            .map(row => row.source_id),
+        )
+        if (sourceIds.some(sourceId => !usableSourceIds.has(sourceId))) {
+          const revoked = exampleRows.some(row =>
+            sourceIds.includes(row.source_id) && row.state === 'revoked',
+          )
+          return {
+            completed: false,
+            reason: revoked ? 'source-revoked' as const : 'manifest-no-longer-usable' as const,
+            error: 'persona training source is no longer eligible for training',
+          }
+        }
+
         await run(
           database,
           `
@@ -6844,7 +7186,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           `,
           [
             increment.id,
-            increment.id.replace(/^persona-training-increment:/, ''),
+            completedRun.runId,
             increment.cardId,
             increment.datasetId,
             increment.manifestHash,
@@ -6855,7 +7197,82 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             increment.createdAt,
           ],
         )
-      })
+        const updated = await run(
+          database,
+          `
+          UPDATE persona_training_runs
+          SET
+            status = ?,
+            stage = ?,
+            progress = ?,
+            progress_message = ?,
+            failure_reason = ?,
+            artifact_json = ?,
+            error = ?,
+            updated_at = ?,
+            finished_at = ?
+          WHERE run_id = ? AND status = 'terminalizing'
+          `,
+          [
+            completedRun.status,
+            completedRun.stage,
+            completedRun.progress,
+            completedRun.progressMessage,
+            completedRun.failureReason,
+            serializePersonaTrainingArtifact(completedRun.artifact),
+            completedRun.error,
+            completedRun.updatedAt,
+            completedRun.finishedAt,
+            completedRun.runId,
+          ],
+        )
+        if (Number(updated?.changes ?? 0) !== 1)
+          throw new Error('persona training completion lost its terminalizing compare-and-set')
+        await insertPersonaTrainingAuditEvent(completionInput.event)
+        return { completed: true }
+      }))
+    },
+    finishRun: async (finishInput) => {
+      return await enqueueWrite(async () => await runInTransaction(database, async () => {
+        const finalRun = finishInput.run
+        if (!['failed', 'cancelled', 'interrupted'].includes(finalRun.status))
+          throw new Error('persona training finishRun requires a non-completed terminal status')
+        const updated = await run(
+          database,
+          `
+          UPDATE persona_training_runs
+          SET
+            status = ?,
+            stage = ?,
+            progress = ?,
+            progress_message = ?,
+            failure_reason = ?,
+            artifact_json = ?,
+            error = ?,
+            updated_at = ?,
+            finished_at = ?,
+            cancellation_requested_at = ?
+          WHERE run_id = ? AND status = 'terminalizing'
+          `,
+          [
+            finalRun.status,
+            finalRun.stage,
+            finalRun.progress,
+            finalRun.progressMessage,
+            finalRun.failureReason,
+            serializePersonaTrainingArtifact(finalRun.artifact),
+            finalRun.error,
+            finalRun.updatedAt,
+            finalRun.finishedAt,
+            finalRun.cancellationRequestedAt,
+            finalRun.runId,
+          ],
+        )
+        if (Number(updated?.changes ?? 0) !== 1)
+          return false
+        await insertPersonaTrainingAuditEvent(finishInput.event)
+        return true
+      }))
     },
     updateIncrementState: async (incrementUpdate) => {
       await enqueueWrite(async () => {
@@ -6866,37 +7283,45 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         )
       })
     },
+    transitionIncrementWithAudit: async (transitionInput) => {
+      return await enqueueWrite(async () => await runInTransaction(database, async () => {
+        const increment = await get<PersonaTrainingIncrementRow>(
+          database,
+          'SELECT * FROM persona_training_increments WHERE id = ?',
+          [transitionInput.incrementId],
+        )
+        if (!increment || increment.state !== 'available')
+          return false
+        if (
+          transitionInput.event.incrementId !== increment.id
+          || transitionInput.event.cardId !== increment.card_id
+          || transitionInput.event.datasetId !== increment.dataset_id
+          || transitionInput.event.manifestHash !== increment.manifest_hash
+        ) {
+          throw new Error('persona training increment audit scope does not match the persisted increment')
+        }
+        const updated = await run(
+          database,
+          `
+          UPDATE persona_training_increments
+          SET state = ?
+          WHERE id = ? AND state = 'available'
+          `,
+          [transitionInput.state, transitionInput.incrementId],
+        )
+        if (Number(updated?.changes ?? 0) !== 1)
+          return false
+        await insertPersonaTrainingAuditEvent(transitionInput.event)
+        return true
+      }))
+    },
     appendEvent: async (event) => {
-      await appendAuditLog({
-        level: event.action === 'training-failed' ? 'warning' : 'notice',
-        category: 'persona-training',
-        action: event.action,
-        message: `Persona training lifecycle event: ${event.action}.`,
-        payload: {
-          runId: event.runId,
-          incrementId: event.incrementId,
-          cardId: event.cardId,
-          datasetId: event.datasetId,
-          manifestHash: event.manifestHash,
-          sourceIds: event.sourceIds,
-          reason: event.reason,
-        },
-        createdAt: event.createdAt,
+      await enqueueWrite(async () => {
+        await insertPersonaTrainingAuditEvent(event)
       })
     },
     listIncrements: async () => {
-      const rows = await all<{
-        id: string
-        run_id: string
-        card_id: string
-        dataset_id: string
-        manifest_hash: string
-        source_ids_json: string
-        base_persona_revision: string
-        artifact_json: string | null
-        state: PersonaTrainingPipelineIncrement['state']
-        created_at: number
-      }>(
+      const rows = await all<PersonaTrainingIncrementRow>(
         database,
         'SELECT * FROM persona_training_increments ORDER BY created_at DESC, id DESC',
       )
@@ -6908,7 +7333,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         manifestHash: row.manifest_hash,
         sourceIds: parseJsonStringArray(row.source_ids_json),
         basePersonaRevision: row.base_persona_revision,
-        artifact: parseJsonUnknown(row.artifact_json),
+        artifact: requirePersistedPersonaTrainingArtifact(
+          row.artifact_json,
+          `increment ${row.id}`,
+          row.run_id,
+        ),
         state: row.state,
         createdAt: row.created_at,
       }))
@@ -6936,30 +7365,190 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       )
       return rows.map(mapPersonaTrainingRunRow)
     },
-    interruptNonTerminalRuns: async (interruptInput) => {
-      const cardClause = interruptInput.cardId ? 'AND card_id = ?' : ''
-      const result = await enqueueWrite(async () => await run(
-        database,
-        `
-        UPDATE persona_training_runs
-        SET
-          status = 'interrupted',
-          stage = 'finalizing',
-          failure_reason = 'interrupted',
-          error = ?,
-          updated_at = ?,
-          finished_at = ?
-        WHERE status IN ('queued', 'running', 'cancel_requested')
-          ${cardClause}
-        `,
-        [
-          interruptInput.reason,
-          interruptInput.at,
-          interruptInput.at,
-          ...(interruptInput.cardId ? [interruptInput.cardId] : []),
-        ],
-      ))
-      return Number(result?.changes ?? 0)
+    reconcileAfterRestart: async (reconcileInput) => {
+      return await enqueueWrite(async () => await runInTransaction(database, async () => {
+        const runScopeClause = reconcileInput.cardId ? 'AND card_id = ?' : ''
+        const runScopeParams = reconcileInput.cardId ? [reconcileInput.cardId] : []
+        const staleRuns = await all<PersonaTrainingRunRow>(
+          database,
+          `
+          SELECT *
+          FROM persona_training_runs
+          WHERE status IN ('queued', 'running', 'cancel_requested', 'terminalizing')
+            ${runScopeClause}
+          ORDER BY queued_at ASC, run_id ASC
+          `,
+          runScopeParams,
+        )
+        let interruptedRuns = 0
+        for (const staleRun of staleRuns) {
+          const updated = await run(
+            database,
+            `
+            UPDATE persona_training_runs
+            SET
+              status = 'interrupted',
+              stage = 'finalizing',
+              progress_message = NULL,
+              failure_reason = 'interrupted',
+              artifact_json = NULL,
+              error = ?,
+              updated_at = ?,
+              finished_at = ?
+            WHERE run_id = ?
+              AND status IN ('queued', 'running', 'cancel_requested', 'terminalizing')
+            `,
+            [
+              reconcileInput.reason,
+              reconcileInput.at,
+              reconcileInput.at,
+              staleRun.run_id,
+            ],
+          )
+          if (Number(updated?.changes ?? 0) !== 1)
+            continue
+          interruptedRuns += 1
+          await insertPersonaTrainingAuditEvent({
+            action: 'training-interrupted',
+            runId: staleRun.run_id,
+            incrementId: null,
+            cardId: staleRun.card_id,
+            datasetId: staleRun.dataset_id,
+            manifestHash: staleRun.manifest_hash,
+            sourceIds: parseJsonStringArray(staleRun.source_ids_json),
+            reason: reconcileInput.reason,
+            createdAt: reconcileInput.at,
+          })
+        }
+
+        const completedRuns = await all<PersonaTrainingRunRow & {
+          increment_id: string | null
+          increment_card_id: string | null
+          increment_dataset_id: string | null
+          increment_manifest_hash: string | null
+          increment_source_ids_json: string | null
+          increment_base_persona_revision: string | null
+          increment_artifact_json: string | null
+        }>(
+          database,
+          `
+          SELECT
+            persona_training_runs.*,
+            persona_training_increments.id AS increment_id,
+            persona_training_increments.card_id AS increment_card_id,
+            persona_training_increments.dataset_id AS increment_dataset_id,
+            persona_training_increments.manifest_hash AS increment_manifest_hash,
+            persona_training_increments.source_ids_json AS increment_source_ids_json,
+            persona_training_increments.base_persona_revision AS increment_base_persona_revision,
+            persona_training_increments.artifact_json AS increment_artifact_json
+          FROM persona_training_runs
+          LEFT JOIN persona_training_increments
+            ON persona_training_increments.run_id = persona_training_runs.run_id
+          WHERE persona_training_runs.status = 'completed'
+            ${reconcileInput.cardId ? 'AND persona_training_runs.card_id = ?' : ''}
+          ORDER BY persona_training_runs.queued_at ASC, persona_training_runs.run_id ASC
+          `,
+          runScopeParams,
+        )
+        for (const completedRun of completedRuns) {
+          const consistent = completedRun.increment_id != null
+            && completedRun.increment_card_id === completedRun.card_id
+            && completedRun.increment_dataset_id === completedRun.dataset_id
+            && completedRun.increment_manifest_hash === completedRun.manifest_hash
+            && completedRun.increment_source_ids_json === completedRun.source_ids_json
+            && completedRun.increment_base_persona_revision === completedRun.base_persona_revision
+            && completedRun.increment_artifact_json === completedRun.artifact_json
+            && completedRun.artifact_json != null
+          if (consistent)
+            continue
+          const reason = 'application-restarted-with-inconsistent-training-completion'
+          const updated = await run(
+            database,
+            `
+            UPDATE persona_training_runs
+            SET
+              status = 'interrupted',
+              stage = 'finalizing',
+              progress_message = NULL,
+              failure_reason = 'interrupted',
+              artifact_json = NULL,
+              error = ?,
+              updated_at = ?,
+              finished_at = ?
+            WHERE run_id = ? AND status = 'completed'
+            `,
+            [reason, reconcileInput.at, reconcileInput.at, completedRun.run_id],
+          )
+          if (Number(updated?.changes ?? 0) !== 1)
+            continue
+          interruptedRuns += 1
+          await insertPersonaTrainingAuditEvent({
+            action: 'training-interrupted',
+            runId: completedRun.run_id,
+            incrementId: completedRun.increment_id,
+            cardId: completedRun.card_id,
+            datasetId: completedRun.dataset_id,
+            manifestHash: completedRun.manifest_hash,
+            sourceIds: parseJsonStringArray(completedRun.source_ids_json),
+            reason,
+            createdAt: reconcileInput.at,
+          })
+        }
+
+        const inconsistentIncrements = await all<PersonaTrainingIncrementRow>(
+          database,
+          `
+          SELECT persona_training_increments.*
+          FROM persona_training_increments
+          LEFT JOIN persona_training_runs
+            ON persona_training_runs.run_id = persona_training_increments.run_id
+          WHERE persona_training_increments.state = 'available'
+            ${reconcileInput.cardId ? 'AND persona_training_increments.card_id = ?' : ''}
+            AND (
+              persona_training_runs.run_id IS NULL
+              OR persona_training_runs.status != 'completed'
+              OR persona_training_runs.card_id != persona_training_increments.card_id
+              OR persona_training_runs.dataset_id != persona_training_increments.dataset_id
+              OR persona_training_runs.manifest_hash != persona_training_increments.manifest_hash
+              OR persona_training_runs.source_ids_json != persona_training_increments.source_ids_json
+              OR persona_training_runs.base_persona_revision != persona_training_increments.base_persona_revision
+              OR COALESCE(persona_training_runs.artifact_json, '') != COALESCE(persona_training_increments.artifact_json, '')
+            )
+          ORDER BY persona_training_increments.created_at ASC, persona_training_increments.id ASC
+          `,
+          runScopeParams,
+        )
+        let rolledBackIncrements = 0
+        for (const increment of inconsistentIncrements) {
+          const updated = await run(
+            database,
+            `
+            UPDATE persona_training_increments
+            SET state = 'rolled-back'
+            WHERE id = ? AND state = 'available'
+            `,
+            [increment.id],
+          )
+          if (Number(updated?.changes ?? 0) !== 1)
+            continue
+          rolledBackIncrements += 1
+          await insertPersonaTrainingAuditEvent({
+            action: 'training-increment-rolled-back',
+            runId: increment.run_id,
+            incrementId: increment.id,
+            cardId: increment.card_id,
+            datasetId: increment.dataset_id,
+            manifestHash: increment.manifest_hash,
+            sourceIds: parseJsonStringArray(increment.source_ids_json),
+            reason: 'application-restarted-with-inconsistent-training-increment',
+            createdAt: reconcileInput.at,
+          })
+        }
+        return {
+          interruptedRuns,
+          rolledBackIncrements,
+        }
+      }))
     },
   }
   async function recordPersonaTrainingSourceProvenance(input: {
@@ -9761,7 +10350,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
   await rebuildLongTermMemorySearchIndexForCard(boundCardId, 'initial long-term memory search index rebuild')
   await memoryEmbeddingReindexRuntime.resumePendingJobs(8, boundCardId)
   await memorySemanticScaleJobRuntime.resumePendingJobs(boundCardId)
-  await personaTrainingPipelinePersistence.interruptNonTerminalRuns?.({
+  await personaTrainingPipelinePersistence.reconcileAfterRestart?.({
     cardId: hasBoundCardScope ? boundCardId : null,
     reason: 'application-restarted-before-training-completed',
     at: now(),

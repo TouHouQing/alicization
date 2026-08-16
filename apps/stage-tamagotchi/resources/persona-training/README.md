@@ -1,14 +1,14 @@
 # Alicization Local Persona Training Protocol
 
 Alicization does not bundle or silently install a LoRA training framework. The user
-configures an executable wrapper that adapts an existing local trainer to this protocol.
+configures an executable that implements this protocol.
 
 ## Probe
 
 Alicization checks the wrapper with:
 
 ```text
-<executable> <fixed arguments...> --probe
+<executable> --probe
 ```
 
 The wrapper must write one JSON object per stdout line and exit with code `0`:
@@ -22,7 +22,7 @@ The wrapper must write one JSON object per stdout line and exit with code `0`:
 Alicization starts training with `shell: false` and an argument array:
 
 ```text
-<executable> <fixed arguments...>
+<executable>
   --manifest <absolute manifest.json path>
   --dataset <absolute dataset.jsonl path>
   --output-dir <absolute run output directory>
@@ -31,6 +31,8 @@ Alicization starts training with `shell: false` and an argument array:
 ```
 
 The child environment is allowlisted and does not inherit Provider API keys.
+Alicization does not accept user-defined fixed arguments; every protocol argument is
+constructed by the main process.
 
 `manifest.json` contains the approved dataset manifest, run ID, and base persona
 revision. `dataset.jsonl` contains only cleaned, consented examples accepted by the

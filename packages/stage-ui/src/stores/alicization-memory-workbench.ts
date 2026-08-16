@@ -150,7 +150,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     if (!semanticScaleLoading.value)
       await refreshSemanticScaleJob(job.jobId, { select: false })
   }, 2_000, { immediate: false })
-  const activePersonaTrainingStatuses = new Set(['queued', 'running', 'cancel_requested'])
+  const activePersonaTrainingStatuses = new Set(['queued', 'running', 'cancel_requested', 'terminalizing'])
   const { pause: pausePersonaTrainingPolling, resume: resumePersonaTrainingPolling } = useIntervalFn(async () => {
     const run = personaTrainingRun.value
     if (!run || !activePersonaTrainingStatuses.has(run.status)) {

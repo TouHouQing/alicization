@@ -849,7 +849,6 @@ describe('alicization memory workbench store', () => {
       failureReason: null,
       configSnapshot: {
         executable: '/usr/local/bin/persona-trainer',
-        fixedArguments: [],
         baseModel: 'base-model-v1',
         timeoutMs: 60_000,
       },
@@ -959,7 +958,6 @@ describe('alicization memory workbench store', () => {
   it('persists and tests the local persona trainer configuration through the bridge', async () => {
     const config = {
       executable: '/usr/local/bin/persona-trainer',
-      fixedArguments: ['wrapper.js'],
       baseModel: 'base-model-v1',
       timeoutMs: 60_000,
     }
@@ -996,6 +994,12 @@ describe('alicization memory workbench store', () => {
     expect(store.personaTrainingExecutorConnection).toMatchObject({
       ok: true,
       executable: config.executable,
+    })
+    expect(memoryWorkbenchSetPersonaTrainingExecutorConfig).toHaveBeenCalledWith({
+      config,
+    })
+    expect(memoryWorkbenchTestPersonaTrainingExecutor).toHaveBeenCalledWith({
+      config,
     })
   })
 

@@ -84,13 +84,27 @@ describe('memory workbench settings page', () => {
     expect(configSource).toContain('savePersonaTrainingExecutorConfig')
     expect(configSource).toContain('testPersonaTrainingExecutor')
     expect(configSource).toContain('persona_training_executor_description')
+    expect(configSource).not.toContain('fixedArgumentsText')
+    expect(configSource).not.toContain('persona_training_fixed_arguments')
     expect(runsSource).toContain('refreshPersonaTrainingRuns')
     expect(runsSource).toContain('cancelPersonaTraining')
     expect(runsSource).toContain('personaTrainingRun.artifact.activation.status')
     expect(runsSource).toContain('persona_training_increment_')
+    expect(runsSource).toContain('\'terminalizing\'')
+    expect(runsSource).toContain('cancelableStatuses')
     expect(runsSource).not.toContain('{{ increment.state }}')
     expect(runsSource).not.toContain('已激活')
     expect(source).toContain('resetPersonaTrainingScope')
+  })
+
+  it('keeps polling terminalizing persona runs while disabling late cancellation', () => {
+    const storeSource = readFileSync(new URL('../../../../../../../packages/stage-ui/src/stores/alicization-memory-workbench.ts', import.meta.url), 'utf8')
+    const zhSource = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/zh-Hans/settings.yaml', import.meta.url), 'utf8')
+    const enSource = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/en/settings.yaml', import.meta.url), 'utf8')
+
+    expect(storeSource).toContain('\'terminalizing\'')
+    expect(zhSource).toContain('persona_training_terminalizing:')
+    expect(enSource).toContain('persona_training_terminalizing:')
   })
 
   it('renders dataset governance controls and truthful vector index health', () => {

@@ -21,9 +21,11 @@ const {
   personaTrainingRuns,
 } = storeToRefs(store)
 
-const activeStatuses = new Set(['queued', 'running', 'cancel_requested'])
+const activeStatuses = new Set(['queued', 'running', 'cancel_requested', 'terminalizing'])
+const cancelableStatuses = new Set(['queued', 'running', 'cancel_requested'])
 const canStart = computed(() => Boolean(props.datasetId && personaTrainingExecutorConfigState.value.configured))
-const canCancel = computed(() => Boolean(personaTrainingRun.value && activeStatuses.has(personaTrainingRun.value.status)))
+const hasActiveRun = computed(() => Boolean(personaTrainingRun.value && activeStatuses.has(personaTrainingRun.value.status)))
+const canCancel = computed(() => Boolean(personaTrainingRun.value && cancelableStatuses.has(personaTrainingRun.value.status)))
 const progressWidth = computed(() => `${Math.round((personaTrainingRun.value?.progress ?? 0) * 100)}%`)
 
 function statusLabel(run: AlicizationPersonaTrainingPipelineRunRecord) {
@@ -79,7 +81,7 @@ onMounted(async () => {
           :label="t('settings.pages.memory.workbench.actions.run_persona_training')"
           icon="i-solar:play-bold-duotone"
           size="sm"
-          :disabled="!canStart || canCancel"
+          :disabled="!canStart || hasActiveRun"
           :loading="personaTrainingRunLoading && !personaTrainingRun"
           @click="store.runPersonaTraining(datasetId)"
         />

@@ -1,7 +1,7 @@
 import type { PersonaTrainingExecutorInput } from './persona-training-pipeline-gate'
 
 import { createHash } from 'node:crypto'
-import { chmod, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -58,6 +58,16 @@ function createManifest() {
       negativeExample: null,
     }],
     manifestHash: 'manifest-hash-1',
+  }
+}
+
+function createExample(index: number, overrides: Record<string, unknown> = {}) {
+  return {
+    ...createManifest().examples[0],
+    id: `example-${index}`,
+    sourceId: `reflection-${index}`,
+    contentHash: `content-hash-${index}`,
+    ...overrides,
   }
 }
 
@@ -121,7 +131,6 @@ process.stdout.write(JSON.stringify({ type: 'artifact' }) + '\\n')
 
     const result = await executor.execute(createInput(), {
       executable,
-      fixedArguments: [],
       baseModel: 'base-model-v1',
       timeoutMs: 5_000,
     })
@@ -145,7 +154,44 @@ process.stdout.write(JSON.stringify({ type: 'artifact' }) + '\\n')
     })
     const artifact = result.artifact as { path: string }
     await expect(readFile(artifact.path, 'utf8')).resolves.toBe('verified-adapter')
-    expect(artifact.path).toContain(join('persona-training', 'artifacts', 'artifact-1'))
+    expect(artifact.path).toContain(join('persona-training', 'artifacts', 'artifact-1', 'output'))
+    const artifactStat = await stat(artifact.path)
+    expect(artifactStat.isFile()).toBe(true)
+  })
+
+  it.each([
+    ['executor observer', 'observer progress failed', true],
+    ['run persistence', 'run progress failed', false],
+  ])('turns %s rejection into a handled transparent run failure', async (_, failureMessage, rejectObserver) => {
+    const root = await createSandbox()
+    const executable = await createExecutable(root, `
+process.stdout.write(JSON.stringify({ type: 'ready' }) + '\\n')
+process.stdout.write(JSON.stringify({ type: 'progress', progress: 0.25 }) + '\\n')
+setInterval(() => {}, 1000)
+`)
+    const executor = createPersonaTrainingProcessExecutor({
+      cardRootDir: join(root, 'card-a'),
+      terminationGraceMs: 20,
+      onProgress: rejectObserver
+        ? async () => {
+          throw new Error(failureMessage)
+        }
+        : undefined,
+    })
+    const input = createInput({
+      onProgress: rejectObserver
+        ? undefined
+        : async () => {
+          throw new Error(failureMessage)
+        },
+    })
+
+    await expect(executor.execute(input, {
+      executable,
+      baseModel: 'base-model-v1',
+      timeoutMs: 5_000,
+    })).rejects.toThrow(failureMessage)
+    await vi.waitFor(() => expect(executor.activeProcessCount()).toBe(0))
   })
 
   it('terminates the child process when the caller cancels', async () => {
@@ -162,7 +208,6 @@ setInterval(() => {}, 1000)
 
     const running = executor.execute(createInput({ signal: controller.signal }), {
       executable,
-      fixedArguments: [],
       baseModel: 'base-model-v1',
       timeoutMs: 5_000,
     })
@@ -186,7 +231,6 @@ setInterval(() => {}, 1000)
 
     await expect(executor.execute(createInput(), {
       executable,
-      fixedArguments: [],
       baseModel: 'base-model-v1',
       timeoutMs: 30,
     })).rejects.toThrow('timed out')
@@ -204,7 +248,6 @@ process.exit(17)
 
     await expect(executor.execute(createInput(), {
       executable,
-      fixedArguments: [],
       baseModel: 'base-model-v1',
       timeoutMs: 5_000,
     })).rejects.toThrow('trainer dependency missing')
@@ -241,7 +284,6 @@ process.stdout.write(JSON.stringify({ type: 'artifact' }) + '\\n')
 
     await expect(executor.execute(createInput(), {
       executable,
-      fixedArguments: [],
       baseModel: 'base-model-v1',
       timeoutMs: 5_000,
     })).rejects.toThrow('hash')
@@ -308,7 +350,6 @@ process.stdout.write(JSON.stringify({ type: 'artifact' }) + '\\n')
 
     await expect(executor.execute(createInput(), {
       executable,
-      fixedArguments: [],
       baseModel: 'base-model-v1',
       timeoutMs: 5_000,
     })).rejects.toThrow(expectedError)
@@ -327,7 +368,6 @@ setInterval(() => {}, 1000)
 
     await expect(executor.execute(createInput(), {
       executable,
-      fixedArguments: [],
       baseModel: 'base-model-v1',
       timeoutMs: 5_000,
     })).rejects.toThrow('malformed JSONL')
@@ -347,20 +387,96 @@ setInterval(() => {}, 1000)
 
     await expect(executor.execute(createInput(), {
       executable,
-      fixedArguments: [],
       baseModel: 'base-model-v1',
       timeoutMs: 5_000,
     })).rejects.toThrow('symbolic link')
     await expect(readFile(join(outsideRoot, 'runs', 'run-1', 'dataset.jsonl'), 'utf8')).rejects.toThrow()
   })
 
-  it('rejects fixed arguments that override reserved protocol parameters', () => {
-    expect(() => normalizePersonaTrainingProcessConfig({
+  it.each([
+    ['cards root', (root: string, outsideRoot: string) => {
+      const cardsRoot = join(root, 'cards')
+      return {
+        cardsRoot,
+        cardRoot: join(cardsRoot, 'card-a'),
+        prepare: async () => {
+          await symlink(outsideRoot, cardsRoot)
+        },
+      }
+    }],
+    ['intermediate card ancestor', (root: string, outsideRoot: string) => {
+      const cardsRoot = join(root, 'cards')
+      return {
+        cardsRoot,
+        cardRoot: join(cardsRoot, 'linked-parent', 'card-a'),
+        prepare: async () => {
+          await mkdir(cardsRoot, { recursive: true })
+          await symlink(outsideRoot, join(cardsRoot, 'linked-parent'))
+        },
+      }
+    }],
+  ])('rejects a symlinked %s before creating a run directory', async (_, buildPaths) => {
+    const root = await createSandbox()
+    const outsideRoot = join(root, 'outside')
+    await mkdir(outsideRoot, { recursive: true })
+    const paths = buildPaths(root, outsideRoot)
+    await paths.prepare()
+    const executable = await createExecutable(root, 'process.exit(0)')
+    const executor = createPersonaTrainingProcessExecutor({
+      cardsRootDir: paths.cardsRoot,
+      cardRootDir: paths.cardRoot,
+    })
+
+    await expect(executor.execute(createInput(), {
+      executable,
+      baseModel: 'base-model-v1',
+      timeoutMs: 5_000,
+    })).rejects.toThrow('symbolic link')
+    await expect(readFile(join(outsideRoot, 'card-a', 'persona-training', 'runs', 'run-1', 'dataset.jsonl'), 'utf8')).rejects.toThrow()
+  })
+
+  it('drops legacy fixedArguments instead of preserving executable argument injection', () => {
+    const normalized = normalizePersonaTrainingProcessConfig({
       executable: '/usr/bin/env',
       fixedArguments: ['node', 'wrapper.js', '--output-dir', '/tmp/outside'],
       baseModel: 'base-model-v1',
       timeoutMs: 5_000,
-    })).toThrow('reserved protocol argument')
+    })
+
+    expect(normalized).toEqual({
+      executable: '/usr/bin/env',
+      baseModel: 'base-model-v1',
+      timeoutMs: 5_000,
+    })
+    expect(normalized).not.toHaveProperty('fixedArguments')
+  })
+
+  it.each([
+    ['example count', Array.from({ length: 1_025 }, (_, index) => createExample(index))],
+    ['single JSONL line UTF-8 bytes', [createExample(1, { positiveExample: '你'.repeat(22_000) })]],
+    ['total JSONL bytes', Array.from({ length: 1_024 }, (_, index) => createExample(index, { positiveExample: 'x'.repeat(9_000) }))],
+  ])('rejects dataset %s limits before spawning the trainer', async (label, examples) => {
+    const root = await createSandbox()
+    const markerPath = join(root, 'trainer-started')
+    const executable = await createExecutable(root, `
+require('node:fs').writeFileSync(${JSON.stringify(markerPath)}, 'started')
+process.exit(0)
+`)
+    const executor = createPersonaTrainingProcessExecutor({
+      cardRootDir: join(root, 'card-a'),
+    })
+    const manifest = {
+      ...createManifest(),
+      exampleCount: examples.length,
+      examples,
+    }
+
+    await expect(executor.execute(createInput({ manifest }), {
+      executable,
+      baseModel: 'base-model-v1',
+      timeoutMs: 5_000,
+    })).rejects.toThrow(label)
+    await expect(readFile(markerPath, 'utf8')).rejects.toThrow()
   })
 
   it('tests the wrapper protocol without inheriting provider credentials', async () => {
@@ -377,7 +493,6 @@ process.stdout.write(JSON.stringify({ type: 'ready' }) + '\\n')
 
     const result = await testPersonaTrainingProcessConnection({
       executable,
-      fixedArguments: [],
       baseModel: 'base-model-v1',
       timeoutMs: 5_000,
     })

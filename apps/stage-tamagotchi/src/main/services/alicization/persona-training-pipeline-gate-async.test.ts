@@ -1,3 +1,5 @@
+import type { AlicizationPersonaTrainingArtifact } from '@proj-alicization/stage-shared'
+
 import type {
   PersonaTrainingDatasetManifest,
   PersonaTrainingDatasetRuntime,
@@ -19,6 +21,31 @@ const consent = {
   policyVersion: 'persona-training-consent-v1',
   scope: 'persona-dataset',
   capturedAt: 100,
+}
+
+function createArtifact(
+  runId: string,
+  artifactId = `artifact-${runId}`,
+): AlicizationPersonaTrainingArtifact {
+  return {
+    schemaVersion: 'alicization-persona-training-artifact-v1',
+    artifactId,
+    runId,
+    kind: 'lora-adapter',
+    path: `/tmp/persona-training/${artifactId}/adapter.safetensors`,
+    sha256: 'a'.repeat(64),
+    sizeBytes: 1024,
+    baseModel: 'base-model-v1',
+    compatibility: {
+      status: 'compatible',
+      baseModel: 'base-model-v1',
+      reason: null,
+    },
+    activation: {
+      status: 'unsupported',
+      reason: 'No loader receipt is available.',
+    },
+  }
 }
 
 function createDataset(): PersonaTrainingDatasetVersion {
@@ -99,16 +126,29 @@ function createPersistence() {
     },
     updateRun: async (update) => {
       const current = runs.get(update.runId)
-      if (current)
-        runs.set(update.runId, { ...current, ...structuredClone(update) })
+      if (!current || !['queued', 'running', 'cancel_requested'].includes(current.status))
+        return false
+      runs.set(update.runId, { ...current, ...structuredClone(update) })
+      return true
     },
     getRun: async runId => structuredClone(runs.get(runId) ?? null),
     listRuns: async ({ cardId }) => [...runs.values()]
       .filter(run => run.cardId === cardId)
       .map(run => structuredClone(run)),
-    interruptNonTerminalRuns: async () => 0,
-    createIncrement: async (increment) => {
+    completeRunWithIncrement: async ({ run, increment }) => {
+      const current = runs.get(run.runId)
+      if (!current || current.status !== 'terminalizing')
+        return { completed: false }
       increments.push(structuredClone(increment))
+      runs.set(run.runId, structuredClone(run))
+      return { completed: true }
+    },
+    finishRun: async ({ run }) => {
+      const current = runs.get(run.runId)
+      if (!current || current.status !== 'terminalizing')
+        return false
+      runs.set(run.runId, structuredClone(run))
+      return true
     },
     updateIncrementState: async () => {},
     appendEvent: async () => {},
@@ -136,11 +176,10 @@ describe('persona training pipeline asynchronous lifecycle', () => {
         await new Promise<void>((resolve) => {
           finish = resolve
         })
-        return { artifact: { artifactId: 'artifact-1' } }
+        return { artifact: createArtifact(input.runId, 'artifact-1') }
       },
       resolveExecutorConfig: () => ({
         executable: '/tmp/trainer',
-        fixedArguments: [],
         baseModel: 'base-model-v1',
         timeoutMs: 1_000,
       }),
@@ -208,9 +247,14 @@ describe('persona training pipeline asynchronous lifecycle', () => {
   it('interrupts and awaits active work during shutdown', async () => {
     const storage = createPersistence()
     let processExited = false
+    let executorStartedResolve!: () => void
+    const executorStarted = new Promise<void>((resolve) => {
+      executorStartedResolve = resolve
+    })
     const gate = createPersonaTrainingPipelineGate({
       datasetRuntime: createDatasetRuntime(),
       trainingExecutor: async (input: PersonaTrainingExecutorInput) => await new Promise((_, reject) => {
+        executorStartedResolve()
         input.signal.addEventListener('abort', () => {
           setTimeout(() => {
             processExited = true
@@ -226,6 +270,7 @@ describe('persona training pipeline asynchronous lifecycle', () => {
 
     await gate.start({ cardId: 'card-a' })
     await vi.waitFor(() => expect(storage.runs.get('run-interrupted')?.status).toBe('running'))
+    await executorStarted
     await gate.stop('card-switch')
 
     expect(processExited).toBe(true)
@@ -235,25 +280,25 @@ describe('persona training pipeline asynchronous lifecycle', () => {
     })
   })
 
-  it('does not let cancellation overwrite a completed run while its audit event is still flushing', async () => {
+  it('does not let cancellation overwrite a run while its completion transaction is in flight', async () => {
     const storage = createPersistence()
-    let releaseCompletedAudit!: () => void
-    const completedAuditReleased = new Promise<void>((resolve) => {
-      releaseCompletedAudit = resolve
+    const baseCompleteRunWithIncrement = storage.persistence.completeRunWithIncrement
+    let releaseCompletion!: () => void
+    const completionReleased = new Promise<void>((resolve) => {
+      releaseCompletion = resolve
     })
-    let completedAuditStartedResolve!: () => void
-    const completedAuditStarted = new Promise<void>((resolve) => {
-      completedAuditStartedResolve = resolve
+    let completionStartedResolve!: () => void
+    const completionStarted = new Promise<void>((resolve) => {
+      completionStartedResolve = resolve
     })
-    storage.persistence.appendEvent = async (event) => {
-      if (event.action !== 'training-completed')
-        return
-      completedAuditStartedResolve()
-      await completedAuditReleased
+    storage.persistence.completeRunWithIncrement = async (input) => {
+      completionStartedResolve()
+      await completionReleased
+      return await baseCompleteRunWithIncrement(input)
     }
     const gate = createPersonaTrainingPipelineGate({
       datasetRuntime: createDatasetRuntime(),
-      trainingExecutor: async () => ({ artifact: { artifactId: 'artifact-completed' } }),
+      trainingExecutor: async (input: PersonaTrainingExecutorInput) => ({ artifact: createArtifact(input.runId, 'artifact-completed') }),
       persistence: storage.persistence,
       now: () => 200,
       randomUUID: () => 'run-completed-audit',
@@ -261,8 +306,8 @@ describe('persona training pipeline asynchronous lifecycle', () => {
     } as any)
 
     await gate.start({ cardId: 'card-a' })
-    await completedAuditStarted
-    expect(storage.runs.get('run-completed-audit')?.status).toBe('completed')
+    await completionStarted
+    expect(storage.runs.get('run-completed-audit')?.status).toBe('terminalizing')
 
     const cancellation = await gate.cancel({
       cardId: 'card-a',
@@ -270,34 +315,30 @@ describe('persona training pipeline asynchronous lifecycle', () => {
       reason: 'too-late',
     })
 
-    expect(cancellation?.status).toBe('completed')
-    expect(storage.runs.get('run-completed-audit')?.status).toBe('completed')
-    releaseCompletedAudit()
+    expect(cancellation?.status).toBe('terminalizing')
+    releaseCompletion()
+    await vi.waitFor(() => expect(storage.runs.get('run-completed-audit')?.status).toBe('completed'))
   })
 
-  it('keeps shutdown interruption authoritative when increment persistence is still in flight', async () => {
+  it('does not let shutdown overwrite a run once transactional completion has started', async () => {
     const storage = createPersistence()
-    let releaseIncrement!: () => void
-    const incrementReleased = new Promise<void>((resolve) => {
-      releaseIncrement = resolve
+    const baseCompleteRunWithIncrement = storage.persistence.completeRunWithIncrement
+    let releaseCompletion!: () => void
+    const completionReleased = new Promise<void>((resolve) => {
+      releaseCompletion = resolve
     })
-    let incrementStartedResolve!: () => void
-    const incrementStarted = new Promise<void>((resolve) => {
-      incrementStartedResolve = resolve
+    let completionStartedResolve!: () => void
+    const completionStarted = new Promise<void>((resolve) => {
+      completionStartedResolve = resolve
     })
-    storage.persistence.createIncrement = async (increment) => {
-      storage.increments.push(structuredClone(increment))
-      incrementStartedResolve()
-      await incrementReleased
-    }
-    storage.persistence.updateIncrementState = async ({ incrementId, state }) => {
-      const increment = storage.increments.find(item => item.id === incrementId)
-      if (increment)
-        increment.state = state
+    storage.persistence.completeRunWithIncrement = async (input) => {
+      completionStartedResolve()
+      await completionReleased
+      return await baseCompleteRunWithIncrement(input)
     }
     const gate = createPersonaTrainingPipelineGate({
       datasetRuntime: createDatasetRuntime(),
-      trainingExecutor: async () => ({ artifact: { artifactId: 'artifact-interrupted' } }),
+      trainingExecutor: async (input: PersonaTrainingExecutorInput) => ({ artifact: createArtifact(input.runId, 'artifact-interrupted') }),
       persistence: storage.persistence,
       now: () => 200,
       randomUUID: () => 'run-finalization-interrupted',
@@ -305,20 +346,97 @@ describe('persona training pipeline asynchronous lifecycle', () => {
     } as any)
 
     await gate.start({ cardId: 'card-a' })
-    await incrementStarted
+    await completionStarted
     const stopping = gate.stop('database-close')
-    releaseIncrement()
+    releaseCompletion()
     await stopping
 
     expect(storage.runs.get('run-finalization-interrupted')).toMatchObject({
-      status: 'interrupted',
-      failureReason: 'interrupted',
+      status: 'completed',
+      failureReason: null,
     })
     expect(storage.increments).toEqual([
       expect.objectContaining({
-        state: 'rolled-back',
+        state: 'available',
       }),
     ])
+  })
+
+  it('serializes terminalizing with late progress, cancel, and stop without overwriting completion', async () => {
+    const storage = createPersistence()
+    const updates: Array<Partial<PersonaTrainingPipelineRunRecord> & { runId: string }> = []
+    const baseUpdateRun = storage.persistence.updateRun
+    let releaseTerminalizing!: () => void
+    const terminalizingReleased = new Promise<void>((resolve) => {
+      releaseTerminalizing = resolve
+    })
+    storage.persistence.updateRun = async (update) => {
+      updates.push(structuredClone(update))
+      if (update.status === 'terminalizing') {
+        await terminalizingReleased
+      }
+      return await baseUpdateRun(update)
+    }
+    storage.persistence.completeRunWithIncrement = async ({
+      run,
+      increment,
+    }) => {
+      storage.increments.push(structuredClone(increment))
+      storage.runs.set(run.runId, structuredClone(run))
+      return { completed: true }
+    }
+    let lateProgress!: NonNullable<PersonaTrainingExecutorInput['onProgress']>
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async (input: PersonaTrainingExecutorInput) => {
+        lateProgress = input.onProgress!
+        return { artifact: createArtifact(input.runId, 'artifact-terminalized') }
+      },
+      persistence: storage.persistence,
+      now: () => 200,
+      randomUUID: () => 'run-terminalizing',
+      basePersonaRevision: () => 'persona-core-v1',
+    } as any)
+
+    await gate.start({ cardId: 'card-a' })
+    await vi.waitFor(() => expect(updates.some(update => update.status === 'terminalizing')).toBe(true))
+    const lateProgressResult = lateProgress({
+      stage: 'training',
+      progress: 0.2,
+      message: 'late-progress',
+    })
+    const cancellation = await gate.cancel({
+      cardId: 'card-a',
+      runId: 'run-terminalizing',
+      reason: 'too-late',
+    })
+    const stopping = gate.stop('database-close')
+
+    expect(cancellation).toMatchObject({
+      status: 'terminalizing',
+    })
+    releaseTerminalizing()
+    await Promise.all([lateProgressResult, stopping])
+
+    await vi.waitFor(() => expect(storage.runs.get('run-terminalizing')).toMatchObject({
+      status: 'completed',
+      stage: 'finalizing',
+      progress: 1,
+      progressMessage: null,
+    }))
+    const terminalizingIndex = updates.findIndex(update => update.status === 'terminalizing')
+    expect(updates.slice(terminalizingIndex + 1)).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        stage: 'training',
+        progressMessage: 'late-progress',
+      }),
+      expect.objectContaining({
+        status: 'cancel_requested',
+      }),
+      expect.objectContaining({
+        status: 'interrupted',
+      }),
+    ]))
   })
 
   it('aborts an active run when one of its cleaned sources is revoked', async () => {

@@ -589,6 +589,7 @@ pages:
         persona_training_queued: 等待训练
         persona_training_running: 正在训练
         persona_training_cancel_requested: 正在取消
+        persona_training_terminalizing: 正在原子确认产物
         persona_training_completed: 训练完成
         persona_training_cancelled: 已取消
         persona_training_interrupted: 已中断
@@ -751,9 +752,8 @@ pages:
         persona_training_last_run: 最近一次训练运行
         persona_training_increments: 人格训练增量
         persona_training_executor: 本地 Persona/LoRA 训练器
-        persona_training_executor_description: 配置你已安装的本地训练 wrapper。Alicization 只按固定 JSONL 协议调用，不会静默安装训练依赖，也不会把 Provider API Key 传给子进程。
+        persona_training_executor_description: 配置你已安装的本地训练可执行文件。所有进程参数都由 Alicization 固定生成，不会静默安装训练依赖，也不会把 Provider API Key 传给子进程。
         persona_training_executable: 可执行文件绝对路径
-        persona_training_fixed_arguments: 固定参数（每行一个）
         persona_training_base_model: 基础模型
         persona_training_timeout: 超时时间（秒）
         persona_training_runs: 人格训练运行
@@ -865,7 +865,6 @@ pages:
         embedding_dimensions: 可先留空，测试连通后自动识别
         persona_training_executable: /绝对路径/persona-training-wrapper
         persona_training_base_model: 本地基础模型名称或路径
-        persona_training_fixed_arguments: 可选 wrapper 脚本路径或固定参数，每行一个
   data:
     title: Data
     description: 管理存储 Alicization 数据、导出和重置

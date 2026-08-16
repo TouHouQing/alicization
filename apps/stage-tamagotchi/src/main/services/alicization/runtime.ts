@@ -655,7 +655,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   let personaTrainingExecutorConfig: AlicizationPersonaTrainingExecutorConfig | null = null
   let personaTrainingExecutorConfigError: string | null = null
   const clonePersonaTrainingExecutorConfig = (config: AlicizationPersonaTrainingExecutorConfig | null) => config
-    ? { ...config, fixedArguments: [...config.fixedArguments] }
+    ? { ...config }
     : null
   const personaTrainingExecutorConfigState = () => ({
     configured: personaTrainingExecutorConfig != null,
@@ -693,7 +693,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     return personaTrainingExecutorConfigState()
   }
   const createLocalPersonaTrainingExecutor = (cardRootDir: string) => {
-    const executor = createPersonaTrainingProcessExecutor({ cardRootDir })
+    const executor = createPersonaTrainingProcessExecutor({
+      cardsRootDir: join(userDataPath, 'alicizations', 'cards'),
+      cardRootDir,
+    })
     return async (input: Parameters<typeof executor.execute>[0]) => {
       if (!input.configSnapshot)
         throw new Error('persona training executor is not configured')

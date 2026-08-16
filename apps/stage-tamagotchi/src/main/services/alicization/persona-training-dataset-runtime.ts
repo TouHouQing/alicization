@@ -113,6 +113,7 @@ export interface PersonaTrainingDatasetQualityGateResult {
 }
 
 export interface PersonaTrainingDatasetRepository {
+  atomicTrainingGovernance?: boolean
   listVersions: (cardId: string) => Promise<PersonaTrainingDatasetVersion[]>
   createVersion: (input: Omit<PersonaTrainingDatasetVersion, 'exportedAt' | 'activeAt' | 'rolledBackAt'>) => Promise<PersonaTrainingDatasetVersion>
   insertExamples: (examples: PersonaTrainingDatasetExample[]) => Promise<PersonaTrainingDatasetExample[]>
@@ -138,6 +139,7 @@ export interface PersonaTrainingDatasetRepository {
 }
 
 export interface PersonaTrainingDatasetRuntime {
+  atomicTrainingGovernance?: boolean
   stageVersion: (input: {
     cardId: string
     consent: PersonaTrainingDatasetConsentSnapshot
@@ -633,6 +635,7 @@ export function createPersonaTrainingDatasetRuntime(input: {
   }
 
   return {
+    atomicTrainingGovernance: input.repository.atomicTrainingGovernance === true,
     stageVersion,
     getSnapshot,
     exportVersion,

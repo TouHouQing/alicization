@@ -1,3 +1,5 @@
+import type { AlicizationPersonaTrainingArtifact } from '@proj-alicization/stage-shared'
+
 import type {
   PersonaTrainingDatasetExample,
   PersonaTrainingDatasetManifest,
@@ -22,6 +24,31 @@ const consent = {
   policyVersion: 'persona-training-consent-v1',
   scope: 'persona-dataset',
   capturedAt: 100,
+}
+
+function createArtifact(
+  runId: string,
+  artifactId = `artifact-${runId}`,
+): AlicizationPersonaTrainingArtifact {
+  return {
+    schemaVersion: 'alicization-persona-training-artifact-v1',
+    artifactId,
+    runId,
+    kind: 'lora-adapter',
+    path: `/tmp/persona-training/${artifactId}/adapter.safetensors`,
+    sha256: 'a'.repeat(64),
+    sizeBytes: 1024,
+    baseModel: 'base-model-v1',
+    compatibility: {
+      status: 'compatible',
+      baseModel: 'base-model-v1',
+      reason: null,
+    },
+    activation: {
+      status: 'unsupported',
+      reason: 'No loader receipt is available.',
+    },
+  }
 }
 
 function createDataset(overrides: Partial<PersonaTrainingDatasetVersion> = {}): PersonaTrainingDatasetVersion {
@@ -134,11 +161,35 @@ function createPersistenceRecorder() {
       },
       updateRun: async (input: Partial<PersonaTrainingPipelineRunRecord> & Pick<PersonaTrainingPipelineRunRecord, 'runId'>) => {
         const run = runs.find(item => item.runId === input.runId)
-        if (run)
-          Object.assign(run, input, input.sourceIds ? { sourceIds: [...input.sourceIds] } : {})
+        if (!run || !['queued', 'running', 'cancel_requested'].includes(run.status))
+          return false
+        Object.assign(run, input, input.sourceIds ? { sourceIds: [...input.sourceIds] } : {})
+        return true
       },
-      createIncrement: async (increment: PersonaTrainingPipelineIncrement) => {
+      completeRunWithIncrement: async (input: {
+        run: PersonaTrainingPipelineRunRecord
+        increment: PersonaTrainingPipelineIncrement
+        event: PersonaTrainingPipelineAuditEvent
+      }) => {
+        const run = runs.find(item => item.runId === input.run.runId)
+        if (!run || run.status !== 'terminalizing')
+          return { completed: false }
+        Object.assign(run, input.run)
+        const increment = input.increment
         increments.push({ ...increment, sourceIds: [...increment.sourceIds] })
+        events.push({ ...input.event, sourceIds: [...input.event.sourceIds] })
+        return { completed: true }
+      },
+      finishRun: async (input: {
+        run: PersonaTrainingPipelineRunRecord
+        event: PersonaTrainingPipelineAuditEvent
+      }) => {
+        const run = runs.find(item => item.runId === input.run.runId)
+        if (!run || run.status !== 'terminalizing')
+          return false
+        Object.assign(run, input.run)
+        events.push({ ...input.event, sourceIds: [...input.event.sourceIds] })
+        return true
       },
       updateIncrementState: async (input: { incrementId: string, state: PersonaTrainingPipelineIncrement['state'] }) => {
         const increment = increments.find(item => item.id === input.incrementId)
@@ -158,7 +209,7 @@ describe('persona training pipeline gate', () => {
     const recorder = createPersistenceRecorder()
     const gate = createPersonaTrainingPipelineGate({
       datasetRuntime: createDatasetRuntime(),
-      trainingExecutor: async () => ({ artifact: 'lora-delta-v1' }),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
       persistence: recorder.persistence,
       now: () => 200,
       randomUUID: () => 'run-persisted',
@@ -194,10 +245,10 @@ describe('persona training pipeline gate', () => {
 
   it('persists cancellation and source revocation without allowing the consumer result', async () => {
     const recorder = createPersistenceRecorder()
-    let resolveTraining!: (value: { artifact: string }) => void
+    let resolveTraining!: (value: { artifact: AlicizationPersonaTrainingArtifact }) => void
     const gate = createPersonaTrainingPipelineGate({
       datasetRuntime: createDatasetRuntime(),
-      trainingExecutor: async () => await new Promise<{ artifact: string }>((resolve) => {
+      trainingExecutor: async () => await new Promise<{ artifact: AlicizationPersonaTrainingArtifact }>((resolve) => {
         resolveTraining = resolve
       }),
       persistence: recorder.persistence,
@@ -209,7 +260,7 @@ describe('persona training pipeline gate', () => {
     const training = gate.train({ cardId: 'card-a' })
     await vi.waitFor(() => expect(resolveTraining).toBeTypeOf('function'))
     await gate.cancel({ runId: 'run-cancelled', reason: 'user-requested' })
-    resolveTraining({ artifact: 'must-not-be-used' })
+    resolveTraining({ artifact: createArtifact('run-cancelled', 'artifact-must-not-be-used') })
 
     await expect(training).resolves.toMatchObject({
       status: 'failed',
@@ -231,7 +282,7 @@ describe('persona training pipeline gate', () => {
     const recorder = createPersistenceRecorder()
     const gate = createPersonaTrainingPipelineGate({
       datasetRuntime: createDatasetRuntime(),
-      trainingExecutor: async () => ({ artifact: 'lora-delta-v1' }),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
       persistence: recorder.persistence,
       now: () => 200,
       randomUUID: () => 'run-state-transitions',
@@ -245,7 +296,7 @@ describe('persona training pipeline gate', () => {
 
     expect(recorder.increments[0]).toMatchObject({
       id: incrementId,
-      state: 'rolled-back',
+      state: 'revoked',
     })
     expect(recorder.events.map(event => event.action)).toEqual([
       'training-started',
@@ -260,7 +311,7 @@ describe('persona training pipeline gate', () => {
   })
 
   it('does not invoke a training consumer unless the manifest is active and quality-gate passed', async () => {
-    const executor = async () => ({ artifact: 'should-not-run' })
+    const executor = async () => ({ artifact: createArtifact('run-should-not-run') })
     const inactiveRuntime = createDatasetRuntime({
       dataset: createDataset({ activeAt: null }),
     })
@@ -288,7 +339,7 @@ describe('persona training pipeline gate', () => {
   })
 
   it('rejects a quality-approved manifest whose content or provenance no longer matches the dataset snapshot', async () => {
-    const executor = vi.fn(async () => ({ artifact: 'must-not-run' }))
+    const executor = vi.fn(async () => ({ artifact: createArtifact('run-must-not-run') }))
     const currentExample: PersonaTrainingDatasetExample = {
       id: 'example-1',
       datasetId: 'dataset-1',
@@ -340,7 +391,7 @@ describe('persona training pipeline gate', () => {
   })
 
   it('keeps raw transcript and failure artifact source kinds outside the training consumer boundary', async () => {
-    const executor = async () => ({ artifact: 'should-not-run' })
+    const executor = async () => ({ artifact: createArtifact('run-should-not-run') })
     const forbiddenManifest = createManifest({
       examples: [{
         ...createManifest().examples[0]!,
@@ -366,7 +417,7 @@ describe('persona training pipeline gate', () => {
       datasetRuntime: createDatasetRuntime(),
       trainingExecutor: async (input) => {
         calls.push(input)
-        return { artifact: 'lora-delta-v1' }
+        return { artifact: createArtifact(input.runId) }
       },
       now: () => 200,
       randomUUID: () => 'run-success',
@@ -384,7 +435,10 @@ describe('persona training pipeline gate', () => {
         datasetId: 'dataset-1',
         manifestHash: 'manifest-hash-1',
         basePersonaRevision: 'persona-core-v1',
-        artifact: 'lora-delta-v1',
+        artifact: expect.objectContaining({
+          artifactId: 'artifact-run-success',
+          runId: 'run-success',
+        }),
         state: 'available',
       },
     })
@@ -422,13 +476,13 @@ describe('persona training pipeline gate', () => {
   })
 
   it('aborts a running training task and blocks its result when a source is revoked', async () => {
-    let resolveTraining!: (value: { artifact: string }) => void
+    let resolveTraining!: (value: { artifact: AlicizationPersonaTrainingArtifact }) => void
     let executorSignal: AbortSignal | undefined
     const gate = createPersonaTrainingPipelineGate({
       datasetRuntime: createDatasetRuntime(),
       trainingExecutor: async (input) => {
         executorSignal = input.signal
-        return await new Promise<{ artifact: string }>((resolve) => {
+        return await new Promise<{ artifact: AlicizationPersonaTrainingArtifact }>((resolve) => {
           resolveTraining = resolve
         })
       },
@@ -440,7 +494,7 @@ describe('persona training pipeline gate', () => {
     const training = gate.train({ cardId: 'card-a' })
     await vi.waitFor(() => expect(resolveTraining).toBeTypeOf('function'))
     await gate.revokeSource({ cardId: 'card-a', sourceId: 'reflection-1' })
-    resolveTraining({ artifact: 'must-not-be-used' })
+    resolveTraining({ artifact: createArtifact('run-revoked', 'artifact-must-not-be-used') })
 
     await expect(training).resolves.toMatchObject({
       status: 'failed',
@@ -454,7 +508,7 @@ describe('persona training pipeline gate', () => {
   it('marks a completed increment rolled back so it cannot be used again', async () => {
     const gate = createPersonaTrainingPipelineGate({
       datasetRuntime: createDatasetRuntime(),
-      trainingExecutor: async () => ({ artifact: 'lora-delta-v1' }),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
       now: () => 200,
       randomUUID: () => 'run-rollback',
       basePersonaRevision: () => 'persona-core-v1',
@@ -471,11 +525,84 @@ describe('persona training pipeline gate', () => {
     expect(gate.listUsableIncrements()).toEqual([])
   })
 
+  it('rehydrates increment state after atomic dataset governance updates the persistence owner', async () => {
+    const recorder = createPersistenceRecorder()
+    const datasetRuntime = createDatasetRuntime()
+    datasetRuntime.atomicTrainingGovernance = true
+    datasetRuntime.activateVersion = async () => {
+      const persisted = recorder.increments[0]
+      if (persisted)
+        persisted.state = 'rolled-back'
+      return createDataset()
+    }
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime,
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      persistence: recorder.persistence,
+      now: () => 200,
+      randomUUID: () => 'run-atomic-governance',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'succeeded',
+    })
+    expect(gate.listUsableIncrements()).toHaveLength(1)
+
+    await gate.activateVersion({
+      cardId: 'card-a',
+      datasetId: 'dataset-1',
+    })
+
+    expect(gate.listUsableIncrements()).toEqual([])
+    expect(gate.listIncrements()).toEqual([
+      expect.objectContaining({
+        state: 'rolled-back',
+      }),
+    ])
+  })
+
+  it('does not invalidate an active run when atomic dataset activation fails to commit', async () => {
+    const datasetRuntime = createDatasetRuntime()
+    datasetRuntime.atomicTrainingGovernance = true
+    datasetRuntime.activateVersion = async () => {
+      throw new Error('dataset activation transaction failed')
+    }
+    let resolveTraining!: (value: { artifact: AlicizationPersonaTrainingArtifact }) => void
+    let executorSignal: AbortSignal | undefined
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime,
+      trainingExecutor: async (input) => {
+        executorSignal = input.signal
+        return await new Promise<{ artifact: AlicizationPersonaTrainingArtifact }>((resolve) => {
+          resolveTraining = resolve
+        })
+      },
+      now: () => 200,
+      randomUUID: () => 'run-activation-failure',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    const training = gate.train({ cardId: 'card-a' })
+    await vi.waitFor(() => expect(resolveTraining).toBeTypeOf('function'))
+
+    await expect(gate.activateVersion({
+      cardId: 'card-a',
+      datasetId: 'dataset-1',
+    })).rejects.toThrow('dataset activation transaction failed')
+    expect(executorSignal?.aborted).toBe(false)
+
+    resolveTraining({ artifact: createArtifact('run-activation-failure') })
+    await expect(training).resolves.toMatchObject({
+      status: 'succeeded',
+    })
+  })
+
   it('invalidates old training runs and increments when the active dataset is rolled back', async () => {
-    let resolveTraining!: (value: { artifact: string }) => void
+    let resolveTraining!: (value: { artifact: AlicizationPersonaTrainingArtifact }) => void
     const gate = createPersonaTrainingPipelineGate({
       datasetRuntime: createDatasetRuntime(),
-      trainingExecutor: async () => await new Promise<{ artifact: string }>((resolve) => {
+      trainingExecutor: async () => await new Promise<{ artifact: AlicizationPersonaTrainingArtifact }>((resolve) => {
         resolveTraining = resolve
       }),
       now: () => 200,
@@ -489,7 +616,7 @@ describe('persona training pipeline gate', () => {
       cardId: 'card-a',
       datasetId: 'dataset-rollback',
     })
-    resolveTraining({ artifact: 'must-not-be-used' })
+    resolveTraining({ artifact: createArtifact('run-dataset-rollback', 'artifact-must-not-be-used') })
 
     await expect(training).resolves.toMatchObject({
       status: 'failed',

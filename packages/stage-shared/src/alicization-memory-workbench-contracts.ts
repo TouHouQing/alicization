@@ -870,6 +870,97 @@ export interface AlicizationPersonaTrainingArtifact {
   }
 }
 
+function invalidPersonaTrainingArtifact(reason: string): never {
+  throw new Error(`invalid Alicization persona training artifact: ${reason}`)
+}
+
+function requirePersonaTrainingArtifactText(
+  value: unknown,
+  field: string,
+  maxLength: number,
+) {
+  if (typeof value !== 'string')
+    invalidPersonaTrainingArtifact(`${field} must be a string`)
+  const normalized = value.trim()
+  if (!normalized)
+    invalidPersonaTrainingArtifact(`${field} is required`)
+  if (normalized.length > maxLength)
+    invalidPersonaTrainingArtifact(`${field} is too long`)
+  if (normalized.includes('\0'))
+    invalidPersonaTrainingArtifact(`${field} contains a null byte`)
+  return normalized
+}
+
+export function parseAlicizationPersonaTrainingArtifact(
+  value: unknown,
+): AlicizationPersonaTrainingArtifact {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    invalidPersonaTrainingArtifact('value must be an object')
+  const artifact = value as Record<string, unknown>
+  if (artifact.schemaVersion !== 'alicization-persona-training-artifact-v1')
+    invalidPersonaTrainingArtifact('schemaVersion is unsupported')
+  if (artifact.kind !== 'lora-adapter')
+    invalidPersonaTrainingArtifact('kind is unsupported')
+
+  const artifactId = requirePersonaTrainingArtifactText(artifact.artifactId, 'artifactId', 160)
+  const runId = requirePersonaTrainingArtifactText(artifact.runId, 'runId', 160)
+  const path = requirePersonaTrainingArtifactText(artifact.path, 'path', 4_096)
+  const sha256 = requirePersonaTrainingArtifactText(artifact.sha256, 'sha256', 64).toLowerCase()
+  if (!/^[a-f0-9]{64}$/.test(sha256))
+    invalidPersonaTrainingArtifact('sha256 must be a 64-character hexadecimal digest')
+  const sizeBytes = Number(artifact.sizeBytes)
+  if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 0)
+    invalidPersonaTrainingArtifact('sizeBytes must be a non-negative safe integer')
+  const baseModel = requirePersonaTrainingArtifactText(artifact.baseModel, 'baseModel', 1_024)
+
+  const compatibilityRaw = artifact.compatibility
+  if (!compatibilityRaw || typeof compatibilityRaw !== 'object' || Array.isArray(compatibilityRaw))
+    invalidPersonaTrainingArtifact('compatibility must be an object')
+  const compatibility = compatibilityRaw as Record<string, unknown>
+  if (!['compatible', 'incompatible', 'unknown'].includes(String(compatibility.status)))
+    invalidPersonaTrainingArtifact('compatibility.status is unsupported')
+  const compatibilityBaseModel = requirePersonaTrainingArtifactText(
+    compatibility.baseModel,
+    'compatibility.baseModel',
+    1_024,
+  )
+  const compatibilityReason = compatibility.reason == null
+    ? null
+    : requirePersonaTrainingArtifactText(compatibility.reason, 'compatibility.reason', 2_048)
+
+  const activationRaw = artifact.activation
+  if (!activationRaw || typeof activationRaw !== 'object' || Array.isArray(activationRaw))
+    invalidPersonaTrainingArtifact('activation must be an object')
+  const activation = activationRaw as Record<string, unknown>
+  if (activation.status !== 'inactive' && activation.status !== 'unsupported')
+    invalidPersonaTrainingArtifact('activation.status is unsupported')
+  const activationReason = requirePersonaTrainingArtifactText(
+    activation.reason,
+    'activation.reason',
+    2_048,
+  )
+
+  return {
+    schemaVersion: 'alicization-persona-training-artifact-v1',
+    artifactId,
+    runId,
+    kind: 'lora-adapter',
+    path,
+    sha256,
+    sizeBytes,
+    baseModel,
+    compatibility: {
+      status: compatibility.status as AlicizationPersonaTrainingArtifact['compatibility']['status'],
+      baseModel: compatibilityBaseModel,
+      reason: compatibilityReason,
+    },
+    activation: {
+      status: activation.status,
+      reason: activationReason,
+    },
+  }
+}
+
 export interface AlicizationPersonaTrainingPipelineIncrement {
   id: string
   kind: 'persona-lora-increment'
@@ -896,6 +987,7 @@ export type AlicizationPersonaTrainingPipelineRunStatus
   = 'queued'
     | 'running'
     | 'cancel_requested'
+    | 'terminalizing'
     | 'completed'
     | 'failed'
     | 'cancelled'
@@ -910,7 +1002,6 @@ export type AlicizationPersonaTrainingPipelineRunStage
 
 export interface AlicizationPersonaTrainingExecutorConfig {
   executable: string
-  fixedArguments: string[]
   baseModel: string
   timeoutMs: number
 }

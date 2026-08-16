@@ -16,7 +16,6 @@ const {
 } = storeToRefs(store)
 
 const executable = shallowRef('')
-const fixedArgumentsText = shallowRef('')
 const baseModel = shallowRef('')
 const timeoutSeconds = shallowRef('3600')
 
@@ -26,10 +25,6 @@ const config = computed<AlicizationPersonaTrainingExecutorConfig | null>(() => {
     return null
   return {
     executable: executable.value.trim(),
-    fixedArguments: fixedArgumentsText.value
-      .split('\n')
-      .map(argument => argument.trim())
-      .filter(Boolean),
     baseModel: baseModel.value.trim(),
     timeoutMs: Math.floor(timeoutMs),
   }
@@ -37,7 +32,6 @@ const config = computed<AlicizationPersonaTrainingExecutorConfig | null>(() => {
 
 function syncForm(next: AlicizationPersonaTrainingExecutorConfig | null) {
   executable.value = next?.executable ?? ''
-  fixedArgumentsText.value = next?.fixedArguments.join('\n') ?? ''
   baseModel.value = next?.baseModel ?? ''
   timeoutSeconds.value = String(Math.max(1, Math.round((next?.timeoutMs ?? 3_600_000) / 1_000)))
 }
@@ -137,15 +131,6 @@ onMounted(async () => {
           step="1"
           :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
         >
-      </label>
-      <label :class="['grid', 'gap-1', 'lg:col-span-2']">
-        <span :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.persona_training_fixed_arguments') }}</span>
-        <textarea
-          v-model="fixedArgumentsText"
-          rows="3"
-          :placeholder="t('settings.pages.memory.workbench.placeholders.persona_training_fixed_arguments')"
-          :class="['min-w-0', 'resize-y', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'font-mono', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
-        />
       </label>
     </div>
 

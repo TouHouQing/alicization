@@ -1,3 +1,5 @@
+import type { AlicizationPersonaTrainingArtifact } from '@proj-alicization/stage-shared'
+
 import type {
   PersonaTrainingExecutorInput,
   PersonaTrainingExecutorOutput,
@@ -11,6 +13,8 @@ import {
   access,
   lstat,
   mkdir,
+  mkdtemp,
+  open,
   readFile,
   realpath,
   rename,
@@ -28,18 +32,15 @@ const defaultTerminationGraceMs = 3_000
 const maxProtocolBytes = 256 * 1024
 const maxProtocolLineBytes = 64 * 1024
 const maxStderrBytes = 64 * 1024
-const reservedProtocolArguments = new Set([
-  '--probe',
-  '--manifest',
-  '--dataset',
-  '--output-dir',
-  '--artifact-manifest',
-  '--base-model',
-])
+
+export const personaTrainingInputLimits = {
+  maxExamples: 1_024,
+  maxLineBytes: 64 * 1_024,
+  maxTotalBytes: 8 * 1_024 * 1_024,
+} as const
 
 export interface PersonaTrainingProcessConfig {
   executable: string
-  fixedArguments: string[]
   baseModel: string
   timeoutMs: number
 }
@@ -50,24 +51,7 @@ export interface PersonaTrainingProcessProgress {
   message: string | null
 }
 
-export interface PersonaTrainingArtifact {
-  schemaVersion: typeof artifactSchemaVersion
-  artifactId: string
-  runId: string
-  kind: 'lora-adapter'
-  path: string
-  sha256: string
-  sizeBytes: number
-  baseModel: string
-  compatibility: {
-    status: 'compatible'
-    baseModel: string
-  }
-  activation: {
-    status: 'unsupported'
-    reason: string
-  }
-}
+export type PersonaTrainingArtifact = AlicizationPersonaTrainingArtifact
 
 export interface PersonaTrainingProcessConnectionResult {
   ok: boolean
@@ -90,13 +74,18 @@ interface ProtocolState {
   artifact: boolean
 }
 
+interface FileIdentity {
+  dev: number | bigint
+  ino: number | bigint
+}
+
 interface RunChildProcessOptions {
   executable: string
   argv: string[]
   timeoutMs: number
   terminationGraceMs: number
   signal?: AbortSignal
-  onEvent?: (event: Record<string, unknown>) => void
+  onEvent?: (event: Record<string, unknown>) => void | Promise<void>
 }
 
 function normalizeNonEmptyText(value: unknown, label: string, maxLength: number) {
@@ -115,25 +104,18 @@ function normalizeNonEmptyText(value: unknown, label: string, maxLength: number)
 export function normalizePersonaTrainingProcessConfig(input: unknown): PersonaTrainingProcessConfig {
   if (!input || typeof input !== 'object')
     throw new Error('persona training executor is not configured')
-  const value = input as Partial<PersonaTrainingProcessConfig>
+  const value = input as Partial<PersonaTrainingProcessConfig> & {
+    fixedArguments?: unknown
+  }
   const executable = normalizeNonEmptyText(value.executable, 'persona training executable', 4_096)
   if (!isAbsolute(executable))
     throw new Error('persona training executable must be an absolute path')
   const baseModel = normalizeNonEmptyText(value.baseModel, 'persona training base model', 1_024)
-  const fixedArguments = Array.isArray(value.fixedArguments)
-    ? value.fixedArguments.map((argument, index) => normalizeNonEmptyText(argument, `persona training fixed argument ${index + 1}`, 4_096))
-    : []
-  if (fixedArguments.length > 64)
-    throw new Error('persona training fixed arguments exceed the supported limit')
-  const reservedArgument = fixedArguments.find(argument => reservedProtocolArguments.has(argument))
-  if (reservedArgument)
-    throw new Error(`persona training fixed arguments must not contain reserved protocol argument: ${reservedArgument}`)
   const timeoutMs = Number(value.timeoutMs)
   if (!Number.isFinite(timeoutMs) || timeoutMs < 10 || timeoutMs > 24 * 60 * 60 * 1_000)
     throw new Error('persona training timeout must be between 10ms and 24h')
   return {
     executable,
-    fixedArguments,
     baseModel,
     timeoutMs: Math.floor(timeoutMs),
   }
@@ -200,6 +182,7 @@ async function runChildProcess(options: RunChildProcessOptions) {
   let settled = false
   let terminationTimer: ReturnType<typeof setTimeout> | undefined
   let terminalError: Error | null = null
+  let eventQueue = Promise.resolve()
 
   const terminate = (error: Error) => {
     if (!terminalError)
@@ -248,7 +231,14 @@ async function runChildProcess(options: RunChildProcessOptions) {
     else {
       throw new Error(`persona training protocol event type is unsupported: ${String(record.type)}`)
     }
-    options.onEvent?.(record)
+    eventQueue = eventQueue
+      .then(async () => {
+        if (!terminalError)
+          await options.onEvent?.(record)
+      })
+      .catch((error) => {
+        terminate(error instanceof Error ? error : new Error(String(error)))
+      })
   }
 
   child.stdout.on('data', (chunk: Buffer | string) => {
@@ -299,32 +289,72 @@ async function runChildProcess(options: RunChildProcessOptions) {
       if (settled)
         return
       settled = true
-      if (timeoutTimer)
-        clearTimeout(timeoutTimer)
-      if (terminationTimer)
-        clearTimeout(terminationTimer)
-      options.signal?.removeEventListener('abort', onAbort)
+      void (async () => {
+        if (timeoutTimer)
+          clearTimeout(timeoutTimer)
+        if (terminationTimer)
+          clearTimeout(terminationTimer)
+        options.signal?.removeEventListener('abort', onAbort)
 
-      if (!terminalError && stdoutBuffer.trim()) {
-        try {
-          parseLine(stdoutBuffer)
+        if (!terminalError && stdoutBuffer.trim()) {
+          try {
+            parseLine(stdoutBuffer)
+          }
+          catch (error) {
+            terminalError = error instanceof Error ? error : new Error(String(error))
+          }
         }
-        catch (error) {
-          terminalError = error instanceof Error ? error : new Error(String(error))
+        await eventQueue
+        if (terminalError) {
+          reject(terminalError)
+          return
         }
-      }
-      if (terminalError) {
-        reject(terminalError)
-        return
-      }
-      if (code !== 0) {
-        const detail = stderr.trim()
-        reject(new Error(`persona training process exited with code ${code ?? 'null'}${signal ? ` (${signal})` : ''}${detail ? `: ${detail}` : ''}`))
-        return
-      }
-      resolvePromise(state)
+        if (code !== 0) {
+          const detail = stderr.trim()
+          reject(new Error(`persona training process exited with code ${code ?? 'null'}${signal ? ` (${signal})` : ''}${detail ? `: ${detail}` : ''}`))
+          return
+        }
+        resolvePromise(state)
+      })().catch(reject)
     })
   })
+}
+
+async function writeBoundedDatasetJsonl(
+  datasetPath: string,
+  examples: PersonaTrainingExecutorInput['manifest']['examples'],
+) {
+  if (examples.length > personaTrainingInputLimits.maxExamples) {
+    throw new Error(
+      `persona training dataset example count exceeds ${personaTrainingInputLimits.maxExamples}`,
+    )
+  }
+  const file = await open(datasetPath, 'wx', 0o600)
+  let totalBytes = 0
+  try {
+    for (const example of examples) {
+      const line = `${JSON.stringify(example)}\n`
+      const lineBytes = Buffer.byteLength(line, 'utf8')
+      if (lineBytes > personaTrainingInputLimits.maxLineBytes) {
+        throw new Error(
+          `persona training dataset single JSONL line UTF-8 bytes exceed ${personaTrainingInputLimits.maxLineBytes}`,
+        )
+      }
+      totalBytes += lineBytes
+      if (totalBytes > personaTrainingInputLimits.maxTotalBytes) {
+        throw new Error(
+          `persona training dataset total JSONL bytes exceed ${personaTrainingInputLimits.maxTotalBytes}`,
+        )
+      }
+      await file.write(line)
+    }
+  }
+  catch (error) {
+    await file.close().catch(() => {})
+    await rm(datasetPath, { force: true }).catch(() => {})
+    throw error
+  }
+  await file.close()
 }
 
 async function hashFile(path: string) {
@@ -369,6 +399,66 @@ function assertSafeArtifactId(artifactId: string) {
     throw new Error('persona training artifact id is not filesystem-safe')
 }
 
+function fileIdentity(stat: Awaited<ReturnType<typeof lstat>>): FileIdentity {
+  return {
+    dev: stat.dev,
+    ino: stat.ino,
+  }
+}
+
+function sameFileIdentity(left: FileIdentity, right: FileIdentity) {
+  return left.dev === right.dev && left.ino === right.ino
+}
+
+async function removeOwnedDirectory(path: string, identity: FileIdentity | null) {
+  if (!identity)
+    return
+  const current = await lstat(path).catch(() => null)
+  if (current && sameFileIdentity(fileIdentity(current), identity))
+    await rm(path, { recursive: true, force: true }).catch(() => {})
+}
+
+async function ensureTrustedCardRoot(input: {
+  cardsRootDir: string
+  cardRootDir: string
+}) {
+  const configuredCardsRoot = resolve(input.cardsRootDir)
+  const configuredCardRoot = resolve(input.cardRootDir)
+  const relativeCardRoot = relative(configuredCardsRoot, configuredCardRoot)
+  if (
+    !relativeCardRoot
+    || isAbsolute(relativeCardRoot)
+    || relativeCardRoot.split(/[\\/]+/).includes('..')
+  ) {
+    throw new Error('persona training card root must stay inside the trusted cards root')
+  }
+
+  await mkdir(configuredCardsRoot, { recursive: true, mode: 0o700 })
+  const cardsRootLstat = await lstat(configuredCardsRoot)
+  if (cardsRootLstat.isSymbolicLink() || !cardsRootLstat.isDirectory())
+    throw new Error('persona training cards root must be a real directory, not a symbolic link')
+
+  let parentRealPath = await realpath(configuredCardsRoot)
+  let configuredPath = configuredCardsRoot
+  for (const segment of relativeCardRoot.split(/[\\/]+/).filter(Boolean)) {
+    configuredPath = join(configuredPath, segment)
+    await mkdir(configuredPath, { mode: 0o700 }).catch(async (error) => {
+      const existing = await lstat(configuredPath).catch(() => null)
+      if (!existing)
+        throw error
+    })
+    const component = await lstat(configuredPath)
+    if (component.isSymbolicLink() || !component.isDirectory())
+      throw new Error('persona training card root ancestor must be a real directory, not a symbolic link')
+    const componentRealPath = await realpath(configuredPath)
+    const expectedRealPath = join(parentRealPath, segment)
+    if (componentRealPath !== expectedRealPath)
+      throw new Error('persona training card root ancestor resolves outside the trusted cards root')
+    parentRealPath = componentRealPath
+  }
+  return parentRealPath
+}
+
 async function ensureRealChildDirectory(input: {
   parentRealPath: string
   name: string
@@ -385,13 +475,12 @@ async function ensureRealChildDirectory(input: {
   return directoryRealPath
 }
 
-async function createRunDirectories(cardRootDir: string, runId: string) {
+async function createRunDirectories(cardsRootDir: string, cardRootDir: string, runId: string) {
   assertSafeArtifactId(runId)
-  await mkdir(cardRootDir, { recursive: true, mode: 0o700 })
-  const cardRootLstat = await lstat(cardRootDir)
-  if (cardRootLstat.isSymbolicLink() || !cardRootLstat.isDirectory())
-    throw new Error('persona training card root must be a real directory, not a symbolic link')
-  const cardRootRealPath = await realpath(cardRootDir)
+  const cardRootRealPath = await ensureTrustedCardRoot({
+    cardsRootDir,
+    cardRootDir,
+  })
   const trainingRoot = await ensureRealChildDirectory({
     parentRealPath: cardRootRealPath,
     name: 'persona-training',
@@ -426,6 +515,46 @@ async function createRunDirectories(cardRootDir: string, runId: string) {
     artifactRoot,
     outputDir,
     runDir: runDirRealPath,
+  }
+}
+
+async function validatePublishedArtifact(input: {
+  rootDir: string
+  relativeArtifactPath: string
+  expectedHash: string
+  expectedIdentity: FileIdentity
+}) {
+  const rootLstat = await lstat(input.rootDir)
+  if (rootLstat.isSymbolicLink() || !rootLstat.isDirectory())
+    throw new Error('persona training published artifact root must be a real directory')
+  const rootRealPath = await realpath(input.rootDir)
+  if (rootRealPath !== input.rootDir)
+    throw new Error('persona training published artifact root changed during publication')
+
+  let currentPath = rootRealPath
+  for (const segment of input.relativeArtifactPath.split(/[\\/]+/).filter(Boolean)) {
+    currentPath = join(currentPath, segment)
+    const component = await lstat(currentPath).catch((error) => {
+      throw new Error(`persona training published artifact is missing: ${errorMessageFrom(error) ?? String(error)}`)
+    })
+    if (component.isSymbolicLink())
+      throw new Error('persona training published artifact path must not contain symbolic links')
+  }
+  const artifactPath = join(rootRealPath, input.relativeArtifactPath)
+  const artifactRealPath = await realpath(artifactPath)
+  if (!artifactRealPath.startsWith(`${rootRealPath}${sep}`))
+    throw new Error('persona training published artifact resolves outside its publication root')
+  const artifactStat = await lstat(artifactRealPath)
+  if (!artifactStat.isFile() || artifactStat.isSymbolicLink())
+    throw new Error('persona training published artifact is not a regular file')
+  if (!sameFileIdentity(fileIdentity(artifactStat), input.expectedIdentity))
+    throw new Error('persona training published artifact inode changed during publication')
+  const publishedHash = await hashFile(artifactRealPath)
+  if (publishedHash !== input.expectedHash)
+    throw new Error('persona training published artifact hash changed during publication')
+  return {
+    artifactPath: artifactRealPath,
+    sizeBytes: artifactStat.size,
   }
 }
 
@@ -474,9 +603,10 @@ async function validateAndAcceptArtifact(input: {
   const candidateLstat = await lstat(candidatePath)
   if (candidateLstat.isSymbolicLink())
     throw new Error('persona training artifact must not be a symbolic link')
-  const candidateStat = await stat(candidateRealPath)
+  const candidateStat = await lstat(candidateRealPath)
   if (!candidateStat.isFile())
     throw new Error('persona training artifact is not a file')
+  const candidateIdentity = fileIdentity(candidateStat)
   const actualHash = await hashFile(candidateRealPath)
   if (actualHash !== manifest.sha256)
     throw new Error('persona training artifact hash mismatch')
@@ -485,41 +615,87 @@ async function validateAndAcceptArtifact(input: {
   const artifactRootRealPath = await realpath(input.artifactRoot)
   if (artifactRootLstat.isSymbolicLink() || artifactRootRealPath !== input.artifactRoot)
     throw new Error('persona training artifact root must not be a symbolic link')
+  const artifactRootIdentity = fileIdentity(artifactRootLstat)
   const acceptedDir = join(artifactRootRealPath, manifest.artifactId)
-  await stat(acceptedDir).then(
-    () => {
-      throw new Error('persona training artifact id already exists')
-    },
-    () => {},
-  )
   const relativeArtifactPath = relative(outputRoot, candidateRealPath)
-  await rename(outputRoot, acceptedDir)
-  const acceptedPath = join(acceptedDir, relativeArtifactPath)
+  const stagingDir = await mkdtemp(join(artifactRootRealPath, '.staging-'))
+  const stagingLstat = await lstat(stagingDir)
+  const stagingIdentity = fileIdentity(stagingLstat)
+  let acceptedIdentity: FileIdentity | null = null
+  try {
+    const currentArtifactRoot = await lstat(artifactRootRealPath)
+    if (
+      currentArtifactRoot.isSymbolicLink()
+      || !sameFileIdentity(fileIdentity(currentArtifactRoot), artifactRootIdentity)
+    ) {
+      throw new Error('persona training artifact root changed during publication')
+    }
 
-  return {
-    acceptedDir,
-    artifact: {
-      schemaVersion: artifactSchemaVersion,
-      artifactId: manifest.artifactId,
-      runId: input.runId,
-      kind: 'lora-adapter',
-      path: acceptedPath,
-      sha256: actualHash,
-      sizeBytes: candidateStat.size,
-      baseModel: manifest.baseModel,
-      compatibility: {
-        status: 'compatible',
+    const stagingOutputDir = join(stagingDir, 'output')
+    await rename(outputRoot, stagingOutputDir)
+    await validatePublishedArtifact({
+      rootDir: stagingOutputDir,
+      relativeArtifactPath,
+      expectedHash: actualHash,
+      expectedIdentity: candidateIdentity,
+    })
+
+    await mkdir(acceptedDir, { mode: 0o700 }).catch((error) => {
+      throw new Error(`persona training artifact id already exists: ${errorMessageFrom(error) ?? String(error)}`)
+    })
+    const acceptedLstat = await lstat(acceptedDir)
+    if (acceptedLstat.isSymbolicLink() || !acceptedLstat.isDirectory())
+      throw new Error('persona training artifact publication directory must be a real directory')
+    acceptedIdentity = fileIdentity(acceptedLstat)
+    const acceptedOutputDir = join(acceptedDir, 'output')
+    await rename(stagingOutputDir, acceptedOutputDir)
+
+    const acceptedAfterPublish = await lstat(acceptedDir)
+    if (
+      acceptedAfterPublish.isSymbolicLink()
+      || !sameFileIdentity(fileIdentity(acceptedAfterPublish), acceptedIdentity)
+    ) {
+      throw new Error('persona training artifact publication directory changed during publication')
+    }
+    const published = await validatePublishedArtifact({
+      rootDir: acceptedOutputDir,
+      relativeArtifactPath,
+      expectedHash: actualHash,
+      expectedIdentity: candidateIdentity,
+    })
+    await removeOwnedDirectory(stagingDir, stagingIdentity)
+
+    return {
+      acceptedDir,
+      artifact: {
+        schemaVersion: artifactSchemaVersion,
+        artifactId: manifest.artifactId,
+        runId: input.runId,
+        kind: 'lora-adapter',
+        path: published.artifactPath,
+        sha256: actualHash,
+        sizeBytes: published.sizeBytes,
         baseModel: manifest.baseModel,
-      },
-      activation: {
-        status: 'unsupported',
-        reason: 'No PersonaAdapterLoader receipt is available; the artifact is stored but inactive.',
-      },
-    } satisfies PersonaTrainingArtifact,
+        compatibility: {
+          status: 'compatible',
+          baseModel: manifest.baseModel,
+        },
+        activation: {
+          status: 'unsupported',
+          reason: 'No PersonaAdapterLoader receipt is available; the artifact is stored but inactive.',
+        },
+      } satisfies PersonaTrainingArtifact,
+    }
+  }
+  catch (error) {
+    await removeOwnedDirectory(acceptedDir, acceptedIdentity)
+    await removeOwnedDirectory(stagingDir, stagingIdentity)
+    throw error
   }
 }
 
 export function createPersonaTrainingProcessExecutor(options: {
+  cardsRootDir?: string
   cardRootDir: string
   terminationGraceMs?: number
   onProgress?: (progress: PersonaTrainingProcessProgress) => void | Promise<void>
@@ -539,7 +715,11 @@ export function createPersonaTrainingProcessExecutor(options: {
       artifactRoot,
       outputDir,
       runDir,
-    } = await createRunDirectories(options.cardRootDir, input.runId)
+    } = await createRunDirectories(
+      options.cardsRootDir ?? resolve(options.cardRootDir, '..'),
+      options.cardRootDir,
+      input.runId,
+    )
     const manifestPath = join(runDir, 'manifest.json')
     const datasetPath = join(runDir, 'dataset.jsonl')
     const artifactManifestPath = join(runDir, 'artifact-manifest.json')
@@ -558,18 +738,9 @@ export function createPersonaTrainingProcessExecutor(options: {
       flag: 'wx',
       mode: 0o600,
     })
-    await writeFile(
-      datasetPath,
-      `${input.manifest.examples.map(example => JSON.stringify(example)).join('\n')}\n`,
-      {
-        encoding: 'utf8',
-        flag: 'wx',
-        mode: 0o600,
-      },
-    )
+    await writeBoundedDatasetJsonl(datasetPath, input.manifest.examples)
 
     const argv = [
-      ...config.fixedArguments,
       '--manifest',
       manifestPath,
       '--dataset',
@@ -588,21 +759,18 @@ export function createPersonaTrainingProcessExecutor(options: {
     })
     activeProcesses.add(input.runId)
     try {
-      let progressQueue = Promise.resolve()
       const protocol = await runChildProcess({
         executable,
         argv,
         timeoutMs: config.timeoutMs,
         terminationGraceMs,
         signal: input.signal,
-        onEvent: (event) => {
+        onEvent: async (event) => {
           if (event.type === 'ready') {
-            progressQueue = progressQueue.then(async () => {
-              await input.onProgress?.({
-                stage: 'training',
-                progress: 0.1,
-                message: null,
-              })
+            await input.onProgress?.({
+              stage: 'training',
+              progress: 0.1,
+              message: null,
             })
             return
           }
@@ -612,21 +780,18 @@ export function createPersonaTrainingProcessExecutor(options: {
           const message = typeof event.message === 'string'
             ? event.message.trim().slice(0, 1_000) || null
             : null
-          void options.onProgress?.({
+          await options.onProgress?.({
             runId: input.runId,
             progress,
             message,
           })
-          progressQueue = progressQueue.then(async () => {
-            await input.onProgress?.({
-              stage: 'training',
-              progress: 0.1 + progress * 0.8,
-              message,
-            })
+          await input.onProgress?.({
+            stage: 'training',
+            progress: 0.1 + progress * 0.8,
+            message,
           })
         },
       })
-      await progressQueue
       if (!protocol.ready)
         throw new Error('persona training process exited before the ready protocol event')
       if (!protocol.artifact)
@@ -681,7 +846,7 @@ export async function testPersonaTrainingProcessConnection(
     executable = await resolveExecutable(config.executable)
     const protocol = await runChildProcess({
       executable,
-      argv: [...config.fixedArguments, '--probe'],
+      argv: ['--probe'],
       timeoutMs: Math.min(config.timeoutMs, 30_000),
       terminationGraceMs: defaultTerminationGraceMs,
     })

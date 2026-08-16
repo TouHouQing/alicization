@@ -598,6 +598,7 @@ pages:
         persona_training_queued: Queued
         persona_training_running: Training
         persona_training_cancel_requested: Cancelling
+        persona_training_terminalizing: Finalizing artifact transaction
         persona_training_completed: Completed
         persona_training_cancelled: Cancelled
         persona_training_interrupted: Interrupted
@@ -760,9 +761,8 @@ pages:
         persona_training_last_run: Last Training Run
         persona_training_increments: Persona Training Increments
         persona_training_executor: Local Persona/LoRA Trainer
-        persona_training_executor_description: Configure a local training wrapper you installed. Alicization only invokes the fixed JSONL protocol, never installs training dependencies silently, and never passes Provider API keys to the child process.
+        persona_training_executor_description: Configure a local training executable you installed. Alicization controls every process argument, never installs training dependencies silently, and never passes Provider API keys to the child process.
         persona_training_executable: Executable Absolute Path
-        persona_training_fixed_arguments: Fixed Arguments (One Per Line)
         persona_training_base_model: Base Model
         persona_training_timeout: Timeout (Seconds)
         persona_training_runs: Persona Training Runs
@@ -874,7 +874,6 @@ pages:
         embedding_dimensions: Leave blank first; connection test can detect it
         persona_training_executable: /absolute/path/persona-training-wrapper
         persona_training_base_model: Local base model name or path
-        persona_training_fixed_arguments: Optional wrapper script path or fixed arguments, one per line
   data:
     title: Data
     description: Manage stored Alicization data, exports, and resets
