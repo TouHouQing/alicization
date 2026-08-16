@@ -545,11 +545,42 @@ describe('alicization chat stream bridge', () => {
       resolve: () => {},
       reject: () => {},
     })
+    const startedCard = {
+      toolCallId: 'canonical-codex-1',
+      toolName: 'executor_run_codex',
+      selectedChannel: 'codex',
+      phase: 'started',
+      terminal: false,
+      revision: 1,
+      elapsedMs: null,
+      timeoutMs: null,
+      errorCode: null,
+      errorMessage: null,
+      step: null,
+      result: undefined,
+    } as const
+    const completedCard = {
+      ...startedCard,
+      phase: 'completed',
+      terminal: true,
+      revision: 2,
+      elapsedMs: 100,
+      result: {
+        status: 'completed',
+      },
+    } as const
 
     lifecycle.publish({
       type: 'tool-call',
       toolCallId: 'canonical-codex-1',
       toolName: 'executor_run_codex',
+      selectedChannel: 'codex',
+      projection: {
+        factType: 'tool-call',
+        accepted: true,
+        traceOnly: false,
+        card: startedCard,
+      },
       args: '{}',
       toolCallType: 'function',
     })
@@ -557,12 +588,27 @@ describe('alicization chat stream bridge', () => {
       type: 'tool-call',
       toolCallId: 'canonical-codex-1',
       toolName: 'executor_run_codex',
+      selectedChannel: 'codex',
+      projection: {
+        factType: 'tool-call',
+        accepted: false,
+        traceOnly: true,
+        card: startedCard,
+      },
       args: '{}',
       toolCallType: 'function',
     })
     lifecycle.publish({
       type: 'tool-result',
       toolCallId: 'canonical-codex-1',
+      toolName: 'executor_run_codex',
+      selectedChannel: 'codex',
+      projection: {
+        factType: 'tool-result',
+        accepted: true,
+        traceOnly: false,
+        card: completedCard,
+      },
       result: {
         status: 'completed',
       },
@@ -570,6 +616,14 @@ describe('alicization chat stream bridge', () => {
     lifecycle.publish({
       type: 'tool-result',
       toolCallId: 'canonical-codex-1',
+      toolName: 'executor_run_codex',
+      selectedChannel: 'codex',
+      projection: {
+        factType: 'tool-result',
+        accepted: false,
+        traceOnly: true,
+        card: completedCard,
+      },
       result: {
         status: 'completed',
       },
