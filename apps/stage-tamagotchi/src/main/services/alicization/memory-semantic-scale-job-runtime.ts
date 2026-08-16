@@ -2,9 +2,11 @@ import type sqlite3 from 'sqlite3'
 
 import type { MemorySemanticScaleSoakReport } from './memory-semantic-scale-soak-harness'
 
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { Buffer } from 'node:buffer'
+import { createHash } from 'node:crypto'
+import { mkdir, mkdtemp, open as openFile, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import sqlite from 'sqlite3'
 
@@ -91,10 +93,21 @@ interface ClaimedMemorySemanticScaleJob {
   leaseToken: string
 }
 
+interface MemorySemanticScaleStopRecoveryMarker {
+  version: 1
+  jobId: string
+  cardId: string
+  leaseToken: string
+  attemptCountBeforeClaim: number
+  createdAt: number
+}
+
 const tierCorpusSizes: Record<MemorySemanticScaleJobTier, number> = {
   '10k': 10_000,
   '100k': 100_000,
 }
+const stopRecoveryMarkerMaxBytes = 8 * 1024
+const stopRecoveryMarkerFilePattern = /^[a-f0-9]{64}\.json$/
 
 function normalizeText(raw: unknown, maxLength: number) {
   return typeof raw === 'string'
@@ -203,6 +216,115 @@ function safeParseJson<T>(raw: string | null, fallback: T): T {
 
 function errorText(error: unknown, fallback: string) {
   return normalizeText(errorMessageFrom(error) ?? error, 500) || fallback
+}
+
+function invalidStopRecoveryMarker(path: string, reason: string) {
+  return new Error(`invalid semantic scale stop recovery marker: ${path}: ${reason}`)
+}
+
+function parseStopRecoveryMarker(
+  raw: string,
+  path: string,
+): MemorySemanticScaleStopRecoveryMarker {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  }
+  catch {
+    throw invalidStopRecoveryMarker(path, 'invalid JSON')
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    throw invalidStopRecoveryMarker(path, 'expected object')
+  const record = parsed as Record<string, unknown>
+  const expectedKeys = [
+    'attemptCountBeforeClaim',
+    'cardId',
+    'createdAt',
+    'jobId',
+    'leaseToken',
+    'version',
+  ]
+  const actualKeys = Object.keys(record).sort()
+  if (
+    actualKeys.length !== expectedKeys.length
+    || actualKeys.some((key, index) => key !== expectedKeys[index])
+  ) {
+    throw invalidStopRecoveryMarker(path, 'unexpected schema')
+  }
+  const jobId = normalizeText(record.jobId, 240)
+  const cardId = normalizeText(record.cardId, 120)
+  const leaseToken = normalizeText(record.leaseToken, 240)
+  const attemptCountBeforeClaim = Number(record.attemptCountBeforeClaim)
+  const createdAt = Number(record.createdAt)
+  if (
+    record.version !== 1
+    || !jobId
+    || jobId !== record.jobId
+    || !cardId
+    || cardId !== record.cardId
+    || !leaseToken
+    || leaseToken !== record.leaseToken
+    || !Number.isSafeInteger(attemptCountBeforeClaim)
+    || attemptCountBeforeClaim < 0
+    || attemptCountBeforeClaim > 20
+    || !Number.isSafeInteger(createdAt)
+    || createdAt < 0
+  ) {
+    throw invalidStopRecoveryMarker(path, 'invalid field values')
+  }
+  return {
+    version: 1,
+    jobId,
+    cardId,
+    leaseToken,
+    attemptCountBeforeClaim,
+    createdAt,
+  }
+}
+
+async function readStopRecoveryMarker(path: string) {
+  const file = await openFile(path, 'r')
+  try {
+    const metadata = await file.stat()
+    if (
+      !metadata.isFile()
+      || metadata.size <= 0
+      || metadata.size > stopRecoveryMarkerMaxBytes
+    ) {
+      throw invalidStopRecoveryMarker(path, 'invalid file size')
+    }
+    const buffer = Buffer.alloc(metadata.size)
+    let offset = 0
+    while (offset < buffer.length) {
+      const { bytesRead } = await file.read(
+        buffer,
+        offset,
+        buffer.length - offset,
+        offset,
+      )
+      if (bytesRead === 0)
+        throw invalidStopRecoveryMarker(path, 'unexpected end of file')
+      offset += bytesRead
+    }
+    return parseStopRecoveryMarker(buffer.toString('utf8'), path)
+  }
+  finally {
+    await file.close()
+  }
+}
+
+function defaultStopRecoveryJournalDir(database: sqlite3.Database) {
+  const filename = (database as sqlite3.Database & { filename?: unknown }).filename
+  const rootDir = typeof filename === 'string' && filename && filename !== ':memory:'
+    ? dirname(filename)
+    : tmpdir()
+  return join(rootDir, '.alicization-memory-semantic-scale-stop-recovery')
+}
+
+function stopRecoveryMarkerFileName(marker: MemorySemanticScaleStopRecoveryMarker) {
+  return `${createHash('sha256')
+    .update(`${marker.jobId}\0${marker.cardId}\0${marker.leaseToken}`)
+    .digest('hex')}.json`
 }
 
 function throwIfAborted(signal: AbortSignal) {
@@ -383,6 +505,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
   leaseMs?: number
   retryBaseMs?: number
   retryMaxMs?: number
+  recoveryJournalDir?: string
   tempRootDir?: string
   createTempDir?: (input: {
     jobId: string
@@ -396,6 +519,8 @@ export function createMemorySemanticScaleJobRuntime(input: {
   const retryBaseMs = normalizePositiveInteger(input.retryBaseMs, 5_000)
   const retryMaxMs = Math.max(retryBaseMs, normalizePositiveInteger(input.retryMaxMs, 15 * 60_000))
   const leaseHeartbeatMs = Math.max(1, Math.floor(leaseMs / 3))
+  const recoveryJournalDir = input.recoveryJournalDir
+    ?? defaultStopRecoveryJournalDir(input.database)
   const tempRootDir = input.tempRootDir ?? tmpdir()
   const createTempDir = input.createTempDir ?? (async () => {
     await mkdir(tempRootDir, { recursive: true })
@@ -444,6 +569,118 @@ export function createMemorySemanticScaleJobRuntime(input: {
     }
   }
 
+  async function writeStopRecoveryMarker(
+    marker: MemorySemanticScaleStopRecoveryMarker,
+  ) {
+    await mkdir(recoveryJournalDir, { recursive: true, mode: 0o700 })
+    const fileName = stopRecoveryMarkerFileName(marker)
+    const path = join(recoveryJournalDir, fileName)
+    const nonce = createHash('sha256')
+      .update(input.randomUUID())
+      .digest('hex')
+      .slice(0, 16)
+    const tempPath = join(recoveryJournalDir, `.${fileName}.${nonce}.tmp`)
+    try {
+      await writeFile(
+        tempPath,
+        JSON.stringify(marker),
+        {
+          encoding: 'utf8',
+          flag: 'wx',
+          mode: 0o600,
+        },
+      )
+      await rename(tempPath, path)
+    }
+    finally {
+      await rm(tempPath, { force: true }).catch(() => {})
+    }
+    return path
+  }
+
+  async function reconcileStopRecoveryMarker(
+    marker: MemorySemanticScaleStopRecoveryMarker,
+  ) {
+    const now = input.now()
+    await input.enqueueWrite(async () => {
+      await input.runInTransaction(input.database, async () => {
+        const row = await input.get<MemorySemanticScaleJobRow>(
+          input.database,
+          'SELECT * FROM memory_semantic_scale_jobs WHERE id = ?',
+          [marker.jobId],
+        )
+        if (
+          !row
+          || row.card_id !== marker.cardId
+          || row.lease_token !== marker.leaseToken
+          || (row.status !== 'running' && row.status !== 'cancel_requested')
+        ) {
+          return
+        }
+        await input.run(input.database, `
+          UPDATE memory_semantic_scale_jobs
+          SET attempt_count = MIN(attempt_count, ?),
+              lease_expires_at = ?,
+              last_error = CASE
+                WHEN status = 'cancel_requested' THEN last_error
+                ELSE ?
+              END,
+              updated_at = ?
+          WHERE id = ?
+            AND card_id = ?
+            AND status IN ('running', 'cancel_requested')
+            AND lease_token = ?
+        `, [
+          marker.attemptCountBeforeClaim,
+          now,
+          'semantic scale runtime stopped before settlement recovery',
+          now,
+          marker.jobId,
+          marker.cardId,
+          marker.leaseToken,
+        ])
+        const reconciled = await input.get<MemorySemanticScaleJobRow>(
+          input.database,
+          'SELECT * FROM memory_semantic_scale_jobs WHERE id = ?',
+          [marker.jobId],
+        )
+        if (
+          reconciled
+          && reconciled.card_id === marker.cardId
+          && reconciled.lease_token === marker.leaseToken
+          && (reconciled.status === 'running' || reconciled.status === 'cancel_requested')
+          && (
+            Number(reconciled.attempt_count) > marker.attemptCountBeforeClaim
+            || reconciled.lease_expires_at === null
+            || Number(reconciled.lease_expires_at) > now
+          )
+        ) {
+          throw new Error(`semantic scale stop recovery reconciliation failed: ${marker.jobId}`)
+        }
+      })
+    })
+  }
+
+  async function replayStopRecoveryJournal() {
+    let entries
+    try {
+      entries = await readdir(recoveryJournalDir, { withFileTypes: true })
+    }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+        return
+      throw error
+    }
+    for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+      if (!entry.isFile() || !stopRecoveryMarkerFilePattern.test(entry.name))
+        continue
+      const path = join(recoveryJournalDir, entry.name)
+      const marker = await readStopRecoveryMarker(path)
+      await reconcileStopRecoveryMarker(marker)
+      await rm(path, { force: true })
+    }
+  }
+
   async function initializeSchema() {
     await input.run(input.database, `
       CREATE TABLE IF NOT EXISTS memory_semantic_scale_jobs (
@@ -475,6 +712,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
       input.database,
       'CREATE INDEX IF NOT EXISTS idx_memory_semantic_scale_jobs_resume ON memory_semantic_scale_jobs(status, next_retry_at, lease_expires_at)',
     )
+    await replayStopRecoveryJournal()
     await recoverExpiredLeases()
   }
 
@@ -718,33 +956,20 @@ export function createMemorySemanticScaleJobRuntime(input: {
   async function preserveStoppedClaimForRecovery(
     claimed: ClaimedMemorySemanticScaleJob,
   ) {
-    const attemptCountBeforeClaim = Math.max(0, Number(claimed.row.attempt_count) - 1)
+    const marker: MemorySemanticScaleStopRecoveryMarker = {
+      version: 1,
+      jobId: claimed.row.id,
+      cardId: claimed.row.card_id,
+      leaseToken: claimed.leaseToken,
+      attemptCountBeforeClaim: Math.max(0, Number(claimed.row.attempt_count) - 1),
+      createdAt: input.now(),
+    }
+    const markerPath = await writeStopRecoveryMarker(marker)
     const retryLimit = 3
     for (let failureCount = 0; failureCount < retryLimit; failureCount += 1) {
-      const now = input.now()
       try {
-        await input.enqueueWrite(async () => {
-          await input.run(input.database, `
-            UPDATE memory_semantic_scale_jobs
-            SET attempt_count = MIN(attempt_count, ?),
-                lease_expires_at = ?,
-                last_error = CASE
-                  WHEN status = 'cancel_requested' THEN last_error
-                  ELSE ?
-                END,
-                updated_at = ?
-            WHERE id = ?
-              AND status IN ('running', 'cancel_requested')
-              AND lease_token = ?
-          `, [
-            attemptCountBeforeClaim,
-            now,
-            'semantic scale runtime stopped before settlement recovery',
-            now,
-            claimed.row.id,
-            claimed.leaseToken,
-          ])
-        })
+        await reconcileStopRecoveryMarker(marker)
+        await rm(markerPath, { force: true })
         return
       }
       catch (error) {

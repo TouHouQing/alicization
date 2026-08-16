@@ -2,7 +2,7 @@ import type sqlite3 from 'sqlite3'
 
 import type { MemorySemanticScaleJobExecutionInput } from './memory-semantic-scale-job-runtime'
 
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -131,6 +131,7 @@ function attachRuntime(
     leaseMs?: number
     retryBaseMs?: number
     retryMaxMs?: number
+    recoveryJournalDir?: string
     tempRootDir: string
     createTempDir?: (input: {
       jobId: string
@@ -173,6 +174,8 @@ function attachRuntime(
     leaseMs: input.leaseMs,
     retryBaseMs: input.retryBaseMs,
     retryMaxMs: input.retryMaxMs,
+    recoveryJournalDir: input.recoveryJournalDir
+      ?? join(input.tempRootDir, 'stop-recovery-journal'),
     tempRootDir: input.tempRootDir,
     createTempDir: input.createTempDir,
     removeTempDir: input.removeTempDir,
@@ -187,6 +190,7 @@ async function createRuntimeHarness(input?: {
   leaseMs?: number
   retryBaseMs?: number
   retryMaxMs?: number
+  recoveryJournalDir?: string
   tempRootDir?: string
   createTempDir?: (input: {
     jobId: string
@@ -197,8 +201,11 @@ async function createRuntimeHarness(input?: {
 }) {
   const harness = await createSqliteHarness()
   const tempRootDir = input?.tempRootDir ?? await createTempRoot()
+  const recoveryJournalDir = input?.recoveryJournalDir
+    ?? join(await createTempRoot(), 'stop-recovery-journal')
   const attached = attachRuntime(harness, {
     ...input,
+    recoveryJournalDir,
     tempRootDir,
   })
   await attached.runtime.initializeSchema()
@@ -1287,6 +1294,119 @@ describe('memory semantic scale job runtime', () => {
         id: 'completed-after-stop-recovery',
       },
     })
+  })
+
+  it('replays a durable stop journal when every job update fails during bounded shutdown', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    const recoveryJournalDir = join(tempRootDir, 'stop-recovery-journal')
+    const writeQueue = createWriteQueue()
+    let now = 1_000
+    let failCompletionWrites = true
+    let failAllJobUpdates = false
+    let completionSettlementAttempts = 0
+    let executions = 0
+    const { runtime } = attachRuntime(harness, {
+      now: () => now,
+      maxAttempts: 1,
+      leaseMs: 50,
+      retryBaseMs: 1,
+      recoveryJournalDir,
+      tempRootDir,
+      writeQueue,
+      run: async (sql, params = []) => {
+        if (
+          failAllJobUpdates
+          && /^\s*UPDATE memory_semantic_scale_jobs\b/.test(sql)
+        ) {
+          throw new Error('SQLITE_IOERR: all semantic scale job updates unavailable')
+        }
+        if (failCompletionWrites && sql.includes(`SET status = 'completed'`)) {
+          completionSettlementAttempts += 1
+          throw new Error('completion persistence unavailable before stop')
+        }
+        return await harness.run(sql, params)
+      },
+      executeJob: async ({ corpusSize }) => {
+        executions += 1
+        return createReport(corpusSize, 'stop-journal-attempt-budget')
+      },
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    const worker = runtime.runJob(job.jobId)
+    await waitFor(() => {
+      expect(completionSettlementAttempts).toBeGreaterThan(0)
+    })
+
+    failCompletionWrites = false
+    failAllJobUpdates = true
+    await runtime.stop()
+    await worker
+    const markerFilesBeforeRecovery = await readdir(recoveryJournalDir).catch(() => [])
+
+    failAllJobUpdates = false
+    now = 2_000
+    const restarted = attachRuntime(harness, {
+      now: () => now,
+      maxAttempts: 1,
+      leaseMs: 50,
+      retryBaseMs: 1,
+      recoveryJournalDir,
+      tempRootDir,
+      writeQueue,
+      executeJob: async ({ corpusSize }) => {
+        executions += 1
+        return createReport(corpusSize, 'completed-after-stop-journal-recovery')
+      },
+    })
+    await restarted.runtime.initializeSchema()
+
+    expect(await restarted.runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'queued',
+      attemptCount: 0,
+      maxAttempts: 1,
+      deadLettered: false,
+    })
+    expect(markerFilesBeforeRecovery).toHaveLength(1)
+    expect(markerFilesBeforeRecovery[0]).toMatch(/^[a-f0-9]{64}\.json$/)
+
+    now = 2_001
+    expect(await restarted.runtime.resumePendingJobs('card-a')).toEqual([job.jobId])
+    await waitFor(() => {
+      expect(restarted.runtime.activeJobIds()).toEqual([])
+    })
+    expect(executions).toBe(2)
+    expect(await restarted.runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'completed',
+      attemptCount: 1,
+      maxAttempts: 1,
+      deadLettered: false,
+      report: {
+        id: 'completed-after-stop-journal-recovery',
+      },
+    })
+    expect(await readdir(recoveryJournalDir)).toEqual([])
+  })
+
+  it('rejects a corrupt stop recovery journal marker without updating jobs', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    const recoveryJournalDir = join(tempRootDir, 'stop-recovery-journal')
+    await mkdir(recoveryJournalDir, { recursive: true })
+    await writeFile(
+      join(recoveryJournalDir, `${'a'.repeat(64)}.json`),
+      '{"version":1,"jobId":',
+      'utf8',
+    )
+    const { runtime } = attachRuntime(harness, {
+      recoveryJournalDir,
+      tempRootDir,
+    })
+
+    await expect(runtime.initializeSchema()).rejects.toThrow(
+      'invalid semantic scale stop recovery marker',
+    )
   })
 
   it('settles cancellation requested while completion settlement is failing', async () => {
