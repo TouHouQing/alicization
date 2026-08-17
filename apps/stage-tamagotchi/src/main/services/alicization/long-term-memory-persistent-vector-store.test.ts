@@ -140,6 +140,54 @@ describe('persistent long-term memory vector store', () => {
     restarted.close()
   })
 
+  it('persists canonical embedding text longer than the vector store normalization limit', async () => {
+    const database = await createSandboxDatabase()
+    const store = createPersistentLongTermMemoryVectorStore({
+      database,
+      run,
+      all,
+      enqueueWrite: task => task(),
+      now: () => 10,
+    })
+    const longText = '长期记忆证据 '.repeat(180)
+    await store.initialize()
+    await upsertCanonicalDocument(database, {
+      cardId: 'card-long-text',
+      sourceId: 'episode-long-text',
+      source: 'episodic_events',
+      text: longText,
+    })
+
+    await store.upsertVectors([{
+      id: 'vector-long-text',
+      cardId: 'card-long-text',
+      sourceId: 'episode-long-text',
+      source: 'episodic_events',
+      text: longText,
+      textHash: hashLongTermMemoryEmbeddingText(longText),
+      vector: [1, 0, 0],
+      modelId: 'model-long-text',
+      dimensions: 3,
+      updatedAt: 10,
+      metadata: {},
+    }])
+
+    await expect(store.getHealth({
+      cardId: 'card-long-text',
+      activeModelId: 'model-long-text',
+      dimensions: 3,
+    })).resolves.toMatchObject({
+      canonicalCount: 1,
+      indexedCount: 1,
+      missingCount: 0,
+      textHashMismatchCount: 0,
+      reindexRequired: false,
+      searchReady: true,
+    })
+
+    database.close()
+  })
+
   it('requires reindex when stored vectors do not match the active model space', async () => {
     const database = await createSandboxDatabase()
     const store = createPersistentLongTermMemoryVectorStore({

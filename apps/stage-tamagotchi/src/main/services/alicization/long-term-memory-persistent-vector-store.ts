@@ -9,7 +9,10 @@ import type {
 import { Buffer } from 'node:buffer'
 
 import { resolveLongTermMemoryVectorSpaceId } from './long-term-memory-embedding-provider'
-import { hashLongTermMemoryEmbeddingText } from './long-term-memory-embedding-text'
+import {
+  hashLongTermMemoryEmbeddingText,
+  normalizeLongTermMemoryEmbeddingText,
+} from './long-term-memory-embedding-text'
 
 export interface PersistentLongTermMemoryVectorRecord extends LongTermMemoryVectorRecord {
   cardId: string
@@ -229,7 +232,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
         const sourceId = normalizeText(record.sourceId, 240)
         const source = normalizeText(record.source, 120)
         const modelId = normalizeText(record.modelId, 160)
-        const text = normalizeText(record.text, 1000)
+        const text = normalizeLongTermMemoryEmbeddingText(record.text)
         const expectedTextHash = hashLongTermMemoryEmbeddingText(text)
         const providedTextHash = normalizeText(record.textHash, 64)
         const dimensions = Math.max(1, Math.floor(Number(record.dimensions)))

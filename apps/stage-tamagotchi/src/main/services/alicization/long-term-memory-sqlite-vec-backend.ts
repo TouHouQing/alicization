@@ -16,7 +16,10 @@ import { join } from 'node:path'
 import { getLoadablePath } from 'sqlite-vec'
 
 import { resolveLongTermMemoryVectorSpaceId } from './long-term-memory-embedding-provider'
-import { hashLongTermMemoryEmbeddingText } from './long-term-memory-embedding-text'
+import {
+  hashLongTermMemoryEmbeddingText,
+  normalizeLongTermMemoryEmbeddingText,
+} from './long-term-memory-embedding-text'
 
 interface SqliteVecMappingRow {
   native_rowid: number
@@ -339,7 +342,7 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
             dimensions: dimensions ?? 1,
             vectorSpaceId: record.vectorSpaceId,
           }),
-          text: normalizeText(record.text, 1000),
+          text: normalizeLongTermMemoryEmbeddingText(record.text),
           dimensions: dimensions ?? 0,
         }
         const textHash = normalizeText(record.textHash, 64)
