@@ -35,7 +35,7 @@ function formatTimestamp(timestamp: number | null) {
 }
 
 function formatSessionOption(session: AlicizationMemoryReplaySessionSummary) {
-  return `${session.title} · ${t('settings.pages.memory.workbench.quality.session_user_turns', { count: session.userTurnCount })} · ${formatTimestamp(session.lastTurnAt ?? session.checkpointUpdatedAt)}`
+  return `${session.title} · ${t('settings.pages.memory.workbench.quality.session_user_turns', { count: session.userTurnCount })} · ${formatTimestamp(session.activityUpdatedAt)}`
 }
 
 function updateSelectedSession(event: Event) {
@@ -108,7 +108,7 @@ function updateSelectedSession(event: Event) {
       <span>{{ t('settings.pages.memory.workbench.quality.session_assistant_turns', { count: selectedSession.assistantTurnCount }) }}</span>
       <span :class="['col-span-2']">
         {{ t('settings.pages.memory.workbench.quality.session_recent') }}:
-        {{ formatTimestamp(selectedSession.lastTurnAt ?? selectedSession.checkpointUpdatedAt) }}
+        {{ formatTimestamp(selectedSession.activityUpdatedAt) }}
       </span>
     </div>
 

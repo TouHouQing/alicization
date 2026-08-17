@@ -40,7 +40,7 @@ function compatibilityLabel(status: 'compatible' | 'incompatible' | 'unknown') {
   return t(`settings.pages.memory.workbench.states.persona_training_compatibility_${status}`)
 }
 
-function activationLabel(status: 'inactive' | 'unsupported') {
+function activationLabel(status: 'active' | 'inactive' | 'unsupported') {
   return t(`settings.pages.memory.workbench.states.persona_training_activation_${status}`)
 }
 
@@ -48,8 +48,12 @@ function incrementStateLabel(state: 'available' | 'rolled-back' | 'revoked') {
   return t(`settings.pages.memory.workbench.states.persona_training_increment_${state.replaceAll('-', '_')}`)
 }
 
+function cleanupStageLabel(stage: 'unload' | 'discard' | 'finalize') {
+  return t(`settings.pages.memory.workbench.states.persona_training_cleanup_stage_${stage}`)
+}
+
 function formatTimestamp(value: number | null) {
-  return value ? new Date(value).toLocaleString() : '-'
+  return value == null || value <= 0 ? '-' : new Date(value).toLocaleString()
 }
 
 function cancelActiveRun() {
@@ -57,12 +61,14 @@ function cancelActiveRun() {
     void store.cancelPersonaTraining(personaTrainingRun.value.runId, 'user-requested')
 }
 
-onMounted(async () => {
-  await Promise.all([
+function refreshPersonaTrainingState() {
+  return Promise.all([
     store.refreshPersonaTrainingRuns(),
     store.refreshPersonaTrainingIncrements(),
   ])
-})
+}
+
+onMounted(refreshPersonaTrainingState)
 </script>
 
 <template>
@@ -100,7 +106,7 @@ onMounted(async () => {
           size="sm"
           variant="secondary"
           :loading="personaTrainingRunLoading"
-          @click="store.refreshPersonaTrainingRuns()"
+          @click="refreshPersonaTrainingState"
         />
       </div>
     </div>
@@ -134,9 +140,37 @@ onMounted(async () => {
           {{ t('settings.pages.memory.workbench.fields.persona_training_compatibility') }}:
           {{ compatibilityLabel(personaTrainingRun.artifact.compatibility.status) }}
         </div>
+        <div
+          v-if="personaTrainingRun.artifact.compatibility.reason"
+          :class="['mt-1', 'break-words', 'text-neutral-500']"
+        >
+          {{ t('settings.pages.memory.workbench.fields.persona_training_compatibility_reason') }}:
+          {{ personaTrainingRun.artifact.compatibility.reason }}
+        </div>
         <div :class="['mt-1']">
           {{ t('settings.pages.memory.workbench.fields.persona_training_activation') }}:
           {{ activationLabel(personaTrainingRun.artifact.activation.status) }}
+        </div>
+        <div :class="['mt-1', 'break-words', 'text-neutral-500']">
+          {{ t('settings.pages.memory.workbench.fields.persona_training_activation_reason') }}:
+          {{ personaTrainingRun.artifact.activation.reason }}
+        </div>
+        <div
+          v-if="personaTrainingRun.artifact.activation.status === 'active'"
+          :class="['mt-2', 'grid', 'gap-1', 'text-neutral-500']"
+        >
+          <div>
+            {{ t('settings.pages.memory.workbench.fields.persona_training_loader_id') }}:
+            <span :class="['break-all', 'font-mono']">{{ personaTrainingRun.artifact.activation.loaderId }}</span>
+          </div>
+          <div>
+            {{ t('settings.pages.memory.workbench.fields.persona_training_receipt_id') }}:
+            <span :class="['break-all', 'font-mono']">{{ personaTrainingRun.artifact.activation.receiptId }}</span>
+          </div>
+          <div>
+            {{ t('settings.pages.memory.workbench.fields.persona_training_activated_at') }}:
+            {{ formatTimestamp(personaTrainingRun.artifact.activation.activatedAt) }}
+          </div>
         </div>
         <div :class="['mt-1', 'break-all', 'font-mono', 'text-neutral-500']">
           {{ personaTrainingRun.artifact.path }}
@@ -185,11 +219,24 @@ onMounted(async () => {
         </div>
         <article v-for="increment in personaTrainingIncrements" :key="increment.id" :class="['mt-2', 'border', 'border-neutral-200', 'p-3', 'dark:border-neutral-800']">
           <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
-            <span>{{ incrementStateLabel(increment.state) }}</span>
+            <span v-if="increment.cleanup" :class="['font-medium', 'text-amber-700', 'dark:text-amber-300']">
+              {{ t('settings.pages.memory.workbench.states.persona_training_cleanup_pending') }}
+            </span>
+            <span v-else>{{ incrementStateLabel(increment.state) }}</span>
             <span>{{ formatTimestamp(increment.createdAt) }}</span>
           </div>
           <div :class="['mt-1', 'truncate', 'font-mono', 'text-xs']">
             {{ increment.id }}
+          </div>
+          <div v-if="increment.cleanup" :class="['mt-2', 'border-l-2', 'border-amber-400', 'pl-2', 'text-xs']">
+            <div>
+              {{ t('settings.pages.memory.workbench.fields.persona_training_cleanup_stage') }}:
+              {{ cleanupStageLabel(increment.cleanup.stage) }}
+            </div>
+            <div v-if="increment.cleanup.lastError" :class="['mt-1', 'break-words', 'text-rose-600', 'dark:text-rose-300']">
+              {{ t('settings.pages.memory.workbench.fields.persona_training_cleanup_error') }}:
+              {{ increment.cleanup.lastError }}
+            </div>
           </div>
           <Button
             v-if="increment.state === 'available'"
@@ -198,6 +245,7 @@ onMounted(async () => {
             icon="i-solar:restart-bold-duotone"
             size="sm"
             variant="secondary"
+            :disabled="Boolean(increment.cleanup)"
             :loading="personaTrainingRunLoading"
             @click="store.rollbackPersonaTrainingIncrement(increment.id)"
           />

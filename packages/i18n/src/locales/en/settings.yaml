@@ -608,6 +608,7 @@ pages:
         persona_training_stage_validating_artifact: Validating artifact
         persona_training_stage_finalizing: Finalizing records
         persona_training_activation_inactive: Inactive
+        persona_training_activation_active: Loaded and active
         persona_training_activation_unsupported: Artifact stored but inactive (no loader receipt)
         persona_training_compatibility_compatible: Compatible
         persona_training_compatibility_incompatible: Incompatible
@@ -615,6 +616,10 @@ pages:
         persona_training_increment_available: Available
         persona_training_increment_rolled_back: Rolled back
         persona_training_increment_revoked: Revoked
+        persona_training_cleanup_pending: Cleanup pending
+        persona_training_cleanup_stage_unload: Unloading adapter
+        persona_training_cleanup_stage_discard: Discarding artifact
+        persona_training_cleanup_stage_finalize: Finalizing state
         dataset_staged: Staged
         dataset_quarantined: Quarantined
         dataset_revoked: Revoked
@@ -768,11 +773,18 @@ pages:
         persona_training_runs: Persona Training Runs
         persona_training_runs_description: Training runs asynchronously. Status, progress, cancellation, and errors come from the local database.
         persona_training_stage: Stage
+        persona_training_cleanup_stage: Cleanup Stage
+        persona_training_cleanup_error: Cleanup Error
         persona_training_progress: Progress
         persona_training_history: Run History
         persona_training_artifact: Training Artifact
         persona_training_compatibility: Compatibility
+        persona_training_compatibility_reason: Compatibility Reason
         persona_training_activation: Activation
+        persona_training_activation_reason: Activation Reason
+        persona_training_loader_id: Loader ID
+        persona_training_receipt_id: Loader Receipt ID
+        persona_training_activated_at: Activated At
         long_term_fixtures: Long-Term Fixtures
         working_memory_fixtures: Working Memory Fixtures
         compressed_context_fixtures: Compressed-Context Fixtures

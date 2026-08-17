@@ -114,6 +114,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   let qualityTrialContextRevision = 0
   let semanticScaleContextRevision = 0
   let personaTrainingContextRevision = 0
+  let personaTrainingRunLoadingCount = 0
   const goldLabelLoading = ref(false)
   const goldLabelMonth = ref(new Date().toISOString().slice(0, 7))
   const monthlyGoldLabels = ref<AlicizationMemoryQualityGoldLabelItem[]>([])
@@ -160,6 +161,20 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     if (!personaTrainingRunLoading.value)
       await refreshPersonaTrainingRun(run.runId)
   }, 2_000, { immediate: false })
+
+  function beginPersonaTrainingRunLoading(revision: number) {
+    if (revision !== personaTrainingContextRevision)
+      return
+    personaTrainingRunLoadingCount += 1
+    personaTrainingRunLoading.value = true
+  }
+
+  function endPersonaTrainingRunLoading(revision: number) {
+    if (revision !== personaTrainingContextRevision)
+      return
+    personaTrainingRunLoadingCount = Math.max(0, personaTrainingRunLoadingCount - 1)
+    personaTrainingRunLoading.value = personaTrainingRunLoadingCount > 0
+  }
 
   function updateReindexResult(result: AlicizationMemoryEmbeddingReindexResult) {
     reindexResult.value = result
@@ -646,18 +661,20 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   async function activatePersonaTrainingDataset(datasetId: string) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchActivatePersonaTrainingDataset)
       return null
+    let operationError: string | null = null
     personaTrainingDatasetLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchActivatePersonaTrainingDataset!({ datasetId })
-      await refreshPersonaTrainingDataset()
-      lastError.value = null
       return result
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      operationError = errorMessageFrom(error) ?? 'unknown-error'
       return null
     }
     finally {
+      await refreshPersonaTrainingState()
+      if (operationError)
+        lastError.value = operationError
       personaTrainingDatasetLoading.value = false
     }
   }
@@ -665,18 +682,20 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   async function rollbackPersonaTrainingDataset(datasetId: string) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRollbackPersonaTrainingDataset)
       return null
+    let operationError: string | null = null
     personaTrainingDatasetLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchRollbackPersonaTrainingDataset!({ datasetId })
-      await refreshPersonaTrainingDataset()
-      lastError.value = null
       return result
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      operationError = errorMessageFrom(error) ?? 'unknown-error'
       return null
     }
     finally {
+      await refreshPersonaTrainingState()
+      if (operationError)
+        lastError.value = operationError
       personaTrainingDatasetLoading.value = false
     }
   }
@@ -705,27 +724,37 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   async function revokePersonaTrainingDatasetSource(sourceId: string) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRevokePersonaTrainingDatasetSource)
       return null
+    let operationError: string | null = null
     personaTrainingDatasetLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchRevokePersonaTrainingDatasetSource!({ sourceId })
-      await refreshPersonaTrainingDataset()
-      lastError.value = null
       return result
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      operationError = errorMessageFrom(error) ?? 'unknown-error'
       return null
     }
     finally {
+      await refreshPersonaTrainingState()
+      if (operationError)
+        lastError.value = operationError
       personaTrainingDatasetLoading.value = false
     }
+  }
+
+  async function refreshPersonaTrainingState() {
+    await Promise.all([
+      refreshPersonaTrainingDataset(),
+      refreshPersonaTrainingRuns(),
+      refreshPersonaTrainingIncrements(),
+    ])
   }
 
   async function refreshPersonaTrainingIncrements() {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListPersonaTrainingIncrements)
       return []
     const revision = personaTrainingContextRevision
-    personaTrainingRunLoading.value = true
+    beginPersonaTrainingRunLoading(revision)
     try {
       const result = await getAlicizationBridge().memoryWorkbenchListPersonaTrainingIncrements!()
       if (revision !== personaTrainingContextRevision)
@@ -740,8 +769,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       return []
     }
     finally {
-      if (revision === personaTrainingContextRevision)
-        personaTrainingRunLoading.value = false
+      endPersonaTrainingRunLoading(revision)
     }
   }
 
@@ -764,7 +792,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListPersonaTrainingRuns)
       return []
     const revision = personaTrainingContextRevision
-    personaTrainingRunLoading.value = true
+    beginPersonaTrainingRunLoading(revision)
     try {
       const result = await getAlicizationBridge().memoryWorkbenchListPersonaTrainingRuns!({ limit })
       if (revision !== personaTrainingContextRevision)
@@ -787,8 +815,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       return []
     }
     finally {
-      if (revision === personaTrainingContextRevision)
-        personaTrainingRunLoading.value = false
+      endPersonaTrainingRunLoading(revision)
     }
   }
 
@@ -796,7 +823,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     if (!runId.trim() || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchGetPersonaTrainingRun)
       return null
     const revision = personaTrainingContextRevision
-    personaTrainingRunLoading.value = true
+    beginPersonaTrainingRunLoading(revision)
     try {
       const run = await getAlicizationBridge().memoryWorkbenchGetPersonaTrainingRun!({ runId })
       if (revision !== personaTrainingContextRevision)
@@ -816,8 +843,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       return null
     }
     finally {
-      if (revision === personaTrainingContextRevision)
-        personaTrainingRunLoading.value = false
+      endPersonaTrainingRunLoading(revision)
     }
   }
 
@@ -825,7 +851,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRunPersonaTraining)
       return null
     const revision = personaTrainingContextRevision
-    personaTrainingRunLoading.value = true
+    beginPersonaTrainingRunLoading(revision)
     try {
       const result = await getAlicizationBridge().memoryWorkbenchRunPersonaTraining!({ datasetId })
       if (revision !== personaTrainingContextRevision)
@@ -839,8 +865,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       return null
     }
     finally {
-      if (revision === personaTrainingContextRevision)
-        personaTrainingRunLoading.value = false
+      endPersonaTrainingRunLoading(revision)
     }
   }
 
@@ -848,7 +873,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     if (!runId.trim() || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchCancelPersonaTraining)
       return null
     const revision = personaTrainingContextRevision
-    personaTrainingRunLoading.value = true
+    beginPersonaTrainingRunLoading(revision)
     try {
       const run = await getAlicizationBridge().memoryWorkbenchCancelPersonaTraining!({
         runId,
@@ -865,13 +890,13 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       return null
     }
     finally {
-      if (revision === personaTrainingContextRevision)
-        personaTrainingRunLoading.value = false
+      endPersonaTrainingRunLoading(revision)
     }
   }
 
   function resetPersonaTrainingScope() {
     personaTrainingContextRevision += 1
+    personaTrainingRunLoadingCount = 0
     pausePersonaTrainingPolling()
     personaTrainingRun.value = null
     personaTrainingRuns.value = []
@@ -939,7 +964,8 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   async function rollbackPersonaTrainingIncrement(incrementId: string) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRollbackPersonaTrainingIncrement)
       return null
-    personaTrainingRunLoading.value = true
+    const revision = personaTrainingContextRevision
+    beginPersonaTrainingRunLoading(revision)
     try {
       const result = await getAlicizationBridge().memoryWorkbenchRollbackPersonaTrainingIncrement!({ incrementId })
       await refreshPersonaTrainingIncrements()
@@ -951,7 +977,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       return null
     }
     finally {
-      personaTrainingRunLoading.value = false
+      endPersonaTrainingRunLoading(revision)
     }
   }
 

@@ -599,6 +599,7 @@ pages:
         persona_training_stage_validating_artifact: 正在校验产物
         persona_training_stage_finalizing: 正在完成记录
         persona_training_activation_inactive: 未激活
+        persona_training_activation_active: 已加载并生效
         persona_training_activation_unsupported: 产物已保存但未激活（尚无真实加载回执）
         persona_training_compatibility_compatible: 兼容
         persona_training_compatibility_incompatible: 不兼容
@@ -606,6 +607,10 @@ pages:
         persona_training_increment_available: 可用
         persona_training_increment_rolled_back: 已回滚
         persona_training_increment_revoked: 已撤回
+        persona_training_cleanup_pending: 清理待处理
+        persona_training_cleanup_stage_unload: 正在卸载适配器
+        persona_training_cleanup_stage_discard: 正在删除训练产物
+        persona_training_cleanup_stage_finalize: 正在提交最终状态
         dataset_staged: 待训练
         dataset_quarantined: 已隔离
         dataset_revoked: 已撤回
@@ -759,11 +764,18 @@ pages:
         persona_training_runs: 人格训练运行
         persona_training_runs_description: 训练异步运行，状态、进度、取消和错误都以本地数据库为准。
         persona_training_stage: 阶段
+        persona_training_cleanup_stage: 清理阶段
+        persona_training_cleanup_error: 清理错误
         persona_training_progress: 进度
         persona_training_history: 运行历史
         persona_training_artifact: 训练产物
         persona_training_compatibility: 兼容性
+        persona_training_compatibility_reason: 兼容性原因
         persona_training_activation: 激活状态
+        persona_training_activation_reason: 激活原因
+        persona_training_loader_id: 加载器 ID
+        persona_training_receipt_id: 加载回执 ID
+        persona_training_activated_at: 生效时间
         long_term_fixtures: 长期召回样本
         working_memory_fixtures: 短期压缩样本
         compressed_context_fixtures: 压缩后行为样本

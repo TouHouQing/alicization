@@ -833,6 +833,127 @@ describe('alicization memory workbench store', () => {
     expect(store.personaTrainingDatasetExport?.manifest.manifestHash).toBe('hash')
   })
 
+  it.each([
+    {
+      action: 'activatePersonaTrainingDataset' as const,
+      bridgeAction: 'memoryWorkbenchActivatePersonaTrainingDataset' as const,
+      id: 'dataset-activate',
+      payload: { datasetId: 'dataset-activate' },
+    },
+    {
+      action: 'rollbackPersonaTrainingDataset' as const,
+      bridgeAction: 'memoryWorkbenchRollbackPersonaTrainingDataset' as const,
+      id: 'dataset-rollback',
+      payload: { datasetId: 'dataset-rollback' },
+    },
+    {
+      action: 'revokePersonaTrainingDatasetSource' as const,
+      bridgeAction: 'memoryWorkbenchRevokePersonaTrainingDatasetSource' as const,
+      id: 'source-revoke',
+      payload: { sourceId: 'source-revoke' },
+    },
+  ])('refreshes persona dataset, runs, and increments after $action succeeds', async ({
+    action,
+    bridgeAction,
+    id,
+    payload,
+  }) => {
+    const mutation = vi.fn(async () => ({ affected: 1 }))
+    const memoryWorkbenchGetPersonaTrainingDataset = vi.fn(async () => ({
+      cardId: 'default',
+      activeVersionId: null,
+      versions: [],
+      examples: [],
+    }))
+    const memoryWorkbenchListPersonaTrainingRuns = vi.fn(async () => ({ items: [] }))
+    const memoryWorkbenchListPersonaTrainingIncrements = vi.fn(async () => ({ items: [] }))
+    setAlicizationBridge({
+      [bridgeAction]: mutation,
+      memoryWorkbenchGetPersonaTrainingDataset,
+      memoryWorkbenchListPersonaTrainingRuns,
+      memoryWorkbenchListPersonaTrainingIncrements,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store[action](id)
+
+    expect(mutation).toHaveBeenCalledWith(payload)
+    expect(memoryWorkbenchGetPersonaTrainingDataset).toHaveBeenCalledOnce()
+    expect(memoryWorkbenchListPersonaTrainingRuns).toHaveBeenCalledOnce()
+    expect(memoryWorkbenchListPersonaTrainingIncrements).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    {
+      action: 'activatePersonaTrainingDataset' as const,
+      bridgeAction: 'memoryWorkbenchActivatePersonaTrainingDataset' as const,
+      id: 'dataset-activate',
+    },
+    {
+      action: 'rollbackPersonaTrainingDataset' as const,
+      bridgeAction: 'memoryWorkbenchRollbackPersonaTrainingDataset' as const,
+      id: 'dataset-rollback',
+    },
+    {
+      action: 'revokePersonaTrainingDatasetSource' as const,
+      bridgeAction: 'memoryWorkbenchRevokePersonaTrainingDatasetSource' as const,
+      id: 'source-revoke',
+    },
+  ])('refreshes all persona training state without swallowing the original $action error', async ({
+    action,
+    bridgeAction,
+    id,
+  }) => {
+    const mutationError = `${action} partially failed`
+    const mutation = vi.fn(async () => {
+      throw new Error(mutationError)
+    })
+    const memoryWorkbenchGetPersonaTrainingDataset = vi.fn(async () => ({
+      cardId: 'default',
+      activeVersionId: null,
+      versions: [],
+      examples: [],
+    }))
+    const memoryWorkbenchListPersonaTrainingRuns = vi.fn(async () => {
+      throw new Error('runs refresh failed')
+    })
+    const memoryWorkbenchListPersonaTrainingIncrements = vi.fn(async () => ({ items: [] }))
+    setAlicizationBridge({
+      [bridgeAction]: mutation,
+      memoryWorkbenchGetPersonaTrainingDataset,
+      memoryWorkbenchListPersonaTrainingRuns,
+      memoryWorkbenchListPersonaTrainingIncrements,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await expect(store[action](id)).resolves.toBeNull()
+
+    expect(memoryWorkbenchGetPersonaTrainingDataset).toHaveBeenCalledOnce()
+    expect(memoryWorkbenchListPersonaTrainingRuns).toHaveBeenCalledOnce()
+    expect(memoryWorkbenchListPersonaTrainingIncrements).toHaveBeenCalledOnce()
+    expect(store.lastError).toBe(mutationError)
+  })
+
+  it('keeps persona training loading active until concurrent run and increment refreshes settle', async () => {
+    let resolveRuns: ((value: { items: [] }) => void) | undefined
+    setAlicizationBridge({
+      memoryWorkbenchListPersonaTrainingRuns: vi.fn(async () => await new Promise<{ items: [] }>((resolve) => {
+        resolveRuns = resolve
+      })),
+      memoryWorkbenchListPersonaTrainingIncrements: vi.fn(async () => ({ items: [] })),
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const runsRefresh = store.refreshPersonaTrainingRuns()
+    const incrementsRefresh = store.refreshPersonaTrainingIncrements()
+    await incrementsRefresh
+
+    expect(store.personaTrainingRunLoading).toBe(true)
+    resolveRuns?.({ items: [] })
+    await runsRefresh
+    expect(store.personaTrainingRunLoading).toBe(false)
+  })
+
   it('starts persona training without blocking and polls the persisted run to completion', async () => {
     vi.useFakeTimers()
     const queuedRun = {
@@ -1083,6 +1204,7 @@ describe('alicization memory workbench store', () => {
           userTurnCount: 2,
           assistantTurnCount: 2,
           checkpointUpdatedAt: 30,
+          activityUpdatedAt: 30,
         }],
         nextCursor: 'next-session-page',
       })
@@ -1095,6 +1217,7 @@ describe('alicization memory workbench store', () => {
           userTurnCount: 1,
           assistantTurnCount: 1,
           checkpointUpdatedAt: 6,
+          activityUpdatedAt: 6,
         }],
         nextCursor: null,
       })
@@ -1215,6 +1338,7 @@ describe('alicization memory workbench store', () => {
           userTurnCount: 1,
           assistantTurnCount: 1,
           checkpointUpdatedAt: 3,
+          activityUpdatedAt: 3,
         }],
         nextCursor: null,
       })),
