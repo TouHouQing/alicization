@@ -10,6 +10,7 @@ import {
   deriveLongTermMemoryRecallIntent,
 } from './long-term-memory-recall'
 import {
+  projectMemoryLiveProviderTrialToDialogueReplay,
   runMemoryLiveProviderTrial,
 } from './memory-live-provider-trial'
 
@@ -112,6 +113,16 @@ describe('memory live provider trial', () => {
     expect(report.summary.succeededTurnCount).toBe(1)
     expect(report.turns[0]?.providerTrace?.outputLength).toBe('我记得白樱线。'.length)
     expect(report.productionWrites).toEqual([])
+    expect(projectMemoryLiveProviderTrialToDialogueReplay(report)).toMatchObject({
+      summary: {
+        checkpointWriteCount: 0,
+      },
+      turns: [{
+        writeback: {
+          checkpoint: 'skipped',
+        },
+      }],
+    })
     expect(productionDb.upsertWorkingMemoryCheckpoint).not.toHaveBeenCalled()
     expect(productionDb.persistPersonaState).not.toHaveBeenCalled()
     expect(provider).toHaveBeenCalledOnce()

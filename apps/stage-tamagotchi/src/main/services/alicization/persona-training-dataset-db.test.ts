@@ -1,8 +1,12 @@
 import type { AlicizationPersonaTrainingArtifact } from '@proj-alicization/stage-shared'
 
+import type {
+  PersonaTrainingDatasetExample,
+  PersonaTrainingDatasetVersion,
+} from './persona-training-dataset-runtime'
 import type { PersonaTrainingExecutorInput } from './persona-training-pipeline-gate'
 
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -11,6 +15,7 @@ import sqlite3 from 'sqlite3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { setupAlicizationDb } from './db'
+import { buildPersonaTrainingDatasetManifest } from './persona-training-dataset-runtime'
 import { createPersonaTrainingProcessExecutor } from './persona-training-process-executor'
 
 const sandboxDirs: string[] = []
@@ -36,6 +41,23 @@ function createPersonaTrainingArtifact(
     activation: {
       status: 'unsupported',
       reason: 'No loader receipt is available.',
+    },
+  }
+}
+
+function createActivePersonaTrainingArtifact(
+  runId: string,
+  artifactId = `artifact-${runId}`,
+  receiptId = `receipt-${runId}`,
+): AlicizationPersonaTrainingArtifact {
+  return {
+    ...createPersonaTrainingArtifact(runId, artifactId),
+    activation: {
+      status: 'active',
+      reason: 'Loaded before the process restart.',
+      loaderId: 'persisted-loader',
+      receiptId,
+      activatedAt: 150,
     },
   }
 }
@@ -73,14 +95,172 @@ function runRaw(database: sqlite3.Database, sql: string, params: unknown[] = [])
   })
 }
 
+interface RawPersonaTrainingScope {
+  datasetId: string
+  manifestHash: string
+  sourceIds: string[]
+}
+
+function personaTrainingActivationOperationIdForTest(input: {
+  cardId: string
+  runId: string
+  incrementId: string
+  artifactId: string
+  mode: 'initial' | 'restart'
+  expectedReceiptId?: string | null
+}) {
+  const base = [
+    'persona-training-artifact-activation',
+    input.cardId,
+    input.runId,
+    input.incrementId,
+    input.artifactId,
+    input.mode,
+  ].map(encodeURIComponent).join(':')
+  const cycle = input.mode === 'restart'
+    ? `:${encodeURIComponent(input.expectedReceiptId?.trim() || 'no-receipt')}`
+    : ''
+  return `${base}${cycle}:load`
+}
+
+function personaTrainingCleanupIntentIdForTest(input: {
+  cardId: string
+  runId: string
+  incrementId: string | null
+  artifactId: string
+}) {
+  return [
+    'persona-training-artifact-cleanup',
+    input.cardId,
+    input.runId,
+    input.incrementId ?? 'orphan',
+    input.artifactId,
+  ].map(encodeURIComponent).join(':')
+}
+
+async function insertRawEligiblePersonaTrainingScope(
+  database: sqlite3.Database,
+  runId: string,
+): Promise<RawPersonaTrainingScope> {
+  const dataset = {
+    id: `dataset-${runId}`,
+    cardId: 'card-a',
+    version: [...runId].reduce((sum, character) => sum + character.charCodeAt(0), 1),
+    schemaVersion: 'persona-training-dataset-v1',
+    consentSnapshot: {
+      granted: true,
+      policyVersion: 'persona-training-consent-v1',
+      scope: 'persona-dataset',
+      capturedAt: 90,
+    },
+    createdAt: 90,
+    exportedAt: 100,
+    activeAt: 100,
+    rolledBackAt: null,
+  } satisfies PersonaTrainingDatasetVersion
+  const example = {
+    id: `example-${runId}`,
+    datasetId: dataset.id,
+    cardId: dataset.cardId,
+    schemaVersion: 'persona-training-example-v1',
+    sourceId: `source-${runId}`,
+    sourceKind: 'cleaned-long-term-reflection',
+    contentHash: `content-${runId}`,
+    behaviorLesson: '重启后只加载仍有资格的人格增量。',
+    positiveExample: '我会先核对数据集和来源资格，再恢复人格增量。',
+    negativeExample: null,
+    sensitivity: 'personal',
+    piiStatus: 'clear',
+    piiReason: null,
+    consentSnapshot: dataset.consentSnapshot,
+    provenance: {
+      kind: 'working-memory-cleaning',
+      cleaningTransactionId: `cleaning-${runId}`,
+      cleanedAt: 95,
+    },
+    allowTraining: true,
+    state: 'staged',
+    createdAt: 95,
+    revokedAt: null,
+  } satisfies PersonaTrainingDatasetExample
+  const manifest = buildPersonaTrainingDatasetManifest({
+    dataset,
+    examples: [example],
+    exportedAt: 100,
+  })
+  await runRaw(
+    database,
+    `
+    INSERT INTO persona_training_datasets (
+      id, card_id, version, schema_version, consent_snapshot_json,
+      created_at, exported_at, active_at, rolled_back_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    [
+      dataset.id,
+      dataset.cardId,
+      dataset.version,
+      dataset.schemaVersion,
+      JSON.stringify(dataset.consentSnapshot),
+      dataset.createdAt,
+      dataset.exportedAt,
+      dataset.activeAt,
+      dataset.rolledBackAt,
+    ],
+  )
+  await runRaw(
+    database,
+    `
+    INSERT INTO persona_training_dataset_examples (
+      id, dataset_id, card_id, schema_version, source_id, source_kind,
+      content_hash, behavior_lesson, positive_example, negative_example,
+      sensitivity, pii_status, pii_reason, consent_snapshot_json, provenance_json,
+      allow_training, state, created_at, revoked_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+    [
+      example.id,
+      example.datasetId,
+      example.cardId,
+      example.schemaVersion,
+      example.sourceId,
+      example.sourceKind,
+      example.contentHash,
+      example.behaviorLesson,
+      example.positiveExample,
+      example.negativeExample,
+      example.sensitivity,
+      example.piiStatus,
+      example.piiReason,
+      JSON.stringify(example.consentSnapshot),
+      JSON.stringify(example.provenance),
+      1,
+      example.state,
+      example.createdAt,
+      example.revokedAt,
+    ],
+  )
+  return {
+    datasetId: dataset.id,
+    manifestHash: manifest.manifestHash,
+    sourceIds: manifest.examples.map(item => item.sourceId),
+  }
+}
+
 async function insertRawPersonaTrainingRun(
   database: sqlite3.Database,
   input: {
     runId: string
     status: string
     artifact: AlicizationPersonaTrainingArtifact | null
+    scope?: RawPersonaTrainingScope
   },
 ) {
+  const scope = input.scope ?? {
+    datasetId: `dataset-${input.runId}`,
+    manifestHash: `manifest-${input.runId}`,
+    sourceIds: [`source-${input.runId}`],
+  }
   await runRaw(
     database,
     `
@@ -94,9 +274,9 @@ async function insertRawPersonaTrainingRun(
     [
       input.runId,
       'card-a',
-      `dataset-${input.runId}`,
-      `manifest-${input.runId}`,
-      `["source-${input.runId}"]`,
+      scope.datasetId,
+      scope.manifestHash,
+      JSON.stringify(scope.sourceIds),
       'persona-core-v1',
       input.status,
       input.status === 'completed' ? 'finalizing' : 'training',
@@ -121,8 +301,14 @@ async function insertRawPersonaTrainingIncrement(
     runId: string
     artifact: AlicizationPersonaTrainingArtifact
     state?: 'available' | 'rolled-back' | 'revoked'
+    scope?: RawPersonaTrainingScope
   },
 ) {
+  const scope = input.scope ?? {
+    datasetId: `dataset-${input.runId}`,
+    manifestHash: `manifest-${input.runId}`,
+    sourceIds: [`source-${input.runId}`],
+  }
   await runRaw(
     database,
     `
@@ -135,9 +321,9 @@ async function insertRawPersonaTrainingIncrement(
       `persona-training-increment:${input.runId}`,
       input.runId,
       'card-a',
-      `dataset-${input.runId}`,
-      `manifest-${input.runId}`,
-      `["source-${input.runId}"]`,
+      scope.datasetId,
+      scope.manifestHash,
+      JSON.stringify(scope.sourceIds),
       'persona-core-v1',
       JSON.stringify(input.artifact),
       input.state ?? 'available',
@@ -363,7 +549,12 @@ describe('persona training dataset database provenance', () => {
       ])
 
       await db.close()
-      const reopened = await setupAlicizationDb(userDataPath)
+      const reopened = await setupAlicizationDb(userDataPath, {
+        personaTrainingArtifactLifecycle: {
+          validateArtifact: async () => {},
+          discardArtifact: async () => {},
+        },
+      })
       try {
         const persisted = await reopened.listPersonaTrainingIncrements({ cardId: 'card-a' })
         expect(persisted).toEqual([
@@ -433,11 +624,637 @@ describe('persona training dataset database provenance', () => {
         'training-completed',
         'training-increment-rolled-back',
         'training-increment-revoked',
+        'training-artifact-cleanup-requested',
+        'training-artifact-cleanup-completed',
       ].sort())
     }
     finally {
       await closeRawDatabase(rawDatabase)
     }
+  })
+
+  it('persists a real loader receipt and unloads the active adapter before artifact rollback cleanup', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const lifecycle: string[] = []
+    const load = vi.fn(async () => {
+      lifecycle.push('load')
+      return {
+        loaderId: 'db-test-loader',
+        receiptId: 'db-test-receipt',
+        activatedAt: 250,
+      }
+    })
+    const unload = vi.fn(async () => {
+      lifecycle.push('unload')
+    })
+    const discardArtifact = vi.fn(async () => {
+      lifecycle.push('discard')
+    })
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, 'artifact-loader-backed-db'),
+      }),
+      personaTrainingArtifactLoader: {
+        load,
+        unload,
+      },
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact,
+      },
+    })
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'loader-backed-db',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const result = await db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const incrementId = result.status === 'succeeded' ? result.increment.id : ''
+      const activationOperationId = personaTrainingActivationOperationIdForTest({
+        cardId: 'card-a',
+        runId: result.runId,
+        incrementId,
+        artifactId: 'artifact-loader-backed-db',
+        mode: 'initial',
+      })
+      expect(result).toMatchObject({
+        status: 'succeeded',
+        increment: {
+          artifact: {
+            activation: {
+              status: 'active',
+              loaderId: 'db-test-loader',
+              receiptId: 'db-test-receipt',
+              activatedAt: 250,
+            },
+          },
+        },
+      })
+      expect(load).toHaveBeenCalledWith(expect.objectContaining({
+        operationId: activationOperationId,
+      }))
+      const activationDatabase = await openRawDatabase(databasePath)
+      try {
+        await expect(queryRawRows<{
+          status: string
+          stage: string
+          load_operation_id: string
+          loader_receipt_json: string
+        }>(
+          activationDatabase,
+          `
+          SELECT status, stage, load_operation_id, loader_receipt_json
+          FROM persona_training_artifact_activation_intents
+          `,
+        )).resolves.toEqual([{
+          status: 'completed',
+          stage: 'loaded',
+          load_operation_id: activationOperationId,
+          loader_receipt_json: expect.stringContaining('db-test-receipt'),
+        }])
+      }
+      finally {
+        await closeRawDatabase(activationDatabase)
+      }
+      await expect(db.rollbackPersonaTrainingIncrement({
+        cardId: 'card-a',
+        incrementId,
+      })).resolves.toMatchObject({
+        state: 'rolled-back',
+      })
+      expect(load).toHaveBeenCalledOnce()
+      expect(unload).toHaveBeenCalledOnce()
+      expect(lifecycle).toEqual(['load', 'unload', 'discard'])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('durably hands a loaded adapter to cleanup when training completion rolls back', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const unload = vi.fn(async () => {})
+    const discardArtifact = vi.fn(async () => {})
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, 'artifact-loaded-completion-rollback'),
+      }),
+      personaTrainingArtifactLoader: {
+        load: async () => ({
+          loaderId: 'db-test-loader',
+          receiptId: 'receipt-loaded-completion-rollback',
+          activatedAt: 250,
+        }),
+        unload,
+      },
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact,
+      },
+    })
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'loaded-completion-rollback',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      await installFailingPersonaAuditTrigger(databasePath, {
+        name: 'fail_loaded_completion_audit',
+        action: 'training-completed',
+      })
+
+      await expect(db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })).resolves.toMatchObject({
+        status: 'failed',
+        error: expect.stringContaining('forced persona audit failure'),
+      })
+      expect(unload).toHaveBeenCalledWith(expect.objectContaining({
+        receipt: expect.objectContaining({
+          receiptId: 'receipt-loaded-completion-rollback',
+        }),
+      }))
+      expect(discardArtifact).toHaveBeenCalledOnce()
+      await expect(db.listPersonaTrainingIncrements({
+        cardId: 'card-a',
+      })).resolves.toEqual([])
+    }
+    finally {
+      await db.close()
+    }
+
+    const persistedDatabase = await openRawDatabase(databasePath)
+    try {
+      await expect(queryRawRows<{
+        stage: string
+        status: string
+      }>(
+        persistedDatabase,
+        `
+        SELECT stage, status
+        FROM persona_training_artifact_activation_intents
+        `,
+      )).resolves.toEqual([{
+        stage: 'loaded',
+        status: 'completed',
+      }])
+      await expect(queryRawRows<{
+        stage: string
+        status: string
+      }>(
+        persistedDatabase,
+        `
+        SELECT stage, status
+        FROM persona_training_artifact_cleanup_intents
+        `,
+      )).resolves.toEqual([{
+        stage: 'finalize',
+        status: 'completed',
+      }])
+    }
+    finally {
+      await closeRawDatabase(persistedDatabase)
+    }
+  })
+
+  it('replays one idempotent load operation after crashing before receipt persistence', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const acceptedOperations = new Map<string, {
+      loaderId: string
+      receiptId: string
+      activatedAt: number
+    }>()
+    let semanticLoadCount = 0
+    let preparedIntentObserved = false
+    const load = vi.fn(async (input: { operationId: string }) => {
+      const observationDatabase = await openRawDatabase(databasePath)
+      try {
+        const rows = await queryRawRows<{ stage: string, status: string }>(
+          observationDatabase,
+          `
+          SELECT stage, status
+          FROM persona_training_artifact_activation_intents
+          WHERE load_operation_id = ?
+          `,
+          [input.operationId],
+        )
+        preparedIntentObserved ||= rows.some(row =>
+          row.stage === 'prepared' && row.status === 'pending',
+        )
+      }
+      finally {
+        await closeRawDatabase(observationDatabase)
+      }
+      const existing = acceptedOperations.get(input.operationId)
+      if (existing)
+        return existing
+      semanticLoadCount += 1
+      const receipt = {
+        loaderId: 'idempotent-loader',
+        receiptId: 'receipt-after-load-crash',
+        activatedAt: 250,
+      }
+      acceptedOperations.set(input.operationId, receipt)
+      return receipt
+    })
+    const unload = vi.fn(async () => {})
+    const discardArtifact = vi.fn(async () => {})
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, 'artifact-load-crash-window'),
+      }),
+      personaTrainingArtifactLoader: { load, unload },
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact,
+      },
+    })
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'load-crash-window',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const triggerDatabase = await openRawDatabase(databasePath)
+      try {
+        await runRaw(triggerDatabase, `
+          CREATE TRIGGER fail_activation_receipt_persist
+          BEFORE UPDATE OF loader_receipt_json ON persona_training_artifact_activation_intents
+          WHEN NEW.loader_receipt_json IS NOT NULL
+          BEGIN
+            SELECT RAISE(ABORT, 'simulated crash before activation receipt persistence');
+          END
+        `)
+      }
+      finally {
+        await closeRawDatabase(triggerDatabase)
+      }
+
+      await expect(db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })).resolves.toMatchObject({
+        status: 'failed',
+        error: expect.stringContaining('pending recovery'),
+      })
+    }
+    finally {
+      await db.close()
+    }
+
+    const repairDatabase = await openRawDatabase(databasePath)
+    try {
+      await runRaw(repairDatabase, 'DROP TRIGGER fail_activation_receipt_persist')
+    }
+    finally {
+      await closeRawDatabase(repairDatabase)
+    }
+    const recovered = await setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLoader: { load, unload },
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact,
+      },
+    })
+    await recovered.close()
+
+    expect(preparedIntentObserved).toBe(true)
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(load.mock.calls[0]?.[0].operationId).toBe(load.mock.calls[1]?.[0].operationId)
+    expect(semanticLoadCount).toBe(1)
+    expect(unload).toHaveBeenCalledOnce()
+    expect(discardArtifact).toHaveBeenCalledOnce()
+    const persistedDatabase = await openRawDatabase(databasePath)
+    try {
+      await expect(queryRawRows<{
+        status: string
+        stage: string
+        loader_receipt_json: string
+      }>(
+        persistedDatabase,
+        `
+        SELECT status, stage, loader_receipt_json
+        FROM persona_training_artifact_activation_intents
+        `,
+      )).resolves.toEqual([
+        expect.objectContaining({
+          status: 'completed',
+          stage: 'loaded',
+          loader_receipt_json: expect.stringContaining('receipt-after-load-crash'),
+        }),
+      ])
+    }
+    finally {
+      await closeRawDatabase(persistedDatabase)
+    }
+  })
+
+  it('rejects database setup when an artifact loader has no lifecycle owner', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+
+    await expect(setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLoader: {
+        load: async () => ({
+          loaderId: 'db-test-loader',
+          receiptId: 'receipt-without-lifecycle',
+          activatedAt: 250,
+        }),
+        unload: async () => {},
+      },
+    })).rejects.toThrow('artifactLoader requires artifactLifecycle')
+    await expect(access(databasePath)).rejects.toThrow()
+  })
+
+  it('keeps an increment available but explicitly cleanup-pending when lifecycle discard is unavailable', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, 'artifact-no-lifecycle-cleanup'),
+      }),
+    })
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'no-lifecycle-cleanup',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const result = await db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const incrementId = result.status === 'succeeded' ? result.increment.id : ''
+
+      await expect(db.rollbackPersonaTrainingIncrement({
+        cardId: 'card-a',
+        incrementId,
+      })).rejects.toThrow('artifact lifecycle is unavailable')
+      await expect(db.listPersonaTrainingIncrements({
+        cardId: 'card-a',
+      })).resolves.toEqual([
+        expect.objectContaining({
+          id: incrementId,
+          state: 'available',
+          cleanup: {
+            status: 'pending',
+            stage: 'discard',
+            lastError: 'persona training artifact lifecycle is unavailable for discard',
+          },
+        }),
+      ])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('persists cleanup stage and resumes discard after a database restart without unloading twice', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const unload = vi.fn(async () => {})
+    const discardArtifact = vi.fn()
+      .mockRejectedValueOnce(new Error('artifact discard unavailable'))
+      .mockResolvedValueOnce(undefined)
+    const artifactLoader = {
+      load: vi.fn(async () => ({
+        loaderId: 'db-test-loader',
+        receiptId: 'db-test-receipt-stage-restart',
+        activatedAt: 250,
+      })),
+      unload,
+    }
+    const artifactLifecycle = {
+      validateArtifact: vi.fn(async () => {}),
+      discardArtifact,
+      reconcileArtifacts: vi.fn(async () => {}),
+    }
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, 'artifact-stage-restart'),
+      }),
+      personaTrainingArtifactLoader: artifactLoader,
+      personaTrainingArtifactLifecycle: artifactLifecycle,
+    })
+    let incrementId = ''
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'cleanup-stage-restart',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const result = await db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      incrementId = result.status === 'succeeded' ? result.increment.id : ''
+
+      await expect(db.rollbackPersonaTrainingIncrement({
+        cardId: 'card-a',
+        incrementId,
+      })).rejects.toThrow('artifact discard unavailable')
+      await expect(db.listPersonaTrainingIncrements({
+        cardId: 'card-a',
+      })).resolves.toEqual([
+        expect.objectContaining({
+          id: incrementId,
+          state: 'available',
+          artifact: expect.objectContaining({
+            activation: expect.objectContaining({
+              status: 'inactive',
+            }),
+          }),
+        }),
+      ])
+    }
+    finally {
+      await db.close()
+    }
+
+    const pendingDatabase = await openRawDatabase(databasePath)
+    try {
+      await expect(queryRawRows<{
+        stage: string
+        status: string
+        attempts: number
+      }>(
+        pendingDatabase,
+        `
+        SELECT stage, status, attempts
+        FROM persona_training_artifact_cleanup_intents
+        `,
+      )).resolves.toEqual([{
+        stage: 'discard',
+        status: 'pending',
+        attempts: 1,
+      }])
+    }
+    finally {
+      await closeRawDatabase(pendingDatabase)
+    }
+
+    const recovered = await setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLoader: artifactLoader,
+      personaTrainingArtifactLifecycle: artifactLifecycle,
+    })
+    try {
+      await expect(recovered.listPersonaTrainingIncrements({
+        cardId: 'card-a',
+      })).resolves.toEqual([
+        expect.objectContaining({
+          id: incrementId,
+          state: 'rolled-back',
+        }),
+      ])
+    }
+    finally {
+      await recovered.close()
+    }
+
+    expect(unload).toHaveBeenCalledOnce()
+    expect(discardArtifact).toHaveBeenCalledTimes(2)
+    const completedDatabase = await openRawDatabase(databasePath)
+    try {
+      await expect(queryRawRows<{
+        stage: string
+        status: string
+        attempts: number
+      }>(
+        completedDatabase,
+        `
+        SELECT stage, status, attempts
+        FROM persona_training_artifact_cleanup_intents
+        `,
+      )).resolves.toEqual([{
+        stage: 'finalize',
+        status: 'completed',
+        attempts: 2,
+      }])
+    }
+    finally {
+      await closeRawDatabase(completedDatabase)
+    }
+  })
+
+  it('replays one idempotent unload operation when the process dies before persisting the discard stage', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const acceptedOperations = new Set<string>()
+    let semanticUnloadCount = 0
+    const unload = vi.fn(async (input: { operationId: string }) => {
+      if (acceptedOperations.has(input.operationId))
+        return
+      acceptedOperations.add(input.operationId)
+      semanticUnloadCount += 1
+    })
+    const artifactLoader = {
+      load: vi.fn(async () => ({
+        loaderId: 'db-test-loader',
+        receiptId: 'db-test-receipt-crash-window',
+        activatedAt: 250,
+      })),
+      unload,
+    }
+    const artifactLifecycle = {
+      validateArtifact: vi.fn(async () => {}),
+      discardArtifact: vi.fn(async () => {}),
+      reconcileArtifacts: vi.fn(async () => {}),
+    }
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, 'artifact-unload-crash-window'),
+      }),
+      personaTrainingArtifactLoader: artifactLoader,
+      personaTrainingArtifactLifecycle: artifactLifecycle,
+    })
+    let incrementId = ''
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'unload-crash-window',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const result = await db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      incrementId = result.status === 'succeeded' ? result.increment.id : ''
+
+      const triggerDatabase = await openRawDatabase(databasePath)
+      try {
+        await runRaw(triggerDatabase, `
+          CREATE TRIGGER fail_cleanup_unload_stage_persist
+          BEFORE UPDATE OF stage ON persona_training_artifact_cleanup_intents
+          WHEN OLD.stage = 'unload' AND NEW.stage = 'discard'
+          BEGIN
+            SELECT RAISE(ABORT, 'simulated crash before unload stage persistence');
+          END
+        `)
+      }
+      finally {
+        await closeRawDatabase(triggerDatabase)
+      }
+
+      await expect(db.rollbackPersonaTrainingIncrement({
+        cardId: 'card-a',
+        incrementId,
+      })).rejects.toThrow('simulated crash before unload stage persistence')
+      await expect(db.listPersonaTrainingIncrements({
+        cardId: 'card-a',
+      })).resolves.toEqual([
+        expect.objectContaining({
+          id: incrementId,
+          state: 'available',
+        }),
+      ])
+    }
+    finally {
+      await db.close()
+    }
+
+    const triggerDatabase = await openRawDatabase(databasePath)
+    try {
+      await runRaw(triggerDatabase, 'DROP TRIGGER fail_cleanup_unload_stage_persist')
+    }
+    finally {
+      await closeRawDatabase(triggerDatabase)
+    }
+
+    const recovered = await setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLoader: artifactLoader,
+      personaTrainingArtifactLifecycle: artifactLifecycle,
+    })
+    await recovered.close()
+
+    expect(unload).toHaveBeenCalledTimes(2)
+    expect(unload.mock.calls[0]?.[0].operationId).toBe(unload.mock.calls[1]?.[0].operationId)
+    expect(unload.mock.calls[0]?.[0].operationId).toMatch(/:unload$/)
+    expect(semanticUnloadCount).toBe(1)
   })
 
   it('persists a failed training consumer without creating an increment', async () => {
@@ -622,13 +1439,17 @@ describe('persona training dataset database provenance', () => {
     }
   })
 
-  it('rolls back source revoke, increment state, and audit together when governance persistence fails', async () => {
+  it('persists source revocation but keeps the increment available with pending finalize when governance audit fails', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
     const db = await setupAlicizationDb(userDataPath, {
       personaTrainingExecutor: async input => ({
         artifact: createPersonaTrainingArtifact(input.runId, 'artifact-source-revoke'),
       }),
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
     })
     try {
       const dataset = await stageActivatablePersonaDataset(db, {
@@ -659,15 +1480,28 @@ describe('persona training dataset database provenance', () => {
 
       const snapshotAfter = await db.getPersonaTrainingDataset({ cardId: 'card-a' })
       expect(snapshotAfter.examples.find(example => example.sourceId === sourceId)).toMatchObject({
-        state: 'staged',
-        allowTraining: true,
-        revokedAt: null,
+        state: 'revoked',
+        allowTraining: false,
+        revokedAt: expect.any(Number),
       })
       await expect(db.listPersonaTrainingIncrements({ cardId: 'card-a' })).resolves.toEqual([
         expect.objectContaining({
           state: 'available',
         }),
       ])
+      const rawDatabase = await openRawDatabase(databasePath)
+      try {
+        await expect(queryRawRows<{ stage: string, status: string }>(
+          rawDatabase,
+          'SELECT stage, status FROM persona_training_artifact_cleanup_intents',
+        )).resolves.toEqual([{
+          stage: 'finalize',
+          status: 'pending',
+        }])
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
     }
     finally {
       await db.close()
@@ -840,13 +1674,385 @@ describe('persona training dataset database provenance', () => {
     }
   })
 
-  it('rolls back dataset activation, increment state, and audit together when governance persistence fails', async () => {
+  it('rejects an orphan cleanup record when a completed intent id belongs to another owner', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const initialized = await setupAlicizationDb(userDataPath)
+    await initialized.close()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const artifactId = 'artifact-orphan-owner-mismatch'
+    const persistedArtifact = createPersonaTrainingArtifact('run-existing-owner', artifactId)
+    const orphanArtifact = createPersonaTrainingArtifact('run-new-owner', artifactId)
+    const cleanupIntentId = personaTrainingCleanupIntentIdForTest({
+      cardId: 'default',
+      runId: orphanArtifact.runId,
+      incrementId: null,
+      artifactId,
+    })
+    const database = await openRawDatabase(databasePath)
+    try {
+      await runRaw(
+        database,
+        `
+        INSERT INTO persona_training_artifact_cleanup_intents (
+          id, card_id, run_id, increment_id, artifact_id, artifact_json,
+          loader_receipt_json, unload_operation_id, reason, stage,
+          finalize_increment_state, status, attempts, last_error,
+          created_at, updated_at, completed_at
+        ) VALUES (?, 'default', ?, NULL, ?, ?, NULL, ?, 'existing-owner',
+          'finalize', NULL, 'completed', 1, NULL, 1, 1, 1)
+        `,
+        [
+          cleanupIntentId,
+          persistedArtifact.runId,
+          artifactId,
+          JSON.stringify(persistedArtifact),
+          `${cleanupIntentId}:unload`,
+        ],
+      )
+    }
+    finally {
+      await closeRawDatabase(database)
+    }
+    await expect(setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+        reconcileArtifacts: async (input) => {
+          await input.onOrphanCleanupFailure({
+            artifact: orphanArtifact,
+            error: new Error('orphan cleanup unavailable'),
+          })
+        },
+      },
+    })).rejects.toThrow(/constraint|owner|scope/i)
+  })
+
+  it('allows a later training run to reuse an artifact id without colliding with completed lifecycle intents', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const artifactId = 'artifact-reused-across-runs'
+    const load = vi.fn(async (input: { artifact: AlicizationPersonaTrainingArtifact }) => ({
+      loaderId: 'db-test-loader',
+      receiptId: `receipt-${input.artifact.runId}`,
+      activatedAt: 250,
+    }))
+    const unload = vi.fn(async () => {})
+    const discardArtifact = vi.fn(async () => {})
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, artifactId),
+      }),
+      personaTrainingArtifactLoader: {
+        load,
+        unload,
+      },
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact,
+      },
+    })
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'artifact-id-reuse',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const first = await db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      expect(first.status).toBe('succeeded')
+      await db.rollbackPersonaTrainingIncrement({
+        cardId: 'card-a',
+        incrementId: first.status === 'succeeded' ? first.increment.id : '',
+      })
+
+      const second = await db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      expect(second.status).toBe('succeeded')
+      await expect(db.rollbackPersonaTrainingIncrement({
+        cardId: 'card-a',
+        incrementId: second.status === 'succeeded' ? second.increment.id : '',
+      })).resolves.toMatchObject({
+        state: 'rolled-back',
+      })
+    }
+    finally {
+      await db.close()
+    }
+
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(unload).toHaveBeenCalledTimes(2)
+    expect(discardArtifact).toHaveBeenCalledTimes(2)
+  })
+
+  it('rolls source governance back when its cleanup intent cannot join the transaction', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, 'artifact-governance-intent-atomicity'),
+      }),
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+    })
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'governance-intent-atomicity',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const result = await db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      expect(result.status).toBe('succeeded')
+      const snapshotBefore = await db.getPersonaTrainingDataset({ cardId: 'card-a' })
+      const source = snapshotBefore.examples.find(example => example.datasetId === dataset.id)
+      expect(source).toBeTruthy()
+      const rawDatabase = await openRawDatabase(databasePath)
+      try {
+        await runRaw(rawDatabase, `
+          CREATE TRIGGER fail_governance_cleanup_intent_insert
+          BEFORE INSERT ON persona_training_artifact_cleanup_intents
+          BEGIN
+            SELECT RAISE(ABORT, 'forced governance cleanup intent failure');
+          END
+        `)
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
+
+      await expect(db.revokePersonaTrainingDatasetSource({
+        cardId: 'card-a',
+        sourceId: source!.sourceId,
+      })).rejects.toThrow('forced governance cleanup intent failure')
+
+      const snapshotAfter = await db.getPersonaTrainingDataset({ cardId: 'card-a' })
+      expect(snapshotAfter.examples.find(example => example.sourceId === source!.sourceId)).toMatchObject({
+        state: 'staged',
+        allowTraining: true,
+        revokedAt: null,
+      })
+      await expect(db.listPersonaTrainingIncrements({ cardId: 'card-a' })).resolves.toEqual([
+        expect.objectContaining({
+          state: 'available',
+          cleanup: null,
+        }),
+      ])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('dead-letters malformed cleanup intent JSON instead of blocking database startup', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const initialized = await setupAlicizationDb(userDataPath)
+    await initialized.close()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      await runRaw(
+        rawDatabase,
+        `
+        INSERT INTO persona_training_artifact_cleanup_intents (
+          id, card_id, run_id, increment_id, artifact_id, artifact_json,
+          loader_receipt_json, unload_operation_id, reason, stage,
+          finalize_increment_state, status, attempts, last_error,
+          created_at, updated_at, completed_at
+        ) VALUES (
+          'cleanup-malformed-json', 'card-a', 'run-malformed-json', NULL,
+          'artifact-malformed-json', '{', NULL, 'cleanup-malformed-json:unload',
+          'startup-corrupt-artifact', 'discard', NULL, 'pending', 0, NULL,
+          1, 1, NULL
+        )
+        `,
+      )
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+
+    const recovered = await setupAlicizationDb(userDataPath)
+    await recovered.close()
+
+    const persistedDatabase = await openRawDatabase(databasePath)
+    try {
+      await expect(queryRawRows<{ status: string, last_error: string | null }>(
+        persistedDatabase,
+        `
+        SELECT status, last_error
+        FROM persona_training_artifact_cleanup_intents
+        WHERE id = 'cleanup-malformed-json'
+        `,
+      )).resolves.toEqual([{
+        status: 'dead-letter',
+        last_error: expect.stringContaining('malformed artifact JSON'),
+      }])
+    }
+    finally {
+      await closeRawDatabase(persistedDatabase)
+    }
+  })
+
+  it('rolls dataset activation back when its cleanup intent cannot join the transaction', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, 'artifact-activation-intent-atomicity'),
+      }),
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+    })
+    try {
+      const first = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'activation-intent-atomicity-first',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: first.id,
+      })
+      const result = await db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: first.id,
+      })
+      expect(result.status).toBe('succeeded')
+      const second = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'activation-intent-atomicity-second',
+      })
+      const rawDatabase = await openRawDatabase(databasePath)
+      try {
+        await runRaw(rawDatabase, `
+          CREATE TRIGGER fail_activation_cleanup_intent_insert
+          BEFORE INSERT ON persona_training_artifact_cleanup_intents
+          BEGIN
+            SELECT RAISE(ABORT, 'forced activation cleanup intent failure');
+          END
+        `)
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
+
+      await expect(db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: second.id,
+      })).rejects.toThrow('forced activation cleanup intent failure')
+
+      const snapshot = await db.getPersonaTrainingDataset({ cardId: 'card-a' })
+      expect(snapshot.activeVersionId).toBe(first.id)
+      expect(snapshot.versions.find(version => version.id === first.id)?.activeAt).not.toBeNull()
+      expect(snapshot.versions.find(version => version.id === second.id)?.activeAt).toBeNull()
+      await expect(db.listPersonaTrainingIncrements({ cardId: 'card-a' })).resolves.toEqual([
+        expect.objectContaining({
+          datasetId: first.id,
+          state: 'available',
+          cleanup: null,
+        }),
+      ])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('rolls dataset rollback back when its cleanup intent cannot join the transaction', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, 'artifact-rollback-intent-atomicity'),
+      }),
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+    })
+    try {
+      const first = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'rollback-intent-atomicity-first',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: first.id,
+      })
+      const second = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'rollback-intent-atomicity-second',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: second.id,
+      })
+      const result = await db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: second.id,
+      })
+      expect(result.status).toBe('succeeded')
+      const rawDatabase = await openRawDatabase(databasePath)
+      try {
+        await runRaw(rawDatabase, `
+          CREATE TRIGGER fail_rollback_cleanup_intent_insert
+          BEFORE INSERT ON persona_training_artifact_cleanup_intents
+          BEGIN
+            SELECT RAISE(ABORT, 'forced rollback cleanup intent failure');
+          END
+        `)
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
+
+      await expect(db.rollbackPersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: first.id,
+      })).rejects.toThrow('forced rollback cleanup intent failure')
+
+      const snapshot = await db.getPersonaTrainingDataset({ cardId: 'card-a' })
+      expect(snapshot.activeVersionId).toBe(second.id)
+      expect(snapshot.versions.find(version => version.id === first.id)?.activeAt).toBeNull()
+      expect(snapshot.versions.find(version => version.id === second.id)?.activeAt).not.toBeNull()
+      await expect(db.listPersonaTrainingIncrements({ cardId: 'card-a' })).resolves.toEqual([
+        expect.objectContaining({
+          datasetId: second.id,
+          state: 'available',
+          cleanup: null,
+        }),
+      ])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('keeps the new dataset active but leaves its superseded increment available until cleanup finalizes', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
     const db = await setupAlicizationDb(userDataPath, {
       personaTrainingExecutor: async input => ({
         artifact: createPersonaTrainingArtifact(input.runId, 'artifact-dataset-activation'),
       }),
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
     })
     try {
       const first = await stageActivatablePersonaDataset(db, {
@@ -877,9 +2083,9 @@ describe('persona training dataset database provenance', () => {
       })).rejects.toThrow('forced persona audit failure')
 
       const snapshot = await db.getPersonaTrainingDataset({ cardId: 'card-a' })
-      expect(snapshot.activeVersionId).toBe(first.id)
-      expect(snapshot.versions.find(version => version.id === first.id)?.activeAt).not.toBeNull()
-      expect(snapshot.versions.find(version => version.id === second.id)?.activeAt).toBeNull()
+      expect(snapshot.activeVersionId).toBe(second.id)
+      expect(snapshot.versions.find(version => version.id === first.id)?.activeAt).toBeNull()
+      expect(snapshot.versions.find(version => version.id === second.id)?.activeAt).not.toBeNull()
       await expect(db.listPersonaTrainingIncrements({ cardId: 'card-a' })).resolves.toEqual([
         expect.objectContaining({
           datasetId: first.id,
@@ -892,13 +2098,17 @@ describe('persona training dataset database provenance', () => {
     }
   })
 
-  it('rolls back dataset rollback, increment state, and audit together when governance persistence fails', async () => {
+  it('keeps the rollback target active but leaves the superseded increment available until cleanup finalizes', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
     const db = await setupAlicizationDb(userDataPath, {
       personaTrainingExecutor: async input => ({
         artifact: createPersonaTrainingArtifact(input.runId, 'artifact-dataset-rollback'),
       }),
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
     })
     try {
       const first = await stageActivatablePersonaDataset(db, {
@@ -933,9 +2143,9 @@ describe('persona training dataset database provenance', () => {
       })).rejects.toThrow('forced persona audit failure')
 
       const snapshot = await db.getPersonaTrainingDataset({ cardId: 'card-a' })
-      expect(snapshot.activeVersionId).toBe(second.id)
-      expect(snapshot.versions.find(version => version.id === first.id)?.activeAt).toBeNull()
-      expect(snapshot.versions.find(version => version.id === second.id)?.activeAt).not.toBeNull()
+      expect(snapshot.activeVersionId).toBe(first.id)
+      expect(snapshot.versions.find(version => version.id === first.id)?.activeAt).not.toBeNull()
+      expect(snapshot.versions.find(version => version.id === second.id)?.activeAt).toBeNull()
       await expect(db.listPersonaTrainingIncrements({ cardId: 'card-a' })).resolves.toEqual([
         expect.objectContaining({
           datasetId: second.id,
@@ -948,13 +2158,19 @@ describe('persona training dataset database provenance', () => {
     }
   })
 
-  it('rolls back a manual increment state change when its audit cannot commit', async () => {
+  it('keeps manual rollback finalize retryable when its audit cannot commit', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const discardArtifact = vi.fn(async () => {})
     const db = await setupAlicizationDb(userDataPath, {
       personaTrainingExecutor: async input => ({
         artifact: createPersonaTrainingArtifact(input.runId, 'artifact-manual-rollback'),
       }),
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: vi.fn(async () => {}),
+        discardArtifact,
+        reconcileArtifacts: vi.fn(async () => {}),
+      },
     })
     try {
       const dataset = await stageActivatablePersonaDataset(db, {
@@ -987,6 +2203,166 @@ describe('persona training dataset database provenance', () => {
           state: 'available',
         }),
       ])
+      const failedDatabase = await openRawDatabase(databasePath)
+      try {
+        await expect(queryRawRows<{ stage: string, status: string }>(
+          failedDatabase,
+          'SELECT stage, status FROM persona_training_artifact_cleanup_intents',
+        )).resolves.toEqual([{
+          stage: 'finalize',
+          status: 'pending',
+        }])
+        await runRaw(failedDatabase, 'DROP TRIGGER fail_manual_persona_increment_rollback_audit')
+      }
+      finally {
+        await closeRawDatabase(failedDatabase)
+      }
+
+      await expect(db.rollbackPersonaTrainingIncrement({
+        cardId: 'card-a',
+        incrementId,
+      })).resolves.toMatchObject({
+        id: incrementId,
+        state: 'rolled-back',
+      })
+      expect(discardArtifact).toHaveBeenCalledOnce()
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('rejects cleanup finalization when the persisted intent owner tuple no longer matches', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, 'artifact-owner-mismatch'),
+      }),
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: vi.fn(async () => {}),
+        discardArtifact: vi.fn(async () => {}),
+        reconcileArtifacts: vi.fn(async () => {}),
+      },
+    })
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'cleanup-owner-mismatch',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const result = await db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const incrementId = result.status === 'succeeded' ? result.increment.id : ''
+      await installFailingPersonaAuditTrigger(databasePath, {
+        name: 'fail_owner_mismatch_finalize_once',
+        action: 'training-increment-rolled-back',
+      })
+      await expect(db.rollbackPersonaTrainingIncrement({
+        cardId: 'card-a',
+        incrementId,
+      })).rejects.toThrow('forced persona audit failure')
+
+      const rawDatabase = await openRawDatabase(databasePath)
+      try {
+        await runRaw(rawDatabase, 'DROP TRIGGER fail_owner_mismatch_finalize_once')
+        await runRaw(
+          rawDatabase,
+          `UPDATE persona_training_artifact_cleanup_intents SET card_id = 'card-b'`,
+        )
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
+
+      await expect(db.rollbackPersonaTrainingIncrement({
+        cardId: 'card-a',
+        incrementId,
+      })).rejects.toThrow(/scope|owner|stage transition/)
+      await expect(db.listPersonaTrainingIncrements({
+        cardId: 'card-a',
+      })).resolves.toEqual([
+        expect.objectContaining({
+          id: incrementId,
+          state: 'available',
+        }),
+      ])
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('rejects cleanup begin when an existing intent id has a different owner or lifecycle state', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const artifactId = 'artifact-begin-owner-mismatch'
+    const db = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, artifactId),
+      }),
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+    })
+    try {
+      const dataset = await stageActivatablePersonaDataset(db, {
+        cardId: 'card-a',
+        sourceSuffix: 'cleanup-begin-owner-mismatch',
+      })
+      await db.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const result = await db.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const increment = result.status === 'succeeded' ? result.increment : null
+      expect(increment).toBeTruthy()
+      const cleanupIntentId = personaTrainingCleanupIntentIdForTest({
+        cardId: 'card-a',
+        runId: increment!.artifact.runId,
+        incrementId: increment!.id,
+        artifactId,
+      })
+      const rawDatabase = await openRawDatabase(databasePath)
+      try {
+        await runRaw(
+          rawDatabase,
+          `
+          INSERT INTO persona_training_artifact_cleanup_intents (
+            id, card_id, run_id, increment_id, artifact_id, artifact_json,
+            loader_receipt_json, unload_operation_id, reason, stage,
+            finalize_increment_state, status, attempts, last_error,
+            created_at, updated_at, completed_at
+          ) VALUES (?, 'card-b', ?, ?, ?, ?, NULL, ?, 'tampered-owner',
+            'finalize', 'rolled-back', 'completed', 1, NULL, 1, 1, 1)
+          `,
+          [
+            cleanupIntentId,
+            increment!.artifact.runId,
+            increment!.id,
+            artifactId,
+            JSON.stringify(increment!.artifact),
+            `${cleanupIntentId}:unload`,
+          ],
+        )
+      }
+      finally {
+        await closeRawDatabase(rawDatabase)
+      }
+
+      await expect(db.rollbackPersonaTrainingIncrement({
+        cardId: 'card-a',
+        incrementId: increment!.id,
+      })).rejects.toThrow(/constraint|owner|scope/i)
     }
     finally {
       await db.close()
@@ -1462,14 +2838,17 @@ describe('persona training dataset database provenance', () => {
     const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
     const rawDatabase = await openRawDatabase(databasePath)
     try {
+      const scope = await insertRawEligiblePersonaTrainingScope(rawDatabase, 'run-replaced-inode')
       await insertRawPersonaTrainingRun(rawDatabase, {
         runId: 'run-replaced-inode',
         status: 'completed',
         artifact,
+        scope,
       })
       await insertRawPersonaTrainingIncrement(rawDatabase, {
         runId: 'run-replaced-inode',
         artifact,
+        scope,
       })
     }
     finally {
@@ -1502,6 +2881,747 @@ describe('persona training dataset database provenance', () => {
           state: 'rolled-back',
         }),
       ])
+    }
+    finally {
+      await recovered.close()
+    }
+  })
+
+  it.each([
+    {
+      name: 'the dataset is no longer active',
+      mutate: async (database: sqlite3.Database) => {
+        await runRaw(
+          database,
+          `UPDATE persona_training_datasets SET active_at = NULL WHERE card_id = 'card-a'`,
+        )
+      },
+    },
+    {
+      name: 'a source is revoked and no longer trainable',
+      mutate: async (database: sqlite3.Database) => {
+        await runRaw(
+          database,
+          `
+          UPDATE persona_training_dataset_examples
+          SET state = 'revoked', allow_training = 0, revoked_at = 400
+          WHERE card_id = 'card-a'
+          `,
+        )
+      },
+    },
+    {
+      name: 'the current dataset manifest no longer matches the trained manifest',
+      mutate: async (database: sqlite3.Database) => {
+        await runRaw(
+          database,
+          `
+          UPDATE persona_training_dataset_examples
+          SET positive_example = positive_example || ' changed after training'
+          WHERE card_id = 'card-a'
+          `,
+        )
+      },
+    },
+  ])('does not reload a persisted Persona artifact after restart when $name', async ({ mutate }) => {
+    const userDataPath = await createSandboxUserDataPath()
+    const initialLoad = vi.fn(async () => ({
+      loaderId: 'initial-loader',
+      receiptId: 'receipt-before-eligibility-change',
+      activatedAt: 200,
+    }))
+    const initialized = await setupAlicizationDb(userDataPath, {
+      personaTrainingExecutor: async input => ({
+        artifact: createPersonaTrainingArtifact(input.runId, 'artifact-restart-eligibility'),
+      }),
+      personaTrainingArtifactLoader: {
+        load: initialLoad,
+        unload: vi.fn(async () => {}),
+      },
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+    })
+    let runId = ''
+    try {
+      const dataset = await stageActivatablePersonaDataset(initialized, {
+        cardId: 'card-a',
+        sourceSuffix: 'restart-eligibility',
+      })
+      await initialized.activatePersonaTrainingDataset({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      const result = await initialized.runPersonaTraining({
+        cardId: 'card-a',
+        datasetId: dataset.id,
+      })
+      expect(result.status).toBe('succeeded')
+      runId = result.runId
+    }
+    finally {
+      await initialized.close()
+    }
+    expect(initialLoad).toHaveBeenCalledOnce()
+
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      await mutate(rawDatabase)
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+
+    const restartLoad = vi.fn(async () => ({
+      loaderId: 'restart-loader',
+      receiptId: 'receipt-must-not-be-used',
+      activatedAt: 500,
+    }))
+    const unload = vi.fn(async () => {})
+    const discardArtifact = vi.fn(async () => {})
+    const recovered = await setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLoader: {
+        load: restartLoad,
+        unload,
+      },
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: vi.fn(async () => {}),
+        discardArtifact,
+      },
+    })
+    try {
+      expect(restartLoad).not.toHaveBeenCalled()
+      expect(unload).toHaveBeenCalledOnce()
+      expect(discardArtifact).toHaveBeenCalledOnce()
+      await expect(recovered.getPersonaTrainingRun({
+        cardId: 'card-a',
+        runId,
+      })).resolves.toMatchObject({
+        status: 'interrupted',
+        failureReason: 'interrupted',
+        artifact: null,
+      })
+      await expect(recovered.listPersonaTrainingIncrements({
+        cardId: 'card-a',
+      })).resolves.toEqual([
+        expect.objectContaining({
+          state: 'rolled-back',
+        }),
+      ])
+    }
+    finally {
+      await recovered.close()
+    }
+  })
+
+  it('reloads a persisted active artifact after restart and stores the fresh receipt on its run and increment', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const initialized = await setupAlicizationDb(userDataPath)
+    await initialized.close()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const oldArtifact = createActivePersonaTrainingArtifact(
+      'run-active-reload',
+      'artifact-active-reload',
+      'receipt-before-restart',
+    )
+    const loadOperationId = personaTrainingActivationOperationIdForTest({
+      cardId: 'card-a',
+      runId: 'run-active-reload',
+      incrementId: 'persona-training-increment:run-active-reload',
+      artifactId: oldArtifact.artifactId,
+      mode: 'restart',
+      expectedReceiptId: 'receipt-before-restart',
+    })
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      const scope = await insertRawEligiblePersonaTrainingScope(rawDatabase, 'run-active-reload')
+      await insertRawPersonaTrainingRun(rawDatabase, {
+        runId: 'run-active-reload',
+        status: 'completed',
+        artifact: oldArtifact,
+        scope,
+      })
+      await insertRawPersonaTrainingIncrement(rawDatabase, {
+        runId: 'run-active-reload',
+        artifact: oldArtifact,
+        scope,
+      })
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+    const load = vi.fn(async () => ({
+      loaderId: 'restart-loader',
+      receiptId: 'receipt-after-restart',
+      activatedAt: 300,
+    }))
+
+    const recovered = await setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLoader: {
+        load,
+        unload: vi.fn(async () => {}),
+      },
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: vi.fn(async () => {}),
+        discardArtifact: vi.fn(async () => {}),
+        reconcileArtifacts: vi.fn(async () => {}),
+      },
+    })
+    try {
+      expect(load).toHaveBeenCalledOnce()
+      await expect(recovered.getPersonaTrainingRun({
+        cardId: 'card-a',
+        runId: 'run-active-reload',
+      })).resolves.toMatchObject({
+        status: 'completed',
+        artifact: {
+          activation: {
+            status: 'active',
+            loaderId: 'restart-loader',
+            receiptId: 'receipt-after-restart',
+            activatedAt: 300,
+          },
+        },
+      })
+      await expect(recovered.listPersonaTrainingIncrements({
+        cardId: 'card-a',
+      })).resolves.toEqual([
+        expect.objectContaining({
+          id: 'persona-training-increment:run-active-reload',
+          state: 'available',
+          artifact: expect.objectContaining({
+            activation: expect.objectContaining({
+              status: 'active',
+              loaderId: 'restart-loader',
+              receiptId: 'receipt-after-restart',
+              activatedAt: 300,
+            }),
+          }),
+        }),
+      ])
+    }
+    finally {
+      await recovered.close()
+    }
+
+    const persistedDatabase = await openRawDatabase(databasePath)
+    try {
+      const [runRow] = await queryRawRows<{ artifact_json: string }>(
+        persistedDatabase,
+        'SELECT artifact_json FROM persona_training_runs WHERE run_id = ?',
+        ['run-active-reload'],
+      )
+      const [incrementRow] = await queryRawRows<{ artifact_json: string }>(
+        persistedDatabase,
+        'SELECT artifact_json FROM persona_training_increments WHERE run_id = ?',
+        ['run-active-reload'],
+      )
+      expect(JSON.parse(runRow!.artifact_json)).toMatchObject({
+        activation: {
+          status: 'active',
+          receiptId: 'receipt-after-restart',
+        },
+      })
+      expect(JSON.parse(incrementRow!.artifact_json)).toEqual(JSON.parse(runRow!.artifact_json))
+      await expect(queryRawRows<{
+        load_operation_id: string
+        loader_receipt_json: string
+        stage: string
+        status: string
+      }>(
+        persistedDatabase,
+        `
+        SELECT load_operation_id, loader_receipt_json, stage, status
+        FROM persona_training_artifact_activation_intents
+        WHERE run_id = ?
+        `,
+        ['run-active-reload'],
+      )).resolves.toEqual([{
+        load_operation_id: loadOperationId,
+        loader_receipt_json: expect.stringContaining('receipt-after-restart'),
+        stage: 'loaded',
+        status: 'completed',
+      }])
+    }
+    finally {
+      await closeRawDatabase(persistedDatabase)
+    }
+  })
+
+  it('replays a loaded restart activation before trusting its persisted receipt after another process restart', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const initialized = await setupAlicizationDb(userDataPath)
+    await initialized.close()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const runId = 'run-loaded-restart-activation'
+    const artifactId = 'artifact-loaded-restart-activation'
+    const incrementId = `persona-training-increment:${runId}`
+    const oldArtifact = createActivePersonaTrainingArtifact(
+      runId,
+      artifactId,
+      'receipt-before-loaded-restart',
+    )
+    const reloadArtifact: AlicizationPersonaTrainingArtifact = {
+      ...oldArtifact,
+      activation: {
+        status: 'inactive',
+        reason: 'Awaiting a fresh receipt after restart.',
+      },
+    }
+    const activatedArtifact: AlicizationPersonaTrainingArtifact = {
+      ...reloadArtifact,
+      activation: {
+        status: 'active',
+        reason: 'Loaded before the process exited.',
+        loaderId: 'restart-loader',
+        receiptId: 'receipt-loaded-before-process-exit',
+        activatedAt: 300,
+      },
+    }
+    const loadOperationId = personaTrainingActivationOperationIdForTest({
+      cardId: 'card-a',
+      runId,
+      incrementId,
+      artifactId,
+      mode: 'restart',
+      expectedReceiptId: 'receipt-before-loaded-restart',
+    })
+    const activationIntentId = loadOperationId.slice(0, -':load'.length)
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      const scope = await insertRawEligiblePersonaTrainingScope(rawDatabase, runId)
+      await insertRawPersonaTrainingRun(rawDatabase, {
+        runId,
+        status: 'completed',
+        artifact: oldArtifact,
+        scope,
+      })
+      await insertRawPersonaTrainingIncrement(rawDatabase, {
+        runId,
+        artifact: oldArtifact,
+        scope,
+      })
+      await runRaw(
+        rawDatabase,
+        `
+        INSERT INTO persona_training_artifact_activation_intents (
+          id, load_operation_id, mode, card_id, run_id, increment_id,
+          artifact_id, artifact_json, expected_artifact_json,
+          loader_receipt_json, activated_artifact_json, stage, status,
+          last_error, created_at, updated_at, completed_at
+        ) VALUES (?, ?, 'restart', 'card-a', ?, ?, ?, ?, ?, ?, ?, 'loaded', 'pending', NULL, 200, 300, NULL)
+        `,
+        [
+          activationIntentId,
+          loadOperationId,
+          runId,
+          incrementId,
+          artifactId,
+          JSON.stringify(reloadArtifact),
+          JSON.stringify(oldArtifact),
+          JSON.stringify({
+            loaderId: 'restart-loader',
+            receiptId: 'receipt-loaded-before-process-exit',
+            activatedAt: 300,
+            reason: 'Loaded before the process exited.',
+          }),
+          JSON.stringify(activatedArtifact),
+        ],
+      )
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+    const load = vi.fn(async () => ({
+      loaderId: 'restart-loader',
+      receiptId: 'receipt-loaded-before-process-exit',
+      activatedAt: 300,
+      reason: 'Reconfirmed after process restart.',
+    }))
+
+    const recovered = await setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLoader: {
+        load,
+        unload: vi.fn(async () => {}),
+      },
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: vi.fn(async () => {}),
+        discardArtifact: vi.fn(async () => {}),
+        reconcileArtifacts: vi.fn(async () => {}),
+      },
+    })
+    try {
+      expect(load).toHaveBeenCalledOnce()
+      expect(load).toHaveBeenCalledWith(expect.objectContaining({
+        operationId: loadOperationId,
+      }))
+      await expect(recovered.getPersonaTrainingRun({
+        cardId: 'card-a',
+        runId,
+      })).resolves.toMatchObject({
+        artifact: {
+          activation: {
+            status: 'active',
+            receiptId: 'receipt-loaded-before-process-exit',
+          },
+        },
+      })
+    }
+    finally {
+      await recovered.close()
+    }
+  })
+
+  it('keeps the fresh loader receipt in unload recovery when restart receipt persistence loses its CAS', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const initialized = await setupAlicizationDb(userDataPath)
+    await initialized.close()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const runId = 'run-reload-cas-failure'
+    const oldArtifact = createActivePersonaTrainingArtifact(
+      runId,
+      'artifact-reload-cas-failure',
+      'receipt-before-restart-cas-failure',
+    )
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      const scope = await insertRawEligiblePersonaTrainingScope(rawDatabase, runId)
+      await insertRawPersonaTrainingRun(rawDatabase, {
+        runId,
+        status: 'completed',
+        artifact: oldArtifact,
+        scope,
+      })
+      await insertRawPersonaTrainingIncrement(rawDatabase, {
+        runId,
+        artifact: oldArtifact,
+        scope,
+      })
+      await runRaw(rawDatabase, `
+        CREATE TRIGGER fail_fresh_restart_receipt_persist
+        BEFORE UPDATE OF artifact_json ON persona_training_runs
+        WHEN NEW.artifact_json LIKE '%receipt-after-restart-cas-failure%'
+        BEGIN
+          SELECT RAISE(ABORT, 'forced fresh receipt CAS failure');
+        END
+      `)
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+    const unload = vi.fn(async () => {
+      throw new Error('fresh restart receipt unload unavailable')
+    })
+    const discardArtifact = vi.fn(async () => {})
+
+    const recovered = await setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLoader: {
+        load: vi.fn(async () => ({
+          loaderId: 'restart-loader',
+          receiptId: 'receipt-after-restart-cas-failure',
+          activatedAt: 300,
+        })),
+        unload,
+      },
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: vi.fn(async () => {}),
+        discardArtifact,
+        reconcileArtifacts: vi.fn(async () => {}),
+      },
+    })
+    try {
+      await expect(recovered.getPersonaTrainingRun({
+        cardId: 'card-a',
+        runId,
+      })).resolves.toMatchObject({
+        artifact: {
+          activation: {
+            status: 'inactive',
+          },
+        },
+      })
+      await expect(recovered.listPersonaTrainingRuns({
+        cardId: 'card-a',
+      })).resolves.toEqual([
+        expect.objectContaining({
+          artifact: expect.objectContaining({
+            activation: expect.objectContaining({
+              status: 'inactive',
+            }),
+          }),
+        }),
+      ])
+      await expect(recovered.listPersonaTrainingIncrements({
+        cardId: 'card-a',
+      })).resolves.toEqual([
+        expect.objectContaining({
+          artifact: expect.objectContaining({
+            activation: expect.objectContaining({
+              status: 'inactive',
+            }),
+          }),
+        }),
+      ])
+    }
+    finally {
+      await recovered.close()
+    }
+
+    expect(unload).toHaveBeenCalledWith(expect.objectContaining({
+      cardId: 'card-a',
+      operationId: expect.stringMatching(/:unload$/),
+      receipt: expect.objectContaining({
+        receiptId: 'receipt-after-restart-cas-failure',
+      }),
+    }))
+    const persistedDatabase = await openRawDatabase(databasePath)
+    try {
+      const cleanupRows = await queryRawRows<{
+        stage: string
+        status: string
+        loader_receipt_json: string
+      }>(
+        persistedDatabase,
+        `
+        SELECT stage, status, loader_receipt_json
+        FROM persona_training_artifact_cleanup_intents
+        `,
+      )
+      expect(cleanupRows).toEqual([
+        expect.objectContaining({
+          stage: 'unload',
+          status: 'pending',
+          loader_receipt_json: expect.stringContaining('receipt-after-restart-cas-failure'),
+        }),
+      ])
+      await expect(queryRawRows<{
+        loader_receipt_json: string
+        stage: string
+        status: string
+      }>(
+        persistedDatabase,
+        `
+        SELECT loader_receipt_json, stage, status
+        FROM persona_training_artifact_activation_intents
+        WHERE run_id = ?
+        `,
+        [runId],
+      )).resolves.toEqual([{
+        loader_receipt_json: expect.stringContaining('receipt-after-restart-cas-failure'),
+        stage: 'loaded',
+        status: 'completed',
+      }])
+    }
+    finally {
+      await closeRawDatabase(persistedDatabase)
+    }
+  })
+
+  it('keeps restart invalid-receipt compensation at unload when the compensation attempt fails', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const initialized = await setupAlicizationDb(userDataPath)
+    await initialized.close()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const runId = 'run-reload-invalid-receipt'
+    const oldArtifact = createActivePersonaTrainingArtifact(
+      runId,
+      'artifact-reload-invalid-receipt',
+      'receipt-before-invalid-reload',
+    )
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      const scope = await insertRawEligiblePersonaTrainingScope(rawDatabase, runId)
+      await insertRawPersonaTrainingRun(rawDatabase, {
+        runId,
+        status: 'completed',
+        artifact: oldArtifact,
+        scope,
+      })
+      await insertRawPersonaTrainingIncrement(rawDatabase, {
+        runId,
+        artifact: oldArtifact,
+        scope,
+      })
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+    const unload = vi.fn(async () => {
+      throw new Error('restart invalid receipt compensation unload failed')
+    })
+    const discardArtifact = vi.fn(async () => {})
+
+    const recovered = await setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLoader: {
+        load: vi.fn(async () => ({
+          loaderId: 'restart-loader',
+          receiptId: '',
+          activatedAt: 300,
+        })),
+        unload,
+      },
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: vi.fn(async () => {}),
+        discardArtifact,
+        reconcileArtifacts: vi.fn(async () => {}),
+      },
+    })
+    try {
+      await expect(recovered.listPersonaTrainingIncrements({
+        cardId: 'card-a',
+      })).resolves.toEqual([
+        expect.objectContaining({
+          state: 'available',
+          artifact: expect.objectContaining({
+            activation: expect.objectContaining({
+              status: 'inactive',
+            }),
+          }),
+        }),
+      ])
+    }
+    finally {
+      await recovered.close()
+    }
+
+    const persistedDatabase = await openRawDatabase(databasePath)
+    try {
+      const cleanupRows = await queryRawRows<{
+        stage: string
+        status: string
+        loader_receipt_json: string
+      }>(
+        persistedDatabase,
+        `
+        SELECT stage, status, loader_receipt_json
+        FROM persona_training_artifact_cleanup_intents
+        `,
+      )
+      expect(cleanupRows).toEqual([
+        expect.objectContaining({
+          stage: 'unload',
+          status: 'pending',
+          loader_receipt_json: expect.stringContaining('"receiptId":""'),
+        }),
+      ])
+      await expect(queryRawRows<{
+        loader_receipt_json: string
+        stage: string
+        status: string
+      }>(
+        persistedDatabase,
+        `
+        SELECT loader_receipt_json, stage, status
+        FROM persona_training_artifact_activation_intents
+        WHERE run_id = ?
+        `,
+        [runId],
+      )).resolves.toEqual([{
+        loader_receipt_json: expect.stringContaining('"receiptId":""'),
+        stage: 'loaded',
+        status: 'completed',
+      }])
+    }
+    finally {
+      await closeRawDatabase(persistedDatabase)
+    }
+    expect(discardArtifact).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    {
+      name: 'the loader is unavailable',
+      loader: undefined,
+    },
+    {
+      name: 'the loader rejects the reload',
+      loader: {
+        load: vi.fn(async () => {
+          throw new Error('restart adapter reload failed')
+        }),
+        unload: vi.fn(async () => {}),
+      },
+    },
+  ])('fails closed without preserving an old active receipt when $name', async ({ loader }) => {
+    const userDataPath = await createSandboxUserDataPath()
+    const initialized = await setupAlicizationDb(userDataPath)
+    await initialized.close()
+    const databasePath = join(userDataPath, 'alicizations', 'alicization.db')
+    const runId = loader ? 'run-reload-failed' : 'run-loader-unavailable'
+    const oldArtifact = createActivePersonaTrainingArtifact(
+      runId,
+      `artifact-${runId}`,
+      `old-receipt-${runId}`,
+    )
+    const rawDatabase = await openRawDatabase(databasePath)
+    try {
+      const scope = await insertRawEligiblePersonaTrainingScope(rawDatabase, runId)
+      await insertRawPersonaTrainingRun(rawDatabase, {
+        runId,
+        status: 'completed',
+        artifact: oldArtifact,
+        scope,
+      })
+      await insertRawPersonaTrainingIncrement(rawDatabase, {
+        runId,
+        artifact: oldArtifact,
+        scope,
+      })
+    }
+    finally {
+      await closeRawDatabase(rawDatabase)
+    }
+
+    const recovered = await setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLoader: loader,
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: vi.fn(async () => {}),
+        discardArtifact: vi.fn(async () => {}),
+        reconcileArtifacts: vi.fn(async () => {}),
+      },
+    })
+    try {
+      const recoveredRun = await recovered.getPersonaTrainingRun({
+        cardId: 'card-a',
+        runId,
+      })
+      expect(recoveredRun).toMatchObject(loader
+        ? {
+            status: 'completed',
+            artifact: {
+              activation: {
+                status: 'inactive',
+              },
+            },
+          }
+        : {
+            status: 'interrupted',
+            artifact: null,
+          })
+      const increments = await recovered.listPersonaTrainingIncrements({
+        cardId: 'card-a',
+      })
+      expect(increments).toEqual([
+        expect.objectContaining({
+          id: `persona-training-increment:${runId}`,
+          state: loader ? 'available' : 'rolled-back',
+          ...(loader
+            ? {
+                artifact: expect.objectContaining({
+                  activation: expect.objectContaining({
+                    status: 'inactive',
+                  }),
+                }),
+              }
+            : {}),
+        }),
+      ])
+      expect(increments[0]?.artifact.activation).not.toMatchObject({
+        status: 'active',
+        receiptId: `old-receipt-${runId}`,
+      })
     }
     finally {
       await recovered.close()
@@ -1633,21 +3753,29 @@ setInterval(() => {}, 1000)
         runId: 'run-orphan',
         artifact: createPersonaTrainingArtifact('run-orphan'),
       })
+      const validScope = await insertRawEligiblePersonaTrainingScope(rawDatabase, 'run-valid')
       await insertRawPersonaTrainingRun(rawDatabase, {
         runId: 'run-valid',
         status: 'completed',
         artifact: createPersonaTrainingArtifact('run-valid'),
+        scope: validScope,
       })
       await insertRawPersonaTrainingIncrement(rawDatabase, {
         runId: 'run-valid',
         artifact: createPersonaTrainingArtifact('run-valid'),
+        scope: validScope,
       })
     }
     finally {
       await closeRawDatabase(rawDatabase)
     }
 
-    const recovered = await setupAlicizationDb(userDataPath)
+    const recovered = await setupAlicizationDb(userDataPath, {
+      personaTrainingArtifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+    })
     try {
       for (const runId of [
         'run-terminalizing',
@@ -1710,7 +3838,7 @@ setInterval(() => {}, 1000)
     }
   })
 
-  it('rejects legacy or malformed persisted artifacts before renderer-facing reads', async () => {
+  it('quarantines a malformed completed run while renderer-facing increment reads remain strict', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const initialized = await setupAlicizationDb(userDataPath)
     await initialized.close()
@@ -1783,7 +3911,12 @@ setInterval(() => {}, 1000)
       await expect(reopened.getPersonaTrainingRun({
         cardId: 'card-a',
         runId: 'run-invalid-artifact',
-      })).rejects.toThrow('invalid persisted persona training artifact')
+      })).resolves.toMatchObject({
+        status: 'interrupted',
+        failureReason: 'interrupted',
+        artifact: null,
+        error: expect.stringContaining('invalid persisted persona training artifact'),
+      })
       await expect(reopened.listPersonaTrainingIncrements({
         cardId: 'card-a',
       })).rejects.toThrow('invalid persisted persona training artifact')
@@ -1793,7 +3926,7 @@ setInterval(() => {}, 1000)
     }
   })
 
-  it('rejects a schema-valid persisted artifact owned by a different training run', async () => {
+  it('quarantines a completed run whose artifact belongs to another run while increment reads remain strict', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const initialized = await setupAlicizationDb(userDataPath)
     await initialized.close()
@@ -1820,7 +3953,12 @@ setInterval(() => {}, 1000)
       await expect(reopened.getPersonaTrainingRun({
         cardId: 'card-a',
         runId: 'run-owner-mismatch',
-      })).rejects.toThrow('does not match persisted owner')
+      })).resolves.toMatchObject({
+        status: 'interrupted',
+        failureReason: 'interrupted',
+        artifact: null,
+        error: expect.stringContaining('does not match persisted owner'),
+      })
       await expect(reopened.listPersonaTrainingIncrements({
         cardId: 'card-a',
       })).rejects.toThrow('does not match persisted owner')

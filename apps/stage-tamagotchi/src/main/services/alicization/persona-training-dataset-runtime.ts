@@ -140,6 +140,10 @@ export interface PersonaTrainingDatasetRepository {
 
 export interface PersonaTrainingDatasetRuntime {
   atomicTrainingGovernance?: boolean
+  assertVersionActivatable?: (input: {
+    cardId: string
+    datasetId: string
+  }) => Promise<PersonaTrainingDatasetVersion>
   stageVersion: (input: {
     cardId: string
     consent: PersonaTrainingDatasetConsentSnapshot
@@ -476,6 +480,16 @@ export function createPersonaTrainingDatasetRuntime(input: {
     return dataset
   }
 
+  async function assertVersionActivatable(inputData: {
+    cardId: string
+    datasetId: string
+  }) {
+    return await requireActivatableDataset(
+      normalizeCardId(inputData.cardId),
+      inputData.datasetId,
+    )
+  }
+
   async function stageVersion(stageInput: {
     cardId: string
     consent: PersonaTrainingDatasetConsentSnapshot
@@ -636,6 +650,7 @@ export function createPersonaTrainingDatasetRuntime(input: {
 
   return {
     atomicTrainingGovernance: input.repository.atomicTrainingGovernance === true,
+    assertVersionActivatable,
     stageVersion,
     getSnapshot,
     exportVersion,

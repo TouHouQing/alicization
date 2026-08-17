@@ -43,7 +43,7 @@ valid training input.
 
 Only these bounded stdout events are accepted:
 
-```json
+```jsonl
 {"type":"ready"}
 {"type":"progress","progress":0.42,"message":"optional short status"}
 {"type":"artifact"}
@@ -74,8 +74,37 @@ missing files, cross-root paths, and hash mismatches are rejected. Alicization
 recomputes SHA-256 and atomically moves the verified output into the active card's
 `persona-training/artifacts/<artifactId>` directory.
 
-Verified artifacts remain inactive until a real `PersonaAdapterLoader.load()` receipt
-exists. Producing a file never means the persona was activated.
+Verified artifacts remain inactive unless the desktop runtime provides a
+`PersonaTrainingArtifactLoader`. Its `load()` method must return a non-empty loader
+ID, receipt ID, and activation timestamp before Alicization records the artifact as
+active. Producing or validating a file never means the persona was activated.
+
+Before calling `load()`, the Pipeline Gate persists an activation intent with a
+stable `operationId`. Loader implementations must treat repeated calls with the
+same `operationId` as one idempotent activation and return the same semantic
+receipt. Alicization deliberately replays even a previously recorded `loaded`
+intent after process restart, because a receipt from the previous process is not
+proof that the adapter is active in the current runtime.
+
+The default desktop runtime currently has no Provider-specific adapter loader, so a
+successful training run is reported as `unsupported`: the artifact is retained and
+auditable, but it is not described as affecting dialogue. A future Provider adapter
+can implement the optional loader contract without changing the dataset or training
+protocol.
+
+When an active artifact is rolled back, revoked, or recovered as invalid,
+Alicization's Persona Training Pipeline Gate owns the durable
+`unload -> discard -> finalize` cleanup saga. The database only persists cleanup
+intents and compare-and-swap transitions; it does not call Provider loaders or
+delete artifacts directly.
+
+Every `unload()` request includes a stable `operationId`. Loader implementations
+must treat repeated calls with the same `operationId` as the same idempotent
+operation because Alicization may replay it after a process crash before the next
+cleanup stage was persisted. Only `finalize` may mark an increment rolled back or
+revoked. If unload, artifact deletion, or final persistence fails, the increment
+remains unavailable for use and the lifecycle exposes a transparent pending cleanup
+error instead of claiming that the adapter was removed.
 
 ## Cancellation
 

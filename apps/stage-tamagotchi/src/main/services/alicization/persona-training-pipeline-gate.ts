@@ -76,19 +76,140 @@ export interface PersonaTrainingArtifactLifecycle {
   reconcileArtifacts?: (input: PersonaTrainingArtifactReconciliationInput) => Promise<void>
 }
 
+export interface PersonaTrainingArtifactLoaderReceipt {
+  loaderId: string
+  receiptId: string
+  activatedAt: number
+  reason?: string | null
+}
+
+export interface PersonaTrainingArtifactLoaderReceiptSnapshot {
+  loaderId: string | null
+  receiptId: string | null
+  activatedAt: number | null
+  reason: string | null
+}
+
+export interface PersonaTrainingArtifactLoader {
+  load: (input: {
+    cardId: string
+    artifact: AlicizationPersonaTrainingArtifact
+    signal: AbortSignal
+    /**
+     * Stable across retries. Loader implementations must return the same
+     * semantic activation receipt for the same operationId.
+     */
+    operationId: string
+  }) => Promise<PersonaTrainingArtifactLoaderReceipt>
+  unload: (input: {
+    cardId: string
+    artifact: AlicizationPersonaTrainingArtifact
+    reason: string
+    /**
+     * Stable across retries. Loader implementations must treat the same
+     * operationId as an idempotent unload request.
+     */
+    operationId: string
+    receipt?: PersonaTrainingArtifactLoaderReceiptSnapshot | null
+  }) => Promise<void>
+}
+
+export type PersonaTrainingArtifactActivationMode = 'initial' | 'restart'
+export type PersonaTrainingArtifactActivationStage = 'prepared' | 'loaded'
+
+export interface PersonaTrainingArtifactActivationIntent {
+  id: string
+  loadOperationId: string
+  mode: PersonaTrainingArtifactActivationMode
+  cardId: string
+  runId: string
+  incrementId: string
+  artifactId: string
+  artifact: AlicizationPersonaTrainingArtifact
+  expectedArtifact: AlicizationPersonaTrainingArtifact | null
+  loaderReceipt: PersonaTrainingArtifactLoaderReceiptSnapshot | null
+  activatedArtifact: AlicizationPersonaTrainingArtifact | null
+  stage: PersonaTrainingArtifactActivationStage
+  status: 'pending' | 'completed'
+  lastError: string | null
+  createdAt: number
+  updatedAt: number
+}
+
+export interface PersonaTrainingArtifactActivationOwner {
+  intentId: string
+  cardId: string
+  runId: string
+  incrementId: string
+  artifactId: string
+  expectedStage: PersonaTrainingArtifactActivationStage
+  expectedStatus: 'pending'
+}
+
+export type PersonaTrainingArtifactCleanupStage
+  = 'unload'
+    | 'discard'
+    | 'finalize'
+
 export interface PersonaTrainingArtifactCleanupIntent {
   id: string
+  unloadOperationId: string
   cardId: string
   runId: string
   incrementId: string | null
   artifact: AlicizationPersonaTrainingArtifact
+  loaderReceipt: PersonaTrainingArtifactLoaderReceiptSnapshot | null
   reason: string
-  status: 'pending'
+  stage: PersonaTrainingArtifactCleanupStage
+  finalizeIncrementState: Extract<PersonaTrainingPipelineIncrementState, 'rolled-back' | 'revoked'> | null
+  status: 'pending' | 'completed'
   attempts: number
-  lastError: string
+  lastError: string | null
   createdAt: number
   updatedAt: number
 }
+
+export interface PersonaTrainingArtifactCleanupOwner {
+  intentId: string
+  cardId: string
+  runId: string
+  incrementId: string | null
+  artifactId: string
+  expectedStage: PersonaTrainingArtifactCleanupStage
+  expectedStatus: 'pending'
+}
+
+export interface PersonaTrainingRestartCandidate {
+  run: PersonaTrainingPipelineRunRecord
+  increment: PersonaTrainingPipelineIncrement | null
+  consistencyError: string | null
+}
+
+export type PersonaTrainingDatasetGovernanceMutation
+  = {
+    kind: 'activate-version' | 'rollback-version'
+    cardId: string
+    dataset: PersonaTrainingDatasetVersion
+    at: number
+    cleanupIntents: PersonaTrainingArtifactCleanupIntent[]
+  }
+  | {
+    kind: 'revoke-source'
+    cardId: string
+    sourceId: string
+    at: number
+    cleanupIntents: PersonaTrainingArtifactCleanupIntent[]
+  }
+
+export type PersonaTrainingDatasetGovernanceMutationResult
+  = {
+    kind: 'activate-version' | 'rollback-version'
+    dataset: PersonaTrainingDatasetVersion
+  }
+  | {
+    kind: 'revoke-source'
+    affected: number
+  }
 
 export interface PersonaTrainingExecutorConfigSnapshot {
   executable: string
@@ -106,6 +227,11 @@ export interface PersonaTrainingPipelineIncrement {
   basePersonaRevision: string
   artifact: AlicizationPersonaTrainingArtifact
   state: PersonaTrainingPipelineIncrementState
+  cleanup: {
+    status: 'pending'
+    stage: PersonaTrainingArtifactCleanupStage
+    lastError: string | null
+  } | null
   createdAt: number
 }
 
@@ -177,6 +303,7 @@ export interface PersonaTrainingPipelinePersistence {
     run: PersonaTrainingPipelineRunRecord
     increment: PersonaTrainingPipelineIncrement
     event: PersonaTrainingPipelineAuditEvent
+    activation?: PersonaTrainingArtifactActivationOwner | null
   }) => Promise<{
     completed: boolean
     reason?: PersonaTrainingPipelineFailureReason
@@ -195,19 +322,94 @@ export interface PersonaTrainingPipelinePersistence {
     state: PersonaTrainingPipelineIncrementState
     event: PersonaTrainingPipelineAuditEvent
   }) => Promise<boolean>
+  beginArtifactActivation?: (
+    intent: PersonaTrainingArtifactActivationIntent,
+  ) => Promise<PersonaTrainingArtifactActivationIntent>
+  recordArtifactActivationReceipt?: (input: PersonaTrainingArtifactActivationOwner & {
+    loaderReceipt: PersonaTrainingArtifactLoaderReceiptSnapshot
+    activatedArtifact: AlicizationPersonaTrainingArtifact | null
+    error: string | null
+    at: number
+  }) => Promise<boolean>
+  failArtifactActivation?: (input: PersonaTrainingArtifactActivationOwner & {
+    error: string
+    at: number
+  }) => Promise<boolean>
+  handoffArtifactActivationToCleanup?: (input: PersonaTrainingArtifactActivationOwner & {
+    cleanupIntent: PersonaTrainingArtifactCleanupIntent
+    at: number
+  }) => Promise<PersonaTrainingArtifactCleanupIntent>
+  completeRestartArtifactActivation?: (input: PersonaTrainingArtifactActivationOwner & {
+    expectedArtifact: AlicizationPersonaTrainingArtifact
+    artifact: AlicizationPersonaTrainingArtifact
+    at: number
+  }) => Promise<boolean>
+  completeArtifactActivation?: (input: PersonaTrainingArtifactActivationOwner & {
+    at: number
+  }) => Promise<boolean>
+  listArtifactActivationIntents?: (input: {
+    cardId?: string | null
+    status?: 'pending' | 'completed'
+  }) => Promise<PersonaTrainingArtifactActivationIntent[]>
   recordArtifactCleanupIntent?: (intent: PersonaTrainingArtifactCleanupIntent) => Promise<void>
+  beginArtifactCleanup?: (intent: PersonaTrainingArtifactCleanupIntent) => Promise<PersonaTrainingArtifactCleanupIntent>
+  advanceArtifactCleanup?: (input: PersonaTrainingArtifactCleanupOwner & {
+    stage: PersonaTrainingArtifactCleanupStage
+    artifact: AlicizationPersonaTrainingArtifact
+    at: number
+  }) => Promise<boolean>
+  failArtifactCleanup?: (input: PersonaTrainingArtifactCleanupOwner & {
+    attempts: number
+    error: string
+    at: number
+  }) => Promise<boolean>
+  completeArtifactCleanup?: (input: Omit<PersonaTrainingArtifactCleanupOwner, 'expectedStage'> & {
+    expectedStage: 'finalize'
+    attempts: number
+    at: number
+    transition: {
+      incrementId: string
+      state: Extract<PersonaTrainingPipelineIncrementState, 'rolled-back' | 'revoked'>
+      event: PersonaTrainingPipelineAuditEvent
+    } | null
+  }) => Promise<boolean>
+  listArtifactCleanupIntents?: (input: {
+    cardId?: string | null
+    status?: 'pending' | 'completed'
+  }) => Promise<PersonaTrainingArtifactCleanupIntent[]>
+  listRestartCandidates?: (input: {
+    cardId?: string | null
+  }) => Promise<PersonaTrainingRestartCandidate[]>
+  listRestartOrphanIncrements?: (input: {
+    cardId?: string | null
+  }) => Promise<PersonaTrainingPipelineIncrement[]>
+  commitDatasetGovernanceWithArtifactCleanup?: (
+    input: PersonaTrainingDatasetGovernanceMutation,
+  ) => Promise<PersonaTrainingDatasetGovernanceMutationResult>
+  compareAndSetRestartArtifact?: (input: {
+    cardId: string
+    runId: string
+    incrementId: string
+    artifactId: string
+    expectedArtifact: AlicizationPersonaTrainingArtifact
+    artifact: AlicizationPersonaTrainingArtifact
+    at: number
+  }) => Promise<boolean>
+  listRestartRuns?: (input: {
+    cardId?: string | null
+  }) => Promise<PersonaTrainingPipelineRunRecord[]>
+  interruptRunAfterRestart?: (input: {
+    cardId: string
+    runId: string
+    expectedStatus: PersonaTrainingPipelineRunStatus
+    reason: string
+    at: number
+    event: PersonaTrainingPipelineAuditEvent
+  }) => Promise<boolean>
   appendEvent: (event: PersonaTrainingPipelineAuditEvent) => Promise<void>
   listIncrements: () => Promise<PersonaTrainingPipelineIncrement[]>
   getRun?: (runId: string) => Promise<PersonaTrainingPipelineRunRecord | null>
   listRuns?: (input: { cardId: string, limit?: number }) => Promise<PersonaTrainingPipelineRunRecord[]>
-  reconcileAfterRestart?: (input: {
-    cardId?: string | null
-    reason: string
-    at: number
-  }) => Promise<{
-    interruptedRuns: number
-    rolledBackIncrements: number
-  }>
 }
 
 export type PersonaTrainingPipelineFailureReason
@@ -233,6 +435,13 @@ export type PersonaTrainingPipelineResult
   }
 
 export interface PersonaTrainingPipelineGate {
+  reconcileAfterRestart: (input: {
+    cardId?: string | null
+    reason: string
+  }) => Promise<{
+    interruptedRuns: number
+    rolledBackIncrements: number
+  }>
   start: (input: { cardId: string, datasetId?: string | null }) => Promise<{ run: PersonaTrainingPipelineRunRecord }>
   getRun: (input: { cardId: string, runId: string }) => Promise<PersonaTrainingPipelineRunRecord | null>
   listRuns: (input: { cardId: string, limit?: number }) => Promise<PersonaTrainingPipelineRunRecord[]>
@@ -272,6 +481,132 @@ class PersonaTrainingPipelineGateError extends Error {
     super(message)
     this.name = 'PersonaTrainingPipelineGateError'
   }
+}
+
+class PersonaTrainingArtifactActivationError extends Error {
+  constructor(
+    message: string,
+    readonly cleanupStage: Extract<PersonaTrainingArtifactCleanupStage, 'unload' | 'discard'>,
+    readonly loaderReceipt: PersonaTrainingArtifactLoaderReceiptSnapshot,
+    options?: ErrorOptions,
+  ) {
+    super(message, options)
+    this.name = 'PersonaTrainingArtifactActivationError'
+  }
+}
+
+class PersonaTrainingArtifactLoadPendingError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'PersonaTrainingArtifactLoadPendingError'
+  }
+}
+
+function snapshotPersonaTrainingArtifactLoaderReceipt(
+  receipt: unknown,
+): PersonaTrainingArtifactLoaderReceiptSnapshot {
+  const candidate = receipt && typeof receipt === 'object' && !Array.isArray(receipt)
+    ? receipt as Record<string, unknown>
+    : {}
+  return {
+    loaderId: typeof candidate.loaderId === 'string' ? candidate.loaderId : null,
+    receiptId: typeof candidate.receiptId === 'string' ? candidate.receiptId : null,
+    activatedAt: Number.isSafeInteger(candidate.activatedAt) && Number(candidate.activatedAt) >= 0
+      ? Number(candidate.activatedAt)
+      : null,
+    reason: typeof candidate.reason === 'string' ? candidate.reason : null,
+  }
+}
+
+function personaTrainingArtifactLoaderReceiptFromArtifact(
+  artifact: AlicizationPersonaTrainingArtifact,
+) {
+  if (artifact.activation.status !== 'active')
+    return null
+  return {
+    loaderId: artifact.activation.loaderId,
+    receiptId: artifact.activation.receiptId,
+    activatedAt: artifact.activation.activatedAt,
+    reason: artifact.activation.reason,
+  } satisfies PersonaTrainingArtifactLoaderReceiptSnapshot
+}
+
+function personaTrainingArtifactCleanupIntentId(input: {
+  cardId: string
+  runId: string
+  incrementId: string | null
+  artifactId: string
+}) {
+  return [
+    'persona-training-artifact-cleanup',
+    input.cardId,
+    input.runId,
+    input.incrementId ?? 'orphan',
+    input.artifactId,
+  ].map(encodeURIComponent).join(':')
+}
+
+function personaTrainingArtifactCleanupOperationId(
+  intentId: string,
+  stage: Extract<PersonaTrainingArtifactCleanupStage, 'unload'>,
+) {
+  return `${intentId}:${stage}`
+}
+
+function personaTrainingArtifactActivationOperationId(input: {
+  cardId: string
+  runId: string
+  incrementId: string
+  artifactId: string
+  mode: 'initial' | 'restart'
+  expectedReceiptId?: string | null
+}) {
+  const cycle = input.mode === 'restart'
+    ? `:${encodeURIComponent(input.expectedReceiptId?.trim() || 'no-receipt')}`
+    : ''
+  const operationScope = [
+    'persona-training-artifact-activation',
+    input.cardId,
+    input.runId,
+    input.incrementId,
+    input.artifactId,
+    input.mode,
+  ].map(encodeURIComponent).join(':')
+  return `${operationScope}${cycle}:load`
+}
+
+function personaTrainingArtifactActivationIntentId(operationId: string) {
+  return operationId.endsWith(':load') ? operationId.slice(0, -':load'.length) : operationId
+}
+
+function activatedPersonaTrainingArtifactFromReceipt(input: {
+  artifact: AlicizationPersonaTrainingArtifact
+  receipt: PersonaTrainingArtifactLoaderReceiptSnapshot
+}) {
+  const loaderId = input.receipt.loaderId?.trim() ?? ''
+  const receiptId = input.receipt.receiptId?.trim() ?? ''
+  const invalidFields = [
+    !loaderId ? 'loaderId' : null,
+    !receiptId ? 'receiptId' : null,
+    input.receipt.activatedAt == null ? 'activatedAt' : null,
+  ].filter((field): field is string => field != null)
+  if (invalidFields.length > 0) {
+    throw new PersonaTrainingArtifactActivationError(
+      `persona training artifact loader returned an invalid activation receipt: ${invalidFields.join(', ')}`,
+      'unload',
+      input.receipt,
+    )
+  }
+  return {
+    ...input.artifact,
+    activation: {
+      status: 'active',
+      reason: input.receipt.reason?.trim() || `Loaded by ${loaderId}.`,
+      loaderId,
+      receiptId,
+      activatedAt: input.receipt.activatedAt!,
+    },
+  } satisfies AlicizationPersonaTrainingArtifact
 }
 
 function isAllowedTrainingSourceKind(sourceKind: string) {
@@ -331,20 +666,34 @@ export function createPersonaTrainingPipelineGate(input: {
   datasetRuntime: PersonaTrainingDatasetRuntime
   trainingExecutor: (input: PersonaTrainingExecutorInput) => Promise<PersonaTrainingExecutorOutput>
   artifactLifecycle?: PersonaTrainingArtifactLifecycle
+  artifactLoader?: PersonaTrainingArtifactLoader
+  artifactRecoveryTimeoutMs?: number
+  defaultCardId?: string
   resolveExecutorConfig?: () => PersonaTrainingExecutorConfigSnapshot | null | Promise<PersonaTrainingExecutorConfigSnapshot | null>
   persistence?: PersonaTrainingPipelinePersistence
   now: () => number
   randomUUID: () => string
   basePersonaRevision: () => string | Promise<string>
 }): PersonaTrainingPipelineGate {
+  if (input.artifactLoader && !input.artifactLifecycle)
+    throw new Error('persona training artifactLoader requires artifactLifecycle')
+
   const increments = new Map<string, PersonaTrainingPipelineIncrement>()
+  const activationIntents = new Map<string, PersonaTrainingArtifactActivationIntent>()
+  const cleanupIntents = new Map<string, PersonaTrainingArtifactCleanupIntent>()
+  const incrementMutationQueues = new Map<string, Promise<void>>()
   const activeRuns = new Map<string, ActiveTrainingRun>()
+  const artifactRecoveryTimeoutMs = Math.max(
+    1,
+    Math.floor(input.artifactRecoveryTimeoutMs ?? 5_000),
+  )
   const persistence: PersonaTrainingPipelinePersistence = input.persistence ?? {
     createRun: async () => {},
     updateRun: async () => true,
     completeRunWithIncrement: async () => ({ completed: true }),
     finishRun: async () => true,
     updateIncrementState: async () => {},
+    recordArtifactCleanupIntent: async () => {},
     appendEvent: async () => {},
     listIncrements: async () => [],
   }
@@ -426,6 +775,7 @@ export function createPersonaTrainingPipelineGate(input: {
     reason: string | null
     finishedAt: number
     increment?: PersonaTrainingPipelineIncrement
+    activationIntent?: PersonaTrainingArtifactActivationIntent | null
     failureReason?: PersonaTrainingPipelineFailureReason | null
     artifact?: AlicizationPersonaTrainingArtifact | null
   }) {
@@ -487,6 +837,9 @@ export function createPersonaTrainingPipelineGate(input: {
           run: finalRecord,
           increment: terminalInput.increment,
           event,
+          activation: terminalInput.activationIntent
+            ? activationOwner(terminalInput.activationIntent)
+            : null,
         })
         if (!completed.completed) {
           throw new PersonaTrainingPipelineGateError(
@@ -495,6 +848,8 @@ export function createPersonaTrainingPipelineGate(input: {
           )
         }
         increments.set(terminalInput.increment.id, terminalInput.increment)
+        if (terminalInput.activationIntent)
+          activationIntents.delete(terminalInput.activationIntent.id)
       }
       else {
         const finished = await persistence.finishRun({
@@ -565,6 +920,25 @@ export function createPersonaTrainingPipelineGate(input: {
     }
   }
 
+  async function enqueueIncrementMutation<T>(
+    incrementId: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const previous = incrementMutationQueues.get(incrementId) ?? Promise.resolve()
+    const current = previous
+      .catch(() => {})
+      .then(operation)
+    const tail = current.then(() => {}, () => {})
+    incrementMutationQueues.set(incrementId, tail)
+    try {
+      return await current
+    }
+    finally {
+      if (incrementMutationQueues.get(incrementId) === tail)
+        incrementMutationQueues.delete(incrementId)
+    }
+  }
+
   async function markIncrements(markInput: {
     cardId: string
     state: Extract<PersonaTrainingPipelineIncrementState, 'rolled-back' | 'revoked'>
@@ -575,52 +949,71 @@ export function createPersonaTrainingPipelineGate(input: {
   }) {
     await hydratePersistedIncrements()
     const cleanupErrors: unknown[] = []
-    for (const increment of increments.values()) {
-      if (increment.cardId !== markInput.cardId)
+    for (const candidate of increments.values()) {
+      const incrementId = candidate.id
+      if (candidate.cardId !== markInput.cardId)
         continue
-      if (markInput.datasetId && increment.datasetId !== markInput.datasetId)
+      if (markInput.datasetId && candidate.datasetId !== markInput.datasetId)
         continue
-      if (markInput.excludeDatasetId && increment.datasetId === markInput.excludeDatasetId)
+      if (markInput.excludeDatasetId && candidate.datasetId === markInput.excludeDatasetId)
         continue
-      if (markInput.sourceId && !increment.sourceIds.includes(markInput.sourceId))
+      if (markInput.sourceId && !candidate.sourceIds.includes(markInput.sourceId))
         continue
-      const previousState = increment.state
-      const shouldTransition = markInput.state === 'revoked'
-        ? increment.state !== 'revoked'
-        : increment.state === 'available'
-      if (shouldTransition) {
-        await persistence.updateIncrementState({
-          incrementId: increment.id,
-          state: markInput.state,
-        })
-        increment.state = markInput.state
-      }
-      if (shouldTransition && previousState !== 'revoked' && markInput.state === 'revoked') {
-        await appendAuditEvent({
-          action: 'training-increment-revoked',
-          runId: null,
-          incrementId: increment.id,
-          cardId: increment.cardId,
-          datasetId: increment.datasetId,
-          manifestHash: increment.manifestHash,
-          sourceIds: [...increment.sourceIds],
-          reason: markInput.sourceId ? 'source-revoked' : 'dataset-rolled-back',
-          createdAt: markInput.now,
-        })
-      }
-      if (shouldTransition) {
-        try {
+      try {
+        await enqueueIncrementMutation(incrementId, async () => {
+          const increment = increments.get(incrementId)
+          if (!increment)
+            return
+          if (increment.cardId !== markInput.cardId)
+            return
+          if (markInput.datasetId && increment.datasetId !== markInput.datasetId)
+            return
+          if (markInput.excludeDatasetId && increment.datasetId === markInput.excludeDatasetId)
+            return
+          if (markInput.sourceId && !increment.sourceIds.includes(markInput.sourceId))
+            return
+          const shouldTransition = markInput.state === 'revoked'
+            ? increment.state !== 'revoked'
+            : increment.state === 'available'
+          if (!shouldTransition)
+            return
+          const event = {
+            action: markInput.state === 'revoked'
+              ? 'training-increment-revoked'
+              : 'training-increment-rolled-back',
+            runId: null,
+            incrementId: increment.id,
+            cardId: increment.cardId,
+            datasetId: increment.datasetId,
+            manifestHash: increment.manifestHash,
+            sourceIds: [...increment.sourceIds],
+            reason: markInput.sourceId ? 'source-revoked' : 'dataset-rolled-back',
+            createdAt: markInput.now,
+          } satisfies PersonaTrainingPipelineAuditEvent
+          if (markInput.state === 'revoked' && increment.state === 'rolled-back') {
+            await finalizeIncrementCleanup({
+              increment,
+              state: 'revoked',
+              event,
+            })
+            return
+          }
           await discardArtifactWithRecovery({
             artifact: increment.artifact,
             cardId: increment.cardId,
             incrementId: increment.id,
             reason: markInput.state === 'revoked' ? 'source-revoked' : 'dataset-rolled-back',
             now: markInput.now,
+            transition: {
+              increment,
+              state: markInput.state,
+              event,
+            },
           })
-        }
-        catch (error) {
-          cleanupErrors.push(error)
-        }
+        })
+      }
+      catch (error) {
+        cleanupErrors.push(error)
       }
     }
     if (cleanupErrors.length > 0)
@@ -632,14 +1025,17 @@ export function createPersonaTrainingPipelineGate(input: {
     reason: string,
   ) {
     const cleanupErrors: unknown[] = []
-    for (const increment of candidates) {
+    for (const candidate of candidates) {
       try {
-        await discardArtifactWithRecovery({
-          artifact: increment.artifact,
-          cardId: increment.cardId,
-          incrementId: increment.id,
-          reason,
-          now: input.now(),
+        await enqueueIncrementMutation(candidate.id, async () => {
+          const increment = increments.get(candidate.id) ?? candidate
+          await discardArtifactWithRecovery({
+            artifact: increment.artifact,
+            cardId: increment.cardId,
+            incrementId: increment.id,
+            reason,
+            now: input.now(),
+          })
         })
       }
       catch (error) {
@@ -650,6 +1046,517 @@ export function createPersonaTrainingPipelineGate(input: {
       throwCleanupErrors(cleanupErrors, 'persona training artifact cleanup failed')
   }
 
+  function artifactCleanupIntentId(inputData: {
+    cardId: string
+    runId?: string
+    incrementId: string | null
+    artifact: AlicizationPersonaTrainingArtifact
+  }) {
+    return personaTrainingArtifactCleanupIntentId({
+      cardId: inputData.cardId,
+      runId: inputData.runId ?? inputData.artifact.runId,
+      incrementId: inputData.incrementId,
+      artifactId: inputData.artifact.artifactId,
+    })
+  }
+
+  function inactiveArtifactAfterUnload(
+    artifact: AlicizationPersonaTrainingArtifact,
+    reason: string,
+  ): AlicizationPersonaTrainingArtifact {
+    return {
+      ...artifact,
+      activation: {
+        status: 'inactive',
+        reason: `Unloaded for ${reason}.`,
+      },
+    }
+  }
+
+  interface ArtifactCleanupInput {
+    artifact: AlicizationPersonaTrainingArtifact
+    cardId: string
+    runId?: string
+    incrementId: string | null
+    reason: string
+    now: number
+    initialStage?: PersonaTrainingArtifactCleanupStage
+    loaderReceipt?: PersonaTrainingArtifactLoaderReceiptSnapshot | null
+    finalizeIncrementState?: Extract<PersonaTrainingPipelineIncrementState, 'rolled-back' | 'revoked'> | null
+  }
+
+  function buildArtifactCleanupIntent(inputData: ArtifactCleanupInput) {
+    const id = artifactCleanupIntentId(inputData)
+    return {
+      id,
+      unloadOperationId: personaTrainingArtifactCleanupOperationId(id, 'unload'),
+      cardId: inputData.cardId,
+      runId: inputData.runId ?? inputData.artifact.runId,
+      incrementId: inputData.incrementId,
+      artifact: inputData.artifact,
+      loaderReceipt: inputData.loaderReceipt
+        ?? personaTrainingArtifactLoaderReceiptFromArtifact(inputData.artifact),
+      reason: inputData.reason,
+      stage: inputData.initialStage
+        ?? (inputData.artifact.activation.status === 'active' ? 'unload' : 'discard'),
+      finalizeIncrementState: inputData.finalizeIncrementState ?? null,
+      status: 'pending',
+      attempts: 0,
+      lastError: null,
+      createdAt: inputData.now,
+      updatedAt: inputData.now,
+    } satisfies PersonaTrainingArtifactCleanupIntent
+  }
+
+  function activationOwner(
+    intent: PersonaTrainingArtifactActivationIntent,
+  ): PersonaTrainingArtifactActivationOwner {
+    return {
+      intentId: intent.id,
+      cardId: intent.cardId,
+      runId: intent.runId,
+      incrementId: intent.incrementId,
+      artifactId: intent.artifactId,
+      expectedStage: intent.stage,
+      expectedStatus: 'pending',
+    }
+  }
+
+  async function beginArtifactActivation(inputData: {
+    mode: PersonaTrainingArtifactActivationMode
+    cardId: string
+    runId: string
+    incrementId: string
+    artifact: AlicizationPersonaTrainingArtifact
+    expectedArtifact: AlicizationPersonaTrainingArtifact | null
+    now: number
+  }) {
+    const expectedReceiptId = inputData.expectedArtifact?.activation.status === 'active'
+      ? inputData.expectedArtifact.activation.receiptId
+      : null
+    const loadOperationId = personaTrainingArtifactActivationOperationId({
+      cardId: inputData.cardId,
+      runId: inputData.runId,
+      incrementId: inputData.incrementId,
+      artifactId: inputData.artifact.artifactId,
+      mode: inputData.mode,
+      expectedReceiptId,
+    })
+    const id = personaTrainingArtifactActivationIntentId(loadOperationId)
+    const existing = activationIntents.get(id)
+    if (existing?.status === 'pending')
+      return existing
+    const intent = {
+      id,
+      loadOperationId,
+      mode: inputData.mode,
+      cardId: inputData.cardId,
+      runId: inputData.runId,
+      incrementId: inputData.incrementId,
+      artifactId: inputData.artifact.artifactId,
+      artifact: inputData.artifact,
+      expectedArtifact: inputData.expectedArtifact,
+      loaderReceipt: null,
+      activatedArtifact: null,
+      stage: 'prepared',
+      status: 'pending',
+      lastError: null,
+      createdAt: inputData.now,
+      updatedAt: inputData.now,
+    } satisfies PersonaTrainingArtifactActivationIntent
+    const persisted = persistence.beginArtifactActivation
+      ? await persistence.beginArtifactActivation(intent)
+      : intent
+    if (
+      persisted.id !== intent.id
+      || persisted.loadOperationId !== intent.loadOperationId
+      || persisted.mode !== intent.mode
+      || persisted.cardId !== intent.cardId
+      || persisted.runId !== intent.runId
+      || persisted.incrementId !== intent.incrementId
+      || persisted.artifactId !== intent.artifactId
+      || persisted.artifact.runId !== intent.runId
+      || persisted.artifact.artifactId !== intent.artifactId
+      || persisted.status !== 'pending'
+      || persisted.stage !== 'prepared'
+    ) {
+      throw new Error('persona training artifact activation intent owner or lifecycle state does not match its begin request')
+    }
+    activationIntents.set(persisted.id, persisted)
+    return persisted
+  }
+
+  async function recordArtifactActivationReceipt(
+    intent: PersonaTrainingArtifactActivationIntent,
+    receipt: PersonaTrainingArtifactLoaderReceiptSnapshot,
+    at: number,
+  ) {
+    let activatedArtifact: AlicizationPersonaTrainingArtifact | null = null
+    let activationError: PersonaTrainingArtifactActivationError | null = null
+    try {
+      activatedArtifact = activatedPersonaTrainingArtifactFromReceipt({
+        artifact: intent.artifact,
+        receipt,
+      })
+    }
+    catch (error) {
+      if (!(error instanceof PersonaTrainingArtifactActivationError))
+        throw error
+      activationError = error
+    }
+    if (persistence.recordArtifactActivationReceipt) {
+      const recorded = await persistence.recordArtifactActivationReceipt({
+        ...activationOwner(intent),
+        loaderReceipt: receipt,
+        activatedArtifact,
+        error: activationError?.message ?? null,
+        at,
+      })
+      if (!recorded)
+        throw new Error('persona training artifact activation lost its receipt compare-and-set')
+    }
+    const next = {
+      ...intent,
+      loaderReceipt: receipt,
+      activatedArtifact,
+      stage: 'loaded',
+      lastError: activationError?.message ?? null,
+      updatedAt: at,
+    } satisfies PersonaTrainingArtifactActivationIntent
+    activationIntents.set(next.id, next)
+    return {
+      intent: next,
+      activationError,
+    }
+  }
+
+  async function loadArtifactActivation(
+    intent: PersonaTrainingArtifactActivationIntent,
+    signal: AbortSignal,
+    timeoutMs?: number,
+  ) {
+    if (!input.artifactLoader)
+      throw new Error('persona training artifact loader is unavailable')
+    try {
+      const receipt = timeoutMs == null
+        ? await input.artifactLoader.load({
+            cardId: intent.cardId,
+            artifact: intent.artifact,
+            signal,
+            operationId: intent.loadOperationId,
+          })
+        : await (async () => {
+            const recoveryController = new AbortController()
+            const abortRecovery = () => recoveryController.abort(signal.reason)
+            if (signal.aborted)
+              abortRecovery()
+            else
+              signal.addEventListener('abort', abortRecovery, { once: true })
+            let timeoutHandle: ReturnType<typeof setTimeout> | null = null
+            try {
+              const timeoutError = new Error(
+                `persona training artifact recovery load timed out after ${timeoutMs}ms`,
+              )
+              const timeout = new Promise<never>((_, reject) => {
+                timeoutHandle = setTimeout(() => {
+                  recoveryController.abort(timeoutError)
+                  reject(timeoutError)
+                }, timeoutMs)
+              })
+              return await Promise.race([
+                input.artifactLoader!.load({
+                  cardId: intent.cardId,
+                  artifact: intent.artifact,
+                  signal: recoveryController.signal,
+                  operationId: intent.loadOperationId,
+                }),
+                timeout,
+              ])
+            }
+            finally {
+              if (timeoutHandle)
+                clearTimeout(timeoutHandle)
+              signal.removeEventListener('abort', abortRecovery)
+            }
+          })()
+      return await recordArtifactActivationReceipt(
+        intent,
+        snapshotPersonaTrainingArtifactLoaderReceipt(receipt),
+        input.now(),
+      )
+    }
+    catch (error) {
+      if (error instanceof PersonaTrainingArtifactActivationError)
+        throw error
+      const message = errorMessageFrom(error) ?? String(error)
+      if (persistence.failArtifactActivation) {
+        await persistence.failArtifactActivation({
+          ...activationOwner(intent),
+          error: message,
+          at: input.now(),
+        })
+      }
+      throw new PersonaTrainingArtifactLoadPendingError(
+        `persona training artifact load is pending recovery: ${message}`,
+        { cause: error },
+      )
+    }
+  }
+
+  async function handoffArtifactActivationToCleanup(inputData: {
+    intent: PersonaTrainingArtifactActivationIntent
+    reason: string
+    transition?: {
+      increment: PersonaTrainingPipelineIncrement
+      state: Extract<PersonaTrainingPipelineIncrementState, 'rolled-back' | 'revoked'>
+      event: PersonaTrainingPipelineAuditEvent
+    } | null
+  }) {
+    const cleanupIntent = buildArtifactCleanupIntent({
+      artifact: inputData.intent.activatedArtifact ?? inputData.intent.artifact,
+      cardId: inputData.intent.cardId,
+      runId: inputData.intent.runId,
+      incrementId: inputData.transition?.increment.id ?? null,
+      reason: inputData.reason,
+      now: input.now(),
+      initialStage: 'unload',
+      loaderReceipt: inputData.intent.loaderReceipt,
+      finalizeIncrementState: inputData.transition?.state ?? null,
+    })
+    const persistedCleanup = persistence.handoffArtifactActivationToCleanup
+      ? await persistence.handoffArtifactActivationToCleanup({
+          ...activationOwner(inputData.intent),
+          cleanupIntent,
+          at: input.now(),
+        })
+      : await beginArtifactCleanup({
+          artifact: cleanupIntent.artifact,
+          cardId: cleanupIntent.cardId,
+          runId: cleanupIntent.runId,
+          incrementId: cleanupIntent.incrementId,
+          reason: cleanupIntent.reason,
+          now: cleanupIntent.createdAt,
+          initialStage: cleanupIntent.stage,
+          loaderReceipt: cleanupIntent.loaderReceipt,
+          finalizeIncrementState: cleanupIntent.finalizeIncrementState,
+        })
+    activationIntents.delete(inputData.intent.id)
+    cleanupIntents.set(persistedCleanup.id, persistedCleanup)
+    return persistedCleanup
+  }
+
+  async function beginArtifactCleanup(inputData: ArtifactCleanupInput) {
+    const id = artifactCleanupIntentId(inputData)
+    const existing = cleanupIntents.get(id)
+    if (existing?.status === 'pending')
+      return existing
+    const intent = buildArtifactCleanupIntent(inputData)
+    const persisted = persistence.beginArtifactCleanup
+      ? await persistence.beginArtifactCleanup(intent)
+      : intent
+    cleanupIntents.set(id, persisted)
+    if (persisted.incrementId) {
+      const increment = increments.get(persisted.incrementId)
+      if (increment) {
+        increment.cleanup = {
+          status: 'pending',
+          stage: persisted.stage,
+          lastError: persisted.lastError,
+        }
+      }
+    }
+    return persisted
+  }
+
+  async function advanceArtifactCleanup(
+    intent: PersonaTrainingArtifactCleanupIntent,
+    stage: PersonaTrainingArtifactCleanupStage,
+    artifact: AlicizationPersonaTrainingArtifact,
+    at: number,
+  ) {
+    if (persistence.advanceArtifactCleanup) {
+      const advanced = await persistence.advanceArtifactCleanup({
+        intentId: intent.id,
+        cardId: intent.cardId,
+        runId: intent.runId,
+        incrementId: intent.incrementId,
+        artifactId: intent.artifact.artifactId,
+        expectedStage: intent.stage,
+        expectedStatus: 'pending',
+        stage,
+        artifact,
+        at,
+      })
+      if (!advanced)
+        throw new Error(`persona training artifact cleanup lost its ${intent.stage} stage transition`)
+    }
+    const next = {
+      ...intent,
+      artifact,
+      stage,
+      lastError: null,
+      updatedAt: at,
+    } satisfies PersonaTrainingArtifactCleanupIntent
+    cleanupIntents.set(intent.id, next)
+    if (next.incrementId) {
+      const increment = increments.get(next.incrementId)
+      if (increment) {
+        increment.artifact = artifact
+        increment.cleanup = {
+          status: 'pending',
+          stage: next.stage,
+          lastError: null,
+        }
+      }
+    }
+    return next
+  }
+
+  async function failArtifactCleanup(
+    intent: PersonaTrainingArtifactCleanupIntent,
+    cleanupError: unknown,
+    at: number,
+  ) {
+    const cleanupMessage = errorMessageFrom(cleanupError) ?? String(cleanupError)
+    const failed = {
+      ...intent,
+      status: 'pending',
+      attempts: intent.attempts + 1,
+      lastError: cleanupMessage,
+      updatedAt: at,
+    } satisfies PersonaTrainingArtifactCleanupIntent
+    cleanupIntents.set(intent.id, failed)
+    if (failed.incrementId) {
+      const increment = increments.get(failed.incrementId)
+      if (increment) {
+        increment.cleanup = {
+          status: 'pending',
+          stage: failed.stage,
+          lastError: failed.lastError,
+        }
+      }
+    }
+    try {
+      if (persistence.failArtifactCleanup) {
+        const recorded = await persistence.failArtifactCleanup({
+          intentId: failed.id,
+          cardId: failed.cardId,
+          runId: failed.runId,
+          incrementId: failed.incrementId,
+          artifactId: failed.artifact.artifactId,
+          expectedStage: failed.stage,
+          expectedStatus: 'pending',
+          attempts: failed.attempts,
+          error: cleanupMessage,
+          at,
+        })
+        if (!recorded)
+          throw new Error('cleanup recovery intent stage no longer matches')
+      }
+      else {
+        if (!persistence.recordArtifactCleanupIntent)
+          throw new Error('cleanup recovery intent persistence is unavailable')
+        await persistence.recordArtifactCleanupIntent(failed)
+      }
+    }
+    catch (intentError) {
+      throw new Error(
+        `persona training artifact cleanup failed: ${cleanupMessage}; `
+        + `cleanup recovery intent persistence failed: ${errorMessageFrom(intentError) ?? String(intentError)}`,
+        { cause: cleanupError },
+      )
+    }
+    throw new Error(
+      `persona training artifact cleanup failed at ${failed.stage}: ${cleanupMessage}; cleanup recovery intent recorded`,
+      { cause: cleanupError },
+    )
+  }
+
+  async function finalizeIncrementCleanup(inputData: {
+    increment: PersonaTrainingPipelineIncrement
+    state: Extract<PersonaTrainingPipelineIncrementState, 'rolled-back' | 'revoked'>
+    event: PersonaTrainingPipelineAuditEvent
+  }) {
+    if (inputData.increment.state === inputData.state)
+      return
+    if (persistence.transitionIncrementWithAudit) {
+      const transitioned = await persistence.transitionIncrementWithAudit({
+        incrementId: inputData.increment.id,
+        state: inputData.state,
+        event: inputData.event,
+      })
+      if (!transitioned) {
+        await hydratePersistedIncrements()
+        const persisted = increments.get(inputData.increment.id)
+        if (persisted?.state !== inputData.state) {
+          throw new Error(
+            `persona training increment cleanup finalization lost its state transition: expected ${inputData.state}, found ${persisted?.state ?? 'missing'}`,
+          )
+        }
+      }
+    }
+    else {
+      await persistence.updateIncrementState({
+        incrementId: inputData.increment.id,
+        state: inputData.state,
+      })
+      await appendAuditEvent(inputData.event)
+    }
+    inputData.increment.state = inputData.state
+    const current = increments.get(inputData.increment.id)
+    if (current)
+      current.state = inputData.state
+  }
+
+  async function completeArtifactCleanup(inputData: {
+    intent: PersonaTrainingArtifactCleanupIntent
+    transition: {
+      increment: PersonaTrainingPipelineIncrement
+      state: Extract<PersonaTrainingPipelineIncrementState, 'rolled-back' | 'revoked'>
+      event: PersonaTrainingPipelineAuditEvent
+    } | null
+    at: number
+  }) {
+    const attempts = inputData.intent.attempts + 1
+    if (persistence.completeArtifactCleanup) {
+      const completed = await persistence.completeArtifactCleanup({
+        intentId: inputData.intent.id,
+        cardId: inputData.intent.cardId,
+        runId: inputData.intent.runId,
+        incrementId: inputData.intent.incrementId,
+        artifactId: inputData.intent.artifact.artifactId,
+        expectedStage: 'finalize',
+        expectedStatus: 'pending',
+        attempts,
+        at: inputData.at,
+        transition: inputData.transition
+          ? {
+              incrementId: inputData.transition.increment.id,
+              state: inputData.transition.state,
+              event: inputData.transition.event,
+            }
+          : null,
+      })
+      if (!completed)
+        throw new Error('persona training artifact cleanup lost its finalize stage transition')
+      if (inputData.transition) {
+        inputData.transition.increment.state = inputData.transition.state
+        const current = increments.get(inputData.transition.increment.id)
+        if (current)
+          current.state = inputData.transition.state
+      }
+    }
+    else if (inputData.transition) {
+      await finalizeIncrementCleanup(inputData.transition)
+    }
+    cleanupIntents.delete(inputData.intent.id)
+    if (inputData.intent.incrementId) {
+      const increment = increments.get(inputData.intent.incrementId)
+      if (increment)
+        increment.cleanup = null
+    }
+  }
+
   async function discardArtifactWithRecovery(inputData: {
     artifact: AlicizationPersonaTrainingArtifact
     cardId: string
@@ -657,43 +1564,86 @@ export function createPersonaTrainingPipelineGate(input: {
     incrementId: string | null
     reason: string
     now: number
+    initialStage?: PersonaTrainingArtifactCleanupStage
+    loaderReceipt?: PersonaTrainingArtifactLoaderReceiptSnapshot | null
+    transition?: {
+      increment: PersonaTrainingPipelineIncrement
+      state: Extract<PersonaTrainingPipelineIncrementState, 'rolled-back' | 'revoked'>
+      event: PersonaTrainingPipelineAuditEvent
+    } | null
   }) {
-    if (!input.artifactLifecycle)
-      return
+    const artifactLifecycle = input.artifactLifecycle
+    if (!artifactLifecycle) {
+      const intent = await beginArtifactCleanup({
+        ...inputData,
+        initialStage: inputData.artifact.activation.status === 'active' ? 'unload' : 'discard',
+        finalizeIncrementState: inputData.transition?.state ?? null,
+      })
+      return await failArtifactCleanup(
+        intent,
+        new Error('persona training artifact lifecycle is unavailable for discard'),
+        input.now(),
+      )
+    }
+    let intent = await beginArtifactCleanup({
+      ...inputData,
+      finalizeIncrementState: inputData.transition?.state ?? null,
+    })
+    let transition: {
+      increment: PersonaTrainingPipelineIncrement
+      state: Extract<PersonaTrainingPipelineIncrementState, 'rolled-back' | 'revoked'>
+      event: PersonaTrainingPipelineAuditEvent
+    } | null = inputData.transition ?? null
+    if (!transition && intent.incrementId && intent.finalizeIncrementState) {
+      const increment = increments.get(intent.incrementId)
+      if (increment) {
+        transition = {
+          increment,
+          state: intent.finalizeIncrementState,
+          event: {
+            action: intent.finalizeIncrementState === 'revoked'
+              ? 'training-increment-revoked'
+              : 'training-increment-rolled-back',
+            runId: null,
+            incrementId: increment.id,
+            cardId: increment.cardId,
+            datasetId: increment.datasetId,
+            manifestHash: increment.manifestHash,
+            sourceIds: [...increment.sourceIds],
+            reason: intent.reason,
+            createdAt: input.now(),
+          },
+        }
+      }
+    }
     try {
-      await input.artifactLifecycle.discardArtifact(inputData.artifact)
+      if (intent.stage === 'unload') {
+        if (!input.artifactLoader)
+          throw new Error('persona training artifact loader is unavailable for active artifact cleanup')
+        await input.artifactLoader.unload({
+          cardId: intent.cardId,
+          artifact: intent.artifact,
+          reason: intent.reason,
+          operationId: intent.unloadOperationId,
+          receipt: intent.loaderReceipt,
+        })
+        const inactiveArtifact = inactiveArtifactAfterUnload(intent.artifact, intent.reason)
+        intent = await advanceArtifactCleanup(intent, 'discard', inactiveArtifact, input.now())
+      }
+      if (intent.stage === 'discard') {
+        await artifactLifecycle.discardArtifact(intent.artifact)
+        intent = await advanceArtifactCleanup(intent, 'finalize', intent.artifact, input.now())
+      }
+      if (intent.stage === 'finalize') {
+        await completeArtifactCleanup({
+          intent,
+          transition,
+          at: input.now(),
+        })
+      }
     }
     catch (cleanupError) {
-      const cleanupMessage = errorMessageFrom(cleanupError) ?? String(cleanupError)
-      const intent = {
-        id: `persona-training-artifact-cleanup:${inputData.cardId}:${inputData.artifact.artifactId}`,
-        cardId: inputData.cardId,
-        runId: inputData.runId ?? inputData.artifact.runId,
-        incrementId: inputData.incrementId,
-        artifact: inputData.artifact,
-        reason: inputData.reason,
-        status: 'pending' as const,
-        attempts: 1,
-        lastError: cleanupMessage,
-        createdAt: inputData.now,
-        updatedAt: inputData.now,
-      } satisfies PersonaTrainingArtifactCleanupIntent
-      try {
-        if (!persistence.recordArtifactCleanupIntent)
-          throw new Error('cleanup recovery intent persistence is unavailable')
-        await persistence.recordArtifactCleanupIntent(intent)
-      }
-      catch (intentError) {
-        throw new Error(
-          `persona training artifact cleanup failed: ${cleanupMessage}; `
-          + `cleanup recovery intent persistence failed: ${errorMessageFrom(intentError) ?? String(intentError)}`,
-          { cause: cleanupError },
-        )
-      }
-      throw new Error(
-        `persona training artifact cleanup failed: ${cleanupMessage}; cleanup recovery intent recorded`,
-        { cause: cleanupError },
-      )
+      await failArtifactCleanup(intent, cleanupError, input.now())
     }
   }
 
@@ -797,6 +1747,7 @@ export function createPersonaTrainingPipelineGate(input: {
   }): Promise<PersonaTrainingPipelineResult> {
     const { approved, basePersonaRevision, run } = inputScope
     let trainedArtifact: AlicizationPersonaTrainingArtifact | null = null
+    let activationIntent: PersonaTrainingArtifactActivationIntent | null = null
     const assertCurrent = async () => {
       if (run.invalidatedReason)
         throw new PersonaTrainingPipelineGateError(run.invalidatedReason, `persona training run was invalidated: ${run.invalidatedReason}`)
@@ -860,8 +1811,72 @@ export function createPersonaTrainingPipelineGate(input: {
           })
         },
       })
-      trainedArtifact = trained.artifact
+      const artifactAwaitingLoader = input.artifactLoader
+        ? {
+            ...trained.artifact,
+            activation: {
+              status: 'inactive' as const,
+              reason: 'Awaiting durable artifact loader activation.',
+            },
+          }
+        : trained.artifact.activation.status === 'unsupported'
+          ? trained.artifact
+          : {
+              ...trained.artifact,
+              activation: {
+                status: 'unsupported' as const,
+                reason: 'No artifact loader is configured.',
+              },
+            }
+      trainedArtifact = artifactAwaitingLoader
 
+      await assertCurrent()
+      if (input.artifactLoader) {
+        if (artifactAwaitingLoader.compatibility.status !== 'compatible') {
+          throw new Error(
+            `persona training artifact is not compatible with the configured loader: ${artifactAwaitingLoader.compatibility.reason ?? artifactAwaitingLoader.compatibility.status}`,
+          )
+        }
+        activationIntent = await beginArtifactActivation({
+          mode: 'initial',
+          cardId: run.cardId,
+          runId: run.runId,
+          incrementId: `persona-training-increment:${run.runId}`,
+          artifact: artifactAwaitingLoader,
+          expectedArtifact: null,
+          now: input.now(),
+        })
+        const loaded = await loadArtifactActivation(activationIntent, run.controller.signal)
+        activationIntent = loaded.intent
+        if (loaded.activationError) {
+          await handoffArtifactActivationToCleanup({
+            intent: activationIntent,
+            reason: 'invalid-activation-receipt',
+          })
+          try {
+            await discardArtifactWithRecovery({
+              artifact: activationIntent.artifact,
+              cardId: activationIntent.cardId,
+              runId: activationIntent.runId,
+              incrementId: null,
+              reason: 'invalid-activation-receipt',
+              now: input.now(),
+              initialStage: 'unload',
+              loaderReceipt: activationIntent.loaderReceipt,
+            })
+          }
+          catch (cleanupError) {
+            throw new PersonaTrainingArtifactActivationError(
+              `${loaded.activationError.message}; compensation cleanup failed: ${errorMessageFrom(cleanupError) ?? String(cleanupError)}`,
+              'unload',
+              activationIntent.loaderReceipt ?? snapshotPersonaTrainingArtifactLoaderReceipt(null),
+              { cause: cleanupError },
+            )
+          }
+          throw loaded.activationError
+        }
+        trainedArtifact = activationIntent.activatedArtifact!
+      }
       await assertCurrent()
       const increment: PersonaTrainingPipelineIncrement = {
         id: `persona-training-increment:${run.runId}`,
@@ -871,8 +1886,9 @@ export function createPersonaTrainingPipelineGate(input: {
         manifestHash: approved.manifest.manifestHash,
         sourceIds: approved.manifest.examples.map(example => example.sourceId),
         basePersonaRevision,
-        artifact: trained.artifact,
+        artifact: trainedArtifact,
         state: 'available',
+        cleanup: null,
         createdAt: input.now(),
       }
       const completed = await terminalizeRun({
@@ -882,7 +1898,8 @@ export function createPersonaTrainingPipelineGate(input: {
         action: 'training-completed',
         reason: null,
         increment,
-        artifact: trained.artifact,
+        activationIntent,
+        artifact: trainedArtifact,
         finishedAt: input.now(),
       })
       if (!completed)
@@ -899,15 +1916,52 @@ export function createPersonaTrainingPipelineGate(input: {
       const reason = run.invalidatedReason
         ?? (error instanceof PersonaTrainingPipelineGateError ? error.reason : 'executor-failed')
       let message = errorMessageFrom(error) ?? String(error)
-      if (trainedArtifact && input.artifactLifecycle) {
+      const cleanupReason = reason === 'executor-failed' ? 'training-failed' : reason
+      if (
+        activationIntent
+        && !(error instanceof PersonaTrainingArtifactLoadPendingError)
+        && activationIntents.has(activationIntent.id)
+      ) {
+        try {
+          await handoffArtifactActivationToCleanup({
+            intent: activationIntent,
+            reason: cleanupReason,
+          })
+          await discardArtifactWithRecovery({
+            artifact: activationIntent.activatedArtifact ?? activationIntent.artifact,
+            cardId: activationIntent.cardId,
+            runId: activationIntent.runId,
+            incrementId: null,
+            reason: cleanupReason,
+            now: input.now(),
+            initialStage: 'unload',
+            loaderReceipt: activationIntent.loaderReceipt,
+          })
+        }
+        catch (cleanupError) {
+          message = `${message}; persona training artifact cleanup failed: ${errorMessageFrom(cleanupError) ?? String(cleanupError)}`
+        }
+      }
+      else if (
+        trainedArtifact
+        && input.artifactLifecycle
+        && !(error instanceof PersonaTrainingArtifactLoadPendingError)
+        && !activationIntent
+      ) {
         try {
           await discardArtifactWithRecovery({
             artifact: trainedArtifact,
             cardId: run.cardId,
             runId: run.runId,
             incrementId: null,
-            reason: reason === 'executor-failed' ? 'training-failed' : reason,
+            reason: cleanupReason,
             now: input.now(),
+            initialStage: error instanceof PersonaTrainingArtifactActivationError
+              ? error.cleanupStage
+              : undefined,
+            loaderReceipt: error instanceof PersonaTrainingArtifactActivationError
+              ? error.loaderReceipt
+              : undefined,
           })
         }
         catch (cleanupError) {
@@ -1155,11 +2209,673 @@ export function createPersonaTrainingPipelineGate(input: {
       throwCleanupErrors(errors, 'persona training shutdown failed')
   }
 
+  function restartInterruptedEvent(
+    run: PersonaTrainingPipelineRunRecord,
+    reason: string,
+    at: number,
+  ): PersonaTrainingPipelineAuditEvent {
+    return {
+      action: 'training-interrupted',
+      runId: run.runId,
+      incrementId: null,
+      cardId: run.cardId,
+      datasetId: run.datasetId,
+      manifestHash: run.manifestHash,
+      sourceIds: [...run.sourceIds],
+      reason,
+      createdAt: at,
+    }
+  }
+
+  async function interruptRestartedRun(
+    run: PersonaTrainingPipelineRunRecord,
+    reason: string,
+  ) {
+    if (!persistence.interruptRunAfterRestart)
+      return false
+    const at = input.now()
+    return await persistence.interruptRunAfterRestart({
+      cardId: run.cardId,
+      runId: run.runId,
+      expectedStatus: run.status,
+      reason,
+      at,
+      event: restartInterruptedEvent(run, reason, at),
+    })
+  }
+
+  function restartInactiveArtifact(
+    artifact: AlicizationPersonaTrainingArtifact,
+    reason: string,
+  ): AlicizationPersonaTrainingArtifact {
+    return {
+      ...artifact,
+      activation: {
+        status: 'inactive',
+        reason,
+      },
+    }
+  }
+
+  async function persistRestartArtifact(inputData: {
+    candidate: PersonaTrainingRestartCandidate
+    expectedArtifact: AlicizationPersonaTrainingArtifact
+    artifact: AlicizationPersonaTrainingArtifact
+  }) {
+    const increment = inputData.candidate.increment
+    if (!increment || !persistence.compareAndSetRestartArtifact)
+      throw new Error('persona training restart artifact receipt persistence is unavailable')
+    const persisted = await persistence.compareAndSetRestartArtifact({
+      cardId: inputData.candidate.run.cardId,
+      runId: inputData.candidate.run.runId,
+      incrementId: increment.id,
+      artifactId: inputData.expectedArtifact.artifactId,
+      expectedArtifact: inputData.expectedArtifact,
+      artifact: inputData.artifact,
+      at: input.now(),
+    })
+    if (!persisted)
+      throw new Error('persona training restart artifact receipt persistence lost its compare-and-set')
+    inputData.candidate.run.artifact = inputData.artifact
+    increment.artifact = inputData.artifact
+    increments.set(increment.id, increment)
+  }
+
+  function restartRollbackTransition(
+    increment: PersonaTrainingPipelineIncrement,
+    reason: string,
+  ) {
+    return {
+      increment,
+      state: 'rolled-back' as const,
+      event: {
+        action: 'training-increment-rolled-back' as const,
+        runId: increment.artifact.runId,
+        incrementId: increment.id,
+        cardId: increment.cardId,
+        datasetId: increment.datasetId,
+        manifestHash: increment.manifestHash,
+        sourceIds: [...increment.sourceIds],
+        reason,
+        createdAt: input.now(),
+      },
+    }
+  }
+
+  async function cleanupRestartCandidate(inputData: {
+    candidate: PersonaTrainingRestartCandidate
+    artifact: AlicizationPersonaTrainingArtifact
+    reason: string
+    initialStage?: Extract<PersonaTrainingArtifactCleanupStage, 'unload' | 'discard'>
+    loaderReceipt?: PersonaTrainingArtifactLoaderReceiptSnapshot | null
+  }) {
+    const increment = inputData.candidate.increment
+    if (!increment)
+      return false
+    try {
+      await discardArtifactWithRecovery({
+        artifact: inputData.artifact,
+        cardId: increment.cardId,
+        runId: increment.artifact.runId,
+        incrementId: increment.id,
+        reason: inputData.reason,
+        now: input.now(),
+        initialStage: inputData.initialStage,
+        loaderReceipt: inputData.loaderReceipt,
+        transition: restartRollbackTransition(increment, inputData.reason),
+      })
+    }
+    catch {
+      return false
+    }
+    return await interruptRestartedRun(inputData.candidate.run, inputData.reason)
+  }
+
+  async function completeRestartActivation(
+    intent: PersonaTrainingArtifactActivationIntent,
+    candidate: PersonaTrainingRestartCandidate,
+  ) {
+    const increment = candidate.increment
+    const activatedArtifact = intent.activatedArtifact
+    const expectedArtifact = intent.expectedArtifact
+    if (!increment || !activatedArtifact || !expectedArtifact)
+      throw new Error('persona training restart activation intent is incomplete')
+    if (persistence.completeRestartArtifactActivation) {
+      const completed = await persistence.completeRestartArtifactActivation({
+        ...activationOwner(intent),
+        expectedArtifact,
+        artifact: activatedArtifact,
+        at: input.now(),
+      })
+      if (!completed)
+        throw new Error('persona training restart activation lost its atomic compare-and-set')
+    }
+    else {
+      await persistRestartArtifact({
+        candidate,
+        expectedArtifact,
+        artifact: activatedArtifact,
+      })
+      if (persistence.completeArtifactActivation) {
+        const completed = await persistence.completeArtifactActivation({
+          ...activationOwner(intent),
+          at: input.now(),
+        })
+        if (!completed)
+          throw new Error('persona training restart activation lost its completion compare-and-set')
+      }
+    }
+    candidate.run.artifact = activatedArtifact
+    increment.artifact = activatedArtifact
+    increments.set(increment.id, increment)
+    activationIntents.delete(intent.id)
+  }
+
+  async function restartCandidateEligibilityError(
+    candidate: PersonaTrainingRestartCandidate,
+  ) {
+    try {
+      const snapshot = await input.datasetRuntime.getSnapshot({
+        cardId: candidate.run.cardId,
+      })
+      const dataset = snapshot.versions.find(version =>
+        version.id === candidate.run.datasetId
+        && version.cardId === candidate.run.cardId,
+      )
+      if (
+        !dataset
+        || snapshot.activeVersionId !== dataset.id
+        || dataset.activeAt == null
+        || dataset.rolledBackAt != null
+        || !dataset.consentSnapshot.granted
+      ) {
+        return 'the trained dataset is no longer active and consented'
+      }
+
+      const examples = snapshot.examples.filter(example =>
+        example.cardId === candidate.run.cardId
+        && example.datasetId === dataset.id,
+      )
+      const currentManifest = buildPersonaTrainingDatasetManifest({
+        dataset,
+        examples,
+        exportedAt: candidate.run.finishedAt ?? candidate.run.updatedAt,
+      })
+      if (
+        currentManifest.exampleCount === 0
+        || currentManifest.manifestHash !== candidate.run.manifestHash
+      ) {
+        return 'the trained manifest no longer matches the current eligible dataset'
+      }
+
+      const persistedSourceIds = [...new Set(candidate.run.sourceIds)].sort()
+      const currentSourceIds = [...new Set(
+        currentManifest.examples.map(example => example.sourceId),
+      )].sort()
+      if (
+        persistedSourceIds.length === 0
+        || persistedSourceIds.length !== currentSourceIds.length
+        || persistedSourceIds.some((sourceId, index) => sourceId !== currentSourceIds[index])
+      ) {
+        return 'the trained sources are no longer staged, consented, PII-clear, and provenance-backed'
+      }
+      return null
+    }
+    catch (error) {
+      return `the trained dataset could not be revalidated: ${errorMessageFrom(error) ?? String(error)}`
+    }
+  }
+
+  async function reconcileRestartCandidate(candidate: PersonaTrainingRestartCandidate) {
+    const increment = candidate.increment
+    if (!increment || candidate.consistencyError || !candidate.run.artifact) {
+      if (increment) {
+        const cleaned = await cleanupRestartCandidate({
+          candidate,
+          artifact: increment.artifact,
+          reason: `application-restarted-with-inconsistent-training-completion${candidate.consistencyError ? `: ${candidate.consistencyError}` : ''}`,
+        })
+        return {
+          interruptedRuns: cleaned ? 1 : 0,
+          rolledBackIncrements: cleaned ? 1 : 0,
+        }
+      }
+      const interrupted = await interruptRestartedRun(
+        candidate.run,
+        `application-restarted-with-inconsistent-training-completion${candidate.consistencyError ? `: ${candidate.consistencyError}` : ''}`,
+      )
+      return {
+        interruptedRuns: interrupted ? 1 : 0,
+        rolledBackIncrements: 0,
+      }
+    }
+
+    const artifact = candidate.run.artifact
+    const eligibilityError = await restartCandidateEligibilityError(candidate)
+    if (eligibilityError) {
+      const reason = `application-restarted-with-ineligible-training-dataset: ${eligibilityError}`
+      const cleaned = await cleanupRestartCandidate({
+        candidate,
+        artifact,
+        reason,
+        initialStage: artifact.activation.status === 'active' ? 'unload' : 'discard',
+      })
+      return {
+        interruptedRuns: cleaned ? 1 : 0,
+        rolledBackIncrements: cleaned ? 1 : 0,
+      }
+    }
+
+    try {
+      await input.artifactLifecycle?.validateArtifact(artifact)
+    }
+    catch (error) {
+      const reason = `application-restarted-with-invalid-training-artifact: ${errorMessageFrom(error) ?? String(error)}`
+      const cleaned = await cleanupRestartCandidate({
+        candidate,
+        artifact,
+        reason,
+        initialStage: artifact.activation.status === 'active' ? 'unload' : 'discard',
+      })
+      return {
+        interruptedRuns: cleaned ? 1 : 0,
+        rolledBackIncrements: cleaned ? 1 : 0,
+      }
+    }
+
+    if (artifact.activation.status !== 'active')
+      return { interruptedRuns: 0, rolledBackIncrements: 0 }
+
+    const reloadCandidate = restartInactiveArtifact(
+      artifact,
+      'The previous loader receipt expired; a fresh receipt is required after restart.',
+    )
+    if (!input.artifactLoader) {
+      const reason = 'persona training artifact loader is unavailable for restart activation'
+      try {
+        await persistRestartArtifact({
+          candidate,
+          expectedArtifact: artifact,
+          artifact: reloadCandidate,
+        })
+      }
+      catch {
+        return { interruptedRuns: 0, rolledBackIncrements: 0 }
+      }
+      const cleaned = await cleanupRestartCandidate({
+        candidate,
+        artifact: reloadCandidate,
+        reason,
+        initialStage: 'discard',
+      })
+      return {
+        interruptedRuns: cleaned ? 1 : 0,
+        rolledBackIncrements: cleaned ? 1 : 0,
+      }
+    }
+
+    let activationIntent = await beginArtifactActivation({
+      mode: 'restart',
+      cardId: candidate.run.cardId,
+      runId: candidate.run.runId,
+      incrementId: increment.id,
+      artifact: reloadCandidate,
+      expectedArtifact: artifact,
+      now: input.now(),
+    })
+    let loaded: Awaited<ReturnType<typeof loadArtifactActivation>>
+    try {
+      loaded = await loadArtifactActivation(
+        activationIntent,
+        new AbortController().signal,
+        artifactRecoveryTimeoutMs,
+      )
+      activationIntent = loaded.intent
+    }
+    catch {
+      return { interruptedRuns: 0, rolledBackIncrements: 0 }
+    }
+
+    if (loaded.activationError) {
+      const reason = `application-restarted-with-invalid-training-artifact: ${loaded.activationError.message}`
+      await handoffArtifactActivationToCleanup({
+        intent: activationIntent,
+        reason,
+        transition: restartRollbackTransition(increment, reason),
+      })
+      const cleaned = await cleanupRestartCandidate({
+        candidate,
+        artifact: activationIntent.artifact,
+        reason,
+        initialStage: 'unload',
+        loaderReceipt: activationIntent.loaderReceipt,
+      })
+      return {
+        interruptedRuns: cleaned ? 1 : 0,
+        rolledBackIncrements: cleaned ? 1 : 0,
+      }
+    }
+
+    try {
+      await completeRestartActivation(activationIntent, candidate)
+      return { interruptedRuns: 0, rolledBackIncrements: 0 }
+    }
+    catch (error) {
+      const reason = `application-restarted-with-invalid-training-artifact: ${errorMessageFrom(error) ?? String(error)}`
+      await handoffArtifactActivationToCleanup({
+        intent: activationIntent,
+        reason,
+        transition: restartRollbackTransition(increment, reason),
+      })
+      const cleaned = await cleanupRestartCandidate({
+        candidate,
+        artifact: activationIntent.activatedArtifact ?? activationIntent.artifact,
+        reason,
+        initialStage: 'unload',
+        loaderReceipt: activationIntent.loaderReceipt,
+      })
+      return {
+        interruptedRuns: cleaned ? 1 : 0,
+        rolledBackIncrements: cleaned ? 1 : 0,
+      }
+    }
+  }
+
+  async function reconcileAfterRestart(reconcileInput: {
+    cardId?: string | null
+    reason: string
+  }) {
+    try {
+      await hydratePersistedIncrements()
+    }
+    catch {
+      // Restart candidates are parsed independently so malformed legacy rows
+      // cannot prevent unrelated cleanup and stale-run recovery.
+    }
+    let interruptedRuns = 0
+    let rolledBackIncrements = 0
+
+    const pendingActivations = await persistence.listArtifactActivationIntents?.({
+      cardId: reconcileInput.cardId,
+      status: 'pending',
+    }) ?? []
+    for (const intent of pendingActivations)
+      activationIntents.set(intent.id, intent)
+    for (const persistedIntent of pendingActivations.filter(intent => intent.mode === 'initial')) {
+      let intent = persistedIntent
+      try {
+        const loaded = await loadArtifactActivation(
+          intent,
+          new AbortController().signal,
+          artifactRecoveryTimeoutMs,
+        )
+        intent = loaded.intent
+        const reason = loaded.activationError
+          ? `application-restarted-with-invalid-training-artifact: ${loaded.activationError.message}`
+          : 'application-restarted-before-initial-artifact-activation-committed'
+        await handoffArtifactActivationToCleanup({
+          intent,
+          reason,
+        })
+        await discardArtifactWithRecovery({
+          artifact: intent.activatedArtifact ?? intent.artifact,
+          cardId: intent.cardId,
+          runId: intent.runId,
+          incrementId: null,
+          reason,
+          now: input.now(),
+          initialStage: 'unload',
+          loaderReceipt: intent.loaderReceipt,
+        })
+      }
+      catch {
+        // The pending activation or cleanup intent remains the durable recovery point.
+      }
+    }
+
+    const pendingIntents = await persistence.listArtifactCleanupIntents?.({
+      cardId: reconcileInput.cardId,
+      status: 'pending',
+    }) ?? []
+    for (const intent of pendingIntents) {
+      cleanupIntents.set(intent.id, intent)
+      const before = intent.incrementId
+        ? increments.get(intent.incrementId)?.state
+        : null
+      try {
+        await discardArtifactWithRecovery({
+          artifact: intent.artifact,
+          cardId: intent.cardId,
+          runId: intent.runId,
+          incrementId: intent.incrementId,
+          reason: intent.reason,
+          now: input.now(),
+          initialStage: intent.stage === 'finalize' ? undefined : intent.stage,
+          loaderReceipt: intent.loaderReceipt,
+        })
+      }
+      catch {
+        continue
+      }
+      if (before === 'available' && intent.finalizeIncrementState)
+        rolledBackIncrements += 1
+    }
+
+    const staleRuns = await persistence.listRestartRuns?.({
+      cardId: reconcileInput.cardId,
+    }) ?? []
+    for (const run of staleRuns) {
+      if (await interruptRestartedRun(run, reconcileInput.reason))
+        interruptedRuns += 1
+    }
+
+    const candidates = await persistence.listRestartCandidates?.({
+      cardId: reconcileInput.cardId,
+    }) ?? []
+    for (const candidate of candidates) {
+      const result = await reconcileRestartCandidate(candidate)
+      interruptedRuns += result.interruptedRuns
+      rolledBackIncrements += result.rolledBackIncrements
+    }
+
+    const orphanIncrements = await persistence.listRestartOrphanIncrements?.({
+      cardId: reconcileInput.cardId,
+    }) ?? []
+    for (const increment of orphanIncrements) {
+      increments.set(increment.id, increment)
+      try {
+        await discardArtifactWithRecovery({
+          artifact: increment.artifact,
+          cardId: increment.cardId,
+          runId: increment.artifact.runId,
+          incrementId: increment.id,
+          reason: 'application-restarted-with-inconsistent-training-increment',
+          now: input.now(),
+          transition: restartRollbackTransition(
+            increment,
+            'application-restarted-with-inconsistent-training-increment',
+          ),
+        })
+        rolledBackIncrements += 1
+      }
+      catch {
+        // The pending cleanup intent is the durable recovery point.
+      }
+    }
+
+    if (input.artifactLifecycle?.reconcileArtifacts) {
+      let availableArtifacts: AlicizationPersonaTrainingArtifact[] = []
+      try {
+        availableArtifacts = (await persistence.listIncrements())
+          .filter(increment =>
+            increment.state === 'available'
+            && (!reconcileInput.cardId || increment.cardId === reconcileInput.cardId),
+          )
+          .map(increment => increment.artifact)
+      }
+      catch {
+        availableArtifacts = candidates
+          .flatMap(candidate => candidate.increment?.state === 'available'
+            ? [candidate.increment.artifact]
+            : [])
+      }
+      await input.artifactLifecycle.reconcileArtifacts({
+        availableArtifacts,
+        onOrphanCleanupFailure: async ({ artifact, error }) => {
+          const cardId = reconcileInput.cardId?.trim() || input.defaultCardId?.trim()
+          if (!cardId)
+            throw new Error('persona training orphan cleanup recovery requires cardId')
+          const id = personaTrainingArtifactCleanupIntentId({
+            cardId,
+            runId: artifact.runId,
+            incrementId: null,
+            artifactId: artifact.artifactId,
+          })
+          const at = input.now()
+          const intent = {
+            id,
+            unloadOperationId: personaTrainingArtifactCleanupOperationId(id, 'unload'),
+            cardId,
+            runId: artifact.runId,
+            incrementId: null,
+            artifact,
+            loaderReceipt: personaTrainingArtifactLoaderReceiptFromArtifact(artifact),
+            reason: 'startup-orphan-artifact',
+            stage: artifact.activation.status === 'active' ? 'unload' : 'discard',
+            finalizeIncrementState: null,
+            status: 'pending',
+            attempts: 1,
+            lastError: errorMessageFrom(error) ?? String(error),
+            createdAt: at,
+            updatedAt: at,
+          } satisfies PersonaTrainingArtifactCleanupIntent
+          cleanupIntents.set(intent.id, intent)
+          await persistence.recordArtifactCleanupIntent?.(intent)
+        },
+      })
+    }
+
+    return {
+      interruptedRuns,
+      rolledBackIncrements,
+    }
+  }
+
+  async function resumePendingArtifactCleanups(inputData: {
+    cardId: string
+    reason: 'source-revoked' | 'dataset-rolled-back'
+  }) {
+    const errors: unknown[] = []
+    const pending = [...cleanupIntents.values()]
+      .filter(intent =>
+        intent.status === 'pending'
+        && intent.cardId === inputData.cardId
+        && intent.reason === inputData.reason,
+      )
+    for (const intent of pending) {
+      try {
+        await discardArtifactWithRecovery({
+          artifact: intent.artifact,
+          cardId: intent.cardId,
+          runId: intent.runId,
+          incrementId: intent.incrementId,
+          reason: intent.reason,
+          now: input.now(),
+          loaderReceipt: intent.loaderReceipt,
+        })
+      }
+      catch (error) {
+        errors.push(error)
+      }
+    }
+    if (errors.length > 0)
+      throwCleanupErrors(errors, 'persona training artifact cleanup recovery failed')
+  }
+
+  function buildDatasetGovernanceCleanupIntents(inputData: {
+    increments: PersonaTrainingPipelineIncrement[]
+    reason: 'dataset-rolled-back' | 'source-revoked'
+    state: Extract<PersonaTrainingPipelineIncrementState, 'rolled-back' | 'revoked'>
+    at: number
+  }) {
+    return inputData.increments.map(increment => buildArtifactCleanupIntent({
+      artifact: increment.artifact,
+      cardId: increment.cardId,
+      runId: increment.artifact.runId,
+      incrementId: increment.id,
+      reason: inputData.reason,
+      now: inputData.at,
+      finalizeIncrementState: inputData.state,
+    }))
+  }
+
+  function registerPersistedGovernanceCleanupIntents(
+    intents: PersonaTrainingArtifactCleanupIntent[],
+  ) {
+    for (const intent of intents) {
+      cleanupIntents.set(intent.id, intent)
+      if (!intent.incrementId)
+        continue
+      const increment = increments.get(intent.incrementId)
+      if (!increment)
+        continue
+      increment.cleanup = {
+        status: 'pending',
+        stage: intent.stage,
+        lastError: intent.lastError,
+      }
+    }
+  }
+
   async function activateVersion(activationInput: { cardId: string, datasetId: string }) {
     const cardId = normalizeCardId(activationInput.cardId)
+    await resumePendingArtifactCleanups({
+      cardId,
+      reason: 'dataset-rolled-back',
+    })
     await hydratePersistedIncrements()
     const previousAvailable = [...increments.values()]
       .filter(increment => increment.cardId === cardId && increment.state === 'available')
+    if (
+      persistence.commitDatasetGovernanceWithArtifactCleanup
+      && input.datasetRuntime.assertVersionActivatable
+    ) {
+      const dataset = await input.datasetRuntime.assertVersionActivatable({
+        cardId,
+        datasetId: activationInput.datasetId,
+      })
+      const at = input.now()
+      const cleanupCandidates = previousAvailable
+        .filter(increment => increment.datasetId !== dataset.id)
+      const cleanupIntentsToPersist = buildDatasetGovernanceCleanupIntents({
+        increments: cleanupCandidates,
+        reason: 'dataset-rolled-back',
+        state: 'rolled-back',
+        at,
+      })
+      const committed = await persistence.commitDatasetGovernanceWithArtifactCleanup({
+        kind: 'activate-version',
+        cardId,
+        dataset,
+        at,
+        cleanupIntents: cleanupIntentsToPersist,
+      })
+      if (committed.kind !== 'activate-version')
+        throw new Error('persona training dataset activation persistence returned the wrong governance result')
+      registerPersistedGovernanceCleanupIntents(cleanupIntentsToPersist)
+      await invalidateRuns({
+        cardId,
+        reason: 'dataset-rolled-back',
+        now: at,
+      })
+      await markIncrements({
+        cardId,
+        state: 'rolled-back',
+        excludeDatasetId: committed.dataset.id,
+        now: at,
+      })
+      return committed.dataset
+    }
     const activated = await input.datasetRuntime.activateVersion({
       cardId,
       datasetId: activationInput.datasetId,
@@ -1191,9 +2907,53 @@ export function createPersonaTrainingPipelineGate(input: {
 
   async function rollbackVersion(rollbackInput: { cardId: string, datasetId: string }) {
     const cardId = normalizeCardId(rollbackInput.cardId)
+    await resumePendingArtifactCleanups({
+      cardId,
+      reason: 'dataset-rolled-back',
+    })
     await hydratePersistedIncrements()
     const previousAvailable = [...increments.values()]
       .filter(increment => increment.cardId === cardId && increment.state === 'available')
+    if (
+      persistence.commitDatasetGovernanceWithArtifactCleanup
+      && input.datasetRuntime.assertVersionActivatable
+    ) {
+      const dataset = await input.datasetRuntime.assertVersionActivatable({
+        cardId,
+        datasetId: rollbackInput.datasetId,
+      })
+      const at = input.now()
+      const cleanupCandidates = previousAvailable
+        .filter(increment => increment.datasetId !== dataset.id)
+      const cleanupIntentsToPersist = buildDatasetGovernanceCleanupIntents({
+        increments: cleanupCandidates,
+        reason: 'dataset-rolled-back',
+        state: 'rolled-back',
+        at,
+      })
+      const committed = await persistence.commitDatasetGovernanceWithArtifactCleanup({
+        kind: 'rollback-version',
+        cardId,
+        dataset,
+        at,
+        cleanupIntents: cleanupIntentsToPersist,
+      })
+      if (committed.kind !== 'rollback-version')
+        throw new Error('persona training dataset rollback persistence returned the wrong governance result')
+      registerPersistedGovernanceCleanupIntents(cleanupIntentsToPersist)
+      await invalidateRuns({
+        cardId,
+        reason: 'dataset-rolled-back',
+        now: at,
+      })
+      await markIncrements({
+        cardId,
+        state: 'rolled-back',
+        excludeDatasetId: committed.dataset.id,
+        now: at,
+      })
+      return committed.dataset
+    }
     const rolledBack = await input.datasetRuntime.rollbackVersion({
       cardId,
       datasetId: rollbackInput.datasetId,
@@ -1228,11 +2988,47 @@ export function createPersonaTrainingPipelineGate(input: {
     const sourceId = revokeInput.sourceId.trim()
     if (!sourceId)
       throw new Error('persona training pipeline source revoke requires sourceId')
+    await resumePendingArtifactCleanups({
+      cardId,
+      reason: 'source-revoked',
+    })
     await hydratePersistedIncrements()
     const previousAvailable = [...increments.values()]
       .filter(increment => increment.cardId === cardId
         && increment.state === 'available'
         && increment.sourceIds.includes(sourceId))
+    if (persistence.commitDatasetGovernanceWithArtifactCleanup) {
+      const at = input.now()
+      const cleanupIntentsToPersist = buildDatasetGovernanceCleanupIntents({
+        increments: previousAvailable,
+        reason: 'source-revoked',
+        state: 'revoked',
+        at,
+      })
+      const committed = await persistence.commitDatasetGovernanceWithArtifactCleanup({
+        kind: 'revoke-source',
+        cardId,
+        sourceId,
+        at,
+        cleanupIntents: cleanupIntentsToPersist,
+      })
+      if (committed.kind !== 'revoke-source')
+        throw new Error('persona training source revoke persistence returned the wrong governance result')
+      registerPersistedGovernanceCleanupIntents(cleanupIntentsToPersist)
+      await invalidateRuns({
+        cardId,
+        sourceId,
+        reason: 'source-revoked',
+        now: at,
+      })
+      await markIncrements({
+        cardId,
+        sourceId,
+        state: 'revoked',
+        now: at,
+      })
+      return { affected: committed.affected }
+    }
     const result = await input.datasetRuntime.revokeSource({
       cardId,
       sourceId,
@@ -1262,52 +3058,45 @@ export function createPersonaTrainingPipelineGate(input: {
   }
 
   async function rollbackIncrement(rollbackInput: { incrementId: string, cardId?: string }) {
-    await hydratePersistedIncrements()
-    const increment = increments.get(rollbackInput.incrementId)
-    if (!increment)
-      return null
-    if (rollbackInput.cardId && increment.cardId !== normalizeCardId(rollbackInput.cardId))
-      return null
-    if (increment.state === 'available') {
-      const event = {
-        action: 'training-increment-rolled-back',
-        runId: null,
-        incrementId: increment.id,
+    return await enqueueIncrementMutation(rollbackInput.incrementId, async () => {
+      await hydratePersistedIncrements()
+      const increment = increments.get(rollbackInput.incrementId)
+      if (!increment)
+        return null
+      if (rollbackInput.cardId && increment.cardId !== normalizeCardId(rollbackInput.cardId))
+        return null
+      const pendingCleanup = cleanupIntents.get(artifactCleanupIntentId({
         cardId: increment.cardId,
-        datasetId: increment.datasetId,
-        manifestHash: increment.manifestHash,
-        sourceIds: [...increment.sourceIds],
-        reason: 'manual-rollback',
-        createdAt: input.now(),
-      } satisfies PersonaTrainingPipelineAuditEvent
-      if (persistence.transitionIncrementWithAudit) {
-        const transitioned = await persistence.transitionIncrementWithAudit({
-          incrementId: increment.id,
-          state: 'rolled-back',
-          event,
-        })
-        if (!transitioned) {
-          await hydratePersistedIncrements()
-          return increments.get(increment.id) ?? null
-        }
-      }
-      else {
-        await persistence.updateIncrementState({
-          incrementId: increment.id,
-          state: 'rolled-back',
-        })
-        await appendAuditEvent(event)
-      }
-      increment.state = 'rolled-back'
-      await discardArtifactWithRecovery({
+        incrementId: increment.id,
         artifact: increment.artifact,
-        cardId: increment.cardId,
-        incrementId: increment.id,
-        reason: 'manual-rollback',
-        now: input.now(),
-      })
-    }
-    return { ...increment }
+      }))
+      if (increment.state === 'available' || pendingCleanup?.status === 'pending') {
+        const event = {
+          action: 'training-increment-rolled-back',
+          runId: null,
+          incrementId: increment.id,
+          cardId: increment.cardId,
+          datasetId: increment.datasetId,
+          manifestHash: increment.manifestHash,
+          sourceIds: [...increment.sourceIds],
+          reason: 'manual-rollback',
+          createdAt: input.now(),
+        } satisfies PersonaTrainingPipelineAuditEvent
+        await discardArtifactWithRecovery({
+          artifact: increment.artifact,
+          cardId: increment.cardId,
+          incrementId: increment.id,
+          reason: 'manual-rollback',
+          now: input.now(),
+          transition: {
+            increment,
+            state: 'rolled-back',
+            event,
+          },
+        })
+      }
+      return { ...increment }
+    })
   }
 
   function listIncrements() {
@@ -1315,7 +3104,21 @@ export function createPersonaTrainingPipelineGate(input: {
   }
 
   function listUsableIncrements() {
-    return listIncrements().filter(increment => increment.state === 'available')
+    const pendingCleanupIncrementIds = new Set(
+      [...cleanupIntents.values()]
+        .filter(intent => intent.status === 'pending')
+        .map(intent => intent.incrementId),
+    )
+    const pendingActivationIncrementIds = new Set(
+      [...activationIntents.values()]
+        .filter(intent => intent.status === 'pending')
+        .map(intent => intent.incrementId),
+    )
+    return listIncrements().filter(increment =>
+      increment.state === 'available'
+      && !pendingCleanupIncrementIds.has(increment.id)
+      && !pendingActivationIncrementIds.has(increment.id),
+    )
   }
 
   async function listPersistedIncrements() {
@@ -1324,6 +3127,7 @@ export function createPersonaTrainingPipelineGate(input: {
   }
 
   return {
+    reconcileAfterRestart,
     start,
     getRun,
     listRuns,

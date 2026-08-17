@@ -8,13 +8,17 @@ import type {
   PersonaTrainingDatasetVersion,
 } from './persona-training-dataset-runtime'
 import type {
+  PersonaTrainingArtifactActivationIntent,
+  PersonaTrainingArtifactCleanupIntent,
   PersonaTrainingPipelineAuditEvent,
   PersonaTrainingPipelineIncrement,
+  PersonaTrainingPipelinePersistence,
   PersonaTrainingPipelineRunRecord,
 } from './persona-training-pipeline-gate'
 
 import { describe, expect, it, vi } from 'vitest'
 
+import { buildPersonaTrainingDatasetManifest } from './persona-training-dataset-runtime'
 import {
   createPersonaTrainingPipelineGate,
 } from './persona-training-pipeline-gate'
@@ -205,11 +209,111 @@ function createPersistenceRecorder() {
 }
 
 describe('persona training pipeline gate', () => {
+  it('rejects an artifact loader when no lifecycle owner can discard its artifacts', () => {
+    expect(() => createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLoader: {
+        load: async () => ({
+          loaderId: 'test-loader',
+          receiptId: 'receipt-without-lifecycle',
+          activatedAt: 201,
+        }),
+        unload: async () => {},
+      },
+      now: () => 200,
+      randomUUID: () => 'run-loader-without-lifecycle',
+      basePersonaRevision: () => 'persona-core-v1',
+    })).toThrow('artifactLoader requires artifactLifecycle')
+  })
+
+  it('rejects a completed activation intent instead of reusing it as a new load operation', async () => {
+    const recorder = createPersistenceRecorder()
+    const persistence: PersonaTrainingPipelinePersistence = {
+      ...recorder.persistence,
+      beginArtifactActivation: async intent => ({
+        ...intent,
+        status: 'completed',
+      }),
+    }
+    const load = vi.fn(async () => ({
+      loaderId: 'test-loader',
+      receiptId: 'receipt-must-not-load',
+      activatedAt: 201,
+    }))
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLoader: {
+        load,
+        unload: async () => {},
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+      persistence,
+      now: () => 200,
+      randomUUID: () => 'run-completed-activation-intent',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('activation intent owner or lifecycle state'),
+    })
+    expect(load).not.toHaveBeenCalled()
+  })
+
+  it('rejects an incompatible artifact before creating an external loader side effect', async () => {
+    const load = vi.fn(async () => ({
+      loaderId: 'test-loader',
+      receiptId: 'receipt-must-not-load',
+      activatedAt: 201,
+    }))
+    const discardArtifact = vi.fn(async () => {})
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({
+        artifact: {
+          ...createArtifact(input.runId),
+          compatibility: {
+            status: 'incompatible',
+            baseModel: 'another-base-model',
+            reason: 'base model mismatch',
+          },
+        },
+      }),
+      artifactLoader: {
+        load,
+        unload: async () => {},
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact,
+      },
+      now: () => 200,
+      randomUUID: () => 'run-incompatible-loader-artifact',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('not compatible'),
+    })
+    expect(load).not.toHaveBeenCalled()
+    expect(discardArtifact).toHaveBeenCalledOnce()
+  })
+
   it('persists the approved manifest boundary and training completion lifecycle', async () => {
     const recorder = createPersistenceRecorder()
     const gate = createPersonaTrainingPipelineGate({
       datasetRuntime: createDatasetRuntime(),
       trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
       persistence: recorder.persistence,
       now: () => 200,
       randomUUID: () => 'run-persisted',
@@ -283,6 +387,10 @@ describe('persona training pipeline gate', () => {
     const gate = createPersonaTrainingPipelineGate({
       datasetRuntime: createDatasetRuntime(),
       trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
       persistence: recorder.persistence,
       now: () => 200,
       randomUUID: () => 'run-state-transitions',
@@ -455,6 +563,496 @@ describe('persona training pipeline gate', () => {
     })])
   })
 
+  it('marks an artifact active only with a loader receipt and unloads it before rollback cleanup', async () => {
+    const lifecycle: string[] = []
+    const load = vi.fn(async () => {
+      lifecycle.push('load')
+      return {
+        loaderId: 'test-loader',
+        receiptId: 'receipt-1',
+        activatedAt: 201,
+        reason: 'Loaded by the test adapter runtime.',
+      }
+    })
+    const unload = vi.fn(async () => {
+      lifecycle.push('unload')
+    })
+    const discardArtifact = vi.fn(async () => {
+      lifecycle.push('discard')
+    })
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLoader: {
+        load,
+        unload,
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact,
+      },
+      now: () => 200,
+      randomUUID: () => 'run-loader-backed',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    const result = await gate.train({ cardId: 'card-a' })
+
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      increment: {
+        artifact: {
+          activation: {
+            status: 'active',
+            loaderId: 'test-loader',
+            receiptId: 'receipt-1',
+            activatedAt: 201,
+          },
+        },
+      },
+    })
+    expect(load).toHaveBeenCalledOnce()
+    expect(load).toHaveBeenCalledWith(expect.objectContaining({
+      operationId: 'persona-training-artifact-activation:card-a:run-loader-backed:persona-training-increment%3Arun-loader-backed:artifact-run-loader-backed:initial:load',
+    }))
+    const incrementId = result.status === 'succeeded' ? result.increment.id : ''
+    await gate.rollbackIncrement({ cardId: 'card-a', incrementId })
+    expect(unload).toHaveBeenCalledOnce()
+    expect(lifecycle).toEqual(['load', 'unload', 'discard'])
+  })
+
+  it('forces an executor-declared active artifact to unsupported when no loader exists', async () => {
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({
+        artifact: {
+          ...createArtifact(input.runId),
+          activation: {
+            status: 'active',
+            reason: 'Executor attempted to bypass the loader.',
+            loaderId: 'untrusted-executor',
+            receiptId: 'untrusted-receipt',
+            activatedAt: 200,
+          },
+        },
+      }),
+      now: () => 200,
+      randomUUID: () => 'run-untrusted-active-artifact',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'succeeded',
+      increment: {
+        artifact: {
+          activation: {
+            status: 'unsupported',
+          },
+        },
+      },
+    })
+  })
+
+  it('keeps rollback pending and unusable when no artifact lifecycle can discard the artifact', async () => {
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      now: () => 200,
+      randomUUID: () => 'run-cleanup-without-lifecycle',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+    const result = await gate.train({ cardId: 'card-a' })
+    const incrementId = result.status === 'succeeded' ? result.increment.id : ''
+
+    await expect(gate.rollbackIncrement({
+      cardId: 'card-a',
+      incrementId,
+    })).rejects.toThrow('artifact lifecycle is unavailable')
+    expect(gate.listIncrements()).toEqual([
+      expect.objectContaining({
+        id: incrementId,
+        state: 'available',
+      }),
+    ])
+    expect(gate.listUsableIncrements()).toEqual([])
+  })
+
+  it('compensates a loader side effect when its activation receipt is invalid', async () => {
+    const unload = vi.fn(async () => {})
+    const discardArtifact = vi.fn(async () => {})
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLoader: {
+        load: async () => ({
+          loaderId: ' ',
+          receiptId: 'receipt-invalid-loader',
+          activatedAt: 201,
+        }),
+        unload,
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact,
+      },
+      now: () => 200,
+      randomUUID: () => 'run-invalid-loader-receipt',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('invalid activation receipt'),
+    })
+    expect(unload).toHaveBeenCalledOnce()
+    expect(discardArtifact).toHaveBeenCalledOnce()
+    expect(gate.listIncrements()).toEqual([])
+  })
+
+  it('reports both an invalid activation receipt and its failed compensation unload', async () => {
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLoader: {
+        load: async () => ({
+          loaderId: 'test-loader',
+          receiptId: '',
+          activatedAt: 201,
+        }),
+        unload: async () => {
+          throw new Error('receipt compensation unload failed')
+        },
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+      now: () => 200,
+      randomUUID: () => 'run-invalid-receipt-unload-failure',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'failed',
+      error: expect.stringMatching(/invalid activation receipt.*receipt compensation unload failed/),
+    })
+    expect(gate.listIncrements()).toEqual([])
+  })
+
+  it('hands a loaded adapter to durable cleanup when run completion cannot commit', async () => {
+    const recorder = createPersistenceRecorder()
+    recorder.persistence.completeRunWithIncrement = async () => {
+      throw new Error('forced completion transaction failure')
+    }
+    const unload = vi.fn(async () => {})
+    const discardArtifact = vi.fn(async () => {})
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLoader: {
+        load: async () => ({
+          loaderId: 'test-loader',
+          receiptId: 'receipt-completion-failure',
+          activatedAt: 201,
+        }),
+        unload,
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact,
+      },
+      persistence: recorder.persistence,
+      now: () => 200,
+      randomUUID: () => 'run-loaded-completion-failure',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'failed',
+      error: 'forced completion transaction failure',
+    })
+    expect(unload).toHaveBeenCalledWith(expect.objectContaining({
+      receipt: expect.objectContaining({
+        receiptId: 'receipt-completion-failure',
+      }),
+    }))
+    expect(discardArtifact).toHaveBeenCalledOnce()
+    expect(gate.listIncrements()).toEqual([])
+  })
+
+  it('keeps a manual rollback retryable in the same process when unload fails', async () => {
+    const unload = vi.fn()
+      .mockRejectedValueOnce(new Error('adapter unload unavailable'))
+      .mockResolvedValueOnce(undefined)
+    const discardArtifact = vi.fn(async () => {})
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLoader: {
+        load: async () => ({
+          loaderId: 'test-loader',
+          receiptId: 'receipt-retry-unload',
+          activatedAt: 201,
+        }),
+        unload,
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact,
+      },
+      now: () => 200,
+      randomUUID: () => 'run-retry-unload',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+    const result = await gate.train({ cardId: 'card-a' })
+    const incrementId = result.status === 'succeeded' ? result.increment.id : ''
+
+    await expect(gate.rollbackIncrement({
+      cardId: 'card-a',
+      incrementId,
+    })).rejects.toThrow('adapter unload unavailable')
+    expect(gate.listIncrements()).toEqual([
+      expect.objectContaining({
+        id: incrementId,
+        state: 'available',
+      }),
+    ])
+    expect(discardArtifact).not.toHaveBeenCalled()
+
+    await expect(gate.rollbackIncrement({
+      cardId: 'card-a',
+      incrementId,
+    })).resolves.toMatchObject({
+      id: incrementId,
+      state: 'rolled-back',
+    })
+    expect(unload).toHaveBeenCalledTimes(2)
+    expect(discardArtifact).toHaveBeenCalledOnce()
+  })
+
+  it('resumes at discard after unload succeeds so retry does not unload twice', async () => {
+    const unload = vi.fn(async () => {})
+    const discardArtifact = vi.fn()
+      .mockRejectedValueOnce(new Error('artifact discard unavailable'))
+      .mockResolvedValueOnce(undefined)
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLoader: {
+        load: async () => ({
+          loaderId: 'test-loader',
+          receiptId: 'receipt-retry-discard',
+          activatedAt: 201,
+        }),
+        unload,
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact,
+      },
+      now: () => 200,
+      randomUUID: () => 'run-retry-discard',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+    const result = await gate.train({ cardId: 'card-a' })
+    const incrementId = result.status === 'succeeded' ? result.increment.id : ''
+
+    await expect(gate.rollbackIncrement({
+      cardId: 'card-a',
+      incrementId,
+    })).rejects.toThrow('artifact discard unavailable')
+    await expect(gate.rollbackIncrement({
+      cardId: 'card-a',
+      incrementId,
+    })).resolves.toMatchObject({
+      id: incrementId,
+      state: 'rolled-back',
+    })
+
+    expect(unload).toHaveBeenCalledOnce()
+    expect(discardArtifact).toHaveBeenCalledTimes(2)
+  })
+
+  it('serializes concurrent cleanup requests for the same increment', async () => {
+    let releaseUnload!: () => void
+    const unloadStarted = new Promise<void>((resolve) => {
+      releaseUnload = resolve
+    })
+    let finishUnload!: () => void
+    const unloadCanFinish = new Promise<void>((resolve) => {
+      finishUnload = resolve
+    })
+    const unload = vi.fn(async () => {
+      releaseUnload()
+      await unloadCanFinish
+    })
+    const discardArtifact = vi.fn(async () => {})
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLoader: {
+        load: async () => ({
+          loaderId: 'test-loader',
+          receiptId: 'receipt-concurrent-cleanup',
+          activatedAt: 201,
+        }),
+        unload,
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact,
+      },
+      now: () => 200,
+      randomUUID: () => 'run-concurrent-cleanup',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+    const result = await gate.train({ cardId: 'card-a' })
+    const incrementId = result.status === 'succeeded' ? result.increment.id : ''
+
+    const firstRollback = gate.rollbackIncrement({
+      cardId: 'card-a',
+      incrementId,
+    })
+    await unloadStarted
+    const secondRollback = gate.rollbackIncrement({
+      cardId: 'card-a',
+      incrementId,
+    })
+    await new Promise(resolve => setTimeout(resolve, 10))
+
+    expect(unload).toHaveBeenCalledOnce()
+    finishUnload()
+    await expect(Promise.all([firstRollback, secondRollback])).resolves.toEqual([
+      expect.objectContaining({ state: 'rolled-back' }),
+      expect.objectContaining({ state: 'rolled-back' }),
+    ])
+    expect(discardArtifact).toHaveBeenCalledOnce()
+  })
+
+  it('replays the same unload operation id when persistence crashes after the adapter accepted unload', async () => {
+    const recorder = createPersistenceRecorder()
+    const cleanupIntents = new Map<string, PersonaTrainingArtifactCleanupIntent>()
+    let failUnloadStagePersistence = true
+    let semanticUnloadCount = 0
+    const acceptedOperations = new Set<string>()
+    const unload = vi.fn(async (input: { operationId: string }) => {
+      if (acceptedOperations.has(input.operationId))
+        return
+      acceptedOperations.add(input.operationId)
+      semanticUnloadCount += 1
+    })
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLoader: {
+        load: async () => ({
+          loaderId: 'test-loader',
+          receiptId: 'receipt-crash-window',
+          activatedAt: 201,
+        }),
+        unload,
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+      persistence: {
+        ...recorder.persistence,
+        beginArtifactCleanup: async (intent) => {
+          cleanupIntents.set(intent.id, intent)
+          return intent
+        },
+        advanceArtifactCleanup: async (input) => {
+          if (input.expectedStage === 'unload' && failUnloadStagePersistence) {
+            failUnloadStagePersistence = false
+            throw new Error('simulated crash before unload stage persistence')
+          }
+          const current = cleanupIntents.get(input.intentId)
+          if (!current || current.stage !== input.expectedStage)
+            return false
+          cleanupIntents.set(input.intentId, {
+            ...current,
+            artifact: input.artifact,
+            stage: input.stage,
+          })
+          return true
+        },
+        failArtifactCleanup: async () => true,
+        completeArtifactCleanup: async () => true,
+      },
+      now: () => 200,
+      randomUUID: () => 'run-unload-crash-window',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+    const result = await gate.train({ cardId: 'card-a' })
+    const incrementId = result.status === 'succeeded' ? result.increment.id : ''
+
+    await expect(gate.rollbackIncrement({
+      cardId: 'card-a',
+      incrementId,
+    })).rejects.toThrow('simulated crash before unload stage persistence')
+    await expect(gate.rollbackIncrement({
+      cardId: 'card-a',
+      incrementId,
+    })).resolves.toMatchObject({
+      state: 'rolled-back',
+    })
+
+    expect(unload).toHaveBeenCalledTimes(2)
+    expect(unload.mock.calls[0]?.[0].operationId).toBe(unload.mock.calls[1]?.[0].operationId)
+    expect(unload.mock.calls[0]?.[0].operationId).toMatch(/^persona-training-artifact-cleanup:card-a:run-unload-crash-window:persona-training-increment%3Arun-unload-crash-window:artifact-run-unload-crash-window:unload$/)
+    expect(semanticUnloadCount).toBe(1)
+  })
+
+  it('resumes staged cleanup when source revoke is repeated after governance already changed state', async () => {
+    const unload = vi.fn(async () => {})
+    const discardArtifact = vi.fn()
+      .mockRejectedValueOnce(new Error('revoked artifact discard unavailable'))
+      .mockResolvedValueOnce(undefined)
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLoader: {
+        load: async () => ({
+          loaderId: 'test-loader',
+          receiptId: 'receipt-source-revoke-retry',
+          activatedAt: 201,
+        }),
+        unload,
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact,
+      },
+      now: () => 200,
+      randomUUID: () => 'run-source-revoke-cleanup-retry',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'succeeded',
+    })
+
+    await expect(gate.revokeSource({
+      cardId: 'card-a',
+      sourceId: 'reflection-1',
+    })).rejects.toThrow('revoked artifact discard unavailable')
+    expect(gate.listIncrements()).toEqual([
+      expect.objectContaining({
+        state: 'available',
+      }),
+    ])
+    expect(gate.listUsableIncrements()).toEqual([])
+
+    await expect(gate.revokeSource({
+      cardId: 'card-a',
+      sourceId: 'reflection-1',
+    })).resolves.toMatchObject({
+      affected: 1,
+    })
+    expect(unload).toHaveBeenCalledOnce()
+    expect(discardArtifact).toHaveBeenCalledTimes(2)
+  })
+
   it('isolates executor failures without creating a persona increment or changing the persona core', async () => {
     const gate = createPersonaTrainingPipelineGate({
       datasetRuntime: createDatasetRuntime(),
@@ -509,6 +1107,10 @@ describe('persona training pipeline gate', () => {
     const gate = createPersonaTrainingPipelineGate({
       datasetRuntime: createDatasetRuntime(),
       trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
       now: () => 200,
       randomUUID: () => 'run-rollback',
       basePersonaRevision: () => 'persona-core-v1',
@@ -525,6 +1127,202 @@ describe('persona training pipeline gate', () => {
     expect(gate.listUsableIncrements()).toEqual([])
   })
 
+  it('keeps an available increment unusable while its durable activation intent is pending', async () => {
+    const recorder = createPersistenceRecorder()
+    const artifact = createArtifact('run-pending-activation', 'artifact-pending-activation')
+    const increment = {
+      id: 'persona-training-increment:run-pending-activation',
+      kind: 'persona-lora-increment',
+      cardId: 'card-a',
+      datasetId: 'dataset-1',
+      manifestHash: 'manifest-hash-1',
+      sourceIds: ['reflection-1'],
+      basePersonaRevision: 'persona-core-v1',
+      artifact,
+      state: 'available',
+      cleanup: null,
+      createdAt: 200,
+    } satisfies PersonaTrainingPipelineIncrement
+    recorder.increments.push(increment)
+    const activationIntent = {
+      id: 'persona-training-artifact-activation:card-a:artifact-pending-activation:restart:old-receipt',
+      loadOperationId: 'persona-training-artifact-activation:card-a:artifact-pending-activation:restart:old-receipt:load',
+      mode: 'restart',
+      cardId: 'card-a',
+      runId: artifact.runId,
+      incrementId: increment.id,
+      artifactId: artifact.artifactId,
+      artifact,
+      expectedArtifact: {
+        ...artifact,
+        activation: {
+          status: 'active',
+          reason: 'Loaded before restart.',
+          loaderId: 'test-loader',
+          receiptId: 'old-receipt',
+          activatedAt: 100,
+        },
+      },
+      loaderReceipt: null,
+      activatedArtifact: null,
+      stage: 'prepared',
+      status: 'pending',
+      lastError: null,
+      createdAt: 200,
+      updatedAt: 200,
+    } satisfies PersonaTrainingArtifactActivationIntent
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      persistence: {
+        ...recorder.persistence,
+        listArtifactActivationIntents: async () => [activationIntent],
+      },
+      now: () => 200,
+      randomUUID: () => 'run-unused',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    await gate.reconcileAfterRestart({
+      cardId: 'card-a',
+      reason: 'application-restarted-before-training-completed',
+    })
+
+    expect(gate.listIncrements()).toEqual([
+      expect.objectContaining({
+        id: increment.id,
+        state: 'available',
+      }),
+    ])
+    expect(gate.listUsableIncrements()).toEqual([])
+  })
+
+  it('bounds restart loader recovery and preserves the pending activation intent', async () => {
+    const recorder = createPersistenceRecorder()
+    const dataset = createDataset()
+    const examples: PersonaTrainingDatasetExample[] = [{
+      id: 'example-restart-timeout',
+      datasetId: dataset.id,
+      cardId: dataset.cardId,
+      schemaVersion: 'persona-training-example-v1',
+      sourceId: 'reflection-1',
+      sourceKind: 'cleaned-long-term-reflection',
+      contentHash: 'restart-timeout-hash',
+      behaviorLesson: '重启恢复超时时保持激活意图可重试。',
+      positiveExample: '我会等待加载器恢复完成。',
+      negativeExample: null,
+      sensitivity: 'personal',
+      piiStatus: 'clear',
+      piiReason: null,
+      consentSnapshot: consent,
+      provenance: {
+        kind: 'working-memory-cleaning',
+        cleaningTransactionId: 'restart-timeout-cleaning',
+        cleanedAt: 99,
+      },
+      allowTraining: true,
+      state: 'staged',
+      createdAt: 100,
+      revokedAt: null,
+    }]
+    const manifest = buildPersonaTrainingDatasetManifest({
+      dataset,
+      examples,
+      exportedAt: 200,
+    })
+    const sourceIds = manifest.examples.map(example => example.sourceId)
+    const artifact = {
+      ...createArtifact('run-restart-timeout', 'artifact-restart-timeout'),
+      activation: {
+        status: 'active' as const,
+        reason: 'Loaded before restart.',
+        loaderId: 'test-loader',
+        receiptId: 'receipt-before-restart-timeout',
+        activatedAt: 100,
+      },
+    }
+    const increment = {
+      id: 'persona-training-increment:run-restart-timeout',
+      kind: 'persona-lora-increment',
+      cardId: 'card-a',
+      datasetId: 'dataset-1',
+      manifestHash: manifest.manifestHash,
+      sourceIds,
+      basePersonaRevision: 'persona-core-v1',
+      artifact,
+      state: 'available',
+      cleanup: null,
+      createdAt: 200,
+    } satisfies PersonaTrainingPipelineIncrement
+    recorder.increments.push(increment)
+    const run = {
+      runId: artifact.runId,
+      cardId: 'card-a',
+      datasetId: 'dataset-1',
+      manifestHash: manifest.manifestHash,
+      sourceIds,
+      basePersonaRevision: 'persona-core-v1',
+      status: 'completed',
+      stage: 'finalizing',
+      progress: 1,
+      progressMessage: null,
+      failureReason: null,
+      configSnapshot: null,
+      artifact,
+      error: null,
+      queuedAt: 100,
+      startedAt: 100,
+      updatedAt: 200,
+      finishedAt: 200,
+      cancellationRequestedAt: null,
+    } satisfies PersonaTrainingPipelineRunRecord
+    const aborted = vi.fn()
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime({ dataset, examples }),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLoader: {
+        load: async ({ signal }) => await new Promise((_, reject) => {
+          signal.addEventListener('abort', () => {
+            aborted()
+            reject(signal.reason)
+          }, { once: true })
+        }),
+        unload: async () => {},
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+      persistence: {
+        ...recorder.persistence,
+        listRestartCandidates: async () => [{
+          run,
+          increment,
+          consistencyError: null,
+        }],
+        beginArtifactActivation: async intent => intent,
+        failArtifactActivation: async () => true,
+      },
+      artifactRecoveryTimeoutMs: 20,
+      now: () => 200,
+      randomUUID: () => 'run-unused',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    await expect(Promise.race([
+      gate.reconcileAfterRestart({
+        cardId: 'card-a',
+        reason: 'application-restarted-before-training-completed',
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('restart recovery remained blocked')), 250)),
+    ])).resolves.toEqual({
+      interruptedRuns: 0,
+      rolledBackIncrements: 0,
+    })
+    expect(aborted).toHaveBeenCalledOnce()
+    expect(gate.listUsableIncrements()).toEqual([])
+  })
+
   it('rehydrates increment state after atomic dataset governance updates the persistence owner', async () => {
     const recorder = createPersistenceRecorder()
     const datasetRuntime = createDatasetRuntime()
@@ -538,6 +1336,10 @@ describe('persona training pipeline gate', () => {
     const gate = createPersonaTrainingPipelineGate({
       datasetRuntime,
       trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
       persistence: recorder.persistence,
       now: () => 200,
       randomUUID: () => 'run-atomic-governance',

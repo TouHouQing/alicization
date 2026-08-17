@@ -417,11 +417,17 @@ export function projectMemoryLiveProviderTrialToDialogueReplay(
       turnCount: report.summary.turnCount,
       succeededTurnCount: report.summary.succeededTurnCount,
       failedTurnCount: report.summary.failedTurnCount,
-      checkpointWriteCount: report.summary.succeededTurnCount,
+      checkpointWriteCount: 0,
       personaWriteCount: 0,
       recalledEvidenceCount: report.summary.recalledEvidenceCount,
       lastError: report.summary.lastError,
     },
-    turns: report.turns.map(({ providerTrace: _providerTrace, ...turn }) => turn),
+    turns: report.turns.map(({ providerTrace: _providerTrace, ...turn }) => ({
+      ...turn,
+      writeback: {
+        ...turn.writeback,
+        checkpoint: 'skipped',
+      },
+    })),
   }
 }

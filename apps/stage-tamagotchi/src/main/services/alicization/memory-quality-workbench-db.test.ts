@@ -936,6 +936,14 @@ describe('memory quality workbench DB loop', () => {
         assistantText: 'CARD_B_SECRET_REPLY',
         createdAt: 390,
       })
+      await db.appendConversationTurn({
+        cardId: 'card-a',
+        turnId: 'turn-without-checkpoint',
+        sessionId: 'session-a-turn-only',
+        userText: '只有真实对话记录，还没有短期记忆快照。',
+        assistantText: '这个会话仍然应该可以被质量回放选择。',
+        createdAt: 250,
+      })
 
       const first = await db.listMemoryWorkbenchReplaySessions({
         cardId: 'card-a',
@@ -943,7 +951,7 @@ describe('memory quality workbench DB loop', () => {
       })
       const second = await db.listMemoryWorkbenchReplaySessions({
         cardId: 'card-a',
-        limit: 2,
+        limit: 3,
         cursor: first.nextCursor,
       })
       const scopedTurns = await db.listConversationTurnsBySession(sharedSessionId, {
@@ -957,10 +965,19 @@ describe('memory quality workbench DB loop', () => {
 
       expect(first.items.map(item => item.sessionId)).toEqual([
         'session-a-new',
-        'session-a-tie-z',
+        'session-a-turn-only',
       ])
+      expect(first.items.at(-1)).toMatchObject({
+        sessionId: 'session-a-turn-only',
+        title: '只有真实对话记录，还没有短期记忆快照。',
+        userTurnCount: 1,
+        assistantTurnCount: 1,
+        checkpointUpdatedAt: null,
+        activityUpdatedAt: 250,
+      })
       expect(first.nextCursor).toBeTruthy()
       expect(second.items.map(item => item.sessionId)).toEqual([
+        'session-a-tie-z',
         'session-a-tie-a',
         sharedSessionId,
       ])

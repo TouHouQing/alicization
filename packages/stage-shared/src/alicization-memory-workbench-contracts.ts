@@ -29,7 +29,8 @@ export interface AlicizationMemoryReplaySessionSummary {
   lastTurnAt: number | null
   userTurnCount: number
   assistantTurnCount: number
-  checkpointUpdatedAt: number
+  checkpointUpdatedAt: number | null
+  activityUpdatedAt: number
 }
 
 export interface AlicizationMemoryReplaySessionListPayload {
@@ -1247,10 +1248,21 @@ export interface AlicizationPersonaTrainingArtifact {
     baseModel: string
     reason?: string | null
   }
-  activation: {
-    status: 'inactive' | 'unsupported'
-    reason: string
-  }
+  activation:
+    | {
+      status: 'active'
+      reason: string
+      loaderId: string
+      receiptId: string
+      activatedAt: number
+    }
+    | {
+      status: 'inactive' | 'unsupported'
+      reason: string
+      loaderId?: null
+      receiptId?: null
+      activatedAt?: null
+    }
 }
 
 function invalidPersonaTrainingArtifact(reason: string): never {
@@ -1319,13 +1331,34 @@ export function parseAlicizationPersonaTrainingArtifact(
   if (!activationRaw || typeof activationRaw !== 'object' || Array.isArray(activationRaw))
     invalidPersonaTrainingArtifact('activation must be an object')
   const activation = activationRaw as Record<string, unknown>
-  if (activation.status !== 'inactive' && activation.status !== 'unsupported')
+  if (activation.status !== 'active' && activation.status !== 'inactive' && activation.status !== 'unsupported')
     invalidPersonaTrainingArtifact('activation.status is unsupported')
   const activationReason = requirePersonaTrainingArtifactText(
     activation.reason,
     'activation.reason',
     2_048,
   )
+  const parsedActivation: AlicizationPersonaTrainingArtifact['activation'] = activation.status === 'active'
+    ? {
+        status: 'active',
+        reason: activationReason,
+        loaderId: requirePersonaTrainingArtifactText(activation.loaderId, 'activation.loaderId', 256),
+        receiptId: requirePersonaTrainingArtifactText(activation.receiptId, 'activation.receiptId', 512),
+        activatedAt: (() => {
+          if (
+            typeof activation.activatedAt !== 'number'
+            || !Number.isSafeInteger(activation.activatedAt)
+            || activation.activatedAt < 0
+          ) {
+            invalidPersonaTrainingArtifact('activation.activatedAt must be a non-negative safe integer')
+          }
+          return activation.activatedAt
+        })(),
+      }
+    : {
+        status: activation.status,
+        reason: activationReason,
+      }
 
   return {
     schemaVersion: 'alicization-persona-training-artifact-v1',
@@ -1341,10 +1374,7 @@ export function parseAlicizationPersonaTrainingArtifact(
       baseModel: compatibilityBaseModel,
       reason: compatibilityReason,
     },
-    activation: {
-      status: activation.status,
-      reason: activationReason,
-    },
+    activation: parsedActivation,
   }
 }
 
@@ -1358,6 +1388,11 @@ export interface AlicizationPersonaTrainingPipelineIncrement {
   basePersonaRevision: string
   artifact: AlicizationPersonaTrainingArtifact
   state: AlicizationPersonaTrainingPipelineIncrementState
+  cleanup: {
+    status: 'pending'
+    stage: 'unload' | 'discard' | 'finalize'
+    lastError: string | null
+  } | null
   createdAt: number
 }
 
