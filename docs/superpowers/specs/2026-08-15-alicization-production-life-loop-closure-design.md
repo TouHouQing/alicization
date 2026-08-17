@@ -100,27 +100,30 @@ Workbench 从当前 card scope 分页读取会话，用户通过下拉选择。�
 - 进度：已写入向量、已执行 query、当前 corpus size
 - 报告：p50/p95/p99、recall@k、false recall、index mode、coverage、错误
 
-worker 使用临时 SQLite 数据库和 `runMemorySemanticScaleVectorAdapterSoak()`。启动时将遗留 `running` job 恢复为 `queued`，支持取消和重试。只允许单个 scale job 占用本机资源。
+worker 使用临时 SQLite 数据库和 `runMemorySemanticScaleVectorAdapterSoak()`。启动时只将 lease 已过期的遗留 `running` job 恢复为 `queued`；仍在有效期内的 lease 保持原 worker ownership，避免重启竞态重复执行。支持取消和重试，并且只允许单个 scale job 占用本机资源。
 
 ### 5. 本地 Persona/LoRA Executor
 
 新增进程型 executor，使用显式配置：
 
 - 可执行命令
-- 参数模板
 - base model 路径或模型 ID
 - 输出目录
 - 超时
 
-Alicization 将通过质量门的 manifest 写成稳定 JSONL 和 manifest JSON，再启动训练命令。训练器必须输出机器可读的 artifact manifest，至少包含 adapter 路径、base model、格式和校验哈希。
+Alicization 将通过质量门的 manifest 写成稳定 JSONL 和 manifest JSON，再使用主进程构造的固定参数协议启动训练命令。用户不能注入额外固定参数。训练器必须输出机器可读的 artifact manifest，至少包含 adapter 路径、base model、格式和校验哈希。
 
 首选 macOS Apple Silicon 后端是 MLX-LM；其他平台可以配置 PEFT/Transformers 命令。应用不静默安装 Python 包，也不把未配置训练器伪装为成功。
 
-训练产物激活只更新 Persona adapter registry。回滚或 source revoke 会将产物标记为不可用，并调用可选的 runtime unload hook。当前对话 Provider 不支持 adapter 热加载时，UI 明确显示“产物已生成但当前 Provider 不支持加载”。
+`PersonaTrainingPipelineGate` 是训练产物治理与启动恢复 owner。它在调用 loader 前先持久化 activation intent，并使用稳定 `operationId` 幂等重放 `load()`；只有真实 loader receipt 持久化并与 artifact CAS 一起完成后才能显示 active。进程重启时，即使 intent 已记录为 loaded，也必须重新调用同一幂等 load operation，不能把上一进程的 receipt 当作当前运行时已生效的证明。
+
+回滚、source revoke 和异常恢复使用 `unload -> discard -> finalize` 持久化 saga。`unload()` 同样使用稳定 `operationId`；只有 finalize 才能提交 rolled-back/revoked 与 audit。cleanup 未完成时 increment 保持清理待处理且不可使用，Workbench 展示阶段和真实错误。DB 只提供 activation/cleanup intent、artifact CAS、run/increment/audit 的持久化端口，不直接调用 loader 或删除文件。
+
+当前对话 Provider 不支持 adapter 热加载时，Gate 强制把产物标记为 unsupported，UI 明确显示“产物已生成但当前 Provider 不支持加载”，不能接受 executor 自称 active。
 
 ### 6. DTO Parity
 
-Eventa 是桌面传输合同的来源。增加编译期 type spec，检查以下类型在 bridge 中双向可赋值：
+`packages/stage-shared` 是稳定 DTO owner。Eventa 与 renderer bridge 复用共享类型，并通过编译期 type spec 检查以下类型双向可赋值：
 
 - quality trial payload/report
 - live provider trace
@@ -128,7 +131,7 @@ Eventa 是桌面传输合同的来源。增加编译期 type spec，检查以下
 - scale job
 - Persona training artifact
 
-暂不把 Electron 专有 Eventa 类型移动到 shared package，避免扩大依赖面。
+Electron 专有传输细节仍留在 Eventa 层，不在各 surface 重复定义业务 DTO。
 
 ## UI
 
@@ -149,4 +152,3 @@ Memory Workbench 中文优先：
 - 未配置训练器时透明失败；配置 fake executable 的集成测试可产出、激活、回滚 artifact
 - Eventa/Bridge DTO parity 测试通过
 - macOS unpacked app 可启动，sqlite3/sqlite-vec 可加载，Memory Workbench 可打开
-

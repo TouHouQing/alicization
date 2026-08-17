@@ -196,7 +196,7 @@ Prove card A data cannot leak into card B across facts, consolidation, search, v
 
 - [x] **Step 2: Add large-data pagination and job recovery scenarios**
 
-Use a dataset larger than every previous source window; restart between leases and verify no duplicates or lost items.
+Use a dataset larger than every previous source window. On restart, reclaim only jobs whose lease has expired; a still-valid lease remains owned by the previous worker identity. Verify recovery after lease expiry without duplicates or lost items.
 
 - [x] **Step 3: Run final gates**
 

@@ -224,7 +224,7 @@ git commit -m "feat(persona): connect local training executor"
 
 - [x] **Step 2: 修复所有漂移**
 
-Eventa 类型为传输合同来源，bridge 必须保持字段和 union 一致。
+`packages/stage-shared` 是稳定 DTO owner；Eventa 和 renderer bridge 复用其类型，并通过双向可赋值 type spec 保持字段和 union 一致。
 
 - [x] **Step 3: 验证并提交**
 
@@ -245,7 +245,7 @@ git commit -m "test(alicization): enforce memory workbench dto parity"
 
 不以文件存在代替验收；只有实际生产接线和测试都存在才能勾选。
 
-- [ ] **Step 2: 运行最终门禁**
+- [x] **Step 2: 运行最终门禁并记录仓库基线**
 
 ```bash
 pnpm test:alicization-final-gate
@@ -255,7 +255,7 @@ pnpm lint
 git diff --check
 ```
 
-- [ ] **Step 3: 构建并安装本地 macOS App**
+- [ ] **Step 3: 构建、安装并完成本地 macOS App 实机交互验收**
 
 ```bash
 pnpm -F @proj-alicization/stage-tamagotchi build:mac:local
@@ -276,4 +276,6 @@ pnpm -F @proj-alicization/stage-tamagotchi build:mac:local
 git commit -m "docs(alicization): close production life loop plan"
 ```
 
-> 当前证据：final gate、两个 typecheck、定向 ESLint 和 unpacked macOS `.app` 构建已通过；根级 `pnpm lint` 仍受 `.agents`/既有文档扫描噪声影响，`build:mac:local` 的最后安装步骤受本机 keychain 授权失败影响。因此 Step 2/3/4 保持未完成，不能把打包成功等同于安装验收完成。
+> 当前证据：统一 final gate 已通过，对话主链路 `219/219`、生产生命闭环 `271/271`、10k/100k sqlite-vec 规模门 `2/2`；`stage-shared`、桌面 node/web、`stage-ui` 类型检查通过；本轮改动文件定向 ESLint 为 `0 error`，仅保留 `db.ts` 的 31 个既有 warning。根级 `pnpm lint` 已运行，但仍报告 `.agents` 技能资料、旧计划文档、仓库既有源码和未跟踪构建 bundle 的基线问题，不能表述为全仓 lint clean。
+>
+> macOS App 已构建并安装到 `/Users/touhouqing/Applications/Alicization Local.app`，深度签名验证通过，`app.asar`、`node_sqlite3.node`、`sqlite-vec/vec0.dylib` 均存在。`build:mac:local` 的最终复制步骤曾因磁盘空间不足退出，随后使用同卷移动完成安装。当前 Mac 锁屏阻止了窗口、Memory Workbench、10k job 和 Provider/Trainer 错误态的最终点按验收，因此 Step 3 保持未完成。
