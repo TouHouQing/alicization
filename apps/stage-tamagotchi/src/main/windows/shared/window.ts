@@ -11,6 +11,7 @@ import { isMacOS } from 'std-env'
 import { createServerChannelService } from '../../services/airi/channel-server'
 import { createI18nService } from '../../services/airi/i18n'
 import { createAppService, createScreenService, createWindowService } from '../../services/electron'
+import { transparentWindowBackgroundColor } from './window-layer'
 
 export function toggleWindowShow(window?: BrowserWindow | null): void {
   if (!window) {
@@ -33,6 +34,7 @@ export function transparentWindowConfig(): BrowserWindowConstructorOptions {
     frame: false,
     titleBarStyle: isMacOS ? 'hidden' : undefined,
     transparent: true,
+    backgroundColor: transparentWindowBackgroundColor,
     hasShadow: false,
   }
 }

@@ -20,6 +20,26 @@ function createMockChatProvider(): ChatProvider {
 
 describe('stage desktop page helpers', () => {
   describe('resolveDesktopMouseCaptureState', () => {
+    it('captures the window during startup so controls remain usable before hit testing settles', () => {
+      expect(resolveDesktopMouseCaptureState({
+        startupInteractionActive: true,
+        fadeOnHoverEnabled: true,
+        hearingDialogOpen: false,
+        insideControls: false,
+        insideDialogueOverlay: false,
+        insideStageRecoveryPanel: false,
+        emergencyPanelHovered: false,
+        isOutsideWindow: true,
+        stageCharacterHovered: false,
+        stageInteractionActive: false,
+        stageCapturePixel: false,
+        stagePaused: false,
+      })).toEqual({
+        shouldCaptureMouse: true,
+        shouldFadeOnCursorWithin: false,
+      })
+    })
+
     it('forces mouse capture during active stage interactions even on blank pixels', () => {
       expect(resolveDesktopMouseCaptureState({
         fadeOnHoverEnabled: true,

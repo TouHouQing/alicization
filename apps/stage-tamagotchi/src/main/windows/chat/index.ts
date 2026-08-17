@@ -11,6 +11,7 @@ import icon from '../../../../resources/icon.png?asset'
 
 import { baseUrl, getElectronMainDirname, load, withHashRoute } from '../../libs/electron/location'
 import { createReusableWindow } from '../../libs/electron/window-manager'
+import { promoteUtilityWindowAboveStage } from '../shared/window-layer'
 import { setupChatWindowElectronInvokes } from './rpc/index.electron'
 
 export function setupChatWindowReusableFunc(params: {
@@ -31,6 +32,7 @@ export function setupChatWindowReusableFunc(params: {
         sandbox: false,
       },
     })
+    promoteUtilityWindowAboveStage(window)
 
     window.on('ready-to-show', () => window.show())
     window.webContents.setWindowOpenHandler((details) => {

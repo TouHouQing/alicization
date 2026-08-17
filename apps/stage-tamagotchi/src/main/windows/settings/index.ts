@@ -16,6 +16,7 @@ import { electronSettingsNavigate } from '../../../shared/eventa'
 import { baseUrl, getElectronMainDirname, load, withHashRoute } from '../../libs/electron/location'
 import { createReusableWindow } from '../../libs/electron/window-manager'
 import { toggleWindowShow } from '../shared'
+import { promoteUtilityWindowAboveStage } from '../shared/window-layer'
 import { setupSettingsWindowInvokes } from './rpc/index.electron'
 
 export interface SettingsWindowManager {
@@ -49,6 +50,7 @@ export function setupSettingsWindowReusableFunc(params: {
         sandbox: false,
       },
     })
+    promoteUtilityWindowAboveStage(window)
 
     if (params.onWindowCreated) {
       params.onWindowCreated(window)

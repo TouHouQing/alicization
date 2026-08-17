@@ -62,6 +62,9 @@ const stageDialogueOverlay = toRef(() => widgetStageRef.value?.dialogueOverlayEl
 const componentStateStage = ref<'pending' | 'loading' | 'mounted'>('pending')
 
 const isLoading = ref(true)
+const startupInteractionActive = ref(true)
+let startupInteractionTimer: ReturnType<typeof setTimeout> | undefined
+const startupInteractionGraceMs = 2500
 
 // NOTICE: Keep the stage surface visible by default.
 // The previous fade-on-hover path can make the entire transparent desktop window
@@ -180,6 +183,7 @@ function resolveDesktopCaptureStateNow() {
   const insideControls = !isOutsideFor250Ms.value
   const insideDialogueOverlay = !isOutsideDialogueOverlayFor250Ms.value || isDialogueOverlayFocused.value
   return resolveDesktopMouseCaptureState({
+    startupInteractionActive: startupInteractionActive.value,
     fadeOnHoverEnabled: fadeOnHoverEnabled.value,
     hearingDialogOpen: hearingDialogOpen.value,
     insideControls,
@@ -292,9 +296,27 @@ async function syncRecentDrivingEventFromMindTrace(
   })
 }
 
-watch([isOutsideFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageCapturePixel, stageCharacterHovered, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
+watch([startupInteractionActive, isOutsideFor250Ms, isOutsideDialogueOverlayFor250Ms, isDialogueOverlayFocused, isOutsideWindow, stageCapturePixel, stageCharacterHovered, hearingDialogOpen, fadeOnHoverEnabled, stagePaused, stageInteractionActive], () => {
   syncDesktopMouseCaptureState()
 }, { immediate: true })
+
+function releaseStartupInteraction() {
+  if (startupInteractionTimer) {
+    clearTimeout(startupInteractionTimer)
+    startupInteractionTimer = undefined
+  }
+
+  if (!startupInteractionActive.value)
+    return
+
+  startupInteractionActive.value = false
+  syncDesktopMouseCaptureState()
+}
+
+watch(componentStateStage, (state) => {
+  if (state === 'mounted')
+    releaseStartupInteraction()
+})
 
 function emitStageStartupStatus(state: 'stage-page-mounted' | 'stage-mounted' | 'stage-unmounted') {
   if (typeof window === 'undefined' || typeof document === 'undefined')
@@ -609,6 +631,7 @@ watch([componentStateStage, stageModelRenderer, stageModelSelectedUrl], ([state,
 }, { immediate: true })
 
 onMounted(() => {
+  startupInteractionTimer = setTimeout(releaseStartupInteraction, startupInteractionGraceMs)
   emitStageStartupStatus('stage-page-mounted')
   syncDesktopMouseCaptureState()
   void recoverStageLoading('init')
@@ -623,6 +646,9 @@ onMounted(() => {
 
 onUnmounted(() => {
   emitStageStartupStatus('stage-unmounted')
+  if (startupInteractionTimer)
+    clearTimeout(startupInteractionTimer)
+  startupInteractionTimer = undefined
   captionPoster.close()
   clearStageLoadRecoveryTimer()
   stopAudioInteraction()
