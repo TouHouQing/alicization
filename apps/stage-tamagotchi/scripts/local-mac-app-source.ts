@@ -17,6 +17,14 @@ interface BuiltAppFreshnessInput {
   stat?: (path: string) => Promise<FileStatLike>
 }
 
+export function isOptionalSecurityAuthorizationError(error: unknown) {
+  if (!(error instanceof Error))
+    return false
+
+  return /security:/i.test(error.message)
+    && /User canceled the operation|Unable to obtain authorization|interaction is not allowed|authorization denied/i.test(error.message)
+}
+
 function appPayloadPath(appPath: string) {
   return join(appPath, 'Contents', 'Resources', 'app.asar')
 }

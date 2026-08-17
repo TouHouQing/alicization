@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   assertBuiltAppIsFresh,
+  isOptionalSecurityAuthorizationError,
   selectLatestBuiltApp,
 } from '../../../../scripts/local-mac-app-source'
 
@@ -27,5 +28,12 @@ describe('local macOS app source selection', () => {
           : appBundleUpdatedAt.getTime(),
       }),
     })).rejects.toThrow('built macOS app is older than the current main build')
+  })
+
+  it('allows local installation to continue when macOS refuses optional keychain settings authorization', () => {
+    expect(isOptionalSecurityAuthorizationError(new Error([
+      'security set-keychain-settings failed with exit code 152.',
+      'security: SecKeychainSetSettings: Unable to obtain authorization for this operation.',
+    ].join('\n')))).toBe(true)
   })
 })

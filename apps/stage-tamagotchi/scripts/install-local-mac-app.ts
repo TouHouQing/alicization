@@ -12,6 +12,7 @@ import { x } from 'tinyexec'
 
 import {
   assertBuiltAppIsFresh,
+  isOptionalSecurityAuthorizationError,
   readLocalMacAppCandidate,
   selectLatestBuiltApp,
 } from './local-mac-app-source'
@@ -84,13 +85,6 @@ async function run(command: string, args: string[], options?: {
     ].join('\n'))
   }
   return result
-}
-
-function isSecurityUserCanceledError(error: unknown) {
-  if (!(error instanceof Error))
-    return false
-
-  return /security:/i.test(error.message) && /User canceled the operation/i.test(error.message)
 }
 
 function isCommandTimeoutError(error: unknown) {
@@ -347,7 +341,7 @@ async function unlockKeychain(keychainPath: string, password: string) {
   catch (error) {
     // NOTICE: set-keychain-settings configures idle lock timeout and is not required for signing.
     // Continue when macOS authorization is cancelled or hangs so local install can still proceed.
-    if (!isSecurityUserCanceledError(error) && !isCommandTimeoutError(error))
+    if (!isOptionalSecurityAuthorizationError(error) && !isCommandTimeoutError(error))
       throw error
 
     console.warn(`Skipped keychain settings update because macOS authorization did not complete for: ${keychainPath}`)
