@@ -1676,7 +1676,10 @@ describe('main chat stream runner', () => {
     expect(providerAttemptAborted).toHaveBeenCalledOnce()
     expect(controller.signal.aborted).toBe(false)
     expect(streamTextImpl).toHaveBeenCalledOnce()
-    expect((streamTextImpl.mock.calls[0]?.[0] as any).tools.map((tool: any) => tool.function.name)).toEqual([
+    const firstStreamTextCall = streamTextImpl.mock.calls[0]
+    if (!firstStreamTextCall)
+      throw new Error('expected the first streamText call')
+    expect((firstStreamTextCall[0] as any).tools.map((tool: any) => tool.function.name)).toEqual([
       'codex',
       'browser_click_element',
       'filesystem_patch_file',

@@ -48,9 +48,18 @@ function createSqliteHarness(): Promise<SqliteHarness> {
 function attachRuntime(harness: SqliteHarness, input?: {
   now?: () => number
   provider?: LongTermMemoryEmbeddingProvider
+  resolveProvider?: () => LongTermMemoryEmbeddingProvider | null
   maxAttempts?: number
+  retryBaseMs?: number
+  retryMaxMs?: number
 }) {
   const vectors: Array<{ sourceId: string, text: string }> = []
+  const vectorSpaces: Array<{
+    sourceId: string
+    modelId: string
+    dimensions: number
+    vectorSpaceId: string
+  }> = []
   let writeQueue = Promise.resolve<unknown>(undefined)
   const enqueueWrite = async <T>(task: () => Promise<T>) => {
     const next = writeQueue.then(task, task)
@@ -82,19 +91,31 @@ function attachRuntime(harness: SqliteHarness, input?: {
       dimensions: 3,
       embedTexts: async texts => texts.map(text => ({ text, vector: [1, 0, 0] })),
     },
+    resolveProvider: input?.resolveProvider,
     upsertVector: async (record) => {
       vectors.push({ sourceId: record.sourceId, text: record.text })
+      vectorSpaces.push({
+        sourceId: record.sourceId,
+        modelId: record.modelId,
+        dimensions: record.dimensions,
+        vectorSpaceId: record.vectorSpaceId,
+      })
     },
     maxAttempts: input?.maxAttempts ?? 2,
     leaseMs: 100,
+    retryBaseMs: input?.retryBaseMs,
+    retryMaxMs: input?.retryMaxMs,
   })
-  return { runtime, vectors, enqueueWrite }
+  return { runtime, vectors, vectorSpaces, enqueueWrite }
 }
 
 function createRuntimeHarness(input?: {
   now?: () => number
   provider?: LongTermMemoryEmbeddingProvider
+  resolveProvider?: () => LongTermMemoryEmbeddingProvider | null
   maxAttempts?: number
+  retryBaseMs?: number
+  retryMaxMs?: number
 }) {
   return createSqliteHarness().then(async (harness) => {
     const attached = attachRuntime(harness, input)
@@ -247,6 +268,149 @@ describe('memory embedding reindex runtime', () => {
 
     expect(progress.status).toBe('completed')
     expect(progress.lastError).toBeNull()
+  })
+
+  it('survives network jitter and rejects model-space mixing until a fresh reindex succeeds', async () => {
+    let now = 1_000
+    let provider: LongTermMemoryEmbeddingProvider | null = {
+      modelId: 'model-a',
+      dimensions: 3,
+      embedTexts: async texts => texts.map(text => ({ text, vector: [1, 0, 0] })),
+    }
+    let jitterAttempts = 0
+    const { runtime, vectors, vectorSpaces } = await createRuntimeHarness({
+      now: () => now,
+      maxAttempts: 3,
+      retryBaseMs: 1,
+      retryMaxMs: 4,
+      resolveProvider: () => provider,
+    })
+
+    provider = {
+      modelId: 'model-a',
+      dimensions: 3,
+      embedTexts: async (texts) => {
+        jitterAttempts += 1
+        await new Promise(resolve => setTimeout(resolve, Math.min(3, jitterAttempts)))
+        if (jitterAttempts <= 2)
+          throw new Error(`network jitter attempt ${jitterAttempts}`)
+        return texts.map(text => ({ text, vector: [1, 0, 0] }))
+      },
+    }
+
+    const jitterJob = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      entries: [{
+        sourceId: 'memory-jitter',
+        source: 'memory_reflections',
+        text: '网络抖动后仍然可以恢复的记忆',
+      }],
+    })
+    let jitterProgress = await runtime.runNextBatch({
+      jobId: jitterJob.jobId,
+      batchSize: 1,
+    })
+    expect(jitterProgress).toMatchObject({
+      status: 'running',
+      indexed: 0,
+      retryable: 1,
+      deadLettered: 0,
+      lastError: 'network jitter attempt 1',
+    })
+
+    while (jitterProgress.status !== 'completed') {
+      now = jitterProgress.nextRetryAt ?? now
+      jitterProgress = await runtime.runNextBatch({
+        jobId: jitterJob.jobId,
+        batchSize: 1,
+      })
+    }
+    expect(jitterProgress).toMatchObject({
+      status: 'completed',
+      indexed: 1,
+      retryable: 0,
+      deadLettered: 0,
+      lastError: null,
+    })
+    expect(vectors).toEqual([{
+      sourceId: 'memory-jitter',
+      text: '网络抖动后仍然可以恢复的记忆',
+    }])
+    expect(vectorSpaces).toEqual([{
+      sourceId: 'memory-jitter',
+      modelId: 'model-a',
+      dimensions: 3,
+      vectorSpaceId: expect.stringContaining('model-a:3'),
+    }])
+
+    const switchJob = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      modelId: 'model-a',
+      dimensions: 3,
+      entries: [{
+        sourceId: 'memory-switch',
+        source: 'memory_reflections',
+        text: '模型切换前的旧向量空间',
+      }],
+    })
+    provider = {
+      modelId: 'model-b',
+      dimensions: 4,
+      embedTexts: async texts => texts.map(text => ({ text, vector: [0, 1, 0, 0] })),
+    }
+
+    let switchProgress = await runtime.runNextBatch({
+      jobId: switchJob.jobId,
+      batchSize: 1,
+    })
+    expect(switchProgress.lastError).toContain('model changed during reindex')
+    while (switchProgress.status !== 'failed') {
+      now = switchProgress.nextRetryAt ?? now
+      switchProgress = await runtime.runNextBatch({
+        jobId: switchJob.jobId,
+        batchSize: 1,
+      })
+    }
+    expect(switchProgress).toMatchObject({
+      status: 'failed',
+      indexed: 0,
+      deadLettered: 1,
+    })
+    expect(vectors).toHaveLength(1)
+    expect(vectorSpaces).toHaveLength(1)
+
+    const replacementJob = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      entries: [{
+        sourceId: 'memory-switch',
+        source: 'memory_reflections',
+        text: '模型切换后的新向量空间',
+      }],
+    })
+    const replacementProgress = await runtime.runNextBatch({
+      jobId: replacementJob.jobId,
+      batchSize: 1,
+    })
+
+    expect(replacementProgress).toMatchObject({
+      status: 'completed',
+      indexed: 1,
+      deadLettered: 0,
+    })
+    expect(vectorSpaces).toEqual([
+      {
+        sourceId: 'memory-jitter',
+        modelId: 'model-a',
+        dimensions: 3,
+        vectorSpaceId: expect.stringContaining('model-a:3'),
+      },
+      {
+        sourceId: 'memory-switch',
+        modelId: 'model-b',
+        dimensions: 4,
+        vectorSpaceId: expect.stringContaining('model-b:4'),
+      },
+    ])
   })
 
   it('converges a cancel-requested job without an active lease during initialization', async () => {

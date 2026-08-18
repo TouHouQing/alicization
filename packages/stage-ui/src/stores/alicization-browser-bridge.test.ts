@@ -343,7 +343,10 @@ describe('browser alicization bridge visual presence listeners', () => {
     void firstStream?.catch(() => {})
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)).cardId).toBe('default')
+    const firstFetchCall = fetchMock.mock.calls[0]
+    if (!firstFetchCall)
+      throw new Error('expected the first browser bridge fetch call')
+    expect(JSON.parse(String((firstFetchCall[1] as RequestInit).body)).cardId).toBe('default')
 
     const secondStream = bridge.streamChat?.({
       turnId: 'turn-browser-supersede',
@@ -359,7 +362,10 @@ describe('browser alicization bridge visual presence listeners', () => {
     await vi.waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(2)
     })
-    expect(JSON.parse(String((fetchMock.mock.calls[1]?.[1] as RequestInit).body)).cardId).toBe('default')
+    const secondFetchCall = fetchMock.mock.calls[1]
+    if (!secondFetchCall)
+      throw new Error('expected the second browser bridge fetch call')
+    expect(JSON.parse(String((secondFetchCall[1] as RequestInit).body)).cardId).toBe('default')
 
     const abortResult = await bridge.chatAbort?.({
       cardId: 'default',
@@ -461,7 +467,10 @@ describe('browser alicization bridge visual presence listeners', () => {
     })
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)).cardId).toBe('card-a')
+    const fixedScopeFetchCall = fetchMock.mock.calls[0]
+    if (!fixedScopeFetchCall)
+      throw new Error('expected the fixed-scope browser bridge fetch call')
+    expect(JSON.parse(String((fixedScopeFetchCall[1] as RequestInit).body)).cardId).toBe('card-a')
 
     activeCardState.value = 'card-b'
     const abortResult = await bridge.chatAbort?.({
@@ -506,7 +515,10 @@ describe('browser alicization bridge visual presence listeners', () => {
     })
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)).cardId).toBe('card-a')
+    const capturedCardFetchCall = fetchMock.mock.calls[0]
+    if (!capturedCardFetchCall)
+      throw new Error('expected the captured-card browser bridge fetch call')
+    expect(JSON.parse(String((capturedCardFetchCall[1] as RequestInit).body)).cardId).toBe('card-a')
 
     activeCardState.value = 'card-b'
     resolveFetch?.(createStreamResponse([
