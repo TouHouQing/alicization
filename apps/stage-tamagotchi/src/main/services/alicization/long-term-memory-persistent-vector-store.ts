@@ -401,6 +401,78 @@ export function createPersistentLongTermMemoryVectorStore(input: {
     return deleted
   }
 
+  async function pruneOrphanedVectors(inputPrune: { cardId: string }) {
+    const cardId = normalizeText(inputPrune.cardId, 120)
+    if (!cardId) {
+      return {
+        deleted: 0,
+        spaces: [],
+      }
+    }
+
+    return await input.enqueueWrite(async () => {
+      const rows = await input.all<{
+        id: string
+        model_id: string
+        dimensions: number
+        vector_space_id: string
+      }>(
+        input.database,
+        `
+        SELECT vector.id, vector.model_id, vector.dimensions, vector.vector_space_id
+        FROM long_term_memory_vectors vector
+        WHERE vector.card_id = ?
+          AND NOT EXISTS (
+            SELECT 1
+            FROM long_term_memory_search_documents doc
+            WHERE doc.card_id = vector.card_id
+              AND doc.source = vector.source
+              AND doc.source_id = vector.source_id
+              AND doc.tombstoned = 0
+              AND NOT EXISTS (
+                SELECT 1
+                FROM long_term_memory_tombstones tomb
+                WHERE tomb.card_id = doc.card_id
+                  AND tomb.source_id = doc.source_id
+                  AND (tomb.source = doc.source OR tomb.source = 'long_term_memory')
+              )
+          )
+        ORDER BY vector.model_id ASC, vector.dimensions ASC, vector.vector_space_id ASC, vector.id ASC
+        `,
+        [cardId],
+      )
+      if (rows.length === 0) {
+        return {
+          deleted: 0,
+          spaces: [],
+        }
+      }
+
+      await input.run(
+        input.database,
+        `DELETE FROM long_term_memory_vectors
+         WHERE card_id = ? AND id IN (${rows.map(() => '?').join(', ')})`,
+        [cardId, ...rows.map(row => row.id)],
+      )
+
+      const spaces = [...new Map(
+        rows.map(row => [
+          `${row.model_id}\u0000${row.dimensions}\u0000${row.vector_space_id}`,
+          {
+            modelId: row.model_id,
+            dimensions: Math.max(1, Math.floor(Number(row.dimensions))),
+            vectorSpaceId: row.vector_space_id,
+          },
+        ]),
+      ).values()]
+
+      return {
+        deleted: rows.length,
+        spaces,
+      }
+    })
+  }
+
   async function reindexByModel(reindexInput: { cardId: string, modelId: string }): Promise<LongTermMemoryVectorReindexPlan> {
     const cardId = normalizeText(reindexInput.cardId, 120)
     const modelId = normalizeText(reindexInput.modelId, 160)
@@ -595,6 +667,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
     upsertVectors,
     searchVectors,
     deleteVectorsBySource,
+    pruneOrphanedVectors,
     reindexByModel,
     getHealth,
   }

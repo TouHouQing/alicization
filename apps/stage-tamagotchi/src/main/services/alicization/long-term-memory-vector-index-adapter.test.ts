@@ -12,6 +12,7 @@ describe('long-term memory vector index adapter', () => {
         upsertVectors: vi.fn(async () => {}),
         searchVectors: vi.fn(async () => []),
         deleteVectorsBySource: vi.fn(async () => 0),
+        pruneOrphanedVectors: vi.fn(async () => ({ deleted: 0, spaces: [] })),
         reindexByModel: vi.fn(async input => ({
           modelId: input.modelId,
           sourceIds: [],
@@ -56,6 +57,7 @@ describe('long-term memory vector index adapter', () => {
         upsertVectors: vi.fn(async () => {}),
         searchVectors: search,
         deleteVectorsBySource: vi.fn(async () => 0),
+        pruneOrphanedVectors: vi.fn(async () => ({ deleted: 0, spaces: [] })),
         reindexByModel: vi.fn(async input => ({
           modelId: input.modelId,
           sourceIds: [],
@@ -95,6 +97,88 @@ describe('long-term memory vector index adapter', () => {
     })
   })
 
+  it('prunes canonical orphans and rebuilds every affected native vector space', async () => {
+    const pruneOrphanedVectors = vi.fn(async () => ({
+      deleted: 2,
+      spaces: [
+        {
+          modelId: 'model-a',
+          dimensions: 3,
+          vectorSpaceId: 'legacy:model-a:3',
+        },
+        {
+          modelId: 'model-b',
+          dimensions: 2,
+          vectorSpaceId: 'legacy:model-b:2',
+        },
+      ],
+    }))
+    const nativeRebuild = vi.fn(async () => {})
+    const adapter = createLongTermMemoryVectorIndexAdapter({
+      store: {
+        initialize: vi.fn(async () => {}),
+        upsertVectors: vi.fn(async () => {}),
+        searchVectors: vi.fn(async () => []),
+        deleteVectorsBySource: vi.fn(async () => 0),
+        pruneOrphanedVectors,
+        reindexByModel: vi.fn(async input => ({
+          modelId: input.modelId,
+          sourceIds: [],
+          recordCount: 0,
+        })),
+        getHealth: vi.fn(async () => ({
+          providerConfigured: true,
+          modelId: 'model-a',
+          dimensions: 3,
+          searchReady: true,
+          reindexRequired: false,
+          canonicalCount: 1,
+          indexedCount: 1,
+          missingCount: 0,
+          textHashMismatchCount: 0,
+          staleOrFailedCount: 0,
+          orphanedCount: 0,
+          coverageRatio: 1,
+        })),
+      },
+      native: {
+        mode: 'sqlite-vec',
+        approximate: false,
+        initialize: vi.fn(async () => {}),
+        upsert: vi.fn(async () => {}),
+        delete: vi.fn(async () => 0),
+        search: vi.fn(async () => []),
+        rebuild: nativeRebuild,
+        getHealth: vi.fn(async () => ({
+          ready: true,
+          lastError: null,
+        })),
+      },
+    })
+    await adapter.initialize()
+
+    await expect(adapter.pruneOrphaned({
+      cardId: 'card-a',
+    })).resolves.toBe(2)
+
+    expect(pruneOrphanedVectors).toHaveBeenCalledWith({
+      cardId: 'card-a',
+    })
+    expect(nativeRebuild).toHaveBeenCalledTimes(2)
+    expect(nativeRebuild).toHaveBeenNthCalledWith(1, {
+      cardId: 'card-a',
+      modelId: 'model-a',
+      dimensions: 3,
+      vectorSpaceId: 'legacy:model-a:3',
+    })
+    expect(nativeRebuild).toHaveBeenNthCalledWith(2, {
+      cardId: 'card-a',
+      modelId: 'model-b',
+      dimensions: 2,
+      vectorSpaceId: 'legacy:model-b:2',
+    })
+  })
+
   it('can expose a native exact backend without changing the canonical contract', async () => {
     const nativeSearch = vi.fn(async (): Promise<LongTermMemoryVectorSearchResult[]> => [])
     const nativeHealth = vi.fn(async () => ({
@@ -107,6 +191,7 @@ describe('long-term memory vector index adapter', () => {
         upsertVectors: vi.fn(async () => {}),
         searchVectors: vi.fn(async () => []),
         deleteVectorsBySource: vi.fn(async () => 0),
+        pruneOrphanedVectors: vi.fn(async () => ({ deleted: 0, spaces: [] })),
         reindexByModel: vi.fn(async input => ({
           modelId: input.modelId,
           sourceIds: [],
@@ -182,6 +267,7 @@ describe('long-term memory vector index adapter', () => {
         upsertVectors: vi.fn(async () => {}),
         searchVectors: fallbackSearch,
         deleteVectorsBySource: vi.fn(async () => 0),
+        pruneOrphanedVectors: vi.fn(async () => ({ deleted: 0, spaces: [] })),
         reindexByModel: vi.fn(async input => ({
           modelId: input.modelId,
           sourceIds: [],

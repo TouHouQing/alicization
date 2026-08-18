@@ -255,7 +255,7 @@ pnpm lint
 git diff --check
 ```
 
-- [ ] **Step 3: 构建、安装并完成本地 macOS App 实机交互验收**
+- [x] **Step 3: 构建、安装并完成本地 macOS App 实机交互验收**
 
 ```bash
 pnpm -F @proj-alicization/stage-tamagotchi build:mac:local
@@ -278,4 +278,4 @@ git commit -m "docs(alicization): close production life loop plan"
 
 > 当前证据：统一 final gate 已通过，对话主链路 `219/219`、生产生命闭环 `271/271`、10k/100k sqlite-vec 规模门 `2/2`；`stage-shared`、桌面 node/web、`stage-ui` 类型检查通过；本轮改动文件定向 ESLint 为 `0 error`，仅保留 `db.ts` 的 31 个既有 warning。根级 `pnpm lint` 已运行，但仍报告 `.agents` 技能资料、旧计划文档、仓库既有源码和未跟踪构建 bundle 的基线问题，不能表述为全仓 lint clean。
 >
-> macOS App 已构建并安装到 `/Users/touhouqing/Applications/Alicization Local.app`，深度签名验证通过，`app.asar`、`node_sqlite3.node`、`sqlite-vec/vec0.dylib` 均存在。`build:mac:local` 的最终复制步骤曾因磁盘空间不足退出，随后使用同卷移动完成安装。当前 Mac 锁屏阻止了窗口、Memory Workbench、10k job 和 Provider/Trainer 错误态的最终点按验收，因此 Step 3 保持未完成。
+> macOS App 已重新构建并安装到 `/Users/touhouqing/Applications/Alicization Local.app`，签名校验通过，应用窗口、设置、机体模块和“记忆”页面均可见且可交互。健康与审计面板显示 sqlite-vec 原生索引已加载，`searchReady=true`、`reindexRequired=false`，缺失向量、内容哈希不一致、过期或失败向量、孤儿向量均为 `0`，覆盖率为 `100%`。在 UI 中启动了隔离的 10k 语义规模压测并完成：`10000/10000`、Recall@K `100%`、P95 `47.6ms`、P99 `49.9ms`。Persona/LoRA 面板在未配置训练器时明确显示“尚未配置本地训练器，启动训练会明确失败”。真实 Provider 试用未自动发送用户记忆到外部服务；配置页保留可见的 Provider 错误状态与手动测试入口。

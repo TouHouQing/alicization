@@ -348,4 +348,73 @@ describe('long-term memory search index', () => {
       await db.close()
     }
   })
+
+  it('removes tombstoned vector orphans when the canonical search index is rebuilt', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'card-orphan-rebuild',
+      embeddingProvider: {
+        modelId: 'test-semantic-model',
+        dimensions: 3,
+        embedTexts: async (texts: string[]) => texts.map(text => ({
+          text,
+          vector: [1, 0, 0],
+        })),
+      },
+    })
+    try {
+      await db.upsertMemoryReflections([{
+        id: 'orphan-rebuild-reflection',
+        cardId: 'card-orphan-rebuild',
+        sourceKind: 'reply',
+        targetScope: 'habit',
+        summary: '这条记忆会被标记为删除。',
+        lesson: '删除后不能继续占用向量空间。',
+        status: 'confirmed',
+        confidence: 0.95,
+        createdAt: 10,
+        updatedAt: 10,
+      }])
+
+      const scheduled = await db.reindexMemoryWorkbenchEmbeddings({
+        cardId: 'card-orphan-rebuild',
+        sourceIds: ['orphan-rebuild-reflection'],
+      })
+      let progress = scheduled
+      for (let attempt = 0; attempt < 20 && progress.status !== 'completed'; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, 5))
+        progress = await db.reindexMemoryWorkbenchEmbeddings({
+          cardId: 'card-orphan-rebuild',
+          action: 'status',
+          jobId: scheduled.jobId!,
+        })
+      }
+      expect(progress.status).toBe('completed')
+
+      await db.tombstoneLongTermMemorySources({
+        sourceIds: ['orphan-rebuild-reflection'],
+        source: 'memory_reflections',
+        reason: '测试向量孤儿清理',
+      })
+      await expect(db.getMemoryWorkbenchEmbeddingHealth({
+        cardId: 'card-orphan-rebuild',
+      })).resolves.toMatchObject({
+        orphanedCount: 1,
+        reindexRequired: true,
+      })
+
+      await db.rebuildLongTermMemorySearchIndex({
+        cardId: 'card-orphan-rebuild',
+      })
+
+      await expect(db.getMemoryWorkbenchEmbeddingHealth({
+        cardId: 'card-orphan-rebuild',
+      })).resolves.toMatchObject({
+        orphanedCount: 0,
+        reindexRequired: false,
+      })
+    }
+    finally {
+      await db.close()
+    }
+  })
 })

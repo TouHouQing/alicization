@@ -9242,7 +9242,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
 
   async function rebuildLongTermMemorySearchIndexForCard(cardIdRaw: string, operation: string) {
     const cardId = resolveMemoryCardId(cardIdRaw, operation)
-    return await longTermMemorySearchIndexRuntime.rebuildLongTermMemorySearchIndex({ cardId })
+    const result = await longTermMemorySearchIndexRuntime.rebuildLongTermMemorySearchIndex({ cardId })
+    await longTermMemoryVectorIndexAdapter.pruneOrphaned({ cardId })
+    return result
   }
 
   async function rebuildLongTermMemorySearchIndexForCards(cardIds: string[], operation: string) {

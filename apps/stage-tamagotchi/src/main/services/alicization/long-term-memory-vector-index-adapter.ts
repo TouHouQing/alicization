@@ -56,6 +56,14 @@ export interface LongTermMemoryVectorIndexStore {
     filters: PersistentLongTermMemoryVectorSearchFilters,
   ) => Promise<LongTermMemoryVectorSearchResult[]>
   deleteVectorsBySource: (input: { cardId: string, sourceIds: string[] }) => Promise<number>
+  pruneOrphanedVectors: (input: { cardId: string }) => Promise<{
+    deleted: number
+    spaces: Array<{
+      modelId: string
+      dimensions: number
+      vectorSpaceId: string
+    }>
+  }>
   reindexByModel: (input: { cardId: string, modelId: string }) => Promise<LongTermMemoryVectorReindexPlan>
   getHealth: (input: {
     cardId: string
@@ -82,6 +90,7 @@ export interface LongTermMemoryVectorIndexAdapter {
   initialize: () => Promise<void>
   upsert: (records: PersistentLongTermMemoryVectorRecord[]) => Promise<void>
   delete: (input: { cardId: string, sourceIds: string[] }) => Promise<number>
+  pruneOrphaned: (input: { cardId: string }) => Promise<number>
   search: (
     input: PersistentLongTermMemoryVectorSearchFilters & { queryVector: number[] },
   ) => Promise<LongTermMemoryVectorSearchResult[]>
@@ -185,6 +194,31 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
       nativeLastError = error instanceof Error ? error.message : String(error)
     }
     return deleted
+  }
+
+  async function pruneOrphaned(pruneInput: { cardId: string }) {
+    const result = await input.store.pruneOrphanedVectors(pruneInput)
+    clearNativeHealthCache()
+    if (!input.native || !nativeInitialized || result.spaces.length === 0)
+      return result.deleted
+
+    let rebuildError: string | null = null
+    for (const space of result.spaces) {
+      try {
+        await input.native.rebuild({
+          cardId: pruneInput.cardId,
+          modelId: space.modelId,
+          dimensions: space.dimensions,
+          vectorSpaceId: space.vectorSpaceId,
+        })
+      }
+      catch (error) {
+        rebuildError ??= error instanceof Error ? error.message : String(error)
+      }
+    }
+    nativeLastError = rebuildError
+    clearNativeHealthCache()
+    return result.deleted
   }
 
   async function search(searchInput: PersistentLongTermMemoryVectorSearchFilters & { queryVector: number[] }) {
@@ -299,6 +333,7 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
     initialize,
     upsert,
     delete: deleteVectors,
+    pruneOrphaned,
     search,
     rebuild,
     getHealth,

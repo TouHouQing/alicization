@@ -188,6 +188,87 @@ describe('persistent long-term memory vector store', () => {
     database.close()
   })
 
+  it('prunes vectors whose canonical search documents were removed', async () => {
+    const database = await createSandboxDatabase()
+    const store = createPersistentLongTermMemoryVectorStore({
+      database,
+      run,
+      all,
+      enqueueWrite: task => task(),
+      now: () => 10,
+    })
+    await store.initialize()
+    await upsertCanonicalDocument(database, {
+      cardId: 'card-orphan-cleanup',
+      sourceId: 'reflection-kept',
+      source: 'memory_reflections',
+      text: '这条长期记忆仍然存在。',
+    })
+
+    await store.upsertVectors([
+      {
+        id: 'vector-kept',
+        cardId: 'card-orphan-cleanup',
+        sourceId: 'reflection-kept',
+        source: 'memory_reflections',
+        text: '这条长期记忆仍然存在。',
+        vector: [1, 0, 0],
+        modelId: 'model-orphan-cleanup',
+        dimensions: 3,
+        updatedAt: 10,
+        metadata: {},
+      },
+      {
+        id: 'vector-orphan',
+        cardId: 'card-orphan-cleanup',
+        sourceId: 'reflection-removed',
+        source: 'memory_reflections',
+        text: '这条长期记忆已经从 canonical 搜索文档中移除。',
+        vector: [0, 1, 0],
+        modelId: 'model-orphan-cleanup',
+        dimensions: 3,
+        updatedAt: 10,
+        metadata: {},
+      },
+    ])
+
+    await expect(store.getHealth({
+      cardId: 'card-orphan-cleanup',
+      activeModelId: 'model-orphan-cleanup',
+      dimensions: 3,
+    })).resolves.toMatchObject({
+      canonicalCount: 1,
+      indexedCount: 1,
+      orphanedCount: 1,
+      reindexRequired: true,
+    })
+
+    await expect(store.pruneOrphanedVectors({
+      cardId: 'card-orphan-cleanup',
+    })).resolves.toEqual({
+      deleted: 1,
+      spaces: [{
+        modelId: 'model-orphan-cleanup',
+        dimensions: 3,
+        vectorSpaceId: 'legacy:model-orphan-cleanup:3',
+      }],
+    })
+
+    await expect(store.getHealth({
+      cardId: 'card-orphan-cleanup',
+      activeModelId: 'model-orphan-cleanup',
+      dimensions: 3,
+    })).resolves.toMatchObject({
+      canonicalCount: 1,
+      indexedCount: 1,
+      orphanedCount: 0,
+      reindexRequired: false,
+      searchReady: true,
+    })
+
+    database.close()
+  })
+
   it('requires reindex when stored vectors do not match the active model space', async () => {
     const database = await createSandboxDatabase()
     const store = createPersistentLongTermMemoryVectorStore({
