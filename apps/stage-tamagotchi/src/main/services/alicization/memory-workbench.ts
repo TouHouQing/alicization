@@ -156,7 +156,7 @@ export async function buildMemoryWorkbenchSnapshot(input: BuildMemoryWorkbenchSn
     health: {
       status: deriveMemoryWorkbenchStatus({
         errors,
-        queueFailed: queue.failed,
+        queueFailed: queue.failed + queue.deadLettered,
         embeddingConfigured: embedding.providerConfigured,
         embeddingDegraded: embedding.degraded,
       }),

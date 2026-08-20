@@ -21,6 +21,7 @@ import {
   electronAlicizationMemoryWorkbenchApplyReviewAction,
   electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression,
   electronAlicizationMemoryWorkbenchCancelPersonaTraining,
+  electronAlicizationMemoryWorkbenchCancelQualityTrial,
   electronAlicizationMemoryWorkbenchExportPersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingExecutorConfig,
@@ -34,6 +35,7 @@ import {
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
   electronAlicizationMemoryWorkbenchListReplaySessions,
   electronAlicizationMemoryWorkbenchManageSemanticScaleJobs,
+  electronAlicizationMemoryWorkbenchManageWorkingMemoryCleaningQueue,
   electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationMemoryWorkbenchRecordQualityGoldLabel,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
@@ -131,6 +133,7 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     setPersonaTrainingExecutorConfig,
     testPersonaTrainingExecutor,
   } = options
+  const qualityTrialControllers = new Map<string, AbortController>()
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchGetSnapshot, async payload => await withCardScope(payload.cardId, async () => {
     const cardId = cardIdFrom(payload)
@@ -163,12 +166,38 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     })
   }))
 
-  registerInvokeHandler(electronAlicizationMemoryWorkbenchRunQualityTrial, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().runMemoryWorkbenchProductionTrial({
-    cardId: cardIdFrom(payload),
-    mode: payload.mode === 'live-provider' ? 'live-provider' : 'historical-replay',
-    month: sanitizeText(payload.month, '') || null,
-    sessionId: sanitizeText(payload.sessionId, '') || null,
-  })))
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchRunQualityTrial, async (payload) => {
+    const cardId = cardIdFrom(payload)
+    qualityTrialControllers.get(cardId)?.abort(new Error('quality trial superseded by a newer run'))
+    const controller = new AbortController()
+    qualityTrialControllers.set(cardId, controller)
+    try {
+      return await withCardScope(payload.cardId, async () => await getAlicizationDb().runMemoryWorkbenchProductionTrial({
+        cardId,
+        mode: payload.mode === 'live-provider' ? 'live-provider' : 'historical-replay',
+        month: sanitizeText(payload.month, '') || null,
+        sessionId: sanitizeText(payload.sessionId, '') || null,
+        signal: controller.signal,
+      }))
+    }
+    finally {
+      if (qualityTrialControllers.get(cardId) === controller)
+        qualityTrialControllers.delete(cardId)
+    }
+  })
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchCancelQualityTrial, async (payload) => {
+    const cardId = cardIdFrom(payload)
+    const reason = sanitizeText(payload.reason, '') || 'quality trial cancelled by user'
+    const controller = qualityTrialControllers.get(cardId)
+    if (controller && !controller.signal.aborted)
+      controller.abort(new Error(reason))
+    return {
+      cardId,
+      cancelled: Boolean(controller),
+      reason: controller ? reason : null,
+    }
+  })
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchListReplaySessions, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().listMemoryWorkbenchReplaySessions({
     cardId: cardIdFrom(payload),
@@ -213,6 +242,16 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     source: payload.source,
     limit: payload.limit,
     cursor: payload.cursor,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchManageWorkingMemoryCleaningQueue, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().manageMemoryWorkbenchWorkingMemoryCleaningQueue({
+    cardId: cardIdFrom(payload),
+    action: payload.action === 'retry-dead-letter' ? 'retry-dead-letter' : 'list',
+    itemIds: Array.isArray(payload.itemIds)
+      ? [...new Set(payload.itemIds.map((id: unknown) => sanitizeText(id)).filter(Boolean))]
+      : undefined,
+    limit: payload.limit,
+    cursor: sanitizeText(payload.cursor, '') || null,
   })))
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchApplyReviewAction, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().applyMemoryWorkbenchReviewAction({

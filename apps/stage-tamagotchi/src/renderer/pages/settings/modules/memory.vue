@@ -23,6 +23,10 @@ const {
   longTermItems,
   longTermFilters,
   longTermNextCursor,
+  workingMemoryCleaningFailures,
+  workingMemoryCleaningFailuresNextCursor,
+  workingMemoryCleaningRetriedItems,
+  workingMemoryCleaningLoading,
   personaCandidates,
   personaLoading,
   personaTrainingDataset,
@@ -460,6 +464,7 @@ function reloadQualityTrialContext() {
 
 onMounted(() => {
   void store.refreshSnapshot()
+  void store.refreshWorkingMemoryCleaningFailures()
   void store.refreshPersonaCandidates()
   void store.refreshPersonaTrainingDataset()
   void store.refreshSkills(false)
@@ -468,8 +473,9 @@ onMounted(() => {
 })
 
 watch(activeCardId, () => {
-  store.resetPersonaTrainingScope()
+  store.resetCardScope()
   reloadQualityTrialContext()
+  void store.refreshWorkingMemoryCleaningFailures()
   void store.refreshPersonaTrainingDataset()
   void store.refreshPersonaTrainingRuns()
   void store.refreshPersonaTrainingIncrements()
@@ -979,6 +985,14 @@ watch(activeCardId, () => {
               @click="runQualityTrial()"
             />
             <Button
+              v-if="qualityTrialLoading"
+              :label="t('settings.pages.memory.workbench.actions.cancel_quality_trial')"
+              icon="i-solar:close-circle-bold-duotone"
+              size="sm"
+              variant="secondary"
+              @click="store.cancelQualityTrial(t('settings.pages.memory.workbench.states.quality_trial_cancelled_by_user'))"
+            />
+            <Button
               :label="t('settings.pages.memory.workbench.actions.build_gold_regression')"
               icon="i-solar:archive-check-bold-duotone"
               size="sm"
@@ -1260,6 +1274,39 @@ watch(activeCardId, () => {
               <div>{{ t('settings.pages.memory.workbench.fields.dialogue_replay') }}: {{ qualityTrialReport.summary.dialogueReplayCount }}</div>
               <div>{{ t('settings.pages.memory.workbench.fields.recall_at_k') }}: {{ formatQualityScore(qualityTrialReport.quality.summary.recallAtK) }}</div>
             </div>
+            <div :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+              <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.fields.regression_metrics') }}
+              </div>
+              <div :class="['mt-2', 'grid', 'grid-cols-2', 'gap-2', 'text-sm', 'lg:grid-cols-4']">
+                <div>{{ t('settings.pages.memory.workbench.fields.recall_at_1') }}: {{ formatQualityScore(qualityTrialReport.regression.recallAt1) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.recall_at_3') }}: {{ formatQualityScore(qualityTrialReport.regression.recallAt3) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.recall_at_5') }}: {{ formatQualityScore(qualityTrialReport.regression.recallAt5) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.wrong_thread_rate') }}: {{ formatQualityScore(qualityTrialReport.regression.wrongThreadRate) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.semantic_hit_rate') }}: {{ formatQualityScore(qualityTrialReport.regression.semanticHitRate) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.source_trace_rate') }}: {{ formatQualityScore(qualityTrialReport.regression.sourceTraceRate) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.abstention_precision') }}: {{ formatQualityScore(qualityTrialReport.regression.abstentionPrecision) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.abstention_recall') }}: {{ formatQualityScore(qualityTrialReport.regression.abstentionRecall) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.recall_p50') }}: {{ qualityTrialReport.regression.p50LatencyMs.toFixed(1) }} ms</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.recall_p95') }}: {{ qualityTrialReport.regression.p95LatencyMs.toFixed(1) }} ms</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.recall_p99') }}: {{ qualityTrialReport.regression.p99LatencyMs.toFixed(1) }} ms</div>
+                <div v-if="qualityTrialReport.regression.staleMemoryLeakRate !== null">
+                  {{ t('settings.pages.memory.workbench.fields.stale_memory_leak_rate') }}:
+                  {{ formatQualityScore(qualityTrialReport.regression.staleMemoryLeakRate) }}
+                </div>
+                <div v-if="qualityTrialReport.regression.temporalUpdateAccuracy !== null">
+                  {{ t('settings.pages.memory.workbench.fields.temporal_update_accuracy') }}:
+                  {{ formatQualityScore(qualityTrialReport.regression.temporalUpdateAccuracy) }}
+                </div>
+                <div>{{ t('settings.pages.memory.workbench.fields.provider_failure_rate') }}: {{ formatQualityScore(qualityTrialReport.regression.providerFailureRate) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.queue_failure_rate') }}: {{ formatQualityScore(qualityTrialReport.regression.queueFailureRate) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.dead_letter_rate') }}: {{ formatQualityScore(qualityTrialReport.regression.deadLetterRate) }}</div>
+                <div v-if="qualityTrialReport.regression.embeddingCoverageRatio !== null">
+                  {{ t('settings.pages.memory.workbench.fields.embedding_coverage_ratio') }}:
+                  {{ formatQualityScore(qualityTrialReport.regression.embeddingCoverageRatio) }}
+                </div>
+              </div>
+            </div>
             <div v-if="qualityTrialReport.dialogueReplay" :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
               <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
                 {{ t('settings.pages.memory.workbench.fields.dialogue_replay') }}
@@ -1280,6 +1327,48 @@ watch(activeCardId, () => {
                   {{ t('settings.pages.memory.workbench.fields.replay_turn_trace') }}
                 </summary>
                 <pre :class="['mt-2', 'max-h-80', 'overflow-auto', 'whitespace-pre-wrap', 'text-xs']">{{ JSON.stringify(qualityTrialReport.dialogueReplay.turns, null, 2) }}</pre>
+              </details>
+            </div>
+            <div v-if="qualityTrialReport.liveProviderTrial" :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+              <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.quality.live_provider_diagnostics') }}
+              </div>
+              <div :class="['mt-2', 'grid', 'grid-cols-2', 'gap-2', 'text-sm', 'lg:grid-cols-4']">
+                <div>{{ t('settings.pages.memory.workbench.fields.provider_call_count') }}: {{ qualityTrialReport.liveProviderTrial.summary.providerCallCount }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.provider_retry_count') }}: {{ qualityTrialReport.liveProviderTrial.summary.providerRetryCount }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.provider_failure_rate') }}: {{ formatQualityScore(qualityTrialReport.liveProviderTrial.summary.providerFailureRate) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.provider_p50') }}: {{ qualityTrialReport.liveProviderTrial.summary.p50LatencyMs }} ms</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.provider_p95') }}: {{ qualityTrialReport.liveProviderTrial.summary.p95LatencyMs }} ms</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.provider_p99') }}: {{ qualityTrialReport.liveProviderTrial.summary.p99LatencyMs }} ms</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.replay_turns') }}: {{ qualityTrialReport.liveProviderTrial.summary.turnCount }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.replay_recalled_evidence') }}: {{ qualityTrialReport.liveProviderTrial.summary.recalledEvidenceCount }}</div>
+              </div>
+              <div v-if="qualityTrialReport.liveProviderTrial.summary.lastError" :class="['mt-2', 'text-sm', 'text-amber-600', 'dark:text-amber-300']">
+                {{ t('settings.pages.memory.workbench.fields.last_error') }}:
+                {{ qualityTrialReport.liveProviderTrial.summary.lastError }}
+              </div>
+              <details v-if="qualityTrialReport.liveProviderTrial.turns.length > 0" :class="['mt-3', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+                <summary :class="['cursor-pointer', 'text-xs', 'font-semibold', 'text-neutral-500']">
+                  {{ t('settings.pages.memory.workbench.fields.provider_trace') }}
+                </summary>
+                <div :class="['mt-2', 'flex', 'flex-col', 'gap-2']">
+                  <article v-for="providerTurn in qualityTrialReport.liveProviderTrial.turns" :key="providerTurn.turnId" :class="['border', 'border-neutral-200', 'p-3', 'dark:border-neutral-800']">
+                    <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+                      {{ providerTurn.turnId }} · {{ providerTurn.status }}
+                    </div>
+                    <div v-if="providerTurn.providerTrace" :class="['mt-2', 'grid', 'grid-cols-1', 'gap-1', 'text-xs', 'text-neutral-500', 'md:grid-cols-2']">
+                      <div>{{ t('settings.pages.memory.workbench.fields.provider_id') }}: {{ providerTurn.providerTrace.providerId }}</div>
+                      <div>{{ t('settings.pages.memory.workbench.fields.model_id') }}: {{ providerTurn.providerTrace.modelId }}</div>
+                      <div>{{ t('settings.pages.memory.workbench.fields.latency_ms') }}: {{ providerTurn.providerTrace.latencyMs }} ms</div>
+                      <div>{{ t('settings.pages.memory.workbench.fields.provider_retry_count') }}: {{ providerTurn.providerTrace.retryCount }}</div>
+                      <div>{{ t('settings.pages.memory.workbench.fields.finish_reason') }}: {{ providerTurn.providerTrace.finishReason ?? '-' }}</div>
+                      <div>{{ t('settings.pages.memory.workbench.fields.output_length') }}: {{ providerTurn.providerTrace.outputLength }}</div>
+                    </div>
+                    <div v-if="providerTurn.error" :class="['mt-2', 'whitespace-pre-wrap', 'break-words', 'text-xs', 'text-rose-600', 'dark:text-rose-300']">
+                      {{ providerTurn.error }}
+                    </div>
+                  </article>
+                </div>
               </details>
             </div>
             <div v-if="qualityTrialReport.runtimeHealth" :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
@@ -1530,6 +1619,81 @@ watch(activeCardId, () => {
           <div>{{ t('settings.pages.memory.workbench.fields.queue_applied') }}: {{ health?.queue.applied ?? 0 }}</div>
           <div>{{ t('settings.pages.memory.workbench.fields.queue_failed') }}: {{ health?.queue.failed ?? 0 }}</div>
           <div>{{ t('settings.pages.memory.workbench.fields.queue_dead_lettered') }}: {{ health?.queue.deadLettered ?? 0 }}</div>
+        </div>
+      </div>
+      <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800', 'xl:col-span-2']">
+        <div :class="['flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
+          <div :class="['text-sm', 'font-semibold']">
+            {{ t('settings.pages.memory.workbench.fields.cleaning_queue_failures') }}
+          </div>
+          <div :class="['flex', 'flex-wrap', 'gap-2']">
+            <Button
+              :label="t('settings.pages.memory.workbench.actions.refresh')"
+              icon="i-solar:refresh-bold-duotone"
+              size="sm"
+              variant="secondary"
+              :loading="workingMemoryCleaningLoading"
+              @click="store.refreshWorkingMemoryCleaningFailures()"
+            />
+            <Button
+              v-if="workingMemoryCleaningFailures.length > 0"
+              :label="t('settings.pages.memory.workbench.actions.retry_cleaning_queue_failures')"
+              icon="i-solar:restart-bold-duotone"
+              size="sm"
+              variant="secondary"
+              :loading="workingMemoryCleaningLoading"
+              @click="store.retryWorkingMemoryCleaningFailures()"
+            />
+          </div>
+        </div>
+        <div v-if="workingMemoryCleaningFailures.length === 0" :class="['mt-3', 'border', 'border-dashed', 'border-neutral-300', 'p-4', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
+          {{ t('settings.pages.memory.workbench.states.empty_cleaning_queue_failures') }}
+        </div>
+        <div v-else :class="['mt-3', 'flex', 'flex-col', 'gap-2']">
+          <article v-for="failureItem in workingMemoryCleaningFailures" :key="failureItem.itemId" :class="['border', 'border-rose-200', 'p-3', 'dark:border-rose-900']">
+            <div :class="['flex', 'flex-wrap', 'items-center', 'gap-2', 'text-xs', 'text-neutral-500']">
+              <span>{{ failureItem.status }}</span>
+              <span>{{ failureItem.source }}</span>
+              <span>{{ failureItem.sourceId }}</span>
+              <span>{{ failureItem.itemId }}</span>
+            </div>
+            <div :class="['mt-2', 'grid', 'grid-cols-1', 'gap-1', 'text-xs', 'text-neutral-500', 'md:grid-cols-2']">
+              <div>{{ t('settings.pages.memory.workbench.fields.attempt_count') }}: {{ failureItem.attemptCount }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.created_at') }}: {{ formatTimestamp(failureItem.createdAt) }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.updated_at') }}: {{ formatTimestamp(failureItem.updatedAt) }}</div>
+              <div>{{ t('settings.pages.memory.workbench.fields.next_retry_at') }}: {{ formatTimestamp(failureItem.nextAttemptAt) }}</div>
+            </div>
+            <div :class="['mt-2', 'whitespace-pre-wrap', 'break-words', 'text-sm', 'text-rose-600', 'dark:text-rose-300']">
+              {{ failureItem.lastError ?? '-' }}
+            </div>
+            <Button
+              :label="t('settings.pages.memory.workbench.actions.retry_cleaning_queue_failure')"
+              icon="i-solar:restart-bold-duotone"
+              size="sm"
+              variant="secondary"
+              :loading="workingMemoryCleaningLoading"
+              @click="store.retryWorkingMemoryCleaningFailures([failureItem.itemId])"
+            />
+          </article>
+          <Button
+            v-if="workingMemoryCleaningFailuresNextCursor"
+            :label="t('settings.pages.memory.workbench.actions.load_more')"
+            icon="i-solar:alt-arrow-down-bold-duotone"
+            size="sm"
+            variant="secondary"
+            :loading="workingMemoryCleaningLoading"
+            @click="store.loadMoreWorkingMemoryCleaningFailures()"
+          />
+        </div>
+        <div v-if="workingMemoryCleaningRetriedItems.length > 0" :class="['mt-3', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+          <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
+            {{ t('settings.pages.memory.workbench.fields.recent_cleaning_retries') }}
+          </div>
+          <div :class="['mt-2', 'flex', 'flex-col', 'gap-1', 'text-xs', 'text-neutral-500']">
+            <div v-for="retriedItem in workingMemoryCleaningRetriedItems" :key="retriedItem.itemId">
+              {{ retriedItem.itemId }} · {{ retriedItem.status }} · {{ formatTimestamp(retriedItem.updatedAt) }} · {{ retriedItem.lastError ?? '-' }}
+            </div>
+          </div>
         </div>
       </div>
       <div :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">

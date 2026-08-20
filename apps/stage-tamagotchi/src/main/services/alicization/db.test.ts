@@ -1549,8 +1549,17 @@ class FakeSqliteDatabase {
         : 256
       const rows = [...workingMemoryLongTermTransactions.values()]
         .filter((item) => {
-          if (_sql.includes(`status IN ('pending-cleaning', 'admitted')`) && item.status !== 'pending-cleaning' && item.status !== 'admitted')
+          if (_sql.includes(`status IN ('pending-cleaning', 'admitted', 'failed')`)
+            && item.status !== 'pending-cleaning'
+            && item.status !== 'admitted'
+            && item.status !== 'failed') {
             return false
+          }
+          if (_sql.includes(`status IN ('failed', 'dead-lettered')`)
+            && item.status !== 'failed'
+            && item.status !== 'dead-lettered') {
+            return false
+          }
           if (_sql.includes(`status = 'needs-user-review'`) && item.status !== 'needs-user-review')
             return false
           if (cardIdParam && item.card_id !== cardIdParam)
@@ -4223,6 +4232,131 @@ describe('alicization sqlite dao', () => {
         status: 'applied',
       }),
     ]))
+
+    await db.close()
+  })
+
+  it('governs WorkingMemory cleaning failures through retryable and dead-letter states without exposing them as confirmed memory', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+
+    await db.enqueueWorkingMemoryLongTermQueueItems({
+      cardId: 'default',
+      sessionId: 'session-failure-governance',
+      items: [{
+        id: 'queue-failure-governance',
+        source: 'working-memory-owner',
+        memoryEvidence: explicitWorkingMemoryQueueEvidence(),
+        kind: 'correction',
+        summary: '失败的清理事务不能伪装成已确认长期记忆。',
+        reason: 'queue governance regression',
+        sourceTurnIds: ['turn-failure-governance:user'],
+        evidenceSnippets: ['直接展示真实错误，并允许重试。'],
+        salience: 0.86,
+        confidence: 0.86,
+        sensitivity: 'personal',
+        allowTraining: false,
+        status: 'pending-cleaning',
+        rejectionReasons: [],
+        contaminationFlags: [],
+        createdAt: 2_000,
+      }],
+    })
+
+    const transaction = [...workingMemoryLongTermTransactions.values()]
+      .find(row => row.queue_item_id === 'queue-failure-governance')
+    expect(transaction).toBeDefined()
+    transaction!.queue_item_json = 'null'
+
+    expect(await db.drainWorkingMemoryLongTermQueue(4)).toEqual(expect.objectContaining({
+      failed: 1,
+      applied: 0,
+    }))
+    expect(transaction).toEqual(expect.objectContaining({
+      status: 'failed',
+      attempt_count: 1,
+      last_error: expect.stringContaining('memoryEvidence'),
+      next_attempt_at: expect.any(Number),
+    }))
+    expect(await db.getMemoryWorkbenchQueueHealth({ cardId: 'default' })).toEqual({
+      pending: 0,
+      review: 0,
+      applied: 0,
+      failed: 1,
+      deadLettered: 0,
+    })
+
+    const failedPage = await db.manageMemoryWorkbenchWorkingMemoryCleaningQueue({
+      cardId: 'default',
+      action: 'list',
+      limit: 1,
+    })
+    expect(failedPage).toEqual({
+      items: [
+        expect.objectContaining({
+          itemId: transaction!.id,
+          source: 'working-memory-owner',
+          sourceId: 'queue-failure-governance',
+          status: 'failed',
+          attemptCount: 1,
+          lastError: expect.stringContaining('memoryEvidence'),
+          createdAt: expect.any(Number),
+          updatedAt: expect.any(Number),
+          nextAttemptAt: expect.any(Number),
+        }),
+      ],
+      nextCursor: null,
+      retried: [],
+    })
+
+    const longTerm = await db.listMemoryWorkbenchLongTermItems({
+      cardId: 'default',
+      query: '失败的清理事务不能伪装成已确认长期记忆',
+      limit: 8,
+    })
+    expect(longTerm.items).toEqual([])
+
+    const retried = await db.manageMemoryWorkbenchWorkingMemoryCleaningQueue({
+      cardId: 'default',
+      action: 'retry-dead-letter',
+      itemIds: [transaction!.id],
+      limit: 8,
+    })
+    expect(retried.retried).toEqual([
+      expect.objectContaining({
+        itemId: transaction!.id,
+        status: 'pending-cleaning',
+        attemptCount: 0,
+        lastError: expect.stringContaining('memoryEvidence'),
+        nextAttemptAt: expect.any(Number),
+      }),
+    ])
+    expect(retried.items).toEqual([])
+    expect(await db.getMemoryWorkbenchQueueHealth({ cardId: 'default' })).toEqual({
+      pending: 1,
+      review: 0,
+      applied: 0,
+      failed: 0,
+      deadLettered: 0,
+    })
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      transaction!.next_attempt_at = 0
+      await db.drainWorkingMemoryLongTermQueue(4)
+    }
+
+    expect(transaction).toEqual(expect.objectContaining({
+      status: 'dead-lettered',
+      attempt_count: 3,
+      last_error: expect.stringContaining('memoryEvidence'),
+      next_attempt_at: null,
+    }))
+    expect(await db.getMemoryWorkbenchQueueHealth({ cardId: 'default' })).toEqual({
+      pending: 0,
+      review: 0,
+      applied: 0,
+      failed: 0,
+      deadLettered: 1,
+    })
 
     await db.close()
   })

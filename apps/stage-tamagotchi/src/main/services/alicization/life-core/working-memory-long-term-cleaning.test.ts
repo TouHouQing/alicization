@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildWorkingMemoryLongTermIdempotencyKey,
   createWorkingMemoryLongTermCleaningTransaction,
+  createWorkingMemoryLongTermDrainMutex,
   normalizeWorkingMemoryLongTermCleaningStatus,
 } from './working-memory-long-term-cleaning'
 
@@ -30,6 +31,36 @@ function queueItem(overrides: Partial<WorkingMemoryLongTermQueueItem> = {}): Wor
 }
 
 describe('working memory long-term cleaning domain', () => {
+  it('serializes concurrent drain calls so one DB runtime cannot process two batches at once', async () => {
+    const mutex = createWorkingMemoryLongTermDrainMutex()
+    let active = 0
+    let maximumActive = 0
+    let releaseFirst: (() => void) | undefined
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+
+    const first = mutex.run(async () => {
+      active += 1
+      maximumActive = Math.max(maximumActive, active)
+      await firstGate
+      active -= 1
+      return 'first'
+    })
+    const second = mutex.run(async () => {
+      active += 1
+      maximumActive = Math.max(maximumActive, active)
+      active -= 1
+      return 'second'
+    })
+
+    await Promise.resolve()
+    expect(maximumActive).toBe(1)
+    releaseFirst?.()
+    await expect(Promise.all([first, second])).resolves.toEqual(['first', 'second'])
+    expect(maximumActive).toBe(1)
+  })
+
   it('builds stable idempotency keys from owner queue identity and evidence', () => {
     const item = queueItem()
 
@@ -95,6 +126,7 @@ describe('working memory long-term cleaning domain', () => {
 
   it('normalizes unknown status to dead-lettered instead of pretending it is valid', () => {
     expect(normalizeWorkingMemoryLongTermCleaningStatus('admitted')).toBe('admitted')
+    expect(normalizeWorkingMemoryLongTermCleaningStatus('failed')).toBe('failed')
     expect(normalizeWorkingMemoryLongTermCleaningStatus('unexpected')).toBe('dead-lettered')
   })
 })

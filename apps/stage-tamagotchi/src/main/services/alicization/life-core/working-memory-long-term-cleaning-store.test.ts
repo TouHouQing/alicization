@@ -206,4 +206,175 @@ describe('working memory long-term cleaning store', () => {
       },
     ])
   })
+
+  it('paginates failed and dead-lettered transactions with transparent errors and timestamps', async () => {
+    const failed = transaction({
+      id: 'wm-lt-clean:failed',
+      queueItemId: 'queue-failed',
+      status: 'failed',
+      attemptCount: 1,
+      lastError: 'sqlite busy while projecting correction',
+      createdAt: 1_000,
+      updatedAt: 3_000,
+      nextAttemptAt: 4_000,
+    })
+    const deadLettered = transaction({
+      id: 'wm-lt-clean:dead',
+      queueItemId: 'queue-dead',
+      status: 'dead-lettered',
+      attemptCount: 3,
+      lastError: 'projection provider rejected the cleaned candidate',
+      createdAt: 900,
+      updatedAt: 2_000,
+      nextAttemptAt: null,
+    })
+    const queries: Array<{ sql: string, params: unknown[] }> = []
+    const responses = [
+      [failed, deadLettered],
+      [deadLettered],
+    ]
+    const runtime = createWorkingMemoryLongTermCleaningStoreRuntime({
+      database: {} as any,
+      now: () => 5_000,
+      run: async () => undefined,
+      get: async () => undefined,
+      all: async (_database, sql, params = []) => {
+        queries.push({ sql: normalizeSql(sql), params })
+        return (responses.shift() ?? []).map(item => ({
+          id: item.id,
+          idempotency_key: item.idempotencyKey,
+          queue_item_id: item.queueItemId,
+          card_id: item.cardId,
+          session_id: item.sessionId,
+          status: item.status,
+          decision: item.decision,
+          queue_item_json: JSON.stringify(item.item),
+          cleaned_candidate_json: null,
+          projections_json: null,
+          allow_training: 0,
+          rejection_reasons_json: '[]',
+          review_reasons_json: '[]',
+          contamination_flags_json: '[]',
+          attempt_count: item.attemptCount,
+          last_error: item.lastError,
+          created_at: item.createdAt,
+          updated_at: item.updatedAt,
+          next_attempt_at: item.nextAttemptAt,
+          applied_at: null,
+        })) as any
+      },
+      runInTransaction: async (_database, task) => await task(),
+    })
+
+    const first = await runtime.listFailureTransactions({
+      cardId: 'default',
+      limit: 1,
+    })
+    const second = await runtime.listFailureTransactions({
+      cardId: 'default',
+      limit: 1,
+      cursor: first.nextCursor,
+    })
+
+    expect(first.items).toEqual([
+      expect.objectContaining({
+        id: 'wm-lt-clean:failed',
+        source: 'working-memory-owner',
+        queueItemId: 'queue-failed',
+        status: 'failed',
+        attemptCount: 1,
+        lastError: 'sqlite busy while projecting correction',
+        createdAt: 1_000,
+        updatedAt: 3_000,
+        nextAttemptAt: 4_000,
+      }),
+    ])
+    expect(first.nextCursor).toBe('3000:wm-lt-clean:failed')
+    expect(second.items.map(item => item.id)).toEqual(['wm-lt-clean:dead'])
+    expect(second.nextCursor).toBeNull()
+    expect(queries).toEqual([
+      {
+        sql: expect.stringContaining('WHERE card_id = ? AND status IN (\'failed\', \'dead-lettered\')'),
+        params: ['default', 2],
+      },
+      {
+        sql: expect.stringContaining('(updated_at < ? OR (updated_at = ? AND id > ?))'),
+        params: ['default', 3_000, 3_000, 'wm-lt-clean:failed', 2],
+      },
+    ])
+  })
+
+  it('retries a selected failed or dead-lettered transaction as pending while preserving its raw error in the mutation result', async () => {
+    const failed = transaction({
+      id: 'wm-lt-clean:failed',
+      queueItemId: 'queue-failed',
+      status: 'failed',
+      attemptCount: 2,
+      lastError: 'raw provider timeout after 3125ms',
+      updatedAt: 3_000,
+      nextAttemptAt: 4_000,
+    })
+    const updates: Array<{ sql: string, params: unknown[] }> = []
+    const runtime = createWorkingMemoryLongTermCleaningStoreRuntime({
+      database: {} as any,
+      now: () => 5_000,
+      run: async (_database, sql, params = []) => {
+        updates.push({ sql: normalizeSql(sql), params })
+      },
+      get: async () => undefined,
+      all: async () => [{
+        id: failed.id,
+        idempotency_key: failed.idempotencyKey,
+        queue_item_id: failed.queueItemId,
+        card_id: failed.cardId,
+        session_id: failed.sessionId,
+        status: failed.status,
+        decision: failed.decision,
+        queue_item_json: JSON.stringify(failed.item),
+        cleaned_candidate_json: null,
+        projections_json: null,
+        allow_training: 0,
+        rejection_reasons_json: '[]',
+        review_reasons_json: '[]',
+        contamination_flags_json: '[]',
+        attempt_count: failed.attemptCount,
+        last_error: failed.lastError,
+        created_at: failed.createdAt,
+        updated_at: failed.updatedAt,
+        next_attempt_at: failed.nextAttemptAt,
+        applied_at: null,
+      }] as any,
+      runInTransaction: async (_database, task) => await task(),
+    })
+
+    const retried = await runtime.retryFailureTransactions({
+      cardId: 'default',
+      transactionIds: [' wm-lt-clean:failed ', 'wm-lt-clean:failed'],
+    })
+
+    expect(retried).toEqual([
+      expect.objectContaining({
+        id: 'wm-lt-clean:failed',
+        status: 'pending-cleaning',
+        decision: 'pending',
+        attemptCount: 0,
+        lastError: 'raw provider timeout after 3125ms',
+        updatedAt: 5_000,
+        nextAttemptAt: 5_000,
+      }),
+    ])
+    expect(updates).toEqual([
+      {
+        sql: expect.stringContaining('UPDATE working_memory_long_term_transactions'),
+        params: expect.arrayContaining([
+          'pending-cleaning',
+          'pending',
+          0,
+          'raw provider timeout after 3125ms',
+          5_000,
+          'wm-lt-clean:failed',
+        ]),
+      },
+    ])
+  })
 })

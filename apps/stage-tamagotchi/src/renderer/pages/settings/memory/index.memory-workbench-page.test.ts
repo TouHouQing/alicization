@@ -102,7 +102,7 @@ describe('memory workbench settings page', () => {
     expect(runsSource).toContain('cancelableStatuses')
     expect(runsSource).not.toContain('{{ increment.state }}')
     expect(runsSource).not.toContain('已激活')
-    expect(source).toContain('resetPersonaTrainingScope')
+    expect(source).toContain('resetCardScope')
   })
 
   it('keeps polling terminalizing persona runs while disabling late cancellation', () => {
@@ -157,6 +157,29 @@ describe('memory workbench settings page', () => {
     expect(source).toContain('reindexProgress.lastError')
     expect(source).toContain('settings.pages.memory.workbench.actions.cancel_reindex')
     expect(source).toContain('settings.pages.memory.workbench.actions.retry_dead_letter')
+  })
+
+  it('renders paginated WorkingMemory cleaning failures with single and batch retry plus transparent errors', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+
+    expect(source).toContain('workingMemoryCleaningFailures')
+    expect(source).toContain('workingMemoryCleaningFailuresNextCursor')
+    expect(source).toContain('refreshWorkingMemoryCleaningFailures')
+    expect(source).toContain('loadMoreWorkingMemoryCleaningFailures')
+    expect(source).toContain('retryWorkingMemoryCleaningFailures')
+    expect(source).toContain('failureItem.itemId')
+    expect(source).toContain('failureItem.source')
+    expect(source).toContain('failureItem.sourceId')
+    expect(source).toContain('failureItem.status')
+    expect(source).toContain('failureItem.lastError')
+    expect(source).toContain('failureItem.createdAt')
+    expect(source).toContain('failureItem.updatedAt')
+    expect(source).toContain('workingMemoryCleaningRetriedItems')
+    expect(source).toContain('settings.pages.memory.workbench.actions.retry_cleaning_queue_failures')
+    expect(source).toContain('settings.pages.memory.workbench.actions.retry_cleaning_queue_failure')
+    expect(source).toContain('settings.pages.memory.workbench.fields.cleaning_queue_failures')
+    expect(source).toContain('settings.pages.memory.workbench.states.empty_cleaning_queue_failures')
+    expect(source).toContain('{{ failureItem.lastError ?? \'-\' }}')
   })
 
   it('renders production embedding configuration controls first with model discovery and connectivity testing', () => {
@@ -246,5 +269,34 @@ describe('memory workbench settings page', () => {
     expect(english).toContain('semantic_scale_quality_failed: Quality Checks Failed')
     expect(english).toContain('semantic_scale_failing_checks: Failing Checks')
     expect(english).toContain('semantic_scale_recommended_actions: Recommended Actions')
+  })
+
+  it('renders long-term recall regression metrics in the quality report', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+    const zhHans = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/zh-Hans/settings.yaml', import.meta.url), 'utf8')
+
+    expect(source).toContain('qualityTrialReport.regression.recallAt1')
+    expect(source).toContain('qualityTrialReport.regression.recallAt3')
+    expect(source).toContain('qualityTrialReport.regression.recallAt5')
+    expect(source).toContain('qualityTrialReport.regression.wrongThreadRate')
+    expect(source).toContain('qualityTrialReport.regression.abstentionPrecision')
+    expect(source).toContain('qualityTrialReport.regression.abstentionRecall')
+    expect(source).toContain('qualityTrialReport.regression.p95LatencyMs')
+    expect(source).toContain('qualityTrialReport.regression.deadLetterRate')
+    expect(source).toContain('settings.pages.memory.workbench.fields.regression_metrics')
+    expect(zhHans).toContain('regression_metrics: 质量回归指标')
+  })
+
+  it('renders live Provider trial diagnostics instead of hiding the provider trace', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+    const zhHans = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/zh-Hans/settings.yaml', import.meta.url), 'utf8')
+
+    expect(source).toContain('qualityTrialReport.liveProviderTrial')
+    expect(source).toContain('providerRetryCount')
+    expect(source).toContain('providerFailureRate')
+    expect(source).toContain('providerTrace.providerId')
+    expect(source).toContain('providerTrace.modelId')
+    expect(source).toContain('providerTrace.latencyMs')
+    expect(zhHans).toContain('live_provider_diagnostics: 真实 Provider 诊断')
   })
 })

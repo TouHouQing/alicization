@@ -102,6 +102,7 @@ import {
   electronAlicizationMemoryWorkbenchApplyReviewAction,
   electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression,
   electronAlicizationMemoryWorkbenchCancelPersonaTraining,
+  electronAlicizationMemoryWorkbenchCancelQualityTrial,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingExecutorConfig,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingRun,
   electronAlicizationMemoryWorkbenchGetSnapshot,
@@ -113,6 +114,7 @@ import {
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
   electronAlicizationMemoryWorkbenchListReplaySessions,
   electronAlicizationMemoryWorkbenchManageSemanticScaleJobs,
+  electronAlicizationMemoryWorkbenchManageWorkingMemoryCleaningQueue,
   electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationMemoryWorkbenchRecordQualityGoldLabel,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
@@ -290,11 +292,13 @@ const skillWorkbenchActivate = useElectronEventaInvoke(electronAlicizationSkillW
 const skillWorkbenchRollback = useElectronEventaInvoke(electronAlicizationSkillWorkbenchRollback)
 const skillWorkbenchRevoke = useElectronEventaInvoke(electronAlicizationSkillWorkbenchRevoke)
 const memoryWorkbenchManageSemanticScaleJobs = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchManageSemanticScaleJobs)
+const memoryWorkbenchManageWorkingMemoryCleaningQueue = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchManageWorkingMemoryCleaningQueue)
 const memoryWorkbenchReindexEmbeddings = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchReindexEmbeddings)
 const memoryWorkbenchListEmbeddingModels = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListEmbeddingModels)
 const memoryWorkbenchTestEmbeddingConnection = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchTestEmbeddingConnection)
 const memoryWorkbenchListReplaySessions = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListReplaySessions)
 const memoryWorkbenchRunQualityTrial = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRunQualityTrial)
+const memoryWorkbenchCancelQualityTrial = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchCancelQualityTrial)
 const memoryWorkbenchRecordQualityGoldLabel = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRecordQualityGoldLabel)
 const memoryWorkbenchListQualityGoldLabels = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListQualityGoldLabels)
 const memoryWorkbenchBuildMonthlyGoldRegression = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression)
@@ -1358,11 +1362,13 @@ setAlicizationBridge({
   skillWorkbenchRollback: async payload => await skillWorkbenchRollback({ ...resolveAlicizationScope(), ...payload }),
   skillWorkbenchRevoke: async payload => await skillWorkbenchRevoke({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchManageSemanticScaleJobs: async payload => await memoryWorkbenchManageSemanticScaleJobs({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchManageWorkingMemoryCleaningQueue: async payload => await memoryWorkbenchManageWorkingMemoryCleaningQueue({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchReindexEmbeddings: async payload => await memoryWorkbenchReindexEmbeddings({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListEmbeddingModels: async payload => await memoryWorkbenchListEmbeddingModels({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchTestEmbeddingConnection: async payload => await memoryWorkbenchTestEmbeddingConnection({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListReplaySessions: async payload => await memoryWorkbenchListReplaySessions({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchRunQualityTrial: async payload => await memoryWorkbenchRunQualityTrial({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchCancelQualityTrial: async payload => await memoryWorkbenchCancelQualityTrial({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchRecordQualityGoldLabel: async payload => await memoryWorkbenchRecordQualityGoldLabel({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListQualityGoldLabels: async payload => await memoryWorkbenchListQualityGoldLabels({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchBuildMonthlyGoldRegression: async payload => await memoryWorkbenchBuildMonthlyGoldRegression({ ...resolveAlicizationScope(), ...payload }),

@@ -298,4 +298,146 @@ describe('db-backed memory dialogue replay harness', () => {
       learnedFrom: 'turn-1',
     })
   })
+
+  it('cancels a provider turn without writing back or starting later turns', async () => {
+    const persistence = createPersistedDb()
+    const controller = new AbortController()
+    const provider = {
+      generate: vi.fn(async ({ signal }: { signal: AbortSignal }) => {
+        await new Promise<never>((_resolve, reject) => {
+          const onAbort = () => {
+            signal.removeEventListener('abort', onAbort)
+            reject(signal.reason)
+          }
+          signal.addEventListener('abort', onAbort, { once: true })
+        })
+        return { text: '不会到达' }
+      }),
+    }
+
+    const replayPromise = replayMemoryDialogue({
+      id: 'cancel-provider-turn',
+      cardId: 'card-1',
+      sessionId: 'session-1',
+      userId: 'user-1',
+      db: persistence.db,
+      provider,
+      signal: controller.signal,
+      turns: [
+        {
+          turnId: 'turn-1',
+          userText: '这一轮会被取消。',
+          now: baseNow,
+        },
+        {
+          turnId: 'turn-2',
+          userText: '这一轮不应该开始。',
+          now: baseNow + 1_000,
+        },
+      ],
+    })
+
+    await vi.waitFor(() => expect(provider.generate).toHaveBeenCalledTimes(1))
+    controller.abort(new Error('用户取消质量试用'))
+    const report = await replayPromise
+
+    expect(report.passed).toBe(false)
+    expect(report.summary.turnCount).toBe(1)
+    expect(provider.generate).toHaveBeenCalledTimes(1)
+    expect(provider.generate.mock.calls[0]?.[0].signal.aborted).toBe(true)
+    expect(report.turns[0]).toMatchObject({
+      turnId: 'turn-1',
+      status: 'failed',
+      error: '用户取消质量试用',
+      writeback: {
+        checkpoint: 'skipped',
+        persona: 'skipped',
+      },
+    })
+    expect(persistence.db.upsertWorkingMemoryCheckpoint).not.toHaveBeenCalled()
+    expect(persistence.db.persistPersonaState).not.toHaveBeenCalled()
+  })
+
+  it('cancels during recall before provider execution and prevents writeback', async () => {
+    const persistence = createPersistedDb({
+      recall: async () => await new Promise<never>(() => {}),
+    })
+    const controller = new AbortController()
+    const provider = {
+      generate: vi.fn(async () => ({ text: '不会调用' })),
+    }
+
+    const replay = replayMemoryDialogue({
+      id: 'cancel-recall',
+      cardId: 'card-1',
+      sessionId: 'session-1',
+      userId: 'user-1',
+      db: persistence.db,
+      provider,
+      signal: controller.signal,
+      turns: [{
+        turnId: 'turn-1',
+        userText: '召回阶段会被取消。',
+        now: baseNow,
+      }],
+    })
+    await vi.waitFor(() => expect(persistence.db.retrieveLongTermMemoryEvidence).toHaveBeenCalledTimes(1))
+    controller.abort(new Error('用户取消召回'))
+
+    const report = await replay
+
+    expect(report.passed).toBe(false)
+    expect(provider.generate).not.toHaveBeenCalled()
+    expect(report.turns[0]).toMatchObject({
+      status: 'failed',
+      error: '用户取消召回',
+      writeback: {
+        checkpoint: 'skipped',
+        persona: 'skipped',
+      },
+    })
+    expect(report.turns[0]?.stages.at(-1)).toMatchObject({
+      name: 'recall',
+      status: 'failed',
+      error: '用户取消召回',
+    })
+    expect(persistence.db.upsertWorkingMemoryCheckpoint).not.toHaveBeenCalled()
+  })
+
+  it('reports an already-aborted replay without touching the database or provider', async () => {
+    const persistence = createPersistedDb()
+    const controller = new AbortController()
+    controller.abort(new Error('回放开始前已取消'))
+    const provider = {
+      generate: vi.fn(async () => ({ text: '不会调用' })),
+    }
+
+    const report = await replayMemoryDialogue({
+      id: 'already-cancelled',
+      cardId: 'card-1',
+      sessionId: 'session-1',
+      userId: 'user-1',
+      db: persistence.db,
+      provider,
+      signal: controller.signal,
+      turns: [{
+        turnId: 'turn-1',
+        userText: '不会开始。',
+        now: baseNow,
+      }],
+    })
+
+    expect(report.passed).toBe(false)
+    expect(report.summary.turnCount).toBe(1)
+    expect(provider.generate).not.toHaveBeenCalled()
+    expect(persistence.db.getWorkingMemoryCheckpoint).not.toHaveBeenCalled()
+    expect(report.turns[0]).toMatchObject({
+      status: 'failed',
+      error: '回放开始前已取消',
+      writeback: {
+        checkpoint: 'skipped',
+        persona: 'skipped',
+      },
+    })
+  })
 })

@@ -142,6 +142,11 @@ describe('memory quality harness', () => {
     expect(report.version).toBe('memory-quality-harness-v1')
     expect(report.passed).toBe(true)
     expect(report.summary.longTermFixtureCount).toBe(1)
+    expect(report.summary.recallAt1).toBe(1)
+    expect(report.summary.recallAt3).toBe(1)
+    expect(report.summary.recallAt5).toBe(1)
+    expect(report.summary.abstentionPrecision).toBe(1)
+    expect(report.summary.p95LatencyMs).toBe(1)
     expect(report.traces).toHaveLength(1)
   })
 
@@ -190,7 +195,54 @@ describe('memory quality harness', () => {
     expect(report.passed).toBe(true)
     expect(report.summary.userTrialCount).toBe(1)
     expect(report.summary.optimizationFindingCount).toBe(0)
+    expect(report.summary.recallAt1).toBe(1)
+    expect(report.summary.recallAt3).toBe(1)
+    expect(report.summary.recallAt5).toBe(1)
+    expect(report.summary.abstentionPrecision).toBe(1)
     expect(report.userTrials[0]?.metrics.recallAtK).toBe(1)
+  })
+
+  it('reports abstention precision and recall separately instead of conflating them', async () => {
+    const emptyBundle = (query: string): LongTermMemoryEvidenceBundle => {
+      const intent = deriveLongTermMemoryRecallIntent({ currentUserText: query })
+      const plan = buildLongTermMemoryQueryPlan({ intent, currentUserText: query })
+      return buildLongTermMemoryEvidenceBundle({
+        intent,
+        plan,
+        now: 3000,
+        limit: 3,
+        candidates: [],
+      })
+    }
+    const report = await runMemoryQualityHarnessSuite({
+      createdAt: 9050,
+      longTerm: [
+        {
+          fixture: {
+            id: 'should-abstain-but-recalled',
+            cardId: 'card-1',
+            query: '没有任何相关记忆的问题',
+            expectedTopIds: [],
+          },
+          recall: async () => bundleFor('你还记得我不要固定模板回复吗？'),
+          now: vi.fn().mockReturnValueOnce(9050).mockReturnValueOnce(9051),
+        },
+        {
+          fixture: {
+            id: 'should-recall-but-abstained',
+            cardId: 'card-1',
+            query: '应该召回固定模板纠正',
+            expectedTopIds: ['reflection-fixed-template'],
+          },
+          recall: async () => emptyBundle('应该召回固定模板纠正'),
+          now: vi.fn().mockReturnValueOnce(9050).mockReturnValueOnce(9051),
+        },
+      ],
+      workingMemory: [],
+    })
+
+    expect(report.summary.abstentionPrecision).toBe(0)
+    expect(report.summary.abstentionRecall).toBe(0)
   })
 
   it('includes user-trial recall misses in the aggregate recall summary', async () => {

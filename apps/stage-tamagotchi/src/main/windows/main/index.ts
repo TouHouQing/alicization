@@ -29,7 +29,7 @@ import icon from '../../../../resources/icon.png?asset'
 import { electronMainStageStartupStatusChannel, electronStartDraggingWindow } from '../../../shared/eventa'
 import { baseUrl, getElectronMainDirname, load } from '../../libs/electron/location'
 import { createConfig } from '../../libs/electron/persistence'
-import { transparentWindowConfig } from '../shared'
+import { promoteStageWindowAboveDesktop, showStageWindow, transparentWindowConfig } from '../shared'
 import { setupMainWindowElectronInvokes } from './rpc/index.electron'
 import { resolveRendererStartupWatchdogDecision } from './startup-watchdog'
 
@@ -290,9 +290,8 @@ export async function setupMainWindow(params: {
   //
   // https://github.com/electron/electron/issues/10078#issuecomment-3410164802
   // https://stackoverflow.com/questions/39835282/set-browserwindow-always-on-top-even-other-app-is-in-fullscreen-electron-mac
-  window.setAlwaysOnTop(true, 'screen-saver', 1)
+  promoteStageWindowAboveDesktop(window)
   window.setFullScreenable(false)
-  window.setVisibleOnAllWorkspaces(true)
   // NOTICE: start in click-through mode to avoid desktop hard-blocking if renderer-side
   // mouse-capture sync has not been initialized yet.
   window.setIgnoreMouseEvents(true, { forward: true })
@@ -303,7 +302,7 @@ export async function setupMainWindow(params: {
   window.on('ready-to-show', () => {
     clearForceShowFallbackTimer()
     syncWindowToDesktopBounds()
-    window.show()
+    showStageWindow(window)
   })
   ipcMain.on(electronMainStageStartupStatusChannel, handleMainWindowStageStartupStatus)
   window.webContents.on('did-finish-load', () => {
@@ -356,7 +355,7 @@ export async function setupMainWindow(params: {
       return
 
     syncWindowToDesktopBounds()
-    window.show()
+    showStageWindow(window)
   }, forceShowFallbackDelayMs)
 
   rendererStartupWatchdogStartedAt = Date.now()

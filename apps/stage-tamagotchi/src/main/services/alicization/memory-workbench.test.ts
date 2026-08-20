@@ -580,6 +580,52 @@ describe('memory workbench projection', () => {
     expect(result.health.status).toBe('degraded')
   })
 
+  it('marks snapshot health degraded when queue health reports only dead-lettered work', async () => {
+    const result = await buildMemoryWorkbenchSnapshot({
+      cardId: 'default',
+      sessionId: null,
+      now: () => 351,
+      getWorkingMemory: () => null,
+      listLongTermItems: async () => [],
+      listReviewItems: async () => [],
+      getQueueHealth: async () => ({
+        pending: 0,
+        review: 0,
+        applied: 0,
+        failed: 0,
+        deadLettered: 1,
+      }),
+      getRecallHealth: async () => ({
+        lastLatencyMs: null,
+        p95LatencyMs: null,
+        lastError: null,
+      }),
+      getEmbeddingHealth: async () => ({
+        providerConfigured: true,
+        modelId: 'local',
+        dimensions: 3,
+        vectorSpaceId: 'legacy:local:3',
+        reindexRequired: false,
+        indexMode: 'sqlite-vec',
+        approximate: false,
+        degraded: false,
+        nativeIndexReady: true,
+        searchReady: true,
+        lastError: null,
+        canonicalCount: 1,
+        indexedCount: 1,
+        missingCount: 0,
+        textHashMismatchCount: 0,
+        staleOrFailedCount: 0,
+        orphanedCount: 0,
+        coverageRatio: 1,
+        reindexJob: null,
+      }),
+    })
+
+    expect(result.health.status).toBe('degraded')
+  })
+
   it('returns a stable next cursor for long-term memory workbench list results', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath())
     try {

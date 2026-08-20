@@ -77,6 +77,8 @@ import type {
   AlicizationTaskThreadRecord,
   AlicizationTaskThreadStatus,
   AlicizationTaskThreadUpsertInput,
+  AlicizationWorkingMemoryCleaningQueueItem,
+  AlicizationWorkingMemoryCleaningQueueResult,
 } from '../../../shared/eventa'
 import type { WorkingMemorySnapshot } from './life-core/working-memory'
 import type {
@@ -183,7 +185,12 @@ import {
   serializeWorkingMemoryCheckpoint,
 } from './life-core/working-memory-checkpoint'
 import { cleanWorkingMemoryLongTermQueueItem } from './life-core/working-memory-long-term-cleaner'
-import { createWorkingMemoryLongTermCleaningTransaction } from './life-core/working-memory-long-term-cleaning'
+import {
+  createWorkingMemoryLongTermCleaningTransaction,
+  createWorkingMemoryLongTermDrainMutex,
+  WORKING_MEMORY_LONG_TERM_CLEANING_MAX_ATTEMPTS,
+  workingMemoryLongTermCleaningRetryDelayMs,
+} from './life-core/working-memory-long-term-cleaning'
 import { createWorkingMemoryLongTermCleaningStoreRuntime } from './life-core/working-memory-long-term-cleaning-store'
 import { projectWorkingMemoryLongTermCandidate } from './life-core/working-memory-long-term-projection'
 import {
@@ -1775,6 +1782,13 @@ export interface AlicizationDbService {
     limit?: number
     cursor?: string | null
   }) => Promise<{ items: AlicizationMemoryWorkbenchItem[], nextCursor: string | null }>
+  manageMemoryWorkbenchWorkingMemoryCleaningQueue: (input: {
+    cardId: string
+    action?: 'list' | 'retry-dead-letter'
+    itemIds?: string[]
+    limit?: number
+    cursor?: string | null
+  }) => Promise<AlicizationWorkingMemoryCleaningQueueResult>
   rebuildLongTermMemorySearchIndex: (input: { cardId: string }) => Promise<{ indexed: number }>
   listMemoryWorkbenchReviewItems: (input: { cardId: string, limit?: number }) => Promise<AlicizationLongTermMemoryReviewItem[]>
   applyMemoryWorkbenchReviewAction: (input: {
@@ -1809,6 +1823,7 @@ export interface AlicizationDbService {
     mode?: 'historical-replay' | 'live-provider'
     month?: string | null
     sessionId?: string | null
+    signal?: AbortSignal
   }) => Promise<MemoryProductionTrialReport>
   manageMemoryWorkbenchSemanticScaleJobs: (input: {
     cardId: string
@@ -2168,6 +2183,7 @@ export async function setupAlicizationDb(
     all,
     runInTransaction,
   })
+  const workingMemoryLongTermDrainMutex = createWorkingMemoryLongTermDrainMutex()
   const runtimeEventStore = createAlicizationRuntimeEventStore({
     database,
     run,
@@ -3827,7 +3843,6 @@ export async function setupAlicizationDb(
       cardId,
       cardId,
       cardId,
-      cardId,
     ]
     if (cursor) {
       params.push(
@@ -3841,13 +3856,6 @@ export async function setupAlicizationDb(
       database,
       `
       WITH session_keys AS (
-        SELECT session_id
-        FROM conversation_turns
-        WHERE card_id = ?
-          AND session_id IS NOT NULL
-          AND TRIM(session_id) != ''
-        GROUP BY session_id
-        UNION
         SELECT session_id
         FROM working_memory_checkpoints
         WHERE card_id = ?
@@ -3880,6 +3888,7 @@ export async function setupAlicizationDb(
           session.session_id,
           checkpoint.snapshot_json,
           checkpoint.updated_at
+        HAVING SUM(CASE WHEN TRIM(COALESCE(turn.user_text, '')) != '' THEN 1 ELSE 0 END) > 0
       )
       SELECT
         summary.session_id,
@@ -9308,6 +9317,26 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     let review = 0
     let failed = 0
 
+    const persistCleaningFailure = async (
+      transaction: WorkingMemoryLongTermCleaningTransaction,
+      error: unknown,
+    ) => {
+      const attemptCount = transaction.attemptCount + 1
+      const deadLettered = attemptCount >= WORKING_MEMORY_LONG_TERM_CLEANING_MAX_ATTEMPTS
+      const updatedAt = now()
+      const lastError = errorMessageFrom(error) ?? String(error)
+      await persistWorkingMemoryLongTermTransaction({
+        ...transaction,
+        status: deadLettered ? 'dead-lettered' : 'failed',
+        lastError,
+        attemptCount,
+        updatedAt,
+        nextAttemptAt: deadLettered
+          ? null
+          : updatedAt + workingMemoryLongTermCleaningRetryDelayMs(attemptCount),
+      }, deadLettered ? 'dead-lettered' : 'failed')
+    }
+
     for (const row of rows) {
       try {
         const existingMemoryEvidence = normalizeWorkingMemoryLongTermEvidence(row.item.memoryEvidence)
@@ -9345,14 +9374,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
 
         if (!cleanedTransaction.cleanedCandidate) {
           failed += 1
-          await persistWorkingMemoryLongTermTransaction({
-            ...cleanedTransaction,
-            status: 'dead-lettered',
-            decision: 'reject',
-            lastError: 'admitted transaction missing cleaned candidate',
-            updatedAt: now(),
-            nextAttemptAt: null,
-          }, 'dead-lettered')
+          await persistCleaningFailure(row, new Error('admitted transaction missing cleaned candidate'))
           continue
         }
 
@@ -9454,14 +9476,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       }
       catch (error) {
         failed += 1
-        await persistWorkingMemoryLongTermTransaction({
-          ...row,
-          status: 'dead-lettered',
-          lastError: error instanceof Error ? error.message : String(error),
-          attemptCount: row.attemptCount + 1,
-          updatedAt: now(),
-          nextAttemptAt: null,
-        }, 'dead-lettered')
+        await persistCleaningFailure(row, error)
       }
     }
 
@@ -9476,14 +9491,16 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
   }
 
   async function drainWorkingMemoryLongTermQueue(limit = 4) {
-    const result = await drainWorkingMemoryLongTermTransactions(
-      await workingMemoryLongTermCleaningStore.listDueTransactions(limit, now()),
-    )
-    const pending = (await workingMemoryLongTermCleaningStore.listDueTransactions(32, now())).length
-    return {
-      ...result,
-      pending,
-    }
+    return await workingMemoryLongTermDrainMutex.run(async () => {
+      const result = await drainWorkingMemoryLongTermTransactions(
+        await workingMemoryLongTermCleaningStore.listDueTransactions(limit, now()),
+      )
+      const pending = (await workingMemoryLongTermCleaningStore.listDueTransactions(32, now())).length
+      return {
+        ...result,
+        pending,
+      }
+    })
   }
 
   async function drainWorkingMemoryLongTermQueueScoped(input: {
@@ -9491,55 +9508,59 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     sessionId: string
     queueItemIds: string[]
   }) {
-    const queueItemIds = [...new Set(
-      input.queueItemIds
-        .map(queueItemId => queueItemId.trim())
-        .filter(Boolean),
-    )]
-    const scope = {
-      cardId: input.cardId,
-      sessionId: input.sessionId,
-      queueItemIds,
-    }
-    const result = await drainWorkingMemoryLongTermTransactions(
-      await workingMemoryLongTermCleaningStore.listDueTransactionsByScope(scope),
-    )
-    const transactions = await workingMemoryLongTermCleaningStore.listTransactionsByScope(scope)
-    const transactionByQueueItemId = new Map(
-      transactions.map(transaction => [transaction.queueItemId, transaction]),
-    )
-    const settlements = queueItemIds.map((queueItemId) => {
-      const transaction = transactionByQueueItemId.get(queueItemId)
-      if (!transaction) {
+    return await workingMemoryLongTermDrainMutex.run(async () => {
+      const queueItemIds = [...new Set(
+        input.queueItemIds
+          .map(queueItemId => queueItemId.trim())
+          .filter(Boolean),
+      )]
+      const scope = {
+        cardId: input.cardId,
+        sessionId: input.sessionId,
+        queueItemIds,
+      }
+      const result = await drainWorkingMemoryLongTermTransactions(
+        await workingMemoryLongTermCleaningStore.listDueTransactionsByScope(scope),
+      )
+      const transactions = await workingMemoryLongTermCleaningStore.listTransactionsByScope(scope)
+      const transactionByQueueItemId = new Map(
+        transactions.map(transaction => [transaction.queueItemId, transaction]),
+      )
+      const settlements = queueItemIds.map((queueItemId) => {
+        const transaction = transactionByQueueItemId.get(queueItemId)
+        if (!transaction) {
+          return {
+            queueItemId,
+            transactionId: null,
+            status: 'missing' as const,
+            errorSummary: 'queue item was not found in the requested scope',
+          }
+        }
         return {
           queueItemId,
-          transactionId: null,
-          status: 'missing' as const,
-          errorSummary: 'queue item was not found in the requested scope',
+          transactionId: transaction.id,
+          status: transaction.status,
+          errorSummary: transaction.lastError,
         }
-      }
+      })
+
       return {
-        queueItemId,
-        transactionId: transaction.id,
-        status: transaction.status,
-        errorSummary: transaction.lastError,
+        cleaned: result.cleaned,
+        admitted: result.admitted,
+        applied: settlements.filter(settlement => settlement.status === 'applied').length,
+        rejected: settlements.filter(settlement => settlement.status === 'rejected').length,
+        review: settlements.filter(settlement => settlement.status === 'needs-user-review').length,
+        failed: settlements.filter(settlement =>
+          settlement.status === 'failed' || settlement.status === 'dead-lettered',
+        ).length,
+        pending: settlements.filter(settlement =>
+          settlement.status === 'pending-cleaning'
+          || settlement.status === 'cleaning'
+          || settlement.status === 'admitted',
+        ).length,
+        settlements,
       }
     })
-
-    return {
-      cleaned: result.cleaned,
-      admitted: result.admitted,
-      applied: settlements.filter(settlement => settlement.status === 'applied').length,
-      rejected: settlements.filter(settlement => settlement.status === 'rejected').length,
-      review: settlements.filter(settlement => settlement.status === 'needs-user-review').length,
-      failed: settlements.filter(settlement => settlement.status === 'dead-lettered').length,
-      pending: settlements.filter(settlement =>
-        settlement.status === 'pending-cleaning'
-        || settlement.status === 'cleaning'
-        || settlement.status === 'admitted',
-      ).length,
-      settlements,
-    }
   }
 
   async function listLongTermMemoryReviewItems(input: {
@@ -10072,6 +10093,22 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     }
   }
 
+  function projectWorkingMemoryCleaningQueueItemForWorkbench(
+    transaction: WorkingMemoryLongTermCleaningTransaction,
+  ): AlicizationWorkingMemoryCleaningQueueItem {
+    return {
+      itemId: transaction.id,
+      source: transaction.source,
+      sourceId: transaction.queueItemId,
+      status: transaction.status as AlicizationWorkingMemoryCleaningQueueItem['status'],
+      attemptCount: transaction.attemptCount,
+      lastError: transaction.lastError,
+      createdAt: transaction.createdAt,
+      updatedAt: transaction.updatedAt,
+      nextAttemptAt: transaction.nextAttemptAt,
+    }
+  }
+
   async function listMemoryWorkbenchLongTermItems(input: {
     cardId: string
     kind?: AlicizationMemoryWorkbenchKind | 'all'
@@ -10336,6 +10373,33 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
 
   async function getMemoryWorkbenchQueueHealth(input: { cardId: string }): Promise<AlicizationMemoryWorkbenchHealth['queue']> {
     return await memoryWorkbenchHealthRuntime.getQueueHealth(input)
+  }
+
+  async function manageMemoryWorkbenchWorkingMemoryCleaningQueue(input: {
+    cardId: string
+    action?: 'list' | 'retry-dead-letter'
+    itemIds?: string[]
+    limit?: number
+    cursor?: string | null
+  }): Promise<AlicizationWorkingMemoryCleaningQueueResult> {
+    const cardId = resolveMemoryCardId(input.cardId, 'memory workbench WorkingMemory cleaning queue')
+    const action = input.action ?? 'list'
+    const retried = action === 'retry-dead-letter'
+      ? await enqueueWrite(async () => await workingMemoryLongTermCleaningStore.retryFailureTransactions({
+          cardId,
+          transactionIds: input.itemIds,
+        }))
+      : []
+    const page = await workingMemoryLongTermCleaningStore.listFailureTransactions({
+      cardId,
+      limit: input.limit,
+      cursor: input.cursor,
+    })
+    return {
+      items: page.items.map(projectWorkingMemoryCleaningQueueItemForWorkbench),
+      nextCursor: page.nextCursor,
+      retried: retried.map(projectWorkingMemoryCleaningQueueItemForWorkbench),
+    }
   }
 
   async function getMemoryWorkbenchRecallHealth(input: { cardId: string }): Promise<AlicizationMemoryWorkbenchHealth['recall']> {
@@ -10900,6 +10964,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     mode?: 'historical-replay' | 'live-provider'
     month?: string | null
     sessionId?: string | null
+    signal?: AbortSignal
   }): Promise<MemoryProductionTrialReport> {
     const cardId = resolveMemoryCardId(input.cardId, 'memory workbench production trial')
     const createdAt = now()
@@ -10930,7 +10995,11 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       return null
     })
     const semantic = await getMemoryWorkbenchRecallProbeSemantic({ cardId })
-    const personaSnapshot = await getPersonaTrainingDataset({ cardId }).catch(() => null)
+    let personaTrainingSnapshotError: string | null = null
+    const personaSnapshot = await getPersonaTrainingDataset({ cardId }).catch((error) => {
+      personaTrainingSnapshotError = `Persona/LoRA 数据集快照读取失败：${errorMessageFrom(error) ?? String(error)}`
+      return null
+    })
     const workingMemoryCheckpoints = await listWorkingMemoryCheckpoints(cardId, { limit: 8 })
     const compressedContextBehavior = await buildWorkingMemoryCompressionBehaviorFixtures({
       cardId,
@@ -11150,6 +11219,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             retrieveLongTermMemoryEvidenceReadOnly,
           },
           provider: memoryTrialProvider.generate,
+          signal: input.signal,
           maxTurns: 8,
           maxRawTurns: 6,
           recallLimit: 5,
@@ -11210,6 +11280,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         },
         maxRawTurns: 6,
         recallLimit: 5,
+        signal: input.signal,
       })
 
       return {
@@ -11246,6 +11317,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
             createdAt,
           })
         : [],
+      personaTrainingError: personaTrainingSnapshotError,
       requireProductionStages: true,
       productionStageErrors: (scopeFuzzError
         ? {
@@ -11883,6 +11955,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     applyMemoryWorkbenchReviewAction,
     runMemoryWorkbenchRecallProbe,
     getMemoryWorkbenchQueueHealth,
+    manageMemoryWorkbenchWorkingMemoryCleaningQueue,
     getMemoryWorkbenchRecallHealth,
     getMemoryWorkbenchEmbeddingHealth,
     recordMemoryQualityGoldLabel,

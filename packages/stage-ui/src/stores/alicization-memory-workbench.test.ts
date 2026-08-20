@@ -318,6 +318,137 @@ describe('alicization memory workbench store', () => {
     expect(store.reindexDeadLetterItems).toEqual([])
   })
 
+  it('lists paginated WorkingMemory cleaning failures and observes single-item retry as pending', async () => {
+    const failedItem = {
+      itemId: 'wm-lt-clean:failed',
+      source: 'working-memory-owner',
+      sourceId: 'queue-failed',
+      status: 'failed',
+      attemptCount: 1,
+      lastError: 'raw sqlite busy error',
+      createdAt: 1_000,
+      updatedAt: 2_000,
+      nextAttemptAt: 3_000,
+    } as const
+    const deadLetteredItem = {
+      ...failedItem,
+      itemId: 'wm-lt-clean:dead',
+      sourceId: 'queue-dead',
+      status: 'dead-lettered',
+      attemptCount: 3,
+      lastError: 'raw provider rejection',
+      updatedAt: 1_500,
+      nextAttemptAt: null,
+    } as const
+    const retriedItem = {
+      ...failedItem,
+      status: 'pending-cleaning',
+      attemptCount: 0,
+      updatedAt: 4_000,
+      nextAttemptAt: 4_000,
+    } as const
+    const memoryWorkbenchManageWorkingMemoryCleaningQueue = vi.fn()
+      .mockResolvedValueOnce({
+        items: [failedItem],
+        nextCursor: '2000:wm-lt-clean:failed',
+        retried: [],
+      })
+      .mockResolvedValueOnce({
+        items: [deadLetteredItem],
+        nextCursor: null,
+        retried: [],
+      })
+      .mockResolvedValueOnce({
+        items: [deadLetteredItem],
+        nextCursor: null,
+        retried: [retriedItem],
+      })
+    const memoryWorkbenchGetSnapshot = vi.fn(async () => ({
+      cardId: 'default',
+      sessionId: null,
+      updatedAt: 4_000,
+      workingMemory: null,
+      longTerm: { total: 0, byKind: {}, items: [] },
+      review: { pending: 0, items: [] },
+      health: {
+        status: 'degraded',
+        queue: { pending: 1, review: 0, applied: 0, failed: 0, deadLettered: 1 },
+        recall: { lastLatencyMs: null, p95LatencyMs: null, lastError: null },
+        embedding: { providerConfigured: false, modelId: null, dimensions: null, reindexRequired: false },
+        errors: [],
+      },
+    }))
+    setAlicizationBridge({
+      memoryWorkbenchManageWorkingMemoryCleaningQueue,
+      memoryWorkbenchGetSnapshot,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.refreshWorkingMemoryCleaningFailures()
+    await store.loadMoreWorkingMemoryCleaningFailures()
+
+    expect(store.workingMemoryCleaningFailures.map(item => item.itemId)).toEqual([
+      'wm-lt-clean:failed',
+      'wm-lt-clean:dead',
+    ])
+
+    await store.retryWorkingMemoryCleaningFailures(['wm-lt-clean:failed'])
+
+    expect(memoryWorkbenchManageWorkingMemoryCleaningQueue.mock.calls.map(call => call[0])).toEqual([
+      { action: 'list', limit: 24, cursor: null },
+      { action: 'list', limit: 24, cursor: '2000:wm-lt-clean:failed' },
+      { action: 'retry-dead-letter', itemIds: ['wm-lt-clean:failed'], limit: 24, cursor: null },
+    ])
+    expect(store.workingMemoryCleaningFailures.map(item => item.itemId)).toEqual(['wm-lt-clean:dead'])
+    expect(store.workingMemoryCleaningRetriedItems).toEqual([
+      expect.objectContaining({
+        itemId: 'wm-lt-clean:failed',
+        status: 'pending-cleaning',
+        lastError: 'raw sqlite busy error',
+      }),
+    ])
+    expect(store.health?.queue).toEqual({
+      pending: 1,
+      review: 0,
+      applied: 0,
+      failed: 0,
+      deadLettered: 1,
+    })
+  })
+
+  it('ignores card-scoped cleaning results that finish after the workbench scope is reset', async () => {
+    let resolveCleaningQueue: ((value: any) => void) | undefined
+    setAlicizationBridge({
+      memoryWorkbenchManageWorkingMemoryCleaningQueue: vi.fn(() => new Promise((resolve) => {
+        resolveCleaningQueue = resolve
+      })),
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const pending = store.refreshWorkingMemoryCleaningFailures()
+    store.resetCardScope()
+    resolveCleaningQueue?.({
+      items: [{
+        itemId: 'old-card-failure',
+        source: 'working-memory-owner',
+        sourceId: 'old-card-queue',
+        status: 'failed',
+        attemptCount: 1,
+        lastError: 'old card error',
+        createdAt: 1,
+        updatedAt: 2,
+        nextAttemptAt: 3,
+      }],
+      nextCursor: null,
+      retried: [],
+    })
+
+    await pending
+
+    expect(store.workingMemoryCleaningFailures).toEqual([])
+    expect(store.workingMemoryCleaningFailuresNextCursor).toBeNull()
+  })
+
   it('polls an active reindex job until it reaches a terminal state', async () => {
     vi.useFakeTimers()
     const progress = {
@@ -1347,11 +1478,7 @@ describe('alicization memory workbench store', () => {
     const store = useAlicizationMemoryWorkbenchStore()
     await store.loadQualityReplaySessions()
 
-    expect(store.selectedQualitySessionId).toBe('')
-    await expect(store.runQualityTrial('2026-08')).resolves.toBeNull()
-    expect(memoryWorkbenchRunQualityTrial).not.toHaveBeenCalled()
-
-    store.selectQualityTrialSession('session-a')
+    expect(store.selectedQualitySessionId).toBe('session-a')
     await store.runQualityTrial('2026-08')
     expect(store.qualityTrialReport?.id).toBe('quality-report-session-a')
 
@@ -1385,6 +1512,39 @@ describe('alicization memory workbench store', () => {
       id: 'stale-report',
     })
     await expect(pending).resolves.toBeNull()
+    expect(store.qualityTrialReport).toBeNull()
+  })
+
+  it('cancels the active quality trial through the bridge and clears stale report state', async () => {
+    let resolveTrial: ((value: any) => void) | undefined
+    const memoryWorkbenchRunQualityTrial = vi.fn(() => new Promise((resolve) => {
+      resolveTrial = resolve
+    }))
+    const memoryWorkbenchCancelQualityTrial = vi.fn(async () => ({
+      cardId: 'default',
+      cancelled: true,
+      reason: 'user cancelled quality trial',
+    }))
+    setAlicizationBridge({
+      memoryWorkbenchRunQualityTrial,
+      memoryWorkbenchCancelQualityTrial,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    store.selectQualityTrialSession('session-a')
+    void store.runQualityTrial('2026-08')
+    expect(store.qualityTrialLoading).toBe(true)
+
+    await store.cancelQualityTrial('user cancelled quality trial')
+
+    expect(memoryWorkbenchCancelQualityTrial).toHaveBeenCalledWith({
+      reason: 'user cancelled quality trial',
+    })
+    expect(store.qualityTrialLoading).toBe(false)
+    expect(store.qualityTrialReport).toBeNull()
+
+    resolveTrial?.({ id: 'late-report' })
+    await vi.waitFor(() => expect(store.qualityTrialLoading).toBe(false))
     expect(store.qualityTrialReport).toBeNull()
   })
 

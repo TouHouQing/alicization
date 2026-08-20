@@ -559,11 +559,14 @@ pages:
         cancel_reindex: Cancel Embedding Reindex
         retry_dead_letter: Retry Dead-Letter Items
         retry_dead_letter_item: Retry This Item
+        retry_cleaning_queue_failures: Retry All Cleaning Failures
+        retry_cleaning_queue_failure: Retry This Cleaning Failure
         discover_embedding_models: Discover Models
         test_embedding_connection: Test Connection
         save_embedding_config: Save Embedding Config
         load_gold_labels: Load Monthly Labels
         run_quality_trial: Run Quality Trial
+        cancel_quality_trial: Cancel Quality Trial
         build_gold_regression: Freeze Monthly Regression
         start_semantic_scale: Start Semantic Scale Soak
         cancel_semantic_scale: Cancel Semantic Scale Soak
@@ -655,6 +658,7 @@ pages:
         loading: Loading memory state...
         quality_passed: Passed
         quality_failed: Needs Work
+        quality_trial_cancelled_by_user: Quality trial cancelled by user
         empty_quality_report: No quality trial report yet. Run a quality trial first.
         empty_gold_labels: No labels for this month yet. Run recall probe and click one of the four feedback buttons.
         semantic_scale_queued: Queued
@@ -667,6 +671,7 @@ pages:
         semantic_scale_quality_failed: Quality Checks Failed
         semantic_scale_cancelled_by_user: Semantic scale soak cancelled by user
         empty_semantic_scale_history: No semantic scale soak history for this card yet.
+        empty_cleaning_queue_failures: No failed or dead-lettered WorkingMemory cleaning transactions.
       fields:
         health: Memory Health
         runtime_health: Runtime Health
@@ -744,6 +749,9 @@ pages:
         queue_failed: Failed
         queue_dead_lettered: Dead Letter
         dead_letter_items: Embedding Reindex Dead Letters
+        cleaning_queue_failures: WorkingMemory Cleaning Failures
+        recent_cleaning_retries: Recently Retried Cleaning Transactions
+        created_at: Created At
         attempt_count: Attempts
         recall_p95: P95 Latency
         index_mode: Index Mode
@@ -811,6 +819,34 @@ pages:
         replay_turn_trace: Per-turn Replay Trace
         last_error: Last Error
         recall_at_k: Recall@K
+        regression_metrics: Regression Metrics
+        recall_at_1: Recall@1
+        recall_at_3: Recall@3
+        recall_at_5: Recall@5
+        wrong_thread_rate: Wrong-Thread Rate
+        semantic_hit_rate: Semantic Hit Rate
+        source_trace_rate: Source Trace Rate
+        abstention_precision: Abstention Precision
+        abstention_recall: Abstention Recall
+        recall_p50: Recall P50
+        recall_p99: Recall P99
+        stale_memory_leak_rate: Stale Memory Leak Rate
+        temporal_update_accuracy: Temporal Update Accuracy
+        provider_failure_rate: Provider Failure Rate
+        queue_failure_rate: Queue Failure Rate
+        dead_letter_rate: Dead-Letter Rate
+        embedding_coverage_ratio: Embedding Coverage Ratio
+        provider_call_count: Provider Calls
+        provider_retry_count: Provider Retries
+        provider_p50: Provider P50 Latency
+        provider_p95: Provider P95 Latency
+        provider_p99: Provider P99 Latency
+        provider_trace: Per-Turn Provider Trace
+        provider_id: Provider ID
+        model_id: Model ID
+        latency_ms: Latency
+        finish_reason: Finish Reason
+        output_length: Output Length
         failing_stages: Failing Stages
         failing_fixtures: Failing Fixtures
         quality_findings: Quality Findings
@@ -838,6 +874,7 @@ pages:
         semantic_scale_description: Run real sqlite-vec 10k or 100k trials in an isolated temporary database. Jobs are recoverable and cancellable, and soak data never enters long-term memory.
         historical_replay: Historical Replay
         live_provider: Live Provider
+        live_provider_diagnostics: Live Provider Diagnostics
         session_title: Replay Session
         empty_sessions: No local sessions are available for replay
         session_user_turns: '{count} user turns'

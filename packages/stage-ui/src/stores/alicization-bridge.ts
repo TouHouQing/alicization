@@ -491,6 +491,8 @@ export type AlicizationMemoryReplaySessionSummary = SharedMemoryWorkbench.Aliciz
 export type AlicizationMemoryReplaySessionListPayload = SharedMemoryWorkbench.AlicizationMemoryReplaySessionListPayload
 export type AlicizationMemoryReplaySessionListResult = SharedMemoryWorkbench.AlicizationMemoryReplaySessionListResult
 export type AlicizationMemoryQualityTrialPayload = SharedMemoryWorkbench.AlicizationMemoryQualityTrialPayload
+export type AlicizationMemoryQualityTrialCancelPayload = SharedMemoryWorkbench.AlicizationMemoryQualityTrialCancelPayload
+export type AlicizationMemoryQualityTrialCancelResult = SharedMemoryWorkbench.AlicizationMemoryQualityTrialCancelResult
 export type AlicizationMemoryDialogueReplayReport = SharedMemoryWorkbench.AlicizationMemoryDialogueReplayReport
 export type AlicizationMemoryLiveProviderTrialReport = SharedMemoryWorkbench.AlicizationMemoryLiveProviderTrialReport
 export type AlicizationMemoryQualityTrialReport = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReport
@@ -703,6 +705,11 @@ export interface AlicizationMemoryEmbeddingReindexDeadLetterItem {
   attemptCount: number
   lastError: string | null
 }
+
+export type AlicizationWorkingMemoryCleaningQueueStatus = SharedMemoryWorkbench.AlicizationWorkingMemoryCleaningQueueStatus
+export type AlicizationWorkingMemoryCleaningQueueItem = SharedMemoryWorkbench.AlicizationWorkingMemoryCleaningQueueItem
+export type AlicizationWorkingMemoryCleaningQueuePayload = SharedMemoryWorkbench.AlicizationWorkingMemoryCleaningQueuePayload
+export type AlicizationWorkingMemoryCleaningQueueResult = SharedMemoryWorkbench.AlicizationWorkingMemoryCleaningQueueResult
 
 export interface AlicizationMemoryEmbeddingReindexResult {
   jobId?: string | null
@@ -2577,6 +2584,7 @@ interface AlicizationBridge {
   importLegacyMemory: (payload: AlicizationMemoryLegacySnapshot) => Promise<AlicizationMemoryMigrationResult>
   memoryWorkbenchGetSnapshot?: (payload?: { sessionId?: string | null }) => Promise<AlicizationMemoryWorkbenchSnapshot>
   memoryWorkbenchListLongTerm?: (payload: Omit<AlicizationMemoryWorkbenchListPayload, 'cardId'>) => Promise<AlicizationMemoryWorkbenchListResult>
+  memoryWorkbenchManageWorkingMemoryCleaningQueue?: (payload: Omit<AlicizationWorkingMemoryCleaningQueuePayload, 'cardId'>) => Promise<AlicizationWorkingMemoryCleaningQueueResult>
   memoryWorkbenchListReplaySessions?: (payload: Omit<AlicizationMemoryReplaySessionListPayload, 'cardId'>) => Promise<AlicizationMemoryReplaySessionListResult>
   memoryWorkbenchApplyReviewAction?: (payload: Omit<AlicizationMemoryReviewActionPayload, 'cardId'>) => Promise<AlicizationLongTermMemoryReviewItem | null>
   memoryWorkbenchRecallProbe?: (payload: Omit<AlicizationMemoryRecallProbePayload, 'cardId'>) => Promise<AlicizationMemoryRecallProbeResult>
@@ -2607,6 +2615,7 @@ interface AlicizationBridge {
   memoryWorkbenchListEmbeddingModels?: (payload: Omit<AlicizationMemoryEmbeddingModelListPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingModelListResult>
   memoryWorkbenchTestEmbeddingConnection?: (payload: Omit<AlicizationMemoryEmbeddingConnectionTestPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingConnectionTestResult>
   memoryWorkbenchRunQualityTrial?: (payload: Omit<AlicizationMemoryQualityTrialPayload, 'cardId'>) => Promise<AlicizationMemoryQualityTrialReport>
+  memoryWorkbenchCancelQualityTrial?: (payload: Omit<AlicizationMemoryQualityTrialCancelPayload, 'cardId'>) => Promise<AlicizationMemoryQualityTrialCancelResult>
   memoryWorkbenchRecordQualityGoldLabel?: (payload: Omit<AlicizationMemoryQualityGoldLabelPayload, 'cardId'>) => Promise<AlicizationMemoryQualityGoldLabelItem>
   memoryWorkbenchListQualityGoldLabels?: (payload: Omit<AlicizationMemoryQualityGoldLabelListPayload, 'cardId'>) => Promise<AlicizationMemoryQualityGoldLabelListResult>
   memoryWorkbenchBuildMonthlyGoldRegression?: (payload: Omit<AlicizationMemoryQualityMonthlyGoldRegressionPayload, 'cardId'>) => Promise<AlicizationMemoryQualityMonthlyGoldRegressionPack>

@@ -1,5 +1,6 @@
 import type { WorkingMemorySnapshot } from './life-core/working-memory'
 import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
+import type { MemoryLiveProviderTrialReport } from './memory-live-provider-trial'
 import type {
   MemoryScopeFuzzSurfaceView,
   MemoryScopeFuzzSurfaceViews,
@@ -13,6 +14,9 @@ import {
   buildLongTermMemoryQueryPlan,
   deriveLongTermMemoryRecallIntent,
 } from './long-term-memory-recall'
+import {
+  projectMemoryLiveProviderTrialToDialogueReplay,
+} from './memory-live-provider-trial'
 import {
   runMemoryProductionTrialRunner,
   serializeMemoryProductionTrialReport,
@@ -593,5 +597,140 @@ describe('memory production trial runner', () => {
         status: 'not-run',
       }),
     ]))
+  })
+
+  it('publishes regression metrics for recall, abstention, latency, provider, queue, and embedding health', async () => {
+    const report = await runMemoryProductionTrialRunner({
+      id: 'production-trial-regression-metrics',
+      cardId: 'alice-main',
+      createdAt: now,
+      longTerm: [{
+        fixture: {
+          id: 'regression-memory',
+          cardId: 'alice-main',
+          query: '你还记得 Provider 失败要透明吗？',
+          expectedTopIds: ['reflection-provider-failure'],
+          limit: 5,
+        },
+        recall: async () => recallBundle('你还记得 Provider 失败要透明吗？'),
+        now: vi.fn().mockReturnValueOnce(now).mockReturnValueOnce(now + 12),
+      }],
+      runtimeHealth: {
+        queue: {
+          pending: 2,
+          review: 1,
+          applied: 7,
+          failed: 1,
+          deadLettered: 1,
+        },
+        recall: {
+          lastLatencyMs: 12,
+          p95LatencyMs: 12,
+          lastError: null,
+        },
+        embedding: {
+          providerConfigured: true,
+          modelId: 'test-embedding',
+          dimensions: 3,
+          vectorSpaceId: 'test-space',
+          reindexRequired: false,
+          indexMode: 'sqlite-vec',
+          approximate: false,
+          degraded: false,
+          nativeIndexReady: true,
+          searchReady: true,
+          lastError: null,
+          canonicalCount: 10,
+          indexedCount: 9,
+          missingCount: 1,
+          textHashMismatchCount: 0,
+          staleOrFailedCount: 0,
+          orphanedCount: 0,
+          coverageRatio: 0.9,
+          reindexJob: null,
+        },
+        errors: [],
+      },
+    })
+
+    expect(report.regression).toEqual(expect.objectContaining({
+      recallAt1: 1,
+      recallAt3: 1,
+      recallAt5: 1,
+      wrongThreadRate: 0,
+      abstentionPrecision: 1,
+      p50LatencyMs: 12,
+      p95LatencyMs: 12,
+      p99LatencyMs: 12,
+      providerFailureRate: 0,
+      embeddingCoverageRatio: 0.9,
+    }))
+    expect(report.regression.queueFailureRate).toBeCloseTo(1 / 6, 4)
+    expect(report.regression.deadLetterRate).toBeCloseTo(1 / 12, 4)
+  })
+
+  it('fails the persona hygiene stage when the persisted dataset snapshot cannot be read', async () => {
+    const report = await runMemoryProductionTrialRunner({
+      id: 'production-trial-persona-snapshot-error',
+      cardId: 'alice-main',
+      createdAt: now,
+      personaTrainingError: 'persona dataset snapshot unavailable: sqlite is busy',
+    })
+
+    expect(report.passed).toBe(false)
+    expect(report.summary.failingStageIds).toContain('persona-dataset-hygiene')
+    expect(report.stages.find(stage => stage.id === 'persona-dataset-hygiene')).toMatchObject({
+      passed: false,
+      error: 'persona dataset snapshot unavailable: sqlite is busy',
+    })
+    expect(report.recommendedNextActions).toContain('修复 Persona/LoRA 数据集快照读取失败后再相信本次生产试用结果。')
+  })
+
+  it('uses the live Provider failure metric instead of the projected replay failure metric', async () => {
+    const liveProviderTrial: MemoryLiveProviderTrialReport = {
+      version: 'memory-live-provider-trial-v1',
+      id: 'live-provider-metric-source',
+      cardId: 'alice-main',
+      sessionId: 'session-live-provider',
+      createdAt: now,
+      passed: false,
+      summary: {
+        turnCount: 4,
+        succeededTurnCount: 1,
+        failedTurnCount: 3,
+        recalledEvidenceCount: 1,
+        providerCallCount: 1,
+        providerRetryCount: 2,
+        providerFailureRate: 0.75,
+        p50LatencyMs: 20,
+        p95LatencyMs: 30,
+        p99LatencyMs: 30,
+        lastError: 'provider failed',
+      },
+      turns: [],
+      productionWrites: [],
+    }
+    const report = await runMemoryProductionTrialRunner({
+      id: 'production-trial-live-provider-metric-source',
+      cardId: 'alice-main',
+      createdAt: now,
+      dialogueReplay: async () => ({
+        id: liveProviderTrial.id,
+        passed: true,
+        turnCount: 4,
+        report: {
+          ...projectMemoryLiveProviderTrialToDialogueReplay(liveProviderTrial),
+          passed: true,
+          summary: {
+            ...projectMemoryLiveProviderTrialToDialogueReplay(liveProviderTrial).summary,
+            failedTurnCount: 0,
+            lastError: null,
+          },
+        },
+        liveProviderTrial,
+      }),
+    })
+
+    expect(report.regression.providerFailureRate).toBe(0.75)
   })
 })

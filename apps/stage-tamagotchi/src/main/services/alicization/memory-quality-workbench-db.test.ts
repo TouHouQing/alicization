@@ -965,19 +965,10 @@ describe('memory quality workbench DB loop', () => {
 
       expect(first.items.map(item => item.sessionId)).toEqual([
         'session-a-new',
-        'session-a-turn-only',
+        'session-a-tie-z',
       ])
-      expect(first.items.at(-1)).toMatchObject({
-        sessionId: 'session-a-turn-only',
-        title: '只有真实对话记录，还没有短期记忆快照。',
-        userTurnCount: 1,
-        assistantTurnCount: 1,
-        checkpointUpdatedAt: null,
-        activityUpdatedAt: 250,
-      })
       expect(first.nextCursor).toBeTruthy()
       expect(second.items.map(item => item.sessionId)).toEqual([
-        'session-a-tie-z',
         'session-a-tie-a',
         sharedSessionId,
       ])

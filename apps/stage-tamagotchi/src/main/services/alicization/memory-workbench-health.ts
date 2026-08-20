@@ -37,10 +37,8 @@ export function summarizeMemoryWorkbenchQueueRows(rows: Array<{ status: string }
     else if (row.status === 'failed') {
       summary.failed += 1
     }
-    else if (row.status === 'dead-lettered' || row.status === 'rejected') {
-      summary.failed += 1
-      if (row.status === 'dead-lettered')
-        summary.deadLettered += 1
+    else if (row.status === 'dead-lettered') {
+      summary.deadLettered += 1
     }
     return summary
   }, {

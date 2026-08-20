@@ -51,6 +51,17 @@ export interface AlicizationMemoryQualityTrialPayload {
   sessionId: string
 }
 
+export interface AlicizationMemoryQualityTrialCancelPayload {
+  cardId: string
+  reason?: string | null
+}
+
+export interface AlicizationMemoryQualityTrialCancelResult {
+  cardId: string
+  cancelled: boolean
+  reason: string | null
+}
+
 export interface AlicizationMemoryDialogueReplayStageDetails {
   changed?: boolean
   found?: boolean
@@ -134,6 +145,11 @@ export interface AlicizationMemoryLiveProviderTrialReport {
     failedTurnCount: number
     recalledEvidenceCount: number
     providerCallCount: number
+    providerRetryCount: number
+    providerFailureRate: number
+    p50LatencyMs: number
+    p95LatencyMs: number
+    p99LatencyMs: number
     lastError: string | null
   }
   turns: Array<AlicizationMemoryDialogueReplayTurn & {
@@ -535,6 +551,7 @@ export interface AlicizationMemoryQualityLongTermTrace {
 
 export interface AlicizationMemoryQualityLongTermResult {
   fixtureId: string
+  expectedTopIds?: string[]
   bundle: AlicizationLongTermMemoryEvidenceBundle
   topIds: string[]
   metrics: AlicizationMemoryQualityLongTermMetrics
@@ -1164,6 +1181,17 @@ export interface AlicizationMemoryQualityTrialReport {
       personaTrainingFixtureCount: number
       failingFixtureIds: string[]
       recallAtK: number
+      recallAt1: number
+      recallAt3: number
+      recallAt5: number
+      wrongThreadRate: number
+      semanticHitRate: number
+      sourceTraceRate: number
+      abstentionPrecision: number
+      abstentionRecall: number
+      p50LatencyMs: number
+      p95LatencyMs: number
+      p99LatencyMs: number
       compressionLossCount: number
       blockedLeakCount: number
       optimizationFindingCount: number
@@ -1176,6 +1204,25 @@ export interface AlicizationMemoryQualityTrialReport {
     personaTraining: AlicizationPersonaTrainingDatasetQualityResult[]
     optimizationFindings: AlicizationMemoryQualityOptimizationFinding[]
     recommendedNextActions: string[]
+  }
+  regression: {
+    recallAt1: number
+    recallAt3: number
+    recallAt5: number
+    wrongThreadRate: number
+    semanticHitRate: number
+    sourceTraceRate: number
+    abstentionPrecision: number
+    abstentionRecall: number
+    p50LatencyMs: number
+    p95LatencyMs: number
+    p99LatencyMs: number
+    staleMemoryLeakRate: number | null
+    temporalUpdateAccuracy: number | null
+    providerFailureRate: number
+    queueFailureRate: number
+    deadLetterRate: number
+    embeddingCoverageRatio: number | null
   }
   compressedContextBehavior: AlicizationWorkingMemoryCompressionBehaviorReport | null
   temporalConflict: AlicizationLongTermMemoryTemporalConflictReport | null
@@ -1230,6 +1277,37 @@ export interface AlicizationMemorySemanticScaleJobPayload {
 export interface AlicizationMemorySemanticScaleJobResult {
   job: AlicizationMemorySemanticScaleJob | null
   jobs: AlicizationMemorySemanticScaleJob[]
+}
+
+export type AlicizationWorkingMemoryCleaningQueueStatus
+  = | 'pending-cleaning'
+    | 'failed'
+    | 'dead-lettered'
+
+export interface AlicizationWorkingMemoryCleaningQueueItem {
+  itemId: string
+  source: string
+  sourceId: string
+  status: AlicizationWorkingMemoryCleaningQueueStatus
+  attemptCount: number
+  lastError: string | null
+  createdAt: number
+  updatedAt: number
+  nextAttemptAt: number | null
+}
+
+export interface AlicizationWorkingMemoryCleaningQueuePayload {
+  cardId: string
+  action?: 'list' | 'retry-dead-letter'
+  itemIds?: string[]
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationWorkingMemoryCleaningQueueResult {
+  items: AlicizationWorkingMemoryCleaningQueueItem[]
+  nextCursor: string | null
+  retried: AlicizationWorkingMemoryCleaningQueueItem[]
 }
 
 export type AlicizationPersonaTrainingPipelineIncrementState = 'available' | 'rolled-back' | 'revoked'

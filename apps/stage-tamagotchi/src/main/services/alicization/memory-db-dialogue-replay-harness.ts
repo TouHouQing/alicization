@@ -26,15 +26,18 @@ export interface MemoryDialogueReplayDatabase {
   getWorkingMemoryCheckpoint: (
     cardId: string,
     sessionId: string,
+    signal?: AbortSignal,
   ) => Promise<WorkingMemorySnapshot | null>
   upsertWorkingMemoryCheckpoint: (
     snapshot: WorkingMemorySnapshot,
+    signal?: AbortSignal,
   ) => Promise<void>
   retrieveLongTermMemoryEvidence: (
     input: MemoryDialogueReplayRecallInput,
+    signal?: AbortSignal,
   ) => Promise<LongTermMemoryEvidenceBundle>
-  readPersonaState?: () => Promise<unknown>
-  persistPersonaState?: (next: unknown) => Promise<void>
+  readPersonaState?: (signal?: AbortSignal) => Promise<unknown>
+  persistPersonaState?: (next: unknown, signal?: AbortSignal) => Promise<void>
 }
 
 export interface MemoryDialogueReplayProviderMessage {
@@ -48,6 +51,7 @@ export interface MemoryDialogueReplayProviderInput {
   memoryContext: AlicizationMainChatMemoryContext
   workingMemory: WorkingMemorySnapshot
   recalledMemory: LongTermMemoryEvidenceBundle
+  signal: AbortSignal
 }
 
 export interface MemoryDialogueReplayProviderOutput {
@@ -79,6 +83,7 @@ export interface MemoryDialogueReplayInput {
   provider: MemoryDialogueReplayProviderAdapter
   maxRawTurns?: number
   recallLimit?: number
+  signal?: AbortSignal
 }
 
 export type MemoryDialogueReplayStageName
@@ -137,6 +142,49 @@ function normalizeText(raw: unknown, maxChars: number) {
 
 function errorText(error: unknown) {
   return errorMessageFrom(error)?.trim() || String(error ?? 'Unknown replay error')
+}
+
+function abortError(signal: AbortSignal) {
+  const reason = signal.reason
+  if (reason instanceof Error)
+    return reason
+  if (typeof reason === 'string' && reason.trim())
+    return new Error(reason.trim())
+  return new Error('memory dialogue replay cancelled')
+}
+
+function assertReplayNotAborted(signal: AbortSignal) {
+  if (signal.aborted)
+    throw abortError(signal)
+}
+
+async function awaitReplayOperation<T>(
+  operation: () => Promise<T>,
+  signal: AbortSignal,
+) {
+  assertReplayNotAborted(signal)
+  const promise = operation()
+  if (signal.aborted)
+    throw abortError(signal)
+
+  return await new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(abortError(signal))
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      },
+    )
+  })
+}
+
+function getReplaySignal(signal?: AbortSignal) {
+  return signal ?? new AbortController().signal
 }
 
 function createStage(
@@ -221,8 +269,10 @@ function buildWorkingMemoryForTurn(input: {
 async function replayTurn(input: {
   replay: MemoryDialogueReplayInput
   turn: MemoryDialogueReplayTurnInput
+  signal: AbortSignal
+  databaseSignal?: AbortSignal
 }): Promise<MemoryDialogueReplayTurnReport> {
-  const { replay, turn } = input
+  const { replay, turn, signal, databaseSignal } = input
   const stages: MemoryDialogueReplayStage[] = []
   const writeback: MemoryDialogueReplayWriteback = {
     checkpoint: 'skipped',
@@ -231,9 +281,11 @@ async function replayTurn(input: {
   let hydratedSnapshot: WorkingMemorySnapshot | null = null
 
   try {
-    hydratedSnapshot = await replay.db.getWorkingMemoryCheckpoint(
-      replay.cardId,
-      replay.sessionId,
+    hydratedSnapshot = await awaitReplayOperation(
+      () => databaseSignal
+        ? replay.db.getWorkingMemoryCheckpoint(replay.cardId, replay.sessionId, databaseSignal)
+        : replay.db.getWorkingMemoryCheckpoint(replay.cardId, replay.sessionId),
+      signal,
     )
     stages.push(createStage('hydration', {
       source: 'persistent-working-memory-checkpoint',
@@ -257,6 +309,7 @@ async function replayTurn(input: {
 
   let workingMemory: WorkingMemorySnapshot
   try {
+    assertReplayNotAborted(signal)
     workingMemory = buildWorkingMemoryForTurn({
       replay,
       turn,
@@ -287,6 +340,7 @@ async function replayTurn(input: {
 
   let initialMemoryContext: AlicizationMainChatMemoryContext
   try {
+    assertReplayNotAborted(signal)
     initialMemoryContext = buildAlicizationMainChatMemoryContext({
       workingMemory: buildWorkingMemoryOwnerContext(workingMemory),
       workingMemorySnapshot: workingMemory,
@@ -316,7 +370,7 @@ async function replayTurn(input: {
 
   let recalledMemory: LongTermMemoryEvidenceBundle
   try {
-    recalledMemory = await replay.db.retrieveLongTermMemoryEvidence({
+    const recallInput: MemoryDialogueReplayRecallInput = {
       cardId: replay.cardId,
       userId: replay.userId,
       currentUserText: turn.userText,
@@ -324,7 +378,13 @@ async function replayTurn(input: {
       currentThreadTitle: initialMemoryContext.workingMemory.current.threadTitle,
       activeTask: initialMemoryContext.workingMemory.current.activeTask,
       limit: replay.recallLimit ?? 5,
-    })
+    }
+    recalledMemory = await awaitReplayOperation(
+      () => databaseSignal
+        ? replay.db.retrieveLongTermMemoryEvidence(recallInput, databaseSignal)
+        : replay.db.retrieveLongTermMemoryEvidence(recallInput),
+      signal,
+    )
     stages.push(createStage('recall', {
       source: 'persistent-long-term-memory-recall',
       status: recalledMemory.evidence.length > 0 ? 'recalled' : 'empty',
@@ -358,13 +418,19 @@ async function replayTurn(input: {
   )
 
   try {
-    const providerOutput = await replay.provider.generate({
-      turnId: turn.turnId,
-      messages: providerMessages,
-      memoryContext: providerMemoryContext,
-      workingMemory,
-      recalledMemory,
-    })
+    assertReplayNotAborted(signal)
+    const providerOutput = await awaitReplayOperation(
+      () => replay.provider.generate({
+        turnId: turn.turnId,
+        messages: providerMessages,
+        memoryContext: providerMemoryContext,
+        workingMemory,
+        recalledMemory,
+        signal,
+      }),
+      signal,
+    )
+    assertReplayNotAborted(signal)
     const assistantText = normalizeText(providerOutput.text, 4_000)
     if (!assistantText)
       throw new Error('provider adapter returned empty text')
@@ -380,13 +446,24 @@ async function replayTurn(input: {
       assistantText,
       memoryEvidence: providerOutput.memoryEvidence ?? null,
     })
-    await replay.db.upsertWorkingMemoryCheckpoint(committedWorkingMemory)
+    await awaitReplayOperation(
+      () => databaseSignal
+        ? replay.db.upsertWorkingMemoryCheckpoint(committedWorkingMemory, databaseSignal)
+        : replay.db.upsertWorkingMemoryCheckpoint(committedWorkingMemory),
+      signal,
+    )
     writeback.checkpoint = 'written'
 
     if (providerOutput.personaState !== undefined && replay.db.persistPersonaState) {
-      await replay.db.persistPersonaState(providerOutput.personaState)
+      await awaitReplayOperation(
+        () => databaseSignal
+          ? replay.db.persistPersonaState!(providerOutput.personaState, databaseSignal)
+          : replay.db.persistPersonaState!(providerOutput.personaState),
+        signal,
+      )
       writeback.persona = 'written'
     }
+    assertReplayNotAborted(signal)
     stages.push(createStage('commit', {
       checkpointUpdatedAt: committedWorkingMemory.updatedAt,
       persistedPersona: writeback.persona === 'written',
@@ -426,12 +503,17 @@ async function replayTurn(input: {
 export async function replayMemoryDialogue(
   input: MemoryDialogueReplayInput,
 ): Promise<MemoryDialogueReplayReport> {
+  const signal = getReplaySignal(input.signal)
   const turns: MemoryDialogueReplayTurnReport[] = []
   for (const turn of input.turns) {
     turns.push(await replayTurn({
       replay: input,
       turn,
+      signal,
+      databaseSignal: input.signal,
     }))
+    if (signal.aborted)
+      break
   }
 
   const succeededTurnCount = turns.filter(turn => turn.status === 'succeeded').length
