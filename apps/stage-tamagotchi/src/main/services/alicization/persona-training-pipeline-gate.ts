@@ -2302,6 +2302,22 @@ export function createPersonaTrainingPipelineGate(input: {
     }
   }
 
+  function pendingRestartActivationForCandidate(
+    candidate: PersonaTrainingRestartCandidate,
+  ) {
+    const increment = candidate.increment
+    if (!increment)
+      return null
+    return [...activationIntents.values()].find(intent =>
+      intent.mode === 'restart'
+      && intent.status === 'pending'
+      && intent.cardId === candidate.run.cardId
+      && intent.runId === candidate.run.runId
+      && intent.incrementId === increment.id
+      && intent.artifactId === increment.artifact.artifactId,
+    ) ?? null
+  }
+
   async function cleanupRestartCandidate(inputData: {
     candidate: PersonaTrainingRestartCandidate
     artifact: AlicizationPersonaTrainingArtifact
@@ -2312,9 +2328,19 @@ export function createPersonaTrainingPipelineGate(input: {
     const increment = inputData.candidate.increment
     if (!increment)
       return false
+    const pendingActivation = pendingRestartActivationForCandidate(inputData.candidate)
+    let artifact = inputData.artifact
     try {
+      if (pendingActivation) {
+        await handoffArtifactActivationToCleanup({
+          intent: pendingActivation,
+          reason: inputData.reason,
+          transition: restartRollbackTransition(increment, inputData.reason),
+        })
+        artifact = pendingActivation.activatedArtifact ?? pendingActivation.artifact
+      }
       await discardArtifactWithRecovery({
-        artifact: inputData.artifact,
+        artifact,
         cardId: increment.cardId,
         runId: increment.artifact.runId,
         incrementId: increment.id,

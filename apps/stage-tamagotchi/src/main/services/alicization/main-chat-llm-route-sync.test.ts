@@ -25,6 +25,8 @@ function createInput(overrides?: Partial<Parameters<typeof syncAlicizationMainCh
     },
     normalizeProviderConfig: vi.fn((value: unknown) => value && typeof value === 'object' ? value as Record<string, unknown> : {}),
     getProviderCredentials: vi.fn(() => providerCredentials),
+    getActiveProviderId: vi.fn(() => 'openai'),
+    getActiveModelId: vi.fn(() => 'gpt-4o-mini'),
     setProviderCredentials: vi.fn(),
     setActiveProviderId: vi.fn(),
     setActiveModelId: vi.fn(),
@@ -65,6 +67,31 @@ describe('main chat llm route sync', () => {
     const result = await syncAlicizationMainChatLlmRoute(input)
 
     expect(input.setProviderCredentials).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      activeProviderId: 'openai',
+      activeModelId: 'gpt-4o-mini',
+      persistedConfigKeys: ['apiKey'],
+    })
+  })
+
+  it('does not replace the user-selected active route when Persona is only an overlay', async () => {
+    const input = createInput({
+      mainGateway: {
+        providerId: 'llama.cpp-persona',
+        model: 'alice-persona',
+        baseUrl: 'http://127.0.0.1:18181/v1/',
+        probeHeaders: {},
+        provider: {} as never,
+      },
+      providerConfig: {},
+      getActiveProviderId: vi.fn(() => 'openai'),
+      getActiveModelId: vi.fn(() => 'gpt-4o-mini'),
+    })
+
+    const result = await syncAlicizationMainChatLlmRoute(input)
+
+    expect(input.setActiveProviderId).not.toHaveBeenCalled()
+    expect(input.setActiveModelId).not.toHaveBeenCalled()
     expect(result).toEqual({
       activeProviderId: 'openai',
       activeModelId: 'gpt-4o-mini',

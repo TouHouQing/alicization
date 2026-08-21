@@ -6084,7 +6084,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
     ]))
   })
 
-  it('reports dead-lettered long-term drain work as a partial owner failure', async () => {
+  it.each(['failed', 'dead-lettered'] as const)('reports %s long-term drain work as a partial owner failure', async (status) => {
     const enqueueWorkingMemoryLongTermQueue = vi.fn<WorkingMemoryLongTermQueueEnqueue>(async () => {})
     const drainWorkingMemoryLongTermQueue = vi.fn(async () => ({
       cleaned: 0,
@@ -6106,7 +6106,7 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       settlements: input.queueItemIds.map(queueItemId => ({
         queueItemId,
         transactionId: `transaction:${queueItemId}`,
-        status: 'dead-lettered' as const,
+        status,
         errorSummary: 'projection failed',
       })),
     }))

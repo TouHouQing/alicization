@@ -3,6 +3,7 @@ import type {
   AlicizationCardScope,
   AlicizationMemoryUpsertFactsPayload,
   AlicizationMindTurnEventInput,
+  AlicizationPersonaRuntimeConfig,
   AlicizationPersonaTrainingExecutorConfig,
   AlicizationReminderSchedulePayload,
 } from '../../../shared/eventa'
@@ -21,7 +22,9 @@ import {
   electronAlicizationMemoryWorkbenchApplyReviewAction,
   electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression,
   electronAlicizationMemoryWorkbenchCancelPersonaTraining,
+  electronAlicizationMemoryWorkbenchCancelQualityTrial,
   electronAlicizationMemoryWorkbenchExportPersonaTrainingDataset,
+  electronAlicizationMemoryWorkbenchGetPersonaRuntimeConfig,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingExecutorConfig,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingRun,
@@ -34,6 +37,7 @@ import {
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
   electronAlicizationMemoryWorkbenchListReplaySessions,
   electronAlicizationMemoryWorkbenchManageSemanticScaleJobs,
+  electronAlicizationMemoryWorkbenchManageWorkingMemoryCleaningQueue,
   electronAlicizationMemoryWorkbenchRecallProbe,
   electronAlicizationMemoryWorkbenchRecordQualityGoldLabel,
   electronAlicizationMemoryWorkbenchReindexEmbeddings,
@@ -42,10 +46,12 @@ import {
   electronAlicizationMemoryWorkbenchRollbackPersonaTrainingIncrement,
   electronAlicizationMemoryWorkbenchRunPersonaTraining,
   electronAlicizationMemoryWorkbenchRunQualityTrial,
+  electronAlicizationMemoryWorkbenchSetPersonaRuntimeConfig,
   electronAlicizationMemoryWorkbenchSetPersonaTrainingDatasetExamplePolicy,
   electronAlicizationMemoryWorkbenchSetPersonaTrainingExecutorConfig,
   electronAlicizationMemoryWorkbenchStagePersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchTestEmbeddingConnection,
+  electronAlicizationMemoryWorkbenchTestPersonaRuntime,
   electronAlicizationMemoryWorkbenchTestPersonaTrainingExecutor,
   electronAlicizationReminderSchedule,
   electronAlicizationRunMemoryPrune,
@@ -106,6 +112,21 @@ interface RegisterAlicizationMemoryInvokeHandlersOptions {
     executable: string
     error: string | null
   }>
+  getPersonaRuntimeConfig: () => {
+    configured: boolean
+    config: AlicizationPersonaRuntimeConfig | null
+    active: boolean
+    artifactId: string | null
+    routeBaseUrl: string | null
+    error: string | null
+  }
+  setPersonaRuntimeConfig: (config: AlicizationPersonaRuntimeConfig | null) => Promise<ReturnType<RegisterAlicizationMemoryInvokeHandlersOptions['getPersonaRuntimeConfig']>>
+  testPersonaRuntime: (config: AlicizationPersonaRuntimeConfig | null) => Promise<{
+    ok: boolean
+    executable: string
+    baseUrl: string | null
+    error: string | null
+  }>
 }
 
 export function registerAlicizationMemoryInvokeHandlers(options: RegisterAlicizationMemoryInvokeHandlersOptions) {
@@ -130,7 +151,11 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     getPersonaTrainingExecutorConfig,
     setPersonaTrainingExecutorConfig,
     testPersonaTrainingExecutor,
+    getPersonaRuntimeConfig,
+    setPersonaRuntimeConfig,
+    testPersonaRuntime,
   } = options
+  const qualityTrialControllers = new Map<string, AbortController>()
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchGetSnapshot, async payload => await withCardScope(payload.cardId, async () => {
     const cardId = cardIdFrom(payload)
@@ -163,12 +188,38 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     })
   }))
 
-  registerInvokeHandler(electronAlicizationMemoryWorkbenchRunQualityTrial, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().runMemoryWorkbenchProductionTrial({
-    cardId: cardIdFrom(payload),
-    mode: payload.mode === 'live-provider' ? 'live-provider' : 'historical-replay',
-    month: sanitizeText(payload.month, '') || null,
-    sessionId: sanitizeText(payload.sessionId, '') || null,
-  })))
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchRunQualityTrial, async (payload) => {
+    const cardId = cardIdFrom(payload)
+    qualityTrialControllers.get(cardId)?.abort(new Error('quality trial superseded by a newer run'))
+    const controller = new AbortController()
+    qualityTrialControllers.set(cardId, controller)
+    try {
+      return await withCardScope(payload.cardId, async () => await getAlicizationDb().runMemoryWorkbenchProductionTrial({
+        cardId,
+        mode: payload.mode === 'live-provider' ? 'live-provider' : 'historical-replay',
+        month: sanitizeText(payload.month, '') || null,
+        sessionId: sanitizeText(payload.sessionId, '') || null,
+        signal: controller.signal,
+      }))
+    }
+    finally {
+      if (qualityTrialControllers.get(cardId) === controller)
+        qualityTrialControllers.delete(cardId)
+    }
+  })
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchCancelQualityTrial, async (payload) => {
+    const cardId = cardIdFrom(payload)
+    const reason = sanitizeText(payload.reason, '') || 'quality trial cancelled by user'
+    const controller = qualityTrialControllers.get(cardId)
+    if (controller && !controller.signal.aborted)
+      controller.abort(new Error(reason))
+    return {
+      cardId,
+      cancelled: Boolean(controller),
+      reason: controller ? reason : null,
+    }
+  })
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchListReplaySessions, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().listMemoryWorkbenchReplaySessions({
     cardId: cardIdFrom(payload),
@@ -213,6 +264,16 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     source: payload.source,
     limit: payload.limit,
     cursor: payload.cursor,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchManageWorkingMemoryCleaningQueue, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().manageMemoryWorkbenchWorkingMemoryCleaningQueue({
+    cardId: cardIdFrom(payload),
+    action: payload.action === 'retry-dead-letter' ? 'retry-dead-letter' : 'list',
+    itemIds: Array.isArray(payload.itemIds)
+      ? [...new Set(payload.itemIds.map((id: unknown) => sanitizeText(id)).filter(Boolean))]
+      : undefined,
+    limit: payload.limit,
+    cursor: sanitizeText(payload.cursor, '') || null,
   })))
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchApplyReviewAction, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().applyMemoryWorkbenchReviewAction({
@@ -365,6 +426,9 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
   registerInvokeHandler(electronAlicizationMemoryWorkbenchSetPersonaTrainingExecutorConfig, async payload => await withCardScope(payload.cardId, async () => await setPersonaTrainingExecutorConfig(payload.config)))
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchTestPersonaTrainingExecutor, async payload => await withCardScope(payload.cardId, async () => await testPersonaTrainingExecutor(payload.config)))
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchGetPersonaRuntimeConfig, async payload => await withCardScope(payload.cardId, async () => getPersonaRuntimeConfig()))
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchSetPersonaRuntimeConfig, async payload => await withCardScope(payload.cardId, async () => await setPersonaRuntimeConfig(payload.config)))
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchTestPersonaRuntime, async payload => await withCardScope(payload.cardId, async () => await testPersonaRuntime(payload.config)))
 
   registerInvokeHandler(electronAlicizationGetMemoryStats, async scope => await withCardScope(cardIdFrom(scope), async () => await getAlicizationDb().getMemoryStats()))
   registerInvokeHandler(electronAlicizationGetOrganicMemorySnapshot, async scope => await withCardScope(cardIdFrom(scope), async () => await getOrganicMemorySnapshot()))

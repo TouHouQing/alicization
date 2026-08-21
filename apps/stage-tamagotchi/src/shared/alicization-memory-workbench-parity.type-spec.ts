@@ -39,6 +39,8 @@ type Assignable<Source, Target> = Source extends Target ? true : false
 
 type MemoryWorkbenchTransportParity = [
   Assert<Equal<Eventa.AlicizationMemoryQualityTrialPayload, Shared.AlicizationMemoryQualityTrialPayload>>,
+  Assert<Equal<Eventa.AlicizationMemoryQualityTrialCancelPayload, Shared.AlicizationMemoryQualityTrialCancelPayload>>,
+  Assert<Equal<Eventa.AlicizationMemoryQualityTrialCancelResult, Shared.AlicizationMemoryQualityTrialCancelResult>>,
   Assert<Equal<Eventa.AlicizationMemoryDialogueReplayReport, Shared.AlicizationMemoryDialogueReplayReport>>,
   Assert<Equal<Eventa.AlicizationMemoryLiveProviderTrialReport, Shared.AlicizationMemoryLiveProviderTrialReport>>,
   Assert<Equal<Eventa.AlicizationMemoryQualityTrialReport, Shared.AlicizationMemoryQualityTrialReport>>,
@@ -52,6 +54,10 @@ type MemoryWorkbenchTransportParity = [
   Assert<Equal<Eventa.AlicizationMemorySemanticScaleJob, Shared.AlicizationMemorySemanticScaleJob>>,
   Assert<Equal<Eventa.AlicizationMemorySemanticScaleJobPayload, Shared.AlicizationMemorySemanticScaleJobPayload>>,
   Assert<Equal<Eventa.AlicizationMemorySemanticScaleJobResult, Shared.AlicizationMemorySemanticScaleJobResult>>,
+  Assert<Equal<Eventa.AlicizationWorkingMemoryCleaningQueueStatus, Shared.AlicizationWorkingMemoryCleaningQueueStatus>>,
+  Assert<Equal<Eventa.AlicizationWorkingMemoryCleaningQueueItem, Shared.AlicizationWorkingMemoryCleaningQueueItem>>,
+  Assert<Equal<Eventa.AlicizationWorkingMemoryCleaningQueuePayload, Shared.AlicizationWorkingMemoryCleaningQueuePayload>>,
+  Assert<Equal<Eventa.AlicizationWorkingMemoryCleaningQueueResult, Shared.AlicizationWorkingMemoryCleaningQueueResult>>,
   Assert<Equal<Eventa.AlicizationPersonaTrainingPipelineIncrementState, Shared.AlicizationPersonaTrainingPipelineIncrementState>>,
   Assert<Equal<Eventa.AlicizationPersonaTrainingPipelineIncrement, Shared.AlicizationPersonaTrainingPipelineIncrement>>,
   Assert<Equal<Eventa.AlicizationPersonaTrainingPipelineFailureReason, Shared.AlicizationPersonaTrainingPipelineFailureReason>>,

@@ -323,6 +323,7 @@ interface CreateAlicizationMainChatSessionRuntimeOptions {
         | 'needs-user-review'
         | 'admitted'
         | 'applied'
+        | 'failed'
         | 'dead-lettered'
         | 'missing'
       errorSummary: string | null
@@ -2882,7 +2883,9 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
                 errorSummary: 'queue item settlement was not returned',
               },
             )
-            const failed = settlements.filter(settlement => settlement.status === 'dead-lettered').length
+            const failed = settlements.filter(settlement =>
+              settlement.status === 'failed' || settlement.status === 'dead-lettered',
+            ).length
             const pending = settlements.filter(settlement =>
               settlement.status === 'pending-cleaning'
               || settlement.status === 'cleaning'

@@ -88,6 +88,25 @@ const systemPreferencesGetMediaAccessStatusMock = vi.fn(() => 'granted')
 const taskThreadOrchestratorDisposeMock = vi.fn(async (drain: () => Promise<void>) => {
   await drain()
 })
+const personaRuntimeDisposeMock = vi.fn().mockResolvedValue(undefined)
+const createLlamaCppPersonaRuntimeMock = vi.fn(() => ({
+  loader: {
+    load: vi.fn(),
+    unload: vi.fn(),
+  },
+  getRoute: vi.fn(() => null),
+  getSnapshot: vi.fn(() => ({
+    configured: false,
+    config: null,
+    active: false,
+    artifactId: null,
+    routeBaseUrl: null,
+    error: null,
+  })),
+  setConfig: vi.fn(),
+  dispose: personaRuntimeDisposeMock,
+  testConnection: vi.fn(),
+}))
 const localBrowserAutomationOverrides: {
   clickElement?: (input: any) => Promise<any>
   clickDesktopElement?: (input: any) => Promise<any>
@@ -483,6 +502,11 @@ vi.mock('./db', () => ({
   setupAlicizationDb: vi.fn(async () => dbStub),
 }))
 
+vi.mock('./llama-cpp-persona-runtime', () => ({
+  createLlamaCppPersonaRuntime: createLlamaCppPersonaRuntimeMock,
+  normalizeAlicizationPersonaRuntimeConfig: (input: unknown) => input,
+}))
+
 vi.mock('./task-thread-orchestrator', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./task-thread-orchestrator')>()
   return {
@@ -852,6 +876,8 @@ describe('alicization runtime audit helpers', () => {
     listWebContentsMock.mockReset().mockReturnValue([])
     desktopCapturerGetSourcesMock.mockReset().mockResolvedValue([])
     systemPreferencesGetMediaAccessStatusMock.mockReset().mockReturnValue('granted')
+    personaRuntimeDisposeMock.mockReset().mockResolvedValue(undefined)
+    createLlamaCppPersonaRuntimeMock.mockClear()
     dbStub.getTaskThread.mockReset().mockResolvedValue(undefined)
     dbStub.listTaskThreads.mockReset().mockResolvedValue([])
     dbStub.listMemoryConsolidations.mockReset().mockResolvedValue([])
@@ -935,6 +961,19 @@ describe('alicization runtime audit helpers', () => {
     expect(afterGenesis.soulPath.startsWith(sandboxPath)).toBe(true)
     expect(afterGenesis.needsGenesis).toBe(false)
     expect(afterGenesis.watching).toBe(true)
+  })
+
+  it('passes a stable user-data-scoped process state path to the local Persona runtime', async () => {
+    const sandboxPath = await createSandboxPath()
+
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    expect(createLlamaCppPersonaRuntimeMock).toHaveBeenCalledWith({
+      getConfig: expect.any(Function),
+      processStatePath: join(sandboxPath, 'alicizations', 'persona-runtime-process.json'),
+    })
   })
 
   it('keeps the trainer config in memory when clearing its persisted file fails outside ENOENT', async () => {
@@ -1053,6 +1092,17 @@ describe('alicization runtime audit helpers', () => {
     })
 
     await expect(runAppBeforeQuitHandlers()).rejects.toThrow('sqlite close unavailable')
+  })
+
+  it('disposes the local Persona runtime even when sqlite close fails during app shutdown', async () => {
+    const sandboxPath = await createSandboxPath()
+    dbStub.close.mockRejectedValueOnce(new Error('sqlite close unavailable'))
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+
+    await expect(runAppBeforeQuitHandlers()).rejects.toThrow('sqlite close unavailable')
+    expect(personaRuntimeDisposeMock).toHaveBeenCalledOnce()
   })
 
   it('stops and resumes sensory polling with kill switch state', async () => {

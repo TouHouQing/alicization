@@ -54,11 +54,26 @@ export interface DbBackedLongTermMemoryQualityInput {
 
 export interface DbBackedLongTermMemoryQualityResult {
   fixtureId: string
+  expectedTopIds?: string[]
   bundle: LongTermMemoryEvidenceBundle
   topIds: string[]
   metrics: LongTermMemoryHarnessMetrics
   trace: LongTermMemoryHarnessTrace
   passed: boolean
+}
+
+export interface MemoryQualityHarnessRegressionMetrics {
+  recallAt1: number
+  recallAt3: number
+  recallAt5: number
+  wrongThreadRate: number
+  semanticHitRate: number
+  sourceTraceRate: number
+  abstentionPrecision: number
+  abstentionRecall: number
+  p50LatencyMs: number
+  p95LatencyMs: number
+  p99LatencyMs: number
 }
 
 export interface MemoryQualityHarnessReport {
@@ -72,6 +87,17 @@ export interface MemoryQualityHarnessReport {
     personaTrainingFixtureCount: number
     failingFixtureIds: string[]
     recallAtK: number
+    recallAt1: number
+    recallAt3: number
+    recallAt5: number
+    wrongThreadRate: number
+    semanticHitRate: number
+    sourceTraceRate: number
+    abstentionPrecision: number
+    abstentionRecall: number
+    p50LatencyMs: number
+    p95LatencyMs: number
+    p99LatencyMs: number
     compressionLossCount: number
     blockedLeakCount: number
     optimizationFindingCount: number
@@ -121,6 +147,25 @@ function averageQualityMetric(values: number[], emptyValue = 1) {
   return values.length === 0
     ? emptyValue
     : values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+function percentile(values: number[], percentileValue: number) {
+  const sorted = values
+    .filter(value => Number.isFinite(value))
+    .map(value => Math.max(0, Math.floor(value)))
+    .sort((left, right) => left - right)
+  if (sorted.length === 0)
+    return 0
+  const rank = Math.max(0, Math.min(sorted.length - 1, Math.ceil(sorted.length * percentileValue) - 1))
+  return sorted[rank] ?? 0
+}
+
+function recallAtK(topIds: string[], expectedIds: string[], limit: number) {
+  if (expectedIds.length === 0)
+    return topIds.length === 0 ? 1 : 0
+  const selected = new Set(topIds.slice(0, limit))
+  const hits = expectedIds.filter(id => selected.has(id)).length
+  return clamp01(hits / expectedIds.length)
 }
 
 function metricFromBundle(input: {
@@ -263,6 +308,7 @@ export async function runDbBackedLongTermMemoryQualityFixture(input: DbBackedLon
 
     return {
       fixtureId: input.fixture.id,
+      expectedTopIds: [...input.fixture.expectedTopIds],
       bundle,
       topIds: evaluated.topIds,
       metrics: evaluated.metrics,
@@ -291,6 +337,7 @@ export async function runDbBackedLongTermMemoryQualityFixture(input: DbBackedLon
     }
     return {
       fixtureId: input.fixture.id,
+      expectedTopIds: [...input.fixture.expectedTopIds],
       bundle,
       topIds: [],
       metrics,
@@ -351,6 +398,44 @@ export async function runMemoryQualityHarnessSuite(input: {
     ...longTerm.map(result => result.metrics.recallAtK),
     ...userTrials.map(result => result.metrics.recallAtK),
   ]
+  const longTermResults = longTerm
+  const userTrialLongTermResults = userTrials.flatMap(result => result.longTerm)
+  const regressionResults = [
+    ...longTermResults.map(result => ({
+      expectedTopIds: result.expectedTopIds ?? [],
+      topIds: result.topIds,
+      metrics: result.metrics,
+    })),
+    ...userTrialLongTermResults.map(result => ({
+      expectedTopIds: result.expectedTopIds ?? [],
+      topIds: result.topIds,
+      metrics: result.metrics,
+    })),
+  ]
+  const latencyValues = regressionResults.map(result => result.metrics.latencyMs)
+  const actualAbstentionResults = regressionResults.filter(result => result.expectedTopIds.length === 0)
+  const predictedAbstentionResults = regressionResults.filter(result => result.topIds.length === 0)
+  const correctAbstentionCount = regressionResults.filter(result =>
+    result.expectedTopIds.length === 0
+    && result.topIds.length === 0,
+  ).length
+  const regression: MemoryQualityHarnessRegressionMetrics = {
+    recallAt1: averageQualityMetric(regressionResults.map(result => recallAtK(result.topIds, result.expectedTopIds, 1))),
+    recallAt3: averageQualityMetric(regressionResults.map(result => recallAtK(result.topIds, result.expectedTopIds, 3))),
+    recallAt5: averageQualityMetric(regressionResults.map(result => recallAtK(result.topIds, result.expectedTopIds, 5))),
+    wrongThreadRate: averageQualityMetric(regressionResults.map(result => result.metrics.wrongThreadRate), 0),
+    semanticHitRate: averageQualityMetric(regressionResults.map(result => result.metrics.semanticHitRate)),
+    sourceTraceRate: averageQualityMetric(regressionResults.map(result => result.metrics.sourceTraceRate)),
+    abstentionPrecision: predictedAbstentionResults.length > 0
+      ? clamp01(correctAbstentionCount / predictedAbstentionResults.length)
+      : actualAbstentionResults.length === 0 ? 1 : 0,
+    abstentionRecall: actualAbstentionResults.length > 0
+      ? clamp01(correctAbstentionCount / actualAbstentionResults.length)
+      : 1,
+    p50LatencyMs: percentile(latencyValues, 0.5),
+    p95LatencyMs: percentile(latencyValues, 0.95),
+    p99LatencyMs: percentile(latencyValues, 0.99),
+  }
 
   return {
     version: 'memory-quality-harness-v1',
@@ -363,6 +448,7 @@ export async function runMemoryQualityHarnessSuite(input: {
       personaTrainingFixtureCount: personaTraining.length,
       failingFixtureIds,
       recallAtK: averageQualityMetric(recallAtKScores),
+      ...regression,
       compressionLossCount: workingMemory.reduce((sum, result) => sum + result.metrics.compressionLossCount, 0)
         + userTrials.reduce((sum, result) => sum + result.metrics.compressionLossCount, 0),
       blockedLeakCount: longTerm.reduce((sum, result) => sum + result.metrics.blockedLeakCount, 0)

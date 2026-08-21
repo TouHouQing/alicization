@@ -76,6 +76,25 @@ function normalizeScope(input: WorkingMemoryLongTermCleaningScope) {
   }
 }
 
+function failureCursor(transaction: WorkingMemoryLongTermCleaningTransaction) {
+  return `${transaction.updatedAt}:${transaction.id}`
+}
+
+function parseFailureCursor(raw: string | null | undefined) {
+  const normalized = raw?.trim() ?? ''
+  const match = /^(\d+):(.+)$/u.exec(normalized)
+  if (!match)
+    return null
+  const updatedAt = Number(match[1])
+  const id = match[2]?.trim() ?? ''
+  if (!Number.isFinite(updatedAt) || !id)
+    return null
+  return {
+    updatedAt,
+    id,
+  }
+}
+
 export function mapWorkingMemoryLongTermCleaningRow(row: WorkingMemoryLongTermCleaningRow): WorkingMemoryLongTermCleaningTransaction {
   return {
     id: row.id,
@@ -165,7 +184,7 @@ export function createWorkingMemoryLongTermCleaningStoreRuntime(options: Working
       `
       SELECT *
       FROM working_memory_long_term_transactions
-      WHERE status IN ('pending-cleaning', 'admitted')
+      WHERE status IN ('pending-cleaning', 'admitted', 'failed')
         AND COALESCE(next_attempt_at, created_at) <= ?
       ORDER BY created_at ASC
       LIMIT ?
@@ -216,7 +235,7 @@ export function createWorkingMemoryLongTermCleaningStoreRuntime(options: Working
       WHERE card_id = ?
         AND session_id = ?
         AND queue_item_id IN (${placeholders})
-        AND status IN ('pending-cleaning', 'admitted')
+        AND status IN ('pending-cleaning', 'admitted', 'failed')
         AND COALESCE(next_attempt_at, created_at) <= ?
       ORDER BY created_at ASC
       `,
@@ -228,6 +247,49 @@ export function createWorkingMemoryLongTermCleaningStoreRuntime(options: Working
       ],
     )
     return rows.map(mapWorkingMemoryLongTermCleaningRow)
+  }
+
+  async function listFailureTransactions(input: {
+    cardId: string
+    limit?: number
+    cursor?: string | null
+  }) {
+    const cardId = input.cardId.trim()
+    if (!cardId) {
+      return {
+        items: [],
+        nextCursor: null,
+      }
+    }
+    const limit = Math.max(1, Math.min(64, Math.floor(input.limit ?? 24)))
+    const cursor = parseFailureCursor(input.cursor)
+    const cursorClause = cursor
+      ? 'AND (updated_at < ? OR (updated_at = ? AND id > ?))'
+      : ''
+    const rows = await options.all<WorkingMemoryLongTermCleaningRow>(
+      options.database,
+      `
+      SELECT *
+      FROM working_memory_long_term_transactions
+      WHERE card_id = ?
+        AND status IN ('failed', 'dead-lettered')
+        ${cursorClause}
+      ORDER BY updated_at DESC, id ASC
+      LIMIT ?
+      `,
+      cursor
+        ? [cardId, cursor.updatedAt, cursor.updatedAt, cursor.id, limit + 1]
+        : [cardId, limit + 1],
+    )
+    const transactions = rows.map(mapWorkingMemoryLongTermCleaningRow)
+    const hasMore = transactions.length > limit
+    const items = hasMore ? transactions.slice(0, limit) : transactions
+    return {
+      items,
+      nextCursor: hasMore && items.length > 0
+        ? failureCursor(items[items.length - 1]!)
+        : null,
+    }
   }
 
   async function listReviewTransactions(input: {
@@ -294,12 +356,65 @@ export function createWorkingMemoryLongTermCleaningStoreRuntime(options: Working
     )
   }
 
+  async function retryFailureTransactions(input: {
+    cardId: string
+    transactionIds?: string[]
+  }) {
+    const cardId = input.cardId.trim()
+    const hasExplicitSelection = input.transactionIds !== undefined
+    const transactionIds = [...new Set(
+      (input.transactionIds ?? [])
+        .map(transactionId => transactionId.trim())
+        .filter(Boolean),
+    )]
+    if (!cardId || (hasExplicitSelection && transactionIds.length === 0))
+      return []
+
+    const idFilter = hasExplicitSelection
+      ? `AND id IN (${transactionIds.map(() => '?').join(', ')})`
+      : ''
+    const rows = await options.all<WorkingMemoryLongTermCleaningRow>(
+      options.database,
+      `
+      SELECT *
+      FROM working_memory_long_term_transactions
+      WHERE card_id = ?
+        AND status IN ('failed', 'dead-lettered')
+        ${idFilter}
+      ORDER BY updated_at DESC, id ASC
+      `,
+      [cardId, ...transactionIds],
+    )
+    const retriedAt = options.now()
+    const retried = rows.map(row => ({
+      ...mapWorkingMemoryLongTermCleaningRow(row),
+      status: 'pending-cleaning' as const,
+      decision: 'pending' as const,
+      cleanedCandidate: null,
+      projections: null,
+      allowTraining: false,
+      rejectionReasons: [],
+      reviewReasons: [],
+      attemptCount: 0,
+      updatedAt: retriedAt,
+      nextAttemptAt: retriedAt,
+      appliedAt: null,
+    }))
+    await options.runInTransaction(options.database, async () => {
+      for (const transaction of retried)
+        await updateTransaction(transaction, 'pending-cleaning')
+    })
+    return retried
+  }
+
   return {
     enqueueTransactions,
     listDueTransactions,
     listDueTransactionsByScope,
+    listFailureTransactions,
     listReviewTransactions,
     listTransactionsByScope,
+    retryFailureTransactions,
     updateTransaction,
   }
 }

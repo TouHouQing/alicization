@@ -7,25 +7,26 @@ import {
   uniqueWorkingMemoryTexts,
 } from './working-memory'
 
-export type WorkingMemoryLongTermCleaningStatus =
-  | 'pending-cleaning'
-  | 'cleaning'
-  | 'rejected'
-  | 'needs-user-review'
-  | 'admitted'
-  | 'applied'
-  | 'dead-lettered'
+export type WorkingMemoryLongTermCleaningStatus
+  = | 'pending-cleaning'
+    | 'cleaning'
+    | 'rejected'
+    | 'needs-user-review'
+    | 'admitted'
+    | 'applied'
+    | 'failed'
+    | 'dead-lettered'
 
-export type WorkingMemoryLongTermAdmissionDecision =
-  | 'pending'
-  | 'admit'
-  | 'reject'
-  | 'review'
+export type WorkingMemoryLongTermAdmissionDecision
+  = | 'pending'
+    | 'admit'
+    | 'reject'
+    | 'review'
 
-export type WorkingMemoryLongTermTrainingEligibility =
-  | 'blocked'
-  | 'review-required'
-  | 'candidate'
+export type WorkingMemoryLongTermTrainingEligibility
+  = | 'blocked'
+    | 'review-required'
+    | 'candidate'
 
 export interface WorkingMemoryLongTermCleanedCandidate {
   id: string
@@ -88,11 +89,44 @@ export function normalizeWorkingMemoryLongTermCleaningStatus(raw: unknown): Work
     || raw === 'needs-user-review'
     || raw === 'admitted'
     || raw === 'applied'
+    || raw === 'failed'
     || raw === 'dead-lettered'
   ) {
     return raw
   }
   return 'dead-lettered'
+}
+
+export const WORKING_MEMORY_LONG_TERM_CLEANING_MAX_ATTEMPTS = 3
+
+export interface WorkingMemoryLongTermDrainMutex {
+  run: <T>(task: () => Promise<T>) => Promise<T>
+}
+
+export function createWorkingMemoryLongTermDrainMutex(): WorkingMemoryLongTermDrainMutex {
+  let tail = Promise.resolve()
+
+  return {
+    run: async <T>(task: () => Promise<T>) => {
+      const previous = tail
+      let release!: () => void
+      tail = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      await previous
+      try {
+        return await task()
+      }
+      finally {
+        release()
+      }
+    },
+  }
+}
+
+export function workingMemoryLongTermCleaningRetryDelayMs(attemptCount: number) {
+  const retryIndex = Math.max(0, Math.floor(attemptCount) - 1)
+  return Math.min(60_000, 1_000 * (2 ** retryIndex))
 }
 
 export function buildWorkingMemoryLongTermIdempotencyKey(input: {

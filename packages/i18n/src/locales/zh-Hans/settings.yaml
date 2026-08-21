@@ -550,11 +550,14 @@ pages:
         cancel_reindex: 取消向量重建
         retry_dead_letter: 重试死信项目
         retry_dead_letter_item: 重试此项目
+        retry_cleaning_queue_failures: 重试全部清理失败
+        retry_cleaning_queue_failure: 重试此清理失败
         discover_embedding_models: 检索模型
         test_embedding_connection: 测试连通
         save_embedding_config: 保存向量配置
         load_gold_labels: 读取本月标注
         run_quality_trial: 运行质量试用
+        cancel_quality_trial: 取消质量试用
         build_gold_regression: 固定为月度回归
         start_semantic_scale: 开始语义规模压测
         cancel_semantic_scale: 取消语义规模压测
@@ -567,6 +570,9 @@ pages:
         test_persona_training_executor: 测试训练器
         save_persona_training_executor: 保存训练器配置
         clear_persona_training_executor: 清除训练器配置
+        test_persona_runtime: 测试人格运行时
+        save_persona_runtime: 保存人格运行时
+        clear_persona_runtime: 清除人格运行时
       states:
         empty_working: 还没有可显示的短期记忆快照。发送一轮对话后再刷新。
         empty_long_term: 还没有匹配的长期记忆。
@@ -586,6 +592,11 @@ pages:
         persona_training_executor_not_configured: 尚未配置本地训练器，启动训练会明确失败。
         persona_training_executor_connected: 训练器协议测试通过。
         persona_training_executor_connection_failed: 训练器协议测试失败。
+        persona_runtime_active: llama.cpp 人格运行时已启动，当前对话会使用已激活的 Persona adapter。
+        persona_runtime_configured: llama.cpp 人格运行时已配置，等待 Persona adapter 激活。
+        persona_runtime_not_configured: 尚未配置 llama.cpp 人格运行时。
+        persona_runtime_connected: llama.cpp 可执行文件和基础模型可用。
+        persona_runtime_connection_failed: llama.cpp 人格运行时测试失败。
         persona_training_queued: 等待训练
         persona_training_running: 正在训练
         persona_training_cancel_requested: 正在取消
@@ -646,6 +657,7 @@ pages:
         loading: 正在读取记忆状态...
         quality_passed: 通过
         quality_failed: 需要优化
+        quality_trial_cancelled_by_user: 用户取消质量试用
         empty_quality_report: 还没有质量试用报告。先运行一次质量试用。
         empty_gold_labels: 本月还没有标注。先在召回测试后点四个反馈按钮之一。
         semantic_scale_queued: 等待执行
@@ -658,6 +670,7 @@ pages:
         semantic_scale_quality_failed: 质量检查未通过
         semantic_scale_cancelled_by_user: 用户取消语义规模压测
         empty_semantic_scale_history: 当前机体还没有语义规模压测记录。
+        empty_cleaning_queue_failures: 当前没有失败或死信的 WorkingMemory 清理事务。
       fields:
         health: 记忆健康
         runtime_health: 运行健康
@@ -735,6 +748,9 @@ pages:
         queue_failed: 失败
         queue_dead_lettered: 死信
         dead_letter_items: 向量重建死信明细
+        cleaning_queue_failures: WorkingMemory 清理失败
+        recent_cleaning_retries: 最近重试的清理事务
+        created_at: 创建时间
         attempt_count: 已尝试次数
         recall_p95: P95 延迟
         index_mode: 索引模式
@@ -758,6 +774,14 @@ pages:
         persona_training_increments: 人格训练增量
         persona_training_executor: 本地 Persona/LoRA 训练器
         persona_training_executor_description: 配置你已安装的本地训练可执行文件。所有进程参数都由 Alicization 固定生成，不会静默安装训练依赖，也不会把 Provider API Key 传给子进程。
+        persona_runtime: 本地 Persona 推理运行时
+        persona_runtime_description: 配置本机 llama.cpp llama-server。只有已通过治理并成功加载的 GGUF Persona adapter 才会切换主对话路由；失败会透明显示，不会伪造人格已生效。
+        persona_runtime_executable: llama-server 可执行文件绝对路径
+        persona_runtime_model_path: 基础 GGUF 模型绝对路径
+        persona_runtime_host: 本地监听地址
+        persona_runtime_port: 本地监听端口
+        persona_runtime_model_alias: 模型别名
+        persona_runtime_startup_timeout: 启动超时时间（秒）
         persona_training_executable: 可执行文件绝对路径
         persona_training_base_model: 基础模型
         persona_training_timeout: 超时时间（秒）
@@ -802,6 +826,34 @@ pages:
         replay_turn_trace: 回放逐轮链路
         last_error: 最后错误
         recall_at_k: Recall@K
+        regression_metrics: 质量回归指标
+        recall_at_1: Recall@1
+        recall_at_3: Recall@3
+        recall_at_5: Recall@5
+        wrong_thread_rate: 错线程率
+        semantic_hit_rate: 语义命中率
+        source_trace_rate: 来源可追溯率
+        abstention_precision: 应拒答精确率
+        abstention_recall: 应拒答召回率
+        recall_p50: 召回 P50
+        recall_p99: 召回 P99
+        stale_memory_leak_rate: 过期记忆泄漏率
+        temporal_update_accuracy: 时间更新准确率
+        provider_failure_rate: Provider 失败率
+        queue_failure_rate: 队列失败率
+        dead_letter_rate: 死信率
+        embedding_coverage_ratio: 向量覆盖率
+        provider_call_count: Provider 调用次数
+        provider_retry_count: Provider 重试次数
+        provider_p50: Provider P50 延迟
+        provider_p95: Provider P95 延迟
+        provider_p99: Provider P99 延迟
+        provider_trace: Provider 逐轮 Trace
+        provider_id: Provider ID
+        model_id: 模型 ID
+        latency_ms: 延迟
+        finish_reason: 完成原因
+        output_length: 输出长度
         failing_stages: 失败阶段
         failing_fixtures: 失败样本
         quality_findings: 质量问题
@@ -829,6 +881,7 @@ pages:
         semantic_scale_description: 在隔离临时数据库中运行真实 sqlite-vec 10k 或 100k 压测；任务可恢复、可取消，压测语料不会写入长期记忆。
         historical_replay: 历史回放
         live_provider: 真实模型试用
+        live_provider_diagnostics: 真实 Provider 诊断
         session_title: 回放会话
         empty_sessions: 暂无可回放的本地会话
         session_user_turns: 用户 {count} 轮
@@ -867,6 +920,8 @@ pages:
           allowed: 允许训练
           blocked: 禁止训练
       placeholders:
+        persona_runtime_executable: 例如 /opt/homebrew/bin/llama-server
+        persona_runtime_model_path: 例如 /Models/base-model.gguf
         long_term_search: 搜索长期记忆摘要、证据、来源 ID...
         long_term_source: 按来源筛选，例如 memory_reflections
         embedding_provider: openai-compatible

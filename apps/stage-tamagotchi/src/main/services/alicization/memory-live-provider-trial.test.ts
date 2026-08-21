@@ -111,6 +111,11 @@ describe('memory live provider trial', () => {
 
     expect(report.passed).toBe(true)
     expect(report.summary.succeededTurnCount).toBe(1)
+    expect(report.summary.providerRetryCount).toBe(0)
+    expect(report.summary.providerFailureRate).toBe(0)
+    expect(report.summary.p50LatencyMs).toBe(3)
+    expect(report.summary.p95LatencyMs).toBe(3)
+    expect(report.summary.p99LatencyMs).toBe(3)
     expect(report.turns[0]?.providerTrace?.outputLength).toBe('我记得白樱线。'.length)
     expect(report.productionWrites).toEqual([])
     expect(projectMemoryLiveProviderTrialToDialogueReplay(report)).toMatchObject({
@@ -160,6 +165,7 @@ describe('memory live provider trial', () => {
     })
 
     expect(report.passed).toBe(false)
+    expect(report.summary.providerFailureRate).toBe(1)
     expect(report.summary.lastError).toContain('provider unavailable')
     expect(report.summary.lastError).toContain('[redacted]')
     expect(report.summary.lastError).not.toContain('secret-token')

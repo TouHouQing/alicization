@@ -12,6 +12,7 @@ import type {
 import type { MemoryLiveProviderTrialReport } from './memory-live-provider-trial'
 import type {
   DbBackedLongTermMemoryQualityInput,
+  MemoryQualityHarnessRegressionMetrics,
   MemoryQualityHarnessReport,
 } from './memory-quality-harness'
 import type { MemoryScopeFuzzReport } from './memory-scope-fuzz-harness'
@@ -83,6 +84,7 @@ export interface MemoryProductionTrialRunnerInput {
   scopeFuzz?: Parameters<typeof runMemoryScopeFuzzHarness>[0]
   scopeFuzzReport?: MemoryScopeFuzzReport | null
   personaTraining?: PersonaTrainingDatasetQualityFixture[]
+  personaTrainingError?: string | null
   runtimeHealth?: MemoryProductionTrialRuntimeHealth | null
   requireProductionStages?: boolean
   productionStageErrors?: Partial<Record<
@@ -128,6 +130,15 @@ export interface MemoryProductionTrialRuntimeHealth {
   errors: string[]
 }
 
+export interface MemoryProductionTrialRegressionMetrics extends MemoryQualityHarnessRegressionMetrics {
+  staleMemoryLeakRate: number | null
+  temporalUpdateAccuracy: number | null
+  providerFailureRate: number
+  queueFailureRate: number
+  deadLetterRate: number
+  embeddingCoverageRatio: number | null
+}
+
 export interface MemoryProductionTrialReport {
   version: 'memory-production-trial-runner-v1'
   id: string
@@ -155,6 +166,7 @@ export interface MemoryProductionTrialReport {
   dialogueReplay: MemoryDialogueReplayReport | null
   liveProviderTrial: MemoryLiveProviderTrialReport | null
   runtimeHealth: MemoryProductionTrialRuntimeHealth | null
+  regression: MemoryProductionTrialRegressionMetrics
   quality: MemoryQualityHarnessReport
   compressedContextBehavior: WorkingMemoryCompressionBehaviorReport | null
   temporalConflict: LongTermMemoryTemporalConflictReport | null
@@ -166,6 +178,12 @@ export interface MemoryProductionTrialReport {
 
 function uniqueStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))]
+}
+
+function ratio(numerator: number, denominator: number) {
+  if (!Number.isFinite(denominator) || denominator <= 0)
+    return 0
+  return Number((Math.max(0, numerator) / denominator).toFixed(4))
 }
 
 function failedReplayStage(error: string): MemoryProductionTrialStageResult {
@@ -276,6 +294,12 @@ export async function runMemoryProductionTrialRunner(
     userTrials,
     personaTraining: input.personaTraining ?? [],
   })
+  const personaTrainingStageError = input.personaTrainingError
+    ?? quality.personaTraining.find(result => result.trace.error)?.trace.error
+    ?? null
+  if (input.personaTrainingError) {
+    recommendedNextActions.push('修复 Persona/LoRA 数据集快照读取失败后再相信本次生产试用结果。')
+  }
 
   if (runtimeHealth) {
     const reindexJobPending = runtimeHealth.embedding.reindexJob
@@ -405,8 +429,8 @@ export async function runMemoryProductionTrialRunner(
       stage: 'persona-dataset-hygiene',
       id: 'persona-dataset-hygiene',
       itemCount: quality.personaTraining.length,
-      passed: quality.personaTraining.every(result => result.passed),
-      error: quality.personaTraining.find(result => result.trace.error)?.trace.error ?? null,
+      passed: !personaTrainingStageError && quality.personaTraining.every(result => result.passed),
+      error: personaTrainingStageError,
     }),
   )
 
@@ -433,6 +457,56 @@ export async function runMemoryProductionTrialRunner(
     ?? runtimeHealth?.recall.lastError
     ?? runtimeHealth?.embedding.lastError
     ?? null
+  const queueTotal = runtimeHealth
+    ? runtimeHealth.queue.pending
+    + runtimeHealth.queue.review
+    + runtimeHealth.queue.applied
+    + runtimeHealth.queue.failed
+    + runtimeHealth.queue.deadLettered
+    : 0
+  const regression: MemoryProductionTrialRegressionMetrics = {
+    recallAt1: quality.summary.recallAt1,
+    recallAt3: quality.summary.recallAt3,
+    recallAt5: quality.summary.recallAt5,
+    wrongThreadRate: quality.summary.wrongThreadRate,
+    semanticHitRate: quality.summary.semanticHitRate,
+    sourceTraceRate: quality.summary.sourceTraceRate,
+    abstentionPrecision: quality.summary.abstentionPrecision,
+    abstentionRecall: quality.summary.abstentionRecall,
+    p50LatencyMs: quality.summary.p50LatencyMs,
+    p95LatencyMs: quality.summary.p95LatencyMs,
+    p99LatencyMs: quality.summary.p99LatencyMs,
+    staleMemoryLeakRate: temporalConflict
+      ? ratio(
+          temporalConflict.summary.staleMemoryLeakCount,
+          temporalConflict.summary.fixtureCount,
+        )
+      : null,
+    temporalUpdateAccuracy: temporalConflict
+      ? Number((1 - ratio(
+          temporalConflict.summary.knowledgeUpdateMissCount,
+          temporalConflict.summary.fixtureCount,
+        )).toFixed(4))
+      : null,
+    providerFailureRate: liveProviderTrial
+      ? liveProviderTrial.summary.providerFailureRate
+      : dialogueReplay
+        ? ratio(
+            dialogueReplay.summary.failedTurnCount,
+            dialogueReplay.summary.turnCount,
+          )
+        : 0,
+    queueFailureRate: runtimeHealth
+      ? ratio(
+          runtimeHealth.queue.failed + runtimeHealth.queue.deadLettered,
+          queueTotal,
+        )
+      : 0,
+    deadLetterRate: runtimeHealth
+      ? ratio(runtimeHealth.queue.deadLettered, queueTotal)
+      : 0,
+    embeddingCoverageRatio: runtimeHealth?.embedding.coverageRatio ?? null,
+  }
 
   return {
     version: 'memory-production-trial-runner-v1',
@@ -468,6 +542,7 @@ export async function runMemoryProductionTrialRunner(
     dialogueReplay,
     liveProviderTrial,
     runtimeHealth,
+    regression,
     quality,
     compressedContextBehavior,
     temporalConflict,

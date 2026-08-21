@@ -42,7 +42,7 @@ describe('memory workbench health', () => {
       pending: 2,
       review: 1,
       applied: 1,
-      failed: 3,
+      failed: 1,
       deadLettered: 1,
     })
   })

@@ -76,6 +76,11 @@ export interface MemoryLiveProviderTrialReport {
     failedTurnCount: number
     recalledEvidenceCount: number
     providerCallCount: number
+    providerRetryCount: number
+    providerFailureRate: number
+    p50LatencyMs: number
+    p95LatencyMs: number
+    p99LatencyMs: number
     lastError: string | null
   }
   turns: MemoryLiveProviderTrialTurnReport[]
@@ -87,6 +92,17 @@ function normalizePositiveInteger(raw: unknown, fallback: number, maximum: numbe
   if (!Number.isFinite(value))
     return fallback
   return Math.max(1, Math.min(maximum, Math.floor(value)))
+}
+
+function percentile(values: number[], percentileValue: number) {
+  const sorted = values
+    .filter(Number.isFinite)
+    .map(value => Math.max(0, Math.floor(value)))
+    .sort((left, right) => left - right)
+  if (sorted.length === 0)
+    return 0
+  const rank = Math.max(0, Math.min(sorted.length - 1, Math.ceil(sorted.length * percentileValue) - 1))
+  return sorted[rank] ?? 0
 }
 
 function redactSensitiveValues(raw: string, sensitiveValues: string[]) {
@@ -249,6 +265,11 @@ export async function runMemoryLiveProviderTrial(input: {
           failedTurnCount: 0,
           recalledEvidenceCount: 0,
           providerCallCount: 0,
+          providerRetryCount: 0,
+          providerFailureRate: 0,
+          p50LatencyMs: 0,
+          p95LatencyMs: 0,
+          p99LatencyMs: 0,
           lastError: error,
         },
         turns: [],
@@ -382,6 +403,8 @@ export async function runMemoryLiveProviderTrial(input: {
     0,
   )
   const lastError = [...turns].reverse().find(turn => turn.error)?.error ?? null
+  const providerTraces = [...traces.values()]
+  const providerLatencies = providerTraces.map(trace => trace.latencyMs)
 
   return {
     version: 'memory-live-provider-trial-v1',
@@ -398,6 +421,13 @@ export async function runMemoryLiveProviderTrial(input: {
       failedTurnCount,
       recalledEvidenceCount,
       providerCallCount: traces.size,
+      providerRetryCount: providerTraces.reduce((sum, trace) => sum + trace.retryCount, 0),
+      providerFailureRate: turns.length > 0
+        ? Number((failedTurnCount / turns.length).toFixed(4))
+        : 0,
+      p50LatencyMs: percentile(providerLatencies, 0.5),
+      p95LatencyMs: percentile(providerLatencies, 0.95),
+      p99LatencyMs: percentile(providerLatencies, 0.99),
       lastError,
     },
     turns,

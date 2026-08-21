@@ -74,6 +74,7 @@ export interface LongTermMemoryHarnessTrace {
 
 export interface LongTermMemoryHarnessResult {
   fixtureId: string
+  expectedTopIds?: string[]
   bundle: LongTermMemoryEvidenceBundle
   topIds: string[]
   hitRate: number
@@ -203,6 +204,7 @@ export function runLongTermMemoryHarnessFixture(input: {
 
   return {
     fixtureId: fixture.id,
+    expectedTopIds: [...fixture.expectedTopIds],
     bundle,
     topIds,
     hitRate: metrics.recallAtK,

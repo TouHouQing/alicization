@@ -1197,6 +1197,137 @@ describe('persona training pipeline gate', () => {
     expect(gate.listUsableIncrements()).toEqual([])
   })
 
+  it('cleans up an ineligible restart candidate without loading its pending activation', async () => {
+    const recorder = createPersistenceRecorder()
+    const artifact = {
+      ...createArtifact('run-ineligible-restart', 'artifact-ineligible-restart'),
+      activation: {
+        status: 'active' as const,
+        reason: 'Loaded before restart.',
+        loaderId: 'test-loader',
+        receiptId: 'receipt-before-restart',
+        activatedAt: 100,
+      },
+    }
+    const reloadArtifact = {
+      ...artifact,
+      activation: {
+        status: 'inactive' as const,
+        reason: 'The previous loader receipt expired.',
+      },
+    }
+    const increment: PersonaTrainingPipelineIncrement = {
+      id: 'persona-training-increment:run-ineligible-restart',
+      kind: 'persona-lora-increment',
+      cardId: 'card-a',
+      datasetId: 'dataset-1',
+      manifestHash: 'manifest-hash-1',
+      sourceIds: ['reflection-1'],
+      basePersonaRevision: 'persona-core-v1',
+      artifact,
+      state: 'available',
+      cleanup: null,
+      createdAt: 200,
+    }
+    recorder.increments.push(increment)
+    const run: PersonaTrainingPipelineRunRecord = {
+      runId: artifact.runId,
+      cardId: 'card-a',
+      datasetId: 'dataset-1',
+      manifestHash: 'manifest-hash-1',
+      sourceIds: ['reflection-1'],
+      basePersonaRevision: 'persona-core-v1',
+      status: 'completed',
+      stage: 'finalizing',
+      progress: 1,
+      progressMessage: null,
+      failureReason: null,
+      configSnapshot: null,
+      artifact,
+      error: null,
+      queuedAt: 100,
+      startedAt: 100,
+      updatedAt: 200,
+      finishedAt: 200,
+      cancellationRequestedAt: null,
+    }
+    let pendingActivation: PersonaTrainingArtifactActivationIntent | null = {
+      id: 'persona-training-artifact-activation:card-a:run-ineligible-restart:restart:old-receipt',
+      loadOperationId: 'persona-training-artifact-activation:card-a:run-ineligible-restart:restart:old-receipt:load',
+      mode: 'restart',
+      cardId: 'card-a',
+      runId: run.runId,
+      incrementId: increment.id,
+      artifactId: artifact.artifactId,
+      artifact: reloadArtifact,
+      expectedArtifact: artifact,
+      loaderReceipt: null,
+      activatedArtifact: null,
+      stage: 'prepared',
+      status: 'pending',
+      lastError: null,
+      createdAt: 200,
+      updatedAt: 200,
+    }
+    let cleanupCompleted = false
+    const load = vi.fn(async () => ({
+      loaderId: 'test-loader',
+      receiptId: 'receipt-after-restart',
+      activatedAt: 201,
+    }))
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({ artifact: createArtifact(input.runId) }),
+      artifactLoader: {
+        load,
+        unload: async () => {},
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+      persistence: {
+        ...recorder.persistence,
+        listArtifactActivationIntents: async () => pendingActivation ? [pendingActivation] : [],
+        handoffArtifactActivationToCleanup: async ({ cleanupIntent }) => {
+          pendingActivation = null
+          return cleanupIntent
+        },
+        completeArtifactCleanup: async ({ transition }) => {
+          cleanupCompleted = true
+          if (transition)
+            increment.state = transition.state
+          return true
+        },
+        listRestartCandidates: async () => [{
+          run,
+          increment,
+          consistencyError: null,
+        }],
+        interruptRunAfterRestart: async () => {
+          run.status = 'interrupted'
+          return true
+        },
+      },
+      now: () => 200,
+      randomUUID: () => 'run-unused',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    await expect(gate.reconcileAfterRestart({
+      cardId: 'card-a',
+      reason: 'application-restarted-before-training-completed',
+    })).resolves.toEqual({
+      interruptedRuns: 1,
+      rolledBackIncrements: 1,
+    })
+
+    expect(load).not.toHaveBeenCalled()
+    expect(pendingActivation).toBeNull()
+    expect(cleanupCompleted).toBe(true)
+    expect(increment.state).toBe('rolled-back')
+  })
+
   it('bounds restart loader recovery and preserves the pending activation intent', async () => {
     const recorder = createPersistenceRecorder()
     const dataset = createDataset()

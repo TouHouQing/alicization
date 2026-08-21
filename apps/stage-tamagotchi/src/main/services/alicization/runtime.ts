@@ -28,6 +28,7 @@ import type {
   AlicizationGenesisInput,
   AlicizationMindHeadKey,
   AlicizationPersonalityState,
+  AlicizationPersonaRuntimeConfig,
   AlicizationPersonaTrainingExecutorConfig,
   AlicizationPresencePulsePayload,
   AlicizationProactiveMetadata,
@@ -171,6 +172,10 @@ import { buildHostSocialContexts } from './host-social-guidance'
 import { resolveAlicizationLearningEligibility } from './life-core/working-memory-policy'
 import { createWorkingMemoryStore } from './life-core/working-memory-store'
 import { buildQuietCompanionshipMindTurnEvent, deriveQuietCompanionshipOutcome } from './living-world-state'
+import {
+  createLlamaCppPersonaRuntime,
+  normalizeAlicizationPersonaRuntimeConfig,
+} from './llama-cpp-persona-runtime'
 import { createAlicizationLocalBrowserAutomationService } from './local-browser-automation'
 import {
 
@@ -652,8 +657,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   let providerCredentials: Record<string, Record<string, unknown>> = {}
   let memoryTrialProvider: AlicizationMemoryTrialProvider | null = null
   const personaTrainingConfigPath = join(userDataPath, 'alicizations', 'persona-training-config.json')
+  const personaRuntimeConfigPath = join(userDataPath, 'alicizations', 'persona-runtime-config.json')
+  const personaRuntimeProcessStatePath = join(userDataPath, 'alicizations', 'persona-runtime-process.json')
   let personaTrainingExecutorConfig: AlicizationPersonaTrainingExecutorConfig | null = null
   let personaTrainingExecutorConfigError: string | null = null
+  let personaRuntimeConfig: AlicizationPersonaRuntimeConfig | null = null
+  let personaRuntimeConfigError: string | null = null
+  let personaRuntime: ReturnType<typeof createLlamaCppPersonaRuntime> | null = null
   const clonePersonaTrainingExecutorConfig = (config: AlicizationPersonaTrainingExecutorConfig | null) => config
     ? { ...config }
     : null
@@ -671,6 +681,19 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     catch (error) {
       personaTrainingExecutorConfig = null
       personaTrainingExecutorConfigError = (error as NodeJS.ErrnoException)?.code === 'ENOENT'
+        ? null
+        : errorMessageFrom(error) ?? String(error)
+    }
+  }
+  const restorePersonaRuntimeConfig = async () => {
+    try {
+      const raw = await readFile(personaRuntimeConfigPath, 'utf8')
+      personaRuntimeConfig = normalizeAlicizationPersonaRuntimeConfig(JSON.parse(raw))
+      personaRuntimeConfigError = null
+    }
+    catch (error) {
+      personaRuntimeConfig = null
+      personaRuntimeConfigError = (error as NodeJS.ErrnoException)?.code === 'ENOENT'
         ? null
         : errorMessageFrom(error) ?? String(error)
     }
@@ -698,6 +721,42 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     personaTrainingExecutorConfigError = null
     return personaTrainingExecutorConfigState()
   }
+  const personaRuntimeConfigState = () => {
+    const runtimeSnapshot = personaRuntime?.getSnapshot()
+    return {
+      configured: personaRuntimeConfig != null,
+      config: personaRuntimeConfig ? { ...personaRuntimeConfig } : null,
+      active: runtimeSnapshot?.active ?? false,
+      artifactId: runtimeSnapshot?.artifactId ?? null,
+      routeBaseUrl: runtimeSnapshot?.routeBaseUrl ?? null,
+      error: personaRuntimeConfigError ?? runtimeSnapshot?.error ?? null,
+    }
+  }
+  const persistPersonaRuntimeConfig = async (rawConfig: AlicizationPersonaRuntimeConfig | null) => {
+    if (!rawConfig) {
+      await personaRuntime?.setConfig(null)
+      try {
+        await unlink(personaRuntimeConfigPath)
+      }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT')
+          throw error
+      }
+      personaRuntimeConfig = null
+      personaRuntimeConfigError = null
+      return personaRuntimeConfigState()
+    }
+    const normalized = normalizeAlicizationPersonaRuntimeConfig(rawConfig)
+    await mkdir(join(userDataPath, 'alicizations'), { recursive: true })
+    await writeFile(personaRuntimeConfigPath, JSON.stringify(normalized, null, 2), {
+      encoding: 'utf8',
+      mode: 0o600,
+    })
+    personaRuntimeConfig = normalized
+    personaRuntimeConfigError = null
+    await personaRuntime?.setConfig(normalized)
+    return personaRuntimeConfigState()
+  }
   const createLocalPersonaTrainingRuntime = (cardRootDir: string) => {
     const executor = createPersonaTrainingProcessExecutor({
       cardsRootDir: join(userDataPath, 'alicizations', 'cards'),
@@ -712,9 +771,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       validateArtifact: executor.validateArtifact,
       discardArtifact: executor.discardArtifact,
       reconcileArtifacts: executor.reconcileArtifacts,
+      loader: personaRuntime!.loader,
     }
   }
   await restorePersonaTrainingExecutorConfig()
+  await restorePersonaRuntimeConfig()
+  personaRuntime = createLlamaCppPersonaRuntime({
+    getConfig: () => personaRuntimeConfig,
+    processStatePath: personaRuntimeProcessStatePath,
+  })
   const resolveLongTermMemoryEmbeddingProvider = () => resolveOpenAICompatibleLongTermMemoryEmbeddingProvider({
     activeProviderId,
     providerCredentials,
@@ -726,6 +791,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     resolveMemoryTrialProvider: () => memoryTrialProvider,
     personaTrainingExecutor: localPersonaTrainingRuntime.execute,
     personaTrainingArtifactLifecycle: localPersonaTrainingRuntime,
+    personaTrainingArtifactLoader: localPersonaTrainingRuntime.loader,
     resolvePersonaTrainingExecutorConfig: () => clonePersonaTrainingExecutorConfig(personaTrainingExecutorConfig),
   })
   const runtimeToolRegistry = createCanonicalToolRegistry()
@@ -1474,6 +1540,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     getActiveProviderId: () => activeProviderId,
     getActiveModelId: () => activeModelId,
     getProviderCredentials: () => providerCredentials,
+    getPersonaRuntimeRoute: () => personaRuntime?.getRoute() ?? null,
   })
   const {
     normalizeProviderCredentialsMap,
@@ -3252,7 +3319,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     soulLifecycleState.muteWatchUntil = 0
     soulLifecycleState.revision = 0
 
-    await alicizationDb.close()
+    try {
+      await alicizationDb.close()
+    }
+    finally {
+      await personaRuntime?.dispose()
+    }
 
     activeCardId = nextCardId
     ;({ soulRoot, soulPath, legacyPromptProfilePath, legacySparkProfilePath } = resolveCardPaths(activeCardId))
@@ -3263,6 +3335,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       resolveMemoryTrialProvider: () => memoryTrialProvider,
       personaTrainingExecutor: localPersonaTrainingRuntime.execute,
       personaTrainingArtifactLifecycle: localPersonaTrainingRuntime,
+      personaTrainingArtifactLoader: localPersonaTrainingRuntime.loader,
       resolvePersonaTrainingExecutorConfig: () => clonePersonaTrainingExecutorConfig(personaTrainingExecutorConfig),
     })
     await restoreScopedKillSwitch(activeCardId)
@@ -3389,6 +3462,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         resolveMemoryTrialProvider: () => memoryTrialProvider,
         personaTrainingExecutor: localPersonaTrainingRuntime.execute,
         personaTrainingArtifactLifecycle: localPersonaTrainingRuntime,
+        personaTrainingArtifactLoader: localPersonaTrainingRuntime.loader,
         resolvePersonaTrainingExecutorConfig: () => clonePersonaTrainingExecutorConfig(personaTrainingExecutorConfig),
       })
       await restoreScopedKillSwitch(activeCardId)
@@ -6373,6 +6447,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
               providerConfig,
               normalizeProviderConfig,
               getProviderCredentials: () => providerCredentials,
+              getActiveProviderId: () => activeProviderId,
+              getActiveModelId: () => activeModelId,
               setProviderCredentials: value => providerCredentials = value,
               setActiveProviderId: value => activeProviderId = value,
               setActiveModelId: value => activeModelId = value,
@@ -6725,6 +6801,19 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       }
       return await testPersonaTrainingProcessConnection(config)
     },
+    getPersonaRuntimeConfig: personaRuntimeConfigState,
+    setPersonaRuntimeConfig: persistPersonaRuntimeConfig,
+    testPersonaRuntime: async (config) => {
+      if (!personaRuntime) {
+        return {
+          ok: false,
+          executable: '',
+          baseUrl: null,
+          error: 'llama.cpp Persona runtime is not available',
+        }
+      }
+      return await personaRuntime.testConnection(config)
+    },
   })
   registerAlicizationSkillInvokeHandlers({
     registerInvokeHandler: (channel, handler) => defineInvokeHandler(context, channel as never, handler as never),
@@ -6927,7 +7016,12 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     }
     clearReminderDueTimer()
     clearQueuedSubconsciousWake()
-    await alicizationDb.close()
+    try {
+      await alicizationDb.close()
+    }
+    finally {
+      await personaRuntime?.dispose()
+    }
     if (globalShortcut.isRegistered(killSwitchShortcut)) {
       globalShortcut.unregister(killSwitchShortcut)
     }
