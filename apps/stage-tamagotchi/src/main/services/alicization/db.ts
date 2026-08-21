@@ -11461,14 +11461,18 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     }
 
     const requestedLimit = Number.isFinite(input.limit) ? Math.max(1, Math.min(100_000, Math.floor(Number(input.limit)))) : null
-    const entries = await longTermMemorySearchIndexRuntime.listLongTermMemoryEmbeddingCorpus({
-      cardId,
-      source: input.source,
-      sourceIds: input.sourceIds,
-      limit: requestedLimit,
-    })
 
     try {
+      await rebuildLongTermMemorySearchIndexForCard(
+        cardId,
+        'memory embedding reindex search projection refresh',
+      )
+      const entries = await longTermMemorySearchIndexRuntime.listLongTermMemoryEmbeddingCorpus({
+        cardId,
+        source: input.source,
+        sourceIds: input.sourceIds,
+        limit: requestedLimit,
+      })
       const progress = await memoryEmbeddingReindexRuntime.scheduleReindexJob({
         cardId,
         modelId: provider.modelId,

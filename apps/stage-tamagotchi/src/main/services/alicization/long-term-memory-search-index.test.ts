@@ -2,6 +2,8 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import sqlite3 from 'sqlite3'
+
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { setupAlicizationDb } from './db'
@@ -12,6 +14,39 @@ async function createSandboxUserDataPath() {
   const dir = await mkdtemp(join(tmpdir(), 'alicization-ltm-search-index-'))
   sandboxDirs.push(dir)
   return dir
+}
+
+function openRawDatabase(filepath: string) {
+  return new Promise<sqlite3.Database>((resolve, reject) => {
+    const database = new sqlite3.Database(filepath, (error) => {
+      if (error)
+        reject(error)
+      else
+        resolve(database)
+    })
+  })
+}
+
+function executeRawSql(database: sqlite3.Database, sql: string, params: unknown[] = []) {
+  return new Promise<void>((resolve, reject) => {
+    database.run(sql, params, (error) => {
+      if (error)
+        reject(error)
+      else
+        resolve()
+    })
+  })
+}
+
+function closeRawDatabase(database: sqlite3.Database) {
+  return new Promise<void>((resolve, reject) => {
+    database.close((error) => {
+      if (error)
+        reject(error)
+      else
+        resolve()
+    })
+  })
 }
 
 afterEach(async () => {
@@ -345,6 +380,103 @@ describe('long-term memory search index', () => {
       expect(health.searchReady).toBe(false)
     }
     finally {
+      await db.close()
+    }
+  })
+
+  it('refreshes a stale search projection before starting a user-triggered embedding reindex', async () => {
+    const embeddedTexts: string[] = []
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'card-reindex-projection',
+      embeddingProvider: {
+        modelId: 'test-semantic-model',
+        dimensions: 3,
+        embedTexts: async (texts: string[]) => {
+          embeddedTexts.push(...texts)
+          return texts.map(text => ({
+            text,
+            vector: [1, 0, 0],
+          }))
+        },
+      },
+    })
+    let rawDatabase: sqlite3.Database | null = null
+    try {
+      await db.upsertMemoryReflections([{
+        id: 'reindex-projection-reflection',
+        cardId: 'card-reindex-projection',
+        sourceKind: 'reply',
+        targetScope: 'habit',
+        summary: '用户喜欢在周末散步。',
+        lesson: '散步会让用户放松。',
+        status: 'confirmed',
+        confidence: 0.95,
+        createdAt: 10,
+        updatedAt: 10,
+      }])
+
+      rawDatabase = await openRawDatabase(db.dbPath)
+      await executeRawSql(
+        rawDatabase,
+        `
+        UPDATE memory_reflections
+        SET summary = ?, lesson = ?, updated_at = ?
+        WHERE card_id = ? AND id = ?
+        `,
+        [
+          '用户现在更喜欢在周末游泳。',
+          '游泳会让用户放松。',
+          20,
+          'card-reindex-projection',
+          'reindex-projection-reflection',
+        ],
+      )
+      await closeRawDatabase(rawDatabase)
+      rawDatabase = null
+
+      await expect(db.listMemoryWorkbenchLongTermItems({
+        cardId: 'card-reindex-projection',
+        source: 'memory_reflections',
+        limit: 10,
+      })).resolves.toMatchObject({
+        items: [{
+          id: 'reindex-projection-reflection',
+          summary: expect.stringContaining('用户喜欢在周末散步。'),
+        }],
+      })
+
+      const scheduled = await db.reindexMemoryWorkbenchEmbeddings({
+        cardId: 'card-reindex-projection',
+      })
+      expect(scheduled.errors).toEqual([])
+      expect(scheduled.jobId).toBeTruthy()
+
+      let progress = scheduled
+      for (let attempt = 0; attempt < 100 && progress.status !== 'completed'; attempt += 1) {
+        await new Promise(resolve => setTimeout(resolve, 5))
+        progress = await db.reindexMemoryWorkbenchEmbeddings({
+          cardId: 'card-reindex-projection',
+          action: 'status',
+          jobId: scheduled.jobId!,
+        })
+      }
+      expect(progress.status).toBe('completed')
+
+      expect(embeddedTexts).toContain('用户现在更喜欢在周末游泳。 游泳会让用户放松。')
+      await expect(db.listMemoryWorkbenchLongTermItems({
+        cardId: 'card-reindex-projection',
+        source: 'memory_reflections',
+        limit: 10,
+      })).resolves.toMatchObject({
+        items: [{
+          id: 'reindex-projection-reflection',
+          summary: expect.stringContaining('用户现在更喜欢在周末游泳。'),
+        }],
+      })
+    }
+    finally {
+      if (rawDatabase)
+        await closeRawDatabase(rawDatabase)
       await db.close()
     }
   })
