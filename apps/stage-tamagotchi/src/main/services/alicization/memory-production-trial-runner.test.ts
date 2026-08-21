@@ -1,3 +1,5 @@
+import type { AlicizationMemoryQualityMonthlyGoldRegressionPack } from '@proj-alicization/stage-shared'
+
 import type { WorkingMemorySnapshot } from './life-core/working-memory'
 import type { LongTermMemoryEvidenceBundle } from './long-term-memory-recall'
 import type { MemoryLiveProviderTrialReport } from './memory-live-provider-trial'
@@ -101,6 +103,75 @@ function recallBundle(query: string): LongTermMemoryEvidenceBundle {
 }
 
 describe('memory production trial runner', () => {
+  it('marks the human gold regression stage as not-run when no frozen pack is available', async () => {
+    const report = await runMemoryProductionTrialRunner({
+      id: 'production-trial-no-human-gold',
+      cardId: 'alice-main',
+      createdAt: now,
+      goldRegressionPack: null,
+    })
+
+    expect(report.summary.notRunStageIds).toContain('gold-regression')
+    expect(report.stages.find(stage => stage.id === 'gold-regression')).toMatchObject({
+      status: 'not-run',
+      passed: false,
+    })
+    expect(report.passed).toBe(false)
+  })
+
+  it('uses the frozen gold pack snapshot as a passing human regression stage', async () => {
+    const pack = {
+      version: 'memory-quality-monthly-gold-regression-pack-v2',
+      packId: 'pack-alice-main-2026-08',
+      revision: 1,
+      cardId: 'alice-main',
+      month: '2026-08',
+      frozenAt: now,
+      contentHash: 'sha256:gold',
+      sourceLabelIds: ['gold-label-1'],
+      itemCount: 1,
+      itemsSnapshot: [{
+        id: 'gold-label-1',
+        cardId: 'alice-main',
+        month: '2026-08',
+        label: 'right',
+        reason: null,
+        labelText: '记得对',
+        description: '记忆使用正确。',
+        evaluationClass: 'correct-recall',
+        benchmarkDimensions: ['information-extraction'],
+        query: '我喜欢什么颜色？',
+        sessionId: 'session-a',
+        turnId: 'turn-a',
+        decisionTraceId: null,
+        assistantReply: '你喜欢蓝色。',
+        retrievedEvidenceSnapshot: [],
+        expectedMemoryIds: ['memory-color'],
+        retrievedCandidateIds: ['memory-color'],
+        surfacedMemoryIds: ['memory-color'],
+        wrongThreadIds: [],
+        note: null,
+        humanConfirmed: true,
+        createdAt: now,
+      }],
+      items: [],
+    } satisfies AlicizationMemoryQualityMonthlyGoldRegressionPack
+
+    const report = await runMemoryProductionTrialRunner({
+      id: 'production-trial-human-gold',
+      cardId: 'alice-main',
+      createdAt: now,
+      goldRegressionPack: pack,
+    })
+
+    expect(report.summary.notRunStageIds).not.toContain('gold-regression')
+    expect(report.stages.find(stage => stage.id === 'gold-regression')).toMatchObject({
+      passed: true,
+      itemCount: 1,
+    })
+    expect(report.summary.goldRegressionPackId).toBe(pack.packId)
+  })
+
   it('runs dialogue replay, WorkingMemory compression, DB recall, and Persona dataset hygiene as one JSON report', async () => {
     const report = await runMemoryProductionTrialRunner({
       id: 'production-trial-provider-failure',
@@ -575,6 +646,7 @@ describe('memory production trial runner', () => {
     expect(report.passed).toBe(false)
     expect(report.summary.failingStageIds).toEqual([])
     expect(report.summary.notRunStageIds).toEqual([
+      'gold-regression',
       'temporal-conflict',
       'semantic-scale-soak',
       'scope-fuzz',

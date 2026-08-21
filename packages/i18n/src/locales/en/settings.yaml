@@ -883,6 +883,16 @@ pages:
         description: Run local DB gates for long-term recall, working-memory compression, and Persona/LoRA hygiene. Failures and recommended actions stay visible.
         feedback_title: Four-Button Feedback
         feedback_description: Run a recall probe first, then mark how memory behaved.
+        replay_binding: Bind this label to a real replay context
+        replay_binding_required: Select a session and provide the real turn ID and assistant reply before saving a human label.
+        turn_id_placeholder: Turn ID (required)
+        decision_trace_id_placeholder: Decision trace ID (optional)
+        assistant_reply_placeholder: Paste the assistant reply from this turn (required)
+        expected_ids_placeholder: Expected memory IDs (comma-separated; required for “Missed It”)
+        surfaced_evidence: Select the retrieved evidence actually surfaced in the reply
+        frozen_pack: Frozen monthly regression pack
+        replay_context: Replay context
+        evidence_snapshot: Evidence snapshot
         report_title: Trial Report
         gold_labels_title: Monthly Labels
         trial_mode: Trial Mode

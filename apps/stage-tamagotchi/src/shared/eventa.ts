@@ -817,19 +817,10 @@ export interface AlicizationMemoryReviewActionPayload extends AlicizationCardSco
   reason?: string | null
 }
 
-export type AlicizationSimpleRecallGoldLabel = 'right' | 'missing' | 'wrong' | 'unwanted'
-export type AlicizationSimpleRecallGoldReason = 'wrong-thread' | 'expired' | 'not-needed' | 'should-abstain'
-export type AlicizationSimpleRecallGoldEvaluationClass
-  = | 'correct-recall'
-    | 'missed-recall'
-    | 'false-recall'
-    | 'should-abstain'
-export type AlicizationSimpleRecallGoldBenchmarkDimension
-  = | 'information-extraction'
-    | 'multi-session-reasoning'
-    | 'temporal-reasoning'
-    | 'knowledge-update'
-    | 'abstention'
+export type AlicizationSimpleRecallGoldLabel = SharedMemoryWorkbench.AlicizationSimpleRecallGoldLabel
+export type AlicizationSimpleRecallGoldReason = SharedMemoryWorkbench.AlicizationSimpleRecallGoldReason
+export type AlicizationSimpleRecallGoldEvaluationClass = SharedMemoryWorkbench.AlicizationSimpleRecallGoldEvaluationClass
+export type AlicizationSimpleRecallGoldBenchmarkDimension = SharedMemoryWorkbench.AlicizationSimpleRecallGoldBenchmarkDimension
 
 export interface AlicizationSimpleRecallGoldLabelOption {
   value: AlicizationSimpleRecallGoldLabel
@@ -840,64 +831,13 @@ export interface AlicizationSimpleRecallGoldLabelOption {
   userFacingReview: string
 }
 
-export interface AlicizationMemoryQualityGoldLabelPayload extends AlicizationCardScope {
-  month?: string | null
-  label: AlicizationSimpleRecallGoldLabel
-  reason?: AlicizationSimpleRecallGoldReason | null
-  query: string
-  expectedMemoryIds?: string[]
-  retrievedCandidateIds?: string[]
-  surfacedMemoryIds?: string[]
-  wrongThreadIds?: string[]
-  turnId?: string | null
-  decisionTraceId?: string | null
-  note?: string | null
-  createdAt?: number
-}
-
-export interface AlicizationMemoryQualityGoldLabelItem {
-  id: string
-  cardId: string
-  month: string
-  label: AlicizationSimpleRecallGoldLabel
-  reason: AlicizationSimpleRecallGoldReason | null
-  labelText: string
-  description: string
-  evaluationClass: AlicizationSimpleRecallGoldEvaluationClass
-  benchmarkDimensions: AlicizationSimpleRecallGoldBenchmarkDimension[]
-  query: string
-  expectedMemoryIds: string[]
-  retrievedCandidateIds: string[]
-  surfacedMemoryIds: string[]
-  wrongThreadIds: string[]
-  turnId: string | null
-  decisionTraceId: string | null
-  note: string | null
-  createdAt: number
-}
-
-export interface AlicizationMemoryQualityGoldLabelListPayload extends AlicizationCardScope {
-  month?: string | null
-  limit?: number
-  cursor?: string | null
-}
-
-export interface AlicizationMemoryQualityGoldLabelListResult {
-  items: AlicizationMemoryQualityGoldLabelItem[]
-  nextCursor: string | null
-}
-
-export interface AlicizationMemoryQualityMonthlyGoldRegressionPack {
-  version: 'memory-quality-monthly-gold-regression-pack-v1'
-  cardId: string
-  month: string
-  itemCount: number
-  items: AlicizationMemoryQualityGoldLabelItem[]
-}
-
-export interface AlicizationMemoryQualityMonthlyGoldRegressionPayload extends AlicizationCardScope {
-  month?: string | null
-}
+export type AlicizationMemoryQualityEvidenceSnapshot = SharedMemoryWorkbench.AlicizationMemoryQualityEvidenceSnapshot
+export type AlicizationMemoryQualityGoldLabelPayload = SharedMemoryWorkbench.AlicizationMemoryQualityGoldLabelPayload
+export type AlicizationMemoryQualityGoldLabelItem = SharedMemoryWorkbench.AlicizationMemoryQualityGoldLabelItem
+export type AlicizationMemoryQualityGoldLabelListPayload = SharedMemoryWorkbench.AlicizationMemoryQualityGoldLabelListPayload
+export type AlicizationMemoryQualityGoldLabelListResult = SharedMemoryWorkbench.AlicizationMemoryQualityGoldLabelListResult
+export type AlicizationMemoryQualityMonthlyGoldRegressionPack = SharedMemoryWorkbench.AlicizationMemoryQualityMonthlyGoldRegressionPack
+export type AlicizationMemoryQualityMonthlyGoldRegressionPayload = SharedMemoryWorkbench.AlicizationMemoryQualityMonthlyGoldRegressionPayload
 
 export type AlicizationMemoryReplaySessionSummary = SharedMemoryWorkbench.AlicizationMemoryReplaySessionSummary
 export type AlicizationMemoryReplaySessionListPayload = SharedMemoryWorkbench.AlicizationMemoryReplaySessionListPayload

@@ -19,6 +19,13 @@ async function createSandboxUserDataPath() {
   return dir
 }
 
+const legacyGoldLabelContext = {
+  sessionId: 'fixture-gold-session',
+  turnId: 'fixture-gold-turn',
+  assistantReply: '这是用于回归夹具的真实助手回复。',
+  retrievedEvidenceSnapshot: [],
+}
+
 function createSemanticScaleReport(corpusSize: number, id: string) {
   return runMemorySemanticScaleSoakHarness({
     id,
@@ -82,6 +89,215 @@ afterEach(async () => {
 })
 
 describe('memory quality workbench DB loop', () => {
+  it('enforces label semantics and preserves the real replay context', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.appendConversationTurn({
+        cardId: 'default',
+        sessionId: 'gold-session',
+        turnId: 'gold-turn',
+        userText: '你还记得我现在使用什么编辑器吗？',
+        assistantText: '我这次没有想起来。',
+        createdAt: 1_755_000_000_000,
+      })
+
+      const evidence = [{
+        id: 'memory-editor-v2',
+        kind: 'fact',
+        summary: '用户现在使用 Zed。',
+        source: 'memory_facts',
+        score: 0.91,
+        confidence: 0.95,
+        sensitivity: 'personal',
+        scope: {
+          userId: 'user-a',
+          cardId: 'default',
+        },
+        provenance: 'remembered' as const,
+        evidenceVersion: 'evidence-v1',
+        version: 'memory-v2',
+        queryMatches: ['编辑器'],
+        rankReasons: ['semantic-match'],
+      }]
+
+      await expect(db.recordMemoryQualityGoldLabel({
+        cardId: 'default',
+        month: '2026-08',
+        label: 'missing',
+        query: '你还记得我现在使用什么编辑器吗？',
+        sessionId: 'gold-session',
+        turnId: 'gold-turn',
+        assistantReply: '我这次没有想起来。',
+        retrievedEvidenceSnapshot: evidence,
+        expectedMemoryIds: [],
+        retrievedCandidateIds: ['memory-editor-v2'],
+        surfacedMemoryIds: [],
+      })).rejects.toThrow('missing gold label requires at least one expected memory')
+
+      const unwanted = await db.recordMemoryQualityGoldLabel({
+        cardId: 'default',
+        month: '2026-08',
+        label: 'unwanted',
+        reason: 'should-abstain',
+        query: '今天天气怎么样？',
+        sessionId: 'gold-session',
+        turnId: 'gold-turn',
+        assistantReply: '我想起了你使用 Zed。',
+        retrievedEvidenceSnapshot: evidence,
+        expectedMemoryIds: [],
+        retrievedCandidateIds: ['memory-editor-v2'],
+        surfacedMemoryIds: ['memory-editor-v2'],
+      })
+
+      expect(unwanted).toMatchObject({
+        sessionId: 'gold-session',
+        turnId: 'gold-turn',
+        assistantReply: '我想起了你使用 Zed。',
+        reason: 'should-abstain',
+        expectedMemoryIds: [],
+        retrievedEvidenceSnapshot: evidence,
+        humanConfirmed: true,
+      })
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('rejects evidence snapshots that cross the active card scope', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      cardId: 'card-a',
+    })
+    try {
+      await expect(db.recordMemoryQualityGoldLabel({
+        cardId: 'card-a',
+        month: '2026-08',
+        label: 'right',
+        query: '这条记忆属于哪个机体？',
+        sessionId: 'card-a-session',
+        turnId: 'card-a-turn',
+        assistantReply: '我只应该使用当前机体的记忆。',
+        retrievedEvidenceSnapshot: [{
+          id: 'foreign-memory',
+          kind: 'fact',
+          summary: '另一个机体的私有记忆。',
+          source: 'memory_facts',
+          score: 0.9,
+          confidence: 0.9,
+          sensitivity: 'personal',
+          scope: {
+            userId: 'user-a',
+            cardId: 'card-b',
+          },
+          provenance: 'remembered',
+          evidenceVersion: 'evidence-v1',
+          version: 'memory-v2',
+          queryMatches: ['机体'],
+          rankReasons: ['scope-mismatch'],
+        }],
+        expectedMemoryIds: ['foreign-memory'],
+      })).rejects.toThrow('evidence snapshot card scope mismatch')
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('freezes one immutable monthly regression pack and never silently truncates labels', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.appendConversationTurn({
+        cardId: 'default',
+        sessionId: 'gold-session',
+        turnId: 'gold-turn',
+        userText: '请记住我喜欢蓝色。',
+        assistantText: '记住了。',
+        createdAt: 1_755_000_000_000,
+      })
+
+      const base = {
+        cardId: 'default',
+        month: '2026-08',
+        label: 'right' as const,
+        query: '我喜欢什么颜色？',
+        sessionId: 'gold-session',
+        turnId: 'gold-turn',
+        assistantReply: '你喜欢蓝色。',
+        retrievedEvidenceSnapshot: [],
+        expectedMemoryIds: ['memory-color'],
+        retrievedCandidateIds: ['memory-color'],
+        surfacedMemoryIds: ['memory-color'],
+      }
+      await Promise.all(Array.from({ length: 205 }, (_, index) => db.recordMemoryQualityGoldLabel({
+        ...base,
+        query: `${base.query} ${index}`,
+        createdAt: 1_755_000_000_000 + index,
+      })))
+
+      const firstPage = await db.listMemoryQualityGoldLabels({
+        cardId: 'default',
+        month: '2026-08',
+        limit: 200,
+      })
+      expect(firstPage.items).toHaveLength(200)
+      expect(firstPage.nextCursor).toBeTruthy()
+
+      const firstPack = await db.buildMonthlyGoldRegressionPack({
+        cardId: 'default',
+        month: '2026-08',
+      })
+      expect(firstPack).toMatchObject({
+        revision: 1,
+        itemCount: 205,
+        frozenAt: expect.any(Number),
+        contentHash: expect.stringMatching(/^sha256:/u),
+      })
+      expect(firstPack.itemsSnapshot).toHaveLength(205)
+      expect(firstPack.sourceLabelIds).toHaveLength(205)
+
+      await db.recordMemoryQualityGoldLabel({
+        ...base,
+        query: '新增标签不应改变已经冻结的 pack。',
+        createdAt: 1_755_000_000_999,
+      })
+      const secondPack = await db.buildMonthlyGoldRegressionPack({
+        cardId: 'default',
+        month: '2026-08',
+      })
+      expect(secondPack).toMatchObject({
+        packId: firstPack.packId,
+        revision: 1,
+        frozenAt: firstPack.frozenAt,
+        contentHash: firstPack.contentHash,
+        itemCount: 205,
+      })
+      expect(secondPack.itemsSnapshot).toEqual(firstPack.itemsSnapshot)
+      expect(secondPack.sourceLabelIds).toEqual(firstPack.sourceLabelIds)
+    }
+    finally {
+      await db.close()
+    }
+  })
+
+  it('keeps a missing human gold pack out of the production trial as not-run', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        month: '2026-08',
+      })
+      expect(report.summary.notRunStageIds).toContain('gold-regression')
+      expect(report.stages.find(stage => stage.id === 'gold-regression')).toMatchObject({
+        status: 'not-run',
+        passed: false,
+      })
+      expect(report.passed).toBe(false)
+    }
+    finally {
+      await db.close()
+    }
+  })
+
   it('controls card-scoped semantic scale jobs through start, status, list, cancel, and retry', async () => {
     let mode: 'block' | 'fail' | 'succeed' = 'block'
     let executionStarted: (() => void) | undefined
@@ -288,6 +504,7 @@ describe('memory quality workbench DB loop', () => {
     try {
       const item = await db.recordMemoryQualityGoldLabel({
         cardId: 'default',
+        ...legacyGoldLabelContext,
         month: '2026-08',
         label: 'wrong',
         reason: 'wrong-thread',
@@ -327,7 +544,7 @@ describe('memory quality workbench DB loop', () => {
         month: '2026-08',
       })
       expect(pack).toMatchObject({
-        version: 'memory-quality-monthly-gold-regression-pack-v1',
+        version: 'memory-quality-monthly-gold-regression-pack-v2',
         cardId: 'default',
         month: '2026-08',
         itemCount: 1,
@@ -362,6 +579,7 @@ describe('memory quality workbench DB loop', () => {
       }])
       await db.recordMemoryQualityGoldLabel({
         cardId: 'default',
+        ...legacyGoldLabelContext,
         month: '2026-08',
         label: 'right',
         query: '你还记得 SiliconFlow embedding baseUrl 应该怎么填吗？',
@@ -421,6 +639,7 @@ describe('memory quality workbench DB loop', () => {
       })
       await db.recordMemoryQualityGoldLabel({
         cardId: 'default',
+        ...legacyGoldLabelContext,
         month: '2026-08',
         label: 'wrong',
         reason: 'expired',
@@ -683,6 +902,7 @@ describe('memory quality workbench DB loop', () => {
       expect(episodicMemory).toBeDefined()
       await db.recordMemoryQualityGoldLabel({
         cardId: 'default',
+        ...legacyGoldLabelContext,
         month: '2026-08',
         label: 'right',
         query: '你还记得白樱线吗？',

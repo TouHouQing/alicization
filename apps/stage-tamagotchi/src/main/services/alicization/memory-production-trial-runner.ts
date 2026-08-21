@@ -1,3 +1,5 @@
+import type { AlicizationMemoryQualityMonthlyGoldRegressionPack } from '@proj-alicization/stage-shared'
+
 import type { WorkingMemoryQualityFixture } from './life-core/working-memory-quality-harness'
 import type {
   LongTermMemoryTemporalConflictFixture,
@@ -45,6 +47,7 @@ export type MemoryProductionTrialStageKind
     | 'semantic-scale-soak'
     | 'experience-quality'
     | 'scope-fuzz'
+    | 'gold-regression'
     | 'persona-dataset-hygiene'
 
 export interface MemoryProductionTrialDialogueReplayResult {
@@ -85,6 +88,7 @@ export interface MemoryProductionTrialRunnerInput {
   scopeFuzzReport?: MemoryScopeFuzzReport | null
   personaTraining?: PersonaTrainingDatasetQualityFixture[]
   personaTrainingError?: string | null
+  goldRegressionPack?: AlicizationMemoryQualityMonthlyGoldRegressionPack | null
   runtimeHealth?: MemoryProductionTrialRuntimeHealth | null
   requireProductionStages?: boolean
   productionStageErrors?: Partial<Record<
@@ -156,6 +160,8 @@ export interface MemoryProductionTrialReport {
     longTermFixtureCount: number
     userTrialCount: number
     personaTrainingFixtureCount: number
+    goldLabelCount: number
+    goldRegressionPackId: string | null
     failingStageIds: string[]
     notRunStageIds: string[]
     optimizationFindingCount: number
@@ -168,6 +174,7 @@ export interface MemoryProductionTrialReport {
   runtimeHealth: MemoryProductionTrialRuntimeHealth | null
   regression: MemoryProductionTrialRegressionMetrics
   quality: MemoryQualityHarnessReport
+  goldRegressionPack: AlicizationMemoryQualityMonthlyGoldRegressionPack | null
   compressedContextBehavior: WorkingMemoryCompressionBehaviorReport | null
   temporalConflict: LongTermMemoryTemporalConflictReport | null
   semanticScaleSoak: MemorySemanticScaleSoakReport | null
@@ -213,7 +220,7 @@ function stageFromQuality(input: {
 }
 
 function notRunStage(
-  stage: Extract<MemoryProductionTrialStageKind, 'semantic-scale-soak' | 'scope-fuzz' | 'temporal-conflict'>,
+  stage: Extract<MemoryProductionTrialStageKind, 'semantic-scale-soak' | 'scope-fuzz' | 'temporal-conflict' | 'gold-regression'>,
   error: string,
 ): MemoryProductionTrialStageResult {
   return {
@@ -233,6 +240,7 @@ export async function runMemoryProductionTrialRunner(
   let dialogueReplay: MemoryDialogueReplayReport | null = null
   let liveProviderTrial: MemoryLiveProviderTrialReport | null = null
   const runtimeHealth = input.runtimeHealth ?? null
+  const goldRegressionPack = input.goldRegressionPack ?? null
   const workingMemory: WorkingMemoryQualityFixture[] = [...(input.workingMemory ?? [])]
   const userTrials: MemoryUserTrialHarnessInput[] = [...(input.userTrials ?? [])]
   const recommendedNextActions: string[] = []
@@ -294,6 +302,32 @@ export async function runMemoryProductionTrialRunner(
     userTrials,
     personaTraining: input.personaTraining ?? [],
   })
+  const shouldCheckGoldRegression = input.requireProductionStages || input.goldRegressionPack !== undefined
+  const goldRegressionStage = shouldCheckGoldRegression
+    ? goldRegressionPack
+      ? {
+          stage: 'gold-regression' as const,
+          id: 'gold-regression',
+          passed: goldRegressionPack.cardId === input.cardId
+            && goldRegressionPack.itemCount > 0
+            && goldRegressionPack.itemCount === goldRegressionPack.itemsSnapshot.length
+            && goldRegressionPack.itemsSnapshot.every(item => item.humanConfirmed === true),
+          itemCount: goldRegressionPack.itemsSnapshot.length,
+          error: goldRegressionPack.cardId !== input.cardId
+            ? 'gold regression pack card scope does not match the current card'
+            : goldRegressionPack.itemCount <= 0
+              ? 'gold regression pack is empty'
+              : goldRegressionPack.itemCount !== goldRegressionPack.itemsSnapshot.length
+                ? 'gold regression pack item count does not match its frozen snapshot'
+                : goldRegressionPack.itemsSnapshot.some(item => item.humanConfirmed !== true)
+                  ? 'gold regression pack contains a non-human label'
+                  : null,
+        }
+      : notRunStage(
+          'gold-regression',
+          'not-run: no frozen human-confirmed gold regression pack is available',
+        )
+    : null
   const personaTrainingStageError = input.personaTrainingError
     ?? quality.personaTraining.find(result => result.trace.error)?.trace.error
     ?? null
@@ -363,6 +397,7 @@ export async function runMemoryProductionTrialRunner(
       passed: quality.longTerm.every(result => result.passed),
       error: quality.longTerm.find(result => result.trace.error)?.trace.error ?? null,
     }),
+    ...(goldRegressionStage ? [goldRegressionStage] : []),
     ...(temporalConflict
       ? [
           stageFromQuality({
@@ -532,6 +567,8 @@ export async function runMemoryProductionTrialRunner(
       longTermFixtureCount: quality.summary.longTermFixtureCount,
       userTrialCount: quality.summary.userTrialCount,
       personaTrainingFixtureCount: quality.summary.personaTrainingFixtureCount,
+      goldLabelCount: goldRegressionPack?.itemCount ?? 0,
+      goldRegressionPackId: goldRegressionPack?.packId ?? null,
       failingStageIds,
       notRunStageIds,
       optimizationFindingCount: quality.summary.optimizationFindingCount,
@@ -544,6 +581,7 @@ export async function runMemoryProductionTrialRunner(
     runtimeHealth,
     regression,
     quality,
+    goldRegressionPack,
     compressedContextBehavior,
     temporalConflict,
     semanticScaleSoak,

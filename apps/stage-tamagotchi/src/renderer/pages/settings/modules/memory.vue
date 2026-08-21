@@ -71,6 +71,43 @@ const personaTrainingConsentGranted = ref(false)
 const personaTrainingPolicyVersion = ref('persona-training-consent-v1')
 const personaTrainingScope = ref('persona-dataset')
 const selectedGoldLabelReason = ref<AlicizationMemoryQualityGoldLabelReason | null>(null)
+const qualityTurnId = ref('')
+const qualityDecisionTraceId = ref('')
+const qualityAssistantReply = ref('')
+const qualityExpectedMemoryIds = ref('')
+const qualitySurfacedMemoryIds = ref<string[]>([])
+
+const qualityGoldContextReady = computed(() => Boolean(
+  selectedQualitySessionId.value.trim()
+  && qualityTurnId.value.trim()
+  && qualityAssistantReply.value.trim()
+  && recallProbe.value,
+))
+
+function parseQualityMemoryIds(raw: string) {
+  return [...new Set(raw
+    .split(/[\s,，、]+/u)
+    .map(value => value.trim())
+    .filter(Boolean))]
+}
+
+function qualityEvidenceSnapshot() {
+  return (recallProbe.value?.evidence ?? []).map(item => ({
+    id: item.id,
+    kind: item.kind,
+    summary: item.summary,
+    source: item.source,
+    score: item.score,
+    confidence: item.confidence,
+    sensitivity: item.sensitivity,
+    scope: item.scope,
+    provenance: item.provenance,
+    evidenceVersion: item.evidenceVersion,
+    version: item.version,
+    queryMatches: item.queryMatches,
+    rankReasons: item.rankReasons,
+  }))
+}
 
 const tabs = computed(() => [
   { id: 'working' as const, icon: 'i-solar:clipboard-list-bold-duotone', label: t('settings.pages.memory.workbench.tabs.working') },
@@ -427,8 +464,15 @@ function loadQualityGoldLabels() {
   void store.loadMonthlyGoldLabels(goldLabelMonth.value)
 }
 
-function runQualityTrial() {
-  void store.runQualityTrial(goldLabelMonth.value)
+async function runQualityTrial() {
+  const report = await store.runQualityTrial(goldLabelMonth.value)
+  const turn = [...(report?.dialogueReplay?.turns ?? [])]
+    .reverse()
+    .find(item => item.providerOutput?.trim())
+  if (turn) {
+    qualityTurnId.value = turn.turnId
+    qualityAssistantReply.value = turn.providerOutput ?? ''
+  }
 }
 
 function buildGoldRegression() {
@@ -437,24 +481,42 @@ function buildGoldRegression() {
 
 function applyProbeGoldLabel(label: AlicizationSimpleRecallGoldLabel) {
   const query = (recallProbe.value?.query ?? recallQuery.value).trim()
-  if (!query)
+  if (!query || !qualityGoldContextReady.value)
     return
   const evidenceIds = recallProbe.value?.evidence.map(item => item.id) ?? []
+  const surfacedMemoryIds = qualitySurfacedMemoryIds.value.length > 0
+    ? qualitySurfacedMemoryIds.value
+    : evidenceIds
+  const expectedMemoryIds = label === 'unwanted'
+    ? []
+    : parseQualityMemoryIds(qualityExpectedMemoryIds.value)
+  if (label !== 'unwanted' && expectedMemoryIds.length === 0)
+    return
   void store.applyGoldLabel({
     month: goldLabelMonth.value,
     label,
     reason: selectedGoldLabelReason.value,
     query,
-    expectedMemoryIds: label === 'right' ? evidenceIds : [],
+    sessionId: selectedQualitySessionId.value,
+    turnId: qualityTurnId.value.trim(),
+    decisionTraceId: qualityDecisionTraceId.value.trim() || null,
+    assistantReply: qualityAssistantReply.value.trim(),
+    retrievedEvidenceSnapshot: qualityEvidenceSnapshot(),
+    expectedMemoryIds,
     retrievedCandidateIds: evidenceIds,
-    surfacedMemoryIds: evidenceIds,
-    wrongThreadIds: label === 'wrong' ? evidenceIds : [],
+    surfacedMemoryIds,
+    wrongThreadIds: label === 'wrong' ? surfacedMemoryIds : [],
     note: qualityGoldLabelButtons.value.find(item => item.value === label)?.description ?? null,
   }).then((result) => {
     if (result)
       selectedGoldLabelReason.value = null
   })
 }
+
+watch(recallProbe, (probe) => {
+  qualitySurfacedMemoryIds.value = probe?.evidence.map(item => item.id) ?? []
+  qualityExpectedMemoryIds.value = probe?.evidence.map(item => item.id).join(', ') ?? ''
+})
 
 function reloadQualityTrialContext() {
   store.resetQualityTrialContext()
@@ -1210,6 +1272,47 @@ watch(activeCardId, () => {
           <p :class="['mt-1', 'text-xs', 'text-neutral-500']">
             {{ t('settings.pages.memory.workbench.quality.feedback_description') }}
           </p>
+          <div :class="['mt-3', 'grid', 'gap-2']">
+            <div :class="['text-xs', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.quality.replay_binding') }}
+            </div>
+            <input
+              v-model="qualityTurnId"
+              :class="['border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+              :placeholder="t('settings.pages.memory.workbench.quality.turn_id_placeholder')"
+            >
+            <input
+              v-model="qualityDecisionTraceId"
+              :class="['border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+              :placeholder="t('settings.pages.memory.workbench.quality.decision_trace_id_placeholder')"
+            >
+            <textarea
+              v-model="qualityAssistantReply"
+              :class="['min-h-20', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+              :placeholder="t('settings.pages.memory.workbench.quality.assistant_reply_placeholder')"
+            />
+            <input
+              v-model="qualityExpectedMemoryIds"
+              :class="['border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']"
+              :placeholder="t('settings.pages.memory.workbench.quality.expected_ids_placeholder')"
+            >
+          </div>
+          <div v-if="recallProbe?.evidence.length" :class="['mt-3', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
+            <div :class="['text-xs', 'text-neutral-500']">
+              {{ t('settings.pages.memory.workbench.quality.surfaced_evidence') }}
+            </div>
+            <label
+              v-for="item in recallProbe.evidence"
+              :key="item.id"
+              :class="['mt-2', 'flex', 'items-start', 'gap-2', 'text-xs']"
+            >
+              <input v-model="qualitySurfacedMemoryIds" type="checkbox" :value="item.id">
+              <span class="min-w-0">
+                <span class="font-medium">{{ item.id }}</span>
+                <span class="ml-1 text-neutral-500">{{ item.summary }}</span>
+              </span>
+            </label>
+          </div>
           <label :class="['mt-3', 'flex', 'flex-col', 'gap-1', 'text-xs', 'text-neutral-500']">
             <span>{{ t('memory-workbench.quality.reason_label') }}</span>
             <select
@@ -1233,9 +1336,12 @@ watch(activeCardId, () => {
               size="sm"
               :variant="option.variant"
               :loading="goldLabelLoading"
-              :disabled="!(recallProbe?.query || recallQuery.trim())"
+              :disabled="!qualityGoldContextReady || (option.value !== 'unwanted' && parseQualityMemoryIds(qualityExpectedMemoryIds).length === 0)"
               @click="applyProbeGoldLabel(option.value)"
             />
+          </div>
+          <div v-if="!qualityGoldContextReady" :class="['mt-2', 'text-xs', 'text-amber-600', 'dark:text-amber-300']">
+            {{ t('settings.pages.memory.workbench.quality.replay_binding_required') }}
           </div>
           <div :class="['mt-3', 'text-xs', 'text-neutral-500']">
             {{ t('settings.pages.memory.workbench.fields.query') }}:
@@ -1461,6 +1567,12 @@ watch(activeCardId, () => {
               {{ monthlyGoldRegressionPack?.itemCount ?? monthlyGoldLabels.length }}
             </div>
           </div>
+          <div v-if="monthlyGoldRegressionPack" :class="['mt-2', 'border', 'border-emerald-200', 'bg-emerald-50', 'p-2', 'text-xs', 'text-emerald-800', 'dark:border-emerald-900', 'dark:bg-emerald-950/30', 'dark:text-emerald-200']">
+            {{ t('settings.pages.memory.workbench.quality.frozen_pack') }}
+            · {{ monthlyGoldRegressionPack.packId }}
+            · {{ formatTimestamp(monthlyGoldRegressionPack.frozenAt) }}
+            · {{ monthlyGoldRegressionPack.contentHash }}
+          </div>
           <div v-if="monthlyGoldLabels.length === 0" :class="['mt-4', 'border', 'border-dashed', 'border-neutral-300', 'p-4', 'text-sm', 'text-neutral-500', 'dark:border-neutral-700']">
             {{ t('settings.pages.memory.workbench.states.empty_gold_labels') }}
           </div>
@@ -1476,6 +1588,14 @@ watch(activeCardId, () => {
               </div>
               <div :class="['mt-2', 'text-sm', 'font-medium']">
                 {{ item.query }}
+              </div>
+              <div :class="['mt-2', 'text-xs', 'text-neutral-500']">
+                {{ t('settings.pages.memory.workbench.quality.replay_context') }}:
+                {{ item.sessionId }} / {{ item.turnId }}
+                · {{ t('settings.pages.memory.workbench.quality.evidence_snapshot') }} {{ item.retrievedEvidenceSnapshot.length }}
+              </div>
+              <div :class="['mt-1', 'whitespace-pre-wrap', 'text-xs', 'text-neutral-500']">
+                {{ item.assistantReply }}
               </div>
               <div :class="['mt-2', 'grid', 'grid-cols-1', 'gap-1', 'text-xs', 'text-neutral-500', 'md:grid-cols-3']">
                 <div>{{ t('settings.pages.memory.workbench.fields.expected_ids') }}: {{ listText(item.expectedMemoryIds) }}</div>

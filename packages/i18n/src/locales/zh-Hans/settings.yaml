@@ -874,6 +874,16 @@ pages:
         description: 从本地 DB 跑长期召回、短期压缩和 Persona/LoRA 清洗质量门禁，结果会暴露失败项与建议动作。
         feedback_title: 四按钮反馈
         feedback_description: 先在“召回测试”里查一句话，再回到这里标注这次记忆表现。
+        replay_binding: 标注必须绑定真实回放上下文
+        replay_binding_required: 请先选择会话，并填写真实 turn ID 和她的实际回复，再保存人工标注。
+        turn_id_placeholder: turn ID（必填）
+        decision_trace_id_placeholder: decision trace ID（可选）
+        assistant_reply_placeholder: 粘贴她在这轮对话里的实际回复（必填）
+        expected_ids_placeholder: 应该命中的记忆 ID（逗号分隔；“没想起来”必须填写）
+        surfaced_evidence: 选择这轮实际提到的召回证据
+        frozen_pack: 已冻结的月度回归 pack
+        replay_context: 回放上下文
+        evidence_snapshot: 证据快照
         report_title: 试用报告
         gold_labels_title: 本月标注
         trial_mode: 试用方式

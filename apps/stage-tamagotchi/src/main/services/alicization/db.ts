@@ -1,6 +1,11 @@
 import type {
+  AlicizationMemoryQualityEvidenceSnapshot,
   AlicizationPersonaTrainingArtifact,
   AlicizationRuntimeEventEnvelope,
+  AlicizationMemoryQualityGoldLabelItem as SharedAlicizationMemoryQualityGoldLabelItem,
+  AlicizationMemoryQualityGoldLabelListResult as SharedAlicizationMemoryQualityGoldLabelListResult,
+  AlicizationMemoryQualityGoldLabelPayload as SharedAlicizationMemoryQualityGoldLabelPayload,
+  AlicizationMemoryQualityMonthlyGoldRegressionPack as SharedAlicizationMemoryQualityMonthlyGoldRegressionPack,
 } from '@proj-alicization/stage-shared'
 
 import type {
@@ -165,7 +170,7 @@ import type { WorkingMemoryCompressionBehaviorFixture } from './working-memory-c
 
 import process from 'node:process'
 
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -341,55 +346,10 @@ type AlicizationMemoryIngestOperationKind
     | 'append-episodic-events'
     | 'upsert-memory-consolidations'
 
-export interface AlicizationMemoryQualityGoldLabelPayload {
-  cardId: string
-  month?: string | null
-  label: SimpleRecallGoldLabel
-  reason?: SimpleRecallGoldReason | null
-  query: string
-  expectedMemoryIds?: unknown[] | null
-  retrievedCandidateIds?: unknown[] | null
-  surfacedMemoryIds?: unknown[] | null
-  wrongThreadIds?: unknown[] | null
-  turnId?: string | null
-  decisionTraceId?: string | null
-  note?: string | null
-  createdAt?: number
-}
-
-export interface AlicizationMemoryQualityGoldLabelItem {
-  id: string
-  cardId: string
-  month: string
-  label: SimpleRecallGoldLabel
-  reason: SimpleRecallGoldReason | null
-  labelText: string
-  description: string
-  evaluationClass: SimpleRecallGoldEvaluationClass
-  benchmarkDimensions: SimpleRecallGoldBenchmarkDimension[]
-  query: string
-  expectedMemoryIds: string[]
-  retrievedCandidateIds: string[]
-  surfacedMemoryIds: string[]
-  wrongThreadIds: string[]
-  turnId: string | null
-  decisionTraceId: string | null
-  note: string | null
-  createdAt: number
-}
-
-export interface AlicizationMemoryQualityGoldLabelListResult {
-  items: AlicizationMemoryQualityGoldLabelItem[]
-  nextCursor: string | null
-}
-
-export interface AlicizationMemoryQualityMonthlyGoldRegressionPack {
-  version: 'memory-quality-monthly-gold-regression-pack-v1'
-  cardId: string
-  month: string
-  itemCount: number
-  items: AlicizationMemoryQualityGoldLabelItem[]
-}
+export type AlicizationMemoryQualityGoldLabelPayload = SharedAlicizationMemoryQualityGoldLabelPayload
+export type AlicizationMemoryQualityGoldLabelItem = SharedAlicizationMemoryQualityGoldLabelItem
+export type AlicizationMemoryQualityGoldLabelListResult = SharedAlicizationMemoryQualityGoldLabelListResult
+export type AlicizationMemoryQualityMonthlyGoldRegressionPack = SharedAlicizationMemoryQualityMonthlyGoldRegressionPack
 
 interface DbMemoryQualityGoldLabelRow {
   id: string
@@ -400,14 +360,30 @@ interface DbMemoryQualityGoldLabelRow {
   evaluation_class: SimpleRecallGoldEvaluationClass
   benchmark_dimensions_json: string
   query: string
+  session_id: string | null
   expected_memory_ids_json: string
   retrieved_candidate_ids_json: string
   surfaced_memory_ids_json: string
   wrong_thread_ids_json: string
+  assistant_reply: string | null
+  retrieved_evidence_snapshot_json: string
+  human_confirmed: number
   turn_id: string | null
   decision_trace_id: string | null
   note: string | null
   created_at: number
+}
+
+interface DbMemoryQualityMonthlyGoldPackRow {
+  pack_id: string
+  card_id: string
+  month: string
+  revision: number
+  frozen_at: number
+  content_hash: string
+  source_label_ids_json: string
+  items_snapshot_json: string
+  item_count: number
 }
 
 interface PreparedMemoryFactWrite {
@@ -957,6 +933,18 @@ function parseJsonStringArray(raw: string | null) {
     return parsed
       .map(item => typeof item === 'string' ? item.trim() : '')
       .filter(Boolean)
+  }
+  catch {
+    return []
+  }
+}
+
+function parseJsonUnknown(raw: string | null): unknown[] {
+  if (!raw)
+    return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    return Array.isArray(parsed) ? parsed : []
   }
   catch {
     return []
@@ -2521,10 +2509,14 @@ export async function setupAlicizationDb(
         evaluation_class TEXT NOT NULL,
         benchmark_dimensions_json TEXT NOT NULL,
         query TEXT NOT NULL,
+        session_id TEXT,
         expected_memory_ids_json TEXT NOT NULL,
         retrieved_candidate_ids_json TEXT NOT NULL,
         surfaced_memory_ids_json TEXT NOT NULL,
         wrong_thread_ids_json TEXT NOT NULL,
+        assistant_reply TEXT,
+        retrieved_evidence_snapshot_json TEXT NOT NULL DEFAULT '[]',
+        human_confirmed INTEGER NOT NULL DEFAULT 0,
         turn_id TEXT,
         decision_trace_id TEXT,
         note TEXT,
@@ -2532,7 +2524,27 @@ export async function setupAlicizationDb(
       )
     `)
     await run(database, 'ALTER TABLE memory_quality_gold_labels ADD COLUMN reason TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE memory_quality_gold_labels ADD COLUMN session_id TEXT').catch(() => {})
+    await run(database, 'ALTER TABLE memory_quality_gold_labels ADD COLUMN assistant_reply TEXT').catch(() => {})
+    await run(database, `ALTER TABLE memory_quality_gold_labels ADD COLUMN retrieved_evidence_snapshot_json TEXT NOT NULL DEFAULT '[]'`).catch(() => {})
+    await run(database, 'ALTER TABLE memory_quality_gold_labels ADD COLUMN human_confirmed INTEGER NOT NULL DEFAULT 0').catch(() => {})
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_quality_gold_labels_card_month_created ON memory_quality_gold_labels(card_id, month, created_at DESC, id DESC)')
+
+    await run(database, `
+      CREATE TABLE IF NOT EXISTS memory_quality_monthly_gold_packs (
+        pack_id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        month TEXT NOT NULL,
+        revision INTEGER NOT NULL,
+        frozen_at INTEGER NOT NULL,
+        content_hash TEXT NOT NULL,
+        source_label_ids_json TEXT NOT NULL,
+        items_snapshot_json TEXT NOT NULL,
+        item_count INTEGER NOT NULL,
+        UNIQUE(card_id, month)
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_quality_gold_packs_card_month ON memory_quality_monthly_gold_packs(card_id, month)')
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS long_term_memory_vectors (
@@ -5470,6 +5482,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       await deleteCardScoped('long_term_memory_policy_overrides')
       await deleteCardScoped('long_term_memory_vectors')
       await deleteCardScoped('memory_quality_gold_labels')
+      await deleteCardScoped('memory_quality_monthly_gold_packs')
       await deleteCardScoped('persona_training_candidate_reviews')
       await deleteCardScoped('persona_training_runs')
       await deleteCardScoped('persona_training_increments')
@@ -10467,19 +10480,56 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     return result
   }
 
-  function decodeMemoryQualityGoldReasonNote(raw: unknown) {
-    const note = normalizeOrganicMemoryText(raw, 720)
-    const match = /^\[\[alicization-memory-quality-reason:(wrong-thread|expired|not-needed|should-abstain)\]\](?:\n([\s\S]*))?$/u.exec(note)
-    if (!match) {
-      return {
-        reason: null,
-        note: normalizeOrganicMemoryText(note, 360),
+  function normalizeMemoryQualityEvidenceSnapshot(values: unknown[] | null | undefined) {
+    const result: AlicizationMemoryQualityEvidenceSnapshot[] = []
+    for (const value of values ?? []) {
+      if (!value || typeof value !== 'object' || Array.isArray(value))
+        continue
+      const item = value as Record<string, unknown>
+      const scope = item.scope && typeof item.scope === 'object' && !Array.isArray(item.scope)
+        ? item.scope as Record<string, unknown>
+        : null
+      const provenance = item.provenance
+      if (
+        provenance !== 'observed'
+        && provenance !== 'remembered'
+        && provenance !== 'dreamt'
+        && provenance !== 'inferred'
+        && provenance !== 'reconstructed'
+        && provenance !== 'shadow'
+      ) {
+        continue
       }
+      const id = normalizeOrganicMemoryText(item.id, 180)
+      const summary = normalizeOrganicMemoryText(item.summary, 720)
+      const source = normalizeOrganicMemoryText(item.source, 180)
+      const kind = normalizeOrganicMemoryText(item.kind, 120)
+      const userId = normalizeOrganicMemoryText(scope?.userId, 120)
+      const cardId = normalizeOrganicMemoryText(scope?.cardId, 120) || null
+      if (!id || !summary || !source || !kind || !userId)
+        continue
+      result.push({
+        id,
+        kind,
+        summary,
+        source,
+        score: Number.isFinite(item.score) ? Number(item.score) : 0,
+        confidence: Number.isFinite(item.confidence) ? Number(item.confidence) : 0,
+        sensitivity: normalizeOrganicMemoryText(item.sensitivity, 120) || null,
+        scope: {
+          userId,
+          cardId,
+        },
+        provenance,
+        evidenceVersion: normalizeOrganicMemoryText(item.evidenceVersion, 120) || 'unknown',
+        version: normalizeOrganicMemoryText(item.version, 120) || 'unknown',
+        queryMatches: normalizeMemoryQualityIds(Array.isArray(item.queryMatches) ? item.queryMatches : [], 32),
+        rankReasons: normalizeMemoryQualityIds(Array.isArray(item.rankReasons) ? item.rankReasons : [], 32),
+      })
+      if (result.length >= 128)
+        break
     }
-    return {
-      reason: resolveSimpleRecallGoldReason(match[1]),
-      note: normalizeOrganicMemoryText(match[2], 360),
-    }
+    return result
   }
 
   function mapMemoryQualityGoldLabelRow(row: DbMemoryQualityGoldLabelRow): AlicizationMemoryQualityGoldLabelItem {
@@ -10502,14 +10552,37 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           || value === 'abstention',
         ),
       query: row.query,
+      sessionId: normalizeOrganicMemoryText(row.session_id, 180),
+      turnId: normalizeOrganicMemoryText(row.turn_id, 180),
+      decisionTraceId: normalizeOrganicMemoryText(row.decision_trace_id, 180) || null,
+      assistantReply: normalizeOrganicMemoryText(row.assistant_reply, 4_000),
+      retrievedEvidenceSnapshot: normalizeMemoryQualityEvidenceSnapshot(parseJsonUnknown(row.retrieved_evidence_snapshot_json)),
       expectedMemoryIds: parseJsonStringArray(row.expected_memory_ids_json),
       retrievedCandidateIds: parseJsonStringArray(row.retrieved_candidate_ids_json),
       surfacedMemoryIds: parseJsonStringArray(row.surfaced_memory_ids_json),
       wrongThreadIds: parseJsonStringArray(row.wrong_thread_ids_json),
-      turnId: row.turn_id,
-      decisionTraceId: row.decision_trace_id,
       note: row.note,
+      humanConfirmed: row.human_confirmed === 1,
       createdAt: row.created_at,
+    }
+  }
+
+  function mapMemoryQualityMonthlyGoldPackRow(row: DbMemoryQualityMonthlyGoldPackRow): AlicizationMemoryQualityMonthlyGoldRegressionPack {
+    const itemsSnapshot = parseJsonUnknown(row.items_snapshot_json)
+      .map(item => item && typeof item === 'object' ? item as AlicizationMemoryQualityGoldLabelItem : null)
+      .filter((item): item is AlicizationMemoryQualityGoldLabelItem => item !== null)
+    return {
+      version: 'memory-quality-monthly-gold-regression-pack-v2',
+      packId: row.pack_id,
+      revision: row.revision,
+      cardId: row.card_id,
+      month: row.month,
+      frozenAt: row.frozen_at,
+      contentHash: row.content_hash,
+      sourceLabelIds: parseJsonStringArray(row.source_label_ids_json),
+      itemCount: row.item_count,
+      itemsSnapshot,
+      items: structuredClone(itemsSnapshot),
     }
   }
 
@@ -10534,12 +10607,31 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     const query = normalizeOrganicMemoryText(input.query, 720)
     if (!query)
       throw new Error('memory quality gold label query is required')
+    const sessionId = normalizeOrganicMemoryText(input.sessionId, 180)
+    if (!sessionId)
+      throw new Error('memory quality gold label sessionId is required')
+    const turnId = normalizeOrganicMemoryText(input.turnId, 180)
+    if (!turnId)
+      throw new Error('memory quality gold label turnId is required')
+    const assistantReply = normalizeOrganicMemoryText(input.assistantReply, 4_000)
+    if (!assistantReply)
+      throw new Error('memory quality gold label assistantReply is required')
+    if (!Array.isArray(input.retrievedEvidenceSnapshot))
+      throw new Error('memory quality gold label evidence snapshot is required')
 
     const label = resolveSimpleRecallGoldLabelOption(input.label)
-    const id = `memory-quality-gold:${cardId}:${createdAt}:${randomUUID()}`
-    const decodedNote = decodeMemoryQualityGoldReasonNote(input.note)
-    const reason = resolveSimpleRecallGoldReason(input.reason) ?? decodedNote.reason
     const expectedMemoryIds = normalizeMemoryQualityIds(input.expectedMemoryIds)
+    if (label.value !== 'unwanted' && expectedMemoryIds.length === 0)
+      throw new Error(`${label.value} gold label requires at least one expected memory`)
+    if (label.value === 'unwanted' && expectedMemoryIds.length > 0)
+      throw new Error('unwanted gold label must not have expected memories')
+    const retrievedEvidenceSnapshot = normalizeMemoryQualityEvidenceSnapshot(input.retrievedEvidenceSnapshot)
+    if (retrievedEvidenceSnapshot.length !== input.retrievedEvidenceSnapshot.length)
+      throw new Error('memory quality gold label evidence snapshot contains invalid items')
+    if (retrievedEvidenceSnapshot.some(item => item.scope.cardId !== null && item.scope.cardId !== cardId))
+      throw new Error('memory quality gold label evidence snapshot card scope mismatch')
+    const id = `memory-quality-gold:${cardId}:${createdAt}:${randomUUID()}`
+    const reason = resolveSimpleRecallGoldReason(input.reason)
     const retrievedCandidateIds = normalizeMemoryQualityIds(input.retrievedCandidateIds)
     const surfacedMemoryIds = normalizeMemoryQualityIds(input.surfacedMemoryIds)
     const wrongThreadIds = normalizeMemoryQualityIds(input.wrongThreadIds)
@@ -10556,15 +10648,19 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           evaluation_class,
           benchmark_dimensions_json,
           query,
+          session_id,
           expected_memory_ids_json,
           retrieved_candidate_ids_json,
           surfaced_memory_ids_json,
           wrong_thread_ids_json,
+          assistant_reply,
+          retrieved_evidence_snapshot_json,
+          human_confirmed,
           turn_id,
           decision_trace_id,
           note,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           id,
@@ -10575,13 +10671,17 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           label.evaluationClass,
           JSON.stringify(label.benchmarkDimensions),
           query,
+          sessionId,
           JSON.stringify(expectedMemoryIds),
           JSON.stringify(retrievedCandidateIds),
           JSON.stringify(surfacedMemoryIds),
           JSON.stringify(wrongThreadIds),
-          normalizeOrganicMemoryText(input.turnId, 180) || null,
+          assistantReply,
+          JSON.stringify(retrievedEvidenceSnapshot),
+          1,
+          turnId,
           normalizeOrganicMemoryText(input.decisionTraceId, 180) || null,
-          decodedNote.note || null,
+          normalizeOrganicMemoryText(input.note, 360) || null,
           createdAt,
         ],
       )
@@ -10602,6 +10702,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     month?: string | null
     limit?: number
     cursor?: string | null
+    humanConfirmedOnly?: boolean
   }): Promise<AlicizationMemoryQualityGoldLabelListResult> {
     const cardId = resolveMemoryCardId(input.cardId, 'memory quality gold label list')
     const month = normalizeMemoryQualityMonth(input.month)
@@ -10610,6 +10711,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     const cursorClause = cursor
       ? 'AND (created_at < ? OR (created_at = ? AND id < ?))'
       : ''
+    const humanConfirmedClause = input.humanConfirmedOnly ? 'AND human_confirmed = 1' : ''
     const rows = await all<DbMemoryQualityGoldLabelRow>(
       database,
       `
@@ -10617,6 +10719,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       FROM memory_quality_gold_labels
       WHERE card_id = ?
         AND month = ?
+        ${humanConfirmedClause}
         ${cursorClause}
       ORDER BY created_at DESC, id DESC
       LIMIT ?
@@ -10636,22 +10739,42 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
   async function listAllMemoryQualityGoldLabels(input: {
     cardId: string
     month?: string | null
-    maxItems?: number
+    humanConfirmedOnly?: boolean
   }) {
-    const maxItems = Math.max(1, Math.min(10_000, Math.floor(input.maxItems ?? 2000)))
     const items: AlicizationMemoryQualityGoldLabelItem[] = []
     let cursor: string | null = null
     do {
       const page = await listMemoryQualityGoldLabels({
         cardId: input.cardId,
         month: input.month,
-        limit: Math.min(500, maxItems - items.length),
+        limit: 500,
         cursor,
+        humanConfirmedOnly: input.humanConfirmedOnly,
       })
       items.push(...page.items)
       cursor = page.nextCursor
-    } while (cursor && items.length < maxItems)
+    } while (cursor)
     return items
+  }
+
+  async function getMonthlyGoldRegressionPack(input: {
+    cardId: string
+    month?: string | null
+  }): Promise<AlicizationMemoryQualityMonthlyGoldRegressionPack | null> {
+    const cardId = resolveMemoryCardId(input.cardId, 'memory quality monthly regression pack lookup')
+    const month = normalizeMemoryQualityMonth(input.month)
+    const row = await get<DbMemoryQualityMonthlyGoldPackRow>(
+      database,
+      `
+      SELECT *
+      FROM memory_quality_monthly_gold_packs
+      WHERE card_id = ?
+        AND month = ?
+      LIMIT 1
+      `,
+      [cardId, month],
+    )
+    return row ? mapMemoryQualityMonthlyGoldPackRow(row) : null
   }
 
   async function buildMonthlyGoldRegressionPack(input: {
@@ -10660,14 +10783,66 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
   }): Promise<AlicizationMemoryQualityMonthlyGoldRegressionPack> {
     const cardId = resolveMemoryCardId(input.cardId, 'memory quality monthly regression pack')
     const month = normalizeMemoryQualityMonth(input.month)
-    const items = await listAllMemoryQualityGoldLabels({ cardId, month })
-    return {
-      version: 'memory-quality-monthly-gold-regression-pack-v1',
+    const existing = await getMonthlyGoldRegressionPack({ cardId, month })
+    if (existing)
+      return existing
+
+    const items = await listAllMemoryQualityGoldLabels({
       cardId,
       month,
-      itemCount: items.length,
-      items,
-    }
+      humanConfirmedOnly: true,
+    })
+    if (items.length === 0)
+      throw new Error('memory quality monthly gold regression pack requires at least one human-confirmed label')
+
+    const revision = 1
+    const frozenAt = now()
+    const sourceLabelIds = items.map(item => item.id)
+    const itemsSnapshot = structuredClone(items)
+    const contentHash = `sha256:${createHash('sha256')
+      .update(JSON.stringify({
+        cardId,
+        month,
+        revision,
+        sourceLabelIds,
+        itemsSnapshot,
+      }))
+      .digest('hex')}`
+    const packId = `memory-quality-gold-pack:${cardId}:${month}:${randomUUID()}`
+    await enqueueWrite(async () => {
+      await run(
+        database,
+        `
+        INSERT OR IGNORE INTO memory_quality_monthly_gold_packs (
+          pack_id,
+          card_id,
+          month,
+          revision,
+          frozen_at,
+          content_hash,
+          source_label_ids_json,
+          items_snapshot_json,
+          item_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          packId,
+          cardId,
+          month,
+          revision,
+          frozenAt,
+          contentHash,
+          JSON.stringify(sourceLabelIds),
+          JSON.stringify(itemsSnapshot),
+          itemsSnapshot.length,
+        ],
+      )
+    })
+
+    const frozen = await getMonthlyGoldRegressionPack({ cardId, month })
+    if (!frozen)
+      throw new Error('memory quality monthly gold regression pack write failed')
+    return frozen
   }
 
   function buildPersonaDatasetQualityFixturesFromSnapshot(input: {
@@ -10976,7 +11151,17 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       ? await getWorkingMemoryCheckpoint(cardId, requestedReplaySessionId)
       : null
     const replaySessionId = selectedWorkingMemoryCheckpoint?.sessionId ?? null
-    const labels = await listAllMemoryQualityGoldLabels({ cardId, month })
+    let goldRegressionPack = await getMonthlyGoldRegressionPack({ cardId, month })
+    if (!goldRegressionPack) {
+      const humanLabels = await listAllMemoryQualityGoldLabels({
+        cardId,
+        month,
+        humanConfirmedOnly: true,
+      })
+      if (humanLabels.length > 0)
+        goldRegressionPack = await buildMonthlyGoldRegressionPack({ cardId, month })
+    }
+    const labels = goldRegressionPack?.itemsSnapshot ?? []
     const temporalConflict = await buildLongTermTemporalConflictFixtures({
       cardId,
       labels,
@@ -11309,6 +11494,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       experienceQuality,
       scopeFuzzReport,
       runtimeHealth,
+      goldRegressionPack,
       longTerm,
       personaTraining: personaSnapshot
         ? buildPersonaDatasetQualityFixturesFromSnapshot({

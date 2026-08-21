@@ -246,6 +246,57 @@ describe('alicization memory workbench store', () => {
     expect(store.reindexResult?.indexed).toBe(1)
   })
 
+  it('loads every gold-label page instead of silently stopping at the first page', async () => {
+    const baseLabel = {
+      id: 'gold-label',
+      cardId: 'default',
+      month: '2026-08',
+      label: 'right' as const,
+      reason: null,
+      labelText: '记得对',
+      description: '记忆使用正确。',
+      evaluationClass: 'correct-recall' as const,
+      benchmarkDimensions: ['information-extraction' as const],
+      query: '你还记得这件事吗？',
+      sessionId: 'session-gold',
+      turnId: 'turn-gold',
+      decisionTraceId: null,
+      assistantReply: '记得。',
+      retrievedEvidenceSnapshot: [],
+      expectedMemoryIds: ['memory-gold'],
+      retrievedCandidateIds: ['memory-gold'],
+      surfacedMemoryIds: ['memory-gold'],
+      wrongThreadIds: [],
+      note: null,
+      humanConfirmed: true,
+      createdAt: 1,
+    }
+    const firstPage = Array.from({ length: 200 }, (_, index) => ({
+      ...baseLabel,
+      id: `gold-label-${index}`,
+      createdAt: index + 1,
+    }))
+    const memoryWorkbenchListQualityGoldLabels = vi.fn()
+      .mockResolvedValueOnce({ items: firstPage, nextCursor: 'gold-cursor' })
+      .mockResolvedValueOnce({
+        items: [{ ...baseLabel, id: 'gold-label-200', createdAt: 201 }],
+        nextCursor: null,
+      })
+    setAlicizationBridge({
+      memoryWorkbenchListQualityGoldLabels,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.loadMonthlyGoldLabels('2026-08')
+
+    expect(store.monthlyGoldLabels).toHaveLength(201)
+    expect(memoryWorkbenchListQualityGoldLabels).toHaveBeenNthCalledWith(2, {
+      month: '2026-08',
+      limit: 500,
+      cursor: 'gold-cursor',
+    })
+  })
+
   it('controls a persisted reindex job through status, cancel, and dead-letter retry actions', async () => {
     const progress = {
       jobId: 'job-1',
@@ -1267,13 +1318,17 @@ describe('alicization memory workbench store', () => {
       evaluationClass: 'missed-recall',
       benchmarkDimensions: ['information-extraction', 'multi-session-reasoning'],
       query: '你还记得 SiliconFlow baseUrl 吗？',
+      sessionId: 'session-gold',
+      assistantReply: '你之前纠正过，baseUrl 只填主域名。',
+      retrievedEvidenceSnapshot: [],
       expectedMemoryIds: ['reflection-siliconflow-baseurl'],
       retrievedCandidateIds: [],
       surfacedMemoryIds: [],
       wrongThreadIds: [],
-      turnId: null,
+      turnId: 'turn-gold',
       decisionTraceId: null,
       note: null,
+      humanConfirmed: true,
       createdAt: 1,
     } as const
     const report = {
@@ -1293,6 +1348,8 @@ describe('alicization memory workbench store', () => {
         longTermFixtureCount: 1,
         userTrialCount: 0,
         personaTrainingFixtureCount: 0,
+        goldLabelCount: 0,
+        goldRegressionPackId: null,
         failingStageIds: ['long-term-recall'],
         notRunStageIds: [],
         optimizationFindingCount: 0,
@@ -1323,6 +1380,7 @@ describe('alicization memory workbench store', () => {
       semanticScaleSoak: null,
       experienceQuality: null,
       scopeFuzz: null,
+      goldRegressionPack: null,
       recommendedNextActions: ['补充当前 baseUrl 记忆。'],
     } as const
     const memoryWorkbenchListReplaySessions = vi.fn()
@@ -1356,10 +1414,16 @@ describe('alicization memory workbench store', () => {
     const memoryWorkbenchRecordQualityGoldLabel = vi.fn(async () => label)
     const memoryWorkbenchRunQualityTrial = vi.fn(async () => report)
     const memoryWorkbenchBuildMonthlyGoldRegression = vi.fn(async () => ({
-      version: 'memory-quality-monthly-gold-regression-pack-v1',
+      version: 'memory-quality-monthly-gold-regression-pack-v2',
+      packId: 'pack-default-2026-08',
+      revision: 1,
       cardId: 'default',
       month: '2026-08',
+      frozenAt: 3,
+      contentHash: 'sha256:gold',
+      sourceLabelIds: ['gold-1'],
       itemCount: 1,
+      itemsSnapshot: [label],
       items: [label],
     }))
     setAlicizationBridge({
@@ -1377,6 +1441,10 @@ describe('alicization memory workbench store', () => {
       label: 'missing',
       reason: 'expired',
       query: '你还记得 SiliconFlow baseUrl 吗？',
+      sessionId: 'session-gold',
+      turnId: 'turn-gold',
+      assistantReply: '你之前纠正过，baseUrl 只填主域名。',
+      retrievedEvidenceSnapshot: [],
       expectedMemoryIds: ['reflection-siliconflow-baseurl'],
       note: '她应该想起这条明确纠正。',
     })
@@ -1406,7 +1474,7 @@ describe('alicization memory workbench store', () => {
       label: 'missing',
       reason: 'expired',
       query: '你还记得 SiliconFlow baseUrl 吗？',
-      note: expect.stringContaining('expired'),
+      note: '她应该想起这条明确纠正。',
     }))
     expect(memoryWorkbenchRunQualityTrial).toHaveBeenCalledWith({
       mode: 'live-provider',

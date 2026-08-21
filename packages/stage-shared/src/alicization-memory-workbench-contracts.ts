@@ -44,6 +44,114 @@ export interface AlicizationMemoryReplaySessionListResult {
   nextCursor: string | null
 }
 
+export type AlicizationSimpleRecallGoldLabel = 'right' | 'missing' | 'wrong' | 'unwanted'
+export type AlicizationSimpleRecallGoldReason = 'wrong-thread' | 'expired' | 'not-needed' | 'should-abstain'
+export type AlicizationSimpleRecallGoldEvaluationClass
+  = | 'correct-recall'
+    | 'missed-recall'
+    | 'false-recall'
+    | 'should-abstain'
+export type AlicizationSimpleRecallGoldBenchmarkDimension
+  = | 'information-extraction'
+    | 'multi-session-reasoning'
+    | 'temporal-reasoning'
+    | 'knowledge-update'
+    | 'abstention'
+
+export interface AlicizationMemoryQualityEvidenceSnapshot {
+  id: string
+  kind: string
+  summary: string
+  source: string
+  score: number
+  confidence: number
+  sensitivity: string | null
+  scope: {
+    userId: string
+    cardId: string | null
+  }
+  provenance: AlicizationMemoryProvenance
+  evidenceVersion: string
+  version: string
+  queryMatches: string[]
+  rankReasons: string[]
+}
+
+export interface AlicizationMemoryQualityGoldLabelPayload {
+  cardId: string
+  month?: string | null
+  label: AlicizationSimpleRecallGoldLabel
+  reason?: AlicizationSimpleRecallGoldReason | null
+  query: string
+  sessionId: string
+  turnId: string
+  decisionTraceId?: string | null
+  assistantReply: string
+  retrievedEvidenceSnapshot: AlicizationMemoryQualityEvidenceSnapshot[]
+  expectedMemoryIds?: string[]
+  retrievedCandidateIds?: string[]
+  surfacedMemoryIds?: string[]
+  wrongThreadIds?: string[]
+  note?: string | null
+  createdAt?: number
+}
+
+export interface AlicizationMemoryQualityGoldLabelItem {
+  id: string
+  cardId: string
+  month: string
+  label: AlicizationSimpleRecallGoldLabel
+  reason: AlicizationSimpleRecallGoldReason | null
+  labelText: string
+  description: string
+  evaluationClass: AlicizationSimpleRecallGoldEvaluationClass
+  benchmarkDimensions: AlicizationSimpleRecallGoldBenchmarkDimension[]
+  query: string
+  sessionId: string
+  turnId: string
+  decisionTraceId: string | null
+  assistantReply: string
+  retrievedEvidenceSnapshot: AlicizationMemoryQualityEvidenceSnapshot[]
+  expectedMemoryIds: string[]
+  retrievedCandidateIds: string[]
+  surfacedMemoryIds: string[]
+  wrongThreadIds: string[]
+  note: string | null
+  humanConfirmed: boolean
+  createdAt: number
+}
+
+export interface AlicizationMemoryQualityGoldLabelListPayload {
+  cardId: string
+  month?: string | null
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationMemoryQualityGoldLabelListResult {
+  items: AlicizationMemoryQualityGoldLabelItem[]
+  nextCursor: string | null
+}
+
+export interface AlicizationMemoryQualityMonthlyGoldRegressionPack {
+  version: 'memory-quality-monthly-gold-regression-pack-v2'
+  packId: string
+  revision: number
+  cardId: string
+  month: string
+  frozenAt: number
+  contentHash: string
+  sourceLabelIds: string[]
+  itemCount: number
+  itemsSnapshot: AlicizationMemoryQualityGoldLabelItem[]
+  items: AlicizationMemoryQualityGoldLabelItem[]
+}
+
+export interface AlicizationMemoryQualityMonthlyGoldRegressionPayload {
+  cardId: string
+  month?: string | null
+}
+
 export interface AlicizationMemoryQualityTrialPayload {
   cardId: string
   mode?: 'historical-replay' | 'live-provider'
@@ -1108,6 +1216,8 @@ export interface AlicizationMemoryQualityTrialReport {
     longTermFixtureCount: number
     userTrialCount: number
     personaTrainingFixtureCount: number
+    goldLabelCount: number
+    goldRegressionPackId: string | null
     failingStageIds: string[]
     notRunStageIds: string[]
     optimizationFindingCount: number
@@ -1125,6 +1235,7 @@ export interface AlicizationMemoryQualityTrialReport {
       | 'semantic-scale-soak'
       | 'experience-quality'
       | 'scope-fuzz'
+      | 'gold-regression'
       | 'persona-dataset-hygiene'
     id: string
     passed: boolean
@@ -1205,6 +1316,7 @@ export interface AlicizationMemoryQualityTrialReport {
     optimizationFindings: AlicizationMemoryQualityOptimizationFinding[]
     recommendedNextActions: string[]
   }
+  goldRegressionPack: AlicizationMemoryQualityMonthlyGoldRegressionPack | null
   regression: {
     recallAt1: number
     recallAt3: number

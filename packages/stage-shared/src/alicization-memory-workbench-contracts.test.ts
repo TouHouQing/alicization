@@ -1,4 +1,8 @@
-import type { AlicizationPersonaTrainingPipelineIncrement } from './alicization-memory-workbench-contracts'
+import type {
+  AlicizationMemoryQualityGoldLabelPayload,
+  AlicizationMemoryQualityMonthlyGoldRegressionPack,
+  AlicizationPersonaTrainingPipelineIncrement,
+} from './alicization-memory-workbench-contracts'
 
 import { describe, expect, it } from 'vitest'
 
@@ -214,5 +218,68 @@ describe('alicization persona training artifact contract', () => {
   ])('rejects an invalid persisted artifact %#', (artifact) => {
     expect(() => parseAlicizationPersonaTrainingArtifact(artifact))
       .toThrow('invalid Alicization persona training artifact')
+  })
+})
+
+describe('alicization memory quality gold contract', () => {
+  it('binds a human label to the replay turn, reply, and immutable evidence snapshot', () => {
+    const payload = {
+      cardId: 'card-a',
+      month: '2026-08',
+      label: 'missing',
+      reason: 'expired',
+      query: '你还记得我现在使用什么编辑器吗？',
+      sessionId: 'session-a',
+      turnId: 'turn-a',
+      decisionTraceId: 'trace-a',
+      assistantReply: '我这次没有想起来。',
+      retrievedEvidenceSnapshot: [{
+        id: 'memory-editor-v2',
+        kind: 'fact',
+        summary: '用户现在使用 Zed。',
+        source: 'memory_facts',
+        score: 0.91,
+        confidence: 0.95,
+        sensitivity: 'personal',
+        scope: {
+          userId: 'user-a',
+          cardId: 'card-a',
+        },
+        provenance: 'remembered',
+        evidenceVersion: 'evidence-v1',
+        version: 'memory-v2',
+        queryMatches: ['编辑器'],
+        rankReasons: ['semantic-match'],
+      }],
+      expectedMemoryIds: ['memory-editor-v2'],
+      retrievedCandidateIds: ['memory-editor-v2'],
+      surfacedMemoryIds: [],
+      wrongThreadIds: [],
+      note: '人工确认：应该召回但没有出现在回复中。',
+    } satisfies AlicizationMemoryQualityGoldLabelPayload
+
+    expect(payload.sessionId).toBe('session-a')
+    expect(payload.retrievedEvidenceSnapshot).toHaveLength(1)
+    expect(payload.assistantReply).toContain('没有想起来')
+  })
+
+  it('requires a frozen pack snapshot rather than a live label list', () => {
+    const pack = {
+      version: 'memory-quality-monthly-gold-regression-pack-v2',
+      packId: 'gold-pack-card-a-2026-08',
+      revision: 1,
+      cardId: 'card-a',
+      month: '2026-08',
+      frozenAt: 1_755_000_000_000,
+      contentHash: 'sha256:abc',
+      sourceLabelIds: ['gold-label-a'],
+      itemCount: 1,
+      itemsSnapshot: [],
+      items: [],
+    } satisfies AlicizationMemoryQualityMonthlyGoldRegressionPack
+
+    expect(pack.frozenAt).toBeGreaterThan(0)
+    expect(pack.contentHash).toMatch(/^sha256:/u)
+    expect(pack.itemsSnapshot).toEqual([])
   })
 })
