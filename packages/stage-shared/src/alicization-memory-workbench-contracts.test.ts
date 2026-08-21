@@ -78,6 +78,70 @@ describe('alicization persona training artifact contract', () => {
     })
   })
 
+  it('preserves omitted compatibility metadata on legacy artifacts', () => {
+    const artifact = parseAlicizationPersonaTrainingArtifact({
+      schemaVersion: 'alicization-persona-training-artifact-v1',
+      artifactId: 'artifact-legacy',
+      runId: 'run-legacy',
+      kind: 'lora-adapter',
+      path: '/tmp/persona-training/artifacts/artifact-legacy/output/adapter.safetensors',
+      sha256: 'a'.repeat(64),
+      sizeBytes: 1024,
+      baseModel: 'base-model-v1',
+      compatibility: {
+        status: 'compatible',
+        baseModel: 'base-model-v1',
+        reason: null,
+      },
+      activation: {
+        status: 'unsupported',
+        reason: 'No loader receipt is available.',
+      },
+    })
+
+    expect(artifact).not.toHaveProperty('compatibilityReason')
+  })
+
+  it('keeps training readiness separate from dialogue readiness for MLX artifacts', () => {
+    expect(parseAlicizationPersonaTrainingArtifact({
+      schemaVersion: 'alicization-persona-training-artifact-v1',
+      artifactId: 'artifact-mlx',
+      runId: 'run-mlx',
+      kind: 'lora-adapter',
+      path: '/tmp/persona-training/artifacts/artifact-mlx/output/adapters.safetensors',
+      sha256: 'd'.repeat(64),
+      sizeBytes: 42,
+      baseModel: 'base-model-v1',
+      trainingReady: true,
+      dialogueReady: false,
+      compatibilityReason: '需要真实转换后才能被 llama.cpp 使用。',
+      format: 'mlx-safetensors',
+      producerBackend: 'mlx-lm',
+      loaderTarget: 'llama.cpp',
+      conversion: {
+        status: 'required',
+        sourceArtifactId: 'artifact-mlx',
+      },
+      compatibility: {
+        status: 'incompatible',
+        baseModel: 'base-model-v1',
+        reason: '需要真实转换后才能被 llama.cpp 使用。',
+      },
+      activation: {
+        status: 'unsupported',
+        reason: '训练产物未进入对话运行时。',
+      },
+    })).toMatchObject({
+      trainingReady: true,
+      dialogueReady: false,
+      format: 'mlx-safetensors',
+      producerBackend: 'mlx-lm',
+      loaderTarget: 'llama.cpp',
+      conversion: { status: 'required' },
+      compatibility: { status: 'incompatible' },
+    })
+  })
+
   it('accepts an active artifact only when it carries a real loader receipt', () => {
     expect(parseAlicizationPersonaTrainingArtifact({
       schemaVersion: 'alicization-persona-training-artifact-v1',

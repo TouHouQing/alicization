@@ -1,6 +1,11 @@
 import type { PersistentLongTermMemoryVectorRecord } from './long-term-memory-persistent-vector-store'
 import type { LongTermMemoryVectorIndexAdapter } from './long-term-memory-vector-index-adapter'
-import type { MemorySemanticScaleSoakReport } from './memory-semantic-scale-soak-harness'
+import type {
+  MemorySemanticScaleResourcePreflight,
+  MemorySemanticScaleSearchObservation,
+  MemorySemanticScaleSearchQueryObservation,
+  MemorySemanticScaleSoakReport,
+} from './memory-semantic-scale-soak-harness'
 
 import { performance } from 'node:perf_hooks'
 
@@ -57,6 +62,7 @@ function buildVectorRecord(input: {
   vectorSpaceId: string
   index: number
   updatedAt: number
+  vector?: number[]
   foreign?: boolean
 }): PersistentLongTermMemoryVectorRecord {
   const suffix = String(input.index).padStart(8, '0')
@@ -68,7 +74,7 @@ function buildVectorRecord(input: {
     sourceId,
     source: 'memory_reflections',
     text,
-    vector: deterministicVector(input.index, input.dimensions),
+    vector: input.vector ?? deterministicVector(input.index, input.dimensions),
     modelId: input.modelId,
     dimensions: input.dimensions,
     vectorSpaceId: input.vectorSpaceId,
@@ -78,6 +84,49 @@ function buildVectorRecord(input: {
       scaleSoak: true,
     },
   }
+}
+
+function normalizeProviderVector(
+  raw: unknown,
+  dimensions: number,
+  text: string,
+) {
+  if (
+    !raw
+    || typeof raw !== 'object'
+    || !Array.isArray((raw as { vector?: unknown }).vector)
+    || (raw as { vector: unknown[] }).vector.length !== dimensions
+    || !(raw as { vector: unknown[] }).vector.every(value => Number.isFinite(value))
+  ) {
+    throw new Error(`semantic scale embedding provider returned an invalid vector for "${text}"`)
+  }
+  return (raw as { vector: number[] }).vector
+}
+
+async function embedScaleTexts(input: {
+  embeddingProvider?: {
+    embedTexts: (texts: string[]) => Promise<Array<{ text: string, vector: number[] }>>
+  }
+  texts: string[]
+  dimensions: number
+}) {
+  if (!input.embeddingProvider)
+    return null
+  const embeddings = await input.embeddingProvider.embedTexts(input.texts)
+  if (embeddings.length !== input.texts.length)
+    throw new Error(`semantic scale embedding provider returned ${embeddings.length} vectors for ${input.texts.length} texts`)
+  return input.texts.map((text, index) =>
+    normalizeProviderVector(embeddings[index], input.dimensions, text))
+}
+
+function normalizeVector(vector: number[]) {
+  const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0)) || 1
+  return vector.map(value => value / norm)
+}
+
+function nonSelfSyntheticQueryVector(vector: number[], index: number) {
+  return normalizeVector(vector.map((value, dimension) =>
+    value + ((dimension + index) % vector.length === 0 ? 0.001 : 0)))
 }
 
 function canonicalRecord(record: PersistentLongTermMemoryVectorRecord): MemorySemanticScaleCanonicalRecord {
@@ -113,6 +162,14 @@ function throwIfAborted(signal?: AbortSignal) {
 export async function runMemorySemanticScaleVectorAdapterSoak(input: {
   id: string
   createdAt: number
+  gate?: 'adapter-smoke' | 'production'
+  adapterImplementation?: 'persistent-native' | 'test-double' | 'unknown'
+  embeddingProvider?: {
+    modelId?: string
+    dimensions?: number
+    embedTexts: (texts: string[]) => Promise<Array<{ text: string, vector: number[] }>>
+  }
+  resourcePreflight?: MemorySemanticScaleResourcePreflight | null
   adapter: LongTermMemoryVectorIndexAdapter
   prepareCanonical: (records: MemorySemanticScaleCanonicalRecord[]) => Promise<void>
   withBatchWrite?: (task: () => Promise<void>) => Promise<void>
@@ -137,7 +194,7 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
     modelId: input.modelId,
     dimensions,
   })
-  const searches = []
+  const searches: MemorySemanticScaleSearchObservation[] = []
   const totalWork = corpusSizes.reduce((total, corpusSize, index) => {
     const previousCorpusSize = corpusSizes[index - 1] ?? 0
     const indexBatchCount = Math.ceil(Math.max(0, corpusSize - previousCorpusSize) / batchSize)
@@ -151,7 +208,14 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
     for (let offset = indexedCorpusSize; offset < corpusSize; offset += batchSize) {
       throwIfAborted(input.signal)
       const end = Math.min(corpusSize, offset + batchSize)
-      const records = Array.from({ length: end - offset }, (_item, relativeIndex) =>
+      const recordTexts = Array.from({ length: end - offset }, (_item, relativeIndex) =>
+        `semantic-scale-memory-${String(offset + relativeIndex).padStart(8, '0')}`)
+      const providerVectors = await embedScaleTexts({
+        embeddingProvider: input.embeddingProvider,
+        texts: recordTexts,
+        dimensions,
+      })
+      const records = recordTexts.map((_text, relativeIndex) =>
         buildVectorRecord({
           cardId: input.cardId,
           modelId: input.modelId,
@@ -159,6 +223,7 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
           vectorSpaceId,
           index: offset + relativeIndex,
           updatedAt: input.createdAt + offset + relativeIndex,
+          vector: providerVectors?.[relativeIndex],
         }))
       const persistBatch = async () => {
         await input.prepareCanonical(records.map(canonicalRecord))
@@ -185,7 +250,14 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
 
     const indexes = queryIndexes(corpusSize, queryCount)
     throwIfAborted(input.signal)
-    const foreignRecords = indexes.map(index =>
+    const foreignTexts = indexes.map(index =>
+      `semantic-scale-memory-${String(index).padStart(8, '0')}`)
+    const foreignProviderVectors = await embedScaleTexts({
+      embeddingProvider: input.embeddingProvider,
+      texts: foreignTexts,
+      dimensions,
+    })
+    const foreignRecords = indexes.map((index, foreignIndex) =>
       buildVectorRecord({
         cardId: input.foreignCardId,
         modelId: input.modelId,
@@ -193,6 +265,7 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
         vectorSpaceId,
         index,
         updatedAt: input.createdAt + corpusSize + index,
+        vector: foreignProviderVectors?.[foreignIndex],
         foreign: true,
       }))
     const persistForeignBatch = async () => {
@@ -212,8 +285,15 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
       dimensions,
       vectorSpaceId,
     })
-    const queries = []
-    for (const index of indexes) {
+    const queryTexts = indexes.map(index =>
+      `semantic-scale query about memory ${String(index).padStart(8, '0')}`)
+    const queryProviderVectors = await embedScaleTexts({
+      embeddingProvider: input.embeddingProvider,
+      texts: queryTexts,
+      dimensions,
+    })
+    const queries: MemorySemanticScaleSearchQueryObservation[] = []
+    for (const [queryIndex, index] of indexes.entries()) {
       throwIfAborted(input.signal)
       const target = buildVectorRecord({
         cardId: input.cardId,
@@ -232,9 +312,11 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
         updatedAt: input.createdAt + corpusSize + index,
         foreign: true,
       })
+      const queryVector = queryProviderVectors?.[queryIndex]
+        ?? nonSelfSyntheticQueryVector(target.vector, index)
       const startedAt = performance.now()
       const results = await input.adapter.search({
-        queryVector: target.vector,
+        queryVector,
         cardId: input.cardId,
         modelId: input.modelId,
         dimensions,
@@ -244,6 +326,10 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
       throwIfAborted(input.signal)
       queries.push({
         id: `semantic-scale-query:${corpusSize}:${index}`,
+        queryText: queryTexts[queryIndex],
+        queryMode: input.embeddingProvider ? 'non-self' : 'synthetic',
+        queryVectorHash: JSON.stringify(queryVector),
+        expectedVectorHash: JSON.stringify(target.vector),
         expectedTopIds: [target.id],
         returnedIds: results.map(result => result.record.id),
         forbiddenIds: [foreign.id],
@@ -271,6 +357,8 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
       degraded: health.degraded,
       nativeIndexReady: health.nativeIndexReady,
       coverageRatio: health.coverageRatio ?? 0,
+      vectorInput: input.embeddingProvider ? 'provider' : 'unavailable',
+      adapterImplementation: input.adapterImplementation ?? 'unknown',
       queries,
     })
   }
@@ -278,10 +366,12 @@ export async function runMemorySemanticScaleVectorAdapterSoak(input: {
   return runMemorySemanticScaleSoakHarness({
     id: input.id,
     createdAt: input.createdAt,
+    gate: input.gate,
     searches,
     minimumCorpusSize: corpusSizes[0] ?? 1,
     maxP95LatencyMs: input.maxP95LatencyMs,
     maxP99LatencyMs: input.maxP99LatencyMs,
     minimumCoverageRatio: input.minimumCoverageRatio,
+    resourcePreflight: input.resourcePreflight,
   })
 }

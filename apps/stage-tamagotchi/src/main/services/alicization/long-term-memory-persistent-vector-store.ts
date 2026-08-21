@@ -57,6 +57,23 @@ interface PersistentLongTermMemoryVectorRow {
   metadata_json: string | null
 }
 
+interface PreparedPersistentLongTermMemoryVectorRecord {
+  id: string
+  cardId: string
+  sourceId: string
+  source: string
+  text: string
+  textHash: string
+  vectorBlob: Buffer
+  modelId: string
+  dimensions: number
+  vectorSpaceId: string
+  status: 'indexed' | 'stale' | 'failed'
+  lastError: string | null
+  metadataJson: string
+  updatedAt: number
+}
+
 const vectorUpsertBatchSize = 500
 
 function normalizeText(raw: unknown, maxChars = 360) {
@@ -224,8 +241,8 @@ export function createPersistentLongTermMemoryVectorStore(input: {
     await input.run(input.database, 'CREATE INDEX IF NOT EXISTS idx_ltm_vectors_card_source ON long_term_memory_vectors(card_id, source_id, source)')
   }
 
-  async function upsertVectors(records: PersistentLongTermMemoryVectorRecord[]) {
-    const prepared = records
+  function prepareVectorRecords(records: PersistentLongTermMemoryVectorRecord[]) {
+    return records
       .map((record) => {
         const id = normalizeText(record.id, 240)
         const cardId = normalizeText(record.cardId, 120)
@@ -259,67 +276,85 @@ export function createPersistentLongTermMemoryVectorStore(input: {
           modelId,
           dimensions,
           vectorSpaceId,
-          status: record.status === 'failed' || record.status === 'stale' ? record.status : 'indexed',
+          status: (record.status === 'failed' || record.status === 'stale' ? record.status : 'indexed') as 'failed' | 'stale' | 'indexed',
           lastError: normalizeText(record.lastError, 240) || null,
           metadataJson: safeJson(record.metadata),
           updatedAt,
         }
       })
       .filter((record): record is NonNullable<typeof record> => Boolean(record))
+  }
+
+  async function upsertPreparedVectors(
+    prepared: PreparedPersistentLongTermMemoryVectorRecord[],
+  ) {
+    if (prepared.length === 0)
+      return
+
+    for (let offset = 0; offset < prepared.length; offset += vectorUpsertBatchSize) {
+      const batch = prepared.slice(offset, offset + vectorUpsertBatchSize)
+      await input.run(input.database, `
+        INSERT INTO long_term_memory_vectors (
+          id,
+          card_id,
+          source_id,
+          source,
+          text_hash,
+          text,
+          vector_blob,
+          model_id,
+          dimensions,
+          vector_space_id,
+          status,
+          last_error,
+          metadata_json,
+          created_at,
+          updated_at
+        ) VALUES ${batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
+        ON CONFLICT(card_id, source_id, source, vector_space_id) DO UPDATE SET
+          id = excluded.id,
+          text_hash = excluded.text_hash,
+          text = excluded.text,
+          vector_blob = excluded.vector_blob,
+          model_id = excluded.model_id,
+          dimensions = excluded.dimensions,
+          vector_space_id = excluded.vector_space_id,
+          status = excluded.status,
+          last_error = excluded.last_error,
+          metadata_json = excluded.metadata_json,
+          updated_at = excluded.updated_at
+      `, batch.flatMap(record => [
+        record.id,
+        record.cardId,
+        record.sourceId,
+        record.source,
+        record.textHash,
+        record.text,
+        record.vectorBlob,
+        record.modelId,
+        record.dimensions,
+        record.vectorSpaceId,
+        record.status,
+        record.lastError,
+        record.metadataJson,
+        record.updatedAt,
+        record.updatedAt,
+      ]))
+    }
+  }
+
+  async function upsertVectors(records: PersistentLongTermMemoryVectorRecord[]) {
+    const prepared = prepareVectorRecords(records)
     if (prepared.length === 0)
       return
 
     await input.enqueueWrite(async () => {
-      for (let offset = 0; offset < prepared.length; offset += vectorUpsertBatchSize) {
-        const batch = prepared.slice(offset, offset + vectorUpsertBatchSize)
-        await input.run(input.database, `
-          INSERT INTO long_term_memory_vectors (
-            id,
-            card_id,
-            source_id,
-            source,
-            text_hash,
-            text,
-            vector_blob,
-            model_id,
-            dimensions,
-            vector_space_id,
-            status,
-            last_error,
-            metadata_json,
-            created_at,
-            updated_at
-          ) VALUES ${batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}
-          ON CONFLICT(card_id, source_id, source, vector_space_id) DO UPDATE SET
-            id = excluded.id,
-            text_hash = excluded.text_hash,
-            text = excluded.text,
-            vector_blob = excluded.vector_blob,
-            dimensions = excluded.dimensions,
-            vector_space_id = excluded.vector_space_id,
-            status = excluded.status,
-            last_error = excluded.last_error,
-            metadata_json = excluded.metadata_json,
-            updated_at = excluded.updated_at
-        `, batch.flatMap(record => [
-          record.id,
-          record.cardId,
-          record.sourceId,
-          record.source,
-          record.textHash,
-          record.text,
-          record.vectorBlob,
-          record.modelId,
-          record.dimensions,
-          record.vectorSpaceId,
-          record.status,
-          record.lastError,
-          record.metadataJson,
-          record.updatedAt,
-          record.updatedAt,
-        ]))
-      }
+      await upsertPreparedVectors(prepared)
     })
+  }
+
+  async function upsertVectorsInTransaction(records: PersistentLongTermMemoryVectorRecord[]) {
+    await upsertPreparedVectors(prepareVectorRecords(records))
   }
 
   async function searchVectors(
@@ -665,6 +700,7 @@ export function createPersistentLongTermMemoryVectorStore(input: {
   return {
     initialize,
     upsertVectors,
+    upsertVectorsInTransaction,
     searchVectors,
     deleteVectorsBySource,
     pruneOrphanedVectors,

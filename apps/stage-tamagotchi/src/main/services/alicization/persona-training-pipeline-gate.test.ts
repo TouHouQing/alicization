@@ -305,6 +305,115 @@ describe('persona training pipeline gate', () => {
     expect(discardArtifact).toHaveBeenCalledOnce()
   })
 
+  it('rejects an artifact that is not training-ready before creating a loader side effect', async () => {
+    const load = vi.fn(async () => ({
+      loaderId: 'test-loader',
+      receiptId: 'receipt-must-not-load-training-incomplete',
+      activatedAt: 201,
+    }))
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({
+        artifact: {
+          ...createArtifact(input.runId),
+          trainingReady: false,
+          dialogueReady: true,
+        },
+      }),
+      artifactLoader: {
+        load,
+        unload: async () => {},
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+      now: () => 200,
+      randomUUID: () => 'run-training-incomplete-artifact',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('not compatible'),
+    })
+    expect(load).not.toHaveBeenCalled()
+  })
+
+  it('rejects MLX safetensors unless the artifact declares an MLX runtime loader target', async () => {
+    const load = vi.fn(async () => ({
+      loaderId: 'test-loader',
+      receiptId: 'receipt-must-not-load-mlx-artifact',
+      activatedAt: 201,
+    }))
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({
+        artifact: {
+          ...createArtifact(input.runId),
+          trainingReady: true,
+          dialogueReady: true,
+          format: 'mlx-safetensors',
+          loaderTarget: 'unknown',
+        },
+      }),
+      artifactLoader: {
+        load,
+        unload: async () => {},
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+      now: () => 200,
+      randomUUID: () => 'run-mlx-unknown-target',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('not compatible'),
+    })
+    expect(load).not.toHaveBeenCalled()
+  })
+
+  it('rejects an artifact that is explicitly not dialogue-ready even if compatibility looks acceptable', async () => {
+    const load = vi.fn(async () => ({
+      loaderId: 'test-loader',
+      receiptId: 'receipt-must-not-load-dialogue-incomplete',
+      activatedAt: 201,
+    }))
+    const gate = createPersonaTrainingPipelineGate({
+      datasetRuntime: createDatasetRuntime(),
+      trainingExecutor: async input => ({
+        artifact: {
+          ...createArtifact(input.runId),
+          trainingReady: true,
+          dialogueReady: false,
+          format: 'gguf',
+          loaderTarget: 'llama.cpp',
+        },
+      }),
+      artifactLoader: {
+        load,
+        unload: async () => {},
+      },
+      artifactLifecycle: {
+        validateArtifact: async () => {},
+        discardArtifact: async () => {},
+      },
+      now: () => 200,
+      randomUUID: () => 'run-dialogue-incomplete-artifact',
+      basePersonaRevision: () => 'persona-core-v1',
+    })
+
+    await expect(gate.train({ cardId: 'card-a' })).resolves.toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('not compatible'),
+    })
+    expect(load).not.toHaveBeenCalled()
+  })
+
   it('persists the approved manifest boundary and training completion lifecycle', async () => {
     const recorder = createPersistenceRecorder()
     const gate = createPersonaTrainingPipelineGate({

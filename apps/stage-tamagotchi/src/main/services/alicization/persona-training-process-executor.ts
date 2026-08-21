@@ -30,6 +30,7 @@ import { kill as killProcess, env as processEnv, platform as processPlatform } f
 import { errorMessageFrom } from '@moeru/std'
 
 import { PersonaTrainingExecutorArtifactError } from './persona-training-pipeline-gate'
+import { buildPersonaTrainingRuntimeDiagnostic } from './persona-training-runtime-diagnostics'
 
 const artifactSchemaVersion = 'alicization-persona-training-artifact-v1'
 const artifactPublicationSchemaVersion = 'alicization-persona-training-publication-v1'
@@ -49,6 +50,14 @@ export interface PersonaTrainingProcessConfig {
   executable: string
   baseModel: string
   timeoutMs: number
+  backend?: 'external' | 'mlx-lm'
+  iterations?: number
+  learningRate?: number
+  loraLayers?: number
+  batchSize?: number
+  maxSeqLength?: number
+  maskPrompt?: boolean
+  seed?: number
 }
 
 export interface PersonaTrainingProcessProgress {
@@ -62,7 +71,13 @@ export type PersonaTrainingArtifact = AlicizationPersonaTrainingArtifact
 export interface PersonaTrainingProcessConnectionResult {
   ok: boolean
   executable: string
+  backend: 'external' | 'mlx-lm'
+  status: 'ready' | 'executable-missing' | 'model-unreadable' | 'mlx-lm-missing' | 'protocol-failure' | 'invalid-config'
   error: string | null
+  diagnostic?: {
+    action: 'none' | 'install-mlx-lm' | 'choose-readable-model' | 'configure-executable' | 'repair-protocol' | 'fix-configuration'
+    command: string | null
+  }
 }
 
 interface ArtifactManifest {
@@ -73,6 +88,18 @@ interface ArtifactManifest {
   path: string
   sha256: string
   baseModel: string
+  trainingReady?: boolean
+  dialogueReady?: boolean
+  compatibilityReason?: string | null
+  format?: 'gguf' | 'mlx-safetensors' | 'unknown'
+  producerBackend?: 'mlx-lm' | 'external' | 'unknown'
+  loaderTarget?: 'llama.cpp' | 'mlx-runtime' | 'unknown'
+  conversion?: {
+    status: 'not-required' | 'required' | 'completed' | 'failed'
+    sourceArtifactId?: string | null
+    tool?: string | null
+    version?: string | null
+  }
 }
 
 interface ProtocolState {
@@ -98,6 +125,13 @@ interface ArtifactPublicationReceipt {
   sha256: string
   sizeBytes: number
   baseModel: string
+  trainingReady?: boolean
+  dialogueReady?: boolean
+  compatibilityReason?: string | null
+  format?: ArtifactManifest['format']
+  producerBackend?: ArtifactManifest['producerBackend']
+  loaderTarget?: ArtifactManifest['loaderTarget']
+  conversion?: ArtifactManifest['conversion']
   artifactIdentity: PersistedFileIdentity
   publicationDirectoryIdentity: PersistedFileIdentity
 }
@@ -151,10 +185,41 @@ export function normalizePersonaTrainingProcessConfig(input: unknown): PersonaTr
   const timeoutMs = Number(value.timeoutMs)
   if (!Number.isFinite(timeoutMs) || timeoutMs < 10 || timeoutMs > 24 * 60 * 60 * 1_000)
     throw new Error('persona training timeout must be between 10ms and 24h')
+  const backend = value.backend === 'mlx-lm' ? 'mlx-lm' : 'external'
+  const integerOption = (raw: unknown, label: string, min: number, max: number, fallback: number) => {
+    if (raw == null)
+      return fallback
+    const normalized = Number(raw)
+    if (!Number.isSafeInteger(normalized) || normalized < min || normalized > max)
+      throw new Error(`${label} must be an integer between ${min} and ${max}`)
+    return normalized
+  }
+  const floatOption = (raw: unknown, label: string, min: number, max: number, fallback: number) => {
+    if (raw == null)
+      return fallback
+    const normalized = Number(raw)
+    if (!Number.isFinite(normalized) || normalized < min || normalized > max)
+      throw new Error(`${label} must be between ${min} and ${max}`)
+    return normalized
+  }
+  const iterations = integerOption(value.iterations, 'persona training iterations', 1, 100_000, 600)
+  const learningRate = floatOption(value.learningRate, 'persona training learning rate', 0.0000001, 1, 1e-5)
+  const loraLayers = integerOption(value.loraLayers, 'persona training LoRA layers', 1, 256, 8)
+  const batchSize = integerOption(value.batchSize, 'persona training batch size', 1, 128, 1)
+  const maxSeqLength = integerOption(value.maxSeqLength, 'persona training max sequence length', 64, 32_768, 2_048)
+  const seed = integerOption(value.seed, 'persona training seed', 0, 2_147_483_647, 42)
   return {
     executable,
     baseModel,
     timeoutMs: Math.floor(timeoutMs),
+    backend,
+    iterations,
+    learningRate,
+    loraLayers,
+    batchSize,
+    maxSeqLength,
+    maskPrompt: value.maskPrompt === true,
+    seed,
   }
 }
 
@@ -436,6 +501,52 @@ function parseArtifactManifest(raw: string): ArtifactManifest {
     throw new Error('persona training artifact manifest schema is unsupported')
   if (value.kind !== 'lora-adapter')
     throw new Error('persona training artifact kind is unsupported')
+  const format = value.format == null
+    ? undefined
+    : ['gguf', 'mlx-safetensors', 'unknown'].includes(String(value.format))
+        ? value.format
+        : (() => {
+            throw new Error('persona training artifact format is unsupported')
+          })()
+  const producerBackend = value.producerBackend == null
+    ? undefined
+    : ['mlx-lm', 'external', 'unknown'].includes(String(value.producerBackend))
+        ? value.producerBackend
+        : (() => {
+            throw new Error('persona training artifact producer backend is unsupported')
+          })()
+  const loaderTarget = value.loaderTarget == null
+    ? undefined
+    : ['llama.cpp', 'mlx-runtime', 'unknown'].includes(String(value.loaderTarget))
+        ? value.loaderTarget
+        : (() => {
+            throw new Error('persona training artifact loader target is unsupported')
+          })()
+  const trainingReady = value.trainingReady == null
+    ? undefined
+    : typeof value.trainingReady === 'boolean'
+      ? value.trainingReady
+      : (() => {
+          throw new Error('persona training artifact trainingReady must be a boolean')
+        })()
+  const dialogueReady = value.dialogueReady == null
+    ? undefined
+    : typeof value.dialogueReady === 'boolean'
+      ? value.dialogueReady
+      : (() => {
+          throw new Error('persona training artifact dialogueReady must be a boolean')
+        })()
+  const compatibilityReason = Object.prototype.hasOwnProperty.call(value, 'compatibilityReason')
+    ? value.compatibilityReason === null
+      ? null
+      : value.compatibilityReason === undefined
+        ? undefined
+        : normalizeNonEmptyText(
+            value.compatibilityReason,
+            'persona training artifact compatibility reason',
+            2_048,
+          )
+    : undefined
   return {
     schemaVersion: value.schemaVersion,
     artifactId: normalizeNonEmptyText(value.artifactId, 'persona training artifact id', 160),
@@ -444,6 +555,61 @@ function parseArtifactManifest(raw: string): ArtifactManifest {
     path: normalizeNonEmptyText(value.path, 'persona training artifact path', 4_096),
     sha256: normalizeNonEmptyText(value.sha256, 'persona training artifact hash', 128).toLowerCase(),
     baseModel: normalizeNonEmptyText(value.baseModel, 'persona training artifact base model', 1_024),
+    ...(trainingReady == null ? {} : { trainingReady }),
+    ...(dialogueReady == null ? {} : { dialogueReady }),
+    ...(compatibilityReason === undefined ? {} : { compatibilityReason }),
+    ...(format ? { format } : {}),
+    ...(producerBackend ? { producerBackend } : {}),
+    ...(loaderTarget ? { loaderTarget } : {}),
+    ...(value.conversion ? { conversion: value.conversion } : {}),
+  }
+}
+
+function resolvePersonaTrainingArtifactCompatibility(input: {
+  baseModel: string
+  trainingReady?: boolean
+  dialogueReady?: boolean
+  format?: ArtifactManifest['format']
+  loaderTarget?: ArtifactManifest['loaderTarget']
+}) {
+  if (input.trainingReady === false) {
+    return {
+      status: 'incompatible' as const,
+      baseModel: input.baseModel,
+      reason: 'The artifact is not training-ready yet.',
+    }
+  }
+  if (input.dialogueReady === false) {
+    return {
+      status: 'incompatible' as const,
+      baseModel: input.baseModel,
+      reason: 'The artifact is not dialogue-ready yet.',
+    }
+  }
+  if (input.format === 'unknown') {
+    return {
+      status: 'incompatible' as const,
+      baseModel: input.baseModel,
+      reason: 'The artifact format is unknown.',
+    }
+  }
+  if (input.loaderTarget === 'unknown') {
+    return {
+      status: 'incompatible' as const,
+      baseModel: input.baseModel,
+      reason: 'The artifact loader target is unknown.',
+    }
+  }
+  if (input.format === 'mlx-safetensors' && input.loaderTarget !== 'mlx-runtime') {
+    return {
+      status: 'incompatible' as const,
+      baseModel: input.baseModel,
+      reason: 'MLX safetensors is a training output and requires the MLX runtime loader target before dialogue activation.',
+    }
+  }
+  return {
+    status: 'compatible' as const,
+    baseModel: input.baseModel,
   }
 }
 
@@ -524,6 +690,23 @@ function parseArtifactPublicationReceipt(raw: string): ArtifactPublicationReceip
     sha256,
     sizeBytes,
     baseModel: normalizeNonEmptyText(value.baseModel, 'persona training publication base model', 1_024),
+    ...(typeof value.trainingReady === 'boolean' ? { trainingReady: value.trainingReady } : {}),
+    ...(typeof value.dialogueReady === 'boolean' ? { dialogueReady: value.dialogueReady } : {}),
+    ...(Object.prototype.hasOwnProperty.call(value, 'compatibilityReason')
+      ? {
+          compatibilityReason: value.compatibilityReason === null
+            ? null
+            : normalizeNonEmptyText(
+                value.compatibilityReason,
+                'persona training publication compatibility reason',
+                2_048,
+              ),
+        }
+      : {}),
+    ...(value.format ? { format: value.format } : {}),
+    ...(value.producerBackend ? { producerBackend: value.producerBackend } : {}),
+    ...(value.loaderTarget ? { loaderTarget: value.loaderTarget } : {}),
+    ...(value.conversion ? { conversion: value.conversion } : {}),
     artifactIdentity: parsePersistedFileIdentity(value.artifactIdentity, 'persona training publication artifact identity'),
     publicationDirectoryIdentity: parsePersistedFileIdentity(
       value.publicationDirectoryIdentity,
@@ -816,6 +999,16 @@ async function validateAndAcceptArtifact(input: {
       expectedHash: actualHash,
       expectedIdentity: candidateIdentity,
     })
+    const compatibility = resolvePersonaTrainingArtifactCompatibility({
+      baseModel: manifest.baseModel,
+      trainingReady: manifest.trainingReady,
+      dialogueReady: manifest.dialogueReady,
+      format: manifest.format,
+      loaderTarget: manifest.loaderTarget,
+    })
+    const compatibilityReason = compatibility.status === 'incompatible'
+      ? compatibility.reason
+      : manifest.compatibilityReason ?? null
     const publicationReceipt: ArtifactPublicationReceipt = {
       schemaVersion: artifactPublicationSchemaVersion,
       artifactId: manifest.artifactId,
@@ -824,6 +1017,13 @@ async function validateAndAcceptArtifact(input: {
       sha256: actualHash,
       sizeBytes: published.sizeBytes,
       baseModel: manifest.baseModel,
+      trainingReady: manifest.trainingReady ?? true,
+      dialogueReady: manifest.dialogueReady ?? true,
+      compatibilityReason,
+      ...(manifest.format ? { format: manifest.format } : {}),
+      ...(manifest.producerBackend ? { producerBackend: manifest.producerBackend } : {}),
+      ...(manifest.loaderTarget ? { loaderTarget: manifest.loaderTarget } : {}),
+      ...(manifest.conversion ? { conversion: manifest.conversion } : {}),
       artifactIdentity: persistFileIdentity(published.artifactIdentity),
       publicationDirectoryIdentity: persistFileIdentity(acceptedIdentity),
     }
@@ -854,10 +1054,14 @@ async function validateAndAcceptArtifact(input: {
         sha256: actualHash,
         sizeBytes: published.sizeBytes,
         baseModel: manifest.baseModel,
-        compatibility: {
-          status: 'compatible',
-          baseModel: manifest.baseModel,
-        },
+        trainingReady: manifest.trainingReady ?? true,
+        dialogueReady: manifest.dialogueReady ?? true,
+        compatibilityReason,
+        ...(manifest.format ? { format: manifest.format } : {}),
+        ...(manifest.producerBackend ? { producerBackend: manifest.producerBackend } : {}),
+        ...(manifest.loaderTarget ? { loaderTarget: manifest.loaderTarget } : {}),
+        ...(manifest.conversion ? { conversion: manifest.conversion } : {}),
+        compatibility,
         activation: {
           status: 'unsupported',
           reason: 'No PersonaAdapterLoader receipt is available; the artifact is stored but inactive.',
@@ -1108,6 +1312,19 @@ async function reconcileStoredArtifacts(input: {
         ) {
           throw new Error('persona training orphan artifact cleanup receipt path escapes its publication directory')
         }
+        const compatibility = resolvePersonaTrainingArtifactCompatibility({
+          baseModel: receipt.baseModel,
+          trainingReady: receipt.trainingReady,
+          dialogueReady: receipt.dialogueReady,
+          format: receipt.format,
+          loaderTarget: receipt.loaderTarget,
+        })
+        const reconciledCompatibility = compatibility.status === 'compatible' && receipt.compatibilityReason !== undefined
+          ? {
+              ...compatibility,
+              reason: receipt.compatibilityReason,
+            }
+          : compatibility
         orphanArtifact = {
           schemaVersion: artifactSchemaVersion,
           artifactId: receipt.artifactId,
@@ -1117,10 +1334,16 @@ async function reconcileStoredArtifacts(input: {
           sha256: receipt.sha256,
           sizeBytes: receipt.sizeBytes,
           baseModel: receipt.baseModel,
-          compatibility: {
-            status: 'compatible',
-            baseModel: receipt.baseModel,
-          },
+          ...(receipt.trainingReady == null ? {} : { trainingReady: receipt.trainingReady }),
+          ...(receipt.dialogueReady == null ? {} : { dialogueReady: receipt.dialogueReady }),
+          ...(receipt.compatibilityReason === undefined
+            ? {}
+            : { compatibilityReason: receipt.compatibilityReason }),
+          ...(receipt.format ? { format: receipt.format } : {}),
+          ...(receipt.producerBackend ? { producerBackend: receipt.producerBackend } : {}),
+          ...(receipt.loaderTarget ? { loaderTarget: receipt.loaderTarget } : {}),
+          ...(receipt.conversion ? { conversion: receipt.conversion } : {}),
+          compatibility: reconciledCompatibility,
           activation: {
             status: 'unsupported',
             reason: 'No PersonaAdapterLoader receipt is available; the artifact is stored but inactive.',
@@ -1250,6 +1473,22 @@ export function createPersonaTrainingProcessExecutor(options: {
         artifactManifestPath,
         '--base-model',
         config.baseModel,
+        '--backend',
+        config.backend ?? 'external',
+        '--iterations',
+        String(config.iterations ?? 600),
+        '--learning-rate',
+        String(config.learningRate ?? 1e-5),
+        '--lora-layers',
+        String(config.loraLayers ?? 8),
+        '--batch-size',
+        String(config.batchSize ?? 1),
+        '--max-seq-length',
+        String(config.maxSeqLength ?? 2_048),
+        '--mask-prompt',
+        String(config.maskPrompt ?? false),
+        '--seed',
+        String(config.seed ?? 42),
       ]
       await input.onProgress?.({
         stage: 'spawning',
@@ -1418,8 +1657,40 @@ export async function testPersonaTrainingProcessConnection(
   rawConfig: PersonaTrainingProcessConfig,
 ): Promise<PersonaTrainingProcessConnectionResult> {
   let executable = ''
+  let backend: PersonaTrainingProcessConnectionResult['backend'] = rawConfig?.backend === 'mlx-lm'
+    ? 'mlx-lm'
+    : 'external'
+  const failure = (
+    status: Exclude<PersonaTrainingProcessConnectionResult['status'], 'ready'>,
+    error: unknown,
+  ): PersonaTrainingProcessConnectionResult => {
+    const message = errorMessageFrom(error) ?? String(error)
+    return {
+      ok: false,
+      executable,
+      backend,
+      status,
+      error: message,
+      diagnostic: buildPersonaTrainingRuntimeDiagnostic({
+        backend,
+        status,
+        error: message,
+      }),
+    }
+  }
   try {
     const config = normalizePersonaTrainingProcessConfig(rawConfig)
+    backend = config.backend ?? 'external'
+    if (backend === 'mlx-lm') {
+      const modelStat = await stat(config.baseModel).catch((error) => {
+        throw new Error(`persona training base model cannot be read: ${errorMessageFrom(error) ?? String(error)}`, {
+          cause: error,
+        })
+      })
+      if (!modelStat.isDirectory())
+        throw new Error('persona training MLX base model must be a readable directory')
+      await access(config.baseModel)
+    }
     executable = await resolveExecutable(config.executable)
     const protocol = await runChildProcess({
       executable,
@@ -1428,18 +1699,32 @@ export async function testPersonaTrainingProcessConnection(
       terminationGraceMs: defaultTerminationGraceMs,
     })
     if (!protocol.ready)
-      throw new Error('persona training probe exited before the ready protocol event')
+      return failure('protocol-failure', 'persona training probe exited before the ready protocol event')
     return {
       ok: true,
       executable,
+      backend,
+      status: 'ready',
       error: null,
+      diagnostic: buildPersonaTrainingRuntimeDiagnostic({
+        backend,
+        status: 'ready',
+        error: null,
+      }),
     }
   }
   catch (error) {
-    return {
-      ok: false,
-      executable,
-      error: errorMessageFrom(error) ?? String(error),
-    }
+    const message = errorMessageFrom(error) ?? String(error)
+    if (message.includes('base model cannot be read') || message.includes('MLX base model must be a readable directory'))
+      return failure('model-unreadable', message)
+    if (message.includes('mlx-lm is not installed'))
+      return failure('mlx-lm-missing', message)
+    if (message.includes('cannot be resolved') || message.includes('is not a file') || message.includes('is not executable'))
+      return failure('executable-missing', message)
+    if (message.includes('probe') || message.includes('protocol'))
+      return failure('protocol-failure', message)
+    if (message.includes('must be') || message.includes('is required') || message.includes('is too long'))
+      return failure('invalid-config', message)
+    return failure('protocol-failure', message)
   }
 }

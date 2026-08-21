@@ -1,4 +1,5 @@
 import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
+import type { ReindexVectorCommitInput } from './memory-embedding-reindex-runtime'
 
 import sqlite3 from 'sqlite3'
 
@@ -49,9 +50,16 @@ function attachRuntime(harness: SqliteHarness, input?: {
   now?: () => number
   provider?: LongTermMemoryEmbeddingProvider
   resolveProvider?: () => LongTermMemoryEmbeddingProvider | null
+  prepareProjectionEntries?: (input: { signal: AbortSignal }) => Promise<Array<{
+    sourceId: string
+    source: string
+    text: string
+    textHash?: string
+  }>>
   maxAttempts?: number
   retryBaseMs?: number
   retryMaxMs?: number
+  commitVectorAndItem?: (input: ReindexVectorCommitInput) => Promise<boolean>
 }) {
   const vectors: Array<{ sourceId: string, text: string }> = []
   const vectorSpaces: Array<{
@@ -92,19 +100,23 @@ function attachRuntime(harness: SqliteHarness, input?: {
       embedTexts: async texts => texts.map(text => ({ text, vector: [1, 0, 0] })),
     },
     resolveProvider: input?.resolveProvider,
+    prepareProjectionEntries: input?.prepareProjectionEntries,
     upsertVector: async (record) => {
-      vectors.push({ sourceId: record.sourceId, text: record.text })
-      vectorSpaces.push({
-        sourceId: record.sourceId,
-        modelId: record.modelId,
-        dimensions: record.dimensions,
-        vectorSpaceId: record.vectorSpaceId,
-      })
+      if (record.status !== 'stale') {
+        vectors.push({ sourceId: record.sourceId, text: record.text })
+        vectorSpaces.push({
+          sourceId: record.sourceId,
+          modelId: record.modelId,
+          dimensions: record.dimensions,
+          vectorSpaceId: record.vectorSpaceId,
+        })
+      }
     },
     maxAttempts: input?.maxAttempts ?? 2,
     leaseMs: 100,
     retryBaseMs: input?.retryBaseMs,
     retryMaxMs: input?.retryMaxMs,
+    commitVectorAndItem: input?.commitVectorAndItem,
   })
   return { runtime, vectors, vectorSpaces, enqueueWrite }
 }
@@ -113,9 +125,16 @@ function createRuntimeHarness(input?: {
   now?: () => number
   provider?: LongTermMemoryEmbeddingProvider
   resolveProvider?: () => LongTermMemoryEmbeddingProvider | null
+  prepareProjectionEntries?: (input: { signal: AbortSignal }) => Promise<Array<{
+    sourceId: string
+    source: string
+    text: string
+    textHash?: string
+  }>>
   maxAttempts?: number
   retryBaseMs?: number
   retryMaxMs?: number
+  commitVectorAndItem?: (input: ReindexVectorCommitInput) => Promise<boolean>
 }) {
   return createSqliteHarness().then(async (harness) => {
     const attached = attachRuntime(harness, input)
@@ -130,6 +149,155 @@ afterEach(async () => {
 })
 
 describe('memory embedding reindex runtime', () => {
+  it('persists projection refresh as a durable first phase before embedding indexing', async () => {
+    let projectionRefreshes = 0
+    const { runtime, vectors } = await createRuntimeHarness({
+      prepareProjectionEntries: async () => {
+        projectionRefreshes += 1
+        return [{
+          sourceId: 'memory-projection',
+          source: 'memory_reflections',
+          text: '投影刷新后的记忆',
+        }]
+      },
+    })
+
+    const job = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      projection: {
+        source: 'memory_reflections',
+        sourceIds: ['memory-projection'],
+        limit: 1,
+      },
+    })
+
+    expect(job.stage).toBe('projection-refresh-queued')
+    expect(job.total).toBe(0)
+    await runtime.runJob(job.jobId)
+
+    const completed = await runtime.getReindexJob(job.jobId)
+    expect(projectionRefreshes).toBe(1)
+    expect(completed.stage).toBe('completed')
+    expect(completed.indexed).toBe(1)
+    expect(vectors).toEqual([{ sourceId: 'memory-projection', text: '投影刷新后的记忆' }])
+  })
+
+  it('does not report a queued projection refresh as 100 percent complete', async () => {
+    const { runtime } = await createRuntimeHarness({
+      prepareProjectionEntries: async () => [],
+    })
+
+    const job = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      projection: {
+        source: 'memory_reflections',
+      },
+    })
+
+    expect(job.stage).toBe('projection-refresh-queued')
+    expect(job.total).toBe(0)
+    expect(job.progress).toBe(0)
+  })
+
+  it('deduplicates active projection jobs by card, vector space, and projection scope', async () => {
+    const { runtime } = await createRuntimeHarness({
+      prepareProjectionEntries: async () => [],
+    })
+
+    const first = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      projection: {
+        source: 'memory_reflections',
+        sourceIds: ['memory-1', 'memory-2'],
+        limit: 10,
+      },
+    })
+    const sameScope = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      projection: {
+        source: 'memory_reflections',
+        sourceIds: ['memory-1', 'memory-2'],
+        limit: 10,
+      },
+    })
+    const sameScopeReordered = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      projection: {
+        source: 'memory_reflections',
+        sourceIds: ['memory-2', 'memory-1'],
+        limit: 10,
+      },
+    })
+    const differentCard = await runtime.scheduleReindexJob({
+      cardId: 'card-b',
+      projection: {
+        source: 'memory_reflections',
+        sourceIds: ['memory-1'],
+        limit: 10,
+      },
+    })
+    const differentSpace = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      vectorSpaceId: 'provider-space-v2',
+      projection: {
+        source: 'memory_reflections',
+        sourceIds: ['memory-1'],
+        limit: 10,
+      },
+    })
+
+    expect(sameScope.jobId).toBe(first.jobId)
+    expect(sameScopeReordered.jobId).toBe(first.jobId)
+    expect(differentCard.jobId).not.toBe(first.jobId)
+    expect(differentSpace.jobId).not.toBe(first.jobId)
+  })
+
+  it('aborts an in-flight projection refresh when the durable job is cancelled', async () => {
+    let projectionStarted: (() => void) | undefined
+    let releaseProjection: (() => void) | undefined
+    let projectionSignal: AbortSignal | undefined
+    const projectionStartedPromise = new Promise<void>((resolve) => {
+      projectionStarted = resolve
+    })
+    const projectionReleasePromise = new Promise<void>((resolve) => {
+      releaseProjection = resolve
+    })
+    const { runtime } = await createRuntimeHarness({
+      prepareProjectionEntries: async ({ signal }) => {
+        projectionSignal = signal
+        projectionStarted?.()
+        await projectionReleasePromise
+        if (signal.aborted)
+          return []
+        return [{
+          sourceId: 'projection-cancelled',
+          source: 'memory_reflections',
+          text: '不会进入向量索引',
+        }]
+      },
+    })
+    const job = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      projection: {
+        source: 'memory_reflections',
+      },
+    })
+
+    const worker = runtime.runJob(job.jobId)
+    await projectionStartedPromise
+    const cancelled = await runtime.requestCancel(job.jobId, '用户取消投影刷新')
+
+    expect(cancelled.status).toBe('cancelled')
+    expect(cancelled.stage).toBe('cancelled')
+    expect(projectionSignal?.aborted).toBe(true)
+
+    releaseProjection?.()
+    await worker
+    const completed = await runtime.getReindexJob(job.jobId)
+    expect(completed.status).toBe('cancelled')
+    expect(completed.stage).toBe('cancelled')
+  })
+
   it('persists a queued job and reports progress without embedding during scheduling', async () => {
     let embedCalls = 0
     const { runtime } = await createRuntimeHarness({
@@ -501,6 +669,78 @@ describe('memory embedding reindex runtime', () => {
     expect(completed.indexed).toBe(0)
   })
 
+  it('fences a transaction callback that loses its lease after embedding completes', async () => {
+    let commitCalls = 0
+    let harnessRef: SqliteHarness | undefined
+    const { runtime, harness } = await createRuntimeHarness({
+      commitVectorAndItem: async ({ item }) => {
+        commitCalls += 1
+        await harnessRef?.run(`
+          UPDATE memory_embedding_reindex_jobs
+          SET status = 'cancel_requested'
+          WHERE id = ?
+        `, [item.jobId])
+        await harnessRef?.run(`
+          UPDATE memory_embedding_reindex_items
+          SET status = 'cancelled', lease_token = NULL, lease_expires_at = NULL
+          WHERE id = ?
+        `, [item.id])
+        return false
+      },
+    })
+    harnessRef = harness
+    const job = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      entries: [{ sourceId: 'memory-1', source: 'memory_reflections', text: '租约失效后不写入' }],
+    })
+    await runtime.runNextBatch({ jobId: job.jobId, batchSize: 1 })
+
+    const progress = await runtime.getReindexJob(job.jobId)
+    const item = await harness.get<{ status: string, lease_token: string | null }>(
+      `
+      SELECT status, lease_token
+      FROM memory_embedding_reindex_items
+      WHERE job_id = ?
+      `,
+      [job.jobId],
+    )
+    expect(commitCalls).toBe(1)
+    expect(item?.lease_token).toBeNull()
+    expect(item?.status).toBe('cancelled')
+    expect(progress.status).toBe('cancelled')
+  })
+
+  it('retries a transient projection refresh and only indexes the refreshed projection', async () => {
+    let projectionAttempts = 0
+    const { runtime } = await createRuntimeHarness({
+      now: () => Date.now(),
+      retryBaseMs: 1,
+      retryMaxMs: 1,
+      prepareProjectionEntries: async () => {
+        projectionAttempts += 1
+        if (projectionAttempts === 1)
+          throw new Error('projection database temporarily busy')
+        return [{
+          sourceId: 'projection-retry',
+          source: 'memory_reflections',
+          text: '投影重试后进入索引',
+        }]
+      },
+    })
+    const job = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      projection: { source: 'memory_reflections' },
+    })
+    await runtime.runJob(job.jobId)
+
+    const progress = await runtime.getReindexJob(job.jobId)
+    expect(projectionAttempts).toBe(2)
+    expect(progress.status).toBe('completed')
+    expect(progress.stage).toBe('completed')
+    expect(progress.indexed).toBe(1)
+    expect(progress.nextRetryAt).toBeNull()
+  })
+
   it('retries dead-letter items explicitly without rerunning the whole job synchronously', async () => {
     let shouldFail = true
     const { runtime, vectors } = await createRuntimeHarness({
@@ -522,9 +762,11 @@ describe('memory embedding reindex runtime', () => {
 
     await runtime.runNextBatch({ jobId: job.jobId, batchSize: 1 })
     expect((await runtime.getReindexJob(job.jobId)).status).toBe('failed')
+    expect((await runtime.getReindexJob(job.jobId)).stage).toBe('failed')
 
     const retried = await runtime.retryDeadLetterItems(job.jobId)
     expect(retried.status).toBe('queued')
+    expect(retried.stage).toBe('embedding-indexing')
     expect(retried.pending).toBe(1)
 
     shouldFail = false
@@ -594,11 +836,13 @@ describe('memory embedding reindex runtime', () => {
 
     const noOp = await runtime.retryDeadLetterItems(job.jobId, [], 'card-a')
     expect(noOp.status).toBe('failed')
+    expect(noOp.stage).toBe('failed')
     expect(noOp.pending).toBe(0)
     expect(noOp.deadLettered).toBe(2)
 
     const retried = await runtime.retryDeadLetterItems(job.jobId, [deadLetters[0].itemId], 'card-a')
     expect(retried.status).toBe('queued')
+    expect(retried.stage).toBe('embedding-indexing')
     expect(retried.pending).toBe(1)
     expect(retried.deadLettered).toBe(1)
 
@@ -644,6 +888,31 @@ describe('memory embedding reindex runtime', () => {
         lastError: expect.stringContaining('lease expired'),
       },
     ])
+  })
+
+  it('fences non-expired leases left by a previous runtime during startup recovery', async () => {
+    const now = 1_000
+    const { harness, runtime } = await createRuntimeHarness({
+      now: () => now,
+      maxAttempts: 2,
+    })
+    const job = await runtime.scheduleReindexJob({
+      cardId: 'card-a',
+      entries: [{ sourceId: 'memory-1', source: 'memory_reflections', text: '启动租约隔离' }],
+    })
+    await runtime.claimNextBatch({ jobId: job.jobId, batchSize: 1 })
+
+    const restarted = attachRuntime(harness, {
+      now: () => now,
+      maxAttempts: 2,
+    })
+    await restarted.runtime.initializeSchema()
+
+    const progress = await restarted.runtime.getReindexJob(job.jobId, 'card-a')
+    expect(progress.status).toBe('queued')
+    expect(progress.retryable).toBe(1)
+    expect(progress.leased).toBe(0)
+    expect(progress.nextRetryAt).toBeGreaterThan(now)
   })
 
   it('cancels an expired leased item when recovering a cancel-requested job after restart', async () => {

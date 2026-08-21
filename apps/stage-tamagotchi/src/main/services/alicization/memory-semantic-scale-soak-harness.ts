@@ -1,5 +1,9 @@
 export interface MemorySemanticScaleSearchQueryObservation {
   id: string
+  queryText?: string
+  queryMode?: 'non-self' | 'self' | 'synthetic'
+  queryVectorHash?: string
+  expectedVectorHash?: string
   expectedTopIds: string[]
   returnedIds: string[]
   forbiddenIds?: string[]
@@ -14,7 +18,18 @@ export interface MemorySemanticScaleSearchObservation {
   degraded: boolean
   nativeIndexReady: boolean
   coverageRatio: number
+  vectorInput?: 'provider' | 'deterministic' | 'unavailable'
+  adapterImplementation?: 'persistent-native' | 'test-double' | 'unknown'
   queries: MemorySemanticScaleSearchQueryObservation[]
+}
+
+export interface MemorySemanticScaleResourcePreflight {
+  passed: boolean
+  requiredDiskBytes: number
+  availableDiskBytes: number
+  requiredMemoryBytes: number
+  availableMemoryBytes: number
+  failures: string[]
 }
 
 export interface MemorySemanticScaleProviderDegradationObservation {
@@ -104,12 +119,43 @@ export interface MemorySemanticScaleSoakReport {
     coverageRatio: number
     failingChecks: string[]
   }
+  resourceMetrics?: {
+    dimensions: number
+    vectorInput: 'deterministic' | 'provider' | 'unavailable'
+    elapsedMs: number
+    peakRssBytes: number
+    sqliteBytes: number
+    sqliteWalBytes: number
+    cpuUserMs: number
+    cpuSystemMs: number
+  }
+  resourcePreflight?: MemorySemanticScaleResourcePreflight | null
+  evidence?: MemorySemanticScaleSoakEvidence
   searchMetrics: MemorySemanticScaleSearchMetrics[]
   providerDegradation: MemorySemanticScaleProviderDegradationResult | null
   reindex: MemorySemanticScaleReindexResult | null
   recommendedNextActions: string[]
 }
 
+interface MemorySemanticScaleSearchEvidence {
+  id: string
+  vectorInput: MemorySemanticScaleSearchObservation['vectorInput']
+  adapterImplementation: MemorySemanticScaleSearchObservation['adapterImplementation']
+  queryCount: number
+  nonSelfQueryCount: number
+  failures: string[]
+}
+
+export interface MemorySemanticScaleSoakEvidence {
+  gate: 'adapter-smoke' | 'production'
+  resourcePreflight: MemorySemanticScaleResourcePreflight | null
+  vectorInput: 'provider' | 'deterministic' | 'unavailable'
+  searchMetrics: MemorySemanticScaleSearchEvidence[]
+}
+
+export type MemorySemanticScaleSoakReportWithEvidence = MemorySemanticScaleSoakReport & {
+  evidence: MemorySemanticScaleSoakEvidence
+}
 function clamp01(value: number) {
   if (!Number.isFinite(value))
     return 0
@@ -128,13 +174,19 @@ function ratio(numerator: number, denominator: number) {
   return denominator > 0 ? clamp01(numerator / denominator) : 1
 }
 
+interface MemorySemanticScaleSearchEvaluation {
+  metric: MemorySemanticScaleSearchMetrics
+  evidence: MemorySemanticScaleSearchEvidence
+}
+
 function evaluateSearch(input: {
   observation: MemorySemanticScaleSearchObservation
   minimumCorpusSize: number
   maxP95LatencyMs: number
   maxP99LatencyMs: number
   minimumCoverageRatio: number
-}): MemorySemanticScaleSearchMetrics {
+  gate: 'adapter-smoke' | 'production'
+}): MemorySemanticScaleSearchEvaluation {
   const observation = input.observation
   const queries = observation.queries
   const expectedCount = queries.reduce((sum, query) => sum + query.expectedTopIds.length, 0)
@@ -151,6 +203,13 @@ function evaluateSearch(input: {
   const p99LatencyMs = percentile(latencies, 0.99)
   const recallAtK = ratio(hitCount, expectedCount)
   const falseRecallRate = ratio(forbiddenCount, queries.reduce((sum, query) => sum + query.returnedIds.length, 0))
+  const nonSelfQueryCount = queries.filter(query =>
+    query.queryMode === 'non-self'
+    && Boolean(query.queryText?.trim())
+    && Boolean(query.queryVectorHash)
+    && Boolean(query.expectedVectorHash)
+    && query.queryVectorHash !== query.expectedVectorHash,
+  ).length
   const failures = [
     observation.corpusSize < input.minimumCorpusSize ? 'corpus-below-scale-target' : null,
     observation.indexMode === 'brute-force' || observation.degraded || !observation.nativeIndexReady
@@ -161,9 +220,22 @@ function evaluateSearch(input: {
     p99LatencyMs > input.maxP99LatencyMs ? 'latency-p99-too-high' : null,
     recallAtK < 1 ? 'semantic-recall-miss' : null,
     falseRecallRate > 0 ? 'semantic-false-recall' : null,
+    input.gate === 'production' && input.observation.vectorInput !== 'provider'
+      ? 'production-provider-required'
+      : null,
+    input.gate === 'production' && input.observation.adapterImplementation !== 'persistent-native'
+      ? 'production-adapter-identity-missing'
+      : null,
+    input.gate === 'production' && queries.some(query => !query.queryText?.trim())
+      ? 'query-text-missing'
+      : null,
+    input.gate === 'production' && queries.some(query => query.queryMode === 'self'
+      || query.queryVectorHash === query.expectedVectorHash)
+      ? 'self-query-used'
+      : null,
   ].filter(Boolean) as string[]
 
-  return {
+  const metric: MemorySemanticScaleSearchMetrics = {
     id: observation.id,
     corpusSize: observation.corpusSize,
     indexMode: observation.indexMode,
@@ -178,6 +250,17 @@ function evaluateSearch(input: {
     falseRecallRate,
     passed: failures.length === 0,
     failures,
+  }
+  return {
+    metric,
+    evidence: {
+      id: observation.id,
+      vectorInput: observation.vectorInput,
+      adapterImplementation: observation.adapterImplementation,
+      queryCount: queries.length,
+      nonSelfQueryCount,
+      failures,
+    },
   }
 }
 
@@ -227,6 +310,7 @@ function evaluateReindex(input: MemorySemanticScaleReindexObservation) {
 export function runMemorySemanticScaleSoakHarness(input: {
   id: string
   createdAt: number
+  gate?: 'adapter-smoke' | 'production'
   searches: MemorySemanticScaleSearchObservation[]
   minimumCorpusSize?: number
   maxP95LatencyMs?: number
@@ -234,26 +318,46 @@ export function runMemorySemanticScaleSoakHarness(input: {
   minimumCoverageRatio?: number
   providerDegradation?: MemorySemanticScaleProviderDegradationObservation
   reindex?: MemorySemanticScaleReindexObservation
+  resourcePreflight?: MemorySemanticScaleResourcePreflight | null
+  resourceMetrics?: MemorySemanticScaleSoakReport['resourceMetrics']
 }): MemorySemanticScaleSoakReport {
+  const gate = input.gate ?? 'adapter-smoke'
   const minimumCorpusSize = Math.max(1, Math.floor(input.minimumCorpusSize ?? 10_000))
   const maxP95LatencyMs = Math.max(0, Number(input.maxP95LatencyMs ?? 250))
   const maxP99LatencyMs = Math.max(maxP95LatencyMs, Number(input.maxP99LatencyMs ?? 500))
   const minimumCoverageRatio = clamp01(Number(input.minimumCoverageRatio ?? 0.999))
-  const searchMetrics = input.searches.map(search => evaluateSearch({
+  const searchEvaluations = input.searches.map(search => evaluateSearch({
     observation: search,
     minimumCorpusSize,
     maxP95LatencyMs,
     maxP99LatencyMs,
     minimumCoverageRatio,
+    gate,
   }))
+  const searchMetrics = searchEvaluations.map(evaluation => evaluation.metric)
+  const searchEvidence = searchEvaluations.map(evaluation => evaluation.evidence)
   const providerDegradation = input.providerDegradation
     ? evaluateProviderDegradation(input.providerDegradation)
     : null
   const reindex = input.reindex ? evaluateReindex(input.reindex) : null
+  const productionFailures = gate === 'production'
+    ? [
+        input.resourcePreflight ? null : 'resource-preflight-missing',
+        input.resourcePreflight?.passed === false ? 'resource-preflight-failed' : null,
+        searchEvidence.some(evidence => evidence.vectorInput === 'provider')
+          ? null
+          : 'production-provider-required',
+        searchMetrics.length > 0 ? null : 'production-search-observations-missing',
+        searchEvidence.some(evidence => evidence.adapterImplementation !== 'persistent-native')
+          ? 'production-adapter-identity-missing'
+          : null,
+      ].filter(Boolean) as string[]
+    : []
   const failingChecks = [
     ...searchMetrics.flatMap(metric => metric.failures),
     ...(providerDegradation?.failures ?? []),
     ...(reindex?.failures ?? []),
+    ...productionFailures,
   ]
   const queryCount = searchMetrics.reduce((sum, metric) => sum + metric.queryCount, 0)
   const totalExpected = searchMetrics.reduce((sum, metric) => sum + metric.queryCount * metric.recallAtK, 0)
@@ -305,9 +409,21 @@ export function runMemorySemanticScaleSoakHarness(input: {
       coverageRatio,
       failingChecks: [...new Set(failingChecks)],
     },
+    ...(input.resourceMetrics ? { resourceMetrics: input.resourceMetrics } : {}),
+    resourcePreflight: input.resourcePreflight ?? null,
     searchMetrics,
     providerDegradation,
     reindex,
     recommendedNextActions,
+    evidence: {
+      gate,
+      resourcePreflight: input.resourcePreflight ?? null,
+      vectorInput: searchEvidence.some(evidence => evidence.vectorInput === 'provider')
+        ? 'provider'
+        : searchEvidence.length > 0
+          ? 'deterministic'
+          : 'unavailable',
+      searchMetrics: searchEvidence,
+    },
   }
 }

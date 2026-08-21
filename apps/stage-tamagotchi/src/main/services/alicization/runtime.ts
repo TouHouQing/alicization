@@ -6796,7 +6796,13 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         return {
           ok: false,
           executable: '',
+          backend: 'external',
+          status: 'invalid-config',
           error: 'persona training executor is not configured',
+          diagnostic: {
+            action: 'fix-configuration',
+            command: null,
+          },
         }
       }
       return await testPersonaTrainingProcessConnection(config)

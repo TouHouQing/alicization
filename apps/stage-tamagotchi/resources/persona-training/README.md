@@ -1,7 +1,9 @@
 # Alicization Local Persona Training Protocol
 
-Alicization does not bundle or silently install a LoRA training framework. The user
-configures an executable that implements this protocol.
+Alicization does not silently install a LoRA training framework. The packaged
+`mlx-lm-trainer.py` is a real MLX-LM wrapper for Apple Silicon, but the user must
+install `mlx-lm[train]` into the Python environment that runs the wrapper and
+provide a local model path. Other training backends can implement the same protocol.
 
 ## Probe
 
@@ -28,6 +30,14 @@ Alicization starts training with `shell: false` and an argument array:
   --output-dir <absolute run output directory>
   --artifact-manifest <absolute artifact-manifest.json path>
   --base-model <configured base model>
+  --backend <external|mlx-lm>
+  --iterations <positive integer>
+  --learning-rate <positive number>
+  --lora-layers <positive integer>
+  --batch-size <positive integer>
+  --max-seq-length <positive integer>
+  --mask-prompt <true|false>
+  --seed <non-negative integer>
 ```
 
 The child environment is allowlisted and does not inherit Provider API keys.
@@ -65,7 +75,19 @@ Before emitting `{"type":"artifact"}`, write the requested artifact manifest:
   "kind": "lora-adapter",
   "path": "adapter.safetensors",
   "sha256": "lowercase-sha256",
-  "baseModel": "the-configured-base-model"
+  "baseModel": "the-configured-base-model",
+  "trainingReady": true,
+  "dialogueReady": false,
+  "compatibilityReason": "Declare why the artifact can or cannot be consumed by the configured dialogue loader.",
+  "format": "mlx-safetensors",
+  "producerBackend": "mlx-lm",
+  "loaderTarget": "llama.cpp",
+  "conversion": {
+    "status": "required",
+    "sourceArtifactId": "local-lora-001",
+    "tool": null,
+    "version": null
+  }
 }
 ```
 
@@ -91,6 +113,20 @@ successful training run is reported as `unsupported`: the artifact is retained a
 auditable, but it is not described as affecting dialogue. A future Provider adapter
 can implement the optional loader contract without changing the dataset or training
 protocol.
+
+## MLX-LM wrapper
+
+On Apple Silicon, install the real trainer explicitly:
+
+```shell
+python3 -m pip install "mlx-lm[train]"
+```
+
+Use the packaged `mlx-lm-trainer.py` as the executable and configure the base model
+as a local MLX-compatible model path. The wrapper converts only the already-approved
+dataset rows into MLX `text` examples, runs `python -m mlx_lm.lora`, and writes the
+verified `adapter/adapters.safetensors` artifact. It never receives Provider API keys.
+The Workbench connection test reports a concrete missing-package or model error.
 
 When an active artifact is rolled back, revoked, or recovered as invalid,
 Alicization's Persona Training Pipeline Gate owns the durable

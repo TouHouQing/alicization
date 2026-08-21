@@ -592,6 +592,17 @@ pages:
         persona_training_executor_not_configured: 尚未配置本地训练器，启动训练会明确失败。
         persona_training_executor_connected: 训练器协议测试通过。
         persona_training_executor_connection_failed: 训练器协议测试失败。
+        persona_training_executor_status_ready: 可用
+        persona_training_executor_status_executable_missing: Python/训练器可执行文件不可用
+        persona_training_executor_status_model_unreadable: 基础模型路径不可读
+        persona_training_executor_status_mlx_lm_missing: 未安装 mlx-lm
+        persona_training_executor_status_protocol_failure: 训练器协议失败
+        persona_training_executor_status_invalid_config: 配置无效
+        persona_training_diagnostic_install_mlx_lm: 请在当前 Python 环境安装 mlx-lm 训练依赖。
+        persona_training_diagnostic_choose_readable_model: 请填写可读的本地 MLX 基础模型目录。
+        persona_training_diagnostic_configure_executable: 请填写可执行的训练器绝对路径。
+        persona_training_diagnostic_repair_protocol: 请检查训练器 JSONL 协议和 stderr 错误。
+        persona_training_diagnostic_fix_configuration: 请修正训练器配置后重新测试。
         persona_runtime_active: llama.cpp 人格运行时已启动，当前对话会使用已激活的 Persona adapter。
         persona_runtime_configured: llama.cpp 人格运行时已配置，等待 Persona adapter 激活。
         persona_runtime_not_configured: 尚未配置 llama.cpp 人格运行时。
@@ -612,6 +623,9 @@ pages:
         persona_training_activation_inactive: 未激活
         persona_training_activation_active: 已加载并生效
         persona_training_activation_unsupported: 产物已保存但未激活（尚无真实加载回执）
+        persona_training_ready: 是
+        persona_training_not_ready: 否
+        persona_training_format_unknown: 未声明
         persona_training_compatibility_compatible: 兼容
         persona_training_compatibility_incompatible: 不兼容
         persona_training_compatibility_unknown: 未知
@@ -652,6 +666,9 @@ pages:
         reindex_completed: 重建完成
         reindex_cancelled: 已取消
         reindex_failed: 重建失败
+        reindex_stage_projection_queued: 等待刷新搜索投影
+        reindex_stage_projection_running: 正在刷新搜索投影
+        reindex_stage_embedding: 正在写入向量索引
         empty_embedding_models: 填写服务根地址和 API Key 后检索可用向量模型；如果服务不返回列表，也可以直接输入模型名。
         embedding_config_saved: 向量配置已保存，正在刷新记忆健康状态。
         loading: 正在读取记忆状态...
@@ -710,6 +727,7 @@ pages:
         embedding_connection: 连通测试
         reindex_required: 需要重建索引
         reindex_status: 重建状态
+        reindex_stage: 重建阶段
         reindex_progress: 重建进度
         indexed: 已索引
         failed: 失败
@@ -785,6 +803,16 @@ pages:
         persona_training_executable: 可执行文件绝对路径
         persona_training_base_model: 基础模型
         persona_training_timeout: 超时时间（秒）
+        persona_training_backend: 训练后端
+        persona_training_iterations: 训练迭代次数
+        persona_training_learning_rate: 学习率
+        persona_training_lora_layers: LoRA 层数
+        persona_training_batch_size: 批大小
+        persona_training_max_seq_length: 最大序列长度
+        persona_training_seed: 随机种子
+        persona_training_mask_prompt: 仅训练回答内容
+      options:
+        persona_training_external: 外部协议训练器
         persona_training_runs: 人格训练运行
         persona_training_runs_description: 训练异步运行，状态、进度、取消和错误都以本地数据库为准。
         persona_training_stage: 阶段
@@ -793,6 +821,12 @@ pages:
         persona_training_progress: 进度
         persona_training_history: 运行历史
         persona_training_artifact: 训练产物
+        persona_training_format: 产物格式
+        persona_training_producer_backend: 训练后端
+        persona_training_loader_target: 目标加载器
+        persona_training_training_ready: 训练可用
+        persona_training_dialogue_ready: 对话可用
+        persona_training_conversion: 转换状态
         persona_training_compatibility: 兼容性
         persona_training_compatibility_reason: 兼容性原因
         persona_training_activation: 激活状态
@@ -811,6 +845,13 @@ pages:
         semantic_scale_history: 历史报告
         semantic_scale_failing_checks: 未通过检查
         semantic_scale_recommended_actions: 建议动作
+        semantic_scale_dimensions: 向量维度
+        semantic_scale_vector_input: 向量来源
+        semantic_scale_elapsed: 总耗时
+        semantic_scale_peak_rss: 峰值内存
+        semantic_scale_sqlite_size: SQLite 文件
+        semantic_scale_wal_size: WAL 文件
+        semantic_scale_cpu: CPU（用户态/系统态）
         corpus_size: 语料规模
         next_retry_at: 下次重试
         lease_expires_at: 租约到期

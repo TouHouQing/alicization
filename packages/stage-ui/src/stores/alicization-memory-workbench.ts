@@ -133,6 +133,8 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   let qualityReplaySessionsRevision = 0
   let qualityTrialContextRevision = 0
   let cardScopeRevision = 0
+  let embeddingModelDiscoveryRevision = 0
+  let embeddingConnectionTestRevision = 0
   let semanticScaleContextRevision = 0
   let personaTrainingContextRevision = 0
   let personaTrainingRunLoadingCount = 0
@@ -153,6 +155,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   const health = computed(() => snapshot.value?.health ?? null)
   const pendingReviewCount = computed(() => snapshot.value?.review.pending ?? 0)
   const activeReindexStatuses = new Set(['queued', 'running', 'cancel_requested'])
+  const terminalReindexStatuses = new Set(['completed', 'cancelled', 'failed'])
   const { pause: pauseReindexPolling, resume: resumeReindexPolling } = useIntervalFn(async () => {
     const progress = reindexResult.value?.progress
     if (!progress || !activeReindexStatuses.has(progress.status)) {
@@ -197,7 +200,12 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     personaTrainingRunLoading.value = personaTrainingRunLoadingCount > 0
   }
 
-  function updateReindexResult(result: AlicizationMemoryEmbeddingReindexResult) {
+  function updateReindexResult(
+    result: AlicizationMemoryEmbeddingReindexResult,
+    revision = cardScopeRevision,
+  ) {
+    if (revision !== cardScopeRevision)
+      return false
     reindexResult.value = result
     reindexDeadLetterItems.value = result.deadLetterItems ?? []
     lastError.value = result.errors[0] ?? result.progress?.lastError ?? null
@@ -205,9 +213,13 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       resumeReindexPolling()
     else
       pauseReindexPolling()
+    return true
   }
 
-  function restoreReindexProgress(progress: AlicizationMemoryEmbeddingProgress | null | undefined) {
+  function restoreReindexProgress(
+    progress: AlicizationMemoryEmbeddingProgress | null | undefined,
+    revision = cardScopeRevision,
+  ) {
     if (!progress)
       return
     updateReindexResult({
@@ -222,7 +234,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       errors: progress.lastError ? [progress.lastError] : [],
       deadLetterItems: [],
       progress,
-    })
+    }, revision)
   }
 
   function syncSemanticScalePolling() {
@@ -439,10 +451,13 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     skillLoading.value = false
     reindexResult.value = null
     reindexDeadLetterItems.value = []
+    reindexLoading.value = false
     pauseReindexPolling()
     embeddingModels.value = []
     embeddingModelDiscoveryResult.value = null
     embeddingConnectionTest.value = null
+    embeddingModelDiscoveryRevision += 1
+    embeddingConnectionTestRevision += 1
     embeddingModelDiscoveryLoading.value = false
     embeddingConnectionTesting.value = false
     monthlyGoldLabels.value = []
@@ -452,6 +467,32 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     resetSemanticScaleJobContext()
     resetPersonaTrainingScope()
     lastError.value = null
+  }
+
+  async function restoreReindexDeadLetterItems(jobId: string, revision: number) {
+    if (
+      !jobId.trim()
+      || revision !== cardScopeRevision
+      || !hasAlicizationBridge()
+      || !getAlicizationBridge().memoryWorkbenchReindexEmbeddings
+    ) {
+      return null
+    }
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchReindexEmbeddings!({
+        action: 'status',
+        jobId,
+      })
+      if (revision !== cardScopeRevision)
+        return null
+      updateReindexResult(result, revision)
+      return result
+    }
+    catch (error) {
+      if (revision === cardScopeRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
   }
 
   async function refreshSnapshot(sessionId?: string | null) {
@@ -475,12 +516,18 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
       snapshot.value = next
       longTermItems.value = next.longTerm.items
       longTermNextCursor.value = null
-      restoreReindexProgress(next.health.embedding.reindexJob)
+      restoreReindexProgress(next.health.embedding.reindexJob, revision)
       lastError.value = next.health.embedding.reindexJob?.lastError ?? null
+      if (next.health.embedding.reindexJob?.status === 'failed') {
+        await restoreReindexDeadLetterItems(next.health.embedding.reindexJob.jobId, revision)
+      }
+      if (revision !== cardScopeRevision)
+        return null
       return next
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      if (revision === cardScopeRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
       return null
     }
     finally {
@@ -1520,49 +1567,66 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   async function reindexEmbeddings(payload: Omit<AlicizationMemoryEmbeddingReindexPayload, 'cardId'> = {}) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchReindexEmbeddings)
       return null
+    const revision = cardScopeRevision
     reindexLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchReindexEmbeddings!({
         ...payload,
         action: 'start',
       })
-      updateReindexResult(result)
+      if (revision !== cardScopeRevision)
+        return null
+      updateReindexResult(result, revision)
       await refreshSnapshot(snapshot.value?.sessionId ?? null)
+      if (revision !== cardScopeRevision)
+        return null
       return result
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      if (revision === cardScopeRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
       return null
     }
     finally {
-      reindexLoading.value = false
+      if (revision === cardScopeRevision)
+        reindexLoading.value = false
     }
   }
 
   async function refreshReindexJob(jobId: string) {
     if (!jobId.trim() || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchReindexEmbeddings)
       return null
+    const revision = cardScopeRevision
     reindexLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchReindexEmbeddings!({
         action: 'status',
         jobId,
       })
-      updateReindexResult(result)
+      if (revision !== cardScopeRevision)
+        return null
+      updateReindexResult(result, revision)
+      if (result.status && terminalReindexStatuses.has(result.status))
+        await refreshSnapshot(snapshot.value?.sessionId ?? null)
+      if (revision !== cardScopeRevision)
+        return null
       return result
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      if (revision === cardScopeRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
       return null
     }
     finally {
-      reindexLoading.value = false
+      if (revision === cardScopeRevision)
+        reindexLoading.value = false
     }
   }
 
   async function cancelReindexJob(jobId: string, reason?: string | null) {
     if (!jobId.trim() || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchReindexEmbeddings)
       return null
+    const revision = cardScopeRevision
     reindexLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchReindexEmbeddings!({
@@ -1570,22 +1634,29 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
         jobId,
         reason,
       })
-      updateReindexResult(result)
+      if (revision !== cardScopeRevision)
+        return null
+      updateReindexResult(result, revision)
       await refreshSnapshot(snapshot.value?.sessionId ?? null)
+      if (revision !== cardScopeRevision)
+        return null
       return result
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      if (revision === cardScopeRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
       return null
     }
     finally {
-      reindexLoading.value = false
+      if (revision === cardScopeRevision)
+        reindexLoading.value = false
     }
   }
 
   async function retryDeadLetterReindex(jobId: string, itemIds?: string[]) {
     if (!jobId.trim() || !hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchReindexEmbeddings)
       return null
+    const revision = cardScopeRevision
     reindexLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchReindexEmbeddings!({
@@ -1593,54 +1664,97 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
         jobId,
         itemIds,
       })
-      updateReindexResult(result)
+      if (revision !== cardScopeRevision)
+        return null
+      updateReindexResult(result, revision)
+      await refreshSnapshot(snapshot.value?.sessionId ?? null)
+      if (revision !== cardScopeRevision)
+        return null
       return result
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      if (revision === cardScopeRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
       return null
     }
     finally {
-      reindexLoading.value = false
+      if (revision === cardScopeRevision)
+        reindexLoading.value = false
     }
   }
 
   async function discoverEmbeddingModels(payload: Omit<AlicizationMemoryEmbeddingModelListPayload, 'cardId'>) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListEmbeddingModels)
       return null
+    const scopeRevision = cardScopeRevision
+    const requestRevision = ++embeddingModelDiscoveryRevision
     embeddingModelDiscoveryLoading.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchListEmbeddingModels!(payload)
+      if (
+        scopeRevision !== cardScopeRevision
+        || requestRevision !== embeddingModelDiscoveryRevision
+      ) {
+        return null
+      }
       embeddingModelDiscoveryResult.value = result
       embeddingModels.value = result.items
       lastError.value = result.error
       return result
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === embeddingModelDiscoveryRevision
+      ) {
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
       return null
     }
     finally {
-      embeddingModelDiscoveryLoading.value = false
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === embeddingModelDiscoveryRevision
+      ) {
+        embeddingModelDiscoveryLoading.value = false
+      }
     }
   }
 
   async function testEmbeddingConnection(payload: Omit<AlicizationMemoryEmbeddingConnectionTestPayload, 'cardId'>) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchTestEmbeddingConnection)
       return null
+    const scopeRevision = cardScopeRevision
+    const requestRevision = ++embeddingConnectionTestRevision
     embeddingConnectionTesting.value = true
     try {
       const result = await getAlicizationBridge().memoryWorkbenchTestEmbeddingConnection!(payload)
+      if (
+        scopeRevision !== cardScopeRevision
+        || requestRevision !== embeddingConnectionTestRevision
+      ) {
+        return null
+      }
       embeddingConnectionTest.value = result
       lastError.value = result.error
       return result
     }
     catch (error) {
-      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === embeddingConnectionTestRevision
+      ) {
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      }
       return null
     }
     finally {
-      embeddingConnectionTesting.value = false
+      if (
+        scopeRevision === cardScopeRevision
+        && requestRevision === embeddingConnectionTestRevision
+      ) {
+        embeddingConnectionTesting.value = false
+      }
     }
   }
 

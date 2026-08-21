@@ -1,13 +1,15 @@
 import { constants } from 'node:fs'
-import { access } from 'node:fs/promises'
+import { access, readdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { env as processEnv, platform as processPlatform } from 'node:process'
 
 type AccessImpl = (path: string, mode?: number) => Promise<void>
+type ReaddirImpl = (path: string) => Promise<string[]>
 
 interface LocateAlicizationExecutionBinaryOptions {
   accessImpl?: AccessImpl
+  readdirImpl?: ReaddirImpl
   homeDir?: string
   pathValue?: string
   platform?: NodeJS.Platform
@@ -46,6 +48,8 @@ function buildKnownExecutionBinaryCandidates(binary: string, homeDir: string) {
       '/Applications/Codex.app/Contents/Resources/codex',
       join(homeDir, '.local', 'bin', 'codex'),
       join(homeDir, 'bin', 'codex'),
+      join(homeDir, '.nvm', 'current', 'bin', 'codex'),
+      join(homeDir, '.volta', 'bin', 'codex'),
     ])
   }
 
@@ -58,6 +62,25 @@ function buildKnownExecutionBinaryCandidates(binary: string, homeDir: string) {
   }
 
   return []
+}
+
+async function buildVersionManagerBinaryCandidates(binary: string, homeDir: string, readdirImpl: ReaddirImpl) {
+  const roots = [
+    join(homeDir, '.nvm', 'versions', 'node'),
+    join(homeDir, '.fnm', 'node-versions'),
+  ]
+  const candidates: string[] = []
+  for (const root of roots) {
+    const entries = (await readdirImpl(root).catch(() => []))
+      .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }))
+    for (const entry of entries) {
+      if (root.endsWith(join('.fnm', 'node-versions')))
+        candidates.push(join(root, entry, 'installation', 'bin', binary))
+      else
+        candidates.push(join(root, entry, 'bin', binary))
+    }
+  }
+  return candidates
 }
 
 function buildPathExtensions(platform: NodeJS.Platform) {
@@ -104,13 +127,23 @@ export async function locateAlicizationExecutionBinary(
   const homeDir = options.homeDir ?? homedir()
   const platform = options.platform ?? processPlatform
   const accessImpl = options.accessImpl ?? access
-  const pathEntries = normalizeEntries(
-    buildAlicizationExecutionPath(options.pathValue, homeDir).split(delimiter),
-  )
+  const readdirImpl = options.readdirImpl ?? (async (path: string) => await readdir(path, { withFileTypes: false }))
+  const inheritedPathValue = options.pathValue ?? processEnv.PATH
+  const inheritedPathEntries = typeof inheritedPathValue === 'string'
+    ? normalizeEntries(inheritedPathValue.split(delimiter))
+    : []
   const extensions = buildPathExtensions(platform)
+  const inheritedPathCandidates = inheritedPathEntries.flatMap(root => extensions.map(extension => join(root, `${normalizedBinary}${extension}`)))
+  const versionManagerCandidates = platform === 'darwin' || platform === 'linux'
+    ? await buildVersionManagerBinaryCandidates(normalizedBinary, homeDir, readdirImpl)
+    : []
+  const fallbackPathEntries = buildKnownExecutionRootEntries(homeDir)
+  const fallbackPathCandidates = fallbackPathEntries.flatMap(root => extensions.map(extension => join(root, `${normalizedBinary}${extension}`)))
   const candidates = unique([
+    ...inheritedPathCandidates,
+    ...versionManagerCandidates,
     ...buildKnownExecutionBinaryCandidates(normalizedBinary, homeDir),
-    ...pathEntries.flatMap(root => extensions.map(extension => join(root, `${normalizedBinary}${extension}`))),
+    ...fallbackPathCandidates,
   ])
 
   for (const candidate of candidates) {

@@ -1,8 +1,74 @@
 import { describe, expect, it } from 'vitest'
 
-import { runMemorySemanticScaleSoakHarness } from './memory-semantic-scale-soak-harness'
+import {
+  runMemorySemanticScaleSoakHarness,
+} from './memory-semantic-scale-soak-harness'
 
 describe('memory semantic scale soak harness', () => {
+  it('fails the production gate when deterministic vectors, self queries, or missing resource preflight are used', () => {
+    const report = runMemorySemanticScaleSoakHarness({
+      id: 'semantic-scale-production-fake',
+      createdAt: 1,
+      gate: 'production',
+      resourcePreflight: null,
+      searches: [{
+        id: 'deterministic-self-query',
+        corpusSize: 100_000,
+        indexMode: 'sqlite-vec',
+        approximate: false,
+        degraded: false,
+        nativeIndexReady: true,
+        coverageRatio: 1,
+        vectorInput: 'deterministic',
+        adapterImplementation: 'unknown',
+        queries: [{
+          id: 'self-query',
+          queryText: 'same vector as the stored record',
+          queryMode: 'self',
+          queryVectorHash: 'same',
+          expectedVectorHash: 'same',
+          expectedTopIds: ['expected'],
+          returnedIds: ['expected'],
+          latencyMs: 1,
+        }],
+      }],
+    })
+
+    expect(report.passed).toBe(false)
+    expect(report.summary.failingChecks).toEqual(expect.arrayContaining([
+      'production-provider-required',
+      'production-adapter-identity-missing',
+      'resource-preflight-missing',
+      'self-query-used',
+    ]))
+  })
+
+  it('fails the production gate when resource preflight predicts insufficient disk or memory', () => {
+    const report = runMemorySemanticScaleSoakHarness({
+      id: 'semantic-scale-resource-preflight',
+      createdAt: 1,
+      gate: 'production',
+      resourcePreflight: {
+        passed: false,
+        requiredDiskBytes: 10_000,
+        availableDiskBytes: 1,
+        requiredMemoryBytes: 10_000,
+        availableMemoryBytes: 1,
+        failures: ['disk-space-insufficient', 'memory-headroom-insufficient'],
+      },
+      searches: [],
+    })
+
+    expect(report.passed).toBe(false)
+    expect(report.resourcePreflight).toMatchObject({
+      passed: false,
+      failures: ['disk-space-insufficient', 'memory-headroom-insufficient'],
+    })
+    expect(report.summary.failingChecks).toEqual(expect.arrayContaining([
+      'resource-preflight-failed',
+    ]))
+  })
+
   it('evaluates 10k-scale vector search, provider degradation, model switch reindex, and durable job recovery', () => {
     const report = runMemorySemanticScaleSoakHarness({
       id: 'semantic-scale-10k',

@@ -89,6 +89,7 @@ export interface LongTermMemoryVectorIndexStore {
 export interface LongTermMemoryVectorIndexAdapter {
   initialize: () => Promise<void>
   upsert: (records: PersistentLongTermMemoryVectorRecord[]) => Promise<void>
+  upsertNative: (records: PersistentLongTermMemoryVectorRecord[]) => Promise<void>
   delete: (input: { cardId: string, sourceIds: string[] }) => Promise<number>
   pruneOrphaned: (input: { cardId: string }) => Promise<number>
   search: (
@@ -168,6 +169,10 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
   async function upsert(records: PersistentLongTermMemoryVectorRecord[]) {
     await input.store.upsertVectors(records)
     clearNativeHealthCache()
+    await upsertNative(records)
+  }
+
+  async function upsertNative(records: PersistentLongTermMemoryVectorRecord[]) {
     if (!input.native || !nativeInitialized)
       return
     try {
@@ -332,6 +337,7 @@ export function createLongTermMemoryVectorIndexAdapter(input: {
   return {
     initialize,
     upsert,
+    upsertNative,
     delete: deleteVectors,
     pruneOrphaned,
     search,

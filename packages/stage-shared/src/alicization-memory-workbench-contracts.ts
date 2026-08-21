@@ -1111,6 +1111,7 @@ export interface AlicizationMemoryEmbeddingProgress {
   jobId: string
   cardId: string
   status: 'queued' | 'running' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
+  stage: 'projection-refresh-queued' | 'projection-refresh-running' | 'embedding-indexing' | 'completed' | 'cancelled' | 'failed'
   modelId: string
   dimensions: number
   vectorSpaceId: string
@@ -1192,6 +1193,44 @@ export interface AlicizationMemorySemanticScaleSoakReport {
     falseRecallRate: number
     coverageRatio: number
     failingChecks: string[]
+  }
+  resourceMetrics?: {
+    dimensions: number
+    vectorInput: 'deterministic' | 'provider' | 'unavailable'
+    elapsedMs: number
+    peakRssBytes: number
+    sqliteBytes: number
+    sqliteWalBytes: number
+    cpuUserMs: number
+    cpuSystemMs: number
+  }
+  resourcePreflight?: {
+    passed: boolean
+    requiredDiskBytes: number
+    availableDiskBytes: number
+    requiredMemoryBytes: number
+    availableMemoryBytes: number
+    failures: string[]
+  } | null
+  evidence?: {
+    gate: 'adapter-smoke' | 'production'
+    resourcePreflight: {
+      passed: boolean
+      requiredDiskBytes: number
+      availableDiskBytes: number
+      requiredMemoryBytes: number
+      availableMemoryBytes: number
+      failures: string[]
+    } | null
+    vectorInput: 'provider' | 'deterministic' | 'unavailable'
+    searchMetrics: Array<{
+      id: string
+      vectorInput: 'provider' | 'deterministic' | 'unavailable' | undefined
+      adapterImplementation: 'persistent-native' | 'test-double' | 'unknown' | undefined
+      queryCount: number
+      nonSelfQueryCount: number
+      failures: string[]
+    }>
   }
   searchMetrics: AlicizationMemorySemanticScaleSearchMetrics[]
   providerDegradation: AlicizationMemorySemanticScaleProviderDegradationResult | null
@@ -1433,6 +1472,18 @@ export interface AlicizationPersonaTrainingArtifact {
   sha256: string
   sizeBytes: number
   baseModel: string
+  trainingReady?: boolean
+  dialogueReady?: boolean
+  compatibilityReason?: string | null
+  format?: 'gguf' | 'mlx-safetensors' | 'unknown'
+  producerBackend?: 'mlx-lm' | 'external' | 'unknown'
+  loaderTarget?: 'llama.cpp' | 'mlx-runtime' | 'unknown'
+  conversion?: {
+    status: 'not-required' | 'required' | 'completed' | 'failed'
+    sourceArtifactId?: string | null
+    tool?: string | null
+    version?: string | null
+  }
   compatibility: {
     status: 'compatible' | 'incompatible' | 'unknown'
     baseModel: string
@@ -1497,6 +1548,38 @@ export function parseAlicizationPersonaTrainingArtifact(
   if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 0)
     invalidPersonaTrainingArtifact('sizeBytes must be a non-negative safe integer')
   const baseModel = requirePersonaTrainingArtifactText(artifact.baseModel, 'baseModel', 1_024)
+  const trainingReady = artifact.trainingReady == null
+    ? undefined
+    : typeof artifact.trainingReady === 'boolean'
+      ? artifact.trainingReady
+      : invalidPersonaTrainingArtifact('trainingReady must be a boolean')
+  const dialogueReady = artifact.dialogueReady == null
+    ? undefined
+    : typeof artifact.dialogueReady === 'boolean'
+      ? artifact.dialogueReady
+      : invalidPersonaTrainingArtifact('dialogueReady must be a boolean')
+  const artifactCompatibilityReason = Object.prototype.hasOwnProperty.call(artifact, 'compatibilityReason')
+    ? artifact.compatibilityReason === null
+      ? null
+      : artifact.compatibilityReason === undefined
+        ? undefined
+        : requirePersonaTrainingArtifactText(artifact.compatibilityReason, 'compatibilityReason', 2_048)
+    : undefined
+  const format = artifact.format == null
+    ? undefined
+    : ['gguf', 'mlx-safetensors', 'unknown'].includes(String(artifact.format))
+        ? artifact.format as AlicizationPersonaTrainingArtifact['format']
+        : invalidPersonaTrainingArtifact('format is unsupported')
+  const producerBackend = artifact.producerBackend == null
+    ? undefined
+    : ['mlx-lm', 'external', 'unknown'].includes(String(artifact.producerBackend))
+        ? artifact.producerBackend as AlicizationPersonaTrainingArtifact['producerBackend']
+        : invalidPersonaTrainingArtifact('producerBackend is unsupported')
+  const loaderTarget = artifact.loaderTarget == null
+    ? undefined
+    : ['llama.cpp', 'mlx-runtime', 'unknown'].includes(String(artifact.loaderTarget))
+        ? artifact.loaderTarget as AlicizationPersonaTrainingArtifact['loaderTarget']
+        : invalidPersonaTrainingArtifact('loaderTarget is unsupported')
 
   const compatibilityRaw = artifact.compatibility
   if (!compatibilityRaw || typeof compatibilityRaw !== 'object' || Array.isArray(compatibilityRaw))
@@ -1513,9 +1596,13 @@ export function parseAlicizationPersonaTrainingArtifact(
     'compatibility.baseModel',
     1_024,
   )
-  const compatibilityReason = compatibility.reason == null
-    ? null
-    : requirePersonaTrainingArtifactText(compatibility.reason, 'compatibility.reason', 2_048)
+  const compatibilityFieldReason = Object.prototype.hasOwnProperty.call(compatibility, 'reason')
+    ? compatibility.reason === null
+      ? null
+      : compatibility.reason === undefined
+        ? undefined
+        : requirePersonaTrainingArtifactText(compatibility.reason, 'compatibility.reason', 2_048)
+    : undefined
 
   const activationRaw = artifact.activation
   if (!activationRaw || typeof activationRaw !== 'object' || Array.isArray(activationRaw))
@@ -1559,10 +1646,34 @@ export function parseAlicizationPersonaTrainingArtifact(
     sha256,
     sizeBytes,
     baseModel,
+    ...(trainingReady == null ? {} : { trainingReady }),
+    ...(dialogueReady == null ? {} : { dialogueReady }),
+    ...(artifactCompatibilityReason === undefined ? {} : { compatibilityReason: artifactCompatibilityReason }),
+    ...(format ? { format } : {}),
+    ...(producerBackend ? { producerBackend } : {}),
+    ...(loaderTarget ? { loaderTarget } : {}),
+    ...(artifact.conversion && typeof artifact.conversion === 'object' && !Array.isArray(artifact.conversion)
+      ? {
+          conversion: {
+            status: ['not-required', 'required', 'completed', 'failed'].includes(String((artifact.conversion as Record<string, unknown>).status))
+              ? (artifact.conversion as Record<string, unknown>).status as NonNullable<AlicizationPersonaTrainingArtifact['conversion']>['status']
+              : invalidPersonaTrainingArtifact('conversion.status is unsupported'),
+            sourceArtifactId: typeof (artifact.conversion as Record<string, unknown>).sourceArtifactId === 'string'
+              ? (artifact.conversion as Record<string, unknown>).sourceArtifactId as string
+              : null,
+            tool: typeof (artifact.conversion as Record<string, unknown>).tool === 'string'
+              ? (artifact.conversion as Record<string, unknown>).tool as string
+              : null,
+            version: typeof (artifact.conversion as Record<string, unknown>).version === 'string'
+              ? (artifact.conversion as Record<string, unknown>).version as string
+              : null,
+          },
+        }
+      : {}),
     compatibility: {
       status: compatibility.status as AlicizationPersonaTrainingArtifact['compatibility']['status'],
       baseModel: compatibilityBaseModel,
-      reason: compatibilityReason,
+      ...(compatibilityFieldReason === undefined ? {} : { reason: compatibilityFieldReason }),
     },
     activation: parsedActivation,
   }
@@ -1616,6 +1727,14 @@ export interface AlicizationPersonaTrainingExecutorConfig {
   executable: string
   baseModel: string
   timeoutMs: number
+  backend?: 'external' | 'mlx-lm'
+  iterations?: number
+  learningRate?: number
+  loraLayers?: number
+  batchSize?: number
+  maxSeqLength?: number
+  maskPrompt?: boolean
+  seed?: number
 }
 
 export interface AlicizationPersonaTrainingPipelineRunRecord {
@@ -1667,7 +1786,13 @@ export interface AlicizationPersonaTrainingExecutorConfigPayload {
 export interface AlicizationPersonaTrainingExecutorConnectionResult {
   ok: boolean
   executable: string
+  backend: 'external' | 'mlx-lm'
+  status: 'ready' | 'executable-missing' | 'model-unreadable' | 'mlx-lm-missing' | 'protocol-failure' | 'invalid-config'
   error: string | null
+  diagnostic?: {
+    action: 'none' | 'install-mlx-lm' | 'choose-readable-model' | 'configure-executable' | 'repair-protocol' | 'fix-configuration'
+    command: string | null
+  }
 }
 
 export interface AlicizationPersonaRuntimeConfig {

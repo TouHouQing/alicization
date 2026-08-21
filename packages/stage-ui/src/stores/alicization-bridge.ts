@@ -625,6 +625,7 @@ export interface AlicizationMemoryEmbeddingProgress {
   jobId: string
   cardId: string
   status: AlicizationMemoryEmbeddingReindexJobStatus
+  stage: 'projection-refresh-queued' | 'projection-refresh-running' | 'embedding-indexing' | 'completed' | 'cancelled' | 'failed'
   modelId: string
   dimensions: number
   vectorSpaceId: string

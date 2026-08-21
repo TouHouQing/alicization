@@ -1,12 +1,16 @@
 import type sqlite3 from 'sqlite3'
 
-import type { MemorySemanticScaleSoakReport } from './memory-semantic-scale-soak-harness'
+import type { LongTermMemoryEmbeddingProvider } from './long-term-memory-embedding-provider'
+import type {
+  MemorySemanticScaleResourcePreflight,
+  MemorySemanticScaleSoakReport,
+} from './memory-semantic-scale-soak-harness'
 import type { AlicizationAtomicWriteOptions } from './runtime-atomic-write'
 
 import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
-import { chmod, mkdir, mkdtemp, open as openFile, readdir, rm, stat } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { chmod, mkdir, mkdtemp, open as openFile, readdir, rm, stat, statfs } from 'node:fs/promises'
+import { freemem, tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { platform as processPlatform } from 'node:process'
@@ -19,6 +23,7 @@ import { hashLongTermMemoryEmbeddingText } from './long-term-memory-embedding-te
 import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'
 import { createSqliteVecLongTermMemoryVectorBackend } from './long-term-memory-sqlite-vec-backend'
 import { createLongTermMemoryVectorIndexAdapter } from './long-term-memory-vector-index-adapter'
+import { runMemorySemanticScaleSoakHarness } from './memory-semantic-scale-soak-harness'
 import { runMemorySemanticScaleVectorAdapterSoak } from './memory-semantic-scale-soak-runtime'
 import {
 
@@ -65,6 +70,12 @@ export interface MemorySemanticScaleJobExecutionInput {
   cardId: string
   tier: MemorySemanticScaleJobTier
   corpusSize: number
+  dimensions?: number
+  embeddingProvider?: LongTermMemoryEmbeddingProvider | null
+  resourceProbe?: {
+    statfs: (path: string) => Promise<{ bavail: number, bsize: number }>
+    freemem: () => number
+  }
   createdAt: number
   tempDir: string
   signal: AbortSignal
@@ -334,6 +345,60 @@ function safeParseJson<T>(raw: string | null, fallback: T): T {
 
 function errorText(error: unknown, fallback: string) {
   return normalizeText(errorMessageFrom(error) ?? error, 500) || fallback
+}
+
+function buildResourcePreflightFailureReport(input: {
+  id: string
+  createdAt: number
+  corpusSize: number
+  dimensions: number
+  embeddingProvider?: LongTermMemoryEmbeddingProvider | null
+  startedAt: number
+  startedCpu: NodeJS.ResourceUsage
+  peakRssBytes: number
+  resourcePreflight: MemorySemanticScaleResourcePreflight
+}): MemorySemanticScaleSoakReport {
+  const finishedCpu = process.resourceUsage()
+  const resourceMetrics = {
+    dimensions: input.dimensions,
+    vectorInput: input.embeddingProvider ? 'provider' as const : 'unavailable' as const,
+    elapsedMs: performance.now() - input.startedAt,
+    peakRssBytes: Math.max(input.peakRssBytes, process.memoryUsage().rss),
+    sqliteBytes: 0,
+    sqliteWalBytes: 0,
+    cpuUserMs: Math.max(0, (finishedCpu.userCPUTime - input.startedCpu.userCPUTime) / 1_000),
+    cpuSystemMs: Math.max(0, (finishedCpu.systemCPUTime - input.startedCpu.systemCPUTime) / 1_000),
+  }
+  return {
+    version: 'memory-semantic-scale-soak-harness-v1',
+    id: input.id,
+    createdAt: input.createdAt,
+    passed: false,
+    summary: {
+      corpusSize: input.corpusSize,
+      queryCount: 0,
+      p95LatencyMs: 0,
+      p99LatencyMs: 0,
+      recallAtK: 0,
+      falseRecallRate: 0,
+      coverageRatio: 0,
+      failingChecks: ['resource-preflight-failed', ...input.resourcePreflight.failures],
+    },
+    resourceMetrics,
+    resourcePreflight: input.resourcePreflight,
+    searchMetrics: [],
+    providerDegradation: null,
+    reindex: null,
+    recommendedNextActions: [
+      '检查磁盘和内存余量后再重试。',
+    ],
+    evidence: {
+      gate: 'production',
+      resourcePreflight: input.resourcePreflight,
+      vectorInput: input.embeddingProvider ? 'provider' : 'unavailable',
+      searchMetrics: [],
+    },
+  }
 }
 
 function invalidStopRecoveryMarker(path: string, reason: string) {
@@ -674,22 +739,75 @@ function closeDatabase(database: sqlite3.Database) {
 
 export const executeMemorySemanticScaleJob: MemorySemanticScaleJobExecutor = async (input) => {
   throwIfAborted(input.signal)
-  const database = await openDatabase(join(input.tempDir, 'semantic-scale.sqlite'))
+  const startedAt = performance.now()
+  const startedCpu = process.resourceUsage()
+  let peakRssBytes = process.memoryUsage().rss
+  const dimensions = Math.max(4, Math.min(4_096, Math.floor(input.dimensions ?? input.embeddingProvider?.dimensions ?? 12)))
+  const corpusSize = Math.max(1, Math.floor(input.corpusSize))
+  const resourceProbe = input.resourceProbe ?? { statfs, freemem }
+  const requiredDiskBytes = Math.max(
+    64 * 1024 * 1024,
+    corpusSize * dimensions * Float32Array.BYTES_PER_ELEMENT * 3,
+  )
+  const requiredMemoryBytes = Math.max(
+    64 * 1024 * 1024,
+    Math.min(512 * 1024 * 1024, Math.ceil(corpusSize / 10) * dimensions * Float32Array.BYTES_PER_ELEMENT),
+  )
+  const availableDiskBytes = await resourceProbe.statfs(input.tempDir)
+    .then(result => Number(result.bavail) * Number(result.bsize))
+    .catch(() => 0)
+  const availableMemoryBytes = resourceProbe.freemem()
+  const resourcePreflight = {
+    passed: availableDiskBytes >= requiredDiskBytes && availableMemoryBytes >= requiredMemoryBytes,
+    requiredDiskBytes,
+    availableDiskBytes,
+    requiredMemoryBytes,
+    availableMemoryBytes,
+    failures: [
+      availableDiskBytes < requiredDiskBytes ? 'disk-space-insufficient' : null,
+      availableMemoryBytes < requiredMemoryBytes ? 'memory-headroom-insufficient' : null,
+    ].filter(Boolean) as string[],
+  }
+  if (!resourcePreflight.passed) {
+    const report = runMemorySemanticScaleSoakHarness({
+      id: `memory-semantic-scale-job:${input.jobId}`,
+      createdAt: input.createdAt,
+      gate: 'production',
+      searches: [],
+      minimumCorpusSize: corpusSize,
+      resourcePreflight,
+    })
+    const finishedCpu = process.resourceUsage()
+    return {
+      ...report,
+      resourceMetrics: {
+        dimensions,
+        vectorInput: input.embeddingProvider ? 'provider' : 'unavailable',
+        elapsedMs: performance.now() - startedAt,
+        peakRssBytes: Math.max(peakRssBytes, process.memoryUsage().rss),
+        sqliteBytes: 0,
+        sqliteWalBytes: 0,
+        cpuUserMs: Math.max(0, (finishedCpu.userCPUTime - startedCpu.userCPUTime) / 1_000),
+        cpuSystemMs: Math.max(0, (finishedCpu.systemCPUTime - startedCpu.systemCPUTime) / 1_000),
+      },
+    }
+  }
+  let database: sqlite3.Database | null = null
   let writeQueue = Promise.resolve<unknown>(undefined)
   let writeTransactionActive = false
   const enqueueWrite = async <T>(task: () => Promise<T>) => {
     if (writeTransactionActive)
       return await task()
     const next = writeQueue.then(async () => {
-      await run(database, 'BEGIN IMMEDIATE')
+      await run(database!, 'BEGIN IMMEDIATE')
       writeTransactionActive = true
       try {
         const result = await task()
-        await run(database, 'COMMIT')
+        await run(database!, 'COMMIT')
         return result
       }
       catch (error) {
-        await run(database, 'ROLLBACK').catch(() => {})
+        await run(database!, 'ROLLBACK').catch(() => {})
         throw error
       }
       finally {
@@ -701,6 +819,21 @@ export const executeMemorySemanticScaleJob: MemorySemanticScaleJobExecutor = asy
   }
 
   try {
+    if (!resourcePreflight.passed) {
+      return buildResourcePreflightFailureReport({
+        id: `memory-semantic-scale-job:${input.jobId}`,
+        createdAt: input.createdAt,
+        corpusSize,
+        dimensions,
+        embeddingProvider: input.embeddingProvider,
+        startedAt,
+        startedCpu,
+        peakRssBytes,
+        resourcePreflight,
+      })
+    }
+
+    database = await openDatabase(join(input.tempDir, 'semantic-scale.sqlite'))
     await run(database, 'PRAGMA journal_mode = WAL')
     await run(database, 'PRAGMA synchronous = NORMAL')
     await run(database, `
@@ -738,14 +871,18 @@ export const executeMemorySemanticScaleJob: MemorySemanticScaleJobExecutor = asy
     })
     await adapter.initialize()
 
-    return await runMemorySemanticScaleVectorAdapterSoak({
+    const report = await runMemorySemanticScaleVectorAdapterSoak({
       id: `memory-semantic-scale-job:${input.jobId}`,
       createdAt: input.createdAt,
+      gate: 'production',
+      adapterImplementation: 'persistent-native',
+      embeddingProvider: input.embeddingProvider ?? undefined,
+      resourcePreflight,
       adapter,
       withBatchWrite: async task => await enqueueWrite(task),
       prepareCanonical: async (records) => {
         await enqueueWrite(async () => {
-          await run(database, `
+          await run(database!, `
             INSERT OR REPLACE INTO long_term_memory_search_documents (
               id, card_id, source, source_id, text_hash, tombstoned
             ) VALUES ${records.map(() => '(?, ?, ?, ?, ?, 0)').join(', ')}
@@ -760,19 +897,44 @@ export const executeMemorySemanticScaleJob: MemorySemanticScaleJobExecutor = asy
       },
       cardId: `semantic-scale-target:${input.jobId}`,
       foreignCardId: `semantic-scale-foreign:${input.jobId}`,
-      modelId: 'deterministic-semantic-scale-v1',
-      dimensions: 12,
+      modelId: input.embeddingProvider?.modelId ?? 'deterministic-semantic-scale-v1',
+      dimensions,
       corpusSizes: [input.corpusSize],
       queryCount: 24,
       batchSize: 500,
       maxP95LatencyMs: 2_000,
       maxP99LatencyMs: 4_000,
       signal: input.signal,
-      onProgress: input.onProgress,
+      onProgress: async (progress) => {
+        peakRssBytes = Math.max(peakRssBytes, process.memoryUsage().rss)
+        await input.onProgress(progress)
+      },
     })
+    peakRssBytes = Math.max(peakRssBytes, process.memoryUsage().rss)
+    const databaseBytes = await stat(join(input.tempDir, 'semantic-scale.sqlite'))
+      .then(result => result.size)
+      .catch(() => 0)
+    const sqliteWalBytes = await stat(join(input.tempDir, 'semantic-scale.sqlite-wal'))
+      .then(result => result.size)
+      .catch(() => 0)
+    const finishedCpu = process.resourceUsage()
+    return {
+      ...report,
+      resourceMetrics: {
+        dimensions,
+        vectorInput: input.embeddingProvider ? 'provider' : 'unavailable',
+        elapsedMs: performance.now() - startedAt,
+        peakRssBytes,
+        sqliteBytes: databaseBytes,
+        sqliteWalBytes,
+        cpuUserMs: Math.max(0, (finishedCpu.userCPUTime - startedCpu.userCPUTime) / 1_000),
+        cpuSystemMs: Math.max(0, (finishedCpu.systemCPUTime - startedCpu.systemCPUTime) / 1_000),
+      },
+    }
   }
   finally {
-    await closeDatabase(database)
+    if (database)
+      await closeDatabase(database)
   }
 }
 
@@ -785,6 +947,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
   all: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T[]>
   enqueueWrite: <T>(task: () => Promise<T>, options?: { signal?: AbortSignal }) => Promise<T>
   runInTransaction: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
+  resolveEmbeddingProvider?: () => LongTermMemoryEmbeddingProvider | null
   executeJob?: MemorySemanticScaleJobExecutor
   maxAttempts?: number
   leaseMs?: number
@@ -1696,6 +1859,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
           tier: activeClaim.row.tier,
           corpusSize: Number(activeClaim.row.corpus_size),
           createdAt: Number(activeClaim.row.created_at),
+          embeddingProvider: input.resolveEmbeddingProvider?.() ?? null,
           tempDir,
           signal: controller.signal,
           onProgress: async progress =>

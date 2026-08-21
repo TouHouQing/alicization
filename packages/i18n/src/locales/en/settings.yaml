@@ -601,6 +601,17 @@ pages:
         persona_training_executor_not_configured: No local trainer is configured. Training attempts will fail transparently.
         persona_training_executor_connected: Trainer protocol test passed.
         persona_training_executor_connection_failed: Trainer protocol test failed.
+        persona_training_executor_status_ready: Ready
+        persona_training_executor_status_executable_missing: Python or trainer executable unavailable
+        persona_training_executor_status_model_unreadable: Base model path is unreadable
+        persona_training_executor_status_mlx_lm_missing: mlx-lm is not installed
+        persona_training_executor_status_protocol_failure: Trainer protocol failed
+        persona_training_executor_status_invalid_config: Invalid configuration
+        persona_training_diagnostic_install_mlx_lm: Install the mlx-lm training dependency in the selected Python environment.
+        persona_training_diagnostic_choose_readable_model: Choose a readable local MLX base-model directory.
+        persona_training_diagnostic_configure_executable: Configure an executable trainer absolute path.
+        persona_training_diagnostic_repair_protocol: Check the trainer JSONL protocol and stderr diagnostics.
+        persona_training_diagnostic_fix_configuration: Correct the trainer configuration and test again.
         persona_runtime_active: llama.cpp Persona runtime is running. Active dialogue uses the loaded Persona adapter.
         persona_runtime_configured: llama.cpp Persona runtime is configured and waiting for a Persona adapter.
         persona_runtime_not_configured: No llama.cpp Persona runtime is configured.
@@ -621,6 +632,9 @@ pages:
         persona_training_activation_inactive: Inactive
         persona_training_activation_active: Loaded and active
         persona_training_activation_unsupported: Artifact stored but inactive (no loader receipt)
+        persona_training_ready: Yes
+        persona_training_not_ready: No
+        persona_training_format_unknown: Undeclared
         persona_training_compatibility_compatible: Compatible
         persona_training_compatibility_incompatible: Incompatible
         persona_training_compatibility_unknown: Unknown
@@ -661,6 +675,9 @@ pages:
         reindex_completed: Completed
         reindex_cancelled: Cancelled
         reindex_failed: Failed
+        reindex_stage_projection_queued: Waiting to refresh projection
+        reindex_stage_projection_running: Refreshing search projection
+        reindex_stage_embedding: Indexing embeddings
         empty_embedding_models: Fill the service base URL and API key, then discover embedding models. If the service does not list models, enter the model name manually.
         embedding_config_saved: Embedding config saved. Refreshing memory health.
         loading: Loading memory state...
@@ -719,6 +736,7 @@ pages:
         embedding_connection: Connection Test
         reindex_required: Reindex required
         reindex_status: Reindex status
+        reindex_stage: Reindex stage
         reindex_progress: Reindex progress
         indexed: Indexed
         failed: Failed
@@ -794,6 +812,16 @@ pages:
         persona_training_executable: Executable Absolute Path
         persona_training_base_model: Base Model
         persona_training_timeout: Timeout (Seconds)
+        persona_training_backend: Training Backend
+        persona_training_iterations: Iterations
+        persona_training_learning_rate: Learning Rate
+        persona_training_lora_layers: LoRA Layers
+        persona_training_batch_size: Batch Size
+        persona_training_max_seq_length: Maximum Sequence Length
+        persona_training_seed: Random Seed
+        persona_training_mask_prompt: Mask prompt tokens
+      options:
+        persona_training_external: External Protocol Wrapper
         persona_training_runs: Persona Training Runs
         persona_training_runs_description: Training runs asynchronously. Status, progress, cancellation, and errors come from the local database.
         persona_training_stage: Stage
@@ -802,6 +830,12 @@ pages:
         persona_training_progress: Progress
         persona_training_history: Run History
         persona_training_artifact: Training Artifact
+        persona_training_format: Artifact Format
+        persona_training_producer_backend: Training Backend
+        persona_training_loader_target: Loader Target
+        persona_training_training_ready: Training Ready
+        persona_training_dialogue_ready: Dialogue Ready
+        persona_training_conversion: Conversion Status
         persona_training_compatibility: Compatibility
         persona_training_compatibility_reason: Compatibility Reason
         persona_training_activation: Activation
@@ -820,6 +854,13 @@ pages:
         semantic_scale_history: Report History
         semantic_scale_failing_checks: Failing Checks
         semantic_scale_recommended_actions: Recommended Actions
+        semantic_scale_dimensions: Vector dimensions
+        semantic_scale_vector_input: Vector input
+        semantic_scale_elapsed: Elapsed
+        semantic_scale_peak_rss: Peak RSS
+        semantic_scale_sqlite_size: SQLite file
+        semantic_scale_wal_size: WAL file
+        semantic_scale_cpu: CPU (user/system)
         corpus_size: Corpus Size
         next_retry_at: Next Retry
         lease_expires_at: Lease Expires

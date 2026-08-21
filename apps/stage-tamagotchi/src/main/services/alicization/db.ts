@@ -145,6 +145,7 @@ import type {
   PersonaTrainingArtifactLoaderReceiptSnapshot,
   PersonaTrainingDatasetGovernanceMutation,
   PersonaTrainingDatasetGovernanceMutationResult,
+  PersonaTrainingExecutorConfigSnapshot,
   PersonaTrainingExecutorInput,
   PersonaTrainingExecutorOutput,
   PersonaTrainingPipelineAuditEvent,
@@ -901,7 +902,30 @@ function parsePersistedPersonaTrainingExecutorConfig(
     })
   }
   try {
-    return normalizePersonaTrainingProcessConfig(parsed)
+    const normalized = normalizePersonaTrainingProcessConfig(parsed)
+    const value = parsed as Record<string, unknown>
+    const config: PersonaTrainingExecutorConfigSnapshot = {
+      executable: normalized.executable,
+      baseModel: normalized.baseModel,
+      timeoutMs: normalized.timeoutMs,
+    }
+    if (Object.prototype.hasOwnProperty.call(value, 'backend') && value.backend != null)
+      config.backend = normalized.backend
+    if (Object.prototype.hasOwnProperty.call(value, 'iterations') && value.iterations != null)
+      config.iterations = normalized.iterations
+    if (Object.prototype.hasOwnProperty.call(value, 'learningRate') && value.learningRate != null)
+      config.learningRate = normalized.learningRate
+    if (Object.prototype.hasOwnProperty.call(value, 'loraLayers') && value.loraLayers != null)
+      config.loraLayers = normalized.loraLayers
+    if (Object.prototype.hasOwnProperty.call(value, 'batchSize') && value.batchSize != null)
+      config.batchSize = normalized.batchSize
+    if (Object.prototype.hasOwnProperty.call(value, 'maxSeqLength') && value.maxSeqLength != null)
+      config.maxSeqLength = normalized.maxSeqLength
+    if (Object.prototype.hasOwnProperty.call(value, 'maskPrompt') && value.maskPrompt != null)
+      config.maskPrompt = normalized.maskPrompt
+    if (Object.prototype.hasOwnProperty.call(value, 'seed') && value.seed != null)
+      config.seed = normalized.seed
+    return config
   }
   catch (error) {
     throw new Error(`invalid persisted persona training executor config (${context}): ${errorMessageFrom(error) ?? String(error)}`, {
@@ -2084,6 +2108,7 @@ export async function setupAlicizationDb(
     resolvePersonaTrainingExecutorConfig?: () => PersonaTrainingExecutorInput['configSnapshot'] | Promise<PersonaTrainingExecutorInput['configSnapshot']>
     semanticScaleJobOptions?: {
       executeJob?: MemorySemanticScaleJobExecutor
+      resolveEmbeddingProvider?: () => LongTermMemoryEmbeddingProvider | null
       maxAttempts?: number
       leaseMs?: number
       retryBaseMs?: number
@@ -9210,6 +9235,24 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     enqueueWrite,
     runInTransaction,
     resolveProvider: resolveLongTermMemoryEmbeddingProvider,
+    prepareProjectionEntries: async ({ cardId, source, sourceIds, limit }) => {
+      await rebuildLongTermMemorySearchIndexForCard(
+        cardId,
+        'memory embedding reindex search projection refresh',
+      )
+      const entries = await longTermMemorySearchIndexRuntime.listLongTermMemoryEmbeddingCorpus({
+        cardId,
+        source,
+        sourceIds,
+        limit,
+      })
+      return entries.map(entry => ({
+        sourceId: entry.sourceId,
+        source: entry.source,
+        text: entry.text,
+        textHash: entry.textHash,
+      }))
+    },
     upsertVector: async (record) => {
       await longTermMemoryVectorIndexAdapter.upsert([{
         id: `ltm-vector:${record.cardId}:${record.vectorSpaceId}:${record.source}:${record.sourceId}`,
@@ -9222,11 +9265,79 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         modelId: record.modelId,
         dimensions: record.dimensions,
         vectorSpaceId: record.vectorSpaceId,
+        status: record.status,
         updatedAt: now(),
         metadata: {
           reindexJob: true,
         },
       }])
+    },
+    commitVectorAndItem: async ({ item, vector, now: committedAt }) => {
+      const vectorRecord = {
+        id: `ltm-vector:${vector.cardId}:${vector.vectorSpaceId}:${vector.source}:${vector.sourceId}`,
+        cardId: vector.cardId,
+        sourceId: vector.sourceId,
+        source: vector.source,
+        text: vector.text,
+        textHash: vector.textHash,
+        vector: vector.vector,
+        modelId: vector.modelId,
+        dimensions: vector.dimensions,
+        vectorSpaceId: vector.vectorSpaceId,
+        status: vector.status,
+        updatedAt: committedAt,
+        metadata: {
+          reindexJob: true,
+        },
+      } as const
+      const committed = await enqueueWrite(async () => {
+        return await runInTransaction(database, async () => {
+          const owner = await get<{
+            job_status: string
+            item_status: string
+            lease_token: string | null
+          }>(
+            database,
+            `
+            SELECT
+              job.status AS job_status,
+              item.status AS item_status,
+              item.lease_token
+            FROM memory_embedding_reindex_items item
+            JOIN memory_embedding_reindex_jobs job ON job.id = item.job_id
+            WHERE item.id = ? AND item.job_id = ?
+            `,
+            [item.id, item.jobId],
+          )
+          if (
+            owner?.job_status !== 'running'
+            || owner.item_status !== 'leased'
+            || owner.lease_token !== item.leaseToken
+          ) {
+            return false
+          }
+
+          await longTermMemoryVectorStore.upsertVectorsInTransaction([vectorRecord])
+          await run(database, `
+            UPDATE memory_embedding_reindex_items
+            SET status = 'indexed',
+                lease_token = NULL,
+                lease_expires_at = NULL,
+                next_retry_at = NULL,
+                last_error = NULL,
+                indexed_at = ?,
+                updated_at = ?
+            WHERE id = ?
+              AND job_id = ?
+              AND status = 'leased'
+              AND lease_token = ?
+          `, [committedAt, committedAt, item.id, item.jobId, item.leaseToken])
+          return true
+        })
+      })
+      if (committed)
+        await longTermMemoryVectorIndexAdapter.upsertNative([vectorRecord])
+      return committed
     },
   })
   const memorySemanticScaleJobRuntime = createMemorySemanticScaleJobRuntime({
@@ -9238,6 +9349,8 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     all,
     enqueueWrite,
     runInTransaction,
+    resolveEmbeddingProvider: options?.semanticScaleJobOptions?.resolveEmbeddingProvider
+      ?? resolveLongTermMemoryEmbeddingProvider,
     executeJob: options?.semanticScaleJobOptions?.executeJob,
     maxAttempts: options?.semanticScaleJobOptions?.maxAttempts,
     leaseMs: options?.semanticScaleJobOptions?.leaseMs,
@@ -11649,27 +11762,16 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     const requestedLimit = Number.isFinite(input.limit) ? Math.max(1, Math.min(100_000, Math.floor(Number(input.limit)))) : null
 
     try {
-      await rebuildLongTermMemorySearchIndexForCard(
-        cardId,
-        'memory embedding reindex search projection refresh',
-      )
-      const entries = await longTermMemorySearchIndexRuntime.listLongTermMemoryEmbeddingCorpus({
-        cardId,
-        source: input.source,
-        sourceIds: input.sourceIds,
-        limit: requestedLimit,
-      })
       const progress = await memoryEmbeddingReindexRuntime.scheduleReindexJob({
         cardId,
         modelId: provider.modelId,
         dimensions: provider.dimensions,
         vectorSpaceId: resolveLongTermMemoryVectorSpaceId(provider),
-        entries: entries.map(entry => ({
-          sourceId: entry.sourceId,
-          source: entry.source,
-          text: entry.text,
-          textHash: entry.textHash,
-        })),
+        projection: {
+          source: input.source,
+          sourceIds: input.sourceIds,
+          limit: requestedLimit ?? undefined,
+        },
       })
       void memoryEmbeddingReindexRuntime.runJob(progress.jobId).catch(() => {})
       return memoryEmbeddingReindexResult(progress)

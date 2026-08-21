@@ -91,6 +91,34 @@ afterEach(async () => {
 })
 
 describe('persona training process executor', () => {
+  it('normalizes an MLX LoRA configuration with an auditable parameter snapshot', () => {
+    expect(normalizePersonaTrainingProcessConfig({
+      executable: '/tmp/mlx-lm-trainer.py',
+      baseModel: '/models/TinyLlama',
+      timeoutMs: 3_600_000,
+      backend: 'mlx-lm',
+      iterations: 64,
+      learningRate: 0.0001,
+      loraLayers: 8,
+      batchSize: 1,
+      maxSeqLength: 512,
+      maskPrompt: true,
+      seed: 42,
+    })).toEqual({
+      executable: '/tmp/mlx-lm-trainer.py',
+      baseModel: '/models/TinyLlama',
+      timeoutMs: 3_600_000,
+      backend: 'mlx-lm',
+      iterations: 64,
+      learningRate: 0.0001,
+      loraLayers: 8,
+      batchSize: 1,
+      maxSeqLength: 512,
+      maskPrompt: true,
+      seed: 42,
+    })
+  })
+
   it('writes the fixed input protocol, reports progress, and atomically accepts a verified artifact', async () => {
     const root = await createSandbox()
     const executable = await createExecutable(root, `
@@ -347,6 +375,10 @@ process.stdout.write(JSON.stringify({ type: 'artifact' }) + '\\n')
     })
     const onOrphanCleanupFailure = vi.fn(async () => {})
     const artifactRoot = dirname(dirname(dirname(result.artifact.path)))
+    const receiptPath = join(dirname(dirname(result.artifact.path)), '.alicization-publication.json')
+    const receipt = JSON.parse(await readFile(receiptPath, 'utf8')) as Record<string, unknown>
+    delete receipt.compatibilityReason
+    await writeFile(receiptPath, JSON.stringify(receipt), 'utf8')
 
     await chmod(artifactRoot, 0o500)
     try {
@@ -366,6 +398,9 @@ process.stdout.write(JSON.stringify({ type: 'artifact' }) + '\\n')
       }),
       error: expect.any(Error),
     }))
+    expect(
+      (onOrphanCleanupFailure.mock.calls as any[])[0][0].artifact,
+    ).not.toHaveProperty('compatibilityReason')
     const orphanFailure = (onOrphanCleanupFailure.mock.calls as any[])[0][0] as { artifact: { path: string } }
     expect(orphanFailure.artifact.path).toContain(
       join('artifacts', 'artifact-orphan-recovery', 'output', 'adapter.bin'),
@@ -798,6 +833,14 @@ setInterval(() => {}, 1000)
       executable: '/usr/bin/env',
       baseModel: 'base-model-v1',
       timeoutMs: 5_000,
+      backend: 'external',
+      iterations: 600,
+      learningRate: 1e-5,
+      loraLayers: 8,
+      batchSize: 1,
+      maxSeqLength: 2_048,
+      maskPrompt: false,
+      seed: 42,
     })
     expect(normalized).not.toHaveProperty('fixedArguments')
   })
@@ -851,6 +894,55 @@ process.stdout.write(JSON.stringify({ type: 'ready' }) + '\\n')
     expect(result).toMatchObject({
       ok: true,
       executable: await realpath(executable),
+      backend: 'external',
+      status: 'ready',
+    })
+  })
+
+  it('distinguishes an unreadable MLX base model before spawning the trainer', async () => {
+    const root = await createSandbox()
+    const executable = await createExecutable(root, `
+process.stdout.write(JSON.stringify({ type: "ready" }) + '\\n')
+`)
+
+    const result = await testPersonaTrainingProcessConnection({
+      executable,
+      baseModel: join(root, 'missing-model'),
+      backend: 'mlx-lm',
+      timeoutMs: 5_000,
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      backend: 'mlx-lm',
+      status: 'model-unreadable',
+    })
+  })
+
+  it('classifies a missing mlx-lm dependency instead of reporting a generic protocol failure', async () => {
+    const root = await createSandbox()
+    const executable = await createExecutable(root, `
+process.stdout.write(JSON.stringify({
+  type: "error",
+  message: "mlx-lm is not installed in the selected Python environment"
+}) + '\\n')
+process.exit(1)
+`)
+    const modelPath = join(root, 'model')
+    await mkdir(modelPath)
+
+    const result = await testPersonaTrainingProcessConnection({
+      executable,
+      baseModel: modelPath,
+      backend: 'mlx-lm',
+      timeoutMs: 5_000,
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      backend: 'mlx-lm',
+      status: 'mlx-lm-missing',
+      error: expect.stringContaining('mlx-lm is not installed'),
     })
   })
 })

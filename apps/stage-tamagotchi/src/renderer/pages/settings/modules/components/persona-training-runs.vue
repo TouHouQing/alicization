@@ -40,6 +40,12 @@ function compatibilityLabel(status: 'compatible' | 'incompatible' | 'unknown') {
   return t(`settings.pages.memory.workbench.states.persona_training_compatibility_${status}`)
 }
 
+function readinessLabel(ready: boolean | undefined) {
+  return ready === true
+    ? t('settings.pages.memory.workbench.states.persona_training_ready')
+    : t('settings.pages.memory.workbench.states.persona_training_not_ready')
+}
+
 function activationLabel(status: 'active' | 'inactive' | 'unsupported') {
   return t(`settings.pages.memory.workbench.states.persona_training_activation_${status}`)
 }
@@ -137,15 +143,42 @@ onMounted(refreshPersonaTrainingState)
       <div v-if="personaTrainingRun.artifact" :class="['mt-3', 'border-t', 'border-neutral-200', 'pt-3', 'text-xs', 'dark:border-neutral-800']">
         <div>{{ t('settings.pages.memory.workbench.fields.persona_training_artifact') }}: {{ personaTrainingRun.artifact.artifactId }}</div>
         <div :class="['mt-1']">
+          {{ t('settings.pages.memory.workbench.fields.persona_training_format') }}:
+          {{ personaTrainingRun.artifact.format ?? t('settings.pages.memory.workbench.states.persona_training_format_unknown') }}
+        </div>
+        <div :class="['mt-1']">
+          {{ t('settings.pages.memory.workbench.fields.persona_training_producer_backend') }}:
+          {{ personaTrainingRun.artifact.producerBackend ?? '-' }}
+        </div>
+        <div :class="['mt-1']">
+          {{ t('settings.pages.memory.workbench.fields.persona_training_loader_target') }}:
+          {{ personaTrainingRun.artifact.loaderTarget ?? '-' }}
+        </div>
+        <div :class="['mt-1']">
+          {{ t('settings.pages.memory.workbench.fields.persona_training_training_ready') }}:
+          {{ readinessLabel(personaTrainingRun.artifact.trainingReady) }}
+        </div>
+        <div :class="['mt-1']">
+          {{ t('settings.pages.memory.workbench.fields.persona_training_dialogue_ready') }}:
+          {{ readinessLabel(personaTrainingRun.artifact.dialogueReady) }}
+        </div>
+        <div
+          v-if="personaTrainingRun.artifact.conversion"
+          :class="['mt-1']"
+        >
+          {{ t('settings.pages.memory.workbench.fields.persona_training_conversion') }}:
+          {{ personaTrainingRun.artifact.conversion.status }}
+        </div>
+        <div :class="['mt-1']">
           {{ t('settings.pages.memory.workbench.fields.persona_training_compatibility') }}:
           {{ compatibilityLabel(personaTrainingRun.artifact.compatibility.status) }}
         </div>
         <div
-          v-if="personaTrainingRun.artifact.compatibility.reason"
+          v-if="personaTrainingRun.artifact.compatibility.reason || personaTrainingRun.artifact.compatibilityReason"
           :class="['mt-1', 'break-words', 'text-neutral-500']"
         >
           {{ t('settings.pages.memory.workbench.fields.persona_training_compatibility_reason') }}:
-          {{ personaTrainingRun.artifact.compatibility.reason }}
+          {{ personaTrainingRun.artifact.compatibility.reason || personaTrainingRun.artifact.compatibilityReason }}
         </div>
         <div :class="['mt-1']">
           {{ t('settings.pages.memory.workbench.fields.persona_training_activation') }}:

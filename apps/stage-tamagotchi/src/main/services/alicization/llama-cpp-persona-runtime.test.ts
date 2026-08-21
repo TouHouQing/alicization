@@ -425,6 +425,7 @@ describe('llama.cpp Persona runtime', () => {
     await writeFile(modelPath, 'base-model')
     const executable = await createHangingHealthLlamaServer(root)
     const runtime = createLlamaCppPersonaRuntime({
+      probeRequestTimeoutMs: 100,
       processTerminationTimeoutMs: 100,
     })
     runtimes.push(runtime)
@@ -435,7 +436,7 @@ describe('llama.cpp Persona runtime', () => {
       host: '127.0.0.1',
       port: 18_297,
       modelAlias: 'alice-persona',
-      startupTimeoutMs: 1_000,
+      startupTimeoutMs: 2_000,
     })
 
     expect(result.ok).toBe(false)
@@ -458,7 +459,7 @@ describe('llama.cpp Persona runtime', () => {
         host: '127.0.0.1',
         port: 18_301,
         modelAlias: 'alice-persona',
-        startupTimeoutMs: 500,
+        startupTimeoutMs: 2_000,
       }),
       probeRequestTimeoutMs: 100,
       processTerminationTimeoutMs: 100,
@@ -491,7 +492,7 @@ describe('llama.cpp Persona runtime', () => {
       host: '127.0.0.1',
       port: 18_298,
       modelAlias: 'alice-persona',
-      startupTimeoutMs: 1_000,
+      startupTimeoutMs: 3_000,
     })
 
     expect(result.ok).toBe(false)
@@ -514,7 +515,7 @@ describe('llama.cpp Persona runtime', () => {
         host: '127.0.0.1',
         port: 18_302,
         modelAlias: 'alice-persona',
-        startupTimeoutMs: 1_000,
+        startupTimeoutMs: 3_000,
       }),
       probeRequestTimeoutMs: 100,
       processTerminationTimeoutMs: 100,

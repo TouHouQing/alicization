@@ -162,6 +162,15 @@ const reindexStatusLabelKeys = {
   failed: 'settings.pages.memory.workbench.states.reindex_failed',
 } as const
 
+const reindexStageLabelKeys = {
+  'projection-refresh-queued': 'settings.pages.memory.workbench.states.reindex_stage_projection_queued',
+  'projection-refresh-running': 'settings.pages.memory.workbench.states.reindex_stage_projection_running',
+  'embedding-indexing': 'settings.pages.memory.workbench.states.reindex_stage_embedding',
+  'completed': 'settings.pages.memory.workbench.states.reindex_completed',
+  'cancelled': 'settings.pages.memory.workbench.states.reindex_cancelled',
+  'failed': 'settings.pages.memory.workbench.states.reindex_failed',
+} as const
+
 const semanticScaleStatusLabelKeys = {
   queued: 'settings.pages.memory.workbench.states.semantic_scale_queued',
   running: 'settings.pages.memory.workbench.states.semantic_scale_running',
@@ -368,6 +377,10 @@ function formatReindexStatus(value: string) {
   return t(reindexStatusLabelKeys[value as keyof typeof reindexStatusLabelKeys] ?? value)
 }
 
+function formatReindexStage(value: string) {
+  return t(reindexStageLabelKeys[value as keyof typeof reindexStageLabelKeys] ?? value)
+}
+
 function formatSemanticScaleStatus(value: string) {
   return t(semanticScaleStatusLabelKeys[value as keyof typeof semanticScaleStatusLabelKeys] ?? value)
 }
@@ -396,6 +409,18 @@ function formatCoverageRatio(value: number | null | undefined) {
   if (value === null || value === undefined || !Number.isFinite(value))
     return '-'
   return `${Math.round(Math.max(0, Math.min(1, value)) * 100)}%`
+}
+
+function formatBytes(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value))
+    return '-'
+  if (value < 1024)
+    return `${Math.round(value)} B`
+  if (value < 1024 * 1024)
+    return `${(value / 1024).toFixed(1)} KiB`
+  if (value < 1024 * 1024 * 1024)
+    return `${(value / (1024 * 1024)).toFixed(1)} MiB`
+  return `${(value / (1024 * 1024 * 1024)).toFixed(1)} GiB`
 }
 
 function formatPersonaCandidateStatus(value: string) {
@@ -1171,6 +1196,15 @@ watch(activeCardId, () => {
               <div>P95: {{ semanticScaleJob.report.summary.p95LatencyMs.toFixed(1) }} ms</div>
               <div>P99: {{ semanticScaleJob.report.summary.p99LatencyMs.toFixed(1) }} ms</div>
               <div>{{ t('settings.pages.memory.workbench.fields.coverage_ratio') }}: {{ formatCoverageRatio(semanticScaleJob.report.summary.coverageRatio) }}</div>
+              <template v-if="semanticScaleJob.report.resourceMetrics">
+                <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_dimensions') }}: {{ semanticScaleJob.report.resourceMetrics.dimensions }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_vector_input') }}: {{ semanticScaleJob.report.resourceMetrics.vectorInput }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_elapsed') }}: {{ semanticScaleJob.report.resourceMetrics.elapsedMs.toFixed(1) }} ms</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_peak_rss') }}: {{ formatBytes(semanticScaleJob.report.resourceMetrics.peakRssBytes) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_sqlite_size') }}: {{ formatBytes(semanticScaleJob.report.resourceMetrics.sqliteBytes) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_wal_size') }}: {{ formatBytes(semanticScaleJob.report.resourceMetrics.sqliteWalBytes) }}</div>
+                <div>{{ t('settings.pages.memory.workbench.fields.semantic_scale_cpu') }}: {{ semanticScaleJob.report.resourceMetrics.cpuUserMs.toFixed(1) }} / {{ semanticScaleJob.report.resourceMetrics.cpuSystemMs.toFixed(1) }} ms</div>
+              </template>
               <div
                 v-if="semanticScaleJob.report.summary.failingChecks.length > 0"
                 :class="['col-span-2', 'border-t', 'border-rose-200', 'pt-2', 'dark:border-rose-900']"
@@ -1863,6 +1897,10 @@ watch(activeCardId, () => {
             {{ t('settings.pages.memory.workbench.fields.reindex_status') }}:
             {{ formatReindexStatus(reindexProgress.status) }}
             ({{ reindexProgress.indexed }}/{{ reindexProgress.total }})
+          </div>
+          <div v-if="reindexProgress">
+            {{ t('settings.pages.memory.workbench.fields.reindex_stage') }}:
+            {{ formatReindexStage(reindexProgress.stage) }}
           </div>
           <div v-if="reindexProgress">
             {{ t('settings.pages.memory.workbench.fields.reindex_progress') }}:

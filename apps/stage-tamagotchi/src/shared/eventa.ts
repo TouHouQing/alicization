@@ -1025,6 +1025,7 @@ export type AlicizationMemorySemanticScaleSoakReport = SharedMemoryWorkbench.Ali
 export type AlicizationMemorySemanticScaleJob = SharedMemoryWorkbench.AlicizationMemorySemanticScaleJob
 export type AlicizationMemorySemanticScaleJobPayload = SharedMemoryWorkbench.AlicizationMemorySemanticScaleJobPayload
 export type AlicizationMemorySemanticScaleJobResult = SharedMemoryWorkbench.AlicizationMemorySemanticScaleJobResult
+export type AlicizationMemoryEmbeddingProgress = SharedMemoryWorkbench.AlicizationMemoryEmbeddingProgress
 
 export interface AlicizationMemoryEmbeddingReindexPayload extends AlicizationCardScope {
   action?: 'start' | 'status' | 'cancel' | 'retry-dead-letter'
@@ -1043,6 +1044,7 @@ export interface AlicizationMemoryEmbeddingReindexProgress {
   jobId: string
   cardId: string
   status: AlicizationMemoryEmbeddingReindexJobStatus
+  stage: 'projection-refresh-queued' | 'projection-refresh-running' | 'embedding-indexing' | 'completed' | 'cancelled' | 'failed'
   modelId: string
   dimensions: number
   vectorSpaceId: string

@@ -215,6 +215,14 @@ export interface PersonaTrainingExecutorConfigSnapshot {
   executable: string
   baseModel: string
   timeoutMs: number
+  backend?: 'external' | 'mlx-lm'
+  iterations?: number
+  learningRate?: number
+  loraLayers?: number
+  batchSize?: number
+  maxSeqLength?: number
+  maskPrompt?: boolean
+  seed?: number
 }
 
 export interface PersonaTrainingPipelineIncrement {
@@ -529,6 +537,28 @@ function personaTrainingArtifactLoaderReceiptFromArtifact(
     activatedAt: artifact.activation.activatedAt,
     reason: artifact.activation.reason,
   } satisfies PersonaTrainingArtifactLoaderReceiptSnapshot
+}
+
+function personaTrainingArtifactCompatibilityFailureReason(
+  artifact: AlicizationPersonaTrainingArtifact,
+) {
+  if (artifact.trainingReady === false)
+    return 'The artifact is not training-ready yet.'
+  if (artifact.dialogueReady === false)
+    return 'The artifact is not dialogue-ready yet.'
+  if (artifact.format === 'unknown')
+    return 'The artifact format is unknown.'
+  if (artifact.loaderTarget === 'unknown')
+    return 'The artifact loader target is unknown.'
+  if (artifact.format === 'mlx-safetensors' && artifact.loaderTarget !== 'mlx-runtime') {
+    return 'MLX safetensors is a training output and requires the MLX runtime loader target before dialogue activation.'
+  }
+  if (artifact.compatibility.status !== 'compatible') {
+    return artifact.compatibility.reason
+      ?? artifact.compatibilityReason
+      ?? artifact.compatibility.status
+  }
+  return null
 }
 
 function personaTrainingArtifactCleanupIntentId(input: {
@@ -1811,14 +1841,23 @@ export function createPersonaTrainingPipelineGate(input: {
           })
         },
       })
+      const artifactCompatibilityError = personaTrainingArtifactCompatibilityFailureReason(trained.artifact)
       const artifactAwaitingLoader = input.artifactLoader
-        ? {
-            ...trained.artifact,
-            activation: {
-              status: 'inactive' as const,
-              reason: 'Awaiting durable artifact loader activation.',
-            },
-          }
+        ? artifactCompatibilityError
+          ? {
+              ...trained.artifact,
+              activation: {
+                status: 'unsupported' as const,
+                reason: artifactCompatibilityError,
+              },
+            }
+          : {
+              ...trained.artifact,
+              activation: {
+                status: 'inactive' as const,
+                reason: 'Awaiting durable artifact loader activation.',
+              },
+            }
         : trained.artifact.activation.status === 'unsupported'
           ? trained.artifact
           : {
@@ -1831,12 +1870,13 @@ export function createPersonaTrainingPipelineGate(input: {
       trainedArtifact = artifactAwaitingLoader
 
       await assertCurrent()
+      if (
+        input.artifactLoader
+        && artifactCompatibilityError
+      ) {
+        throw new Error(`persona training artifact is not compatible with the configured loader: ${artifactCompatibilityError}`)
+      }
       if (input.artifactLoader) {
-        if (artifactAwaitingLoader.compatibility.status !== 'compatible') {
-          throw new Error(
-            `persona training artifact is not compatible with the configured loader: ${artifactAwaitingLoader.compatibility.reason ?? artifactAwaitingLoader.compatibility.status}`,
-          )
-        }
         activationIntent = await beginArtifactActivation({
           mode: 'initial',
           cardId: run.cardId,

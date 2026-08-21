@@ -10,6 +10,13 @@ import {
 
 export type MemoryEmbeddingReindexJobStatus = 'queued' | 'running' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
 export type MemoryEmbeddingReindexItemStatus = 'pending' | 'leased' | 'indexed' | 'retryable' | 'dead-lettered' | 'cancelled'
+export type MemoryEmbeddingReindexJobStage
+  = 'projection-refresh-queued'
+    | 'projection-refresh-running'
+    | 'embedding-indexing'
+    | 'completed'
+    | 'cancelled'
+    | 'failed'
 
 export interface MemoryEmbeddingReindexEntry {
   sourceId: string
@@ -22,6 +29,7 @@ export interface MemoryEmbeddingReindexProgress {
   jobId: string
   cardId: string
   status: MemoryEmbeddingReindexJobStatus
+  stage: MemoryEmbeddingReindexJobStage
   modelId: string
   dimensions: number
   vectorSpaceId: string
@@ -56,12 +64,18 @@ interface MemoryEmbeddingReindexJobRow {
   dimensions: number
   vector_space_id: string
   status: MemoryEmbeddingReindexJobStatus
+  stage: MemoryEmbeddingReindexJobStage
   max_attempts: number
   last_error: string | null
   created_at: number
   updated_at: number
   started_at: number | null
   completed_at: number | null
+  projection_source: string | null
+  projection_source_ids_json: string | null
+  projection_limit: number | null
+  projection_attempt_count: number
+  projection_next_retry_at: number | null
 }
 
 interface MemoryEmbeddingReindexItemRow {
@@ -91,7 +105,13 @@ interface ClaimedReindexItem extends MemoryEmbeddingReindexItemRow {
   attemptCount: number
 }
 
-interface UpsertVectorInput {
+export interface ReindexVectorCommitInput {
+  item: ClaimedReindexItem
+  vector: UpsertVectorInput
+  now: number
+}
+
+export interface UpsertVectorInput {
   cardId: string
   sourceId: string
   source: string
@@ -101,6 +121,7 @@ interface UpsertVectorInput {
   modelId: string
   dimensions: number
   vectorSpaceId: string
+  status?: 'indexed' | 'stale'
 }
 
 function normalizeText(raw: unknown, maxLength: number) {
@@ -150,16 +171,25 @@ export function createMemoryEmbeddingReindexRuntime(input: {
   provider?: LongTermMemoryEmbeddingProvider | null
   resolveProvider?: () => LongTermMemoryEmbeddingProvider | null
   upsertVector: (input: UpsertVectorInput) => Promise<void>
+  commitVectorAndItem?: (input: ReindexVectorCommitInput) => Promise<boolean>
   maxAttempts?: number
   leaseMs?: number
   retryBaseMs?: number
   retryMaxMs?: number
+  prepareProjectionEntries?: (input: {
+    cardId: string
+    source?: string
+    sourceIds?: string[]
+    limit?: number
+    signal: AbortSignal
+  }) => Promise<MemoryEmbeddingReindexEntry[]>
 }) {
   const maxAttempts = normalizePositiveInteger(input.maxAttempts, 3, 20)
   const leaseMs = normalizePositiveInteger(input.leaseMs, 60_000)
   const retryBaseMs = normalizePositiveInteger(input.retryBaseMs, 5_000)
   const retryMaxMs = Math.max(retryBaseMs, normalizePositiveInteger(input.retryMaxMs, 15 * 60_000))
   const activeWorkers = new Map<string, Promise<void>>()
+  const activeWorkerControllers = new Map<string, AbortController>()
   let stopping = false
 
   function resolveProvider() {
@@ -175,6 +205,10 @@ export function createMemoryEmbeddingReindexRuntime(input: {
         dimensions INTEGER NOT NULL,
         vector_space_id TEXT NOT NULL,
         status TEXT NOT NULL,
+        stage TEXT NOT NULL DEFAULT 'embedding-indexing',
+        projection_source TEXT,
+        projection_source_ids_json TEXT,
+        projection_limit INTEGER,
         max_attempts INTEGER NOT NULL,
         last_error TEXT,
         created_at INTEGER NOT NULL,
@@ -187,6 +221,40 @@ export function createMemoryEmbeddingReindexRuntime(input: {
       input.database,
       `ALTER TABLE memory_embedding_reindex_jobs ADD COLUMN vector_space_id TEXT NOT NULL DEFAULT ''`,
     ).catch(() => {})
+    await input.run(
+      input.database,
+      `ALTER TABLE memory_embedding_reindex_jobs ADD COLUMN stage TEXT NOT NULL DEFAULT 'embedding-indexing'`,
+    ).catch(() => {})
+    await input.run(
+      input.database,
+      `ALTER TABLE memory_embedding_reindex_jobs ADD COLUMN projection_source TEXT`,
+    ).catch(() => {})
+    await input.run(
+      input.database,
+      `ALTER TABLE memory_embedding_reindex_jobs ADD COLUMN projection_source_ids_json TEXT`,
+    ).catch(() => {})
+    await input.run(
+      input.database,
+      `ALTER TABLE memory_embedding_reindex_jobs ADD COLUMN projection_limit INTEGER`,
+    ).catch(() => {})
+    await input.run(
+      input.database,
+      `ALTER TABLE memory_embedding_reindex_jobs ADD COLUMN projection_attempt_count INTEGER NOT NULL DEFAULT 0`,
+    ).catch(() => {})
+    await input.run(
+      input.database,
+      `ALTER TABLE memory_embedding_reindex_jobs ADD COLUMN projection_next_retry_at INTEGER`,
+    ).catch(() => {})
+    await input.run(input.database, `
+      UPDATE memory_embedding_reindex_jobs
+      SET stage = CASE status
+        WHEN 'completed' THEN 'completed'
+        WHEN 'cancelled' THEN 'cancelled'
+        WHEN 'failed' THEN 'failed'
+        ELSE 'embedding-indexing'
+      END
+      WHERE stage = 'embedding-indexing'
+    `)
     await input.run(input.database, `
       CREATE TABLE IF NOT EXISTS memory_embedding_reindex_items (
         id TEXT PRIMARY KEY,
@@ -208,17 +276,23 @@ export function createMemoryEmbeddingReindexRuntime(input: {
         UNIQUE(job_id, source_id, source)
       )
     `)
-    await input.run(
-      input.database,
-      `DELETE FROM memory_embedding_reindex_items
-       WHERE job_id IN (
-         SELECT id FROM memory_embedding_reindex_jobs WHERE vector_space_id = ''
-       )`,
-    )
-    await input.run(
-      input.database,
-      `DELETE FROM memory_embedding_reindex_jobs WHERE vector_space_id = ''`,
-    )
+    await input.run(input.database, `
+      UPDATE memory_embedding_reindex_jobs
+      SET vector_space_id = 'legacy:' || model_id || ':' || dimensions,
+          updated_at = ?
+      WHERE vector_space_id = ''
+        AND TRIM(model_id) <> ''
+        AND dimensions > 0
+    `, [input.now()])
+    await input.run(input.database, `
+      UPDATE memory_embedding_reindex_jobs
+      SET status = 'failed',
+          stage = 'failed',
+          last_error = COALESCE(last_error, 'legacy reindex job could not determine its vector space during migration'),
+          completed_at = COALESCE(completed_at, ?),
+          updated_at = ?
+      WHERE vector_space_id = ''
+    `, [input.now(), input.now()])
     await input.run(
       input.database,
       `ALTER TABLE memory_embedding_reindex_items ADD COLUMN text_hash TEXT NOT NULL DEFAULT ''`,
@@ -237,10 +311,16 @@ export function createMemoryEmbeddingReindexRuntime(input: {
     await input.run(input.database, 'CREATE INDEX IF NOT EXISTS idx_memory_embedding_reindex_jobs_card_status ON memory_embedding_reindex_jobs(card_id, status, updated_at ASC)')
     await input.run(input.database, 'CREATE INDEX IF NOT EXISTS idx_memory_embedding_reindex_items_claim ON memory_embedding_reindex_items(job_id, status, next_retry_at ASC, created_at ASC)')
     await input.run(input.database, 'CREATE INDEX IF NOT EXISTS idx_memory_embedding_reindex_items_lease ON memory_embedding_reindex_items(status, lease_expires_at ASC)')
-    await recoverExpiredLeases()
+    await input.run(input.database, `
+      UPDATE memory_embedding_reindex_jobs
+      SET stage = 'projection-refresh-queued', status = 'queued'
+      WHERE stage = 'projection-refresh-running'
+        AND status IN ('queued', 'running')
+    `)
+    await recoverExpiredLeases(true)
   }
 
-  async function recoverExpiredLeasesInternal() {
+  async function recoverExpiredLeasesInternal(forceAllLeases = false) {
     const now = input.now()
     const expired = await input.all<{
       id: string
@@ -255,8 +335,8 @@ export function createMemoryEmbeddingReindexRuntime(input: {
        FROM memory_embedding_reindex_items item
        JOIN memory_embedding_reindex_jobs job ON job.id = item.job_id
        WHERE item.status = 'leased'
-         AND (item.lease_expires_at IS NULL OR item.lease_expires_at <= ?)`,
-      [now],
+         AND (? = 1 OR item.lease_expires_at IS NULL OR item.lease_expires_at <= ?)`,
+      [forceAllLeases ? 1 : 0, now],
     )
     const recoveryError = 'embedding reindex item lease expired during crash recovery'
     const affectedJobIds = new Set<string>()
@@ -306,15 +386,32 @@ export function createMemoryEmbeddingReindexRuntime(input: {
       affectedJobIds.add(job.id)
     }
 
-    for (const jobId of affectedJobIds)
+    for (const jobId of affectedJobIds) {
+      // A restarted worker must not inherit the previous process's running
+      // label. The lease recovery has made the work claimable again, but no
+      // worker has claimed it in this process yet.
+      if (forceAllLeases) {
+        await input.run(input.database, `
+          UPDATE memory_embedding_reindex_jobs
+          SET status = 'queued', updated_at = ?
+          WHERE id = ? AND status = 'running'
+            AND NOT EXISTS (
+              SELECT 1
+              FROM memory_embedding_reindex_items item
+              WHERE item.job_id = memory_embedding_reindex_jobs.id
+                AND item.status = 'leased'
+            )
+        `, [now, jobId])
+      }
       await refreshJobState(jobId)
+    }
     return expired.length
   }
 
-  async function recoverExpiredLeases() {
+  async function recoverExpiredLeases(forceAllLeases = false) {
     return await input.enqueueWrite(async () => {
       return await input.runInTransaction(input.database, async () => {
-        return await recoverExpiredLeasesInternal()
+        return await recoverExpiredLeasesInternal(forceAllLeases)
       })
     })
   }
@@ -351,27 +448,30 @@ export function createMemoryEmbeddingReindexRuntime(input: {
     const indexed = countByStatus.get('indexed') ?? 0
     const now = input.now()
     let nextStatus = job.status
+    let nextStage = job.stage
     let completedAt = job.completed_at
 
     if (job.status === 'cancel_requested' && leased === 0) {
       nextStatus = 'cancelled'
+      nextStage = 'cancelled'
       completedAt = completedAt ?? now
     }
     else if (!['completed', 'cancelled', 'failed'].includes(job.status) && pending + leased + retryable === 0) {
       nextStatus = deadLettered > 0 ? 'failed' : 'completed'
+      nextStage = deadLettered > 0 ? 'failed' : 'completed'
       completedAt = completedAt ?? now
     }
-    else if (job.status === 'queued' && (leased > 0 || indexed > 0 || retryable > 0 || deadLettered > 0)) {
+    else if (job.status === 'queued' && (leased > 0 || indexed > 0)) {
       nextStatus = 'running'
     }
 
     const lastError = nextStatus === 'completed' ? null : job.last_error
-    if (nextStatus !== job.status || completedAt !== job.completed_at || lastError !== job.last_error) {
+    if (nextStatus !== job.status || nextStage !== job.stage || completedAt !== job.completed_at || lastError !== job.last_error) {
       await input.run(input.database, `
         UPDATE memory_embedding_reindex_jobs
-        SET status = ?, last_error = ?, completed_at = ?, updated_at = ?
+        SET status = ?, stage = ?, last_error = ?, completed_at = ?, updated_at = ?
         WHERE id = ?
-      `, [nextStatus, lastError, completedAt, now, jobId])
+      `, [nextStatus, nextStage, lastError, completedAt, now, jobId])
     }
     return nextStatus
   }
@@ -402,6 +502,7 @@ export function createMemoryEmbeddingReindexRuntime(input: {
       jobId: updatedJob.id,
       cardId: updatedJob.card_id,
       status: updatedJob.status,
+      stage: updatedJob.stage,
       modelId: updatedJob.model_id,
       dimensions: updatedJob.dimensions,
       vectorSpaceId: updatedJob.vector_space_id,
@@ -412,13 +513,18 @@ export function createMemoryEmbeddingReindexRuntime(input: {
       retryable: countByStatus.get('retryable') ?? 0,
       deadLettered,
       cancelled,
-      progress: total === 0 ? 1 : Math.min(1, (indexed + deadLettered + cancelled) / total),
+      progress: total === 0
+        ? updatedJob.stage === 'completed' ? 1 : 0
+        : Math.min(1, (indexed + deadLettered + cancelled) / total),
       lastError: updatedJob.last_error,
       createdAt: updatedJob.created_at,
       updatedAt: updatedJob.updated_at,
       startedAt: updatedJob.started_at,
       completedAt: updatedJob.completed_at,
-      nextRetryAt: nextRetry?.next_retry_at ?? null,
+      nextRetryAt: [
+        nextRetry?.next_retry_at ?? null,
+        updatedJob.projection_next_retry_at,
+      ].filter((value): value is number => value != null).sort((left, right) => left - right)[0] ?? null,
     }
   }
 
@@ -440,12 +546,36 @@ export function createMemoryEmbeddingReindexRuntime(input: {
     return row ? await getReindexJob(row.id, normalizedCardId) : null
   }
 
+  function normalizeEntries(entries: MemoryEmbeddingReindexEntry[]) {
+    return [...new Map(entries
+      .map((entry) => {
+        const text = normalizeLongTermMemoryEmbeddingText(entry.text)
+        const expectedTextHash = hashLongTermMemoryEmbeddingText(text)
+        const providedTextHash = normalizeText(entry.textHash, 64)
+        if (providedTextHash && providedTextHash !== expectedTextHash)
+          throw new Error(`embedding reindex text hash mismatch for ${entry.source}:${entry.sourceId}`)
+        return {
+          sourceId: normalizeText(entry.sourceId, 240),
+          source: normalizeText(entry.source, 120),
+          text,
+          textHash: expectedTextHash,
+        }
+      })
+      .filter(entry => entry.sourceId && entry.source && entry.text)
+      .map(entry => [`${entry.source}:${entry.sourceId}`, entry] as const)).values()]
+  }
+
   async function scheduleReindexJob(inputData: {
     cardId: string
     modelId?: string
     dimensions?: number
     vectorSpaceId?: string
-    entries: MemoryEmbeddingReindexEntry[]
+    entries?: MemoryEmbeddingReindexEntry[]
+    projection?: {
+      source?: string
+      sourceIds?: string[]
+      limit?: number
+    }
   }) {
     if (stopping)
       throw new Error('embedding reindex runtime is stopping')
@@ -462,33 +592,77 @@ export function createMemoryEmbeddingReindexRuntime(input: {
     if (!cardId || !modelId || dimensions < 1 || !vectorSpaceId)
       throw new Error('embedding reindex requires cardId, modelId, dimensions, and vectorSpaceId')
 
-    const entries = [...new Map(inputData.entries
-      .map((entry) => {
-        const text = normalizeLongTermMemoryEmbeddingText(entry.text)
-        const expectedTextHash = hashLongTermMemoryEmbeddingText(text)
-        const providedTextHash = normalizeText(entry.textHash, 64)
-        if (providedTextHash && providedTextHash !== expectedTextHash)
-          throw new Error(`embedding reindex text hash mismatch for ${entry.source}:${entry.sourceId}`)
-        return {
-          sourceId: normalizeText(entry.sourceId, 240),
-          source: normalizeText(entry.source, 120),
-          text,
-          textHash: expectedTextHash,
-        }
-      })
-      .filter(entry => entry.sourceId && entry.source && entry.text)
-      .map(entry => [`${entry.source}:${entry.sourceId}`, entry] as const)).values()]
+    const entries = normalizeEntries(inputData.entries ?? [])
+    const projectionSource = normalizeText(inputData.projection?.source, 120) || null
+    const projectionSourceIds = [...new Set((inputData.projection?.sourceIds ?? [])
+      .map(id => normalizeText(id, 240))
+      .filter(Boolean))]
+      .sort((left, right) => left.localeCompare(right))
+    const projectionLimit = inputData.projection?.limit == null
+      ? null
+      : normalizePositiveInteger(inputData.projection.limit, 1, 100_000)
+    const projectionRequested = inputData.projection != null
+    if (projectionRequested && !input.prepareProjectionEntries)
+      throw new Error('embedding reindex projection refresh is not configured')
+    if (projectionRequested && entries.length > 0)
+      throw new Error('embedding reindex cannot mix projection refresh with preloaded entries')
+    const stage: MemoryEmbeddingReindexJobStage = projectionRequested
+      ? 'projection-refresh-queued'
+      : entries.length > 0
+        ? 'embedding-indexing'
+        : 'completed'
     const jobId = input.randomUUID()
     const now = input.now()
+    let persistedJobId = jobId
 
     await input.enqueueWrite(async () => {
       await input.runInTransaction(input.database, async () => {
+        const existing = await input.get<{ id: string }>(
+          input.database,
+          `SELECT id
+           FROM memory_embedding_reindex_jobs
+           WHERE card_id = ?
+             AND vector_space_id = ?
+             AND status IN ('queued', 'running', 'cancel_requested')
+             AND COALESCE(projection_source, '') = COALESCE(?, '')
+             AND COALESCE(projection_source_ids_json, '') = COALESCE(?, '')
+             AND COALESCE(projection_limit, -1) = COALESCE(?, -1)
+           ORDER BY created_at ASC, id ASC
+           LIMIT 1`,
+          [
+            cardId,
+            vectorSpaceId,
+            projectionSource,
+            projectionRequested ? JSON.stringify(projectionSourceIds) : null,
+            projectionLimit,
+          ],
+        )
+        if (existing) {
+          persistedJobId = existing.id
+          return
+        }
         await input.run(input.database, `
           INSERT INTO memory_embedding_reindex_jobs (
-            id, card_id, model_id, dimensions, vector_space_id, status, max_attempts, last_error,
-            created_at, updated_at, started_at, completed_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, ?)
-        `, [jobId, cardId, modelId, dimensions, vectorSpaceId, entries.length > 0 ? 'queued' : 'completed', maxAttempts, now, now, entries.length > 0 ? null : now])
+            id, card_id, model_id, dimensions, vector_space_id, status, stage,
+            projection_source, projection_source_ids_json, projection_limit,
+            max_attempts, last_error, created_at, updated_at, started_at, completed_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, ?)
+        `, [
+          jobId,
+          cardId,
+          modelId,
+          dimensions,
+          vectorSpaceId,
+          stage === 'completed' ? 'completed' : 'queued',
+          stage,
+          projectionSource,
+          projectionRequested ? JSON.stringify(projectionSourceIds) : null,
+          projectionLimit,
+          maxAttempts,
+          now,
+          now,
+          stage === 'completed' ? now : null,
+        ])
         for (const entry of entries) {
           await input.run(input.database, `
             INSERT INTO memory_embedding_reindex_items (
@@ -501,7 +675,156 @@ export function createMemoryEmbeddingReindexRuntime(input: {
       })
     })
 
-    return await getReindexJob(jobId)
+    return await getReindexJob(persistedJobId)
+  }
+
+  async function markProjectionCancelled(jobId: string) {
+    const now = input.now()
+    await input.run(input.database, `
+      UPDATE memory_embedding_reindex_jobs
+      SET status = 'cancelled', stage = 'cancelled',
+          completed_at = COALESCE(completed_at, ?), updated_at = ?
+      WHERE id = ?
+    `, [now, now, jobId])
+  }
+
+  async function prepareProjectionForJob(jobId: string, signal: AbortSignal) {
+    if (signal.aborted) {
+      await markProjectionCancelled(jobId)
+      return
+    }
+    const job = await readJobRow(jobId)
+    if (
+      job.stage !== 'projection-refresh-queued'
+      && job.stage !== 'projection-refresh-running'
+    ) {
+      return
+    }
+    if (job.status === 'cancel_requested') {
+      await markProjectionCancelled(jobId)
+      return
+    }
+    if (['cancelled', 'completed', 'failed'].includes(job.status))
+      return
+    if (!input.prepareProjectionEntries)
+      throw new Error('embedding reindex projection refresh is not configured')
+
+    const projectionStartedAt = input.now()
+    await input.enqueueWrite(async () => {
+      await input.runInTransaction(input.database, async () => {
+        const latest = await readJobRow(jobId)
+        if (latest.status === 'cancel_requested') {
+          await markProjectionCancelled(jobId)
+          return
+        }
+        if (latest.status !== 'queued'
+          || !['projection-refresh-queued', 'projection-refresh-running'].includes(latest.stage)
+          || (latest.projection_next_retry_at != null && latest.projection_next_retry_at > projectionStartedAt)) {
+          return
+        }
+        await input.run(input.database, `
+          UPDATE memory_embedding_reindex_jobs
+          SET status = 'running', stage = 'projection-refresh-running',
+              projection_attempt_count = projection_attempt_count + 1,
+              projection_next_retry_at = NULL,
+              started_at = COALESCE(started_at, ?), updated_at = ?
+          WHERE id = ? AND status = 'queued'
+            AND stage IN ('projection-refresh-queued', 'projection-refresh-running')
+        `, [projectionStartedAt, projectionStartedAt, jobId])
+      })
+    })
+
+    try {
+      const sourceIds = job.projection_source_ids_json
+        ? JSON.parse(job.projection_source_ids_json) as unknown
+        : []
+      const entries = await input.prepareProjectionEntries({
+        cardId: job.card_id,
+        source: job.projection_source ?? undefined,
+        sourceIds: Array.isArray(sourceIds)
+          ? [...new Set(sourceIds.map(id => normalizeText(id, 240)).filter(Boolean))].sort()
+          : undefined,
+        limit: job.projection_limit ?? undefined,
+        signal,
+      })
+      if (signal.aborted) {
+        await markProjectionCancelled(jobId)
+        return
+      }
+      const normalizedEntries = normalizeEntries(entries)
+      const now = input.now()
+      await input.enqueueWrite(async () => {
+        await input.runInTransaction(input.database, async () => {
+          const latest = await readJobRow(jobId)
+          if (latest.status !== 'running' || latest.stage !== 'projection-refresh-running') {
+            if (latest.status === 'cancel_requested') {
+              await input.run(input.database, `
+                UPDATE memory_embedding_reindex_jobs
+                SET status = 'cancelled', stage = 'cancelled',
+                    completed_at = COALESCE(completed_at, ?), updated_at = ?
+                WHERE id = ?
+              `, [now, now, jobId])
+            }
+            return
+          }
+          await input.run(input.database, 'DELETE FROM memory_embedding_reindex_items WHERE job_id = ?', [jobId])
+          for (const entry of normalizedEntries) {
+            await input.run(input.database, `
+              INSERT INTO memory_embedding_reindex_items (
+                id, job_id, card_id, source_id, source, text, text_hash, status,
+                attempt_count, lease_token, lease_expires_at, next_retry_at, last_error,
+                created_at, updated_at, indexed_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, NULL, NULL, ?, ?, NULL)
+            `, [input.randomUUID(), jobId, job.card_id, entry.sourceId, entry.source, entry.text, entry.textHash, now, now])
+          }
+          await input.run(input.database, `
+            UPDATE memory_embedding_reindex_jobs
+            SET status = ?, stage = ?, completed_at = ?, last_error = NULL,
+                projection_next_retry_at = NULL, updated_at = ?
+            WHERE id = ?
+          `, [
+            normalizedEntries.length > 0 ? 'queued' : 'completed',
+            normalizedEntries.length > 0 ? 'embedding-indexing' : 'completed',
+            normalizedEntries.length > 0 ? null : now,
+            now,
+            jobId,
+          ])
+        })
+      })
+    }
+    catch (error) {
+      const latest = await readJobRow(jobId).catch(() => null)
+      if (latest?.status === 'cancel_requested' || latest?.status === 'cancelled') {
+        if (latest.status !== 'cancelled')
+          await markProjectionCancelled(jobId)
+        return
+      }
+      if (latest?.status === 'completed' || latest?.status === 'failed')
+        return
+      const message = errorText(error)
+      const now = input.now()
+      const attempt = Number(latest?.projection_attempt_count ?? 0)
+      const retryable = Boolean(latest && attempt < latest.max_attempts)
+      const nextRetryAt = retryable
+        ? now + calculateBackoff(attempt, retryBaseMs, retryMaxMs)
+        : null
+      await input.enqueueWrite(async () => {
+        await input.run(input.database, `
+          UPDATE memory_embedding_reindex_jobs
+          SET status = ?, stage = ?, last_error = ?,
+              projection_next_retry_at = ?, completed_at = ?, updated_at = ?
+          WHERE id = ?
+        `, [
+          retryable ? 'queued' : 'failed',
+          retryable ? 'projection-refresh-queued' : 'failed',
+          message,
+          nextRetryAt,
+          retryable ? null : now,
+          now,
+          jobId,
+        ])
+      })
+    }
   }
 
   async function claimNextBatch(inputData: { jobId: string, batchSize?: number }): Promise<ClaimedReindexItem[]> {
@@ -568,7 +891,7 @@ export function createMemoryEmbeddingReindexRuntime(input: {
 
   async function markItemSuccess(item: ClaimedReindexItem) {
     const now = input.now()
-    await input.enqueueWrite(async () => {
+    return await input.enqueueWrite(async () => {
       const job = await readJobRow(item.jobId)
       if (job.status === 'cancel_requested') {
         await input.run(input.database, `
@@ -576,7 +899,7 @@ export function createMemoryEmbeddingReindexRuntime(input: {
           SET status = 'cancelled', lease_token = NULL, lease_expires_at = NULL, updated_at = ?
           WHERE id = ? AND status = 'leased' AND lease_token = ?
         `, [now, item.id, item.leaseToken])
-        return
+        return false
       }
       await input.run(input.database, `
         UPDATE memory_embedding_reindex_items
@@ -584,6 +907,7 @@ export function createMemoryEmbeddingReindexRuntime(input: {
             last_error = NULL, next_retry_at = NULL, indexed_at = ?, updated_at = ?
         WHERE id = ? AND status = 'leased' AND lease_token = ?
       `, [now, now, item.id, item.leaseToken])
+      return true
     })
   }
 
@@ -660,7 +984,7 @@ export function createMemoryEmbeddingReindexRuntime(input: {
           await markItemSuccess(item)
           continue
         }
-        await input.upsertVector({
+        const vectorRecord: UpsertVectorInput = {
           cardId: item.cardId,
           sourceId: item.sourceId,
           source: item.source,
@@ -670,8 +994,24 @@ export function createMemoryEmbeddingReindexRuntime(input: {
           modelId: item.modelId,
           dimensions: item.dimensions,
           vectorSpaceId: item.vectorSpaceId,
-        })
-        await markItemSuccess(item)
+          status: 'indexed',
+        }
+        if (input.commitVectorAndItem) {
+          const committed = await input.commitVectorAndItem({
+            item,
+            vector: vectorRecord,
+            now: input.now(),
+          })
+          if (!committed)
+            continue
+        }
+        else {
+          // The canonical vector is written exactly once. A transient `stale`
+          // write followed by an indexed write can leave duplicate native rows
+          // when the lease expires between the two operations.
+          await input.upsertVector(vectorRecord)
+          await markItemSuccess(item)
+        }
       }
       catch (error) {
         await markItemFailure(item, error)
@@ -705,6 +1045,7 @@ export function createMemoryEmbeddingReindexRuntime(input: {
     await input.enqueueWrite(async () => {
       await refreshJobState(jobId)
     })
+    activeWorkerControllers.get(jobId)?.abort(new Error(normalizeText(reason, 300) || '用户取消 embedding 重建'))
     return await getReindexJob(jobId, expectedCardId)
   }
 
@@ -766,7 +1107,8 @@ export function createMemoryEmbeddingReindexRuntime(input: {
         `, [now, jobId, job.card_id, ...normalizedItemIds])
         await input.run(input.database, `
           UPDATE memory_embedding_reindex_jobs
-          SET status = 'queued', last_error = NULL, completed_at = NULL, updated_at = ?
+          SET status = 'queued', stage = 'embedding-indexing',
+              last_error = NULL, completed_at = NULL, updated_at = ?
           WHERE id = ?
         `, [now, jobId])
       })
@@ -781,9 +1123,22 @@ export function createMemoryEmbeddingReindexRuntime(input: {
     if (stopping)
       return Promise.resolve()
 
+    const controller = new AbortController()
+    activeWorkerControllers.set(jobId, controller)
     const worker = (async () => {
       try {
         while (!stopping) {
+          const before = await getReindexJob(jobId)
+          if (['cancel_requested', 'cancelled', 'failed', 'completed'].includes(before.status))
+            break
+          if (before.stage === 'projection-refresh-queued' || before.stage === 'projection-refresh-running') {
+            if (before.nextRetryAt && before.nextRetryAt > input.now()) {
+              await wait(Math.min(1_000, Math.max(50, before.nextRetryAt - input.now())))
+              continue
+            }
+            await prepareProjectionForJob(jobId, controller.signal)
+            continue
+          }
           const progress = await runNextBatch({ jobId, batchSize })
           if (progress.leased === 0 && progress.pending === 0 && progress.retryable === 0)
             break
@@ -795,6 +1150,7 @@ export function createMemoryEmbeddingReindexRuntime(input: {
       }
       finally {
         activeWorkers.delete(jobId)
+        activeWorkerControllers.delete(jobId)
       }
     })()
     activeWorkers.set(jobId, worker)
@@ -822,6 +1178,8 @@ export function createMemoryEmbeddingReindexRuntime(input: {
 
   async function stop() {
     stopping = true
+    for (const controller of activeWorkerControllers.values())
+      controller.abort(new Error('embedding reindex runtime is stopping'))
     await Promise.allSettled(activeWorkers.values())
   }
 

@@ -158,6 +158,91 @@ describe('alicization memory workbench store', () => {
     expect(store.reindexResult?.progress?.progress).toBe(0.5)
   })
 
+  it('restores dead-letter details when a failed reindex job is reloaded from health', async () => {
+    const reindexJob = {
+      jobId: 'job-failed-restored',
+      cardId: 'default',
+      status: 'failed',
+      stage: 'failed',
+      modelId: 'local',
+      dimensions: 3,
+      vectorSpaceId: 'local:3',
+      total: 4,
+      pending: 0,
+      leased: 0,
+      indexed: 2,
+      retryable: 0,
+      deadLettered: 2,
+      cancelled: 0,
+      progress: 1,
+      lastError: 'provider rejected two memories',
+      createdAt: 1,
+      updatedAt: 2,
+      startedAt: 1,
+      completedAt: 2,
+      nextRetryAt: null,
+    } as const
+    const deadLetterItems = [{
+      itemId: 'memory-failed-1',
+      source: 'memory_reflections',
+      sourceId: 'reflection-failed-1',
+      attemptCount: 3,
+      lastError: 'provider rejected one memory',
+    }]
+    const memoryWorkbenchGetSnapshot = vi.fn(async () => ({
+      cardId: 'default',
+      sessionId: null,
+      updatedAt: 2,
+      workingMemory: null,
+      longTerm: { total: 0, byKind: {}, items: [] },
+      review: { pending: 0, items: [] },
+      health: {
+        status: 'degraded',
+        queue: { pending: 0, review: 0, applied: 0, failed: 2, deadLettered: 2 },
+        recall: { lastLatencyMs: null, p95LatencyMs: null, lastError: null },
+        embedding: {
+          providerConfigured: true,
+          modelId: 'local',
+          dimensions: 3,
+          reindexRequired: true,
+          indexMode: 'brute-force',
+          approximate: false,
+          degraded: true,
+          nativeIndexReady: false,
+          searchReady: false,
+          lastError: 'provider rejected two memories',
+          reindexJob,
+        },
+        errors: ['provider rejected two memories'],
+      },
+    }))
+    const memoryWorkbenchReindexEmbeddings = vi.fn(async (payload) => {
+      expect(payload).toEqual({ action: 'status', jobId: 'job-failed-restored' })
+      return {
+        jobId: reindexJob.jobId,
+        status: reindexJob.status,
+        scheduled: reindexJob.total,
+        indexed: reindexJob.indexed,
+        failed: reindexJob.deadLettered,
+        modelId: reindexJob.modelId,
+        dimensions: reindexJob.dimensions,
+        errors: [reindexJob.lastError],
+        progress: reindexJob,
+        deadLetterItems,
+      }
+    })
+    setAlicizationBridge({
+      memoryWorkbenchGetSnapshot,
+      memoryWorkbenchReindexEmbeddings,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.refreshSnapshot()
+
+    expect(store.reindexResult?.status).toBe('failed')
+    expect(store.reindexDeadLetterItems).toEqual(deadLetterItems)
+  })
+
   it('resets long-term cursor when filters change and appends when loading more', async () => {
     const firstItem = {
       id: 'memory-a',
@@ -498,6 +583,182 @@ describe('alicization memory workbench store', () => {
 
     expect(store.workingMemoryCleaningFailures).toEqual([])
     expect(store.workingMemoryCleaningFailuresNextCursor).toBeNull()
+  })
+
+  it('ignores reindex start results that finish after the workbench scope is reset', async () => {
+    let resolveReindex: ((value: any) => void) | undefined
+    setAlicizationBridge({
+      memoryWorkbenchReindexEmbeddings: vi.fn(() => new Promise((resolve) => {
+        resolveReindex = resolve
+      })),
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const pending = store.reindexEmbeddings()
+    store.resetCardScope()
+    resolveReindex?.({
+      jobId: 'old-card-job',
+      status: 'queued',
+      scheduled: 1,
+      indexed: 0,
+      failed: 0,
+      modelId: 'local',
+      dimensions: 3,
+      errors: [],
+      progress: {
+        jobId: 'old-card-job',
+        cardId: 'old-card',
+        status: 'queued',
+        stage: 'projection-refresh-queued',
+        modelId: 'local',
+        dimensions: 3,
+        vectorSpaceId: 'local:3',
+        total: 1,
+        pending: 1,
+        leased: 0,
+        indexed: 0,
+        retryable: 0,
+        deadLettered: 0,
+        cancelled: 0,
+        progress: 0,
+        lastError: null,
+        createdAt: 1,
+        updatedAt: 1,
+        startedAt: null,
+        completedAt: null,
+        nextRetryAt: null,
+      },
+    })
+
+    await pending
+
+    expect(store.reindexResult).toBeNull()
+    expect(store.reindexDeadLetterItems).toEqual([])
+  })
+
+  it('refreshes health after a reindex status reaches a terminal state', async () => {
+    const queuedProgress = {
+      jobId: 'job-terminal-health',
+      cardId: 'default',
+      status: 'queued',
+      stage: 'projection-refresh-queued',
+      modelId: 'local',
+      dimensions: 3,
+      vectorSpaceId: 'local:3',
+      total: 1,
+      pending: 1,
+      leased: 0,
+      indexed: 0,
+      retryable: 0,
+      deadLettered: 0,
+      cancelled: 0,
+      progress: 0,
+      lastError: null,
+      createdAt: 1,
+      updatedAt: 1,
+      startedAt: null,
+      completedAt: null,
+      nextRetryAt: null,
+    } as const
+    const completedProgress = {
+      ...queuedProgress,
+      status: 'completed',
+      stage: 'completed',
+      pending: 0,
+      indexed: 1,
+      progress: 1,
+      completedAt: 3,
+    } as const
+    const memoryWorkbenchGetSnapshot = vi.fn()
+      .mockResolvedValueOnce({
+        cardId: 'default',
+        sessionId: null,
+        updatedAt: 2,
+        workingMemory: null,
+        longTerm: { total: 0, byKind: {}, items: [] },
+        review: { pending: 0, items: [] },
+        health: {
+          status: 'degraded',
+          queue: { pending: 0, review: 0, applied: 0, failed: 0, deadLettered: 0 },
+          recall: { lastLatencyMs: null, p95LatencyMs: null, lastError: null },
+          embedding: {
+            providerConfigured: true,
+            modelId: 'local',
+            dimensions: 3,
+            reindexRequired: true,
+            indexMode: 'brute-force',
+            approximate: false,
+            degraded: true,
+            nativeIndexReady: false,
+            searchReady: false,
+            lastError: null,
+            reindexJob: queuedProgress,
+          },
+          errors: [],
+        },
+      })
+      .mockResolvedValueOnce({
+        cardId: 'default',
+        sessionId: null,
+        updatedAt: 4,
+        workingMemory: null,
+        longTerm: { total: 0, byKind: {}, items: [] },
+        review: { pending: 0, items: [] },
+        health: {
+          status: 'ok',
+          queue: { pending: 0, review: 0, applied: 0, failed: 0, deadLettered: 0 },
+          recall: { lastLatencyMs: 1, p95LatencyMs: 2, lastError: null },
+          embedding: {
+            providerConfigured: true,
+            modelId: 'local',
+            dimensions: 3,
+            reindexRequired: false,
+            indexMode: 'sqlite-vec',
+            approximate: false,
+            degraded: false,
+            nativeIndexReady: true,
+            searchReady: true,
+            lastError: null,
+            reindexJob: completedProgress,
+          },
+          errors: [],
+        },
+      })
+    const memoryWorkbenchReindexEmbeddings = vi.fn()
+      .mockResolvedValueOnce({
+        jobId: queuedProgress.jobId,
+        status: 'queued',
+        scheduled: 1,
+        indexed: 0,
+        failed: 0,
+        modelId: 'local',
+        dimensions: 3,
+        errors: [],
+        progress: queuedProgress,
+      })
+      .mockResolvedValueOnce({
+        jobId: completedProgress.jobId,
+        status: 'completed',
+        scheduled: 1,
+        indexed: 1,
+        failed: 0,
+        modelId: 'local',
+        dimensions: 3,
+        errors: [],
+        progress: completedProgress,
+      })
+    setAlicizationBridge({
+      memoryWorkbenchGetSnapshot,
+      memoryWorkbenchReindexEmbeddings,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.reindexEmbeddings()
+    await store.refreshReindexJob(queuedProgress.jobId)
+
+    expect(memoryWorkbenchGetSnapshot).toHaveBeenCalledTimes(2)
+    expect(store.health?.embedding.reindexRequired).toBe(false)
+    expect(store.health?.embedding.searchReady).toBe(true)
   })
 
   it('polls an active reindex job until it reaches a terminal state', async () => {
@@ -934,6 +1195,164 @@ describe('alicization memory workbench store', () => {
     expect(memoryWorkbenchTestEmbeddingConnection).toHaveBeenCalledWith(expect.objectContaining({
       model: 'text-embedding-3-small',
     }))
+  })
+
+  it('ignores stale embedding model discovery after a card scope reset', async () => {
+    let resolveModels: ((value: any) => void) | undefined
+    const memoryWorkbenchListEmbeddingModels = vi.fn(() => new Promise((resolve) => {
+      resolveModels = resolve
+    }))
+    setAlicizationBridge({
+      memoryWorkbenchListEmbeddingModels,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const pending = store.discoverEmbeddingModels({
+      apiKey: 'test-key',
+      baseUrl: 'https://api.example.test/v1/',
+      query: 'embedding',
+    })
+    store.resetCardScope()
+    resolveModels?.({
+      items: [{
+        id: 'stale-model',
+        name: 'stale-model',
+        provider: 'openai-compatible',
+        description: null,
+        dimensions: 3,
+      }],
+      query: 'embedding',
+      error: null,
+    })
+
+    await expect(pending).resolves.toBeNull()
+    expect(store.embeddingModels).toEqual([])
+    expect(store.embeddingModelDiscoveryResult).toBeNull()
+  })
+
+  it('keeps the newest embedding model discovery result when requests finish out of order', async () => {
+    const resolvers: Array<(value: any) => void> = []
+    const memoryWorkbenchListEmbeddingModels = vi.fn(() => new Promise((resolve) => {
+      resolvers.push(resolve)
+    }))
+    setAlicizationBridge({
+      memoryWorkbenchListEmbeddingModels,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const first = store.discoverEmbeddingModels({
+      apiKey: 'test-key',
+      baseUrl: 'https://api.example.test/v1/',
+      query: 'old-query',
+    })
+    const second = store.discoverEmbeddingModels({
+      apiKey: 'test-key',
+      baseUrl: 'https://api.example.test/v1/',
+      query: 'new-query',
+    })
+
+    resolvers[1]?.({
+      items: [{
+        id: 'new-model',
+        name: 'new-model',
+        provider: 'openai-compatible',
+        description: null,
+        dimensions: 3,
+      }],
+      query: 'new-query',
+      error: null,
+    })
+    await second
+
+    resolvers[0]?.({
+      items: [{
+        id: 'old-model',
+        name: 'old-model',
+        provider: 'openai-compatible',
+        description: null,
+        dimensions: 3,
+      }],
+      query: 'old-query',
+      error: null,
+    })
+    await first
+
+    expect(store.embeddingModels.map(model => model.id)).toEqual(['new-model'])
+    expect(store.embeddingModelDiscoveryResult?.query).toBe('new-query')
+  })
+
+  it('ignores stale embedding connection results after a card scope reset', async () => {
+    let resolveConnection: ((value: any) => void) | undefined
+    const memoryWorkbenchTestEmbeddingConnection = vi.fn(() => new Promise((resolve) => {
+      resolveConnection = resolve
+    }))
+    setAlicizationBridge({
+      memoryWorkbenchTestEmbeddingConnection,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const pending = store.testEmbeddingConnection({
+      apiKey: 'test-key',
+      baseUrl: 'https://api.example.test/v1/',
+      model: 'stale-model',
+    })
+    store.resetCardScope()
+    resolveConnection?.({
+      ok: true,
+      modelId: 'stale-model',
+      dimensions: 3,
+      latencyMs: 1,
+      error: null,
+    })
+
+    await expect(pending).resolves.toBeNull()
+    expect(store.embeddingConnectionTest).toBeNull()
+  })
+
+  it('keeps the newest embedding connection result when requests finish out of order', async () => {
+    const resolvers: Array<(value: any) => void> = []
+    const memoryWorkbenchTestEmbeddingConnection = vi.fn(() => new Promise((resolve) => {
+      resolvers.push(resolve)
+    }))
+    setAlicizationBridge({
+      memoryWorkbenchTestEmbeddingConnection,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const first = store.testEmbeddingConnection({
+      apiKey: 'test-key',
+      baseUrl: 'https://old.example.test/v1/',
+      model: 'old-model',
+    })
+    const second = store.testEmbeddingConnection({
+      apiKey: 'test-key',
+      baseUrl: 'https://new.example.test/v1/',
+      model: 'new-model',
+    })
+
+    resolvers[1]?.({
+      ok: true,
+      modelId: 'new-model',
+      dimensions: 3,
+      latencyMs: 10,
+      error: null,
+    })
+    await second
+
+    resolvers[0]?.({
+      ok: false,
+      modelId: 'old-model',
+      dimensions: null,
+      latencyMs: null,
+      error: 'old provider failed',
+    })
+    await first
+
+    expect(store.embeddingConnectionTest).toMatchObject({
+      ok: true,
+      modelId: 'new-model',
+    })
+    expect(store.lastError).toBeNull()
   })
 
   it('keeps persona dataset governance actions in the bridge without starting training', async () => {

@@ -153,6 +153,15 @@ describe('memory semantic scale soak runtime', () => {
       await runMemorySemanticScaleVectorAdapterSoak({
         id: 'sqlite-vec-progress-soak',
         createdAt: Date.parse('2026-08-15T00:00:00.000Z'),
+        gate: 'adapter-smoke',
+        resourcePreflight: {
+          passed: true,
+          requiredDiskBytes: 1,
+          availableDiskBytes: 1_000_000,
+          requiredMemoryBytes: 1,
+          availableMemoryBytes: 1_000_000,
+          failures: [],
+        },
         adapter: database.adapter,
         prepareCanonical: database.prepareCanonical,
         withBatchWrite: database.withBatchWrite,
@@ -193,6 +202,15 @@ describe('memory semantic scale soak runtime', () => {
       await expect(runMemorySemanticScaleVectorAdapterSoak({
         id: 'sqlite-vec-cancelled-soak',
         createdAt: Date.parse('2026-08-15T00:00:00.000Z'),
+        gate: 'adapter-smoke',
+        resourcePreflight: {
+          passed: true,
+          requiredDiskBytes: 1,
+          availableDiskBytes: 1_000_000,
+          requiredMemoryBytes: 1,
+          availableMemoryBytes: 1_000_000,
+          failures: [],
+        },
         adapter: database.adapter,
         prepareCanonical: database.prepareCanonical,
         withBatchWrite: database.withBatchWrite,
@@ -231,6 +249,15 @@ describe('memory semantic scale soak runtime', () => {
       const report = await runMemorySemanticScaleVectorAdapterSoak({
         id: 'sqlite-vec-real-soak',
         createdAt: Date.parse('2026-08-04T16:00:00.000Z'),
+        gate: 'adapter-smoke',
+        resourcePreflight: {
+          passed: true,
+          requiredDiskBytes: 1,
+          availableDiskBytes: 1_000_000,
+          requiredMemoryBytes: 1,
+          availableMemoryBytes: 1_000_000,
+          failures: [],
+        },
         adapter: database.adapter,
         prepareCanonical: database.prepareCanonical,
         withBatchWrite: database.withBatchWrite,
@@ -257,4 +284,41 @@ describe('memory semantic scale soak runtime', () => {
       await database.close()
     }
   }, process.env.ALICIZATION_MEMORY_SOAK_100K === '1' ? 300_000 : 120_000)
+
+  it('records non-self query evidence instead of reusing the stored target vector', async () => {
+    const database = await createSoakDatabase()
+    try {
+      const report = await runMemorySemanticScaleVectorAdapterSoak({
+        id: 'sqlite-vec-non-self-query',
+        createdAt: Date.parse('2026-08-15T00:00:00.000Z'),
+        gate: 'adapter-smoke',
+        resourcePreflight: {
+          passed: true,
+          requiredDiskBytes: 1,
+          availableDiskBytes: 1_000_000,
+          requiredMemoryBytes: 1,
+          availableMemoryBytes: 1_000_000,
+          failures: [],
+        },
+        adapter: database.adapter,
+        prepareCanonical: database.prepareCanonical,
+        withBatchWrite: database.withBatchWrite,
+        cardId: 'card-non-self',
+        foreignCardId: 'card-non-self-foreign',
+        modelId: 'deterministic-soak-v1',
+        dimensions: 12,
+        corpusSizes: [20],
+        queryCount: 4,
+        batchSize: 10,
+      })
+
+      const queries = report.searchMetrics[0]?.queryCount
+      expect(queries).toBe(4)
+      expect(report.searchMetrics[0]?.failures).not.toContain('self-query-used')
+      expect(report.searchMetrics[0]?.failures).not.toContain('query-text-missing')
+    }
+    finally {
+      await database.close()
+    }
+  })
 })

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import sqlite3 from 'sqlite3'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { hashLongTermMemoryEmbeddingText } from './long-term-memory-embedding-text'
 import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'
@@ -138,6 +138,52 @@ describe('persistent long-term memory vector store', () => {
     })).toHaveLength(0)
 
     restarted.close()
+  })
+
+  it('supports canonical vector writes inside an existing transaction without re-entering the write queue', async () => {
+    const database = await createSandboxDatabase()
+    const enqueueWriteMock = vi.fn((task: () => Promise<unknown>) => task())
+    const enqueueWrite = enqueueWriteMock as unknown as <T>(
+      task: () => Promise<T>,
+    ) => Promise<T>
+    const store = createPersistentLongTermMemoryVectorStore({
+      database,
+      run,
+      all,
+      enqueueWrite,
+      now: () => 10,
+    })
+    await store.initialize()
+    await upsertCanonicalDocument(database, {
+      cardId: 'card-transaction',
+      sourceId: 'fact-transaction',
+      source: 'memory_facts',
+      text: '事务内写入的长期记忆。',
+    })
+
+    await run(database, 'BEGIN IMMEDIATE')
+    await store.upsertVectorsInTransaction([{
+      id: 'vector-transaction',
+      cardId: 'card-transaction',
+      sourceId: 'fact-transaction',
+      source: 'memory_facts',
+      text: '事务内写入的长期记忆。',
+      vector: [1, 0, 0],
+      modelId: 'model-transaction',
+      dimensions: 3,
+      updatedAt: 10,
+      metadata: {},
+    }])
+    await run(database, 'COMMIT')
+
+    expect(enqueueWriteMock).not.toHaveBeenCalled()
+    await expect(store.searchVectors([1, 0, 0], {
+      cardId: 'card-transaction',
+      modelId: 'model-transaction',
+      dimensions: 3,
+      limit: 1,
+    })).resolves.toHaveLength(1)
+    database.close()
   })
 
   it('persists canonical embedding text longer than the vector store normalization limit', async () => {
