@@ -25,7 +25,7 @@ interface SqliteHarness {
 }
 
 interface WriteQueue {
-  enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
+  enqueueWrite: <T>(task: () => Promise<T>, options?: { signal?: AbortSignal }) => Promise<T>
 }
 
 const harnesses: SqliteHarness[] = []
@@ -1339,6 +1339,92 @@ describe('memory semantic scale job runtime', () => {
       attemptCount: 1,
       maxAttempts: 1,
       lastError: 'lease heartbeat persistence failed before stop',
+    })
+  })
+
+  it('settles a queued heartbeat when stop aborts the executor before the write starts', async () => {
+    const harness = await createSqliteHarness()
+    const tempRootDir = await createTempRoot()
+    let writeCount = 0
+    let heartbeatQueued: (() => void) | undefined
+    let releaseHeartbeat: (() => void) | undefined
+    let stopReturned = false
+    let lateHeartbeatWrites = 0
+    const heartbeatQueuedPromise = new Promise<void>((resolve) => {
+      heartbeatQueued = resolve
+    })
+    const releaseHeartbeatPromise = new Promise<void>((resolve) => {
+      releaseHeartbeat = resolve
+    })
+    let writeTail = Promise.resolve<unknown>(undefined)
+    const writeQueue: WriteQueue = {
+      enqueueWrite: async <T>(
+        task: () => Promise<T>,
+        options?: { signal?: AbortSignal },
+      ) => {
+        const next = writeTail.then(async () => {
+          writeCount += 1
+          if (writeCount === 4) {
+            heartbeatQueued?.()
+            await releaseHeartbeatPromise
+          }
+          if (options?.signal?.aborted)
+            throw new DOMException('write aborted', 'AbortError')
+          return await task()
+        })
+        writeTail = next.then(() => undefined, () => undefined)
+        return await next
+      },
+    }
+    const { runtime } = attachRuntime(harness, {
+      leaseMs: 15,
+      maxAttempts: 1,
+      stopTimeoutMs: 300,
+      tempRootDir,
+      writeQueue,
+      run: async (sql, params = []) => {
+        if (sql.includes('SET lease_expires_at = ?, updated_at = ?')) {
+          if (stopReturned)
+            lateHeartbeatWrites += 1
+          return await harness.run(sql, params)
+        }
+        return await harness.run(sql, params)
+      },
+      executeJob: async ({ signal }) => await new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      }),
+    })
+    await runtime.initializeSchema()
+    const job = await runtime.startJob({ cardId: 'card-a', tier: '10k' })
+    const attempt = runtime.runNextAttempt(job.jobId)
+    await heartbeatQueuedPromise
+
+    const stopping = runtime.stop()
+    const attemptResult = await Promise.race([
+      attempt.then(
+        () => 'settled' as const,
+        () => 'settled' as const,
+      ),
+      new Promise<'timed-out'>(resolve => setTimeout(() => resolve('timed-out'), 80)),
+    ])
+    expect(attemptResult).toBe('settled')
+    stopReturned = true
+    releaseHeartbeat?.()
+    const stopResult = await Promise.race([
+      stopping.then(
+        () => 'resolved' as const,
+        () => 'rejected' as const,
+      ),
+      new Promise<'timed-out'>(resolve => setTimeout(() => resolve('timed-out'), 250)),
+    ])
+    expect(stopResult).not.toBe('timed-out')
+    await Promise.allSettled([attempt, stopping])
+
+    expect(lateHeartbeatWrites).toBe(0)
+    expect(await runtime.getJob(job.jobId, 'card-a')).toMatchObject({
+      status: 'queued',
+      attemptCount: 0,
+      deadLettered: false,
     })
   })
 

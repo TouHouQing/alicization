@@ -1558,6 +1558,36 @@ export interface AlicizationPersonaTrainingExecutorConnectionResult {
   error: string | null
 }
 
+export interface AlicizationPersonaRuntimeConfig {
+  executable: string
+  modelPath: string
+  host: string
+  port: number
+  modelAlias: string
+  startupTimeoutMs: number
+}
+
+export interface AlicizationPersonaRuntimeConfigState {
+  configured: boolean
+  config: AlicizationPersonaRuntimeConfig | null
+  active: boolean
+  artifactId: string | null
+  routeBaseUrl: string | null
+  error: string | null
+}
+
+export interface AlicizationPersonaRuntimeConfigPayload {
+  cardId: string
+  config: AlicizationPersonaRuntimeConfig | null
+}
+
+export interface AlicizationPersonaRuntimeConnectionResult {
+  ok: boolean
+  executable: string
+  baseUrl: string | null
+  error: string | null
+}
+
 export type AlicizationPersonaTrainingPipelineResult
   = {
     status: 'succeeded'

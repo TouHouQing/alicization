@@ -5,6 +5,8 @@ interface SyncAlicizationMainChatLlmRouteOptions {
   providerConfig: Record<string, unknown>
   normalizeProviderConfig: (raw: unknown) => Record<string, unknown>
   getProviderCredentials: () => Record<string, Record<string, unknown>>
+  getActiveProviderId: () => string
+  getActiveModelId: () => string
   setProviderCredentials: (value: Record<string, Record<string, unknown>>) => void
   setActiveProviderId: (value: string) => void
   setActiveModelId: (value: string) => void
@@ -19,12 +21,15 @@ export async function syncAlicizationMainChatLlmRoute(
   activeModelId: string
   persistedConfigKeys: string[]
 }> {
-  input.setActiveProviderId(input.mainGateway.providerId)
-  input.setActiveModelId(input.mainGateway.model)
+  const personaOverlay = input.mainGateway.providerId === 'llama.cpp-persona'
+  if (!personaOverlay) {
+    input.setActiveProviderId(input.mainGateway.providerId)
+    input.setActiveModelId(input.mainGateway.model)
+  }
 
   const normalizedProviderConfig = input.normalizeProviderConfig(input.providerConfig)
   const currentProviderCredentials = input.getProviderCredentials()
-  const nextProviderCredentials = Object.keys(normalizedProviderConfig).length > 0
+  const nextProviderCredentials = !personaOverlay && Object.keys(normalizedProviderConfig).length > 0
     ? {
         ...currentProviderCredentials,
         [input.mainGateway.providerId]: {
@@ -44,8 +49,14 @@ export async function syncAlicizationMainChatLlmRoute(
   void Promise.resolve(input.resumePendingEmbeddingReindexJobs?.()).catch(() => {})
 
   return {
-    activeProviderId: input.mainGateway.providerId,
-    activeModelId: input.mainGateway.model,
-    persistedConfigKeys: Object.keys(nextProviderCredentials[input.mainGateway.providerId] ?? {}),
+    activeProviderId: personaOverlay
+      ? input.getActiveProviderId()
+      : input.mainGateway.providerId,
+    activeModelId: personaOverlay
+      ? input.getActiveModelId()
+      : input.mainGateway.model,
+    persistedConfigKeys: Object.keys(
+      nextProviderCredentials[personaOverlay ? input.getActiveProviderId() : input.mainGateway.providerId] ?? {},
+    ),
   }
 }

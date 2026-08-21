@@ -11,6 +11,7 @@ import { useI18n } from 'vue-i18n'
 
 import MemoryEmbeddingConfig from './components/memory-embedding-config.vue'
 import MemoryQualitySessionPicker from './components/memory-quality-session-picker.vue'
+import PersonaRuntimeConfig from './components/persona-runtime-config.vue'
 import PersonaTrainingExecutorConfig from './components/persona-training-executor-config.vue'
 import PersonaTrainingRuns from './components/persona-training-runs.vue'
 
@@ -1488,6 +1489,7 @@ watch(activeCardId, () => {
     </section>
 
     <section v-else-if="activeTab === 'persona'" :class="['flex', 'flex-col', 'gap-3']">
+      <PersonaRuntimeConfig />
       <PersonaTrainingExecutorConfig />
       <PersonaTrainingRuns :dataset-id="personaTrainingDataset?.activeVersionId" />
       <div :class="['flex', 'flex-wrap', 'gap-2']">

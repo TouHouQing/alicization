@@ -579,6 +579,9 @@ pages:
         test_persona_training_executor: Test Trainer
         save_persona_training_executor: Save Trainer Config
         clear_persona_training_executor: Clear Trainer Config
+        test_persona_runtime: Test Persona Runtime
+        save_persona_runtime: Save Persona Runtime
+        clear_persona_runtime: Clear Persona Runtime
       states:
         empty_working: No working memory snapshot yet. Send one dialogue turn and refresh.
         empty_long_term: No matching long-term memory yet.
@@ -598,6 +601,11 @@ pages:
         persona_training_executor_not_configured: No local trainer is configured. Training attempts will fail transparently.
         persona_training_executor_connected: Trainer protocol test passed.
         persona_training_executor_connection_failed: Trainer protocol test failed.
+        persona_runtime_active: llama.cpp Persona runtime is running. Active dialogue uses the loaded Persona adapter.
+        persona_runtime_configured: llama.cpp Persona runtime is configured and waiting for a Persona adapter.
+        persona_runtime_not_configured: No llama.cpp Persona runtime is configured.
+        persona_runtime_connected: llama.cpp executable and base model are available.
+        persona_runtime_connection_failed: llama.cpp Persona runtime test failed.
         persona_training_queued: Queued
         persona_training_running: Training
         persona_training_cancel_requested: Cancelling
@@ -775,6 +783,14 @@ pages:
         persona_training_increments: Persona Training Increments
         persona_training_executor: Local Persona/LoRA Trainer
         persona_training_executor_description: Configure a local training executable you installed. Alicization controls every process argument, never installs training dependencies silently, and never passes Provider API keys to the child process.
+        persona_runtime: Local Persona Inference Runtime
+        persona_runtime_description: Configure a local llama.cpp llama-server. The main dialogue route switches only after a governed GGUF Persona adapter is actually loaded; failures remain visible.
+        persona_runtime_executable: llama-server executable absolute path
+        persona_runtime_model_path: Base GGUF model absolute path
+        persona_runtime_host: Local listen address
+        persona_runtime_port: Local listen port
+        persona_runtime_model_alias: Model alias
+        persona_runtime_startup_timeout: Startup timeout (seconds)
         persona_training_executable: Executable Absolute Path
         persona_training_base_model: Base Model
         persona_training_timeout: Timeout (Seconds)
@@ -913,6 +929,8 @@ pages:
           allowed: Training Allowed
           blocked: No Training
       placeholders:
+        persona_runtime_executable: For example /opt/homebrew/bin/llama-server
+        persona_runtime_model_path: For example /Models/base-model.gguf
         long_term_search: Search summaries, evidence, or source IDs...
         long_term_source: Filter by source, for example memory_reflections
         embedding_provider: openai-compatible

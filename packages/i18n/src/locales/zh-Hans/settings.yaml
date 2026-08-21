@@ -570,6 +570,9 @@ pages:
         test_persona_training_executor: 测试训练器
         save_persona_training_executor: 保存训练器配置
         clear_persona_training_executor: 清除训练器配置
+        test_persona_runtime: 测试人格运行时
+        save_persona_runtime: 保存人格运行时
+        clear_persona_runtime: 清除人格运行时
       states:
         empty_working: 还没有可显示的短期记忆快照。发送一轮对话后再刷新。
         empty_long_term: 还没有匹配的长期记忆。
@@ -589,6 +592,11 @@ pages:
         persona_training_executor_not_configured: 尚未配置本地训练器，启动训练会明确失败。
         persona_training_executor_connected: 训练器协议测试通过。
         persona_training_executor_connection_failed: 训练器协议测试失败。
+        persona_runtime_active: llama.cpp 人格运行时已启动，当前对话会使用已激活的 Persona adapter。
+        persona_runtime_configured: llama.cpp 人格运行时已配置，等待 Persona adapter 激活。
+        persona_runtime_not_configured: 尚未配置 llama.cpp 人格运行时。
+        persona_runtime_connected: llama.cpp 可执行文件和基础模型可用。
+        persona_runtime_connection_failed: llama.cpp 人格运行时测试失败。
         persona_training_queued: 等待训练
         persona_training_running: 正在训练
         persona_training_cancel_requested: 正在取消
@@ -766,6 +774,14 @@ pages:
         persona_training_increments: 人格训练增量
         persona_training_executor: 本地 Persona/LoRA 训练器
         persona_training_executor_description: 配置你已安装的本地训练可执行文件。所有进程参数都由 Alicization 固定生成，不会静默安装训练依赖，也不会把 Provider API Key 传给子进程。
+        persona_runtime: 本地 Persona 推理运行时
+        persona_runtime_description: 配置本机 llama.cpp llama-server。只有已通过治理并成功加载的 GGUF Persona adapter 才会切换主对话路由；失败会透明显示，不会伪造人格已生效。
+        persona_runtime_executable: llama-server 可执行文件绝对路径
+        persona_runtime_model_path: 基础 GGUF 模型绝对路径
+        persona_runtime_host: 本地监听地址
+        persona_runtime_port: 本地监听端口
+        persona_runtime_model_alias: 模型别名
+        persona_runtime_startup_timeout: 启动超时时间（秒）
         persona_training_executable: 可执行文件绝对路径
         persona_training_base_model: 基础模型
         persona_training_timeout: 超时时间（秒）
@@ -904,6 +920,8 @@ pages:
           allowed: 允许训练
           blocked: 禁止训练
       placeholders:
+        persona_runtime_executable: 例如 /opt/homebrew/bin/llama-server
+        persona_runtime_model_path: 例如 /Models/base-model.gguf
         long_term_search: 搜索长期记忆摘要、证据、来源 ID...
         long_term_source: 按来源筛选，例如 memory_reflections
         embedding_provider: openai-compatible

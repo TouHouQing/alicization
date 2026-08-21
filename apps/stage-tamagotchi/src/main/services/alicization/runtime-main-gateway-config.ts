@@ -34,6 +34,12 @@ interface CreateAlicizationMainGatewayConfigRuntimeOptions {
   getActiveProviderId: () => string
   getActiveModelId: () => string
   getProviderCredentials: () => Record<string, Record<string, unknown>>
+  getPersonaRuntimeRoute?: () => {
+    providerId: string
+    model: string
+    baseUrl: string
+    headers?: Record<string, string>
+  } | null
 }
 
 export function createAlicizationMainGatewayConfigRuntime(options: CreateAlicizationMainGatewayConfigRuntimeOptions) {
@@ -76,6 +82,34 @@ export function createAlicizationMainGatewayConfigRuntime(options: CreateAliciza
     model?: string
     providerConfig?: Record<string, unknown>
   }): MainGatewayResolvedConfig | null {
+    const requestedProviderId = options.sanitizeText(input?.providerId)
+    const requestedModel = options.sanitizeText(input?.model)
+    const activeProviderId = options.sanitizeText(options.getActiveProviderId())
+    const activeModelId = options.sanitizeText(options.getActiveModelId())
+    const personaRuntimeRoute = (
+      (!requestedProviderId && !requestedModel)
+      || (
+        requestedProviderId === activeProviderId
+        && requestedModel === activeModelId
+      )
+    )
+      ? options.getPersonaRuntimeRoute?.()
+      : null
+    if (personaRuntimeRoute) {
+      const baseUrl = personaRuntimeRoute.baseUrl.endsWith('/')
+        ? personaRuntimeRoute.baseUrl
+        : `${personaRuntimeRoute.baseUrl}/`
+      const headers = personaRuntimeRoute.headers
+      return {
+        providerId: personaRuntimeRoute.providerId,
+        model: personaRuntimeRoute.model,
+        baseUrl,
+        headers,
+        probeHeaders: headers,
+        provider: createOpenAI('', baseUrl),
+      }
+    }
+
     const cardId = normalizeCardId(input?.cardId ?? defaultAlicizationCardId)
     const rememberedRoute = rememberedRoutesByCard.get(cardId)
     const providerId = options.sanitizeText(

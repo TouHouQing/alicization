@@ -3,6 +3,7 @@ import type {
   AlicizationCardScope,
   AlicizationMemoryUpsertFactsPayload,
   AlicizationMindTurnEventInput,
+  AlicizationPersonaRuntimeConfig,
   AlicizationPersonaTrainingExecutorConfig,
   AlicizationReminderSchedulePayload,
 } from '../../../shared/eventa'
@@ -23,6 +24,7 @@ import {
   electronAlicizationMemoryWorkbenchCancelPersonaTraining,
   electronAlicizationMemoryWorkbenchCancelQualityTrial,
   electronAlicizationMemoryWorkbenchExportPersonaTrainingDataset,
+  electronAlicizationMemoryWorkbenchGetPersonaRuntimeConfig,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingExecutorConfig,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingRun,
@@ -44,10 +46,12 @@ import {
   electronAlicizationMemoryWorkbenchRollbackPersonaTrainingIncrement,
   electronAlicizationMemoryWorkbenchRunPersonaTraining,
   electronAlicizationMemoryWorkbenchRunQualityTrial,
+  electronAlicizationMemoryWorkbenchSetPersonaRuntimeConfig,
   electronAlicizationMemoryWorkbenchSetPersonaTrainingDatasetExamplePolicy,
   electronAlicizationMemoryWorkbenchSetPersonaTrainingExecutorConfig,
   electronAlicizationMemoryWorkbenchStagePersonaTrainingDataset,
   electronAlicizationMemoryWorkbenchTestEmbeddingConnection,
+  electronAlicizationMemoryWorkbenchTestPersonaRuntime,
   electronAlicizationMemoryWorkbenchTestPersonaTrainingExecutor,
   electronAlicizationReminderSchedule,
   electronAlicizationRunMemoryPrune,
@@ -108,6 +112,21 @@ interface RegisterAlicizationMemoryInvokeHandlersOptions {
     executable: string
     error: string | null
   }>
+  getPersonaRuntimeConfig: () => {
+    configured: boolean
+    config: AlicizationPersonaRuntimeConfig | null
+    active: boolean
+    artifactId: string | null
+    routeBaseUrl: string | null
+    error: string | null
+  }
+  setPersonaRuntimeConfig: (config: AlicizationPersonaRuntimeConfig | null) => Promise<ReturnType<RegisterAlicizationMemoryInvokeHandlersOptions['getPersonaRuntimeConfig']>>
+  testPersonaRuntime: (config: AlicizationPersonaRuntimeConfig | null) => Promise<{
+    ok: boolean
+    executable: string
+    baseUrl: string | null
+    error: string | null
+  }>
 }
 
 export function registerAlicizationMemoryInvokeHandlers(options: RegisterAlicizationMemoryInvokeHandlersOptions) {
@@ -132,6 +151,9 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     getPersonaTrainingExecutorConfig,
     setPersonaTrainingExecutorConfig,
     testPersonaTrainingExecutor,
+    getPersonaRuntimeConfig,
+    setPersonaRuntimeConfig,
+    testPersonaRuntime,
   } = options
   const qualityTrialControllers = new Map<string, AbortController>()
 
@@ -404,6 +426,9 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
   registerInvokeHandler(electronAlicizationMemoryWorkbenchSetPersonaTrainingExecutorConfig, async payload => await withCardScope(payload.cardId, async () => await setPersonaTrainingExecutorConfig(payload.config)))
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchTestPersonaTrainingExecutor, async payload => await withCardScope(payload.cardId, async () => await testPersonaTrainingExecutor(payload.config)))
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchGetPersonaRuntimeConfig, async payload => await withCardScope(payload.cardId, async () => getPersonaRuntimeConfig()))
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchSetPersonaRuntimeConfig, async payload => await withCardScope(payload.cardId, async () => await setPersonaRuntimeConfig(payload.config)))
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchTestPersonaRuntime, async payload => await withCardScope(payload.cardId, async () => await testPersonaRuntime(payload.config)))
 
   registerInvokeHandler(electronAlicizationGetMemoryStats, async scope => await withCardScope(cardIdFrom(scope), async () => await getAlicizationDb().getMemoryStats()))
   registerInvokeHandler(electronAlicizationGetOrganicMemorySnapshot, async scope => await withCardScope(cardIdFrom(scope), async () => await getOrganicMemorySnapshot()))

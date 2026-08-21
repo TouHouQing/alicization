@@ -139,6 +139,7 @@ interface ActiveMemorySemanticScaleAttempt {
   stopInterrupted: boolean
   detached: boolean
   settlementCompleted: boolean
+  settlementPromise: Promise<unknown> | null
   promise: Promise<MemorySemanticScaleJob> | null
 }
 
@@ -231,6 +232,43 @@ function waitUntilAborted(milliseconds: number, signal: AbortSignal) {
       resolve()
     }
     signal.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+type PromiseAbortRaceResult<T>
+  = | {
+    kind: 'aborted'
+  }
+  | {
+    kind: 'settled'
+    value: T
+  }
+  | {
+    kind: 'rejected'
+    error: unknown
+  }
+
+async function settleOrAbort<T>(
+  promise: Promise<T>,
+  signal: AbortSignal,
+): Promise<PromiseAbortRaceResult<T>> {
+  return await new Promise<PromiseAbortRaceResult<T>>((resolve) => {
+    let settled = false
+    const finish = (result: PromiseAbortRaceResult<T>) => {
+      if (settled)
+        return
+      settled = true
+      signal.removeEventListener('abort', onAbort)
+      resolve(result)
+    }
+    const onAbort = () => finish({ kind: 'aborted' })
+    signal.addEventListener('abort', onAbort, { once: true })
+    void promise.then(
+      value => finish({ kind: 'settled', value }),
+      error => finish({ kind: 'rejected', error }),
+    )
+    if (signal.aborted)
+      onAbort()
   })
 }
 
@@ -745,7 +783,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
   run: (database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<unknown>
   get: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T | undefined>
   all: <T>(database: sqlite3.Database, sql: string, params?: unknown[]) => Promise<T[]>
-  enqueueWrite: <T>(task: () => Promise<T>) => Promise<T>
+  enqueueWrite: <T>(task: () => Promise<T>, options?: { signal?: AbortSignal }) => Promise<T>
   runInTransaction: <T>(database: sqlite3.Database, task: () => Promise<T>) => Promise<T>
   executeJob?: MemorySemanticScaleJobExecutor
   maxAttempts?: number
@@ -1421,7 +1459,9 @@ export function createMemorySemanticScaleJobRuntime(input: {
           break
         try {
           const now = input.now()
-          await input.enqueueWrite(async () => {
+          const heartbeatWrite = input.enqueueWrite(async () => {
+            if (stopController.signal.aborted || attempt.detached)
+              return
             await input.run(input.database, `
               UPDATE memory_semantic_scale_jobs
               SET lease_expires_at = ?, updated_at = ?
@@ -1432,6 +1472,8 @@ export function createMemorySemanticScaleJobRuntime(input: {
               claimed.row.id,
               claimed.leaseToken,
             ])
+            if (stopController.signal.aborted || attempt.detached)
+              return
             const row = await input.get<Pick<MemorySemanticScaleJobRow, 'status' | 'lease_token'>>(
               input.database,
               'SELECT status, lease_token FROM memory_semantic_scale_jobs WHERE id = ?',
@@ -1439,7 +1481,15 @@ export function createMemorySemanticScaleJobRuntime(input: {
             )
             if (row?.status !== 'running' || row.lease_token !== claimed.leaseToken)
               throw new Error('semantic scale job lease is no longer active')
-          })
+          }, { signal: stopController.signal })
+          const heartbeatResult = await settleOrAbort(
+            heartbeatWrite,
+            stopController.signal,
+          )
+          if (heartbeatResult.kind === 'aborted')
+            break
+          if (heartbeatResult.kind === 'rejected')
+            throw heartbeatResult.error
         }
         catch (error) {
           heartbeatError = error
@@ -1687,7 +1737,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
         if (attempt.detached)
           break
         try {
-          const applied = await settleExecution({
+          const settlement = settleExecution({
             claimed,
             report: attempt.report,
             error: attempt.executionError,
@@ -1696,6 +1746,24 @@ export function createMemorySemanticScaleJobRuntime(input: {
               ? 'semantic scale runtime stopped before execution produced a result'
               : null,
           })
+          attempt.settlementPromise = settlement
+          void settlement.finally(() => {
+            if (attempt.settlementPromise === settlement)
+              attempt.settlementPromise = null
+          }).catch(() => {})
+          const settlementResult = stopping
+            ? await settleOrAbort(settlement, runtimeStopController.signal)
+            : {
+                kind: 'settled' as const,
+                value: await settlement,
+              }
+          if (settlementResult.kind === 'aborted') {
+            attempt.detached = true
+            break
+          }
+          if (settlementResult.kind === 'rejected')
+            throw settlementResult.error
+          const applied = settlementResult.value
           if (!applied)
             break
           settled = true
@@ -1755,6 +1823,7 @@ export function createMemorySemanticScaleJobRuntime(input: {
       stopInterrupted: false,
       detached: false,
       settlementCompleted: false,
+      settlementPromise: null,
       promise: null,
     }
     const promise = executeTrackedAttempt(attempt).finally(() => {
@@ -1968,10 +2037,27 @@ export function createMemorySemanticScaleJobRuntime(input: {
       }
     }
 
+    const unsettledSettlements = attempts
+      .map(attempt => attempt.settlementPromise)
+      .filter((promise): promise is Promise<unknown> => promise !== null)
+    if (unsettledSettlements.length > 0) {
+      try {
+        await withinStopDeadline(
+          stopDeadline,
+          'active settlement completion',
+          async () => await Promise.allSettled(unsettledSettlements),
+        )
+      }
+      catch (error) {
+        stopErrors.push(error)
+      }
+    }
+
     const recoveryResults = await Promise.allSettled(
       attempts
         .filter(attempt =>
           !attempt.settlementCompleted
+          && attempt.settlementPromise === null
           && attempt.claimed !== null)
         .map(async attempt => await preserveAttemptForRecovery(attempt, stopDeadline)),
     )

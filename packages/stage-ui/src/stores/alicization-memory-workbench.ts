@@ -20,6 +20,9 @@ import type {
   AlicizationPersonaCandidateListPayload,
   AlicizationPersonaCandidateWorkbenchDecision,
   AlicizationPersonaCandidateWorkbenchItem,
+  AlicizationPersonaRuntimeConfig,
+  AlicizationPersonaRuntimeConfigState,
+  AlicizationPersonaRuntimeConnectionResult,
   AlicizationPersonaTrainingDatasetExamplePolicyPayload,
   AlicizationPersonaTrainingDatasetExportResult,
   AlicizationPersonaTrainingDatasetSnapshot,
@@ -95,6 +98,16 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   })
   const personaTrainingExecutorConnection = ref<AlicizationPersonaTrainingExecutorConnectionResult | null>(null)
   const personaTrainingExecutorLoading = ref(false)
+  const personaRuntimeConfigState = ref<AlicizationPersonaRuntimeConfigState>({
+    configured: false,
+    config: null,
+    active: false,
+    artifactId: null,
+    routeBaseUrl: null,
+    error: null,
+  })
+  const personaRuntimeConnection = ref<AlicizationPersonaRuntimeConnectionResult | null>(null)
+  const personaRuntimeLoading = ref(false)
   const skills = ref<AlicizationSkillWorkbenchItem[]>([])
   const skillLoading = ref(false)
   const reindexLoading = ref(false)
@@ -1120,6 +1133,63 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
   }
 
+  async function loadPersonaRuntimeConfig() {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchGetPersonaRuntimeConfig)
+      return null
+    personaRuntimeLoading.value = true
+    try {
+      const state = await getAlicizationBridge().memoryWorkbenchGetPersonaRuntimeConfig!()
+      personaRuntimeConfigState.value = state
+      lastError.value = state.error
+      return state
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaRuntimeLoading.value = false
+    }
+  }
+
+  async function savePersonaRuntimeConfig(config: AlicizationPersonaRuntimeConfig | null) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchSetPersonaRuntimeConfig)
+      return null
+    personaRuntimeLoading.value = true
+    try {
+      const state = await getAlicizationBridge().memoryWorkbenchSetPersonaRuntimeConfig!({ config })
+      personaRuntimeConfigState.value = state
+      lastError.value = state.error
+      return state
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaRuntimeLoading.value = false
+    }
+  }
+
+  async function testPersonaRuntime(config: AlicizationPersonaRuntimeConfig | null) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchTestPersonaRuntime)
+      return null
+    personaRuntimeLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchTestPersonaRuntime!({ config })
+      personaRuntimeConnection.value = result
+      lastError.value = result.error
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      personaRuntimeLoading.value = false
+    }
+  }
+
   async function rollbackPersonaTrainingIncrement(incrementId: string) {
     if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchRollbackPersonaTrainingIncrement)
       return null
@@ -1599,6 +1669,9 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     personaTrainingExecutorConfigState,
     personaTrainingExecutorConnection,
     personaTrainingExecutorLoading,
+    personaRuntimeConfigState,
+    personaRuntimeConnection,
+    personaRuntimeLoading,
     skills,
     skillLoading,
     reindexLoading,
@@ -1661,6 +1734,9 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     loadPersonaTrainingExecutorConfig,
     savePersonaTrainingExecutorConfig,
     testPersonaTrainingExecutor,
+    loadPersonaRuntimeConfig,
+    savePersonaRuntimeConfig,
+    testPersonaRuntime,
     rollbackPersonaTrainingIncrement,
     refreshSkills,
     activateSkill,
