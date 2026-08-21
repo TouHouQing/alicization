@@ -2,6 +2,10 @@ import type { BrowserWindow } from 'electron'
 
 export const transparentWindowBackgroundColor = '#00000000'
 
+export interface StageAppVisibilityController {
+  show: () => void
+}
+
 export function promoteStageWindowAboveDesktop(window: Pick<BrowserWindow, 'moveTop' | 'setAlwaysOnTop' | 'setVisibleOnAllWorkspaces'>) {
   window.setAlwaysOnTop(true, 'screen-saver', 1)
   window.setVisibleOnAllWorkspaces(true, {
@@ -10,7 +14,11 @@ export function promoteStageWindowAboveDesktop(window: Pick<BrowserWindow, 'move
   window.moveTop()
 }
 
-export function showStageWindow(window: Pick<BrowserWindow, 'focus' | 'moveTop' | 'show'>) {
+export function showStageWindow(
+  window: Pick<BrowserWindow, 'focus' | 'moveTop' | 'show'>,
+  app: StageAppVisibilityController,
+) {
+  app.show()
   window.show()
   window.moveTop()
   window.focus()

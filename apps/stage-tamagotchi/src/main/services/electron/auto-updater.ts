@@ -4,6 +4,9 @@ import type { UpdateInfo } from 'electron-updater'
 
 import type { AutoUpdaterState } from '../../../shared/eventa'
 
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+
 import electronUpdater from 'electron-updater'
 
 import { is } from '@electron-toolkit/utils'
@@ -18,6 +21,7 @@ import {
   autoUpdater as autoUpdaterEventa,
   electronAutoUpdaterStateChanged,
 } from '../../../shared/eventa'
+import { shouldEnableAutoUpdater } from './auto-updater-policy'
 import { MockAutoUpdater } from './mock-auto-updater'
 
 export interface AppUpdaterLike {
@@ -55,6 +59,11 @@ export function setupAutoUpdater(): AutoUpdater {
 
   const log = useLogg('auto-updater').useGlobalConfig()
   const autoUpdater = fromImported()
+  const autoUpdaterEnabled = shouldEnableAutoUpdater({
+    isDev: is.dev,
+    isPackaged: app.isPackaged,
+    hasUpdateConfig: existsSync(join(process.resourcesPath, 'app-update.yml')),
+  })
 
   let state: AutoUpdaterState = { status: 'idle' }
   const hooks = new Set<(state: AutoUpdaterState) => void>()
@@ -88,17 +97,22 @@ export function setupAutoUpdater(): AutoUpdater {
     },
   }))
 
-  autoUpdater.checkForUpdates().catch(error => log.withError(error).error('checkForUpdates() failed'))
+  if (autoUpdaterEnabled)
+    autoUpdater.checkForUpdates().catch(error => log.withError(error).error('checkForUpdates() failed'))
 
   return {
     get state() {
       return state
     },
     async checkForUpdates() {
+      if (!autoUpdaterEnabled)
+        return
       broadcast({ status: 'checking' })
       await autoUpdater.checkForUpdates().catch(error => log.withError(error).error('checkForUpdates() failed'))
     },
     async downloadUpdate() {
+      if (!autoUpdaterEnabled)
+        return
       if (state.status === 'downloading' || state.status === 'downloaded')
         return
 

@@ -20,7 +20,7 @@ import { is } from '@electron-toolkit/utils'
 import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
 import { initScreenCaptureForWindow } from '@proj-alicization/electron-screen-capture/main'
-import { BrowserWindow, ipcMain, screen, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, shell } from 'electron'
 import { isLinux, isMacOS } from 'std-env'
 import { array, object, optional, string } from 'valibot'
 
@@ -302,7 +302,7 @@ export async function setupMainWindow(params: {
   window.on('ready-to-show', () => {
     clearForceShowFallbackTimer()
     syncWindowToDesktopBounds()
-    showStageWindow(window)
+    showStageWindow(window, app)
   })
   ipcMain.on(electronMainStageStartupStatusChannel, handleMainWindowStageStartupStatus)
   window.webContents.on('did-finish-load', () => {
@@ -355,7 +355,7 @@ export async function setupMainWindow(params: {
       return
 
     syncWindowToDesktopBounds()
-    showStageWindow(window)
+    showStageWindow(window, app)
   }, forceShowFallbackDelayMs)
 
   rendererStartupWatchdogStartedAt = Date.now()

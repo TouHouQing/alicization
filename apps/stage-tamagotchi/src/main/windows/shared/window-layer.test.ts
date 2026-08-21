@@ -40,15 +40,19 @@ describe('promoteUtilityWindowAboveStage', () => {
 })
 
 describe('showStageWindow', () => {
-  it('activates the stage window after it has loaded', () => {
+  it('restores app visibility before activating the stage window', () => {
+    const app = {
+      show: vi.fn(),
+    }
     const window = {
       focus: vi.fn(),
       moveTop: vi.fn(),
       show: vi.fn(),
     }
 
-    showStageWindow(window)
+    showStageWindow(window, app)
 
+    expect(app.show).toHaveBeenCalledOnce()
     expect(window.show).toHaveBeenCalledOnce()
     expect(window.moveTop).toHaveBeenCalledOnce()
     expect(window.focus).toHaveBeenCalledOnce()
