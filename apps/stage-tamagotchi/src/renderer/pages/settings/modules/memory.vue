@@ -2026,7 +2026,7 @@ watch(activeCardId, () => {
           {{ listText(health?.errors ?? []) }}
         </div>
       </div>
-      <details :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800', 'xl:col-span-2']">
+      <details v-if="internalDiagnosticsVisible" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800', 'xl:col-span-2']">
         <summary :class="['cursor-pointer', 'text-sm', 'font-semibold']">
           {{ t('settings.pages.memory.workbench.fields.debug_details') }}
         </summary>

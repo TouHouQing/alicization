@@ -59,6 +59,13 @@ describe('memory workbench settings page', () => {
     expect(source).toContain('settings.pages.memory.workbench.fields.embedding_health')
   })
 
+  it('keeps raw health debug details behind the development-only diagnostics gate', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+
+    expect(source).toContain('<details v-if="internalDiagnosticsVisible"')
+    expect(source).toContain('JSON.stringify(health, null, 2)')
+  })
+
   it('localizes long-term memory search filters instead of rendering raw enum values', () => {
     const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
 

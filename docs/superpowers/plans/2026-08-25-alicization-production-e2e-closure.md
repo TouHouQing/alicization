@@ -37,17 +37,17 @@ Expected: commit succeeds; `.serena/project.yml`、`.claude-flow/`、`.serena/me
 - Test: `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.test.ts`
 - Test: `apps/stage-tamagotchi/src/main/services/alicization/persona-runtime-main-chat.e2e.test.ts`
 
-- [ ] **Step 1: 先用现有测试和本地 API 配置复现首轮、连续轮、错误轮**
+- [x] **Step 1: 先用现有测试和本地 API 配置复现首轮、连续轮、错误轮**
 
 Run: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.test.ts apps/stage-tamagotchi/src/main/services/alicization/persona-runtime-main-chat.e2e.test.ts`
 
 Record: provider 请求开始/结束、WorkingMemory 输入输出、LongTermMemoryRecall 查询和最终 transport 事件，不能用 mock 结果冒充真实调用。
 
-- [ ] **Step 2: 用失败测试固定真实链路契约**
+- [x] **Step 2: 用失败测试固定真实链路契约**
 
 要求：首轮消息进入同一个主会话；压缩快照进入下一轮 provider 请求；长期召回只在相关时注入；Provider 失败以明确错误状态结束，不生成成功样式 fallback。
 
-- [ ] **Step 3: 根据边界日志修复唯一根因并跑 E2E**
+- [x] **Step 3: 根据边界日志修复唯一根因并跑 E2E**
 
 Run: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.test.ts apps/stage-tamagotchi/src/main/services/alicization/persona-runtime-main-chat.e2e.test.ts`
 
@@ -123,15 +123,15 @@ Run: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/e
 - Test: `apps/stage-tamagotchi/src/main/services/alicization/persona-training-dataset-db.test.ts`
 - Test: `apps/stage-tamagotchi/src/main/services/alicization/mlx-persona-runtime-main-chat.e2e.test.ts`
 
-- [ ] **Step 1: 为 export/activate/rollback/revoke/consent/PII/schema/version/dedupe 写失败测试**
+- [x] **Step 1: 为 export/activate/rollback/revoke/consent/PII/schema/version/dedupe 写失败测试**
 
 raw transcript、review candidate、失败 fallback 和未授权样本必须被拒绝或隔离；训练只能接收质量通过且 consent 有效的 manifest。
 
-- [ ] **Step 2: 将 manifest gate 接到真实 dataset store 和训练入口**
+- [x] **Step 2: 将 manifest gate 接到真实 dataset store 和训练入口**
 
 激活、回滚和撤销都必须留下审计事件；失败训练不得改变 active manifest。
 
-- [ ] **Step 3: 运行 persona/LoRA runtime E2E 与导出快照回归**
+- [x] **Step 3: 运行 persona/LoRA runtime E2E 与导出快照回归**
 
 Run: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/persona-training-dataset-db.test.ts apps/stage-tamagotchi/src/main/services/alicization/mlx-persona-runtime-main-chat.e2e.test.ts`
 
@@ -144,15 +144,15 @@ Run: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/p
 - Test: `apps/stage-tamagotchi/src/main/services/alicization/memory-semantic-scale-soak-runtime.test.ts`
 - Test: `apps/stage-tamagotchi/src/main/services/alicization/memory-scope-fuzz-integration.test.ts`
 
-- [ ] **Step 1: 先运行现有 10k/100k、scope fuzz、reindex job 测试找真实缺口**
+- [x] **Step 1: 先运行现有 10k/100k、scope fuzz、reindex job 测试找真实缺口**
 
 Run: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/memory-semantic-scale-soak-runtime.test.ts apps/stage-tamagotchi/src/main/services/alicization/memory-scope-fuzz-integration.test.ts apps/stage-tamagotchi/src/main/services/alicization/memory-embedding-reindex-runtime.test.ts`
 
-- [ ] **Step 2: 修复真实 DB/index/job 缺口**
+- [x] **Step 2: 修复真实 DB/index/job 缺口**
 
 分页和搜索必须在 DB/index 层完成；模型切换不能混用向量空间；reindex 必须支持 progress/cancel/retry/dead-letter/crash recovery；memory_facts、consolidations、vectors、review 和 persona dataset 必须同时按 cardId/userId 隔离。
 
-- [ ] **Step 3: 记录 p95/p99 和恢复结果**
+- [x] **Step 3: 记录 p95/p99 和恢复结果**
 
 报告必须输出样本规模、provider/model/dimensions、延迟分位数、失败类型、重试次数、dead-letter 数量和恢复后的剩余工作。
 
@@ -162,7 +162,7 @@ Run: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/m
 - Inspect: all changed files from Tasks 1-7
 - Build artifacts: `apps/stage-tamagotchi`
 
-- [ ] **Step 1: 运行分层测试和 typecheck**
+- [x] **Step 1: 运行分层测试和 typecheck**
 
 Run: `pnpm -F @proj-alicization/stage-ui typecheck`, `pnpm -F @proj-alicization/stage-tamagotchi typecheck:node`, and the targeted Vitest suites from Tasks 2-7.
 
