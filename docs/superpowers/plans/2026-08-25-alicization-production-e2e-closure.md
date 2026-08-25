@@ -81,15 +81,15 @@ Run: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/m
 - Test: `apps/stage-tamagotchi/src/main/services/alicization/working-memory-compression-behavior-harness.test.ts`
 - Test: `apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.test.ts`
 
-- [ ] **Step 1: 添加 provider request capture 失败测试**
+- [x] **Step 1: 添加 provider request capture 失败测试**
 
 第一轮产生压缩快照后，第二轮请求必须包含压缩后的任务、纠正、失败透明和未完成事项；不得把内部 JSON 原样作为用户回复。
 
-- [ ] **Step 2: 修复快照生命周期和请求装配**
+- [x] **Step 2: 修复快照生命周期和请求装配**
 
 WorkingMemory 仍是 owner；主聊天 runtime 只读取当前快照并组装 provider 输入，不能另造第二套短期记忆。
 
-- [ ] **Step 3: 验证下一轮回复/召回行为确实受压缩快照影响**
+- [x] **Step 3: 验证下一轮回复/召回行为确实受压缩快照影响**
 
 Run: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/working-memory-compression-behavior-harness.test.ts apps/stage-tamagotchi/src/main/services/alicization/main-chat-session-runtime.test.ts`
 
@@ -102,15 +102,15 @@ Run: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/w
 - Test: `apps/stage-tamagotchi/src/main/services/alicization/executor-adapters/codex.real-cli.integration.test.ts`
 - Test: `apps/stage-tamagotchi/src/main/services/alicization/provider-tool-compatibility.test.ts`
 
-- [ ] **Step 1: 固定“能力询问不执行、明确编码请求才执行”的失败测试**
+- [x] **Step 1: 固定“能力询问不执行、明确编码请求才执行”的失败测试**
 
 能力范围问题只返回模型自然回复；只有包含明确目标、工作区或修改/编写意图时才创建 executor job。
 
-- [ ] **Step 2: 以结构化 job 生命周期重构 CLI 调用**
+- [x] **Step 2: 以结构化 job 生命周期重构 CLI 调用**
 
 状态至少包含 queued/running/progress/succeeded/failed/cancelled/timed_out；stdout/stderr 和 semantic progress 分开记录；每个 job 使用独立 abort/cancel 信号，不以固定回复模板代替结果。
 
-- [ ] **Step 3: 补 retry/timeout/cancel/只读 smoke/最小 workspace-write smoke**
+- [x] **Step 3: 补 retry/timeout/cancel/只读 smoke/最小 workspace-write smoke**
 
 Run: `pnpm exec vitest run apps/stage-tamagotchi/src/main/services/alicization/executor-adapters/codex.real-cli.integration.test.ts apps/stage-tamagotchi/src/main/services/alicization/provider-tool-compatibility.test.ts`
 

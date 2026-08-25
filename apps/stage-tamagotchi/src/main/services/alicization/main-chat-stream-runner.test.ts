@@ -216,6 +216,72 @@ afterEach(() => {
 })
 
 describe('main chat stream runner', () => {
+  it('passes the compressed WorkingMemory context into the actual Provider stream request', async () => {
+    const compressedSummary = '用户正在继续验证压缩后的记忆闭环。'
+    const providerText = createProviderResponsePayload({
+      reply: compressedSummary,
+    })
+    const providerMessages: Message[] = []
+    let readCount = 0
+    const prepared = createPrepared({
+      messages: [{
+        role: 'system',
+        content: JSON.stringify({
+          type: 'alicization-turn-memory-context',
+          version: 'alicization-main-chat-memory-context-v1',
+          workingMemory: {
+            version: 'working-memory-owner-context-v1',
+            owner: 'WorkingMemory',
+            compressedTimeline: [{
+              summary: compressedSummary,
+              sourceTurnIds: ['turn-compressed:user', 'turn-compressed:alice'],
+            }],
+          },
+          longTermRecall: null,
+        }),
+      }, { role: 'user', content: '继续刚才的记忆线。' }],
+    })
+
+    const result = await runAlicizationMainChatProviderStep({
+      payload: {
+        cardId: 'card-1',
+        providerId: 'openai-compatible',
+        turnId: 'turn-provider-compressed-memory',
+      } as any,
+      prepared,
+      messages: prepared.messages,
+      controller: new AbortController(),
+      firstEventTimeoutMs: 500,
+      isRunActive: () => true,
+      nonProgressEventTypes: new Set<string>(),
+      emitToolCall: vi.fn(),
+      streamTextImpl: (input: Record<string, unknown>) => {
+        providerMessages.push(...(input.messages as Message[]))
+        return {
+          fullStream: {
+            getReader: () => ({
+              read: vi.fn(async () => {
+                readCount += 1
+                if (readCount === 1)
+                  return { done: false, value: { type: 'text-delta', text: providerText } }
+                return { done: false, value: { type: 'finish', finishReason: 'stop' } }
+              }),
+              cancel: vi.fn(async () => {}),
+              releaseLock: vi.fn(),
+            }),
+          },
+        }
+      },
+    })
+
+    expect(result).toMatchObject({
+      kind: 'reply',
+      fullText: providerText,
+    })
+    expect(providerMessages.map(message => String(message.content)).join('\n'))
+      .toContain(compressedSummary)
+  })
+
   it('completes immediately when fullStream emits finish without closing', async () => {
     const providerText = createProviderResponsePayload({
       reply: 'finish 已经足以结束 Provider step。',
