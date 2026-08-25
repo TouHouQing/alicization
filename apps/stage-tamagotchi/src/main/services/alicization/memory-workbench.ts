@@ -17,9 +17,21 @@ function normalizeText(raw: unknown, maxChars = 320) {
   return raw.trim().replace(/\s+/g, ' ').slice(0, Math.max(0, maxChars)).trim()
 }
 
+const workbenchInternalCuePatterns = [
+  /^(?:emotional_tension|reply_motive|relationship|belief-conflict|opening_policy|relationship_cadence|visibility)\s*[:=]/iu,
+  /\bvisibility\s*=\s*redacted_internal\b/iu,
+  /^请只回复[：:]/u,
+  /^你认为你可以用\s*Codex\s*做什么[？?]/iu,
+  /^你好，这是一次本地对话闭环验收/u,
+] as const
+
+function isWorkbenchInternalCue(raw: string) {
+  return workbenchInternalCuePatterns.some(pattern => pattern.test(raw))
+}
+
 function normalizeVisibleMemoryText(raw: unknown, maxChars = 320) {
   const normalized = normalizeText(raw, maxChars)
-  if (!normalized)
+  if (!normalized || isWorkbenchInternalCue(normalized))
     return ''
   return sanitizeAlicizationProviderFacingText(normalized, maxChars)
 }
@@ -31,7 +43,7 @@ function isWorkbenchInternalMarker(text: string) {
 function uniqueTexts(values: Array<string | null | undefined>, maxItems = 12, maxChars = 240) {
   const result: string[] = []
   for (const value of values) {
-    const normalized = normalizeText(value, maxChars)
+    const normalized = normalizeVisibleMemoryText(value, maxChars)
     if (!normalized || result.includes(normalized))
       continue
     result.push(normalized)
@@ -61,16 +73,16 @@ export function projectWorkingMemoryForWorkbench(snapshot: WorkingMemorySnapshot
     cardId: snapshot.cardId,
     sessionId: snapshot.sessionId,
     updatedAt: snapshot.updatedAt,
-    threadTitle: normalizeText(snapshot.currentThread?.title, 180) || null,
+    threadTitle: normalizeVisibleMemoryText(snapshot.currentThread?.title, 180) || null,
     threadMode: normalizeText(snapshot.currentThread?.mode, 80) || null,
-    currentUserMove: normalizeText(snapshot.currentThread?.currentUserMove, 240) || null,
-    activeTask: normalizeText(snapshot.activeTask?.summary, 240) || null,
+    currentUserMove: normalizeVisibleMemoryText(snapshot.currentThread?.currentUserMove, 240) || null,
+    activeTask: normalizeVisibleMemoryText(snapshot.activeTask?.summary, 240) || null,
     taskStatus: normalizeText(snapshot.activeTask?.status, 80) || null,
     unresolvedQuestions: uniqueTexts(snapshot.unresolvedQuestions.map(item => item.text), 12, 240),
     commitments: uniqueTexts(snapshot.commitments.map(item => item.text), 12, 240),
     userCorrections: uniqueTexts(snapshot.userCorrections.map(item => item.text), 12, 240),
-    relationshipPosture: normalizeText(snapshot.relationshipPosture?.summary, 240) || null,
-    emotionalPosture: normalizeText(snapshot.emotionalPosture?.summary, 240) || null,
+    relationshipPosture: normalizeVisibleMemoryText(snapshot.relationshipPosture?.summary, 240) || null,
+    emotionalPosture: normalizeVisibleMemoryText(snapshot.emotionalPosture?.summary, 240) || null,
     queryHints: uniqueTexts(snapshot.memoryQueryHints, 12, 160),
     longTermQueue,
     failureTurnIds: uniqueTexts(snapshot.audit.failureTurnIds, 20, 120),

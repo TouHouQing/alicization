@@ -407,6 +407,44 @@ describe('memory workbench projection', () => {
     expect(JSON.stringify(projected)).not.toContain('[ALICIZATION_WORKING_MEMORY_OWNER]')
   })
 
+  it('removes internal validation cues from user-visible WorkingMemory fields while preserving natural memory', () => {
+    const snapshot = createEmptyWorkingMemorySnapshot({
+      cardId: 'default',
+      sessionId: 'session-visible-cues',
+      now: 110,
+    })
+    snapshot.currentThread = {
+      title: '请只回复：收到。',
+      currentUserMove: '你认为你可以用 Codex 做什么？先只回答能力范围，不执行任何任务。',
+      currentAliceMove: '你好，这是一次本地对话闭环验收，请自然地回复一句。',
+      primaryAnchor: '用户正在询问如何继续调试项目',
+      mode: 'dialogue',
+      shouldHold: true,
+      confidence: 0.9,
+    }
+    snapshot.activeTask = {
+      summary: 'emotional_tension:calm-browse relationship:give-space',
+      status: 'active',
+      evidenceTurnIds: ['turn-visible-cues'],
+    }
+    snapshot.memoryQueryHints = [
+      'reply_motive:answer',
+      'belief-conflict:legacy-cue',
+      '长期记忆：用户正在修复 Coding Agent 调用',
+    ]
+
+    const projected = projectWorkingMemoryForWorkbench(snapshot)
+
+    expect(projected.threadTitle).toBeNull()
+    expect(projected.currentUserMove).toBeNull()
+    expect(projected.activeTask).toBeNull()
+    expect(projected.queryHints).toEqual(['长期记忆：用户正在修复 Coding Agent 调用'])
+    expect(JSON.stringify(projected)).not.toContain('emotional_tension:calm-browse')
+    expect(JSON.stringify(projected)).not.toContain('belief-conflict:legacy-cue')
+    expect(JSON.stringify(projected)).not.toContain('请只回复：收到。')
+    expect(JSON.stringify(projected)).not.toContain('Codex 做什么')
+  })
+
   it('sanitizes fixed-template residue from visible WorkingMemory long-term queue items', () => {
     const snapshot = createEmptyWorkingMemorySnapshot({
       cardId: 'default',
