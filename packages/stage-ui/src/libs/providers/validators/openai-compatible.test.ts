@@ -54,6 +54,7 @@ describe('createOpenAICompatibleValidators', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   })
 
@@ -116,6 +117,49 @@ describe('createOpenAICompatibleValidators', () => {
     expect(connectivityResult.valid).toBe(true)
     expect(chatResult.valid).toBe(true)
     expect(generateTextMock).not.toHaveBeenCalled()
+  })
+
+  it('times out a hanging model-list request and aborts the underlying request', async () => {
+    vi.useFakeTimers()
+    let abortSignal: AbortSignal | undefined
+    listModelsMock.mockImplementation((options: { abortSignal?: AbortSignal }) => {
+      abortSignal = options.abortSignal
+      return new Promise(() => {})
+    })
+
+    const [modelListValidator] = getProviderValidators({
+      checks: ['model_list'],
+    })
+
+    const resultPromise = modelListValidator.validator(config, provider, providerExtra, { t: mockT })
+    await vi.advanceTimersByTimeAsync(10_000)
+    const result = await resultPromise
+
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain('timed out')
+    expect(abortSignal?.aborted).toBe(true)
+  })
+
+  it('times out a hanging chat probe and aborts the underlying request', async () => {
+    vi.useFakeTimers()
+    let abortSignal: AbortSignal | undefined
+    listModelsMock.mockResolvedValue([{ id: 'chat-model' }])
+    generateTextMock.mockImplementation((options: { abortSignal?: AbortSignal }) => {
+      abortSignal = options.abortSignal
+      return new Promise(() => {})
+    })
+
+    const [chatValidator] = getProviderValidators({
+      checks: ['chat_completions'],
+    })
+
+    const resultPromise = chatValidator.validator(config, provider, providerExtra, { t: mockT })
+    await vi.advanceTimersByTimeAsync(10_000)
+    const result = await resultPromise
+
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain('timed out')
+    expect(abortSignal?.aborted).toBe(true)
   })
 
   it('default checks do not include chat_completions', () => {

@@ -12,6 +12,17 @@ import { isModelProvider } from '../types'
 
 type OpenAICompatibleValidationCheck = 'connectivity' | 'model_list' | 'chat_completions'
 
+const PROVIDER_VALIDATION_TIMEOUT_MS = 10_000
+
+class ProviderValidationTimeoutError extends Error {
+  readonly code = 'PROVIDER_VALIDATION_TIMEOUT'
+
+  constructor(operation: string) {
+    super(`Provider validation timed out during ${operation} after ${PROVIDER_VALIDATION_TIMEOUT_MS}ms.`)
+    this.name = 'ProviderValidationTimeoutError'
+  }
+}
+
 interface OpenAICompatibleValidationOptions<TConfig extends { apiKey?: string, baseUrl?: string }> {
   checks?: OpenAICompatibleValidationCheck[]
   additionalHeaders?: Record<string, string>
@@ -70,19 +81,55 @@ function shouldSkipModelId(modelId: string): boolean {
   ].some(fragment => modelId.includes(fragment))
 }
 
+async function withProviderValidationTimeout<T>(
+  operation: string,
+  task: (abortSignal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController()
+  let timeout: ReturnType<typeof setTimeout> | undefined
+
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeout = setTimeout(() => {
+      const error = new ProviderValidationTimeoutError(operation)
+      controller.abort(error)
+      reject(error)
+    }, PROVIDER_VALIDATION_TIMEOUT_MS)
+  })
+
+  try {
+    return await Promise.race([
+      task(controller.signal),
+      timeoutPromise,
+    ])
+  }
+  finally {
+    if (timeout)
+      clearTimeout(timeout)
+  }
+}
+
 async function resolveModels<TConfig extends { apiKey?: string | null, baseUrl?: string | URL | null }>(
   config: TConfig,
   provider: ProviderInstance,
   providerExtra: ProviderExtraMethods<TConfig> | undefined,
 ) {
-  if (providerExtra?.listModels) {
-    return providerExtra.listModels(config, provider)
-  }
-  if (!isModelProvider(provider)) {
-    return listModels({ baseURL: config.baseUrl!, apiKey: config.apiKey! })
-  }
+  return withProviderValidationTimeout('model listing', async (abortSignal) => {
+    if (providerExtra?.listModels)
+      return providerExtra.listModels(config, provider)
 
-  return listModels(provider.model())
+    if (!isModelProvider(provider)) {
+      return listModels({
+        baseURL: config.baseUrl!,
+        apiKey: config.apiKey!,
+        abortSignal,
+      })
+    }
+
+    return listModels({
+      ...provider.model(),
+      abortSignal,
+    })
+  })
 }
 
 async function pickValidationModel<TConfig extends { apiKey?: string | null, baseUrl?: string | URL | null }>(
@@ -95,7 +142,10 @@ async function pickValidationModel<TConfig extends { apiKey?: string | null, bas
     const modelId = extractModelId(models.find(model => !shouldSkipModelId(extractModelId(model))))
     return modelId || null
   }
-  catch {
+  catch (error) {
+    if (error instanceof ProviderValidationTimeoutError)
+      throw error
+
     return null
   }
 }
@@ -134,16 +184,18 @@ export function createOpenAICompatibleValidators<TConfig extends { apiKey?: stri
     }
 
     try {
-      await generateText({
-        apiKey: config.apiKey,
-        baseURL: config.baseUrl!,
-        headers: additionalHeaders,
-        model,
-        messages: message.messages(message.user('ping')),
-        max_tokens: 1,
-      })
-
-      return { connectivityOk: true, chatOk: true }
+      await withProviderValidationTimeout(
+        'chat completion',
+        abortSignal => generateText({
+          apiKey: config.apiKey,
+          baseURL: config.baseUrl!,
+          headers: additionalHeaders,
+          model,
+          messages: message.messages(message.user('ping')),
+          max_tokens: 1,
+          abortSignal,
+        }),
+      )
     }
     catch (e) {
       if (isNetworkError(e)) {
@@ -154,6 +206,8 @@ export function createOpenAICompatibleValidators<TConfig extends { apiKey?: stri
       const chatOk = status === 400 || Boolean(status && status >= 200 && status < 300)
       return { connectivityOk: true, chatOk, errorMessage: errorMessageFrom(e) }
     }
+
+    return { connectivityOk: true, chatOk: true }
   }
 
   const chatCheckCacheKey = 'openai-compatible:chat-check'
