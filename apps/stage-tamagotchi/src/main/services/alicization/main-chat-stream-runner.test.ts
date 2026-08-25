@@ -1,3 +1,5 @@
+import type { Message } from '@xsai/shared-chat'
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {

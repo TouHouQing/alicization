@@ -418,7 +418,7 @@ describe('memory workbench projection', () => {
       currentUserMove: '你认为你可以用 Codex 做什么？先只回答能力范围，不执行任何任务。',
       currentAliceMove: '你好，这是一次本地对话闭环验收，请自然地回复一句。',
       primaryAnchor: '用户正在询问如何继续调试项目',
-      mode: 'dialogue',
+      mode: 'casual',
       shouldHold: true,
       confidence: 0.9,
     }
