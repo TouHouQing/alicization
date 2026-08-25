@@ -17,6 +17,8 @@ import { kill as killProcess } from 'node:process'
 
 import { errorMessageFrom } from '@moeru/std'
 
+import { findAvailablePersonaRuntimePort } from './persona-runtime-common'
+
 const defaultHost = '127.0.0.1'
 const defaultPort = 18_181
 const defaultModelAlias = 'alicization-persona'
@@ -173,7 +175,7 @@ async function probeLlamaServer(
   route: AlicizationPersonaRuntimeRoute,
   signal: AbortSignal,
   timeoutMs: number,
-) {
+): Promise<string | null> {
   const response = await fetchWithTimeout(
     new URL('../health', route.baseUrl),
     { signal },
@@ -183,6 +185,7 @@ async function probeLlamaServer(
   )
   if (!response.ok)
     throw new Error(`llama-server health returned HTTP ${response.status}`)
+  return null
 }
 
 interface LlamaAdapterInfo {
@@ -581,9 +584,9 @@ export function createLlamaCppPersonaRuntime(input?: {
   let activeArtifact: AlicizationPersonaTrainingArtifact | null = null
   let activeReceipt: PersonaTrainingArtifactLoaderReceipt | null = null
   let lastError: string | null = null
-  let startupPromise: Promise<void> | null = null
   let activeProcessInstanceId: string | null = null
   const receiptsByOperationId = new Map<string, PersonaTrainingArtifactLoaderReceipt>()
+  let lifecycleQueue: Promise<unknown> = Promise.resolve()
   let stderr = ''
 
   const now = input?.now ?? (() => Date.now())
@@ -750,6 +753,7 @@ export function createLlamaCppPersonaRuntime(input?: {
     activeProcessInstanceId = null
     activeArtifact = null
     activeReceipt = null
+    receiptsByOperationId.clear()
     if (!current)
       return
     signalProcess(current, 'SIGTERM')
@@ -757,9 +761,9 @@ export function createLlamaCppPersonaRuntime(input?: {
     if (current.exitCode === null && current.signalCode === null)
       signalProcess(current, 'SIGKILL')
     await waitForExit(current, processTerminationTimeoutMs)
-    const currentExited = current.exitCode !== null
-      || current.signalCode !== null
-      || (current.pid ? !await isProcessAlive(current.pid) : true)
+    const currentExited = current.pid
+      ? await waitForPidExit(current.pid, 0)
+      : current.exitCode !== null || current.signalCode !== null
     if (currentExited) {
       if (current.pid && currentInstanceId) {
         await clearProcessStateIfMatches({
@@ -859,7 +863,9 @@ export function createLlamaCppPersonaRuntime(input?: {
           )
         }
         catch (error) {
-          lastHealthError = errorMessageFrom(error) ?? String(error)
+          const nextHealthError = errorMessageFrom(error) ?? String(error)
+          if (!lastHealthError || nextHealthError.includes('timed out'))
+            lastHealthError = nextHealthError
           await new Promise(resolve => setTimeout(resolve, pollIntervalMs))
           continue
         }
@@ -871,7 +877,7 @@ export function createLlamaCppPersonaRuntime(input?: {
         )
         activeArtifact = artifact
         lastError = null
-        return
+        return processInstanceId
       }
       throw new Error(
         `llama-server did not become healthy within ${config.startupTimeoutMs}ms${lastHealthError ? `: ${lastHealthError}` : ''}`,
@@ -884,8 +890,14 @@ export function createLlamaCppPersonaRuntime(input?: {
     }
   }
 
+  function enqueueLifecycle<T>(operation: () => Promise<T>) {
+    const next = lifecycleQueue.then(operation, operation)
+    lifecycleQueue = next.then(() => undefined, () => undefined)
+    return next
+  }
+
   const loader: PersonaTrainingArtifactLoader = {
-    load: async ({ artifact, operationId, signal }) => {
+    load: async ({ artifact, operationId, signal }) => enqueueLifecycle(async () => {
       const existingReceipt = receiptsByOperationId.get(operationId)
       if (existingReceipt)
         return existingReceipt
@@ -897,64 +909,68 @@ export function createLlamaCppPersonaRuntime(input?: {
         return activeReceipt
       }
 
-      if (startupPromise)
-        await startupPromise
       await stopServer('switch-adapter')
-      startupPromise = startServer(artifact, signal)
-      try {
-        await startupPromise
-      }
-      finally {
-        startupPromise = null
-      }
+      const processInstanceId = await startServer(artifact, signal)
 
       const receipt: PersonaTrainingArtifactLoaderReceipt = {
         loaderId: 'llama.cpp',
-        receiptId: `llama.cpp:${artifact.artifactId}:${artifact.sha256.slice(0, 16)}:${config.port}`,
+        receiptId: `llama.cpp:${artifact.artifactId}:${artifact.sha256.slice(0, 16)}:${config.port}:${processInstanceId}`,
         activatedAt: now(),
         reason: `llama-server active at ${routeForConfig(config).baseUrl}`,
       }
       activeReceipt = receipt
       receiptsByOperationId.set(operationId, receipt)
       return receipt
-    },
-    unload: async ({ artifact, operationId }) => {
+    }),
+    unload: async ({ artifact, operationId, receipt }) => enqueueLifecycle(async () => {
       if (receiptsByOperationId.has(operationId))
         return
-      if (activeArtifact && activeArtifact.artifactId === artifact.artifactId)
+      const requestedReceiptId = receipt?.receiptId?.trim() ?? ''
+      if (
+        activeArtifact
+        && activeArtifact.artifactId === artifact.artifactId
+        && (
+          !requestedReceiptId
+          || activeReceipt?.receiptId === requestedReceiptId
+        )
+      ) {
         await stopServer('unload')
+      }
       receiptsByOperationId.set(operationId, {
         loaderId: 'llama.cpp',
         receiptId: `llama.cpp:unloaded:${artifact.artifactId}`,
         activatedAt: now(),
         reason: 'llama-server Persona adapter unloaded',
       })
-    },
+    }),
   }
 
   return {
     loader,
     getRoute,
     getSnapshot,
-    setConfig: async (nextConfig: AlicizationPersonaRuntimeConfig | null) => {
+    setConfig: async (nextConfig: AlicizationPersonaRuntimeConfig | null) => enqueueLifecycle(async () => {
+      const normalizedNextConfig = nextConfig
+        ? normalizeAlicizationPersonaRuntimeConfig(nextConfig)
+        : null
       if (
         config
-        && nextConfig
-        && JSON.stringify(config) === JSON.stringify(nextConfig)
+        && normalizedNextConfig
+        && JSON.stringify(config) === JSON.stringify(normalizedNextConfig)
       ) {
         return getSnapshot()
       }
       const previousArtifact = activeArtifact
       await stopServer('config-changed')
-      config = nextConfig ? normalizeAlicizationPersonaRuntimeConfig(nextConfig) : null
+      config = normalizedNextConfig
       lastError = null
       receiptsByOperationId.clear()
       if (previousArtifact && config) {
         try {
-          await startServer(previousArtifact, new AbortController().signal)
+          const processInstanceId = await startServer(previousArtifact, new AbortController().signal)
           activeReceipt = {
             loaderId: 'llama.cpp',
-            receiptId: `llama.cpp:config-reload:${previousArtifact.artifactId}:${previousArtifact.sha256.slice(0, 16)}:${config.port}`,
+            receiptId: `llama.cpp:config-reload:${previousArtifact.artifactId}:${previousArtifact.sha256.slice(0, 16)}:${config.port}:${processInstanceId}`,
             activatedAt: now(),
             reason: `llama-server reloaded at ${routeForConfig(config).baseUrl} after configuration change`,
           }
@@ -964,13 +980,13 @@ export function createLlamaCppPersonaRuntime(input?: {
         }
       }
       return getSnapshot()
-    },
-    dispose: async () => {
+    }),
+    dispose: async () => enqueueLifecycle(async () => {
       await stopServer('dispose')
-    },
+    }),
     testConnection: async (
       rawConfig: AlicizationPersonaRuntimeConfig | null,
-    ): Promise<AlicizationPersonaRuntimeConnectionResult> => {
+    ): Promise<AlicizationPersonaRuntimeConnectionResult> => enqueueLifecycle(async () => {
       if (!rawConfig) {
         return {
           ok: false,
@@ -984,16 +1000,25 @@ export function createLlamaCppPersonaRuntime(input?: {
       let probeStderr = ''
       try {
         normalized = normalizeAlicizationPersonaRuntimeConfig(rawConfig)
-        const deadline = Date.now() + normalized.startupTimeoutMs
         const activeRoute = getRoute()
         const activeConfig = config
           ? normalizeAlicizationPersonaRuntimeConfig(config)
           : null
-        if (
+        const reusesActiveRuntime = Boolean(
           activeRoute
           && activeConfig
-          && JSON.stringify(activeConfig) === JSON.stringify(normalized)
-        ) {
+          && JSON.stringify(activeConfig) === JSON.stringify(normalized),
+        )
+        const probeConfig = reusesActiveRuntime
+          ? normalized
+          : {
+              ...normalized,
+              port: await findAvailablePersonaRuntimePort(normalized.host),
+            }
+        const deadline = Date.now() + probeConfig.startupTimeoutMs
+        if (reusesActiveRuntime) {
+          if (!activeRoute)
+            throw new Error('llama-server active route was unavailable')
           const activeProbeController = new AbortController()
           const activeProbeTimeoutMs = Math.min(
             probeRequestTimeoutMs,
@@ -1018,22 +1043,22 @@ export function createLlamaCppPersonaRuntime(input?: {
           }
         }
 
-        await access(normalized.executable)
-        await access(normalized.modelPath)
-        const route = routeForConfig(normalized)
+        await access(probeConfig.executable)
+        await access(probeConfig.modelPath)
+        const route = routeForConfig(probeConfig)
         const probeController = new AbortController()
         let probeError: unknown = null
-        probe = spawn(normalized.executable, [
+        probe = spawn(probeConfig.executable, [
           '--model',
-          normalized.modelPath,
+          probeConfig.modelPath,
           '--host',
-          normalized.host,
+          probeConfig.host,
           '--port',
-          String(normalized.port),
+          String(probeConfig.port),
           '--alias',
-          normalized.modelAlias,
+          probeConfig.modelAlias,
         ], {
-          argv0: `${normalized.executable} --alicization-instance=${randomUUID()}`,
+          argv0: `${probeConfig.executable} --alicization-instance=${randomUUID()}`,
           detached: true,
           stdio: ['ignore', 'ignore', 'pipe'],
         })
@@ -1067,24 +1092,26 @@ export function createLlamaCppPersonaRuntime(input?: {
             break
           }
           catch (error) {
-            lastHealthError = errorMessageFrom(error) ?? String(error)
+            const nextHealthError = errorMessageFrom(error) ?? String(error)
+            if (!lastHealthError || nextHealthError.includes('timed out'))
+              lastHealthError = nextHealthError
             await new Promise(resolve => setTimeout(resolve, pollIntervalMs))
           }
         }
         if (!healthy) {
           throw new Error(
-            `llama-server did not become healthy within ${normalized.startupTimeoutMs}ms${lastHealthError ? `: ${lastHealthError}` : ''}`,
+            `llama-server did not become healthy within ${probeConfig.startupTimeoutMs}ms${lastHealthError ? `: ${lastHealthError}` : ''}`,
           )
         }
         await probeLlamaChatCompletion(
           route,
-          normalized.modelAlias,
+          probeConfig.modelAlias,
           probeController.signal,
           Math.min(probeRequestTimeoutMs, Math.max(50, deadline - Date.now())),
         )
         return {
           ok: true,
-          executable: normalized.executable,
+          executable: probeConfig.executable,
           baseUrl: route.baseUrl,
           error: null,
         }
@@ -1107,6 +1134,6 @@ export function createLlamaCppPersonaRuntime(input?: {
           await waitForExit(probe, processTerminationTimeoutMs)
         }
       }
-    },
+    }),
   }
 }

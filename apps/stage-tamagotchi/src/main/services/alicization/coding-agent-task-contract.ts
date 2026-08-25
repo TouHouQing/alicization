@@ -25,12 +25,12 @@ export type AlicizationCodingAgentName = 'codex' | 'claude-code' | 'cli'
 
 export type AlicizationExplicitCodingAgentConstraint
   = | {
-      kind: 'single'
-      agent: AlicizationCodingAgentName
-    }
-    | {
-      kind: 'none'
-    }
+    kind: 'single'
+    agent: AlicizationCodingAgentName
+  }
+  | {
+    kind: 'none'
+  }
 
 export interface AlicizationCodingAgentInvocation {
   agent?: unknown
@@ -71,10 +71,10 @@ export interface AlicizationCodingAgentDelegationAuthority {
 function normalizeCodingAgentMentionText(raw: unknown) {
   return typeof raw === 'string'
     ? raw
-      .trim()
-      .toLowerCase()
-      .replace(/[‐‑‒–—−]/gu, '-')
-      .replace(/\s+/g, ' ')
+        .trim()
+        .toLowerCase()
+        .replace(/[‐‑‒–—−]/gu, '-')
+        .replace(/\s+/g, ' ')
     : ''
 }
 
@@ -83,6 +83,27 @@ function hasNegativeCodingAgentMention(text: string, aliases: string[]) {
     `(?:不要|别|不必|无需|without|instead of|not)\\s*(?:使用|用|调用|run|use)?\\s*${alias}`,
     'iu',
   ).test(text))
+}
+
+/**
+ * A capability question is a conversational request, even if cognition
+ * accidentally emits an executable delegation verdict for the same turn.
+ * Keep this guard narrow: it only blocks Coding Agent dispatch and never
+ * classifies ordinary coding requests.
+ */
+export function isAlicizationCodingAgentCapabilityQuestion(userText: unknown) {
+  const text = normalizeCodingAgentMentionText(userText)
+  if (!text)
+    return false
+
+  const codingAgent = '(?:coding ?agent|codex|claude(?:-| )?code|cli|命令行)'
+  return [
+    new RegExp(`(?:你|能否|可以|能) ?(?:使用|用|调用|运行)? ?${codingAgent} ?(?:做什么|能做什么|可以做什么|能干什么|做哪些(?:事情|事)|有哪些能力|有什么能力|吗|么)`, 'iu'),
+    new RegExp(`${codingAgent} ?(?:能|可以)? ?(?:做什么|能做什么|可以做什么|能干什么|做哪些(?:事情|事)|有哪些能力|有什么能力)`, 'iu'),
+    new RegExp(`(?:介绍|说明|告诉|讲讲)[^?\\n]*${codingAgent}[^?\\n]*(?:能力|能做什么|可以做什么)`, 'iu'),
+    new RegExp(`(?:什么|哪些) ?(?:是|可以用)? ?${codingAgent} ?(?:做|完成|处理)`, 'iu'),
+    new RegExp(`\\b(?:what\\s+can|can|could|are\\s+you\\s+able\\s+to)\\b[^?\\n]*\\b${codingAgent}\\b[^?\\n]*\\?`, 'iu'),
+  ].some(pattern => pattern.test(text))
 }
 
 /**
@@ -110,7 +131,7 @@ export function resolveAlicizationExplicitCodingAgentConstraint(
   ]
   const matches = candidates.filter(candidate =>
     candidate.aliases.some(alias => new RegExp(`(?:\\b|用|使用|调用|通过|让)${alias}(?:\\b|\\s|做|帮|来)`, 'iu').test(text))
-      && !hasNegativeCodingAgentMention(text, candidate.aliases),
+    && !hasNegativeCodingAgentMention(text, candidate.aliases),
   )
 
   if (matches.length !== 1)
@@ -141,6 +162,7 @@ export function buildAlicizationCodingAgentDelegationAuthority(input: {
   const delegation = input.delegation
   if (
     !delegation
+    || isAlicizationCodingAgentCapabilityQuestion(input.userText)
     || delegation.intentKind !== 'execute'
     || delegation.verdict !== 'delegate-coding-agent'
     || delegation.source !== 'structured-cognition'
@@ -159,7 +181,7 @@ export function buildAlicizationCodingAgentDelegationAuthority(input: {
       ? delegation.scope === 'command'
         ? ['cli']
         : ['codex', 'claude-code']
-    : [delegation.requestedAgent]
+      : [delegation.requestedAgent]
 
   return {
     allowed: true,

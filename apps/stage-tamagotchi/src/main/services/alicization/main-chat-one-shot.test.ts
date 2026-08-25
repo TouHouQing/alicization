@@ -67,6 +67,30 @@ describe('main chat one-shot', () => {
     expect(generateTextImpl).toHaveBeenCalledOnce()
   })
 
+  it('propagates external cancellation to the in-flight visual one-shot Provider request', async () => {
+    vi.useFakeTimers()
+    const externalController = new AbortController()
+    const cancellation = new Error('user cancelled visual grounding')
+    const generateTextImpl = vi.fn(({ abortSignal }: Record<string, unknown>) => new Promise((_, reject) => {
+      const signal = abortSignal as AbortSignal
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+    }))
+
+    const promise = generateAlicizationMainChatNonStreaming(createInput({
+      abortSignal: externalController.signal,
+      generateTextImpl,
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
+    }))
+    const settled = promise.catch(error => error)
+
+    await vi.advanceTimersByTimeAsync(0)
+    externalController.abort(cancellation)
+    await expect(settled).resolves.toBe(cancellation)
+    expect(generateTextImpl).toHaveBeenCalledOnce()
+  })
+
   it('uses a one-step generation for timeout recovery', async () => {
     const generateTextImpl = vi.fn(async (input: Record<string, unknown>) => {
       expect(input.maxSteps).toBe(1)
@@ -107,6 +131,36 @@ describe('main chat one-shot', () => {
       fullText: '视觉链路恢复。',
     })
     expect(generateTextImpl).toHaveBeenCalledTimes(6)
+  })
+
+  it('retries a one-shot attempt after its own timeout without waiting for the total retry deadline', async () => {
+    vi.useFakeTimers()
+    const generateTextImpl = vi.fn()
+      .mockImplementationOnce(({ abortSignal }: Record<string, unknown>) => new Promise((_, reject) => {
+        const signal = abortSignal as AbortSignal
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      }))
+      .mockResolvedValueOnce({
+        text: '第二次尝试恢复。',
+        finishReason: 'stop',
+      })
+
+    const promise = generateAlicizationMainChatNonStreaming(createInput({
+      timeoutMs: 25,
+      generateTextImpl,
+      providerRetryPolicy: {
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+      },
+    }))
+
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    await expect(promise).resolves.toEqual({
+      finishReason: 'stop',
+      fullText: '第二次尝试恢复。',
+    })
+    expect(generateTextImpl).toHaveBeenCalledTimes(2)
   })
 
   it('returns the original failure after the visual one-shot retry budget is exhausted', async () => {
@@ -410,6 +464,9 @@ describe('main chat one-shot', () => {
     const promise = generateAlicizationMainChatNonStreaming(createInput({
       timeoutMs: 25,
       generateTextImpl,
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
     }))
     const settled = promise.catch(error => error)
 

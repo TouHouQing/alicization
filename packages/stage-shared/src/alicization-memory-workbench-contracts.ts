@@ -1383,6 +1383,557 @@ export interface AlicizationMemoryQualityTrialReport {
   recommendedNextActions: string[]
 }
 
+export interface AlicizationMemoryQualityTrialReportRecord {
+  id: string
+  cardId: string
+  month: string
+  mode: 'historical-replay' | 'live-provider'
+  sessionId: string | null
+  reportHash: string
+  report: AlicizationMemoryQualityTrialReport
+  createdAt: number
+}
+
+export type AlicizationMemoryQualityFailureCode
+  = | 'timeout'
+    | 'auth'
+    | 'network'
+    | 'recall'
+    | 'database'
+    | 'queue'
+    | 'provider'
+    | 'quality'
+
+export type AlicizationMemoryQualityActionCode
+  = | 'retry-timeout'
+    | 'repair-auth'
+    | 'repair-network'
+    | 'repair-recall'
+    | 'repair-database'
+    | 'repair-queue'
+    | 'repair-provider'
+    | 'inspect-failure-stage'
+
+export interface AlicizationMemoryQualityTrialSummarySurface {
+  dialogueReplayCount: number
+  workingMemoryFixtureCount: number
+  compressedContextBehaviorFixtureCount: number
+  temporalConflictFixtureCount: number
+  semanticScaleSoakRunCount: number
+  experienceQualityFixtureCount: number
+  scopeFuzzCaseCount: number
+  longTermFixtureCount: number
+  userTrialCount: number
+  personaTrainingFixtureCount: number
+  goldLabelCount: number
+  goldRegressionPackId: string | null
+  failingStageIds: string[]
+  notRunStageIds: string[]
+  optimizationFindingCount: number
+  recommendedActionCount: number
+  lastError: AlicizationMemoryQualityFailureCode | null
+}
+
+export interface AlicizationMemoryQualityTrialStageSurface {
+  stage: AlicizationMemoryQualityTrialReport['stages'][number]['stage']
+  id: string
+  passed: boolean
+  status?: 'not-run'
+  itemCount: number
+  error: AlicizationMemoryQualityFailureCode | null
+}
+
+export interface AlicizationMemoryDialogueReplaySummarySurface {
+  turnCount: number
+  succeededTurnCount: number
+  failedTurnCount: number
+  checkpointWriteCount: number
+  personaWriteCount: number
+  recalledEvidenceCount: number
+  lastError: AlicizationMemoryQualityFailureCode | null
+}
+
+export interface AlicizationMemoryLiveProviderTrialSummarySurface {
+  turnCount: number
+  succeededTurnCount: number
+  failedTurnCount: number
+  recalledEvidenceCount: number
+  providerCallCount: number
+  providerRetryCount: number
+  providerFailureRate: number
+  p50LatencyMs: number
+  p95LatencyMs: number
+  p99LatencyMs: number
+  lastError: AlicizationMemoryQualityFailureCode | null
+}
+
+export interface AlicizationMemoryEmbeddingProgressSurface {
+  jobId: string
+  cardId: string
+  status: AlicizationMemoryEmbeddingProgress['status']
+  stage: AlicizationMemoryEmbeddingProgress['stage']
+  modelId: string
+  dimensions: number
+  vectorSpaceId: string
+  total: number
+  pending: number
+  leased: number
+  indexed: number
+  retryable: number
+  deadLettered: number
+  cancelled: number
+  progress: number
+  lastError: AlicizationMemoryQualityFailureCode | null
+  createdAt: number
+  updatedAt: number
+  startedAt: number | null
+  completedAt: number | null
+  nextRetryAt: number | null
+}
+
+export interface AlicizationMemoryRuntimeHealthSurface {
+  queue: {
+    pending: number
+    review: number
+    applied: number
+    failed: number
+    deadLettered: number
+  }
+  recall: {
+    lastLatencyMs: number | null
+    p95LatencyMs: number | null
+    lastError: AlicizationMemoryQualityFailureCode | null
+  }
+  embedding: {
+    providerConfigured: boolean
+    modelId: string | null
+    dimensions: number | null
+    vectorSpaceId: string | null
+    reindexRequired: boolean
+    indexMode: 'sqlite-vec' | 'hnsw' | 'ann' | 'brute-force'
+    approximate: boolean
+    degraded: boolean
+    nativeIndexReady: boolean
+    searchReady: boolean
+    lastError: AlicizationMemoryQualityFailureCode | null
+    canonicalCount: number
+    indexedCount: number
+    missingCount: number
+    textHashMismatchCount: number
+    staleOrFailedCount: number
+    orphanedCount: number
+    coverageRatio: number | null
+    reindexJob: AlicizationMemoryEmbeddingProgressSurface | null
+  }
+  errors: AlicizationMemoryQualityFailureCode[]
+}
+
+export interface AlicizationMemoryQualityMetricsSurface {
+  longTermFixtureCount: number
+  workingMemoryFixtureCount: number
+  userTrialCount: number
+  personaTrainingFixtureCount: number
+  failingFixtureIds: string[]
+  recallAtK: number
+  recallAt1: number
+  recallAt3: number
+  recallAt5: number
+  wrongThreadRate: number
+  semanticHitRate: number
+  sourceTraceRate: number
+  abstentionPrecision: number
+  abstentionRecall: number
+  p50LatencyMs: number
+  p95LatencyMs: number
+  p99LatencyMs: number
+  compressionLossCount: number
+  blockedLeakCount: number
+  optimizationFindingCount: number
+  lastError: AlicizationMemoryQualityFailureCode | null
+}
+
+export interface AlicizationMemoryQualityRegressionSurface {
+  recallAt1: number
+  recallAt3: number
+  recallAt5: number
+  wrongThreadRate: number
+  semanticHitRate: number
+  sourceTraceRate: number
+  abstentionPrecision: number
+  abstentionRecall: number
+  p50LatencyMs: number
+  p95LatencyMs: number
+  p99LatencyMs: number
+  staleMemoryLeakRate: number | null
+  temporalUpdateAccuracy: number | null
+  providerFailureRate: number
+  queueFailureRate: number
+  deadLetterRate: number
+  embeddingCoverageRatio: number | null
+}
+
+export interface AlicizationMemoryQualityTrialReportSurface {
+  version: AlicizationMemoryQualityTrialReport['version']
+  id: string
+  cardId: string
+  createdAt: number
+  passed: boolean
+  summary: AlicizationMemoryQualityTrialSummarySurface
+  stages: AlicizationMemoryQualityTrialStageSurface[]
+  dialogueReplay: {
+    version: AlicizationMemoryDialogueReplayReport['version']
+    id: string
+    passed: boolean
+    createdAt: number
+    summary: AlicizationMemoryDialogueReplaySummarySurface
+  } | null
+  liveProviderTrial: {
+    version: AlicizationMemoryLiveProviderTrialReport['version']
+    id: string
+    cardId: string
+    sessionId: string
+    passed: boolean
+    createdAt: number
+    summary: AlicizationMemoryLiveProviderTrialSummarySurface
+  } | null
+  runtimeHealth: AlicizationMemoryRuntimeHealthSurface | null
+  quality: {
+    version: AlicizationMemoryQualityTrialReport['quality']['version']
+    passed: boolean
+    createdAt: number
+    summary: AlicizationMemoryQualityMetricsSurface
+    recommendedNextActions: AlicizationMemoryQualityActionCode[]
+  }
+  regression: AlicizationMemoryQualityRegressionSurface
+  recommendedNextActions: AlicizationMemoryQualityActionCode[]
+}
+
+export interface AlicizationMemoryQualityTrialReportRecordSurface {
+  id: string
+  cardId: string
+  month: string
+  mode: 'historical-replay' | 'live-provider'
+  sessionId: string | null
+  reportHash: string
+  report: AlicizationMemoryQualityTrialReportSurface
+  createdAt: number
+}
+
+export interface AlicizationMemoryQualityTrialReportListPayload {
+  cardId: string
+  limit?: number
+  cursor?: string | null
+}
+
+export interface AlicizationMemoryQualityTrialReportListResult {
+  items: AlicizationMemoryQualityTrialReportRecord[]
+  nextCursor: string | null
+}
+
+export interface AlicizationMemoryQualityTrialReportSurfaceListResult {
+  items: AlicizationMemoryQualityTrialReportRecordSurface[]
+  nextCursor: string | null
+}
+
+function projectAlicizationMemoryQualityFailureSurface(value: string | null): AlicizationMemoryQualityFailureCode | null {
+  if (!value?.trim())
+    return null
+
+  const normalized = value.replace(/\s+/g, ' ').trim().toLowerCase()
+  if (/timed?\s*out|timeout|deadline exceeded|超时/u.test(normalized))
+    return 'timeout'
+  if (/unauthorized|forbidden|authentication|authorization|credential|api[_ -]?key|invalid key|http\s*(?:401|403)|认证|鉴权|凭证|密钥/u.test(normalized))
+    return 'auth'
+  if (/network|socket|connect|connection|dns|econn|enotfound|offline|网络|连接|离线/u.test(normalized))
+    return 'network'
+  if (/recall|retrieval|long[- ]term memory|召回|回想|长期记忆/u.test(normalized))
+    return 'recall'
+  if (/sqlite|database|\bdb\b|database is locked|数据库|本地记忆/u.test(normalized))
+    return 'database'
+  if (/queue|dead[- ]?letter|cleaning|队列|死信|清理/u.test(normalized))
+    return 'queue'
+  if (/provider|embedding|model|http\s*\d{3}|rate limit|模型服务|向量模型|限流/u.test(normalized))
+    return 'provider'
+  return 'quality'
+}
+
+function projectAlicizationMemoryQualityRecommendedActionsSurface(values: string[]): AlicizationMemoryQualityActionCode[] {
+  const actions = values.flatMap<AlicizationMemoryQualityActionCode>((value) => {
+    switch (projectAlicizationMemoryQualityFailureSurface(value)) {
+      case 'timeout':
+        return ['retry-timeout']
+      case 'auth':
+        return ['repair-auth']
+      case 'network':
+        return ['repair-network']
+      case 'recall':
+        return ['repair-recall']
+      case 'database':
+        return ['repair-database']
+      case 'queue':
+        return ['repair-queue']
+      case 'provider':
+        return ['repair-provider']
+      default:
+        return ['inspect-failure-stage']
+    }
+  })
+  return [...new Set(actions)]
+}
+
+function projectAlicizationMemoryQualitySummarySurface(
+  summary: AlicizationMemoryQualityTrialReport['summary'],
+) {
+  return {
+    dialogueReplayCount: summary.dialogueReplayCount,
+    workingMemoryFixtureCount: summary.workingMemoryFixtureCount,
+    compressedContextBehaviorFixtureCount: summary.compressedContextBehaviorFixtureCount,
+    temporalConflictFixtureCount: summary.temporalConflictFixtureCount,
+    semanticScaleSoakRunCount: summary.semanticScaleSoakRunCount,
+    experienceQualityFixtureCount: summary.experienceQualityFixtureCount,
+    scopeFuzzCaseCount: summary.scopeFuzzCaseCount,
+    longTermFixtureCount: summary.longTermFixtureCount,
+    userTrialCount: summary.userTrialCount,
+    personaTrainingFixtureCount: summary.personaTrainingFixtureCount,
+    goldLabelCount: summary.goldLabelCount,
+    goldRegressionPackId: summary.goldRegressionPackId,
+    failingStageIds: [...summary.failingStageIds],
+    notRunStageIds: [...summary.notRunStageIds],
+    optimizationFindingCount: summary.optimizationFindingCount,
+    recommendedActionCount: summary.recommendedActionCount,
+    lastError: projectAlicizationMemoryQualityFailureSurface(summary.lastError),
+  }
+}
+
+function projectAlicizationMemoryQualityStageSurface(
+  stage: AlicizationMemoryQualityTrialReport['stages'][number],
+) {
+  return {
+    stage: stage.stage,
+    id: stage.id,
+    passed: stage.passed,
+    status: stage.status,
+    itemCount: stage.itemCount,
+    error: projectAlicizationMemoryQualityFailureSurface(stage.error),
+  }
+}
+
+function projectAlicizationMemoryDialogueReplaySummarySurface(
+  summary: AlicizationMemoryDialogueReplayReport['summary'],
+) {
+  return {
+    turnCount: summary.turnCount,
+    succeededTurnCount: summary.succeededTurnCount,
+    failedTurnCount: summary.failedTurnCount,
+    checkpointWriteCount: summary.checkpointWriteCount,
+    personaWriteCount: summary.personaWriteCount,
+    recalledEvidenceCount: summary.recalledEvidenceCount,
+    lastError: projectAlicizationMemoryQualityFailureSurface(summary.lastError),
+  }
+}
+
+function projectAlicizationMemoryLiveProviderTrialSummarySurface(
+  summary: AlicizationMemoryLiveProviderTrialReport['summary'],
+) {
+  return {
+    turnCount: summary.turnCount,
+    succeededTurnCount: summary.succeededTurnCount,
+    failedTurnCount: summary.failedTurnCount,
+    recalledEvidenceCount: summary.recalledEvidenceCount,
+    providerCallCount: summary.providerCallCount,
+    providerRetryCount: summary.providerRetryCount,
+    providerFailureRate: summary.providerFailureRate,
+    p50LatencyMs: summary.p50LatencyMs,
+    p95LatencyMs: summary.p95LatencyMs,
+    p99LatencyMs: summary.p99LatencyMs,
+    lastError: projectAlicizationMemoryQualityFailureSurface(summary.lastError),
+  }
+}
+
+function projectAlicizationMemoryEmbeddingProgressSurface(
+  progress: AlicizationMemoryEmbeddingProgress,
+) {
+  return {
+    jobId: progress.jobId,
+    cardId: progress.cardId,
+    status: progress.status,
+    stage: progress.stage,
+    modelId: progress.modelId,
+    dimensions: progress.dimensions,
+    vectorSpaceId: progress.vectorSpaceId,
+    total: progress.total,
+    pending: progress.pending,
+    leased: progress.leased,
+    indexed: progress.indexed,
+    retryable: progress.retryable,
+    deadLettered: progress.deadLettered,
+    cancelled: progress.cancelled,
+    progress: progress.progress,
+    lastError: projectAlicizationMemoryQualityFailureSurface(progress.lastError),
+    createdAt: progress.createdAt,
+    updatedAt: progress.updatedAt,
+    startedAt: progress.startedAt,
+    completedAt: progress.completedAt,
+    nextRetryAt: progress.nextRetryAt,
+  }
+}
+
+function projectAlicizationMemoryRuntimeHealthSurface(
+  health: NonNullable<AlicizationMemoryQualityTrialReport['runtimeHealth']>,
+) {
+  return {
+    queue: {
+      pending: health.queue.pending,
+      review: health.queue.review,
+      applied: health.queue.applied,
+      failed: health.queue.failed,
+      deadLettered: health.queue.deadLettered,
+    },
+    recall: {
+      lastLatencyMs: health.recall.lastLatencyMs,
+      p95LatencyMs: health.recall.p95LatencyMs,
+      lastError: projectAlicizationMemoryQualityFailureSurface(health.recall.lastError),
+    },
+    embedding: {
+      providerConfigured: health.embedding.providerConfigured,
+      modelId: health.embedding.modelId,
+      dimensions: health.embedding.dimensions,
+      vectorSpaceId: health.embedding.vectorSpaceId,
+      reindexRequired: health.embedding.reindexRequired,
+      indexMode: health.embedding.indexMode,
+      approximate: health.embedding.approximate,
+      degraded: health.embedding.degraded,
+      nativeIndexReady: health.embedding.nativeIndexReady,
+      searchReady: health.embedding.searchReady,
+      lastError: projectAlicizationMemoryQualityFailureSurface(health.embedding.lastError),
+      canonicalCount: health.embedding.canonicalCount,
+      indexedCount: health.embedding.indexedCount,
+      missingCount: health.embedding.missingCount,
+      textHashMismatchCount: health.embedding.textHashMismatchCount,
+      staleOrFailedCount: health.embedding.staleOrFailedCount,
+      orphanedCount: health.embedding.orphanedCount,
+      coverageRatio: health.embedding.coverageRatio,
+      reindexJob: health.embedding.reindexJob
+        ? projectAlicizationMemoryEmbeddingProgressSurface(health.embedding.reindexJob)
+        : null,
+    },
+    errors: health.errors
+      .map(projectAlicizationMemoryQualityFailureSurface)
+      .filter((error): error is AlicizationMemoryQualityFailureCode => error !== null),
+  }
+}
+
+function projectAlicizationMemoryQualitySummaryMetricsSurface(
+  summary: AlicizationMemoryQualityTrialReport['quality']['summary'],
+) {
+  return {
+    longTermFixtureCount: summary.longTermFixtureCount,
+    workingMemoryFixtureCount: summary.workingMemoryFixtureCount,
+    userTrialCount: summary.userTrialCount,
+    personaTrainingFixtureCount: summary.personaTrainingFixtureCount,
+    failingFixtureIds: [...summary.failingFixtureIds],
+    recallAtK: summary.recallAtK,
+    recallAt1: summary.recallAt1,
+    recallAt3: summary.recallAt3,
+    recallAt5: summary.recallAt5,
+    wrongThreadRate: summary.wrongThreadRate,
+    semanticHitRate: summary.semanticHitRate,
+    sourceTraceRate: summary.sourceTraceRate,
+    abstentionPrecision: summary.abstentionPrecision,
+    abstentionRecall: summary.abstentionRecall,
+    p50LatencyMs: summary.p50LatencyMs,
+    p95LatencyMs: summary.p95LatencyMs,
+    p99LatencyMs: summary.p99LatencyMs,
+    compressionLossCount: summary.compressionLossCount,
+    blockedLeakCount: summary.blockedLeakCount,
+    optimizationFindingCount: summary.optimizationFindingCount,
+    lastError: projectAlicizationMemoryQualityFailureSurface(summary.lastError),
+  }
+}
+
+function projectAlicizationMemoryRegressionSurface(
+  regression: AlicizationMemoryQualityTrialReport['regression'],
+) {
+  return {
+    recallAt1: regression.recallAt1,
+    recallAt3: regression.recallAt3,
+    recallAt5: regression.recallAt5,
+    wrongThreadRate: regression.wrongThreadRate,
+    semanticHitRate: regression.semanticHitRate,
+    sourceTraceRate: regression.sourceTraceRate,
+    abstentionPrecision: regression.abstentionPrecision,
+    abstentionRecall: regression.abstentionRecall,
+    p50LatencyMs: regression.p50LatencyMs,
+    p95LatencyMs: regression.p95LatencyMs,
+    p99LatencyMs: regression.p99LatencyMs,
+    staleMemoryLeakRate: regression.staleMemoryLeakRate,
+    temporalUpdateAccuracy: regression.temporalUpdateAccuracy,
+    providerFailureRate: regression.providerFailureRate,
+    queueFailureRate: regression.queueFailureRate,
+    deadLetterRate: regression.deadLetterRate,
+    embeddingCoverageRatio: regression.embeddingCoverageRatio,
+  }
+}
+
+export function projectAlicizationMemoryQualityTrialReportSurface(
+  report: AlicizationMemoryQualityTrialReport,
+): AlicizationMemoryQualityTrialReportSurface {
+  return {
+    version: report.version,
+    id: report.id,
+    cardId: report.cardId,
+    createdAt: report.createdAt,
+    passed: report.passed,
+    summary: projectAlicizationMemoryQualitySummarySurface(report.summary),
+    stages: report.stages.map(projectAlicizationMemoryQualityStageSurface),
+    dialogueReplay: report.dialogueReplay
+      ? {
+          version: report.dialogueReplay.version,
+          id: report.dialogueReplay.id,
+          passed: report.dialogueReplay.passed,
+          createdAt: report.dialogueReplay.createdAt,
+          summary: projectAlicizationMemoryDialogueReplaySummarySurface(report.dialogueReplay.summary),
+        }
+      : null,
+    liveProviderTrial: report.liveProviderTrial
+      ? {
+          version: report.liveProviderTrial.version,
+          id: report.liveProviderTrial.id,
+          cardId: report.liveProviderTrial.cardId,
+          sessionId: report.liveProviderTrial.sessionId,
+          passed: report.liveProviderTrial.passed,
+          createdAt: report.liveProviderTrial.createdAt,
+          summary: projectAlicizationMemoryLiveProviderTrialSummarySurface(report.liveProviderTrial.summary),
+        }
+      : null,
+    runtimeHealth: report.runtimeHealth ? projectAlicizationMemoryRuntimeHealthSurface(report.runtimeHealth) : null,
+    quality: {
+      version: report.quality.version,
+      passed: report.quality.passed,
+      createdAt: report.quality.createdAt,
+      summary: projectAlicizationMemoryQualitySummaryMetricsSurface(report.quality.summary),
+      recommendedNextActions: projectAlicizationMemoryQualityRecommendedActionsSurface(report.quality.recommendedNextActions),
+    },
+    regression: projectAlicizationMemoryRegressionSurface(report.regression),
+    recommendedNextActions: projectAlicizationMemoryQualityRecommendedActionsSurface(report.recommendedNextActions),
+  }
+}
+
+export function projectAlicizationMemoryQualityTrialReportRecordSurface(
+  record: AlicizationMemoryQualityTrialReportRecord,
+): AlicizationMemoryQualityTrialReportRecordSurface {
+  return {
+    id: record.id,
+    cardId: record.cardId,
+    month: record.month,
+    mode: record.mode,
+    sessionId: record.sessionId,
+    reportHash: record.reportHash,
+    report: projectAlicizationMemoryQualityTrialReportSurface(record.report),
+    createdAt: record.createdAt,
+  }
+}
+
 export type AlicizationMemorySemanticScaleJobTier = '10k' | '100k'
 export type AlicizationMemorySemanticScaleJobStatus = 'queued' | 'running' | 'cancel_requested' | 'completed' | 'cancelled' | 'failed'
 
@@ -1796,6 +2347,7 @@ export interface AlicizationPersonaTrainingExecutorConnectionResult {
 }
 
 export interface AlicizationPersonaRuntimeConfig {
+  backend?: 'llama.cpp' | 'mlx-runtime'
   executable: string
   modelPath: string
   host: string

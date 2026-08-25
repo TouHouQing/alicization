@@ -10,6 +10,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import {
   alicizationProviderResponseFormat,
@@ -55,6 +56,7 @@ import {
   electronAlicizationMemoryUpsertFacts,
   electronAlicizationMemoryWorkbenchGetPersonaTrainingExecutorConfig,
   electronAlicizationMemoryWorkbenchSetPersonaTrainingExecutorConfig,
+  electronAlicizationMemoryWorkbenchTestPersonaRuntime,
   electronAlicizationPlanTaskThread,
   electronAlicizationReminderSchedule,
   electronAlicizationReportProactiveFeedback,
@@ -75,7 +77,7 @@ import { setAlicizationCardKillSwitchState, setAlicizationKillSwitchState } from
 
 const invokeHandlers = new Map<unknown, (payload?: any, options?: any) => Promise<any>>()
 const sandboxDirs: string[] = []
-const runtimeModulePath = join(process.cwd(), 'apps/stage-tamagotchi/src/main/services/alicization/runtime.ts')
+const runtimeModulePath = fileURLToPath(new URL('./runtime.ts', import.meta.url))
 const contextEmitMock = vi.fn()
 const metaStore = new Map<string, string>()
 const runtimeEventsByTurn = new Map<string, any[]>()
@@ -89,6 +91,7 @@ const taskThreadOrchestratorDisposeMock = vi.fn(async (drain: () => Promise<void
   await drain()
 })
 const personaRuntimeDisposeMock = vi.fn().mockResolvedValue(undefined)
+const llamaPersonaRuntimeTestConnectionMock = vi.fn()
 const createLlamaCppPersonaRuntimeMock = vi.fn(() => ({
   loader: {
     load: vi.fn(),
@@ -105,7 +108,27 @@ const createLlamaCppPersonaRuntimeMock = vi.fn(() => ({
   })),
   setConfig: vi.fn(),
   dispose: personaRuntimeDisposeMock,
-  testConnection: vi.fn(),
+  testConnection: llamaPersonaRuntimeTestConnectionMock,
+}))
+const mlxPersonaRuntimeDisposeMock = vi.fn().mockResolvedValue(undefined)
+const mlxPersonaRuntimeTestConnectionMock = vi.fn()
+const createMlxPersonaRuntimeMock = vi.fn(() => ({
+  loader: {
+    load: vi.fn(),
+    unload: vi.fn(),
+  },
+  getRoute: vi.fn(() => null),
+  getSnapshot: vi.fn(() => ({
+    configured: false,
+    config: null,
+    active: false,
+    artifactId: null,
+    routeBaseUrl: null,
+    error: null,
+  })),
+  setConfig: vi.fn(),
+  dispose: mlxPersonaRuntimeDisposeMock,
+  testConnection: mlxPersonaRuntimeTestConnectionMock,
 }))
 const localBrowserAutomationOverrides: {
   clickElement?: (input: any) => Promise<any>
@@ -441,6 +464,16 @@ const dbStub = {
   setMetaValue: vi.fn(async (key: string, value: string) => {
     metaStore.set(key, value)
   }),
+  compareAndSetMetaValue: vi.fn(async (
+    key: string,
+    expectedValue: string | undefined,
+    nextValue: string,
+  ) => {
+    if (metaStore.get(key) !== expectedValue)
+      return false
+    metaStore.set(key, nextValue)
+    return true
+  }),
 }
 
 vi.mock('@moeru/eventa', () => ({
@@ -502,10 +535,21 @@ vi.mock('./db', () => ({
   setupAlicizationDb: vi.fn(async () => dbStub),
 }))
 
-vi.mock('./llama-cpp-persona-runtime', () => ({
-  createLlamaCppPersonaRuntime: createLlamaCppPersonaRuntimeMock,
-  normalizeAlicizationPersonaRuntimeConfig: (input: unknown) => input,
-}))
+vi.mock('./llama-cpp-persona-runtime', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./llama-cpp-persona-runtime')>()
+  return {
+    ...actual,
+    createLlamaCppPersonaRuntime: createLlamaCppPersonaRuntimeMock,
+  }
+})
+
+vi.mock('./mlx-persona-runtime', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./mlx-persona-runtime')>()
+  return {
+    ...actual,
+    createMlxPersonaRuntime: createMlxPersonaRuntimeMock,
+  }
+})
 
 vi.mock('./task-thread-orchestrator', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./task-thread-orchestrator')>()
@@ -877,7 +921,11 @@ describe('alicization runtime audit helpers', () => {
     desktopCapturerGetSourcesMock.mockReset().mockResolvedValue([])
     systemPreferencesGetMediaAccessStatusMock.mockReset().mockReturnValue('granted')
     personaRuntimeDisposeMock.mockReset().mockResolvedValue(undefined)
+    llamaPersonaRuntimeTestConnectionMock.mockReset()
+    mlxPersonaRuntimeDisposeMock.mockReset().mockResolvedValue(undefined)
+    mlxPersonaRuntimeTestConnectionMock.mockReset()
     createLlamaCppPersonaRuntimeMock.mockClear()
+    createMlxPersonaRuntimeMock.mockClear()
     dbStub.getTaskThread.mockReset().mockResolvedValue(undefined)
     dbStub.listTaskThreads.mockReset().mockResolvedValue([])
     dbStub.listMemoryConsolidations.mockReset().mockResolvedValue([])
@@ -974,6 +1022,73 @@ describe('alicization runtime audit helpers', () => {
       getConfig: expect.any(Function),
       processStatePath: join(sandboxPath, 'alicizations', 'persona-runtime-process.json'),
     })
+  })
+
+  it('tests an unsaved MLX configuration with a temporary MLX runtime', async () => {
+    const sandboxPath = await createSandboxPath()
+    mlxPersonaRuntimeTestConnectionMock.mockResolvedValue({
+      ok: true,
+      executable: '/opt/mlx_lm.server',
+      baseUrl: 'http://127.0.0.1:18284/v1/',
+      error: null,
+    })
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+    const testRuntime = invokeHandlers.get(electronAlicizationMemoryWorkbenchTestPersonaRuntime)
+    const config = {
+      backend: 'mlx-runtime' as const,
+      executable: '/opt/mlx_lm.server',
+      modelPath: '/models/mlx-base',
+      host: '127.0.0.1',
+      port: 18_284,
+      modelAlias: 'alice-mlx',
+      startupTimeoutMs: 5_000,
+    }
+
+    await expect(testRuntime?.({
+      cardId: 'default',
+      config,
+    })).resolves.toMatchObject({ ok: true })
+
+    expect(llamaPersonaRuntimeTestConnectionMock).not.toHaveBeenCalled()
+    expect(mlxPersonaRuntimeTestConnectionMock).toHaveBeenCalledWith(config)
+    expect(mlxPersonaRuntimeDisposeMock).toHaveBeenCalledOnce()
+  })
+
+  it('returns a structured Persona runtime failure when an unsaved config is invalid', async () => {
+    const sandboxPath = await createSandboxPath()
+    await setupAlicizationRuntime({
+      userDataPathOverride: sandboxPath,
+    })
+    const matchingRuntimeHandlers = [...invokeHandlers.entries()]
+      .filter(([event]) =>
+        (event as { name?: string }).name
+        === 'eventa:invoke:electron:alicization:memory-workbench:test-persona-runtime',
+      )
+      .map(([, handler]) => handler)
+    expect(matchingRuntimeHandlers).toHaveLength(1)
+    const testRuntime = matchingRuntimeHandlers[0]
+    expect(testRuntime).toBeTypeOf('function')
+
+    await expect(testRuntime!({
+      cardId: 'default',
+      config: {
+        backend: 'mlx-runtime',
+        executable: 'mlx_lm.server',
+        modelPath: '/models/mlx-base',
+        host: '127.0.0.1',
+        port: 18_284,
+        modelAlias: 'alice-mlx',
+        startupTimeoutMs: 5_000,
+      },
+    })).resolves.toEqual({
+      ok: false,
+      executable: 'mlx_lm.server',
+      baseUrl: null,
+      error: 'persona runtime executable must be an absolute path',
+    })
+    expect(createMlxPersonaRuntimeMock).not.toHaveBeenCalled()
   })
 
   it('keeps the trainer config in memory when clearing its persisted file fails outside ENOENT', async () => {
@@ -11188,7 +11303,7 @@ describe('alicization runtime audit helpers', () => {
       })
       expect(startResult.accepted).toBe(true)
 
-      await vi.advanceTimersByTimeAsync(80_000)
+      await vi.advanceTimersByTimeAsync(130_000)
 
       await vi.waitFor(() => {
         const finishEvents = contextEmitMock.mock.calls
@@ -11221,7 +11336,7 @@ describe('alicization runtime audit helpers', () => {
           allowTraining: false,
         },
       })
-      expect(String(finishEvents[0]?.finishReason ?? '')).toContain('chat-first-event-timeout')
+      expect(String(finishEvents[0]?.finishReason ?? '')).toContain('chat-provider-retry-deadline')
       expect(dbStub.appendAuditLog).not.toBeCalledWith(expect.objectContaining({
         action: 'stream-timeout-local-fallback',
       }))
@@ -11271,7 +11386,7 @@ describe('alicization runtime audit helpers', () => {
       })
       expect(startResult.accepted).toBe(true)
 
-      await vi.advanceTimersByTimeAsync(80_000)
+      await vi.advanceTimersByTimeAsync(130_000)
 
       await vi.waitFor(() => {
         const finishEvents = contextEmitMock.mock.calls
@@ -11287,7 +11402,7 @@ describe('alicization runtime audit helpers', () => {
         .map(([, payload]) => payload)
 
       expect(finishEvents[0]?.status).toBe('aborted')
-      expect(String(finishEvents[0]?.finishReason ?? '')).toContain('chat-first-event-timeout')
+      expect(String(finishEvents[0]?.finishReason ?? '')).toContain('chat-provider-retry-deadline')
       expect(chunkEvents).toHaveLength(0)
       expect(dbStub.appendAuditLog).not.toBeCalledWith(expect.objectContaining({
         action: 'stream-timeout-local-fallback',

@@ -31,6 +31,71 @@ function createInput(overrides?: Partial<Parameters<typeof abortAlicizationDirec
 }
 
 describe('main chat abort', () => {
+  it('settles a renderer watchdog abort as timed-out with structured timeout metadata', async () => {
+    const controller = new AbortController()
+    const run = {
+      cardId: 'card-1',
+      turnId: 'turn-renderer-timeout',
+      controller,
+      cancelTurn: vi.fn(async (_reason: unknown) => true),
+      chunkCount: 1,
+      rawChunkChars: 12,
+      state: 'running' as const,
+    }
+    const input = createInput({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-renderer-timeout',
+        reason: 'stream-timeout',
+        timeout: {
+          origin: 'renderer-watchdog',
+          timeoutPhase: 'liveness-timeout',
+          timeoutStage: 'provider',
+          timeoutMs: 30_000,
+          elapsedMs: 30_125,
+          lastEventType: 'provider-keepalive',
+          sawAnyEvent: true,
+          sawProgress: false,
+        },
+      },
+      getRun: vi.fn(() => run),
+      mainChatRunState: {
+        createKey: vi.fn((_cardId: string, turnId: string) => `card-1::${turnId}`),
+        hasRecentlyFinished: vi.fn(() => false),
+        finishRun: vi.fn(),
+      },
+    })
+
+    const result = await abortAlicizationDirectChatRun(input)
+
+    expect(result).toEqual({
+      accepted: true,
+      state: 'aborted',
+    })
+    const cancelReason = vi.mocked(run.cancelTurn).mock.calls[0]?.[0]
+    expect(cancelReason).toMatchObject({
+      name: 'AbortError',
+      errorCode: 'ALICIZATION_RENDERER_STREAM_TIMEOUT',
+      timeoutOrigin: 'renderer-watchdog',
+      timeoutPhase: 'liveness-timeout',
+      timeoutStage: 'provider',
+      timeoutDescriptor: input.payload.timeout,
+    })
+    expect(input.mainChatRunState.finishRun).toHaveBeenCalledWith('card-1::turn-renderer-timeout', {
+      status: 'timed-out',
+      finishReason: 'chat-provider-liveness-timeout',
+      error: expect.any(String),
+      failureSurface: expect.objectContaining({
+        kind: 'timeout',
+        timeout: expect.objectContaining({
+          timeoutPhase: 'liveness-timeout',
+          timeoutStage: 'provider',
+          descriptor: input.payload.timeout,
+        }),
+      }),
+    })
+  })
+
   it('does not abort a direct run after the EventLoop has claimed completed authority', async () => {
     const controller = new AbortController()
     const run = {

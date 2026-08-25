@@ -573,6 +573,59 @@ describe('alicization runtime tool projection replay', () => {
 
   it.each([
     {
+      expectedPhase: 'timeout',
+      output: {
+        status: 'timeout',
+        errorCode: 'CODEX_TIMEOUT',
+      },
+    },
+    {
+      expectedPhase: 'cancelled',
+      output: {
+        status: 'cancelled',
+        errorCode: 'TOOL_EXECUTION_CANCELLED',
+      },
+    },
+  ] as const)(
+    'projects terminal observation output status $expectedPhase',
+    ({ expectedPhase, output }) => {
+      const scope = runtimeScope({ turnId: `turn-observation-${expectedPhase}` })
+      const projection = projectAlicizationRuntimeToolEvents([
+        runtimeEvent(scope, 1, 'model.tool_call.proposed', {
+          actionId: `action-observation-${expectedPhase}`,
+          toolCallId: `tool-call-observation-${expectedPhase}`,
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'codex',
+        }),
+        runtimeEvent(scope, 2, 'action.started', {
+          actionId: `action-observation-${expectedPhase}`,
+          toolCallId: `tool-call-observation-${expectedPhase}`,
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'codex',
+        }),
+        runtimeEvent(scope, 3, 'action.observation', {
+          actionId: `action-observation-${expectedPhase}`,
+          observationId: `observation-${expectedPhase}`,
+          toolCallId: `tool-call-observation-${expectedPhase}`,
+          terminal: true,
+          outcome: 'failure',
+          output,
+        }),
+      ])
+
+      expect(projection.cards).toEqual([
+        expect.objectContaining({
+          toolCallId: `tool-call-observation-${expectedPhase}`,
+          phase: expectedPhase,
+          terminal: true,
+          result: output,
+        }),
+      ])
+    },
+  )
+
+  it.each([
+    {
       eventType: 'action.failed' as const,
       expectedPhase: 'failed',
       payload: {

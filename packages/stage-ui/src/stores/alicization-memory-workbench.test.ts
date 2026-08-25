@@ -2047,4 +2047,170 @@ describe('alicization memory workbench store', () => {
     expect(result).toBeNull()
     expect(memoryWorkbenchRunQualityTrial).not.toHaveBeenCalled()
   })
+
+  it('restores quality trial context when loading the first persisted report', async () => {
+    const report = {
+      id: 'quality-report-restore',
+      summary: {
+        lastError: null,
+      },
+    }
+    setAlicizationBridge({
+      memoryWorkbenchListQualityTrialReports: vi.fn(async () => ({
+        items: [{
+          id: 'quality-report-restore',
+          cardId: 'default',
+          month: '2026-08',
+          mode: 'live-provider',
+          sessionId: 'session-restore',
+          reportHash: 'sha256:restore',
+          createdAt: 20,
+          report,
+        }],
+        nextCursor: null,
+      })),
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.loadQualityTrialReports()
+
+    expect(store.qualityTrialReport).toEqual(report)
+    expect.soft(store.goldLabelMonth).toBe('2026-08')
+    expect.soft(store.selectedQualitySessionId).toBe('session-restore')
+    expect.soft(store.qualityTrialMode).toBe('live-provider')
+  })
+
+  it('keeps a user-selected quality trial context when history finishes loading', async () => {
+    let resolveReports: ((value: any) => void) | undefined
+    setAlicizationBridge({
+      memoryWorkbenchListQualityTrialReports: vi.fn(() => new Promise((resolve) => {
+        resolveReports = resolve
+      })),
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    const pending = store.loadQualityTrialReports()
+
+    store.selectQualityTrialSession('session-user')
+    store.setQualityTrialMode('live-provider')
+    resolveReports?.({
+      items: [{
+        id: 'quality-report-history',
+        cardId: 'default',
+        month: '2026-08',
+        mode: 'historical-replay',
+        sessionId: 'session-history',
+        reportHash: 'sha256:history',
+        createdAt: 20,
+        report: {
+          id: 'quality-report-history',
+          summary: {
+            lastError: null,
+          },
+        },
+      }],
+      nextCursor: null,
+    })
+
+    await pending
+
+    expect(store.qualityTrialReports.map(item => item.id)).toEqual(['quality-report-history'])
+    expect(store.qualityTrialReport).toBeNull()
+    expect(store.selectedQualitySessionId).toBe('session-user')
+    expect(store.qualityTrialMode).toBe('live-provider')
+  })
+
+  it('keeps the persisted quality report failure visible after automatic restore', async () => {
+    setAlicizationBridge({
+      memoryWorkbenchListQualityTrialReports: vi.fn(async () => ({
+        items: [{
+          id: 'quality-report-failed',
+          cardId: 'default',
+          month: '2026-08',
+          mode: 'historical-replay',
+          sessionId: 'session-failed',
+          reportHash: 'sha256:failed',
+          createdAt: 20,
+          report: {
+            id: 'quality-report-failed',
+            summary: {
+              lastError: 'provider failed',
+            },
+          },
+        }],
+        nextCursor: null,
+      })),
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.loadQualityTrialReports()
+
+    expect(store.qualityTrialReport?.id).toBe('quality-report-failed')
+    expect(store.lastError).toBe('provider failed')
+  })
+
+  it('restores persisted quality reports across pages and lets the Workbench reopen one after restart', async () => {
+    const newest = {
+      id: 'quality-report-newest',
+      cardId: 'default',
+      month: '2026-08',
+      mode: 'historical-replay',
+      sessionId: 'session-newest',
+      reportHash: 'sha256:newest',
+      createdAt: 20,
+      report: {
+        id: 'quality-report-newest',
+        summary: {
+          lastError: null,
+        },
+      },
+    }
+    const older = {
+      id: 'quality-report-older',
+      cardId: 'default',
+      month: '2026-08',
+      mode: 'live-provider',
+      sessionId: 'session-older',
+      reportHash: 'sha256:older',
+      createdAt: 10,
+      report: {
+        id: 'quality-report-older',
+        summary: {
+          lastError: 'provider timeout',
+        },
+      },
+    }
+    const memoryWorkbenchListQualityTrialReports = vi.fn()
+      .mockResolvedValueOnce({
+        items: [newest],
+        nextCursor: 'quality-history-cursor',
+      })
+      .mockResolvedValueOnce({
+        items: [older],
+        nextCursor: null,
+      })
+    setAlicizationBridge({
+      memoryWorkbenchListQualityTrialReports,
+    } as any)
+
+    const store = useAlicizationMemoryWorkbenchStore()
+    await store.loadQualityTrialReports()
+    await store.loadMoreQualityTrialReports()
+    const selected = store.selectQualityTrialReport('quality-report-older')
+
+    expect(store.qualityTrialReports.map(item => item.id)).toEqual([
+      'quality-report-newest',
+      'quality-report-older',
+    ])
+    expect(store.qualityTrialReportsNextCursor).toBeNull()
+    expect(selected?.id).toBe('quality-report-older')
+    expect(store.qualityTrialReport?.id).toBe('quality-report-older')
+    expect(memoryWorkbenchListQualityTrialReports).toHaveBeenNthCalledWith(1, {
+      limit: 20,
+    })
+    expect(memoryWorkbenchListQualityTrialReports).toHaveBeenNthCalledWith(2, {
+      cursor: 'quality-history-cursor',
+      limit: 20,
+    })
+  })
 })

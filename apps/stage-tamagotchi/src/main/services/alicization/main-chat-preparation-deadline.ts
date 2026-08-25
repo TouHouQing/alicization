@@ -6,12 +6,13 @@ export function raceAlicizationMainChatPreparation<T>(input: {
 }) {
   if (input.signal.aborted) {
     return Promise.reject(
-      input.signal.reason ?? createAbortError('chat-preparation-timeout'),
+      input.signal.reason ?? createAbortError('aborted'),
     )
   }
 
   return new Promise<T>((resolve, reject) => {
     let settled = false
+    let abortHandler = () => {}
     const cleanup = () => {
       input.signal.removeEventListener('abort', abortHandler)
     }
@@ -29,35 +30,66 @@ export function raceAlicizationMainChatPreparation<T>(input: {
       cleanup()
       reject(error)
     }
-    const abortHandler = () => {
+    abortHandler = () => {
       rejectOnce(
-        input.signal.reason ?? createAbortError('chat-preparation-timeout'),
+        input.signal.reason ?? createAbortError('aborted'),
       )
     }
 
     input.signal.addEventListener('abort', abortHandler, { once: true })
+    // Abort can happen synchronously while addEventListener is executing. A
+    // second check closes that small race for custom/bridged AbortSignals.
+    if (input.signal.aborted) {
+      abortHandler()
+      return
+    }
     void Promise.resolve(input.preparationPromise).then(resolveOnce, rejectOnce)
   })
 }
 
 export function armAlicizationMainChatPreparationDeadline(input: {
-  controller: AbortController
+  parentSignal: AbortSignal
   timeoutMs: number
   onTimeout?: () => void
 }) {
+  const controller = new AbortController()
   let cleared = false
+  const abortFromParent = () => {
+    if (controller.signal.aborted)
+      return
+    controller.abort(
+      input.parentSignal.reason ?? createAbortError('aborted'),
+    )
+  }
+  if (input.parentSignal.aborted) {
+    abortFromParent()
+  }
+  else {
+    input.parentSignal.addEventListener('abort', abortFromParent, { once: true })
+    // The parent may abort during listener registration, before the event is
+    // delivered to the newly registered handler.
+    if (input.parentSignal.aborted)
+      abortFromParent()
+  }
+
   const timer = setTimeout(() => {
-    if (cleared || input.controller.signal.aborted)
+    if (cleared || controller.signal.aborted)
       return
 
     input.onTimeout?.()
-    input.controller.abort(createAbortError('chat-preparation-timeout'))
+    controller.abort(createAbortError('chat-preparation-timeout'))
   }, Math.max(0, input.timeoutMs))
 
-  return () => {
+  const clear = () => {
     if (cleared)
       return
     cleared = true
     clearTimeout(timer)
+    input.parentSignal.removeEventListener('abort', abortFromParent)
+  }
+
+  return {
+    clear,
+    signal: controller.signal,
   }
 }

@@ -2685,6 +2685,7 @@ describe('main chat execution surface', () => {
       dispatchMode: 'background',
       threadId: 'thread-codex-progress-resume',
       expectedChannel: 'codex',
+      onExecutionEvent: expect.any(Function),
     }))
   })
 

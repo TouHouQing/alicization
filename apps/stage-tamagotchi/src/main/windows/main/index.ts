@@ -29,7 +29,8 @@ import icon from '../../../../resources/icon.png?asset'
 import { electronMainStageStartupStatusChannel, electronStartDraggingWindow } from '../../../shared/eventa'
 import { baseUrl, getElectronMainDirname, load } from '../../libs/electron/location'
 import { createConfig } from '../../libs/electron/persistence'
-import { promoteStageWindowAboveDesktop, showStageWindow, transparentWindowConfig } from '../shared'
+import { ensureStageWindowVisible, promoteStageWindowAboveDesktop, transparentWindowConfig } from '../shared'
+import { setupMainWindowBeforeRendererLoad } from './main-window-startup'
 import { setupMainWindowElectronInvokes } from './rpc/index.electron'
 import { resolveRendererStartupWatchdogDecision } from './startup-watchdog'
 
@@ -41,6 +42,11 @@ const appConfigSchema = object({
 })
 
 const mainWindowTitle = 'ALICIZATION'
+let allowMainWindowClose = false
+
+app.once('before-quit', () => {
+  allowMainWindowClose = true
+})
 
 export async function setupMainWindow(params: {
   settingsWindow: SettingsWindowManager
@@ -302,17 +308,24 @@ export async function setupMainWindow(params: {
   window.on('ready-to-show', () => {
     clearForceShowFallbackTimer()
     syncWindowToDesktopBounds()
-    showStageWindow(window, app)
+    ensureStageWindowVisible(window, app)
   })
   ipcMain.on(electronMainStageStartupStatusChannel, handleMainWindowStageStartupStatus)
   window.webContents.on('did-finish-load', () => {
     rendererDidFinishLoad = true
     clearRendererStartupWatchdogTimer()
-    clearForceShowFallbackTimer()
     scheduleStageStartupWatchdogTimer()
     console.info('[main-window] did-finish-load', {
       url: window.webContents.getURL(),
+      visible: window.isVisible(),
+      bounds: window.getBounds(),
     })
+    // Transparent panel windows can finish loading without emitting ready-to-show.
+    // Make the loaded stage visible here and keep the timer as a second recovery path.
+    if (!window.isVisible()) {
+      syncWindowToDesktopBounds()
+      ensureStageWindowVisible(window, app)
+    }
   })
   window.webContents.on('console-message', (details) => {
     const { level, message, lineNumber: line, sourceId } = details
@@ -355,30 +368,37 @@ export async function setupMainWindow(params: {
       return
 
     syncWindowToDesktopBounds()
-    showStageWindow(window, app)
+    console.warn('[main-window] force-show fallback', {
+      bounds: window.getBounds(),
+      url: window.webContents.getURL(),
+    })
+    ensureStageWindowVisible(window, app)
   }, forceShowFallbackDelayMs)
 
   rendererStartupWatchdogStartedAt = Date.now()
   scheduleRendererStartupWatchdogTimer()
 
-  try {
-    await load(window, baseUrl(resolve(getElectronMainDirname(), '..', 'renderer')))
-  }
-  catch (error) {
-    console.error('[main-window] Failed to load renderer entry:', error)
-  }
-
-  await setupMainWindowElectronInvokes({
-    window,
-    settingsWindow: params.settingsWindow,
-    chatWindow: params.chatWindow,
-    widgetsManager: params.widgetsManager,
-    noticeWindow: params.noticeWindow,
-    autoUpdater: params.autoUpdater,
-    serverChannel: params.serverChannel,
-    mcpStdioManager: params.mcpStdioManager,
-    i18n: params.i18n,
-    onboardingWindowManager: params.onboardingWindowManager,
+  await setupMainWindowBeforeRendererLoad({
+    setupInvokes: () => setupMainWindowElectronInvokes({
+      window,
+      settingsWindow: params.settingsWindow,
+      chatWindow: params.chatWindow,
+      widgetsManager: params.widgetsManager,
+      noticeWindow: params.noticeWindow,
+      autoUpdater: params.autoUpdater,
+      serverChannel: params.serverChannel,
+      mcpStdioManager: params.mcpStdioManager,
+      i18n: params.i18n,
+      onboardingWindowManager: params.onboardingWindowManager,
+    }),
+    loadRenderer: async () => {
+      try {
+        await load(window, baseUrl(resolve(getElectronMainDirname(), '..', 'renderer')))
+      }
+      catch (error) {
+        console.error('[main-window] Failed to load renderer entry:', error)
+      }
+    },
   })
 
   /**
@@ -431,6 +451,15 @@ export async function setupMainWindow(params: {
   }
 
   initScreenCaptureForWindow(window)
+
+  if (isMacOS) {
+    window.on('close', (event) => {
+      if (allowMainWindowClose)
+        return
+      event.preventDefault()
+      window.hide()
+    })
+  }
 
   return window
 }

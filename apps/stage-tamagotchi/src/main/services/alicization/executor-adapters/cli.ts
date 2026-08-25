@@ -8,6 +8,7 @@ import type {
 
 import { Buffer } from 'node:buffer'
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { homedir as osHomedir } from 'node:os'
 import { basename, isAbsolute, relative, resolve } from 'node:path'
@@ -152,6 +153,7 @@ export interface AlicizationCliAdapterInput {
   thread: AlicizationTaskThreadRecord
   command: AlicizationCliCommandInput
   abortSignal?: AbortSignal
+  onExecutionEvent?: (event: AlicizationExecutionEventInput) => Promise<void> | void
   workspaceRoot?: string
   now?: () => number
 }
@@ -937,11 +939,31 @@ async function runCliCommand(
   spec: AlicizationCliCommandSpec,
   abortSignal?: AbortSignal,
   now: () => number = Date.now,
+  onOutput?: (input: {
+    stream: 'stdout' | 'stderr'
+    text: string
+  }) => void,
 ): Promise<AlicizationCliExecutionRuntimeResult> {
   const startedAt = now()
+  if (abortSignal?.aborted) {
+    return {
+      ok: false,
+      stdout: '',
+      stderr: '',
+      outputTruncated: false,
+      exitCode: null,
+      signal: 'SIGTERM',
+      durationMs: 0,
+      aborted: true,
+      timedOut: false,
+      errorCode: 'CLI_ABORTED',
+      errorMessage: 'CLI execution was aborted before the process started.',
+    }
+  }
   return await new Promise<AlicizationCliExecutionRuntimeResult>((resolveResult) => {
     let aborted = abortSignal?.aborted === true
     let timedOut = false
+    let terminationReason: 'abort' | 'timeout' | null = aborted ? 'abort' : null
     let settled = false
     let stdoutBytes = 0
     let stderrBytes = 0
@@ -956,6 +978,7 @@ async function runCliCommand(
           cwd: spec.cwd,
           env: runtimeEnv,
           shell: true,
+          detached: process.platform !== 'win32',
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
         })
@@ -963,6 +986,7 @@ async function runCliCommand(
           cwd: spec.cwd,
           env: runtimeEnv,
           shell: false,
+          detached: process.platform !== 'win32',
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true,
         })
@@ -1007,16 +1031,38 @@ async function runCliCommand(
     }
 
     const killProcess = (reason: 'abort' | 'timeout') => {
-      if (settled)
+      if (settled || terminationReason)
         return
+      terminationReason = reason
       if (reason === 'abort')
         aborted = true
       else
         timedOut = true
-      child.kill('SIGTERM')
+      if (process.platform !== 'win32' && child.pid) {
+        try {
+          process.kill(-child.pid, 'SIGTERM')
+        }
+        catch {
+          child.kill('SIGTERM')
+        }
+      }
+      else {
+        child.kill('SIGTERM')
+      }
       const hardKillTimer = setTimeout(() => {
-        if (!settled)
-          child.kill('SIGKILL')
+        if (!settled) {
+          if (process.platform !== 'win32' && child.pid) {
+            try {
+              process.kill(-child.pid, 'SIGKILL')
+            }
+            catch {
+              child.kill('SIGKILL')
+            }
+          }
+          else {
+            child.kill('SIGKILL')
+          }
+        }
       }, cliForceKillDelayMs)
       hardKillTimer.unref?.()
     }
@@ -1036,6 +1082,12 @@ async function runCliCommand(
       })
       stdoutBytes = captured.totalBytes
       stdoutTruncated = captured.truncated
+      if (!settled && !terminationReason) {
+        onOutput?.({
+          stream: 'stdout',
+          text: (Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)).toString('utf8'),
+        })
+      }
     })
 
     child.stderr?.on('data', (chunk: Buffer | string) => {
@@ -1048,6 +1100,12 @@ async function runCliCommand(
       })
       stderrBytes = captured.totalBytes
       stderrTruncated = captured.truncated
+      if (!settled && !terminationReason) {
+        onOutput?.({
+          stream: 'stderr',
+          text: (Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)).toString('utf8'),
+        })
+      }
     })
 
     child.on('error', (error) => {
@@ -1258,7 +1316,9 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
 
   const spec = normalized.spec
   const dispatchCreatedAt = now()
+  const executionIdentity = `${thread.id}:${randomUUID()}`
   const dispatchEvent: AlicizationExecutionEventInput = {
+    id: `${executionIdentity}:dispatch`,
     threadId: thread.id,
     decisionTraceId: thread.decisionTraceId,
     turnId: thread.turnId,
@@ -1281,7 +1341,47 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
     },
     createdAt: dispatchCreatedAt,
   }
-  const runtimeResult = await runCliCommand(spec, input.abortSignal, now)
+  let stdoutLiveIndex = 0
+  let stderrLiveIndex = 0
+  const publishLiveEvent = (event: AlicizationExecutionEventInput) => {
+    try {
+      void Promise.resolve(input.onExecutionEvent?.(event)).catch(() => {})
+    }
+    catch {
+      // Live observers are diagnostic surfaces and must not change execution semantics.
+    }
+  }
+  const publishOutput = (stream: 'stdout' | 'stderr', text: string) => {
+    for (const segment of segmentOutput(text)) {
+      const index = stream === 'stdout' ? stdoutLiveIndex++ : stderrLiveIndex++
+      publishLiveEvent({
+        id: `${executionIdentity}:step:${stream}:${index}`,
+        threadId: thread.id,
+        decisionTraceId: thread.decisionTraceId,
+        turnId: thread.turnId,
+        sessionId: thread.sessionId,
+        origin: thread.origin,
+        channel: 'cli',
+        kind: 'step',
+        threadStatus: 'running',
+        payload: {
+          stream,
+          index,
+          text: segment,
+          live: true,
+        },
+        createdAt: now(),
+      })
+    }
+  }
+  const liveDispatchEvent = {
+    ...dispatchEvent,
+    id: `${executionIdentity}:dispatch`,
+  }
+  publishLiveEvent(liveDispatchEvent)
+  const runtimeResult = await runCliCommand(spec, input.abortSignal, now, ({ stream, text }) => {
+    publishOutput(stream, text)
+  })
   const stepBaseAt = Math.max(dispatchCreatedAt + 1, now())
   const stdoutSegments = segmentOutput(runtimeResult.stdout)
   const stderrSegments = segmentOutput(runtimeResult.stderr)
@@ -1323,6 +1423,31 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
 
   if (runtimeResult.aborted) {
     const cancelAt = stepBaseAt + stdoutSegments.length + stderrSegments.length
+    const cancelEvent: AlicizationExecutionEventInput = {
+      id: `${executionIdentity}:cancel`,
+      threadId: thread.id,
+      decisionTraceId: thread.decisionTraceId,
+      turnId: thread.turnId,
+      sessionId: thread.sessionId,
+      origin: thread.origin,
+      channel: 'cli',
+      kind: 'cancel',
+      threadStatus: 'cancelled',
+      payload: {
+        adapter: 'cli',
+        command: spec.commandLabel,
+        args: spec.args,
+        cwd: spec.cwd,
+        durationMs: runtimeResult.durationMs,
+        errorCode: runtimeResult.errorCode,
+        errorMessage: runtimeResult.errorMessage,
+        aliasExpansionCount: spec.aliasExpansionCount,
+        hasRuntimeContext: spec.runtimeContext !== null,
+        runtimeContext: spec.runtimeContext,
+      },
+      createdAt: cancelAt,
+    }
+    publishLiveEvent(cancelEvent)
     return {
       ok: false,
       summary: 'CLI execution was cancelled because the kill switch changed while the process was running.',
@@ -1330,33 +1455,7 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
       errorCode: runtimeResult.errorCode,
       errorMessage: runtimeResult.errorMessage,
       finalStatus: 'cancelled',
-      events: [
-        dispatchEvent,
-        ...stepEvents,
-        {
-          threadId: thread.id,
-          decisionTraceId: thread.decisionTraceId,
-          turnId: thread.turnId,
-          sessionId: thread.sessionId,
-          origin: thread.origin,
-          channel: 'cli',
-          kind: 'cancel',
-          threadStatus: 'cancelled',
-          payload: {
-            adapter: 'cli',
-            command: spec.commandLabel,
-            args: spec.args,
-            cwd: spec.cwd,
-            durationMs: runtimeResult.durationMs,
-            errorCode: runtimeResult.errorCode,
-            errorMessage: runtimeResult.errorMessage,
-            aliasExpansionCount: spec.aliasExpansionCount,
-            hasRuntimeContext: spec.runtimeContext !== null,
-            runtimeContext: spec.runtimeContext,
-          },
-          createdAt: cancelAt,
-        },
-      ],
+      events: input.onExecutionEvent ? [] : [dispatchEvent, ...stepEvents, cancelEvent],
     }
   }
 
@@ -1372,6 +1471,38 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
   const finalSummary = success
     ? successSummary || `CLI execution completed for ${normalizeText(thread.goal, 140) || 'the current task'}.`
     : buildFailureSummary(thread, runtimeResult.errorMessage ?? 'unknown error')
+  const resultEvent: AlicizationExecutionEventInput = {
+    id: `${executionIdentity}:result`,
+    threadId: thread.id,
+    decisionTraceId: thread.decisionTraceId,
+    turnId: thread.turnId,
+    sessionId: thread.sessionId,
+    origin: thread.origin,
+    channel: 'cli',
+    kind: 'result',
+    threadStatus: success ? 'completed' : 'failed',
+    payload: {
+      adapter: 'cli',
+      command: spec.commandLabel,
+      args: spec.args,
+      cwd: spec.cwd,
+      durationMs: runtimeResult.durationMs,
+      exitCode: runtimeResult.exitCode,
+      signal: runtimeResult.signal,
+      timedOut: runtimeResult.timedOut,
+      outputTruncated: runtimeResult.outputTruncated,
+      summary: finalSummary,
+      stdout: normalizeText(runtimeResult.stdout),
+      stderr: normalizeText(runtimeResult.stderr),
+      aliasExpansionCount: spec.aliasExpansionCount,
+      errorCode: runtimeResult.errorCode,
+      errorMessage: runtimeResult.errorMessage,
+      hasRuntimeContext: spec.runtimeContext !== null,
+      runtimeContext: spec.runtimeContext,
+    },
+    createdAt: resultAt,
+  }
+  publishLiveEvent(resultEvent)
   return {
     ok: success,
     summary: finalSummary,
@@ -1379,39 +1510,6 @@ export async function executeCliTaskThread(input: AlicizationCliAdapterInput): P
     errorCode: success ? undefined : runtimeResult.errorCode,
     errorMessage: success ? undefined : runtimeResult.errorMessage,
     finalStatus: success ? 'completed' : 'failed',
-    events: [
-      dispatchEvent,
-      ...stepEvents,
-      {
-        threadId: thread.id,
-        decisionTraceId: thread.decisionTraceId,
-        turnId: thread.turnId,
-        sessionId: thread.sessionId,
-        origin: thread.origin,
-        channel: 'cli',
-        kind: 'result',
-        threadStatus: success ? 'completed' : 'failed',
-        payload: {
-          adapter: 'cli',
-          command: spec.commandLabel,
-          args: spec.args,
-          cwd: spec.cwd,
-          durationMs: runtimeResult.durationMs,
-          exitCode: runtimeResult.exitCode,
-          signal: runtimeResult.signal,
-          timedOut: runtimeResult.timedOut,
-          outputTruncated: runtimeResult.outputTruncated,
-          summary: finalSummary,
-          stdout: normalizeText(runtimeResult.stdout),
-          stderr: normalizeText(runtimeResult.stderr),
-          aliasExpansionCount: spec.aliasExpansionCount,
-          errorCode: runtimeResult.errorCode,
-          errorMessage: runtimeResult.errorMessage,
-          hasRuntimeContext: spec.runtimeContext !== null,
-          runtimeContext: spec.runtimeContext,
-        },
-        createdAt: resultAt,
-      },
-    ],
+    events: input.onExecutionEvent ? [] : [dispatchEvent, ...stepEvents, resultEvent],
   }
 }

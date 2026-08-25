@@ -170,11 +170,13 @@ export function createAlicizationChatStreamRuntime(options: CreateAlicizationCha
 
     if (state.errorEmitted) {
       // A provider error ends visible dialogue delivery, but executor progress
-      // can still arrive from the main-owned action stream. Let the projection
-      // reducer classify that late fact as trace-only after terminal settlement.
+      // and terminal results can still arrive from the main-owned action stream.
+      // Preserve those facts so a concrete tool failure can supersede a generic
+      // stream error and remain traceable after terminal settlement.
       if (
         eventType !== 'finish'
         && eventType !== 'tool-progress'
+        && eventType !== 'tool-result'
         && (!isFinishedRun || !isToolEvent)
       ) {
         return
@@ -202,16 +204,6 @@ export function createAlicizationChatStreamRuntime(options: CreateAlicizationCha
         if (emittedToolCallIds.has(toolCallId))
           return
         emittedToolCallIds.add(toolCallId)
-      }
-    }
-
-    if (eventType === 'tool-result') {
-      const toolCallId = readToolCallId()
-      if (toolCallId) {
-        const emittedToolResultIds = state.emittedToolResultIds ??= new Set<string>()
-        if (emittedToolResultIds.has(toolCallId))
-          return
-        emittedToolResultIds.add(toolCallId)
       }
     }
 
@@ -243,7 +235,10 @@ export function createAlicizationChatStreamRuntime(options: CreateAlicizationCha
     let projectedBody: AlicizationChatStreamVisibleDispatchBody = body as AlicizationChatStreamVisibleDispatchBody
     if (isToolEvent) {
       const projectionReducer = state.toolProjection ??= createAlicizationRuntimeToolProjectionReducer()
-      const projectionOptions = isFinishedRun
+      // A completed turn's late tool telemetry is audit-only. An errored turn
+      // still needs its concrete terminal tool fact to replace a generic stream
+      // failure on the renderer, so that failure remains user-visible.
+      const projectionOptions = isFinishedRun && !state.errorEmitted
         ? { traceOnly: true }
         : undefined
       if (eventType === 'tool-call') {
@@ -306,6 +301,19 @@ export function createAlicizationChatStreamRuntime(options: CreateAlicizationCha
           selectedChannel: projection.card.selectedChannel,
           projection,
         } satisfies AlicizationChatToolResultEvent
+      }
+    }
+
+    if (eventType === 'tool-result') {
+      const toolResult = projectedBody as AlicizationChatToolResultEvent
+      if (toolResult.projection.card.terminal) {
+        const toolCallId = readToolCallId()
+        if (toolCallId) {
+          const emittedToolResultIds = state.emittedToolResultIds ??= new Set<string>()
+          if (emittedToolResultIds.has(toolCallId))
+            return
+          emittedToolResultIds.add(toolCallId)
+        }
       }
     }
 

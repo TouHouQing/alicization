@@ -1,16 +1,31 @@
 <script setup lang="ts">
-import type { AlicizationSimpleRecallGoldLabel } from '@proj-alicization/stage-ui/stores/alicization-bridge'
+import type {
+  AlicizationMemoryQualityActionCode,
+  AlicizationMemoryQualityFailureCode,
+  AlicizationSimpleRecallGoldLabel,
+} from '@proj-alicization/stage-ui/stores/alicization-bridge'
 import type { AlicizationMemoryQualityGoldLabelReason } from '@proj-alicization/stage-ui/stores/alicization-memory-workbench'
 
 import { useAlicizationMemoryWorkbenchStore } from '@proj-alicization/stage-ui/stores/alicization-memory-workbench'
 import { useAiriCardStore } from '@proj-alicization/stage-ui/stores/modules/airi-card'
 import { Button } from '@proj-alicization/ui'
 import { storeToRefs } from 'pinia'
+import {
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogOverlay,
+  AlertDialogPortal,
+  AlertDialogRoot,
+  AlertDialogTitle,
+} from 'reka-ui'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import MemoryEmbeddingConfig from './components/memory-embedding-config.vue'
 import MemoryQualitySessionPicker from './components/memory-quality-session-picker.vue'
+import MemoryQualityTrialHistory from './components/memory-quality-trial-history.vue'
 import PersonaRuntimeConfig from './components/persona-runtime-config.vue'
 import PersonaTrainingExecutorConfig from './components/persona-training-executor-config.vue'
 import PersonaTrainingRuns from './components/persona-training-runs.vue'
@@ -44,6 +59,9 @@ const {
   semanticScaleLoading,
   qualityTrialLoading,
   qualityTrialReport,
+  qualityTrialReports,
+  qualityTrialReportsNextCursor,
+  qualityTrialReportsLoading,
   qualityReplaySessions,
   qualityReplaySessionsLoading,
   qualityReplaySessionsNextCursor,
@@ -67,6 +85,13 @@ const {
 } = storeToRefs(store)
 
 const reindexProgress = computed(() => reindexResult.value?.progress ?? null)
+const selectedQualityTrialRecord = computed(() => {
+  return qualityTrialReports.value.find(item => item.report.id === qualityTrialReport.value?.id) ?? null
+})
+const selectedQualityTrialReportId = computed(() => selectedQualityTrialRecord.value?.id ?? null)
+// Scale soaking and raw label authoring are engineering diagnostics. The
+// production validation entry and its durable reports stay visible to users.
+const internalDiagnosticsVisible = import.meta.env.DEV
 const personaTrainingConsentGranted = ref(false)
 const personaTrainingPolicyVersion = ref('persona-training-consent-v1')
 const personaTrainingScope = ref('persona-dataset')
@@ -76,6 +101,11 @@ const qualityDecisionTraceId = ref('')
 const qualityAssistantReply = ref('')
 const qualityExpectedMemoryIds = ref('')
 const qualitySurfacedMemoryIds = ref<string[]>([])
+const pendingTombstone = ref<{
+  id: string
+  summary: string
+  kind: 'long-term' | 'review'
+} | null>(null)
 
 const qualityGoldContextReady = computed(() => Boolean(
   selectedQualitySessionId.value.trim()
@@ -107,6 +137,29 @@ function qualityEvidenceSnapshot() {
     queryMatches: item.queryMatches,
     rankReasons: item.rankReasons,
   }))
+}
+
+function requestTombstone(input: {
+  id: string
+  summary: string
+  kind: 'long-term' | 'review'
+}) {
+  pendingTombstone.value = input
+}
+
+function cancelTombstone() {
+  pendingTombstone.value = null
+}
+
+async function confirmTombstone() {
+  const pending = pendingTombstone.value
+  pendingTombstone.value = null
+  if (!pending)
+    return
+  if (pending.kind === 'long-term')
+    await store.applyLongTermAction(pending.id, 'tombstone')
+  else
+    await store.applyReviewAction(pending.id, 'tombstone')
 }
 
 const tabs = computed(() => [
@@ -217,6 +270,28 @@ const personaPrivacyLabelKeys = {
   'personal-redacted': 'settings.pages.memory.workbench.states.persona_privacy_personal_redacted',
 } as const
 
+const qualityFailureLabelKeys: Record<AlicizationMemoryQualityFailureCode, string> = {
+  timeout: 'settings.pages.memory.workbench.quality.failure_codes.timeout',
+  auth: 'settings.pages.memory.workbench.quality.failure_codes.auth',
+  network: 'settings.pages.memory.workbench.quality.failure_codes.network',
+  recall: 'settings.pages.memory.workbench.quality.failure_codes.recall',
+  database: 'settings.pages.memory.workbench.quality.failure_codes.database',
+  queue: 'settings.pages.memory.workbench.quality.failure_codes.queue',
+  provider: 'settings.pages.memory.workbench.quality.failure_codes.provider',
+  quality: 'settings.pages.memory.workbench.quality.failure_codes.quality',
+}
+
+const qualityActionLabelKeys: Record<AlicizationMemoryQualityActionCode, string> = {
+  'retry-timeout': 'settings.pages.memory.workbench.quality.action_codes.retry_timeout',
+  'repair-auth': 'settings.pages.memory.workbench.quality.action_codes.repair_auth',
+  'repair-network': 'settings.pages.memory.workbench.quality.action_codes.repair_network',
+  'repair-recall': 'settings.pages.memory.workbench.quality.action_codes.repair_recall',
+  'repair-database': 'settings.pages.memory.workbench.quality.action_codes.repair_database',
+  'repair-queue': 'settings.pages.memory.workbench.quality.action_codes.repair_queue',
+  'repair-provider': 'settings.pages.memory.workbench.quality.action_codes.repair_provider',
+  'inspect-failure-stage': 'settings.pages.memory.workbench.quality.action_codes.inspect_failure_stage',
+}
+
 const qualityGoldLabelButtons = computed<Array<{
   value: AlicizationSimpleRecallGoldLabel
   label: string
@@ -290,29 +365,6 @@ const healthStatusClass = computed(() => {
   return 'text-rose-600 dark:text-rose-300'
 })
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === 'object' ? value as Record<string, unknown> : null
-}
-
-function asRecordArray(value: unknown): Array<Record<string, unknown>> {
-  return Array.isArray(value)
-    ? value.map(item => asRecord(item)).filter((item): item is Record<string, unknown> => item !== null)
-    : []
-}
-
-function asStringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
-}
-
-function qualityRankReasonSummary(trace: Record<string, unknown>) {
-  const rankReasonsById = asRecord(trace.rankReasonsById)
-  if (!rankReasonsById)
-    return []
-  return Object.entries(rankReasonsById).slice(0, 4).map(([id, reasons]) =>
-    `${id}: ${asStringArray(reasons).slice(0, 3).join(', ') || '-'}`,
-  )
-}
-
 const qualityFailureDetails = computed<QualityPanelDetail[]>(() => {
   const report = qualityTrialReport.value
   if (!report)
@@ -323,41 +375,30 @@ const qualityFailureDetails = computed<QualityPanelDetail[]>(() => {
     .map(stage => ({
       id: `stage:${stage.id}`,
       title: `${t('settings.pages.memory.workbench.fields.failing_stages')}: ${stage.id}`,
-      description: stage.error ?? '-',
+      description: formatQualityFailure(stage.error),
       meta: [
         `${stage.stage}`,
         `${t('settings.pages.memory.workbench.fields.count')}: ${stage.itemCount}`,
       ],
     }))
 
-  const traces = asRecordArray(report.quality.traces)
-  const traceDetails = report.quality.summary.failingFixtureIds.map((fixtureId) => {
-    const trace = traces.find(item => item.fixtureId === fixtureId || item.id === fixtureId)
-    const selectedIds = asStringArray(trace?.selectedIds)
-    const rankReasons = trace ? qualityRankReasonSummary(trace) : []
-    return {
-      id: `fixture:${fixtureId}`,
-      title: `${t('settings.pages.memory.workbench.fields.failing_fixtures')}: ${fixtureId}`,
-      description: typeof trace?.error === 'string' ? trace.error : listText(selectedIds),
-      meta: [
-        ...rankReasons,
-        ...(selectedIds.length > 0 ? [`${t('settings.pages.memory.workbench.fields.surfaced_ids')}: ${listText(selectedIds)}`] : []),
-      ],
-    }
-  })
-
-  const experienceFindings = asRecordArray(report.experienceQuality?.findings).map((item, index) => ({
-    id: `experience:${String(item.fixtureId ?? index)}:${String(item.code ?? 'finding')}`,
-    title: `${t('settings.pages.memory.workbench.fields.experience_quality')}: ${String(item.code ?? '-')}`,
-    description: String(item.message ?? '-'),
-    meta: [
-      String(item.fixtureId ?? '-'),
-      String(item.suggestedAction ?? '-'),
-    ].filter(item => item !== '-'),
+  const fixtureDetails = report.quality.summary.failingFixtureIds.map(fixtureId => ({
+    id: `fixture:${fixtureId}`,
+    title: `${t('settings.pages.memory.workbench.fields.failing_fixtures')}: ${fixtureId}`,
+    description: '-',
+    meta: [],
   }))
 
-  return [...stageDetails, ...traceDetails, ...experienceFindings]
+  return [...stageDetails, ...fixtureDetails]
 })
+
+function formatQualityFailure(value: AlicizationMemoryQualityFailureCode | null | undefined) {
+  return value ? t(qualityFailureLabelKeys[value]) : '-'
+}
+
+function formatQualityAction(value: AlicizationMemoryQualityActionCode) {
+  return t(qualityActionLabelKeys[value])
+}
 
 function listText(values: string[]) {
   return values.length > 0 ? values.join(' / ') : '-'
@@ -490,14 +531,7 @@ function loadQualityGoldLabels() {
 }
 
 async function runQualityTrial() {
-  const report = await store.runQualityTrial(goldLabelMonth.value)
-  const turn = [...(report?.dialogueReplay?.turns ?? [])]
-    .reverse()
-    .find(item => item.providerOutput?.trim())
-  if (turn) {
-    qualityTurnId.value = turn.turnId
-    qualityAssistantReply.value = turn.providerOutput ?? ''
-  }
+  await store.runQualityTrial(goldLabelMonth.value)
 }
 
 function buildGoldRegression() {
@@ -546,6 +580,7 @@ watch(recallProbe, (probe) => {
 function reloadQualityTrialContext() {
   store.resetQualityTrialContext()
   store.resetSemanticScaleJobContext()
+  void store.loadQualityTrialReports()
   void store.loadQualityReplaySessions()
   void store.loadSemanticScaleJobs()
 }
@@ -563,10 +598,15 @@ onMounted(() => {
 watch(activeCardId, () => {
   store.resetCardScope()
   reloadQualityTrialContext()
+  void store.refreshSnapshot()
+  void store.refreshLongTerm()
   void store.refreshWorkingMemoryCleaningFailures()
+  void store.refreshPersonaCandidates()
   void store.refreshPersonaTrainingDataset()
   void store.refreshPersonaTrainingRuns()
   void store.refreshPersonaTrainingIncrements()
+  void store.refreshSkills(false)
+  void store.loadMonthlyGoldLabels(goldLabelMonth.value)
 })
 </script>
 
@@ -779,6 +819,29 @@ watch(activeCardId, () => {
           <div>{{ t('settings.pages.memory.workbench.fields.source_ids') }}: {{ listText(item.sourceIds) }}</div>
           <div>{{ t('settings.pages.memory.workbench.fields.updated_at') }}: {{ formatTimestamp(item.updatedAt) }}</div>
         </div>
+        <div :class="['mt-3', 'flex', 'flex-wrap', 'gap-2']">
+          <Button
+            size="sm"
+            variant="danger"
+            :label="t('settings.pages.memory.workbench.actions.tombstone')"
+            :loading="reviewActionLoadingId === item.id"
+            @click="requestTombstone({ id: item.id, summary: item.summary, kind: 'long-term' })"
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            :label="t('settings.pages.memory.workbench.actions.inward_only')"
+            :loading="reviewActionLoadingId === item.id"
+            @click="store.applyLongTermAction(item.id, 'inward-only')"
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            :label="t('settings.pages.memory.workbench.actions.no_training')"
+            :loading="reviewActionLoadingId === item.id"
+            @click="store.applyLongTermAction(item.id, 'no-training')"
+          />
+        </div>
       </article>
       <Button
         v-if="longTermNextCursor"
@@ -805,7 +868,7 @@ watch(activeCardId, () => {
         <div :class="['mt-3', 'flex', 'flex-wrap', 'gap-2']">
           <Button size="sm" :label="t('settings.pages.memory.workbench.actions.approve')" :loading="reviewActionLoadingId === item.id" @click="store.applyReviewAction(item.id, 'approve')" />
           <Button size="sm" variant="secondary" :label="t('settings.pages.memory.workbench.actions.reject')" :loading="reviewActionLoadingId === item.id" @click="store.applyReviewAction(item.id, 'reject')" />
-          <Button size="sm" variant="danger" :label="t('settings.pages.memory.workbench.actions.tombstone')" :loading="reviewActionLoadingId === item.id" @click="store.applyReviewAction(item.id, 'tombstone')" />
+          <Button size="sm" variant="danger" :label="t('settings.pages.memory.workbench.actions.tombstone')" :loading="reviewActionLoadingId === item.id" @click="requestTombstone({ id: item.id, summary: item.summary, kind: 'review' })" />
           <Button size="sm" variant="secondary" :label="t('settings.pages.memory.workbench.actions.inward_only')" :loading="reviewActionLoadingId === item.id" @click="store.applyReviewAction(item.id, 'inward-only')" />
           <Button size="sm" variant="secondary" :label="t('settings.pages.memory.workbench.actions.no_training')" :loading="reviewActionLoadingId === item.id" @click="store.applyReviewAction(item.id, 'no-training')" />
         </div>
@@ -1057,6 +1120,7 @@ watch(activeCardId, () => {
           />
           <div :class="['mt-3', 'flex', 'flex-wrap', 'gap-2']">
             <Button
+              v-if="internalDiagnosticsVisible"
               :label="t('settings.pages.memory.workbench.actions.load_gold_labels')"
               icon="i-solar:calendar-search-bold-duotone"
               size="sm"
@@ -1081,6 +1145,7 @@ watch(activeCardId, () => {
               @click="store.cancelQualityTrial(t('settings.pages.memory.workbench.states.quality_trial_cancelled_by_user'))"
             />
             <Button
+              v-if="internalDiagnosticsVisible"
               :label="t('settings.pages.memory.workbench.actions.build_gold_regression')"
               icon="i-solar:archive-check-bold-duotone"
               size="sm"
@@ -1091,7 +1156,16 @@ watch(activeCardId, () => {
           </div>
         </section>
 
-        <section :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <MemoryQualityTrialHistory
+          :reports="qualityTrialReports"
+          :selected-report-id="selectedQualityTrialReportId"
+          :loading="qualityTrialReportsLoading"
+          :has-more="Boolean(qualityTrialReportsNextCursor)"
+          @select="store.selectQualityTrialReport"
+          @load-more="store.loadMoreQualityTrialReports()"
+        />
+
+        <section v-if="internalDiagnosticsVisible" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
           <div :class="['flex', 'flex-wrap', 'items-start', 'justify-between', 'gap-3']">
             <div>
               <div :class="['text-sm', 'font-semibold']">
@@ -1299,7 +1373,7 @@ watch(activeCardId, () => {
           </div>
         </section>
 
-        <section :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <section v-if="internalDiagnosticsVisible" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
           <div :class="['text-sm', 'font-semibold']">
             {{ t('settings.pages.memory.workbench.quality.feedback_title') }}
           </div>
@@ -1403,6 +1477,25 @@ watch(activeCardId, () => {
             {{ t('settings.pages.memory.workbench.states.empty_quality_report') }}
           </div>
           <template v-else>
+            <div
+              v-if="selectedQualityTrialRecord"
+              :class="['mt-4', 'grid', 'grid-cols-1', 'gap-1', 'border-t', 'border-neutral-200', 'pt-3', 'text-xs', 'text-neutral-500', 'dark:border-neutral-800', 'md:grid-cols-3']"
+            >
+              <div>
+                {{ t('settings.pages.memory.workbench.quality.quality_run_mode') }}:
+                {{ selectedQualityTrialRecord.mode === 'live-provider'
+                  ? t('settings.pages.memory.workbench.quality.live_provider')
+                  : t('settings.pages.memory.workbench.quality.historical_replay') }}
+              </div>
+              <div>{{ t('settings.pages.memory.workbench.quality.quality_session') }}: {{ selectedQualityTrialRecord.sessionId ?? '-' }}</div>
+              <div :class="['break-all']">
+                {{ t('settings.pages.memory.workbench.quality.quality_report_hash') }}: {{ selectedQualityTrialRecord?.reportHash }}
+              </div>
+            </div>
+            <div v-if="qualityTrialReport.summary.lastError" :class="['mt-3', 'whitespace-pre-wrap', 'break-words', 'text-sm', 'text-amber-600', 'dark:text-amber-300']">
+              {{ t('settings.pages.memory.workbench.fields.last_error') }}:
+              {{ formatQualityFailure(qualityTrialReport.summary.lastError) }}
+            </div>
             <div :class="['mt-4', 'grid', 'grid-cols-2', 'gap-2', 'text-sm', 'lg:grid-cols-4']">
               <div>{{ t('settings.pages.memory.workbench.fields.long_term_fixtures') }}: {{ qualityTrialReport.summary.longTermFixtureCount }}</div>
               <div>{{ t('settings.pages.memory.workbench.fields.working_memory_fixtures') }}: {{ qualityTrialReport.summary.workingMemoryFixtureCount }}</div>
@@ -1461,14 +1554,8 @@ watch(activeCardId, () => {
               </div>
               <div v-if="qualityTrialReport.dialogueReplay.summary.lastError" :class="['mt-2', 'text-sm', 'text-amber-600', 'dark:text-amber-300']">
                 {{ t('settings.pages.memory.workbench.fields.last_error') }}:
-                {{ qualityTrialReport.dialogueReplay.summary.lastError }}
+                {{ formatQualityFailure(qualityTrialReport.dialogueReplay.summary.lastError) }}
               </div>
-              <details v-if="qualityTrialReport.dialogueReplay.turns.length > 0" :class="['mt-3', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
-                <summary :class="['cursor-pointer', 'text-xs', 'font-semibold', 'text-neutral-500']">
-                  {{ t('settings.pages.memory.workbench.fields.replay_turn_trace') }}
-                </summary>
-                <pre :class="['mt-2', 'max-h-80', 'overflow-auto', 'whitespace-pre-wrap', 'text-xs']">{{ JSON.stringify(qualityTrialReport.dialogueReplay.turns, null, 2) }}</pre>
-              </details>
             </div>
             <div v-if="qualityTrialReport.liveProviderTrial" :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
               <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
@@ -1486,31 +1573,8 @@ watch(activeCardId, () => {
               </div>
               <div v-if="qualityTrialReport.liveProviderTrial.summary.lastError" :class="['mt-2', 'text-sm', 'text-amber-600', 'dark:text-amber-300']">
                 {{ t('settings.pages.memory.workbench.fields.last_error') }}:
-                {{ qualityTrialReport.liveProviderTrial.summary.lastError }}
+                {{ formatQualityFailure(qualityTrialReport.liveProviderTrial.summary.lastError) }}
               </div>
-              <details v-if="qualityTrialReport.liveProviderTrial.turns.length > 0" :class="['mt-3', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
-                <summary :class="['cursor-pointer', 'text-xs', 'font-semibold', 'text-neutral-500']">
-                  {{ t('settings.pages.memory.workbench.fields.provider_trace') }}
-                </summary>
-                <div :class="['mt-2', 'flex', 'flex-col', 'gap-2']">
-                  <article v-for="providerTurn in qualityTrialReport.liveProviderTrial.turns" :key="providerTurn.turnId" :class="['border', 'border-neutral-200', 'p-3', 'dark:border-neutral-800']">
-                    <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
-                      {{ providerTurn.turnId }} · {{ providerTurn.status }}
-                    </div>
-                    <div v-if="providerTurn.providerTrace" :class="['mt-2', 'grid', 'grid-cols-1', 'gap-1', 'text-xs', 'text-neutral-500', 'md:grid-cols-2']">
-                      <div>{{ t('settings.pages.memory.workbench.fields.provider_id') }}: {{ providerTurn.providerTrace.providerId }}</div>
-                      <div>{{ t('settings.pages.memory.workbench.fields.model_id') }}: {{ providerTurn.providerTrace.modelId }}</div>
-                      <div>{{ t('settings.pages.memory.workbench.fields.latency_ms') }}: {{ providerTurn.providerTrace.latencyMs }} ms</div>
-                      <div>{{ t('settings.pages.memory.workbench.fields.provider_retry_count') }}: {{ providerTurn.providerTrace.retryCount }}</div>
-                      <div>{{ t('settings.pages.memory.workbench.fields.finish_reason') }}: {{ providerTurn.providerTrace.finishReason ?? '-' }}</div>
-                      <div>{{ t('settings.pages.memory.workbench.fields.output_length') }}: {{ providerTurn.providerTrace.outputLength }}</div>
-                    </div>
-                    <div v-if="providerTurn.error" :class="['mt-2', 'whitespace-pre-wrap', 'break-words', 'text-xs', 'text-rose-600', 'dark:text-rose-300']">
-                      {{ providerTurn.error }}
-                    </div>
-                  </article>
-                </div>
-              </details>
             </div>
             <div v-if="qualityTrialReport.runtimeHealth" :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
               <div :class="['text-xs', 'font-semibold', 'text-neutral-500']">
@@ -1536,15 +1600,15 @@ watch(activeCardId, () => {
               </div>
               <div v-if="qualityTrialReport.runtimeHealth.recall.lastError" :class="['mt-2', 'text-sm', 'text-amber-600', 'dark:text-amber-300']">
                 {{ t('settings.pages.memory.workbench.fields.recall_health') }}:
-                {{ qualityTrialReport.runtimeHealth.recall.lastError }}
+                {{ formatQualityFailure(qualityTrialReport.runtimeHealth.recall.lastError) }}
               </div>
               <div v-if="qualityTrialReport.runtimeHealth.embedding.lastError" :class="['mt-2', 'text-sm', 'text-amber-600', 'dark:text-amber-300']">
                 {{ t('settings.pages.memory.workbench.fields.embedding_health') }}:
-                {{ qualityTrialReport.runtimeHealth.embedding.lastError }}
+                {{ formatQualityFailure(qualityTrialReport.runtimeHealth.embedding.lastError) }}
               </div>
               <ul v-if="qualityTrialReport.runtimeHealth.errors.length > 0" :class="['mt-2', 'list-disc', 'space-y-1', 'pl-5', 'text-sm', 'text-amber-600', 'dark:text-amber-300']">
                 <li v-for="error in qualityTrialReport.runtimeHealth.errors" :key="error">
-                  {{ error }}
+                  {{ formatQualityFailure(error) }}
                 </li>
               </ul>
             </div>
@@ -1578,20 +1642,14 @@ watch(activeCardId, () => {
               </div>
               <ul :class="['mt-2', 'list-disc', 'space-y-1', 'pl-5', 'text-sm']">
                 <li v-for="action in qualityTrialReport.recommendedNextActions" :key="action">
-                  {{ action }}
+                  {{ formatQualityAction(action) }}
                 </li>
               </ul>
             </div>
-            <details :class="['mt-4', 'border-t', 'border-neutral-200', 'pt-3', 'dark:border-neutral-800']">
-              <summary :class="['cursor-pointer', 'text-xs', 'font-semibold', 'text-neutral-500']">
-                {{ t('settings.pages.memory.workbench.fields.trace') }}
-              </summary>
-              <pre :class="['mt-2', 'max-h-80', 'overflow-auto', 'whitespace-pre-wrap', 'text-xs']">{{ JSON.stringify(qualityTrialReport.quality.traces, null, 2) }}</pre>
-            </details>
           </template>
         </section>
 
-        <section :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
+        <section v-if="internalDiagnosticsVisible" :class="['border', 'border-neutral-200', 'p-4', 'dark:border-neutral-800']">
           <div :class="['flex', 'flex-wrap', 'items-center', 'justify-between', 'gap-2']">
             <div :class="['text-sm', 'font-semibold']">
               {{ t('settings.pages.memory.workbench.quality.gold_labels_title') }}
@@ -1976,6 +2034,35 @@ watch(activeCardId, () => {
       </details>
     </section>
   </div>
+  <AlertDialogRoot :open="pendingTombstone !== null" @update:open="value => !value && cancelTombstone()">
+    <AlertDialogPortal>
+      <AlertDialogOverlay class="fixed inset-0 z-100 bg-black/50" />
+      <AlertDialogContent class="fixed left-1/2 top-1/2 z-100 max-w-md w-full border border-neutral-200 bg-white p-6 shadow-xl -translate-x-1/2 -translate-y-1/2 dark:border-neutral-700 dark:bg-neutral-900">
+        <AlertDialogTitle class="text-lg font-semibold">
+          {{ t('settings.pages.memory.workbench.confirm_tombstone_title') }}
+        </AlertDialogTitle>
+        <AlertDialogDescription class="mt-3 whitespace-pre-wrap text-sm text-neutral-600 dark:text-neutral-300">
+          {{ t('settings.pages.memory.workbench.confirm_tombstone_description', { summary: pendingTombstone?.summary ?? '' }) }}
+        </AlertDialogDescription>
+        <div class="mt-5 flex justify-end gap-2">
+          <AlertDialogCancel as-child>
+            <Button
+              variant="secondary"
+              :label="t('settings.pages.memory.workbench.actions.cancel')"
+              @click="cancelTombstone"
+            />
+          </AlertDialogCancel>
+          <AlertDialogAction as-child>
+            <Button
+              variant="danger"
+              :label="t('settings.pages.memory.workbench.actions.confirm')"
+              @click="confirmTombstone"
+            />
+          </AlertDialogAction>
+        </div>
+      </AlertDialogContent>
+    </AlertDialogPortal>
+  </AlertDialogRoot>
 </template>
 
 <route lang="yaml">

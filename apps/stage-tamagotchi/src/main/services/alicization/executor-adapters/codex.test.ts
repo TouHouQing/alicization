@@ -1283,6 +1283,105 @@ describe('codex executor adapter', () => {
     }))
   })
 
+  it('classifies the final SSE idle-timeout disconnect as Provider unavailable', async () => {
+    let child: ReturnType<typeof createMockCodexChild> | undefined
+
+    spawnMock.mockImplementation(() => {
+      child = createMockCodexChild()
+      queueMicrotask(() => {
+        child?.stdout.emit('data', Buffer.from([
+          JSON.stringify({
+            type: 'turn.failed',
+            error: {
+              message: 'stream disconnected before completion: idle timeout waiting for SSE',
+            },
+          }),
+          '',
+        ].join('\n')))
+        child?.emit('close', 1, null)
+      })
+      return child
+    })
+
+    const result = await executeCodexTaskThread({
+      thread: createThread(),
+      command: {
+        prompt: 'Run a harmless workspace inspection.',
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      finalStatus: 'failed',
+      errorCode: 'CODEX_PROVIDER_UNAVAILABLE',
+      errorMessage: 'stream disconnected before completion: idle timeout waiting for SSE',
+    })
+  })
+
+  it('retries an observe-only Codex Provider disconnect up to five attempts and returns the later success', async () => {
+    vi.useFakeTimers()
+    let child: ReturnType<typeof createMockCodexChild> | undefined
+    let attempt = 0
+
+    spawnMock.mockImplementation(() => {
+      attempt += 1
+      child = createMockCodexChild()
+      child.kill.mockImplementation((signal) => {
+        if (signal === 'SIGTERM')
+          queueMicrotask(() => child?.emit('close', attempt === 1 ? 1 : 0, signal))
+      })
+      queueMicrotask(() => {
+        if (attempt === 1) {
+          child?.stdout.emit('data', Buffer.from([
+            JSON.stringify({
+              type: 'turn.failed',
+              error: {
+                message: 'stream disconnected before completion: idle timeout waiting for SSE',
+              },
+            }),
+            '',
+          ].join('\n')))
+          return
+        }
+        emitCodexAssistantResult(child!, `observe retry success ${attempt}`)
+        child?.emit('close', 0, null)
+      })
+      return child
+    })
+
+    const resultPromise = executeCodexTaskThread({
+      thread: createThread({
+        metadata: {
+          task: {
+            permissionMode: 'implicit',
+            effect: 'observe',
+          },
+        },
+      }),
+      command: {
+        prompt: 'Run a harmless workspace inspection.',
+      },
+      lifecycle: {
+        startupTimeoutMs: 1_000,
+        totalTimeoutMs: 5_000,
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    await waitForSpawnMock()
+    await flushNativeIo()
+    await vi.advanceTimersByTimeAsync(1_000)
+    await flushNativeIo()
+
+    await expect(resultPromise).resolves.toMatchObject({
+      ok: true,
+      finalStatus: 'completed',
+      output: 'observe retry success 2',
+    })
+    expect(spawnMock).toHaveBeenCalledTimes(2)
+  })
+
   it('parses stderr transport diagnostics and enters Provider recovery before the total timeout', async () => {
     vi.useFakeTimers()
     let child: ReturnType<typeof createMockCodexChild> | undefined

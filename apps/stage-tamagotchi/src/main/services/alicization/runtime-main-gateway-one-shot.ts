@@ -45,7 +45,10 @@ import {
   mainGatewayForegroundPreemptionReason,
 } from './main-gateway-work-coordinator'
 import { parseScreenSemanticSummary, pickScreenSemanticCaptureCandidate } from './proactive-screen-semantic'
-import { runWithAlicizationProviderRetry } from './provider-retry-policy'
+import {
+  resolveAlicizationProviderRetryDeadline,
+  runWithAlicizationProviderRetry,
+} from './provider-retry-policy'
 import { buildCompressedNativeImageDataUrl, readStringValue } from './runtime-governance'
 import { sanitizeBriefText } from './runtime-realtime'
 import { alicizationScreenSemanticResponseFormat } from './runtime-screen-semantic-provider-contract'
@@ -934,12 +937,21 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
     else
       generateOptions.abortSignal?.addEventListener('abort', forwardExternalAbort, { once: true })
     const timeoutMs = Math.max(1_000, generateOptions.timeoutMs ?? 18_000)
-    const providerRetryDeadlineAt = Date.now() + timeoutMs
-    const timeout = setTimeout(() => {
-      if (!controller.signal.aborted) {
-        controller.abort(createAbortError('main-gateway-timeout'))
-      }
-    }, timeoutMs)
+    const providerRetryDeadlineAt = resolveAlicizationProviderRetryDeadline(({
+      deadlineAt: generateOptions.providerRetryPolicy?.deadlineAt,
+      baseDelayMs: generateOptions.providerRetryPolicy?.baseDelayMs,
+      maxDelayMs: generateOptions.providerRetryPolicy?.maxDelayMs,
+      maxRetries: generateOptions.providerRetryPolicy?.maxRetries,
+      maxTotalRetryWindowMs: generateOptions.providerRetryPolicy?.maxTotalRetryWindowMs,
+      timeoutMs,
+    }))
+    const timeout = providerRetryDeadlineAt === null
+      ? undefined
+      : setTimeout(() => {
+          if (!controller.signal.aborted) {
+            controller.abort(createAbortError('main-gateway-timeout'))
+          }
+        }, Math.max(1_000, providerRetryDeadlineAt - Date.now()))
 
     try {
       const runGeneration = async () => {
@@ -949,23 +961,55 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
           finishReason?: string | null
           text?: string | null
         }>({
+          ...generateOptions.providerRetryPolicy,
           operation: 'main-gateway-one-shot',
           signal: controller.signal,
           deadlineAt: providerRetryDeadlineAt,
           invoke: async ({ signal }) => {
-            const providerSignal = signal ?? controller.signal
-            const providerPromise = generateText({
-              ...config.provider.chat(config.model),
-              maxSteps: 1,
-              messages: generationMessages,
-              responseFormat: generateOptions.responseFormat,
-              headers: config.headers,
-              abortSignal: providerSignal,
-            })
-            // Some OpenAI-compatible SDKs resolve their outer promise after
-            // the transport has ignored AbortSignal. The run must still leave
-            // the coordinator immediately and must not accept a late result.
-            return await awaitAlicizationPromiseWithAbort(providerPromise, providerSignal)
+            const attemptController = new AbortController()
+            const forwardAbort = () => {
+              if (!attemptController.signal.aborted) {
+                attemptController.abort(
+                  signal?.reason
+                  ?? controller.signal.reason
+                  ?? createAbortError('main-gateway-timeout'),
+                )
+              }
+            }
+            const attemptTimeout = setTimeout(() => {
+              if (!attemptController.signal.aborted) {
+                attemptController.abort(createAbortError('main-gateway-attempt-timeout'))
+              }
+            }, timeoutMs)
+
+            if (signal?.aborted || controller.signal.aborted) {
+              forwardAbort()
+            }
+            else {
+              signal?.addEventListener('abort', forwardAbort, { once: true })
+              controller.signal.addEventListener('abort', forwardAbort, { once: true })
+            }
+
+            try {
+              const providerSignal = attemptController.signal
+              const providerPromise = generateText({
+                ...config.provider.chat(config.model),
+                maxSteps: 1,
+                messages: generationMessages,
+                responseFormat: generateOptions.responseFormat,
+                headers: config.headers,
+                abortSignal: providerSignal,
+              })
+              // Some OpenAI-compatible SDKs resolve their outer promise after
+              // the transport has ignored AbortSignal. The run must still leave
+              // the coordinator immediately and must not accept a late result.
+              return await awaitAlicizationPromiseWithAbort(providerPromise, providerSignal)
+            }
+            finally {
+              clearTimeout(attemptTimeout)
+              signal?.removeEventListener('abort', forwardAbort)
+              controller.signal.removeEventListener('abort', forwardAbort)
+            }
           },
           onRetryScheduled: async (retry) => {
             await options.appendRuntimeDebugLine('main-gateway.provider-retry-scheduled', {
@@ -1006,7 +1050,6 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
               status: retry.status,
             })
           },
-          ...generateOptions.providerRetryPolicy,
         })
         if (controller.signal.aborted)
           throw controller.signal.reason ?? createAbortError('main-gateway-aborted')
@@ -1158,7 +1201,8 @@ export function createAlicizationMainGatewayOneShotRuntime(options: CreateAliciz
       return null
     }
     finally {
-      clearTimeout(timeout)
+      if (timeout)
+        clearTimeout(timeout)
       generateOptions.abortSignal?.removeEventListener('abort', forwardExternalAbort)
       workLease.release({
         status: workOutcome,

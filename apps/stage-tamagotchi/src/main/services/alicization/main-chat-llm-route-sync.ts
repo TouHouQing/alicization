@@ -14,6 +14,10 @@ interface SyncAlicizationMainChatLlmRouteOptions {
   resumePendingEmbeddingReindexJobs?: () => Promise<unknown> | unknown
 }
 
+export function isAlicizationPersonaRuntimeProviderId(providerId: string) {
+  return providerId === 'llama.cpp-persona' || providerId === 'mlx-persona'
+}
+
 export async function syncAlicizationMainChatLlmRoute(
   input: SyncAlicizationMainChatLlmRouteOptions,
 ): Promise<{
@@ -21,7 +25,7 @@ export async function syncAlicizationMainChatLlmRoute(
   activeModelId: string
   persistedConfigKeys: string[]
 }> {
-  const personaOverlay = input.mainGateway.providerId === 'llama.cpp-persona'
+  const personaOverlay = isAlicizationPersonaRuntimeProviderId(input.mainGateway.providerId)
   if (!personaOverlay) {
     input.setActiveProviderId(input.mainGateway.providerId)
     input.setActiveModelId(input.mainGateway.model)

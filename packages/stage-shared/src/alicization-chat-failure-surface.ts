@@ -76,12 +76,40 @@ export interface AlicizationProviderRequestFailureContext extends AlicizationPro
   model: string
 }
 
+export type AlicizationChatTimeoutPhase
+  = | 'first-event-timeout'
+    | 'liveness-timeout'
+    | 'idle-timeout'
+
+export type AlicizationChatTimeoutStage
+  = | 'provider'
+    | 'tool-execution'
+    | 'provider-continuation'
+
+export interface AlicizationChatTimeoutDescriptor {
+  origin: 'renderer-watchdog' | 'main-watchdog'
+  timeoutPhase: AlicizationChatTimeoutPhase
+  timeoutStage: AlicizationChatTimeoutStage
+  timeoutMs: number
+  elapsedMs: number
+  lastEventType: string | null
+  sawAnyEvent: boolean
+  sawProgress: boolean
+}
+
 export interface AlicizationChatTimeoutFailureContext {
   providerId: string
   model: string
   phase: 'preparation' | 'provider-first-event' | 'provider-continuation' | 'tool-result-handoff'
+  timeoutPhase?: AlicizationChatTimeoutPhase
+  timeoutStage?: AlicizationChatTimeoutStage
+  timeoutReason?: string
   timeoutMs?: number
+  elapsedMs?: number
   lastEventType?: string | null
+  sawAnyEvent?: boolean
+  sawProgress?: boolean
+  descriptor?: AlicizationChatTimeoutDescriptor
 }
 
 export interface AlicizationToolExecutionFailureContext {
@@ -135,12 +163,18 @@ export function isAlicizationToolExecutionFailureResult(result: unknown) {
     return false
 
   const status = String(payload.status ?? '').trim().toLowerCase()
+  const finalStatus = String(payload.finalStatus ?? '').trim().toLowerCase()
+  const isTimeoutTerminal = status === 'timeout' || finalStatus === 'timeout'
   return payload.failureKind === 'tool-execution'
     || (
       explicitlyStopsContinuation
-      && (status === 'failed' || String(payload.finalStatus ?? '').trim().toLowerCase() === 'failed')
+      && (status === 'failed' || finalStatus === 'failed')
     )
     || (status === 'failed' && isExplicitToolExecutionFailureCode(errorCode))
+    || (
+      isTimeoutTerminal
+      && (Boolean(payload.toolName ?? payload.tool) || isExplicitToolExecutionFailureCode(errorCode))
+    )
 }
 
 function readErrorMessage(error: unknown) {

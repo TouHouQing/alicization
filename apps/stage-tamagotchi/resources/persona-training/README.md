@@ -91,6 +91,11 @@ Before emitting `{"type":"artifact"}`, write the requested artifact manifest:
 }
 ```
 
+The packaged MLX-LM wrapper emits `format: "mlx-safetensors"`,
+`loaderTarget: "mlx-runtime"`, `dialogueReady: true`, and
+`conversion.status: "not-required"`. It can therefore be activated by the local
+MLX dialogue runtime after the artifact and adapter metadata pass validation.
+
 `path` must be relative to `--output-dir`. Absolute paths, traversal, symlinks,
 missing files, cross-root paths, and hash mismatches are rejected. Alicization
 recomputes SHA-256 and atomically moves the verified output into the active card's
@@ -108,11 +113,39 @@ receipt. Alicization deliberately replays even a previously recorded `loaded`
 intent after process restart, because a receipt from the previous process is not
 proof that the adapter is active in the current runtime.
 
-The default desktop runtime currently has no Provider-specific adapter loader, so a
-successful training run is reported as `unsupported`: the artifact is retained and
-auditable, but it is not described as affecting dialogue. A future Provider adapter
-can implement the optional loader contract without changing the dataset or training
-protocol.
+The desktop runtime provides two local dialogue loaders:
+
+- `llama.cpp`: accepts a compatible `.gguf` adapter and starts `llama-server`.
+- `mlx-runtime`: accepts an `mlx-safetensors` adapter directory containing
+  `adapters.safetensors` and `adapter_config.json`, then starts `mlx_lm.server`
+  with `--adapter-path <adapter-directory>`.
+
+Both loaders perform a real health probe and a non-streaming chat completion probe
+before returning an activation receipt. A successful training run without a
+compatible configured loader is still reported as `unsupported`; the artifact is
+retained and auditable, but it is not described as affecting dialogue.
+
+## Local MLX dialogue runtime
+
+On Apple Silicon, install `mlx-lm` in the Python environment that owns the MLX
+model and server:
+
+```shell
+python3 -m pip install "mlx-lm"
+```
+
+In Memory Workbench, choose `MLX Runtime（Apple Silicon）`, then configure:
+
+- `mlx_lm.server` as the absolute executable path, for example
+  `/tmp/alicization-mlx-venv-20260822/bin/mlx_lm.server`
+- the local MLX base model directory
+- a free local port
+
+The connection test launches a temporary server, checks `/v1/models`, performs a
+real `/v1/chat/completions` probe, and terminates the process. Loading a governed
+MLX artifact launches the server with the artifact directory as
+`--adapter-path`; changing adapters or runtime configuration restarts the local
+server and updates the route only after the new probe succeeds.
 
 ## MLX-LM wrapper
 
@@ -124,7 +157,8 @@ python3 -m pip install "mlx-lm[train]"
 
 Use the packaged `mlx-lm-trainer.py` as the executable and configure the base model
 as a local MLX-compatible model path. The wrapper converts only the already-approved
-dataset rows into MLX `text` examples, runs `python -m mlx_lm.lora`, and writes the
+dataset rows into MLX `text` examples, maps `--lora-layers` to MLX-LM's native
+`--num-layers` option, runs `python -m mlx_lm lora`, and writes the
 verified `adapter/adapters.safetensors` artifact. It never receives Provider API keys.
 The Workbench connection test reports a concrete missing-package or model error.
 

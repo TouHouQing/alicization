@@ -23,7 +23,7 @@ function createState(): ChatRunState {
 }
 
 describe('runtime chat stream dispatch', () => {
-  it('allows only one error and suppresses all non-terminal events after it', () => {
+  it('allows one error, suppresses non-terminal events, and preserves a late terminal tool result', () => {
     const emitted: Array<{ event: unknown, body: unknown }> = []
     const runtime = createAlicizationChatStreamRuntime({
       normalizeTransportMessageContent: value => value,
@@ -66,10 +66,99 @@ describe('runtime chat stream dispatch', () => {
       turnId: state.turnId,
       text: 'late',
     })
+    runtime.emitChatStreamEventForState(state, 'tool-result', {
+      cardId: state.cardId,
+      turnId: state.turnId,
+      toolCallId: 'late-call',
+      toolName: 'executor_run_codex',
+      result: {
+        status: 'failed',
+        finalStatus: 'timeout',
+        failureKind: 'tool-execution',
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'Codex produced no semantic progress for 180000ms.',
+      },
+    } satisfies AlicizationChatToolResultInput)
 
     expect(emitted).toEqual([
       { event: 'error', body: errorBody },
+      expect.objectContaining({
+        event: 'tool-result',
+        body: expect.objectContaining({
+          toolCallId: 'late-call',
+          projection: expect.objectContaining({
+            accepted: true,
+            card: expect.objectContaining({
+              phase: 'timeout',
+              terminal: true,
+            }),
+          }),
+        }),
+      }),
     ])
+  })
+
+  it('keeps a late terminal tool failure visible after an errored run has finished', () => {
+    const emitted: Array<{ event: unknown, body: unknown }> = []
+    const runtime = createAlicizationChatStreamRuntime({
+      normalizeTransportMessageContent: value => value,
+      sanitizeText: value => typeof value === 'string' ? value : '',
+      redactStaleInspectionHistoryMessages: messages => messages,
+      dispatchChannel: 'test',
+      emitContextEvent: (event, body) => {
+        emitted.push({ event, body })
+      },
+      metaEvent: 'meta',
+      chunkEvent: 'chunk',
+      toolCallEvent: 'tool-call',
+      toolProgressEvent: 'tool-progress',
+      toolResultEvent: 'tool-result',
+      finishEvent: 'finish',
+      errorEvent: 'error',
+      queueScopedAuditLog: vi.fn(async () => {}),
+      appendRuntimeDebugLine: vi.fn(async () => {}),
+    })
+    const state = createState()
+
+    runtime.emitChatStreamEventForState(state, 'tool-call', {
+      cardId: state.cardId,
+      turnId: state.turnId,
+      toolCallId: 'codex-late-terminal',
+      toolName: 'codex',
+    } satisfies AlicizationChatToolCallInput)
+    runtime.emitChatStreamEventForState(state, 'error', {
+      cardId: state.cardId,
+      turnId: state.turnId,
+      error: 'Alicization chat stream failed.',
+    })
+    state.state = 'finished'
+    runtime.emitChatStreamEventForState(state, 'tool-result', {
+      cardId: state.cardId,
+      turnId: state.turnId,
+      toolCallId: 'codex-late-terminal',
+      toolName: 'codex',
+      result: {
+        status: 'failed',
+        finalStatus: 'timeout',
+        failureKind: 'tool-execution',
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'Codex produced no semantic progress for 180000ms.',
+      },
+    } satisfies AlicizationChatToolResultInput)
+
+    expect(emitted.at(-1)).toEqual(expect.objectContaining({
+      event: 'tool-result',
+      body: expect.objectContaining({
+        projection: expect.objectContaining({
+          accepted: true,
+          traceOnly: false,
+          card: expect.objectContaining({
+            phase: 'timeout',
+            terminal: true,
+          }),
+        }),
+      }),
+    }))
   })
 
   it('does not throw when a tool fact has no canonical toolCallId', () => {
@@ -334,6 +423,115 @@ describe('runtime chat stream dispatch', () => {
               toolCallId: 'call-2',
               phase: 'completed',
               terminal: true,
+            }),
+          }),
+        }),
+      }),
+    ])
+  })
+
+  it('delivers a late terminal tool result after a nonterminal receipt and provider error', () => {
+    const emitted: Array<{ event: unknown, body: unknown }> = []
+    const runtime = createAlicizationChatStreamRuntime({
+      normalizeTransportMessageContent: value => value,
+      sanitizeText: value => typeof value === 'string' ? value : '',
+      redactStaleInspectionHistoryMessages: messages => messages,
+      dispatchChannel: 'test',
+      emitContextEvent: (event, body) => {
+        emitted.push({ event, body })
+      },
+      metaEvent: 'meta',
+      chunkEvent: 'chunk',
+      toolCallEvent: 'tool-call',
+      toolProgressEvent: 'tool-progress',
+      toolResultEvent: 'tool-result',
+      finishEvent: 'finish',
+      errorEvent: 'error',
+      queueScopedAuditLog: vi.fn(async () => {}),
+      appendRuntimeDebugLine: vi.fn(async () => {}),
+    })
+    const state = createState()
+
+    runtime.emitChatStreamEventForState(state, 'tool-call', {
+      cardId: state.cardId,
+      turnId: state.turnId,
+      toolCallId: 'codex-late-after-queued',
+      toolName: 'codex',
+    } satisfies AlicizationChatToolCallInput)
+    runtime.emitChatStreamEventForState(state, 'tool-result', {
+      cardId: state.cardId,
+      turnId: state.turnId,
+      toolCallId: 'codex-late-after-queued',
+      toolName: 'codex',
+      result: {
+        status: 'queued',
+      },
+    } satisfies AlicizationChatToolResultInput)
+    runtime.emitChatStreamEventForState(state, 'error', {
+      cardId: state.cardId,
+      turnId: state.turnId,
+      error: 'Provider stream closed before the tool completed.',
+    })
+    runtime.emitChatStreamEventForState(state, 'finish', {
+      cardId: state.cardId,
+      turnId: state.turnId,
+      status: 'failed',
+      finishReason: 'provider-finished',
+    })
+    runtime.emitChatStreamEventForState(state, 'tool-result', {
+      cardId: state.cardId,
+      turnId: state.turnId,
+      toolCallId: 'codex-late-after-queued',
+      toolName: 'codex',
+      phase: 'timeout',
+      result: {
+        status: 'failed',
+        finalStatus: 'timeout',
+        failureKind: 'tool-execution',
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'Codex produced no semantic progress for 180000ms.',
+      },
+    } satisfies AlicizationChatToolResultInput)
+
+    expect(emitted).toEqual([
+      expect.objectContaining({
+        event: 'tool-call',
+      }),
+      expect.objectContaining({
+        event: 'tool-result',
+        body: expect.objectContaining({
+          toolCallId: 'codex-late-after-queued',
+          result: {
+            status: 'queued',
+          },
+          projection: expect.objectContaining({
+            card: expect.objectContaining({
+              terminal: false,
+            }),
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        event: 'error',
+      }),
+      expect.objectContaining({
+        event: 'finish',
+      }),
+      expect.objectContaining({
+        event: 'tool-result',
+        body: expect.objectContaining({
+          toolCallId: 'codex-late-after-queued',
+          phase: 'timeout',
+          projection: expect.objectContaining({
+            accepted: true,
+            traceOnly: false,
+            card: expect.objectContaining({
+              phase: 'timeout',
+              terminal: true,
+              result: expect.objectContaining({
+                errorCode: 'CODEX_TIMEOUT',
+                errorMessage: 'Codex produced no semantic progress for 180000ms.',
+              }),
             }),
           }),
         }),

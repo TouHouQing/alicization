@@ -759,7 +759,7 @@ describe('main chat background run', () => {
     expect(events.map(event => event.eventType)).not.toContain('memory.write.accepted')
   })
 
-  it('rejects memory writeback without committing it when a tool fails', async () => {
+  it('commits memory writeback when a tool failure still leads to a completed Provider reply', async () => {
     const events: any[] = []
     const persistence = {
       appendRuntimeEvent: vi.fn(async (_scope, event) => {
@@ -772,7 +772,20 @@ describe('main chat background run', () => {
       }),
       saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
     }
-    const commitMemoryWriteIntent = vi.fn(async () => {})
+    const settledSnapshot = {
+      version: 'working-memory-v1',
+      updatedAt: 100,
+      compressedTimeline: [],
+      compression: {
+        level: 'none',
+        sourceTurnIds: [],
+        lastCompressedAt: null,
+      },
+    }
+    const commitMemoryWriteIntent = vi.fn(async () => ({
+      workingMemorySnapshot: settledSnapshot,
+      memoryWriteItems: [createMemoryWriteItem()],
+    }))
     const prepared = createPrepared({
       commitMemoryWriteIntent,
       memoryWriteItems: [createMemoryWriteItem()],
@@ -799,27 +812,36 @@ describe('main chat background run', () => {
         userId: 'local-user-stable',
       },
     })
-    vi.mocked(runAlicizationMainChatProviderStep).mockResolvedValueOnce({
-      kind: 'action',
-      action: {
-        actionId: 'turn-1:action:tool-failure',
-        input: {
-          agent: 'codex',
-          prompt: 'inspect the repository',
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockResolvedValueOnce({
+        kind: 'action',
+        action: {
+          actionId: 'turn-1:action:tool-failure',
+          input: {
+            agent: 'codex',
+            prompt: 'inspect the repository',
+          },
+          providerToolName: 'coding_agent',
+          capabilityId: 'coding_agent.codex',
+          toolCallId: 'tool-failure-call',
         },
-        providerToolName: 'coding_agent',
-        capabilityId: 'coding_agent.codex',
-        toolCallId: 'tool-failure-call',
-      },
-    } as any)
+      } as any)
+      .mockResolvedValueOnce({
+        kind: 'reply',
+        finishReason: 'stop',
+        fullText: '工具失败后仍完成回复。',
+        text: '工具失败后仍完成回复。',
+      } as any)
 
     await runAlicizationMainChatBackground(input)
 
-    expect(commitMemoryWriteIntent).not.toHaveBeenCalled()
-    expect(events.map(event => event.eventType)).toContain('tool.failed')
-    expect(events.map(event => event.eventType)).toContain('memory.write.rejected')
-    expect(events.map(event => event.eventType)).not.toContain('memory.write.proposed')
-    expect(events.map(event => event.eventType)).not.toContain('memory.write.accepted')
+    expect(commitMemoryWriteIntent).toHaveBeenCalledOnce()
+    expect(commitMemoryWriteIntent).toHaveBeenCalledWith({
+      assistantText: '工具失败后仍完成回复。',
+    })
+    expect(events.map(event => event.eventType)).toContain('action.failed')
+    expect(events.map(event => event.eventType)).toContain('memory.write.accepted')
+    expect(events.map(event => event.eventType)).not.toContain('memory.write.rejected')
   })
 
   it('rejects memory writeback without committing it when the turn is cancelled', async () => {
@@ -1749,6 +1771,83 @@ describe('main chat background run', () => {
     )
   })
 
+  it('returns a thrown tool failure to the Provider as a structured tool observation', async () => {
+    const persistence = createInMemoryPersistence()
+    const providerMessages: Message[][] = []
+    const prepared = createPrepared({
+      toolRegistry: createCanonicalToolRegistry(),
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'coding_agent',
+          description: 'Run a coding agent.',
+          parameters: {
+            type: 'object',
+            properties: {},
+          },
+        },
+        execute: vi.fn(async () => {
+          throw Object.assign(new Error('Codex produced no semantic progress'), {
+            name: 'AlicizationToolExecutionError',
+            failureKind: 'tool-execution',
+            toolName: 'codex',
+            errorCode: 'CODEX_TIMEOUT',
+          })
+        }),
+      }],
+    })
+    const input = createInput('检查当前项目', {
+      prepareTurn: vi.fn(async () => prepared),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    })
+    vi.mocked(runAlicizationMainChatProviderStep)
+      .mockImplementation(async (options: any) => {
+        providerMessages.push(options.messages)
+        if (providerMessages.length === 1) {
+          return {
+            kind: 'action',
+            action: {
+              actionId: 'turn-1:action:tool-failure-continuation',
+              input: { agent: 'codex', prompt: 'inspect the repository' },
+              providerToolName: 'coding_agent',
+              capabilityId: 'coding_agent.codex',
+              toolCallId: 'tool-failure-continuation',
+            },
+          } as any
+        }
+        return {
+          kind: 'reply',
+          finishReason: 'stop',
+          fullText: buildProviderReply('我知道 Codex 超时了。'),
+          text: buildProviderReply('我知道 Codex 超时了。'),
+        } as any
+      })
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(providerMessages).toHaveLength(2)
+    const toolMessage = providerMessages[1]?.find(message => message.role === 'tool')
+    expect(toolMessage).toMatchObject({
+      role: 'tool',
+      tool_call_id: 'tool-failure-continuation',
+    })
+    expect(JSON.parse(String(toolMessage?.content))).toMatchObject({
+      status: 'timeout',
+      errorCode: 'CODEX_TIMEOUT',
+      continuationPolicy: 'continue',
+    })
+    expect(input.runStateController.finishRun).toHaveBeenCalledWith(
+      input.key,
+      expect.objectContaining({
+        status: 'completed',
+      }),
+    )
+  })
+
   it('keeps the Provider action loop alive when tool-call delivery fails', async () => {
     const persistence = createInMemoryPersistence()
     const execute = vi.fn(async () => ({
@@ -2277,6 +2376,46 @@ describe('main chat background run', () => {
 
     resolvePreparation(createPrepared())
     await Promise.resolve()
+    expect(runAlicizationMainChatProviderStep).not.toHaveBeenCalled()
+  })
+
+  it('persists an internal preparation deadline as timed-out without aborting the user cancellation controller', async () => {
+    const events: any[] = []
+    const persistence = {
+      appendRuntimeEvent: vi.fn(async (_scope, event) => {
+        const persisted = {
+          ...event,
+          sequence: events.length + 1,
+        }
+        events.push(persisted)
+        return persisted
+      }),
+      saveRuntimeCheckpoint: vi.fn(async checkpoint => checkpoint),
+    }
+    const input = createInput('请继续。', {
+      preparationTimeoutMs: 5,
+      prepareTurn: vi.fn(() => new Promise(() => {})),
+      turnLoop: {
+        conversationId: 'conversation-1',
+        persistence,
+        userId: 'local-user-stable',
+      },
+    } as any)
+
+    await runAlicizationMainChatBackground(input)
+
+    expect(input.runState.controller.signal.aborted).toBe(false)
+    expect(events.map(event => event.eventType)).toContain('runtime.timed_out')
+    expect(events.map(event => event.eventType)).not.toContain('runtime.cancelled')
+    expect(events.map(event => event.eventType)).not.toContain('memory.write.proposed')
+    expect(events.map(event => event.eventType)).not.toContain('memory.write.accepted')
+    expect(handleAlicizationMainChatRunFailure).toHaveBeenCalledWith(expect.objectContaining({
+      error: expect.objectContaining({
+        errorCode: 'ALICIZATION_RUNTIME_TIMEOUT',
+        timeoutOrigin: 'runtime-watchdog',
+        timeoutReason: 'chat-preparation-timeout',
+      }),
+    }))
     expect(runAlicizationMainChatProviderStep).not.toHaveBeenCalled()
   })
 

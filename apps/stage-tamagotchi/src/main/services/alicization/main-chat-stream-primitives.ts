@@ -1,3 +1,5 @@
+import { createAlicizationRuntimeAbortError } from './turn-os/runtime-errors'
+
 export function sanitizeText(raw: unknown, fallback = '') {
   if (typeof raw !== 'string')
     return fallback
@@ -78,7 +80,7 @@ export function readRawTextDelta(raw: unknown) {
 }
 
 export function createAbortError(reason?: string) {
-  return new DOMException(`Alicization runtime aborted: ${reason ?? 'unknown'}`, 'AbortError')
+  return createAlicizationRuntimeAbortError(reason)
 }
 
 export function awaitAlicizationPromiseWithAbort<T>(

@@ -29,6 +29,7 @@ import type {
 } from './main-gateway-contract'
 import type { AlicizationMemoryConsolidationRecord } from './memory-consolidation'
 import type { AlicizationProactiveLayeredContext } from './proactive-layered-context'
+import type { AlicizationProviderRetryOverrides } from './provider-retry-policy'
 import type { AlicizationMainGatewayResponseFormat } from './runtime-main-gateway-one-shot'
 import type { OrganicMemoryPromptContext } from './runtime-soul'
 import type { buildVisualHeartbeat } from './visual-heartbeat'
@@ -164,6 +165,7 @@ interface CreateAlicizationMindStateRuntimeOptions {
       }
       digitalLifeRuntimeSurface?: AlicizationDigitalLifeRuntimeSurface | null
       responseFormat?: AlicizationMainGatewayResponseFormat
+      providerRetryPolicy?: AlicizationProviderRetryOverrides
     }
   >
   buildMainGatewayAgentTurnId: (...segments: Array<unknown>) => string
@@ -731,6 +733,11 @@ export function createAlicizationMindStateRuntime(options: CreateAlicizationMind
       },
       injectCustomDirectives: false,
       injectPerformanceManifest: false,
+      // Dialogue semantics is auxiliary cognition. It must never consume the
+      // foreground turn's full retry budget or delay the actual reply.
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
       digitalLifeRuntimeSurface: input.digitalLifeRuntimeSurface,
     })
 

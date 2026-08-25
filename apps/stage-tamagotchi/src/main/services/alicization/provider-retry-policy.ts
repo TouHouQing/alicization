@@ -3,10 +3,13 @@ import {
   isAlicizationToolExecutionFailureResult,
 } from '@proj-alicization/stage-shared'
 
+import { resolveAlicizationRuntimeTimeoutReason } from './turn-os/runtime-errors'
+
 export const alicizationProviderRetryDefaults = {
   baseDelayMs: 500,
   maxDelayMs: 10_000,
   maxRetries: 5,
+  maxTotalRetryWindowMs: 120_000,
 } as const
 
 const retryableStatuses = new Set([408, 409, 429, 500, 502, 503, 504])
@@ -64,6 +67,7 @@ export interface AlicizationProviderRetryOptions {
   deadlineAt?: number | null
   maxDelayMs?: number
   maxRetries?: number
+  maxTotalRetryWindowMs?: number
   now?: () => number
   operation: AlicizationProviderRetryOperation
   random?: () => number
@@ -83,7 +87,7 @@ export interface AlicizationProviderRetryOptions {
 
 export type AlicizationProviderRetryOverrides = Pick<
   AlicizationProviderRetryOptions,
-  'baseDelayMs' | 'deadlineAt' | 'maxDelayMs' | 'maxRetries' | 'now' | 'random' | 'sleep'
+  'baseDelayMs' | 'deadlineAt' | 'maxDelayMs' | 'maxRetries' | 'maxTotalRetryWindowMs' | 'now' | 'random' | 'sleep'
 >
 
 export interface RunAlicizationProviderRetryOptions extends AlicizationProviderRetryOptions {
@@ -133,7 +137,7 @@ function readErrorStatus(error: unknown) {
 }
 
 function isProviderTimeoutMessage(message: string) {
-  return /\b(?:request|connect|headers?|socket|stream|idle|first[-\s]?event|continuation)[-\s]*(?:timeout|timed\s*out)\b|(?:timeout|timed\s*out)\s*(?:waiting|while|during|reading|connecting|requesting)/iu.test(message)
+  return /\b(?:request|connect|headers?|socket|stream|idle|liveness|first[-\s]?event|continuation)[-\s]*(?:timeout|timed\s*out)\b|(?:timeout|timed\s*out)\s*(?:waiting|while|during|reading|connecting|requesting)/iu.test(message)
 }
 
 function isAbortError(error: unknown, signal?: AbortSignal) {
@@ -145,13 +149,20 @@ function isAbortError(error: unknown, signal?: AbortSignal) {
   const record = error as Record<string, unknown>
   const name = String(record.name ?? '').trim().toLowerCase()
   const code = String(record.code ?? '').trim().toUpperCase()
-  if (name === 'aborterror' || code === 'ABORT_ERR')
+  if (name === 'aborterror' || code === 'ABORT_ERR') {
     return !isProviderTimeoutMessage(readErrorMessage(error))
+      && !resolveAlicizationRuntimeTimeoutReason(error)
+      && !isRetryableLocalAlicizationTimeout(readErrorMessage(error))
+  }
   return false
 }
 
 function isLocalAlicizationTimeout(message: string) {
-  return /\b(?:chat|main-gateway)-(?:first-event|provider-continuation|tool-result-handoff|preparation|timeout|aborted)\b/iu.test(message)
+  return /\b(?:chat|main-gateway)-(?:first-event|provider-liveness|provider-idle|provider-continuation|tool-result-handoff|preparation|retry-deadline|attempt-timeout|timeout|aborted)\b/iu.test(message)
+}
+
+function isRetryableLocalAlicizationTimeout(message: string) {
+  return /\b(?:chat-first-event-timeout|chat-provider-liveness-timeout|chat-provider-idle-timeout|chat-provider-continuation-timeout|chat-tool-result-handoff-timeout|chat-preparation-timeout|chat-provider-retry-deadline|main-gateway-(?:attempt-timeout|timeout-recovery|visual-one-shot-timeout|timeout))\b/iu.test(message)
 }
 
 function isToolExecutionFailure(error: unknown) {
@@ -170,6 +181,8 @@ function isNonRetryableProviderMessage(message: string, code: string) {
 
 function isRetryableTransportError(message: string, code: string) {
   if (retryableErrorCodes.has(code))
+    return true
+  if (isRetryableLocalAlicizationTimeout(message))
     return true
   if (isLocalAlicizationTimeout(message))
     return false
@@ -383,6 +396,67 @@ export function resolveAlicizationProviderRetryDecision(
     status,
     terminalReason: null,
   }
+}
+
+export function resolveAlicizationProviderRetryDeadlineAt(input: {
+  baseDelayMs?: number
+  maxDelayMs?: number
+  maxRetries?: number
+  maxTotalRetryWindowMs?: number
+  now?: () => number
+  timeoutMs: number
+}) {
+  const maxRetries = normalizeNonNegativeFiniteInteger(
+    input.maxRetries,
+    alicizationProviderRetryDefaults.maxRetries,
+  )
+  const timeoutMs = Math.max(1_000, Math.floor(input.timeoutMs))
+  const baseDelayMs = normalizeDelay(
+    input.baseDelayMs,
+    alicizationProviderRetryDefaults.baseDelayMs,
+  )
+  const maxDelayMs = Math.max(
+    baseDelayMs,
+    normalizeDelay(input.maxDelayMs, alicizationProviderRetryDefaults.maxDelayMs),
+  )
+  let retryDelayBudgetMs = 0
+  for (let retryIndex = 0; retryIndex < maxRetries; retryIndex += 1) {
+    retryDelayBudgetMs += Math.min(
+      maxDelayMs,
+      baseDelayMs * (2 ** retryIndex),
+    )
+  }
+
+  const uncappedWindowMs = (timeoutMs * (maxRetries + 1)) + retryDelayBudgetMs
+  const maxTotalRetryWindowMs = Math.max(
+    timeoutMs,
+    normalizeDelay(
+      input.maxTotalRetryWindowMs,
+      alicizationProviderRetryDefaults.maxTotalRetryWindowMs,
+    ),
+  )
+
+  return (input.now?.() ?? Date.now())
+    + Math.min(uncappedWindowMs, maxTotalRetryWindowMs)
+}
+
+export function resolveAlicizationProviderRetryDeadline(
+  input: {
+    deadlineAt?: number | null
+    baseDelayMs?: number
+    maxDelayMs?: number
+    maxRetries?: number
+    maxTotalRetryWindowMs?: number
+    now?: () => number
+    timeoutMs: number
+  },
+) {
+  if (input.deadlineAt === null)
+    return null
+  if (input.deadlineAt !== undefined)
+    return input.deadlineAt
+
+  return resolveAlicizationProviderRetryDeadlineAt(input)
 }
 
 function sleepWithAlicizationAbort(delayMs: number, signal?: AbortSignal) {

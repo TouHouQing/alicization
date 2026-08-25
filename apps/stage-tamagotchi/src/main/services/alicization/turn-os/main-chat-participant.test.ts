@@ -457,6 +457,9 @@ describe('main chat EventLoop participant', () => {
       isRunActive: () => true,
       nonProgressEventTypes: new Set(),
       emitToolCall: vi.fn(),
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
       streamTextImpl: vi.fn(async ({ onEvent }: any) => {
         await onEvent?.({
           type: 'response-metadata',
@@ -535,6 +538,9 @@ describe('main chat EventLoop participant', () => {
         isRunActive: () => true,
         nonProgressEventTypes: new Set(),
         emitToolCall: vi.fn(),
+        providerRetryPolicy: {
+          maxRetries: 0,
+        },
         streamTextImpl: vi.fn(() => new Promise(() => {})),
       }).catch((error) => {
         observed = error

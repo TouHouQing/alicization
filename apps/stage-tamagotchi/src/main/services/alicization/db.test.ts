@@ -1947,13 +1947,11 @@ class FakeSqliteDatabase {
   }
 }
 
-vi.mock('sqlite3', () => {
-  return {
-    default: {
-      Database: FakeSqliteDatabase,
-    },
-  }
-})
+vi.mock('./sqlite3-runtime', () => ({
+  default: {
+    Database: FakeSqliteDatabase,
+  },
+}))
 
 const actualSqliteModule = await vi.importActual<any>('sqlite3')
 const actualSqliteDriver = actualSqliteModule.default ?? actualSqliteModule
@@ -5778,6 +5776,82 @@ describe('alicization sqlite dao', () => {
     }))
     expect(events.map(item => item.kind)).toEqual(['dispatch', 'result'])
     expect(events[1]?.threadStatus).toBe('completed')
+    await db.close()
+  })
+
+  it('paginates task threads with a stable activity/id keyset and atomically compares callback cursors', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
+      sqliteDriver: actualSqliteDriver,
+    })
+    const threads = [
+      ['thread-b', 500, 500, 500],
+      ['thread-a', 500, 500, 500],
+      ['thread-d', 700, 600, 700],
+      ['thread-c', 700, 700, 700],
+    ] as const
+    for (const [id, updatedAt, lastEventAt, completedAt] of threads) {
+      await db.upsertTaskThread({
+        id,
+        sessionId: 'callback-session',
+        origin: 'user-turn',
+        goal: `Complete ${id}`,
+        kind: 'run-command',
+        status: 'completed',
+        selectedChannel: 'cli',
+        proposedChannel: 'cli',
+        createdAt: 100,
+        updatedAt,
+        lastEventAt,
+        completedAt,
+      })
+    }
+
+    const firstPage = await db.listTaskThreads({
+      sessionId: 'callback-session',
+      status: 'completed',
+      order: 'asc',
+      limit: 2,
+    })
+    const secondPage = await db.listTaskThreads({
+      sessionId: 'callback-session',
+      status: 'completed',
+      order: 'asc',
+      cursor: encodeURIComponent(JSON.stringify({
+        activityAt: 500,
+        threadId: 'thread-b',
+      })),
+      limit: 2,
+    })
+    const sameMillisecondBoundaryPage = await db.listTaskThreads({
+      sessionId: 'callback-session',
+      status: 'completed',
+      order: 'asc',
+      cursor: encodeURIComponent(JSON.stringify({
+        activityAt: 700,
+        threadId: null,
+      })),
+      limit: 2,
+    })
+
+    expect(firstPage.map(thread => thread.id)).toEqual(['thread-a', 'thread-b'])
+    expect(secondPage.map(thread => thread.id)).toEqual(['thread-c', 'thread-d'])
+    expect(sameMillisecondBoundaryPage.map(thread => thread.id)).toEqual(['thread-c', 'thread-d'])
+
+    expect(await db.compareAndSetMetaValue(
+      'callback-cursor-test',
+      undefined,
+      JSON.stringify({ activityAt: 500, threadId: 'thread-a' }),
+    )).toBe(true)
+    expect(await db.compareAndSetMetaValue(
+      'callback-cursor-test',
+      undefined,
+      JSON.stringify({ activityAt: 500, threadId: 'thread-b' }),
+    )).toBe(false)
+    expect(await db.compareAndSetMetaValue(
+      'callback-cursor-test',
+      JSON.stringify({ activityAt: 500, threadId: 'thread-a' }),
+      JSON.stringify({ activityAt: 500, threadId: 'thread-b' }),
+    )).toBe(true)
     await db.close()
   })
 

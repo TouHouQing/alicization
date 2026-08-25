@@ -30,6 +30,7 @@ import {
   createAlicizationRuntimeReplyDeliveryIntent,
   parseAlicizationRuntimeReplyArtifact,
 } from './reply-artifact'
+import { resolveAlicizationRuntimeTimeoutReason } from './runtime-errors'
 import {
   createAlicizationTurnRuntimeState,
   listAlicizationActiveActionIds,
@@ -150,6 +151,15 @@ export interface AlicizationEventLoopPersistence {
   ) => Promise<AlicizationRuntimeCheckpoint>
 }
 
+export interface AlicizationEventLoopLateEvent {
+  eventType: 'action.progress' | AlicizationMemoryRuntimeEventType
+  source: 'tool' | 'memory'
+  scope: AlicizationRuntimeEventScope
+  payload: unknown
+  idempotencyKey: string | null
+  terminalEventType: AlicizationRuntimeEventType | null
+}
+
 export interface AlicizationEventLoopResult {
   status: 'completed' | 'failed' | 'cancelled' | 'timed-out'
   state: AlicizationTurnRuntimeState
@@ -181,13 +191,113 @@ interface LiveTurn {
   cancellationDurability: Promise<{ error: unknown | null }>
   resolveCancellationDurability: (result: { error: unknown | null }) => void
   cancellationDurabilitySettled: boolean
+  participantSettlementActive: boolean
 }
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error ?? 'unknown error')
 }
 
+function errorCode(error: unknown) {
+  if (!error || typeof error !== 'object')
+    return ''
+  const record = error as Record<string, unknown>
+  return String(record.errorCode ?? record.code ?? '').trim().toUpperCase()
+}
+
+function isToolCancellation(error: unknown) {
+  if (!error || typeof error !== 'object')
+    return false
+  const record = error as Record<string, unknown>
+  return String(record.status ?? '').trim().toLowerCase() === 'cancelled'
+    || String(record.finalStatus ?? '').trim().toLowerCase() === 'cancelled'
+    || String(record.reasonCode ?? '').trim().toUpperCase() === 'EXPLICIT_CANCELLATION'
+    || errorCode(error) === 'TOOL_EXECUTION_CANCELLED'
+}
+
+function isToolTimeout(error: unknown) {
+  if (!error || typeof error !== 'object')
+    return false
+  const record = error as Record<string, unknown>
+  return String(record.status ?? '').trim().toLowerCase() === 'timeout'
+    || String(record.finalStatus ?? '').trim().toLowerCase() === 'timeout'
+    || /(?:^|_)TIMEOUT$/u.test(errorCode(error))
+}
+
+function toolFailureOutput(
+  action: AlicizationModelAction,
+  error: unknown,
+) {
+  const record = error && typeof error === 'object'
+    ? error as Record<string, unknown>
+    : null
+  const cancelled = isToolCancellation(error)
+  const timedOut = isToolTimeout(error)
+  const finalStatus = String(record?.finalStatus ?? '').trim().toLowerCase()
+  const status = finalStatus === 'dead-lettered'
+    ? 'dead-lettered'
+    : timedOut
+      ? 'timeout'
+      : cancelled
+        ? 'cancelled'
+        : 'failed'
+  const message = errorMessage(error)
+  return {
+    status,
+    stage: 'tool',
+    failureKind: 'tool-execution',
+    toolName: String(record?.toolName ?? action.providerToolName),
+    errorCode: errorCode(error) || 'TOOL_EXECUTION_FAILED',
+    errorMessage: message,
+    summary: `${action.providerToolName} failed: ${message}`,
+    continuationPolicy: 'model',
+    output: null,
+    ...(finalStatus === 'dead-lettered' ? { finalStatus } : {}),
+  }
+}
+
+function normalizeTerminalToolObservation(
+  observation: AlicizationModelObservation,
+): AlicizationModelObservation {
+  if (
+    !observation.terminal
+    || !observation.output
+    || typeof observation.output !== 'object'
+    || Array.isArray(observation.output)
+  ) {
+    return observation
+  }
+
+  const status = isToolTimeout(observation.output)
+    ? 'timeout'
+    : isToolCancellation(observation.output)
+      ? 'cancelled'
+      : null
+  if (!status)
+    return observation
+
+  return {
+    ...observation,
+    outcome: status === 'cancelled' ? 'cancelled' : 'failure',
+    output: {
+      ...observation.output,
+      status,
+    },
+  }
+}
+
 function abortError(reason?: unknown) {
+  if (
+    reason
+    && typeof reason === 'object'
+    && (
+      String((reason as Record<string, unknown>).name ?? '').trim().toLowerCase() === 'aborterror'
+      || resolveAlicizationRuntimeTimeoutReason(reason)
+    )
+  ) {
+    return reason as Error
+  }
+
   const error = new Error(
     typeof reason === 'string' && reason.trim()
       ? reason.trim()
@@ -333,9 +443,19 @@ function isRepeatedIdempotentPersistenceResult(
 
 function actionTerminalEventType(
   outcome: AlicizationActionObservationLink['outcome'],
+  output?: unknown,
 ): AlicizationRuntimeEventType {
   if (outcome === 'success')
     return 'action.completed'
+  if (
+    outcome === 'failure'
+    && output
+    && typeof output === 'object'
+    && !Array.isArray(output)
+    && String((output as Record<string, unknown>).status ?? '').trim().toLowerCase() === 'dead-lettered'
+  ) {
+    return 'action.dead_lettered'
+  }
   if (outcome === 'failure')
     return 'action.failed'
   if (outcome === 'cancelled')
@@ -369,6 +489,14 @@ function takeDeferredCancellation(liveTurn: LiveTurn) {
   return deferredCancellation
 }
 
+function resolveTerminalCancellationStatus(
+  reason: unknown,
+): Extract<AlicizationEventLoopResult['status'], 'cancelled' | 'timed-out'> {
+  return resolveAlicizationRuntimeTimeoutReason(reason)
+    ? 'timed-out'
+    : 'cancelled'
+}
+
 function settleCancellationDurability(
   liveTurn: LiveTurn,
   error: unknown | null,
@@ -389,6 +517,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
     event: AlicizationRuntimeEventEnvelope
     error: unknown
   }) => Promise<void> | void
+  onLateEvent?: (input: AlicizationEventLoopLateEvent) => Promise<void> | void
   now?: () => number
   createEventId?: () => string
   maxSteps?: number
@@ -427,10 +556,30 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       cancellationDurability,
       resolveCancellationDurability,
       cancellationDurabilitySettled: false,
+      participantSettlementActive: false,
     }
     liveTurns.set(input.scope.turnId, liveTurn)
 
     const onExternalAbort = () => {
+      const timeoutReason = resolveAlicizationRuntimeTimeoutReason(input.signal?.reason)
+      if (timeoutReason) {
+        // A user cancellation requested earlier may be waiting for the current
+        // persistence barrier. Do not let a later watchdog signal steal the
+        // already-queued terminal authority.
+        if (liveTurn.deferredCancellation)
+          return
+        if (
+          liveTurn.terminalObservationDurability
+          || liveTurn.modelStepStartDurability
+          || liveTurn.replyDeliverySettlement
+        ) {
+          claimDeferredCancellation(liveTurn, input.signal?.reason)
+          return
+        }
+        if (claimTerminalAuthority(liveTurn, 'timed-out'))
+          controller.abort(input.signal?.reason)
+        return
+      }
       if (
         liveTurn.terminalObservationDurability
         || liveTurn.modelStepStartDurability
@@ -443,7 +592,8 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
         controller.abort(input.signal?.reason)
     }
     if (input.signal?.aborted) {
-      claimTerminalAuthority(liveTurn, 'cancelled')
+      const timeoutReason = resolveAlicizationRuntimeTimeoutReason(input.signal.reason)
+      claimTerminalAuthority(liveTurn, timeoutReason ? 'timed-out' : 'cancelled')
       controller.abort(input.signal.reason)
     }
     else {
@@ -529,17 +679,35 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
         throw new Error(`action progress ${actionId} references an unknown action`)
       if (action.toolCallId !== toolCallId)
         throw new Error(`action progress ${actionId} toolCallId does not match its action`)
+      const payload = {
+        ...progress,
+        actionId,
+        toolCallId,
+      }
+      const idempotencyKey = progress.eventId
+        ? `${actionId}:progress:${progress.eventId}`
+        : null
+      if (liveTurn.terminalAuthority !== 'open' || liveTurn.terminalEventType) {
+        try {
+          await options.onLateEvent?.({
+            eventType: 'action.progress',
+            source: 'tool',
+            scope: { ...input.scope },
+            payload,
+            idempotencyKey,
+            terminalEventType: liveTurn.terminalEventType,
+          })
+        }
+        catch {
+          // Late-event diagnostics must never re-enter Turn OS settlement.
+        }
+        return
+      }
       await append(
         'action.progress',
-        {
-          ...progress,
-          actionId,
-          toolCallId,
-        },
+        payload,
         'tool',
-        progress.eventId
-          ? `${actionId}:progress:${progress.eventId}`
-          : null,
+        idempotencyKey,
       )
     }
 
@@ -548,6 +716,34 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       payload: unknown,
       idempotencyKey: string | null = null,
     ) => {
+      if (liveTurn.terminalAuthority !== 'open' || liveTurn.terminalEventType) {
+        try {
+          await options.onLateEvent?.({
+            eventType,
+            source: 'memory',
+            scope: { ...input.scope },
+            payload,
+            idempotencyKey,
+            terminalEventType: liveTurn.terminalEventType,
+          })
+        }
+        catch {
+          // Late-event diagnostics must never re-enter Turn OS settlement.
+        }
+        return
+      }
+      await append(eventType, payload, 'memory', idempotencyKey)
+    }
+
+    const appendMemorySettlementEvent = async (
+      eventType: AlicizationMemoryRuntimeEventType,
+      payload: unknown,
+      idempotencyKey: string | null = null,
+    ) => {
+      if (!liveTurn.participantSettlementActive) {
+        await appendMemoryEvent(eventType, payload, idempotencyKey)
+        return
+      }
       await append(eventType, payload, 'memory', idempotencyKey)
     }
 
@@ -562,11 +758,17 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       status: AlicizationEventLoopResult['status'],
       error: string | null,
     ) => {
+      liveTurn.participantSettlementActive = true
       try {
         await options.participant.onTurnSettled?.({
           status,
           error,
-          runtime: currentRuntimeView(),
+          runtime: runtimeView(
+            state,
+            controller.signal,
+            appendActionProgress,
+            appendMemorySettlementEvent,
+          ),
         })
         return {
           settlementError: null,
@@ -578,6 +780,9 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           settlementError: errorMessage(settlementCause),
           settlementCause,
         }
+      }
+      finally {
+        liveTurn.participantSettlementActive = false
       }
     }
 
@@ -609,9 +814,33 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       return observationId
     }
 
+    const appendActiveActionFailure = async (reason: unknown) => {
+      if (
+        !currentActionId
+        || state.actions[currentActionId]?.status !== 'active'
+      ) {
+        return false
+      }
+      const action = state.actions[currentActionId]!
+      const error = errorMessage(reason)
+      await appendTerminalActionObservation({
+        actionId: currentActionId,
+        toolCallId: action.toolCallId,
+        outcome: 'failure',
+        error,
+      })
+      await append('action.failed', {
+        actionId: currentActionId,
+        toolCallId: action.toolCallId,
+        error,
+      }, 'tool')
+      return true
+    }
+
     const cancelActiveTurn = async (reason: unknown): Promise<AlicizationEventLoopResult> => {
+      const cancellationStatus = resolveTerminalCancellationStatus(reason)
       if (liveTurn.terminalAuthority === 'open')
-        claimTerminalAuthority(liveTurn, 'cancelled')
+        claimTerminalAuthority(liveTurn, cancellationStatus)
       for (const actionId of listAlicizationActiveActionIds(state)) {
         const action = state.actions[actionId]!
         await appendTerminalActionObservation({
@@ -626,13 +855,19 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           reason: errorMessage(reason),
         })
       }
-      if (state.terminalEventType !== 'runtime.cancelled') {
-        await append('runtime.cancelled', {
+      const terminalEventType = cancellationStatus === 'timed-out'
+        ? 'runtime.timed_out'
+        : 'runtime.cancelled'
+      if (state.terminalEventType !== terminalEventType) {
+        await append(terminalEventType, {
           reason: errorMessage(reason),
-        }, 'runtime', `${input.scope.turnId}:terminal:cancelled`)
+          ...(cancellationStatus === 'timed-out'
+            ? { timeoutReason: resolveAlicizationRuntimeTimeoutReason(reason) }
+            : {}),
+        }, 'runtime', `${input.scope.turnId}:terminal:${cancellationStatus}`)
       }
       const result = {
-        status: 'cancelled',
+        status: cancellationStatus,
         state,
         error: errorMessage(reason),
         cause: reason ?? null,
@@ -685,7 +920,10 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           const deferredCancellation = takeDeferredCancellation(liveTurn)
           if (
             deferredCancellation
-            && claimTerminalAuthority(liveTurn, 'cancelled')
+            && claimTerminalAuthority(
+              liveTurn,
+              resolveTerminalCancellationStatus(deferredCancellation.reason),
+            )
           ) {
             controller.abort(deferredCancellation.reason)
           }
@@ -768,6 +1006,30 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
               ),
               controller.signal,
             )
+          }
+          catch (error) {
+            toolFailure.origin = 'adapter-or-validation'
+            if (controller.signal.aborted) {
+              const timeoutReason = resolveAlicizationRuntimeTimeoutReason(
+                controller.signal.reason,
+              ) ?? resolveAlicizationRuntimeTimeoutReason(error)
+              if (timeoutReason)
+                await appendActiveActionFailure(controller.signal.reason ?? error)
+              throw error
+            }
+            observation = {
+              actionId: action.actionId,
+              observationId: `${action.actionId}:observation:${createEventId()}`,
+              toolCallId: action.toolCallId,
+              terminal: true,
+              outcome: isToolCancellation(error) ? 'cancelled' : 'failure',
+              output: toolFailureOutput(action, error),
+            }
+            toolFailure.origin = 'none'
+          }
+
+          try {
+            observation = normalizeTerminalToolObservation(observation)
             throwIfAborted(controller.signal)
             observationLink = parseAlicizationActionObservation(observation)
             if (observationLink.actionId !== action.actionId)
@@ -821,7 +1083,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
               'runtime',
               `${settlementId}:completed`,
             )
-            await append(actionTerminalEventType(observationLink.outcome), {
+            await append(actionTerminalEventType(observationLink.outcome, observation.output), {
               actionId: action.actionId,
               toolCallId: observationLink.toolCallId,
             }, 'tool')
@@ -830,7 +1092,10 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
             const deferredCancellation = takeDeferredCancellation(liveTurn)
             if (
               deferredCancellation
-              && claimTerminalAuthority(liveTurn, 'cancelled')
+              && claimTerminalAuthority(
+                liveTurn,
+                resolveTerminalCancellationStatus(deferredCancellation.reason),
+              )
             ) {
               controller.abort(deferredCancellation.reason)
             }
@@ -893,7 +1158,10 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
           const deferredCancellation = takeDeferredCancellation(liveTurn)
           if (
             deferredCancellation
-            && claimTerminalAuthority(liveTurn, 'cancelled')
+            && claimTerminalAuthority(
+              liveTurn,
+              resolveTerminalCancellationStatus(deferredCancellation.reason),
+            )
           ) {
             controller.abort(deferredCancellation.reason)
           }
@@ -931,9 +1199,16 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
 
       if (!claimTerminalAuthority(liveTurn, 'timed-out'))
         throw abortError(controller.signal.reason)
-      await append('runtime.timed_out', {
-        reason: `model step budget exhausted after ${maxSteps} steps`,
-      }, 'runtime', `${input.scope.turnId}:terminal:timed-out`)
+      try {
+        await append('runtime.timed_out', {
+          reason: `model step budget exhausted after ${maxSteps} steps`,
+        }, 'runtime', `${input.scope.turnId}:terminal:timed-out`)
+        settleCancellationDurability(liveTurn, null)
+      }
+      catch (error) {
+        settleCancellationDurability(liveTurn, error)
+        throw error
+      }
       const result = {
         status: 'timed-out',
         state,
@@ -947,6 +1222,36 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
       return await settleParticipant(result)
     }
     catch (error) {
+      const timeoutReason = resolveAlicizationRuntimeTimeoutReason(
+        liveTurn.controller.signal.reason,
+      ) ?? resolveAlicizationRuntimeTimeoutReason(error)
+      if (timeoutReason) {
+        if (
+          !claimTerminalAuthority(liveTurn, 'timed-out')
+          && liveTurn.terminalAuthority !== 'timed-out'
+        ) {
+          throw error
+        }
+        try {
+          await append('runtime.timed_out', {
+            reason: errorMessage(liveTurn.controller.signal.reason ?? error),
+            timeoutReason,
+          }, 'runtime', `${input.scope.turnId}:terminal:timed-out`)
+          settleCancellationDurability(liveTurn, null)
+        }
+        catch (timeoutPersistenceError) {
+          settleCancellationDurability(liveTurn, timeoutPersistenceError)
+          throw timeoutPersistenceError
+        }
+        return await settleParticipant({
+          status: 'timed-out',
+          state,
+          error: errorMessage(liveTurn.controller.signal.reason ?? error),
+          cause: liveTurn.controller.signal.reason ?? error,
+          replyArtifact: null,
+        })
+      }
+
       if (
         liveTurn.terminalAuthority === 'cancelled'
         || controller.signal.aborted
@@ -982,21 +1287,8 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
 
       if (
         toolFailure.origin === 'adapter-or-validation'
-        && currentActionId
-        && state.actions[currentActionId]?.status === 'active'
       ) {
-        const action = state.actions[currentActionId]!
-        await appendTerminalActionObservation({
-          actionId: currentActionId,
-          toolCallId: action.toolCallId,
-          outcome: 'failure',
-          error: errorMessage(error),
-        })
-        await append('action.failed', {
-          actionId: currentActionId,
-          toolCallId: action.toolCallId,
-          error: errorMessage(error),
-        }, 'tool')
+        await appendActiveActionFailure(error)
       }
       if (
         failureSurface === 'provider'
@@ -1034,12 +1326,17 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
     }
     finally {
       if (
-        liveTurn.terminalAuthority === 'cancelled'
+        (liveTurn.terminalAuthority === 'cancelled'
+          || liveTurn.terminalAuthority === 'timed-out')
         && !liveTurn.cancellationDurabilitySettled
       ) {
         settleCancellationDurability(
           liveTurn,
-          new Error('runtime cancellation ended without a durable terminal checkpoint'),
+          new Error(
+            liveTurn.terminalAuthority === 'timed-out'
+              ? 'runtime timeout ended without a durable terminal checkpoint'
+              : 'runtime cancellation ended without a durable terminal checkpoint',
+          ),
         )
       }
       input.signal?.removeEventListener('abort', onExternalAbort)
@@ -1092,7 +1389,7 @@ export function createAlicizationEventLoop<TTurnInput = unknown, TModelContext =
         throw cancellation.error
       return true
     }
-    if (!claimTerminalAuthority(liveTurn, 'cancelled'))
+    if (!claimTerminalAuthority(liveTurn, resolveTerminalCancellationStatus(reason)))
       return false
     liveTurn.controller.abort(reason)
     const durability = await liveTurn.cancellationDurability

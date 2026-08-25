@@ -1589,6 +1589,9 @@ describe('main chat stream runner', () => {
       generateNonStreaming: vi.fn(),
       appendRuntimeDebugLine,
       streamTextImpl,
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
     })
 
     const debugEvents = appendRuntimeDebugLine.mock.calls
@@ -1665,6 +1668,9 @@ describe('main chat stream runner', () => {
       generateNonStreaming: vi.fn(),
       appendRuntimeDebugLine,
       streamTextImpl,
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
     })
     const settled = pending.catch(error => error)
 
@@ -1726,6 +1732,9 @@ describe('main chat stream runner', () => {
       generateNonStreaming: vi.fn(),
       appendRuntimeDebugLine,
       streamTextImpl,
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
     })
     const settled = pending.catch(error => error)
 
@@ -2213,6 +2222,7 @@ describe('main chat stream runner', () => {
     const streamMeta = createStreamMetaController()
     const incrementChunkStats = vi.fn()
     const emitChunk = vi.fn()
+    const controller = new AbortController()
     const streamTextImpl = vi.fn()
     const generateNonStreaming = vi.fn(async () => ({
       finishReason: 'stop',
@@ -2237,7 +2247,7 @@ describe('main chat stream runner', () => {
       headers: {
         authorization: 'Bearer test',
       },
-      controller: new AbortController(),
+      controller,
       firstEventTimeoutMs: 500,
       isRunActive: () => true,
       incrementChunkStats,
@@ -2263,6 +2273,9 @@ describe('main chat stream runner', () => {
     expect(parsed.format).toBe('mind-turn-v1')
     expect(parsed.reply).toBe('我先看着这个窗口。')
     expect(generateNonStreaming).toHaveBeenCalledOnce()
+    expect(generateNonStreaming).toHaveBeenCalledWith(expect.objectContaining({
+      abortSignal: controller.signal,
+    }))
     expect(streamTextImpl).not.toHaveBeenCalled()
     expect(incrementChunkStats).toHaveBeenCalledWith('我先看着这个窗口。')
     expect(streamMeta.emit).toHaveBeenCalledWith('我先看着这个窗口。')
@@ -4008,6 +4021,9 @@ describe('main chat stream runner', () => {
         providerAbortSignal = abortSignal as AbortSignal
         return new Promise(() => {})
       },
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
     })
     const settled = promise.catch(error => error)
 
@@ -4379,12 +4395,78 @@ describe('main chat stream runner', () => {
           getReader: () => reader,
         },
       }),
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
     }).catch(error => error)
 
     await vi.advanceTimersByTimeAsync(25)
     await settled
 
     expect(cancel).toHaveBeenCalledOnce()
+    expect(releaseLock).toHaveBeenCalledOnce()
+  })
+
+  it('cancels a stalled retry attempt at the inherited total retry deadline', async () => {
+    vi.useFakeTimers()
+    const controller = new AbortController()
+    const retryDeadlineAt = Date.now() + 25
+    const cancel = vi.fn(async () => {})
+    const releaseLock = vi.fn()
+    const reader = {
+      cancel,
+      read: vi.fn(() => new Promise<{ done: boolean, value?: unknown }>(() => {})),
+      releaseLock,
+    }
+    const streamTextImpl = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('temporary provider failure'), {
+        status: 503,
+      }))
+      .mockImplementationOnce(() => ({
+        fullStream: {
+          getReader: () => reader,
+        },
+      }))
+
+    const settled = runAlicizationMainChatStream({
+      payload: {
+        cardId: 'card-1',
+        turnId: 'turn-retry-deadline-cancels-reader',
+        providerId: 'openai-compatible',
+        model: 'model-test',
+      } as any,
+      prepared: createPrepared(),
+      controller,
+      firstEventTimeoutMs: 1_000,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      streamTextImpl,
+      providerRetryDeadlineAt: retryDeadlineAt,
+      providerRetryPolicy: {
+        deadlineAt: null,
+        maxRetries: 1,
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+        sleep: vi.fn(async () => {}),
+      },
+    }).catch(error => error)
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(streamTextImpl).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(25)
+
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(controller.signal.aborted).toBe(false)
+    await expect(settled).resolves.toMatchObject({
+      name: 'AbortError',
+      message: expect.stringContaining('chat-provider-retry-deadline'),
+    })
     expect(releaseLock).toHaveBeenCalledOnce()
   })
 
@@ -4746,6 +4828,9 @@ describe('main chat stream runner', () => {
         const emit = onEvent as (event: any) => Promise<void>
         await emit({ type: 'response-metadata' })
       },
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
     })
     const settled = promise.catch(error => error)
 
@@ -4776,6 +4861,129 @@ describe('main chat stream runner', () => {
       lastEventType: 'response-metadata',
       nonProgressEventTypes: ['response-metadata'],
     }))
+  })
+
+  it('classifies metadata and keepalive without semantic progress as Provider liveness timeout', async () => {
+    vi.useFakeTimers()
+    const controller = new AbortController()
+    let providerAbortSignal: AbortSignal | undefined
+
+    const promise = runAlicizationMainChatStream({
+      payload: { cardId: 'card-1', turnId: 'turn-provider-liveness-timeout' } as any,
+      prepared: createPrepared(),
+      controller,
+      firstEventTimeoutMs: 25,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      providerRetryPolicy: { maxRetries: 0 },
+      streamTextImpl: ({ onEvent, abortSignal }) => {
+        providerAbortSignal = abortSignal as AbortSignal
+        void (onEvent as (event: unknown) => void)({ type: 'response-metadata' })
+        void (onEvent as (event: unknown) => void)({ type: 'provider-keepalive' })
+        return new Promise(() => {})
+      },
+    }).catch(error => error)
+
+    await vi.advanceTimersByTimeAsync(1_100)
+
+    await expect(promise).resolves.toMatchObject({
+      name: 'AbortError',
+      message: expect.stringContaining('chat-provider-liveness-timeout'),
+    })
+    expect(providerAbortSignal?.aborted).toBe(true)
+  })
+
+  it('classifies Provider silence after semantic progress as Provider idle timeout', async () => {
+    vi.useFakeTimers()
+    let providerAbortSignal: AbortSignal | undefined
+
+    const promise = runAlicizationMainChatStream({
+      payload: { cardId: 'card-1', turnId: 'turn-provider-idle-timeout' } as any,
+      prepared: createPrepared(),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 25,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      providerRetryPolicy: { maxRetries: 0 },
+      streamTextImpl: ({ onEvent, abortSignal }) => {
+        providerAbortSignal = abortSignal as AbortSignal
+        void (onEvent as (event: unknown) => void)({ type: 'text-delta', text: '已经开始输出' })
+        return new Promise(() => {})
+      },
+    }).catch(error => error)
+
+    await vi.advanceTimersByTimeAsync(50)
+
+    await expect(promise).resolves.toMatchObject({
+      name: 'AbortError',
+      message: expect.stringContaining('chat-provider-idle-timeout'),
+    })
+    expect(providerAbortSignal?.aborted).toBe(true)
+  })
+
+  it('does not let continuous tool heartbeat refresh the Provider idle watchdog', async () => {
+    vi.useFakeTimers()
+    let providerAbortSignal: AbortSignal | undefined
+    let emitToolExecutionProgress: ((event: any) => void) | undefined
+
+    const promise = runAlicizationMainChatStream({
+      payload: { cardId: 'card-1', turnId: 'turn-tool-heartbeat-provider-idle' } as any,
+      prepared: createPrepared({
+        tools: [{ function: { name: 'codex' } }],
+      }),
+      controller: new AbortController(),
+      firstEventTimeoutMs: 25,
+      isRunActive: () => true,
+      incrementChunkStats: vi.fn(),
+      emitChunk: vi.fn(),
+      emitToolCall: vi.fn(),
+      emitToolResult: vi.fn(),
+      streamMeta: createStreamMetaController(),
+      nonProgressEventTypes: new Set<string>(),
+      generateNonStreaming: vi.fn(),
+      providerRetryPolicy: { maxRetries: 0 },
+      subscribeToolExecutionProgress: (listener) => {
+        emitToolExecutionProgress = listener
+        return () => {
+          emitToolExecutionProgress = undefined
+        }
+      },
+      streamTextImpl: ({ onEvent, abortSignal }) => {
+        providerAbortSignal = abortSignal as AbortSignal
+        void (onEvent as (event: unknown) => void)({ type: 'text-delta', text: '语义进展' })
+        return new Promise(() => {})
+      },
+    }).catch(error => error)
+
+    await vi.advanceTimersByTimeAsync(0)
+    const heartbeat = setInterval(() => {
+      emitToolExecutionProgress?.({
+        toolCallId: 'codex-heartbeat',
+        toolName: 'codex',
+        phase: 'started',
+        signal: 'liveness',
+      })
+    }, 5)
+    await vi.advanceTimersByTimeAsync(100)
+    clearInterval(heartbeat)
+
+    await expect(promise).resolves.toMatchObject({
+      name: 'AbortError',
+      message: expect.stringContaining('chat-provider-idle-timeout'),
+    })
+    expect(providerAbortSignal?.aborted).toBe(true)
   })
 
   it('allows delayed first progress after non-progress activity within grace window', async () => {

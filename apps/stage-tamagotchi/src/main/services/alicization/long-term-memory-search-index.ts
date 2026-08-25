@@ -43,6 +43,7 @@ export interface LongTermMemorySearchIndexRuntime {
     limit?: number
     cursor?: string | null
   }) => Promise<{ items: AlicizationMemoryWorkbenchItem[], nextCursor: string | null }>
+  getLongTermMemorySearchItem: (input: { cardId: string, memoryItemId: string }) => Promise<AlicizationMemoryWorkbenchItem | null>
 }
 
 interface SearchDocument {
@@ -948,10 +949,33 @@ export function createLongTermMemorySearchIndexRuntime(input: {
     return await listRecent(normalizedInput)
   }
 
+  async function getLongTermMemorySearchItem(inputItem: { cardId: string, memoryItemId: string }) {
+    const cardId = normalizeCardId(inputItem.cardId)
+    const memoryItemId = normalizeText(inputItem.memoryItemId, 240)
+    if (!cardId || !memoryItemId)
+      return null
+    const row = await input.get<SearchDocumentRow>(
+      input.database,
+      `
+      SELECT ${projectionSelectColumns()}
+      FROM long_term_memory_search_documents doc
+      ${projectionJoins()}
+      WHERE doc.card_id = ?
+        AND doc.tombstoned = 0
+        AND tomb.source_id IS NULL
+        AND (doc.source_id = ? OR doc.id = ?)
+      LIMIT 1
+      `,
+      [cardId, memoryItemId, memoryItemId],
+    )
+    return row ? mapDocumentRow(row) : null
+  }
+
   return {
     initializeSchema,
     rebuildLongTermMemorySearchIndex,
     listLongTermMemoryEmbeddingCorpus,
     listLongTermMemorySearchItems,
+    getLongTermMemorySearchItem,
   }
 }

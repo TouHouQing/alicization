@@ -2353,6 +2353,7 @@ export function createAlicizationMainChatSessionRuntime(options: CreateAlicizati
               decisionTraceId: prelude.perceptionAugmentation.chatGovernance.mindTurnGovernance?.decisionTraceId ?? null,
               sessionId: agentTurn.conversationSessionId,
             },
+            userText: readLatestUserMessageText(messages),
             buildExecutionRuntimeContext: sessionBoundToolOptions.buildExecutionRuntimeContext,
             executeTaskThread: sessionBoundToolOptions.executeTaskThread,
             resumeTaskThread: sessionBoundToolOptions.resumeTaskThread,

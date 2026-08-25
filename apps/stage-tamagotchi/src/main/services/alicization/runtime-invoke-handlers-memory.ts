@@ -11,6 +11,11 @@ import type { AlicizationKnowledgeAssimilationRuntime } from './knowledge-assimi
 import type { WorkingMemoryStore } from './life-core/working-memory-store'
 
 import {
+  projectAlicizationMemoryQualityTrialReportRecordSurface,
+  projectAlicizationMemoryQualityTrialReportSurface,
+} from '@proj-alicization/stage-shared'
+
+import {
   electronAlicizationGetMemoryStats,
   electronAlicizationGetOrganicMemorySnapshot,
   electronAlicizationGetPerformanceManifest,
@@ -18,6 +23,7 @@ import {
   electronAlicizationMemoryRetrieveFacts,
   electronAlicizationMemoryUpsertFacts,
   electronAlicizationMemoryWorkbenchActivatePersonaTrainingDataset,
+  electronAlicizationMemoryWorkbenchApplyLongTermAction,
   electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction,
   electronAlicizationMemoryWorkbenchApplyReviewAction,
   electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression,
@@ -35,6 +41,7 @@ import {
   electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements,
   electronAlicizationMemoryWorkbenchListPersonaTrainingRuns,
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
+  electronAlicizationMemoryWorkbenchListQualityTrialReports,
   electronAlicizationMemoryWorkbenchListReplaySessions,
   electronAlicizationMemoryWorkbenchManageSemanticScaleJobs,
   electronAlicizationMemoryWorkbenchManageWorkingMemoryCleaningQueue,
@@ -194,13 +201,15 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     const controller = new AbortController()
     qualityTrialControllers.set(cardId, controller)
     try {
-      return await withCardScope(payload.cardId, async () => await getAlicizationDb().runMemoryWorkbenchProductionTrial({
-        cardId,
-        mode: payload.mode === 'live-provider' ? 'live-provider' : 'historical-replay',
-        month: sanitizeText(payload.month, '') || null,
-        sessionId: sanitizeText(payload.sessionId, '') || null,
-        signal: controller.signal,
-      }))
+      return await withCardScope(payload.cardId, async () => projectAlicizationMemoryQualityTrialReportSurface(
+        await getAlicizationDb().runMemoryWorkbenchProductionTrial({
+          cardId,
+          mode: payload.mode === 'live-provider' ? 'live-provider' : 'historical-replay',
+          month: sanitizeText(payload.month, '') || null,
+          sessionId: sanitizeText(payload.sessionId, '') || null,
+          signal: controller.signal,
+        }),
+      ))
     }
     finally {
       if (qualityTrialControllers.get(cardId) === controller)
@@ -220,6 +229,18 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
       reason: controller ? reason : null,
     }
   })
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchListQualityTrialReports, async payload => await withCardScope(payload.cardId, async () => {
+    const result = await getAlicizationDb().listMemoryQualityTrialReports({
+      cardId: cardIdFrom(payload),
+      limit: payload.limit,
+      cursor: sanitizeText(payload.cursor, '') || null,
+    })
+    return {
+      items: result.items.map(projectAlicizationMemoryQualityTrialReportRecordSurface),
+      nextCursor: result.nextCursor,
+    }
+  }))
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchListReplaySessions, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().listMemoryWorkbenchReplaySessions({
     cardId: cardIdFrom(payload),
@@ -270,6 +291,13 @@ export function registerAlicizationMemoryInvokeHandlers(options: RegisterAliciza
     source: payload.source,
     limit: payload.limit,
     cursor: payload.cursor,
+  })))
+
+  registerInvokeHandler(electronAlicizationMemoryWorkbenchApplyLongTermAction, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().applyMemoryWorkbenchLongTermAction({
+    cardId: cardIdFrom(payload),
+    memoryItemId: sanitizeText(payload.memoryItemId),
+    decision: payload.decision,
+    reason: sanitizeText(payload.reason, '') || null,
   })))
 
   registerInvokeHandler(electronAlicizationMemoryWorkbenchManageWorkingMemoryCleaningQueue, async payload => await withCardScope(payload.cardId, async () => await getAlicizationDb().manageMemoryWorkbenchWorkingMemoryCleaningQueue({

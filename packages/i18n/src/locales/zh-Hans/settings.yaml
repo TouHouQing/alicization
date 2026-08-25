@@ -523,7 +523,7 @@ pages:
         review: 待审核
         probe: 召回测试
         persona: 人格候选
-        quality: 质量试用
+        quality: 质量验证
         health: 健康与审计
         skills: 能力与技能
       actions:
@@ -531,6 +531,8 @@ pages:
         approve: 批准
         reject: 拒绝
         tombstone: 删除并屏蔽
+        cancel: 取消
+        confirm: 确认
         inward_only: 只内在使用
         no_training: 禁止训练
         run_probe: 运行召回测试
@@ -573,6 +575,8 @@ pages:
         test_persona_runtime: 测试人格运行时
         save_persona_runtime: 保存人格运行时
         clear_persona_runtime: 清除人格运行时
+      confirm_tombstone_title: 确认删除并屏蔽这条记忆？
+      confirm_tombstone_description: 这会让她不再召回这条记忆，也不会进入人格训练。当前内容：{summary}
       states:
         empty_working: 还没有可显示的短期记忆快照。发送一轮对话后再刷新。
         empty_long_term: 还没有匹配的长期记忆。
@@ -603,11 +607,11 @@ pages:
         persona_training_diagnostic_configure_executable: 请填写可执行的训练器绝对路径。
         persona_training_diagnostic_repair_protocol: 请检查训练器 JSONL 协议和 stderr 错误。
         persona_training_diagnostic_fix_configuration: 请修正训练器配置后重新测试。
-        persona_runtime_active: llama.cpp 人格运行时已启动，当前对话会使用已激活的 Persona adapter。
-        persona_runtime_configured: llama.cpp 人格运行时已配置，等待 Persona adapter 激活。
-        persona_runtime_not_configured: 尚未配置 llama.cpp 人格运行时。
-        persona_runtime_connected: llama.cpp 可执行文件和基础模型可用。
-        persona_runtime_connection_failed: llama.cpp 人格运行时测试失败。
+        persona_runtime_active: 本地人格运行时已启动，当前对话会使用已激活的 Persona adapter。
+        persona_runtime_configured: 本地人格运行时已配置，等待 Persona adapter 激活。
+        persona_runtime_not_configured: 尚未配置本地人格运行时。
+        persona_runtime_connected: 可执行文件、基础模型和 OpenAI 兼容接口测试通过。
+        persona_runtime_connection_failed: 本地人格运行时测试失败。
         persona_training_queued: 等待训练
         persona_training_running: 正在训练
         persona_training_cancel_requested: 正在取消
@@ -793,9 +797,10 @@ pages:
         persona_training_executor: 本地 Persona/LoRA 训练器
         persona_training_executor_description: 配置你已安装的本地训练可执行文件。所有进程参数都由 Alicization 固定生成，不会静默安装训练依赖，也不会把 Provider API Key 传给子进程。
         persona_runtime: 本地 Persona 推理运行时
-        persona_runtime_description: 配置本机 llama.cpp llama-server。只有已通过治理并成功加载的 GGUF Persona adapter 才会切换主对话路由；失败会透明显示，不会伪造人格已生效。
-        persona_runtime_executable: llama-server 可执行文件绝对路径
-        persona_runtime_model_path: 基础 GGUF 模型绝对路径
+        persona_runtime_description: 选择本机 llama.cpp 或 MLX 推理后端。只有已通过治理并成功加载的 Persona adapter 才会切换主对话路由；失败会透明显示，不会伪造人格已生效。
+        persona_runtime_backend: 推理后端
+        persona_runtime_executable: 推理服务可执行文件绝对路径
+        persona_runtime_model_path: 基础模型路径
         persona_runtime_host: 本地监听地址
         persona_runtime_port: 本地监听端口
         persona_runtime_model_alias: 模型别名
@@ -911,8 +916,8 @@ pages:
         rollback: 回滚
         revoke: 撤回
       quality:
-        title: 质量试用
-        description: 从本地 DB 跑长期召回、短期压缩和 Persona/LoRA 清洗质量门禁，结果会暴露失败项与建议动作。
+        title: 对话与记忆验证
+        description: 选一段真实对话，检查短期记忆、长期回想和人格数据清洗是否稳定。报告会保存在本机，失败原因也会保留。
         feedback_title: 四按钮反馈
         feedback_description: 先在“召回测试”里查一句话，再回到这里标注这次记忆表现。
         replay_binding: 标注必须绑定真实回放上下文
@@ -949,6 +954,30 @@ pages:
           missing: 这次应该想起某段记忆，但她没有想起。
           wrong: 她提到了错误、过期或别的会话里的记忆。
           unwanted: 这句话不需要回忆，或者应该明确说不确定。
+        quality_history: 质量报告历史
+        empty_quality_history: 还没有保存的质量报告。运行一次质量验证后，这里会保留结果。
+        quality_report_hash: 报告校验哈希
+        quality_session: 回放会话
+        quality_run_mode: 运行方式
+        full_quality_report: 完整报告
+        failure_codes:
+          timeout: 请求超时
+          auth: 模型服务认证失败
+          network: 网络连接失败
+          recall: 长期记忆回想失败
+          database: 本地记忆数据库操作失败
+          queue: 记忆处理队列失败
+          provider: 模型服务请求失败
+          quality: 质量评测阶段失败
+        action_codes:
+          retry_timeout: 检查模型服务响应或超时配置后重新运行质量试用
+          repair_auth: 检查模型服务地址、认证信息和模型权限后重新运行质量试用
+          repair_network: 检查网络连接和模型服务地址后重新运行质量试用
+          repair_recall: 检查长期记忆范围和向量索引后重新运行质量试用
+          repair_database: 检查本地记忆数据库状态后重新运行质量试用
+          repair_queue: 检查记忆处理队列和死信项目后重新运行质量试用
+          repair_provider: 检查模型服务配置与请求后重新运行质量试用
+          inspect_failure_stage: 检查失败阶段后重新运行质量试用
       filters:
         kind:
           all: 全部类型
@@ -971,8 +1000,9 @@ pages:
           allowed: 允许训练
           blocked: 禁止训练
       placeholders:
-        persona_runtime_executable: 例如 /opt/homebrew/bin/llama-server
+        persona_runtime_executable: 例如 /opt/homebrew/bin/llama-server 或 mlx_lm.server
         persona_runtime_model_path: 例如 /Models/base-model.gguf
+        persona_runtime_model_directory: 例如 /Models/Qwen2.5-0.5B-Instruct-4bit
         long_term_search: 搜索长期记忆摘要、证据、来源 ID...
         long_term_source: 按来源筛选，例如 memory_reflections
         embedding_provider: openai-compatible

@@ -987,7 +987,10 @@ function updateDropShadowFilter() {
 }
 
 watch([() => props.width, () => props.height], handleResize)
-watch(modelSrcRef, async () => await loadModel(), { immediate: true })
+// The model source can arrive before Live2DCanvas creates its Pixi app.
+// Re-run the initial load when that app becomes available instead of leaving
+// the scene in a permanent loading state after the first guarded attempt.
+watch([modelSrcRef, pixiApp], async () => await loadModel(), { immediate: true })
 watch(dark, updateDropShadowFilter, { immediate: true })
 watch([model, themeColorsHue], updateDropShadowFilter)
 watch(live2dShadowEnabled, updateDropShadowFilter)

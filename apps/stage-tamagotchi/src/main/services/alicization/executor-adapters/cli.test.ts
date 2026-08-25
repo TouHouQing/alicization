@@ -1,5 +1,9 @@
-import type { AlicizationTaskThreadRecord } from '@proj-alicization/stage-shared'
+import type {
+  AlicizationExecutionEventInput,
+  AlicizationTaskThreadRecord,
+} from '@proj-alicization/stage-shared'
 
+import { readFileSync } from 'node:fs'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -36,6 +40,13 @@ function createThread(overrides: Partial<AlicizationTaskThreadRecord> = {}): Ali
 }
 
 describe('cli executor adapter', () => {
+  it('does not retain an unbounded duplicate buffer of live execution events', () => {
+    const source = readFileSync(new URL('./cli.ts', import.meta.url), 'utf8')
+
+    expect(source).not.toContain('const liveEvents: AlicizationExecutionEventInput[] = []')
+    expect(source).not.toContain('liveEvents.push(event)')
+  })
+
   it('dispatches a safe CLI command and records dispatch, step, and result events', async () => {
     const result = await executeCliTaskThread({
       thread: createThread(),
@@ -54,6 +65,52 @@ describe('cli executor adapter', () => {
       kind: 'result',
       threadStatus: 'completed',
     }))
+  })
+
+  it('publishes CLI dispatch and output events while the process is still running', async () => {
+    const liveEvents: AlicizationExecutionEventInput[] = []
+    const result = await executeCliTaskThread({
+      thread: createThread(),
+      command: {
+        command: 'node',
+        args: ['-e', 'setTimeout(() => console.log("live cli"), 100)'],
+      },
+      onExecutionEvent: async (event) => {
+        liveEvents.push(event)
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(result.ok).toBe(true)
+    expect(liveEvents.map(event => event.kind)).toEqual(['dispatch', 'step', 'result'])
+    expect(liveEvents[1]?.payload).toEqual(expect.objectContaining({
+      stream: 'stdout',
+      text: expect.stringContaining('live cli'),
+    }))
+    expect(liveEvents.every(event => typeof event.payload?.eventId !== 'string')).toBe(true)
+  })
+
+  it('assigns a distinct event identity to repeated executions of the same task thread', async () => {
+    const first = await executeCliTaskThread({
+      thread: createThread(),
+      command: {
+        command: 'node',
+        args: ['-e', 'console.log("first run")'],
+      },
+      workspaceRoot: process.cwd(),
+    })
+    const second = await executeCliTaskThread({
+      thread: createThread(),
+      command: {
+        command: 'node',
+        args: ['-e', 'console.log("second run")'],
+      },
+      workspaceRoot: process.cwd(),
+    })
+
+    expect(first.events[0]?.id).toEqual(expect.any(String))
+    expect(second.events[0]?.id).toEqual(expect.any(String))
+    expect(second.events[0]?.id).not.toBe(first.events[0]?.id)
   })
 
   it('blocks dangerous CLI commands without explicit permission', async () => {
@@ -312,6 +369,71 @@ describe('cli executor adapter', () => {
     expect(result.finalStatus).toBe('cancelled')
     expect(result.errorCode).toBe('CLI_ABORTED')
     expect(result.events.map(event => event.kind)).toEqual(expect.arrayContaining(['dispatch', 'cancel']))
+  })
+
+  it('does not spawn a CLI command when already aborted', async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), 'alicization-cli-pre-abort-'))
+    const markerPath = join(tempRoot, 'pre-abort-marker')
+    try {
+      const controller = new AbortController()
+      controller.abort('kill-switch-suspended')
+      const result = await executeCliTaskThread({
+        thread: createThread(),
+        command: {
+          command: 'node',
+          args: ['-e', `require("node:fs").writeFileSync(${JSON.stringify(markerPath)}, "spawned")`],
+        },
+        abortSignal: controller.signal,
+        workspaceRoot: process.cwd(),
+      })
+
+      expect(result.ok).toBe(false)
+      expect(result.finalStatus).toBe('cancelled')
+      expect(result.errorCode).toBe('CLI_ABORTED')
+      await expect(import('node:fs/promises').then(fs => fs.access(markerPath))).rejects.toThrow()
+    }
+    finally {
+      await rm(tempRoot, {
+        recursive: true,
+        force: true,
+      })
+    }
+  })
+
+  it.skipIf(process.platform === 'win32')('kills a spawned child process group after timeout', async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), 'alicization-cli-timeout-'))
+    const markerPath = join(tempRoot, 'late-child-marker')
+    try {
+      const childScript = `setTimeout(() => require("node:fs").writeFileSync(${JSON.stringify(markerPath)}, "late"), 400)`
+      const parentScript = [
+        'const { spawn } = require("node:child_process");',
+        `spawn(process.execPath, ["-e", ${JSON.stringify(childScript)}], { stdio: "ignore" });`,
+        'setTimeout(() => {}, 2000);',
+      ].join('')
+      const result = await executeCliTaskThread({
+        thread: createThread(),
+        command: {
+          command: 'node',
+          args: [
+            '-e',
+            parentScript,
+          ],
+          timeoutMs: 100,
+        },
+        workspaceRoot: process.cwd(),
+      })
+
+      expect(result.ok).toBe(false)
+      expect(result.errorCode).toBe('CLI_TIMEOUT')
+      await new Promise(resolve => setTimeout(resolve, 700))
+      await expect(import('node:fs/promises').then(fs => fs.access(markerPath))).rejects.toThrow()
+    }
+    finally {
+      await rm(tempRoot, {
+        recursive: true,
+        force: true,
+      })
+    }
   })
 
   it('injects runtime context into the CLI environment and execution events', async () => {

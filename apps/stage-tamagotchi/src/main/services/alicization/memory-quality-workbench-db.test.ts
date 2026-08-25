@@ -1,6 +1,9 @@
+import { createHash } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+
+import sqlite3 from 'sqlite3'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -17,6 +20,31 @@ async function createSandboxUserDataPath() {
   const dir = await mkdtemp(join(tmpdir(), 'alicization-memory-quality-db-'))
   sandboxDirs.push(dir)
   return dir
+}
+
+function updateRawSql(database: sqlite3.Database, sql: string, params: unknown[] = []) {
+  return new Promise<void>((resolve, reject) => {
+    database.run(sql, params, error => error ? reject(error) : resolve())
+  })
+}
+
+function closeRawDatabase(database: sqlite3.Database) {
+  return new Promise<void>((resolve, reject) => {
+    database.close(error => error ? reject(error) : resolve())
+  })
+}
+
+async function mutatePersistedDb(
+  userDataPath: string,
+  task: (database: sqlite3.Database) => Promise<void>,
+) {
+  const database = new sqlite3.Database(join(userDataPath, 'alicizations', 'alicization.db'))
+  try {
+    await task(database)
+  }
+  finally {
+    await closeRawDatabase(database)
+  }
 }
 
 const legacyGoldLabelContext = {
@@ -605,6 +633,153 @@ describe('memory quality workbench DB loop', () => {
     }
     finally {
       await db.close()
+    }
+  })
+
+  it('persists production trial reports so a reopened Workbench can review real evidence', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const db = await setupAlicizationDb(userDataPath)
+    try {
+      await db.recordMemoryQualityGoldLabel({
+        cardId: 'default',
+        ...legacyGoldLabelContext,
+        month: '2026-08',
+        label: 'unwanted',
+        query: '这条不该被召回的旧记忆还会出现吗？',
+        expectedMemoryIds: [],
+        retrievedCandidateIds: [],
+        surfacedMemoryIds: [],
+        createdAt: Date.parse('2026-08-04T08:10:00.000Z'),
+      })
+
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        month: '2026-08',
+      })
+      const reports = await db.listMemoryQualityTrialReports({
+        cardId: 'default',
+      })
+
+      expect(reports.items).toHaveLength(1)
+      expect(reports.items[0]).toMatchObject({
+        id: report.id,
+        cardId: 'default',
+        mode: 'historical-replay',
+        report,
+      })
+
+      await db.close()
+
+      const reopenedDb = await setupAlicizationDb(userDataPath)
+      try {
+        const reopenedReports = await reopenedDb.listMemoryQualityTrialReports({
+          cardId: 'default',
+        })
+        expect(reopenedReports.items).toHaveLength(1)
+        expect(reopenedReports.items[0]?.report).toEqual(report)
+      }
+      finally {
+        await reopenedDb.close()
+      }
+    }
+    finally {
+      await db.close().catch(() => {})
+    }
+  })
+
+  it('keeps same-millisecond reports distinct and pages across every persisted report', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const db = await setupAlicizationDb(userDataPath)
+    const dateNow = vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-08-20T08:00:00.000Z'))
+    try {
+      await db.recordMemoryQualityGoldLabel({
+        cardId: 'default',
+        ...legacyGoldLabelContext,
+        month: '2026-08',
+        label: 'unwanted',
+        query: '同一时间运行的生产试用必须各自可追溯。',
+        expectedMemoryIds: [],
+        retrievedCandidateIds: [],
+        surfacedMemoryIds: [],
+        createdAt: Date.now(),
+      })
+
+      const reports = await Promise.all([
+        db.runMemoryWorkbenchProductionTrial({ cardId: 'default', month: '2026-08' }),
+        db.runMemoryWorkbenchProductionTrial({ cardId: 'default', month: '2026-08' }),
+        db.runMemoryWorkbenchProductionTrial({ cardId: 'default', month: '2026-08' }),
+      ])
+      expect(new Set(reports.map(report => report.id))).toHaveLength(3)
+
+      const firstPage = await db.listMemoryQualityTrialReports({
+        cardId: 'default',
+        limit: 2,
+      })
+      expect(firstPage.items).toHaveLength(2)
+      expect(firstPage.nextCursor).not.toBeNull()
+
+      const secondPage = await db.listMemoryQualityTrialReports({
+        cardId: 'default',
+        limit: 2,
+        cursor: firstPage.nextCursor,
+      })
+      expect(secondPage.items).toHaveLength(1)
+      expect(secondPage.nextCursor).toBeNull()
+      expect(new Set([
+        ...firstPage.items.map(item => item.id),
+        ...secondPage.items.map(item => item.id),
+      ])).toEqual(new Set(reports.map(report => report.id)))
+    }
+    finally {
+      dateNow.mockRestore()
+      await db.close()
+    }
+  })
+
+  it('withholds a syntactically valid but incomplete quality report whose stored hash matches', async () => {
+    const userDataPath = await createSandboxUserDataPath()
+    const db = await setupAlicizationDb(userDataPath)
+    try {
+      await db.recordMemoryQualityGoldLabel({
+        cardId: 'default',
+        ...legacyGoldLabelContext,
+        month: '2026-08',
+        label: 'unwanted',
+        query: '损坏的质量报告不能进入 Workbench。',
+        expectedMemoryIds: [],
+        retrievedCandidateIds: [],
+        surfacedMemoryIds: [],
+        createdAt: Date.parse('2026-08-20T08:00:00.000Z'),
+      })
+      const report = await db.runMemoryWorkbenchProductionTrial({
+        cardId: 'default',
+        month: '2026-08',
+      })
+      await db.close()
+
+      const malformedReport = structuredClone(report) as unknown as Record<string, unknown>
+      malformedReport.runtimeHealth = {}
+      const malformedJson = JSON.stringify(malformedReport)
+      const malformedHash = `sha256:${createHash('sha256').update(malformedJson).digest('hex')}`
+      await mutatePersistedDb(userDataPath, async (database) => {
+        await updateRawSql(
+          database,
+          'UPDATE memory_quality_trial_reports SET report_json = ?, report_hash = ? WHERE id = ?',
+          [malformedJson, malformedHash, report.id],
+        )
+      })
+
+      const reopenedDb = await setupAlicizationDb(userDataPath)
+      try {
+        const reports = await reopenedDb.listMemoryQualityTrialReports({ cardId: 'default' })
+        expect(reports.items).toEqual([])
+      }
+      finally {
+        await reopenedDb.close()
+      }
+    }
+    finally {
+      await db.close().catch(() => {})
     }
   })
 

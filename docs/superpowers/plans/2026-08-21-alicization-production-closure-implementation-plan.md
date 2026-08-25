@@ -32,7 +32,7 @@
 - [x] 写测试证明训练成功后只接受真实 artifact manifest/hash，加载器启动真实本地推理进程；Provider 不兼容时明确显示 unsupported，不伪装为已激活。
 - [x] 增加 MLX LoRA 参数：`iters`、`learningRate`、`loraLayers`、`batchSize`、`maxSeqLength`、`maskPrompt`、`seed`，在 run record 中保存不可变 config snapshot。
 - [x] 让运行时诊断提供可执行的安装/修复提示，但不在后台静默安装依赖；资源包只携带 wrapper 和说明。
-- [ ] 运行真实小模型 smoke training，完成 `dataset export -> train -> artifact validate -> activate -> chat route -> rollback`；本机 Python 3.13 当前未安装 `mlx`/`mlx_lm`，已验证透明阻塞诊断，不写成功状态。
+- [x] 运行真实小模型 smoke training，完成 `dataset export -> train -> artifact validate -> activate -> chat route -> rollback`；2026-08-23 使用隔离 Python 3.12.11、`mlx 0.32.1`、`mlx_lm 0.31.3` 和本地 `Qwen2.5-0.5B-Instruct-4bit`，以一条已授权的 `cleaned-long-term-reflection` 样本执行 1 iteration、1 LoRA layer 训练，生成 734653-byte `adapters.safetensors`、`adapter_config.json` 和带 SHA-256 的 artifact manifest。真实 `createMlxPersonaRuntime` 随后启动 `mlx_lm.server`、从 `/v1/models` 发现实际模型 ID、完成 `/v1/chat/completions` 200 响应，并在 unload 后撤销路由。真实 smoke 同时发现并修复了 `--lora-layers` 错映射和模型别名与服务实际模型 ID 不一致两个适配层根因。
 
 ## 任务 2：Memory Workbench 黄金标注与月度回归 pack
 
@@ -85,7 +85,8 @@
 - [x] 用真实 `codex` 可执行文件启动长任务，验证 JSONL item/command/heartbeat/terminal 全链路。
 - [x] 验证一张 execution card、一次 terminal、一次 continuation、取消和超时分类，确保无 callback 竞争、无 `provider-output-invalid`。
 - [x] soak 报告持久化命令数、活跃步骤、心跳间隔、首个语义进展、总耗时、重试和终态。
-- [ ] 对真实安装包做一次启动、聊天、coding agent、后台继续和 Workbench 交互验收；本轮已完成 Electron/Vite 桌面构建，但尚未安装并手动验收 macOS 包。
+- [x] 加固执行回调真实分页与消费一致性：SQLite keyset cursor、同毫秒稳定排序、跨 runtime CAS、v1 数字/复合 cursor 迁移、旧 receipt 不误停新 Persona 进程；补齐 130 个定向回归测试。
+- [ ] 对真实安装包做一次启动、聊天、coding agent、后台继续和 Workbench 交互验收；2026-08-23 已重新构建并安装 `/Users/touhouqing/Applications/Alicization Local.app`，通过远程调试验证 renderer 挂载、机体可见、设置入口、`机体模块 -> 记忆`、长期记忆、召回测试、人格候选、健康与审计、sqlite-vec 状态和未配置训练器的透明诊断；2026-08-24 又从当前工作区完成 `build:unpack`，对新 arm64 包通过 `codesign --verify --deep --strict`，并从其 `app.asar` 成功加载 `sqlite3`、执行 `select 1`，确认原生 SQLite 启动链路成立。真实 Provider 对话、coding agent、后台继续仍需可用 Provider/工具配置后补做。
 
 ## 任务 5：reindex projection refresh 纳入 durable job
 
@@ -109,5 +110,5 @@
 - [x] 运行目标 Vitest、生产 life-loop gate、stage-shared/stage-ui/desktop typecheck。
 - [x] 运行定向 lint 和 `git diff --check`；已确认 0 lint error，剩余为既有/非阻塞 warning。
 - [x] 真实 100k report、真实 trainer smoke 或透明阻塞报告、真实 Codex soak report、reindex recovery report 均可复盘。
-- [ ] 构建并安装 macOS App，验证对话、记忆、训练诊断、scale job、Codex execution card 均可操作；本轮仅完成桌面构建，安装包手验仍待执行。
+- [ ] 构建并安装 macOS App，验证对话、记忆、训练诊断、scale job、Codex execution card 均可操作；2026-08-23 已完成 macOS arm64 构建、安装、签名校验和 renderer/Workbench smoke，训练器未配置时保持禁用并显示真实诊断；2026-08-24 的新包还通过了 `sqlite3` 原生加载和实际 SQL 查询 smoke。Provider/Codex 实际执行与 scale job UI 操作仍需可用 Provider/工具配置后做外部服务试用。
 - [x] 提交本轮 Conventional Commit；不提交 `.serena/project.yml`，不写入任何 API Key。

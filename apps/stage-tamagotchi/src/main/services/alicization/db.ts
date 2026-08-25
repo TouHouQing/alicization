@@ -6,7 +6,10 @@ import type {
   AlicizationMemoryQualityGoldLabelListResult as SharedAlicizationMemoryQualityGoldLabelListResult,
   AlicizationMemoryQualityGoldLabelPayload as SharedAlicizationMemoryQualityGoldLabelPayload,
   AlicizationMemoryQualityMonthlyGoldRegressionPack as SharedAlicizationMemoryQualityMonthlyGoldRegressionPack,
+  AlicizationMemoryQualityTrialReportListResult as SharedAlicizationMemoryQualityTrialReportListResult,
+  AlicizationMemoryQualityTrialReportRecord as SharedAlicizationMemoryQualityTrialReportRecord,
 } from '@proj-alicization/stage-shared'
+import type * as sqlite3Types from 'sqlite3'
 
 import type {
   AlicizationActiveThought,
@@ -46,6 +49,7 @@ import type {
   AlicizationMemoryFact,
   AlicizationMemoryFactInput,
   AlicizationMemoryLegacySnapshot,
+  AlicizationMemoryLongTermActionDecision,
   AlicizationMemoryMigrationResult,
   AlicizationMemoryProvenance,
   AlicizationMemoryRecallProbeResult,
@@ -175,14 +179,14 @@ import { createHash, randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import sqlite3 from 'sqlite3'
-
 import { errorMessageFrom } from '@moeru/std'
 import {
   normalizeAlicizationMemoryProvenance,
   parseAlicizationPersonaTrainingArtifact,
   sanitizeAlicizationProviderFacingText,
 } from '@proj-alicization/stage-shared'
+
+import sqlite3 from './sqlite3-runtime'
 
 import { mapFragmentSourceKindToProvenance, mapMemorySourceToProvenance } from './humanlike-memory'
 import { normalizeWorkingMemoryLongTermEvidence } from './life-core/working-memory'
@@ -351,6 +355,8 @@ export type AlicizationMemoryQualityGoldLabelPayload = SharedAlicizationMemoryQu
 export type AlicizationMemoryQualityGoldLabelItem = SharedAlicizationMemoryQualityGoldLabelItem
 export type AlicizationMemoryQualityGoldLabelListResult = SharedAlicizationMemoryQualityGoldLabelListResult
 export type AlicizationMemoryQualityMonthlyGoldRegressionPack = SharedAlicizationMemoryQualityMonthlyGoldRegressionPack
+export type AlicizationMemoryQualityTrialReportRecord = SharedAlicizationMemoryQualityTrialReportRecord
+export type AlicizationMemoryQualityTrialReportListResult = SharedAlicizationMemoryQualityTrialReportListResult
 
 interface DbMemoryQualityGoldLabelRow {
   id: string
@@ -385,6 +391,17 @@ interface DbMemoryQualityMonthlyGoldPackRow {
   source_label_ids_json: string
   items_snapshot_json: string
   item_count: number
+}
+
+interface DbMemoryQualityTrialReportRow {
+  id: string
+  card_id: string
+  month: string
+  mode: 'historical-replay' | 'live-provider'
+  session_id: string | null
+  report_hash: string
+  report_json: string
+  created_at: number
 }
 
 interface PreparedMemoryFactWrite {
@@ -577,6 +594,11 @@ interface DbExecutionEventRow {
   thread_status: AlicizationTaskThreadStatus | null
   payload_json: string | null
   created_at: number
+}
+
+interface ExecutionCallbackCursorValue {
+  activityAt: number
+  threadId: string | null
 }
 
 interface DbExecutorSessionRow {
@@ -1326,6 +1348,30 @@ function mapExecutionEventRow(row: DbExecutionEventRow): AlicizationExecutionEve
   }
 }
 
+function readTaskThreadListCursor(raw: string | null | undefined): ExecutionCallbackCursorValue | null {
+  if (typeof raw !== 'string' || !raw.trim())
+    return null
+
+  try {
+    const parsed = JSON.parse(decodeURIComponent(raw)) as {
+      activityAt?: unknown
+      threadId?: unknown
+    }
+    if (!Number.isFinite(parsed.activityAt))
+      return null
+    const threadId = typeof parsed.threadId === 'string' && parsed.threadId.trim()
+      ? parsed.threadId.trim()
+      : null
+    return {
+      activityAt: Math.max(0, Math.floor(Number(parsed.activityAt))),
+      threadId,
+    }
+  }
+  catch {
+    return null
+  }
+}
+
 function mapExecutorSessionRow(row: DbExecutorSessionRow): AlicizationExecutorSessionRecord {
   return {
     id: row.id,
@@ -1487,12 +1533,12 @@ function assertWriteNotAborted(options?: DbWriteOptions) {
 }
 
 interface SqliteDriver {
-  Database: typeof sqlite3.Database
+  Database: typeof sqlite3Types.Database
 }
 
 function openDatabase(filepath: string, driver: SqliteDriver = sqlite3) {
-  return new Promise<sqlite3.Database>((resolve, reject) => {
-    let database: sqlite3.Database | null = null
+  return new Promise<sqlite3Types.Database>((resolve, reject) => {
+    let database: sqlite3Types.Database | null = null
     const onOpen = (error: Error | null) => {
       if (error) {
         reject(error)
@@ -1516,7 +1562,7 @@ function openDatabase(filepath: string, driver: SqliteDriver = sqlite3) {
   })
 }
 
-function run(database: sqlite3.Database, sql: string, params: unknown[] = []) {
+function run(database: sqlite3Types.Database, sql: string, params: unknown[] = []) {
   return new Promise<SqliteStatementResult>((resolve, reject) => {
     database.run(sql, params, function callback(error) {
       if (error) {
@@ -1532,7 +1578,7 @@ function run(database: sqlite3.Database, sql: string, params: unknown[] = []) {
   })
 }
 
-function get<T>(database: sqlite3.Database, sql: string, params: unknown[] = []) {
+function get<T>(database: sqlite3Types.Database, sql: string, params: unknown[] = []) {
   return new Promise<T | undefined>((resolve, reject) => {
     database.get(sql, params, (error, row) => {
       if (error) {
@@ -1545,7 +1591,7 @@ function get<T>(database: sqlite3.Database, sql: string, params: unknown[] = [])
   })
 }
 
-function all<T>(database: sqlite3.Database, sql: string, params: unknown[] = []) {
+function all<T>(database: sqlite3Types.Database, sql: string, params: unknown[] = []) {
   return new Promise<T[]>((resolve, reject) => {
     database.all(sql, params, (error, rows) => {
       if (error) {
@@ -1558,7 +1604,7 @@ function all<T>(database: sqlite3.Database, sql: string, params: unknown[] = [])
   })
 }
 
-function close(database: sqlite3.Database) {
+function close(database: sqlite3Types.Database) {
   return new Promise<void>((resolve, reject) => {
     database.close((error) => {
       if (error) {
@@ -1577,7 +1623,7 @@ function chunkValues<T>(values: T[], chunkSize = 180) {
   return chunks
 }
 
-async function runInTransaction<T>(database: sqlite3.Database, task: () => Promise<T>) {
+async function runInTransaction<T>(database: sqlite3Types.Database, task: () => Promise<T>) {
   await run(database, 'BEGIN IMMEDIATE')
   try {
     const result = await task()
@@ -1590,7 +1636,7 @@ async function runInTransaction<T>(database: sqlite3.Database, task: () => Promi
   }
 }
 
-async function supportsRuntimeCheckpointSchemaV3(database: sqlite3.Database) {
+async function supportsRuntimeCheckpointSchemaV3(database: sqlite3Types.Database) {
   const savepoint = 'alicization_runtime_checkpoint_schema_probe'
   const probeId = randomUUID()
   const insertProbe = async (schemaVersion: number, suffix: string) => {
@@ -1648,7 +1694,7 @@ async function supportsRuntimeCheckpointSchemaV3(database: sqlite3.Database) {
 }
 
 async function loadLatestEpisodicReconsolidationOverlayByEventId(
-  database: sqlite3.Database,
+  database: sqlite3Types.Database,
   queryAll: typeof all,
   eventIds: string[],
 ) {
@@ -1710,6 +1756,12 @@ export interface AlicizationDbService {
   ) => Promise<AlicizationRuntimeCheckpoint | null>
   getMetaValue: (key: string) => Promise<string | undefined>
   setMetaValue: (key: string, value: string, options?: DbWriteOptions) => Promise<void>
+  compareAndSetMetaValue: (
+    key: string,
+    expectedValue: string | undefined,
+    nextValue: string,
+    options?: DbWriteOptions,
+  ) => Promise<boolean>
   getLatestConversationSessionId: (cardId?: string) => Promise<string | undefined>
   getWorkingMemoryCheckpoint: (cardId: string, sessionId: string) => Promise<WorkingMemorySnapshot | null>
   listWorkingMemoryCheckpoints: (cardId: string, options?: { limit?: number }) => Promise<WorkingMemorySnapshot[]>
@@ -1809,6 +1861,12 @@ export interface AlicizationDbService {
     decision: AlicizationMemoryWorkbenchReviewDecision
     reason?: string | null
   }) => Promise<AlicizationLongTermMemoryReviewItem | null>
+  applyMemoryWorkbenchLongTermAction: (input: {
+    cardId: string
+    memoryItemId: string
+    decision: AlicizationMemoryLongTermActionDecision
+    reason?: string | null
+  }) => Promise<AlicizationMemoryWorkbenchItem | null>
   runMemoryWorkbenchRecallProbe: (input: {
     cardId: string
     query: string
@@ -1830,6 +1888,11 @@ export interface AlicizationDbService {
     cardId: string
     month?: string | null
   }) => Promise<AlicizationMemoryQualityMonthlyGoldRegressionPack>
+  listMemoryQualityTrialReports: (input: {
+    cardId: string
+    limit?: number
+    cursor?: string | null
+  }) => Promise<AlicizationMemoryQualityTrialReportListResult>
   runMemoryWorkbenchProductionTrial: (input: {
     cardId: string
     mode?: 'historical-replay' | 'live-provider'
@@ -2572,6 +2635,20 @@ export async function setupAlicizationDb(
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_quality_gold_packs_card_month ON memory_quality_monthly_gold_packs(card_id, month)')
 
     await run(database, `
+      CREATE TABLE IF NOT EXISTS memory_quality_trial_reports (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        month TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        session_id TEXT,
+        report_hash TEXT NOT NULL,
+        report_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `)
+    await run(database, 'CREATE INDEX IF NOT EXISTS idx_memory_quality_trial_reports_card_created ON memory_quality_trial_reports(card_id, created_at DESC, id DESC)')
+
+    await run(database, `
       CREATE TABLE IF NOT EXISTS long_term_memory_vectors (
         id TEXT PRIMARY KEY,
         card_id TEXT NOT NULL,
@@ -3282,6 +3359,20 @@ export async function setupAlicizationDb(
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_task_threads_turn_updated_at ON task_threads(turn_id, updated_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_task_threads_session_updated_at ON task_threads(session_id, updated_at DESC)')
     await run(database, 'CREATE INDEX IF NOT EXISTS idx_task_threads_status_updated_at ON task_threads(status, updated_at DESC)')
+    await run(database, `
+      CREATE INDEX IF NOT EXISTS idx_task_threads_session_status_activity_id
+      ON task_threads(
+        session_id,
+        status,
+        MAX(
+          COALESCE(last_event_at, 0),
+          COALESCE(completed_at, 0),
+          updated_at,
+          created_at
+        ),
+        id
+      )
+    `)
 
     await run(database, `
       CREATE TABLE IF NOT EXISTS capability_manifests (
@@ -3442,6 +3533,21 @@ export async function setupAlicizationDb(
   async function getMetaValue(key: string) {
     const row = await get<MetaRow>(database, 'SELECT value FROM alicization_meta WHERE key = ? LIMIT 1', [key])
     return row?.value
+  }
+
+  async function compareAndSetMetaValue(
+    key: string,
+    expectedValue: string | undefined,
+    nextValue: string,
+    options?: DbWriteOptions,
+  ) {
+    return await enqueueWrite(async () => await runInTransaction(database, async () => {
+      const current = await getMetaValue(key)
+      if (current !== expectedValue)
+        return false
+      await upsertMeta(key, nextValue)
+      return true
+    }), options)
   }
 
   const memoryMindStateRuntime = createAlicizationMemoryMindStateRuntime({
@@ -4860,6 +4966,9 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         ? [normalizeTaskThreadStatus(input.status)]
         : []
     const limit = Math.max(1, Math.min(5_000, Math.floor(input?.limit ?? 200)))
+    const order = input?.order === 'asc' ? 'ASC' : 'DESC'
+    const cursor = readTaskThreadListCursor(input?.cursor)
+    const activityExpression = 'MAX(COALESCE(last_event_at, 0), COALESCE(completed_at, 0), updated_at, created_at)'
     const whereClauses: string[] = []
     const params: unknown[] = []
 
@@ -4882,6 +4991,38 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     else if (statuses.length > 1) {
       whereClauses.push(`status IN (${statuses.map(() => '?').join(', ')})`)
       params.push(...statuses)
+    }
+    if (Number.isFinite(input?.minActivityAt)) {
+      whereClauses.push(`${activityExpression} >= ?`)
+      params.push(Math.max(0, Math.floor(Number(input?.minActivityAt))))
+    }
+    if (cursor) {
+      if (order === 'ASC') {
+        whereClauses.push(cursor.threadId === null
+          ? `${activityExpression} >= ?`
+          : `(
+              ${activityExpression} > ?
+              OR (
+                ${activityExpression} = ?
+                AND id > ?
+              )
+            )`)
+      }
+      else {
+        whereClauses.push(cursor.threadId === null
+          ? `${activityExpression} <= ?`
+          : `(
+              ${activityExpression} < ?
+              OR (
+                ${activityExpression} = ?
+                AND id < ?
+              )
+            )`)
+      }
+      if (cursor.threadId === null)
+        params.push(cursor.activityAt)
+      else
+        params.push(cursor.activityAt, cursor.activityAt, cursor.threadId)
     }
 
     const rows = await all<DbTaskThreadRow>(
@@ -4906,7 +5047,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         completed_at
       FROM task_threads
       ${whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''}
-      ORDER BY COALESCE(last_event_at, updated_at) DESC, updated_at DESC
+      ORDER BY ${activityExpression} ${order}, id ${order}
       LIMIT ?
       `,
       [...params, limit],
@@ -5508,6 +5649,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       await deleteCardScoped('long_term_memory_vectors')
       await deleteCardScoped('memory_quality_gold_labels')
       await deleteCardScoped('memory_quality_monthly_gold_packs')
+      await deleteCardScoped('memory_quality_trial_reports')
       await deleteCardScoped('persona_training_candidate_reviews')
       await deleteCardScoped('persona_training_runs')
       await deleteCardScoped('persona_training_increments')
@@ -9791,6 +9933,12 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         }
       })
     })
+    await longTermMemoryVectorIndexAdapter.delete({
+      cardId,
+      sourceIds,
+    }).catch(() => {
+      // Tombstones remain authoritative if native vector cleanup is unavailable.
+    })
     for (const sourceId of sourceIds) {
       await personaTrainingDatasetRuntime.revokeSource({
         cardId,
@@ -10335,6 +10483,55 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     return result ? projectLongTermReviewItemForWorkbench(result) : null
   }
 
+  async function applyMemoryWorkbenchLongTermAction(input: {
+    cardId: string
+    memoryItemId: string
+    decision: AlicizationMemoryLongTermActionDecision
+    reason?: string | null
+  }) {
+    const cardId = resolveMemoryCardId(input.cardId, 'memory workbench long-term action')
+    const item = await longTermMemorySearchIndexRuntime.getLongTermMemorySearchItem({
+      cardId,
+      memoryItemId: input.memoryItemId,
+    })
+    if (!item)
+      return null
+
+    const sourceIds = item.sourceIds.length > 0 ? item.sourceIds : [item.id]
+    if (input.decision === 'tombstone') {
+      await tombstoneLongTermMemorySources({
+        sourceIds,
+        source: item.source,
+        reason: input.reason ?? 'user-tombstoned-long-term-memory',
+      })
+      return null
+    }
+
+    const existingPolicies = await memoryWorkbenchPolicyStore.listPolicyOverrides({
+      cardId,
+      sourceIds,
+    })
+    const existingPolicyBySourceId = new Map(existingPolicies.map(policy => [policy.sourceId, policy]))
+    for (const sourceId of sourceIds) {
+      const existingPolicy = existingPolicyBySourceId.get(sourceId)
+      await memoryWorkbenchPolicyStore.upsertPolicyOverride({
+        cardId,
+        sourceId,
+        source: item.source,
+        visibleMode: input.decision === 'inward-only' ? 'inward-only' : existingPolicy?.visibleMode ?? item.visibility,
+        allowTraining: false,
+        reviewState: input.decision,
+        reason: input.reason,
+      })
+    }
+
+    return {
+      ...item,
+      visibility: input.decision === 'inward-only' ? 'inward-only' : item.visibility,
+      training: 'blocked' as const,
+    }
+  }
+
   async function runMemoryWorkbenchRecallProbe(input: {
     cardId: string
     query: string
@@ -10714,6 +10911,306 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     }
   }
 
+  function memoryQualityTrialReportCursor(createdAt: number, id: string) {
+    return memoryQualityGoldCursor(createdAt, id)
+  }
+
+  function parseMemoryQualityTrialReportCursor(raw: unknown) {
+    return parseMemoryQualityGoldCursor(raw)
+  }
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+  }
+
+  function isStringArray(value: unknown): value is string[] {
+    return Array.isArray(value) && value.every(item => typeof item === 'string')
+  }
+
+  function isFiniteNumberOrNull(value: unknown) {
+    return value === null || Number.isFinite(value)
+  }
+
+  function isStringOrNull(value: unknown) {
+    return value === null || typeof value === 'string'
+  }
+
+  function hasNumberFields(value: Record<string, unknown>, keys: string[]) {
+    return keys.every(key => Number.isFinite(value[key]))
+  }
+
+  function hasMemoryQualityTrialSummary(value: unknown) {
+    if (!isRecord(value))
+      return false
+    return [
+      'dialogueReplayCount',
+      'workingMemoryFixtureCount',
+      'compressedContextBehaviorFixtureCount',
+      'temporalConflictFixtureCount',
+      'semanticScaleSoakRunCount',
+      'experienceQualityFixtureCount',
+      'scopeFuzzCaseCount',
+      'longTermFixtureCount',
+      'userTrialCount',
+      'personaTrainingFixtureCount',
+      'goldLabelCount',
+      'optimizationFindingCount',
+      'recommendedActionCount',
+    ].every(key => Number.isFinite(value[key]))
+    && isStringArray(value.failingStageIds)
+    && isStringArray(value.notRunStageIds)
+    && (typeof value.goldRegressionPackId === 'string' || value.goldRegressionPackId === null)
+    && (typeof value.lastError === 'string' || value.lastError === null)
+  }
+
+  function hasMemoryQualityTrialRegression(value: unknown) {
+    if (!isRecord(value))
+      return false
+    return hasNumberFields(value, [
+      'recallAt1',
+      'recallAt3',
+      'recallAt5',
+      'wrongThreadRate',
+      'semanticHitRate',
+      'sourceTraceRate',
+      'abstentionPrecision',
+      'abstentionRecall',
+      'p50LatencyMs',
+      'p95LatencyMs',
+      'p99LatencyMs',
+      'providerFailureRate',
+      'queueFailureRate',
+      'deadLetterRate',
+    ])
+    && [
+      'staleMemoryLeakRate',
+      'temporalUpdateAccuracy',
+      'embeddingCoverageRatio',
+    ].every(key => isFiniteNumberOrNull(value[key]))
+  }
+
+  function hasMemoryQualityHarness(value: unknown) {
+    if (!isRecord(value))
+      return false
+    if (
+      value.version !== 'memory-quality-harness-v1'
+      || typeof value.passed !== 'boolean'
+      || !Number.isFinite(value.createdAt)
+      || !isRecord(value.summary)
+      || !Array.isArray(value.longTerm)
+      || !Array.isArray(value.workingMemory)
+      || !Array.isArray(value.userTrials)
+      || !Array.isArray(value.personaTraining)
+      || !Array.isArray(value.optimizationFindings)
+      || !isStringArray(value.recommendedNextActions)
+      || !Array.isArray(value.traces)
+    ) {
+      return false
+    }
+    const summary = value.summary
+    return hasNumberFields(summary, [
+      'longTermFixtureCount',
+      'workingMemoryFixtureCount',
+      'userTrialCount',
+      'personaTrainingFixtureCount',
+      'recallAtK',
+      'recallAt1',
+      'recallAt3',
+      'recallAt5',
+      'wrongThreadRate',
+      'semanticHitRate',
+      'sourceTraceRate',
+      'abstentionPrecision',
+      'abstentionRecall',
+      'p50LatencyMs',
+      'p95LatencyMs',
+      'p99LatencyMs',
+      'compressionLossCount',
+      'blockedLeakCount',
+      'optimizationFindingCount',
+    ])
+    && isStringArray(summary.failingFixtureIds)
+    && isStringOrNull(summary.lastError)
+  }
+
+  function hasMemoryQualityTrialStage(value: unknown) {
+    if (!isRecord(value))
+      return false
+    return [
+      'dialogue-replay',
+      'runtime-health',
+      'working-memory-compression',
+      'compressed-context-behavior',
+      'long-term-recall',
+      'temporal-conflict',
+      'semantic-scale-soak',
+      'experience-quality',
+      'scope-fuzz',
+      'gold-regression',
+      'persona-dataset-hygiene',
+    ].includes(value.stage as string)
+    && typeof value.id === 'string'
+    && Boolean(value.id.trim())
+    && typeof value.passed === 'boolean'
+    && Number.isFinite(value.itemCount)
+    && isStringOrNull(value.error)
+    && (value.status === undefined || value.status === 'not-run')
+  }
+
+  function hasDialogueReplayReport(value: unknown) {
+    if (!isRecord(value) || !isRecord(value.summary))
+      return false
+    return value.version === 'memory-db-dialogue-replay-report-v1'
+      && typeof value.id === 'string'
+      && typeof value.passed === 'boolean'
+      && Number.isFinite(value.createdAt)
+      && Array.isArray(value.turns)
+      && hasNumberFields(value.summary, [
+        'turnCount',
+        'succeededTurnCount',
+        'failedTurnCount',
+        'checkpointWriteCount',
+        'personaWriteCount',
+        'recalledEvidenceCount',
+      ])
+      && isStringOrNull(value.summary.lastError)
+  }
+
+  function hasLiveProviderTrialReport(value: unknown) {
+    if (!isRecord(value) || !isRecord(value.summary))
+      return false
+    return value.version === 'memory-live-provider-trial-v1'
+      && typeof value.id === 'string'
+      && typeof value.cardId === 'string'
+      && typeof value.sessionId === 'string'
+      && typeof value.passed === 'boolean'
+      && Number.isFinite(value.createdAt)
+      && Array.isArray(value.turns)
+      && Array.isArray(value.productionWrites)
+      && hasNumberFields(value.summary, [
+        'turnCount',
+        'succeededTurnCount',
+        'failedTurnCount',
+        'recalledEvidenceCount',
+        'providerCallCount',
+        'providerRetryCount',
+        'providerFailureRate',
+        'p50LatencyMs',
+        'p95LatencyMs',
+        'p99LatencyMs',
+      ])
+      && isStringOrNull(value.summary.lastError)
+  }
+
+  function hasRuntimeHealth(value: unknown) {
+    if (!isRecord(value) || !isRecord(value.queue) || !isRecord(value.recall) || !isRecord(value.embedding))
+      return false
+    const embedding = value.embedding
+    return hasNumberFields(value.queue, ['pending', 'review', 'applied', 'failed', 'deadLettered'])
+      && isFiniteNumberOrNull(value.recall.lastLatencyMs)
+      && isFiniteNumberOrNull(value.recall.p95LatencyMs)
+      && isStringOrNull(value.recall.lastError)
+      && typeof embedding.providerConfigured === 'boolean'
+      && isStringOrNull(embedding.modelId)
+      && isFiniteNumberOrNull(embedding.dimensions)
+      && isStringOrNull(embedding.vectorSpaceId)
+      && typeof embedding.reindexRequired === 'boolean'
+      && ['sqlite-vec', 'hnsw', 'ann', 'brute-force'].includes(embedding.indexMode as string)
+      && ['approximate', 'degraded', 'nativeIndexReady', 'searchReady'].every(key => typeof embedding[key] === 'boolean')
+      && isStringOrNull(embedding.lastError)
+      && hasNumberFields(embedding, [
+        'canonicalCount',
+        'indexedCount',
+        'missingCount',
+        'textHashMismatchCount',
+        'staleOrFailedCount',
+        'orphanedCount',
+      ])
+      && isFiniteNumberOrNull(embedding.coverageRatio)
+      && (embedding.reindexJob === null || isRecord(embedding.reindexJob))
+      && isStringArray(value.errors)
+  }
+
+  function hasMonthlyGoldRegressionPack(value: unknown) {
+    if (!isRecord(value))
+      return false
+    return value.version === 'memory-quality-monthly-gold-regression-pack-v2'
+      && typeof value.packId === 'string'
+      && Number.isFinite(value.revision)
+      && typeof value.cardId === 'string'
+      && typeof value.month === 'string'
+      && Number.isFinite(value.frozenAt)
+      && typeof value.contentHash === 'string'
+      && isStringArray(value.sourceLabelIds)
+      && Number.isFinite(value.itemCount)
+      && Array.isArray(value.itemsSnapshot)
+      && Array.isArray(value.items)
+  }
+
+  function parseMemoryQualityTrialReport(raw: string): MemoryProductionTrialReport | null {
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      if (!isRecord(parsed))
+        return null
+      const candidate = parsed as Partial<MemoryProductionTrialReport>
+      if (
+        candidate.version !== 'memory-production-trial-runner-v1'
+        || typeof candidate.id !== 'string'
+        || typeof candidate.cardId !== 'string'
+        || !Number.isFinite(candidate.createdAt)
+        || typeof candidate.passed !== 'boolean'
+        || !hasMemoryQualityTrialSummary(candidate.summary)
+        || !Array.isArray(candidate.stages)
+        || !candidate.stages.every(hasMemoryQualityTrialStage)
+        || candidate.dialogueReplay !== null && !hasDialogueReplayReport(candidate.dialogueReplay)
+        || candidate.liveProviderTrial !== null && !hasLiveProviderTrialReport(candidate.liveProviderTrial)
+        || candidate.runtimeHealth !== null && !hasRuntimeHealth(candidate.runtimeHealth)
+        || !hasMemoryQualityTrialRegression(candidate.regression)
+        || !hasMemoryQualityHarness(candidate.quality)
+        || candidate.goldRegressionPack !== null && !hasMonthlyGoldRegressionPack(candidate.goldRegressionPack)
+        || candidate.compressedContextBehavior !== null && !isRecord(candidate.compressedContextBehavior)
+        || candidate.temporalConflict !== null && !isRecord(candidate.temporalConflict)
+        || candidate.semanticScaleSoak !== null && !isRecord(candidate.semanticScaleSoak)
+        || candidate.experienceQuality !== null && !isRecord(candidate.experienceQuality)
+        || candidate.scopeFuzz !== null && !isRecord(candidate.scopeFuzz)
+        || !isStringArray(candidate.recommendedNextActions)
+      ) {
+        return null
+      }
+      return candidate as MemoryProductionTrialReport
+    }
+    catch {
+      return null
+    }
+  }
+
+  function mapMemoryQualityTrialReportRow(
+    row: DbMemoryQualityTrialReportRow,
+  ): AlicizationMemoryQualityTrialReportRecord | null {
+    const computedReportHash = `sha256:${createHash('sha256').update(row.report_json).digest('hex')}`
+    const report = parseMemoryQualityTrialReport(row.report_json)
+    if (
+      !report
+      || row.report_hash !== computedReportHash
+      || report.id !== row.id
+      || report.cardId !== row.card_id
+      || report.createdAt !== row.created_at
+      || !['historical-replay', 'live-provider'].includes(row.mode)
+    ) {
+      return null
+    }
+    return {
+      id: row.id,
+      cardId: row.card_id,
+      month: row.month,
+      mode: row.mode === 'live-provider' ? 'live-provider' : 'historical-replay',
+      sessionId: row.session_id,
+      reportHash: row.report_hash,
+      report,
+      createdAt: row.created_at,
+    }
+  }
+
   async function recordMemoryQualityGoldLabel(input: AlicizationMemoryQualityGoldLabelPayload) {
     const createdAt = Number.isFinite(input.createdAt) ? Math.max(0, Math.floor(Number(input.createdAt))) : now()
     const cardId = resolveMemoryCardId(input.cardId, 'memory quality gold label')
@@ -10842,7 +11339,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         : [cardId, month, limit + 1],
     )
     const pageRows = rows.slice(0, limit)
-    const next = rows.length > limit ? rows[limit] : null
+    const next = rows.length > limit ? pageRows.at(-1) ?? null : null
     return {
       items: pageRows.map(mapMemoryQualityGoldLabelRow),
       nextCursor: next ? memoryQualityGoldCursor(next.created_at, next.id) : null,
@@ -10956,6 +11453,75 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     if (!frozen)
       throw new Error('memory quality monthly gold regression pack write failed')
     return frozen
+  }
+
+  async function persistMemoryQualityTrialReport(input: {
+    report: MemoryProductionTrialReport
+    month: string
+    mode: 'historical-replay' | 'live-provider'
+    sessionId: string | null
+  }) {
+    const serializedReport = JSON.stringify(input.report)
+    const reportHash = `sha256:${createHash('sha256').update(serializedReport).digest('hex')}`
+    await enqueueWrite(async () => {
+      await run(
+        database,
+        `
+        INSERT INTO memory_quality_trial_reports (
+          id,
+          card_id,
+          month,
+          mode,
+          session_id,
+          report_hash,
+          report_json,
+          created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          input.report.id,
+          input.report.cardId,
+          input.month,
+          input.mode,
+          input.sessionId,
+          reportHash,
+          serializedReport,
+          input.report.createdAt,
+        ],
+      )
+    })
+  }
+
+  async function listMemoryQualityTrialReports(input: {
+    cardId: string
+    limit?: number
+    cursor?: string | null
+  }): Promise<AlicizationMemoryQualityTrialReportListResult> {
+    const cardId = resolveMemoryCardId(input.cardId, 'memory quality trial report list')
+    const limit = Math.max(1, Math.min(100, Math.floor(input.limit ?? 20)))
+    const cursor = parseMemoryQualityTrialReportCursor(input.cursor)
+    const rows = await all<DbMemoryQualityTrialReportRow>(
+      database,
+      `
+      SELECT *
+      FROM memory_quality_trial_reports
+      WHERE card_id = ?
+        ${cursor ? 'AND (created_at < ? OR (created_at = ? AND id < ?))' : ''}
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?
+      `,
+      cursor
+        ? [cardId, cursor.createdAt, cursor.createdAt, cursor.id, limit + 1]
+        : [cardId, limit + 1],
+    )
+    const pageRows = rows.slice(0, limit)
+    const next = rows.length > limit ? pageRows.at(-1) ?? null : null
+    return {
+      items: pageRows
+        .map(mapMemoryQualityTrialReportRow)
+        .filter((item): item is AlicizationMemoryQualityTrialReportRecord => item !== null),
+      nextCursor: next ? memoryQualityTrialReportCursor(next.created_at, next.id) : null,
+    }
   }
 
   function buildPersonaDatasetQualityFixturesFromSnapshot(input: {
@@ -11593,7 +12159,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
       }
     }
     const report = await runMemoryProductionTrialRunner({
-      id: `memory-production-trial:${cardId}:${month}:${createdAt}`,
+      id: `memory-production-trial:${cardId}:${month}:${createdAt}:${randomUUID()}`,
       cardId,
       createdAt,
       dialogueReplay,
@@ -11624,16 +12190,22 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
           }
         : {}),
     })
-    if (labels.length === 0) {
-      return {
-        ...report,
-        recommendedNextActions: [
-          ...report.recommendedNextActions,
-          '先在记忆面板用“记得对 / 没想起来 / 记错了 / 不该提”标注本月样本，再运行生产试用。',
-        ],
-      }
-    }
-    return report
+    const finalReport = labels.length === 0
+      ? {
+          ...report,
+          recommendedNextActions: [
+            ...report.recommendedNextActions,
+            '先在记忆面板用“记得对 / 没想起来 / 记错了 / 不该提”标注本月样本，再运行生产试用。',
+          ],
+        }
+      : report
+    await persistMemoryQualityTrialReport({
+      report: finalReport,
+      month,
+      mode: input.mode === 'live-provider' ? 'live-provider' : 'historical-replay',
+      sessionId: replaySessionId,
+    })
+    return finalReport
   }
 
   async function manageMemoryWorkbenchSemanticScaleJobs(input: {
@@ -12211,6 +12783,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
         await upsertMeta(key, value)
       }, options)
     },
+    compareAndSetMetaValue,
     getLatestConversationSessionId,
     getWorkingMemoryCheckpoint,
     listWorkingMemoryCheckpoints,
@@ -12245,6 +12818,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     rebuildLongTermMemorySearchIndex,
     listMemoryWorkbenchReviewItems,
     applyMemoryWorkbenchReviewAction,
+    applyMemoryWorkbenchLongTermAction,
     runMemoryWorkbenchRecallProbe,
     getMemoryWorkbenchQueueHealth,
     manageMemoryWorkbenchWorkingMemoryCleaningQueue,
@@ -12253,6 +12827,7 @@ ${metadataUpdateClause}          updated_at = MAX(excluded.updated_at, task_thre
     recordMemoryQualityGoldLabel,
     listMemoryQualityGoldLabels,
     buildMonthlyGoldRegressionPack,
+    listMemoryQualityTrialReports,
     runMemoryWorkbenchProductionTrial,
     manageMemoryWorkbenchSemanticScaleJobs,
     reindexMemoryWorkbenchEmbeddings,

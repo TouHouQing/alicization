@@ -12,10 +12,19 @@ describe('memory workbench settings page', () => {
     expect(source).toContain('\'review\'')
     expect(source).toContain('\'probe\'')
     expect(source).toContain('\'persona\'')
+    expect(source).toContain('\'quality\'')
     expect(source).toContain('\'health\'')
+    expect(source).not.toContain('tab.id !== \'quality\' || internalDiagnosticsVisible')
     expect(source).toContain('settings.pages.memory.workbench.title')
     expect(source).toContain('titleKey: settings.pages.memory.workbench.title')
     expect(source).not.toContain('settingsEntry: true')
+  })
+
+  it('keeps the quality trial tab available in the packaged C-end memory UI', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+
+    expect(source).toContain('activeTab === \'quality\'')
+    expect(source).not.toContain('activeTab === \'quality\' && internalDiagnosticsVisible')
   })
 
   it('keeps the old memory route as a compatibility redirect instead of a settings entry', () => {
@@ -61,6 +70,37 @@ describe('memory workbench settings page', () => {
     expect(source).toContain('settings.pages.memory.workbench.filters.training.')
     expect(source).toContain('formatLongTermFilterLabel(')
     expect(source).not.toContain('{{ option }}')
+  })
+
+  it('exposes direct governance actions on confirmed long-term memory items', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+    const storeSource = readFileSync(new URL('../../../../../../../packages/stage-ui/src/stores/alicization-memory-workbench.ts', import.meta.url), 'utf8')
+    const bridgeSource = readFileSync(new URL('../../../../../../../packages/stage-ui/src/stores/alicization-bridge.ts', import.meta.url), 'utf8')
+
+    expect(source).toContain('applyLongTermAction')
+    expect(source).toContain('settings.pages.memory.workbench.actions.tombstone')
+    expect(source).toContain('settings.pages.memory.workbench.actions.inward_only')
+    expect(source).toContain('settings.pages.memory.workbench.actions.no_training')
+    expect(source).toContain('item.source')
+    expect(storeSource).toContain('async function applyLongTermAction(')
+    expect(storeSource).toContain('memoryWorkbenchApplyLongTermAction')
+    expect(bridgeSource).toContain('memoryWorkbenchApplyLongTermAction')
+  })
+
+  it('requires an explicit confirmation before tombstoning user-visible memory', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+    const zhHans = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/zh-Hans/settings.yaml', import.meta.url), 'utf8')
+    const en = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/en/settings.yaml', import.meta.url), 'utf8')
+
+    expect(source).toContain('AlertDialogRoot')
+    expect(source).toContain('pendingTombstone')
+    expect(source).toContain('requestTombstone(')
+    expect(source).toContain('confirmTombstone(')
+    expect(source).not.toContain('@click="store.applyLongTermAction(item.id, \'tombstone\')"')
+    expect(zhHans).toContain('confirm_tombstone_title:')
+    expect(zhHans).toContain('confirm_tombstone_description:')
+    expect(en).toContain('confirm_tombstone_title:')
+    expect(en).toContain('confirm_tombstone_description:')
   })
 
   it('renders persona candidate panel and embedding reindex action', () => {
@@ -231,6 +271,52 @@ describe('memory workbench settings page', () => {
     expect(pickerSource).toContain('settings.pages.memory.workbench.quality.live_provider_notice')
   })
 
+  it('exposes packaged quality trials with durable report history', () => {
+    const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
+    const historySource = readFileSync(new URL('../modules/components/memory-quality-trial-history.vue', import.meta.url), 'utf8')
+    const zhHans = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/zh-Hans/settings.yaml', import.meta.url), 'utf8')
+    const english = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/en/settings.yaml', import.meta.url), 'utf8')
+
+    expect(source).not.toContain('tab.id !== \'quality\' || internalDiagnosticsVisible')
+    expect(source).not.toContain('activeTab === \'quality\' && internalDiagnosticsVisible')
+    expect(source).toContain('qualityTrialReports')
+    expect(source).toContain('qualityTrialReportsNextCursor')
+    expect(source).toContain('qualityTrialReportsLoading')
+    expect(source).toContain('loadQualityTrialReports')
+    expect(source).toContain('loadMoreQualityTrialReports')
+    expect(source).toContain('selectQualityTrialReport')
+    expect(source).toContain('selectedQualityTrialRecord')
+    expect(source).toContain('selectedQualityTrialRecord?.reportHash')
+    expect(source).toContain('qualityTrialReport.summary.lastError')
+    expect(source).toContain('<MemoryQualityTrialHistory')
+    expect(source).not.toContain('qualityTrialReport.dialogueReplay.turns')
+    expect(source).not.toContain('qualityTrialReport.liveProviderTrial.turns')
+    expect(source).not.toContain('qualityTrialReport.quality.traces')
+    expect(source).not.toContain('JSON.stringify(qualityTrialReport')
+    expect(historySource).toContain('AlicizationMemoryQualityTrialReportRecordSurface')
+    expect(source).not.toContain('settings.pages.memory.workbench.fields.full_quality_report')
+    expect(historySource).toContain('settings.pages.memory.workbench.quality.quality_history')
+    expect(historySource).toContain('settings.pages.memory.workbench.quality.empty_quality_history')
+    expect(historySource).toContain('settings.pages.memory.workbench.quality.quality_report_hash')
+    expect(historySource).toContain('settings.pages.memory.workbench.quality.quality_session')
+    expect(historySource).toContain('settings.pages.memory.workbench.quality.quality_run_mode')
+    expect(source).toContain('watch(activeCardId')
+    expect(source).toContain('store.loadQualityTrialReports()')
+    expect(source).toContain('onMounted(() =>')
+    expect(zhHans).toContain('quality_history:')
+    expect(zhHans).toContain('empty_quality_history:')
+    expect(zhHans).toContain('quality_report_hash:')
+    expect(zhHans).toContain('quality_session:')
+    expect(zhHans).toContain('quality_run_mode:')
+    expect(zhHans).toContain('full_quality_report:')
+    expect(english).toContain('quality_history:')
+    expect(english).toContain('empty_quality_history:')
+    expect(english).toContain('quality_report_hash:')
+    expect(english).toContain('quality_session:')
+    expect(english).toContain('quality_run_mode:')
+    expect(english).toContain('full_quality_report:')
+  })
+
   it('renders durable semantic scale controls, progress, dead-letter retry, and report history', () => {
     const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
     const zhHans = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/zh-Hans/settings.yaml', import.meta.url), 'utf8')
@@ -287,16 +373,15 @@ describe('memory workbench settings page', () => {
     expect(zhHans).toContain('regression_metrics: 质量回归指标')
   })
 
-  it('renders live Provider trial diagnostics instead of hiding the provider trace', () => {
+  it('renders live Provider trial summary without exposing per-turn provider traces', () => {
     const source = readFileSync(new URL('../modules/memory.vue', import.meta.url), 'utf8')
     const zhHans = readFileSync(new URL('../../../../../../../packages/i18n/src/locales/zh-Hans/settings.yaml', import.meta.url), 'utf8')
 
     expect(source).toContain('qualityTrialReport.liveProviderTrial')
     expect(source).toContain('providerRetryCount')
     expect(source).toContain('providerFailureRate')
-    expect(source).toContain('providerTrace.providerId')
-    expect(source).toContain('providerTrace.modelId')
-    expect(source).toContain('providerTrace.latencyMs')
+    expect(source).not.toContain('providerTrace.')
+    expect(source).not.toContain('liveProviderTrial.turns')
     expect(zhHans).toContain('live_provider_diagnostics: 真实 Provider 诊断')
   })
 })

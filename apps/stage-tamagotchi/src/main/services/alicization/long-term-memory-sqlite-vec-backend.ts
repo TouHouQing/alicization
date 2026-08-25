@@ -421,6 +421,7 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
     if (!cardId || !modelId || !vectorSpaceId || !dimensions || !isValidVector(queryVector, dimensions))
       return []
     const limit = Math.max(1, Math.min(32, Math.floor(Number(filters.limit ?? 8))))
+    const nativeLimit = Math.min(64, Math.max(limit, limit * 4))
     const nativeRows = await input.all<{ rowid: number, distance: number }>(
       input.database,
       `
@@ -436,7 +437,7 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
       `,
       [
         encodeVector(queryVector),
-        limit,
+        nativeLimit,
         cardId,
         modelId,
         vectorSpaceId,
@@ -489,7 +490,7 @@ export function createSqliteVecLongTermMemoryVectorBackend(input: {
         })
       }
     }
-    return results
+    return results.slice(0, limit)
   }
 
   async function rebuild(rebuildInput: { cardId: string, modelId: string, dimensions: number, vectorSpaceId: string }) {

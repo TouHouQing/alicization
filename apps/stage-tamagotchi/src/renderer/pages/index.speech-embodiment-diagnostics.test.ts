@@ -1339,7 +1339,7 @@ describe('index speech embodiment diagnostics mapping', () => {
       },
     } as any)
 
-    expect(mapped.traceSummary?.latestEventSummary).toContain('repair-before-closeness')
+    expect(mapped.traceSummary?.latestEventSummary).toContain('identity-continuity')
     expect(mapped.authoritySummary?.authorityMismatchReasonSummary).toContain('same-thread-continuation')
     expect(mapped.authoritySummary?.authorityMismatchDisplay).toContain('same-thread-continuation')
     expect(mapped.cueMicroSummary?.personaStyle).toBe('repair-before-closeness | soften / linger')

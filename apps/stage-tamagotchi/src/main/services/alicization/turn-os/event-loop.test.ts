@@ -3,26 +3,41 @@ import type {
 } from '@proj-alicization/stage-shared'
 
 import type { AlicizationRuntimeCheckpoint } from './checkpoint-store'
+import type { AlicizationEventLoopRuntimeView } from './event-loop'
 import type { AlicizationRuntimeEventScope } from './event-store'
+import type { AlicizationRuntimeTimeoutReason } from './runtime-errors'
 
 import {
   createAlicizationRuntimeEvent,
 } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  createAlicizationEventLoop,
-} from './event-loop'
+import { createAlicizationEventLoop } from './event-loop'
 import { replayTurn } from './replay'
 import {
   createAlicizationRuntimeReplyArtifact,
   createAlicizationRuntimeReplyDeliveryIntent,
 } from './reply-artifact'
+import { createAlicizationRuntimeAbortError } from './runtime-errors'
 import {
   createAlicizationTurnRuntimeState,
   listAlicizationActiveActionIds,
   reduceAlicizationRuntimeEvent,
 } from './runtime-state'
+
+const runtimeTimeoutReasons = [
+  'chat-first-event-timeout',
+  'chat-preparation-timeout',
+  'chat-provider-liveness-timeout',
+  'chat-provider-idle-timeout',
+  'chat-provider-continuation-timeout',
+  'chat-provider-retry-deadline',
+  'chat-tool-result-handoff-timeout',
+  'main-gateway-attempt-timeout',
+  'main-gateway-timeout',
+  'main-gateway-timeout-recovery',
+  'main-gateway-visual-one-shot-timeout',
+] as const satisfies readonly AlicizationRuntimeTimeoutReason[]
 
 function runtimeScope(overrides: Partial<AlicizationRuntimeEventScope> = {}): AlicizationRuntimeEventScope {
   return {
@@ -237,6 +252,254 @@ describe('alicization event loop', () => {
         outputPreview: 'No semantic progress was observed.',
       },
     })
+  })
+
+  it('does not persist late memory settlement or tool progress after turn completion', async () => {
+    const persistence = createPersistence()
+    let appendLateMemoryEvent!: AlicizationEventLoopRuntimeView['appendMemoryEvent']
+    let appendLateActionProgress!: AlicizationEventLoopRuntimeView['appendActionProgress']
+    const lateEvents: unknown[] = []
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      onLateEvent: vi.fn(async (event) => {
+        lateEvents.push(event)
+      }),
+      participant: {
+        assembleContext: vi.fn(async (_input, runtime) => {
+          appendLateMemoryEvent = runtime.appendMemoryEvent
+          return {}
+        }),
+        runModelStep: vi.fn()
+          .mockResolvedValueOnce({
+            kind: 'action' as const,
+            action: {
+              actionId: 'late-sidecar-action',
+              toolCallId: 'late-sidecar-tool-call',
+              capabilityId: 'tool.late-sidecar',
+              providerToolName: 'late-sidecar',
+              input: {},
+            },
+          })
+          .mockResolvedValueOnce({
+            kind: 'reply' as const,
+            reply: modelReply('已完成。'),
+          }),
+        executeAction: vi.fn(async (_action, runtime) => {
+          appendLateActionProgress = runtime.appendActionProgress
+          return {
+            actionId: 'late-sidecar-action',
+            observationId: 'late-sidecar-observation',
+            toolCallId: 'late-sidecar-tool-call',
+            terminal: true,
+            outcome: 'success' as const,
+            output: { status: 'completed' },
+          }
+        }),
+        settleReply: vi.fn(async () => {}),
+      },
+    })
+
+    const result = await eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-late-sidecar-after-completion' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+
+    expect(result.status).toBe('completed')
+    const persistedEventCount = persistence.events.length
+
+    await appendLateMemoryEvent('memory.owner.settled', {
+      owner: 'long-term-memory-queue',
+      status: 'succeeded',
+    }, 'late-memory-settlement')
+    await appendLateActionProgress({
+      actionId: 'late-sidecar-action',
+      toolCallId: 'late-sidecar-tool-call',
+      capabilityId: 'tool.late-sidecar',
+      providerToolName: 'late-sidecar',
+      phase: 'running',
+      signal: 'liveness',
+      elapsedMs: 1,
+    })
+
+    expect(persistence.events).toHaveLength(persistedEventCount)
+    expect(lateEvents).toHaveLength(2)
+    expect(lateEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        eventType: 'memory.owner.settled',
+        terminalEventType: 'turn.completed',
+      }),
+      expect.objectContaining({
+        eventType: 'action.progress',
+        terminalEventType: 'turn.completed',
+      }),
+    ]))
+  })
+
+  it('does not persist late sidecar events after user cancellation', async () => {
+    const persistence = createPersistence()
+    const actionStarted = createDeferred<void>()
+    let appendLateMemoryEvent!: AlicizationEventLoopRuntimeView['appendMemoryEvent']
+    let appendLateActionProgress!: AlicizationEventLoopRuntimeView['appendActionProgress']
+    const lateEvents: unknown[] = []
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      onLateEvent: vi.fn(async (event) => {
+        lateEvents.push(event)
+      }),
+      participant: {
+        assembleContext: vi.fn(async (_input, runtime) => {
+          appendLateMemoryEvent = runtime.appendMemoryEvent
+          return {}
+        }),
+        runModelStep: vi.fn(async () => ({
+          kind: 'action' as const,
+          action: {
+            actionId: 'cancel-late-sidecar-action',
+            toolCallId: 'cancel-late-sidecar-tool-call',
+            capabilityId: 'tool.cancel-late-sidecar',
+            providerToolName: 'cancel-late-sidecar',
+            input: {},
+          },
+        })),
+        executeAction: vi.fn(async (_action, runtime) => {
+          appendLateActionProgress = runtime.appendActionProgress
+          actionStarted.resolve()
+          return await new Promise<never>(() => {})
+        }),
+        settleReply: vi.fn(),
+      },
+    })
+    const scope = runtimeScope({ turnId: 'turn-late-sidecar-after-cancellation' })
+
+    const running = eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+    await actionStarted.promise
+
+    await expect(eventLoop.cancelTurn(scope, 'user cancelled')).resolves.toBe(true)
+    await expect(running).resolves.toMatchObject({
+      status: 'cancelled',
+    })
+
+    const persistedEventCount = persistence.events.length
+    expect(persistence.events.filter(event => event.eventType === 'runtime.cancelled')).toHaveLength(1)
+
+    await appendLateMemoryEvent('memory.owner.settled', {
+      owner: 'long-term-memory-queue',
+      status: 'succeeded',
+    }, 'late-memory-after-cancellation')
+    await appendLateActionProgress({
+      actionId: 'cancel-late-sidecar-action',
+      toolCallId: 'cancel-late-sidecar-tool-call',
+      capabilityId: 'tool.cancel-late-sidecar',
+      providerToolName: 'cancel-late-sidecar',
+      phase: 'running',
+      signal: 'liveness',
+      elapsedMs: 1,
+    })
+
+    expect(persistence.events).toHaveLength(persistedEventCount)
+    expect(persistence.events.filter(event =>
+      event.eventType === 'runtime.cancelled' || event.eventType === 'runtime.timed_out',
+    )).toHaveLength(1)
+    expect(lateEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        eventType: 'memory.owner.settled',
+        terminalEventType: 'runtime.cancelled',
+      }),
+      expect.objectContaining({
+        eventType: 'action.progress',
+        terminalEventType: 'runtime.cancelled',
+      }),
+    ]))
+  })
+
+  it('does not persist late sidecar events after a structured timeout', async () => {
+    const persistence = createPersistence()
+    const actionStarted = createDeferred<void>()
+    const externalController = new AbortController()
+    let appendLateMemoryEvent!: AlicizationEventLoopRuntimeView['appendMemoryEvent']
+    let appendLateActionProgress!: AlicizationEventLoopRuntimeView['appendActionProgress']
+    const lateEvents: unknown[] = []
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      onLateEvent: vi.fn(async (event) => {
+        lateEvents.push(event)
+      }),
+      participant: {
+        assembleContext: vi.fn(async (_input, runtime) => {
+          appendLateMemoryEvent = runtime.appendMemoryEvent
+          return {}
+        }),
+        runModelStep: vi.fn(async () => ({
+          kind: 'action' as const,
+          action: {
+            actionId: 'timeout-late-sidecar-action',
+            toolCallId: 'timeout-late-sidecar-tool-call',
+            capabilityId: 'tool.timeout-late-sidecar',
+            providerToolName: 'timeout-late-sidecar',
+            input: {},
+          },
+        })),
+        executeAction: vi.fn(async (_action, runtime) => {
+          appendLateActionProgress = runtime.appendActionProgress
+          actionStarted.resolve()
+          return await new Promise<never>(() => {})
+        }),
+        settleReply: vi.fn(),
+      },
+    })
+    const scope = runtimeScope({ turnId: 'turn-late-sidecar-after-timeout' })
+
+    const running = eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+      signal: externalController.signal,
+    })
+    await actionStarted.promise
+
+    const timeoutError = createAlicizationRuntimeAbortError('chat-provider-idle-timeout')
+    externalController.abort(timeoutError)
+
+    await expect(running).resolves.toMatchObject({
+      status: 'timed-out',
+    })
+
+    const persistedEventCount = persistence.events.length
+    expect(persistence.events.filter(event => event.eventType === 'runtime.timed_out')).toHaveLength(1)
+
+    await appendLateMemoryEvent('memory.owner.settled', {
+      owner: 'long-term-memory-queue',
+      status: 'succeeded',
+    }, 'late-memory-after-timeout')
+    await appendLateActionProgress({
+      actionId: 'timeout-late-sidecar-action',
+      toolCallId: 'timeout-late-sidecar-tool-call',
+      capabilityId: 'tool.timeout-late-sidecar',
+      providerToolName: 'timeout-late-sidecar',
+      phase: 'running',
+      signal: 'liveness',
+      elapsedMs: 1,
+    })
+
+    expect(persistence.events).toHaveLength(persistedEventCount)
+    expect(persistence.events.filter(event =>
+      event.eventType === 'runtime.cancelled' || event.eventType === 'runtime.timed_out',
+    )).toHaveLength(1)
+    expect(lateEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        eventType: 'memory.owner.settled',
+        terminalEventType: 'runtime.timed_out',
+      }),
+      expect.objectContaining({
+        eventType: 'action.progress',
+        terminalEventType: 'runtime.timed_out',
+      }),
+    ]))
   })
 
   it('persists canonical capability identity separately from the Provider tool alias', async () => {
@@ -923,6 +1186,254 @@ describe('alicization event loop', () => {
     })
   })
 
+  it('emits exactly one authoritative terminal event for every turn terminal status', async () => {
+    const terminalEventTypes = new Set([
+      'turn.completed',
+      'turn.failed',
+      'runtime.cancelled',
+      'runtime.timed_out',
+    ])
+    const timeoutError = createAlicizationRuntimeAbortError('chat-provider-retry-deadline')
+    const cancelledController = new AbortController()
+    cancelledController.abort('manual cancellation')
+    const timedOutController = new AbortController()
+    timedOutController.abort(timeoutError)
+
+    const scenarios = [
+      {
+        name: 'completed',
+        expectedStatus: 'completed' as const,
+        expectedTerminalEventType: 'turn.completed',
+        signal: undefined,
+        participant: {
+          assembleContext: vi.fn(async () => ({})),
+          runModelStep: vi.fn(async () => ({
+            kind: 'reply' as const,
+            reply: modelReply('完成'),
+          })),
+          executeAction: vi.fn(),
+          settleReply: vi.fn(async () => {}),
+        },
+      },
+      {
+        name: 'failed',
+        expectedStatus: 'failed' as const,
+        expectedTerminalEventType: 'turn.failed',
+        signal: undefined,
+        participant: {
+          assembleContext: vi.fn(async () => ({})),
+          runModelStep: vi.fn(async () => {
+            throw new Error('provider invocation failed')
+          }),
+          executeAction: vi.fn(),
+          settleReply: vi.fn(async () => {}),
+        },
+      },
+      {
+        name: 'cancelled',
+        expectedStatus: 'cancelled' as const,
+        expectedTerminalEventType: 'runtime.cancelled',
+        signal: cancelledController.signal,
+        participant: {
+          assembleContext: vi.fn(async () => ({})),
+          runModelStep: vi.fn(),
+          executeAction: vi.fn(),
+          settleReply: vi.fn(async () => {}),
+        },
+      },
+      {
+        name: 'timed-out',
+        expectedStatus: 'timed-out' as const,
+        expectedTerminalEventType: 'runtime.timed_out',
+        signal: timedOutController.signal,
+        participant: {
+          assembleContext: vi.fn(async () => ({})),
+          runModelStep: vi.fn(),
+          executeAction: vi.fn(),
+          settleReply: vi.fn(async () => {}),
+        },
+      },
+    ]
+
+    for (const scenario of scenarios) {
+      const persistence = createPersistence()
+      const eventLoop = createAlicizationEventLoop({
+        persistence,
+        participant: scenario.participant,
+      })
+      const result = await eventLoop.runTurn({
+        scope: runtimeScope({ turnId: `turn-terminal-matrix-${scenario.name}` }),
+        deliveryOwner: 'inline',
+        turnInput: {},
+        ...(scenario.signal ? { signal: scenario.signal } : {}),
+      })
+
+      expect(result.status, scenario.name).toBe(scenario.expectedStatus)
+      expect(
+        persistence.events
+          .map(event => event.eventType)
+          .filter(eventType => terminalEventTypes.has(eventType)),
+        scenario.name,
+      ).toEqual([scenario.expectedTerminalEventType])
+    }
+  })
+
+  it.each(runtimeTimeoutReasons)(
+    'persists the structured runtime watchdog timeout %s separately from failure and cancellation',
+    async (timeoutReason) => {
+      const persistence = createPersistence()
+      const timeoutError = createAlicizationRuntimeAbortError(timeoutReason)
+      const eventLoop = createAlicizationEventLoop({
+        persistence,
+        participant: {
+          assembleContext: vi.fn(async () => ({})),
+          runModelStep: vi.fn(async () => {
+            throw timeoutError
+          }),
+          executeAction: vi.fn(),
+          settleReply: vi.fn(),
+        },
+      })
+
+      const result = await eventLoop.runTurn({
+        scope: runtimeScope({ turnId: `turn-runtime-watchdog-${timeoutReason}` }),
+        deliveryOwner: 'inline',
+        turnInput: {},
+      })
+      const eventTypes = persistence.events.map(event => event.eventType)
+
+      expect(result).toMatchObject({
+        status: 'timed-out',
+        error: expect.stringContaining(timeoutReason),
+        cause: timeoutError,
+      })
+      expect(persistence.events.find(event =>
+        event.eventType === 'runtime.timed_out',
+      )).toMatchObject({
+        payload: {
+          timeoutReason,
+        },
+      })
+      expect(eventTypes).not.toContain('runtime.cancelled')
+      expect(eventTypes).not.toContain('provider.failed')
+      expect(eventTypes).not.toContain('turn.failed')
+    },
+  )
+
+  it('keeps an externally delivered structured timeout separate from cancellation', async () => {
+    const persistence = createPersistence()
+    const signalController = new AbortController()
+    const timeoutError = createAlicizationRuntimeAbortError('chat-provider-retry-deadline')
+    signalController.abort(timeoutError)
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(),
+        executeAction: vi.fn(),
+        settleReply: vi.fn(),
+      },
+    })
+
+    const result = await eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-external-structured-timeout' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+      signal: signalController.signal,
+    })
+
+    expect(result).toMatchObject({
+      status: 'timed-out',
+      cause: timeoutError,
+      error: expect.stringContaining('chat-provider-retry-deadline'),
+    })
+    expect(persistence.events.map(event => event.eventType)).not.toContain('runtime.cancelled')
+    expect(persistence.events.at(-1)).toMatchObject({
+      eventType: 'runtime.timed_out',
+      payload: {
+        timeoutReason: 'chat-provider-retry-deadline',
+      },
+    })
+  })
+
+  it('persists an active tool failure before a structured watchdog timeout settles the turn', async () => {
+    const persistence = createPersistence()
+    const signalController = new AbortController()
+    const actionStarted = createDeferred<void>()
+    const actionNeverSettles = createDeferred<never>()
+    const timeoutError = createAlicizationRuntimeAbortError('main-gateway-timeout')
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => ({
+          kind: 'action' as const,
+          action: {
+            actionId: 'action-watchdog-timeout',
+            toolCallId: 'tool-call-watchdog-timeout',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
+            input: {},
+          },
+        })),
+        executeAction: vi.fn(async () => {
+          actionStarted.resolve()
+          return await actionNeverSettles.promise
+        }),
+        settleReply: vi.fn(),
+      },
+    })
+
+    const running = eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-watchdog-during-tool' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+      signal: signalController.signal,
+    })
+    await actionStarted.promise
+    signalController.abort(timeoutError)
+
+    const result = await running
+    const eventTypes = persistence.events.map(event => event.eventType)
+
+    expect(result).toMatchObject({
+      status: 'timed-out',
+      cause: timeoutError,
+      state: {
+        actions: {
+          'action-watchdog-timeout': {
+            status: 'failed',
+          },
+        },
+      },
+    })
+    expect(eventTypes).toContain('action.observation')
+    expect(eventTypes).toContain('action.failed')
+    expect(eventTypes).toContain('runtime.timed_out')
+    expect(eventTypes.indexOf('action.observation'))
+      .toBeLessThan(eventTypes.indexOf('runtime.timed_out'))
+    expect(persistence.events.find(event =>
+      event.eventType === 'action.observation',
+    )).toMatchObject({
+      payload: {
+        actionId: 'action-watchdog-timeout',
+        toolCallId: 'tool-call-watchdog-timeout',
+        terminal: true,
+        outcome: 'failure',
+        error: expect.stringContaining('main-gateway-timeout'),
+      },
+    })
+    expect(persistence.events.find(event =>
+      event.eventType === 'action.failed',
+    )).toMatchObject({
+      payload: {
+        actionId: 'action-watchdog-timeout',
+        toolCallId: 'tool-call-watchdog-timeout',
+        error: expect.stringContaining('main-gateway-timeout'),
+      },
+    })
+  })
+
   it('rejects an already-applied non-idempotent event returned by persistence', async () => {
     const persistence = createPersistence()
     const appendRuntimeEvent = persistence.appendRuntimeEvent.getMockImplementation()!
@@ -1115,24 +1626,32 @@ describe('alicization event loop', () => {
 
   it('records a terminal failure observation before settling a thrown tool action', async () => {
     const persistence = createPersistence()
+    const modelSteps = [
+      {
+        kind: 'action' as const,
+        action: {
+          actionId: 'action-tool-failure',
+          toolCallId: 'tool-call-failure',
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'codex',
+          input: {},
+        },
+      },
+      {
+        kind: 'reply' as const,
+        reply: { artifact: providerReplyArtifact('工具失败了，我来说明原因。') },
+      },
+    ]
+    const runModelStep = vi.fn(async () => modelSteps.shift()!)
     const eventLoop = createAlicizationEventLoop({
       persistence,
       participant: {
         assembleContext: vi.fn(async () => ({})),
-        runModelStep: vi.fn(async () => ({
-          kind: 'action' as const,
-          action: {
-            actionId: 'action-tool-failure',
-            toolCallId: 'tool-call-failure',
-            capabilityId: 'coding_agent.codex',
-            providerToolName: 'codex',
-            input: {},
-          },
-        })),
+        runModelStep,
         executeAction: vi.fn(async () => {
           throw new Error('tool process crashed')
         }),
-        settleReply: vi.fn(),
+        settleReply: vi.fn(async () => {}),
       },
     })
 
@@ -1142,6 +1661,8 @@ describe('alicization event loop', () => {
       turnInput: {},
     })
 
+    expect(result.status).toBe('completed')
+    expect(runModelStep).toHaveBeenCalledTimes(2)
     const actionEvents = persistence.events.filter(event =>
       event.eventType === 'action.observation' || event.eventType === 'action.failed',
     )
@@ -1171,6 +1692,238 @@ describe('alicization event loop', () => {
         outcome: 'failure',
       },
     })
+  })
+
+  it('classifies an AbortError tool timeout as timeout instead of cancellation', async () => {
+    const persistence = createPersistence()
+    const modelSteps = [
+      {
+        kind: 'action' as const,
+        action: {
+          actionId: 'action-tool-timeout',
+          toolCallId: 'tool-call-timeout',
+          capabilityId: 'tool.timeout',
+          providerToolName: 'timeout',
+          input: {},
+        },
+      },
+      {
+        kind: 'reply' as const,
+        reply: { artifact: providerReplyArtifact('工具超时了，我来说明原因。') },
+      },
+    ]
+    const runModelStep = vi.fn(async () => modelSteps.shift()!)
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep,
+        executeAction: vi.fn(async () => {
+          throw Object.assign(new Error('tool execution timed out'), {
+            name: 'AbortError',
+            errorCode: 'TOOL_EXECUTION_TIMEOUT',
+          })
+        }),
+        settleReply: vi.fn(async () => {}),
+      },
+    })
+
+    const result = await eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-tool-timeout' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+
+    expect(result.status).toBe('completed')
+    expect(persistence.events.find(event => event.eventType === 'action.observation')?.payload).toMatchObject({
+      outcome: 'failure',
+      output: expect.objectContaining({
+        status: 'timeout',
+        errorCode: 'TOOL_EXECUTION_TIMEOUT',
+      }),
+    })
+    expect(persistence.events.map(event => event.eventType)).toContain('action.failed')
+    expect(persistence.events.map(event => event.eventType)).not.toContain('action.cancelled')
+  })
+
+  it.each([
+    {
+      expectedActionEventType: 'action.failed',
+      expectedOutcome: 'failure',
+      expectedStatus: 'timeout',
+      output: {
+        status: 'failed',
+        errorCode: 'CODEX_TIMEOUT',
+      },
+    },
+    {
+      expectedActionEventType: 'action.cancelled',
+      expectedOutcome: 'cancelled',
+      expectedStatus: 'cancelled',
+      output: {
+        status: 'cancelled',
+        errorCode: 'TOOL_EXECUTION_CANCELLED',
+      },
+    },
+  ] as const)(
+    'normalizes a returned terminal observation with $expectedStatus tool output',
+    async ({
+      expectedActionEventType,
+      expectedOutcome,
+      expectedStatus,
+      output,
+    }) => {
+      const persistence = createPersistence()
+      const actionId = `action-returned-${expectedStatus}`
+      const toolCallId = `tool-call-returned-${expectedStatus}`
+      const modelSteps = [
+        {
+          kind: 'action' as const,
+          action: {
+            actionId,
+            toolCallId,
+            capabilityId: 'tool.returned-status',
+            providerToolName: 'returned-status',
+            input: {},
+          },
+        },
+        {
+          kind: 'reply' as const,
+          reply: { artifact: providerReplyArtifact('工具结果已处理。') },
+        },
+      ]
+      const eventLoop = createAlicizationEventLoop({
+        persistence,
+        participant: {
+          assembleContext: vi.fn(async () => ({})),
+          runModelStep: vi.fn(async () => modelSteps.shift()!),
+          executeAction: vi.fn(async () => ({
+            actionId,
+            observationId: `observation-returned-${expectedStatus}`,
+            toolCallId,
+            terminal: true as const,
+            outcome: 'failure' as const,
+            output,
+          })),
+          settleReply: vi.fn(async () => {}),
+        },
+      })
+
+      const result = await eventLoop.runTurn({
+        scope: runtimeScope({ turnId: `turn-returned-${expectedStatus}` }),
+        deliveryOwner: 'inline',
+        turnInput: {},
+      })
+
+      expect(result.status).toBe('completed')
+      expect(persistence.events.find(event => event.eventType === 'action.observation')?.payload).toMatchObject({
+        outcome: expectedOutcome,
+        output: expect.objectContaining({
+          status: expectedStatus,
+          errorCode: output.errorCode,
+        }),
+      })
+      expect(persistence.events.map(event => event.eventType)).toContain(expectedActionEventType)
+    },
+  )
+
+  it('keeps dead-letter terminal status visible to the Provider and Turn OS', async () => {
+    const persistence = createPersistence()
+    const modelSteps = [
+      {
+        kind: 'action' as const,
+        action: {
+          actionId: 'action-dead-lettered-runtime',
+          toolCallId: 'tool-call-dead-lettered-runtime',
+          capabilityId: 'coding_agent.codex',
+          providerToolName: 'codex',
+          input: {},
+        },
+      },
+      {
+        kind: 'reply' as const,
+        reply: { artifact: providerReplyArtifact('这个任务已进入死信状态。') },
+      },
+    ]
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => modelSteps.shift()!),
+        executeAction: vi.fn(async () => {
+          throw Object.assign(new Error('retry budget exhausted'), {
+            finalStatus: 'dead-lettered',
+            errorCode: 'CODEX_DEAD_LETTERED',
+          })
+        }),
+        settleReply: vi.fn(async () => {}),
+      },
+    })
+
+    const result = await eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-dead-lettered-runtime' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+
+    expect(result.status).toBe('completed')
+    expect(persistence.events.map(event => event.eventType)).toContain('action.dead_lettered')
+    expect(persistence.events.find(event => event.eventType === 'action.observation')?.payload).toMatchObject({
+      output: expect.objectContaining({
+        status: 'dead-lettered',
+        errorCode: 'CODEX_DEAD_LETTERED',
+        finalStatus: 'dead-lettered',
+      }),
+    })
+    expect(persistence.events
+      .map(event => event.eventType)
+      .filter(eventType => eventType === 'turn.completed' || eventType === 'turn.failed'))
+      .toEqual(['turn.completed'])
+  })
+
+  it('starts an action operation only once while racing it against abort', async () => {
+    const persistence = createPersistence()
+    const modelSteps = [
+      {
+        kind: 'action' as const,
+        action: {
+          actionId: 'action-once',
+          toolCallId: 'tool-call-once',
+          capabilityId: 'tool.once',
+          providerToolName: 'once',
+          input: {},
+        },
+      },
+      {
+        kind: 'reply' as const,
+        reply: { artifact: providerReplyArtifact('一次工具结果已经处理。') },
+      },
+    ]
+    const operation = vi.fn(async () => ({
+      actionId: 'action-once',
+      observationId: 'observation-once',
+      toolCallId: 'tool-call-once',
+      terminal: true,
+      outcome: 'success' as const,
+    }))
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => modelSteps.shift()!),
+        executeAction: operation,
+        settleReply: vi.fn(async () => {}),
+      },
+    })
+
+    const result = await eventLoop.runTurn({
+      scope: runtimeScope({ turnId: 'turn-action-once' }),
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+
+    expect(result.status).toBe('completed')
+    expect(operation).toHaveBeenCalledTimes(1)
   })
 
   it('does not fabricate tool failure after a successful observation append fails', async () => {
@@ -2519,6 +3272,91 @@ describe('alicization event loop', () => {
     })
   })
 
+  it('settles a structured timeout cancel request after the runtime.timed_out checkpoint is durable', async () => {
+    const persistence = createPersistence()
+    const modelStepStarted = createDeferred<void>()
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => {
+          modelStepStarted.resolve()
+          return await new Promise<never>(() => {})
+        }),
+        executeAction: vi.fn(),
+        settleReply: vi.fn(),
+      },
+    })
+    const scope = runtimeScope({ turnId: 'turn-timeout-cancel-durability' })
+    const running = eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+    await modelStepStarted.promise
+
+    const timeoutError = createAlicizationRuntimeAbortError('chat-preparation-timeout')
+    const cancellation = eventLoop.cancelTurn(scope, timeoutError)
+    const cancellationResult = await Promise.race([
+      cancellation.then(value => ({ status: 'settled' as const, value })),
+      new Promise<{ status: 'pending' }>((resolve) => {
+        setTimeout(() => resolve({ status: 'pending' }), 25)
+      }),
+    ])
+
+    await expect(running).resolves.toMatchObject({
+      status: 'timed-out',
+      cause: timeoutError,
+    })
+    expect(cancellationResult).toEqual({
+      status: 'settled',
+      value: true,
+    })
+    expect(persistence.events.map(event => event.eventType)).toContain('runtime.timed_out')
+    expect(persistence.checkpoints.at(-1)).toMatchObject({
+      status: 'timed-out',
+    })
+  })
+
+  it('propagates structured timeout terminal persistence failure to cancelTurn and runTurn', async () => {
+    const persistence = createPersistence()
+    const modelStepStarted = createDeferred<void>()
+    const persistenceError = new Error('failed to persist timeout checkpoint')
+    persistence.saveRuntimeCheckpoint.mockImplementation(async (checkpoint) => {
+      if (checkpoint.status === 'timed-out')
+        throw persistenceError
+      persistence.checkpoints.push(structuredClone(checkpoint))
+      return checkpoint
+    })
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => {
+          modelStepStarted.resolve()
+          return await new Promise<never>(() => {})
+        }),
+        executeAction: vi.fn(),
+        settleReply: vi.fn(),
+      },
+    })
+    const scope = runtimeScope({ turnId: 'turn-timeout-checkpoint-failure' })
+    const running = eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+    })
+    await modelStepStarted.promise
+
+    const timeoutError = createAlicizationRuntimeAbortError('chat-provider-retry-deadline')
+    const cancellation = eventLoop.cancelTurn(scope, timeoutError)
+
+    await expect(cancellation).rejects.toBe(persistenceError)
+    await expect(running).rejects.toBe(persistenceError)
+    expect(persistence.events.map(event => event.eventType)).toContain('runtime.timed_out')
+    expect(persistence.checkpoints.at(-1)?.status).not.toBe('timed-out')
+  })
+
   it('does not report cancellation success when the terminal checkpoint fails', async () => {
     const persistence = createPersistence()
     const actionStarted = createDeferred<void>()
@@ -2707,6 +3545,77 @@ describe('alicization event loop', () => {
     })
   })
 
+  it('keeps an earlier user cancellation authoritative when a structured timeout arrives during observation durability', async () => {
+    const persistence = createPersistence()
+    const observationAppendStarted = createDeferred<void>()
+    const releaseObservationAppend = createDeferred<void>()
+    const externalController = new AbortController()
+    persistence.appendRuntimeEvent.mockImplementation(async (
+      scope: AlicizationRuntimeEventScope,
+      input: AlicizationRuntimeEventEnvelope,
+    ) => {
+      const sequence = persistence.events.filter(event => event.turnId === scope.turnId).length + 1
+      const event = {
+        ...input,
+        sequence,
+      }
+      persistence.events.push(event)
+      if (event.eventType === 'action.observation') {
+        observationAppendStarted.resolve()
+        await releaseObservationAppend.promise
+      }
+      return event
+    })
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => ({
+          kind: 'action' as const,
+          action: {
+            actionId: 'action-cancel-timeout-race',
+            toolCallId: 'tool-call-cancel-timeout-race',
+            capabilityId: 'tool.cancel-timeout-race',
+            providerToolName: 'cancel-timeout-race',
+            input: {},
+          },
+        })),
+        executeAction: vi.fn(async () => ({
+          actionId: 'action-cancel-timeout-race',
+          observationId: 'observation-cancel-timeout-race',
+          toolCallId: 'tool-call-cancel-timeout-race',
+          terminal: true as const,
+          outcome: 'success' as const,
+        })),
+        settleReply: vi.fn(),
+      },
+    })
+    const scope = runtimeScope({ turnId: 'turn-cancel-timeout-race' })
+    const running = eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+      signal: externalController.signal,
+    })
+    await observationAppendStarted.promise
+
+    const cancellation = eventLoop.cancelTurn(scope, 'user cancelled first')
+    const cancellationSettled = vi.fn()
+    void cancellation.then(cancellationSettled, cancellationSettled)
+    externalController.abort(
+      createAlicizationRuntimeAbortError('chat-provider-continuation-timeout'),
+    )
+    releaseObservationAppend.resolve()
+
+    await expect(running).resolves.toMatchObject({
+      status: 'cancelled',
+    })
+    await expect(cancellation).resolves.toBe(true)
+    expect(cancellationSettled).toHaveBeenCalledWith(true)
+    expect(persistence.events.map(event => event.eventType)).toContain('runtime.cancelled')
+    expect(persistence.events.map(event => event.eventType)).not.toContain('runtime.timed_out')
+  })
+
   it('does not let a later external abort overwrite an internal terminal observation cancellation', async () => {
     const persistence = createPersistence()
     const observationAppendStarted = createDeferred<void>()
@@ -2779,6 +3688,74 @@ describe('alicization event loop', () => {
     })
     expect(persistence.events.map(event => event.eventType))
       .toContain('action.completed')
+  })
+
+  it('defers a structured timeout through terminal observation durability and rejects a later manual cancel', async () => {
+    const persistence = createPersistence()
+    const observationAppendStarted = createDeferred<void>()
+    const releaseObservationAppend = createDeferred<void>()
+    persistence.appendRuntimeEvent.mockImplementation(async (
+      scope: AlicizationRuntimeEventScope,
+      input: AlicizationRuntimeEventEnvelope,
+    ) => {
+      const sequence = persistence.events.filter(event => event.turnId === scope.turnId).length + 1
+      const event = {
+        ...input,
+        sequence,
+      }
+      persistence.events.push(event)
+      if (event.eventType === 'action.observation') {
+        observationAppendStarted.resolve()
+        await releaseObservationAppend.promise
+      }
+      return event
+    })
+    const externalController = new AbortController()
+    const eventLoop = createAlicizationEventLoop({
+      persistence,
+      participant: {
+        assembleContext: vi.fn(async () => ({})),
+        runModelStep: vi.fn(async () => ({
+          kind: 'action' as const,
+          action: {
+            actionId: 'action-timeout-first',
+            toolCallId: 'tool-call-timeout-first',
+            capabilityId: 'coding_agent.codex',
+            providerToolName: 'codex',
+            input: {},
+          },
+        })),
+        executeAction: vi.fn(async () => ({
+          actionId: 'action-timeout-first',
+          observationId: 'observation-timeout-first',
+          toolCallId: 'tool-call-timeout-first',
+          terminal: true,
+          outcome: 'success' as const,
+        })),
+        settleReply: vi.fn(),
+      },
+    })
+    const scope = runtimeScope({ turnId: 'turn-timeout-first' })
+    const running = eventLoop.runTurn({
+      scope,
+      deliveryOwner: 'inline',
+      turnInput: {},
+      signal: externalController.signal,
+    })
+    await observationAppendStarted.promise
+
+    const timeoutError = createAlicizationRuntimeAbortError('chat-provider-continuation-timeout')
+    externalController.abort(timeoutError)
+    const laterManualCancellation = eventLoop.cancelTurn(scope, 'later manual cancel')
+    releaseObservationAppend.resolve()
+
+    await expect(laterManualCancellation).resolves.toBe(false)
+    await expect(running).resolves.toMatchObject({
+      status: 'timed-out',
+      cause: timeoutError,
+    })
+    expect(persistence.events.map(event => event.eventType)).toContain('runtime.timed_out')
+    expect(persistence.events.map(event => event.eventType)).not.toContain('runtime.cancelled')
   })
 
   it('does not let a later internal cancellation overwrite an external terminal observation abort', async () => {

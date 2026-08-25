@@ -1,2 +1,2 @@
 export { toggleWindowShow, transparentWindowConfig } from './window'
-export { promoteStageWindowAboveDesktop, showStageWindow } from './window-layer'
+export { activateUtilityWindow, ensureStageWindowVisible, promoteStageWindowAboveDesktop, showStageWindow } from './window-layer'

@@ -98,6 +98,68 @@ describe('long-term memory search index', () => {
     }
   })
 
+  it('applies direct long-term memory governance without requiring a review queue item', async () => {
+    const db = await setupAlicizationDb(await createSandboxUserDataPath())
+    try {
+      await db.upsertMemoryReflections([{
+        id: 'direct-governance-memory',
+        cardId: 'default',
+        sourceKind: 'reply',
+        targetScope: 'task',
+        summary: '直接治理长期记忆',
+        lesson: '用户可以直接管理已经进入长期记忆的内容。',
+        status: 'confirmed',
+        confidence: 0.88,
+        createdAt: 10,
+        updatedAt: 20,
+      }])
+
+      const listedBefore = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        limit: 10,
+      })
+      const item = listedBefore.items.find(row => row.id === 'direct-governance-memory')
+      expect(item).toBeTruthy()
+
+      const inwardOnly = await db.applyMemoryWorkbenchLongTermAction({
+        cardId: 'default',
+        memoryItemId: item!.id,
+        decision: 'inward-only',
+        reason: 'user-set-inward-only',
+      })
+      expect(inwardOnly).toMatchObject({
+        id: item!.id,
+        visibility: 'inward-only',
+        training: 'blocked',
+      })
+
+      const listedAfterPolicy = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        limit: 10,
+      })
+      expect(listedAfterPolicy.items.find(row => row.id === item!.id)).toMatchObject({
+        id: item!.id,
+        visibility: 'inward-only',
+        training: 'blocked',
+      })
+
+      await db.applyMemoryWorkbenchLongTermAction({
+        cardId: 'default',
+        memoryItemId: item!.id,
+        decision: 'tombstone',
+        reason: 'user-forgot',
+      })
+      const listedAfterTombstone = await db.listMemoryWorkbenchLongTermItems({
+        cardId: 'default',
+        limit: 10,
+      })
+      expect(listedAfterTombstone.items.map(row => row.id)).not.toContain(item!.id)
+    }
+    finally {
+      await db.close()
+    }
+  })
+
   it('searches and filters card-scoped indexed sources without leaking sibling card memory', async () => {
     const userDataPath = await createSandboxUserDataPath()
     const rootDir = join(userDataPath, 'alicizations')
@@ -481,7 +543,7 @@ describe('long-term memory search index', () => {
     }
   })
 
-  it('removes tombstoned vector orphans when the canonical search index is rebuilt', async () => {
+  it('removes tombstoned vectors immediately and keeps the rebuilt index clean', async () => {
     const db = await setupAlicizationDb(await createSandboxUserDataPath(), {
       cardId: 'card-orphan-rebuild',
       embeddingProvider: {
@@ -530,8 +592,8 @@ describe('long-term memory search index', () => {
       await expect(db.getMemoryWorkbenchEmbeddingHealth({
         cardId: 'card-orphan-rebuild',
       })).resolves.toMatchObject({
-        orphanedCount: 1,
-        reindexRequired: true,
+        orphanedCount: 0,
+        reindexRequired: false,
       })
 
       await db.rebuildLongTermMemorySearchIndex({

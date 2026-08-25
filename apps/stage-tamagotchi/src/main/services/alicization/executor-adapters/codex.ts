@@ -45,6 +45,9 @@ const codexStartupTimeoutMs = 120_000
 const codexActiveStepTimeoutMs = 30 * 60_000
 const codexProviderRecoveryTimeoutMs = 45_000
 const codexProviderStreamIdleTimeoutMs = 45_000
+const codexProviderRetryMaxRetries = 5
+const codexProviderRetryBaseDelayMs = 500
+const codexProviderRetryMaxDelayMs = 10_000
 const codexActivityHeartbeatMs = 10_000
 const codexEventChunkChars = 1_500
 const codexMaxPreviewChars = 4_000
@@ -809,10 +812,12 @@ function readCodexProviderUnavailableMessage(raw: unknown) {
       || /\b(?:falling\s+back|websockets?|https?\s+transport|transport)\b/iu.test(message)
     )
   const disconnectedTransport = /\bstream\s+disconnected\b[\s\S]{0,160}\b(?:retry|retrying|reconnect(?:ing)?)\b/iu.test(message)
+  const finalDisconnectedTransport = /\bstream\s+disconnected\b[\s\S]{0,160}\b(?:before\s+completion|idle\s+timeout|waiting\s+for\s+sse)\b/iu.test(message)
   return (statusUnavailable && unavailableTransport)
     || (reconnectAttempt && resetTransport)
     || transportRequestTimeout
     || disconnectedTransport
+    || finalDisconnectedTransport
     ? normalizeText(message, 800)
     : null
 }
@@ -1204,7 +1209,7 @@ async function runCodexPreflight(input: {
   })
 }
 
-async function runCodexCommand(
+async function runCodexCommandAttempt(
   spec: AlicizationCodexCommandSpec,
   abortSignal?: AbortSignal,
   now: () => number = Date.now,
@@ -2085,6 +2090,148 @@ async function runCodexCommand(
     }, remainingExecutionTimeoutMs)
     executionDeadlineTimer.unref?.()
   })
+}
+
+function shouldRetryCodexProviderFailure(input: {
+  abortSignal?: AbortSignal
+  result: AlicizationCodexExecutionRuntimeResult
+  spec: AlicizationCodexCommandSpec
+}) {
+  return input.spec.effect === 'observe'
+    && !input.abortSignal?.aborted
+    && !input.result.ok
+    && !input.result.aborted
+    && input.result.errorCode === 'CODEX_PROVIDER_UNAVAILABLE'
+}
+
+async function waitForCodexProviderRetry(
+  delayMs: number,
+  abortSignal?: AbortSignal,
+) {
+  if (delayMs <= 0 || abortSignal?.aborted)
+    return !abortSignal?.aborted
+
+  return await new Promise<boolean>((resolveResult) => {
+    let settled = false
+    const finish = (result: boolean) => {
+      if (settled)
+        return
+      settled = true
+      clearTimeout(timer)
+      abortSignal?.removeEventListener('abort', onAbort)
+      resolveResult(result)
+    }
+    const onAbort = () => finish(false)
+    const timer = setTimeout(() => finish(true), delayMs)
+    timer.unref?.()
+    abortSignal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+async function runCodexCommand(
+  spec: AlicizationCodexCommandSpec,
+  abortSignal?: AbortSignal,
+  now: () => number = Date.now,
+  onProgress?: (progress: AlicizationCodexRuntimeProgress) => void,
+  lifecycle?: AlicizationCodexAdapterInput['lifecycle'],
+): Promise<AlicizationCodexExecutionRuntimeResult> {
+  const startedAt = now()
+  const totalTimeoutMs = normalizeLifecycleTimeoutMs(
+    lifecycle?.totalTimeoutMs,
+    spec.timeoutMs,
+  )
+  const deadlineAt = startedAt + totalTimeoutMs
+  let retries = 0
+  let lastResult: AlicizationCodexExecutionRuntimeResult | null = null
+
+  while (true) {
+    if (abortSignal?.aborted) {
+      return {
+        ok: false,
+        stdout: lastResult?.stdout ?? '',
+        stderr: lastResult?.stderr ?? '',
+        exitCode: lastResult?.exitCode ?? null,
+        signal: lastResult?.signal ?? null,
+        durationMs: Math.max(0, now() - startedAt),
+        aborted: true,
+        timedOut: false,
+        errorCode: 'CODEX_ABORTED',
+        errorMessage: 'Codex dispatch was aborted by kill switch.',
+      }
+    }
+
+    const remainingExecutionTimeoutMs = deadlineAt - now()
+    if (remainingExecutionTimeoutMs <= 0) {
+      return {
+        ok: false,
+        stdout: lastResult?.stdout ?? '',
+        stderr: lastResult?.stderr ?? '',
+        exitCode: lastResult?.exitCode ?? null,
+        signal: lastResult?.signal ?? null,
+        durationMs: Math.max(0, now() - startedAt),
+        aborted: false,
+        timedOut: true,
+        timeoutKind: 'execution',
+        errorCode: lastResult?.errorCode === 'CODEX_PROVIDER_UNAVAILABLE'
+          ? 'CODEX_PROVIDER_UNAVAILABLE'
+          : 'CODEX_EXECUTION_TIMEOUT',
+        errorMessage: lastResult?.errorCode === 'CODEX_PROVIDER_UNAVAILABLE'
+          ? `Codex Provider remained unavailable before the ${totalTimeoutMs}ms execution deadline.`
+          : `Codex execution exceeded the total limit of ${totalTimeoutMs}ms.`,
+      }
+    }
+
+    const result = await runCodexCommandAttempt(
+      spec,
+      abortSignal,
+      now,
+      onProgress,
+      {
+        ...lifecycle,
+        totalTimeoutMs: remainingExecutionTimeoutMs,
+      },
+    )
+    lastResult = result
+    if (
+      !shouldRetryCodexProviderFailure({
+        abortSignal,
+        result,
+        spec,
+      })
+      || retries >= codexProviderRetryMaxRetries
+    ) {
+      return {
+        ...result,
+        durationMs: Math.max(0, now() - startedAt),
+      }
+    }
+
+    const retryDelayMs = Math.min(
+      codexProviderRetryMaxDelayMs,
+      codexProviderRetryBaseDelayMs * (2 ** retries),
+    )
+    const nextAttempt = retries + 2
+    onProgress?.({
+      type: 'provider.retry',
+      semanticProgress: false,
+      semanticKey: null,
+      activeWorkPhase: null,
+      activeWorkKey: null,
+      startsWorkingPhase: false,
+      terminal: false,
+      terminalStatus: null,
+      externalThreadId: null,
+      itemId: null,
+      itemType: 'error',
+      message: result.errorMessage ?? 'Codex Provider became unavailable.',
+      summary: `Codex Provider unavailable; retrying attempt ${nextAttempt}/${codexProviderRetryMaxRetries + 1} after ${retryDelayMs}ms.`,
+      assistantText: null,
+      interruptedCommand: false,
+    })
+    retries += 1
+    if (!await waitForCodexProviderRetry(retryDelayMs, abortSignal))
+      continue
+  }
 }
 
 function composeCombinedOutput(assistantOutput: string, stdout: string, stderr: string) {

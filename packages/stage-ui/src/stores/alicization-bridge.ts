@@ -7,6 +7,7 @@ import type {
   AlicizationChannelCapability as SharedAlicizationChannelCapability,
   AlicizationChannelCapabilityManifestRecord as SharedAlicizationChannelCapabilityManifestRecord,
   AlicizationChannelCapabilityManifestUpsertInput as SharedAlicizationChannelCapabilityManifestUpsertInput,
+  AlicizationChatTimeoutDescriptor as SharedAlicizationChatTimeoutDescriptor,
   AlicizationClaudeCodeCommandInput as SharedAlicizationClaudeCodeCommandInput,
   AlicizationClawFabricPlan as SharedAlicizationClawFabricPlan,
   AlicizationClawTaskIntent as SharedAlicizationClawTaskIntent,
@@ -271,6 +272,7 @@ export type AlicizationMemoryWorkbenchSensitivity = 'public' | 'personal' | 'pri
 export type AlicizationMemoryWorkbenchVisibility = 'explicit' | 'inward-only'
 export type AlicizationMemoryWorkbenchTrainingState = 'allowed' | 'blocked'
 export type AlicizationMemoryWorkbenchReviewDecision = 'approve' | 'reject' | 'tombstone' | 'inward-only' | 'no-training'
+export type AlicizationMemoryLongTermActionDecision = 'tombstone' | 'inward-only' | 'no-training'
 export type AlicizationMemoryRecallProbeMode = 'none' | 'episodic' | 'relationship' | 'preference' | 'procedure' | 'task' | 'mixed'
 export type AlicizationMemoryRecallProbeTemporalFocus = 'current' | 'recent' | 'recent-or-mid' | 'cross-session' | 'distant' | 'unspecified'
 export type AlicizationMemoryRecallProbeEvidenceKind = 'fact' | 'reflection' | 'episode' | 'consolidation'
@@ -417,6 +419,12 @@ export interface AlicizationMemoryReviewActionPayload extends AlicizationCardSco
   reason?: string | null
 }
 
+export interface AlicizationMemoryLongTermActionPayload extends AlicizationCardScope {
+  memoryItemId: string
+  decision: AlicizationMemoryLongTermActionDecision
+  reason?: string | null
+}
+
 export type AlicizationSimpleRecallGoldLabel = SharedMemoryWorkbench.AlicizationSimpleRecallGoldLabel
 export type AlicizationSimpleRecallGoldReason = SharedMemoryWorkbench.AlicizationSimpleRecallGoldReason
 export type AlicizationSimpleRecallGoldEvaluationClass = SharedMemoryWorkbench.AlicizationSimpleRecallGoldEvaluationClass
@@ -438,6 +446,14 @@ export type AlicizationMemoryQualityTrialCancelResult = SharedMemoryWorkbench.Al
 export type AlicizationMemoryDialogueReplayReport = SharedMemoryWorkbench.AlicizationMemoryDialogueReplayReport
 export type AlicizationMemoryLiveProviderTrialReport = SharedMemoryWorkbench.AlicizationMemoryLiveProviderTrialReport
 export type AlicizationMemoryQualityTrialReport = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReport
+export type AlicizationMemoryQualityTrialReportRecord = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReportRecord
+export type AlicizationMemoryQualityFailureCode = SharedMemoryWorkbench.AlicizationMemoryQualityFailureCode
+export type AlicizationMemoryQualityActionCode = SharedMemoryWorkbench.AlicizationMemoryQualityActionCode
+export type AlicizationMemoryQualityTrialReportSurface = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReportSurface
+export type AlicizationMemoryQualityTrialReportRecordSurface = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReportRecordSurface
+export type AlicizationMemoryQualityTrialReportListPayload = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReportListPayload
+export type AlicizationMemoryQualityTrialReportListResult = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReportListResult
+export type AlicizationMemoryQualityTrialReportSurfaceListResult = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReportSurfaceListResult
 
 export type AlicizationPersonaCandidateWorkbenchStatus = 'candidate' | 'approved' | 'rejected' | 'no-training'
 export type AlicizationPersonaCandidateWorkbenchDecision = 'approve' | 'reject' | 'no-training'
@@ -2468,6 +2484,7 @@ export interface AlicizationChatAbortPayload {
   cardId?: string
   turnId: string
   reason?: string
+  timeout?: SharedAlicizationChatTimeoutDescriptor
 }
 
 export interface AlicizationChatAbortResult {
@@ -2531,6 +2548,7 @@ interface AlicizationBridge {
   importLegacyMemory: (payload: AlicizationMemoryLegacySnapshot) => Promise<AlicizationMemoryMigrationResult>
   memoryWorkbenchGetSnapshot?: (payload?: { sessionId?: string | null }) => Promise<AlicizationMemoryWorkbenchSnapshot>
   memoryWorkbenchListLongTerm?: (payload: Omit<AlicizationMemoryWorkbenchListPayload, 'cardId'>) => Promise<AlicizationMemoryWorkbenchListResult>
+  memoryWorkbenchApplyLongTermAction?: (payload: Omit<AlicizationMemoryLongTermActionPayload, 'cardId'>) => Promise<AlicizationMemoryWorkbenchItem | null>
   memoryWorkbenchManageWorkingMemoryCleaningQueue?: (payload: Omit<AlicizationWorkingMemoryCleaningQueuePayload, 'cardId'>) => Promise<AlicizationWorkingMemoryCleaningQueueResult>
   memoryWorkbenchListReplaySessions?: (payload: Omit<AlicizationMemoryReplaySessionListPayload, 'cardId'>) => Promise<AlicizationMemoryReplaySessionListResult>
   memoryWorkbenchApplyReviewAction?: (payload: Omit<AlicizationMemoryReviewActionPayload, 'cardId'>) => Promise<AlicizationLongTermMemoryReviewItem | null>
@@ -2564,8 +2582,9 @@ interface AlicizationBridge {
   memoryWorkbenchReindexEmbeddings?: (payload: Omit<AlicizationMemoryEmbeddingReindexPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingReindexResult>
   memoryWorkbenchListEmbeddingModels?: (payload: Omit<AlicizationMemoryEmbeddingModelListPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingModelListResult>
   memoryWorkbenchTestEmbeddingConnection?: (payload: Omit<AlicizationMemoryEmbeddingConnectionTestPayload, 'cardId'>) => Promise<AlicizationMemoryEmbeddingConnectionTestResult>
-  memoryWorkbenchRunQualityTrial?: (payload: Omit<AlicizationMemoryQualityTrialPayload, 'cardId'>) => Promise<AlicizationMemoryQualityTrialReport>
+  memoryWorkbenchRunQualityTrial?: (payload: Omit<AlicizationMemoryQualityTrialPayload, 'cardId'>) => Promise<AlicizationMemoryQualityTrialReportSurface>
   memoryWorkbenchCancelQualityTrial?: (payload: Omit<AlicizationMemoryQualityTrialCancelPayload, 'cardId'>) => Promise<AlicizationMemoryQualityTrialCancelResult>
+  memoryWorkbenchListQualityTrialReports?: (payload?: Omit<AlicizationMemoryQualityTrialReportListPayload, 'cardId'>) => Promise<AlicizationMemoryQualityTrialReportSurfaceListResult>
   memoryWorkbenchRecordQualityGoldLabel?: (payload: Omit<AlicizationMemoryQualityGoldLabelPayload, 'cardId'>) => Promise<AlicizationMemoryQualityGoldLabelItem>
   memoryWorkbenchListQualityGoldLabels?: (payload: Omit<AlicizationMemoryQualityGoldLabelListPayload, 'cardId'>) => Promise<AlicizationMemoryQualityGoldLabelListResult>
   memoryWorkbenchBuildMonthlyGoldRegression?: (payload: Omit<AlicizationMemoryQualityMonthlyGoldRegressionPayload, 'cardId'>) => Promise<AlicizationMemoryQualityMonthlyGoldRegressionPack>

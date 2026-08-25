@@ -6,6 +6,10 @@ export interface StageAppVisibilityController {
   show: () => void
 }
 
+export interface UtilityAppActivationController {
+  focus: (options: { steal: boolean }) => void
+}
+
 export function promoteStageWindowAboveDesktop(window: Pick<BrowserWindow, 'moveTop' | 'setAlwaysOnTop' | 'setVisibleOnAllWorkspaces'>) {
   window.setAlwaysOnTop(true, 'screen-saver', 1)
   window.setVisibleOnAllWorkspaces(true, {
@@ -15,16 +19,35 @@ export function promoteStageWindowAboveDesktop(window: Pick<BrowserWindow, 'move
 }
 
 export function showStageWindow(
-  window: Pick<BrowserWindow, 'focus' | 'moveTop' | 'show'>,
+  window: Pick<BrowserWindow, 'focus' | 'isVisible' | 'moveTop' | 'show'>,
+  app: StageAppVisibilityController,
+) {
+  ensureStageWindowVisible(window, app)
+}
+
+export function ensureStageWindowVisible(
+  window: Pick<BrowserWindow, 'focus' | 'isVisible' | 'moveTop' | 'show'>,
   app: StageAppVisibilityController,
 ) {
   app.show()
-  window.show()
+  if (!window.isVisible())
+    window.show()
   window.moveTop()
   window.focus()
 }
 
-export function promoteUtilityWindowAboveStage(window: Pick<BrowserWindow, 'setAlwaysOnTop' | 'setVisibleOnAllWorkspaces'>) {
+export function promoteUtilityWindowAboveStage(window: Pick<BrowserWindow, 'moveTop' | 'setAlwaysOnTop' | 'setVisibleOnAllWorkspaces'>) {
   window.setAlwaysOnTop(true, 'screen-saver', 2)
   window.setVisibleOnAllWorkspaces(true)
+  window.moveTop()
+}
+
+export function activateUtilityWindow(
+  window: Pick<BrowserWindow, 'focus' | 'moveTop' | 'show'>,
+  app: UtilityAppActivationController,
+) {
+  app.focus({ steal: true })
+  window.show()
+  window.moveTop()
+  window.focus()
 }

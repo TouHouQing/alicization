@@ -1909,12 +1909,12 @@ describe('performance visualizer playback cue authority view', () => {
       signature: 'embodiment:body-lipsync-voice-rejoin',
     }))
     expect(view?.summaryEntries).toContainEqual({
-      key: 'continuity-signature',
+      key: 'identity-continuity-signature',
       label: '同一人签名',
       value: 'embodiment:body-lipsync-voice-rejoin',
     })
     expect(view?.summaryEntries).toContainEqual({
-      key: 'continuity-reasons',
+      key: 'identity-continuity-reasons',
       label: '同一人线索',
       value: 'embodiment:audible-continuity-line, embodiment:still-voiced-motion-line',
     })

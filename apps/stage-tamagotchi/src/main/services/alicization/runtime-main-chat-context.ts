@@ -69,6 +69,7 @@ export function createAlicizationMainChatContextRuntime(options: CreateAlicizati
       return emptyAlicizationExecutionCallbackContext
 
     return await buildPendingExecutionCallbackContext({
+      consume: false,
       sessionId,
     })
   }

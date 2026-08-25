@@ -16,6 +16,10 @@ import {
 } from '@proj-alicization/stage-shared'
 
 import { readTransportContentAsText } from './runtime-transport-content'
+import {
+  readAlicizationRuntimeTimeoutDescriptor,
+  resolveAlicizationRuntimeTimeoutReason,
+} from './turn-os/runtime-errors'
 import { AlicizationVisibleReplySettlementBlockedError } from './visible-reply/settlement'
 
 function isAbortLikeError(error: unknown) {
@@ -25,27 +29,71 @@ function isAbortLikeError(error: unknown) {
     && (error as { name?: unknown }).name === 'AbortError'
 }
 
+function resolveMainChatBoundaryTimeoutReason(reason: unknown) {
+  return resolveAlicizationRuntimeTimeoutReason(reason)
+}
+
+const externalTransportTimeoutCodes = new Set([
+  'ETIMEDOUT',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT',
+  'UND_ERR_SOCKET',
+])
+
+function isExplicitExternalTransportTimeout(reason: unknown) {
+  const visited = new Set<object>()
+  let current: unknown = reason
+  for (let depth = 0; depth < 4; depth += 1) {
+    if (!current || typeof current !== 'object')
+      return false
+    if (visited.has(current))
+      return false
+    visited.add(current)
+
+    const record = current as Record<string, unknown>
+    const code = String(record.code ?? record.errorCode ?? '').trim().toUpperCase()
+    if (externalTransportTimeoutCodes.has(code))
+      return true
+
+    const message = current instanceof Error
+      ? current.message
+      : String(record.message ?? '')
+    if (
+      /\b(?:request|connect(?:ion)?|headers?|socket)\s+(?:timed?\s*out|timeout)\b/iu.test(message)
+      || /\b(?:timed?\s*out|timeout)\s+(?:while\s+)?(?:requesting|connecting|reading\s+headers|waiting\s+for\s+(?:the\s+)?(?:request|connection|socket))\b/iu.test(message)
+    ) {
+      return true
+    }
+
+    current = record.cause
+  }
+  return false
+}
+
 export function normalizeAlicizationMainChatAbortReason(reason: unknown) {
-  const normalized = String(reason ?? 'abort')
-  if (normalized.includes('chat-preparation-timeout'))
-    return 'chat-preparation-timeout'
-  if (normalized.includes('chat-provider-continuation-timeout'))
-    return 'chat-provider-continuation-timeout'
-  if (normalized.includes('chat-tool-result-handoff-timeout'))
-    return 'chat-tool-result-handoff-timeout'
-  if (normalized.includes('chat-first-event-timeout'))
-    return 'chat-first-event-timeout'
+  const timeoutReason = resolveMainChatBoundaryTimeoutReason(reason)
+  if (timeoutReason)
+    return timeoutReason
+
   return 'abort'
 }
 
 export function shouldRecordAlicizationMainGatewayGenerationTimeout(reason: unknown) {
-  const normalized = String(reason instanceof Error ? reason.message : reason ?? '')
-    .trim()
-    .toLowerCase()
+  const normalizedTimeoutReason = normalizeAlicizationMainChatAbortReason(reason)
+  if (normalizedTimeoutReason !== 'abort') {
+    return normalizedTimeoutReason === 'chat-first-event-timeout'
+      || normalizedTimeoutReason === 'chat-provider-liveness-timeout'
+      || normalizedTimeoutReason === 'chat-provider-idle-timeout'
+      || normalizedTimeoutReason === 'chat-provider-continuation-timeout'
+      || normalizedTimeoutReason === 'chat-provider-retry-deadline'
+      || normalizedTimeoutReason === 'main-gateway-attempt-timeout'
+      || normalizedTimeoutReason === 'main-gateway-timeout'
+      || normalizedTimeoutReason === 'main-gateway-timeout-recovery'
+      || normalizedTimeoutReason === 'main-gateway-visual-one-shot-timeout'
+  }
 
-  return normalized.includes('timeout')
-    || normalized.includes('timed out')
-    || normalized.includes('main-gateway-timeout-recovery')
+  return isExplicitExternalTransportTimeout(reason)
 }
 
 export function isProviderSchemaUnsupportedError(error: unknown) {
@@ -100,7 +148,7 @@ interface HandleAlicizationMainChatRunFailureOptions {
     metadata?: Pick<AlicizationChatErrorEvent, 'origin' | 'learningPolicy' | 'failureSurface'>,
   ) => void | Promise<void>
   finish: (payload: {
-    status: 'completed' | 'aborted' | 'failed'
+    status: 'completed' | 'aborted' | 'timed-out' | 'failed'
     finishReason: string
     origin?: AlicizationChatFinishEvent['origin']
     learningPolicy?: AlicizationChatFinishEvent['learningPolicy']
@@ -133,7 +181,7 @@ function buildFailureMetadata(failureSurface: AlicizationChatFailureSurface) {
 async function emitFailureSurface(input: {
   failureSurface: AlicizationChatFailureSurface
   finishReason: string
-  status: 'aborted' | 'failed'
+  status: 'aborted' | 'timed-out' | 'failed'
   options: HandleAlicizationMainChatRunFailureOptions
 }) {
   const metadata = buildFailureMetadata(input.failureSurface)
@@ -159,12 +207,29 @@ export async function handleAlicizationMainChatRunFailure(
 
   const aborted = isAbortLikeError(input.error) || input.controller.signal.aborted
   if (aborted && !toolExecution) {
-    const abortReasonText = String(input.controller.signal.reason ?? reason ?? 'abort')
-    const normalizedAbortReason = normalizeAlicizationMainChatAbortReason(abortReasonText)
+    const abortReason = input.controller.signal.aborted
+      ? input.controller.signal.reason
+      : input.error
+    const normalizedAbortReason = normalizeAlicizationMainChatAbortReason(abortReason)
     const preparationTimeout = normalizedAbortReason === 'chat-preparation-timeout'
+    const providerLivenessTimeout = normalizedAbortReason === 'chat-provider-liveness-timeout'
+    const providerIdleTimeout = normalizedAbortReason === 'chat-provider-idle-timeout'
     const continuationTimeout = normalizedAbortReason === 'chat-provider-continuation-timeout'
+    const retryDeadlineTimeout = normalizedAbortReason === 'chat-provider-retry-deadline'
     const toolResultHandoffTimeout = normalizedAbortReason === 'chat-tool-result-handoff-timeout'
-    if (!preparationTimeout && !continuationTimeout && !toolResultHandoffTimeout && normalizedAbortReason !== 'chat-first-event-timeout') {
+    const mainGatewayTimeout = normalizedAbortReason === 'main-gateway-attempt-timeout'
+      || normalizedAbortReason === 'main-gateway-timeout'
+      || normalizedAbortReason === 'main-gateway-timeout-recovery'
+      || normalizedAbortReason === 'main-gateway-visual-one-shot-timeout'
+    const recognizedTimeout = normalizedAbortReason === 'chat-first-event-timeout'
+      || preparationTimeout
+      || providerLivenessTimeout
+      || providerIdleTimeout
+      || continuationTimeout
+      || retryDeadlineTimeout
+      || toolResultHandoffTimeout
+      || mainGatewayTimeout
+    if (!recognizedTimeout) {
       await input.finish({
         status: 'aborted',
         finishReason: normalizedAbortReason,
@@ -172,26 +237,46 @@ export async function handleAlicizationMainChatRunFailure(
       return
     }
 
+    const timeoutDescriptor = readAlicizationRuntimeTimeoutDescriptor(abortReason)
+      ?? readAlicizationRuntimeTimeoutDescriptor(input.error)
     const failureSurface = resolveAlicizationChatFailureSurface({
       kind: continuationTimeout ? 'provider-continuation-timeout' : 'timeout',
       userText: currentUserText,
       timeout: {
         providerId: input.payload.providerId || input.mainGateway.providerId,
         model: input.payload.model || input.mainGateway.model,
+        ...(retryDeadlineTimeout || mainGatewayTimeout || providerLivenessTimeout || providerIdleTimeout
+          ? { timeoutReason: normalizedAbortReason }
+          : {}),
         phase: toolResultHandoffTimeout
           ? 'tool-result-handoff'
           : continuationTimeout
             ? 'provider-continuation'
-            : preparationTimeout
-              ? 'preparation'
-              : 'provider-first-event',
+            : providerIdleTimeout
+              ? 'provider-continuation'
+              : preparationTimeout
+                ? 'preparation'
+                : 'provider-first-event',
+        ...(timeoutDescriptor
+          ? {
+              timeoutPhase: timeoutDescriptor.timeoutPhase,
+              timeoutStage: timeoutDescriptor.timeoutStage,
+              timeoutMs: timeoutDescriptor.timeoutMs,
+              elapsedMs: timeoutDescriptor.elapsedMs,
+              lastEventType: timeoutDescriptor.lastEventType,
+              sawAnyEvent: timeoutDescriptor.sawAnyEvent,
+              sawProgress: timeoutDescriptor.sawProgress,
+              descriptor: timeoutDescriptor,
+            }
+          : {}),
       },
     })
-    if (shouldRecordAlicizationMainGatewayGenerationTimeout(input.error)) {
+    if (shouldRecordAlicizationMainGatewayGenerationTimeout(abortReason)) {
       await Promise.resolve(
-        input.recordMainGatewayGenerationTimeout(input.mainGateway, input.error),
+        input.recordMainGatewayGenerationTimeout(input.mainGateway, abortReason),
       )
     }
+    const retryDeadlineFailure = retryDeadlineTimeout
     await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
       level: 'warning',
       category: 'alicization.main-gateway',
@@ -199,16 +284,110 @@ export async function handleAlicizationMainChatRunFailure(
         ? 'tool-result-handoff-timeout-failed'
         : preparationTimeout
           ? 'preparation-timeout-failed'
-          : continuationTimeout
-            ? 'provider-continuation-timeout-failed'
-            : 'stream-timeout-failed',
+          : providerLivenessTimeout
+            ? 'provider-liveness-timeout-failed'
+            : providerIdleTimeout
+              ? 'provider-idle-timeout-failed'
+              : continuationTimeout
+                ? 'provider-continuation-timeout-failed'
+                : retryDeadlineFailure
+                  ? 'provider-retry-deadline-failed'
+                  : mainGatewayTimeout
+                    ? 'main-gateway-timeout-failed'
+                    : 'stream-timeout-failed',
       message: toolResultHandoffTimeout
         ? 'The tool result could not be handed back to the Provider before the handoff deadline.'
         : preparationTimeout
           ? 'Dialogue preparation timed out before the Provider stream started.'
-          : continuationTimeout
-            ? 'The tool completed, but the Provider timed out before producing the final reply.'
-            : 'The Provider stream timed out; no local or one-shot dialogue recovery was attempted.',
+          : providerLivenessTimeout
+            ? 'The Provider emitted transport activity but no semantic progress before the liveness deadline.'
+            : providerIdleTimeout
+              ? 'The Provider stopped emitting events after semantic progress before the idle deadline.'
+              : continuationTimeout
+                ? 'The tool completed, but the Provider timed out before producing the final reply.'
+                : retryDeadlineFailure
+                  ? 'The Provider retry deadline expired before a reply could be produced.'
+                  : mainGatewayTimeout
+                    ? 'The main gateway timed out before a reply could be produced.'
+                    : 'The Provider stream timed out; no local or one-shot dialogue recovery was attempted.',
+      payload: {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        providerId: input.payload.providerId,
+        model: input.payload.model,
+        dispatchBound: input.dispatchBound,
+        nonProgressEventTypes: [...input.nonProgressEventTypes],
+        ...(timeoutDescriptor ? { timeoutDescriptor } : {}),
+      },
+    }))
+    await input.appendRuntimeDebugLine(
+      toolResultHandoffTimeout
+        ? 'chat-stream.tool-result-handoff-timeout-failed'
+        : preparationTimeout
+          ? 'chat-stream.preparation-timeout-failed'
+          : providerLivenessTimeout
+            ? 'chat-stream.provider-liveness-timeout-failed'
+            : providerIdleTimeout
+              ? 'chat-stream.provider-idle-timeout-failed'
+              : continuationTimeout
+                ? 'chat-stream.provider-continuation-timeout-failed'
+                : retryDeadlineFailure
+                  ? 'chat-stream.provider-retry-deadline-failed'
+                  : mainGatewayTimeout
+                    ? 'chat-stream.main-gateway-timeout-failed'
+                    : 'chat-stream.timeout-failed',
+      {
+        cardId: input.payload.cardId,
+        turnId: input.payload.turnId,
+        dispatchBound: input.dispatchBound,
+        nonProgressEventTypes: [...input.nonProgressEventTypes],
+        ...(timeoutDescriptor ? { timeoutDescriptor } : {}),
+      },
+    )
+    await emitFailureSurface({
+      failureSurface,
+      finishReason: toolResultHandoffTimeout
+        ? 'chat-tool-result-handoff-timeout'
+        : preparationTimeout
+          ? 'chat-preparation-timeout'
+          : providerLivenessTimeout
+            ? 'chat-provider-liveness-timeout'
+            : providerIdleTimeout
+              ? 'chat-provider-idle-timeout'
+              : continuationTimeout
+                ? 'chat-provider-continuation-timeout'
+                : retryDeadlineFailure
+                  ? 'chat-provider-retry-deadline'
+                  : mainGatewayTimeout
+                    ? normalizedAbortReason
+                    : buildTimeoutAbortFinishReason({
+                        dispatchBound: input.dispatchBound,
+                        nonProgressEventTypes: input.nonProgressEventTypes,
+                      }),
+      status: 'timed-out',
+      options: input,
+    })
+    return
+  }
+
+  if (!aborted && !toolExecution && isExplicitExternalTransportTimeout(input.error)) {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'timeout',
+      userText: currentUserText,
+      timeout: {
+        providerId: input.payload.providerId || input.mainGateway.providerId,
+        model: input.payload.model || input.mainGateway.model,
+        phase: 'provider-first-event',
+      },
+    })
+    await Promise.resolve(
+      input.recordMainGatewayGenerationTimeout(input.mainGateway, input.error),
+    )
+    await Promise.resolve(input.queueScopedAuditLog(input.payload.cardId, {
+      level: 'warning',
+      category: 'alicization.main-gateway',
+      action: 'stream-timeout-failed',
+      message: 'The Provider stream timed out; no local or one-shot dialogue recovery was attempted.',
       payload: {
         cardId: input.payload.cardId,
         turnId: input.payload.turnId,
@@ -218,34 +397,16 @@ export async function handleAlicizationMainChatRunFailure(
         nonProgressEventTypes: [...input.nonProgressEventTypes],
       },
     }))
-    await input.appendRuntimeDebugLine(
-      toolResultHandoffTimeout
-        ? 'chat-stream.tool-result-handoff-timeout-failed'
-        : preparationTimeout
-          ? 'chat-stream.preparation-timeout-failed'
-          : continuationTimeout
-            ? 'chat-stream.provider-continuation-timeout-failed'
-            : 'chat-stream.timeout-failed',
-      {
-        cardId: input.payload.cardId,
-        turnId: input.payload.turnId,
-        dispatchBound: input.dispatchBound,
-        nonProgressEventTypes: [...input.nonProgressEventTypes],
-      },
-    )
+    await input.appendRuntimeDebugLine('chat-stream.timeout-failed', {
+      cardId: input.payload.cardId,
+      turnId: input.payload.turnId,
+      dispatchBound: input.dispatchBound,
+      nonProgressEventTypes: [...input.nonProgressEventTypes],
+    })
     await emitFailureSurface({
       failureSurface,
-      finishReason: toolResultHandoffTimeout
-        ? 'chat-tool-result-handoff-timeout'
-        : preparationTimeout
-          ? 'chat-preparation-timeout'
-          : continuationTimeout
-            ? 'chat-provider-continuation-timeout'
-            : buildTimeoutAbortFinishReason({
-                dispatchBound: input.dispatchBound,
-                nonProgressEventTypes: input.nonProgressEventTypes,
-              }),
-      status: 'aborted',
+      finishReason: 'provider-transport-timeout',
+      status: 'timed-out',
       options: input,
     })
     return

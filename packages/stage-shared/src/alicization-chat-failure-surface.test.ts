@@ -183,6 +183,13 @@ describe('alicization chat failure surface', () => {
       message: 'Codex timed out after 120000ms.',
     })
 
+    expect(isAlicizationToolExecutionFailureResult({
+      status: 'timeout',
+      toolName: 'executor_run_codex',
+      errorCode: 'CODEX_TIMEOUT',
+      errorMessage: 'Codex timed out after 120000ms.',
+    })).toBe(true)
+
     expect(extractAlicizationToolExecutionFailure(JSON.stringify({
       status: 'failed',
       failureKind: 'tool-execution',

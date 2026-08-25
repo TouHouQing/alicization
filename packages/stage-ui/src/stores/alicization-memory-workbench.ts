@@ -8,7 +8,9 @@ import type {
   AlicizationMemoryEmbeddingReindexDeadLetterItem,
   AlicizationMemoryEmbeddingReindexPayload,
   AlicizationMemoryEmbeddingReindexResult,
-  AlicizationMemoryQualityTrialReport,
+  AlicizationMemoryLongTermActionDecision,
+  AlicizationMemoryQualityTrialReportRecordSurface,
+  AlicizationMemoryQualityTrialReportSurface,
   AlicizationMemoryRecallProbeResult,
   AlicizationMemoryReplaySessionSummary,
   AlicizationMemoryReviewActionPayload,
@@ -124,7 +126,10 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   const embeddingConnectionTesting = ref(false)
   const embeddingConnectionTest = ref<AlicizationMemoryEmbeddingConnectionTestResult | null>(null)
   const qualityTrialLoading = ref(false)
-  const qualityTrialReport = ref<AlicizationMemoryQualityTrialReport | null>(null)
+  const qualityTrialReport = ref<AlicizationMemoryQualityTrialReportSurface | null>(null)
+  const qualityTrialReports = ref<AlicizationMemoryQualityTrialReportRecordSurface[]>([])
+  const qualityTrialReportsNextCursor = ref<string | null>(null)
+  const qualityTrialReportsLoading = ref(false)
   const qualityReplaySessions = ref<AlicizationMemoryReplaySessionSummary[]>([])
   const qualityReplaySessionsLoading = ref(false)
   const qualityReplaySessionsNextCursor = ref<string | null>(null)
@@ -603,6 +608,32 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     finally {
       if (revision === cardScopeRevision)
         listLoading.value = false
+    }
+  }
+
+  async function applyLongTermAction(
+    memoryItemId: string,
+    decision: AlicizationMemoryLongTermActionDecision,
+  ) {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchApplyLongTermAction)
+      return null
+    reviewActionLoadingId.value = memoryItemId
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchApplyLongTermAction!({
+        memoryItemId,
+        decision,
+      })
+      await refreshLongTerm()
+      await refreshSnapshot(snapshot.value?.sessionId ?? null)
+      lastError.value = null
+      return result
+    }
+    catch (error) {
+      lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return null
+    }
+    finally {
+      reviewActionLoadingId.value = null
     }
   }
 
@@ -1495,6 +1526,9 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
   function resetQualityTrialContext() {
     void cancelQualityTrial('质量试用上下文已重置')
     qualityReplaySessionsRevision += 1
+    qualityTrialReports.value = []
+    qualityTrialReportsNextCursor.value = null
+    qualityTrialReportsLoading.value = false
     qualityReplaySessions.value = []
     qualityReplaySessionsNextCursor.value = null
     qualityReplaySessionsLoading.value = false
@@ -1526,6 +1560,91 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     }
   }
 
+  async function loadQualityTrialReports() {
+    if (!hasAlicizationBridge() || !getAlicizationBridge().memoryWorkbenchListQualityTrialReports)
+      return []
+    const revision = cardScopeRevision
+    const contextRevision = qualityTrialContextRevision
+    qualityTrialReportsLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListQualityTrialReports!({
+        limit: 20,
+      })
+      if (revision !== cardScopeRevision)
+        return []
+      qualityTrialReports.value = result.items
+      qualityTrialReportsNextCursor.value = result.nextCursor
+      const restoredFirstReport = contextRevision === qualityTrialContextRevision
+        && !qualityTrialReport.value
+        && Boolean(result.items[0])
+      if (restoredFirstReport)
+        selectQualityTrialReport(result.items[0].id)
+      else if (contextRevision === qualityTrialContextRevision && !qualityTrialReport.value)
+        lastError.value = null
+      return result.items
+    }
+    catch (error) {
+      if (revision === cardScopeRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return []
+    }
+    finally {
+      if (revision === cardScopeRevision)
+        qualityTrialReportsLoading.value = false
+    }
+  }
+
+  async function loadMoreQualityTrialReports() {
+    const cursor = qualityTrialReportsNextCursor.value
+    if (
+      !cursor
+      || qualityTrialReportsLoading.value
+      || !hasAlicizationBridge()
+      || !getAlicizationBridge().memoryWorkbenchListQualityTrialReports
+    ) {
+      return []
+    }
+    const revision = cardScopeRevision
+    qualityTrialReportsLoading.value = true
+    try {
+      const result = await getAlicizationBridge().memoryWorkbenchListQualityTrialReports!({
+        cursor,
+        limit: 20,
+      })
+      if (revision !== cardScopeRevision)
+        return []
+      const knownIds = new Set(qualityTrialReports.value.map(item => item.id))
+      qualityTrialReports.value = [
+        ...qualityTrialReports.value,
+        ...result.items.filter(item => !knownIds.has(item.id)),
+      ]
+      qualityTrialReportsNextCursor.value = result.nextCursor
+      lastError.value = null
+      return result.items
+    }
+    catch (error) {
+      if (revision === cardScopeRevision)
+        lastError.value = errorMessageFrom(error) ?? 'unknown-error'
+      return []
+    }
+    finally {
+      if (revision === cardScopeRevision)
+        qualityTrialReportsLoading.value = false
+    }
+  }
+
+  function selectQualityTrialReport(reportId: string) {
+    const selected = qualityTrialReports.value.find(item => item.id === reportId)
+    if (!selected)
+      return null
+    qualityTrialReport.value = selected.report
+    goldLabelMonth.value = selected.month
+    selectedQualitySessionId.value = selected.sessionId ?? ''
+    qualityTrialMode.value = selected.mode
+    lastError.value = selected.report.summary.lastError
+    return selected
+  }
+
   async function runQualityTrial(
     month?: string | null,
     sessionId: string | null = selectedQualitySessionId.value || null,
@@ -1551,6 +1670,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
         return null
       goldLabelMonth.value = resolvedMonth
       qualityTrialReport.value = result
+      await loadQualityTrialReports()
       lastError.value = result.summary.lastError
       return result
     }
@@ -1800,6 +1920,9 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     embeddingConnectionTest,
     qualityTrialLoading,
     qualityTrialReport,
+    qualityTrialReports,
+    qualityTrialReportsNextCursor,
+    qualityTrialReportsLoading,
     qualityReplaySessions,
     qualityReplaySessionsLoading,
     qualityReplaySessionsNextCursor,
@@ -1823,6 +1946,7 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     refreshSnapshot,
     refreshLongTerm,
     loadMoreLongTerm,
+    applyLongTermAction,
     refreshWorkingMemoryCleaningFailures,
     loadMoreWorkingMemoryCleaningFailures,
     retryWorkingMemoryCleaningFailures,
@@ -1855,6 +1979,9 @@ export const useAlicizationMemoryWorkbenchStore = defineStore('alicization-memor
     rollbackSkill,
     revokeSkill,
     loadMonthlyGoldLabels,
+    loadQualityTrialReports,
+    loadMoreQualityTrialReports,
+    selectQualityTrialReport,
     applyGoldLabel,
     buildMonthlyGoldRegression,
     loadQualityReplaySessions,

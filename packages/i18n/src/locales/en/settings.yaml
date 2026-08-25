@@ -532,7 +532,7 @@ pages:
         review: Review Queue
         probe: Recall Probe
         persona: Persona Candidates
-        quality: Quality Trial
+        quality: Quality Validation
         health: Health & Audit
         skills: Skills & Capabilities
       actions:
@@ -540,6 +540,8 @@ pages:
         approve: Approve
         reject: Reject
         tombstone: Delete and Block
+        cancel: Cancel
+        confirm: Confirm
         inward_only: Inward Only
         no_training: No Training
         run_probe: Run Probe
@@ -582,6 +584,8 @@ pages:
         test_persona_runtime: Test Persona Runtime
         save_persona_runtime: Save Persona Runtime
         clear_persona_runtime: Clear Persona Runtime
+      confirm_tombstone_title: Delete and block this memory?
+      confirm_tombstone_description: 'She will stop recalling this memory, and it will not enter persona training. Current content: {summary}'
       states:
         empty_working: No working memory snapshot yet. Send one dialogue turn and refresh.
         empty_long_term: No matching long-term memory yet.
@@ -612,11 +616,11 @@ pages:
         persona_training_diagnostic_configure_executable: Configure an executable trainer absolute path.
         persona_training_diagnostic_repair_protocol: Check the trainer JSONL protocol and stderr diagnostics.
         persona_training_diagnostic_fix_configuration: Correct the trainer configuration and test again.
-        persona_runtime_active: llama.cpp Persona runtime is running. Active dialogue uses the loaded Persona adapter.
-        persona_runtime_configured: llama.cpp Persona runtime is configured and waiting for a Persona adapter.
-        persona_runtime_not_configured: No llama.cpp Persona runtime is configured.
-        persona_runtime_connected: llama.cpp executable and base model are available.
-        persona_runtime_connection_failed: llama.cpp Persona runtime test failed.
+        persona_runtime_active: Local Persona runtime is running. Active dialogue uses the loaded Persona adapter.
+        persona_runtime_configured: Local Persona runtime is configured and waiting for a Persona adapter.
+        persona_runtime_not_configured: No local Persona runtime is configured.
+        persona_runtime_connected: The executable, base model, and OpenAI-compatible interface passed the test.
+        persona_runtime_connection_failed: Local Persona runtime test failed.
         persona_training_queued: Queued
         persona_training_running: Training
         persona_training_cancel_requested: Cancelling
@@ -802,9 +806,10 @@ pages:
         persona_training_executor: Local Persona/LoRA Trainer
         persona_training_executor_description: Configure a local training executable you installed. Alicization controls every process argument, never installs training dependencies silently, and never passes Provider API keys to the child process.
         persona_runtime: Local Persona Inference Runtime
-        persona_runtime_description: Configure a local llama.cpp llama-server. The main dialogue route switches only after a governed GGUF Persona adapter is actually loaded; failures remain visible.
-        persona_runtime_executable: llama-server executable absolute path
-        persona_runtime_model_path: Base GGUF model absolute path
+        persona_runtime_description: Choose a local llama.cpp or MLX inference backend. The main dialogue route switches only after a governed Persona adapter is actually loaded; failures remain visible.
+        persona_runtime_backend: Inference Backend
+        persona_runtime_executable: Inference server executable absolute path
+        persona_runtime_model_path: Base model path
         persona_runtime_host: Local listen address
         persona_runtime_port: Local listen port
         persona_runtime_model_alias: Model alias
@@ -920,8 +925,8 @@ pages:
         rollback: Roll Back
         revoke: Revoke
       quality:
-        title: Quality Trial
-        description: Run local DB gates for long-term recall, working-memory compression, and Persona/LoRA hygiene. Failures and recommended actions stay visible.
+        title: Dialogue & Memory Validation
+        description: Choose a real conversation to check WorkingMemory, long-term recall, and Persona data hygiene. Reports stay on this device, including failure causes.
         feedback_title: Four-Button Feedback
         feedback_description: Run a recall probe first, then mark how memory behaved.
         replay_binding: Bind this label to a real replay context
@@ -958,6 +963,30 @@ pages:
           missing: She should have recalled a memory but did not.
           wrong: She mentioned an incorrect, stale, or wrong-thread memory.
           unwanted: This turn did not need recall, or she should have said she was unsure.
+        quality_history: Quality Report History
+        empty_quality_history: No quality reports have been saved yet. Run a quality validation to keep the result here.
+        quality_report_hash: Report Integrity Hash
+        quality_session: Replay Session
+        quality_run_mode: Run Mode
+        full_quality_report: Full Report
+        failure_codes:
+          timeout: Request timed out
+          auth: Model service authentication failed
+          network: Network connection failed
+          recall: Long-term memory recall failed
+          database: Local memory database operation failed
+          queue: Memory processing queue failed
+          provider: Model service request failed
+          quality: Quality validation stage failed
+        action_codes:
+          retry_timeout: Check model service response or timeout settings, then run the quality trial again
+          repair_auth: Check the model service URL, credentials, and model permissions, then run the quality trial again
+          repair_network: Check the network connection and model service URL, then run the quality trial again
+          repair_recall: Check long-term memory scope and the vector index, then run the quality trial again
+          repair_database: Check the local memory database, then run the quality trial again
+          repair_queue: Check the memory processing queue and dead-letter items, then run the quality trial again
+          repair_provider: Check the model service configuration and request, then run the quality trial again
+          inspect_failure_stage: Inspect the failed stage, then run the quality trial again
       filters:
         kind:
           all: All Types
@@ -980,8 +1009,9 @@ pages:
           allowed: Training Allowed
           blocked: No Training
       placeholders:
-        persona_runtime_executable: For example /opt/homebrew/bin/llama-server
+        persona_runtime_executable: For example /opt/homebrew/bin/llama-server or mlx_lm.server
         persona_runtime_model_path: For example /Models/base-model.gguf
+        persona_runtime_model_directory: For example /Models/Qwen2.5-0.5B-Instruct-4bit
         long_term_search: Search summaries, evidence, or source IDs...
         long_term_source: Filter by source, for example memory_reflections
         embedding_provider: openai-compatible

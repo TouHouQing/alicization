@@ -215,12 +215,20 @@ function observationPhase(
   AlicizationRuntimeToolProjectionPhase,
   'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'
 > {
+  const outputPhase = resolveAlicizationRuntimeToolResultPhase(output)
+  const observationPhase = resolveAlicizationRuntimeToolResultPhase(
+    observationPayload,
+  )
+  if (outputPhase === 'timeout' || observationPhase === 'timeout')
+    return 'timeout'
   if (
-    resolveAlicizationRuntimeToolResultPhase(output) === 'dead-lettered'
-    || resolveAlicizationRuntimeToolResultPhase(observationPayload) === 'dead-lettered'
+    outputPhase === 'dead-lettered'
+    || observationPhase === 'dead-lettered'
   ) {
     return 'dead-lettered'
   }
+  if (outputPhase === 'cancelled' || observationPhase === 'cancelled')
+    return 'cancelled'
   if (outcome === 'success')
     return 'completed'
   if (outcome === 'cancelled')

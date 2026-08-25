@@ -6,12 +6,13 @@ import type { I18n } from '../../libs/i18n'
 import type { ServerChannel } from '../../services/airi/channel-server'
 
 import { isRendererUnavailable } from '@proj-alicization/electron-vueuse/main'
+import { app } from 'electron'
 import { isMacOS } from 'std-env'
 
 import { createServerChannelService } from '../../services/airi/channel-server'
 import { createI18nService } from '../../services/airi/i18n'
 import { createAppService, createScreenService, createWindowService } from '../../services/electron'
-import { transparentWindowBackgroundColor } from './window-layer'
+import { activateUtilityWindow, transparentWindowBackgroundColor } from './window-layer'
 
 export function toggleWindowShow(window?: BrowserWindow | null): void {
   if (!window) {
@@ -25,8 +26,7 @@ export function toggleWindowShow(window?: BrowserWindow | null): void {
     window?.restore()
   }
 
-  window?.show()
-  window?.focus()
+  activateUtilityWindow(window, app)
 }
 
 export function transparentWindowConfig(): BrowserWindowConstructorOptions {

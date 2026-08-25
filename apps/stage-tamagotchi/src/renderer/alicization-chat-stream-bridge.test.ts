@@ -1,5 +1,6 @@
 import type { AlicizationBridgeChatStreamEvent } from '@proj-alicization/stage-ui/stores/alicization-bridge'
 
+import { resolveAlicizationChatFailureSurface } from '@proj-alicization/stage-shared'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -480,6 +481,281 @@ describe('alicization chat stream bridge', () => {
 
     await expect(settlement).rejects.toEqual(new Error('Codex 失败。'))
     expect(observed).toEqual(['error', 'finish'])
+  })
+
+  it('preserves structured failure metadata on an observed error rejection', async () => {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'tool-execution',
+      toolExecution: {
+        code: 'CODEX_TIMEOUT',
+        message: 'Codex produced no semantic progress for 180000ms.',
+        toolName: 'codex',
+      },
+    })
+    let rejectSettlement!: (error: unknown) => void
+    const settlement = new Promise<void>((_resolve, reject) => {
+      rejectSettlement = reject
+    })
+    const lifecycle = createAlicizationChatStreamLifecycle({
+      resolve: () => expect.fail('an errored lifecycle must not resolve'),
+      reject: rejectSettlement,
+    })
+
+    lifecycle.publish({
+      type: 'error',
+      error: failureSurface.reply,
+      origin: failureSurface.origin,
+      learningPolicy: {
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      },
+      failureSurface,
+    })
+    lifecycle.resolveAfter([])
+
+    await expect(settlement).rejects.toMatchObject({
+      message: failureSurface.reply,
+      failureSurface,
+      toolExecution: failureSurface.toolExecution,
+    })
+  })
+
+  it('preserves an observed failure surface when failed finish rejects the stream', async () => {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'tool-execution',
+      toolExecution: {
+        code: 'CODEX_TIMEOUT',
+        message: 'Codex produced no semantic progress for 180000ms.',
+        toolName: 'codex',
+      },
+    })
+    let rejectSettlement!: (error: unknown) => void
+    const settlement = new Promise<void>((_resolve, reject) => {
+      rejectSettlement = reject
+    })
+    const lifecycle = createAlicizationChatStreamLifecycle({
+      resolve: () => expect.fail('a failed finish must not resolve'),
+      reject: rejectSettlement,
+    })
+
+    lifecycle.publish({
+      type: 'error',
+      error: failureSurface.reply,
+      origin: failureSurface.origin,
+      learningPolicy: {
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      },
+      failureSurface,
+    })
+    lifecycle.rejectAfter([{
+      type: 'finish',
+      finishReason: 'provider-failed',
+    } as AlicizationBridgeChatStreamEvent], new Error('Alicization chat stream failed.'))
+
+    await expect(settlement).rejects.toMatchObject({
+      message: 'Alicization chat stream failed.',
+      failureSurface,
+      toolExecution: failureSurface.toolExecution,
+    })
+  })
+
+  it('waits for an active tool terminal fact before rejecting a generic stream failure', async () => {
+    const observed: string[] = []
+    let rejection: unknown
+    const lifecycle = createAlicizationChatStreamLifecycle({
+      onStreamEvent: async (event) => {
+        observed.push(event.type)
+      },
+      resolve: () => expect.fail('a failed stream must not resolve'),
+      reject: (error) => {
+        rejection = error
+      },
+    })
+
+    lifecycle.publish({
+      type: 'tool-call',
+      toolCallId: 'codex-late-terminal',
+      toolName: 'codex',
+      projection: {
+        factType: 'tool-call',
+        accepted: true,
+        traceOnly: false,
+        card: {
+          toolCallId: 'codex-late-terminal',
+          toolName: 'codex',
+          selectedChannel: 'codex',
+          phase: 'started',
+          terminal: false,
+          revision: 1,
+          elapsedMs: null,
+          timeoutMs: null,
+          errorCode: null,
+          errorMessage: null,
+          step: null,
+          result: undefined,
+        },
+      },
+      args: '{}',
+      toolCallType: 'function',
+    })
+    lifecycle.publish({
+      type: 'error',
+      error: 'Alicization chat stream failed.',
+    })
+    lifecycle.rejectAfter([{
+      type: 'finish',
+      finishReason: 'provider-failed',
+    } as AlicizationBridgeChatStreamEvent], new Error('Alicization chat stream failed.'))
+    await lifecycle.waitForIdle()
+
+    expect(observed).toEqual(['tool-call', 'error', 'finish'])
+    expect(rejection).toBeUndefined()
+
+    lifecycle.publish({
+      type: 'tool-progress',
+      toolCallId: 'codex-late-terminal',
+      toolName: 'codex',
+      phase: 'timeout',
+      signal: 'terminal',
+      elapsedMs: 180_000,
+      errorCode: 'CODEX_TIMEOUT',
+      errorMessage: 'Codex produced no semantic progress for 180000ms.',
+      projection: {
+        factType: 'tool-progress',
+        accepted: true,
+        traceOnly: false,
+        card: {
+          toolCallId: 'codex-late-terminal',
+          toolName: 'codex',
+          selectedChannel: 'codex',
+          phase: 'timeout',
+          terminal: true,
+          revision: 2,
+          elapsedMs: 180_000,
+          timeoutMs: 180_000,
+          errorCode: 'CODEX_TIMEOUT',
+          errorMessage: 'Codex produced no semantic progress for 180000ms.',
+          step: null,
+          result: undefined,
+        },
+      },
+    } as AlicizationBridgeChatStreamEvent)
+    await lifecycle.waitForIdle()
+
+    expect(observed).toEqual(['tool-call', 'error', 'finish', 'tool-progress'])
+    expect(rejection).toEqual(new Error('Alicization chat stream failed.'))
+  })
+
+  it('uses a structured tool handoff timeout when an active tool never emits a terminal fact', async () => {
+    vi.useFakeTimers()
+    try {
+      let rejection: unknown
+      const lifecycle = createAlicizationChatStreamLifecycle({
+        terminalToolHandoffTimeoutMs: 500,
+        resolve: () => expect.fail('a failed stream must not resolve'),
+        reject: (error) => {
+          rejection = error
+        },
+      })
+
+      lifecycle.publish({
+        type: 'tool-call',
+        toolCallId: 'codex-missing-terminal',
+        toolName: 'codex',
+        projection: {
+          factType: 'tool-call',
+          accepted: true,
+          traceOnly: false,
+          card: {
+            toolCallId: 'codex-missing-terminal',
+            toolName: 'codex',
+            selectedChannel: 'codex',
+            phase: 'started',
+            terminal: false,
+            revision: 1,
+            elapsedMs: null,
+            timeoutMs: null,
+            errorCode: null,
+            errorMessage: null,
+            step: null,
+            result: undefined,
+          },
+        },
+        args: '{}',
+        toolCallType: 'function',
+      })
+      lifecycle.publish({
+        type: 'error',
+        error: 'Alicization chat stream failed.',
+      })
+      lifecycle.rejectAfter([{
+        type: 'finish',
+        finishReason: 'provider-failed',
+      } as AlicizationBridgeChatStreamEvent], new Error('Alicization chat stream failed.'))
+      await lifecycle.waitForIdle()
+
+      expect(rejection).toBeUndefined()
+
+      await vi.advanceTimersByTimeAsync(500)
+
+      expect(rejection).toMatchObject({
+        failureSurface: expect.objectContaining({
+          kind: 'timeout',
+          timeout: expect.objectContaining({
+            phase: 'tool-result-handoff',
+            timeoutStage: 'tool-execution',
+          }),
+        }),
+      })
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('preserves an observed failure surface when rendering that error also fails', async () => {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'tool-execution',
+      toolExecution: {
+        code: 'CODEX_TIMEOUT',
+        message: 'Codex produced no semantic progress for 180000ms.',
+        toolName: 'codex',
+      },
+    })
+    let rejectSettlement!: (error: unknown) => void
+    const settlement = new Promise<void>((_resolve, reject) => {
+      rejectSettlement = reject
+    })
+    const lifecycle = createAlicizationChatStreamLifecycle({
+      onStreamEvent: async (event) => {
+        if (event.type === 'error')
+          throw new Error('renderer error delivery failed')
+      },
+      resolve: () => expect.fail('an observed failure must not resolve'),
+      reject: rejectSettlement,
+    })
+
+    lifecycle.publish({
+      type: 'error',
+      error: failureSurface.reply,
+      origin: failureSurface.origin,
+      learningPolicy: {
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      },
+      failureSurface,
+    })
+    lifecycle.resolveAfter([])
+
+    await expect(settlement).rejects.toMatchObject({
+      message: failureSurface.reply,
+      failureSurface,
+      toolExecution: failureSurface.toolExecution,
+    })
   })
 
   it('keeps a main-projected trace-only progress event after an error notification', async () => {

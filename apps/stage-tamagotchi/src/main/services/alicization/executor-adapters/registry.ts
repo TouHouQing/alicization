@@ -78,6 +78,7 @@ const dispatchAdapterRegistry = {
       thread: input.thread,
       command: input.command as NonNullable<AlicizationDispatchTaskThreadInput['cli']>,
       abortSignal: input.abortSignal,
+      onExecutionEvent: input.onExecutionEvent,
       workspaceRoot: input.workspaceRoot,
       now: input.now,
     }),

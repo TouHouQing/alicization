@@ -419,6 +419,116 @@ describe('runtime main gateway one-shot', () => {
     )
   }, 20_000)
 
+  it('aborts a stuck Provider attempt before the total retry deadline and retries the one-shot', async () => {
+    vi.useFakeTimers()
+    try {
+      const { runtime, appendRuntimeDebugLine } = createOneShotRuntimeHarness()
+      let firstAttemptSignal: AbortSignal | undefined
+      vi.mocked(generateText)
+        .mockImplementationOnce(async (input: any) => {
+          firstAttemptSignal = input.abortSignal
+          return await new Promise((_resolve, reject) => {
+            input.abortSignal.addEventListener('abort', () => reject(input.abortSignal.reason), { once: true })
+          })
+        })
+        .mockResolvedValueOnce({
+          text: 'recovered after attempt timeout',
+        } as any)
+
+      const resultPromise = runtime.generateMainGatewayText({
+        system: 'foreground context',
+        user: 'foreground request',
+        source: 'scene-appraisal',
+        timeoutMs: 1_000,
+        providerRetryPolicy: {
+          baseDelayMs: 0,
+          maxDelayMs: 0,
+        },
+      })
+
+      await vi.waitFor(() => expect(firstAttemptSignal).toBeDefined())
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      await expect(resultPromise).resolves.toBe('recovered after attempt timeout')
+      expect(generateText).toHaveBeenCalledTimes(2)
+      expect(firstAttemptSignal?.aborted).toBe(true)
+      expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+        'main-gateway.provider-retry-started',
+        expect.objectContaining({
+          attempt: 1,
+          maxRetries: 5,
+        }),
+      )
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps an individual Provider attempt timeout distinct from the total gateway deadline', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    try {
+      const { runtime } = createOneShotRuntimeHarness()
+      const onFailure = vi.fn()
+      vi.mocked(generateText).mockImplementationOnce(async (input: any) => await new Promise((_, reject) => {
+        input.abortSignal.addEventListener('abort', () => reject(input.abortSignal.reason), { once: true })
+      }))
+
+      const resultPromise = runtime.generateMainGatewayText({
+        system: 'foreground context',
+        user: 'foreground request',
+        source: 'scene-appraisal',
+        timeoutMs: 1_000,
+        providerRetryPolicy: {
+          deadlineAt: 12_000,
+          maxRetries: 0,
+        },
+        onFailure,
+      })
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      await expect(resultPromise).resolves.toBeNull()
+      expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({
+        reason: 'Alicization runtime aborted: main-gateway-attempt-timeout',
+      }))
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps an explicitly disabled retry deadline disabled for one-shot generation', async () => {
+    const { runtime, appendRuntimeDebugLine } = createOneShotRuntimeHarness()
+    vi.mocked(generateText).mockRejectedValueOnce(
+      Object.assign(new Error('service unavailable'), { status: 503 }),
+    ).mockResolvedValueOnce({
+      text: 'recovered without a total retry deadline',
+    } as any)
+
+    await expect(runtime.generateMainGatewayText({
+      system: 'foreground context',
+      user: 'foreground request',
+      source: 'scene-appraisal',
+      timeoutMs: 1_000,
+      providerRetryPolicy: {
+        deadlineAt: null,
+        maxRetries: 1,
+        baseDelayMs: 2_000,
+        maxDelayMs: 2_000,
+        maxTotalRetryWindowMs: 1_000,
+        random: () => 1,
+        sleep: vi.fn(async () => {}),
+      },
+    })).resolves.toBe('recovered without a total retry deadline')
+
+    expect(generateText).toHaveBeenCalledTimes(2)
+    expect(appendRuntimeDebugLine).toHaveBeenCalledWith(
+      'main-gateway.provider-retry-scheduled',
+      expect.anything(),
+    )
+  })
+
   it('reports one transparent failure after the one-shot Provider retry budget is exhausted', async () => {
     const terminalError = Object.assign(new Error('service unavailable after retries'), {
       status: 503,
@@ -1157,6 +1267,9 @@ describe('runtime main gateway one-shot', () => {
         timeoutMs: 1_000,
         injectCustomDirectives: false,
         injectPerformanceManifest: false,
+        providerRetryPolicy: {
+          maxRetries: 0,
+        },
         onFailure,
       })
       await vi.advanceTimersByTimeAsync(1_000)

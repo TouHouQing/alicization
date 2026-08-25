@@ -1678,9 +1678,9 @@ describe('stage three runtime diagnostics helpers', () => {
 
     const speech = store.speechEmbodiment
     expect(speech.currentInwardPreoccupation).toContain('more distance')
-    expect(speech.activePresenceSummary).toContain('repair-before-closeness')
-    expect(speech.runtimeSummary).toContain('repair-before-closeness')
-    expect(speech.traceSummary?.latestEventSummary).toContain('repair-before-closeness')
+    expect(speech.activePresenceSummary).toContain('identity-continuity')
+    expect(speech.runtimeSummary).toContain('identity-continuity')
+    expect(speech.traceSummary?.latestEventSummary).toContain('identity-continuity')
     expect(speech.speechEvidence?.voiceSummary).toContain('repair-before-closeness')
     expect(speech.speechEvidence?.personaStyleSummary).toBe('repair-before-closeness | soften / linger')
     expect(speech.cueMicroSummary?.personaStyle).toBe('repair-before-closeness | soften / linger')

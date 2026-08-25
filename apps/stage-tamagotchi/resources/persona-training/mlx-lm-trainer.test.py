@@ -2,7 +2,9 @@ import importlib.util
 import json
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).parent
@@ -40,6 +42,66 @@ def manifest(item):
 
 
 class MlxTrainerGovernanceTest(unittest.TestCase):
+    def test_maps_lora_layers_to_the_mlx_lm_num_layers_flag(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "dataset.jsonl"
+            manifest_path = root / "manifest.json"
+            output_dir = root / "output"
+            artifact_manifest_path = output_dir / "artifact-manifest.json"
+            source.write_text(json.dumps(example()) + "\n", encoding="utf-8")
+            manifest_path.write_text(
+                json.dumps({**manifest(example()), "runId": "run-command-contract"}),
+                encoding="utf-8",
+            )
+            commands = []
+
+            def fake_run(command, **_kwargs):
+                commands.append(command)
+                adapter_dir = Path(command[command.index("--adapter-path") + 1])
+                adapter_dir.mkdir(parents=True, exist_ok=True)
+                (adapter_dir / "adapters.safetensors").write_text("adapter", encoding="utf-8")
+                return SimpleNamespace(returncode=0)
+
+            args = SimpleNamespace(
+                backend="mlx-lm",
+                manifest=str(manifest_path),
+                dataset=str(source),
+                output_dir=str(output_dir),
+                artifact_manifest=str(artifact_manifest_path),
+                base_model="/models/qwen",
+                iterations=1,
+                learning_rate=1e-5,
+                lora_layers=1,
+                batch_size=1,
+                max_seq_length=128,
+                mask_prompt="false",
+                seed=42,
+            )
+            with patch.object(MODULE, "ensure_mlx_lm"), patch.object(
+                MODULE.subprocess, "run", side_effect=fake_run
+            ):
+                self.assertEqual(MODULE.run_training(args), 0)
+
+            self.assertEqual(len(commands), 1)
+            self.assertEqual(commands[0][:4], [MODULE.sys.executable, "-m", "mlx_lm", "lora"])
+            self.assertIn("--num-layers", commands[0])
+            self.assertNotIn("--lora-layers", commands[0])
+
+    def test_publishes_artifact_for_the_mlx_dialogue_runtime(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact_path = Path(directory) / "adapters.safetensors"
+            artifact_path.write_text("adapter", encoding="utf-8")
+            artifact = MODULE.build_artifact_manifest(
+                {"runId": "run-mlx-smoke"},
+                SimpleNamespace(base_model="/models/qwen"),
+                artifact_path,
+            )
+
+            self.assertTrue(artifact["dialogueReady"])
+            self.assertEqual(artifact["loaderTarget"], "mlx-runtime")
+            self.assertEqual(artifact["conversion"]["status"], "not-required")
+
     def test_rejects_forbidden_source_kind_before_writing_training_data(self):
         with self.assertRaisesRegex(RuntimeError, "forbidden source kind"):
             MODULE.validate_manifest_examples(manifest(example("raw-transcript")))

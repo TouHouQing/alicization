@@ -1401,6 +1401,15 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
           role: 'user',
           content: capabilityQuestion,
         } as Message],
+        codingAgentDelegation: {
+          confidence: 0.98,
+          intentKind: 'execute',
+          requestedAgent: 'codex',
+          scope: 'investigation',
+          source: 'structured-cognition',
+          sourceTurnId: 'turn-main-session-codex-capability-question',
+          verdict: 'delegate-coding-agent',
+        },
       }),
     })
 
@@ -1409,7 +1418,6 @@ describe('resolvePreparedRuntimeSurfaceSelection', () => {
       ?.map((entry: any) => String(entry?.function?.name ?? '').trim())
       .filter(Boolean) ?? []
     expect(capabilityToolNames.filter(toolName => ['cli', 'local_visual'].includes(toolName))).toEqual([
-      'cli',
       'local_visual',
     ])
 

@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   parseAlicizationRetryAfterMs,
+  resolveAlicizationProviderRetryDeadline,
+  resolveAlicizationProviderRetryDeadlineAt,
   resolveAlicizationProviderRetryDecision,
   runWithAlicizationProviderRetry,
 } from './provider-retry-policy'
@@ -203,5 +205,160 @@ describe('provider retry policy', () => {
       sleep: vi.fn(async () => {}),
     })).rejects.toThrow('service unavailable')
     expect(invoke).toHaveBeenCalledOnce()
+  })
+
+  it('retries an Alicization first-event timeout when the outer turn is still active', () => {
+    const decision = resolveAlicizationProviderRetryDecision(
+      new DOMException(
+        'Alicization runtime aborted: chat-first-event-timeout',
+        'AbortError',
+      ),
+      {
+        attempt: 0,
+        options: {
+          operation: 'main-chat-stream',
+          baseDelayMs: 0,
+          maxDelayMs: 0,
+          random: () => 0,
+        },
+      },
+    )
+
+    expect(decision).toEqual(expect.objectContaining({
+      retry: true,
+      nextAttempt: 1,
+      reason: 'retryable-transport',
+    }))
+  })
+
+  it.each([
+    'chat-provider-liveness-timeout',
+    'chat-provider-idle-timeout',
+  ] as const)('retries an Alicization %s when the outer turn is still active', (reason) => {
+    const decision = resolveAlicizationProviderRetryDecision(
+      new DOMException(
+        `Alicization runtime aborted: ${reason}`,
+        'AbortError',
+      ),
+      {
+        attempt: 0,
+        options: {
+          operation: 'main-chat-stream',
+          baseDelayMs: 0,
+          maxDelayMs: 0,
+          random: () => 0,
+        },
+      },
+    )
+
+    expect(decision).toEqual(expect.objectContaining({
+      retry: true,
+      nextAttempt: 1,
+      reason: 'retryable-transport',
+    }))
+  })
+
+  it('treats an internal retry-deadline abort as deadline exhaustion', () => {
+    const decision = resolveAlicizationProviderRetryDecision(
+      new DOMException(
+        'Alicization runtime aborted: chat-provider-retry-deadline',
+        'AbortError',
+      ),
+      {
+        attempt: 0,
+        options: {
+          operation: 'main-chat-stream',
+          deadlineAt: 1_000,
+          now: () => 1_000,
+        },
+      },
+    )
+
+    expect(decision).toEqual(expect.objectContaining({
+      retry: false,
+      terminalReason: 'deadline-exhausted',
+    }))
+  })
+
+  it('keeps a user abort terminal even when its message contains timeout text', () => {
+    const controller = new AbortController()
+    const reason = new DOMException(
+      'Alicization runtime aborted: chat-first-event-timeout',
+      'AbortError',
+    )
+    controller.abort(reason)
+
+    const decision = resolveAlicizationProviderRetryDecision(reason, {
+      attempt: 0,
+      options: {
+        operation: 'main-chat-stream',
+        signal: controller.signal,
+        baseDelayMs: 0,
+        maxDelayMs: 0,
+      },
+    })
+
+    expect(decision).toEqual(expect.objectContaining({
+      retry: false,
+      terminalReason: 'abort',
+    }))
+  })
+
+  it('allows the full default retry budget for a standard chat timeout window', () => {
+    const decision = resolveAlicizationProviderRetryDecision(
+      new DOMException(
+        'Alicization runtime aborted: chat-first-event-timeout',
+        'AbortError',
+      ),
+      {
+        attempt: 4,
+        options: {
+          operation: 'main-chat-stream',
+          deadlineAt: 100_000,
+          now: () => 10_000,
+          baseDelayMs: 500,
+          maxDelayMs: 10_000,
+          random: () => 0,
+        },
+      },
+    )
+
+    expect(decision.retry).toBe(true)
+    expect(decision.nextAttempt).toBe(5)
+  })
+
+  it('keeps five retries available without multiplying the user-visible timeout by six', () => {
+    expect(resolveAlicizationProviderRetryDeadlineAt({
+      now: () => 1_000,
+      timeoutMs: 18_000,
+      baseDelayMs: 500,
+      maxDelayMs: 10_000,
+      maxRetries: 5,
+    })).toBe(121_000)
+  })
+
+  it('preserves an explicit null deadline as disabled instead of restoring the default window', () => {
+    expect(resolveAlicizationProviderRetryDeadline({
+      now: () => 1_000,
+      deadlineAt: null,
+      timeoutMs: 18_000,
+      maxRetries: 5,
+    })).toBeNull()
+    expect(resolveAlicizationProviderRetryDeadline({
+      now: () => 1_000,
+      deadlineAt: 42_000,
+      timeoutMs: 18_000,
+      maxRetries: 5,
+    })).toBe(42_000)
+  })
+
+  it('caps long Provider retry sessions at two minutes', () => {
+    expect(resolveAlicizationProviderRetryDeadlineAt({
+      now: () => 1_000,
+      timeoutMs: 90_000,
+      baseDelayMs: 500,
+      maxDelayMs: 10_000,
+      maxRetries: 5,
+    })).toBe(121_000)
   })
 })

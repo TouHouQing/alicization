@@ -98,6 +98,7 @@ import {
   electronAlicizationMemoryImportLegacy,
   electronAlicizationMemoryRetrieveFacts,
   electronAlicizationMemoryUpsertFacts,
+  electronAlicizationMemoryWorkbenchApplyLongTermAction,
   electronAlicizationMemoryWorkbenchApplyPersonaCandidateAction,
   electronAlicizationMemoryWorkbenchApplyReviewAction,
   electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression,
@@ -113,6 +114,7 @@ import {
   electronAlicizationMemoryWorkbenchListPersonaTrainingIncrements,
   electronAlicizationMemoryWorkbenchListPersonaTrainingRuns,
   electronAlicizationMemoryWorkbenchListQualityGoldLabels,
+  electronAlicizationMemoryWorkbenchListQualityTrialReports,
   electronAlicizationMemoryWorkbenchListReplaySessions,
   electronAlicizationMemoryWorkbenchManageSemanticScaleJobs,
   electronAlicizationMemoryWorkbenchManageWorkingMemoryCleaningQueue,
@@ -277,6 +279,7 @@ const alicizationUpsertMemoryFacts = useElectronEventaInvoke(electronAlicization
 const alicizationImportLegacyMemory = useElectronEventaInvoke(electronAlicizationMemoryImportLegacy)
 const memoryWorkbenchGetSnapshot = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchGetSnapshot)
 const memoryWorkbenchListLongTerm = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListLongTerm)
+const memoryWorkbenchApplyLongTermAction = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchApplyLongTermAction)
 const memoryWorkbenchApplyReviewAction = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchApplyReviewAction)
 const memoryWorkbenchRecallProbe = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRecallProbe)
 const memoryWorkbenchListPersonaCandidates = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListPersonaCandidates)
@@ -307,6 +310,7 @@ const memoryWorkbenchRunQualityTrial = useElectronEventaInvoke(electronAlicizati
 const memoryWorkbenchCancelQualityTrial = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchCancelQualityTrial)
 const memoryWorkbenchRecordQualityGoldLabel = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchRecordQualityGoldLabel)
 const memoryWorkbenchListQualityGoldLabels = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListQualityGoldLabels)
+const memoryWorkbenchListQualityTrialReports = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchListQualityTrialReports)
 const memoryWorkbenchBuildMonthlyGoldRegression = useElectronEventaInvoke(electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression)
 const alicizationSearchOrganicSubconsciousFragments = useElectronEventaInvoke(electronAlicizationSearchOrganicSubconsciousFragments)
 const alicizationSetPerformanceManifest = useElectronEventaInvoke(electronAlicizationSetPerformanceManifest)
@@ -1094,6 +1098,7 @@ function handleAlicizationChatStreamToolResult(payload?: AlicizationChatToolResu
     ...(payload.toolName ? { toolName: payload.toolName } : {}),
     ...(payload.selectedChannel !== undefined ? { selectedChannel: payload.selectedChannel } : {}),
     projection: payload.projection,
+    ...(payload.phase ? { phase: payload.phase } : {}),
     result: payload.result,
   })
 }
@@ -1169,6 +1174,22 @@ function handleAlicizationChatStreamFinish(payload?: AlicizationChatFinishEvent)
       terminalEvents,
       createAlicizationAbortError(payload.finishReason),
     )
+    return
+  }
+  if (payload.status === 'timed-out') {
+    const timeoutError = createAlicizationStreamError(
+      payload.error
+      || payload.failureSurface?.reply
+      || payload.finishReason
+      || alicizationChatStreamText('failed'),
+      'alicization-stream-timeout',
+    )
+    Object.assign(timeoutError, {
+      failureSurface: payload.failureSurface ?? null,
+      timeout: payload.failureSurface?.timeout ?? null,
+      finishReason: payload.finishReason ?? null,
+    })
+    pending.lifecycle.rejectAfter(terminalEvents, timeoutError)
     return
   }
   const error = payload.error
@@ -1350,6 +1371,7 @@ setAlicizationBridge({
   importLegacyMemory: async payload => await alicizationImportLegacyMemory({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchGetSnapshot: async payload => await memoryWorkbenchGetSnapshot({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListLongTerm: async payload => await memoryWorkbenchListLongTerm({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchApplyLongTermAction: async payload => await memoryWorkbenchApplyLongTermAction({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchApplyReviewAction: async payload => await memoryWorkbenchApplyReviewAction({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchRecallProbe: async payload => await memoryWorkbenchRecallProbe({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListPersonaCandidates: async payload => await memoryWorkbenchListPersonaCandidates({ ...resolveAlicizationScope(), ...payload }),
@@ -1380,6 +1402,7 @@ setAlicizationBridge({
   memoryWorkbenchCancelQualityTrial: async payload => await memoryWorkbenchCancelQualityTrial({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchRecordQualityGoldLabel: async payload => await memoryWorkbenchRecordQualityGoldLabel({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchListQualityGoldLabels: async payload => await memoryWorkbenchListQualityGoldLabels({ ...resolveAlicizationScope(), ...payload }),
+  memoryWorkbenchListQualityTrialReports: async payload => await memoryWorkbenchListQualityTrialReports({ ...resolveAlicizationScope(), ...payload }),
   memoryWorkbenchBuildMonthlyGoldRegression: async payload => await memoryWorkbenchBuildMonthlyGoldRegression({ ...resolveAlicizationScope(), ...payload }),
   getOrganicMemorySnapshot: async () => await alicizationGetOrganicMemorySnapshot(resolveAlicizationScope()),
   getSelfEvolutionState: async () => await alicizationGetSelfEvolutionState(resolveAlicizationScope()),

@@ -144,6 +144,9 @@ describe('runtime mind-state Coding Agent delegation', () => {
     expect(generateMainGatewayText).toHaveBeenCalledTimes(1)
     expect(generateMainGatewayText).toHaveBeenCalledWith(expect.objectContaining({
       source: 'dialogue-turn-semantics',
+      providerRetryPolicy: {
+        maxRetries: 0,
+      },
     }))
     const providerCall = generateMainGatewayText.mock.calls[0]?.[0] as unknown as {
       system: string

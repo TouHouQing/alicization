@@ -24,6 +24,9 @@ files:
 asar: true
 asarUnpack:
   - '**/*.node' # native binaries
+  - '**/node_modules/sqlite3/**/*' # sqlite3 resolves its native binding relative to its JS loader
+  - '**/node_modules/bindings/**/*' # sqlite3's unpacked JS entry depends on bindings at runtime
+  - '**/node_modules/file-uri-to-path/**/*' # bindings imports this path normalizer outside app.asar
 
 extraMetadata:
   name: com.tohoqing.alicization
@@ -71,7 +74,7 @@ linux:
 appImage:
   artifactName: ${productName}-${version}-linux-${arch}.${ext}
 
-npmRebuild: false
+npmRebuild: true
 
 publish:
   provider: github

@@ -28,6 +28,7 @@ export interface AlicizationExecutionCallbackContext {
 }
 
 export interface AlicizationExecutionCallbackDigest {
+  activityAt?: number
   channel: string
   createdAt: number
   decisionTraceId: string | null
@@ -71,16 +72,40 @@ export const emptyAlicizationExecutionCallbackContext: AlicizationExecutionCallb
   systemBlock: '',
 }
 
+export interface AlicizationExecutionCallbackCursor {
+  activityAt: number
+  threadId: string | null
+}
+
 interface AlicizationExecutionCallbackRuntimeOptions {
   getNow?: () => number
   listExecutionEvents: (input?: AlicizationListExecutionEventsInput) => Promise<AlicizationExecutionEventRecord[]>
   listTaskThreads: (input?: AlicizationListTaskThreadsInput) => Promise<AlicizationTaskThreadRecord[]>
+  cursorStore?: {
+    get: (sessionId: string) => Promise<number | AlicizationExecutionCallbackCursor>
+    set: (sessionId: string, cursor: AlicizationExecutionCallbackCursor) => Promise<void>
+    compareAndSet?: (
+      sessionId: string,
+      expected: AlicizationExecutionCallbackCursor,
+      next: AlicizationExecutionCallbackCursor,
+    ) => Promise<boolean>
+  }
+  pageSize?: number
+  maxScanPages?: number
   maxPendingCallbacks?: number
   maxThreadAgeMs?: number
 }
 
+interface AlicizationExecutionCallbackMarkSurfacedInput {
+  activityAt?: number | null
+  createdAt?: number | null
+  sessionId: string
+  threadId?: string | null
+}
+
 interface AlicizationExecutionCallbackItem {
   action: AlicizationAgentSessionActionInput
+  activityAt: number
   channel: string
   createdAt: number
   digest: AlicizationExecutionCallbackDigest
@@ -97,6 +122,62 @@ interface AlicizationExecutionCallbackItem {
 
 const defaultMaxPendingCallbacks = 3
 const defaultMaxThreadAgeMs = 20 * 60_000
+const defaultCallbackPageSize = 64
+const defaultCallbackMaxScanPages = 32
+
+function compareExecutionCallbackCursor(
+  left: AlicizationExecutionCallbackCursor,
+  right: AlicizationExecutionCallbackCursor,
+) {
+  if (left.activityAt !== right.activityAt)
+    return left.activityAt - right.activityAt
+  if (left.threadId === right.threadId)
+    return 0
+  if (left.threadId === null)
+    return -1
+  if (right.threadId === null)
+    return 1
+  return left.threadId < right.threadId ? -1 : 1
+}
+
+function readExecutionCallbackCursor(thread: AlicizationTaskThreadRecord): AlicizationExecutionCallbackCursor {
+  return {
+    activityAt: readTaskThreadActivityAt(thread),
+    threadId: sanitizeExecutionLedgerText(thread.id, 160) || 'unknown-thread',
+  }
+}
+
+function normalizeExecutionCallbackCursor(
+  raw: number | AlicizationExecutionCallbackCursor | null | undefined,
+): AlicizationExecutionCallbackCursor {
+  if (typeof raw === 'number') {
+    return {
+      // Legacy cursors only stored the timestamp of the last surfaced batch.
+      // Rewind one millisecond so same-millisecond threads are re-evaluated once.
+      activityAt: Number.isFinite(raw) ? Math.max(0, Math.floor(raw) - 1) : 0,
+      threadId: null,
+    }
+  }
+  if (!raw || typeof raw !== 'object') {
+    return {
+      activityAt: 0,
+      threadId: null,
+    }
+  }
+  return {
+    activityAt: Number.isFinite(raw.activityAt) ? Math.max(0, Math.floor(raw.activityAt)) : 0,
+    threadId: typeof raw.threadId === 'string' && raw.threadId.trim()
+      ? sanitizeExecutionLedgerText(raw.threadId, 160)
+      : null,
+  }
+}
+
+function encodeExecutionCallbackCursor(cursor: AlicizationExecutionCallbackCursor) {
+  return encodeURIComponent(JSON.stringify({
+    activityAt: cursor.activityAt,
+    threadId: cursor.threadId,
+  }))
+}
 
 function normalizeCallbackStatus(status: AlicizationTaskThreadRecord['status']) {
   return status === 'completed' ? 'completed' : 'failed'
@@ -283,9 +364,11 @@ function buildCallbackItem(input: {
   )
 
   return {
+    activityAt: readTaskThreadActivityAt(input.thread),
     channel,
     createdAt,
     digest: {
+      activityAt: readTaskThreadActivityAt(input.thread),
       channel,
       createdAt,
       decisionTraceId: sanitizeExecutionLedgerText(input.thread.decisionTraceId, 220) || null,
@@ -405,7 +488,60 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
   const getNow = options.getNow ?? Date.now
   const maxPendingCallbacks = Math.max(1, Math.floor(options.maxPendingCallbacks ?? defaultMaxPendingCallbacks))
   const maxThreadAgeMs = Math.max(1_000, Math.floor(options.maxThreadAgeMs ?? defaultMaxThreadAgeMs))
-  const surfacedCursorBySession = new Map<string, number>()
+  const pageSize = Math.max(1, Math.floor(options.pageSize ?? defaultCallbackPageSize))
+  const maxScanPages = Math.max(1, Math.floor(options.maxScanPages ?? defaultCallbackMaxScanPages))
+  const surfacedCursorBySession = new Map<string, AlicizationExecutionCallbackCursor>()
+  const previewedItemsBySession = new Map<string, AlicizationExecutionCallbackItem[]>()
+  const sessionOperationTails = new Map<string, Promise<void>>()
+
+  async function withSessionQueue<T>(sessionId: string, operation: () => Promise<T>) {
+    const previous = sessionOperationTails.get(sessionId) ?? Promise.resolve()
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const tail = previous.then(() => gate, () => gate)
+    sessionOperationTails.set(sessionId, tail)
+
+    await previous
+    try {
+      return await operation()
+    }
+    finally {
+      release()
+      if (sessionOperationTails.get(sessionId) === tail)
+        sessionOperationTails.delete(sessionId)
+    }
+  }
+
+  async function persistCursor(sessionId: string, cursor: AlicizationExecutionCallbackCursor) {
+    if (!options.cursorStore)
+      return
+    await options.cursorStore.set(sessionId, cursor)
+  }
+
+  async function commitCursor(
+    sessionId: string,
+    expected: AlicizationExecutionCallbackCursor,
+    next: AlicizationExecutionCallbackCursor,
+  ) {
+    if (options.cursorStore?.compareAndSet) {
+      const committed = await options.cursorStore.compareAndSet(sessionId, expected, next)
+      if (!committed) {
+        const persistedCursor = normalizeExecutionCallbackCursor(
+          await options.cursorStore.get(sessionId),
+        )
+        surfacedCursorBySession.set(sessionId, persistedCursor)
+        return false
+      }
+      surfacedCursorBySession.set(sessionId, next)
+      return true
+    }
+
+    await persistCursor(sessionId, next)
+    surfacedCursorBySession.set(sessionId, next)
+    return true
+  }
 
   async function buildPendingExecutionCallbackContext(input: {
     consume?: boolean
@@ -415,89 +551,239 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
     if (!sessionId)
       return emptyAlicizationExecutionCallbackContext
 
-    const surfacedCursor = surfacedCursorBySession.get(sessionId) ?? 0
-    const candidateThreads = await options.listTaskThreads({
-      sessionId,
-      limit: 8,
-    }).catch(() => [])
+    return await withSessionQueue(sessionId, async () => {
+      const hasInMemoryCursor = surfacedCursorBySession.has(sessionId)
+      let surfacedCursor = surfacedCursorBySession.get(sessionId) ?? {
+        activityAt: 0,
+        threadId: null,
+      }
+      if (options.cursorStore && !hasInMemoryCursor) {
+        const persistedCursor = await options.cursorStore.get(sessionId)
+        const normalizedPersistedCursor = normalizeExecutionCallbackCursor(persistedCursor)
+        if (compareExecutionCallbackCursor(normalizedPersistedCursor, surfacedCursor) > 0)
+          surfacedCursor = normalizedPersistedCursor
+        surfacedCursorBySession.set(sessionId, surfacedCursor)
+      }
 
-    const recentTerminalThreads = candidateThreads
-      .filter(thread => alicizationTerminalTaskThreadStatuses.has(thread.status))
-      .map(thread => ({
-        thread,
-        activityAt: readTaskThreadActivityAt(thread),
+      const candidateThreadsById = new Map<string, AlicizationTaskThreadRecord>()
+      let pageCursor = surfacedCursor
+      const minActivityAt = Math.max(0, getNow() - maxThreadAgeMs)
+      const terminalStatuses = [...alicizationTerminalTaskThreadStatuses]
+      for (let pageIndex = 0; pageIndex < maxScanPages; pageIndex += 1) {
+        const page = await options.listTaskThreads({
+          sessionId,
+          status: terminalStatuses,
+          cursor: pageCursor.activityAt > 0 || pageCursor.threadId
+            ? encodeExecutionCallbackCursor(pageCursor)
+            : null,
+          order: 'asc',
+          minActivityAt,
+          limit: pageSize,
+        })
+        for (const thread of page) {
+          if (thread?.id)
+            candidateThreadsById.set(thread.id, thread)
+        }
+        if (page.length < pageSize)
+          break
+
+        const lastThread = page.at(-1)
+        if (!lastThread)
+          break
+        const nextPageCursor = readExecutionCallbackCursor(lastThread)
+        if (compareExecutionCallbackCursor(nextPageCursor, pageCursor) <= 0)
+          break
+        pageCursor = nextPageCursor
+      }
+
+      const recentTerminalThreads = [...candidateThreadsById.values()]
+        .filter(thread => alicizationTerminalTaskThreadStatuses.has(thread.status))
+        .map(thread => ({
+          thread,
+          cursor: readExecutionCallbackCursor(thread),
+        }))
+        .filter(entry =>
+          compareExecutionCallbackCursor(entry.cursor, surfacedCursor) > 0
+          && getNow() - entry.cursor.activityAt <= maxThreadAgeMs,
+        )
+        .sort((left, right) => compareExecutionCallbackCursor(left.cursor, right.cursor))
+
+      if (recentTerminalThreads.length === 0)
+        return emptyAlicizationExecutionCallbackContext
+
+      const items = await Promise.all(recentTerminalThreads.map(async ({ thread }) => {
+        const events = await options.listExecutionEvents({
+          threadId: thread.id,
+          limit: 8,
+        })
+        return buildCallbackItem({
+          thread,
+          events,
+        })
       }))
-      .filter(entry =>
-        entry.activityAt > surfacedCursor
-        && getNow() - entry.activityAt <= maxThreadAgeMs,
-      )
-      .sort((left, right) => left.activityAt - right.activityAt)
-      .slice(-maxPendingCallbacks)
 
-    if (recentTerminalThreads.length === 0)
-      return emptyAlicizationExecutionCallbackContext
+      const pendingItems = items
+        .filter(item => compareExecutionCallbackCursor({
+          activityAt: item.activityAt,
+          threadId: item.digest.threadId,
+        }, surfacedCursor) > 0)
+        .sort((left, right) => compareExecutionCallbackCursor(
+          {
+            activityAt: left.activityAt,
+            threadId: left.digest.threadId,
+          },
+          {
+            activityAt: right.activityAt,
+            threadId: right.digest.threadId,
+          },
+        ))
 
-    const items = await Promise.all(recentTerminalThreads.map(async ({ thread }) => {
-      const events = await options.listExecutionEvents({
-        threadId: thread.id,
-        limit: 8,
-      }).catch(() => [])
-      return buildCallbackItem({
-        thread,
-        events,
-      })
-    }))
+      if (pendingItems.length === 0)
+        return emptyAlicizationExecutionCallbackContext
 
-    const pendingItems = items
-      .filter(item => item.createdAt > surfacedCursor)
-      .sort((left, right) => left.createdAt - right.createdAt)
+      const surfacedItems = pendingItems.slice(0, maxPendingCallbacks)
+      if (input.consume !== false) {
+        previewedItemsBySession.delete(sessionId)
+        const lastSurfacedItem = surfacedItems[surfacedItems.length - 1]
+        const nextCursor: AlicizationExecutionCallbackCursor = {
+          activityAt: lastSurfacedItem.activityAt,
+          threadId: lastSurfacedItem.digest.threadId,
+        }
+        const committed = await commitCursor(sessionId, surfacedCursor, nextCursor)
+        if (!committed)
+          return emptyAlicizationExecutionCallbackContext
+      }
+      else {
+        previewedItemsBySession.set(sessionId, pendingItems)
+      }
 
-    if (pendingItems.length === 0)
-      return emptyAlicizationExecutionCallbackContext
-
-    if (input.consume !== false) {
-      surfacedCursorBySession.set(
-        sessionId,
-        Math.max(...pendingItems.map(item => item.createdAt)),
-      )
-    }
-
-    return {
-      actions: pendingItems.map(item => item.action),
-      callbacks: pendingItems.map(item => item.digest),
-      continuitySignals: pendingItems.map(buildCallbackContinuitySignal),
-      recallText: buildExecutionCallbackRecallText(pendingItems),
-      systemBlock: buildExecutionCallbackSystemBlock(pendingItems),
-    }
+      return {
+        actions: surfacedItems.map(item => item.action),
+        callbacks: surfacedItems.map(item => item.digest),
+        continuitySignals: surfacedItems.map(buildCallbackContinuitySignal),
+        recallText: buildExecutionCallbackRecallText(surfacedItems),
+        systemBlock: buildExecutionCallbackSystemBlock(surfacedItems),
+      }
+    })
   }
 
-  function markSurfaced(input: {
-    createdAt: number
-    sessionId: string
-  }) {
+  function markSurfaced(input: AlicizationExecutionCallbackMarkSurfacedInput): Promise<void> {
     const sessionId = sanitizeExecutionLedgerText(input.sessionId, 160)
     const createdAt = Number.isFinite(input.createdAt)
       ? Math.max(0, Math.floor(Number(input.createdAt)))
       : 0
-    if (!sessionId || createdAt <= 0)
-      return
+    const activityAt = Number.isFinite(input.activityAt)
+      ? Math.max(0, Math.floor(Number(input.activityAt)))
+      : createdAt
+    const threadId = sanitizeExecutionLedgerText(input.threadId, 160) || null
+    if (!sessionId || activityAt <= 0)
+      return Promise.resolve()
 
-    surfacedCursorBySession.set(
-      sessionId,
-      Math.max(
-        surfacedCursorBySession.get(sessionId) ?? 0,
-        createdAt,
-      ),
-    )
+    return withSessionQueue(sessionId, async () => {
+      const previewedItems = previewedItemsBySession.get(sessionId)
+      let resolvedThreadId = threadId
+      const previewedIndex = previewedItems?.findIndex(item =>
+        (resolvedThreadId && item.digest.threadId === resolvedThreadId)
+        || (
+          !resolvedThreadId
+          && item.activityAt === activityAt
+          && (createdAt <= 0 || item.createdAt === createdAt)
+        ),
+      ) ?? -1
+      const previewedItem = previewedIndex >= 0
+        ? previewedItems?.[previewedIndex]
+        : undefined
+      if (!resolvedThreadId && !previewedItem) {
+        const matchingThreads: AlicizationTaskThreadRecord[] = []
+        let resolutionCursor: AlicizationExecutionCallbackCursor = {
+          activityAt: Math.max(0, activityAt - 1),
+          threadId: null,
+        }
+        for (let pageIndex = 0; pageIndex < maxScanPages; pageIndex += 1) {
+          const candidateThreads = await options.listTaskThreads({
+            sessionId,
+            status: [...alicizationTerminalTaskThreadStatuses],
+            minActivityAt: activityAt,
+            cursor: encodeExecutionCallbackCursor(resolutionCursor),
+            order: 'asc',
+            limit: pageSize,
+          }).catch(() => [])
+          matchingThreads.push(...candidateThreads.filter(candidate =>
+            readTaskThreadActivityAt(candidate) === activityAt,
+          ))
+          const lastThread = candidateThreads.at(-1)
+          if (!lastThread || candidateThreads.length < pageSize)
+            break
+          const nextCursor = readExecutionCallbackCursor(lastThread)
+          if (
+            compareExecutionCallbackCursor(nextCursor, resolutionCursor) <= 0
+            || nextCursor.activityAt > activityAt
+          ) {
+            break
+          }
+          resolutionCursor = nextCursor
+        }
+        if (matchingThreads.length === 1) {
+          resolvedThreadId = sanitizeExecutionLedgerText(matchingThreads[0]?.id, 160) || null
+        }
+        else if (createdAt > 0 && matchingThreads.length > 1) {
+          const eventMatches = await Promise.all(matchingThreads.map(async (candidate) => {
+            const events = await options.listExecutionEvents({
+              threadId: candidate.id,
+              limit: 8,
+            }).catch(() => [])
+            return events.some(event => event.createdAt === createdAt) ? candidate : null
+          }))
+          const matchingEventThreads = eventMatches.filter(
+            (candidate): candidate is AlicizationTaskThreadRecord => candidate !== null,
+          )
+          if (matchingEventThreads.length === 1)
+            resolvedThreadId = sanitizeExecutionLedgerText(matchingEventThreads[0]?.id, 160) || null
+        }
+      }
+      let currentCursor = surfacedCursorBySession.get(sessionId) ?? {
+        activityAt: 0,
+        threadId: null,
+      }
+      if (options.cursorStore && !surfacedCursorBySession.has(sessionId)) {
+        currentCursor = normalizeExecutionCallbackCursor(
+          await options.cursorStore.get(sessionId),
+        )
+        surfacedCursorBySession.set(sessionId, currentCursor)
+      }
+      if (previewedItems && previewedIndex >= 0) {
+        previewedItems.splice(previewedIndex, 1)
+        if (previewedItems.length === 0)
+          previewedItemsBySession.delete(sessionId)
+        else
+          previewedItemsBySession.set(sessionId, previewedItems)
+      }
+
+      const nextCursor = previewedItem
+        ? {
+            activityAt: previewedItem.activityAt,
+            threadId: previewedItem.digest.threadId,
+          }
+        : {
+            activityAt,
+            threadId: resolvedThreadId,
+          }
+      if (compareExecutionCallbackCursor(nextCursor, currentCursor) <= 0)
+        return
+
+      await commitCursor(sessionId, currentCursor, nextCursor)
+    })
   }
 
   function clear(sessionId?: string) {
     const normalizedSessionId = sanitizeExecutionLedgerText(sessionId, 160)
     if (normalizedSessionId) {
       surfacedCursorBySession.delete(normalizedSessionId)
+      previewedItemsBySession.delete(normalizedSessionId)
       return
     }
     surfacedCursorBySession.clear()
+    previewedItemsBySession.clear()
   }
 
   return {
@@ -508,7 +794,7 @@ export function createAlicizationExecutionCallbackRuntime(options: AlicizationEx
       const normalizedSessionId = sanitizeExecutionLedgerText(sessionId, 160)
       if (!normalizedSessionId)
         return 0
-      return surfacedCursorBySession.get(normalizedSessionId) ?? 0
+      return surfacedCursorBySession.get(normalizedSessionId)?.activityAt ?? 0
     },
   }
 }

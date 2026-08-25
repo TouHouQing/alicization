@@ -24,6 +24,7 @@ import type {
 } from './runtime-soul'
 import type { RuntimeSurfaceContinuityEvidenceShape } from './runtime-surface-continuity-selection'
 import type { AlicizationRuntimeCheckpoint } from './turn-os/checkpoint-store'
+import type { AlicizationEventLoopRuntimeView } from './turn-os/event-loop'
 import type { AlicizationRuntimeEventScope } from './turn-os/event-store'
 import type { AlicizationMemoryWriteProposal } from './turn-os/memory-participant'
 
@@ -70,6 +71,46 @@ function readRecord(raw: unknown): Record<string, unknown> | null {
   return raw as Record<string, unknown>
 }
 
+function buildMainChatToolFailureObservation(input: {
+  error: unknown
+  toolName: string
+}) {
+  const failure = extractAlicizationToolExecutionFailure(input.error, input.toolName) ?? {
+    code: 'TOOL_EXECUTION_FAILED',
+    message: input.error instanceof Error
+      ? input.error.message
+      : String(input.error ?? 'Tool execution failed.'),
+    toolName: input.toolName,
+  }
+  const raw = readRecord(input.error)
+  const status = String(raw?.finalStatus ?? raw?.status ?? '').trim().toLowerCase()
+  const cancelled = status === 'cancelled'
+    || raw?.cancelled === true
+    || String(raw?.name ?? '').trim().toLowerCase() === 'aborterror'
+  const deadLettered = status === 'dead-lettered'
+  const timeout = status === 'timeout'
+    || /(?:^|_)timeout$/iu.test(failure.code)
+  return {
+    status: deadLettered
+      ? 'dead-lettered'
+      : cancelled
+        ? 'cancelled'
+        : timeout
+          ? 'timeout'
+          : 'failed',
+    stage: 'tool',
+    failureKind: 'tool-execution',
+    toolName: failure.toolName,
+    errorCode: failure.code,
+    errorMessage: failure.message,
+    summary: `${failure.toolName} failed: ${failure.message}`,
+    continuationPolicy: 'continue',
+    output: null,
+    ...(deadLettered ? { finalStatus: 'dead-lettered' } : {}),
+    ...(cancelled ? { cancelled: true } : {}),
+  }
+}
+
 function readEmotionalKernelSnapshot(raw: unknown): AlicizationRuntimeEmotionalKernelShape | null {
   const candidate = readRecord(raw)
   if (!candidate)
@@ -107,6 +148,7 @@ interface RunAlicizationMainChatBackgroundOptions {
   prepareTurn: (input: {
     abortSignal: AbortSignal
   }) => Promise<AlicizationPreparedMainChatExecutionResult>
+  preparationTimeoutMs?: number
   headers?: Record<string, string>
   isRunActive: () => boolean
   runStateController: AlicizationMainChatRunStateFacade
@@ -488,6 +530,7 @@ export async function runAlicizationMainChatBackground(
     }
 
     const memoryParticipants = new Map<string, ReturnType<typeof createAlicizationMemoryParticipant>>()
+    const memoryAppendEventByTurn = new Map<string, AlicizationEventLoopRuntimeView['appendMemoryEvent']>()
     const memoryProposals = new Map<string, AlicizationMemoryWriteProposal>()
     const committedMemoryWrites = new Map<string, Awaited<
       ReturnType<NonNullable<AlicizationPreparedMainChatExecutionResult['commitMemoryWriteIntent']>>
@@ -582,7 +625,9 @@ export async function runAlicizationMainChatBackground(
             conversationId: runtime.conversationId,
           },
           appendEvent: async (event) => {
-            await runtime.appendMemoryEvent(
+            const appendMemoryEvent = memoryAppendEventByTurn.get(runtime.turnId)
+              ?? runtime.appendMemoryEvent
+            await appendMemoryEvent(
               event.eventType as Parameters<typeof runtime.appendMemoryEvent>[0],
               event.payload,
               event.idempotencyKey,
@@ -611,6 +656,7 @@ export async function runAlicizationMainChatBackground(
           },
         })
         memoryParticipants.set(runtime.turnId, memoryParticipant)
+        memoryAppendEventByTurn.set(runtime.turnId, runtime.appendMemoryEvent)
         await memoryParticipant.recordLongTermRecall({
           sessionId: context.prepared.conversationSessionId ?? runtime.conversationId,
           status: context.prepared.memoryContext?.longTermRecall?.status ?? 'empty',
@@ -735,18 +781,34 @@ export async function runAlicizationMainChatBackground(
           progressListeners.delete(progressListener)
         }
         await progressWrite
-        if (toolError)
-          throw toolError
+        if (toolError) {
+          return {
+            actionId: action.actionId,
+            observationId: `${action.actionId}:observation`,
+            toolCallId: action.toolCallId,
+            terminal: true,
+            outcome: 'failure',
+            output: buildMainChatToolFailureObservation({
+              error: toolError,
+              toolName: providerToolName,
+            }),
+          }
+        }
         const toolFailure = isAlicizationToolExecutionFailureResult(result)
           ? extractAlicizationToolExecutionFailure(result, providerToolName)
           : null
         if (toolFailure) {
-          throw Object.assign(new Error(toolFailure.message), {
-            name: 'AlicizationToolExecutionError',
-            failureKind: 'tool-execution',
-            toolName: toolFailure.toolName,
-            errorCode: toolFailure.code,
-          })
+          return {
+            actionId: action.actionId,
+            observationId: `${action.actionId}:observation`,
+            toolCallId: action.toolCallId,
+            terminal: true,
+            outcome: 'failure',
+            output: buildMainChatToolFailureObservation({
+              error: result,
+              toolName: toolFailure.toolName,
+            }),
+          }
         }
 
         return {
@@ -785,6 +847,7 @@ export async function runAlicizationMainChatBackground(
         const proposal = memoryProposals.get(runtime.turnId)
         if (!memoryParticipant || !proposal)
           return
+        memoryAppendEventByTurn.set(runtime.turnId, runtime.appendMemoryEvent)
         try {
           const visibleReplyCommitted = status === 'completed' && runtime.replyCommitted
           const assistantText = runtime.committedDelivery?.artifact.visibleText ?? ''
@@ -828,6 +891,7 @@ export async function runAlicizationMainChatBackground(
         }
         finally {
           memoryParticipants.delete(runtime.turnId)
+          memoryAppendEventByTurn.delete(runtime.turnId)
           memoryProposals.delete(runtime.turnId)
           committedMemoryWrites.delete(runtime.turnId)
           resolvedMemoryWriteIntents.delete(runtime.turnId)
@@ -898,14 +962,14 @@ export async function runAlicizationMainChatBackground(
         },
         conversationId,
         prepare: async (runtime) => {
-          const clearPreparationDeadline = armAlicizationMainChatPreparationDeadline({
-            controller: input.runState.controller,
-            timeoutMs: mainChatPreparationTimeoutMs,
+          const preparationDeadline = armAlicizationMainChatPreparationDeadline({
+            parentSignal: runtime.abortSignal,
+            timeoutMs: input.preparationTimeoutMs ?? mainChatPreparationTimeoutMs,
             onTimeout: () => {
               void input.appendRuntimeDebugLine('chat-stream.preparation-timeout-fired', {
                 cardId: input.payload.cardId,
                 turnId: input.payload.turnId,
-                timeoutMs: mainChatPreparationTimeoutMs,
+                timeoutMs: input.preparationTimeoutMs ?? mainChatPreparationTimeoutMs,
               })
             },
           })
@@ -913,13 +977,13 @@ export async function runAlicizationMainChatBackground(
           try {
             nextPrepared = await raceAlicizationMainChatPreparation({
               preparationPromise: input.prepareTurn({
-                abortSignal: runtime.abortSignal,
+                abortSignal: preparationDeadline.signal,
               }),
-              signal: runtime.abortSignal,
+              signal: preparationDeadline.signal,
             })
           }
           finally {
-            clearPreparationDeadline()
+            preparationDeadline.clear()
           }
           if (!input.isRunActive())
             throw new DOMException('Alicization chat run is no longer active', 'AbortError')

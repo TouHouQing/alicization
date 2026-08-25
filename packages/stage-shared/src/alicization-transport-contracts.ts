@@ -1000,6 +1000,13 @@ export interface AlicizationListTaskThreadsInput {
   turnId?: string
   sessionId?: string
   status?: AlicizationTaskThreadStatus | AlicizationTaskThreadStatus[]
+  /**
+   * Opaque keyset cursor returned by a previous ascending page.
+   * The cursor is ordered by COALESCE(lastEventAt, updatedAt), then id.
+   */
+  cursor?: string | null
+  order?: 'asc' | 'desc'
+  minActivityAt?: number
   limit?: number
 }
 
@@ -5710,6 +5717,7 @@ export type AlicizationBridgeChatStreamEvent
     toolName?: string
     selectedChannel?: AlicizationExecutionChannel | null
     projection: AlicizationRuntimeToolProjectionUpdate
+    phase?: 'started' | 'running' | 'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'
     result?: unknown
   }
   | {

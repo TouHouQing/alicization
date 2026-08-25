@@ -8,6 +8,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 
+import { createAlicizationChatStreamLifecycle } from '../../../../apps/stage-tamagotchi/src/renderer/alicization-chat-stream-bridge'
 import { clearAlicizationBridge, setAlicizationBridge } from './alicization-bridge'
 import { hasVerifiedToolResult, useChatOrchestratorStore } from './chat'
 
@@ -1311,6 +1312,115 @@ describe('chat orchestrator reply authority', () => {
     }
   })
 
+  it.each([
+    [
+      'provider liveness timeout',
+      {
+        timeoutPhase: 'liveness-timeout',
+        timeoutStage: 'provider',
+      },
+      'provider-continuation',
+    ],
+    [
+      'provider idle timeout',
+      {
+        timeoutPhase: 'idle-timeout',
+        timeoutStage: 'provider',
+      },
+      'provider-continuation',
+    ],
+    [
+      'tool execution idle timeout',
+      {
+        timeoutPhase: 'idle-timeout',
+        timeoutStage: 'tool-execution',
+      },
+      'tool-result-handoff',
+    ],
+  ] as const)('preserves the renderer %s taxonomy in the visible failure surface', async (_label, timeout, expectedPhase) => {
+    const streamChat = vi.fn(async () => {
+      throw Object.assign(
+        new Error(`Alicization stream timed out (${timeout.timeoutPhase}).`),
+        {
+          errorCode: 'ALICIZATION_RENDERER_STREAM_TIMEOUT',
+          timeoutOrigin: 'renderer-watchdog',
+          ...timeout,
+        },
+      )
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请继续当前对话', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(streamChat).toHaveBeenCalledTimes(1)
+    expect(persisted).toMatchObject({
+      structured: {
+        origin: 'failure-surface',
+        failureSurface: {
+          kind: 'timeout',
+          timeout: {
+            phase: expectedPhase,
+            timeoutPhase: timeout.timeoutPhase,
+            timeoutStage: timeout.timeoutStage,
+          },
+        },
+      },
+    })
+  })
+
+  it('preserves main watchdog timeout descriptors in the visible failure surface', async () => {
+    const timeoutDescriptor = {
+      origin: 'main-watchdog' as const,
+      timeoutPhase: 'idle-timeout' as const,
+      timeoutStage: 'provider' as const,
+      timeoutMs: 18_000,
+      elapsedMs: 18_125,
+      lastEventType: 'text-delta',
+      sawAnyEvent: true,
+      sawProgress: true,
+    }
+    const streamChat = vi.fn(async () => {
+      throw Object.assign(
+        new Error('Alicization main watchdog timed out: chat-provider-idle-timeout'),
+        {
+          errorCode: 'ALICIZATION_RUNTIME_TIMEOUT',
+          timeoutOrigin: 'main-watchdog',
+          timeoutReason: 'chat-provider-idle-timeout',
+          timeoutDescriptor,
+        },
+      )
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请继续当前对话', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted).toMatchObject({
+      structured: {
+        origin: 'failure-surface',
+        failureSurface: {
+          kind: 'timeout',
+          timeout: {
+            phase: 'provider-continuation',
+            timeoutReason: 'chat-provider-idle-timeout',
+            descriptor: timeoutDescriptor,
+          },
+        },
+      },
+    })
+  })
+
   it('labels liveness-only tool heartbeats as no new semantic progress', async () => {
     const reply = 'Codex 已经完成检查。'
     const fullText = createProviderFullText(reply)
@@ -2182,7 +2292,7 @@ describe('chat orchestrator reply authority', () => {
         model: 'gpt-5.4-mini',
         status: 400,
         code: 'invalid_request_error',
-        message: 'Upstream request failed.',
+        message: 'tool_choice is not supported for this model.',
       },
     })
     const streamChat = vi.fn(async (_payload: any, options: any) => {
@@ -2199,7 +2309,7 @@ describe('chat orchestrator reply authority', () => {
           failureSurface: providerFailure,
         })
         throw new Error(
-          'Remote sent 400 response: {"error":{"message":"Upstream request failed.","type":"invalid_request_error"}}',
+          'Remote sent 400 response: {"error":{"message":"tool_choice is not supported for this model.","type":"invalid_request_error"}}',
         )
       }
 
@@ -2246,7 +2356,7 @@ describe('chat orchestrator reply authority', () => {
     expect(appendConversationTurnMock.mock.calls.at(-1)?.[0]?.structured.failureSurface).toBeUndefined()
   })
 
-  it('does not persist a false tool capability observation when the no-tools retry also fails', async () => {
+  it('does not retry a generic HTTP 400 or persist a false tool capability observation', async () => {
     const streamChat = vi.fn(async () => {
       throw new Error(
         'Remote sent 400 response: {"error":{"message":"Upstream request failed.","type":"invalid_request_error"}}',
@@ -2261,7 +2371,7 @@ describe('chat orchestrator reply authority', () => {
       origin: 'ui-user',
     })
 
-    expect(streamChat).toHaveBeenCalledTimes(2)
+    expect(streamChat).toHaveBeenCalledTimes(1)
     const storageKey = [
       'alicization/provider-tool-capability/v1',
       encodeURIComponent('mock-provider'),
@@ -2280,6 +2390,241 @@ describe('chat orchestrator reply authority', () => {
         }),
       }),
     }))
+  })
+
+  it('keeps an HTTP 400 Provider error with timeout wording as a Provider request failure', async () => {
+    const streamChat = vi.fn(async () => {
+      throw new Error(
+        'Remote sent 400 response: {"error":{"message":"The timeout parameter is invalid.","type":"invalid_request_error"}}',
+      )
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'model-timeout-parameter',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamChat).toHaveBeenCalledTimes(1)
+    expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+      structured: expect.objectContaining({
+        origin: 'failure-surface',
+        failureSurface: expect.objectContaining({
+          kind: 'provider-request',
+          providerRequest: expect.objectContaining({
+            status: 400,
+            code: 'invalid_request_error',
+          }),
+        }),
+      }),
+    }))
+  })
+
+  it('does not retry an ordinary HTTP 400 invalid request without tool incompatibility evidence', async () => {
+    const streamChat = vi.fn(async () => {
+      throw new Error(
+        'Remote sent 400 response: {"error":{"message":"The temperature parameter is invalid.","type":"invalid_request_error"}}',
+      )
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'model-invalid-parameter',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamChat).toHaveBeenCalledTimes(1)
+    expect(localStorageEntries.size).toBe(0)
+    expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+      structured: expect.objectContaining({
+        origin: 'failure-surface',
+        failureSurface: expect.objectContaining({
+          kind: 'provider-request',
+          providerRequest: expect.objectContaining({
+            status: 400,
+            code: 'invalid_request_error',
+          }),
+        }),
+      }),
+    }))
+  })
+
+  it('does not retry when tool_choice itself is merely an invalid request parameter', async () => {
+    const streamChat = vi.fn(async () => {
+      throw new Error(
+        'Remote sent 400 response: {"error":{"message":"tool_choice must be one of auto or none.","type":"invalid_request_error"}}',
+      )
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'model-invalid-tool-choice',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(streamChat).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not disable tool capability when the provider rejects a malformed function schema', async () => {
+    const streamChat = vi.fn(async () => {
+      throw new Error(
+        'Remote sent 400 response: {"error":{"message":"function schema is invalid: additionalProperties must be false.","type":"invalid_request_error"}}',
+      )
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'model-invalid-function-schema',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const storageKey = [
+      'alicization/provider-tool-capability/v1',
+      encodeURIComponent('mock-provider'),
+      encodeURIComponent('model-invalid-function-schema'),
+    ].join('/')
+    expect(streamChat).toHaveBeenCalledTimes(1)
+    expect(localStorageEntries.has(storageKey)).toBe(false)
+  })
+
+  it('does not disable tool capability for an unsupported tool schema keyword', async () => {
+    const streamChat = vi.fn(async () => {
+      throw new Error(
+        'Remote sent 400 response: {"error":{"message":"unsupported tool schema keyword: unevaluatedProperties","type":"invalid_request_error"}}',
+      )
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'model-unsupported-tool-schema',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const storageKey = [
+      'alicization/provider-tool-capability/v1',
+      encodeURIComponent('mock-provider'),
+      encodeURIComponent('model-unsupported-tool-schema'),
+    ].join('/')
+    expect(streamChat).toHaveBeenCalledTimes(1)
+    expect(localStorageEntries.has(storageKey)).toBe(false)
+  })
+
+  it('does not disable tool capability when the provider does not support the function schema dialect', async () => {
+    const streamChat = vi.fn(async () => {
+      throw new Error(
+        'Remote sent 400 response: {"error":{"message":"function schema is not supported by this endpoint.","type":"invalid_request_error"}}',
+      )
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'model-function-schema-dialect',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const storageKey = [
+      'alicization/provider-tool-capability/v1',
+      encodeURIComponent('mock-provider'),
+      encodeURIComponent('model-function-schema-dialect'),
+    ].join('/')
+    expect(streamChat).toHaveBeenCalledTimes(1)
+    expect(localStorageEntries.has(storageKey)).toBe(false)
+  })
+
+  it('does not disable tool capability when the provider rejects an unsupported JSON Schema path', async () => {
+    const streamChat = vi.fn(async () => {
+      throw new Error(
+        'Remote sent 400 response: {"error":{"message":"Unsupported parameter: tools[0].function.parameters.additionalProperties","type":"invalid_request_error"}}',
+      )
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'model-unsupported-schema-path',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const storageKey = [
+      'alicization/provider-tool-capability/v1',
+      encodeURIComponent('mock-provider'),
+      encodeURIComponent('model-unsupported-schema-path'),
+    ].join('/')
+    expect(streamChat).toHaveBeenCalledTimes(1)
+    expect(localStorageEntries.has(storageKey)).toBe(false)
+  })
+
+  it('does not disable tool capability when a schema path error says tools are unsupported', async () => {
+    const streamChat = vi.fn(async () => {
+      throw new Error(
+        'Remote sent 400 response: {"error":{"message":"This endpoint does not support tools[0].function.parameters.additionalProperties","type":"invalid_request_error"}}',
+      )
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'model-schema-path-does-not-support-tools',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const storageKey = [
+      'alicization/provider-tool-capability/v1',
+      encodeURIComponent('mock-provider'),
+      encodeURIComponent('model-schema-path-does-not-support-tools'),
+    ].join('/')
+    expect(streamChat).toHaveBeenCalledTimes(1)
+    expect(localStorageEntries.has(storageKey)).toBe(false)
+  })
+
+  it.each([
+    [401, 'authentication_error', 'Invalid API key'],
+    [403, 'permission_error', 'The API key is not allowed to use this model'],
+  ] as const)('classifies a JSON Provider %s response as provider-auth', async (status, code, message) => {
+    const streamChat = vi.fn(async () => {
+      throw new Error(
+        `Remote sent ${status} response: ${JSON.stringify({
+          error: {
+            message,
+            type: code,
+          },
+        })}`,
+      )
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('你好', {
+      model: 'model-auth-failure',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(streamChat).toHaveBeenCalledTimes(1)
+    expect(persisted).toMatchObject({
+      structured: {
+        origin: 'failure-surface',
+        failureSurface: {
+          kind: 'provider-auth',
+        },
+      },
+    })
+    expect(persisted.structured.failureSurface.providerRequest).toBeUndefined()
   })
 
   it('quarantines a provider reply that follows a failed tool result', async () => {
@@ -3614,6 +3959,44 @@ describe('chat orchestrator reply authority', () => {
     }))
   })
 
+  it('restores a structured failure surface carried only by the bridge rejection', async () => {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'tool-execution',
+      toolExecution: {
+        code: 'CODEX_TIMEOUT',
+        message: 'Codex produced no semantic progress for 180000ms.',
+        toolName: 'codex',
+      },
+    })
+    const streamChat = vi.fn(async () => {
+      throw Object.assign(new Error(failureSurface.reply), {
+        failureSurface,
+        toolExecution: failureSurface.toolExecution,
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    expect(appendConversationTurnMock).toHaveBeenCalledWith(expect.objectContaining({
+      assistantText: failureSurface.reply,
+      structured: expect.objectContaining({
+        origin: 'failure-surface',
+        failureSurface,
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+      }),
+    }))
+  })
+
   it('keeps the first tool failure terminal when a later Provider format failure arrives', async () => {
     const providerFailureSurface = {
       kind: 'provider-output-invalid',
@@ -3765,6 +4148,269 @@ describe('chat orchestrator reply authority', () => {
       },
     })
     expect(persisted.assistantText).toContain('CODEX_TIMEOUT')
+    expect(persisted.assistantText).not.toBe(providerFailureSurface.reply)
+  })
+
+  it('lets a terminal tool progress failure replace an earlier generic stream surface', async () => {
+    const providerFailureSurface = {
+      kind: 'provider-output-invalid',
+      reply: '模型输出格式异常，这轮回复已拦截。',
+      origin: 'failure-surface',
+      allowLongTermCondensation: false,
+      allowPersonaLearning: false,
+      allowTraining: false,
+      nonHumanAuthoredStatus: 'direct-infra-repair:provider-output-invalid',
+      visibleReplySource: 'infrastructure-failure',
+      excludeFromPersonaLearning: true,
+      excludeFromMemoryCondensation: true,
+      auditCategory: 'alicization.chat-failure',
+    } as const
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'codex-late-progress-failure-1',
+        toolName: 'codex',
+        args: '{}',
+        toolCallType: 'function',
+      })
+      await options.onStreamEvent?.({
+        type: 'error',
+        error: providerFailureSurface.reply,
+        origin: providerFailureSurface.origin,
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+        failureSurface: providerFailureSurface,
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-progress',
+        toolCallId: 'codex-late-progress-failure-1',
+        toolName: 'codex',
+        phase: 'timeout',
+        signal: 'terminal',
+        elapsedMs: 180_000,
+        errorCode: 'CODEX_TIMEOUT',
+        errorMessage: 'Codex produced no semantic progress for 180000ms.',
+      })
+      throw new Error(providerFailureSurface.reply)
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted).toMatchObject({
+      structured: {
+        origin: 'failure-surface',
+        failureSurface: {
+          kind: 'tool-execution',
+          toolExecution: {
+            toolName: 'codex',
+            code: 'CODEX_TIMEOUT',
+            message: 'Codex produced no semantic progress for 180000ms.',
+          },
+        },
+      },
+    })
+    expect(persisted.assistantText).toContain('CODEX_TIMEOUT')
+    expect(persisted.assistantText).not.toBe(providerFailureSurface.reply)
+  })
+
+  it('persists a late terminal tool failure over an earlier generic finish rejection', async () => {
+    const providerFailureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'provider-output-invalid',
+    })
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await new Promise<void>((resolve, reject) => {
+        const toolProjection = createAlicizationRuntimeToolProjectionReducer()
+        const lifecycle = createAlicizationChatStreamLifecycle({
+          onStreamEvent: options.onStreamEvent,
+          resolve,
+          reject,
+        })
+        lifecycle.publish({
+          type: 'tool-call',
+          toolCallId: 'codex-error-finish-terminal',
+          toolName: 'codex',
+          args: '{}',
+          toolCallType: 'function',
+          projection: toolProjection.reduce({
+            type: 'tool-call',
+            toolCallId: 'codex-error-finish-terminal',
+            toolName: 'codex',
+            arguments: '{}',
+          }),
+        })
+        lifecycle.publish({
+          type: 'error',
+          error: providerFailureSurface.reply,
+          origin: providerFailureSurface.origin,
+          learningPolicy: {
+            allowLongTermCondensation: false,
+            allowPersonaLearning: false,
+            allowTraining: false,
+          },
+          failureSurface: providerFailureSurface,
+        })
+        lifecycle.rejectAfter([{
+          type: 'finish',
+          finishReason: 'provider-failed',
+        }], new Error('Alicization chat stream failed.'))
+        queueMicrotask(() => {
+          lifecycle.publish({
+            type: 'tool-progress',
+            toolCallId: 'codex-error-finish-terminal',
+            toolName: 'codex',
+            phase: 'timeout',
+            signal: 'terminal',
+            elapsedMs: 180_000,
+            errorCode: 'CODEX_TIMEOUT',
+            errorMessage: 'Codex produced no semantic progress for 180000ms.',
+            projection: toolProjection.reduce({
+              type: 'tool-progress',
+              toolCallId: 'codex-error-finish-terminal',
+              toolName: 'codex',
+              phase: 'timeout',
+              signal: 'terminal',
+              elapsedMs: 180_000,
+              errorCode: 'CODEX_TIMEOUT',
+              errorMessage: 'Codex produced no semantic progress for 180000ms.',
+            }),
+          })
+        })
+      })
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted).toMatchObject({
+      assistantText: expect.stringContaining('CODEX_TIMEOUT'),
+      structured: {
+        origin: 'failure-surface',
+        failureSurface: {
+          kind: 'tool-execution',
+          toolExecution: {
+            toolName: 'codex',
+            code: 'CODEX_TIMEOUT',
+          },
+        },
+      },
+    })
+    expect(persisted.assistantText).not.toBe(providerFailureSurface.reply)
+  })
+
+  it('persists a terminal tool-result timeout projection over an earlier provider failure', async () => {
+    const providerFailureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'provider-output-invalid',
+    })
+    const streamChat = vi.fn(async (_payload: any, options: any) => {
+      await options.onStreamEvent?.({
+        type: 'tool-call',
+        toolCallId: 'codex-terminal-result-timeout',
+        toolName: 'codex',
+        args: '{}',
+        toolCallType: 'function',
+        projection: {
+          factType: 'tool-call',
+          accepted: true,
+          traceOnly: false,
+          card: {
+            toolCallId: 'codex-terminal-result-timeout',
+            toolName: 'codex',
+            selectedChannel: 'codex',
+            phase: 'started',
+            terminal: false,
+            revision: 1,
+            elapsedMs: null,
+            timeoutMs: null,
+            errorCode: null,
+            errorMessage: null,
+            step: null,
+            result: undefined,
+          },
+        },
+      })
+      await options.onStreamEvent?.({
+        type: 'error',
+        error: providerFailureSurface.reply,
+        origin: providerFailureSurface.origin,
+        learningPolicy: {
+          allowLongTermCondensation: false,
+          allowPersonaLearning: false,
+          allowTraining: false,
+        },
+        failureSurface: providerFailureSurface,
+      })
+      await options.onStreamEvent?.({
+        type: 'finish',
+        finishReason: 'provider-failed',
+      })
+      await options.onStreamEvent?.({
+        type: 'tool-result',
+        toolCallId: 'codex-terminal-result-timeout',
+        toolName: 'codex',
+        phase: 'timeout',
+        projection: {
+          factType: 'tool-result',
+          accepted: true,
+          traceOnly: false,
+          card: {
+            toolCallId: 'codex-terminal-result-timeout',
+            toolName: 'codex',
+            selectedChannel: 'codex',
+            phase: 'timeout',
+            terminal: true,
+            revision: 2,
+            elapsedMs: 180_000,
+            timeoutMs: 180_000,
+            errorCode: 'CODEX_TIMEOUT',
+            errorMessage: 'Codex produced no semantic progress for 180000ms.',
+            step: null,
+            result: {
+              status: 'timeout',
+            },
+          },
+        },
+      })
+      throw new Error(providerFailureSurface.reply)
+    })
+    installAlicizationBridge({ streamChat })
+
+    const store = useChatOrchestratorStore()
+    await store.ingest('请用 Codex 检查仓库', {
+      model: 'mock-model',
+      chatProvider: createChatProviderStub(),
+      origin: 'ui-user',
+    })
+
+    const persisted = appendConversationTurnMock.mock.calls.at(-1)?.[0] as any
+    expect(persisted).toMatchObject({
+      assistantText: expect.stringContaining('CODEX_TIMEOUT'),
+      structured: {
+        origin: 'failure-surface',
+        failureSurface: {
+          kind: 'tool-execution',
+          toolExecution: {
+            toolName: 'codex',
+            code: 'CODEX_TIMEOUT',
+          },
+        },
+      },
+    })
     expect(persisted.assistantText).not.toBe(providerFailureSurface.reply)
   })
 

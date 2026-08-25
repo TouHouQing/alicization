@@ -52,6 +52,7 @@ import type { AlicizationMemoryConsolidationRecord } from './memory-consolidatio
 import type { AlicizationMemoryTrialProvider } from './memory-live-provider-trial'
 import type { AlicizationMemoryGatewayTextProvider } from './memory-os/provider-planning'
 import type { AlicizationPersonStateProjection } from './person-state-projection'
+import type { PersonaTrainingArtifactLoader } from './persona-training-pipeline-gate'
 import type {
   AlicizationProactiveLoopState,
 } from './proactive-feedback'
@@ -214,6 +215,10 @@ import {
 import { buildMindContinuityFragment, buildMindContinuityRecallSeed } from './mind-continuity'
 import { buildMindEcologyFromRuntimeSurface } from './mind-ecology'
 import { sanitizeMindGovernanceDecisionTraceId } from './mind-governance-trace'
+import {
+  createMlxPersonaRuntime,
+  normalizeMlxPersonaRuntimeConfig,
+} from './mlx-persona-runtime'
 import { isPersonaResidueMemoryText, normalizeOrganicMemoryText } from './organic-memory-hygiene'
 import {
   attachSynthesizedReflections,
@@ -411,6 +416,7 @@ import {
 } from './state'
 import { createTaskThreadOrchestrator } from './task-thread-orchestrator'
 import { resolveAlicizationLocalRuntimeUserId } from './turn-os/main-chat-participant'
+import { resolveAlicizationRuntimeTimeoutReason } from './turn-os/runtime-errors'
 import { createAlicizationSkillLoader } from './turn-os/skill-loader'
 import { createAlicizationSkillRegistry } from './turn-os/skill-registry'
 import { createCanonicalToolRegistry } from './turn-os/tool-registry'
@@ -663,7 +669,8 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   let personaTrainingExecutorConfigError: string | null = null
   let personaRuntimeConfig: AlicizationPersonaRuntimeConfig | null = null
   let personaRuntimeConfigError: string | null = null
-  let personaRuntime: ReturnType<typeof createLlamaCppPersonaRuntime> | null = null
+  let personaRuntime: ReturnType<typeof createLlamaCppPersonaRuntime> | ReturnType<typeof createMlxPersonaRuntime> | null = null
+  let personaRuntimeBackend: 'llama.cpp' | 'mlx-runtime' = 'llama.cpp'
   const clonePersonaTrainingExecutorConfig = (config: AlicizationPersonaTrainingExecutorConfig | null) => config
     ? { ...config }
     : null
@@ -688,7 +695,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   const restorePersonaRuntimeConfig = async () => {
     try {
       const raw = await readFile(personaRuntimeConfigPath, 'utf8')
-      personaRuntimeConfig = normalizeAlicizationPersonaRuntimeConfig(JSON.parse(raw))
+      const parsed = JSON.parse(raw) as { backend?: unknown }
+      personaRuntimeConfig = parsed.backend === 'mlx-runtime'
+        ? normalizeMlxPersonaRuntimeConfig(parsed)
+        : normalizeAlicizationPersonaRuntimeConfig(parsed)
       personaRuntimeConfigError = null
     }
     catch (error) {
@@ -721,6 +731,26 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     personaTrainingExecutorConfigError = null
     return personaTrainingExecutorConfigState()
   }
+  const createPersonaRuntimeForConfig = (
+    runtimeConfig: AlicizationPersonaRuntimeConfig | null = personaRuntimeConfig,
+    processStatePath: string | null = personaRuntimeProcessStatePath,
+  ) => {
+    const backend = runtimeConfig?.backend === 'mlx-runtime' ? 'mlx-runtime' : 'llama.cpp'
+    const runtimeOptions = {
+      getConfig: () => runtimeConfig,
+      ...(processStatePath ? { processStatePath } : {}),
+    }
+    if (backend === 'mlx-runtime')
+      return createMlxPersonaRuntime(runtimeOptions)
+    return createLlamaCppPersonaRuntime(runtimeOptions)
+  }
+  const createPersonaRuntime = (
+    runtimeConfig: AlicizationPersonaRuntimeConfig | null = personaRuntimeConfig,
+    processStatePath: string | null = personaRuntimeProcessStatePath,
+  ) => {
+    personaRuntimeBackend = runtimeConfig?.backend === 'mlx-runtime' ? 'mlx-runtime' : 'llama.cpp'
+    return createPersonaRuntimeForConfig(runtimeConfig, processStatePath)
+  }
   const personaRuntimeConfigState = () => {
     const runtimeSnapshot = personaRuntime?.getSnapshot()
     return {
@@ -746,7 +776,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       personaRuntimeConfigError = null
       return personaRuntimeConfigState()
     }
-    const normalized = normalizeAlicizationPersonaRuntimeConfig(rawConfig)
+    const normalized = rawConfig.backend === 'mlx-runtime'
+      ? normalizeMlxPersonaRuntimeConfig(rawConfig)
+      : normalizeAlicizationPersonaRuntimeConfig(rawConfig)
+    const currentBackend = personaRuntimeBackend
+    const nextBackend = normalized.backend ?? 'llama.cpp'
     await mkdir(join(userDataPath, 'alicizations'), { recursive: true })
     await writeFile(personaRuntimeConfigPath, JSON.stringify(normalized, null, 2), {
       encoding: 'utf8',
@@ -754,6 +788,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     })
     personaRuntimeConfig = normalized
     personaRuntimeConfigError = null
+    if (currentBackend !== nextBackend) {
+      await personaRuntime?.dispose()
+      personaRuntime = createPersonaRuntime()
+    }
     await personaRuntime?.setConfig(normalized)
     return personaRuntimeConfigState()
   }
@@ -771,15 +809,15 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       validateArtifact: executor.validateArtifact,
       discardArtifact: executor.discardArtifact,
       reconcileArtifacts: executor.reconcileArtifacts,
-      loader: personaRuntime!.loader,
+      loader: {
+        load: async input => await personaRuntime!.loader.load(input),
+        unload: async input => await personaRuntime!.loader.unload(input),
+      } satisfies PersonaTrainingArtifactLoader,
     }
   }
   await restorePersonaTrainingExecutorConfig()
   await restorePersonaRuntimeConfig()
-  personaRuntime = createLlamaCppPersonaRuntime({
-    getConfig: () => personaRuntimeConfig,
-    processStatePath: personaRuntimeProcessStatePath,
-  })
+  personaRuntime = createPersonaRuntime()
   const resolveLongTermMemoryEmbeddingProvider = () => resolveOpenAICompatibleLongTermMemoryEmbeddingProvider({
     activeProviderId,
     providerCredentials,
@@ -1265,6 +1303,10 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
   } = createAlicizationRuntimeSupportingRuntimesComposition({
     execution: {
       alicizationDb: {
+        getMetaValue: key => alicizationDb.getMetaValue(key),
+        setMetaValue: (key, value) => alicizationDb.setMetaValue(key, value),
+        compareAndSetMetaValue: (key, expectedValue, nextValue) =>
+          alicizationDb.compareAndSetMetaValue(key, expectedValue, nextValue),
         listExecutionEvents: input => alicizationDb.listExecutionEvents(input),
         listTaskThreads: input => alicizationDb.listTaskThreads(input),
       },
@@ -6404,12 +6446,11 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const rawInvokeOptions = invokeOptions?.raw && typeof invokeOptions.raw === 'object'
       ? invokeOptions.raw as { ipcMainEvent?: IpcMainEvent, event?: unknown }
       : undefined
-    // Arm the turn deadline before any feedback, persistence, or maintenance
-    // work can run. The same controller is handed to the accepted run so a
-    // cold-start stall cannot silently consume the whole user-visible turn.
+    // The accepted run owns user cancellation. Preparation gets a derived
+    // deadline signal so an internal watchdog cannot masquerade as cancellation.
     const startController = new AbortController()
-    const clearPreparationDeadline = armAlicizationMainChatPreparationDeadline({
-      controller: startController,
+    const preparationDeadline = armAlicizationMainChatPreparationDeadline({
+      parentSignal: startController.signal,
       timeoutMs: mainChatPreparationTimeoutMs,
       onTimeout: () => {
         void appendRuntimeDebugLine('chat-start.preparation-timeout-fired', {
@@ -6459,16 +6500,16 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
           normalizeCardId,
           sanitizeText,
         })),
-        signal: startController.signal,
+        signal: preparationDeadline.signal,
       })
     }
     catch (error) {
-      clearPreparationDeadline()
+      preparationDeadline.clear()
       releaseForeground()
       throw error
     }
     if (!accepted.accepted) {
-      clearPreparationDeadline()
+      preparationDeadline.clear()
       releaseForeground()
       return accepted.result
     }
@@ -6477,19 +6518,20 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     const isRunActive = () => chatRuns.get(key)?.state === 'running'
     let agentTurn: Awaited<ReturnType<typeof mainChatSessionRuntime.openExecutionTurn>>
     try {
-      agentTurn = await foregroundWork.run(async () => await mainChatSessionRuntime.openExecutionTurn({
-        cardId: normalizedPayload.cardId,
-        turnId: normalizedPayload.turnId,
-      }))
+      agentTurn = await raceAlicizationMainChatPreparation({
+        preparationPromise: foregroundWork.run(async () => await mainChatSessionRuntime.openExecutionTurn({
+          cardId: normalizedPayload.cardId,
+          turnId: normalizedPayload.turnId,
+        })),
+        signal: preparationDeadline.signal,
+      })
     }
     catch (error) {
       cleanupAlicizationAcceptedMainChatStartFailure({
-        clearPreparationDeadline,
-        abortController: () => startController.abort(createAbortError('agent-turn-open-failed')),
-        controllerAlreadyAborted: startController.signal.aborted,
+        clearPreparationDeadline: preparationDeadline.clear,
         finishRun: () => mainChatRunState.finishRun(key, {
-          status: 'failed',
-          finishReason: 'agent-turn-open-failed',
+          status: resolveAlicizationRuntimeTimeoutReason(error) ? 'aborted' : 'failed',
+          finishReason: resolveAlicizationRuntimeTimeoutReason(error) ?? 'agent-turn-open-failed',
           error: error instanceof Error ? error.message : String(error),
         }),
         releaseForeground,
@@ -6500,9 +6542,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     if (!conversationId) {
       const error = new TypeError('main chat agent turn opened without a conversation identity')
       cleanupAlicizationAcceptedMainChatStartFailure({
-        clearPreparationDeadline,
-        abortController: () => startController.abort(createAbortError('agent-turn-missing-conversation')),
-        controllerAlreadyAborted: startController.signal.aborted,
+        clearPreparationDeadline: preparationDeadline.clear,
         finishRun: () => mainChatRunState.finishRun(key, {
           status: 'failed',
           finishReason: 'agent-turn-missing-conversation',
@@ -6512,6 +6552,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
       })
       throw error
     }
+    preparationDeadline.clear()
 
     let resolvePrelude!: (value: Awaited<ReturnType<typeof prepareMainChatPrelude>>) => void
     let rejectPrelude!: (reason?: unknown) => void
@@ -6536,8 +6577,6 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         }
       }
     }
-    void preparationPromise.then(clearPreparationDeadline, clearPreparationDeadline)
-
     void foregroundWork.run(async () => await runAlicizationMainChatBackground({
       key,
       payload: normalizedPayload,
@@ -6599,9 +6638,16 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
         rememberPreparedMindTrace({ payload, prepared })
       },
       settlePresentedExecutionCallbacks: async ({ cardId, callbacks }) => {
+        const cursorWrites: Promise<void>[] = []
         const suppressedCount = callbacks.reduce((count, callback) => {
           if (!callback.sessionId)
             return count
+          cursorWrites.push(executionCallbackRuntime.markSurfaced({
+            sessionId: callback.sessionId,
+            threadId: callback.threadId,
+            activityAt: callback.activityAt ?? callback.createdAt,
+            createdAt: callback.createdAt,
+          }))
           return count + executionDeliveryRuntime.suppressMatching({
             cardId,
             sessionId: callback.sessionId,
@@ -6609,6 +6655,7 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
             completedAt: callback.createdAt,
           })
         }, 0)
+        await Promise.all(cursorWrites)
         if (suppressedCount === 0)
           return
 
@@ -6810,15 +6857,36 @@ export async function setupAlicizationRuntime(options?: AlicizationRuntimeSetupO
     getPersonaRuntimeConfig: personaRuntimeConfigState,
     setPersonaRuntimeConfig: persistPersonaRuntimeConfig,
     testPersonaRuntime: async (config) => {
-      if (!personaRuntime) {
+      if (!config) {
         return {
           ok: false,
           executable: '',
           baseUrl: null,
-          error: 'llama.cpp Persona runtime is not available',
+          error: 'Persona runtime is not configured',
         }
       }
-      return await personaRuntime.testConnection(config)
+      const executable = typeof config.executable === 'string'
+        ? config.executable.trim()
+        : ''
+      let temporaryRuntime: ReturnType<typeof createPersonaRuntimeForConfig> | null = null
+      try {
+        const normalized = config.backend === 'mlx-runtime'
+          ? normalizeMlxPersonaRuntimeConfig(config)
+          : normalizeAlicizationPersonaRuntimeConfig(config)
+        temporaryRuntime = createPersonaRuntimeForConfig(normalized, null)
+        return await temporaryRuntime.testConnection(normalized)
+      }
+      catch (error) {
+        return {
+          ok: false,
+          executable,
+          baseUrl: null,
+          error: errorMessageFrom(error) ?? String(error),
+        }
+      }
+      finally {
+        await temporaryRuntime?.dispose()
+      }
     },
   })
   registerAlicizationSkillInvokeHandlers({

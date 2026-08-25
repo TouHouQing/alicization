@@ -2,12 +2,33 @@
 
 import type { Configuration } from 'electron-builder'
 
+import { existsSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { env } from 'node:process'
 
 import { getLoadablePath as getSqliteVecLoadablePath } from 'sqlite-vec'
 
 const sqliteVecExtensionPath = getSqliteVecLoadablePath()
+
+export function assertPackagedSqlite3Runtime(
+  resourcesPath: string,
+  fileExists: (path: string) => boolean = existsSync,
+) {
+  const root = join(resourcesPath, 'app.asar.unpacked', 'node_modules', 'sqlite3')
+  const required = [
+    join(root, 'lib', 'sqlite3.js'),
+    join(root, 'lib', 'sqlite3-binding.js'),
+    join(root, 'build', 'Release', 'node_sqlite3.node'),
+  ]
+  const missing = required.filter(path => !fileExists(path))
+  if (missing.length > 0) {
+    throw new Error([
+      'Packaged macOS app is missing the unpacked sqlite3 runtime.',
+      ...missing.map(path => `Missing: ${path}`),
+      'The app cannot start until sqlite3 is rebuilt for Electron and unpacked outside app.asar.',
+    ].join('\n'))
+  }
+}
 
 export default {
   appId: 'com.tohoqing.alicization',
@@ -60,6 +81,9 @@ export default {
   asar: true,
   asarUnpack: [
     '**/*.node',
+    '**/node_modules/sqlite3/**/*',
+    '**/node_modules/bindings/**/*',
+    '**/node_modules/file-uri-to-path/**/*',
   ],
   extraResources: [
     {
@@ -127,7 +151,22 @@ export default {
   appImage: {
     artifactName: '${productName}-${version}-linux-${arch}.${ext}',
   },
-  npmRebuild: false,
+  // Native dependencies such as sqlite3 must be rebuilt against Electron's ABI
+  // during every package build. Skipping this step can ship a JS-only package
+  // with no loadable node_sqlite3.node binding.
+  npmRebuild: true,
+  afterPack: async (context) => {
+    if (context.electronPlatformName !== 'darwin')
+      return
+
+    const appPath = join(
+      context.appOutDir,
+      `${context.packager.appInfo.productFilename}.app`,
+      'Contents',
+      'Resources',
+    )
+    assertPackagedSqlite3Runtime(appPath)
+  },
   publish: {
     provider: 'github',
     owner: 'TouHouQing',

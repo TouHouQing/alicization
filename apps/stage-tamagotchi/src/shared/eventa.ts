@@ -12,6 +12,7 @@ import type {
   AlicizationChannelCapabilityManifestUpsertInput as SharedAlicizationChannelCapabilityManifestUpsertInput,
   AlicizationChatFailureSurface as SharedAlicizationChatFailureSurface,
   AlicizationChatMemoryFailureSurface as SharedAlicizationChatMemoryFailureSurface,
+  AlicizationChatTimeoutDescriptor as SharedAlicizationChatTimeoutDescriptor,
   AlicizationClaudeCodeCommandInput as SharedAlicizationClaudeCodeCommandInput,
   AlicizationClawFabricPlan as SharedAlicizationClawFabricPlan,
   AlicizationClawTaskIntent as SharedAlicizationClawTaskIntent,
@@ -667,6 +668,7 @@ export type AlicizationMemoryWorkbenchSensitivity = 'public' | 'personal' | 'pri
 export type AlicizationMemoryWorkbenchVisibility = 'explicit' | 'inward-only'
 export type AlicizationMemoryWorkbenchTrainingState = 'allowed' | 'blocked'
 export type AlicizationMemoryWorkbenchReviewDecision = 'approve' | 'reject' | 'tombstone' | 'inward-only' | 'no-training'
+export type AlicizationMemoryLongTermActionDecision = 'tombstone' | 'inward-only' | 'no-training'
 export type AlicizationMemoryRecallProbeMode = 'none' | 'episodic' | 'relationship' | 'preference' | 'procedure' | 'task' | 'mixed'
 export type AlicizationMemoryRecallProbeTemporalFocus = 'current' | 'recent' | 'recent-or-mid' | 'cross-session' | 'distant' | 'unspecified'
 export type AlicizationMemoryRecallProbeEvidenceKind = 'fact' | 'reflection' | 'episode' | 'consolidation'
@@ -817,6 +819,12 @@ export interface AlicizationMemoryReviewActionPayload extends AlicizationCardSco
   reason?: string | null
 }
 
+export interface AlicizationMemoryLongTermActionPayload extends AlicizationCardScope {
+  memoryItemId: string
+  decision: AlicizationMemoryLongTermActionDecision
+  reason?: string | null
+}
+
 export type AlicizationSimpleRecallGoldLabel = SharedMemoryWorkbench.AlicizationSimpleRecallGoldLabel
 export type AlicizationSimpleRecallGoldReason = SharedMemoryWorkbench.AlicizationSimpleRecallGoldReason
 export type AlicizationSimpleRecallGoldEvaluationClass = SharedMemoryWorkbench.AlicizationSimpleRecallGoldEvaluationClass
@@ -848,6 +856,12 @@ export type AlicizationMemoryQualityTrialCancelResult = SharedMemoryWorkbench.Al
 export type AlicizationMemoryDialogueReplayReport = SharedMemoryWorkbench.AlicizationMemoryDialogueReplayReport
 export type AlicizationMemoryLiveProviderTrialReport = SharedMemoryWorkbench.AlicizationMemoryLiveProviderTrialReport
 export type AlicizationMemoryQualityTrialReport = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReport
+export type AlicizationMemoryQualityTrialReportRecord = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReportRecord
+export type AlicizationMemoryQualityTrialReportSurface = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReportSurface
+export type AlicizationMemoryQualityTrialReportRecordSurface = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReportRecordSurface
+export type AlicizationMemoryQualityTrialReportListPayload = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReportListPayload
+export type AlicizationMemoryQualityTrialReportListResult = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReportListResult
+export type AlicizationMemoryQualityTrialReportSurfaceListResult = SharedMemoryWorkbench.AlicizationMemoryQualityTrialReportSurfaceListResult
 
 export type AlicizationPersonaCandidateWorkbenchStatus = 'candidate' | 'approved' | 'rejected' | 'no-training'
 export type AlicizationPersonaCandidateWorkbenchDecision = 'approve' | 'reject' | 'no-training'
@@ -3705,7 +3719,7 @@ export interface AlicizationChatToolResultInput {
   toolCallId: string
   toolName?: string
   selectedChannel?: SharedAlicizationExecutionChannel | null
-  phase?: 'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'
+  phase?: 'started' | 'running' | 'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'
   result?: unknown
 }
 
@@ -3798,7 +3812,7 @@ export interface AlicizationVisibleReplyPublicClosureSummary extends Record<stri
 export interface AlicizationChatFinishEvent {
   cardId: string
   turnId: string
-  status: 'completed' | 'aborted' | 'failed'
+  status: 'completed' | 'aborted' | 'timed-out' | 'failed'
   origin?: SharedAlicizationVisibleArtifactOrigin
   learningPolicy?: SharedAlicizationVisibleArtifactLearningPolicy
   failureSurface?: SharedAlicizationChatFailureSurface | null
@@ -3869,6 +3883,7 @@ export interface AlicizationChatStartResult {
 export interface AlicizationChatAbortPayload extends AlicizationCardScope {
   turnId: string
   reason?: string
+  timeout?: SharedAlicizationChatTimeoutDescriptor
 }
 
 export interface AlicizationChatAbortResult {
@@ -3951,6 +3966,7 @@ export const electronAlicizationMemoryImportLegacy = defineInvokeEventa<Alicizat
 export const electronAlicizationGetOrganicMemorySnapshot = defineInvokeEventa<AlicizationOrganicMemorySnapshot, AlicizationCardScope>('eventa:invoke:electron:alicization:memory:get-organic-snapshot')
 export const electronAlicizationMemoryWorkbenchGetSnapshot = defineInvokeEventa<AlicizationMemoryWorkbenchSnapshot, AlicizationMemoryWorkbenchSnapshotPayload>('eventa:invoke:electron:alicization:memory-workbench:get-snapshot')
 export const electronAlicizationMemoryWorkbenchListLongTerm = defineInvokeEventa<AlicizationMemoryWorkbenchListResult, AlicizationMemoryWorkbenchListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-long-term')
+export const electronAlicizationMemoryWorkbenchApplyLongTermAction = defineInvokeEventa<AlicizationMemoryWorkbenchItem | null, AlicizationMemoryLongTermActionPayload>('eventa:invoke:electron:alicization:memory-workbench:apply-long-term-action')
 export const electronAlicizationMemoryWorkbenchManageWorkingMemoryCleaningQueue = defineInvokeEventa<AlicizationWorkingMemoryCleaningQueueResult, AlicizationWorkingMemoryCleaningQueuePayload>('eventa:invoke:electron:alicization:memory-workbench:working-memory-cleaning-queue')
 export const electronAlicizationMemoryWorkbenchApplyReviewAction = defineInvokeEventa<AlicizationLongTermMemoryReviewItem | null, AlicizationMemoryReviewActionPayload>('eventa:invoke:electron:alicization:memory-workbench:apply-review-action')
 export const electronAlicizationMemoryWorkbenchRecallProbe = defineInvokeEventa<AlicizationMemoryRecallProbeResult, AlicizationMemoryRecallProbePayload>('eventa:invoke:electron:alicization:memory-workbench:recall-probe')
@@ -3984,8 +4000,9 @@ export const electronAlicizationMemoryWorkbenchReindexEmbeddings = defineInvokeE
 export const electronAlicizationMemoryWorkbenchListEmbeddingModels = defineInvokeEventa<AlicizationMemoryEmbeddingModelListResult, AlicizationMemoryEmbeddingModelListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-embedding-models')
 export const electronAlicizationMemoryWorkbenchTestEmbeddingConnection = defineInvokeEventa<AlicizationMemoryEmbeddingConnectionTestResult, AlicizationMemoryEmbeddingConnectionTestPayload>('eventa:invoke:electron:alicization:memory-workbench:test-embedding-connection')
 export const electronAlicizationMemoryWorkbenchListReplaySessions = defineInvokeEventa<AlicizationMemoryReplaySessionListResult, AlicizationMemoryReplaySessionListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-replay-sessions')
-export const electronAlicizationMemoryWorkbenchRunQualityTrial = defineInvokeEventa<AlicizationMemoryQualityTrialReport, AlicizationMemoryQualityTrialPayload>('eventa:invoke:electron:alicization:memory-workbench:run-quality-trial')
+export const electronAlicizationMemoryWorkbenchRunQualityTrial = defineInvokeEventa<AlicizationMemoryQualityTrialReportSurface, AlicizationMemoryQualityTrialPayload>('eventa:invoke:electron:alicization:memory-workbench:run-quality-trial')
 export const electronAlicizationMemoryWorkbenchCancelQualityTrial = defineInvokeEventa<AlicizationMemoryQualityTrialCancelResult, AlicizationMemoryQualityTrialCancelPayload>('eventa:invoke:electron:alicization:memory-workbench:cancel-quality-trial')
+export const electronAlicizationMemoryWorkbenchListQualityTrialReports = defineInvokeEventa<AlicizationMemoryQualityTrialReportSurfaceListResult, AlicizationMemoryQualityTrialReportListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-quality-trial-reports')
 export const electronAlicizationMemoryWorkbenchRecordQualityGoldLabel = defineInvokeEventa<AlicizationMemoryQualityGoldLabelItem, AlicizationMemoryQualityGoldLabelPayload>('eventa:invoke:electron:alicization:memory-workbench:record-quality-gold-label')
 export const electronAlicizationMemoryWorkbenchListQualityGoldLabels = defineInvokeEventa<AlicizationMemoryQualityGoldLabelListResult, AlicizationMemoryQualityGoldLabelListPayload>('eventa:invoke:electron:alicization:memory-workbench:list-quality-gold-labels')
 export const electronAlicizationMemoryWorkbenchBuildMonthlyGoldRegression = defineInvokeEventa<AlicizationMemoryQualityMonthlyGoldRegressionPack, AlicizationMemoryQualityMonthlyGoldRegressionPayload>('eventa:invoke:electron:alicization:memory-workbench:build-monthly-gold-regression')

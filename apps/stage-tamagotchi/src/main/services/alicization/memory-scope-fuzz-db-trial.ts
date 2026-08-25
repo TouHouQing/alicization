@@ -1,3 +1,5 @@
+import type sqlite3 from 'sqlite3'
+
 import type { AlicizationDbService } from './db'
 import type {
   MemoryScopeFuzzRecord,
@@ -8,7 +10,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import sqlite3 from 'sqlite3'
+import sqlite3Runtime from './sqlite3-runtime'
 
 import { hashLongTermMemoryEmbeddingText } from './long-term-memory-embedding-text'
 import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'
@@ -73,7 +75,7 @@ function deterministicVector(seed: string) {
 }
 
 async function createVectorScopeAdapter() {
-  const database = new sqlite3.Database(':memory:')
+  const database = new sqlite3Runtime.Database(':memory:')
   await run(database, `
     CREATE TABLE long_term_memory_search_documents (
       id TEXT PRIMARY KEY,

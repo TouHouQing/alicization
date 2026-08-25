@@ -152,7 +152,12 @@ interface CreateAlicizationDeliveryReminderRuntimeOptions {
   persistExecutionDeliveryState: (cardIdRaw: unknown) => Promise<unknown>
   queueSubconsciousWake: (cardIdRaw: unknown, reason: string, delayMs?: number) => void
   executionCallbackRuntime: {
-    markSurfaced: (input: { sessionId: string, createdAt: number }) => void
+    markSurfaced: (input: {
+      activityAt?: number | null
+      createdAt?: number | null
+      sessionId: string
+      threadId?: string | null
+    }) => Promise<void>
   }
   errorMessageFrom: (error: unknown) => string | undefined
 }
@@ -943,8 +948,10 @@ export function createAlicizationDeliveryReminderRuntime(options: CreateAlicizat
       }
 
       options.executionDeliveryRuntime.markDelivered(pendingDelivery)
-      options.executionCallbackRuntime.markSurfaced({
+      await options.executionCallbackRuntime.markSurfaced({
         sessionId: pendingDelivery.sessionId,
+        threadId: pendingDelivery.threadId,
+        activityAt: pendingDelivery.completedAt,
         createdAt: pendingDelivery.completedAt,
       })
       await options.persistExecutionDeliveryState(options.getActiveCardId())

@@ -98,4 +98,26 @@ describe('main chat llm route sync', () => {
       persistedConfigKeys: ['apiKey'],
     })
   })
+
+  it('keeps the user-selected active route when MLX Persona is the overlay', async () => {
+    const input = createInput({
+      mainGateway: {
+        providerId: 'mlx-persona',
+        model: 'alice-mlx',
+        baseUrl: 'http://127.0.0.1:18284/v1/',
+        probeHeaders: {},
+        provider: {} as never,
+      },
+      providerConfig: {},
+      getActiveProviderId: vi.fn(() => 'openai'),
+      getActiveModelId: vi.fn(() => 'gpt-4o-mini'),
+    })
+
+    const result = await syncAlicizationMainChatLlmRoute(input)
+
+    expect(input.setActiveProviderId).not.toHaveBeenCalled()
+    expect(input.setActiveModelId).not.toHaveBeenCalled()
+    expect(result.activeProviderId).toBe('openai')
+    expect(result.activeModelId).toBe('gpt-4o-mini')
+  })
 })

@@ -61,7 +61,8 @@ async function waitForEmbeddingReindex(
   jobId: string,
 ) {
   let latest: Awaited<ReturnType<typeof db.reindexMemoryWorkbenchEmbeddings>> | null = null
-  for (let attempt = 0; attempt < 200; attempt += 1) {
+  const deadlineAt = Date.now() + 15_000
+  while (Date.now() < deadlineAt) {
     latest = await db.reindexMemoryWorkbenchEmbeddings({
       cardId,
       action: 'status',

@@ -419,6 +419,133 @@ describe('llama.cpp Persona runtime', () => {
     await rm(root, { recursive: true, force: true })
   })
 
+  it('uses a temporary port when testing a config that would collide with the active runtime', async () => {
+    llamaServerSpawnCalls.length = 0
+    const root = await mkdtemp(join(tmpdir(), 'alicization-llama-runtime-'))
+    const modelPath = join(root, 'base.gguf')
+    const artifactPath = join(root, 'persona.gguf')
+    await writeFile(modelPath, 'base-model')
+    await writeFile(artifactPath, 'persona-adapter')
+    const executable = await createFakeLlamaServer(root)
+    const config = {
+      executable,
+      modelPath,
+      host: '127.0.0.1' as const,
+      port: 18_306,
+      modelAlias: 'alice-persona',
+      startupTimeoutMs: 2_000,
+    }
+    const runtime = createLlamaCppPersonaRuntime({
+      getConfig: () => config,
+    })
+    runtimes.push(runtime)
+    await runtime.loader.load({
+      cardId: 'card-a',
+      artifact: createArtifact({ path: artifactPath, baseModel: modelPath }),
+      signal: new AbortController().signal,
+      operationId: 'load-operation-port-collision',
+    })
+
+    const result = await runtime.testConnection({
+      ...config,
+      modelAlias: 'alice-persona-test',
+    })
+
+    expect(result.ok).toBe(true)
+    expect(llamaServerSpawnCalls).toHaveLength(2)
+    const probePort = llamaServerSpawnCalls[1]?.args[
+      llamaServerSpawnCalls[1]!.args.indexOf('--port') + 1
+    ]
+    expect(probePort).not.toBe(String(config.port))
+    await rm(root, { recursive: true, force: true })
+  })
+
+  it('serializes an unload queued while a load is starting', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'alicization-llama-runtime-'))
+    const modelPath = join(root, 'base.gguf')
+    const artifactPath = join(root, 'persona.gguf')
+    await writeFile(modelPath, 'base-model')
+    await writeFile(artifactPath, 'persona-adapter')
+    const executable = await createFakeLlamaServer(root)
+    const runtime = createLlamaCppPersonaRuntime({
+      getConfig: () => ({
+        executable,
+        modelPath,
+        host: '127.0.0.1',
+        port: 18_303,
+        modelAlias: 'alice-persona',
+        startupTimeoutMs: 2_000,
+      }),
+    })
+    runtimes.push(runtime)
+    const artifact = createArtifact({ path: artifactPath, baseModel: modelPath })
+
+    const loadPromise = runtime.loader.load({
+      cardId: 'card-a',
+      artifact,
+      signal: new AbortController().signal,
+      operationId: 'load-operation-before-unload',
+    })
+    const unloadPromise = runtime.loader.unload({
+      cardId: 'card-a',
+      artifact,
+      operationId: 'unload-operation-after-load',
+      reason: 'test',
+    })
+
+    await loadPromise
+    await unloadPromise
+
+    expect(runtime.getSnapshot().active).toBe(false)
+    expect(runtime.getRoute()).toBeNull()
+    await rm(root, { recursive: true, force: true })
+  })
+
+  it('serializes setConfig after a load and keeps the receipt on the reloaded runtime', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'alicization-llama-runtime-'))
+    const modelPath = join(root, 'base.gguf')
+    const artifactPath = join(root, 'persona.gguf')
+    await writeFile(modelPath, 'base-model')
+    await writeFile(artifactPath, 'persona-adapter')
+    const executable = await createFakeLlamaServer(root)
+    const initialConfig = {
+      executable,
+      modelPath,
+      host: '127.0.0.1' as const,
+      port: 18_304,
+      modelAlias: 'alice-persona',
+      startupTimeoutMs: 2_000,
+    }
+    const nextConfig = {
+      ...initialConfig,
+      port: 18_305,
+      modelAlias: 'alice-persona-reloaded',
+    }
+    const runtime = createLlamaCppPersonaRuntime({
+      getConfig: () => initialConfig,
+    })
+    runtimes.push(runtime)
+    const artifact = createArtifact({ path: artifactPath, baseModel: modelPath })
+
+    const loadPromise = runtime.loader.load({
+      cardId: 'card-a',
+      artifact,
+      signal: new AbortController().signal,
+      operationId: 'load-operation-before-config',
+    })
+    const setConfigPromise = runtime.setConfig(nextConfig)
+
+    await loadPromise
+    const snapshot = await setConfigPromise
+
+    expect(snapshot).toMatchObject({
+      active: true,
+      artifactId: artifact.artifactId,
+      routeBaseUrl: 'http://127.0.0.1:18305/v1/',
+    })
+    await rm(root, { recursive: true, force: true })
+  })
+
   it('times out a health request that never returns and cleans up the probe process', async () => {
     const root = await mkdtemp(join(tmpdir(), 'alicization-llama-runtime-'))
     const modelPath = join(root, 'base.gguf')
@@ -887,20 +1014,38 @@ describe('llama.cpp Persona runtime', () => {
     const runtime = createLlamaCppPersonaRuntime()
     runtimes.push(runtime)
 
-    await expect(runtime.testConnection({
+    const result = await runtime.testConnection({
       executable,
       modelPath,
       host: '127.0.0.1',
       port: 18_290,
       modelAlias: 'alice-persona',
       startupTimeoutMs: 2_000,
-    })).resolves.toEqual({
+    })
+
+    expect(result).toMatchObject({
       ok: true,
       executable,
-      baseUrl: 'http://127.0.0.1:18290/v1/',
       error: null,
     })
+    expect(result.baseUrl).not.toBe('http://127.0.0.1:18290/v1/')
+    expect(new URL(result.baseUrl!).port).not.toBe('18290')
     await rm(root, { recursive: true, force: true })
+  })
+
+  it('returns a structured failure when connection config normalization fails', async () => {
+    const runtime = createLlamaCppPersonaRuntime()
+    runtimes.push(runtime)
+
+    await expect(runtime.testConnection({
+      executable: '',
+      modelPath: '/models/base.gguf',
+    } as never)).resolves.toEqual({
+      ok: false,
+      executable: '',
+      baseUrl: null,
+      error: 'persona runtime executable is required',
+    })
   })
 
   it('reloads the active adapter when the runtime configuration changes', async () => {

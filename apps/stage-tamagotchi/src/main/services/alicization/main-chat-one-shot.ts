@@ -12,7 +12,10 @@ import {
   createAbortError,
   sanitizeText,
 } from './main-chat-stream-primitives'
-import { runWithAlicizationProviderRetry } from './provider-retry-policy'
+import {
+  resolveAlicizationProviderRetryDeadline,
+  runWithAlicizationProviderRetry,
+} from './provider-retry-policy'
 import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 
 type GenerateTextInvoker = (input: Record<string, unknown>) => Promise<Record<string, unknown> & {
@@ -119,6 +122,7 @@ interface AlicizationMainChatOneShotInput {
   timeoutMs: number
   maxSteps: number
   timeoutReason: string
+  abortSignal?: AbortSignal
   toolRegistry?: ToolRegistry
   providerRetryPolicy?: AlicizationProviderRetryOverrides
   generateTextImpl?: GenerateTextInvoker
@@ -126,10 +130,28 @@ interface AlicizationMainChatOneShotInput {
 
 async function executeAlicizationMainChatOneShot(input: AlicizationMainChatOneShotInput) {
   const controller = new AbortController()
-  const timeout = setTimeout(() => {
+  const forwardExternalAbort = () => {
     if (!controller.signal.aborted)
-      controller.abort(createAbortError(input.timeoutReason))
-  }, Math.max(1_000, input.timeoutMs))
+      controller.abort(input.abortSignal?.reason ?? createAbortError('main-gateway-aborted'))
+  }
+  if (input.abortSignal?.aborted)
+    forwardExternalAbort()
+  else
+    input.abortSignal?.addEventListener('abort', forwardExternalAbort, { once: true })
+  const retryDeadlineAt = resolveAlicizationProviderRetryDeadline(({
+    deadlineAt: input.providerRetryPolicy?.deadlineAt,
+    baseDelayMs: input.providerRetryPolicy?.baseDelayMs,
+    maxDelayMs: input.providerRetryPolicy?.maxDelayMs,
+    maxRetries: input.providerRetryPolicy?.maxRetries,
+    maxTotalRetryWindowMs: input.providerRetryPolicy?.maxTotalRetryWindowMs,
+    timeoutMs: input.timeoutMs,
+  }))
+  const timeout = retryDeadlineAt === null
+    ? undefined
+    : setTimeout(() => {
+        if (!controller.signal.aborted)
+          controller.abort(createAbortError(input.timeoutReason))
+      }, Math.max(1_000, retryDeadlineAt - Date.now()))
 
   try {
     const invokeGenerateText = input.generateTextImpl ?? (generateText as unknown as GenerateTextInvoker)
@@ -176,25 +198,49 @@ async function executeAlicizationMainChatOneShot(input: AlicizationMainChatOneSh
     }>({
       operation: 'main-gateway-one-shot',
       signal: controller.signal,
-      deadlineAt: Date.now() + Math.max(1_000, input.timeoutMs),
+      deadlineAt: retryDeadlineAt,
       ...input.providerRetryPolicy,
       replayState: () => ({
         hasToolSideEffect,
       }),
       invoke: async ({ signal }) => {
-        const providerSignal = signal ?? controller.signal
-        return await awaitAlicizationPromiseWithAbort(
-          invokeGenerateText({
-            ...input.chatConfig,
-            maxSteps: input.maxSteps,
-            messages: input.messages,
-            headers: input.headers,
-            abortSignal: providerSignal,
-            tools: providerTools,
-            toolChoice: input.toolChoice,
-          }),
-          providerSignal,
-        )
+        const attemptController = new AbortController()
+        const forwardAbort = () => {
+          if (!attemptController.signal.aborted)
+            attemptController.abort(signal?.reason ?? controller.signal.reason ?? createAbortError(input.timeoutReason))
+        }
+        const attemptTimeout = setTimeout(() => {
+          if (!attemptController.signal.aborted)
+            attemptController.abort(createAbortError(input.timeoutReason))
+        }, Math.max(1_000, input.timeoutMs))
+        if (signal?.aborted || controller.signal.aborted) {
+          forwardAbort()
+        }
+        else {
+          signal?.addEventListener('abort', forwardAbort, { once: true })
+          controller.signal.addEventListener('abort', forwardAbort, { once: true })
+        }
+
+        try {
+          const providerSignal = attemptController.signal
+          return await awaitAlicizationPromiseWithAbort(
+            invokeGenerateText({
+              ...input.chatConfig,
+              maxSteps: input.maxSteps,
+              messages: input.messages,
+              headers: input.headers,
+              abortSignal: providerSignal,
+              tools: providerTools,
+              toolChoice: input.toolChoice,
+            }),
+            providerSignal,
+          )
+        }
+        finally {
+          clearTimeout(attemptTimeout)
+          signal?.removeEventListener('abort', forwardAbort)
+          controller.signal.removeEventListener('abort', forwardAbort)
+        }
       },
     })
     return {
@@ -203,7 +249,9 @@ async function executeAlicizationMainChatOneShot(input: AlicizationMainChatOneSh
     }
   }
   finally {
-    clearTimeout(timeout)
+    if (timeout)
+      clearTimeout(timeout)
+    input.abortSignal?.removeEventListener('abort', forwardExternalAbort)
   }
 }
 
@@ -216,6 +264,7 @@ export async function recoverAlicizationMainChatFromTimeout(input: {
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   timeoutMs: number
   maxSteps?: number
+  abortSignal?: AbortSignal
   toolRegistry?: ToolRegistry
   providerRetryPolicy?: AlicizationProviderRetryOverrides
   generateTextImpl?: GenerateTextInvoker
@@ -239,6 +288,7 @@ export async function generateAlicizationMainChatNonStreaming(input: {
   toolChoice?: ToolChoice
   emotionalKernel?: AlicizationEmotionalKernelSnapshot | null
   timeoutMs: number
+  abortSignal?: AbortSignal
   toolRegistry?: ToolRegistry
   providerRetryPolicy?: AlicizationProviderRetryOverrides
   generateTextImpl?: GenerateTextInvoker

@@ -22,7 +22,7 @@ describe('performance visualizer runtime diagnostic summary', () => {
     } as any)).toEqual([
       { key: 'renderer-target', label: '渲染目标', value: 'vrm' },
       { key: 'authority-segment', label: '权威片段', value: 'resident-safety-gate-frame-1' },
-      { key: 'continuity-signature', label: '同一人签名', value: 'resident|measured-return|execution-restraint' },
+      { key: 'identity-continuity-signature', label: '同一人签名', value: 'resident|measured-return|execution-restraint' },
       {
         key: 'execution-safety-gate',
         label: '执行安全门',
@@ -30,7 +30,7 @@ describe('performance visualizer runtime diagnostic summary', () => {
         technicalValue: 'execution-safety-gate:blocked-dispatch-restraint, execution-safety-gate:confirmation-required, execution-safety-gate:no-process-started',
       },
       {
-        key: 'continuity-reasons',
+        key: 'identity-continuity-reasons',
         label: '同一人线索',
         value: 'execution-safety-gate:blocked-dispatch-restraint, execution-safety-gate:confirmation-required, execution-safety-gate:no-process-started, embodiment-carry:measured-return',
       },

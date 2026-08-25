@@ -13,6 +13,7 @@ import type {
 import {
   normalizeAlicizationDigitalLifeEnvelope,
   normalizeAlicizationRuntimeDigest,
+  resolveAlicizationChatFailureSurface,
 } from '@proj-alicization/stage-shared'
 
 type AlicizationBridgeMetaEvent = Extract<AlicizationBridgeChatStreamEvent, { type: 'meta' }>
@@ -30,6 +31,7 @@ type AlicizationChatFinishBridgePayload = Omit<
 interface AlicizationChatStreamLifecycleOptions {
   onStreamEvent?: (event: AlicizationBridgeChatStreamEvent) => Promise<void> | void
   onDeliveryError?: (error: unknown, event: AlicizationBridgeChatStreamEvent) => Promise<void> | void
+  terminalToolHandoffTimeoutMs?: number
   resolve: () => void
   reject: (error: unknown) => void
 }
@@ -68,6 +70,14 @@ export function createAlicizationChatStreamLifecycle(
   let firstToolDeliveryError: unknown
   let observedError: Extract<AlicizationBridgeChatStreamEvent, { type: 'error' }> | null = null
   let terminalScheduled = false
+  const activeToolCallIds = new Set<string>()
+  let pendingTerminalSettlement: (() => void) | null = null
+  let terminalSettlementQueued = false
+  let terminalToolHandoffTimer: ReturnType<typeof setTimeout> | null = null
+  const terminalToolHandoffTimeoutMs = Math.max(
+    0,
+    options.terminalToolHandoffTimeoutMs ?? 5_000,
+  )
 
   const enqueue = (event: AlicizationBridgeChatStreamEvent) => {
     queueTail = queueTail.then(async () => {
@@ -96,6 +106,114 @@ export function createAlicizationChatStreamLifecycle(
     return queueTail
   }
 
+  const attachObservedFailureSurface = (error: unknown) => {
+    const rejection = error instanceof Error
+      ? error
+      : new Error(String(error ?? observedError?.error ?? 'Alicization chat stream failed.'))
+    if (!observedError)
+      return rejection
+    return Object.assign(rejection, {
+      ...(observedError.failureSurface
+        ? {
+            failureSurface: observedError.failureSurface,
+            ...(observedError.failureSurface.toolExecution
+              ? { toolExecution: observedError.failureSurface.toolExecution }
+              : {}),
+          }
+        : {}),
+      ...(observedError.origin ? { origin: observedError.origin } : {}),
+      ...(observedError.learningPolicy ? { learningPolicy: observedError.learningPolicy } : {}),
+    })
+  }
+
+  const clearTerminalToolHandoffDeadline = () => {
+    if (!terminalToolHandoffTimer)
+      return
+    clearTimeout(terminalToolHandoffTimer)
+    terminalToolHandoffTimer = null
+  }
+
+  const createTerminalToolHandoffTimeoutError = () => {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'timeout',
+      timeout: {
+        providerId: 'main-owned-runtime',
+        model: 'unknown-model',
+        phase: 'tool-result-handoff',
+        timeoutPhase: 'idle-timeout',
+        timeoutStage: 'tool-execution',
+        timeoutReason: 'terminal-tool-handoff-missing',
+      },
+    })
+    return Object.assign(new Error(failureSurface.reply), {
+      errorCode: 'ALICIZATION_TOOL_TERMINAL_HANDOFF_TIMEOUT',
+      failureSurface,
+      origin: failureSurface.origin,
+      learningPolicy: {
+        allowLongTermCondensation: false,
+        allowPersonaLearning: false,
+        allowTraining: false,
+      },
+      timeoutPhase: 'idle-timeout',
+      timeoutStage: 'tool-execution',
+    })
+  }
+
+  const armTerminalToolHandoffDeadline = () => {
+    if (
+      terminalToolHandoffTimer
+      || !pendingTerminalSettlement
+      || activeToolCallIds.size === 0
+    ) {
+      return
+    }
+    terminalToolHandoffTimer = setTimeout(() => {
+      terminalToolHandoffTimer = null
+      if (!pendingTerminalSettlement || activeToolCallIds.size === 0) {
+        scheduleTerminalSettlement()
+        return
+      }
+      pendingTerminalSettlement = null
+      options.reject(createTerminalToolHandoffTimeoutError())
+    }, terminalToolHandoffTimeoutMs)
+  }
+
+  const scheduleTerminalSettlement = () => {
+    if (!pendingTerminalSettlement)
+      return
+    if (activeToolCallIds.size > 0) {
+      armTerminalToolHandoffDeadline()
+      return
+    }
+    clearTerminalToolHandoffDeadline()
+    if (terminalSettlementQueued)
+      return
+    terminalSettlementQueued = true
+    queueTail = queueTail.then(() => {
+      terminalSettlementQueued = false
+      if (!pendingTerminalSettlement || activeToolCallIds.size > 0)
+        return
+      clearTerminalToolHandoffDeadline()
+      const settle = pendingTerminalSettlement
+      pendingTerminalSettlement = null
+      settle()
+    })
+  }
+
+  const trackToolTerminalState = (event: AlicizationBridgeChatStreamEvent) => {
+    if (event.type === 'tool-call') {
+      const toolCallId = event.toolCallId.trim()
+      if (toolCallId)
+        activeToolCallIds.add(toolCallId)
+      return
+    }
+    if (!isToolEvent(event) || !isTerminalToolProjectionEvent(event))
+      return
+    const toolCallId = event.toolCallId.trim()
+    if (toolCallId)
+      activeToolCallIds.delete(toolCallId)
+  }
+
   return {
     publish(event: AlicizationBridgeChatStreamEvent) {
       if (terminalScheduled && !canDeliverAfterTerminalSettlement(event))
@@ -118,7 +236,9 @@ export function createAlicizationChatStreamLifecycle(
           return
         observedError = event
       }
+      trackToolTerminalState(event)
       void enqueue(event)
+      scheduleTerminalSettlement()
     },
     resolveAfter(events: AlicizationBridgeChatStreamEvent[]) {
       if (terminalScheduled)
@@ -126,13 +246,15 @@ export function createAlicizationChatStreamLifecycle(
       terminalScheduled = true
       for (const event of events)
         void enqueue(event)
-      queueTail = queueTail.then(() => {
-        if (firstDeliveryError !== undefined) {
-          options.reject(firstDeliveryError)
+      pendingTerminalSettlement = () => {
+        if (observedError) {
+          options.reject(attachObservedFailureSurface(
+            new Error(String(observedError.error || 'Alicization chat stream failed.')),
+          ))
           return
         }
-        if (observedError) {
-          options.reject(new Error(String(observedError.error || 'Alicization chat stream failed.')))
+        if (firstDeliveryError !== undefined) {
+          options.reject(firstDeliveryError)
           return
         }
         if (firstToolDeliveryError !== undefined) {
@@ -140,7 +262,8 @@ export function createAlicizationChatStreamLifecycle(
           return
         }
         options.resolve()
-      })
+      }
+      scheduleTerminalSettlement()
     },
     rejectAfter(events: AlicizationBridgeChatStreamEvent[], error: unknown) {
       if (terminalScheduled)
@@ -148,9 +271,10 @@ export function createAlicizationChatStreamLifecycle(
       terminalScheduled = true
       for (const event of events)
         void enqueue(event)
-      queueTail = queueTail.then(() => {
-        options.reject(error)
-      })
+      pendingTerminalSettlement = () => {
+        options.reject(attachObservedFailureSurface(error))
+      }
+      scheduleTerminalSettlement()
     },
     hasObservedError() {
       return observedError !== null

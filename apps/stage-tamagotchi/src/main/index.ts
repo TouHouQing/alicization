@@ -17,6 +17,7 @@ import { isLinux } from 'std-env'
 
 import icon from '../../resources/icon.png?asset'
 
+import { registerAppExitSignalHandlers } from './app-exit-signal-handlers'
 import { openDebugger, setupDebugger } from './app/debugger'
 import { nullFileLoggerHandle, setupFileLogger } from './app/file-logger'
 import { createGlobalAppConfig } from './configs/global'
@@ -234,6 +235,18 @@ app.on('window-all-closed', () => {
   }
 })
 
+app.on('activate', () => {
+  const targetWindow = BrowserWindow.getAllWindows().find(window =>
+    !window.isDestroyed() && window.getTitle() === 'ALICIZATION',
+  )
+  if (!targetWindow)
+    return
+  if (targetWindow.isMinimized())
+    targetWindow.restore()
+  targetWindow.show()
+  targetWindow.focus()
+})
+
 let appExiting = false
 
 // Clean up server and intervals when app quits
@@ -276,7 +289,7 @@ async function handleAppExit() {
   app.exit(exitedNormally ? 0 : 1)
 }
 
-process.on('SIGINT', () => handleAppExit())
+registerAppExitSignalHandlers(process, handleAppExit)
 
 app.on('before-quit', (event) => {
   event.preventDefault()

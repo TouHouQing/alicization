@@ -17,6 +17,7 @@ const {
 
 const executable = shallowRef('')
 const modelPath = shallowRef('')
+const backend = shallowRef<'llama.cpp' | 'mlx-runtime'>('llama.cpp')
 const host = shallowRef('127.0.0.1')
 const port = shallowRef('18181')
 const modelAlias = shallowRef('alicization-persona')
@@ -36,6 +37,7 @@ const config = computed<AlicizationPersonaRuntimeConfig | null>(() => {
     return null
   }
   return {
+    backend: backend.value,
     executable: executable.value.trim(),
     modelPath: modelPath.value.trim(),
     host: host.value.trim(),
@@ -46,6 +48,7 @@ const config = computed<AlicizationPersonaRuntimeConfig | null>(() => {
 })
 
 function syncForm(next: AlicizationPersonaRuntimeConfig | null) {
+  backend.value = next?.backend ?? 'llama.cpp'
   executable.value = next?.executable ?? ''
   modelPath.value = next?.modelPath ?? ''
   host.value = next?.host ?? '127.0.0.1'
@@ -123,12 +126,19 @@ onMounted(async () => {
 
     <div :class="['mt-4', 'grid', 'grid-cols-1', 'gap-3', 'lg:grid-cols-2']">
       <label :class="['grid', 'gap-1', 'lg:col-span-2']">
+        <span :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.persona_runtime_backend') }}</span>
+        <select v-model="backend" :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']">
+          <option value="llama.cpp">llama.cpp</option>
+          <option value="mlx-runtime">MLX Runtime（Apple Silicon）</option>
+        </select>
+      </label>
+      <label :class="['grid', 'gap-1', 'lg:col-span-2']">
         <span :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.persona_runtime_executable') }}</span>
         <input v-model="executable" :placeholder="t('settings.pages.memory.workbench.placeholders.persona_runtime_executable')" autocomplete="off" :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'font-mono', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']">
       </label>
       <label :class="['grid', 'gap-1', 'lg:col-span-2']">
         <span :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.persona_runtime_model_path') }}</span>
-        <input v-model="modelPath" :placeholder="t('settings.pages.memory.workbench.placeholders.persona_runtime_model_path')" autocomplete="off" :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'font-mono', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']">
+        <input v-model="modelPath" :placeholder="t(backend === 'mlx-runtime' ? 'settings.pages.memory.workbench.placeholders.persona_runtime_model_directory' : 'settings.pages.memory.workbench.placeholders.persona_runtime_model_path')" autocomplete="off" :class="['min-w-0', 'border', 'border-neutral-300', 'bg-white', 'px-3', 'py-2', 'font-mono', 'text-sm', 'dark:border-neutral-700', 'dark:bg-neutral-950']">
       </label>
       <label :class="['grid', 'gap-1']">
         <span :class="['text-xs', 'text-neutral-500']">{{ t('settings.pages.memory.workbench.fields.persona_runtime_host') }}</span>

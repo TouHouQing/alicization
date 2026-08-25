@@ -46,12 +46,14 @@ import {
 } from './main-chat-stream-primitives'
 import { createAlicizationMainChatToolCallIdentityRegistry } from './main-chat-tool-call-identity'
 import {
+  resolveAlicizationProviderRetryDeadline,
   resolveAlicizationProviderRetryDecision,
   waitForAlicizationProviderRetry,
 } from './provider-retry-policy'
 import { adaptAlicizationProviderTools } from './provider-tool-compatibility'
 import { parseReminderToolResultForDebug, sanitizeBriefText } from './runtime-realtime'
 import { createAlicizationTurnRuntime } from './turn-os/runtime'
+import { createAlicizationMainWatchdogAbortError } from './turn-os/runtime-errors'
 import { resolveAlicizationPreparedVisibleReplyExecution } from './visible-reply/facade'
 import {
   AlicizationVisibleReplySettlementBlockedError,
@@ -305,6 +307,7 @@ export interface RunAlicizationMainChatStreamOptions {
     toolChoice: AlicizationPreparedMainChatExecutionResult['toolChoice']
     emotionalKernel?: AlicizationStreamEmotionalKernelShape | null
     timeoutMs: number
+    abortSignal?: AbortSignal
     cardId?: string
     turnId?: string
   }) => Promise<{
@@ -453,10 +456,21 @@ function createProviderFinishMissingError() {
 export async function runAlicizationMainChatProviderStep(
   input: RunAlicizationMainChatProviderStepOptions,
 ): Promise<AlicizationMainChatProviderStepResult> {
+  const startedAt = Date.now()
   const providerRetryAttempt = input.providerRetryAttempt ?? 0
-  const providerRetryDeadlineAt = input.providerRetryDeadlineAt
-    ?? input.providerRetryPolicy?.deadlineAt
-    ?? (Date.now() + Math.max(90_000, input.firstEventTimeoutMs * 2))
+  const providerRetriesEnabled = input.providerRetryPolicy?.maxRetries === undefined
+    || !Number.isFinite(input.providerRetryPolicy.maxRetries)
+    || input.providerRetryPolicy.maxRetries > 0
+  const providerRetryDeadlineAt = input.providerRetryDeadlineAt !== undefined
+    ? input.providerRetryDeadlineAt
+    : resolveAlicizationProviderRetryDeadline({
+        deadlineAt: input.providerRetryPolicy?.deadlineAt,
+        baseDelayMs: input.providerRetryPolicy?.baseDelayMs,
+        maxDelayMs: input.providerRetryPolicy?.maxDelayMs,
+        maxRetries: input.providerRetryPolicy?.maxRetries,
+        maxTotalRetryWindowMs: input.providerRetryPolicy?.maxTotalRetryWindowMs,
+        timeoutMs: input.firstEventTimeoutMs,
+      })
   const invokeStreamText = input.streamTextImpl ?? (streamText as StreamTextInvoker)
   const providerTools = createProviderProposalTools(projectRegisteredProviderTools(
     input.prepared,
@@ -483,17 +497,34 @@ export async function runAlicizationMainChatProviderStep(
   }
 
   let outputObserved = false
+  let sawAnyEvent = false
+  let lastEventType = ''
   let reader: AlicizationProviderStreamReader | null = null
   let readerCompleted = false
   let wakeLegacyEventWaiter: (() => void) | null = null
   let attemptCleanupDone = false
   let firstEventTimeout: ReturnType<typeof setTimeout> | undefined
+  let livenessTimeout: ReturnType<typeof setTimeout> | undefined
+  let idleTimeout: ReturnType<typeof setTimeout> | undefined
   let continuationTimeout: ReturnType<typeof setTimeout> | undefined
+  let providerRetryDeadlineTimeout: ReturnType<typeof setTimeout> | undefined
 
   const clearFirstEventWatchdog = () => {
     if (firstEventTimeout) {
       clearTimeout(firstEventTimeout)
       firstEventTimeout = undefined
+    }
+  }
+  const clearLivenessWatchdog = () => {
+    if (livenessTimeout) {
+      clearTimeout(livenessTimeout)
+      livenessTimeout = undefined
+    }
+  }
+  const clearIdleWatchdog = () => {
+    if (idleTimeout) {
+      clearTimeout(idleTimeout)
+      idleTimeout = undefined
     }
   }
   const clearContinuationWatchdog = () => {
@@ -502,22 +533,102 @@ export async function runAlicizationMainChatProviderStep(
       continuationTimeout = undefined
     }
   }
+  const clearProviderRetryDeadline = () => {
+    if (providerRetryDeadlineTimeout) {
+      clearTimeout(providerRetryDeadlineTimeout)
+      providerRetryDeadlineTimeout = undefined
+    }
+  }
   const armContinuationWatchdog = () => {
     clearContinuationWatchdog()
-    if (!input.providerContinuationTimeoutMs)
+    const providerContinuationTimeoutMs = input.providerContinuationTimeoutMs
+    if (!providerContinuationTimeoutMs)
       return
     continuationTimeout = setTimeout(() => {
       if (!providerController.signal.aborted) {
-        providerController.abort(
-          createAbortError('chat-provider-continuation-timeout'),
-        )
+        providerController.abort(createAlicizationMainWatchdogAbortError({
+          timeoutPhase: 'idle-timeout',
+          timeoutStage: 'provider-continuation',
+          timeoutMs: providerContinuationTimeoutMs,
+          elapsedMs: Date.now() - startedAt,
+          lastEventType: lastEventType || null,
+          sawAnyEvent,
+          sawProgress: outputObserved,
+        }, 'chat-provider-continuation-timeout'))
       }
-    }, Math.max(1, input.providerContinuationTimeoutMs))
+    }, Math.max(1, providerContinuationTimeoutMs))
+  }
+  const armLivenessWatchdog = () => {
+    clearLivenessWatchdog()
+    livenessTimeout = setTimeout(() => {
+      if (outputObserved || providerController.signal.aborted)
+        return
+      providerController.abort(createAlicizationMainWatchdogAbortError({
+        timeoutPhase: 'liveness-timeout',
+        timeoutStage: 'provider',
+        timeoutMs: input.firstEventTimeoutMs,
+        elapsedMs: Date.now(),
+        lastEventType: lastEventType || null,
+        sawAnyEvent,
+        sawProgress: outputObserved,
+      }, 'chat-provider-liveness-timeout'))
+    }, Math.max(1, input.firstEventTimeoutMs))
+  }
+  const armIdleWatchdog = () => {
+    clearIdleWatchdog()
+    const providerContinuationTimeoutMs = input.providerContinuationTimeoutMs
+    if (!providerContinuationTimeoutMs)
+      return
+    idleTimeout = setTimeout(() => {
+      if (!outputObserved || providerController.signal.aborted)
+        return
+      providerController.abort(createAlicizationMainWatchdogAbortError({
+        timeoutPhase: 'idle-timeout',
+        timeoutStage: 'provider',
+        timeoutMs: providerContinuationTimeoutMs,
+        elapsedMs: Date.now() - startedAt,
+        lastEventType: lastEventType || null,
+        sawAnyEvent,
+        sawProgress: outputObserved,
+      }, 'chat-provider-idle-timeout'))
+    }, Math.max(1, providerContinuationTimeoutMs))
   }
   firstEventTimeout = setTimeout(() => {
-    if (!providerController.signal.aborted)
-      providerController.abort(createAbortError('chat-first-event-timeout'))
+    if (providerController.signal.aborted || outputObserved)
+      return
+    if (sawAnyEvent) {
+      armLivenessWatchdog()
+      return
+    }
+    providerController.abort(createAlicizationMainWatchdogAbortError({
+      timeoutPhase: 'first-event-timeout',
+      timeoutStage: 'provider',
+      timeoutMs: input.firstEventTimeoutMs,
+      elapsedMs: Date.now(),
+      lastEventType: lastEventType || null,
+      sawAnyEvent,
+      sawProgress: outputObserved,
+    }, 'chat-first-event-timeout'))
   }, Math.max(1, input.firstEventTimeoutMs))
+  if (
+    providerRetriesEnabled
+    && providerRetryDeadlineAt !== null
+    && providerRetryDeadlineAt !== undefined
+  ) {
+    providerRetryDeadlineTimeout = setTimeout(() => {
+      if (!providerController.signal.aborted) {
+        providerController.abort(createAlicizationMainWatchdogAbortError({
+          timeoutPhase: 'idle-timeout',
+          timeoutStage: 'provider',
+          timeoutMs: Math.max(0, providerRetryDeadlineAt - Date.now()),
+          elapsedMs: Date.now(),
+          lastEventType: lastEventType || null,
+          sawAnyEvent,
+          sawProgress: outputObserved,
+        }, 'chat-provider-retry-deadline'))
+      }
+    }, Math.max(0, providerRetryDeadlineAt - Date.now()))
+  }
 
   const appendDebugLine = (event: string, payload: Record<string, unknown>) => {
     if (!input.appendRuntimeDebugLine)
@@ -534,7 +645,10 @@ export async function runAlicizationMainChatProviderStep(
       return
     attemptCleanupDone = true
     clearFirstEventWatchdog()
+    clearLivenessWatchdog()
+    clearIdleWatchdog()
     clearContinuationWatchdog()
+    clearProviderRetryDeadline()
     wakeLegacyEventWaiter = null
     input.controller.signal.removeEventListener('abort', forwardAbort)
     input.signal?.removeEventListener('abort', forwardAbort)
@@ -614,18 +728,32 @@ export async function runAlicizationMainChatProviderStep(
         ? rawEvent as Record<string, unknown>
         : {}
       const eventType = normalizeMainGatewayStreamEventType(event.type)
+      if (eventType) {
+        sawAnyEvent = true
+        lastEventType = eventType
+      }
 
       if (isMainGatewayProgressEventType(eventType) && eventType !== 'error') {
         if (!outputObserved)
           clearFirstEventWatchdog()
+        clearLivenessWatchdog()
         outputObserved = true
-        if (eventType === 'finish')
+        if (eventType === 'finish') {
+          clearIdleWatchdog()
           clearContinuationWatchdog()
-        else
+        }
+        else if (eventType === 'tool-call') {
+          clearIdleWatchdog()
           armContinuationWatchdog()
+        }
+        else {
+          armIdleWatchdog()
+        }
       }
       else if (eventType && input.nonProgressEventTypes.size < 12) {
         input.nonProgressEventTypes.add(eventType)
+        if (outputObserved)
+          armIdleWatchdog()
       }
 
       if (eventType === 'text-delta') {
@@ -792,6 +920,7 @@ export async function runAlicizationMainChatProviderStep(
     const retryDecision = resolveAlicizationProviderRetryDecision(error, {
       attempt: providerRetryAttempt,
       options: {
+        ...input.providerRetryPolicy,
         operation: 'main-chat-stream',
         signal: input.signal ?? input.controller.signal,
         deadlineAt: providerRetryDeadlineAt,
@@ -800,7 +929,6 @@ export async function runAlicizationMainChatProviderStep(
           hasToolCall: false,
           hasToolSideEffect: false,
         },
-        ...input.providerRetryPolicy,
       },
     })
     if (!retryDecision.retry)
@@ -936,9 +1064,19 @@ export async function runAlicizationMainChatStream(
     normalizedPayload.providerId,
   )
   const providerRetryAttempt = input.providerRetryAttempt ?? 0
-  const providerRetryDeadlineAt = input.providerRetryDeadlineAt
-    ?? input.providerRetryPolicy?.deadlineAt
-    ?? (Date.now() + Math.max(90_000, input.firstEventTimeoutMs * 2))
+  const providerRetriesEnabled = input.providerRetryPolicy?.maxRetries === undefined
+    || !Number.isFinite(input.providerRetryPolicy.maxRetries)
+    || input.providerRetryPolicy.maxRetries > 0
+  const providerRetryDeadlineAt = input.providerRetryDeadlineAt !== undefined
+    ? input.providerRetryDeadlineAt
+    : resolveAlicizationProviderRetryDeadline({
+        deadlineAt: input.providerRetryPolicy?.deadlineAt,
+        baseDelayMs: input.providerRetryPolicy?.baseDelayMs,
+        maxDelayMs: input.providerRetryPolicy?.maxDelayMs,
+        maxRetries: input.providerRetryPolicy?.maxRetries,
+        maxTotalRetryWindowMs: input.providerRetryPolicy?.maxTotalRetryWindowMs,
+        timeoutMs: input.firstEventTimeoutMs,
+      })
   const offeredToolNames = Array.isArray(providerTools)
     ? providerTools.map(tool => sanitizeText(tool.function?.name)).filter(Boolean)
     : []
@@ -1054,6 +1192,7 @@ export async function runAlicizationMainChatStream(
       tools: providerTools,
       toolChoice: input.prepared.toolChoice,
       timeoutMs: input.firstEventTimeoutMs,
+      abortSignal: input.controller.signal,
       cardId: normalizedPayload.cardId,
       turnId: normalizedPayload.turnId,
     })
@@ -1177,6 +1316,15 @@ export async function runAlicizationMainChatStream(
     forwardTurnAbort()
   else
     input.controller.signal.addEventListener('abort', forwardTurnAbort, { once: true })
+  const providerRetryDeadlineTimeout
+    = providerRetriesEnabled
+      && providerRetryDeadlineAt !== null
+      && providerRetryDeadlineAt !== undefined
+      ? setTimeout(() => {
+          if (!providerController.signal.aborted)
+            providerController.abort(createAbortError('chat-provider-retry-deadline'))
+        }, Math.max(0, providerRetryDeadlineAt - Date.now()))
+      : undefined
   const firstEventGraceTimeoutMs = Math.max(
     1_000,
     Math.min(12_000, Math.floor(input.firstEventTimeoutMs * 0.2)),
@@ -1220,9 +1368,23 @@ export async function runAlicizationMainChatStream(
         activeFullStreamReader = null
         void reader.cancel(reason).catch(() => {})
       }
+      const createProviderWatchdogError = (
+        timeoutReason: import('./turn-os/runtime-errors').AlicizationRuntimeTimeoutReason,
+        timeoutPhase: 'first-event-timeout' | 'liveness-timeout' | 'idle-timeout',
+        timeoutStage: 'provider' | 'tool-execution' | 'provider-continuation',
+        timeoutMs: number,
+      ) => createAlicizationMainWatchdogAbortError({
+        timeoutPhase,
+        timeoutStage,
+        timeoutMs,
+        elapsedMs: Date.now() - startedAt,
+        lastEventType: lastEventType || null,
+        sawAnyEvent,
+        sawProgress: sawProgressEvent || pendingProgressEventObserved,
+      }, timeoutReason)
       const armProviderDeadline = (
         delayMs: number,
-        reason: 'initial' | 'grace' | 'tool-result' | 'continuation',
+        reason: 'initial' | 'grace' | 'liveness' | 'idle' | 'tool-result' | 'continuation',
       ) => {
         clearProviderDeadline()
         providerDeadline = setTimeout(() => {
@@ -1241,7 +1403,12 @@ export async function runAlicizationMainChatStream(
               timeoutPhase: reason,
               lastEventType: lastEventType || null,
             })
-            const timeoutError = createAbortError('chat-provider-continuation-timeout')
+            const timeoutError = createProviderWatchdogError(
+              'chat-provider-continuation-timeout',
+              'idle-timeout',
+              'provider-continuation',
+              providerContinuationTimeoutMs,
+            )
             if (!providerController.signal.aborted) {
               providerController.abort(timeoutError)
               return
@@ -1261,7 +1428,71 @@ export async function runAlicizationMainChatStream(
               timeoutPhase: reason,
               lastEventType: lastEventType || null,
             })
-            const timeoutError = createAbortError('chat-tool-result-handoff-timeout')
+            const timeoutError = createProviderWatchdogError(
+              'chat-tool-result-handoff-timeout',
+              'idle-timeout',
+              'tool-execution',
+              providerContinuationTimeoutMs,
+            )
+            if (!providerController.signal.aborted) {
+              providerController.abort(timeoutError)
+              return
+            }
+            rejectOnce(timeoutError)
+            return
+          }
+
+          if (reason === 'liveness') {
+            if (sawProgressEvent || pendingProgressEventObserved)
+              return
+            appendStreamDebugLine('chat-stream.provider-liveness-timeout-fired', {
+              elapsedMs: Date.now() - startedAt,
+              lastEventType: lastEventType || null,
+              sawAnyEvent,
+              sawProgress: sawProgressEvent || pendingProgressEventObserved,
+              nonProgressEventTypes: [...input.nonProgressEventTypes],
+            })
+            markProviderStreamPhase('failed', 'chat-stream.timeout-fired', {
+              timeoutPhase: 'liveness',
+              timeoutReason: 'chat-provider-liveness-timeout',
+              sawAnyEvent,
+              lastEventType: lastEventType || null,
+            })
+            const timeoutError = createProviderWatchdogError(
+              'chat-provider-liveness-timeout',
+              'liveness-timeout',
+              'provider',
+              input.firstEventTimeoutMs,
+            )
+            if (!providerController.signal.aborted) {
+              providerController.abort(timeoutError)
+              return
+            }
+            rejectOnce(timeoutError)
+            return
+          }
+
+          if (reason === 'idle') {
+            if (!sawProgressEvent && !pendingProgressEventObserved)
+              return
+            appendStreamDebugLine('chat-stream.provider-idle-timeout-fired', {
+              elapsedMs: Date.now() - startedAt,
+              lastEventType: lastEventType || null,
+              sawAnyEvent,
+              sawProgress: sawProgressEvent || pendingProgressEventObserved,
+            })
+            markProviderStreamPhase('failed', 'chat-stream.timeout-fired', {
+              timeoutPhase: 'idle',
+              timeoutReason: 'chat-provider-idle-timeout',
+              sawAnyEvent,
+              lastEventType: lastEventType || null,
+            })
+            const timeoutError = createProviderWatchdogError(
+              'chat-provider-idle-timeout',
+              'idle-timeout',
+              'provider',
+              providerContinuationTimeoutMs,
+            )
             if (!providerController.signal.aborted) {
               providerController.abort(timeoutError)
               return
@@ -1285,6 +1516,43 @@ export async function runAlicizationMainChatStream(
             return
           }
 
+          if (reason === 'grace') {
+            appendStreamDebugLine('chat-stream.first-event-timeout-fired', {
+              elapsedMs: Date.now() - startedAt,
+              timeoutPhase: reason,
+              timeoutReason: 'chat-provider-liveness-timeout',
+              sawAnyEvent,
+              firstEventGraceApplied,
+              lastEventType: lastEventType || null,
+              nonProgressEventTypes: [...input.nonProgressEventTypes],
+            })
+            appendStreamDebugLine('chat-stream.provider-liveness-timeout-fired', {
+              elapsedMs: Date.now() - startedAt,
+              lastEventType: lastEventType || null,
+              sawAnyEvent,
+              sawProgress: false,
+              nonProgressEventTypes: [...input.nonProgressEventTypes],
+            })
+            markProviderStreamPhase('failed', 'chat-stream.timeout-fired', {
+              timeoutPhase: 'liveness',
+              timeoutReason: 'chat-provider-liveness-timeout',
+              sawAnyEvent,
+              lastEventType: lastEventType || null,
+            })
+            const timeoutError = createProviderWatchdogError(
+              'chat-provider-liveness-timeout',
+              'liveness-timeout',
+              'provider',
+              firstEventGraceTimeoutMs,
+            )
+            if (!providerController.signal.aborted) {
+              providerController.abort(timeoutError)
+              return
+            }
+            rejectOnce(timeoutError)
+            return
+          }
+
           appendStreamDebugLine('chat-stream.first-event-timeout-fired', {
             elapsedMs: Date.now() - startedAt,
             timeoutPhase: reason,
@@ -1298,7 +1566,12 @@ export async function runAlicizationMainChatStream(
             sawAnyEvent,
             lastEventType: lastEventType || null,
           })
-          const timeoutError = createAbortError('chat-first-event-timeout')
+          const timeoutError = createProviderWatchdogError(
+            'chat-first-event-timeout',
+            'first-event-timeout',
+            'provider',
+            input.firstEventTimeoutMs,
+          )
           if (!providerController.signal.aborted) {
             providerController.abort(timeoutError)
             return
@@ -1485,6 +1758,17 @@ export async function runAlicizationMainChatStream(
             })
           }
           sawProgressEvent = true
+          pendingProgressEventObserved = false
+          if (
+            providerContinuationState === 'none'
+            && eventType !== 'tool-call'
+            && eventType !== 'tool-call-streaming-start'
+            && eventType !== 'tool-call-delta'
+            && eventType !== 'tool-result'
+            && eventType !== 'finish'
+          ) {
+            armProviderDeadline(providerContinuationTimeoutMs, 'idle')
+          }
         }
         else if (eventType && input.nonProgressEventTypes.size < 12) {
           const previousSize = input.nonProgressEventTypes.size
@@ -1496,6 +1780,8 @@ export async function runAlicizationMainChatStream(
               observedNonProgressCount: input.nonProgressEventTypes.size,
             })
           }
+          if (sawProgressEvent && providerContinuationState === 'none')
+            armProviderDeadline(providerContinuationTimeoutMs, 'idle')
         }
 
         if (eventType === 'text-delta') {
@@ -1781,6 +2067,13 @@ export async function runAlicizationMainChatStream(
         }
         if (isMainGatewayProgressEventType(eventType)) {
           pendingProgressEventObserved = true
+          if (eventType !== 'tool-call'
+            && eventType !== 'tool-call-streaming-start'
+            && eventType !== 'tool-call-delta'
+            && eventType !== 'tool-result'
+            && eventType !== 'finish') {
+            armProviderDeadline(providerContinuationTimeoutMs, 'idle')
+          }
           if (!sawProgressEvent && !pendingProgressDebugEmitted) {
             pendingProgressDebugEmitted = true
             appendStreamDebugLine('chat-stream.first-progress-event', {
@@ -1869,7 +2162,10 @@ export async function runAlicizationMainChatStream(
             while (true) {
               if (settled)
                 break
-              const next = await reader.read()
+              const next = await awaitAlicizationPromiseWithAbort(
+                reader.read(),
+                providerController.signal,
+              )
               if (next.done || settled || providerController.signal.aborted)
                 break
               await handleProviderEvent(next.value)
@@ -1903,6 +2199,7 @@ export async function runAlicizationMainChatStream(
     const retryDecision = resolveAlicizationProviderRetryDecision(error, {
       attempt: providerRetryAttempt,
       options: {
+        ...input.providerRetryPolicy,
         operation: 'main-chat-stream',
         signal: input.controller.signal,
         deadlineAt: providerRetryDeadlineAt,
@@ -1915,7 +2212,6 @@ export async function runAlicizationMainChatStream(
             || emittedToolResultIds.size > 0
             || Boolean(toolExecutionFailureState.failure),
         },
-        ...input.providerRetryPolicy,
       },
     })
     if (retryDecision.retry) {
@@ -1966,6 +2262,8 @@ export async function runAlicizationMainChatStream(
       throw error
   }
   finally {
+    if (providerRetryDeadlineTimeout)
+      clearTimeout(providerRetryDeadlineTimeout)
     unsubscribeToolExecutionProgress?.()
   }
 

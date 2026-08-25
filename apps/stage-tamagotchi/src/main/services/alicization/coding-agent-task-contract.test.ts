@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildAlicizationCodingAgentDelegationAuthority,
+  isAlicizationCodingAgentCapabilityQuestion,
   normalizeAlicizationCodingAgentTask,
   resolveAlicizationExplicitCodingAgentConstraint,
   validateAlicizationCodingAgentInvocation,
@@ -24,6 +25,23 @@ describe('coding agent task contract', () => {
       kind: 'single',
       agent: 'codex',
     })
+  })
+
+  it.each([
+    'Codex 能做什么？',
+    '我想了解你可以用 Codex 做哪些事。',
+    '你可以介绍一下 Claude Code 有什么能力吗？',
+    'Can you tell me what Codex can do?',
+  ])('recognizes a Coding Agent capability question without treating it as execution: %s', (userText) => {
+    expect(isAlicizationCodingAgentCapabilityQuestion(userText)).toBe(true)
+  })
+
+  it.each([
+    '请用 Codex 检查这个项目。',
+    '请用 Claude Code 修改这个文件。',
+    '请通过 CLI 执行 pnpm test。',
+  ])('does not classify an explicit Coding Agent task as a capability question: %s', (userText) => {
+    expect(isAlicizationCodingAgentCapabilityQuestion(userText)).toBe(false)
   })
 
   it('ignores a negatively mentioned alternative channel', () => {
@@ -277,6 +295,22 @@ describe('coding agent task contract', () => {
         scope: 'investigation',
         source: 'structured-cognition',
         sourceTurnId: 'turn-previous',
+        verdict: 'delegate-coding-agent',
+      },
+    })).toBeNull()
+  })
+
+  it('blocks an execution verdict when the user turn is only asking about Coding Agent capabilities', () => {
+    expect(buildAlicizationCodingAgentDelegationAuthority({
+      contextTurnId: 'turn-capability-misclassified',
+      userText: '你可以使用 Codex 做什么？',
+      delegation: {
+        confidence: 0.98,
+        intentKind: 'execute',
+        requestedAgent: 'codex',
+        scope: 'investigation',
+        source: 'structured-cognition',
+        sourceTurnId: 'turn-capability-misclassified',
         verdict: 'delegate-coding-agent',
       },
     })).toBeNull()

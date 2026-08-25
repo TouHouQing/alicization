@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { setupAlicizationDb } from './db'
 import { createLlamaCppPersonaRuntime } from './llama-cpp-persona-runtime'
 import { runAlicizationMainChatProviderStep } from './main-chat-stream-runner'
+import { findAvailablePersonaRuntimePort } from './persona-runtime-common'
 import { createAlicizationMainGatewayConfigRuntime } from './runtime-main-gateway-config'
 import { createCanonicalToolRegistry } from './turn-os/tool-registry'
 
@@ -225,6 +226,7 @@ describe('persona runtime database main-chat E2E', () => {
     const modelPath = join(root, 'base.gguf')
     const artifactPath = join(root, 'persona.gguf')
     const processStatePath = join(root, 'persona-runtime-process.json')
+    const port = await findAvailablePersonaRuntimePort('127.0.0.1')
     await writeFile(modelPath, 'base-model')
     await writeFile(artifactPath, 'persona-adapter')
     const executable = await createFakeLlamaServerExecutable(root)
@@ -232,7 +234,7 @@ describe('persona runtime database main-chat E2E', () => {
       executable,
       modelPath,
       host: '127.0.0.1',
-      port: 18_292,
+      port,
       modelAlias: 'alice-persona',
       startupTimeoutMs: 5_000,
     }

@@ -15,9 +15,9 @@ import { basename, dirname, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { platform as processPlatform } from 'node:process'
 
-import sqlite from 'sqlite3'
-
 import { errorMessageFrom } from '@moeru/std'
+
+import sqlite from './sqlite3-runtime'
 
 import { hashLongTermMemoryEmbeddingText } from './long-term-memory-embedding-text'
 import { createPersistentLongTermMemoryVectorStore } from './long-term-memory-persistent-vector-store'

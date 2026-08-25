@@ -171,6 +171,37 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def build_artifact_manifest(
+    manifest: dict[str, object],
+    args: argparse.Namespace,
+    artifact_path: Path,
+) -> dict[str, object]:
+    artifact_id = f"mlx-lora-{manifest.get('runId', 'run')}"
+    return {
+        "schemaVersion": "alicization-persona-training-artifact-v1",
+        "artifactId": artifact_id,
+        "runId": manifest.get("runId"),
+        "kind": "lora-adapter",
+        "path": "adapter/adapters.safetensors",
+        "sha256": sha256_file(artifact_path),
+        "baseModel": args.base_model,
+        "trainingReady": True,
+        "dialogueReady": True,
+        "compatibilityReason": (
+            "MLX safetensors adapter is directly consumable by the configured MLX runtime."
+        ),
+        "format": "mlx-safetensors",
+        "producerBackend": "mlx-lm",
+        "loaderTarget": "mlx-runtime",
+        "conversion": {
+            "status": "not-required",
+            "sourceArtifactId": artifact_id,
+            "tool": None,
+            "version": None,
+        },
+    }
+
+
 def run_training(args: argparse.Namespace) -> int:
     if args.backend != "mlx-lm":
         return fail(f"unsupported persona training backend: {args.backend}")
@@ -209,7 +240,8 @@ def run_training(args: argparse.Namespace) -> int:
         command = [
             sys.executable,
             "-m",
-            "mlx_lm.lora",
+            "mlx_lm",
+            "lora",
             "--model",
             str(args.base_model),
             "--train",
@@ -219,7 +251,7 @@ def run_training(args: argparse.Namespace) -> int:
             str(args.iterations),
             "--learning-rate",
             str(args.learning_rate),
-            "--lora-layers",
+            "--num-layers",
             str(args.lora_layers),
             "--batch-size",
             str(args.batch_size),
@@ -245,31 +277,7 @@ def run_training(args: argparse.Namespace) -> int:
         artifact_path = adapter_dir / "adapters.safetensors"
         if not artifact_path.is_file():
             return fail("mlx-lm completed without adapters.safetensors")
-        artifact_id = f"mlx-lora-{manifest.get('runId', 'run')}"
-        artifact_manifest = {
-            "schemaVersion": "alicization-persona-training-artifact-v1",
-            "artifactId": artifact_id,
-            "runId": manifest.get("runId"),
-            "kind": "lora-adapter",
-            "path": "adapter/adapters.safetensors",
-            "sha256": sha256_file(artifact_path),
-            "baseModel": args.base_model,
-            "trainingReady": True,
-            "dialogueReady": False,
-            "compatibilityReason": (
-                "MLX safetensors is a training output and cannot be consumed by "
-                "the llama.cpp GGUF loader without a real conversion step."
-            ),
-            "format": "mlx-safetensors",
-            "producerBackend": "mlx-lm",
-            "loaderTarget": "llama.cpp",
-            "conversion": {
-                "status": "required",
-                "sourceArtifactId": artifact_id,
-                "tool": None,
-                "version": None,
-            },
-        }
+        artifact_manifest = build_artifact_manifest(manifest, args, artifact_path)
         with Path(args.artifact_manifest).open("w", encoding="utf-8") as handle:
             json.dump(artifact_manifest, handle, ensure_ascii=False, indent=2)
         emit({"type": "progress", "progress": 1, "message": "MLX LoRA adapter written"})

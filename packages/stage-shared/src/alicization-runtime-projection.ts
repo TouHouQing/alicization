@@ -77,10 +77,7 @@ export interface AlicizationRuntimeToolProgressFact extends AlicizationRuntimeTo
 
 export interface AlicizationRuntimeToolResultFact extends AlicizationRuntimeToolFactBase {
   type: 'tool-result'
-  phase?: Extract<
-    AlicizationRuntimeToolProjectionPhase,
-    'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'
-  >
+  phase?: AlicizationRuntimeToolProjectionPhase
   result?: unknown
 }
 
@@ -235,15 +232,24 @@ function resolveLegacyToolNameChannel(toolName: unknown): AlicizationExecutionCh
 
 export function resolveAlicizationRuntimeToolResultPhase(
   result: unknown,
-): Extract<
-  AlicizationRuntimeToolProjectionPhase,
-  'completed' | 'failed' | 'dead-lettered' | 'cancelled' | 'timeout'
-> {
+): AlicizationRuntimeToolProjectionPhase {
   const record = readRecord(result)
   const status = normalizeText(record?.status).toLowerCase()
   const finalStatus = normalizeText(record?.finalStatus).toLowerCase()
   const errorCode = normalizeText(record?.errorCode).toLowerCase()
 
+  if (status === 'started')
+    return 'started'
+  if (
+    status === 'accepted'
+    || status === 'queued'
+    || status === 'pending'
+    || status === 'running'
+    || status === 'in-progress'
+    || status === 'in_progress'
+  ) {
+    return 'running'
+  }
   if (
     status === 'cancelled'
     || finalStatus === 'cancelled'

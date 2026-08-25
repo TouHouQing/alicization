@@ -54,6 +54,7 @@ import { tool } from '@xsai/tool'
 import { z } from 'zod'
 
 import {
+  isAlicizationCodingAgentCapabilityQuestion,
   normalizeAlicizationCodingAgentTask,
   validateAlicizationCodingAgentInvocation,
 } from './coding-agent-task-contract'
@@ -130,6 +131,7 @@ export interface BuildMainGatewayToolsOptions {
   toolSurface: 'complete' | 'main-chat'
   toolRegistry: ToolRegistry
   codingAgentDelegation?: AlicizationCodingAgentDelegationAuthority | null
+  userText?: string | null
   browserClickElement?: (input: AlicizationLocalBrowserClickElementInput) => Promise<unknown>
   browserNavigate?: (input: AlicizationLocalBrowserNavigateInput) => Promise<unknown>
   browserOpenUrl?: (input: AlicizationLocalBrowserOpenUrlInput) => Promise<unknown>
@@ -1365,6 +1367,7 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
             dispatchMode: 'background',
             expectedChannel: 'codex',
             threadId: resumedThreadId,
+            onExecutionEvent,
           })
         }
         const resolvedPrompt = sanitizeText(prompt)
@@ -2023,8 +2026,12 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
   })
   const executorRunTools = executorRunToolSpecs.map(spec => wrapExecutorToolSpec(spec))
   const codingAgentRunTool = wrapExecutorToolSpec(codingAgentFacadeSpec)
+  const codingAgentCapabilityQuestion = isAlicizationCodingAgentCapabilityQuestion(options.userText)
   const codingAgentDelegationAllowed = options.toolSurface !== 'main-chat'
-    || Boolean(options.codingAgentDelegation?.allowed)
+    || (
+      !codingAgentCapabilityQuestion
+      && Boolean(options.codingAgentDelegation?.allowed)
+    )
   const codingAgentFacadeCapabilityAvailable = Boolean(
     toolRegistry.resolveActive('coding_agent'),
   )
@@ -2036,7 +2043,10 @@ export async function buildMainGatewayTools(options: BuildMainGatewayToolsOption
       && mainChatCodingAgentNames.some(agent => agent !== 'cli')
     )
   const mainChatCliExecutorAllowed = options.toolSurface !== 'main-chat'
-    || !codingAgentDelegationAllowed
+    || (
+      !codingAgentCapabilityQuestion
+      && !codingAgentDelegationAllowed
+    )
     || (
       options.codingAgentDelegation?.allowCommand === true
       && mainChatCodingAgentNames.includes('cli')

@@ -3,6 +3,7 @@ import type {
   AlicizationChatFailureKind,
   AlicizationChatFailureSurface,
   AlicizationChatMemoryFailureSurface,
+  AlicizationChatTimeoutDescriptor,
   AlicizationProviderToolCapabilityObservation,
   AlicizationToolExecutionFailureContext,
   AlicizationVisibleArtifactLearningPolicy,
@@ -585,19 +586,184 @@ function resolveAbortReason(error: unknown, stale: boolean): AlicizationAbortRea
 
 type StreamFailureKind = AlicizationChatFailureKind
 
+const streamFailureKinds = new Set<AlicizationChatFailureKind>([
+  'internal-leak',
+  'realtime-unavailable',
+  'structured-contract',
+  'provider-output-invalid',
+  'provider-continuation-timeout',
+  'provider-continuation-incomplete',
+  'provider-request',
+  'stream-failure',
+  'timeout',
+  'local-runtime-unavailable',
+  'provider-auth',
+  'provider-network',
+  'provider-config',
+  'provider-schema-unsupported',
+  'recall-failure',
+  'memory-persistence',
+  'model-tools-unsupported',
+  'tool-execution',
+  'runtime-aborted',
+  'unknown',
+])
+
+function extractTransportedFailureSurfaceFromError(
+  error: unknown,
+): AlicizationChatFailureSurface | null {
+  const errorRecord = isRecordPayload(error) ? error : null
+  const candidate = isRecordPayload(errorRecord?.failureSurface)
+    ? errorRecord.failureSurface
+    : null
+  const kind = typeof candidate?.kind === 'string'
+    && streamFailureKinds.has(candidate.kind as AlicizationChatFailureKind)
+    ? candidate.kind as AlicizationChatFailureKind
+    : null
+  if (
+    !candidate
+    || !kind
+    || typeof candidate.reply !== 'string'
+    || !candidate.reply.trim()
+    || candidate.origin !== 'failure-surface'
+    || candidate.allowLongTermCondensation !== false
+    || candidate.allowPersonaLearning !== false
+    || candidate.allowTraining !== false
+    || candidate.nonHumanAuthoredStatus !== `direct-infra-repair:${kind}`
+    || candidate.visibleReplySource !== 'infrastructure-failure'
+    || candidate.excludeFromPersonaLearning !== true
+    || candidate.excludeFromMemoryCondensation !== true
+    || candidate.auditCategory !== 'alicization.chat-failure'
+  ) {
+    return null
+  }
+
+  return candidate as unknown as AlicizationChatFailureSurface
+}
+
+type RendererTimeoutPhase = NonNullable<AlicizationChatFailureSurface['timeout']>['timeoutPhase']
+type RendererTimeoutStage = NonNullable<AlicizationChatFailureSurface['timeout']>['timeoutStage']
+type RendererTimeoutDiagnostic = NonNullable<AlicizationChatFailureSurface['timeout']>
+
 function buildTimeoutDiagnosticFailure(error: unknown, userText?: string, providerContext?: {
   providerId?: string
   model?: string
 }) {
-  void error
+  const record = isRecordPayload(error) ? error : null
+  const rawDescriptor = isRecordPayload(record?.timeoutDescriptor)
+    ? record.timeoutDescriptor
+    : null
+  const timeoutDescriptor = rawDescriptor
+    && (rawDescriptor.origin === 'renderer-watchdog'
+      || rawDescriptor.origin === 'main-watchdog')
+    && (rawDescriptor.timeoutPhase === 'first-event-timeout'
+      || rawDescriptor.timeoutPhase === 'liveness-timeout'
+      || rawDescriptor.timeoutPhase === 'idle-timeout')
+    && (rawDescriptor.timeoutStage === 'provider'
+      || rawDescriptor.timeoutStage === 'tool-execution'
+      || rawDescriptor.timeoutStage === 'provider-continuation')
+    && typeof rawDescriptor.timeoutMs === 'number'
+    && typeof rawDescriptor.elapsedMs === 'number'
+    && (typeof rawDescriptor.lastEventType === 'string' || rawDescriptor.lastEventType === null)
+    && typeof rawDescriptor.sawAnyEvent === 'boolean'
+    && typeof rawDescriptor.sawProgress === 'boolean'
+    ? rawDescriptor as unknown as AlicizationChatTimeoutDescriptor
+    : null
+  const timeoutPhase = typeof timeoutDescriptor?.timeoutPhase === 'string'
+    ? timeoutDescriptor.timeoutPhase
+    : typeof record?.timeoutPhase === 'string'
+      ? record.timeoutPhase
+      : typeof record?.phase === 'string'
+        ? record.phase
+        : ''
+  const timeoutStage = typeof timeoutDescriptor?.timeoutStage === 'string'
+    ? timeoutDescriptor.timeoutStage
+    : typeof record?.timeoutStage === 'string'
+      ? record.timeoutStage
+      : ''
+  const message = String(error instanceof Error ? error.message : error ?? '').toLowerCase()
+  let phase: 'preparation' | 'provider-first-event' | 'provider-continuation' | 'tool-result-handoff'
+  if (timeoutStage === 'provider-continuation') {
+    phase = 'provider-continuation'
+  }
+  else if (timeoutStage === 'tool-execution') {
+    phase = 'tool-result-handoff'
+  }
+  else if (timeoutPhase === 'preparation') {
+    phase = 'preparation'
+  }
+  else if (timeoutStage === 'provider' && timeoutPhase === 'first-event-timeout') {
+    phase = 'provider-first-event'
+  }
+  else if (
+    timeoutPhase === 'liveness-timeout'
+    || timeoutPhase === 'idle-timeout'
+  ) {
+    phase = timeoutStage === 'tool-execution'
+      ? 'tool-result-handoff'
+      : 'provider-continuation'
+  }
+  else if (
+    timeoutPhase === 'provider-continuation'
+    || timeoutPhase === 'continuation'
+    || message.includes('provider-continuation')
+  ) {
+    phase = 'provider-continuation'
+  }
+  else if (
+    timeoutPhase === 'tool-result-handoff'
+    || timeoutPhase === 'tool-result'
+    || message.includes('tool-result-handoff')
+  ) {
+    phase = 'tool-result-handoff'
+  }
+  else {
+    phase = 'provider-first-event'
+  }
+  const timeout = {
+    providerId: providerContext?.providerId?.trim() || 'unknown-provider',
+    model: providerContext?.model?.trim() || 'unknown-model',
+    phase,
+    ...(timeoutPhase === 'first-event-timeout'
+      || timeoutPhase === 'liveness-timeout'
+      || timeoutPhase === 'idle-timeout'
+      ? { timeoutPhase: timeoutPhase as Exclude<RendererTimeoutPhase, undefined> }
+      : {}),
+    ...(timeoutStage === 'provider'
+      || timeoutStage === 'tool-execution'
+      || timeoutStage === 'provider-continuation'
+      ? { timeoutStage: timeoutStage as Exclude<RendererTimeoutStage, undefined> }
+      : {}),
+    ...(typeof record?.timeoutReason === 'string'
+      ? { timeoutReason: record.timeoutReason }
+      : timeoutDescriptor
+        ? {
+            timeoutReason: timeoutDescriptor.timeoutPhase === 'liveness-timeout'
+              ? 'chat-provider-liveness-timeout'
+              : timeoutDescriptor.timeoutPhase === 'idle-timeout'
+                ? timeoutDescriptor.timeoutStage === 'tool-execution'
+                  ? 'chat-tool-result-handoff-timeout'
+                  : timeoutDescriptor.timeoutStage === 'provider-continuation'
+                    ? 'chat-provider-continuation-timeout'
+                    : 'chat-provider-idle-timeout'
+                : 'chat-first-event-timeout',
+          }
+        : {}),
+    ...(timeoutDescriptor
+      ? {
+          timeoutMs: timeoutDescriptor.timeoutMs,
+          elapsedMs: timeoutDescriptor.elapsedMs,
+          lastEventType: timeoutDescriptor.lastEventType,
+          sawAnyEvent: timeoutDescriptor.sawAnyEvent,
+          sawProgress: timeoutDescriptor.sawProgress,
+          descriptor: timeoutDescriptor,
+        }
+      : {}),
+  } satisfies RendererTimeoutDiagnostic
   return resolveAlicizationChatFailureSurface({
     kind: 'timeout',
     userText,
-    timeout: {
-      providerId: providerContext?.providerId?.trim() || 'unknown-provider',
-      model: providerContext?.model?.trim() || 'unknown-model',
-      phase: 'provider-first-event',
-    },
+    timeout,
   })
 }
 
@@ -609,6 +775,14 @@ function resolveStreamFailureFallback(error: unknown, userText?: string, provide
   kind: StreamFailureKind
   failureSurface?: AlicizationChatFailureSurface
 } {
+  const transportedFailureSurface = extractTransportedFailureSurfaceFromError(error)
+  if (transportedFailureSurface) {
+    return {
+      reply: transportedFailureSurface.reply,
+      kind: transportedFailureSurface.kind,
+      failureSurface: transportedFailureSurface,
+    }
+  }
   const errorCode = typeof error === 'object' && error && 'code' in error
     ? String((error as { code?: unknown }).code ?? '').toLowerCase()
     : ''
@@ -676,6 +850,40 @@ function resolveStreamFailureFallback(error: unknown, userText?: string, provide
     return {
       reply: assistantLocalRuntimeUnavailableFallbackReply(userText),
       kind: 'local-runtime-unavailable',
+    }
+  }
+  const providerRequest = extractAlicizationProviderRequestFailure(error)
+  const providerRequestCode = providerRequest?.code?.toLowerCase() ?? ''
+  const isProviderAuthFailure = providerRequest?.status === 401
+    || providerRequest?.status === 403
+    || /auth|unauthor|forbidden|permission|api[_ -]?key/iu.test(providerRequestCode)
+    || message.includes('401')
+    || message.includes('403')
+    || message.includes('unauthorized')
+    || message.includes('forbidden')
+    || message.includes('authentication')
+    || message.includes('api key')
+    || message.includes('invalid key')
+  if (isProviderAuthFailure) {
+    return {
+      reply: assistantProviderAuthFallbackReply(userText),
+      kind: 'provider-auth',
+    }
+  }
+  if (providerRequest) {
+    const failureSurface = resolveAlicizationChatFailureSurface({
+      kind: 'provider-request',
+      userText,
+      providerRequest: {
+        ...providerRequest,
+        providerId: providerContext?.providerId?.trim() || 'unknown-provider',
+        model: providerContext?.model?.trim() || 'unknown-model',
+      },
+    })
+    return {
+      reply: failureSurface.reply,
+      kind: 'provider-request',
+      failureSurface,
     }
   }
   const toolExecution = extractAlicizationToolExecutionFailure(error)
@@ -747,37 +955,6 @@ function resolveStreamFailureFallback(error: unknown, userText?: string, provide
     }
   }
   if (
-    message.includes('401')
-    || message.includes('403')
-    || message.includes('unauthorized')
-    || message.includes('forbidden')
-    || message.includes('authentication')
-    || message.includes('api key')
-    || message.includes('invalid key')
-  ) {
-    return {
-      reply: assistantProviderAuthFallbackReply(userText),
-      kind: 'provider-auth',
-    }
-  }
-  const providerRequest = extractAlicizationProviderRequestFailure(error)
-  if (providerRequest) {
-    const failureSurface = resolveAlicizationChatFailureSurface({
-      kind: 'provider-request',
-      userText,
-      providerRequest: {
-        ...providerRequest,
-        providerId: providerContext?.providerId?.trim() || 'unknown-provider',
-        model: providerContext?.model?.trim() || 'unknown-model',
-      },
-    })
-    return {
-      reply: failureSurface.reply,
-      kind: 'provider-request',
-      failureSurface,
-    }
-  }
-  if (
     errorCode.includes('alicization-stream-start-rejected')
     || message.includes('state=start-failed')
     || message.includes('stream start rejected')
@@ -814,13 +991,28 @@ function shouldRetryStreamWithoutTools(error: unknown, options: {
 
   const message = String(error instanceof Error ? error.message : error ?? '').toLowerCase()
   const providerRequest = extractAlicizationProviderRequestFailure(error)
+  const toolCompatibilityMessage = [
+    message,
+    providerRequest?.code ?? '',
+    providerRequest?.message ?? '',
+  ].join(' ')
+  const isToolSchemaValidationFailure
+    = /\b(?:tool|function)\s+schema\b.{0,120}\b(?:invalid|malformed|keyword|additionalproperties|property|validation|not\s+supported|unsupported|incompatible)\b/iu.test(
+      toolCompatibilityMessage,
+    )
+    || /\b(?:additionalproperties|\$defs|definitions|oneof|anyof|allof|unevaluatedproperties|patternproperties)\b/iu.test(
+      toolCompatibilityMessage,
+    )
+  const hasToolCompatibilityEvidence = /no endpoints found that support tool use/iu.test(toolCompatibilityMessage)
+    || (
+      /\b(?:tool[_ -]?choice|tools?|functions?|function calling|tool use)\b/iu.test(toolCompatibilityMessage)
+      && /\b(?:not supported|unsupported|incompatible|cannot|can't|unable|unknown parameter|unrecognized parameter)\b/iu.test(toolCompatibilityMessage)
+    )
+  if (isToolSchemaValidationFailure)
+    return false
   if (
     providerRequest?.status === 400
-    && (
-      providerRequest.code === 'invalid_request_error'
-      || message.includes('upstream request failed')
-      || message.includes('invalid_request_error')
-    )
+    && hasToolCompatibilityEvidence
   ) {
     return true
   }
@@ -828,7 +1020,8 @@ function shouldRetryStreamWithoutTools(error: unknown, options: {
     || message.includes('no endpoints found that support tool use')
     || message.includes('function calling is not supported')
     || message.includes('tool use is not supported')
-    || message.includes('unsupported tool')
+    || message.includes('tools are not supported')
+    || message.includes('tool calling is not supported')
 }
 
 function isStreamTimeoutError(error: unknown) {
@@ -1852,7 +2045,7 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
               timeoutMs: number
               sawAnyEvent: boolean
               sawProgress: boolean
-            }) => void
+            }) => AlicizationChatTimeoutDescriptor | void
           },
         ) => {
           let timer: ReturnType<typeof setTimeout> | undefined
@@ -1877,14 +2070,23 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
             timer = setTimeout(() => {
               if (settled)
                 return
-              options.onTimeout?.({
+              const timeoutDescriptor = options.onTimeout?.({
                 phase,
                 stage,
                 timeoutMs,
                 sawAnyEvent,
                 sawProgress,
               })
-              reject(new Error(`Alicization stream timed out after ${timeoutMs}ms (${phase}).`))
+              reject(Object.assign(
+                new Error(`Alicization stream timed out after ${timeoutMs}ms (${phase}).`),
+                {
+                  errorCode: 'ALICIZATION_RENDERER_STREAM_TIMEOUT',
+                  timeoutOrigin: 'renderer-watchdog',
+                  timeoutPhase: phase,
+                  timeoutStage: stage,
+                  ...(timeoutDescriptor ? { timeoutDescriptor } : {}),
+                },
+              ))
             }, timeoutMs)
           }
 
@@ -2104,9 +2306,28 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                   livenessTimeoutMs: timeoutOptions.livenessTimeoutMs,
                   idleTimeoutMs: timeoutOptions.idleTimeoutMs,
                   onTimeout: ({ phase, stage, timeoutMs, sawAnyEvent: watchdogSawAnyEvent, sawProgress: watchdogSawProgress }) => {
+                    const timeoutDescriptor: AlicizationChatTimeoutDescriptor = {
+                      origin: 'renderer-watchdog',
+                      timeoutPhase: phase,
+                      timeoutStage: stage,
+                      timeoutMs,
+                      elapsedMs: Date.now() - startedAt,
+                      lastEventType: lastEventType || null,
+                      sawAnyEvent: watchdogSawAnyEvent,
+                      sawProgress: watchdogSawProgress,
+                    }
                     if (!streamAbortController.signal.aborted) {
                       streamAbortController.abort(
-                        new DOMException('Renderer stream watchdog timed out', 'AbortError'),
+                        Object.assign(
+                          new DOMException('Renderer stream watchdog timed out', 'AbortError'),
+                          {
+                            errorCode: 'ALICIZATION_RENDERER_STREAM_TIMEOUT',
+                            timeoutOrigin: 'renderer-watchdog',
+                            timeoutPhase: phase,
+                            timeoutStage: stage,
+                            timeoutDescriptor,
+                          },
+                        ),
                       )
                     }
                     void appendAlicizationAuditLog({
@@ -2137,7 +2358,9 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                     void bridge?.chatAbort?.({
                       turnId: bridgeAttemptTurnId,
                       reason: 'stream-timeout',
+                      timeout: timeoutDescriptor,
                     }).catch(() => {})
+                    return timeoutDescriptor
                   },
                 })
               }
@@ -2821,11 +3044,31 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                     break
                   const toolCallId = projection.toolCallId
                   const toolName = projection.toolName
+                  const terminalProjectionFailure = projection.terminal
+                    && (
+                      projection.phase === 'failed'
+                      || projection.phase === 'dead-lettered'
+                      || projection.phase === 'timeout'
+                    )
+                  const toolFailurePayload = isAlicizationToolExecutionFailureResult(event.result)
+                    ? event.result
+                    : terminalProjectionFailure
+                      ? {
+                          status: 'failed',
+                          finalStatus: projection.phase,
+                          continuationPolicy: 'stop',
+                          failureKind: 'tool-execution',
+                          toolName,
+                          errorCode: projection.errorCode ?? undefined,
+                          errorMessage: projection.errorMessage
+                            ?? `${toolName} execution ended with ${projection.phase}.`,
+                        }
+                      : null
                   if (
-                    isAlicizationToolExecutionFailureResult(event.result)
+                    toolFailurePayload
                     && !turnToolEvidence.toolExecutionFailure
                   ) {
-                    const toolExecution = extractAlicizationToolExecutionFailure(event.result, toolName)
+                    const toolExecution = extractAlicizationToolExecutionFailure(toolFailurePayload, toolName)
                     if (toolExecution) {
                       turnToolEvidence.toolExecutionFailure = toolExecution
                       stageTransportFailureSurface(resolveAlicizationChatFailureSurface({
@@ -2875,6 +3118,36 @@ export const useChatOrchestratorStore = defineStore('chat-orchestrator', () => {
                     })
                     if (!projection)
                       break
+                    if (
+                      projection.terminal
+                      && (
+                        projection.phase === 'failed'
+                        || projection.phase === 'dead-lettered'
+                        || projection.phase === 'timeout'
+                      )
+                      && !turnToolEvidence.toolExecutionFailure
+                    ) {
+                      const toolExecution = extractAlicizationToolExecutionFailure({
+                        status: 'failed',
+                        finalStatus: projection.phase,
+                        continuationPolicy: 'stop',
+                        failureKind: 'tool-execution',
+                        toolName: projection.toolName,
+                        errorCode: event.errorCode ?? projection.errorCode ?? undefined,
+                        errorMessage: event.errorMessage
+                          ?? projection.errorMessage
+                          ?? event.summary
+                          ?? `${projection.toolName} execution ended with ${projection.phase}.`,
+                      }, projection.toolName)
+                      if (toolExecution) {
+                        turnToolEvidence.toolExecutionFailure = toolExecution
+                        stageTransportFailureSurface(resolveAlicizationChatFailureSurface({
+                          kind: 'tool-execution',
+                          userText: sendingMessage,
+                          toolExecution,
+                        }))
+                      }
+                    }
                     if (isChatExecutionProjectionToolName(projection.toolName))
                       toolCallQueue.enqueue(buildChatExecutionStatusFromProjection(projection))
                   }
