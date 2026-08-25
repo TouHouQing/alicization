@@ -3,6 +3,7 @@ import type { BrowserWindow } from 'electron'
 export const transparentWindowBackgroundColor = '#00000000'
 
 export interface StageAppVisibilityController {
+  focus: (options: { steal: boolean }) => void
   show: () => void
 }
 
@@ -30,6 +31,7 @@ export function ensureStageWindowVisible(
   app: StageAppVisibilityController,
 ) {
   app.show()
+  app.focus({ steal: true })
   if (!window.isVisible())
     window.show()
   window.moveTop()

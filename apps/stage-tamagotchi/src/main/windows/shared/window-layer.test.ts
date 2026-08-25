@@ -66,6 +66,7 @@ describe('ensureStageWindowVisible', () => {
   it('shows a hidden stage window after restoring app visibility', () => {
     const app = {
       show: vi.fn(),
+      focus: vi.fn(),
     }
     const window = {
       focus: vi.fn(),
@@ -77,6 +78,7 @@ describe('ensureStageWindowVisible', () => {
     ensureStageWindowVisible(window, app)
 
     expect(app.show).toHaveBeenCalledOnce()
+    expect(app.focus).toHaveBeenCalledWith({ steal: true })
     expect(window.show).toHaveBeenCalledOnce()
     expect(window.moveTop).toHaveBeenCalledOnce()
     expect(window.focus).toHaveBeenCalledOnce()
@@ -85,6 +87,7 @@ describe('ensureStageWindowVisible', () => {
   it('does not show an already visible stage window a second time', () => {
     const app = {
       show: vi.fn(),
+      focus: vi.fn(),
     }
     const window = {
       focus: vi.fn(),
@@ -96,6 +99,7 @@ describe('ensureStageWindowVisible', () => {
     ensureStageWindowVisible(window, app)
 
     expect(app.show).toHaveBeenCalledOnce()
+    expect(app.focus).toHaveBeenCalledWith({ steal: true })
     expect(window.show).not.toHaveBeenCalled()
     expect(window.moveTop).toHaveBeenCalledOnce()
     expect(window.focus).toHaveBeenCalledOnce()
